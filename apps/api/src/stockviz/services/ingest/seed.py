@@ -17,11 +17,12 @@ from stockviz.models import Symbol
 
 logger = logging.getLogger(__name__)
 
-_REPO_ROOT = Path(__file__).resolve().parents[6]
-"""parents[6] = repo root. Path: apps/api/src/stockviz/services/ingest/seed.py
-              [5]    [4]  [3]      [2]      [1]    [0]"""
+# Path: apps/api/src/stockviz/services/ingest/seed.py
+#          [4]  [3]      [2]      [1]    [0]
+# parents[4] = apps/api/ — seed data lives alongside the api app.
+_API_ROOT = Path(__file__).resolve().parents[4]
 
-DEFAULT_COMPANIES_PATH = _REPO_ROOT / "companies.json"
+DEFAULT_COMPANIES_PATH = _API_ROOT / "seed-data" / "companies.json"
 
 
 def seed_symbols(session: Session, *, path: Path | None = None) -> int:

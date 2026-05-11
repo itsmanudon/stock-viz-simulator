@@ -28,13 +28,19 @@ original (you probably won't), `git fetch upstream` first, then cherry-pick.
 
 Three long-lived branches:
 
-- **`main`** — frozen at v1.0.0 (legacy static site) until Phase 7 cutover. **Do not push to `main`** until the v2 cutover commit is ready.
-- **`migration`** — integration branch where each v2 phase lands. Tested, deployable; this is the branch Render + Vercel pull from.
-- **`v2`** — active feature branch. Phase-by-phase work happens here.
+- **`main`** — default branch, what Vercel + Render deploy from. Holds the
+  shipped v2 codebase. Tagged `v2.0.0` at the moment v1 and v2 coexisted; the
+  next commit deleted the v1 tree. Tag `v1.0.0` points at pre-rewrite v1.
+- **`migration`** — integration branch where each v2 phase lands. Fast-forwarded
+  into `main` once Phase 7 shipped.
+- **`v2`** — active feature branch. Phase-by-phase work continues here.
 
 Cycle: develop on `v2` → commit phase → checkout `migration` → `git merge v2 --no-ff` →
 back to `v2` for the next phase. Use `--no-ff` so each phase reads as a single commit
 on `migration`. See `memory/project_branching_workflow.md`.
+
+To recover the legacy v1 source: `git checkout v2.0.0` (state where both
+codebases coexisted) or `git checkout v1.0.0` (v1-only).
 
 ## Common gotchas (Windows dev)
 

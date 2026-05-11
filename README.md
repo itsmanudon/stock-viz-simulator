@@ -2,10 +2,10 @@
 
 Live market data, technical indicators, news, and a paper-trading simulator.
 
-The v2 rewrite (this branch / `migration`) is a Next.js + FastAPI + Postgres stack
-that replaced the original static-HTML site. The legacy site is tagged
-[`v1.0.0`](../../tree/v1.0.0). The full rewrite plan lives in
-[`REWRITE_PLAN.md`](./REWRITE_PLAN.md).
+A Next.js + FastAPI + Postgres rewrite of the original static-HTML site.
+Tag [`v1.0.0`](../../tree/v1.0.0) points at the legacy v1 source;
+[`v2.0.0`](../../tree/v2.0.0) marks the cutover commit where both codebases
+coexisted. The full rewrite plan lives in [`REWRITE_PLAN.md`](./REWRITE_PLAN.md).
 
 ## What it does
 
