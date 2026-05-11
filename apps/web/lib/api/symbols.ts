@@ -1,5 +1,5 @@
 import { apiGet } from "./client";
-import type { Symbol, SymbolDetail } from "./types";
+import type { SymbolDetail, Symbol as SymbolRow } from "./types";
 
 export type ListSymbolsParams = {
   sector?: string;
@@ -7,13 +7,13 @@ export type ListSymbolsParams = {
   activeOnly?: boolean;
 };
 
-export function listSymbols(params: ListSymbolsParams = {}): Promise<Symbol[]> {
+export function listSymbols(params: ListSymbolsParams = {}): Promise<SymbolRow[]> {
   const q = new URLSearchParams();
   if (params.sector) q.set("sector", params.sector);
   if (params.exchange) q.set("exchange", params.exchange);
   if (params.activeOnly === false) q.set("active_only", "false");
   const qs = q.toString();
-  return apiGet<Symbol[]>(`/v1/symbols${qs ? `?${qs}` : ""}`);
+  return apiGet<SymbolRow[]>(`/v1/symbols${qs ? `?${qs}` : ""}`);
 }
 
 export function getSymbol(ticker: string): Promise<SymbolDetail> {

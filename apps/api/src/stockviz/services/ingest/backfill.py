@@ -1,7 +1,7 @@
 """One-time backfill of ``price_bars`` from the v1 CSVs.
 
-The CSVs in ``website/stock-data-csv-files/`` were produced by the old
-``StockProcessing/data_processor.py`` and have the canonical OHLCV shape
+The CSVs in ``apps/api/seed-data/stock-data-csv-files/`` were produced by
+the legacy v1 processor and have the canonical OHLCV shape
 (``Date,Open,High,Low,Close,Volume``). We re-use them so the new DB starts
 with ~18 years of history per symbol without burning Alpha Vantage quota.
 """
@@ -25,8 +25,8 @@ from stockviz.services.ingest.prices import (
 
 logger = logging.getLogger(__name__)
 
-_REPO_ROOT = Path(__file__).resolve().parents[6]
-DEFAULT_CSV_DIR = _REPO_ROOT / "website" / "stock-data-csv-files"
+_API_ROOT = Path(__file__).resolve().parents[4]
+DEFAULT_CSV_DIR = _API_ROOT / "seed-data" / "stock-data-csv-files"
 
 
 def _parse_csv(path: Path, ticker: str) -> list[BarRecord]:

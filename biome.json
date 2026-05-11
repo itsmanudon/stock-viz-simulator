@@ -11,12 +11,7 @@
       "**/node_modules",
       "**/.next",
       "**/dist",
-      "**/build",
-      "website/**",
-      "API/**",
-      "StockProcessing/**",
-      "scripts/**",
-      "*.html"
+      "**/build"
     ]
   },
   "formatter": {

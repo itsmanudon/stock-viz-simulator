@@ -1,14 +1,3 @@
-# Legacy v1 ignores (kept for backwards compatibility with main branch)
-/API/.env
-*.pyc
-*vs*
-*Debug*
-*.dSYM*
-*.exe
-*.pdb
-*.obj
-*.ilk
-
 # Python
 __pycache__/
 *.py[cod]
