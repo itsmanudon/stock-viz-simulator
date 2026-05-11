@@ -63,3 +63,28 @@ class SymbolDetailOut(BaseModel):
     exchange: str | None = None
     is_active: bool
     latest: QuoteOut | None = None
+
+
+class IndicatorPointOut(BaseModel):
+    ts: datetime
+    value: float
+
+
+class MACDPointOut(BaseModel):
+    ts: datetime
+    macd: float
+    signal: float
+    histogram: float
+
+
+class IndicatorsOut(BaseModel):
+    """Indicator bundle keyed by indicator name.
+
+    Scalar indicators (SMA/EMA/RSI) come back under ``series``; MACD has
+    three aligned series so it gets its own field. The web app picks what
+    to draw based on the names list it asked for.
+    """
+
+    ticker: str
+    series: dict[str, list[IndicatorPointOut]] = {}
+    macd: list[MACDPointOut] | None = None
