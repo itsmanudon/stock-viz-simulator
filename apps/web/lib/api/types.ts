@@ -53,3 +53,21 @@ export type NewsArticle = {
   summary: string | null;
   image_url: string | null;
 };
+
+export type IndicatorPoint = {
+  ts: string;
+  value: number;
+};
+
+export type MACDPoint = {
+  ts: string;
+  macd: number;
+  signal: number;
+  histogram: number;
+};
+
+export type Indicators = {
+  ticker: string;
+  series: Record<string, IndicatorPoint[]>;
+  macd: MACDPoint[] | null;
+};
