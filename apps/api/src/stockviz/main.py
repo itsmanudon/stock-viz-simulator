@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from stockviz import __version__
-from stockviz.routers import bars, health, news, quotes, symbols
+from stockviz.routers import bars, health, indicators, news, quotes, symbols
 from stockviz.scheduler import build_scheduler
 from stockviz.settings import get_settings
 
@@ -57,6 +57,7 @@ def create_app() -> FastAPI:
     app.include_router(bars.router)
     app.include_router(news.router)
     app.include_router(quotes.router)
+    app.include_router(indicators.router)
 
     return app
 
