@@ -5,6 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from stockviz import __version__
+from stockviz.observability import init_sentry
 from stockviz.routers import (
     bars,
     health,
@@ -45,6 +46,7 @@ async def lifespan(app: FastAPI):
 
 def create_app() -> FastAPI:
     settings = get_settings()
+    init_sentry(settings)
 
     app = FastAPI(
         title="StockViz API",

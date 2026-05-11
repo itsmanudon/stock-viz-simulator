@@ -34,6 +34,10 @@ class Settings(BaseSettings):
     # token + ``X-User-Id`` header pair is a server-to-server trust bridge.
     internal_api_token: str = "dev-internal-token-change-me"
 
+    # Sentry — leave empty to disable (dev/CI default).
+    sentry_dsn: str = ""
+    sentry_traces_sample_rate: float = 0.1
+
 
 @lru_cache
 def get_settings() -> Settings:
