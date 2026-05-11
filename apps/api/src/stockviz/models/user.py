@@ -21,4 +21,8 @@ class User(SQLModel, table=True):
     email: str = Field(unique=True, index=True, max_length=320)
     name: str | None = None
     image: str | None = Field(default=None, max_length=1024)
+    # Bcrypt hash for credentials-provider auth. NULL means the account was
+    # created via OAuth (Phase 3 has credentials only, so right now NULL only
+    # happens for rows seeded outside of signup).
+    password_hash: str | None = Field(default=None, max_length=255)
     created_at: datetime = Field(default_factory=utcnow, nullable=False)
