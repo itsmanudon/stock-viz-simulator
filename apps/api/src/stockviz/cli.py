@@ -21,6 +21,7 @@ from stockviz.services.ingest.backfill import (
     backfill_price_bars_from_csvs,
     ensure_symbols_for_backfill,
 )
+from stockviz.services.ingest.metadata import backfill_symbol_metadata
 from stockviz.services.ingest.prices import ingest_ticker
 from stockviz.services.ingest.seed import seed_symbols
 from stockviz.settings import get_settings
@@ -43,6 +44,18 @@ def _cmd_backfill(_args: argparse.Namespace) -> int:
     print(f"backfilled {total} bars across {len(written)} tickers")
     for ticker, n in sorted(written.items()):
         print(f"  {ticker}: {n}")
+    return 0
+
+
+def _cmd_metadata(args: argparse.Namespace) -> int:
+    with Session(engine) as session:
+        statuses = backfill_symbol_metadata(session, only=args.tickers or None)
+    counts: dict[str, int] = {}
+    for status in statuses.values():
+        counts[status] = counts.get(status, 0) + 1
+    print(f"metadata backfilled: {counts}")
+    for ticker, status in sorted(statuses.items()):
+        print(f"  {ticker}: {status}")
     return 0
 
 
@@ -70,6 +83,12 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser(
         "backfill", help="Load v1 CSVs into price_bars (run once after seed)"
     ).set_defaults(fn=_cmd_backfill)
+
+    p_meta = sub.add_parser(
+        "metadata", help="Backfill sector/exchange on existing symbols (yfinance)"
+    )
+    p_meta.add_argument("tickers", nargs="*", help="Optional ticker filter")
+    p_meta.set_defaults(fn=_cmd_metadata)
 
     p_ingest = sub.add_parser("ingest", help="Refresh daily bars for one or more tickers")
     p_ingest.add_argument("tickers", nargs="+")
