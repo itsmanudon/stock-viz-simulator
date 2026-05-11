@@ -1,0 +1,26 @@
+"""SQLModel ORM models for StockViz.
+
+All models are imported here so that ``SQLModel.metadata`` is populated when
+Alembic runs autogenerate. Keep this module side-effect-free apart from the
+imports themselves.
+"""
+
+from stockviz.models.market import NewsArticle, PriceBar, Symbol
+from stockviz.models.portfolio import Portfolio, Position, Trade, TradeSide
+from stockviz.models.recommendation import Recommendation
+from stockviz.models.user import User
+from stockviz.models.watchlist import Watchlist, WatchlistItem
+
+__all__ = [
+    "NewsArticle",
+    "Portfolio",
+    "Position",
+    "PriceBar",
+    "Recommendation",
+    "Symbol",
+    "Trade",
+    "TradeSide",
+    "User",
+    "Watchlist",
+    "WatchlistItem",
+]
