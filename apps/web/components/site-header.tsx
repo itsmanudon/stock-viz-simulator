@@ -5,9 +5,10 @@ import { AccountMenu } from "@/components/account-menu";
 
 const NAV_LINKS = [
   { href: "/markets", label: "Markets" },
-  { href: "/trade", label: "Trade" },
   { href: "/compare", label: "Compare" },
+  { href: "/recommendations", label: "Recommendations" },
   { href: "/news", label: "News" },
+  { href: "/trade", label: "Trade" },
 ];
 
 export function SiteHeader() {
