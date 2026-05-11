@@ -1,0 +1,132 @@
+"""Parser tests for the price ingest layer.
+
+These don't touch the network or the DB — both ``fetch_*`` functions take an
+injectable callable so we can hand them a fixture and inspect the parsed
+``BarRecord`` list.
+"""
+
+from __future__ import annotations
+
+from datetime import date, datetime
+from decimal import Decimal
+
+import pandas as pd
+
+from stockviz.services.ingest.prices import (
+    DAILY_INTERVAL,
+    SOURCE_ALPHA_VANTAGE,
+    SOURCE_YFINANCE,
+    fetch_alpha_vantage_daily,
+    fetch_yfinance_daily,
+)
+
+
+def _yf_fixture_df() -> pd.DataFrame:
+    """A 2-row yfinance-shaped DataFrame indexed by timezone-aware Timestamp."""
+    return pd.DataFrame(
+        {
+            "Open": [180.10, 181.20],
+            "High": [182.50, 183.00],
+            "Low": [179.50, 180.50],
+            "Close": [181.90, 182.40],
+            "Volume": [50_000_000, 48_000_000],
+        },
+        index=pd.DatetimeIndex(
+            [
+                pd.Timestamp("2025-04-10", tz="America/New_York"),
+                pd.Timestamp("2025-04-11", tz="America/New_York"),
+            ]
+        ),
+    )
+
+
+def test_fetch_yfinance_daily_parses_dataframe():
+    bars = fetch_yfinance_daily("AAPL", history_fn=lambda ticker, start: _yf_fixture_df())
+    assert len(bars) == 2
+    first = bars[0]
+    assert first.ticker == "AAPL"
+    assert first.interval == DAILY_INTERVAL
+    assert first.source == SOURCE_YFINANCE
+    assert first.open == Decimal("180.1")
+    assert first.close == Decimal("181.9")
+    assert first.volume == 50_000_000
+    # tz-naive after parsing so the DB column (TIMESTAMP) stays consistent
+    assert first.ts.tzinfo is None
+    assert first.ts.date() == date(2025, 4, 10)
+
+
+def test_fetch_yfinance_daily_returns_empty_for_empty_df():
+    bars = fetch_yfinance_daily("ZZZZ", history_fn=lambda ticker, start: pd.DataFrame())
+    assert bars == []
+
+
+def test_fetch_yfinance_daily_passes_start_through():
+    captured: dict = {}
+
+    def fake_history(ticker: str, start):
+        captured["ticker"] = ticker
+        captured["start"] = start
+        return _yf_fixture_df()
+
+    fetch_yfinance_daily("AAPL", start=date(2025, 1, 1), history_fn=fake_history)
+    assert captured == {"ticker": "AAPL", "start": date(2025, 1, 1)}
+
+
+# ---------------------------------------------------------------------------
+# Alpha Vantage
+# ---------------------------------------------------------------------------
+
+
+ALPHA_VANTAGE_OK = {
+    "Meta Data": {"2. Symbol": "AAPL"},
+    "Time Series (Daily)": {
+        "2025-04-11": {
+            "1. open": "181.20",
+            "2. high": "183.00",
+            "3. low": "180.50",
+            "4. close": "182.40",
+            "5. volume": "48000000",
+        },
+        "2025-04-10": {
+            "1. open": "180.10",
+            "2. high": "182.50",
+            "3. low": "179.50",
+            "4. close": "181.90",
+            "5. volume": "50000000",
+        },
+    },
+}
+
+ALPHA_VANTAGE_RATE_LIMITED = {
+    "Note": "Our standard API call frequency is 25 calls per day...",
+}
+
+
+def test_fetch_alpha_vantage_daily_parses_and_sorts_ascending():
+    bars = fetch_alpha_vantage_daily("AAPL", api_key="k", fetch_fn=lambda t, k, f: ALPHA_VANTAGE_OK)
+    assert len(bars) == 2
+    # sorted ascending so the upsert writes in chronological order
+    assert bars[0].ts == datetime(2025, 4, 10)
+    assert bars[1].ts == datetime(2025, 4, 11)
+    assert bars[0].source == SOURCE_ALPHA_VANTAGE
+    assert bars[0].close == Decimal("181.90")
+
+
+def test_fetch_alpha_vantage_daily_returns_empty_on_rate_limit():
+    bars = fetch_alpha_vantage_daily(
+        "AAPL", api_key="k", fetch_fn=lambda t, k, f: ALPHA_VANTAGE_RATE_LIMITED
+    )
+    assert bars == []
+
+
+def test_fetch_alpha_vantage_daily_returns_empty_without_key():
+    # Crucially does not call ``fetch_fn`` — preserves the daily quota.
+    called = []
+
+    def fake_fetch(*args):
+        called.append(args)
+        return ALPHA_VANTAGE_OK
+
+    bars = fetch_alpha_vantage_daily("AAPL", api_key="", fetch_fn=fake_fetch)
+    assert bars == []
+    assert called == []
