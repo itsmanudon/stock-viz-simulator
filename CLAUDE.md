@@ -14,12 +14,22 @@ infra/       docker-compose (local Postgres) + render.yaml (prod blueprint)
 
 Each app has its own `CLAUDE.md` with deeper notes. Skim those before editing.
 
+## Remotes
+
+- **`origin`** → `https://github.com/itsmanudon/stock-viz-simulator.git` (the
+  active fork; this is where all pushes go).
+- **`upstream`** → `https://github.com/itsmanudon/StockViz.git` (the original
+  copy-from repo; kept for reference only — do **not** push to it).
+
+`git remote -v` should show both. If you ever need to sync something from the
+original (you probably won't), `git fetch upstream` first, then cherry-pick.
+
 ## Branching workflow
 
 Three long-lived branches:
 
-- **`main`** — frozen at v1.0.0 (legacy static site) until Phase 7 ships. **Do not push to `main`.**
-- **`migration`** — integration branch where each v2 phase lands. Tested, deployable.
+- **`main`** — frozen at v1.0.0 (legacy static site) until Phase 7 cutover. **Do not push to `main`** until the v2 cutover commit is ready.
+- **`migration`** — integration branch where each v2 phase lands. Tested, deployable; this is the branch Render + Vercel pull from.
 - **`v2`** — active feature branch. Phase-by-phase work happens here.
 
 Cycle: develop on `v2` → commit phase → checkout `migration` → `git merge v2 --no-ff` →
