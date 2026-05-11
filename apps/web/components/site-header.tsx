@@ -1,6 +1,8 @@
 import { LineChart } from "lucide-react";
 import Link from "next/link";
 
+import { AccountMenu } from "@/components/account-menu";
+
 const NAV_LINKS = [
   { href: "/markets", label: "Markets" },
   { href: "/trade", label: "Trade" },
@@ -30,12 +32,7 @@ export function SiteHeader() {
         </nav>
 
         <div className="flex items-center gap-3">
-          <Link
-            href="/login"
-            className="text-sm text-muted-foreground transition hover:text-foreground"
-          >
-            Sign in
-          </Link>
+          <AccountMenu />
         </div>
       </div>
     </header>
