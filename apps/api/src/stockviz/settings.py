@@ -28,6 +28,12 @@ class Settings(BaseSettings):
     # this on via env.
     enable_scheduler: bool = False
 
+    # Shared secret used by the Next.js server-side API client to identify
+    # itself when calling authenticated /v1 endpoints (paper-trading writes).
+    # Phase 7 will swap this for real NextAuth JWT verification; for now the
+    # token + ``X-User-Id`` header pair is a server-to-server trust bridge.
+    internal_api_token: str = "dev-internal-token-change-me"
+
 
 @lru_cache
 def get_settings() -> Settings:

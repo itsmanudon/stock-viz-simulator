@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from decimal import Decimal
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
@@ -101,3 +102,51 @@ class RecommendationOut(BaseModel):
     score: int
     rationale: list[str]
     computed_at: datetime
+
+
+# ---------------------------------------------------------------------------
+# Paper trading
+# ---------------------------------------------------------------------------
+
+
+class PositionOut(BaseModel):
+    ticker: str
+    name: str
+    quantity: Decimal
+    avg_cost: Decimal
+    last_close: Decimal | None
+    market_value: Decimal
+    unrealized_pl: Decimal
+
+
+class PortfolioOut(BaseModel):
+    """Snapshot of the user's default portfolio used by /portfolio."""
+
+    portfolio_id: int
+    cash_balance: Decimal
+    market_value: Decimal
+    total_value: Decimal
+    total_cost_basis: Decimal
+    unrealized_pl: Decimal
+    positions: list[PositionOut]
+
+
+class TradeIn(BaseModel):
+    """Request body for POST /v1/trades."""
+
+    ticker: str
+    side: Literal["buy", "sell"]
+    quantity: Decimal
+
+
+class TradeOut(BaseModel):
+    """One executed trade — used by both POST response and /trades history."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    ticker: str
+    side: Literal["buy", "sell"]
+    quantity: Decimal
+    price: Decimal
+    ts: datetime
