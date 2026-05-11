@@ -23,6 +23,11 @@ class Settings(BaseSettings):
     alpha_vantage_key: str = ""
     newsdata_key: str = ""
 
+    # APScheduler is off by default so tests, migrations, and ad-hoc CLI runs
+    # don't accidentally trigger external API calls. The deployed server flips
+    # this on via env.
+    enable_scheduler: bool = False
+
 
 @lru_cache
 def get_settings() -> Settings:
