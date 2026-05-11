@@ -26,21 +26,25 @@ original (you probably won't), `git fetch upstream` first, then cherry-pick.
 
 ## Branching workflow
 
-Three long-lived branches:
+- **`main`** — the **default branch** on GitHub and the one Vercel + Render
+  deploy from. New work lands here. Use short-lived feature branches off
+  `main` and merge back with a PR (or commit directly for small fixes).
+- **`migration`** — **deprecated.** Was the integration branch during the v2
+  rewrite (Phase 1-7). Fast-forwarded into `main` once Phase 7 shipped; do
+  **not** push to it any more. Will be left in place for history but not
+  used going forward.
+- **`v2`** — also **deprecated** for the same reason. Don't open new PRs
+  against `v2` or `migration`.
 
-- **`main`** — default branch, what Vercel + Render deploy from. Holds the
-  shipped v2 codebase. Tagged `v2.0.0` at the moment v1 and v2 coexisted; the
-  next commit deleted the v1 tree. Tag `v1.0.0` points at pre-rewrite v1.
-- **`migration`** — integration branch where each v2 phase lands. Fast-forwarded
-  into `main` once Phase 7 shipped.
-- **`v2`** — active feature branch. Phase-by-phase work continues here.
+Tags:
 
-Cycle: develop on `v2` → commit phase → checkout `migration` → `git merge v2 --no-ff` →
-back to `v2` for the next phase. Use `--no-ff` so each phase reads as a single commit
-on `migration`. See `memory/project_branching_workflow.md`.
+- `v1.0.0` — pre-rewrite v1 site (recover the legacy source with `git checkout v1.0.0`).
+- `v2.0.0` — the moment v1 and v2 coexisted, right before the v1 tree was
+  deleted (`git checkout v2.0.0` to see both side-by-side).
 
-To recover the legacy v1 source: `git checkout v2.0.0` (state where both
-codebases coexisted) or `git checkout v1.0.0` (v1-only).
+The phase-by-phase rewrite history is preserved as merge commits in `main`'s
+log; see `REWRITE_PLAN.md` and `memory/project_branching_workflow.md` for
+background.
 
 ## Common gotchas (Windows dev)
 

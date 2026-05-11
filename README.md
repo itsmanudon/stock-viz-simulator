@@ -142,7 +142,9 @@ uv --directory apps/api run pytest
 pnpm build       # production build of the web app
 ```
 
-GitHub Actions runs all of the above on every PR to `main`, `migration`, and `v2`.
+GitHub Actions runs all of the above on every PR to `main` (the default branch).
+The `migration` and `v2` branches are retired remnants of the rewrite — work
+off `main`.
 
 ## Deployment
 
