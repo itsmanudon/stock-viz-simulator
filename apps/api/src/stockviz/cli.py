@@ -24,6 +24,7 @@ from stockviz.services.ingest.backfill import (
 from stockviz.services.ingest.metadata import backfill_symbol_metadata
 from stockviz.services.ingest.prices import ingest_ticker
 from stockviz.services.ingest.seed import seed_symbols
+from stockviz.services.recommend import score_universe
 from stockviz.settings import get_settings
 
 logger = logging.getLogger(__name__)
@@ -56,6 +57,16 @@ def _cmd_metadata(args: argparse.Namespace) -> int:
     print(f"metadata backfilled: {counts}")
     for ticker, status in sorted(statuses.items()):
         print(f"  {ticker}: {status}")
+    return 0
+
+
+def _cmd_recommend(_args: argparse.Namespace) -> int:
+    with Session(engine) as session:
+        results = score_universe(session, persist=True)
+    print(f"scored {len(results)} tickers")
+    for r in sorted(results, key=lambda x: x.score, reverse=True):
+        flag = "BUY" if r.recommend else "    "
+        print(f"  {flag} {r.ticker:6s} score={r.score}/6")
     return 0
 
 
@@ -93,6 +104,10 @@ def main(argv: list[str] | None = None) -> int:
     p_ingest = sub.add_parser("ingest", help="Refresh daily bars for one or more tickers")
     p_ingest.add_argument("tickers", nargs="+")
     p_ingest.set_defaults(fn=_cmd_ingest)
+
+    sub.add_parser(
+        "recommend", help="Recompute recommendations for every active symbol"
+    ).set_defaults(fn=_cmd_recommend)
 
     args = parser.parse_args(argv)
     return args.fn(args)
