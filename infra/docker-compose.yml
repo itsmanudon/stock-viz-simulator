@@ -1,0 +1,39 @@
+name: stockviz-dev
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: stockviz-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: stockviz
+      POSTGRES_PASSWORD: stockviz_dev
+      POSTGRES_DB: stockviz
+    ports:
+      # 5432 is often taken (native install / other projects). Using 5434
+      # to keep the dev DB cleanly isolated.
+      - "5434:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U stockviz -d stockviz"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  adminer:
+    image: adminer:4-standalone
+    container_name: stockviz-adminer
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      ADMINER_DEFAULT_SERVER: postgres
+      ADMINER_DESIGN: dracula
+
+volumes:
+  postgres_data:
+    name: stockviz_postgres_data
