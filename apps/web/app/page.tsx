@@ -1,10 +1,10 @@
-import { getApiHealth } from "@/lib/api";
 import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 
-export default async function HomePage() {
-  const health = await getApiHealth();
+import { TopMovers } from "@/components/top-movers";
+import { Button } from "@/components/ui/button";
 
+export default function HomePage() {
   return (
     <div className="container mx-auto px-6 py-16">
       <section className="mx-auto max-w-3xl text-center">
@@ -16,31 +16,26 @@ export default async function HomePage() {
           who want to learn without risking real money.
         </p>
         <div className="mt-10 flex items-center justify-center gap-4">
-          <Link
-            href="/markets"
-            className="inline-flex items-center gap-2 rounded-md bg-primary px-6 py-3 text-sm font-medium text-primary-foreground transition hover:opacity-90"
-          >
-            Explore Markets
-            <ArrowRight className="h-4 w-4" />
-          </Link>
+          <Button asChild size="lg">
+            <Link href="/markets" className="gap-2">
+              Explore Markets
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+          </Button>
+          <Button asChild size="lg" variant="outline">
+            <Link href="/signup">Create account</Link>
+          </Button>
         </div>
       </section>
 
-      <section className="mx-auto mt-24 max-w-2xl">
-        <div className="rounded-lg border bg-card p-6">
-          <h2 className="text-sm font-medium text-muted-foreground">Backend status</h2>
-          <div className="mt-2 flex items-center gap-3">
-            <span
-              className={`inline-block h-2 w-2 rounded-full ${
-                health.status === "ok" ? "bg-green-500" : "bg-amber-500"
-              }`}
-              aria-hidden
-            />
-            <span className="font-mono text-sm">
-              {health.status} · api v{health.version} · db {health.database}
-            </span>
-          </div>
+      <section className="mx-auto mt-20 max-w-5xl">
+        <div className="mb-4 flex items-baseline justify-between">
+          <h2 className="text-lg font-semibold">Featured tickers</h2>
+          <Link href="/markets" className="text-sm text-muted-foreground hover:text-foreground">
+            See all →
+          </Link>
         </div>
+        <TopMovers />
       </section>
     </div>
   );
