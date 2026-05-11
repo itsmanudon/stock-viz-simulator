@@ -1,10 +1,9 @@
 /**
- * NextAuth v5 configuration.
+ * NextAuth v5 configuration — full Node-runtime version.
  *
- * Phase 3 ships with the credentials provider only — email + bcrypt against
- * the shared Postgres ``users`` table. Sessions are JWT (not DB-backed) so
- * we don't need an adapter; the trade-off is no server-side session
- * invalidation, which is fine while the user base is just us.
+ * The credentials provider's ``authorize`` callback uses bcryptjs (Node
+ * ``crypto``) so this module can't be imported from Edge contexts. Middleware
+ * uses ``auth.config.ts`` instead, which is providers-free.
  *
  * Exports:
  *  - ``auth``        — get the current session in server components / route
@@ -18,6 +17,7 @@ import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import { z } from "zod";
 
+import { authConfig } from "@/auth.config";
 import { findUserByEmail } from "@/lib/users";
 
 const CredentialsSchema = z.object({
@@ -26,10 +26,7 @@ const CredentialsSchema = z.object({
 });
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
-  session: { strategy: "jwt" },
-  pages: {
-    signIn: "/login",
-  },
+  ...authConfig,
   providers: [
     Credentials({
       credentials: {
@@ -55,16 +52,4 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       },
     }),
   ],
-  callbacks: {
-    jwt({ token, user }) {
-      // Stamp the DB user id onto the token at sign-in time so server-side
-      // code can look up portfolios/watchlists without a second round-trip.
-      if (user?.id) token.sub = user.id;
-      return token;
-    },
-    session({ session, token }) {
-      if (token.sub) session.user.id = token.sub;
-      return session;
-    },
-  },
 });
