@@ -1,0 +1,26 @@
+{
+  "name": "stockviz",
+  "version": "2.0.0-alpha.0",
+  "private": true,
+  "packageManager": "pnpm@11.0.9",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @stockviz/web dev",
+    "dev:web": "pnpm --filter @stockviz/web dev",
+    "build": "pnpm -r build",
+    "lint": "pnpm -r lint && pnpm run lint:api",
+    "lint:api": "uv --directory apps/api run ruff check .",
+    "format": "biome format --write . && prettier --write \"**/*.{md,json,yml,yaml}\" --ignore-path .gitignore",
+    "typecheck": "pnpm -r typecheck",
+    "db:up": "docker compose -f infra/docker-compose.yml up -d",
+    "db:down": "docker compose -f infra/docker-compose.yml down",
+    "api:dev": "uv --directory apps/api run uvicorn stockviz.main:app --reload --port 8000",
+    "api:migrate": "uv --directory apps/api run alembic upgrade head"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^1.9.4",
+    "prettier": "^3.4.2"
+  }
+}
