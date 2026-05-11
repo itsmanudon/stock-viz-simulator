@@ -71,3 +71,12 @@ export type Indicators = {
   series: Record<string, IndicatorPoint[]>;
   macd: MACDPoint[] | null;
 };
+
+export type Recommendation = {
+  ticker: string;
+  name: string;
+  sector: string | null;
+  score: number;
+  rationale: string[];
+  computed_at: string;
+};

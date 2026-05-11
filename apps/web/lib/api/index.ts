@@ -6,3 +6,4 @@ export { getQuotes } from "./quotes";
 export { getBars } from "./bars";
 export { getLatestNews, getNewsForTicker } from "./news";
 export { getIndicators } from "./indicators";
+export { getRecommendations } from "./recommendations";

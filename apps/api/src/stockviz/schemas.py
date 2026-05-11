@@ -88,3 +88,16 @@ class IndicatorsOut(BaseModel):
     ticker: str
     series: dict[str, list[IndicatorPointOut]] = {}
     macd: list[MACDPointOut] | None = None
+
+
+class RecommendationOut(BaseModel):
+    """One row from the ``recommendations`` table, joined with the symbol name."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    ticker: str
+    name: str
+    sector: str | None = None
+    score: int
+    rationale: list[str]
+    computed_at: datetime

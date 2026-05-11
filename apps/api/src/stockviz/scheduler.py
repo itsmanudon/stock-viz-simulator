@@ -24,6 +24,7 @@ from stockviz.models import Symbol
 from stockviz.services.ingest.news import ingest_news_for_ticker
 from stockviz.services.ingest.prices import ingest_ticker
 from stockviz.services.ingest.seed import DEFAULT_COMPANIES_PATH
+from stockviz.services.recommend import score_universe
 from stockviz.settings import get_settings
 
 logger = logging.getLogger(__name__)
@@ -117,6 +118,13 @@ def news_refresh() -> None:
             logger.exception("news_refresh: failed for %s", ticker)
 
 
+def recommendations_refresh() -> None:
+    """Recompute the recommendation score for every active ticker."""
+    with _session_scope() as session:
+        results = score_universe(session, persist=True)
+    logger.info("recommendations_refresh: scored %d tickers", len(results))
+
+
 def build_scheduler() -> BackgroundScheduler:
     """Construct (but don't start) the scheduler. Caller owns lifecycle."""
 
@@ -143,6 +151,15 @@ def build_scheduler() -> BackgroundScheduler:
         news_refresh,
         trigger=CronTrigger(hour="*/4", minute=15),
         id="news_refresh",
+        replace_existing=True,
+    )
+
+    # 5pm ET on weekdays — after the daily price refresh, so the algo has
+    # today's close to score against.
+    scheduler.add_job(
+        recommendations_refresh,
+        trigger=CronTrigger(day_of_week="mon-fri", hour=17, minute=0),
+        id="recommendations_refresh",
         replace_existing=True,
     )
 
