@@ -1,21 +1,24 @@
 /**
  * Server-only API client for authenticated /v1 endpoints.
  *
- * Reads the NextAuth session via ``auth()``, then calls FastAPI with the
- * shared internal token + user id headers. ``INTERNAL_API_TOKEN`` is a
- * server-side env var — never expose it to the browser.
+ * Reads the NextAuth session via ``auth()``, mints a short-lived HS256 JWT
+ * containing the user id, and sends it as ``Authorization: Bearer <token>``.
+ * FastAPI verifies the JWT signature with the same ``INTERNAL_API_TOKEN``
+ * secret — so neither the user id nor the token itself can be forged by a
+ * caller who doesn't know the shared key.
  *
- * The default fetch base picks the server-side ``API_URL``; the client base
- * (``NEXT_PUBLIC_API_URL``) is irrelevant here since these calls only run
- * server-side.
+ * ``INTERNAL_API_TOKEN`` is a server-side env var — never expose it to the
+ * browser.
  */
 
 import "server-only";
 
+import { SignJWT } from "jose";
+
 import { auth } from "@/auth";
 
 const API_URL = process.env.API_URL ?? "http://127.0.0.1:8000";
-const INTERNAL_TOKEN = process.env.INTERNAL_API_TOKEN ?? "";
+const INTERNAL_TOKEN = process.env.INTERNAL_API_TOKEN ?? "dev-internal-token-change-me";
 
 export class UnauthenticatedError extends Error {
   constructor() {
@@ -35,13 +38,25 @@ export class AuthedApiError extends Error {
   }
 }
 
+function signingKey(): Uint8Array {
+  return new TextEncoder().encode(INTERNAL_TOKEN);
+}
+
+async function mintToken(userId: string): Promise<string> {
+  return new SignJWT({ sub: userId })
+    .setProtectedHeader({ alg: "HS256" })
+    .setIssuedAt()
+    .setExpirationTime("60s")
+    .sign(signingKey());
+}
+
 async function authedFetch(path: string, init: RequestInit = {}): Promise<Response> {
   const session = await auth();
   if (!session?.user?.id) throw new UnauthenticatedError();
 
+  const token = await mintToken(session.user.id);
   const headers = new Headers(init.headers);
-  headers.set("X-Internal-Token", INTERNAL_TOKEN);
-  headers.set("X-User-Id", session.user.id);
+  headers.set("Authorization", `Bearer ${token}`);
   if (init.body && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
   }

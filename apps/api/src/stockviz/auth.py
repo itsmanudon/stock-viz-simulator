@@ -1,11 +1,15 @@
-"""Server-to-server auth for /v1 paper-trading endpoints.
+"""JWT-based auth for /v1 paper-trading endpoints.
 
-The Next.js side reads the NextAuth session, then calls the FastAPI with
-``X-Internal-Token`` (matching settings.internal_api_token) and ``X-User-Id``
-(the DB row id). The token confirms the request came from our trusted
-Next.js server; the user id identifies whose portfolio to read/mutate.
+The Next.js server mints a short-lived HS256 JWT (``{ sub: "<db_user_id>" }``,
+60 s expiry) signed with ``INTERNAL_API_TOKEN`` and sends it as
+``Authorization: Bearer <token>``. This dependency verifies the signature and
+returns the numeric user id.
 
-This is a Phase 6 bridge — Phase 7 will swap in real JWT verification.
+Compared to the old ``X-Internal-Token`` + ``X-User-Id`` header bridge:
+- The user id is a cryptographically signed claim — it cannot be forged
+  without knowing the secret.
+- Tokens expire after 60 seconds, limiting replay-attack windows.
+- Standard ``Authorization: Bearer`` interface instead of custom headers.
 """
 
 from __future__ import annotations
@@ -13,31 +17,29 @@ from __future__ import annotations
 from typing import Annotated
 
 from fastapi import Depends, Header, HTTPException, status
+from jose import JWTError
+from jose import jwt as jose_jwt
 
 from stockviz.settings import get_settings
 
 
 def require_user_id(
-    x_internal_token: Annotated[str | None, Header(alias="X-Internal-Token")] = None,
-    x_user_id: Annotated[str | None, Header(alias="X-User-Id")] = None,
+    authorization: Annotated[str | None, Header()] = None,
 ) -> int:
-    """FastAPI dependency: returns the authenticated user.id or raises 401."""
+    """FastAPI dependency: verifies the Bearer JWT and returns the user.id."""
 
     settings = get_settings()
-    if not settings.internal_api_token:
-        # Belt-and-suspenders: never allow access when the token is unset.
-        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, "Internal token not configured")
 
-    if x_internal_token != settings.internal_api_token:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid internal token")
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Authorization header required")
 
-    if not x_user_id:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "X-User-Id header required")
+    token = authorization.removeprefix("Bearer ")
 
     try:
-        return int(x_user_id)
-    except ValueError as exc:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "X-User-Id must be an integer") from exc
+        payload = jose_jwt.decode(token, settings.internal_api_token, algorithms=["HS256"])
+        return int(payload["sub"])
+    except (JWTError, KeyError, ValueError) as exc:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid or expired token") from exc
 
 
 UserIdDep = Annotated[int, Depends(require_user_id)]
