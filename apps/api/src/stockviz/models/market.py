@@ -75,4 +75,8 @@ class NewsArticle(SQLModel, table=True):
     summary: str | None = None
     image_url: str | None = Field(default=None, max_length=1024)
 
+    # ``positive`` | ``neutral`` | ``negative`` | None. Filled by the headline
+    # classifier on ingest when ANTHROPIC_API_KEY is set; otherwise stays None.
+    sentiment: str | None = Field(default=None, max_length=16)
+
     created_at: datetime = Field(default_factory=utcnow, nullable=False)

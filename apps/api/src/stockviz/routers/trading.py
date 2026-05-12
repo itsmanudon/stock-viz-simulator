@@ -7,15 +7,18 @@ that should know the token; the browser never sees it.
 
 from __future__ import annotations
 
+from datetime import timedelta
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlmodel import Session, select
 
+from stockviz._time import utcnow
 from stockviz.auth import UserIdDep
 from stockviz.db import get_session
-from stockviz.models import Trade, TradeSide
+from stockviz.models import PortfolioSnapshot, Trade, TradeSide
 from stockviz.schemas import (
+    PortfolioHistoryPointOut,
     PortfolioOut,
     PositionOut,
     TradeIn,
@@ -86,6 +89,26 @@ def post_trade(body: TradeIn, session: SessionDep, user_id: UserIdDep) -> Trade:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from exc
     except TradeExecutionError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
+
+
+@router.get("/portfolio/history", response_model=list[PortfolioHistoryPointOut])
+def get_portfolio_history(
+    session: SessionDep,
+    user_id: UserIdDep,
+    days: Annotated[int | None, Query(ge=1, le=3650)] = 90,
+) -> list[PortfolioSnapshot]:
+    """Return the user's daily NAV history, oldest first.
+
+    ``days=None`` (omit query param) returns the full history; otherwise the
+    last N days. Empty list when the scheduler hasn't written any snapshots
+    yet for this user — the UI hides the chart in that case.
+    """
+    stmt = select(PortfolioSnapshot).where(PortfolioSnapshot.user_id == user_id)
+    if days is not None:
+        cutoff = utcnow().date() - timedelta(days=days)
+        stmt = stmt.where(PortfolioSnapshot.date >= cutoff)
+    stmt = stmt.order_by(PortfolioSnapshot.date.asc())  # type: ignore[attr-defined]
+    return list(session.exec(stmt).all())
 
 
 @router.get("/trades", response_model=list[TradeOut])

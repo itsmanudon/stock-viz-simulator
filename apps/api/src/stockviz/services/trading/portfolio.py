@@ -27,7 +27,7 @@ class PortfolioPosition:
 
 
 @dataclass(frozen=True, slots=True)
-class PortfolioSnapshot:
+class PortfolioValuation:
     portfolio_id: int
     cash_balance: Decimal
     positions: list[PortfolioPosition] = field(default_factory=list)
@@ -54,7 +54,7 @@ def _latest_close_map(session: Session, tickers: list[str]) -> dict[str, Decimal
     return out
 
 
-def compute_portfolio(session: Session, portfolio: Portfolio) -> PortfolioSnapshot:
+def compute_portfolio(session: Session, portfolio: Portfolio) -> PortfolioValuation:
     """Snapshot the portfolio with latest-close pricing."""
 
     assert portfolio.id is not None
@@ -91,7 +91,7 @@ def compute_portfolio(session: Session, portfolio: Portfolio) -> PortfolioSnapsh
         cost_basis += pos_cost
 
     total_value = market_value + portfolio.cash_balance
-    return PortfolioSnapshot(
+    return PortfolioValuation(
         portfolio_id=portfolio.id,
         cash_balance=portfolio.cash_balance,
         positions=positions,

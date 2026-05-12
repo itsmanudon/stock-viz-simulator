@@ -5,15 +5,19 @@ Alembic runs autogenerate. Keep this module side-effect-free apart from the
 imports themselves.
 """
 
+from stockviz.models.alert import Alert, AlertDirection
 from stockviz.models.market import NewsArticle, PriceBar, Symbol
-from stockviz.models.portfolio import Portfolio, Position, Trade, TradeSide
+from stockviz.models.portfolio import Portfolio, PortfolioSnapshot, Position, Trade, TradeSide
 from stockviz.models.recommendation import Recommendation
 from stockviz.models.user import User
 from stockviz.models.watchlist import Watchlist, WatchlistItem
 
 __all__ = [
+    "Alert",
+    "AlertDirection",
     "NewsArticle",
     "Portfolio",
+    "PortfolioSnapshot",
     "Position",
     "PriceBar",
     "Recommendation",

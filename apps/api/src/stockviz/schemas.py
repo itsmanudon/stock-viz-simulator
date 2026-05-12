@@ -6,7 +6,7 @@ without churning the DB schema (or vice versa).
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Literal
 
@@ -51,6 +51,7 @@ class NewsArticleOut(BaseModel):
     published_at: datetime
     summary: str | None
     image_url: str | None
+    sentiment: Literal["positive", "neutral", "negative"] | None = None
 
 
 class SymbolDetailOut(BaseModel):
@@ -150,3 +151,54 @@ class TradeOut(BaseModel):
     quantity: Decimal
     price: Decimal
     ts: datetime
+
+
+class PortfolioHistoryPointOut(BaseModel):
+    """One row of the equity-curve series returned by /v1/portfolio/history."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    date: date
+    nav: Decimal
+
+
+# ---------------------------------------------------------------------------
+# Alerts
+# ---------------------------------------------------------------------------
+
+
+class AlertIn(BaseModel):
+    """Request body for POST /v1/alerts."""
+
+    ticker: str
+    direction: Literal["above", "below"]
+    target_price: Decimal
+
+
+class AlertOut(BaseModel):
+    """One alert row in API responses."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    ticker: str
+    direction: Literal["above", "below"]
+    target_price: Decimal
+    created_at: datetime
+    triggered_at: datetime | None
+    dismissed_at: datetime | None
+
+
+# ---------------------------------------------------------------------------
+# Watchlist
+# ---------------------------------------------------------------------------
+
+
+class WatchlistItemOut(BaseModel):
+    """One ticker on the authenticated user's default watchlist."""
+
+    ticker: str
+    name: str
+    sector: str | None
+    added_at: datetime
+    last_close: Decimal | None

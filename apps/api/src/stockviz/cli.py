@@ -25,6 +25,7 @@ from stockviz.services.ingest.metadata import backfill_symbol_metadata
 from stockviz.services.ingest.prices import ingest_ticker
 from stockviz.services.ingest.seed import seed_symbols
 from stockviz.services.recommend import score_universe
+from stockviz.services.trading import snapshot_user_navs
 from stockviz.settings import get_settings
 
 logger = logging.getLogger(__name__)
@@ -70,6 +71,16 @@ def _cmd_recommend(_args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_snapshot(_args: argparse.Namespace) -> int:
+    from stockviz._time import utcnow
+
+    today = utcnow().date()
+    with Session(engine) as session:
+        n = snapshot_user_navs(session, snapshot_date=today)
+    print(f"wrote {n} portfolio snapshots for {today}")
+    return 0
+
+
 def _cmd_ingest(args: argparse.Namespace) -> int:
     settings = get_settings()
     total = 0
@@ -108,6 +119,10 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser(
         "recommend", help="Recompute recommendations for every active symbol"
     ).set_defaults(fn=_cmd_recommend)
+
+    sub.add_parser(
+        "snapshot-portfolios", help="Upsert today's NAV snapshot for every user"
+    ).set_defaults(fn=_cmd_snapshot)
 
     args = parser.parse_args(argv)
     return args.fn(args)

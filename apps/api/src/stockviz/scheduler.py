@@ -19,12 +19,15 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from sqlmodel import Session, select
 
+from stockviz._time import utcnow
 from stockviz.db import engine
 from stockviz.models import Symbol
+from stockviz.services.alerts import evaluate_pending_alerts
 from stockviz.services.ingest.news import ingest_news_for_ticker
 from stockviz.services.ingest.prices import ingest_ticker
 from stockviz.services.ingest.seed import DEFAULT_COMPANIES_PATH
 from stockviz.services.recommend import score_universe
+from stockviz.services.trading import snapshot_user_navs
 from stockviz.settings import get_settings
 
 logger = logging.getLogger(__name__)
@@ -85,7 +88,11 @@ def daily_price_refresh() -> None:
 
 
 def hourly_top_movers() -> None:
-    """Refresh the top-10 tickers more aggressively during market hours."""
+    """Refresh the top-10 tickers more aggressively during market hours.
+
+    After the fresh quotes land we re-evaluate pending price alerts so a user
+    isn't waiting a full day for a notification.
+    """
     settings = get_settings()
     for ticker in TOP_TICKERS_HOURLY:
         try:
@@ -93,6 +100,13 @@ def hourly_top_movers() -> None:
                 ingest_ticker(session, ticker, alpha_vantage_key=settings.alpha_vantage_key)
         except Exception:
             logger.exception("hourly_top_movers: failed for %s", ticker)
+    try:
+        with _session_scope() as session:
+            triggered = evaluate_pending_alerts(session)
+        if triggered:
+            logger.info("hourly_top_movers: triggered %d alerts", triggered)
+    except Exception:
+        logger.exception("hourly_top_movers: alert evaluation failed")
 
 
 def news_refresh() -> None:
@@ -113,6 +127,7 @@ def news_refresh() -> None:
                     ticker=ticker,
                     company_name=company,
                     newsdata_key=settings.newsdata_key,
+                    anthropic_api_key=settings.anthropic_api_key,
                 )
         except Exception:
             logger.exception("news_refresh: failed for %s", ticker)
@@ -123,6 +138,14 @@ def recommendations_refresh() -> None:
     with _session_scope() as session:
         results = score_universe(session, persist=True)
     logger.info("recommendations_refresh: scored %d tickers", len(results))
+
+
+def portfolio_snapshots_refresh() -> None:
+    """Upsert today's NAV snapshot for every user who owns a portfolio."""
+    today = utcnow().date()
+    with _session_scope() as session:
+        written = snapshot_user_navs(session, snapshot_date=today)
+    logger.info("portfolio_snapshots_refresh: wrote %d snapshots for %s", written, today)
 
 
 def build_scheduler() -> BackgroundScheduler:
@@ -160,6 +183,15 @@ def build_scheduler() -> BackgroundScheduler:
         recommendations_refresh,
         trigger=CronTrigger(day_of_week="mon-fri", hour=17, minute=0),
         id="recommendations_refresh",
+        replace_existing=True,
+    )
+
+    # 5:15pm ET on weekdays — after recommendations, so today's close has
+    # propagated through positions before we snapshot NAV.
+    scheduler.add_job(
+        portfolio_snapshots_refresh,
+        trigger=CronTrigger(day_of_week="mon-fri", hour=17, minute=15),
+        id="portfolio_snapshots_refresh",
         replace_existing=True,
     )
 

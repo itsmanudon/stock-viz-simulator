@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 
 export default function HomePage() {
   return (
-    <div className="container mx-auto px-6 py-16">
+    <div className="container mx-auto px-4 py-16 sm:px-6">
       <section className="mx-auto max-w-3xl text-center">
         <h1 className="text-5xl font-bold tracking-tight sm:text-6xl">
           Market Intelligence <span className="text-primary">Simplified</span>
