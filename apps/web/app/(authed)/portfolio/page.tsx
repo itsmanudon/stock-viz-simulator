@@ -176,11 +176,11 @@ export default async function PortfolioPage({
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-[120px]">Ticker</TableHead>
-                  <TableHead>Name</TableHead>
+                  <TableHead className="w-[100px] md:w-[120px]">Ticker</TableHead>
+                  <TableHead className="hidden md:table-cell">Name</TableHead>
                   <TableHead className="text-right">Qty</TableHead>
-                  <TableHead className="text-right">Avg cost</TableHead>
-                  <TableHead className="text-right">Last close</TableHead>
+                  <TableHead className="hidden text-right md:table-cell">Avg cost</TableHead>
+                  <TableHead className="hidden text-right sm:table-cell">Last close</TableHead>
                   <TableHead className="text-right">Market value</TableHead>
                   <TableHead className="text-right">Unrealized P&amp;L</TableHead>
                 </TableRow>
@@ -196,12 +196,14 @@ export default async function PortfolioPage({
                           {p.ticker}
                         </Link>
                       </TableCell>
-                      <TableCell className="truncate text-muted-foreground">{p.name}</TableCell>
+                      <TableCell className="hidden truncate text-muted-foreground md:table-cell">
+                        {p.name}
+                      </TableCell>
                       <TableCell className="text-right font-mono">{fmtQty(p.quantity)}</TableCell>
-                      <TableCell className="text-right font-mono">
+                      <TableCell className="hidden text-right font-mono md:table-cell">
                         {fmtCurrency(p.avg_cost)}
                       </TableCell>
-                      <TableCell className="text-right font-mono">
+                      <TableCell className="hidden text-right font-mono sm:table-cell">
                         {fmtCurrency(p.last_close)}
                       </TableCell>
                       <TableCell className="text-right font-mono">

@@ -120,7 +120,7 @@ export default async function MarketsPage({
   const arrow = (col: SortKey) => (sort === col ? (dir === "asc" ? " ↑" : " ↓") : "");
 
   return (
-    <div className="container mx-auto px-6 py-10">
+    <div className="container mx-auto px-4 py-10 sm:px-6">
       <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Markets</h1>

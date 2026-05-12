@@ -159,3 +159,18 @@ class PortfolioHistoryPointOut(BaseModel):
 
     date: date
     nav: Decimal
+
+
+# ---------------------------------------------------------------------------
+# Watchlist
+# ---------------------------------------------------------------------------
+
+
+class WatchlistItemOut(BaseModel):
+    """One ticker on the authenticated user's default watchlist."""
+
+    ticker: str
+    name: str
+    sector: str | None
+    added_at: datetime
+    last_close: Decimal | None
