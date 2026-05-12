@@ -26,13 +26,25 @@ original (you probably won't), `git fetch upstream` first, then cherry-pick.
 
 ## Branching workflow
 
-- **`main`** — the **default branch** on GitHub and the one Vercel + Render
-  deploy from. New work lands here. Use short-lived feature branches off
-  `main` and merge back with a PR (or commit directly for small fixes).
+```
+main ← dev ← feat/* | fix/* | chore/*
+```
+
+- **`main`** — production branch. Vercel and Render auto-deploy from it.
+  Only receives merges from `dev` when a milestone is ready to ship.
+  Do **not** open feature PRs directly against `main`.
+- **`dev`** — the integration branch. All feature/fix/chore PRs target `dev`.
+  Kept green at all times; merged into `main` for each deployable release.
+- **`feat/<name>`**, **`fix/<name>`**, **`chore/<name>`** — short-lived
+  branches cut from `dev`. Open a PR against `dev` when ready; delete after
+  merge. Use the prefix that best describes the work:
+  - `feat/` — new user-facing functionality
+  - `fix/` — bug fixes
+  - `chore/` — tooling, deps, docs, CI, refactors with no user impact
+
 - **`migration`** — **deprecated.** Was the integration branch during the v2
   rewrite (Phase 1-7). Fast-forwarded into `main` once Phase 7 shipped; do
-  **not** push to it any more. Will be left in place for history but not
-  used going forward.
+  **not** push to it any more.
 - **`v2`** — also **deprecated** for the same reason. Don't open new PRs
   against `v2` or `migration`.
 
