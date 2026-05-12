@@ -10,6 +10,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { auth } from "@/auth";
+import { AlertForm } from "@/components/alert-form";
 import { NewsList } from "@/components/news-list";
 import { PriceChart } from "@/components/price-chart";
 import {
@@ -98,13 +100,15 @@ export default async function StockPage({
     throw err;
   }
 
-  const [bars, indicatorBundle, news] = await Promise.all([
+  const [bars, indicatorBundle, news, session] = await Promise.all([
     getBars(ticker, { limit: tfDays }),
     indicators.length
       ? getIndicators(ticker, { names: indicators, limit: tfDays })
       : Promise.resolve(null),
     getNewsForTicker(ticker, 8).catch(() => []),
+    auth(),
   ]);
+  const signedIn = Boolean(session?.user?.id);
 
   const last = symbol.latest?.close ? Number(symbol.latest.close) : null;
   const firstBarClose = bars.length ? Number(bars[0].close) : null;
@@ -195,6 +199,12 @@ export default async function StockPage({
           </p>
         )}
       </div>
+
+      {signedIn ? (
+        <div className="mt-4">
+          <AlertForm ticker={symbol.ticker} />
+        </div>
+      ) : null}
 
       {indicators.includes("rsi_14") && indicatorBundle?.series.rsi_14 ? (
         <p className="mt-3 text-xs text-muted-foreground">

@@ -150,3 +150,30 @@ class TradeOut(BaseModel):
     quantity: Decimal
     price: Decimal
     ts: datetime
+
+
+# ---------------------------------------------------------------------------
+# Alerts
+# ---------------------------------------------------------------------------
+
+
+class AlertIn(BaseModel):
+    """Request body for POST /v1/alerts."""
+
+    ticker: str
+    direction: Literal["above", "below"]
+    target_price: Decimal
+
+
+class AlertOut(BaseModel):
+    """One alert row in API responses."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    ticker: str
+    direction: Literal["above", "below"]
+    target_price: Decimal
+    created_at: datetime
+    triggered_at: datetime | None
+    dismissed_at: datetime | None
