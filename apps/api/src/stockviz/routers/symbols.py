@@ -9,10 +9,11 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlmodel import Session, select
 
 from stockviz.db import get_session
+from stockviz.limiter import limiter
 from stockviz.models import PriceBar, Symbol
 from stockviz.schemas import QuoteOut, SymbolDetailOut, SymbolOut
 
@@ -22,7 +23,9 @@ SessionDep = Annotated[Session, Depends(get_session)]
 
 
 @router.get("", response_model=list[SymbolOut])
+@limiter.limit("60/minute")
 def list_symbols(
+    request: Request,
     session: SessionDep,
     sector: Annotated[str | None, Query()] = None,
     exchange: Annotated[str | None, Query()] = None,
@@ -40,7 +43,8 @@ def list_symbols(
 
 
 @router.get("/{ticker}", response_model=SymbolDetailOut)
-def get_symbol(ticker: str, session: SessionDep) -> SymbolDetailOut:
+@limiter.limit("60/minute")
+def get_symbol(request: Request, ticker: str, session: SessionDep) -> SymbolDetailOut:
     symbol = session.get(Symbol, ticker.upper())
     if symbol is None:
         raise HTTPException(status_code=404, detail=f"Symbol {ticker!r} not found")
