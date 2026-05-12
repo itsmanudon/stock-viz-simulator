@@ -26,7 +26,7 @@ services:
   - type: web
     name: stockviz-api
     runtime: docker
-    repo: https://github.com/MananJariwala/stock-viz-simulator
+    repo: https://github.com/itsmanudon/stock-viz-simulator
     branch: main
     rootDir: apps/api
     dockerfilePath: apps/api/Dockerfile
