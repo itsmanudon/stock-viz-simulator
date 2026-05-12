@@ -69,6 +69,16 @@ background.
   in `.env.example` so NextAuth derives the URL from the request host — dev
   works on any port. Only set `AUTH_URL` in production.
 
+## Commits and PRs
+
+When work closes a GitHub issue, reference it explicitly:
+
+- **Commit messages** — add `Closes #<n>` (or `Fixes #<n>`) in the commit body.
+- **PR descriptions** — list every closed issue in the body, e.g. `Closes #4, Closes #5`.
+
+GitHub auto-closes the issue when the PR merges into the default branch only if
+the keyword appears in the PR body (not just a commit). Put it in both to be safe.
+
 ## Quality gates
 
 `pnpm lint && pnpm typecheck && pnpm build && uv --directory apps/api run pytest` — all
