@@ -17,6 +17,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlmodel import Session
 
 from stockviz.models import NewsArticle
+from stockviz.services.sentiment import score_headlines
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +31,7 @@ class ArticleRecord:
     published_at: datetime
     summary: str | None
     image_url: str | None
+    sentiment: str | None = None
 
 
 NewsdataFetchFn = Callable[[str, str], dict[str, Any]]
@@ -114,6 +116,7 @@ def upsert_articles(session: Session, articles: list[ArticleRecord]) -> int:
             "published_at": a.published_at,
             "summary": a.summary,
             "image_url": a.image_url,
+            "sentiment": a.sentiment,
         }
         for a in articles
     ]
@@ -129,6 +132,22 @@ def ingest_news_for_ticker(
     ticker: str,
     company_name: str,
     newsdata_key: str,
+    anthropic_api_key: str = "",
 ) -> int:
     articles = fetch_newsdata(api_key=newsdata_key, query=company_name, ticker=ticker)
+    if articles and anthropic_api_key:
+        sentiments = score_headlines([a.title for a in articles], api_key=anthropic_api_key)
+        articles = [
+            ArticleRecord(
+                ticker=a.ticker,
+                title=a.title,
+                url=a.url,
+                source=a.source,
+                published_at=a.published_at,
+                summary=a.summary,
+                image_url=a.image_url,
+                sentiment=s,
+            )
+            for a, s in zip(articles, sentiments, strict=True)
+        ]
     return upsert_articles(session, articles)

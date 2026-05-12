@@ -1,3 +1,4 @@
+import { SentimentBadge } from "@/components/sentiment-badge";
 import type { NewsArticle } from "@/lib/api";
 
 function fmtDate(iso: string): string {
@@ -28,9 +29,10 @@ export function NewsList({ articles }: { articles: NewsArticle[] }) {
             {article.summary ? (
               <p className="mt-1.5 line-clamp-2 text-sm text-muted-foreground">{article.summary}</p>
             ) : null}
-            {article.source ? (
-              <p className="mt-2 text-xs text-muted-foreground">{article.source}</p>
-            ) : null}
+            <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+              <SentimentBadge sentiment={article.sentiment} />
+              {article.source ? <span>{article.source}</span> : null}
+            </div>
           </a>
         </li>
       ))}

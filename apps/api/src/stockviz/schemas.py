@@ -51,6 +51,7 @@ class NewsArticleOut(BaseModel):
     published_at: datetime
     summary: str | None
     image_url: str | None
+    sentiment: Literal["positive", "neutral", "negative"] | None = None
 
 
 class SymbolDetailOut(BaseModel):

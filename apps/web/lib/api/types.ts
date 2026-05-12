@@ -43,6 +43,8 @@ export type Bar = {
   volume: number;
 };
 
+export type Sentiment = "positive" | "neutral" | "negative";
+
 export type NewsArticle = {
   id: number;
   ticker: string | null;
@@ -52,6 +54,7 @@ export type NewsArticle = {
   published_at: string;
   summary: string | null;
   image_url: string | null;
+  sentiment: Sentiment | null;
 };
 
 export type IndicatorPoint = {
