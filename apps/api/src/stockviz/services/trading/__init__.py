@@ -18,8 +18,12 @@ from stockviz.services.trading.execute import (
 )
 from stockviz.services.trading.portfolio import (
     PortfolioPosition,
-    PortfolioSnapshot,
+    PortfolioValuation,
     compute_portfolio,
+)
+from stockviz.services.trading.snapshots import (
+    snapshot_user_navs,
+    upsert_user_snapshot,
 )
 
 __all__ = [
@@ -28,10 +32,12 @@ __all__ = [
     "InsufficientPosition",
     "NoMarketDataError",
     "PortfolioPosition",
-    "PortfolioSnapshot",
+    "PortfolioValuation",
     "SymbolNotFound",
     "TradeExecutionError",
     "compute_portfolio",
     "ensure_default_portfolio",
     "execute_trade",
+    "snapshot_user_navs",
+    "upsert_user_snapshot",
 ]
