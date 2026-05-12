@@ -1,5 +1,6 @@
 from functools import lru_cache
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -15,6 +16,18 @@ class Settings(BaseSettings):
     debug: bool = True
 
     database_url: str = "postgresql+psycopg://stockviz:stockviz_dev@127.0.0.1:5434/stockviz"
+
+    @field_validator("database_url")
+    @classmethod
+    def _force_psycopg3_driver(cls, raw: str) -> str:
+        # Render/Heroku hand us `postgres://...` or `postgresql://...` with no
+        # driver hint, which makes SQLAlchemy default to psycopg2 (not installed).
+        # We depend on psycopg3, so rewrite to `postgresql+psycopg://...`.
+        if raw.startswith("postgres://"):
+            return "postgresql+psycopg://" + raw[len("postgres://") :]
+        if raw.startswith("postgresql://"):
+            return "postgresql+psycopg://" + raw[len("postgresql://") :]
+        return raw
 
     cors_origins: list[str] = ["http://localhost:3000"]
 
