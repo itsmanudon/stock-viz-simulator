@@ -48,3 +48,13 @@ export function postTrade(body: TradeInput): Promise<TradeRow> {
 export function listTrades(limit = 100): Promise<TradeRow[]> {
   return authedGet<TradeRow[]>(`/v1/trades?limit=${limit}`);
 }
+
+export type PortfolioHistoryPoint = {
+  date: string;
+  nav: string;
+};
+
+export function getPortfolioHistory(days: number | null = 90): Promise<PortfolioHistoryPoint[]> {
+  const qs = days === null ? "" : `?days=${days}`;
+  return authedGet<PortfolioHistoryPoint[]>(`/v1/portfolio/history${qs}`);
+}

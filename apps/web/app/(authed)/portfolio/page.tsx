@@ -3,11 +3,14 @@
  *
  * Pulls /v1/portfolio (auto-creates the default $100k portfolio on first
  * read). Renders the aggregates as a header strip and the positions as a
- * shadcn Table; clicking a row deep-links to /stocks/[ticker].
+ * shadcn Table; clicking a row deep-links to /stocks/[ticker]. When at least
+ * two NAV snapshots exist for the user, an equity-curve area chart appears
+ * above the positions with a 30 / 90 / All range toggle.
  */
 
 import Link from "next/link";
 
+import { EquityCurve } from "@/components/equity-curve";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   Table,
@@ -17,7 +20,20 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { getPortfolio } from "@/lib/api/trading";
+import { getPortfolio, getPortfolioHistory } from "@/lib/api/trading";
+
+const RANGES = [
+  { value: "30", label: "30D", days: 30 },
+  { value: "90", label: "90D", days: 90 },
+  { value: "all", label: "All", days: null as number | null },
+] as const;
+
+type RangeValue = (typeof RANGES)[number]["value"];
+
+function parseRange(raw: string | undefined): RangeValue {
+  const valid = RANGES.find((r) => r.value === raw)?.value;
+  return valid ?? "90";
+}
 
 function fmtCurrency(raw: string | null): string {
   if (raw === null) return "—";
@@ -41,13 +57,32 @@ function fmtQty(raw: string): string {
   return n.toLocaleString("en-US", { maximumFractionDigits: 4 });
 }
 
-export default async function PortfolioPage() {
-  const portfolio = await getPortfolio();
+export default async function PortfolioPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ range?: string }>;
+}) {
+  const { range: rawRange } = await searchParams;
+  const range = parseRange(rawRange);
+  const days = RANGES.find((r) => r.value === range)?.days ?? 90;
+
+  const [portfolio, history] = await Promise.all([getPortfolio(), getPortfolioHistory(days)]);
+
   const totalCost = Number(portfolio.total_cost_basis);
   const unrealized = Number(portfolio.unrealized_pl);
 
+  const totalReturnPct = (() => {
+    if (history.length < 2) return null;
+    const first = Number(history[0].nav);
+    const last = Number(history[history.length - 1].nav);
+    if (first === 0) return null;
+    return ((last - first) / first) * 100;
+  })();
+
+  const hasChart = history.length >= 2;
+
   return (
-    <div className="container mx-auto px-6 py-10">
+    <div className="container mx-auto px-4 py-10 sm:px-6">
       <header className="mb-6">
         <h1 className="text-3xl font-bold tracking-tight">Portfolio</h1>
         <p className="mt-1 text-sm text-muted-foreground">
@@ -88,6 +123,42 @@ export default async function PortfolioPage() {
           </CardContent>
         </Card>
       </div>
+
+      {hasChart ? (
+        <section className="mt-8">
+          <div className="mb-3 flex flex-wrap items-baseline justify-between gap-3">
+            <div className="flex items-baseline gap-3">
+              <h2 className="text-lg font-semibold">Performance</h2>
+              {totalReturnPct !== null ? (
+                <span
+                  className={`font-mono text-sm ${
+                    totalReturnPct >= 0 ? "text-green-500" : "text-red-500"
+                  }`}
+                >
+                  {totalReturnPct >= 0 ? "+" : ""}
+                  {totalReturnPct.toFixed(2)}%
+                </span>
+              ) : null}
+            </div>
+            <nav className="flex gap-1">
+              {RANGES.map((r) => (
+                <Link
+                  key={r.value}
+                  href={`/portfolio?range=${r.value}`}
+                  className={`rounded-md border px-2.5 py-1 text-xs transition hover:bg-accent ${
+                    range === r.value ? "border-primary text-foreground" : "text-muted-foreground"
+                  }`}
+                >
+                  {r.label}
+                </Link>
+              ))}
+            </nav>
+          </div>
+          <div className="rounded-lg border bg-card p-4">
+            <EquityCurve points={history} />
+          </div>
+        </section>
+      ) : null}
 
       <section className="mt-8">
         <h2 className="mb-3 text-lg font-semibold">Positions</h2>

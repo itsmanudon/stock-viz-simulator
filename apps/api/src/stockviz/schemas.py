@@ -6,7 +6,7 @@ without churning the DB schema (or vice versa).
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Literal
 
@@ -150,3 +150,12 @@ class TradeOut(BaseModel):
     quantity: Decimal
     price: Decimal
     ts: datetime
+
+
+class PortfolioHistoryPointOut(BaseModel):
+    """One row of the equity-curve series returned by /v1/portfolio/history."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    date: date
+    nav: Decimal

@@ -6,7 +6,7 @@ imports themselves.
 """
 
 from stockviz.models.market import NewsArticle, PriceBar, Symbol
-from stockviz.models.portfolio import Portfolio, Position, Trade, TradeSide
+from stockviz.models.portfolio import Portfolio, PortfolioSnapshot, Position, Trade, TradeSide
 from stockviz.models.recommendation import Recommendation
 from stockviz.models.user import User
 from stockviz.models.watchlist import Watchlist, WatchlistItem
@@ -14,6 +14,7 @@ from stockviz.models.watchlist import Watchlist, WatchlistItem
 __all__ = [
     "NewsArticle",
     "Portfolio",
+    "PortfolioSnapshot",
     "Position",
     "PriceBar",
     "Recommendation",
