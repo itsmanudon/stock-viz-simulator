@@ -54,6 +54,7 @@ class Settings(BaseSettings):
 
     alpha_vantage_key: str = ""
     newsdata_key: str = ""
+    anthropic_api_key: str = ""
 
     # APScheduler is off by default so tests, migrations, and ad-hoc CLI runs
     # don't accidentally trigger external API calls. The deployed server flips

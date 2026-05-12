@@ -127,6 +127,7 @@ def news_refresh() -> None:
                     ticker=ticker,
                     company_name=company,
                     newsdata_key=settings.newsdata_key,
+                    anthropic_api_key=settings.anthropic_api_key,
                 )
         except Exception:
             logger.exception("news_refresh: failed for %s", ticker)
