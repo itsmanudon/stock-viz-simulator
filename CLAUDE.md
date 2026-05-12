@@ -76,8 +76,15 @@ When work closes a GitHub issue, reference it explicitly:
 - **Commit messages** — add `Closes #<n>` (or `Fixes #<n>`) in the commit body.
 - **PR descriptions** — list every closed issue in the body, e.g. `Closes #4, Closes #5`.
 
-GitHub auto-closes the issue when the PR merges into the default branch only if
-the keyword appears in the PR body (not just a commit). Put it in both to be safe.
+**Important:** GitHub only auto-closes issues when a PR merges into the **default
+branch** (`main`). Because all our PRs target `dev`, `Closes #X` keywords in the
+PR body will **not** trigger auto-close. You must close issues manually as soon as
+the feature PR is opened:
+
+```bash
+gh issue comment <n> --repo itsmanudon/stock-viz-simulator --body "Implemented in PR #<pr>. Closes #<n>."
+gh issue close <n> --repo itsmanudon/stock-viz-simulator
+```
 
 ## Quality gates
 
