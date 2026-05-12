@@ -66,7 +66,10 @@ export default async function PortfolioPage({
   const range = parseRange(rawRange);
   const days = RANGES.find((r) => r.value === range)?.days ?? 90;
 
-  const [portfolio, history] = await Promise.all([getPortfolio(), getPortfolioHistory(days)]);
+  const [portfolio, history] = await Promise.all([
+    getPortfolio(),
+    getPortfolioHistory(days).catch(() => [] as Awaited<ReturnType<typeof getPortfolioHistory>>),
+  ]);
 
   const totalCost = Number(portfolio.total_cost_basis);
   const unrealized = Number(portfolio.unrealized_pl);
