@@ -11,6 +11,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { auth } from "@/auth";
+import { AlertForm } from "@/components/alert-form";
 import { NewsList } from "@/components/news-list";
 import { PriceChart } from "@/components/price-chart";
 import { WatchlistToggle } from "@/components/watchlist-toggle";
@@ -109,6 +110,7 @@ export default async function StockPage({
     getNewsForTicker(ticker, 8).catch(() => []),
     auth(),
   ]);
+  const signedIn = Boolean(session?.user?.id);
 
   let inWatchlist = false;
   if (session?.user?.id) {
@@ -215,6 +217,12 @@ export default async function StockPage({
           </p>
         )}
       </div>
+
+      {signedIn ? (
+        <div className="mt-4">
+          <AlertForm ticker={symbol.ticker} />
+        </div>
+      ) : null}
 
       {indicators.includes("rsi_14") && indicatorBundle?.series.rsi_14 ? (
         <p className="mt-3 text-xs text-muted-foreground">

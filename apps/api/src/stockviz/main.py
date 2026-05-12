@@ -11,6 +11,7 @@ from stockviz import __version__
 from stockviz.limiter import limiter
 from stockviz.observability import init_sentry
 from stockviz.routers import (
+    alerts,
     bars,
     health,
     indicators,
@@ -79,6 +80,7 @@ def create_app() -> FastAPI:
     app.include_router(indicators.router)
     app.include_router(recommendations.router)
     app.include_router(trading.router)
+    app.include_router(alerts.router)
     app.include_router(watchlist.router)
 
     return app

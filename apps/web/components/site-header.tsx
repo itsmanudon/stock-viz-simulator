@@ -1,7 +1,9 @@
 import { LineChart } from "lucide-react";
 import Link from "next/link";
 
+import { auth } from "@/auth";
 import { AccountMenu } from "@/components/account-menu";
+import { AlertsBell } from "@/components/alerts-bell";
 import { MobileNav } from "@/components/mobile-nav";
 import { ThemeToggle } from "@/components/theme-toggle";
 
@@ -15,7 +17,10 @@ const NAV_LINKS = [
   { href: "/trade", label: "Trade" },
 ];
 
-export function SiteHeader() {
+export async function SiteHeader() {
+  const session = await auth();
+  const signedIn = Boolean(session?.user?.id);
+
   return (
     <header className="sticky top-0 z-40 border-b bg-background/80 backdrop-blur">
       <div className="container mx-auto flex h-16 items-center justify-between gap-2 px-4 sm:px-6">
@@ -40,6 +45,7 @@ export function SiteHeader() {
         </nav>
 
         <div className="flex items-center gap-3">
+          <AlertsBell enabled={signedIn} />
           <ThemeToggle />
           <AccountMenu />
         </div>

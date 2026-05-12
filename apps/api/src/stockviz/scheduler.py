@@ -22,6 +22,7 @@ from sqlmodel import Session, select
 from stockviz._time import utcnow
 from stockviz.db import engine
 from stockviz.models import Symbol
+from stockviz.services.alerts import evaluate_pending_alerts
 from stockviz.services.ingest.news import ingest_news_for_ticker
 from stockviz.services.ingest.prices import ingest_ticker
 from stockviz.services.ingest.seed import DEFAULT_COMPANIES_PATH
@@ -87,7 +88,11 @@ def daily_price_refresh() -> None:
 
 
 def hourly_top_movers() -> None:
-    """Refresh the top-10 tickers more aggressively during market hours."""
+    """Refresh the top-10 tickers more aggressively during market hours.
+
+    After the fresh quotes land we re-evaluate pending price alerts so a user
+    isn't waiting a full day for a notification.
+    """
     settings = get_settings()
     for ticker in TOP_TICKERS_HOURLY:
         try:
@@ -95,6 +100,13 @@ def hourly_top_movers() -> None:
                 ingest_ticker(session, ticker, alpha_vantage_key=settings.alpha_vantage_key)
         except Exception:
             logger.exception("hourly_top_movers: failed for %s", ticker)
+    try:
+        with _session_scope() as session:
+            triggered = evaluate_pending_alerts(session)
+        if triggered:
+            logger.info("hourly_top_movers: triggered %d alerts", triggered)
+    except Exception:
+        logger.exception("hourly_top_movers: alert evaluation failed")
 
 
 def news_refresh() -> None:
