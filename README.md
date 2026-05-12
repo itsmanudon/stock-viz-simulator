@@ -42,8 +42,8 @@ coexisted. The full rewrite plan lives in [`REWRITE_PLAN.md`](./REWRITE_PLAN.md)
 
 - The Next.js server-only API client attaches `Authorization: Bearer <INTERNAL_API_TOKEN>` +
   `X-User-Id: <session.userId>` for authenticated `/v1` calls. The browser never sees the token.
-- APScheduler runs in-process inside FastAPI for the daily refresh; a Render cron job re-runs
-  the ingest nightly as a safety net.
+- APScheduler runs in-process inside FastAPI for the daily refresh
+  (`ENABLE_SCHEDULER=true` in production).
 - Sentry collects errors from both the web and api (gated on `SENTRY_DSN`).
 
 ## Stack
@@ -56,7 +56,7 @@ coexisted. The full rewrite plan lives in [`REWRITE_PLAN.md`](./REWRITE_PLAN.md)
 | API         | FastAPI, SQLModel, Alembic, APScheduler         |
 | DB          | Postgres 16                                     |
 | Ingestion   | Alpha Vantage (primary) + yfinance (fallback) + Newsdata.io |
-| Hosting     | Vercel (web) + Render (api + db + cron)         |
+| Hosting     | Vercel (web) + Render (api + db)                |
 | Monitoring  | Sentry                                          |
 | Tooling     | pnpm + uv, biome + ruff, pyright + tsc          |
 
@@ -81,65 +81,36 @@ apps/
     Dockerfile         Production image (uv + uvicorn)
 infra/
   docker-compose.yml   Local Postgres + Adminer
-  render.yaml          Render Blueprint (api + db + cron)
+  render.yaml          Render Blueprint (api + db)
 .github/workflows/     CI: lint + typecheck + test on PR
 REWRITE_PLAN.md        Phase-by-phase rewrite roadmap
 ```
 
 ## Local dev
 
-### Prereqs
+Full step-by-step instructions for **macOS / Linux** and **Windows** live in
+[`docs/SETUP.md`](./docs/SETUP.md). The short version:
 
-- Node.js 22+ ([nvm-windows](https://github.com/coreybutler/nvm-windows); see `.nvmrc`)
-- pnpm 11+ (`npm install -g pnpm`)
-- Python 3.12+ via [uv](https://docs.astral.sh/uv/) (`winget install --id=astral-sh.uv`)
-- Docker Desktop
-
-### Setup
-
-```powershell
-# 1. install deps
+```bash
 pnpm install
 uv --directory apps/api sync
-
-# 2. env files
-Copy-Item apps/web/.env.example apps/web/.env.local
-Copy-Item apps/api/.env.example apps/api/.env
-
-# 3. boot Postgres + Adminer
-pnpm db:up
-
-# 4. apply migrations + seed
+cp apps/web/.env.example apps/web/.env.local        # Windows: Copy-Item
+cp apps/api/.env.example apps/api/.env              # Windows: Copy-Item
+pnpm db:up                                          # Postgres on :5434, Adminer on :8080
 uv --directory apps/api run alembic upgrade head
 uv --directory apps/api run python -m stockviz.cli seed
 uv --directory apps/api run python -m stockviz.cli backfill
-
-# 5. two terminals
-pnpm api:dev      # FastAPI on http://127.0.0.1:8000
-pnpm dev:web      # Next.js on http://localhost:3000
+pnpm api:dev      # terminal 1 — FastAPI on :8000
+pnpm dev:web      # terminal 2 — Next.js on :3000 (auto-bumps to next free port)
 ```
-
-Open <http://localhost:3000>. OpenAPI docs at <http://127.0.0.1:8000/docs>.
-Adminer at <http://localhost:8080> (server: `postgres`, user/pass/db: `stockviz`/`stockviz_dev`/`stockviz`).
-
-### Ports
-
-| Service       | Port |
-| ------------- | ---- |
-| Web (Next.js) | 3000 |
-| API (FastAPI) | 8000 |
-| Postgres      | 5434 |
-| Adminer       | 8080 |
-
-Postgres is on **5434** to avoid clashing with a native install or other Docker projects.
 
 ## Quality gates
 
-```powershell
-pnpm lint        # biome (web) + ruff (api)
-pnpm typecheck   # tsc + pyright
+```bash
+pnpm lint                                  # biome (web) + ruff (api)
+pnpm typecheck                             # tsc + pyright
 uv --directory apps/api run pytest
-pnpm build       # production build of the web app
+pnpm build                                 # production build of the web app
 ```
 
 GitHub Actions runs all of the above on every PR to `main` (the default branch).
@@ -148,35 +119,23 @@ off `main`.
 
 ## Deployment
 
-### Vercel (web)
+Full walkthrough (Vercel for web, Render Blueprint for api + db, env vars,
+secrets, first-time seeding, rollback) lives in
+[`docs/DEPLOYMENT.md`](./docs/DEPLOYMENT.md). The short version:
 
-1. Import the repo into Vercel. Set **Root Directory** to `apps/web`.
-2. Set env vars in **Project Settings → Environment Variables**:
-   - `API_URL=https://<your-render-service>.onrender.com`
-   - `NEXT_PUBLIC_API_URL=https://<your-render-service>.onrender.com`
-   - `DATABASE_URL=<Render Postgres external URL>`
-   - `INTERNAL_API_TOKEN=<random 32+ char string, same as Render>`
-   - `AUTH_SECRET=<openssl rand -base64 32>`
-   - `AUTH_URL=https://<your-vercel-domain>`
-   - `NEXT_PUBLIC_SENTRY_DSN`, `SENTRY_DSN`, `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, `SENTRY_PROJECT` (all optional)
-3. Deploy. Vercel picks up `apps/web/vercel.json` for build settings.
+- **Web → Vercel.** Import the repo, set Root Directory to `apps/web`,
+  fill in env vars (`API_URL`, `NEXT_PUBLIC_API_URL`, `DATABASE_URL`,
+  `AUTH_SECRET`, `AUTH_URL`, `INTERNAL_API_TOKEN`, optional Sentry). Build
+  settings come from `apps/web/vercel.json`.
+- **API + DB → Render.** Dashboard → New + → Blueprint → point at this
+  repo. Render reads `infra/render.yaml` and provisions Postgres 16 plus
+  the FastAPI web service (Docker). Fill in the `sync: false` secrets
+  (`NEXTAUTH_JWT_SECRET`, `INTERNAL_API_TOKEN`, `CORS_ORIGINS`,
+  `ALPHA_VANTAGE_KEY`, `NEWSDATA_KEY`, `SENTRY_DSN`), redeploy, then seed
+  once via the service shell. Daily refresh runs in-process via
+  APScheduler.
 
-### Render (api + db + cron)
-
-1. **Dashboard → New + → Blueprint**, point at this repo. Render reads `infra/render.yaml`
-   and provisions Postgres + the API web service + the nightly cron job.
-2. After the first deploy, fill in the `sync: false` env vars in the dashboard:
-   `NEXTAUTH_JWT_SECRET` (same as the web's `AUTH_SECRET`), `INTERNAL_API_TOKEN` (same as web),
-   `ALPHA_VANTAGE_KEY`, `NEWSDATA_KEY`, `SENTRY_DSN`, `CORS_ORIGINS=https://<vercel-domain>`.
-3. Trigger a redeploy. The container runs `alembic upgrade head` before starting `uvicorn`.
-4. SSH into the service shell (or `render shell stockviz-api`) and seed once:
-   `python -m stockviz.cli seed && python -m stockviz.cli backfill && python -m stockviz.cli metadata`.
-
-The Dockerfile lives at `apps/api/Dockerfile`. To build locally:
-
-```powershell
-docker build -t stockviz-api ./apps/api
-```
+Build the API image locally with `docker build -t stockviz-api ./apps/api`.
 
 ## License
 

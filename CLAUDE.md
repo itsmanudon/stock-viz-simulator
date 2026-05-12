@@ -52,8 +52,10 @@ background.
   Use `127.0.0.1:5434` everywhere — see `infra/docker-compose.yml`.
 - Use `127.0.0.1` not `localhost` in env defaults. Windows IPv6 lookups can bypass
   the dev container otherwise. See `memory/project_dev_environment_quirks.md`.
-- The dev port 3000 is sometimes held by another local service (sprintserve); Next
-  silently bumps to 3001 — that's why `.env.example` ships `AUTH_URL=http://127.0.0.1:3001`.
+- The dev port 3000 is often held by another local service; Next silently bumps
+  to the next free port (3001, 3005, ...). `AUTH_URL` is intentionally **unset**
+  in `.env.example` so NextAuth derives the URL from the request host — dev
+  works on any port. Only set `AUTH_URL` in production.
 
 ## Quality gates
 
@@ -80,8 +82,9 @@ work fine without one. Env vars live in `apps/web/.env.example` and
 ## Deploy targets
 
 - Web → Vercel (`apps/web/vercel.json`)
-- API + DB + cron → Render (`infra/render.yaml`)
+- API + DB → Render (`infra/render.yaml`)
 
-The Render `cron` service runs the same Docker image as the web service but
-overrides the command to invoke `python -m stockviz.cli ingest ... && recommend`
-as a nightly safety net even if the in-process scheduler misses.
+Daily refresh runs **in-process** via APScheduler (`ENABLE_SCHEDULER=true`)
+inside the FastAPI service — there's no separate cron service in the
+Blueprint because Render dropped the free cron tier. See
+`docs/DEPLOYMENT.md` for how to re-add one on a paid plan.
