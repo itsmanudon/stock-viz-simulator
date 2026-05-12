@@ -1,7 +1,9 @@
+import json
 from functools import lru_cache
+from typing import Annotated
 
 from pydantic import field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -29,7 +31,24 @@ class Settings(BaseSettings):
             return "postgresql+psycopg://" + raw[len("postgresql://") :]
         return raw
 
-    cors_origins: list[str] = ["http://localhost:3000"]
+    # NoDecode disables pydantic-settings' default JSON parsing for this field,
+    # so the env value reaches the validator below as a raw string. Accepts:
+    #   - a single URL:        https://app.vercel.app
+    #   - comma-separated:     https://a.com,https://b.com
+    #   - JSON array:          ["https://app.vercel.app"]
+    cors_origins: Annotated[list[str], NoDecode] = ["http://localhost:3000"]
+
+    @field_validator("cors_origins", mode="before")
+    @classmethod
+    def _parse_cors_origins(cls, raw: object) -> object:
+        if not isinstance(raw, str):
+            return raw
+        s = raw.strip()
+        if not s:
+            return []
+        if s.startswith("["):
+            return json.loads(s)
+        return [item.strip() for item in s.split(",") if item.strip()]
 
     nextauth_jwt_secret: str = "dev-secret-change-me"
 
