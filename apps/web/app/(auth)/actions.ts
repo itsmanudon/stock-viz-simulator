@@ -95,3 +95,8 @@ export async function signOutAction(): Promise<never> {
   await signOut({ redirectTo: "/" });
   redirect("/");
 }
+
+export async function signInWithGoogleAction(): Promise<never> {
+  await signIn("google", { redirectTo: "/" });
+  redirect("/");
+}

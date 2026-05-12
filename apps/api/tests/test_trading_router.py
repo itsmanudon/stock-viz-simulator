@@ -11,6 +11,7 @@ from datetime import datetime
 from decimal import Decimal
 
 from fastapi.testclient import TestClient
+from jose import jwt as jose_jwt
 from sqlmodel import Session
 
 from stockviz.auth import require_user_id
@@ -18,12 +19,12 @@ from stockviz.main import app
 from stockviz.models import PriceBar, Symbol, User
 from stockviz.settings import get_settings
 
-# Tests run with the default ``internal_api_token`` from the Settings class.
-TOKEN = get_settings().internal_api_token
+SECRET = get_settings().internal_api_token
 
 
 def _auth_headers(user_id: int) -> dict[str, str]:
-    return {"X-Internal-Token": TOKEN, "X-User-Id": str(user_id)}
+    token = jose_jwt.encode({"sub": str(user_id)}, SECRET, algorithm="HS256")
+    return {"Authorization": f"Bearer {token}"}
 
 
 def _seed_market(session: Session) -> None:
@@ -60,7 +61,7 @@ def test_portfolio_requires_internal_token(client: TestClient) -> None:
 
 
 def test_portfolio_rejects_bad_token(client: TestClient) -> None:
-    response = client.get("/v1/portfolio", headers={"X-Internal-Token": "wrong", "X-User-Id": "1"})
+    response = client.get("/v1/portfolio", headers={"Authorization": "Bearer not-a-valid-jwt"})
     assert response.status_code == 401
 
 
