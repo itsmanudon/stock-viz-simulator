@@ -20,9 +20,12 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-install-project --no-dev
 
 # Now bring in the source and install the project itself.
+# README.md is required because pyproject.toml declares `readme = "README.md"`;
+# hatchling reads it during the wheel build.
 COPY src ./src
 COPY migrations ./migrations
 COPY alembic.ini ./alembic.ini
+COPY README.md ./README.md
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev
 
