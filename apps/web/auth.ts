@@ -15,10 +15,11 @@
 import bcrypt from "bcryptjs";
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
+import Google from "next-auth/providers/google";
 import { z } from "zod";
 
 import { authConfig } from "@/auth.config";
-import { findUserByEmail } from "@/lib/users";
+import { findOrCreateOAuthUser, findUserByEmail } from "@/lib/users";
 
 const CredentialsSchema = z.object({
   email: z.email().max(320),
@@ -28,6 +29,7 @@ const CredentialsSchema = z.object({
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
   providers: [
+    Google,
     Credentials({
       credentials: {
         email: { label: "Email", type: "email" },
@@ -52,4 +54,26 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       },
     }),
   ],
+  callbacks: {
+    ...authConfig.callbacks,
+    async jwt({ token, user, account }) {
+      // Credentials: authorize() already set user.id to our DB id
+      if (account?.provider === "credentials") {
+        if (user?.id) token.sub = user.id;
+        return token;
+      }
+      // OAuth: look up or create the user row and store our DB id in the token
+      if (account && user?.email) {
+        const dbUser = await findOrCreateOAuthUser({
+          email: user.email,
+          name: user.name ?? null,
+          image: user.image ?? null,
+        });
+        token.sub = String(dbUser.id);
+        token.name = dbUser.name;
+        token.picture = dbUser.image;
+      }
+      return token;
+    },
+  },
 });

@@ -37,3 +37,20 @@ export async function createUser(args: {
   );
   return result.rows[0];
 }
+
+export async function findOrCreateOAuthUser(args: {
+  email: string;
+  name: string | null;
+  image: string | null;
+}): Promise<UserRow> {
+  const existing = await findUserByEmail(args.email);
+  if (existing) return existing;
+
+  const result = await pool.query<UserRow>(
+    `INSERT INTO users (email, name, image, created_at)
+     VALUES ($1, $2, $3, NOW())
+     RETURNING id, email, name, image, password_hash`,
+    [args.email.toLowerCase(), args.name, args.image],
+  );
+  return result.rows[0];
+}
