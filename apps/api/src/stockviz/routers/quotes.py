@@ -9,11 +9,12 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import and_, func
 from sqlmodel import Session, select
 
 from stockviz.db import get_session
+from stockviz.limiter import limiter
 from stockviz.models import PriceBar
 from stockviz.schemas import QuoteOut
 
@@ -25,7 +26,9 @@ MAX_TICKERS_PER_REQUEST = 50
 
 
 @router.get("/quotes", response_model=list[QuoteOut])
+@limiter.limit("60/minute")
 def batch_quotes(
+    request: Request,
     session: SessionDep,
     tickers: Annotated[str, Query(description="Comma-separated tickers, e.g. AAPL,MSFT")],
 ) -> list[QuoteOut]:

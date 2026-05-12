@@ -9,6 +9,7 @@
 import Link from "next/link";
 
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   Table,
@@ -47,11 +48,20 @@ export default async function TradesPage() {
 
   return (
     <div className="container mx-auto px-6 py-10">
-      <header className="mb-6">
-        <h1 className="text-3xl font-bold tracking-tight">Trade history</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {trades.length} executed trade{trades.length === 1 ? "" : "s"}.
-        </p>
+      <header className="mb-6 flex items-start justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Trade history</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {trades.length} executed trade{trades.length === 1 ? "" : "s"}.
+          </p>
+        </div>
+        {trades.length > 0 && (
+          <Button asChild variant="outline" size="sm">
+            <a href="/api/export/trades" download="trades.csv">
+              Download CSV
+            </a>
+          </Button>
+        )}
       </header>
 
       {trades.length === 0 ? (

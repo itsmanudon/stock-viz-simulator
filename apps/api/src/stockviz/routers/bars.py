@@ -5,10 +5,11 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlmodel import Session, select
 
 from stockviz.db import get_session
+from stockviz.limiter import limiter
 from stockviz.models import PriceBar, Symbol
 from stockviz.schemas import BarOut
 
@@ -20,7 +21,9 @@ MAX_BARS = 5000
 
 
 @router.get("/{ticker}/bars", response_model=list[BarOut])
+@limiter.limit("60/minute")
 def get_bars(
+    request: Request,
     ticker: str,
     session: SessionDep,
     interval: Annotated[str, Query(pattern=r"^(1d|1h)$")] = "1d",

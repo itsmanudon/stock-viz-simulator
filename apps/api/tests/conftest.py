@@ -10,6 +10,10 @@ here; its smoke test runs against the docker-compose Postgres in CI / local dev.
 
 from __future__ import annotations
 
+import os
+
+os.environ.setdefault("RATELIMIT_ENABLED", "0")
+
 from collections.abc import Generator, Iterator
 
 import pytest

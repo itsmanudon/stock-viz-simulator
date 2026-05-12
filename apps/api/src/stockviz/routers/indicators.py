@@ -11,10 +11,11 @@ import re
 from datetime import datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlmodel import Session, select
 
 from stockviz.db import get_session
+from stockviz.limiter import limiter
 from stockviz.models import PriceBar, Symbol
 from stockviz.schemas import (
     IndicatorPointOut,
@@ -65,7 +66,9 @@ def _parse_names(raw: str) -> list[tuple[str, int | None]]:
 
 
 @router.get("/{ticker}/indicators", response_model=IndicatorsOut)
+@limiter.limit("60/minute")
 def get_indicators(
+    request: Request,
     ticker: str,
     session: SessionDep,
     names: Annotated[str, Query(description="e.g. sma_20,sma_50,rsi_14,macd")],
