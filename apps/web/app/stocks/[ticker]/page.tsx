@@ -14,6 +14,7 @@ import { auth } from "@/auth";
 import { AlertForm } from "@/components/alert-form";
 import { NewsList } from "@/components/news-list";
 import { PriceChart } from "@/components/price-chart";
+import { WatchlistToggle } from "@/components/watchlist-toggle";
 import {
   ApiError,
   type SymbolDetail,
@@ -22,6 +23,7 @@ import {
   getNewsForTicker,
   getSymbol,
 } from "@/lib/api";
+import { listWatchlist } from "@/lib/api/watchlist";
 
 const TIMEFRAMES = [
   { value: "1M", days: 22 },
@@ -110,6 +112,17 @@ export default async function StockPage({
   ]);
   const signedIn = Boolean(session?.user?.id);
 
+  let inWatchlist = false;
+  if (session?.user?.id) {
+    try {
+      const items = await listWatchlist();
+      inWatchlist = items.some((i) => i.ticker === ticker);
+    } catch {
+      // If the watchlist call fails (e.g. token expired), just hide state.
+      inWatchlist = false;
+    }
+  }
+
   const last = symbol.latest?.close ? Number(symbol.latest.close) : null;
   const firstBarClose = bars.length ? Number(bars[0].close) : null;
   const periodChangePct =
@@ -125,7 +138,7 @@ export default async function StockPage({
   const showMacd = indicators.includes("macd");
 
   return (
-    <div className="container mx-auto px-6 py-10">
+    <div className="container mx-auto px-4 py-10 sm:px-6">
       <header className="mb-6 flex flex-wrap items-baseline justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">
@@ -136,20 +149,25 @@ export default async function StockPage({
             {symbol.sector ?? "—"} · {symbol.exchange ?? "—"}
           </p>
         </div>
-        <div className="text-right font-mono">
-          <div className="text-3xl">${fmtPrice(last)}</div>
-          <div
-            className={`text-sm ${
-              periodChangePct === null
-                ? "text-muted-foreground"
-                : periodChangePct >= 0
-                  ? "text-green-500"
-                  : "text-red-500"
-            }`}
-          >
-            {periodChangePct === null
-              ? `${tf}: —`
-              : `${tf}: ${periodChangePct >= 0 ? "+" : ""}${periodChangePct.toFixed(2)}%`}
+        <div className="flex items-baseline gap-4">
+          {session?.user?.id ? (
+            <WatchlistToggle ticker={symbol.ticker} initialInWatchlist={inWatchlist} />
+          ) : null}
+          <div className="text-right font-mono">
+            <div className="text-3xl">${fmtPrice(last)}</div>
+            <div
+              className={`text-sm ${
+                periodChangePct === null
+                  ? "text-muted-foreground"
+                  : periodChangePct >= 0
+                    ? "text-green-500"
+                    : "text-red-500"
+              }`}
+            >
+              {periodChangePct === null
+                ? `${tf}: —`
+                : `${tf}: ${periodChangePct >= 0 ? "+" : ""}${periodChangePct.toFixed(2)}%`}
+            </div>
           </div>
         </div>
       </header>

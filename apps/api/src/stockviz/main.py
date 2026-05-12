@@ -20,6 +20,7 @@ from stockviz.routers import (
     recommendations,
     symbols,
     trading,
+    watchlist,
 )
 from stockviz.scheduler import build_scheduler
 from stockviz.settings import get_settings
@@ -80,6 +81,7 @@ def create_app() -> FastAPI:
     app.include_router(recommendations.router)
     app.include_router(trading.router)
     app.include_router(alerts.router)
+    app.include_router(watchlist.router)
 
     return app
 

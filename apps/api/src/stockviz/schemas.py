@@ -177,3 +177,18 @@ class AlertOut(BaseModel):
     created_at: datetime
     triggered_at: datetime | None
     dismissed_at: datetime | None
+
+
+# ---------------------------------------------------------------------------
+# Watchlist
+# ---------------------------------------------------------------------------
+
+
+class WatchlistItemOut(BaseModel):
+    """One ticker on the authenticated user's default watchlist."""
+
+    ticker: str
+    name: str
+    sector: str | None
+    added_at: datetime
+    last_close: Decimal | None

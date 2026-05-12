@@ -47,7 +47,7 @@ export default async function PortfolioPage() {
   const unrealized = Number(portfolio.unrealized_pl);
 
   return (
-    <div className="container mx-auto px-6 py-10">
+    <div className="container mx-auto px-4 py-10 sm:px-6">
       <header className="mb-6">
         <h1 className="text-3xl font-bold tracking-tight">Portfolio</h1>
         <p className="mt-1 text-sm text-muted-foreground">
@@ -105,11 +105,11 @@ export default async function PortfolioPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-[120px]">Ticker</TableHead>
-                  <TableHead>Name</TableHead>
+                  <TableHead className="w-[100px] md:w-[120px]">Ticker</TableHead>
+                  <TableHead className="hidden md:table-cell">Name</TableHead>
                   <TableHead className="text-right">Qty</TableHead>
-                  <TableHead className="text-right">Avg cost</TableHead>
-                  <TableHead className="text-right">Last close</TableHead>
+                  <TableHead className="hidden text-right md:table-cell">Avg cost</TableHead>
+                  <TableHead className="hidden text-right sm:table-cell">Last close</TableHead>
                   <TableHead className="text-right">Market value</TableHead>
                   <TableHead className="text-right">Unrealized P&amp;L</TableHead>
                 </TableRow>
@@ -125,12 +125,14 @@ export default async function PortfolioPage() {
                           {p.ticker}
                         </Link>
                       </TableCell>
-                      <TableCell className="truncate text-muted-foreground">{p.name}</TableCell>
+                      <TableCell className="hidden truncate text-muted-foreground md:table-cell">
+                        {p.name}
+                      </TableCell>
                       <TableCell className="text-right font-mono">{fmtQty(p.quantity)}</TableCell>
-                      <TableCell className="text-right font-mono">
+                      <TableCell className="hidden text-right font-mono md:table-cell">
                         {fmtCurrency(p.avg_cost)}
                       </TableCell>
-                      <TableCell className="text-right font-mono">
+                      <TableCell className="hidden text-right font-mono sm:table-cell">
                         {fmtCurrency(p.last_close)}
                       </TableCell>
                       <TableCell className="text-right font-mono">
