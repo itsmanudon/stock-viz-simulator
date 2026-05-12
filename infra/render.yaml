@@ -29,7 +29,7 @@ services:
     repo: https://github.com/itsmanudon/stock-viz-simulator
     branch: main
     rootDir: apps/api
-    dockerfilePath: apps/api/Dockerfile
+    dockerfilePath: ./Dockerfile
     plan: free
     healthCheckPath: /health
     autoDeploy: true
