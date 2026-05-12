@@ -47,7 +47,7 @@ export default async function TradesPage() {
   const trades = await listTrades(500);
 
   return (
-    <div className="container mx-auto px-6 py-10">
+    <div className="container mx-auto px-4 py-10 sm:px-6">
       <header className="mb-6 flex items-start justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Trade history</h1>
@@ -78,11 +78,11 @@ export default async function TradesPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Time</TableHead>
-                <TableHead className="w-[120px]">Ticker</TableHead>
-                <TableHead className="w-[80px]">Side</TableHead>
+                <TableHead className="hidden sm:table-cell">Time</TableHead>
+                <TableHead className="w-[100px] md:w-[120px]">Ticker</TableHead>
+                <TableHead className="w-[64px] md:w-[80px]">Side</TableHead>
                 <TableHead className="text-right">Qty</TableHead>
-                <TableHead className="text-right">Price</TableHead>
+                <TableHead className="hidden text-right md:table-cell">Price</TableHead>
                 <TableHead className="text-right">Total</TableHead>
               </TableRow>
             </TableHeader>
@@ -91,7 +91,9 @@ export default async function TradesPage() {
                 const total = Number(trade.quantity) * Number(trade.price);
                 return (
                   <TableRow key={trade.id}>
-                    <TableCell className="text-muted-foreground">{fmtDate(trade.ts)}</TableCell>
+                    <TableCell className="hidden text-muted-foreground sm:table-cell">
+                      {fmtDate(trade.ts)}
+                    </TableCell>
                     <TableCell className="font-mono font-semibold">
                       <Link href={`/stocks/${trade.ticker}`} className="hover:underline">
                         {trade.ticker}
@@ -103,7 +105,7 @@ export default async function TradesPage() {
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right font-mono">{fmtQty(trade.quantity)}</TableCell>
-                    <TableCell className="text-right font-mono">
+                    <TableCell className="hidden text-right font-mono md:table-cell">
                       {fmtCurrency(trade.price)}
                     </TableCell>
                     <TableCell className="text-right font-mono">

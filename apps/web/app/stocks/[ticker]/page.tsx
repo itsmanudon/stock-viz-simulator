@@ -121,7 +121,7 @@ export default async function StockPage({
   const showMacd = indicators.includes("macd");
 
   return (
-    <div className="container mx-auto px-6 py-10">
+    <div className="container mx-auto px-4 py-10 sm:px-6">
       <header className="mb-6 flex flex-wrap items-baseline justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">
