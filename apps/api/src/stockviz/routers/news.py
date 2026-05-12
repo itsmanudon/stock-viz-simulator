@@ -4,10 +4,11 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlmodel import Session, select
 
 from stockviz.db import get_session
+from stockviz.limiter import limiter
 from stockviz.models import NewsArticle, Symbol
 from stockviz.schemas import NewsArticleOut
 
@@ -17,7 +18,9 @@ SessionDep = Annotated[Session, Depends(get_session)]
 
 
 @router.get("/symbols/{ticker}/news", response_model=list[NewsArticleOut])
+@limiter.limit("60/minute")
 def news_for_ticker(
+    request: Request,
     ticker: str,
     session: SessionDep,
     limit: Annotated[int, Query(ge=1, le=100)] = 20,
@@ -36,7 +39,9 @@ def news_for_ticker(
 
 
 @router.get("/news", response_model=list[NewsArticleOut])
+@limiter.limit("60/minute")
 def latest_news(
+    request: Request,
     session: SessionDep,
     limit: Annotated[int, Query(ge=1, le=100)] = 50,
 ) -> list[NewsArticle]:
