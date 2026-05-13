@@ -1,10 +1,4 @@
-"""Paper-trading: trade execution and portfolio computation.
-
-The model is intentionally simple: one default portfolio per user, market
-orders only, fills at the most recent ``1d`` close. The Position row is a
-materialized roll-up of all Trade rows — we recompute avg cost on every
-buy and zero out the row when the last share is sold.
-"""
+"""Paper-trading: trade execution, portfolio computation, and pending orders."""
 
 from stockviz.services.trading.dividends import credit_due_dividends
 from stockviz.services.trading.execute import (
@@ -17,6 +11,7 @@ from stockviz.services.trading.execute import (
     ensure_default_portfolio,
     execute_trade,
 )
+from stockviz.services.trading.orders import OrderError, create_pending_order, settle_pending_orders
 from stockviz.services.trading.portfolio import (
     PortfolioPosition,
     PortfolioValuation,
@@ -32,14 +27,17 @@ __all__ = [
     "InsufficientCash",
     "InsufficientPosition",
     "NoMarketDataError",
+    "OrderError",
     "PortfolioPosition",
     "PortfolioValuation",
     "SymbolNotFound",
     "TradeExecutionError",
     "compute_portfolio",
+    "create_pending_order",
     "credit_due_dividends",
     "ensure_default_portfolio",
     "execute_trade",
+    "settle_pending_orders",
     "snapshot_user_navs",
     "upsert_user_snapshot",
 ]

@@ -8,6 +8,7 @@ imports themselves.
 from stockviz.models.alert import Alert, AlertDirection
 from stockviz.models.dividend import Dividend, PortfolioDividend
 from stockviz.models.market import NewsArticle, PriceBar, Symbol
+from stockviz.models.order import OrderStatus, OrderType, PendingOrder
 from stockviz.models.portfolio import Portfolio, PortfolioSnapshot, Position, Trade, TradeSide
 from stockviz.models.recommendation import Recommendation
 from stockviz.models.user import User
@@ -18,6 +19,9 @@ __all__ = [
     "AlertDirection",
     "Dividend",
     "NewsArticle",
+    "OrderStatus",
+    "OrderType",
+    "PendingOrder",
     "Portfolio",
     "PortfolioDividend",
     "PortfolioSnapshot",

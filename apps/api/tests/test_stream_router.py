@@ -38,7 +38,7 @@ async def _first_event(ticker: str, session: Session) -> dict:
     """Call stream_quotes directly and return the first SSE payload."""
     response = await stream_quotes(ticker, session)
     async for chunk in response.body_iterator:  # type: ignore[union-attr]
-        line = (chunk.decode() if isinstance(chunk, bytes) else chunk).strip()
+        line = (chunk.decode() if isinstance(chunk, bytes) else str(chunk)).strip()
         if line.startswith("data:"):
             return json.loads(line[len("data:") :].strip())
     return {}

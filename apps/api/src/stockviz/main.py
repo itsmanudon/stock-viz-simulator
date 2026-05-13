@@ -17,6 +17,7 @@ from stockviz.routers import (
     indicators,
     leaderboard,
     news,
+    orders,
     quotes,
     recommendations,
     stream,
@@ -85,6 +86,7 @@ def create_app() -> FastAPI:
     app.include_router(alerts.router)
     app.include_router(watchlist.router)
     app.include_router(leaderboard.router)
+    app.include_router(orders.router)
     app.include_router(stream.router)
 
     return app
