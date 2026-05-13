@@ -9,6 +9,7 @@
 
 import Link from "next/link";
 
+import { ClickableRow } from "@/components/clickable-row";
 import { Sparkline } from "@/components/sparkline";
 import {
   Table,
@@ -183,12 +184,8 @@ export default async function MarketsPage({
             {sorted.map((row) => {
               const up = row.changePct !== null && row.changePct >= 0;
               return (
-                <TableRow key={row.ticker}>
-                  <TableCell className="font-mono font-semibold">
-                    <Link href={`/stocks/${row.ticker}`} className="hover:underline">
-                      {row.ticker}
-                    </Link>
-                  </TableCell>
+                <ClickableRow key={row.ticker} href={`/stocks/${row.ticker}`}>
+                  <TableCell className="font-mono font-semibold">{row.ticker}</TableCell>
                   <TableCell className="truncate">{row.name}</TableCell>
                   <TableCell className="hidden text-muted-foreground md:table-cell">
                     {row.sector ?? "—"}
@@ -211,7 +208,7 @@ export default async function MarketsPage({
                   <TableCell className="hidden text-right sm:table-cell">
                     <Sparkline closes={row.closes} />
                   </TableCell>
-                </TableRow>
+                </ClickableRow>
               );
             })}
           </TableBody>
