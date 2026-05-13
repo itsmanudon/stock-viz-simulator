@@ -27,7 +27,7 @@ from stockviz.services.ingest.news import ingest_news_for_ticker
 from stockviz.services.ingest.prices import ingest_ticker
 from stockviz.services.ingest.seed import DEFAULT_COMPANIES_PATH
 from stockviz.services.recommend import score_universe
-from stockviz.services.trading import snapshot_user_navs
+from stockviz.services.trading import credit_due_dividends, snapshot_user_navs
 from stockviz.settings import get_settings
 
 logger = logging.getLogger(__name__)
@@ -148,6 +148,14 @@ def portfolio_snapshots_refresh() -> None:
     logger.info("portfolio_snapshots_refresh: wrote %d snapshots for %s", written, today)
 
 
+def dividend_credit_refresh() -> None:
+    """Credit any dividends whose ex_date is today to eligible portfolios."""
+    today = utcnow().date()
+    with _session_scope() as session:
+        credited = credit_due_dividends(session, credit_date=today)
+    logger.info("dividend_credit_refresh: credited %d portfolio(s) for %s", credited, today)
+
+
 def build_scheduler() -> BackgroundScheduler:
     """Construct (but don't start) the scheduler. Caller owns lifecycle."""
 
@@ -192,6 +200,14 @@ def build_scheduler() -> BackgroundScheduler:
         portfolio_snapshots_refresh,
         trigger=CronTrigger(day_of_week="mon-fri", hour=17, minute=15),
         id="portfolio_snapshots_refresh",
+        replace_existing=True,
+    )
+
+    # 9:30am ET on weekdays — credit dividends whose ex_date is today.
+    scheduler.add_job(
+        dividend_credit_refresh,
+        trigger=CronTrigger(day_of_week="mon-fri", hour=9, minute=30),
+        id="dividend_credit_refresh",
         replace_existing=True,
     )
 

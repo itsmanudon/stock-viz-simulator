@@ -6,6 +6,7 @@ imports themselves.
 """
 
 from stockviz.models.alert import Alert, AlertDirection
+from stockviz.models.dividend import Dividend, PortfolioDividend
 from stockviz.models.market import NewsArticle, PriceBar, Symbol
 from stockviz.models.portfolio import Portfolio, PortfolioSnapshot, Position, Trade, TradeSide
 from stockviz.models.recommendation import Recommendation
@@ -15,8 +16,10 @@ from stockviz.models.watchlist import Watchlist, WatchlistItem
 __all__ = [
     "Alert",
     "AlertDirection",
+    "Dividend",
     "NewsArticle",
     "Portfolio",
+    "PortfolioDividend",
     "PortfolioSnapshot",
     "Position",
     "PriceBar",
