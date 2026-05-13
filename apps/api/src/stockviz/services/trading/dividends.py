@@ -30,9 +30,7 @@ def credit_due_dividends(session: Session, *, credit_date: date_type) -> int:
 
     Returns the number of portfolio credit events written.
     """
-    due = list(
-        session.exec(select(Dividend).where(Dividend.ex_date == credit_date))
-    )
+    due = list(session.exec(select(Dividend).where(Dividend.ex_date == credit_date)))
     if not due:
         return 0
 

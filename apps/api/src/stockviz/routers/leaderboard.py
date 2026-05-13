@@ -55,9 +55,7 @@ def _build_leaderboard(session: Session) -> list[LeaderboardEntryOut]:
             initial_nav = current_nav = _INITIAL_NAV
 
         return_pct = (
-            float((current_nav - initial_nav) / initial_nav * 100)
-            if initial_nav > 0
-            else 0.0
+            float((current_nav - initial_nav) / initial_nav * 100) if initial_nav > 0 else 0.0
         )
         entries.append((return_pct, current_nav, user))
 
@@ -89,6 +87,7 @@ def get_profile(session: SessionDep, user_id: UserIdDep) -> ProfileOut:
     user = session.get(User, user_id)
     if user is None:
         from fastapi import HTTPException, status
+
         raise HTTPException(status.HTTP_404_NOT_FOUND, "User not found")
     return ProfileOut(user_id=user_id, public_profile=user.public_profile)
 
@@ -103,6 +102,7 @@ def patch_profile(
     user = session.get(User, user_id)
     if user is None:
         from fastapi import HTTPException, status
+
         raise HTTPException(status.HTTP_404_NOT_FOUND, "User not found")
     user.public_profile = body.public_profile
     session.add(user)

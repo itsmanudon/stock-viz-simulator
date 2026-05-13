@@ -51,13 +51,13 @@ def _add_position(
     quantity: Decimal,
     avg_cost: Decimal = Decimal("150"),
 ) -> None:
-    session.add(Position(portfolio_id=portfolio_id, ticker=ticker, quantity=quantity, avg_cost=avg_cost))
+    session.add(
+        Position(portfolio_id=portfolio_id, ticker=ticker, quantity=quantity, avg_cost=avg_cost)
+    )
     session.commit()
 
 
-def _add_dividend(
-    session: Session, ticker: str, ex_date: date, amount: Decimal
-) -> None:
+def _add_dividend(session: Session, ticker: str, ex_date: date, amount: Decimal) -> None:
     session.add(Dividend(ticker=ticker, ex_date=ex_date, amount=amount))
     session.commit()
 

@@ -12,6 +12,7 @@ import { notFound } from "next/navigation";
 
 import { auth } from "@/auth";
 import { AlertForm } from "@/components/alert-form";
+import { LivePriceBadge } from "@/components/live-price-badge";
 import { NewsList } from "@/components/news-list";
 import { PriceChart } from "@/components/price-chart";
 import { StockSidebar } from "@/components/stock-sidebar";
@@ -165,10 +166,10 @@ export default async function StockPage({
             {session?.user?.id ? (
               <WatchlistToggle ticker={symbol.ticker} initialInWatchlist={inWatchlist} />
             ) : null}
-            <div className="text-right font-mono">
-              <div className="text-3xl">${fmtPrice(last)}</div>
+            <div className="text-right">
+              <LivePriceBadge ticker={ticker} initialPrice={last} />
               <div
-                className={`text-sm ${
+                className={`text-sm font-mono ${
                   periodChangePct === null
                     ? "text-muted-foreground"
                     : periodChangePct >= 0
@@ -180,6 +181,7 @@ export default async function StockPage({
                   ? `${tf}: —`
                   : `${tf}: ${periodChangePct >= 0 ? "+" : ""}${periodChangePct.toFixed(2)}%`}
               </div>
+              <p className="mt-0.5 text-xs text-muted-foreground">simulated live</p>
             </div>
           </div>
         </header>
