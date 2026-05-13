@@ -20,7 +20,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { getPortfolio, getPortfolioHistory } from "@/lib/api/trading";
+import { getDividends, getPortfolio, getPortfolioHistory } from "@/lib/api/trading";
 
 const RANGES = [
   { value: "30", label: "30D", days: 30 },
@@ -66,9 +66,11 @@ export default async function PortfolioPage({
   const range = parseRange(rawRange);
   const days = RANGES.find((r) => r.value === range)?.days ?? 90;
 
-  const [portfolio, history] = await Promise.all([
+  const emptyDividends = { ytd_income: "0", history: [], projected: [] };
+  const [portfolio, history, dividends] = await Promise.all([
     getPortfolio(),
     getPortfolioHistory(days).catch(() => [] as Awaited<ReturnType<typeof getPortfolioHistory>>),
+    getDividends().catch(() => emptyDividends),
   ]);
 
   const totalCost = Number(portfolio.total_cost_basis);
@@ -162,6 +164,69 @@ export default async function PortfolioPage({
           </div>
         </section>
       ) : null}
+
+      <section className="mt-8">
+        <h2 className="mb-3 text-lg font-semibold">Dividend income</h2>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <Card>
+            <CardContent className="p-4">
+              <p className="text-xs text-muted-foreground">YTD income</p>
+              <p className="mt-1 font-mono text-xl text-green-500">
+                {fmtCurrency(dividends.ytd_income)}
+              </p>
+            </CardContent>
+          </Card>
+          {dividends.projected.length > 0 && (
+            <Card>
+              <CardContent className="p-4">
+                <p className="mb-2 text-xs text-muted-foreground">Upcoming payouts</p>
+                <ul className="space-y-1 text-sm">
+                  {dividends.projected.slice(0, 3).map((p) => (
+                    <li key={p.ticker} className="flex justify-between gap-4">
+                      <span className="font-mono font-semibold">{p.ticker}</span>
+                      <span className="text-muted-foreground">
+                        {p.projected_ex_date ?? "unknown date"}
+                      </span>
+                      <span className="font-mono text-green-500">
+                        +{fmtCurrency(p.projected_amount)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+        {dividends.history.length > 0 && (
+          <div className="mt-3 rounded-lg border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Ticker</TableHead>
+                  <TableHead>Ex-date</TableHead>
+                  <TableHead className="text-right">Amount credited</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {dividends.history.map((d) => (
+                  <TableRow key={`${d.ticker}-${d.ex_date}`}>
+                    <TableCell className="font-mono font-semibold">{d.ticker}</TableCell>
+                    <TableCell className="text-muted-foreground">{d.ex_date}</TableCell>
+                    <TableCell className="text-right font-mono text-green-500">
+                      +{fmtCurrency(d.amount_credited)}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+        {dividends.history.length === 0 && (
+          <p className="mt-2 text-sm text-muted-foreground">
+            No dividends credited yet. Dividends are applied on ex-dates for held positions.
+          </p>
+        )}
+      </section>
 
       <section className="mt-8">
         <h2 className="mb-3 text-lg font-semibold">Positions</h2>

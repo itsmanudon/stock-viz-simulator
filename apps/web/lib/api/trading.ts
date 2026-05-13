@@ -58,3 +58,26 @@ export function getPortfolioHistory(days: number | null = 90): Promise<Portfolio
   const qs = days === null ? "" : `?days=${days}`;
   return authedGet<PortfolioHistoryPoint[]>(`/v1/portfolio/history${qs}`);
 }
+
+export type DividendCredit = {
+  ticker: string;
+  ex_date: string;
+  amount_credited: string;
+  credited_at: string;
+};
+
+export type ProjectedDividend = {
+  ticker: string;
+  projected_ex_date: string | null;
+  projected_amount: string;
+};
+
+export type DividendSummary = {
+  ytd_income: string;
+  history: DividendCredit[];
+  projected: ProjectedDividend[];
+};
+
+export function getDividends(): Promise<DividendSummary> {
+  return authedGet<DividendSummary>("/v1/portfolio/dividends");
+}

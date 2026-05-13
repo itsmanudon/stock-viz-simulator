@@ -106,6 +106,32 @@ class RecommendationOut(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Dividends
+# ---------------------------------------------------------------------------
+
+
+class DividendCreditOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    ticker: str
+    ex_date: date
+    amount_credited: Decimal
+    credited_at: datetime
+
+
+class ProjectedDividendOut(BaseModel):
+    ticker: str
+    projected_ex_date: date | None
+    projected_amount: Decimal
+
+
+class DividendSummaryOut(BaseModel):
+    ytd_income: Decimal
+    history: list[DividendCreditOut]
+    projected: list[ProjectedDividendOut]
+
+
+# ---------------------------------------------------------------------------
 # Paper trading
 # ---------------------------------------------------------------------------
 

@@ -17,10 +17,14 @@ from stockviz._time import utcnow
 from stockviz.auth import UserIdDep
 from stockviz.db import get_session
 from stockviz.models import PortfolioSnapshot, Trade, TradeSide
+from stockviz.models.dividend import Dividend, PortfolioDividend
 from stockviz.schemas import (
+    DividendCreditOut,
+    DividendSummaryOut,
     PortfolioHistoryPointOut,
     PortfolioOut,
     PositionOut,
+    ProjectedDividendOut,
     TradeIn,
     TradeOut,
 )
@@ -125,3 +129,83 @@ def list_trades(
         .limit(limit)
     )
     return list(session.exec(stmt).all())
+
+
+@router.get("/portfolio/dividends", response_model=DividendSummaryOut)
+def get_portfolio_dividends(session: SessionDep, user_id: UserIdDep) -> DividendSummaryOut:
+    """Return dividend income history and projected next payouts for the user's portfolio."""
+    from datetime import date as date_type
+
+    portfolio = ensure_default_portfolio(session, user_id)
+
+    # Credit history, newest first.
+    credits = list(
+        session.exec(
+            select(PortfolioDividend)
+            .where(PortfolioDividend.portfolio_id == portfolio.id)
+            .order_by(PortfolioDividend.ex_date.desc())  # type: ignore[attr-defined]
+        )
+    )
+
+    # YTD income (Jan 1 of current year).
+    today = date_type.today()
+    ytd_cutoff = date_type(today.year, 1, 1)
+    ytd_income = sum(
+        (c.amount_credited for c in credits if c.ex_date >= ytd_cutoff),
+        start=__import__("decimal").Decimal(0),
+    )
+
+    # Projected payouts: for each current position find the most recent
+    # dividend in the master calendar and estimate the next payment date
+    # by adding the observed payment frequency.
+    from stockviz.models import Position
+
+    positions = list(
+        session.exec(
+            select(Position).where(
+                Position.portfolio_id == portfolio.id,
+                Position.quantity > 0,
+            )
+        )
+    )
+
+    projected: list[ProjectedDividendOut] = []
+    for pos in positions:
+        recent_divs = list(
+            session.exec(
+                select(Dividend)
+                .where(Dividend.ticker == pos.ticker)
+                .order_by(Dividend.ex_date.desc())  # type: ignore[attr-defined]
+                .limit(5)
+            )
+        )
+        if not recent_divs:
+            continue
+
+        last_div = recent_divs[0]
+        projected_amount = (pos.quantity * last_div.amount).quantize(last_div.amount)
+
+        # Estimate frequency from the gap between the last two payments.
+        projected_ex_date: date_type | None = None
+        if len(recent_divs) >= 2:
+            gap = (recent_divs[0].ex_date - recent_divs[1].ex_date).days
+            if gap > 0:
+                from datetime import timedelta
+
+                projected_ex_date = last_div.ex_date + timedelta(days=gap)
+
+        projected.append(
+            ProjectedDividendOut(
+                ticker=pos.ticker,
+                projected_ex_date=projected_ex_date,
+                projected_amount=projected_amount,
+            )
+        )
+
+    projected.sort(key=lambda p: p.projected_ex_date or date_type.max)
+
+    return DividendSummaryOut(
+        ytd_income=ytd_income,
+        history=[DividendCreditOut.model_validate(c) for c in credits],
+        projected=projected,
+    )
