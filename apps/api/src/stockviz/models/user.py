@@ -25,4 +25,5 @@ class User(SQLModel, table=True):
     # created via OAuth (Phase 3 has credentials only, so right now NULL only
     # happens for rows seeded outside of signup).
     password_hash: str | None = Field(default=None, max_length=255)
+    public_profile: bool = Field(default=False, nullable=False)
     created_at: datetime = Field(default_factory=utcnow, nullable=False)
