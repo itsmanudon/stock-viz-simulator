@@ -30,9 +30,10 @@ original (you probably won't), `git fetch upstream` first, then cherry-pick.
 main ← dev ← feat/* | fix/* | chore/*
 ```
 
-- **`main`** — production branch. Vercel and Render auto-deploy from it.
-  Only receives merges from `dev` when a milestone is ready to ship.
-  Do **not** open feature PRs directly against `main`.
+- **`main`** — integration branch. Auto-deployments (Vercel + Render) are
+  **disabled**, so `dev` can be merged into `main` freely after any set of
+  changes — no milestone gate required. Do **not** open feature PRs directly
+  against `main`; still go through `dev` first.
 - **`dev`** — the integration branch. All feature/fix/chore PRs target `dev`.
   Kept green at all times; merged into `main` for each deployable release.
 - **`feat/<name>`**, **`fix/<name>`**, **`chore/<name>`** — short-lived

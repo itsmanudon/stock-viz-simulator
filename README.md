@@ -123,6 +123,10 @@ Full walkthrough (Vercel for web, Render Blueprint for api + db, env vars,
 secrets, first-time seeding, rollback) lives in
 [`docs/DEPLOYMENT.md`](./docs/DEPLOYMENT.md). The short version:
 
+> **Note:** auto-deployments are currently **disabled**. `dev` is merged into
+> `main` freely as changes land — no milestone gate. The instructions below
+> apply when deployments are re-enabled.
+
 - **Web → Vercel.** Import the repo, set Root Directory to `apps/web`,
   fill in env vars (`API_URL`, `NEXT_PUBLIC_API_URL`, `DATABASE_URL`,
   `AUTH_SECRET`, `AUTH_URL`, `INTERNAL_API_TOKEN`, optional Sentry). Build

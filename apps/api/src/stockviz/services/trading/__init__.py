@@ -6,6 +6,7 @@ materialized roll-up of all Trade rows — we recompute avg cost on every
 buy and zero out the row when the last share is sold.
 """
 
+from stockviz.services.trading.dividends import credit_due_dividends
 from stockviz.services.trading.execute import (
     DEFAULT_STARTING_CASH,
     InsufficientCash,
@@ -36,6 +37,7 @@ __all__ = [
     "SymbolNotFound",
     "TradeExecutionError",
     "compute_portfolio",
+    "credit_due_dividends",
     "ensure_default_portfolio",
     "execute_trade",
     "snapshot_user_navs",

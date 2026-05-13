@@ -14,6 +14,7 @@ import { auth } from "@/auth";
 import { AlertForm } from "@/components/alert-form";
 import { NewsList } from "@/components/news-list";
 import { PriceChart } from "@/components/price-chart";
+import { StockSidebar } from "@/components/stock-sidebar";
 import { WatchlistToggle } from "@/components/watchlist-toggle";
 import {
   ApiError,
@@ -22,6 +23,7 @@ import {
   getIndicators,
   getNewsForTicker,
   getSymbol,
+  listSymbols,
 } from "@/lib/api";
 import { listWatchlist } from "@/lib/api/watchlist";
 
@@ -102,13 +104,14 @@ export default async function StockPage({
     throw err;
   }
 
-  const [bars, indicatorBundle, news, session] = await Promise.all([
+  const [bars, indicatorBundle, news, session, allSymbols] = await Promise.all([
     getBars(ticker, { limit: tfDays }),
     indicators.length
       ? getIndicators(ticker, { names: indicators, limit: tfDays })
       : Promise.resolve(null),
     getNewsForTicker(ticker, 8).catch(() => []),
     auth(),
+    listSymbols(),
   ]);
   const signedIn = Boolean(session?.user?.id);
 
@@ -138,7 +141,14 @@ export default async function StockPage({
   const showMacd = indicators.includes("macd");
 
   return (
-    <div className="container mx-auto px-4 py-10 sm:px-6">
+    <div className="flex">
+      <StockSidebar
+        symbols={allSymbols}
+        currentTicker={ticker}
+        tf={tf}
+        indicators={indicators.join(",")}
+      />
+      <div className="min-w-0 flex-1 px-4 py-10 sm:px-6">
       <header className="mb-6 flex flex-wrap items-baseline justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">
@@ -239,6 +249,7 @@ export default async function StockPage({
         <h2 className="mb-4 text-lg font-semibold">Recent news</h2>
         <NewsList articles={news} />
       </section>
+      </div>
     </div>
   );
 }
