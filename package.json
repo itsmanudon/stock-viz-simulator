@@ -17,7 +17,8 @@
     "db:up": "docker compose -f infra/docker-compose.yml up -d",
     "db:down": "docker compose -f infra/docker-compose.yml down",
     "api:dev": "uv --directory apps/api run uvicorn stockviz.main:app --reload --port 8000",
-    "api:migrate": "uv --directory apps/api run alembic upgrade head"
+    "api:migrate": "uv --directory apps/api run alembic upgrade head",
+    "e2e": "pnpm --filter @stockviz/web e2e"
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",
