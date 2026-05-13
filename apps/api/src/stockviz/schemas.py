@@ -252,3 +252,31 @@ class WatchlistItemOut(BaseModel):
     sector: str | None
     added_at: datetime
     last_close: Decimal | None
+
+
+# ---------------------------------------------------------------------------
+# Pending orders (advanced order types)
+# ---------------------------------------------------------------------------
+
+
+class PendingOrderIn(BaseModel):
+    ticker: str
+    side: str
+    order_type: str
+    quantity: str
+    limit_price: str
+
+
+class PendingOrderOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    ticker: str
+    side: str
+    order_type: str
+    quantity: Decimal
+    limit_price: Decimal
+    status: str
+    created_at: datetime
+    filled_at: datetime | None
+    fill_price: Decimal | None

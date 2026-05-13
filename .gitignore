@@ -57,6 +57,12 @@ htmlcov/
 *.log
 logs/
 
+# Playwright
+playwright-report/
+test-results/
+apps/web/playwright-report/
+apps/web/test-results/
+
 # Temporary files
 *.tmp
 *.temp
