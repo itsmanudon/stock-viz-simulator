@@ -89,12 +89,15 @@ export default function LoginPage() {
                 <span className="bg-card px-2 text-muted-foreground">or</span>
               </div>
             </div>
-            <form action={signInWithGoogleAction} className="w-full">
-              <Button type="submit" variant="outline" className="w-full gap-2">
-                <GoogleIcon />
-                Continue with Google
-              </Button>
-            </form>
+            <Button
+              type="submit"
+              formAction={signInWithGoogleAction}
+              variant="outline"
+              className="w-full gap-2"
+            >
+              <GoogleIcon />
+              Continue with Google
+            </Button>
             <p className="text-center text-sm text-muted-foreground">
               No account?{" "}
               <Link href="/signup" className="text-foreground underline">
