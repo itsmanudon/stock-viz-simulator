@@ -32,8 +32,8 @@ export default async function SettingsPage() {
         </CardHeader>
         <CardContent className="space-y-3">
           <p className="text-sm text-muted-foreground">
-            When enabled, your username and portfolio return appear on the public leaderboard.
-            Your holdings and cash balance are never shown.
+            When enabled, your username and portfolio return appear on the public leaderboard. Your
+            holdings and cash balance are never shown.
           </p>
           <form action={setPublicProfile} className="flex items-center gap-4">
             <input

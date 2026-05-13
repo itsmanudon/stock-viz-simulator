@@ -4,10 +4,10 @@ import { useState } from "react";
 
 import Link from "next/link";
 
-import type { Symbol } from "@/lib/api/types";
+import type { Symbol as StockSymbol } from "@/lib/api/types";
 
 type Props = {
-  symbols: Symbol[];
+  symbols: StockSymbol[];
   currentTicker: string;
   /** Preserved on navigation so tf/indicator state isn't lost when switching tickers. */
   tf: string;
@@ -55,6 +55,7 @@ export function StockSidebar({ symbols, currentTicker, tf, indicators }: Props) 
       {/* Sector filter */}
       <div className="flex flex-wrap gap-1 border-b p-2">
         <button
+          type="button"
           onClick={() => setSector(null)}
           className={`rounded-md border px-2 py-0.5 text-xs transition hover:bg-accent ${
             sector === null ? "border-primary text-foreground" : "text-muted-foreground"
@@ -64,6 +65,7 @@ export function StockSidebar({ symbols, currentTicker, tf, indicators }: Props) 
         </button>
         {sectors.map((s) => (
           <button
+            type="button"
             key={s}
             onClick={() => setSector(s)}
             className={`rounded-md border px-2 py-0.5 text-xs transition hover:bg-accent ${
