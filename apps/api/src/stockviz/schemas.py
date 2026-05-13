@@ -163,6 +163,30 @@ class PortfolioHistoryPointOut(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Leaderboard / profile
+# ---------------------------------------------------------------------------
+
+
+class LeaderboardEntryOut(BaseModel):
+    rank: int
+    user_id: int
+    username: str
+    return_pct: float
+    portfolio_value: Decimal
+
+
+class ProfileOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    user_id: int
+    public_profile: bool
+
+
+class ProfilePatchIn(BaseModel):
+    public_profile: bool
+
+
+# ---------------------------------------------------------------------------
 # Alerts
 # ---------------------------------------------------------------------------
 

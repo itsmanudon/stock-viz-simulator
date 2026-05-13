@@ -88,6 +88,13 @@ export async function authedPost<T>(path: string, body?: unknown): Promise<T> {
   return jsonOrThrow<T>(path, res);
 }
 
+export async function authedPatch<T>(path: string, body?: unknown): Promise<T> {
+  const init: RequestInit = { method: "PATCH" };
+  if (body !== undefined) init.body = JSON.stringify(body);
+  const res = await authedFetch(path, init);
+  return jsonOrThrow<T>(path, res);
+}
+
 export async function authedDelete(path: string): Promise<void> {
   const res = await authedFetch(path, { method: "DELETE" });
   if (!res.ok) {
