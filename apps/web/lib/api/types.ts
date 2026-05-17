@@ -86,3 +86,17 @@ export type Recommendation = {
   rationale: string[];
   computed_at: string;
 };
+
+export type ScreenerResult = {
+  ticker: string;
+  name: string;
+  sector: string | null;
+  exchange: string | null;
+  currency: string;
+  last_close: string;
+  rsi_14: number | null;
+  momentum_pct: number | null;
+  momentum_days: number | null;
+  high_52w: string;
+  low_52w: string;
+};

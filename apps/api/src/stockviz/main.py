@@ -19,6 +19,7 @@ from stockviz.routers import (
     news,
     quotes,
     recommendations,
+    screener,
     symbols,
     trading,
     watchlist,
@@ -74,6 +75,9 @@ def create_app() -> FastAPI:
     )
 
     app.include_router(health.router)
+    # Register screener before symbols so /v1/symbols/screen wins over the
+    # /v1/symbols/{ticker} catch-all in symbols.router.
+    app.include_router(screener.router)
     app.include_router(symbols.router)
     app.include_router(bars.router)
     app.include_router(news.router)
