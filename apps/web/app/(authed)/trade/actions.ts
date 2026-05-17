@@ -44,6 +44,9 @@ export type TradeFormState = {
     side: "buy" | "sell";
     quantity: string;
     price: string;
+    currency: string;
+    total_native: string;
+    total_usd: string;
   };
 };
 
@@ -80,6 +83,9 @@ export async function placeTradeAction(
         side: trade.side,
         quantity: trade.quantity,
         price: trade.price,
+        currency: trade.currency,
+        total_native: trade.total_native,
+        total_usd: trade.total_usd,
       },
     };
   } catch (err) {

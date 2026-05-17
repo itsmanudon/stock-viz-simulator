@@ -21,6 +21,9 @@ export type Symbol = {
   name: string;
   sector: string | null;
   exchange: string | null;
+  // ISO-4217 currency the symbol trades in. Defaults to USD for the
+  // historical universe; non-USD symbols (e.g. SAP.DE) declare it explicitly.
+  currency: string;
   is_active: boolean;
 };
 
@@ -82,4 +85,18 @@ export type Recommendation = {
   score: number;
   rationale: string[];
   computed_at: string;
+};
+
+export type ScreenerResult = {
+  ticker: string;
+  name: string;
+  sector: string | null;
+  exchange: string | null;
+  currency: string;
+  last_close: string;
+  rsi_14: number | null;
+  momentum_pct: number | null;
+  momentum_days: number | null;
+  high_52w: string;
+  low_52w: string;
 };

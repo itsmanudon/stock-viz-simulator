@@ -82,6 +82,9 @@ def get_leaderboard(session: SessionDep) -> list[LeaderboardEntryOut]:
     return _cache
 
 
+SUPPORTED_DISPLAY_CURRENCIES = frozenset({"USD", "EUR", "GBP", "JPY", "CAD", "INR"})
+
+
 @router.get("/profile", response_model=ProfileOut)
 def get_profile(session: SessionDep, user_id: UserIdDep) -> ProfileOut:
     user = session.get(User, user_id)
@@ -89,7 +92,11 @@ def get_profile(session: SessionDep, user_id: UserIdDep) -> ProfileOut:
         from fastapi import HTTPException, status
 
         raise HTTPException(status.HTTP_404_NOT_FOUND, "User not found")
-    return ProfileOut(user_id=user_id, public_profile=user.public_profile)
+    return ProfileOut(
+        user_id=user_id,
+        public_profile=user.public_profile,
+        display_currency=user.display_currency or "USD",
+    )
 
 
 @router.patch("/profile", response_model=ProfileOut)
@@ -99,13 +106,28 @@ def patch_profile(
     user_id: UserIdDep,
 ) -> ProfileOut:
     global _cache_ts
+    from fastapi import HTTPException, status
+
     user = session.get(User, user_id)
     if user is None:
-        from fastapi import HTTPException, status
-
         raise HTTPException(status.HTTP_404_NOT_FOUND, "User not found")
-    user.public_profile = body.public_profile
+
+    if body.public_profile is not None:
+        user.public_profile = body.public_profile
+        _cache_ts = 0.0  # public_profile flips invalidate the cache
+    if body.display_currency is not None:
+        ccy = body.display_currency.upper()
+        if ccy not in SUPPORTED_DISPLAY_CURRENCIES:
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST,
+                f"Unsupported display_currency {ccy!r}; allowed: {sorted(SUPPORTED_DISPLAY_CURRENCIES)}",
+            )
+        user.display_currency = ccy
+
     session.add(user)
     session.commit()
-    _cache_ts = 0.0  # invalidate cache on any profile change
-    return ProfileOut(user_id=user_id, public_profile=user.public_profile)
+    return ProfileOut(
+        user_id=user_id,
+        public_profile=user.public_profile,
+        display_currency=user.display_currency or "USD",
+    )

@@ -34,11 +34,18 @@ def seed_symbols(session: Session, *, path: Path | None = None) -> int:
         return 0
 
     raw = json.loads(src.read_text(encoding="utf-8"))
-    rows = [
-        {"ticker": item["symbol"], "name": item["name"]}
-        for item in raw
-        if "symbol" in item and "name" in item
-    ]
+    rows = []
+    for item in raw:
+        if "symbol" not in item or "name" not in item:
+            continue
+        row: dict[str, object] = {"ticker": item["symbol"], "name": item["name"]}
+        # currency / exchange are optional in the seed file; default to USD
+        # so existing rows keep their meaning. Listed companies pin the value
+        # explicitly so a future override doesn't silently break.
+        row["currency"] = item.get("currency", "USD")
+        if "exchange" in item:
+            row["exchange"] = item["exchange"]
+        rows.append(row)
     if not rows:
         return 0
 

@@ -12,6 +12,7 @@ import { notFound } from "next/navigation";
 
 import { auth } from "@/auth";
 import { AlertForm } from "@/components/alert-form";
+import { CommentsSection } from "@/components/comments-section";
 import { LivePriceBadge } from "@/components/live-price-badge";
 import { NewsList } from "@/components/news-list";
 import { PriceChart } from "@/components/price-chart";
@@ -26,6 +27,7 @@ import {
   getSymbol,
   listSymbols,
 } from "@/lib/api";
+import { listComments } from "@/lib/api/comments";
 import { listWatchlist } from "@/lib/api/watchlist";
 
 const TIMEFRAMES = [
@@ -105,7 +107,7 @@ export default async function StockPage({
     throw err;
   }
 
-  const [bars, indicatorBundle, news, session, allSymbols] = await Promise.all([
+  const [bars, indicatorBundle, news, session, allSymbols, comments] = await Promise.all([
     getBars(ticker, { limit: tfDays }),
     indicators.length
       ? getIndicators(ticker, { names: indicators, limit: tfDays })
@@ -113,8 +115,10 @@ export default async function StockPage({
     getNewsForTicker(ticker, 8).catch(() => []),
     auth(),
     listSymbols(),
+    listComments(ticker).catch(() => [] as Awaited<ReturnType<typeof listComments>>),
   ]);
   const signedIn = Boolean(session?.user?.id);
+  const currentUserId = session?.user?.id ? Number(session.user.id) : null;
 
   let inWatchlist = false;
   if (session?.user?.id) {
@@ -253,6 +257,12 @@ export default async function StockPage({
           <h2 className="mb-4 text-lg font-semibold">Recent news</h2>
           <NewsList articles={news} />
         </section>
+
+        <CommentsSection
+          ticker={symbol.ticker}
+          comments={comments}
+          currentUserId={Number.isFinite(currentUserId) ? currentUserId : null}
+        />
       </div>
     </div>
   );

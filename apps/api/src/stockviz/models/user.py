@@ -26,4 +26,7 @@ class User(SQLModel, table=True):
     # happens for rows seeded outside of signup).
     password_hash: str | None = Field(default=None, max_length=255)
     public_profile: bool = Field(default=False, nullable=False)
+    # ISO-4217 currency the portfolio totals are rendered in on the UI. The
+    # underlying cash balance stays USD-base; conversion happens at read time.
+    display_currency: str = Field(default="USD", max_length=3, nullable=False)
     created_at: datetime = Field(default_factory=utcnow, nullable=False)

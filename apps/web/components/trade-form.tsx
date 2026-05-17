@@ -14,7 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 type Props = {
-  options: Array<{ ticker: string; name: string }>;
+  options: Array<{ ticker: string; name: string; currency: string }>;
   heldTickers: string[];
 };
 
@@ -26,6 +26,21 @@ const ORDER_MODE_LABELS: Record<OrderMode, string> = {
   stop_loss: "Stop-Loss",
   take_profit: "Take-Profit",
 };
+
+function fmtMoney(raw: string, ccy: string): string {
+  const n = Number(raw);
+  const opts: Intl.NumberFormatOptions = {
+    style: "currency",
+    currency: ccy,
+    minimumFractionDigits: ccy === "JPY" ? 0 : 2,
+    maximumFractionDigits: ccy === "JPY" ? 0 : 2,
+  };
+  try {
+    return n.toLocaleString("en-US", opts);
+  } catch {
+    return `${ccy} ${n.toFixed(2)}`;
+  }
+}
 
 function MarketOrderForm({
   options,
@@ -174,8 +189,8 @@ function SymbolPicker({
       >
         {options.map((opt) => (
           <option key={opt.ticker} value={opt.ticker}>
-            {opt.ticker} — {opt.name}
-            {heldSet.has(opt.ticker) ? " (holding)" : ""}
+            {opt.ticker} ({opt.currency}) — {opt.name}
+            {heldSet.has(opt.ticker) ? " · holding" : ""}
           </option>
         ))}
       </select>
@@ -209,9 +224,17 @@ function StateOutput({ state }: { state: TradeFormState }) {
         </p>
       ) : null}
       {state.success ? (
-        <output className="block text-sm text-green-500">
-          Filled {state.success.side.toUpperCase()} {state.success.quantity} {state.success.ticker}{" "}
-          @ ${Number(state.success.price).toFixed(2)}
+        <output className="block space-y-0.5 text-sm">
+          <span className="block text-green-500">
+            Filled {state.success.side.toUpperCase()} {state.success.quantity}{" "}
+            {state.success.ticker} @ {fmtMoney(state.success.price, state.success.currency)}
+          </span>
+          <span className="block text-xs text-muted-foreground">
+            Native total {fmtMoney(state.success.total_native, state.success.currency)}
+            {state.success.currency !== "USD" ? (
+              <> · USD debit {fmtMoney(state.success.total_usd, "USD")}</>
+            ) : null}
+          </span>
         </output>
       ) : null}
     </>

@@ -13,6 +13,7 @@ from stockviz.observability import init_sentry
 from stockviz.routers import (
     alerts,
     bars,
+    comments,
     health,
     indicators,
     leaderboard,
@@ -20,6 +21,7 @@ from stockviz.routers import (
     orders,
     quotes,
     recommendations,
+    screener,
     stream,
     symbols,
     trading,
@@ -76,6 +78,9 @@ def create_app() -> FastAPI:
     )
 
     app.include_router(health.router)
+    # Register screener before symbols so /v1/symbols/screen wins over the
+    # /v1/symbols/{ticker} catch-all in symbols.router.
+    app.include_router(screener.router)
     app.include_router(symbols.router)
     app.include_router(bars.router)
     app.include_router(news.router)
@@ -88,6 +93,7 @@ def create_app() -> FastAPI:
     app.include_router(leaderboard.router)
     app.include_router(orders.router)
     app.include_router(stream.router)
+    app.include_router(comments.router)
 
     return app
 

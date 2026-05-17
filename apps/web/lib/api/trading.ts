@@ -6,14 +6,23 @@ export type Position = {
   ticker: string;
   name: string;
   quantity: string;
+  // ISO-4217 ccy the symbol trades in.
+  currency: string;
+  // avg_cost / last_close are in the symbol's native currency.
   avg_cost: string;
   last_close: string | null;
+  // Native-currency aggregates.
+  market_value_native: string;
+  unrealized_pl_native: string;
+  // Aggregates converted to the portfolio's display currency.
   market_value: string;
   unrealized_pl: string;
 };
 
 export type Portfolio = {
   portfolio_id: number;
+  // All top-level aggregates (cash + market value + totals) are in this currency.
+  display_currency: string;
   cash_balance: string;
   market_value: string;
   total_value: string;
@@ -27,8 +36,15 @@ export type TradeRow = {
   ticker: string;
   side: "buy" | "sell";
   quantity: string;
+  // Per-share fill price in the symbol's native currency.
   price: string;
   ts: string;
+  // ISO-4217 ccy the trade is denominated in (== symbol's currency).
+  currency: string;
+  // USD per 1 unit of `currency` (1 for USD symbols).
+  fx_rate: string;
+  total_native: string;
+  total_usd: string;
 };
 
 export type TradeInput = {
@@ -121,4 +137,39 @@ export function createOrder(body: PendingOrderInput): Promise<PendingOrder> {
 
 export function cancelOrder(orderId: number): Promise<void> {
   return authedDelete(`/v1/orders/${orderId}`);
+}
+
+// ---------------------------------------------------------------------------
+// Portfolio analytics
+// ---------------------------------------------------------------------------
+
+export type SectorAllocation = {
+  sector: string;
+  market_value: string;
+  pct: number;
+};
+
+export type TopMover = {
+  ticker: string;
+  name: string;
+  sector: string | null;
+  unrealized_pl: string;
+  return_pct: number;
+};
+
+export type PortfolioAnalytics = {
+  display_currency: string;
+  history_days: number;
+  total_return_pct: number | null;
+  annualised_return_pct: number | null;
+  sharpe_ratio: number | null;
+  max_drawdown_pct: number | null;
+  risk_free_rate: number;
+  sector_allocation: SectorAllocation[];
+  top_gainers: TopMover[];
+  top_losers: TopMover[];
+};
+
+export function getPortfolioAnalytics(): Promise<PortfolioAnalytics> {
+  return authedGet<PortfolioAnalytics>("/v1/portfolio/analytics");
 }

@@ -56,7 +56,13 @@ def _make_user(session: Session) -> int:
 def test_create_order_requires_auth(client: TestClient) -> None:
     response = client.post(
         "/v1/orders",
-        json={"ticker": "AAPL", "side": "buy", "order_type": "limit", "quantity": "1", "limit_price": "140"},
+        json={
+            "ticker": "AAPL",
+            "side": "buy",
+            "order_type": "limit",
+            "quantity": "1",
+            "limit_price": "140",
+        },
     )
     assert response.status_code == 401
 
@@ -77,7 +83,13 @@ def test_create_limit_buy_order(session: Session, client: TestClient) -> None:
     response = client.post(
         "/v1/orders",
         headers=_auth_headers(user_id),
-        json={"ticker": "AAPL", "side": "buy", "order_type": "limit", "quantity": "5", "limit_price": "140.00"},
+        json={
+            "ticker": "AAPL",
+            "side": "buy",
+            "order_type": "limit",
+            "quantity": "5",
+            "limit_price": "140.00",
+        },
     )
     assert response.status_code == 201
     body = response.json()
@@ -98,7 +110,13 @@ def test_create_stop_loss_order(session: Session, client: TestClient) -> None:
     response = client.post(
         "/v1/orders",
         headers=_auth_headers(user_id),
-        json={"ticker": "AAPL", "side": "sell", "order_type": "stop_loss", "quantity": "2", "limit_price": "130.00"},
+        json={
+            "ticker": "AAPL",
+            "side": "sell",
+            "order_type": "stop_loss",
+            "quantity": "2",
+            "limit_price": "130.00",
+        },
     )
     assert response.status_code == 201
     assert response.json()["order_type"] == "stop_loss"
@@ -111,7 +129,13 @@ def test_create_take_profit_order(session: Session, client: TestClient) -> None:
     response = client.post(
         "/v1/orders",
         headers=_auth_headers(user_id),
-        json={"ticker": "AAPL", "side": "sell", "order_type": "take_profit", "quantity": "3", "limit_price": "200.00"},
+        json={
+            "ticker": "AAPL",
+            "side": "sell",
+            "order_type": "take_profit",
+            "quantity": "3",
+            "limit_price": "200.00",
+        },
     )
     assert response.status_code == 201
     assert response.json()["order_type"] == "take_profit"
@@ -125,7 +149,13 @@ def test_create_order_unknown_symbol_returns_404(session: Session, client: TestC
     response = client.post(
         "/v1/orders",
         headers=_auth_headers(user_id),
-        json={"ticker": "NOPE", "side": "buy", "order_type": "limit", "quantity": "1", "limit_price": "100"},
+        json={
+            "ticker": "NOPE",
+            "side": "buy",
+            "order_type": "limit",
+            "quantity": "1",
+            "limit_price": "100",
+        },
     )
     assert response.status_code == 404
 
@@ -137,7 +167,13 @@ def test_create_order_invalid_side_returns_400(session: Session, client: TestCli
     response = client.post(
         "/v1/orders",
         headers=_auth_headers(user_id),
-        json={"ticker": "AAPL", "side": "hold", "order_type": "limit", "quantity": "1", "limit_price": "100"},
+        json={
+            "ticker": "AAPL",
+            "side": "hold",
+            "order_type": "limit",
+            "quantity": "1",
+            "limit_price": "100",
+        },
     )
     assert response.status_code == 400
 
@@ -149,7 +185,13 @@ def test_create_order_invalid_order_type_returns_400(session: Session, client: T
     response = client.post(
         "/v1/orders",
         headers=_auth_headers(user_id),
-        json={"ticker": "AAPL", "side": "buy", "order_type": "market", "quantity": "1", "limit_price": "100"},
+        json={
+            "ticker": "AAPL",
+            "side": "buy",
+            "order_type": "market",
+            "quantity": "1",
+            "limit_price": "100",
+        },
     )
     assert response.status_code == 400
 
@@ -162,7 +204,13 @@ def test_create_stop_loss_buy_returns_400(session: Session, client: TestClient) 
     response = client.post(
         "/v1/orders",
         headers=_auth_headers(user_id),
-        json={"ticker": "AAPL", "side": "buy", "order_type": "stop_loss", "quantity": "1", "limit_price": "100"},
+        json={
+            "ticker": "AAPL",
+            "side": "buy",
+            "order_type": "stop_loss",
+            "quantity": "1",
+            "limit_price": "100",
+        },
     )
     assert response.status_code == 400
 
@@ -174,7 +222,13 @@ def test_create_order_ticker_upcased(session: Session, client: TestClient) -> No
     response = client.post(
         "/v1/orders",
         headers=_auth_headers(user_id),
-        json={"ticker": "aapl", "side": "buy", "order_type": "limit", "quantity": "1", "limit_price": "140"},
+        json={
+            "ticker": "aapl",
+            "side": "buy",
+            "order_type": "limit",
+            "quantity": "1",
+            "limit_price": "140",
+        },
     )
     assert response.status_code == 201
     assert response.json()["ticker"] == "AAPL"
@@ -199,7 +253,13 @@ def test_list_orders_returns_created_order(session: Session, client: TestClient)
     client.post(
         "/v1/orders",
         headers=_auth_headers(user_id),
-        json={"ticker": "AAPL", "side": "buy", "order_type": "limit", "quantity": "1", "limit_price": "140"},
+        json={
+            "ticker": "AAPL",
+            "side": "buy",
+            "order_type": "limit",
+            "quantity": "1",
+            "limit_price": "140",
+        },
     )
     response = client.get("/v1/orders", headers=_auth_headers(user_id))
     assert response.status_code == 200
@@ -216,7 +276,13 @@ def test_list_orders_status_filter_pending(session: Session, client: TestClient)
     client.post(
         "/v1/orders",
         headers=_auth_headers(user_id),
-        json={"ticker": "AAPL", "side": "buy", "order_type": "limit", "quantity": "1", "limit_price": "140"},
+        json={
+            "ticker": "AAPL",
+            "side": "buy",
+            "order_type": "limit",
+            "quantity": "1",
+            "limit_price": "140",
+        },
     )
     response = client.get("/v1/orders?status=pending", headers=_auth_headers(user_id))
     assert response.status_code == 200
@@ -230,7 +296,13 @@ def test_list_orders_status_filter_filled_empty(session: Session, client: TestCl
     client.post(
         "/v1/orders",
         headers=_auth_headers(user_id),
-        json={"ticker": "AAPL", "side": "buy", "order_type": "limit", "quantity": "1", "limit_price": "140"},
+        json={
+            "ticker": "AAPL",
+            "side": "buy",
+            "order_type": "limit",
+            "quantity": "1",
+            "limit_price": "140",
+        },
     )
     response = client.get("/v1/orders?status=filled", headers=_auth_headers(user_id))
     assert response.status_code == 200
@@ -255,7 +327,13 @@ def test_cancel_pending_order(session: Session, client: TestClient) -> None:
     create_resp = client.post(
         "/v1/orders",
         headers=_auth_headers(user_id),
-        json={"ticker": "AAPL", "side": "buy", "order_type": "limit", "quantity": "1", "limit_price": "140"},
+        json={
+            "ticker": "AAPL",
+            "side": "buy",
+            "order_type": "limit",
+            "quantity": "1",
+            "limit_price": "140",
+        },
     )
     order_id = create_resp.json()["id"]
 
@@ -285,7 +363,13 @@ def test_cancel_another_users_order_returns_404(session: Session, client: TestCl
     create_resp = client.post(
         "/v1/orders",
         headers=_auth_headers(user_id),
-        json={"ticker": "AAPL", "side": "buy", "order_type": "limit", "quantity": "1", "limit_price": "140"},
+        json={
+            "ticker": "AAPL",
+            "side": "buy",
+            "order_type": "limit",
+            "quantity": "1",
+            "limit_price": "140",
+        },
     )
     order_id = create_resp.json()["id"]
 
@@ -300,7 +384,13 @@ def test_cancel_already_cancelled_order_returns_400(session: Session, client: Te
     create_resp = client.post(
         "/v1/orders",
         headers=_auth_headers(user_id),
-        json={"ticker": "AAPL", "side": "buy", "order_type": "limit", "quantity": "1", "limit_price": "140"},
+        json={
+            "ticker": "AAPL",
+            "side": "buy",
+            "order_type": "limit",
+            "quantity": "1",
+            "limit_price": "140",
+        },
     )
     order_id = create_resp.json()["id"]
 

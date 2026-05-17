@@ -20,6 +20,7 @@ class SymbolOut(BaseModel):
     name: str
     sector: str | None = None
     exchange: str | None = None
+    currency: str = "USD"
     is_active: bool
 
 
@@ -63,6 +64,7 @@ class SymbolDetailOut(BaseModel):
     name: str
     sector: str | None = None
     exchange: str | None = None
+    currency: str = "USD"
     is_active: bool
     latest: QuoteOut | None = None
 
@@ -140,16 +142,29 @@ class PositionOut(BaseModel):
     ticker: str
     name: str
     quantity: Decimal
+    # ISO-4217 currency the symbol trades in.
+    currency: str = "USD"
+    # avg_cost is in the position's native currency.
     avg_cost: Decimal
     last_close: Decimal | None
+    # Native-currency aggregates (unchanged regardless of display preference).
+    market_value_native: Decimal = Decimal(0)
+    unrealized_pl_native: Decimal = Decimal(0)
+    # Same aggregates converted to the portfolio's display currency.
     market_value: Decimal
     unrealized_pl: Decimal
 
 
 class PortfolioOut(BaseModel):
-    """Snapshot of the user's default portfolio used by /portfolio."""
+    """Snapshot of the user's default portfolio used by /portfolio.
+
+    All top-level aggregates (cash_balance, market_value, totals) are in
+    ``display_currency``. Per-position fields carry both native and converted
+    amounts so the UI can show either.
+    """
 
     portfolio_id: int
+    display_currency: str = "USD"
     cash_balance: Decimal
     market_value: Decimal
     total_value: Decimal
@@ -167,7 +182,13 @@ class TradeIn(BaseModel):
 
 
 class TradeOut(BaseModel):
-    """One executed trade — used by both POST response and /trades history."""
+    """One executed trade — used by both POST response and /trades history.
+
+    ``price`` is the per-share fill price in the symbol's native currency.
+    ``currency`` is that native currency; ``fx_rate`` is USD-per-unit at fill
+    time (1 for USD symbols). ``total_native`` and ``total_usd`` are pre-
+    computed so clients don't have to re-multiply.
+    """
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -177,6 +198,10 @@ class TradeOut(BaseModel):
     quantity: Decimal
     price: Decimal
     ts: datetime
+    currency: str = "USD"
+    fx_rate: Decimal = Decimal(1)
+    total_native: Decimal = Decimal(0)
+    total_usd: Decimal = Decimal(0)
 
 
 class PortfolioHistoryPointOut(BaseModel):
@@ -206,10 +231,14 @@ class ProfileOut(BaseModel):
 
     user_id: int
     public_profile: bool
+    display_currency: str = "USD"
 
 
 class ProfilePatchIn(BaseModel):
-    public_profile: bool
+    """All fields are optional — patch sends only what changes."""
+
+    public_profile: bool | None = None
+    display_currency: str | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -280,3 +309,97 @@ class PendingOrderOut(BaseModel):
     created_at: datetime
     filled_at: datetime | None
     fill_price: Decimal | None
+
+
+# ---------------------------------------------------------------------------
+# Screener
+# ---------------------------------------------------------------------------
+
+
+class ScreenerResultOut(BaseModel):
+    """One symbol that passed every active filter on /v1/symbols/screen."""
+
+    ticker: str
+    name: str
+    sector: str | None = None
+    exchange: str | None = None
+    currency: str = "USD"
+    last_close: Decimal
+    rsi_14: float | None = None
+    momentum_pct: float | None = None
+    momentum_days: int | None = None
+    high_52w: Decimal
+    low_52w: Decimal
+
+
+# ---------------------------------------------------------------------------
+# Comments
+# ---------------------------------------------------------------------------
+
+
+class CommentIn(BaseModel):
+    """Request body for POST /v1/symbols/{ticker}/comments."""
+
+    body: str
+    parent_id: int | None = None
+
+
+class CommentOut(BaseModel):
+    """One comment in API responses.
+
+    ``replies`` is populated by the GET endpoint when the comment is a
+    top-level post — it contains its immediate children in chronological
+    order. For deeper threads the UI is expected to render any further
+    nesting by following ``parent_id``, but in v1 we only present a single
+    level of indentation.
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    user_id: int
+    user_name: str | None = None
+    ticker: str
+    body: str
+    parent_id: int | None = None
+    created_at: datetime
+    replies: list[CommentOut] = []
+
+
+# ---------------------------------------------------------------------------
+# Portfolio analytics
+# ---------------------------------------------------------------------------
+
+
+class SectorAllocationOut(BaseModel):
+    sector: str
+    market_value: Decimal
+    pct: float
+
+
+class TopMoverOut(BaseModel):
+    ticker: str
+    name: str
+    sector: str | None
+    unrealized_pl: Decimal
+    return_pct: float
+
+
+class PortfolioAnalyticsOut(BaseModel):
+    """Aggregated analytics for /v1/portfolio/analytics.
+
+    Time-series metrics are ``None`` until at least two NAV snapshots have
+    been recorded. ``history_days`` is the actual span observed (not the
+    requested window) so the UI can label charts honestly.
+    """
+
+    display_currency: str = "USD"
+    history_days: int
+    total_return_pct: float | None
+    annualised_return_pct: float | None
+    sharpe_ratio: float | None
+    max_drawdown_pct: float | None
+    risk_free_rate: float
+    sector_allocation: list[SectorAllocationOut]
+    top_gainers: list[TopMoverOut]
+    top_losers: list[TopMoverOut]

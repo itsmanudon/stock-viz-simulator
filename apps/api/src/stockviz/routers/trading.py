@@ -8,6 +8,7 @@ that should know the token; the browser never sees it.
 from __future__ import annotations
 
 from datetime import timedelta
+from decimal import Decimal
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -16,40 +17,58 @@ from sqlmodel import Session, select
 from stockviz._time import utcnow
 from stockviz.auth import UserIdDep
 from stockviz.db import get_session
-from stockviz.models import PortfolioSnapshot, Trade, TradeSide
+from stockviz.models import PortfolioSnapshot, Symbol, Trade, TradeSide, User
 from stockviz.models.dividend import Dividend, PortfolioDividend
 from stockviz.schemas import (
     DividendCreditOut,
     DividendSummaryOut,
+    PortfolioAnalyticsOut,
     PortfolioHistoryPointOut,
     PortfolioOut,
     PositionOut,
     ProjectedDividendOut,
+    SectorAllocationOut,
+    TopMoverOut,
     TradeIn,
     TradeOut,
 )
 from stockviz.services.trading import (
     InsufficientCash,
     InsufficientPosition,
+    NoFxRateError,
     NoMarketDataError,
     SymbolNotFound,
     TradeExecutionError,
+    compute_annualised_return_pct,
+    compute_max_drawdown_pct,
     compute_portfolio,
+    compute_sector_allocation,
+    compute_sharpe,
+    compute_top_movers,
+    compute_total_return_pct,
     ensure_default_portfolio,
     execute_trade,
 )
+from stockviz.services.trading.fx import latest_rate as fx_latest_rate
 
 router = APIRouter(prefix="/v1", tags=["trading"])
 
 SessionDep = Annotated[Session, Depends(get_session)]
 
 
+def _user_display_currency(session: Session, user_id: int) -> str:
+    user = session.get(User, user_id)
+    return (user.display_currency if user else None) or "USD"
+
+
 @router.get("/portfolio", response_model=PortfolioOut)
 def get_portfolio(session: SessionDep, user_id: UserIdDep) -> PortfolioOut:
     portfolio = ensure_default_portfolio(session, user_id)
-    snap = compute_portfolio(session, portfolio)
+    display = _user_display_currency(session, user_id)
+    snap = compute_portfolio(session, portfolio, display_currency=display)
     return PortfolioOut(
         portfolio_id=snap.portfolio_id,
+        display_currency=snap.display_currency,
         cash_balance=snap.cash_balance,
         market_value=snap.market_value,
         total_value=snap.total_value,
@@ -60,8 +79,11 @@ def get_portfolio(session: SessionDep, user_id: UserIdDep) -> PortfolioOut:
                 ticker=p.ticker,
                 name=p.name,
                 quantity=p.quantity,
+                currency=p.currency,
                 avg_cost=p.avg_cost,
                 last_close=p.last_close,
+                market_value_native=p.market_value_native,
+                unrealized_pl_native=p.unrealized_pl_native,
                 market_value=p.market_value,
                 unrealized_pl=p.unrealized_pl,
             )
@@ -71,14 +93,14 @@ def get_portfolio(session: SessionDep, user_id: UserIdDep) -> PortfolioOut:
 
 
 @router.post("/trades", response_model=TradeOut, status_code=status.HTTP_201_CREATED)
-def post_trade(body: TradeIn, session: SessionDep, user_id: UserIdDep) -> Trade:
+def post_trade(body: TradeIn, session: SessionDep, user_id: UserIdDep) -> TradeOut:
     try:
         side = TradeSide(body.side)
     except ValueError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Invalid side: {body.side!r}") from exc
 
     try:
-        return execute_trade(
+        result = execute_trade(
             session,
             user_id=user_id,
             ticker=body.ticker,
@@ -87,12 +109,101 @@ def post_trade(body: TradeIn, session: SessionDep, user_id: UserIdDep) -> Trade:
         )
     except SymbolNotFound as exc:
         raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
-    except (InsufficientCash, InsufficientPosition, NoMarketDataError) as exc:
+    except (InsufficientCash, InsufficientPosition, NoMarketDataError, NoFxRateError) as exc:
         # 422: request was well-formed but couldn't be honored against the
-        # current portfolio / market state.
+        # current portfolio / market / FX state.
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from exc
     except TradeExecutionError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
+
+    trade = result.trade
+    return TradeOut(
+        id=trade.id,  # type: ignore[arg-type]
+        ticker=trade.ticker,
+        side=trade.side.value,  # type: ignore[arg-type]
+        quantity=trade.quantity,
+        price=trade.price,
+        ts=trade.ts,
+        currency=result.currency,
+        fx_rate=result.fx_rate,
+        total_native=result.native_cost,
+        total_usd=result.usd_cost,
+    )
+
+
+DEFAULT_RISK_FREE_RATE = 0.05
+"""Annual risk-free rate used by the Sharpe calculation when callers don't override it."""
+
+
+@router.get("/portfolio/analytics", response_model=PortfolioAnalyticsOut)
+def get_portfolio_analytics(
+    session: SessionDep,
+    user_id: UserIdDep,
+    risk_free_rate: Annotated[float, Query(ge=0, le=1)] = DEFAULT_RISK_FREE_RATE,
+) -> PortfolioAnalyticsOut:
+    """Return Sharpe, drawdown, returns, sector mix, and top movers.
+
+    Time-series metrics use every snapshot the user has; the series can be
+    empty for brand-new accounts (in which case those fields come back as
+    ``None`` and the UI hides the relevant cards).
+    """
+    portfolio = ensure_default_portfolio(session, user_id)
+    display = _user_display_currency(session, user_id)
+    valuation = compute_portfolio(session, portfolio, display_currency=display)
+
+    snapshots = list(
+        session.exec(
+            select(PortfolioSnapshot)
+            .where(PortfolioSnapshot.user_id == user_id)
+            .order_by(PortfolioSnapshot.date.asc())  # type: ignore[attr-defined]
+        )
+    )
+    navs = [s.nav for s in snapshots]
+    history_days = (snapshots[-1].date - snapshots[0].date).days or 1 if len(snapshots) >= 2 else 0
+
+    sectors_by_ticker: dict[str, str | None] = {}
+    for p in valuation.positions:
+        sym = session.get(Symbol, p.ticker)
+        sectors_by_ticker[p.ticker] = sym.sector if sym else None
+
+    allocation = compute_sector_allocation(valuation.positions, sectors_by_ticker=sectors_by_ticker)
+    gainers, losers = compute_top_movers(valuation.positions, sectors_by_ticker=sectors_by_ticker)
+
+    return PortfolioAnalyticsOut(
+        display_currency=display,
+        history_days=history_days,
+        total_return_pct=compute_total_return_pct(navs),
+        annualised_return_pct=(
+            compute_annualised_return_pct(navs, days=history_days) if history_days else None
+        ),
+        sharpe_ratio=compute_sharpe(navs, risk_free_rate=risk_free_rate),
+        max_drawdown_pct=compute_max_drawdown_pct(navs),
+        risk_free_rate=risk_free_rate,
+        sector_allocation=[
+            SectorAllocationOut(sector=a.sector, market_value=a.market_value, pct=a.pct)
+            for a in allocation
+        ],
+        top_gainers=[
+            TopMoverOut(
+                ticker=m.ticker,
+                name=m.name,
+                sector=m.sector,
+                unrealized_pl=m.unrealized_pl,
+                return_pct=m.return_pct,
+            )
+            for m in gainers
+        ],
+        top_losers=[
+            TopMoverOut(
+                ticker=m.ticker,
+                name=m.name,
+                sector=m.sector,
+                unrealized_pl=m.unrealized_pl,
+                return_pct=m.return_pct,
+            )
+            for m in losers
+        ],
+    )
 
 
 @router.get("/portfolio/history", response_model=list[PortfolioHistoryPointOut])
@@ -120,15 +231,52 @@ def list_trades(
     session: SessionDep,
     user_id: UserIdDep,
     limit: Annotated[int, Query(ge=1, le=500)] = 100,
-) -> list[Trade]:
+) -> list[TradeOut]:
+    """Return executed trades, newest first.
+
+    For each row we re-derive the native total from price * quantity; the
+    USD total uses the symbol's *current* FX rate, not the rate at fill
+    time (we don't persist fill-time FX on trade rows). That's good enough
+    for a history list — the trade-confirmation toast on POST is what shows
+    fill-time numbers.
+    """
     portfolio = ensure_default_portfolio(session, user_id)
-    stmt = (
-        select(Trade)
-        .where(Trade.portfolio_id == portfolio.id)
-        .order_by(Trade.ts.desc())  # type: ignore[attr-defined]
-        .limit(limit)
+    rows = list(
+        session.exec(
+            select(Trade)
+            .where(Trade.portfolio_id == portfolio.id)
+            .order_by(Trade.ts.desc())  # type: ignore[attr-defined]
+            .limit(limit)
+        )
     )
-    return list(session.exec(stmt).all())
+
+    out: list[TradeOut] = []
+    fx_cache: dict[str, Decimal] = {}
+    for trade in rows:
+        sym = session.get(Symbol, trade.ticker)
+        ccy = (sym.currency if sym else None) or "USD"
+        if ccy not in fx_cache:
+            try:
+                fx_cache[ccy] = fx_latest_rate(session, ccy)
+            except LookupError:
+                fx_cache[ccy] = Decimal(1)
+        rate = fx_cache[ccy]
+        native = trade.price * trade.quantity
+        out.append(
+            TradeOut(
+                id=trade.id,  # type: ignore[arg-type]
+                ticker=trade.ticker,
+                side=trade.side.value,  # type: ignore[arg-type]
+                quantity=trade.quantity,
+                price=trade.price,
+                ts=trade.ts,
+                currency=ccy,
+                fx_rate=rate,
+                total_native=native,
+                total_usd=native * rate,
+            )
+        )
+    return out
 
 
 @router.get("/portfolio/dividends", response_model=DividendSummaryOut)

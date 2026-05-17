@@ -23,6 +23,7 @@ from stockviz._time import utcnow
 from stockviz.db import engine
 from stockviz.models import Symbol
 from stockviz.services.alerts import evaluate_pending_alerts
+from stockviz.services.ingest.fx import ingest_fx
 from stockviz.services.ingest.news import ingest_news_for_ticker
 from stockviz.services.ingest.prices import ingest_ticker
 from stockviz.services.ingest.seed import DEFAULT_COMPANIES_PATH
@@ -137,6 +138,32 @@ def news_refresh() -> None:
             logger.exception("news_refresh: failed for %s", ticker)
 
 
+def fx_refresh() -> None:
+    """Pull today's FX rates for every non-USD currency in use.
+
+    Runs after daily_price_refresh so snapshots that follow can convert
+    market values at today's rate.
+    """
+    with _session_scope() as session:
+        currencies = list(
+            session.exec(
+                select(Symbol.currency).where(Symbol.is_active, Symbol.currency != "USD").distinct()
+            ).all()
+        )
+    currencies = [c for c in currencies if c]
+    if not currencies:
+        logger.info("fx_refresh: no non-USD currencies in use, nothing to do")
+        return
+    logger.info("fx_refresh: %d currencies", len(currencies))
+    for ccy in currencies:
+        try:
+            with _session_scope() as session:
+                written = ingest_fx(session, ccy)
+                logger.info("fx_refresh: %s -> %d rates", ccy, written)
+        except Exception:
+            logger.exception("fx_refresh: failed for %s", ccy)
+
+
 def recommendations_refresh() -> None:
     """Recompute the recommendation score for every active ticker."""
     with _session_scope() as session:
@@ -193,6 +220,15 @@ def build_scheduler() -> BackgroundScheduler:
         news_refresh,
         trigger=CronTrigger(hour="*/4", minute=15),
         id="news_refresh",
+        replace_existing=True,
+    )
+
+    # 4:45pm ET on weekdays — after prices, before recommendations + snapshots
+    # so today's FX rates are in the table when snapshots convert NAV.
+    scheduler.add_job(
+        fx_refresh,
+        trigger=CronTrigger(day_of_week="mon-fri", hour=16, minute=45),
+        id="fx_refresh",
         replace_existing=True,
     )
 
