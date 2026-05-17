@@ -11,6 +11,7 @@
 import Link from "next/link";
 
 import { EquityCurve } from "@/components/equity-curve";
+import { PortfolioAnalyticsSection } from "@/components/portfolio-analytics";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   Table,
@@ -20,7 +21,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { getDividends, getPortfolio, getPortfolioHistory } from "@/lib/api/trading";
+import {
+  getDividends,
+  getPortfolio,
+  getPortfolioAnalytics,
+  getPortfolioHistory,
+} from "@/lib/api/trading";
 
 const RANGES = [
   { value: "30", label: "30D", days: 30 },
@@ -75,10 +81,13 @@ export default async function PortfolioPage({
   const days = RANGES.find((r) => r.value === range)?.days ?? 90;
 
   const emptyDividends = { ytd_income: "0", history: [], projected: [] };
-  const [portfolio, history, dividends] = await Promise.all([
+  const [portfolio, history, dividends, analytics] = await Promise.all([
     getPortfolio(),
     getPortfolioHistory(days).catch(() => [] as Awaited<ReturnType<typeof getPortfolioHistory>>),
     getDividends().catch(() => emptyDividends),
+    getPortfolioAnalytics().catch(
+      () => null as Awaited<ReturnType<typeof getPortfolioAnalytics>> | null,
+    ),
   ]);
 
   const displayCcy = portfolio.display_currency || "USD";
@@ -143,6 +152,8 @@ export default async function PortfolioPage({
           </CardContent>
         </Card>
       </div>
+
+      {analytics ? <PortfolioAnalyticsSection analytics={analytics} /> : null}
 
       {hasChart ? (
         <section className="mt-8">

@@ -302,3 +302,42 @@ class ScreenerResultOut(BaseModel):
     momentum_days: int | None = None
     high_52w: Decimal
     low_52w: Decimal
+
+
+# ---------------------------------------------------------------------------
+# Portfolio analytics
+# ---------------------------------------------------------------------------
+
+
+class SectorAllocationOut(BaseModel):
+    sector: str
+    market_value: Decimal
+    pct: float
+
+
+class TopMoverOut(BaseModel):
+    ticker: str
+    name: str
+    sector: str | None
+    unrealized_pl: Decimal
+    return_pct: float
+
+
+class PortfolioAnalyticsOut(BaseModel):
+    """Aggregated analytics for /v1/portfolio/analytics.
+
+    Time-series metrics are ``None`` until at least two NAV snapshots have
+    been recorded. ``history_days`` is the actual span observed (not the
+    requested window) so the UI can label charts honestly.
+    """
+
+    display_currency: str = "USD"
+    history_days: int
+    total_return_pct: float | None
+    annualised_return_pct: float | None
+    sharpe_ratio: float | None
+    max_drawdown_pct: float | None
+    risk_free_rate: float
+    sector_allocation: list[SectorAllocationOut]
+    top_gainers: list[TopMoverOut]
+    top_losers: list[TopMoverOut]
