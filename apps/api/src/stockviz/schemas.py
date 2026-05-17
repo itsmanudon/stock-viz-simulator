@@ -281,3 +281,24 @@ class WatchlistItemOut(BaseModel):
     sector: str | None
     added_at: datetime
     last_close: Decimal | None
+
+
+# ---------------------------------------------------------------------------
+# Screener
+# ---------------------------------------------------------------------------
+
+
+class ScreenerResultOut(BaseModel):
+    """One symbol that passed every active filter on /v1/symbols/screen."""
+
+    ticker: str
+    name: str
+    sector: str | None = None
+    exchange: str | None = None
+    currency: str = "USD"
+    last_close: Decimal
+    rsi_14: float | None = None
+    momentum_pct: float | None = None
+    momentum_days: int | None = None
+    high_52w: Decimal
+    low_52w: Decimal
