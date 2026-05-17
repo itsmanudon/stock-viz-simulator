@@ -323,6 +323,35 @@ class TopMoverOut(BaseModel):
     return_pct: float
 
 
+class CommentIn(BaseModel):
+    """Request body for POST /v1/symbols/{ticker}/comments."""
+
+    body: str
+    parent_id: int | None = None
+
+
+class CommentOut(BaseModel):
+    """One comment in API responses.
+
+    ``replies`` is populated by the GET endpoint when the comment is a
+    top-level post — it contains its immediate children in chronological
+    order. For deeper threads the UI is expected to render any further
+    nesting by following ``parent_id``, but in v1 we only present a single
+    level of indentation.
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    user_id: int
+    user_name: str | None = None
+    ticker: str
+    body: str
+    parent_id: int | None = None
+    created_at: datetime
+    replies: list[CommentOut] = []
+
+
 class PortfolioAnalyticsOut(BaseModel):
     """Aggregated analytics for /v1/portfolio/analytics.
 
