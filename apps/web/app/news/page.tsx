@@ -26,7 +26,9 @@ export default async function NewsPage({
   // For Phase 5 with 25 tickers and an empty news table this is plenty; if the
   // feed ever gets large we'll add an ``?offset`` param.
   const wanted = page * PAGE_SIZE + 1;
-  const raw = await getLatestNews(Math.min(wanted, 100)).catch(() => [] as Awaited<ReturnType<typeof getLatestNews>>);
+  const raw = await getLatestNews(Math.min(wanted, 100)).catch(
+    () => [] as Awaited<ReturnType<typeof getLatestNews>>,
+  );
   const slice = raw.slice(skip, skip + PAGE_SIZE);
   const hasNext = raw.length > skip + PAGE_SIZE;
 
