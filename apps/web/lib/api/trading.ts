@@ -97,3 +97,34 @@ export type DividendSummary = {
 export function getDividends(): Promise<DividendSummary> {
   return authedGet<DividendSummary>("/v1/portfolio/dividends");
 }
+
+export type SectorAllocation = {
+  sector: string;
+  market_value: string;
+  pct: number;
+};
+
+export type TopMover = {
+  ticker: string;
+  name: string;
+  sector: string | null;
+  unrealized_pl: string;
+  return_pct: number;
+};
+
+export type PortfolioAnalytics = {
+  display_currency: string;
+  history_days: number;
+  total_return_pct: number | null;
+  annualised_return_pct: number | null;
+  sharpe_ratio: number | null;
+  max_drawdown_pct: number | null;
+  risk_free_rate: number;
+  sector_allocation: SectorAllocation[];
+  top_gainers: TopMover[];
+  top_losers: TopMover[];
+};
+
+export function getPortfolioAnalytics(): Promise<PortfolioAnalytics> {
+  return authedGet<PortfolioAnalytics>("/v1/portfolio/analytics");
+}

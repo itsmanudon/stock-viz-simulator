@@ -22,10 +22,13 @@ from stockviz.models.dividend import Dividend, PortfolioDividend
 from stockviz.schemas import (
     DividendCreditOut,
     DividendSummaryOut,
+    PortfolioAnalyticsOut,
     PortfolioHistoryPointOut,
     PortfolioOut,
     PositionOut,
     ProjectedDividendOut,
+    SectorAllocationOut,
+    TopMoverOut,
     TradeIn,
     TradeOut,
 )
@@ -36,7 +39,13 @@ from stockviz.services.trading import (
     NoMarketDataError,
     SymbolNotFound,
     TradeExecutionError,
+    compute_annualised_return_pct,
+    compute_max_drawdown_pct,
     compute_portfolio,
+    compute_sector_allocation,
+    compute_sharpe,
+    compute_top_movers,
+    compute_total_return_pct,
     ensure_default_portfolio,
     execute_trade,
 )
@@ -119,6 +128,81 @@ def post_trade(body: TradeIn, session: SessionDep, user_id: UserIdDep) -> TradeO
         fx_rate=result.fx_rate,
         total_native=result.native_cost,
         total_usd=result.usd_cost,
+    )
+
+
+DEFAULT_RISK_FREE_RATE = 0.05
+"""Annual risk-free rate used by the Sharpe calculation when callers don't override it."""
+
+
+@router.get("/portfolio/analytics", response_model=PortfolioAnalyticsOut)
+def get_portfolio_analytics(
+    session: SessionDep,
+    user_id: UserIdDep,
+    risk_free_rate: Annotated[float, Query(ge=0, le=1)] = DEFAULT_RISK_FREE_RATE,
+) -> PortfolioAnalyticsOut:
+    """Return Sharpe, drawdown, returns, sector mix, and top movers.
+
+    Time-series metrics use every snapshot the user has; the series can be
+    empty for brand-new accounts (in which case those fields come back as
+    ``None`` and the UI hides the relevant cards).
+    """
+    portfolio = ensure_default_portfolio(session, user_id)
+    display = _user_display_currency(session, user_id)
+    valuation = compute_portfolio(session, portfolio, display_currency=display)
+
+    snapshots = list(
+        session.exec(
+            select(PortfolioSnapshot)
+            .where(PortfolioSnapshot.user_id == user_id)
+            .order_by(PortfolioSnapshot.date.asc())  # type: ignore[attr-defined]
+        )
+    )
+    navs = [s.nav for s in snapshots]
+    history_days = (snapshots[-1].date - snapshots[0].date).days or 1 if len(snapshots) >= 2 else 0
+
+    sectors_by_ticker: dict[str, str | None] = {}
+    for p in valuation.positions:
+        sym = session.get(Symbol, p.ticker)
+        sectors_by_ticker[p.ticker] = sym.sector if sym else None
+
+    allocation = compute_sector_allocation(valuation.positions, sectors_by_ticker=sectors_by_ticker)
+    gainers, losers = compute_top_movers(valuation.positions, sectors_by_ticker=sectors_by_ticker)
+
+    return PortfolioAnalyticsOut(
+        display_currency=display,
+        history_days=history_days,
+        total_return_pct=compute_total_return_pct(navs),
+        annualised_return_pct=(
+            compute_annualised_return_pct(navs, days=history_days) if history_days else None
+        ),
+        sharpe_ratio=compute_sharpe(navs, risk_free_rate=risk_free_rate),
+        max_drawdown_pct=compute_max_drawdown_pct(navs),
+        risk_free_rate=risk_free_rate,
+        sector_allocation=[
+            SectorAllocationOut(sector=a.sector, market_value=a.market_value, pct=a.pct)
+            for a in allocation
+        ],
+        top_gainers=[
+            TopMoverOut(
+                ticker=m.ticker,
+                name=m.name,
+                sector=m.sector,
+                unrealized_pl=m.unrealized_pl,
+                return_pct=m.return_pct,
+            )
+            for m in gainers
+        ],
+        top_losers=[
+            TopMoverOut(
+                ticker=m.ticker,
+                name=m.name,
+                sector=m.sector,
+                unrealized_pl=m.unrealized_pl,
+                return_pct=m.return_pct,
+            )
+            for m in losers
+        ],
     )
 
 

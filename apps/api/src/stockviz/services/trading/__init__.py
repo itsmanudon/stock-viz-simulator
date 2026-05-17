@@ -6,6 +6,17 @@ materialized roll-up of all Trade rows — we recompute avg cost on every
 buy and zero out the row when the last share is sold.
 """
 
+from stockviz.services.trading.analytics import (
+    AnalyticsResult,
+    SectorAllocation,
+    TopMover,
+    compute_annualised_return_pct,
+    compute_max_drawdown_pct,
+    compute_sector_allocation,
+    compute_sharpe,
+    compute_top_movers,
+    compute_total_return_pct,
+)
 from stockviz.services.trading.dividends import credit_due_dividends
 from stockviz.services.trading.execute import (
     DEFAULT_STARTING_CASH,
@@ -33,16 +44,25 @@ from stockviz.services.trading.snapshots import (
 
 __all__ = [
     "DEFAULT_STARTING_CASH",
+    "AnalyticsResult",
     "InsufficientCash",
     "InsufficientPosition",
     "NoFxRateError",
     "NoMarketDataError",
     "PortfolioPosition",
     "PortfolioValuation",
+    "SectorAllocation",
     "SymbolNotFound",
+    "TopMover",
     "TradeExecution",
     "TradeExecutionError",
+    "compute_annualised_return_pct",
+    "compute_max_drawdown_pct",
     "compute_portfolio",
+    "compute_sector_allocation",
+    "compute_sharpe",
+    "compute_top_movers",
+    "compute_total_return_pct",
     "credit_due_dividends",
     "ensure_default_portfolio",
     "execute_trade",
