@@ -22,6 +22,7 @@ from stockviz.services.ingest.backfill import (
     ensure_symbols_for_backfill,
 )
 from stockviz.services.ingest.dividends import ingest_dividends_for_all
+from stockviz.services.ingest.fx import ingest_fx
 from stockviz.services.ingest.metadata import backfill_symbol_metadata
 from stockviz.services.ingest.prices import ingest_ticker
 from stockviz.services.ingest.seed import seed_symbols
@@ -103,6 +104,35 @@ def _cmd_snapshot(_args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_fx(args: argparse.Namespace) -> int:
+    currencies = (
+        [c.upper() for c in args.currencies] if args.currencies else _default_fx_currencies()
+    )
+    total = 0
+    for ccy in currencies:
+        with Session(engine) as session:
+            written = ingest_fx(session, ccy)
+        print(f"  {ccy}: {written}")
+        total += written
+    print(f"ingested {total} FX rates total")
+    return 0
+
+
+def _default_fx_currencies() -> list[str]:
+    """Distinct non-USD currencies on active symbols."""
+    from sqlmodel import select
+
+    from stockviz.models import Symbol
+
+    with Session(engine) as session:
+        rows = list(
+            session.exec(
+                select(Symbol.currency).where(Symbol.is_active, Symbol.currency != "USD").distinct()
+            )
+        )
+    return [r for r in rows if r]
+
+
 def _cmd_ingest(args: argparse.Namespace) -> int:
     settings = get_settings()
     total = 0
@@ -137,6 +167,12 @@ def main(argv: list[str] | None = None) -> int:
     p_ingest = sub.add_parser("ingest", help="Refresh daily bars for one or more tickers")
     p_ingest.add_argument("tickers", nargs="+")
     p_ingest.set_defaults(fn=_cmd_ingest)
+
+    p_fx = sub.add_parser(
+        "fx", help="Refresh daily FX rates (defaults to all non-USD currencies in use)"
+    )
+    p_fx.add_argument("currencies", nargs="*", help="Optional currency filter, e.g. EUR GBP JPY")
+    p_fx.set_defaults(fn=_cmd_fx)
 
     sub.add_parser(
         "recommend", help="Recompute recommendations for every active symbol"

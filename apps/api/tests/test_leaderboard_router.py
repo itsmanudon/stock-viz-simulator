@@ -69,7 +69,9 @@ def test_leaderboard_omits_private_users(session: Session, client: TestClient) -
 
 
 def test_leaderboard_includes_public_user(session: Session, client: TestClient) -> None:
-    user_id = _make_user(session, email="public@stockviz.dev", name="Public Pete", public_profile=True)
+    user_id = _make_user(
+        session, email="public@stockviz.dev", name="Public Pete", public_profile=True
+    )
     _add_snapshot(session, user_id, date(2026, 1, 1), Decimal("100000"))
     _add_snapshot(session, user_id, date(2026, 5, 1), Decimal("120000"))
 
@@ -106,7 +108,9 @@ def test_leaderboard_no_snapshot_shows_zero_return(session: Session, client: Tes
     assert entries[0]["return_pct"] == 0.0
 
 
-def test_leaderboard_username_falls_back_to_email_prefix(session: Session, client: TestClient) -> None:
+def test_leaderboard_username_falls_back_to_email_prefix(
+    session: Session, client: TestClient
+) -> None:
     user = User(email="noname@stockviz.dev", name=None, public_profile=True)
     session.add(user)
     session.commit()
@@ -156,7 +160,9 @@ def test_patch_profile_toggles_visibility(session: Session, client: TestClient) 
 
 
 def test_patch_profile_invalidates_cache(session: Session, client: TestClient) -> None:
-    user_id = _make_user(session, email="cache@stockviz.dev", name="Cacheable", public_profile=False)
+    user_id = _make_user(
+        session, email="cache@stockviz.dev", name="Cacheable", public_profile=False
+    )
     headers = _auth_headers(user_id)
 
     # Warm the cache — user is hidden

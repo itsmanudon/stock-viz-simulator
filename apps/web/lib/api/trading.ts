@@ -6,14 +6,23 @@ export type Position = {
   ticker: string;
   name: string;
   quantity: string;
+  // ISO-4217 ccy the symbol trades in.
+  currency: string;
+  // avg_cost / last_close are in the symbol's native currency.
   avg_cost: string;
   last_close: string | null;
+  // Native-currency aggregates.
+  market_value_native: string;
+  unrealized_pl_native: string;
+  // Aggregates converted to the portfolio's display currency.
   market_value: string;
   unrealized_pl: string;
 };
 
 export type Portfolio = {
   portfolio_id: number;
+  // All top-level aggregates (cash + market value + totals) are in this currency.
+  display_currency: string;
   cash_balance: string;
   market_value: string;
   total_value: string;
@@ -27,8 +36,15 @@ export type TradeRow = {
   ticker: string;
   side: "buy" | "sell";
   quantity: string;
+  // Per-share fill price in the symbol's native currency.
   price: string;
   ts: string;
+  // ISO-4217 ccy the trade is denominated in (== symbol's currency).
+  currency: string;
+  // USD per 1 unit of `currency` (1 for USD symbols).
+  fx_rate: string;
+  total_native: string;
+  total_usd: string;
 };
 
 export type TradeInput = {

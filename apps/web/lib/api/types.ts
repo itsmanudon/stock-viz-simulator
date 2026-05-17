@@ -21,6 +21,9 @@ export type Symbol = {
   name: string;
   sector: string | null;
   exchange: string | null;
+  // ISO-4217 currency the symbol trades in. Defaults to USD for the
+  // historical universe; non-USD symbols (e.g. SAP.DE) declare it explicitly.
+  currency: string;
   is_active: boolean;
 };
 

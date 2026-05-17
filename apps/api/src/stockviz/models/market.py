@@ -5,6 +5,7 @@ These are populated by the ingest pipeline and read by the public API.
 
 from __future__ import annotations
 
+from datetime import date as date_type
 from datetime import datetime
 from decimal import Decimal
 
@@ -28,6 +29,9 @@ class Symbol(SQLModel, table=True):
     name: str
     sector: str | None = None
     exchange: str | None = None
+    # ISO-4217 currency the symbol trades in. USD for the historical universe;
+    # non-USD symbols use the suffixed yfinance ticker (e.g. BARC.L -> GBP).
+    currency: str = Field(default="USD", max_length=3, nullable=False)
     is_active: bool = Field(default=True, index=True)
     created_at: datetime = Field(default_factory=utcnow, nullable=False)
 
@@ -80,3 +84,20 @@ class NewsArticle(SQLModel, table=True):
     sentiment: str | None = Field(default=None, max_length=16)
 
     created_at: datetime = Field(default_factory=utcnow, nullable=False)
+
+
+class FxRate(SQLModel, table=True):
+    """Daily FX rate quoted as USD per 1 unit of ``currency``.
+
+    Stored relative to USD so conversions are multiplicative. USD itself is
+    never stored — callers short-circuit to Decimal(1). ``date`` is the bar
+    date; weekends/holidays are filled forward by reading the most recent
+    rate on-or-before the requested date.
+    """
+
+    __tablename__ = "fx_rates"  # pyright: ignore[reportAssignmentType]
+
+    currency: str = Field(primary_key=True, max_length=3)
+    date: date_type = Field(primary_key=True, index=True)
+    usd_rate: Decimal = Field(sa_column=Column(Numeric(18, 8), nullable=False))
+    source: str | None = Field(default=None, max_length=32)

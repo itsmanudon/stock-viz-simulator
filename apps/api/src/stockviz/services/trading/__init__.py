@@ -11,12 +11,16 @@ from stockviz.services.trading.execute import (
     DEFAULT_STARTING_CASH,
     InsufficientCash,
     InsufficientPosition,
+    NoFxRateError,
     NoMarketDataError,
     SymbolNotFound,
+    TradeExecution,
     TradeExecutionError,
     ensure_default_portfolio,
     execute_trade,
 )
+from stockviz.services.trading.fx import convert as fx_convert
+from stockviz.services.trading.fx import latest_rate as fx_latest_rate
 from stockviz.services.trading.portfolio import (
     PortfolioPosition,
     PortfolioValuation,
@@ -31,15 +35,19 @@ __all__ = [
     "DEFAULT_STARTING_CASH",
     "InsufficientCash",
     "InsufficientPosition",
+    "NoFxRateError",
     "NoMarketDataError",
     "PortfolioPosition",
     "PortfolioValuation",
     "SymbolNotFound",
+    "TradeExecution",
     "TradeExecutionError",
     "compute_portfolio",
     "credit_due_dividends",
     "ensure_default_portfolio",
     "execute_trade",
+    "fx_convert",
+    "fx_latest_rate",
     "snapshot_user_navs",
     "upsert_user_snapshot",
 ]

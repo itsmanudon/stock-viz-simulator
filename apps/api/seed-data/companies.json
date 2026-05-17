@@ -98,5 +98,47 @@
   {
     "symbol": "KO",
     "name": "The Coca-Cola Company"
+  },
+  {
+    "symbol": "BARC.L",
+    "name": "Barclays plc",
+    "currency": "GBP",
+    "exchange": "LSE"
+  },
+  {
+    "symbol": "VOD.L",
+    "name": "Vodafone Group plc",
+    "currency": "GBP",
+    "exchange": "LSE"
+  },
+  {
+    "symbol": "SAP.DE",
+    "name": "SAP SE",
+    "currency": "EUR",
+    "exchange": "XETRA"
+  },
+  {
+    "symbol": "BMW.DE",
+    "name": "Bayerische Motoren Werke AG",
+    "currency": "EUR",
+    "exchange": "XETRA"
+  },
+  {
+    "symbol": "7203.T",
+    "name": "Toyota Motor Corporation",
+    "currency": "JPY",
+    "exchange": "TSE"
+  },
+  {
+    "symbol": "SHOP.TO",
+    "name": "Shopify Inc.",
+    "currency": "CAD",
+    "exchange": "TSX"
+  },
+  {
+    "symbol": "RELIANCE.NS",
+    "name": "Reliance Industries Limited",
+    "currency": "INR",
+    "exchange": "NSE"
   }
 ]

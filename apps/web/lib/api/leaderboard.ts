@@ -14,6 +14,12 @@ export type LeaderboardEntry = {
 export type UserProfile = {
   user_id: number;
   public_profile: boolean;
+  display_currency: string;
+};
+
+export type ProfilePatch = {
+  public_profile?: boolean;
+  display_currency?: string;
 };
 
 export function getLeaderboard(): Promise<LeaderboardEntry[]> {
@@ -24,6 +30,6 @@ export function getProfile(): Promise<UserProfile> {
   return authedGet<UserProfile>("/v1/profile");
 }
 
-export function patchProfile(body: { public_profile: boolean }): Promise<UserProfile> {
+export function patchProfile(body: ProfilePatch): Promise<UserProfile> {
   return authedPatch<UserProfile>("/v1/profile", body);
 }
