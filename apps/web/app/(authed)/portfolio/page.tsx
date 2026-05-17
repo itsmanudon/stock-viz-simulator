@@ -35,14 +35,22 @@ function parseRange(raw: string | undefined): RangeValue {
   return valid ?? "90";
 }
 
-function fmtCurrency(raw: string | null): string {
+function fmtCurrency(raw: string | null, ccy = "USD"): string {
   if (raw === null) return "—";
   const n = Number(raw);
-  return n.toLocaleString("en-US", {
+  // JPY has no minor unit; force 0 fraction digits so totals look right.
+  const opts: Intl.NumberFormatOptions = {
     style: "currency",
-    currency: "USD",
-    minimumFractionDigits: 2,
-  });
+    currency: ccy,
+    minimumFractionDigits: ccy === "JPY" ? 0 : 2,
+    maximumFractionDigits: ccy === "JPY" ? 0 : 2,
+  };
+  try {
+    return n.toLocaleString("en-US", opts);
+  } catch {
+    // Bad ccy code — fall back to a bare number rather than throwing.
+    return `${ccy} ${n.toFixed(2)}`;
+  }
 }
 
 function fmtPct(numerator: number, denominator: number): string {
@@ -73,6 +81,7 @@ export default async function PortfolioPage({
     getDividends().catch(() => emptyDividends),
   ]);
 
+  const displayCcy = portfolio.display_currency || "USD";
   const totalCost = Number(portfolio.total_cost_basis);
   const unrealized = Number(portfolio.unrealized_pl);
 
@@ -98,20 +107,26 @@ export default async function PortfolioPage({
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <Card>
           <CardContent className="p-4">
-            <p className="text-xs text-muted-foreground">Total value</p>
-            <p className="mt-1 font-mono text-xl">{fmtCurrency(portfolio.total_value)}</p>
+            <p className="text-xs text-muted-foreground">Total value ({displayCcy})</p>
+            <p className="mt-1 font-mono text-xl">
+              {fmtCurrency(portfolio.total_value, displayCcy)}
+            </p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
             <p className="text-xs text-muted-foreground">Cash</p>
-            <p className="mt-1 font-mono text-xl">{fmtCurrency(portfolio.cash_balance)}</p>
+            <p className="mt-1 font-mono text-xl">
+              {fmtCurrency(portfolio.cash_balance, displayCcy)}
+            </p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
             <p className="text-xs text-muted-foreground">Market value</p>
-            <p className="mt-1 font-mono text-xl">{fmtCurrency(portfolio.market_value)}</p>
+            <p className="mt-1 font-mono text-xl">
+              {fmtCurrency(portfolio.market_value, displayCcy)}
+            </p>
           </CardContent>
         </Card>
         <Card>
@@ -122,7 +137,7 @@ export default async function PortfolioPage({
                 unrealized > 0 ? "text-green-500" : unrealized < 0 ? "text-red-500" : ""
               }`}
             >
-              {fmtCurrency(portfolio.unrealized_pl)}
+              {fmtCurrency(portfolio.unrealized_pl, displayCcy)}
             </p>
             <p className="mt-0.5 text-xs text-muted-foreground">{fmtPct(unrealized, totalCost)}</p>
           </CardContent>
@@ -172,7 +187,7 @@ export default async function PortfolioPage({
             <CardContent className="p-4">
               <p className="text-xs text-muted-foreground">YTD income</p>
               <p className="mt-1 font-mono text-xl text-green-500">
-                {fmtCurrency(dividends.ytd_income)}
+                {fmtCurrency(dividends.ytd_income, "USD")}
               </p>
             </CardContent>
           </Card>
@@ -188,7 +203,7 @@ export default async function PortfolioPage({
                         {p.projected_ex_date ?? "unknown date"}
                       </span>
                       <span className="font-mono text-green-500">
-                        +{fmtCurrency(p.projected_amount)}
+                        +{fmtCurrency(p.projected_amount, "USD")}
                       </span>
                     </li>
                   ))}
@@ -213,7 +228,7 @@ export default async function PortfolioPage({
                     <TableCell className="font-mono font-semibold">{d.ticker}</TableCell>
                     <TableCell className="text-muted-foreground">{d.ex_date}</TableCell>
                     <TableCell className="text-right font-mono text-green-500">
-                      +{fmtCurrency(d.amount_credited)}
+                      +{fmtCurrency(d.amount_credited, "USD")}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -246,6 +261,7 @@ export default async function PortfolioPage({
                 <TableRow>
                   <TableHead className="w-[100px] md:w-[120px]">Ticker</TableHead>
                   <TableHead className="hidden md:table-cell">Name</TableHead>
+                  <TableHead className="hidden text-right sm:table-cell">Ccy</TableHead>
                   <TableHead className="text-right">Qty</TableHead>
                   <TableHead className="hidden text-right md:table-cell">Avg cost</TableHead>
                   <TableHead className="hidden text-right sm:table-cell">Last close</TableHead>
@@ -257,6 +273,8 @@ export default async function PortfolioPage({
                 {portfolio.positions.map((p) => {
                   const pl = Number(p.unrealized_pl);
                   const cost = Number(p.avg_cost) * Number(p.quantity);
+                  const nativeCcy = p.currency || "USD";
+                  const showNativeHint = nativeCcy !== displayCcy;
                   return (
                     <TableRow key={p.ticker}>
                       <TableCell className="font-mono font-semibold">
@@ -267,22 +285,30 @@ export default async function PortfolioPage({
                       <TableCell className="hidden truncate text-muted-foreground md:table-cell">
                         {p.name}
                       </TableCell>
+                      <TableCell className="hidden text-right font-mono text-xs text-muted-foreground sm:table-cell">
+                        {nativeCcy}
+                      </TableCell>
                       <TableCell className="text-right font-mono">{fmtQty(p.quantity)}</TableCell>
                       <TableCell className="hidden text-right font-mono md:table-cell">
-                        {fmtCurrency(p.avg_cost)}
+                        {fmtCurrency(p.avg_cost, nativeCcy)}
                       </TableCell>
                       <TableCell className="hidden text-right font-mono sm:table-cell">
-                        {fmtCurrency(p.last_close)}
+                        {fmtCurrency(p.last_close, nativeCcy)}
                       </TableCell>
                       <TableCell className="text-right font-mono">
-                        {fmtCurrency(p.market_value)}
+                        {fmtCurrency(p.market_value, displayCcy)}
+                        {showNativeHint ? (
+                          <span className="ml-1 block text-xs text-muted-foreground">
+                            {fmtCurrency(p.market_value_native, nativeCcy)}
+                          </span>
+                        ) : null}
                       </TableCell>
                       <TableCell
                         className={`text-right font-mono ${
                           pl > 0 ? "text-green-500" : pl < 0 ? "text-red-500" : ""
                         }`}
                       >
-                        {fmtCurrency(p.unrealized_pl)}
+                        {fmtCurrency(p.unrealized_pl, displayCcy)}
                         <span className="ml-2 text-xs text-muted-foreground">
                           {fmtPct(pl, cost)}
                         </span>

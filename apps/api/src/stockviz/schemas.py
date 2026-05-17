@@ -20,6 +20,7 @@ class SymbolOut(BaseModel):
     name: str
     sector: str | None = None
     exchange: str | None = None
+    currency: str = "USD"
     is_active: bool
 
 
@@ -63,6 +64,7 @@ class SymbolDetailOut(BaseModel):
     name: str
     sector: str | None = None
     exchange: str | None = None
+    currency: str = "USD"
     is_active: bool
     latest: QuoteOut | None = None
 
@@ -140,16 +142,29 @@ class PositionOut(BaseModel):
     ticker: str
     name: str
     quantity: Decimal
+    # ISO-4217 currency the symbol trades in.
+    currency: str = "USD"
+    # avg_cost is in the position's native currency.
     avg_cost: Decimal
     last_close: Decimal | None
+    # Native-currency aggregates (unchanged regardless of display preference).
+    market_value_native: Decimal = Decimal(0)
+    unrealized_pl_native: Decimal = Decimal(0)
+    # Same aggregates converted to the portfolio's display currency.
     market_value: Decimal
     unrealized_pl: Decimal
 
 
 class PortfolioOut(BaseModel):
-    """Snapshot of the user's default portfolio used by /portfolio."""
+    """Snapshot of the user's default portfolio used by /portfolio.
+
+    All top-level aggregates (cash_balance, market_value, totals) are in
+    ``display_currency``. Per-position fields carry both native and converted
+    amounts so the UI can show either.
+    """
 
     portfolio_id: int
+    display_currency: str = "USD"
     cash_balance: Decimal
     market_value: Decimal
     total_value: Decimal
@@ -167,7 +182,13 @@ class TradeIn(BaseModel):
 
 
 class TradeOut(BaseModel):
-    """One executed trade — used by both POST response and /trades history."""
+    """One executed trade — used by both POST response and /trades history.
+
+    ``price`` is the per-share fill price in the symbol's native currency.
+    ``currency`` is that native currency; ``fx_rate`` is USD-per-unit at fill
+    time (1 for USD symbols). ``total_native`` and ``total_usd`` are pre-
+    computed so clients don't have to re-multiply.
+    """
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -177,6 +198,10 @@ class TradeOut(BaseModel):
     quantity: Decimal
     price: Decimal
     ts: datetime
+    currency: str = "USD"
+    fx_rate: Decimal = Decimal(1)
+    total_native: Decimal = Decimal(0)
+    total_usd: Decimal = Decimal(0)
 
 
 class PortfolioHistoryPointOut(BaseModel):
@@ -206,10 +231,14 @@ class ProfileOut(BaseModel):
 
     user_id: int
     public_profile: bool
+    display_currency: str = "USD"
 
 
 class ProfilePatchIn(BaseModel):
-    public_profile: bool
+    """All fields are optional — patch sends only what changes."""
+
+    public_profile: bool | None = None
+    display_currency: str | None = None
 
 
 # ---------------------------------------------------------------------------

@@ -82,14 +82,19 @@ def test_buy_then_sell_round_trip(session: Session) -> None:
     user_id = _make_user(session)
 
     # Buy 10 AAPL @ 150 = $1,500
-    trade = execute_trade(
+    result = execute_trade(
         session,
         user_id=user_id,
         ticker="AAPL",
         side=TradeSide.BUY,
         quantity=Decimal(10),
     )
-    assert trade.price == Decimal("150")
+    assert result.trade.price == Decimal("150")
+    # USD symbol: native and USD cost match.
+    assert result.currency == "USD"
+    assert result.fx_rate == Decimal(1)
+    assert result.native_cost == Decimal("1500")
+    assert result.usd_cost == Decimal("1500")
 
     portfolio = ensure_default_portfolio(session, user_id)
     snap = compute_portfolio(session, portfolio)

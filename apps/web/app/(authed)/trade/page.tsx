@@ -47,7 +47,11 @@ export default async function TradePage() {
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2">
           <TradeForm
-            options={options.map((s) => ({ ticker: s.ticker, name: s.name }))}
+            options={options.map((s) => ({
+              ticker: s.ticker,
+              name: s.name,
+              currency: s.currency || "USD",
+            }))}
             heldTickers={Array.from(heldTickers)}
           />
         </div>
