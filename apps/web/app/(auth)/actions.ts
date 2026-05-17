@@ -18,6 +18,15 @@ export type AuthFormState = {
   error?: string;
 };
 
+// Only allow same-app paths through; anything else (absolute URLs,
+// protocol-relative ``//evil.com``) falls back to "/" so the form can't be
+// used as an open redirector.
+function safeRedirect(raw: FormDataEntryValue | null): string {
+  if (typeof raw !== "string") return "/";
+  if (!raw.startsWith("/") || raw.startsWith("//")) return "/";
+  return raw;
+}
+
 export async function signupAction(
   _prev: AuthFormState,
   formData: FormData,
@@ -43,13 +52,13 @@ export async function signupAction(
     passwordHash,
   });
 
-  // Roll straight into a signed-in session so the user lands on the home page
-  // ready to use. ``redirect`` here would clash with NextAuth's own redirect
-  // so we let signIn handle it.
+  // Roll straight into a signed-in session so the user lands on the page they
+  // were originally trying to reach. ``redirect`` here would clash with
+  // NextAuth's own redirect so we let signIn handle it.
   await signIn("credentials", {
     email: parsed.data.email,
     password: parsed.data.password,
-    redirectTo: "/",
+    redirectTo: safeRedirect(formData.get("callbackUrl")),
   });
 
   // signIn redirects; this is unreachable but keeps the return type honest.
@@ -77,7 +86,7 @@ export async function loginAction(
     await signIn("credentials", {
       email: parsed.data.email,
       password: parsed.data.password,
-      redirectTo: "/",
+      redirectTo: safeRedirect(formData.get("callbackUrl")),
     });
   } catch (err) {
     if (err instanceof AuthError) {
@@ -96,7 +105,11 @@ export async function signOutAction(): Promise<never> {
   redirect("/");
 }
 
-export async function signInWithGoogleAction(): Promise<never> {
-  await signIn("google", { redirectTo: "/" });
-  redirect("/");
+export async function signInWithGoogleAction(formData?: FormData): Promise<never> {
+  // Forwarded from the same login/signup form as the credentials button via
+  // ``<button formAction={...}>``, so the hidden ``callbackUrl`` input is in
+  // ``formData`` when present.
+  const callback = safeRedirect(formData?.get("callbackUrl") ?? null);
+  await signIn("google", { redirectTo: callback });
+  redirect(callback);
 }
