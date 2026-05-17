@@ -13,6 +13,7 @@ from stockviz.observability import init_sentry
 from stockviz.routers import (
     alerts,
     bars,
+    comments,
     health,
     indicators,
     leaderboard,
@@ -88,6 +89,7 @@ def create_app() -> FastAPI:
     app.include_router(alerts.router)
     app.include_router(watchlist.router)
     app.include_router(leaderboard.router)
+    app.include_router(comments.router)
 
     return app
 

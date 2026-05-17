@@ -12,6 +12,7 @@ import { notFound } from "next/navigation";
 
 import { auth } from "@/auth";
 import { AlertForm } from "@/components/alert-form";
+import { CommentsSection } from "@/components/comments-section";
 import { NewsList } from "@/components/news-list";
 import { PriceChart } from "@/components/price-chart";
 import { StockSidebar } from "@/components/stock-sidebar";
@@ -25,6 +26,7 @@ import {
   getSymbol,
   listSymbols,
 } from "@/lib/api";
+import { listComments } from "@/lib/api/comments";
 import { listWatchlist } from "@/lib/api/watchlist";
 
 const TIMEFRAMES = [
@@ -104,7 +106,7 @@ export default async function StockPage({
     throw err;
   }
 
-  const [bars, indicatorBundle, news, session, allSymbols] = await Promise.all([
+  const [bars, indicatorBundle, news, session, allSymbols, comments] = await Promise.all([
     getBars(ticker, { limit: tfDays }),
     indicators.length
       ? getIndicators(ticker, { names: indicators, limit: tfDays })
@@ -112,8 +114,10 @@ export default async function StockPage({
     getNewsForTicker(ticker, 8).catch(() => []),
     auth(),
     listSymbols(),
+    listComments(ticker).catch(() => [] as Awaited<ReturnType<typeof listComments>>),
   ]);
   const signedIn = Boolean(session?.user?.id);
+  const currentUserId = session?.user?.id ? Number(session.user.id) : null;
 
   let inWatchlist = false;
   if (session?.user?.id) {
@@ -149,106 +153,114 @@ export default async function StockPage({
         indicators={indicators.join(",")}
       />
       <div className="min-w-0 flex-1 px-4 py-10 sm:px-6">
-      <header className="mb-6 flex flex-wrap items-baseline justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">
-            <span className="font-mono">{symbol.ticker}</span>
-            <span className="ml-3 text-base font-normal text-muted-foreground">{symbol.name}</span>
-          </h1>
-          <p className="mt-1 text-xs text-muted-foreground">
-            {symbol.sector ?? "—"} · {symbol.exchange ?? "—"}
-          </p>
-        </div>
-        <div className="flex items-baseline gap-4">
-          {session?.user?.id ? (
-            <WatchlistToggle ticker={symbol.ticker} initialInWatchlist={inWatchlist} />
-          ) : null}
-          <div className="text-right font-mono">
-            <div className="text-3xl">${fmtPrice(last)}</div>
-            <div
-              className={`text-sm ${
-                periodChangePct === null
-                  ? "text-muted-foreground"
-                  : periodChangePct >= 0
-                    ? "text-green-500"
-                    : "text-red-500"
-              }`}
-            >
-              {periodChangePct === null
-                ? `${tf}: —`
-                : `${tf}: ${periodChangePct >= 0 ? "+" : ""}${periodChangePct.toFixed(2)}%`}
-            </div>
+        <header className="mb-6 flex flex-wrap items-baseline justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">
+              <span className="font-mono">{symbol.ticker}</span>
+              <span className="ml-3 text-base font-normal text-muted-foreground">
+                {symbol.name}
+              </span>
+            </h1>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {symbol.sector ?? "—"} · {symbol.exchange ?? "—"}
+            </p>
           </div>
-        </div>
-      </header>
-
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <nav className="flex gap-1">
-          {TIMEFRAMES.map((t) => (
-            <Link
-              key={t.value}
-              href={timeframeHref(ticker, indicators, t.value)}
-              className={`rounded-md border px-2.5 py-1 text-xs transition hover:bg-accent ${
-                tf === t.value ? "border-primary text-foreground" : "text-muted-foreground"
-              }`}
-            >
-              {t.value}
-            </Link>
-          ))}
-        </nav>
-        <nav className="flex flex-wrap gap-1">
-          {ALL_INDICATORS.map((name) => {
-            const on = indicators.includes(name);
-            return (
-              <Link
-                key={name}
-                href={toggleHref(ticker, indicators, name, tf)}
-                className={`rounded-md border px-2.5 py-1 text-xs uppercase transition hover:bg-accent ${
-                  on ? "border-primary text-foreground" : "text-muted-foreground"
+          <div className="flex items-baseline gap-4">
+            {session?.user?.id ? (
+              <WatchlistToggle ticker={symbol.ticker} initialInWatchlist={inWatchlist} />
+            ) : null}
+            <div className="text-right font-mono">
+              <div className="text-3xl">${fmtPrice(last)}</div>
+              <div
+                className={`text-sm ${
+                  periodChangePct === null
+                    ? "text-muted-foreground"
+                    : periodChangePct >= 0
+                      ? "text-green-500"
+                      : "text-red-500"
                 }`}
               >
-                {name.replace("_", " ")}
+                {periodChangePct === null
+                  ? `${tf}: —`
+                  : `${tf}: ${periodChangePct >= 0 ? "+" : ""}${periodChangePct.toFixed(2)}%`}
+              </div>
+            </div>
+          </div>
+        </header>
+
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <nav className="flex gap-1">
+            {TIMEFRAMES.map((t) => (
+              <Link
+                key={t.value}
+                href={timeframeHref(ticker, indicators, t.value)}
+                className={`rounded-md border px-2.5 py-1 text-xs transition hover:bg-accent ${
+                  tf === t.value ? "border-primary text-foreground" : "text-muted-foreground"
+                }`}
+              >
+                {t.value}
               </Link>
-            );
-          })}
-        </nav>
-      </div>
-
-      <div className="rounded-lg border bg-card p-4">
-        {bars.length ? (
-          <PriceChart
-            bars={bars}
-            overlays={overlaySeries}
-            macd={showMacd ? (indicatorBundle?.macd ?? null) : null}
-          />
-        ) : (
-          <p className="py-12 text-center text-sm text-muted-foreground">
-            No bars in this timeframe.
-          </p>
-        )}
-      </div>
-
-      {signedIn ? (
-        <div className="mt-4">
-          <AlertForm ticker={symbol.ticker} />
+            ))}
+          </nav>
+          <nav className="flex flex-wrap gap-1">
+            {ALL_INDICATORS.map((name) => {
+              const on = indicators.includes(name);
+              return (
+                <Link
+                  key={name}
+                  href={toggleHref(ticker, indicators, name, tf)}
+                  className={`rounded-md border px-2.5 py-1 text-xs uppercase transition hover:bg-accent ${
+                    on ? "border-primary text-foreground" : "text-muted-foreground"
+                  }`}
+                >
+                  {name.replace("_", " ")}
+                </Link>
+              );
+            })}
+          </nav>
         </div>
-      ) : null}
 
-      {indicators.includes("rsi_14") && indicatorBundle?.series.rsi_14 ? (
-        <p className="mt-3 text-xs text-muted-foreground">
-          Latest RSI(14):{" "}
-          <span className="font-mono text-foreground">
-            {indicatorBundle.series.rsi_14[indicatorBundle.series.rsi_14.length - 1]?.value.toFixed(
-              2,
-            ) ?? "—"}
-          </span>
-        </p>
-      ) : null}
+        <div className="rounded-lg border bg-card p-4">
+          {bars.length ? (
+            <PriceChart
+              bars={bars}
+              overlays={overlaySeries}
+              macd={showMacd ? (indicatorBundle?.macd ?? null) : null}
+            />
+          ) : (
+            <p className="py-12 text-center text-sm text-muted-foreground">
+              No bars in this timeframe.
+            </p>
+          )}
+        </div>
 
-      <section className="mt-12">
-        <h2 className="mb-4 text-lg font-semibold">Recent news</h2>
-        <NewsList articles={news} />
-      </section>
+        {signedIn ? (
+          <div className="mt-4">
+            <AlertForm ticker={symbol.ticker} />
+          </div>
+        ) : null}
+
+        {indicators.includes("rsi_14") && indicatorBundle?.series.rsi_14 ? (
+          <p className="mt-3 text-xs text-muted-foreground">
+            Latest RSI(14):{" "}
+            <span className="font-mono text-foreground">
+              {indicatorBundle.series.rsi_14[
+                indicatorBundle.series.rsi_14.length - 1
+              ]?.value.toFixed(2) ?? "—"}
+            </span>
+          </p>
+        ) : null}
+
+        <section className="mt-12">
+          <h2 className="mb-4 text-lg font-semibold">Recent news</h2>
+          <NewsList articles={news} />
+        </section>
+
+        <CommentsSection
+          ticker={symbol.ticker}
+          comments={comments}
+          currentUserId={Number.isFinite(currentUserId) ? currentUserId : null}
+        />
       </div>
     </div>
   );
