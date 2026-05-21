@@ -11,6 +11,7 @@ const NAV_LINKS = [
   { href: "/markets", label: "Markets" },
   { href: "/screener", label: "Screener" },
   { href: "/compare", label: "Compare" },
+  { href: "/backtest", label: "Backtest" },
   { href: "/recommendations", label: "Recommendations" },
   { href: "/news", label: "News" },
   { href: "/watchlist", label: "Watchlist" },

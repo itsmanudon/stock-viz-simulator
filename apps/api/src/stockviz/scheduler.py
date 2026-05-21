@@ -27,6 +27,7 @@ from stockviz.services.ingest.fx import ingest_fx
 from stockviz.services.ingest.news import ingest_news_for_ticker
 from stockviz.services.ingest.prices import ingest_ticker
 from stockviz.services.ingest.seed import DEFAULT_COMPANIES_PATH
+from stockviz.services.options import settle_expired_options
 from stockviz.services.recommend import score_universe
 from stockviz.services.trading import (
     credit_due_dividends,
@@ -194,6 +195,14 @@ def dividend_credit_refresh() -> None:
     logger.info("dividend_credit_refresh: credited %d portfolio(s) for %s", credited, today)
 
 
+def options_expiry_refresh() -> None:
+    """Settle every open option whose expiry has arrived (ITM exercise / OTM expiry)."""
+    today = utcnow().date()
+    with _session_scope() as session:
+        settled = settle_expired_options(session, settle_date=today)
+    logger.info("options_expiry_refresh: settled %d option(s) as of %s", settled, today)
+
+
 def build_scheduler() -> BackgroundScheduler:
     """Construct (but don't start) the scheduler. Caller owns lifecycle."""
 
@@ -263,6 +272,15 @@ def build_scheduler() -> BackgroundScheduler:
         pending_orders_settlement,
         trigger=CronTrigger(day_of_week="mon-fri", hour=16, minute=45),
         id="pending_orders_settlement",
+        replace_existing=True,
+    )
+
+    # 5:30pm ET on weekdays — after the daily close has landed, settle any
+    # options that expired today (ITM exercise / OTM worthless).
+    scheduler.add_job(
+        options_expiry_refresh,
+        trigger=CronTrigger(day_of_week="mon-fri", hour=17, minute=30),
+        id="options_expiry_refresh",
         replace_existing=True,
     )
 
