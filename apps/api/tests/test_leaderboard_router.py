@@ -43,11 +43,13 @@ def _add_snapshot(session: Session, user_id: int, d: date, nav: Decimal) -> None
 
 @pytest.fixture(autouse=True)
 def _reset_cache():
-    """Force leaderboard cache expiry before every test."""
-    lb_module._cache_ts = 0.0
+    """Reset the leaderboard cache to its never-populated state before/after
+    every test, so a cache entry from one test (built against a different
+    in-memory DB) can't leak into the next."""
+    lb_module._cache_ts = None
     lb_module._cache = []
     yield
-    lb_module._cache_ts = 0.0
+    lb_module._cache_ts = None
     lb_module._cache = []
 
 
