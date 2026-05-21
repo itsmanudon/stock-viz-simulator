@@ -8,3 +8,4 @@ export { getLatestNews, getNewsForTicker } from "./news";
 export { getIndicators } from "./indicators";
 export { getRecommendations } from "./recommendations";
 export { screenSymbols } from "./screener";
+export { runBacktest } from "./backtest";

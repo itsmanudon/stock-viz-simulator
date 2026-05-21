@@ -8,9 +8,9 @@ from __future__ import annotations
 
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class SymbolOut(BaseModel):
@@ -430,3 +430,68 @@ class OptionTradeOut(BaseModel):
 
     position: OptionPositionOut
     cash_delta: Decimal
+
+
+# ---------------------------------------------------------------------------
+# Backtesting
+# ---------------------------------------------------------------------------
+
+
+class RsiThresholdStrategy(BaseModel):
+    """Buy when RSI(14) drops below ``buy_below``, sell when it rises above ``sell_above``."""
+
+    type: Literal["rsi_threshold"]
+    buy_below: float = Field(ge=0, le=100)
+    sell_above: float = Field(ge=0, le=100)
+
+
+class SmaCrossoverStrategy(BaseModel):
+    """Buy when the short SMA crosses above the long SMA, sell on the reverse."""
+
+    type: Literal["sma_crossover"]
+    short_window: int = Field(ge=1, le=500)
+    long_window: int = Field(ge=2, le=500)
+
+
+StrategySpec = Annotated[
+    RsiThresholdStrategy | SmaCrossoverStrategy,
+    Field(discriminator="type"),
+]
+
+
+class BacktestIn(BaseModel):
+    """Request body for POST /v1/backtest."""
+
+    ticker: str
+    from_: date = Field(alias="from")
+    to: date
+    initial_cash: Decimal = Field(gt=0)
+    strategy: StrategySpec
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class BacktestTradeOut(BaseModel):
+    date: date
+    side: Literal["buy", "sell"]
+    price: Decimal
+    shares: Decimal
+
+
+class EquityPointOut(BaseModel):
+    date: date
+    nav: Decimal
+
+
+class BacktestSummaryOut(BaseModel):
+    total_return: float
+    sharpe: float
+    max_drawdown: float
+    final_nav: Decimal
+
+
+class BacktestOut(BaseModel):
+    ticker: str
+    trades: list[BacktestTradeOut]
+    equity_curve: list[EquityPointOut]
+    summary: BacktestSummaryOut
