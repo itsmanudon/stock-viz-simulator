@@ -16,6 +16,7 @@ const NAV_LINKS = [
   { href: "/watchlist", label: "Watchlist" },
   { href: "/portfolio", label: "Portfolio" },
   { href: "/trade", label: "Trade" },
+  { href: "/orders", label: "Orders" },
   { href: "/leaderboard", label: "Leaderboard" },
 ];
 

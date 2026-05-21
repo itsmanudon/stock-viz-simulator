@@ -141,6 +141,48 @@ uv --directory apps/api run pytest
 pnpm build                                 # production build of the web app
 ```
 
+## E2E tests (Playwright)
+
+End-to-end tests live in `apps/web/tests/e2e/` and use
+[Playwright](https://playwright.dev/).
+
+### First-time setup
+
+Install the Chromium browser binary (one-off, not stored in node_modules):
+
+```bash
+pnpm --filter @stockviz/web exec playwright install --with-deps chromium
+```
+
+### Running tests
+
+E2E tests run against a **production build** of the web app, so you need:
+
+1. Both servers running (`pnpm api:dev` + `pnpm dev:web` → or let Playwright
+   handle Next.js automatically)
+2. The database seeded (`pnpm api:migrate` + CLI seed/backfill)
+
+With both servers already running on their default ports:
+
+```bash
+pnpm e2e                   # all suites, Chromium, headless
+pnpm --filter @stockviz/web e2e:ui   # interactive Playwright UI
+```
+
+If neither server is running, Playwright will start a production Next.js
+server automatically (`pnpm start`), but you still need the FastAPI process
+running separately.
+
+### Test suites
+
+| File | Coverage |
+|------|----------|
+| `markets.spec.ts` | `/markets` loads and rows are clickable (no auth) |
+| `auth.spec.ts` | Sign-up flow + protected-route redirect |
+| `trade.spec.ts` | Place a buy order; verify it appears in trade history |
+
+CI runs the full E2E suite in the `e2e` job (see `.github/workflows/ci.yml`).
+
 ## Common issues
 
 - **Postgres connection refused** — ensure `pnpm db:up` has finished and that

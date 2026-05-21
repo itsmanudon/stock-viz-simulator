@@ -14,7 +14,14 @@ import { authConfig } from "@/auth.config";
 
 const { auth: proxyAuth } = NextAuth(authConfig);
 
-const PROTECTED_PREFIXES = ["/trade", "/portfolio", "/trades", "/watchlist", "/settings"];
+const PROTECTED_PREFIXES = [
+  "/trade",
+  "/portfolio",
+  "/trades",
+  "/watchlist",
+  "/settings",
+  "/orders",
+];
 
 export default proxyAuth((req) => {
   const path = req.nextUrl.pathname;

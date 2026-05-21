@@ -28,7 +28,11 @@ from stockviz.services.ingest.news import ingest_news_for_ticker
 from stockviz.services.ingest.prices import ingest_ticker
 from stockviz.services.ingest.seed import DEFAULT_COMPANIES_PATH
 from stockviz.services.recommend import score_universe
-from stockviz.services.trading import credit_due_dividends, snapshot_user_navs
+from stockviz.services.trading import (
+    credit_due_dividends,
+    settle_pending_orders,
+    snapshot_user_navs,
+)
 from stockviz.settings import get_settings
 
 logger = logging.getLogger(__name__)
@@ -175,6 +179,13 @@ def portfolio_snapshots_refresh() -> None:
     logger.info("portfolio_snapshots_refresh: wrote %d snapshots for %s", written, today)
 
 
+def pending_orders_settlement() -> None:
+    """Settle any pending orders triggered by today's EOD close."""
+    with _session_scope() as session:
+        filled = settle_pending_orders(session)
+    logger.info("pending_orders_settlement: filled %d order(s)", filled)
+
+
 def dividend_credit_refresh() -> None:
     """Credit any dividends whose ex_date is today to eligible portfolios."""
     today = utcnow().date()
@@ -244,6 +255,14 @@ def build_scheduler() -> BackgroundScheduler:
         dividend_credit_refresh,
         trigger=CronTrigger(day_of_week="mon-fri", hour=9, minute=30),
         id="dividend_credit_refresh",
+        replace_existing=True,
+    )
+
+    # 4:45pm ET on weekdays — settle pending orders against today's close.
+    scheduler.add_job(
+        pending_orders_settlement,
+        trigger=CronTrigger(day_of_week="mon-fri", hour=16, minute=45),
+        id="pending_orders_settlement",
         replace_existing=True,
     )
 

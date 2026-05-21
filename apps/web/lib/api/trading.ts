@@ -1,6 +1,6 @@
 import "server-only";
 
-import { authedGet, authedPost } from "./server";
+import { authedDelete, authedGet, authedPost } from "./server";
 
 export type Position = {
   ticker: string;
@@ -97,6 +97,51 @@ export type DividendSummary = {
 export function getDividends(): Promise<DividendSummary> {
   return authedGet<DividendSummary>("/v1/portfolio/dividends");
 }
+
+// ---------------------------------------------------------------------------
+// Pending orders
+// ---------------------------------------------------------------------------
+
+export type OrderType = "limit" | "stop_loss" | "take_profit";
+export type OrderStatus = "pending" | "filled" | "cancelled";
+
+export type PendingOrder = {
+  id: number;
+  ticker: string;
+  side: "buy" | "sell";
+  order_type: OrderType;
+  quantity: string;
+  limit_price: string;
+  status: OrderStatus;
+  created_at: string;
+  filled_at: string | null;
+  fill_price: string | null;
+};
+
+export type PendingOrderInput = {
+  ticker: string;
+  side: "buy" | "sell";
+  order_type: OrderType;
+  quantity: string;
+  limit_price: string;
+};
+
+export function listOrders(status?: OrderStatus): Promise<PendingOrder[]> {
+  const qs = status ? `?status=${status}` : "";
+  return authedGet<PendingOrder[]>(`/v1/orders${qs}`);
+}
+
+export function createOrder(body: PendingOrderInput): Promise<PendingOrder> {
+  return authedPost<PendingOrder>("/v1/orders", body);
+}
+
+export function cancelOrder(orderId: number): Promise<void> {
+  return authedDelete(`/v1/orders/${orderId}`);
+}
+
+// ---------------------------------------------------------------------------
+// Portfolio analytics
+// ---------------------------------------------------------------------------
 
 export type SectorAllocation = {
   sector: string;

@@ -1,10 +1,4 @@
-"""Paper-trading: trade execution and portfolio computation.
-
-The model is intentionally simple: one default portfolio per user, market
-orders only, fills at the most recent ``1d`` close. The Position row is a
-materialized roll-up of all Trade rows — we recompute avg cost on every
-buy and zero out the row when the last share is sold.
-"""
+"""Paper-trading: trade execution, portfolio computation, and pending orders."""
 
 from stockviz.services.trading.analytics import (
     AnalyticsResult,
@@ -32,6 +26,7 @@ from stockviz.services.trading.execute import (
 )
 from stockviz.services.trading.fx import convert as fx_convert
 from stockviz.services.trading.fx import latest_rate as fx_latest_rate
+from stockviz.services.trading.orders import OrderError, create_pending_order, settle_pending_orders
 from stockviz.services.trading.portfolio import (
     PortfolioPosition,
     PortfolioValuation,
@@ -49,6 +44,7 @@ __all__ = [
     "InsufficientPosition",
     "NoFxRateError",
     "NoMarketDataError",
+    "OrderError",
     "PortfolioPosition",
     "PortfolioValuation",
     "SectorAllocation",
@@ -63,11 +59,13 @@ __all__ = [
     "compute_sharpe",
     "compute_top_movers",
     "compute_total_return_pct",
+    "create_pending_order",
     "credit_due_dividends",
     "ensure_default_portfolio",
     "execute_trade",
     "fx_convert",
     "fx_latest_rate",
+    "settle_pending_orders",
     "snapshot_user_navs",
     "upsert_user_snapshot",
 ]

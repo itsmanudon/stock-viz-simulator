@@ -91,3 +91,99 @@ jobs:
         run: uv run pytest -v
         env:
           DATABASE_URL: postgresql+psycopg://stockviz:stockviz_dev@localhost:5432/stockviz
+
+  e2e:
+    name: e2e (Playwright)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: stockviz
+          POSTGRES_PASSWORD: stockviz_dev
+          POSTGRES_DB: stockviz
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U stockviz -d stockviz"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      # Shared auth tokens (must match between web and api)
+      INTERNAL_API_TOKEN: ci-e2e-token
+      AUTH_SECRET: ci-e2e-secret
+      NEXTAUTH_JWT_SECRET: ci-e2e-secret
+      # Web — uses standard postgres:// driver
+      DATABASE_URL: postgres://stockviz:stockviz_dev@localhost:5432/stockviz
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+      API_URL: http://localhost:8000
+      # Scheduler off so it doesn't fire during tests
+      ENABLE_SCHEDULER: "false"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+
+      - name: Install Node deps
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Python
+        working-directory: apps/api
+        run: uv python install 3.12
+
+      - name: Sync Python deps
+        working-directory: apps/api
+        run: uv sync --frozen
+
+      - name: Migrate + seed + backfill
+        working-directory: apps/api
+        env:
+          DATABASE_URL: postgresql+psycopg://stockviz:stockviz_dev@localhost:5432/stockviz
+        run: |
+          uv run alembic upgrade head
+          uv run python -m stockviz.cli seed
+          uv run python -m stockviz.cli backfill
+
+      - name: Start API
+        working-directory: apps/api
+        env:
+          DATABASE_URL: postgresql+psycopg://stockviz:stockviz_dev@localhost:5432/stockviz
+        run: uv run uvicorn stockviz.main:app --host 0.0.0.0 --port 8000 &
+
+      - name: Wait for API health check
+        run: |
+          for i in $(seq 1 20); do
+            curl -sf http://localhost:8000/health && break || sleep 2
+          done
+
+      - name: Build Next.js
+        working-directory: apps/web
+        run: pnpm build
+
+      - name: Install Playwright browsers
+        working-directory: apps/web
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Run E2E tests
+        working-directory: apps/web
+        run: pnpm e2e
+
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: playwright-report
+          path: apps/web/playwright-report/
+          retention-days: 7
