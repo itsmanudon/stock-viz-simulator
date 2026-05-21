@@ -50,3 +50,21 @@ export async function apiGet<T>(path: string, opts: FetchOpts = {}): Promise<T> 
   }
   return (await res.json()) as T;
 }
+
+export async function apiPost<T>(path: string, body: unknown, opts: FetchOpts = {}): Promise<T> {
+  const url = `${baseUrl()}${path}`;
+  const headers = new Headers(opts.init?.headers);
+  headers.set("Content-Type", "application/json");
+  const res = await fetch(url, {
+    ...opts.init,
+    method: "POST",
+    headers,
+    body: JSON.stringify(body),
+    cache: opts.cache ?? "no-store",
+  });
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    throw new ApiError(res.status, path, detail || res.statusText);
+  }
+  return (await res.json()) as T;
+}
