@@ -17,7 +17,8 @@ test("authenticated user can place a buy order", async ({ page }) => {
   await page.goto("/trade");
   await expect(page.getByRole("heading", { name: "Place a trade" })).toBeVisible();
 
-  // The quantity field defaults to 1; submit as-is (buy side is the default)
+  // Select a ticker with backfilled price data; quantity defaults to 1
+  await page.getByLabel("Symbol").selectOption("AAPL");
   await page.getByRole("button", { name: "Place buy order" }).click();
 
   // On success, a green confirmation message is shown
@@ -28,8 +29,9 @@ test("buy order appears in trade history", async ({ page }) => {
   const email = `e2e+history+${Date.now()}@example.com`;
   await signUp(page, email);
 
-  // Place a trade
+  // Place a trade using a ticker with backfilled price data
   await page.goto("/trade");
+  await page.getByLabel("Symbol").selectOption("AAPL");
   await page.getByRole("button", { name: "Place buy order" }).click();
   await expect(page.locator("output")).toContainText("Filled BUY", { timeout: 10_000 });
 

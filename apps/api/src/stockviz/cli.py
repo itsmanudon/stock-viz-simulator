@@ -104,6 +104,17 @@ def _cmd_snapshot(_args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_settle_options(_args: argparse.Namespace) -> int:
+    from stockviz._time import utcnow
+    from stockviz.services.options import settle_expired_options
+
+    today = utcnow().date()
+    with Session(engine) as session:
+        n = settle_expired_options(session, settle_date=today)
+    print(f"settled {n} expired option position(s) as of {today}")
+    return 0
+
+
 def _cmd_fx(args: argparse.Namespace) -> int:
     currencies = (
         [c.upper() for c in args.currencies] if args.currencies else _default_fx_currencies()
@@ -191,6 +202,10 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser(
         "credit-dividends", help="Credit today's due dividends to all eligible portfolios"
     ).set_defaults(fn=_cmd_credit_dividends)
+
+    sub.add_parser(
+        "settle-options", help="Settle every option position that has reached expiry"
+    ).set_defaults(fn=_cmd_settle_options)
 
     args = parser.parse_args(argv)
     return args.fn(args)
