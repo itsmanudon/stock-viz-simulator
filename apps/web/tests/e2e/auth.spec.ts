@@ -14,7 +14,7 @@ test("sign up creates an account and starts the session", async ({ page }) => {
 
   // Navigating to /portfolio works — the page auto-creates the $100k portfolio
   await page.goto("/portfolio");
-  await expect(page.getByText("$100,000.00")).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByText("$100,000.00").first()).toBeVisible({ timeout: 10_000 });
 });
 
 test("protected route redirects unauthenticated users to sign-in page", async ({ page }) => {
