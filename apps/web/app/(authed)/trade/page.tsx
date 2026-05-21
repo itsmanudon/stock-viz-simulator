@@ -8,6 +8,7 @@
 
 import Link from "next/link";
 
+import { OptionTradeForm } from "@/components/option-trade-form";
 import { TradeForm } from "@/components/trade-form";
 import { Card, CardContent } from "@/components/ui/card";
 import { listSymbols } from "@/lib/api";
@@ -85,6 +86,23 @@ export default async function TradePage() {
           </CardContent>
         </Card>
       </div>
+
+      <section className="mt-12">
+        <header className="mb-4">
+          <h2 className="text-2xl font-bold tracking-tight">Options</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Buy calls and puts to open. Premiums are priced with Black-Scholes; manage and close
+            positions from the{" "}
+            <Link href="/portfolio" className="text-foreground underline">
+              portfolio page
+            </Link>
+            .
+          </p>
+        </header>
+        <div className="lg:max-w-2xl">
+          <OptionTradeForm options={options.map((s) => ({ ticker: s.ticker, name: s.name }))} />
+        </div>
+      </section>
     </div>
   );
 }

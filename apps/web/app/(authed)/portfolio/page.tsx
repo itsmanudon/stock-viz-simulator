@@ -11,6 +11,7 @@
 import Link from "next/link";
 
 import { EquityCurve } from "@/components/equity-curve";
+import { OptionsPositions } from "@/components/options-positions";
 import { PortfolioAnalyticsSection } from "@/components/portfolio-analytics";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -21,6 +22,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { listOptionsPositions } from "@/lib/api/options";
 import {
   getDividends,
   getPortfolio,
@@ -81,13 +83,14 @@ export default async function PortfolioPage({
   const days = RANGES.find((r) => r.value === range)?.days ?? 90;
 
   const emptyDividends = { ytd_income: "0", history: [], projected: [] };
-  const [portfolio, history, dividends, analytics] = await Promise.all([
+  const [portfolio, history, dividends, analytics, optionsPositions] = await Promise.all([
     getPortfolio(),
     getPortfolioHistory(days).catch(() => [] as Awaited<ReturnType<typeof getPortfolioHistory>>),
     getDividends().catch(() => emptyDividends),
     getPortfolioAnalytics().catch(
       () => null as Awaited<ReturnType<typeof getPortfolioAnalytics>> | null,
     ),
+    listOptionsPositions().catch(() => [] as Awaited<ReturnType<typeof listOptionsPositions>>),
   ]);
 
   const displayCcy = portfolio.display_currency || "USD";
@@ -331,6 +334,11 @@ export default async function PortfolioPage({
             </Table>
           </div>
         )}
+      </section>
+
+      <section className="mt-8">
+        <h2 className="mb-3 text-lg font-semibold">Options positions</h2>
+        <OptionsPositions positions={optionsPositions} />
       </section>
     </div>
   );
