@@ -9,6 +9,7 @@ from stockviz.models.alert import Alert, AlertDirection
 from stockviz.models.comment import Comment
 from stockviz.models.dividend import Dividend, PortfolioDividend
 from stockviz.models.market import FxRate, NewsArticle, PriceBar, Symbol
+from stockviz.models.option import OptionsPosition, OptionStatus, OptionType
 from stockviz.models.portfolio import Portfolio, PortfolioSnapshot, Position, Trade, TradeSide
 from stockviz.models.recommendation import Recommendation
 from stockviz.models.user import User
@@ -21,6 +22,9 @@ __all__ = [
     "Dividend",
     "FxRate",
     "NewsArticle",
+    "OptionStatus",
+    "OptionType",
+    "OptionsPosition",
     "Portfolio",
     "PortfolioDividend",
     "PortfolioSnapshot",

@@ -373,6 +373,66 @@ class PortfolioAnalyticsOut(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Options
+# ---------------------------------------------------------------------------
+
+
+class OptionTradeIn(BaseModel):
+    """Request body for POST /v1/options/trade.
+
+    ``action="open"`` buys a contract — ``ticker``, ``option_type``,
+    ``strike``, ``expiry`` and ``quantity`` are required. ``action="close"``
+    sells an open position back — only ``option_id`` is required.
+    """
+
+    action: Literal["open", "close"]
+    ticker: str | None = None
+    option_type: Literal["call", "put"] | None = None
+    strike: Decimal | None = None
+    expiry: date | None = None
+    quantity: int | None = None
+    option_id: int | None = None
+
+
+class OptionGreeksOut(BaseModel):
+    """Per-share Black-Scholes greeks. Returned for completeness; the v1 UI
+    doesn't surface them."""
+
+    delta: float
+    gamma: float
+    theta: float
+    vega: float
+
+
+class OptionPositionOut(BaseModel):
+    """One options position with its current Black-Scholes valuation.
+
+    ``premium_paid`` and ``current_value`` are whole-position totals (per-share
+    price * 100 * contracts); ``greeks`` are per-share.
+    """
+
+    id: int
+    ticker: str
+    option_type: Literal["call", "put"]
+    strike: Decimal
+    expiry: date
+    quantity: int
+    premium_paid: Decimal
+    status: Literal["open", "closed", "exercised", "expired"]
+    opened_at: datetime
+    current_value: Decimal
+    greeks: OptionGreeksOut
+
+
+class OptionTradeOut(BaseModel):
+    """Result of an options trade: the affected position plus the cash move
+    (negative when premium was paid, positive when proceeds were received)."""
+
+    position: OptionPositionOut
+    cash_delta: Decimal
+
+
+# ---------------------------------------------------------------------------
 # Backtesting
 # ---------------------------------------------------------------------------
 
