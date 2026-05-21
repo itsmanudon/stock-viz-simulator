@@ -118,6 +118,8 @@ jobs:
       API_URL: http://localhost:8000
       # Scheduler off so it doesn't fire during tests
       ENABLE_SCHEDULER: "false"
+      # NextAuth v5 requires explicit host trust in non-production environments
+      AUTH_TRUST_HOST: "true"
     steps:
       - uses: actions/checkout@v4
 
