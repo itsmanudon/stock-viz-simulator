@@ -30,8 +30,15 @@ SessionDep = Annotated[Session, Depends(get_session)]
 _INITIAL_NAV = Decimal("100000")
 _CACHE_TTL = 3600  # seconds
 
+# ``_cache_ts`` is the ``time.monotonic()`` reading when ``_cache`` was last
+# built, or ``None`` when the cache has never been populated (or was
+# invalidated). A ``None`` sentinel — rather than ``0.0`` — matters because
+# ``time.monotonic()``'s zero point is arbitrary: on a freshly-booted host it
+# can read below ``_CACHE_TTL``, so ``monotonic() - 0.0`` would wrongly look
+# "fresh" and the endpoint would serve an empty leaderboard for the first hour
+# after deploy.
 _cache: list[LeaderboardEntryOut] = []
-_cache_ts: float = 0.0
+_cache_ts: float | None = None
 
 
 def _build_leaderboard(session: Session) -> list[LeaderboardEntryOut]:
@@ -76,7 +83,7 @@ def _build_leaderboard(session: Session) -> list[LeaderboardEntryOut]:
 @router.get("/leaderboard", response_model=list[LeaderboardEntryOut])
 def get_leaderboard(session: SessionDep) -> list[LeaderboardEntryOut]:
     global _cache, _cache_ts
-    if time.monotonic() - _cache_ts > _CACHE_TTL:
+    if _cache_ts is None or time.monotonic() - _cache_ts > _CACHE_TTL:
         _cache = _build_leaderboard(session)
         _cache_ts = time.monotonic()
     return _cache
@@ -114,7 +121,7 @@ def patch_profile(
 
     if body.public_profile is not None:
         user.public_profile = body.public_profile
-        _cache_ts = 0.0  # public_profile flips invalidate the cache
+        _cache_ts = None  # public_profile flips invalidate the cache
     if body.display_currency is not None:
         ccy = body.display_currency.upper()
         if ccy not in SUPPORTED_DISPLAY_CURRENCIES:

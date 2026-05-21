@@ -100,3 +100,41 @@ export type ScreenerResult = {
   high_52w: string;
   low_52w: string;
 };
+
+export type BacktestStrategy =
+  | { type: "rsi_threshold"; buy_below: number; sell_above: number }
+  | { type: "sma_crossover"; short_window: number; long_window: number };
+
+export type BacktestRequest = {
+  ticker: string;
+  from: string;
+  to: string;
+  initial_cash: string;
+  strategy: BacktestStrategy;
+};
+
+export type BacktestTrade = {
+  date: string;
+  side: "buy" | "sell";
+  price: string;
+  shares: string;
+};
+
+export type BacktestEquityPoint = {
+  date: string;
+  nav: string;
+};
+
+export type BacktestSummary = {
+  total_return: number;
+  sharpe: number;
+  max_drawdown: number;
+  final_nav: string;
+};
+
+export type BacktestResult = {
+  ticker: string;
+  trades: BacktestTrade[];
+  equity_curve: BacktestEquityPoint[];
+  summary: BacktestSummary;
+};

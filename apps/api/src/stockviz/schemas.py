@@ -8,9 +8,9 @@ from __future__ import annotations
 
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class SymbolOut(BaseModel):
@@ -403,3 +403,128 @@ class PortfolioAnalyticsOut(BaseModel):
     sector_allocation: list[SectorAllocationOut]
     top_gainers: list[TopMoverOut]
     top_losers: list[TopMoverOut]
+
+
+# ---------------------------------------------------------------------------
+# Options
+# ---------------------------------------------------------------------------
+
+
+class OptionTradeIn(BaseModel):
+    """Request body for POST /v1/options/trade.
+
+    ``action="open"`` buys a contract — ``ticker``, ``option_type``,
+    ``strike``, ``expiry`` and ``quantity`` are required. ``action="close"``
+    sells an open position back — only ``option_id`` is required.
+    """
+
+    action: Literal["open", "close"]
+    ticker: str | None = None
+    option_type: Literal["call", "put"] | None = None
+    strike: Decimal | None = None
+    expiry: date | None = None
+    quantity: int | None = None
+    option_id: int | None = None
+
+
+class OptionGreeksOut(BaseModel):
+    """Per-share Black-Scholes greeks. Returned for completeness; the v1 UI
+    doesn't surface them."""
+
+    delta: float
+    gamma: float
+    theta: float
+    vega: float
+
+
+class OptionPositionOut(BaseModel):
+    """One options position with its current Black-Scholes valuation.
+
+    ``premium_paid`` and ``current_value`` are whole-position totals (per-share
+    price * 100 * contracts); ``greeks`` are per-share.
+    """
+
+    id: int
+    ticker: str
+    option_type: Literal["call", "put"]
+    strike: Decimal
+    expiry: date
+    quantity: int
+    premium_paid: Decimal
+    status: Literal["open", "closed", "exercised", "expired"]
+    opened_at: datetime
+    current_value: Decimal
+    greeks: OptionGreeksOut
+
+
+class OptionTradeOut(BaseModel):
+    """Result of an options trade: the affected position plus the cash move
+    (negative when premium was paid, positive when proceeds were received)."""
+
+    position: OptionPositionOut
+    cash_delta: Decimal
+
+
+# ---------------------------------------------------------------------------
+# Backtesting
+# ---------------------------------------------------------------------------
+
+
+class RsiThresholdStrategy(BaseModel):
+    """Buy when RSI(14) drops below ``buy_below``, sell when it rises above ``sell_above``."""
+
+    type: Literal["rsi_threshold"]
+    buy_below: float = Field(ge=0, le=100)
+    sell_above: float = Field(ge=0, le=100)
+
+
+class SmaCrossoverStrategy(BaseModel):
+    """Buy when the short SMA crosses above the long SMA, sell on the reverse."""
+
+    type: Literal["sma_crossover"]
+    short_window: int = Field(ge=1, le=500)
+    long_window: int = Field(ge=2, le=500)
+
+
+StrategySpec = Annotated[
+    RsiThresholdStrategy | SmaCrossoverStrategy,
+    Field(discriminator="type"),
+]
+
+
+class BacktestIn(BaseModel):
+    """Request body for POST /v1/backtest."""
+
+    ticker: str
+    from_: date = Field(alias="from")
+    to: date
+    initial_cash: Decimal = Field(gt=0)
+    strategy: StrategySpec
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class BacktestTradeOut(BaseModel):
+    date: date
+    side: Literal["buy", "sell"]
+    price: Decimal
+    shares: Decimal
+
+
+class EquityPointOut(BaseModel):
+    date: date
+    nav: Decimal
+
+
+class BacktestSummaryOut(BaseModel):
+    total_return: float
+    sharpe: float
+    max_drawdown: float
+    final_nav: Decimal
+
+
+class BacktestOut(BaseModel):
+    ticker: str
+    trades: list[BacktestTradeOut]
+    equity_curve: list[EquityPointOut]
+    summary: BacktestSummaryOut
