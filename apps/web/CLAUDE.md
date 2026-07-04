@@ -57,7 +57,8 @@ a server action or a route handler — never through the browser.
 
 - v5 beta. `auth()` is the server-side session reader; use it in server
   components and `authedFetch`.
-- Credentials provider only — Google/GitHub OAuth was deferred.
+- Providers: **Credentials** (email + password, bcrypt) and **Google OAuth**
+  (needs `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`; see `.env.example`).
 - Sessions are JWT (default). The user.id is persisted via the `jwt` callback
   and surfaced via the `session` callback (see `auth.ts`).
 - `proxy.ts` runs as Edge middleware. Keep node-only imports out of the files
@@ -81,12 +82,23 @@ The build runs `next build` with Turbopack. If `SENTRY_AUTH_TOKEN` is set,
 pnpm e2e                  # or: pnpm --filter @stockviz/web e2e / e2e:ui
 ```
 
-Specs live in `tests/e2e/`. The Playwright `webServer` runs `pnpm start`, so
-you need a **production build** first (`pnpm build`) plus the API running on
-:8000 against a migrated + seeded DB — see the `e2e` job in
-`.github/workflows/ci.yml` for the exact sequence (it also sets
-`AUTH_TRUST_HOST=true` and matching `INTERNAL_API_TOKEN`/`AUTH_SECRET`).
-Runs single-worker, chromium only.
+Specs live in `tests/e2e/`. The Playwright `webServer` runs `pnpm start`
+(production mode), so you need a build first plus the API on :8000 against a
+migrated + seeded DB. Full local sequence from the repo root:
+
+```powershell
+pnpm db:up && pnpm api:migrate
+uv --directory apps/api run python -m stockviz.cli seed
+uv --directory apps/api run python -m stockviz.cli backfill
+pnpm api:dev                          # keep running in another terminal
+$env:AUTH_TRUST_HOST = "true"         # prod builds don't trust the host by default
+pnpm --filter @stockviz/web build
+pnpm e2e
+```
+
+`INTERNAL_API_TOKEN` and `AUTH_SECRET` must match what the API/.env uses (the
+committed dev defaults already do). CI runs the same sequence — see the `e2e`
+job in `.github/workflows/ci.yml`. Runs single-worker, chromium only.
 
 ## Sentry
 

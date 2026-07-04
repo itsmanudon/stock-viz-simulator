@@ -83,6 +83,34 @@ America/New_York, weekdays unless noted):
 fire jobs. Render flips it on. Each job has a matching `stockviz.cli`
 subcommand for manual re-runs (there is no separate Render cron service).
 
+## Trading domain rules
+
+Everything prices off the **latest `1d` close** in `price_bars` — there are no
+intraday fills anywhere in the app:
+
+- New portfolios start with **$100,000** cash (`DEFAULT_STARTING_CASH`,
+  `services/trading/execute.py`), auto-created on the first `/v1/portfolio`
+  call via `ensure_default_portfolio` (idempotent).
+- **Market orders** fill immediately at the latest close. Buys recompute the
+  position's weighted-average `avg_cost`; sells never touch `avg_cost`, and a
+  position sold to zero is **deleted**, not kept at qty 0.
+- **Cash is always USD.** Trade rows store price/quantity in the symbol's
+  native currency; the cash debit/credit converts at the latest FX rate
+  (`services/trading/fx.py` — rates are USD-per-unit, forward-filled over
+  weekends/holidays). A missing rate is a hard `NoFxRateError` on market
+  orders.
+- **Pending orders** (`services/trading/orders.py`): `limit` (buy triggers at
+  close ≤ limit, sell at close ≥), `stop_loss`/`take_profit` (sell-only;
+  close ≤ / ≥ trigger). Checked once per day by the 16:45 settlement job and
+  filled **at the close price**, not the limit price. Orders that trigger but
+  fail validation (insufficient cash/shares) are **cancelled**, never retried.
+- **Options** (`services/options/`): long-only book. Black-Scholes pricing
+  with 30-day historical volatility as the IV proxy and a 5% risk-free rate;
+  contracts are ×100 (`CONTRACT_MULTIPLIER`). At expiry (17:30 job): ITM
+  calls exercise into the equity book if cash covers the strike, otherwise
+  cash-settle intrinsic value; ITM puts sell held shares at the strike,
+  otherwise cash-settle; OTM expires worthless.
+
 ## Auth bridge
 
 `auth.py::require_user_id` verifies an `Authorization: Bearer <JWT>` header —

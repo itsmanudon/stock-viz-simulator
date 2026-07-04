@@ -6,7 +6,9 @@ code in this repository.
 # StockViz — agent guide
 
 Two-app pnpm + uv monorepo. See [`REWRITE_PLAN.md`](./REWRITE_PLAN.md) for the
-v2 rewrite history and [`README.md`](./README.md) for setup/deploy.
+v2 rewrite history (**historical** — all seven phases shipped; its "open
+questions" sections are long resolved, don't treat them as current) and
+[`README.md`](./README.md) for setup/deploy.
 
 ## Layout you'll actually touch
 
@@ -130,6 +132,23 @@ sees the token — the client lives in `apps/web/lib/api/server.ts` (marked
 
 This replaced the earlier `X-Internal-Token` + `X-User-Id` header bridge —
 older docs/comments mentioning those headers are historical.
+
+## Env vars that bite
+
+Full lists live in `apps/web/.env.example` and `apps/api/.env.example`
+(committed values are safe dev defaults). The ones that cause real breakage:
+
+| Var | App(s) | What breaks / notes |
+| --- | --- | --- |
+| `INTERNAL_API_TOKEN` | both — **must be identical** | signs/verifies the web→api JWT; mismatch = every authed `/v1` call 401s |
+| `AUTH_SECRET` | web | NextAuth session JWT signing |
+| `AUTH_TRUST_HOST=true` | web | needed whenever you run a **production** build outside Vercel (CI e2e, local `next start`) |
+| `DATABASE_URL` | both | web wants plain `postgres://` (node-postgres); the API rewrites `postgres://`→`postgresql+psycopg://` in `settings.py`, don't fight it |
+| `ENABLE_SCHEDULER` | api | off by default; only Render sets `true` |
+| `RATELIMIT_ENABLED=0` | api | disables the slowapi rate limiter (handy for tests/load scripts) |
+| `ALPHA_VANTAGE_KEY`, `NEWSDATA_KEY`, `ANTHROPIC_API_KEY` | api | ingest / news / sentiment **silently no-op** (log + skip) when blank |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | web | Google OAuth sign-in |
+| `NEXTAUTH_JWT_SECRET` | api | **legacy** — still in `settings.py` but no longer read by the auth bridge |
 
 ## Sentry
 
