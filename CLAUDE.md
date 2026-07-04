@@ -128,6 +128,12 @@ log; see `REWRITE_PLAN.md` for background.
 
 ## Commits and PRs
 
+**Keep these guides honest:** a PR that adds a router, page, model, scheduler
+job, or env var — or changes auth/trading semantics — must update the relevant
+`CLAUDE.md` (root, `apps/api/`, or `apps/web/`) in the same PR. These files
+have drifted badly before (a whole auth mechanism was documented long after it
+was replaced); the cheapest time to fix that is while the change is fresh.
+
 When work closes a GitHub issue, reference it explicitly:
 
 - **Commit messages** — add `Closes #<n>` (or `Fixes #<n>`) in the commit body.
