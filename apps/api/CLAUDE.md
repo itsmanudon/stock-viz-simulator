@@ -83,6 +83,39 @@ America/New_York, weekdays unless noted):
 fire jobs. Render flips it on. Each job has a matching `stockviz.cli`
 subcommand for manual re-runs (there is no separate Render cron service).
 
+## Data model — the load-bearing relationships
+
+```
+users ─┬─ portfolios ─┬─ positions           (qty + native-currency avg_cost)
+       │              ├─ trades               (fill history)
+       │              ├─ pending_orders       (limit / stop_loss / take_profit)
+       │              ├─ options_positions    (also carries user_id)
+       │              └─ portfolio_dividends  (credited payouts)
+       ├─ portfolio_snapshots   (daily NAV — powers leaderboard + equity curve)
+       ├─ watchlists ── watchlist_items
+       ├─ alerts
+       └─ comments              (parent_id self-FK = one level of replies)
+
+symbols ─┬─ price_bars          (EOD OHLCV; everything prices off the latest 1d close)
+         ├─ news_articles       (+ AI sentiment column)
+         ├─ recommendations
+         └─ dividends           (declared payouts per symbol)
+fx_rates                        (currency + date, USD-per-unit)
+```
+
+Gotcha: `portfolio_snapshots` hangs off **users**, not portfolios.
+
+## Rate limiting
+
+`limiter.py` wires slowapi keyed on client IP; endpoints opt in with
+`@limiter.limit(...)`. Current budget: **60/min** on the public reads
+(symbols, bars, quotes, news, indicators, recommendations), **30/min**
+screener, **20/min** backtest. Authenticated routers are deliberately *not*
+slowapi-limited — every authed request arrives from the Next.js server, so a
+per-IP limit would be one global bucket for all users. Where per-user
+throttling matters, do it in the router like comments does (5 posts/min via
+a DB count of recent rows). Disable the limiter with `RATELIMIT_ENABLED=0`.
+
 ## Trading domain rules
 
 Everything prices off the **latest `1d` close** in `price_bars` — there are no

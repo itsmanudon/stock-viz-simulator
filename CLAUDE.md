@@ -44,6 +44,35 @@ uv --directory apps/api run pytest           # API tests (pytest -k <name> to fo
 pnpm e2e                                     # Playwright (needs built web + running API)
 ```
 
+## Adding a feature end-to-end
+
+The repo follows a strict one-file-per-resource pattern on both sides. For a
+new resource, walk the chain in order:
+
+1. `apps/api/src/stockviz/models/<resource>.py` — SQLModel table(s); import
+   them in `models/__init__.py` so Alembic sees the metadata.
+2. `uv --directory apps/api run alembic revision --autogenerate -m "..."` —
+   review the generated file, then `alembic upgrade head`.
+3. `apps/api/src/stockviz/services/<resource>/` — the business logic.
+4. `apps/api/src/stockviz/routers/<resource>.py` — thin `/v1` router;
+   register it in `main.py::create_app`. `UserIdDep` if authed,
+   `@limiter.limit` if public (see the api guide's rate-limiting notes).
+5. `apps/api/tests/test_<resource>_router.py` (+ service-level tests).
+6. `apps/web/lib/api/<resource>.ts` — typed fetchers via `apiGet` (public)
+   or `authedGet/authedPost` (per-user); re-export from `lib/api/index.ts`,
+   shared types in `lib/api/types.ts`.
+7. Page/components — `apps/web/app/<resource>/` (public) or
+   `app/(authed)/<resource>/` (session required).
+8. If the data needs periodic refresh, add a `scheduler.py` job **and** a
+   matching `cli.py` subcommand (every job has a manual CLI twin).
+
+## Feature backlog
+
+`docs/IDEAS.md` is the brainstormed roadmap, but it predates a lot of shipped
+work — watchlist UI, portfolio snapshots, price alerts, and advanced orders
+from its "high impact" list are already built. Cross-check any idea against
+the code before proposing or starting it.
+
 ## Remotes
 
 - **`origin`** → `https://github.com/itsmanudon/stock-viz-simulator.git` (the
