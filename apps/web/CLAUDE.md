@@ -7,24 +7,32 @@ Next.js 16 App Router, React 19, TypeScript, Tailwind v4, shadcn/ui, NextAuth v5
 ```
 app/
   (auth)/          login + signup pages + server actions (bcrypt, raw pg)
-  (authed)/        portfolio, trade, trades — require an auth() session
+  (authed)/        portfolio, trade, trades, orders, watchlist, alerts, settings
+                   — require an auth() session
   api/auth/        NextAuth handler
   markets/         sortable symbol table
-  stocks/[ticker]/ chart + indicators + news per ticker
+  stocks/[ticker]/ chart + indicators + news + comments + sentiment + live badge
   compare/         multi-ticker normalized chart
+  screener/        filterable symbol screener
+  backtest/        strategy backtest form + equity curve
+  leaderboard/     user NAV ranking
   news/, recommendations/
+  sign-in-required/  redirect target for unauthenticated access
   layout.tsx       SiteHeader + SiteFooter wrap every route
 auth.ts            NextAuth v5 setup (credentials provider, bcrypt)
 auth.config.ts     Edge-safe config (no node-only imports)
 proxy.ts           NextAuth middleware
 components/
   ui/              shadcn-generated primitives — don't hand-edit
-  *.tsx            site-header, site-footer, price-chart, etc.
+  *.tsx            site-header, price-chart, trade-form, option-trade-form,
+                   backtest-form, alerts-bell, live-price-badge, etc.
 lib/
-  api/             fetch client for FastAPI. client.ts = public, server.ts = authed.
+  api/             fetch client for FastAPI, one module per resource
+                   (client.ts = public, server.ts = authed, types.ts = shared types)
   db.ts            raw pg pool (only used by the credentials provider)
   users.ts         user lookup/create for credentials auth
   utils.ts         cn() helper
+tests/e2e/         Playwright specs (auth, markets, trade)
 types/next-auth.d.ts  augments Session.user with id
 sentry.*.config.ts    Sentry init per runtime; no-op without DSN
 instrumentation.ts    Next 15+ hook that loads the right sentry config
@@ -36,8 +44,11 @@ instrumentation.ts    Next 15+ hook that loads the right sentry config
   server components or the browser. No auth header.
 - `lib/api/server.ts` → `authedGet/authedPost` — **server-only**, marked with
   `import "server-only"` so it can't accidentally leak into a client bundle.
-  Reads `auth()`, attaches `X-Internal-Token` + `X-User-Id`. Use for anything
-  that mutates per-user data (`/v1/portfolio`, `/v1/trades`, etc.).
+  Reads `auth()`, mints a short-lived HS256 JWT (`jose`, `{ sub: user.id }`,
+  60 s expiry) signed with `INTERNAL_API_TOKEN`, and sends it as
+  `Authorization: Bearer <token>`. Use for anything that reads or mutates
+  per-user data (`/v1/portfolio`, `/v1/trades`, `/v1/orders`, `/v1/options`,
+  `/v1/watchlist`, `/v1/alerts`, ...).
 
 If you need an authenticated call from a client component, route it through
 a server action or a route handler — never through the browser.
@@ -46,7 +57,7 @@ a server action or a route handler — never through the browser.
 
 - v5 beta. `auth()` is the server-side session reader; use it in server
   components and `authedFetch`.
-- Credentials provider only — Google/GitHub OAuth was deferred past Phase 3.
+- Credentials provider only — Google/GitHub OAuth was deferred.
 - Sessions are JWT (default). The user.id is persisted via the `jwt` callback
   and surfaced via the `session` callback (see `auth.ts`).
 - `proxy.ts` runs as Edge middleware. Keep node-only imports out of the files
@@ -63,6 +74,19 @@ pnpm --filter @stockviz/web typecheck
 
 The build runs `next build` with Turbopack. If `SENTRY_AUTH_TOKEN` is set,
 `withSentryConfig` uploads source maps; otherwise it's a plain build.
+
+## E2E (Playwright)
+
+```powershell
+pnpm e2e                  # or: pnpm --filter @stockviz/web e2e / e2e:ui
+```
+
+Specs live in `tests/e2e/`. The Playwright `webServer` runs `pnpm start`, so
+you need a **production build** first (`pnpm build`) plus the API running on
+:8000 against a migrated + seeded DB — see the `e2e` job in
+`.github/workflows/ci.yml` for the exact sequence (it also sets
+`AUTH_TRUST_HOST=true` and matching `INTERNAL_API_TOKEN`/`AUTH_SECRET`).
+Runs single-worker, chromium only.
 
 ## Sentry
 

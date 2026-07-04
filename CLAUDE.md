@@ -1,18 +1,46 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with
+code in this repository.
+
 # StockViz — agent guide
 
 Two-app pnpm + uv monorepo. See [`REWRITE_PLAN.md`](./REWRITE_PLAN.md) for the
-full rewrite history and [`README.md`](./README.md) for setup/deploy.
+v2 rewrite history and [`README.md`](./README.md) for setup/deploy.
 
 ## Layout you'll actually touch
 
 ```
-apps/web/    Next.js 16 (App Router, React 19, TS, Tailwind v4, NextAuth v5)
-apps/api/    FastAPI + SQLModel + Alembic + APScheduler
+apps/web/    Next.js 16 (App Router, React 19, TS, Tailwind v4, NextAuth v5) + Playwright e2e
+apps/api/    FastAPI + SQLModel + Alembic + APScheduler (Python 3.12, uv)
 infra/       docker-compose (local Postgres) + render.yaml (prod blueprint)
-.github/workflows/ci.yml   lint + typecheck + test on PR
+.github/workflows/ci.yml   three jobs: web (lint/typecheck/build), api (ruff/pyright/pytest), e2e (full-stack Playwright)
 ```
 
 Each app has its own `CLAUDE.md` with deeper notes. Skim those before editing.
+
+## Feature surface
+
+Beyond the original markets/charts/news/recommendations pages, the app now
+includes: paper trading with **pending limit/stop orders** and **options**
+(pricing, positions, expiry settlement), **dividends** and **multi-currency
+FX**, **backtesting** (`/backtest`), **screener**, **leaderboard**,
+**watchlists**, **price alerts**, per-ticker **comments** and **AI sentiment**
+(Anthropic, optional), and a simulated live price ticker over **SSE**
+(`/v1/stream/quotes/{ticker}` — Gaussian random walk from the latest close,
+not real-time data).
+
+## Common commands
+
+```bash
+pnpm db:up                                   # local Postgres on 127.0.0.1:5434
+pnpm api:migrate                             # alembic upgrade head
+pnpm api:dev                                 # uvicorn --reload on :8000
+pnpm dev                                     # Next.js dev server on :3000 (or next free port)
+pnpm lint && pnpm typecheck && pnpm build    # web + api lint, TS, build
+uv --directory apps/api run pytest           # API tests (pytest -k <name> to focus)
+pnpm e2e                                     # Playwright (needs built web + running API)
+```
 
 ## Remotes
 
@@ -30,7 +58,7 @@ original (you probably won't), `git fetch upstream` first, then cherry-pick.
 main ← dev ← feat/* | fix/* | chore/*
 ```
 
-- **`main`** — integration branch. Auto-deployments (Vercel + Render) are
+- **`main`** — release branch. Auto-deployments (Vercel + Render) are
   **disabled**, so `dev` can be merged into `main` freely after any set of
   changes — no milestone gate required. Do **not** open feature PRs directly
   against `main`; still go through `dev` first.
@@ -43,11 +71,9 @@ main ← dev ← feat/* | fix/* | chore/*
   - `fix/` — bug fixes
   - `chore/` — tooling, deps, docs, CI, refactors with no user impact
 
-- **`migration`** — **deprecated.** Was the integration branch during the v2
-  rewrite (Phase 1-7). Fast-forwarded into `main` once Phase 7 shipped; do
-  **not** push to it any more.
-- **`v2`** — also **deprecated** for the same reason. Don't open new PRs
-  against `v2` or `migration`.
+- **`migration`** and **`v2`** — **deprecated.** Integration branches during
+  the v2 rewrite (Phases 1–7); fast-forwarded into `main` when Phase 7
+  shipped. Don't push to them or open PRs against them.
 
 Tags:
 
@@ -56,15 +82,14 @@ Tags:
   deleted (`git checkout v2.0.0` to see both side-by-side).
 
 The phase-by-phase rewrite history is preserved as merge commits in `main`'s
-log; see `REWRITE_PLAN.md` and `memory/project_branching_workflow.md` for
-background.
+log; see `REWRITE_PLAN.md` for background.
 
 ## Common gotchas (Windows dev)
 
 - Postgres in Docker binds **5434**, not 5432, because the user has a native install on 5432.
   Use `127.0.0.1:5434` everywhere — see `infra/docker-compose.yml`.
 - Use `127.0.0.1` not `localhost` in env defaults. Windows IPv6 lookups can bypass
-  the dev container otherwise. See `memory/project_dev_environment_quirks.md`.
+  the dev container otherwise.
 - The dev port 3000 is often held by another local service; Next silently bumps
   to the next free port (3001, 3005, ...). `AUTH_URL` is intentionally **unset**
   in `.env.example` so NextAuth derives the URL from the request host — dev
@@ -90,20 +115,23 @@ gh issue close <n> --repo itsmanudon/stock-viz-simulator
 ## Quality gates
 
 `pnpm lint && pnpm typecheck && pnpm build && uv --directory apps/api run pytest` — all
-of these run in CI on PRs. Don't bypass with `--no-verify` etc.
+of these run in CI on PRs, plus a full-stack **e2e job** (migrate + seed +
+backfill against a real Postgres, start the API, build the web app, run
+Playwright). Don't bypass with `--no-verify` etc.
 
 ## Auth bridge (web ↔ api)
 
-The Next.js server attaches `X-Internal-Token` (matching `INTERNAL_API_TOKEN`)
-plus `X-User-Id` (the DB user.id) when calling authenticated `/v1` endpoints.
-The browser never sees these headers — the API client lives in
-`apps/web/lib/api/server.ts` (marked `import "server-only"`) and FastAPI
-verifies them in `apps/api/src/stockviz/auth.py::require_user_id`.
+The Next.js server mints a **short-lived HS256 JWT** (`{ sub: "<db user.id>" }`,
+60 s expiry) signed with the shared `INTERNAL_API_TOKEN` secret and sends it as
+`Authorization: Bearer <token>` on authenticated `/v1` calls. The browser never
+sees the token — the client lives in `apps/web/lib/api/server.ts` (marked
+`import "server-only"`, signs with `jose`) and FastAPI verifies it in
+`apps/api/src/stockviz/auth.py::require_user_id` (`UserIdDep`).
 
-This is the Phase 6 bridge; a real NextAuth JWT verification path is the
-documented upgrade target (see `auth.py` docstring).
+This replaced the earlier `X-Internal-Token` + `X-User-Id` header bridge —
+older docs/comments mentioning those headers are historical.
 
-## Sentry (Phase 7)
+## Sentry
 
 Both apps init Sentry only when a DSN env var is present, so dev/CI builds
 work fine without one. Env vars live in `apps/web/.env.example` and
@@ -116,5 +144,6 @@ work fine without one. Env vars live in `apps/web/.env.example` and
 
 Daily refresh runs **in-process** via APScheduler (`ENABLE_SCHEDULER=true`)
 inside the FastAPI service — there's no separate cron service in the
-Blueprint because Render dropped the free cron tier. See
-`docs/DEPLOYMENT.md` for how to re-add one on a paid plan.
+Blueprint because Render dropped the free cron tier. The `stockviz` CLI
+subcommands re-run the same job logic manually. See `docs/DEPLOYMENT.md`
+for how to re-add a cron service on a paid plan.
