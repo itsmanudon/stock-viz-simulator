@@ -13,6 +13,7 @@ from __future__ import annotations
 import argparse
 import logging
 import sys
+from datetime import date
 
 from sqlmodel import Session
 
@@ -28,6 +29,7 @@ from stockviz.services.ingest.prices import ingest_ticker
 from stockviz.services.ingest.seed import seed_symbols
 from stockviz.services.metrics import refresh_symbol_metrics
 from stockviz.services.recommend import score_universe
+from stockviz.services.sentiment.store import backfill_unscored, refresh_symbol_sentiment
 from stockviz.services.trading import credit_due_dividends, snapshot_user_navs
 from stockviz.settings import get_settings
 
@@ -61,6 +63,21 @@ def _cmd_metadata(args: argparse.Namespace) -> int:
     print(f"metadata backfilled: {counts}")
     for ticker, status in sorted(statuses.items()):
         print(f"  {ticker}: {status}")
+    return 0
+
+
+def _cmd_score_sentiment(args: argparse.Namespace) -> int:
+    since = date.fromisoformat(args.since) if args.since else None
+    with Session(engine) as session:
+        written = backfill_unscored(session, since=since, limit=args.limit)
+    print(f"scored {written} article(s)")
+    return 0
+
+
+def _cmd_sentiment_aggregate(_args: argparse.Namespace) -> int:
+    with Session(engine) as session:
+        updated = refresh_symbol_sentiment(session)
+    print(f"refreshed rolling sentiment for {updated} symbols")
     return 0
 
 
@@ -196,6 +213,19 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser(
         "metrics", help="Recompute the screener's precomputed per-symbol metrics"
     ).set_defaults(fn=_cmd_metrics)
+
+    p_sent = sub.add_parser(
+        "score-sentiment",
+        help="Score news articles that have no result yet for the active model",
+    )
+    p_sent.add_argument("--since", help="Only score articles published on/after this ISO date")
+    p_sent.add_argument("--limit", type=int, help="Maximum articles to score in this run")
+    p_sent.set_defaults(fn=_cmd_score_sentiment)
+
+    sub.add_parser(
+        "sentiment-aggregate",
+        help="Roll per-article sentiment into the per-symbol trailing average",
+    ).set_defaults(fn=_cmd_sentiment_aggregate)
 
     sub.add_parser(
         "recommend", help="Recompute recommendations for every active symbol"

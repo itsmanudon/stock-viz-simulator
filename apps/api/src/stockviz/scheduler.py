@@ -33,6 +33,7 @@ from stockviz.services.ingest.seed import DEFAULT_COMPANIES_PATH
 from stockviz.services.metrics import refresh_symbol_metrics
 from stockviz.services.options import settle_expired_options
 from stockviz.services.recommend import score_universe
+from stockviz.services.sentiment.store import refresh_symbol_sentiment
 from stockviz.services.trading import (
     credit_due_dividends,
     settle_pending_orders,
@@ -187,7 +188,6 @@ def news_refresh() -> None:
                     ticker=ticker,
                     company_name=company,
                     newsdata_key=settings.newsdata_key,
-                    anthropic_api_key=settings.anthropic_api_key,
                 )
         except Exception:
             logger.exception("news_refresh: failed for %s", ticker)
@@ -218,6 +218,18 @@ def fx_refresh() -> None:
                 logger.info("fx_refresh: %s -> %d rates", ccy, written)
         except Exception:
             logger.exception("fx_refresh: failed for %s", ccy)
+
+
+@single_instance("sentiment_aggregate_refresh")
+def sentiment_aggregate_refresh() -> None:
+    """Roll per-article sentiment into the per-symbol trailing average.
+
+    Feeds the screener's sentiment filter, the recommendation engine's
+    sentiment vote, and the ticker-page overlay.
+    """
+    with _session_scope() as session:
+        updated = refresh_symbol_sentiment(session)
+    logger.info("sentiment_aggregate_refresh: updated %d symbols", updated)
 
 
 @single_instance("symbol_metrics_refresh")
@@ -321,6 +333,15 @@ def build_scheduler() -> BackgroundScheduler:
         symbol_metrics_refresh,
         trigger=CronTrigger(day_of_week="mon-fri", hour=16, minute=50),
         id="symbol_metrics_refresh",
+        replace_existing=True,
+    )
+
+    # 4:55pm ET on weekdays — after the metrics refresh, so the aggregate and
+    # the technical metrics land on the same symbol_metrics rows in order.
+    scheduler.add_job(
+        sentiment_aggregate_refresh,
+        trigger=CronTrigger(day_of_week="mon-fri", hour=16, minute=55),
+        id="sentiment_aggregate_refresh",
         replace_existing=True,
     )
 

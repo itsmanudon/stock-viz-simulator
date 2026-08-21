@@ -68,6 +68,21 @@ class Settings(BaseSettings):
     newsdata_key: str = ""
     anthropic_api_key: str = ""
 
+    # --- Sentiment scoring ---
+    # "none" (default) | "anthropic" | "http". Left blank, it resolves to
+    # "anthropic" when ANTHROPIC_API_KEY is set, else "none" — so deployments
+    # that predate the provider abstraction keep their behaviour.
+    sentiment_provider: str = ""
+    # Used when sentiment_provider == "http": a standalone scoring service.
+    # See docs/SENTIMENT.md for the wire contract.
+    sentiment_service_url: str = ""
+    sentiment_service_token: str = ""
+    # Label recorded against scores when the service doesn't name its model.
+    sentiment_model_hint: str = "external"
+    # Ceiling on documents scored per ingest/backfill run, so a runaway job
+    # can't quietly burn an API budget.
+    sentiment_daily_document_cap: int = 2000
+
     # APScheduler is off by default so tests, migrations, and ad-hoc CLI runs
     # don't accidentally trigger external API calls. The deployed server flips
     # this on via env.

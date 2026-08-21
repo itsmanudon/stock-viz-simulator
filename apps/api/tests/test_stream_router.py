@@ -106,14 +106,14 @@ def test_stream_route_does_not_depend_on_a_request_session() -> None:
 
     ``initial_close`` opens and closes its own session instead.
     """
-    from stockviz.db import get_session
-    from stockviz.main import app
+    from fastapi.dependencies.utils import get_dependant
 
-    route = next(
-        r
-        for r in app.routes
-        if getattr(r, "path", None) == "/v1/stream/quotes/{ticker}"  # type: ignore[arg-type]
-    )
-    dependency_calls = {d.call for d in route.dependant.dependencies}  # type: ignore[attr-defined]
+    from stockviz.db import get_session
+
+    # Inspect the endpoint's own dependency graph rather than walking
+    # app.routes: Starlette nests included routers, and that structure has
+    # already changed once across a minor version.
+    dependant = get_dependant(path="/v1/stream/quotes/{ticker}", call=stream_quotes)
+    dependency_calls = {d.call for d in dependant.dependencies}
     assert get_session not in dependency_calls
     assert initial_close in dependency_calls

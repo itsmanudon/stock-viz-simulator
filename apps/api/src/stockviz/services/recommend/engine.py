@@ -19,7 +19,7 @@ import numpy as np
 from sqlmodel import Session, select
 
 from stockviz._time import utcnow
-from stockviz.models import PriceBar, Recommendation, Symbol
+from stockviz.models import PriceBar, Recommendation, Symbol, SymbolMetrics
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +28,16 @@ MIN_DATA_POINTS = 6
 
 VOTE_THRESHOLD = 4
 """``score >= VOTE_THRESHOLD`` flips ``recommend`` to True."""
+
+MAX_SCORE = 7
+"""Six price/volume votes plus the news-sentiment vote."""
+
+SENTIMENT_VOTE_THRESHOLD = 0.2
+"""Trailing-week mean sentiment above this counts as a vote in favour.
+
+Set above the neutral band so a mildly-positive average doesn't tip the score;
+a symbol with no scored news simply doesn't get the vote, rather than being
+penalised for it."""
 
 TREND_LOOKBACK = 3
 SLOPE_LOOKBACK = 5
@@ -73,6 +83,20 @@ def _vote_recent_uptrend(closes: list[float]) -> str | None:
     return None
 
 
+def _vote_positive_sentiment(mean_score: float | None, article_count: int) -> str | None:
+    """Vote when the trailing-week news sentiment is clearly positive.
+
+    The seventh vote, and the only one that isn't derived from price. It gives
+    ``/recommendations`` a reason to move when the news does — previously the
+    sentiment pipeline fed a badge and nothing else.
+    """
+    if mean_score is None or article_count == 0:
+        return None
+    if mean_score <= SENTIMENT_VOTE_THRESHOLD:
+        return None
+    return f"Positive news sentiment ({mean_score:+.2f} over {article_count} article(s))"
+
+
 def _vote_positive_slope(closes: list[float]) -> str | None:
     if len(closes) < SLOPE_LOOKBACK:
         return None
@@ -88,12 +112,19 @@ def _vote_positive_slope(closes: list[float]) -> str | None:
 def score_ticker(
     ticker: str,
     bars: list[tuple[Decimal, int]],
+    *,
+    sentiment_7d: float | None = None,
+    sentiment_article_count: int = 0,
 ) -> RecommendationResult | None:
     """Compute the recommendation for one ticker.
 
     ``bars`` is an ordered list of ``(close, volume)`` tuples, oldest first.
     Returns ``None`` if there isn't enough data to score; the caller should
     skip writing a row in that case rather than persist a zero score.
+
+    ``sentiment_7d`` is the trailing-week mean news sentiment from
+    ``symbol_metrics``. Omit it (the default) and the score behaves exactly as
+    the original six-vote algo did.
     """
 
     if len(bars) < MIN_DATA_POINTS:
@@ -120,6 +151,7 @@ def score_ticker(
         _vote_volume_above_mean(current_volume, hist_vol_mean),
         _vote_recent_uptrend(hist_prices),
         _vote_positive_slope(hist_prices),
+        _vote_positive_sentiment(sentiment_7d, sentiment_article_count),
     ):
         if vote is not None:
             rationale.append(vote)
@@ -163,10 +195,23 @@ def score_universe(
     """
 
     tickers = list(session.exec(select(Symbol.ticker).where(Symbol.is_active)).all())
+
+    # One lookup for the whole universe's sentiment, rather than per ticker.
+    sentiment_by_ticker = {
+        row.ticker: (row.sentiment_7d, row.sentiment_article_count)
+        for row in session.exec(select(SymbolMetrics)).all()
+    }
+
     results: list[RecommendationResult] = []
     for ticker in tickers:
         bars = _load_recent_bars(session, ticker, lookback=lookback)
-        result = score_ticker(ticker, bars)
+        mean_score, article_count = sentiment_by_ticker.get(ticker, (None, 0))
+        result = score_ticker(
+            ticker,
+            bars,
+            sentiment_7d=mean_score,
+            sentiment_article_count=article_count,
+        )
         if result is None:
             logger.info("recommend: %s skipped — insufficient bars (%d)", ticker, len(bars))
             continue

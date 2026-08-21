@@ -32,6 +32,11 @@ FX**, **backtesting** (`/backtest`), **screener**, **leaderboard**,
 (`/v1/stream/quotes/{ticker}` — Gaussian random walk from the latest close,
 not real-time data).
 
+News sentiment runs through a pluggable provider (Anthropic, an external HTTP
+service, or off) and feeds a screener filter, a recommendation vote, and a
+per-ticker series at `/v1/symbols/{ticker}/sentiment` — see
+[`docs/SENTIMENT.md`](./docs/SENTIMENT.md).
+
 ## Common commands
 
 ```bash
@@ -182,6 +187,8 @@ Full lists live in `apps/web/.env.example` and `apps/api/.env.example`
 | `ENABLE_SCHEDULER` | api | off by default; only Render sets `true` |
 | `RATELIMIT_ENABLED=0` | api | disables the slowapi rate limiter (handy for tests/load scripts) |
 | `ALPHA_VANTAGE_KEY`, `NEWSDATA_KEY`, `ANTHROPIC_API_KEY` | api | ingest / news / sentiment **silently no-op** (log + skip) when blank |
+| `SENTIMENT_PROVIDER` | api | `none` (default) \| `anthropic` \| `http`. Blank resolves to `anthropic` when `ANTHROPIC_API_KEY` is set. See [`docs/SENTIMENT.md`](./docs/SENTIMENT.md) |
+| `SENTIMENT_SERVICE_URL`, `SENTIMENT_SERVICE_TOKEN` | api | only read when `SENTIMENT_PROVIDER=http` — the standalone scoring service |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | web | Google OAuth sign-in |
 | `NEXTAUTH_JWT_SECRET` | api | **legacy** — still in `settings.py` but no longer read by the auth bridge |
 

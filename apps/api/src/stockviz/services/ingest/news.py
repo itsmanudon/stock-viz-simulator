@@ -14,10 +14,9 @@ from typing import Any
 
 import httpx
 from sqlalchemy.dialects.postgresql import insert as pg_insert
-from sqlmodel import Session
+from sqlmodel import Session, select
 
 from stockviz.models import NewsArticle
-from stockviz.services.sentiment import score_headlines
 
 logger = logging.getLogger(__name__)
 
@@ -132,22 +131,27 @@ def ingest_news_for_ticker(
     ticker: str,
     company_name: str,
     newsdata_key: str,
-    anthropic_api_key: str = "",
+    score_sentiment: bool = True,
 ) -> int:
+    """Fetch, store, and (optionally) score news for one ticker.
+
+    Scoring happens *after* the insert rather than before it, so articles land
+    in the table even when the provider is unavailable — the rows are then
+    picked up by ``backfill_unscored``. Which provider runs (if any) is decided
+    by ``SENTIMENT_PROVIDER``; the default scores nothing.
+    """
     articles = fetch_newsdata(api_key=newsdata_key, query=company_name, ticker=ticker)
-    if articles and anthropic_api_key:
-        sentiments = score_headlines([a.title for a in articles], api_key=anthropic_api_key)
-        articles = [
-            ArticleRecord(
-                ticker=a.ticker,
-                title=a.title,
-                url=a.url,
-                source=a.source,
-                published_at=a.published_at,
-                summary=a.summary,
-                image_url=a.image_url,
-                sentiment=s,
-            )
-            for a, s in zip(articles, sentiments, strict=True)
-        ]
-    return upsert_articles(session, articles)
+    written = upsert_articles(session, articles)
+
+    if written and score_sentiment:
+        from stockviz.services.sentiment.store import score_articles
+
+        urls = [a.url for a in articles]
+        stored = list(
+            session.exec(select(NewsArticle).where(NewsArticle.url.in_(urls))).all()  # type: ignore[attr-defined]
+        )
+        unscored = [a for a in stored if a.sentiment is None]
+        if unscored:
+            score_articles(session, unscored)
+
+    return written

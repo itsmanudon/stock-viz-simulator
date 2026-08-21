@@ -14,6 +14,7 @@ from stockviz.models.option import OptionsPosition, OptionStatus, OptionType
 from stockviz.models.order import OrderStatus, OrderType, PendingOrder
 from stockviz.models.portfolio import Portfolio, PortfolioSnapshot, Position, Trade, TradeSide
 from stockviz.models.recommendation import Recommendation
+from stockviz.models.sentiment import NewsSentiment
 from stockviz.models.user import User
 from stockviz.models.watchlist import Watchlist, WatchlistItem
 
@@ -24,6 +25,7 @@ __all__ = [
     "Dividend",
     "FxRate",
     "NewsArticle",
+    "NewsSentiment",
     "OptionStatus",
     "OptionType",
     "OptionsPosition",

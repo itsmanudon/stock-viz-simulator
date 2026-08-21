@@ -54,5 +54,20 @@ services:
         sync: false
       - key: NEWSDATA_KEY
         sync: false
+      # Required for headline sentiment scoring. Its absence here is why every
+      # news_articles.sentiment written in production was NULL.
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      # "none" (default) | "anthropic" | "http". Set to "http" and fill in the
+      # SENTIMENT_SERVICE_* vars to score with a standalone service instead —
+      # see docs/SENTIMENT.md.
+      - key: SENTIMENT_PROVIDER
+        value: anthropic
+      - key: SENTIMENT_SERVICE_URL
+        sync: false
+      - key: SENTIMENT_SERVICE_TOKEN
+        sync: false
       - key: SENTRY_DSN
         sync: false
+      - key: SENTRY_TRACES_SAMPLE_RATE
+        value: "0.1"

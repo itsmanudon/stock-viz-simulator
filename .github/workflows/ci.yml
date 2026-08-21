@@ -147,11 +147,22 @@ jobs:
         working-directory: apps/api
         run: uv python install 3.12
 
+      # --no-hashes/--no-deps: pip-audit re-resolves a hashed export in its own
+      # venv, which fails on platform-specific wheels. We audit the exact
+      # locked set instead. --python 3.12 matches requires-python; the default
+      # 3.11 env can't resolve numpy.
+      # ecdsa PYSEC-2026-1325 has no fixed release (upstream considers the
+      # Minerva timing attack out of scope) and reaches us only through
+      # python-jose's ES* algorithms, which the HS256 auth bridge never uses.
       - name: Audit Python dependencies
         working-directory: apps/api
         run: |
-          uv export --frozen --no-dev --no-emit-project --format requirements-txt > requirements.txt
-          uvx pip-audit --requirement requirements.txt --strict
+          uv export --frozen --no-dev --no-emit-project --no-hashes \
+            --format requirements-txt > requirements.txt
+          uvx --python 3.12 pip-audit \
+            --requirement requirements.txt \
+            --no-deps --strict \
+            --ignore-vuln PYSEC-2026-1325
 
   docker:
     name: docker (api image builds)

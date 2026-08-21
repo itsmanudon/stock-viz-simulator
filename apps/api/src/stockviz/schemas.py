@@ -617,3 +617,29 @@ class MarketsSummaryOut(BaseModel):
 
     rows: list[MarketSummaryRowOut]
     sectors: list[str]
+
+
+# ---------------------------------------------------------------------------
+# Sentiment
+# ---------------------------------------------------------------------------
+
+
+class SentimentPointOut(BaseModel):
+    """Mean sentiment for one day, over the articles scored that day."""
+
+    date: str
+    mean_score: float
+    article_count: int
+
+
+class SentimentSeriesOut(BaseModel):
+    """Daily sentiment for one symbol, plus the rolling figure the screener uses.
+
+    Days with no scored articles are omitted rather than emitted as zero: a gap
+    and a genuinely neutral day are different readings.
+    """
+
+    ticker: str
+    points: list[SentimentPointOut]
+    rolling_7d: float | None = None
+    rolling_7d_article_count: int = 0
