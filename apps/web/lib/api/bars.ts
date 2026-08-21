@@ -15,5 +15,10 @@ export function getBars(ticker: string, params: BarsParams = {}): Promise<Bar[]>
   if (params.to) q.set("to", params.to);
   if (params.limit) q.set("limit", String(params.limit));
   const qs = q.toString();
-  return apiGet<Bar[]>(`/v1/symbols/${encodeURIComponent(ticker)}/bars${qs ? `?${qs}` : ""}`);
+  // EOD bars change once a day; caching keeps chart pages responsive while the
+  // free-tier API cold-starts. `revalidateTag("bars")` busts them.
+  return apiGet<Bar[]>(`/v1/symbols/${encodeURIComponent(ticker)}/bars${qs ? `?${qs}` : ""}`, {
+    revalidateSeconds: 3600,
+    tags: ["bars"],
+  });
 }

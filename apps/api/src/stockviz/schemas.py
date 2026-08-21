@@ -245,11 +245,20 @@ class PortfolioHistoryPointOut(BaseModel):
 
 
 class LeaderboardEntryOut(BaseModel):
+    """One row of the public leaderboard.
+
+    ``ranked`` is False for accounts with too little history to compare
+    fairly — they still show, sorted below everyone who qualifies, so the UI
+    can label them rather than pretending a two-day return is a track record.
+    """
+
     rank: int
     user_id: int
     username: str
     return_pct: float
     portfolio_value: Decimal
+    days_tracked: int = 0
+    ranked: bool = True
 
 
 class ProfileOut(BaseModel):
@@ -358,6 +367,9 @@ class ScreenerResultOut(BaseModel):
     momentum_days: int | None = None
     high_52w: Decimal
     low_52w: Decimal
+    # Rolling 7-day mean news sentiment in [-1, 1]. None when the symbol has no
+    # scored headlines (or sentiment scoring is disabled).
+    sentiment_7d: float | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -574,3 +586,34 @@ class BacktestOut(BaseModel):
     trades: list[BacktestTradeOut]
     equity_curve: list[EquityPointOut]
     summary: BacktestSummaryOut
+
+
+# ---------------------------------------------------------------------------
+# Markets summary
+# ---------------------------------------------------------------------------
+
+
+class MarketSummaryRowOut(BaseModel):
+    """One row of the /markets table, with its sparkline series inlined."""
+
+    ticker: str
+    name: str
+    sector: str | None = None
+    exchange: str | None = None
+    currency: str = "USD"
+    last_close: Decimal | None = None
+    prev_close: Decimal | None = None
+    change_pct: float | None = None
+    # Oldest-first closes for the inline sparkline.
+    closes: list[Decimal] = []
+
+
+class MarketsSummaryOut(BaseModel):
+    """Everything the markets page renders, in one response.
+
+    ``sectors`` lists every sector in the active universe (not just the
+    filtered slice) so the filter control needs no second request.
+    """
+
+    rows: list[MarketSummaryRowOut]
+    sectors: list[str]

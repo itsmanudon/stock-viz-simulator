@@ -147,3 +147,22 @@ export type BacktestResult = {
   equity_curve: BacktestEquityPoint[];
   summary: BacktestSummary;
 };
+
+export type MarketSummaryRow = {
+  ticker: string;
+  name: string;
+  sector: string | null;
+  exchange: string | null;
+  currency: string;
+  last_close: string | null;
+  prev_close: string | null;
+  change_pct: number | null;
+  /** Oldest-first closes for the inline sparkline. */
+  closes: string[];
+};
+
+export type MarketsSummary = {
+  rows: MarketSummaryRow[];
+  /** Every sector in the active universe, not just the filtered slice. */
+  sectors: string[];
+};

@@ -2,9 +2,12 @@
  * /markets — sortable, filterable table of all tradeable symbols.
  *
  * Server-rendered. Sort and sector filter come from search params so the URL
- * is shareable and back/forward navigation reflects the current view. Each
- * row also fetches the last 30 closes for a tiny inline sparkline; we
- * Promise.all those so the page renders once.
+ * is shareable and back/forward navigation reflects the current view.
+ *
+ * The whole page is one call to `/v1/markets/summary`: rows, last close, day
+ * change, sparkline series, and the sector list. It previously issued two
+ * `listSymbols` calls plus one `getBars` per symbol — 34 requests for a
+ * 32-symbol universe, all `no-store`, against a 60/minute rate limit.
  */
 
 import Link from "next/link";
@@ -19,7 +22,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ApiError, getBars, listSymbols } from "@/lib/api";
+import { getMarketsSummary } from "@/lib/api";
 
 type SortKey = "ticker" | "change" | "price";
 type SortDir = "asc" | "desc";
@@ -33,28 +36,6 @@ type Row = {
   last: number | null;
   changePct: number | null;
 };
-
-async function loadRow(
-  ticker: string,
-  name: string,
-  sector: string | null,
-  exchange: string | null,
-): Promise<Row> {
-  try {
-    const bars = await getBars(ticker, { limit: 30 });
-    const closes = bars.map((b) => Number(b.close));
-    const last = closes.length ? closes[closes.length - 1] : null;
-    const prev = closes.length > 1 ? closes[closes.length - 2] : null;
-    const changePct =
-      last !== null && prev !== null && prev !== 0 ? ((last - prev) / prev) * 100 : null;
-    return { ticker, name, sector, exchange, closes, last, changePct };
-  } catch (err) {
-    if (err instanceof ApiError) {
-      return { ticker, name, sector, exchange, closes: [], last: null, changePct: null };
-    }
-    throw err;
-  }
-}
 
 function fmtPrice(n: number | null): string {
   if (n === null) return "—";
@@ -108,14 +89,18 @@ export default async function MarketsPage({
   const sort = (params.sort as SortKey) ?? "ticker";
   const dir = (params.dir as SortDir) ?? (sort === "ticker" ? "asc" : "desc");
 
-  const symbols = await listSymbols({ sector: params.sector });
-  const sectors = Array.from(
-    new Set((await listSymbols()).map((s) => s.sector).filter((s): s is string => Boolean(s))),
-  ).sort();
+  const summary = await getMarketsSummary({ sector: params.sector, sparklineDays: 30 });
+  const sectors = summary.sectors;
 
-  const rows = await Promise.all(
-    symbols.map((s) => loadRow(s.ticker, s.name, s.sector, s.exchange)),
-  );
+  const rows: Row[] = summary.rows.map((r) => ({
+    ticker: r.ticker,
+    name: r.name,
+    sector: r.sector,
+    exchange: r.exchange,
+    closes: r.closes.map(Number),
+    last: r.last_close === null ? null : Number(r.last_close),
+    changePct: r.change_pct,
+  }));
   const sorted = compare(rows, sort, dir);
 
   const arrow = (col: SortKey) => (sort === col ? (dir === "asc" ? " ↑" : " ↓") : "");

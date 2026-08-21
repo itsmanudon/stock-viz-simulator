@@ -26,6 +26,7 @@ from stockviz.services.ingest.fx import ingest_fx
 from stockviz.services.ingest.metadata import backfill_symbol_metadata
 from stockviz.services.ingest.prices import ingest_ticker
 from stockviz.services.ingest.seed import seed_symbols
+from stockviz.services.metrics import refresh_symbol_metrics
 from stockviz.services.recommend import score_universe
 from stockviz.services.trading import credit_due_dividends, snapshot_user_navs
 from stockviz.settings import get_settings
@@ -60,6 +61,13 @@ def _cmd_metadata(args: argparse.Namespace) -> int:
     print(f"metadata backfilled: {counts}")
     for ticker, status in sorted(statuses.items()):
         print(f"  {ticker}: {status}")
+    return 0
+
+
+def _cmd_metrics(_args: argparse.Namespace) -> int:
+    with Session(engine) as session:
+        written = refresh_symbol_metrics(session)
+    print(f"refreshed metrics for {written} symbols")
     return 0
 
 
@@ -184,6 +192,10 @@ def main(argv: list[str] | None = None) -> int:
     )
     p_fx.add_argument("currencies", nargs="*", help="Optional currency filter, e.g. EUR GBP JPY")
     p_fx.set_defaults(fn=_cmd_fx)
+
+    sub.add_parser(
+        "metrics", help="Recompute the screener's precomputed per-symbol metrics"
+    ).set_defaults(fn=_cmd_metrics)
 
     sub.add_parser(
         "recommend", help="Recompute recommendations for every active symbol"

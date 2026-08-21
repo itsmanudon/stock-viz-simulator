@@ -4,6 +4,7 @@ export { getApiHealth } from "./health";
 export { listSymbols, getSymbol } from "./symbols";
 export { getQuotes } from "./quotes";
 export { getBars } from "./bars";
+export { getMarketsSummary } from "./markets";
 export { getLatestNews, getNewsForTicker } from "./news";
 export { getIndicators } from "./indicators";
 export { getRecommendations } from "./recommendations";

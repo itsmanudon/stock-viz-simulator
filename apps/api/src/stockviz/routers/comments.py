@@ -20,6 +20,7 @@ from datetime import timedelta
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import func
 from sqlmodel import Session, select
 
 from stockviz._time import utcnow
@@ -146,16 +147,18 @@ def create_comment(
             )
 
     # Per-user rate limit: count this user's posts in the trailing 60s.
+    # COUNT(*) rather than materializing the rows just to call len() on them.
     cutoff = utcnow() - timedelta(seconds=RATE_LIMIT_WINDOW_SECONDS)
-    recent_count = len(
-        list(
-            session.exec(
-                select(Comment).where(
-                    Comment.user_id == user_id,
-                    Comment.created_at >= cutoff,
-                )
+    recent_count = (
+        session.exec(
+            select(func.count())  # type: ignore[call-overload]
+            .select_from(Comment)
+            .where(
+                Comment.user_id == user_id,
+                Comment.created_at >= cutoff,
             )
-        )
+        ).one()
+        or 0
     )
     if recent_count >= RATE_LIMIT_MAX_POSTS:
         raise HTTPException(

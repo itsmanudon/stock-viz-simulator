@@ -30,6 +30,7 @@ from stockviz.services.ingest.fx import ingest_fx
 from stockviz.services.ingest.news import ingest_news_for_ticker
 from stockviz.services.ingest.prices import ingest_ticker
 from stockviz.services.ingest.seed import DEFAULT_COMPANIES_PATH
+from stockviz.services.metrics import refresh_symbol_metrics
 from stockviz.services.options import settle_expired_options
 from stockviz.services.recommend import score_universe
 from stockviz.services.trading import (
@@ -219,6 +220,14 @@ def fx_refresh() -> None:
             logger.exception("fx_refresh: failed for %s", ccy)
 
 
+@single_instance("symbol_metrics_refresh")
+def symbol_metrics_refresh() -> None:
+    """Recompute the screener's precomputed RSI / 52-week metrics."""
+    with _session_scope() as session:
+        written = refresh_symbol_metrics(session)
+    logger.info("symbol_metrics_refresh: wrote %d rows", written)
+
+
 @single_instance("recommendations_refresh")
 def recommendations_refresh() -> None:
     """Recompute the recommendation score for every active ticker."""
@@ -303,6 +312,15 @@ def build_scheduler() -> BackgroundScheduler:
         fx_refresh,
         trigger=CronTrigger(day_of_week="mon-fri", hour=16, minute=45),
         id="fx_refresh",
+        replace_existing=True,
+    )
+
+    # 4:50pm ET on weekdays — after prices, before the recommendations and
+    # snapshot jobs that read the same numbers.
+    scheduler.add_job(
+        symbol_metrics_refresh,
+        trigger=CronTrigger(day_of_week="mon-fri", hour=16, minute=50),
+        id="symbol_metrics_refresh",
         replace_existing=True,
     )
 

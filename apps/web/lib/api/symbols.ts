@@ -13,7 +13,11 @@ export function listSymbols(params: ListSymbolsParams = {}): Promise<SymbolRow[]
   if (params.exchange) q.set("exchange", params.exchange);
   if (params.activeOnly === false) q.set("active_only", "false");
   const qs = q.toString();
-  return apiGet<SymbolRow[]>(`/v1/symbols${qs ? `?${qs}` : ""}`);
+  // The symbol universe changes when a seed/metadata job runs, not per request.
+  return apiGet<SymbolRow[]>(`/v1/symbols${qs ? `?${qs}` : ""}`, {
+    revalidateSeconds: 3600,
+    tags: ["symbols"],
+  });
 }
 
 export function getSymbol(ticker: string): Promise<SymbolDetail> {

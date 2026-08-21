@@ -15,6 +15,7 @@ from decimal import Decimal
 from typing import Annotated
 
 from fastapi import APIRouter, Depends
+from sqlalchemy import func
 from sqlmodel import Session, select
 
 from stockviz.auth import UserIdDep
@@ -30,6 +31,14 @@ SessionDep = Annotated[Session, Depends(get_session)]
 _INITIAL_NAV = Decimal("100000")
 _CACHE_TTL = 3600  # seconds
 
+MIN_SNAPSHOTS_TO_RANK = 30
+"""Days of tracked history before an account is ranked against the field.
+
+Return-since-inception over an arbitrary window with no minimum lets a single
+lucky trade top the board. Shorter-lived accounts still appear, sorted below
+everyone who qualifies, with ``ranked: false`` so the UI can mark them.
+"""
+
 # ``_cache_ts`` is the ``time.monotonic()`` reading when ``_cache`` was last
 # built, or ``None`` when the cache has never been populated (or was
 # invalidated). A ``None`` sentinel — rather than ``0.0`` — matters because
@@ -41,32 +50,70 @@ _cache: list[LeaderboardEntryOut] = []
 _cache_ts: float | None = None
 
 
-def _build_leaderboard(session: Session) -> list[LeaderboardEntryOut]:
-    public_users = list(
-        session.exec(select(User).where(User.public_profile == True))  # noqa: E712
-    )
+def _first_and_last_navs(
+    session: Session, user_ids: list[int]
+) -> dict[int, tuple[Decimal, Decimal]]:
+    """(first, last) NAV per user, from one pass over the snapshot table.
 
-    entries: list[tuple[float, Decimal, User]] = []
-    for user in public_users:
-        snapshots = list(
-            session.exec(
-                select(PortfolioSnapshot)
-                .where(PortfolioSnapshot.user_id == user.id)
-                .order_by(PortfolioSnapshot.date.asc())  # type: ignore[attr-defined]
-            )
+    The previous version issued a full snapshot-history query per public user,
+    so the leaderboard cost grew with both the number of opted-in users and the
+    length of their history.
+    """
+    if not user_ids:
+        return {}
+
+    ranked = select(
+        PortfolioSnapshot.user_id,
+        PortfolioSnapshot.nav,  # type: ignore[arg-type]
+        func.row_number()
+        .over(
+            partition_by=PortfolioSnapshot.user_id,  # type: ignore[arg-type]
+            order_by=PortfolioSnapshot.date.asc(),  # type: ignore[attr-defined]
         )
-        if snapshots:
-            initial_nav = snapshots[0].nav
-            current_nav = snapshots[-1].nav
-        else:
-            initial_nav = current_nav = _INITIAL_NAV
+        .label("rn_asc"),
+        func.row_number()
+        .over(
+            partition_by=PortfolioSnapshot.user_id,  # type: ignore[arg-type]
+            order_by=PortfolioSnapshot.date.desc(),  # type: ignore[attr-defined]
+        )
+        .label("rn_desc"),
+    ).where(PortfolioSnapshot.user_id.in_(user_ids))  # type: ignore[attr-defined]
+    sub = ranked.subquery()
+
+    rows = session.exec(
+        select(sub.c.user_id, sub.c.nav, sub.c.rn_asc, sub.c.rn_desc).where(  # type: ignore[call-overload]
+            (sub.c.rn_asc == 1) | (sub.c.rn_desc == 1)
+        )
+    ).all()
+
+    first: dict[int, Decimal] = {}
+    last: dict[int, Decimal] = {}
+    for user_id, nav, rn_asc, rn_desc in rows:
+        if rn_asc == 1:
+            first[user_id] = nav
+        if rn_desc == 1:
+            last[user_id] = nav
+    return {uid: (first[uid], last[uid]) for uid in first if uid in last}
+
+
+def _build_leaderboard(session: Session) -> list[LeaderboardEntryOut]:
+    public_users = list(session.exec(select(User).where(User.public_profile.is_(True))))  # type: ignore[union-attr]
+    navs_by_user = _first_and_last_navs(session, [u.id for u in public_users if u.id is not None])
+
+    entries: list[tuple[float, Decimal, int, User]] = []
+    for user in public_users:
+        initial_nav, current_nav = navs_by_user.get(user.id or -1, (_INITIAL_NAV, _INITIAL_NAV))
+        snapshot_count = _snapshot_counts(session).get(user.id or -1, 0)
 
         return_pct = (
             float((current_nav - initial_nav) / initial_nav * 100) if initial_nav > 0 else 0.0
         )
-        entries.append((return_pct, current_nav, user))
+        entries.append((return_pct, current_nav, snapshot_count, user))
 
-    entries.sort(key=lambda t: t[0], reverse=True)
+    # Users without a real track record can't be ranked meaningfully: a single
+    # lucky day would otherwise top the board. They still appear, but below
+    # everyone who has qualified.
+    entries.sort(key=lambda t: (t[2] >= MIN_SNAPSHOTS_TO_RANK, t[0]), reverse=True)
 
     return [
         LeaderboardEntryOut(
@@ -75,9 +122,19 @@ def _build_leaderboard(session: Session) -> list[LeaderboardEntryOut]:
             username=user.name or user.email.split("@")[0],
             return_pct=round(return_pct, 4),
             portfolio_value=nav,
+            days_tracked=snapshot_count,
+            ranked=snapshot_count >= MIN_SNAPSHOTS_TO_RANK,
         )
-        for rank, (return_pct, nav, user) in enumerate(entries[:50], start=1)
+        for rank, (return_pct, nav, snapshot_count, user) in enumerate(entries[:50], start=1)
     ]
+
+
+def _snapshot_counts(session: Session) -> dict[int, int]:
+    """Snapshots per user, cached for the life of one leaderboard build."""
+    rows = session.exec(
+        select(PortfolioSnapshot.user_id, func.count()).group_by(PortfolioSnapshot.user_id)  # type: ignore[call-overload]
+    ).all()
+    return dict(rows)
 
 
 @router.get("/leaderboard", response_model=list[LeaderboardEntryOut])

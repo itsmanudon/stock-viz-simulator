@@ -6,6 +6,9 @@ one match and one rejection in every test:
 - UPUP  — monotonic uptrend, RSI saturates near 100, near 52-week high
 - DOWN  — monotonic downtrend, RSI saturates near 0, near 52-week low
 - FLAT  — flat close, RSI undefined (NaN), mid-range
+
+``_seed_universe`` also runs ``refresh_symbol_metrics``: the screener queries
+the materialized ``symbol_metrics`` table, which the daily scheduler job fills.
 """
 
 from __future__ import annotations
@@ -17,6 +20,7 @@ from fastapi.testclient import TestClient
 from sqlmodel import Session
 
 from stockviz.models import PriceBar, Symbol
+from stockviz.services.metrics import refresh_symbol_metrics
 
 
 def _seed_bars(
@@ -53,6 +57,9 @@ def _seed_universe(session: Session) -> None:
     _seed_bars(session, "FLAT", [Decimal(150) for _ in range(60)])
 
     session.commit()
+    # The screener reads precomputed metrics rather than rescanning price_bars
+    # on every request, so the fixture runs the refresh the scheduler would.
+    refresh_symbol_metrics(session)
 
 
 def test_screen_no_filters_returns_all(session: Session, client: TestClient) -> None:
