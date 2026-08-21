@@ -73,10 +73,13 @@ new resource, walk the chain in order:
 
 ## Feature backlog
 
-`docs/IDEAS.md` is the brainstormed roadmap, but it predates a lot of shipped
-work — watchlist UI, portfolio snapshots, price alerts, and advanced orders
-from its "high impact" list are already built. Cross-check any idea against
-the code before proposing or starting it.
+[`docs/IDEAS.md`](./docs/IDEAS.md) is now a **changelog plus a short live
+backlog** — the original 16-item roadmap all shipped, so listing it in the
+future tense had agents proposing to rebuild the screener. Still cross-check
+any idea against the code before starting it.
+
+[`docs/CODEBASE_REVIEW.md`](./docs/CODEBASE_REVIEW.md) is the audit those
+fixes came from; its section numbers are referenced from commit messages.
 
 ## Remotes
 

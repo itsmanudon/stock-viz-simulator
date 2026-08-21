@@ -23,3 +23,19 @@ export function listSymbols(params: ListSymbolsParams = {}): Promise<SymbolRow[]
 export function getSymbol(ticker: string): Promise<SymbolDetail> {
   return apiGet<SymbolDetail>(`/v1/symbols/${encodeURIComponent(ticker)}`);
 }
+
+/**
+ * Typeahead over ticker and company name.
+ *
+ * Not cached: the query changes with every keystroke, so a cache entry would
+ * never be reused and would only add storage churn.
+ */
+export function searchSymbols(q: string, limit = 10): Promise<SymbolRow[]> {
+  const query = q.trim();
+  if (!query) return Promise.resolve([]);
+  return apiGet<SymbolRow[]>(
+    `/v1/symbols/search?q=${encodeURIComponent(query)}&limit=${limit}`,
+    // One attempt: the user is typing and will retry by keeping going.
+    { maxAttempts: 1 },
+  );
+}

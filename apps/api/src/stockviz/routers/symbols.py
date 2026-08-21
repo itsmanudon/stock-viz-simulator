@@ -10,6 +10,7 @@ from __future__ import annotations
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from sqlalchemy import case, func, or_
 from sqlmodel import Session, select
 
 from stockviz.db import get_session
@@ -39,6 +40,49 @@ def list_symbols(
     if active_only:
         stmt = stmt.where(Symbol.is_active)
     stmt = stmt.order_by(Symbol.ticker)
+    return list(session.exec(stmt).all())
+
+
+@router.get("/search", response_model=list[SymbolOut])
+@limiter.limit("60/minute")
+def search_symbols(
+    request: Request,
+    session: SessionDep,
+    q: Annotated[str, Query(min_length=1, max_length=64)],
+    limit: Annotated[int, Query(ge=1, le=50)] = 10,
+) -> list[Symbol]:
+    """Typeahead over ticker and company name.
+
+    Ranked so an exact ticker match wins, then a ticker prefix, then anything
+    matching in the name — typing "AA" should offer AAPL before Alcoa, and
+    typing "apple" should still find AAPL.
+
+    Registered before ``/{ticker}`` so the literal path wins over the
+    catch-all, the same ordering reason ``screener`` is registered ahead of
+    this router in ``main.py``.
+    """
+    term = q.strip().upper()
+    if not term:
+        return []
+    pattern = f"%{term}%"
+
+    rank = case(
+        (Symbol.ticker == term, 0),  # type: ignore[arg-type]
+        (Symbol.ticker.startswith(term), 1),  # type: ignore[arg-type, attr-defined]
+        else_=2,
+    )
+    stmt = (
+        select(Symbol)
+        .where(
+            Symbol.is_active,
+            or_(
+                Symbol.ticker.like(pattern),  # type: ignore[attr-defined]
+                func.upper(Symbol.name).like(pattern),  # type: ignore[arg-type]
+            ),
+        )
+        .order_by(rank, Symbol.ticker)
+        .limit(limit)
+    )
     return list(session.exec(stmt).all())
 
 

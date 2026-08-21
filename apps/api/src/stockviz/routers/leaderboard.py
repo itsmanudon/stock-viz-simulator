@@ -14,7 +14,7 @@ import time
 from decimal import Decimal
 from typing import Annotated
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func
 from sqlmodel import Session, select
 
@@ -153,8 +153,6 @@ SUPPORTED_DISPLAY_CURRENCIES = frozenset({"USD", "EUR", "GBP", "JPY", "CAD", "IN
 def get_profile(session: SessionDep, user_id: UserIdDep) -> ProfileOut:
     user = session.get(User, user_id)
     if user is None:
-        from fastapi import HTTPException, status
-
         raise HTTPException(status.HTTP_404_NOT_FOUND, "User not found")
     return ProfileOut(
         user_id=user_id,
@@ -170,7 +168,6 @@ def patch_profile(
     user_id: UserIdDep,
 ) -> ProfileOut:
     global _cache_ts
-    from fastapi import HTTPException, status
 
     user = session.get(User, user_id)
     if user is None:

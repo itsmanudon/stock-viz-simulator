@@ -1,7 +1,7 @@
 export { ApiError } from "./client";
 export * from "./types";
 export { getApiHealth } from "./health";
-export { listSymbols, getSymbol } from "./symbols";
+export { listSymbols, getSymbol, searchSymbols } from "./symbols";
 export { getQuotes } from "./quotes";
 export { getBars } from "./bars";
 export { getMarketsSummary } from "./markets";

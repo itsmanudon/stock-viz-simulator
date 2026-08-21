@@ -31,7 +31,7 @@ export async function GET() {
 
     const rows = trades.map((t) => {
       const native = Number(t.quantity) * Number(t.price);
-      const rate = Number(t.fx_rate ?? 1);
+      const rate = Number(t.fx_rate);
       return [
         new Date(t.ts).toISOString(),
         t.ticker,

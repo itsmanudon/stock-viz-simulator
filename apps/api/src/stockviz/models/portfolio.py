@@ -36,7 +36,8 @@ class Position(SQLModel, table=True):
     """Aggregated holding for one (portfolio, ticker).
 
     Maintained as a materialized roll-up of trades for fast portfolio reads.
-    Phase 6 will write the recompute logic; for now the schema is in place.
+    Written by ``services/trading/execute.py::apply_fill`` — the single fill
+    path shared by market orders and pending-order settlement.
     """
 
     __tablename__ = "positions"  # pyright: ignore[reportAssignmentType]

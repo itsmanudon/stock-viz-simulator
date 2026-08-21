@@ -1,8 +1,10 @@
 """APScheduler bootstrap.
 
-Runs in-process alongside FastAPI (via lifespan) for Phase 2. If the schedule
-volume outgrows in-process we'll promote to a separate worker; for 25
-tickers a day that's a long way off.
+Runs in-process alongside FastAPI (via lifespan). Every job is wrapped in
+``single_instance``, which takes a Postgres advisory lock so a scale-out to two
+API instances doesn't double-fire jobs that move money. If schedule volume ever
+outgrows in-process, promote to a separate worker; for ~30 tickers a day that's
+a long way off.
 
 Jobs are no-ops when their data source has no API key configured — that way
 the scheduler can start in CI / local dev without surprise network calls.

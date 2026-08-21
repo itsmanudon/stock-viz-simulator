@@ -28,6 +28,18 @@ jobs:
           cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
 
+      # Needed by the API-types sync check below, which runs the FastAPI app
+      # in-process to export its OpenAPI document.
+      - uses: astral-sh/setup-uv@v4
+
+      - name: Install Python
+        working-directory: apps/api
+        run: uv python install 3.12
+
+      - name: Sync Python deps
+        working-directory: apps/api
+        run: uv sync --frozen
+
       - name: Install
         working-directory: .
         run: pnpm install --frozen-lockfile
@@ -37,6 +49,16 @@ jobs:
 
       - name: Typecheck
         run: pnpm typecheck
+
+      # The client's request/response types are hand-written against FastAPI's
+      # Pydantic models. Regenerating here means a schema change that nobody
+      # mirrored into lib/api fails the build instead of surfacing at runtime.
+      - name: API types are in sync
+        working-directory: .
+        run: |
+          pnpm --filter @stockviz/web gen:api-types
+          git diff --exit-code -- apps/web/lib/api/schema.d.ts \
+            || { echo "::error::apps/web/lib/api/schema.d.ts is stale — run 'pnpm --filter @stockviz/web gen:api-types' and commit the result."; exit 1; }
 
       - name: Unit tests
         run: pnpm test:coverage

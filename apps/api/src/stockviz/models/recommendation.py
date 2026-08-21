@@ -1,6 +1,6 @@
 """Algo-generated recommendations.
 
-Populated by ``services/recommend/`` in Phase 5. We keep one row per (ticker,
+Populated by ``services/recommend/``. We keep one row per (ticker,
 computed_at) so we can backtest the recommender by looking at history.
 """
 

@@ -1,8 +1,9 @@
 """User account.
 
-Phase 2 keeps this thin: the API doesn't issue tokens yet. Phase 3 wires
-NextAuth (Auth.js) and the web app becomes the source of truth for sessions;
-this table stays as the canonical user row that portfolios/watchlists FK to.
+Deliberately thin. The web app owns sessions (NextAuth/Auth.js) and the API
+never issues tokens — it verifies a short-lived HS256 bridge JWT instead (see
+``auth.py``). This table is the canonical user row that portfolios, watchlists,
+alerts, and comments FK to.
 """
 
 from __future__ import annotations
@@ -22,8 +23,7 @@ class User(SQLModel, table=True):
     name: str | None = None
     image: str | None = Field(default=None, max_length=1024)
     # Bcrypt hash for credentials-provider auth. NULL means the account was
-    # created via OAuth (Phase 3 has credentials only, so right now NULL only
-    # happens for rows seeded outside of signup).
+    # created via Google OAuth, or seeded outside of signup.
     password_hash: str | None = Field(default=None, max_length=255)
     public_profile: bool = Field(default=False, nullable=False)
     # ISO-4217 currency the portfolio totals are rendered in on the UI. The

@@ -40,7 +40,7 @@ class PriceBar(SQLModel, table=True):
     """OHLCV bar for a (ticker, ts, interval) triple.
 
     ``interval`` is part of the PK so we can store ``1d`` today and add
-    ``1h`` later without a schema migration. Phase 2 only writes ``1d``.
+    ``1h`` later without a schema migration. Only ``1d`` is written today.
     """
 
     __tablename__ = "price_bars"  # pyright: ignore[reportAssignmentType]

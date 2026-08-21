@@ -11,7 +11,9 @@
       "**/node_modules",
       "**/.next",
       "**/dist",
-      "**/build"
+      "**/build",
+      "**/coverage",
+      "**/lib/api/schema.d.ts"
     ]
   },
   "formatter": {

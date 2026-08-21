@@ -14,6 +14,7 @@ from __future__ import annotations
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import func
 from sqlmodel import Session, select
 
 from stockviz._time import utcnow
@@ -25,6 +26,15 @@ from stockviz.schemas import AlertIn, AlertOut
 router = APIRouter(prefix="/v1/alerts", tags=["alerts"])
 
 SessionDep = Annotated[Session, Depends(get_session)]
+
+MAX_ACTIVE_ALERTS_PER_USER = 100
+"""Cap on untriggered alerts one user may hold.
+
+The alerts table had no per-user bound, so a script could add rows until the
+hourly evaluation pass — which walks every pending alert — became the slowest
+thing the scheduler does. Triggered alerts don't count: those are history, and
+the user clears them by dismissing.
+"""
 
 
 @router.get("", response_model=list[AlertOut])
@@ -44,6 +54,21 @@ def create_alert(body: AlertIn, session: SessionDep, user_id: UserIdDep) -> Aler
     ticker = body.ticker.upper()
     if session.get(Symbol, ticker) is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, f"Symbol {ticker!r} not found")
+
+    active = (
+        session.exec(
+            select(func.count())  # type: ignore[call-overload]
+            .select_from(Alert)
+            .where(Alert.user_id == user_id, Alert.triggered_at.is_(None))  # type: ignore[union-attr]
+        ).one()
+        or 0
+    )
+    if active >= MAX_ACTIVE_ALERTS_PER_USER:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            f"You already have {MAX_ACTIVE_ALERTS_PER_USER} active alerts. "
+            "Delete or wait for some to trigger before adding more.",
+        )
 
     alert = Alert(
         user_id=user_id,
