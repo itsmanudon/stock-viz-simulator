@@ -1,6 +1,6 @@
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Response, status
 from pydantic import BaseModel
 from sqlalchemy import text
 from sqlmodel import Session
@@ -20,13 +20,20 @@ class HealthResponse(BaseModel):
 
 
 @router.get("/health", response_model=HealthResponse)
-def health(session: SessionDep) -> HealthResponse:
+def health(session: SessionDep, response: Response) -> HealthResponse:
+    """Liveness + DB reachability.
+
+    Returns **503** when the database is unreachable. ``render.yaml`` points
+    ``healthCheckPath`` here, and a always-200 response meant Render would
+    never notice — let alone restart — an instance that had lost its database.
+    """
     try:
         session.exec(text("SELECT 1"))  # type: ignore[arg-type]
         db_status: Literal["up", "down"] = "up"
-        status: Literal["ok", "degraded"] = "ok"
+        app_status: Literal["ok", "degraded"] = "ok"
     except Exception:
         db_status = "down"
-        status = "degraded"
+        app_status = "degraded"
+        response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
 
-    return HealthResponse(status=status, version=__version__, database=db_status)
+    return HealthResponse(status=app_status, version=__version__, database=db_status)

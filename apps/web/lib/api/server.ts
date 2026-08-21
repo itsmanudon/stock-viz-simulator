@@ -16,9 +16,9 @@ import "server-only";
 import { SignJWT } from "jose";
 
 import { auth } from "@/auth";
+import { requireSecret } from "@/lib/env";
 
 const API_URL = process.env.API_URL ?? "http://127.0.0.1:8000";
-const INTERNAL_TOKEN = process.env.INTERNAL_API_TOKEN ?? "dev-internal-token-change-me";
 
 export class UnauthenticatedError extends Error {
   constructor() {
@@ -39,7 +39,10 @@ export class AuthedApiError extends Error {
 }
 
 function signingKey(): Uint8Array {
-  return new TextEncoder().encode(INTERNAL_TOKEN);
+  // Throws in production if the secret is missing or still the dev default —
+  // see lib/env.ts. Read per call so a misconfigured deploy fails on the first
+  // authenticated request rather than silently signing with a public key.
+  return new TextEncoder().encode(requireSecret("INTERNAL_API_TOKEN"));
 }
 
 async function mintToken(userId: string): Promise<string> {

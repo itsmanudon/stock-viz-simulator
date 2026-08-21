@@ -19,7 +19,13 @@ import Google from "next-auth/providers/google";
 import { z } from "zod";
 
 import { authConfig } from "@/auth.config";
+import { requireSecret } from "@/lib/env";
 import { findOrCreateOAuthUser, findUserByEmail } from "@/lib/users";
+
+// Fail at module load rather than issuing sessions signed with the dev secret
+// that is committed to this repository. NextAuth reads AUTH_SECRET from the
+// environment itself; this only validates it.
+requireSecret("AUTH_SECRET");
 
 const CredentialsSchema = z.object({
   email: z.email().max(320),

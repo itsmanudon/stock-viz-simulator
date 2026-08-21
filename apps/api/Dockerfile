@@ -43,10 +43,20 @@ COPY --from=builder /app/src ./src
 COPY --from=builder /app/migrations ./migrations
 COPY --from=builder /app/alembic.ini ./alembic.ini
 
+# Run as a non-root user. Nothing here needs to write to the image at runtime,
+# so the app owns only what it must.
+RUN useradd --system --create-home --uid 10001 stockviz \
+    && chown -R stockviz:stockviz /app
+USER stockviz
+
 # Render injects $PORT at runtime; default to 8000 for local docker runs.
 ENV PORT=8000
 EXPOSE 8000
 
 # Run migrations on boot, then start uvicorn.
 # Render's free tier doesn't support release commands, so we inline it here.
-CMD ["sh", "-c", "alembic upgrade head && uvicorn stockviz.main:app --host 0.0.0.0 --port ${PORT}"]
+#
+# --proxy-headers / --forwarded-allow-ips: behind Render's load balancer,
+# request.client.host is the proxy for every request, so without these the
+# rate limiter buckets every user together (see limiter.py).
+CMD ["sh", "-c", "alembic upgrade head && exec uvicorn stockviz.main:app --host 0.0.0.0 --port ${PORT} --proxy-headers --forwarded-allow-ips='*'"]
