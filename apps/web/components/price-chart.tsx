@@ -166,9 +166,34 @@ export function PriceChart({ bars, overlays, macd }: Props) {
     };
   }, [candles, volumes, overlays, macd]);
 
+  // Text equivalent of the canvas: range, endpoints, and direction.
+  const chartSummary = useMemo(() => {
+    if (bars.length === 0) return "Price chart with no data available.";
+    const first = bars[0];
+    const last = bars[bars.length - 1];
+    const open = Number(first.close);
+    const close = Number(last.close);
+    const changePct = open === 0 ? 0 : ((close - open) / open) * 100;
+    const direction = changePct >= 0 ? "up" : "down";
+    const overlayNames = Object.keys(overlays ?? {});
+    const withOverlays = overlayNames.length ? ` Overlays: ${overlayNames.join(", ")}.` : "";
+    return (
+      `Candlestick price chart covering ${bars.length} sessions from ` +
+      `${new Date(first.ts).toLocaleDateString("en-US")} to ` +
+      `${new Date(last.ts).toLocaleDateString("en-US")}. ` +
+      `Closed at ${close.toFixed(2)}, ${direction} ${Math.abs(changePct).toFixed(2)} percent ` +
+      `over the period.${withOverlays}`
+    );
+  }, [bars, overlays]);
+
   return (
     <div className="space-y-2">
-      <div ref={containerRef} className="h-[420px] w-full" />
+      {/* lightweight-charts renders to a canvas, which is opaque to assistive
+          tech. The figure caption carries the same headline facts in text. */}
+      <figure className="m-0">
+        <div ref={containerRef} className="h-[420px] w-full" role="img" aria-label={chartSummary} />
+        <figcaption className="sr-only">{chartSummary}</figcaption>
+      </figure>
       {macd?.length ? <div ref={macdRef} className="h-[140px] w-full" /> : null}
     </div>
   );

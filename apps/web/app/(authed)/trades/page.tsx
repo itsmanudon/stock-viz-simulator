@@ -84,6 +84,7 @@ export default async function TradesPage() {
                 <TableHead className="text-right">Qty</TableHead>
                 <TableHead className="hidden text-right md:table-cell">Price</TableHead>
                 <TableHead className="text-right">Total</TableHead>
+                <TableHead className="hidden text-right sm:table-cell">Realized P&amp;L</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -110,6 +111,18 @@ export default async function TradesPage() {
                     </TableCell>
                     <TableCell className="text-right font-mono">
                       {fmtCurrency(String(total))}
+                    </TableCell>
+                    <TableCell
+                      className={`hidden text-right font-mono sm:table-cell ${
+                        trade.realized_pnl === null
+                          ? "text-muted-foreground"
+                          : Number(trade.realized_pnl) >= 0
+                            ? "text-green-500"
+                            : "text-red-500"
+                      }`}
+                    >
+                      {/* Only sells realize a gain or loss; a buy shows an em dash. */}
+                      {trade.realized_pnl === null ? "—" : fmtCurrency(trade.realized_pnl)}
                     </TableCell>
                   </TableRow>
                 );

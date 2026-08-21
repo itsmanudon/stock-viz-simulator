@@ -38,10 +38,20 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
 
+      - name: Unit tests
+        run: pnpm test:coverage
+
       - name: Build
         run: pnpm build
         env:
           NEXT_PUBLIC_API_URL: http://localhost:8000
+
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: web-coverage
+          path: apps/web/coverage/
+          retention-days: 7
 
   api:
     name: api (FastAPI)
@@ -76,6 +86,9 @@ jobs:
       - name: Sync dependencies
         run: uv sync --frozen
 
+      - name: Lockfile is up to date
+        run: uv lock --check
+
       - name: Lint
         run: uv run ruff check .
 
@@ -86,9 +99,76 @@ jobs:
         run: uv run pyright
 
       - name: Test
-        run: uv run pytest -v
+        run: uv run pytest -v --cov=stockviz --cov-report=term-missing --cov-report=xml
         env:
           DATABASE_URL: postgresql+psycopg://stockviz:stockviz_dev@localhost:5432/stockviz
+
+      # Catches a model change that never got a migration. dev previously had
+      # two alembic heads and six columns of enum drift; neither was visible
+      # until someone deployed.
+      - name: Migrations apply and match the models
+        run: |
+          uv run alembic upgrade head
+          uv run alembic check
+        env:
+          DATABASE_URL: postgresql+psycopg://stockviz:stockviz_dev@localhost:5432/stockviz
+
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: api-coverage
+          path: apps/api/coverage.xml
+          retention-days: 7
+
+  security:
+    name: security (dependency audit)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - uses: astral-sh/setup-uv@v4
+
+      - name: Install Node deps
+        run: pnpm install --frozen-lockfile
+
+      # Fails the build on a known high/critical advisory in a runtime dep.
+      - name: Audit npm dependencies
+        run: pnpm audit --audit-level high --prod
+
+      - name: Install Python
+        working-directory: apps/api
+        run: uv python install 3.12
+
+      - name: Audit Python dependencies
+        working-directory: apps/api
+        run: |
+          uv export --frozen --no-dev --no-emit-project --format requirements-txt > requirements.txt
+          uvx pip-audit --requirement requirements.txt --strict
+
+  docker:
+    name: docker (api image builds)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # The Dockerfile is otherwise only exercised at deploy time on Render,
+      # so a broken build surfaced in production rather than on the PR.
+      - name: Build API image
+        uses: docker/build-push-action@v6
+        with:
+          context: apps/api
+          push: false
+          load: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
   e2e:
     name: e2e (Playwright)

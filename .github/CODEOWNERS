@@ -1,0 +1,15 @@
+# Default owner for everything in the repo.
+*       @itsmanudon
+
+# Money-handling code: the ledger is the part where a silent bug costs the most.
+/apps/api/src/stockviz/services/trading/   @itsmanudon
+/apps/api/src/stockviz/services/options/   @itsmanudon
+/apps/api/migrations/                      @itsmanudon
+
+# Auth and deployment config.
+/apps/api/src/stockviz/auth.py             @itsmanudon
+/apps/api/src/stockviz/settings.py         @itsmanudon
+/apps/web/auth.ts                          @itsmanudon
+/apps/web/lib/env.ts                       @itsmanudon
+/infra/                                    @itsmanudon
+/.github/                                  @itsmanudon

@@ -23,62 +23,15 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { getMarketsSummary } from "@/lib/api";
-
-type SortKey = "ticker" | "change" | "price";
-type SortDir = "asc" | "desc";
-
-type Row = {
-  ticker: string;
-  name: string;
-  sector: string | null;
-  exchange: string | null;
-  closes: number[];
-  last: number | null;
-  changePct: number | null;
-};
-
-function fmtPrice(n: number | null): string {
-  if (n === null) return "—";
-  return n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-
-function fmtPct(n: number | null): string {
-  if (n === null) return "—";
-  const sign = n > 0 ? "+" : "";
-  return `${sign}${n.toFixed(2)}%`;
-}
-
-function compare(rows: Row[], sort: SortKey, dir: SortDir): Row[] {
-  const factor = dir === "asc" ? 1 : -1;
-  const sorter: Record<SortKey, (a: Row, b: Row) => number> = {
-    ticker: (a, b) => a.ticker.localeCompare(b.ticker) * factor,
-    change: (a, b) =>
-      ((a.changePct ?? Number.NEGATIVE_INFINITY) - (b.changePct ?? Number.NEGATIVE_INFINITY)) *
-      factor,
-    price: (a, b) =>
-      ((a.last ?? Number.NEGATIVE_INFINITY) - (b.last ?? Number.NEGATIVE_INFINITY)) * factor,
-  };
-  return [...rows].sort(sorter[sort]);
-}
-
-function flipDir(current: SortKey | undefined, target: SortKey, dir: SortDir): SortDir {
-  if (current !== target) return target === "ticker" ? "asc" : "desc";
-  return dir === "asc" ? "desc" : "asc";
-}
-
-function sortHref(
-  target: SortKey,
-  params: { sort?: string; dir?: string; sector?: string },
-): string {
-  const next = new URLSearchParams();
-  next.set("sort", target);
-  next.set(
-    "dir",
-    flipDir(params.sort as SortKey | undefined, target, (params.dir as SortDir) ?? "desc"),
-  );
-  if (params.sector) next.set("sector", params.sector);
-  return `/markets?${next.toString()}`;
-}
+import {
+  type MarketRow,
+  type SortDir,
+  type SortKey,
+  compare,
+  fmtPct,
+  fmtPrice,
+  sortHref,
+} from "@/lib/markets-table";
 
 export default async function MarketsPage({
   searchParams,
@@ -92,7 +45,7 @@ export default async function MarketsPage({
   const summary = await getMarketsSummary({ sector: params.sector, sparklineDays: 30 });
   const sectors = summary.sectors;
 
-  const rows: Row[] = summary.rows.map((r) => ({
+  const rows: MarketRow[] = summary.rows.map((r) => ({
     ticker: r.ticker,
     name: r.name,
     sector: r.sector,
@@ -104,6 +57,9 @@ export default async function MarketsPage({
   const sorted = compare(rows, sort, dir);
 
   const arrow = (col: SortKey) => (sort === col ? (dir === "asc" ? " ↑" : " ↓") : "");
+  // The arrow glyph alone doesn't reach assistive tech; aria-sort does.
+  const ariaSort = (col: SortKey): "ascending" | "descending" | "none" =>
+    sort === col ? (dir === "asc" ? "ascending" : "descending") : "none";
 
   return (
     <div className="container mx-auto px-4 py-10 sm:px-6">
@@ -144,7 +100,7 @@ export default async function MarketsPage({
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-[120px]">
+              <TableHead className="w-[120px]" aria-sort={ariaSort("ticker")}>
                 <Link href={sortHref("ticker", params)} className="hover:text-foreground">
                   Ticker{arrow("ticker")}
                 </Link>
@@ -152,12 +108,12 @@ export default async function MarketsPage({
               <TableHead>Name</TableHead>
               <TableHead className="hidden md:table-cell">Sector</TableHead>
               <TableHead className="hidden md:table-cell">Exchange</TableHead>
-              <TableHead className="text-right">
+              <TableHead className="text-right" aria-sort={ariaSort("price")}>
                 <Link href={sortHref("price", params)} className="hover:text-foreground">
                   Price{arrow("price")}
                 </Link>
               </TableHead>
-              <TableHead className="text-right">
+              <TableHead className="text-right" aria-sort={ariaSort("change")}>
                 <Link href={sortHref("change", params)} className="hover:text-foreground">
                   1d % {arrow("change")}
                 </Link>

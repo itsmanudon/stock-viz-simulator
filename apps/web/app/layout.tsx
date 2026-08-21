@@ -18,9 +18,19 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body className="min-h-screen bg-background text-foreground antialiased">
         <Providers>
+          {/* Visible only on keyboard focus — lets a keyboard or screen-reader
+              user jump past the header nav on every page. */}
+          <a
+            href="#main"
+            className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-background focus:px-4 focus:py-2 focus:ring-2 focus:ring-ring"
+          >
+            Skip to main content
+          </a>
           <div className="flex min-h-screen flex-col">
             <SiteHeader />
-            <main className="flex-1">{children}</main>
+            <main id="main" tabIndex={-1} className="flex-1">
+              {children}
+            </main>
             <SiteFooter />
           </div>
         </Providers>

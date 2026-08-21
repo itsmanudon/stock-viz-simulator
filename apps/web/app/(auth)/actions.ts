@@ -8,6 +8,7 @@ import { z } from "zod";
 
 import { signIn } from "@/auth";
 import { hit, reset } from "@/lib/rate-limit";
+import { safeRedirect } from "@/lib/redirect";
 import { createUser, findUserByEmail } from "@/lib/users";
 
 const SignupSchema = z.object({
@@ -42,15 +43,6 @@ function throttled(retryAfterSeconds: number): AuthFormState {
   return {
     error: `Too many attempts. Try again in ${minutes} minute${minutes === 1 ? "" : "s"}.`,
   };
-}
-
-// Only allow same-app paths through; anything else (absolute URLs,
-// protocol-relative ``//evil.com``) falls back to "/" so the form can't be
-// used as an open redirector.
-function safeRedirect(raw: FormDataEntryValue | null): string {
-  if (typeof raw !== "string") return "/";
-  if (!raw.startsWith("/") || raw.startsWith("//")) return "/";
-  return raw;
 }
 
 export async function signupAction(

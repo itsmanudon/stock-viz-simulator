@@ -28,7 +28,24 @@ export type Portfolio = {
   total_value: string;
   total_cost_basis: string;
   unrealized_pl: string;
+  /** Mark-to-model value of open option contracts, included in total_value. */
+  options_market_value: string;
   positions: Position[];
+  option_positions: PortfolioOption[];
+};
+
+export type PortfolioOption = {
+  option_id: number;
+  ticker: string;
+  option_type: "call" | "put";
+  strike: string;
+  expiry: string;
+  quantity: number;
+  currency: string;
+  premium_paid: string;
+  market_value_native: string;
+  market_value: string;
+  unrealized_pl: string;
 };
 
 export type TradeRow = {
@@ -41,10 +58,12 @@ export type TradeRow = {
   ts: string;
   // ISO-4217 ccy the trade is denominated in (== symbol's currency).
   currency: string;
-  // USD per 1 unit of `currency` (1 for USD symbols).
-  fx_rate: string;
+  // USD per 1 unit of `currency`, captured at fill time (null on legacy rows).
+  fx_rate: string | null;
   total_native: string;
   total_usd: string;
+  /** USD gain/loss vs. the weighted-average cost basis. Set on sells only. */
+  realized_pnl: string | null;
 };
 
 export type TradeInput = {

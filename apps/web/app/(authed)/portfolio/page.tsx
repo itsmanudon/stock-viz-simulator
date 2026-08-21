@@ -139,6 +139,11 @@ export default async function PortfolioPage({
             <p className="mt-1 font-mono text-xl">
               {fmtCurrency(portfolio.market_value, displayCcy)}
             </p>
+            {Number(portfolio.options_market_value) !== 0 ? (
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                + {fmtCurrency(portfolio.options_market_value, displayCcy)} options
+              </p>
+            ) : null}
           </CardContent>
         </Card>
         <Card>
