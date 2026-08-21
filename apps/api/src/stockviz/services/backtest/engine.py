@@ -22,6 +22,15 @@ from stockviz.services.indicators import compute_rsi, compute_sma
 
 TRADING_DAYS_PER_YEAR = 252
 
+DEFAULT_RISK_FREE_RATE = 0.05
+"""Annual risk-free rate. Matches ``routers/trading.DEFAULT_RISK_FREE_RATE`` so
+Sharpe is comparable between a backtest and the live portfolio analytics."""
+
+DEFAULT_COMMISSION_BPS = 0.0
+DEFAULT_SLIPPAGE_BPS = 0.0
+"""Both default to zero so existing callers see unchanged numbers; the router
+exposes them so a caller can model realistic frictions."""
+
 
 @dataclass(frozen=True, slots=True)
 class BacktestTrade:
@@ -43,6 +52,14 @@ class BacktestSummary:
     sharpe: float
     max_drawdown: float
     final_nav: Decimal
+    # Buy-and-hold over the same window, for comparison. Without it there is
+    # no way to tell whether a strategy beat doing nothing.
+    benchmark_return: float = 0.0
+    benchmark_final_nav: Decimal = Decimal(0)
+    # Strategy return minus buy-and-hold return, in percentage points.
+    excess_return: float = 0.0
+    # Total commission + slippage paid across all fills.
+    total_costs: Decimal = Decimal(0)
 
 
 @dataclass(frozen=True, slots=True)
@@ -118,16 +135,23 @@ def _sma_crossover_signals(
     return signals
 
 
-def _sharpe(navs: list[Decimal]) -> float:
-    """Annualised Sharpe ratio of the daily NAV series (risk-free rate = 0)."""
+def _sharpe(navs: list[Decimal], *, risk_free_rate: float = DEFAULT_RISK_FREE_RATE) -> float:
+    """Annualised Sharpe ratio of the daily NAV series.
+
+    ``risk_free_rate`` is the annual figure, converted to a per-trading-day
+    rate before being subtracted from each daily return. It defaults to the
+    same constant the live portfolio analytics use, so a backtest and the
+    portfolio page can't report different Sharpes for the same NAV series.
+    """
 
     if len(navs) < 3:
         return 0.0
+    daily_rf = risk_free_rate / TRADING_DAYS_PER_YEAR
     returns: list[float] = []
     for prev, cur in pairwise(navs):
         if prev == 0:
             continue
-        returns.append(float(cur / prev) - 1.0)
+        returns.append(float(cur / prev) - 1.0 - daily_rf)
     if len(returns) < 2:
         return 0.0
     mean = sum(returns) / len(returns)
@@ -160,16 +184,28 @@ def run_backtest(
     initial_cash: Decimal,
     strategy_type: str,
     params: dict,
+    commission_bps: float = DEFAULT_COMMISSION_BPS,
+    slippage_bps: float = DEFAULT_SLIPPAGE_BPS,
+    risk_free_rate: float = DEFAULT_RISK_FREE_RATE,
 ) -> BacktestResult:
     """Replay ``bars`` through ``strategy_type`` and return trades + equity curve.
 
     ``params`` carries the strategy-specific knobs:
       - ``rsi_threshold``: ``buy_below``, ``sell_above``
       - ``sma_crossover``: ``short_window``, ``long_window``
+
+    Fills happen on the bar **after** the one that produced the signal: RSI(14)
+    or an SMA cross is only knowable once that bar has closed, so filling at
+    that same close would be look-ahead bias.
+
+    ``commission_bps`` and ``slippage_bps`` are charged on both sides of every
+    round trip. They default to zero, which reproduces a frictionless run.
     """
 
     if initial_cash <= 0:
         raise BacktestError("initial_cash must be positive")
+    if commission_bps < 0 or slippage_bps < 0:
+        raise BacktestError("commission_bps and slippage_bps must be non-negative")
 
     if strategy_type == "rsi_threshold":
         signals = _rsi_signals(bars, buy_below=params["buy_below"], sell_above=params["sell_above"])
@@ -191,28 +227,60 @@ def run_backtest(
     shares = Decimal(0)
     trades: list[BacktestTrade] = []
     equity_curve: list[EquityPoint] = []
+    total_costs = Decimal(0)
 
-    for (ts, close), signal in zip(bars, signals, strict=True):
+    cost_rate = Decimal(str((commission_bps + slippage_bps) / 10_000.0))
+    # A signal is only knowable once bar i has closed, so it can't be filled at
+    # that same close — that would be look-ahead bias. Carry it to bar i+1 and
+    # fill there. The final bar's signal is therefore never acted on, which is
+    # correct: there is no next bar to trade into.
+    pending_signal: str | None = None
+
+    for ts, close in bars:
+        signal = pending_signal
         if signal == "buy" and shares == 0 and cash > 0 and close > 0:
-            shares = cash / close
+            # Slippage/commission make the effective purchase price worse.
+            effective = close * (Decimal(1) + cost_rate)
+            shares = cash / effective
+            cost = cash - (shares * close)
+            total_costs += cost
             trades.append(BacktestTrade(date=ts.date(), side="buy", price=close, shares=shares))
             cash = Decimal(0)
         elif signal == "sell" and shares > 0:
-            proceeds = shares * close
+            gross = shares * close
+            cost = gross * cost_rate
+            total_costs += cost
             trades.append(BacktestTrade(date=ts.date(), side="sell", price=close, shares=shares))
-            cash = proceeds
+            cash = gross - cost
             shares = Decimal(0)
 
         nav = cash + shares * close
         equity_curve.append(EquityPoint(date=ts.date(), nav=nav))
+        pending_signal = signals[len(equity_curve) - 1]
 
     navs = [pt.nav for pt in equity_curve]
     final_nav = navs[-1]
     total_return = float((final_nav - initial_cash) / initial_cash)
+
+    # Buy-and-hold over the same window and with the same entry cost.
+    first_close = bars[0][1]
+    last_close = bars[-1][1]
+    if first_close > 0:
+        bh_shares = initial_cash / (first_close * (Decimal(1) + cost_rate))
+        benchmark_final = bh_shares * last_close
+        benchmark_return = float((benchmark_final - initial_cash) / initial_cash)
+    else:
+        benchmark_final = initial_cash
+        benchmark_return = 0.0
+
     summary = BacktestSummary(
         total_return=total_return,
-        sharpe=_sharpe(navs),
+        sharpe=_sharpe(navs, risk_free_rate=risk_free_rate),
         max_drawdown=_max_drawdown(navs),
         final_nav=final_nav,
+        benchmark_return=benchmark_return,
+        benchmark_final_nav=benchmark_final,
+        excess_return=(total_return - benchmark_return) * 100,
+        total_costs=total_costs,
     )
     return BacktestResult(trades=trades, equity_curve=equity_curve, summary=summary)

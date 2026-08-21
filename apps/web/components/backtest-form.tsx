@@ -68,6 +68,8 @@ export function BacktestForm({ symbols }: { symbols: SymbolOption[] }) {
   const [sellAbove, setSellAbove] = useState("70");
   const [shortWindow, setShortWindow] = useState("20");
   const [longWindow, setLongWindow] = useState("50");
+  const [commissionBps, setCommissionBps] = useState("0");
+  const [slippageBps, setSlippageBps] = useState("0");
 
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -98,6 +100,8 @@ export function BacktestForm({ symbols }: { symbols: SymbolOption[] }) {
         to,
         initial_cash: initialCash,
         strategy,
+        commission_bps: Number(commissionBps) || 0,
+        slippage_bps: Number(slippageBps) || 0,
       });
       setResult(res);
     } catch (err) {
@@ -165,6 +169,43 @@ export function BacktestForm({ symbols }: { symbols: SymbolOption[] }) {
                 required
               />
             </div>
+
+            <fieldset className="space-y-2">
+              <legend className="text-sm font-medium">Trading costs</legend>
+              <p className="text-xs text-muted-foreground">
+                Charged on both sides of every round trip. Leave at 0 for a frictionless run.
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <Label htmlFor="bt-commission" className="text-xs">
+                    Commission (bps)
+                  </Label>
+                  <Input
+                    id="bt-commission"
+                    type="number"
+                    min="0"
+                    max="1000"
+                    step="1"
+                    value={commissionBps}
+                    onChange={(e) => setCommissionBps(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="bt-slippage" className="text-xs">
+                    Slippage (bps)
+                  </Label>
+                  <Input
+                    id="bt-slippage"
+                    type="number"
+                    min="0"
+                    max="1000"
+                    step="1"
+                    value={slippageBps}
+                    onChange={(e) => setSlippageBps(e.target.value)}
+                  />
+                </div>
+              </div>
+            </fieldset>
 
             <div className="space-y-2">
               <Label htmlFor="bt-strategy">Strategy</Label>
@@ -293,6 +334,35 @@ export function BacktestForm({ symbols }: { symbols: SymbolOption[] }) {
                   <p className="text-xs text-muted-foreground">Max drawdown</p>
                   <p className="mt-1 font-mono text-xl text-red-500">
                     -{(result.summary.max_drawdown * 100).toFixed(2)}%
+                  </p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-4">
+                  <p className="text-xs text-muted-foreground">Buy &amp; hold</p>
+                  <p className="mt-1 font-mono text-xl">
+                    {fmtPct(result.summary.benchmark_return)}
+                  </p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-4">
+                  <p className="text-xs text-muted-foreground">vs buy &amp; hold</p>
+                  <p
+                    className={`mt-1 font-mono text-xl ${
+                      result.summary.excess_return >= 0 ? "text-green-500" : "text-red-500"
+                    }`}
+                  >
+                    {result.summary.excess_return >= 0 ? "+" : ""}
+                    {result.summary.excess_return.toFixed(2)} pts
+                  </p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-4">
+                  <p className="text-xs text-muted-foreground">Trading costs</p>
+                  <p className="mt-1 font-mono text-xl">
+                    {fmtCurrency(result.summary.total_costs)}
                   </p>
                 </CardContent>
               </Card>

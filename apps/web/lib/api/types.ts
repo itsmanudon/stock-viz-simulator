@@ -111,6 +111,9 @@ export type BacktestRequest = {
   to: string;
   initial_cash: string;
   strategy: BacktestStrategy;
+  /** Charged on both legs of every round trip. Zero models a frictionless run. */
+  commission_bps?: number;
+  slippage_bps?: number;
 };
 
 export type BacktestTrade = {
@@ -130,6 +133,12 @@ export type BacktestSummary = {
   sharpe: number;
   max_drawdown: number;
   final_nav: string;
+  /** Buy-and-hold over the same window — what the strategy had to beat. */
+  benchmark_return: number;
+  benchmark_final_nav: string;
+  /** Strategy return minus benchmark return, in percentage points. */
+  excess_return: number;
+  total_costs: string;
 };
 
 export type BacktestResult = {

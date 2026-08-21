@@ -521,13 +521,21 @@ StrategySpec = Annotated[
 
 
 class BacktestIn(BaseModel):
-    """Request body for POST /v1/backtest."""
+    """Request body for POST /v1/backtest.
+
+    ``commission_bps`` and ``slippage_bps`` are charged on both legs of every
+    round trip. They default to zero (a frictionless run); set them to model
+    realistic costs, which is usually what separates a strategy that looks
+    profitable from one that is.
+    """
 
     ticker: str
     from_: date = Field(alias="from")
     to: date
     initial_cash: Decimal = Field(gt=0)
     strategy: StrategySpec
+    commission_bps: float = Field(default=0.0, ge=0, le=1000)
+    slippage_bps: float = Field(default=0.0, ge=0, le=1000)
 
     model_config = ConfigDict(populate_by_name=True)
 
@@ -545,10 +553,20 @@ class EquityPointOut(BaseModel):
 
 
 class BacktestSummaryOut(BaseModel):
+    """Strategy result, alongside buy-and-hold over the same window.
+
+    ``excess_return`` is the strategy's return minus the benchmark's, in
+    percentage points — the number that answers "was this worth doing?".
+    """
+
     total_return: float
     sharpe: float
     max_drawdown: float
     final_nav: Decimal
+    benchmark_return: float = 0.0
+    benchmark_final_nav: Decimal = Decimal(0)
+    excess_return: float = 0.0
+    total_costs: Decimal = Decimal(0)
 
 
 class BacktestOut(BaseModel):

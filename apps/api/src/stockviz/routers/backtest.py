@@ -80,6 +80,8 @@ def post_backtest(request: Request, body: BacktestIn, session: SessionDep) -> Ba
             initial_cash=body.initial_cash,
             strategy_type=strategy_type,
             params=params,
+            commission_bps=body.commission_bps,
+            slippage_bps=body.slippage_bps,
         )
     except BacktestError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -96,5 +98,9 @@ def post_backtest(request: Request, body: BacktestIn, session: SessionDep) -> Ba
             sharpe=result.summary.sharpe,
             max_drawdown=result.summary.max_drawdown,
             final_nav=result.summary.final_nav,
+            benchmark_return=result.summary.benchmark_return,
+            benchmark_final_nav=result.summary.benchmark_final_nav,
+            excess_return=result.summary.excess_return,
+            total_costs=result.summary.total_costs,
         ),
     )
