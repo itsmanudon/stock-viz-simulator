@@ -98,7 +98,7 @@ def value_option(
     session: Session, position: OptionsPosition, *, asof: date_type | None = None
 ) -> OptionPrice:
     """Current Black-Scholes valuation (per share) for an open position."""
-    asof = asof or date_type.today()
+    asof = asof or utcnow().date()
     spot = _spot(session, position.ticker)
     if spot is None:
         raise NoOptionMarketData(f"No market data for {position.ticker!r}")
@@ -140,7 +140,7 @@ def open_option(
     if session.get(Symbol, ticker) is None:
         raise OptionSymbolNotFound(f"Symbol {ticker!r} not found")
 
-    today = date_type.today()
+    today = utcnow().date()
     if expiry <= today:
         raise InvalidExpiry("expiry must be a future date")
 

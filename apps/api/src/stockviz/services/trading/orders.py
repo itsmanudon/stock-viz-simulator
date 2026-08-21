@@ -3,46 +3,37 @@
 Limit, stop-loss, and take-profit orders are stored in ``pending_orders`` and
 checked against each EOD close by ``settle_pending_orders``. Orders that
 trigger at a close are filled at that price; orders that can't fill (e.g.
-insufficient cash) are cancelled rather than left in an inconsistent state.
+insufficient cash) are cancelled with a ``cancel_reason`` rather than left in
+an inconsistent state.
+
+The fill itself goes through ``execute.apply_fill``, the same code path market
+orders use — so pending orders honour FX conversion, weighted-average cost,
+and realized-P&L capture identically.
 """
 
 from __future__ import annotations
 
 import logging
+from datetime import date as date_type
 from decimal import Decimal
 
 from sqlmodel import Session, select
 
 from stockviz._time import utcnow
-from stockviz.models import Portfolio, Position, PriceBar, Symbol, Trade, TradeSide
-from stockviz.models.order import OrderStatus, OrderType, PendingOrder
+from stockviz.models import PendingOrder, Portfolio, Symbol, TradeSide
+from stockviz.models.order import OrderStatus, OrderType
 from stockviz.services.trading.execute import (
-    InsufficientCash,
-    InsufficientPosition,
+    NoFxRateError,
+    NoMarketDataError,
+    PricedSymbol,
     SymbolNotFound,
     TradeExecutionError,
+    apply_fill,
     ensure_default_portfolio,
+    resolve_priced_symbol,
 )
 
 logger = logging.getLogger(__name__)
-
-
-def _latest_close(session: Session, ticker: str) -> Decimal | None:
-    bar = session.exec(
-        select(PriceBar)
-        .where(PriceBar.ticker == ticker, PriceBar.interval == "1d")
-        .order_by(PriceBar.ts.desc())  # type: ignore[attr-defined]
-        .limit(1)
-    ).first()
-    return bar.close if bar else None
-
-
-def _get_or_create_position(session: Session, *, portfolio_id: int, ticker: str) -> Position | None:
-    return session.exec(
-        select(Position)
-        .where(Position.portfolio_id == portfolio_id, Position.ticker == ticker)
-        .limit(1)
-    ).first()
 
 
 class OrderError(TradeExecutionError):
@@ -104,69 +95,21 @@ def _should_fill(order: PendingOrder, close: Decimal) -> bool:
     return False
 
 
-def _fill_order(session: Session, order: PendingOrder, close: Decimal) -> None:
-    """Execute the trade for a triggered order; cancel on any validation error."""
-    portfolio = session.get(Portfolio, order.portfolio_id)
-    if portfolio is None:
-        order.status = OrderStatus.CANCELLED
-        session.add(order)
-        return
-
-    cost = (close * order.quantity).quantize(Decimal("0.000001"))
-    position = _get_or_create_position(
-        session, portfolio_id=order.portfolio_id, ticker=order.ticker
-    )
-
-    try:
-        if order.side == TradeSide.BUY:
-            if portfolio.cash_balance < cost:
-                raise InsufficientCash(f"Insufficient cash to fill order #{order.id}")
-            portfolio.cash_balance = (portfolio.cash_balance - cost).quantize(Decimal("0.000001"))
-            if position is None:
-                position = Position(
-                    portfolio_id=order.portfolio_id,
-                    ticker=order.ticker,
-                    quantity=order.quantity,
-                    avg_cost=close,
-                )
-                session.add(position)
-            else:
-                total_cost = position.avg_cost * position.quantity + cost
-                new_qty = position.quantity + order.quantity
-                position.quantity = new_qty
-                position.avg_cost = (total_cost / new_qty).quantize(Decimal("0.000001"))
-        else:
-            if position is None or position.quantity < order.quantity:
-                held = position.quantity if position else Decimal(0)
-                raise InsufficientPosition(
-                    f"Held {held} {order.ticker}, cannot sell {order.quantity}"
-                )
-            portfolio.cash_balance = (portfolio.cash_balance + cost).quantize(Decimal("0.000001"))
-            position.quantity -= order.quantity
-            if position.quantity == 0:
-                session.delete(position)
-
-        trade = Trade(
-            portfolio_id=order.portfolio_id,
-            ticker=order.ticker,
-            side=order.side,
-            quantity=order.quantity,
-            price=close,
-        )
-        session.add(trade)
-        session.add(portfolio)
-        order.status = OrderStatus.FILLED
-        order.filled_at = utcnow()
-        order.fill_price = close
-        session.add(order)
-    except TradeExecutionError as exc:
-        logger.warning("order %s cancelled: %s", order.id, exc)
-        order.status = OrderStatus.CANCELLED
-        session.add(order)
+def _cancel(session: Session, order: PendingOrder, reason: str) -> None:
+    order.status = OrderStatus.CANCELLED
+    order.cancel_reason = reason[:200]
+    session.add(order)
+    logger.warning("order %s cancelled: %s", order.id, reason)
 
 
-def settle_pending_orders(session: Session) -> int:
+def settle_pending_orders(session: Session, *, session_date: date_type | None = None) -> int:
     """Check all pending orders against the latest close; fill or cancel as triggered.
+
+    ``session_date`` guards against filling at a stale price: an order is only
+    considered when the symbol's latest ``1d`` bar is dated on or after it.
+    The scheduler passes today's date, so a failed or slow price refresh
+    leaves orders **pending** for the next run rather than filling them
+    against yesterday's close. Pass ``None`` to skip the freshness check.
 
     Returns the number of orders filled.
     """
@@ -175,12 +118,58 @@ def settle_pending_orders(session: Session) -> int:
     )
     filled = 0
     for order in pending:
-        close = _latest_close(session, order.ticker)
-        if close is None:
+        try:
+            priced = resolve_priced_symbol(session, order.ticker)
+        except NoMarketDataError:
             continue
-        if _should_fill(order, close):
-            _fill_order(session, order, close)
-            if order.status == OrderStatus.FILLED:
-                filled += 1
+        except (SymbolNotFound, NoFxRateError) as exc:
+            _cancel(session, order, str(exc))
+            continue
+
+        if session_date is not None and priced.bar.ts.date() < session_date:
+            logger.info(
+                "order %s: latest %s bar is %s, older than session %s — leaving pending",
+                order.id,
+                order.ticker,
+                priced.bar.ts.date(),
+                session_date,
+            )
+            continue
+
+        if not _should_fill(order, priced.price):
+            continue
+
+        if _fill(session, order, priced):
+            filled += 1
+
     session.commit()
     return filled
+
+
+def _fill(session: Session, order: PendingOrder, priced: PricedSymbol) -> bool:
+    """Fill one triggered order. Returns True when it actually filled."""
+    portfolio = session.get(Portfolio, order.portfolio_id)
+    if portfolio is None:
+        _cancel(session, order, "Portfolio no longer exists")
+        return False
+
+    try:
+        apply_fill(
+            session,
+            portfolio=portfolio,
+            ticker=order.ticker,
+            side=order.side,
+            quantity=order.quantity,
+            price=priced.price,
+            currency=priced.currency,
+            fx_rate=priced.fx_rate,
+        )
+    except TradeExecutionError as exc:
+        _cancel(session, order, str(exc))
+        return False
+
+    order.status = OrderStatus.FILLED
+    order.filled_at = utcnow()
+    order.fill_price = priced.price
+    session.add(order)
+    return True

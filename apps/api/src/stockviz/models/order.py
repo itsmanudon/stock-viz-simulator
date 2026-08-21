@@ -45,6 +45,9 @@ class PendingOrder(SQLModel, table=True):
     status: OrderStatus = Field(default=OrderStatus.PENDING, max_length=16, index=True)
     created_at: datetime = Field(default_factory=utcnow, nullable=False)
     filled_at: datetime | None = Field(default=None, nullable=True)
+    # Why a triggered order could not be filled (insufficient cash/shares, no
+    # FX rate). Surfaced on the orders page so a cancellation isn't silent.
+    cancel_reason: str | None = Field(default=None, max_length=200, nullable=True)
     fill_price: Decimal | None = Field(
         default=None, sa_column=Column(Numeric(18, 6), nullable=True)
     )

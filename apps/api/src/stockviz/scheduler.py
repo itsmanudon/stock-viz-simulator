@@ -10,13 +10,16 @@ the scheduler can start in CI / local dev without surprise network calls.
 
 from __future__ import annotations
 
+import functools
+import hashlib
 import json
 import logging
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
+from sqlalchemy import text
 from sqlmodel import Session, select
 
 from stockviz._time import utcnow
@@ -60,6 +63,53 @@ def _session_scope() -> Iterator[Session]:
         yield session
 
 
+def _advisory_key(job_id: str) -> int:
+    """Stable signed 64-bit key for ``pg_try_advisory_lock`` from a job id."""
+    digest = hashlib.sha256(job_id.encode("utf-8")).digest()[:8]
+    return int.from_bytes(digest, "big", signed=True)
+
+
+def single_instance(job_id: str) -> Callable[[Callable[[], None]], Callable[[], None]]:
+    """Run the wrapped job only if this process wins a Postgres advisory lock.
+
+    APScheduler runs in-process, so every API instance starts its own copy of
+    the schedule. Without a lock a scale-out to two instances double-fires
+    every job — which for order settlement and option expiry means filling the
+    same order twice. The lock is session-scoped and released in ``finally``.
+
+    Non-Postgres backends (SQLite in tests) don't have advisory locks, so the
+    guard degrades to "always run".
+    """
+
+    def decorate(fn: Callable[[], None]) -> Callable[[], None]:
+        @functools.wraps(fn)
+        def wrapper() -> None:
+            if engine.dialect.name != "postgresql":
+                fn()
+                return
+
+            key = _advisory_key(job_id)
+            with Session(engine) as lock_session:
+                acquired = bool(
+                    lock_session.exec(
+                        text("SELECT pg_try_advisory_lock(:key)").bindparams(key=key)  # type: ignore[arg-type]
+                    ).one()[0]
+                )
+                if not acquired:
+                    logger.info("%s: another instance holds the lock, skipping", job_id)
+                    return
+                try:
+                    fn()
+                finally:
+                    lock_session.exec(
+                        text("SELECT pg_advisory_unlock(:key)").bindparams(key=key)  # type: ignore[arg-type]
+                    )
+
+        return wrapper
+
+    return decorate
+
+
 def _company_name_map() -> dict[str, str]:
     """Ticker -> company name, used as the newsdata.io query string.
 
@@ -73,6 +123,7 @@ def _company_name_map() -> dict[str, str]:
         return {}
 
 
+@single_instance("daily_price_refresh")
 def daily_price_refresh() -> None:
     """Pull EOD bars for every active symbol. Runs once a day after US close."""
     settings = get_settings()
@@ -93,6 +144,7 @@ def daily_price_refresh() -> None:
             logger.exception("daily_price_refresh: failed for %s", ticker)
 
 
+@single_instance("hourly_top_movers")
 def hourly_top_movers() -> None:
     """Refresh the top-10 tickers more aggressively during market hours.
 
@@ -115,6 +167,7 @@ def hourly_top_movers() -> None:
         logger.exception("hourly_top_movers: alert evaluation failed")
 
 
+@single_instance("news_refresh")
 def news_refresh() -> None:
     """Refresh news for every active symbol. Skipped if no newsdata key."""
     settings = get_settings()
@@ -139,6 +192,7 @@ def news_refresh() -> None:
             logger.exception("news_refresh: failed for %s", ticker)
 
 
+@single_instance("fx_refresh")
 def fx_refresh() -> None:
     """Pull today's FX rates for every non-USD currency in use.
 
@@ -165,6 +219,7 @@ def fx_refresh() -> None:
             logger.exception("fx_refresh: failed for %s", ccy)
 
 
+@single_instance("recommendations_refresh")
 def recommendations_refresh() -> None:
     """Recompute the recommendation score for every active ticker."""
     with _session_scope() as session:
@@ -172,6 +227,7 @@ def recommendations_refresh() -> None:
     logger.info("recommendations_refresh: scored %d tickers", len(results))
 
 
+@single_instance("portfolio_snapshots_refresh")
 def portfolio_snapshots_refresh() -> None:
     """Upsert today's NAV snapshot for every user who owns a portfolio."""
     today = utcnow().date()
@@ -180,13 +236,21 @@ def portfolio_snapshots_refresh() -> None:
     logger.info("portfolio_snapshots_refresh: wrote %d snapshots for %s", written, today)
 
 
+@single_instance("pending_orders_settlement")
 def pending_orders_settlement() -> None:
-    """Settle any pending orders triggered by today's EOD close."""
+    """Settle any pending orders triggered by today's EOD close.
+
+    ``session_date`` is today, so an order is only filled when the symbol's
+    latest bar is actually today's. If the 16:30 price refresh failed or ran
+    long, orders stay pending rather than filling against yesterday's close.
+    """
+    today = utcnow().date()
     with _session_scope() as session:
-        filled = settle_pending_orders(session)
+        filled = settle_pending_orders(session, session_date=today)
     logger.info("pending_orders_settlement: filled %d order(s)", filled)
 
 
+@single_instance("dividend_credit_refresh")
 def dividend_credit_refresh() -> None:
     """Credit any dividends whose ex_date is today to eligible portfolios."""
     today = utcnow().date()
@@ -195,6 +259,7 @@ def dividend_credit_refresh() -> None:
     logger.info("dividend_credit_refresh: credited %d portfolio(s) for %s", credited, today)
 
 
+@single_instance("options_expiry_refresh")
 def options_expiry_refresh() -> None:
     """Settle every open option whose expiry has arrived (ITM exercise / OTM expiry)."""
     today = utcnow().date()

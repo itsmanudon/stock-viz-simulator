@@ -3,6 +3,11 @@
 A market order fills at the most recent ``1d`` close in ``price_bars``. We
 validate cash on buys and position size on sells, update the ``positions``
 row, and write the ``trades`` row in a single transaction.
+
+The cash/position mutation lives in :func:`apply_fill`, which is shared with
+the pending-order settlement job in ``services/trading/orders.py``. Both paths
+must debit the *USD* cash bucket at the symbol's FX rate — keeping that in one
+place is what stops the two from drifting apart.
 """
 
 from __future__ import annotations
@@ -20,6 +25,9 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_STARTING_CASH = Decimal("100000.00")
 """Matches the v1 simulator: every new portfolio starts with $100k."""
+
+MICROS = Decimal("0.000001")
+"""Quantization step for stored monetary values (matches Numeric(_, 6))."""
 
 
 class TradeExecutionError(Exception):
@@ -46,13 +54,18 @@ class InsufficientPosition(TradeExecutionError):
     pass
 
 
-def _latest_close(session: Session, ticker: str) -> Decimal | None:
-    bar = session.exec(
+def latest_bar(session: Session, ticker: str) -> PriceBar | None:
+    """Most recent ``1d`` bar for ``ticker``, or None when there is no history."""
+    return session.exec(
         select(PriceBar)
         .where(PriceBar.ticker == ticker, PriceBar.interval == "1d")
         .order_by(PriceBar.ts.desc())  # type: ignore[attr-defined]
         .limit(1)
     ).first()
+
+
+def _latest_close(session: Session, ticker: str) -> Decimal | None:
+    bar = latest_bar(session, ticker)
     return bar.close if bar else None
 
 
@@ -62,6 +75,11 @@ def ensure_default_portfolio(session: Session, user_id: int) -> Portfolio:
     The web app calls this on the first /v1/portfolio request so users see a
     funded starting balance instead of an empty page. Idempotent — re-running
     returns the existing portfolio.
+
+    A brand-new portfolio also gets a same-day NAV snapshot seeded at the
+    starting cash, so return-since-inception is measured from the moment the
+    account was funded rather than from whenever the nightly snapshot job
+    first happened to run.
     """
 
     existing = session.exec(
@@ -74,10 +92,33 @@ def ensure_default_portfolio(session: Session, user_id: int) -> Portfolio:
     session.add(portfolio)
     session.commit()
     session.refresh(portfolio)
+    _seed_opening_snapshot(session, user_id=user_id, nav=DEFAULT_STARTING_CASH)
     return portfolio
 
 
-def _get_or_create_position(session: Session, *, portfolio_id: int, ticker: str) -> Position | None:
+def _seed_opening_snapshot(session: Session, *, user_id: int, nav: Decimal) -> None:
+    """Write the day-zero NAV snapshot for a freshly created portfolio.
+
+    Imported lazily: ``services.trading.snapshots`` imports ``portfolio``,
+    which imports this module, so a module-level import would cycle.
+    """
+    from stockviz._time import utcnow
+    from stockviz.models import PortfolioSnapshot
+
+    today = utcnow().date()
+    existing = session.exec(
+        select(PortfolioSnapshot).where(
+            PortfolioSnapshot.user_id == user_id,
+            PortfolioSnapshot.date == today,
+        )
+    ).first()
+    if existing is not None:
+        return
+    session.add(PortfolioSnapshot(user_id=user_id, date=today, nav=nav))
+    session.commit()
+
+
+def get_position(session: Session, *, portfolio_id: int, ticker: str) -> Position | None:
     """Return the existing Position row for (portfolio, ticker), or None."""
 
     return session.exec(
@@ -88,8 +129,45 @@ def _get_or_create_position(session: Session, *, portfolio_id: int, ticker: str)
 
 
 @dataclass(frozen=True, slots=True)
+class PricedSymbol:
+    """A symbol resolved to a fillable price plus the FX rate for its currency."""
+
+    symbol: Symbol
+    price: Decimal
+    currency: str
+    fx_rate: Decimal
+    bar: PriceBar
+
+
+def resolve_priced_symbol(session: Session, ticker: str) -> PricedSymbol:
+    """Look up the symbol, its latest close, and the FX rate to convert to USD.
+
+    Raises the matching ``TradeExecutionError`` subclass when any leg is
+    missing, so callers get one consistent failure vocabulary.
+    """
+
+    symbol = session.get(Symbol, ticker)
+    if symbol is None:
+        raise SymbolNotFound(f"Symbol {ticker!r} not found")
+
+    bar = latest_bar(session, ticker)
+    if bar is None:
+        raise NoMarketDataError(f"No market data for {ticker!r}; cannot fill order")
+
+    currency = symbol.currency or "USD"
+    try:
+        fx_rate = latest_rate(session, currency)
+    except LookupError as exc:
+        raise NoFxRateError(
+            f"No FX rate for {currency!r}; cannot price {ticker!r} trade in USD"
+        ) from exc
+
+    return PricedSymbol(symbol=symbol, price=bar.close, currency=currency, fx_rate=fx_rate, bar=bar)
+
+
+@dataclass(frozen=True, slots=True)
 class TradeExecution:
-    """Result of execute_trade: the persisted Trade row plus FX metadata.
+    """Result of a fill: the persisted Trade row plus FX metadata.
 
     The Trade row stores price + quantity in the symbol's native currency
     (e.g. EUR for SAP.DE). ``usd_cost`` is what was actually debited from /
@@ -102,6 +180,98 @@ class TradeExecution:
     fx_rate: Decimal
     native_cost: Decimal
     usd_cost: Decimal
+    realized_pnl: Decimal | None
+
+
+def apply_fill(
+    session: Session,
+    *,
+    portfolio: Portfolio,
+    ticker: str,
+    side: TradeSide,
+    quantity: Decimal,
+    price: Decimal,
+    currency: str,
+    fx_rate: Decimal,
+) -> TradeExecution:
+    """Mutate cash + position and stage the Trade row for ``portfolio``.
+
+    Shared by market orders (:func:`execute_trade`) and by the EOD
+    pending-order settlement job. Adds rows to the session but does **not**
+    commit — the caller owns the transaction boundary, which lets the
+    settlement job batch many fills together.
+
+    ``price`` is in the symbol's native currency; ``fx_rate`` is USD per one
+    unit of that currency. Cash is always USD.
+
+    Raises ``InsufficientCash`` / ``InsufficientPosition`` without having
+    mutated anything, so a caller that catches the error can carry on with the
+    same session.
+    """
+
+    assert portfolio.id is not None
+
+    native_cost = (price * quantity).quantize(MICROS)
+    usd_cost = (native_cost * fx_rate).quantize(MICROS)
+    position = get_position(session, portfolio_id=portfolio.id, ticker=ticker)
+    realized_pnl: Decimal | None = None
+
+    if side == TradeSide.BUY:
+        if portfolio.cash_balance < usd_cost:
+            raise InsufficientCash(
+                f"Cash balance ${portfolio.cash_balance:.2f} < trade cost ${usd_cost:.2f}"
+            )
+        portfolio.cash_balance = (portfolio.cash_balance - usd_cost).quantize(MICROS)
+
+        if position is None:
+            position = Position(
+                portfolio_id=portfolio.id,
+                ticker=ticker,
+                quantity=quantity,
+                avg_cost=price,
+            )
+            session.add(position)
+        else:
+            # Weighted-average cost recompute, in native currency (the
+            # symbol's currency doesn't change between trades).
+            total_cost = position.avg_cost * position.quantity + native_cost
+            new_qty = position.quantity + quantity
+            position.quantity = new_qty
+            position.avg_cost = (total_cost / new_qty).quantize(MICROS)
+
+    else:  # SELL
+        if position is None or position.quantity < quantity:
+            held = position.quantity if position else Decimal(0)
+            raise InsufficientPosition(f"Held {held} {ticker}, cannot sell {quantity}")
+        portfolio.cash_balance = (portfolio.cash_balance + usd_cost).quantize(MICROS)
+        # Realized P&L against the weighted-average cost basis, in USD.
+        realized_pnl = ((price - position.avg_cost) * quantity * fx_rate).quantize(MICROS)
+        position.quantity = position.quantity - quantity
+        # Don't recompute avg_cost on sells — keeps cost basis honest for
+        # remaining shares. If the position is fully sold, delete the row so
+        # the portfolio view stays clean.
+        if position.quantity == 0:
+            session.delete(position)
+
+    trade = Trade(
+        portfolio_id=portfolio.id,
+        ticker=ticker,
+        side=side,
+        quantity=quantity,
+        price=price,
+        fx_rate=fx_rate,
+        realized_pnl=realized_pnl,
+    )
+    session.add(trade)
+    session.add(portfolio)
+    return TradeExecution(
+        trade=trade,
+        currency=currency,
+        fx_rate=fx_rate,
+        native_cost=native_cost,
+        usd_cost=usd_cost,
+        realized_pnl=realized_pnl,
+    )
 
 
 def execute_trade(
@@ -123,79 +293,19 @@ def execute_trade(
         raise TradeExecutionError("quantity must be positive")
 
     ticker = ticker.upper()
-    symbol = session.get(Symbol, ticker)
-    if symbol is None:
-        raise SymbolNotFound(f"Symbol {ticker!r} not found")
-
-    price = _latest_close(session, ticker)
-    if price is None:
-        raise NoMarketDataError(f"No market data for {ticker!r}; cannot fill order")
-
-    currency = symbol.currency or "USD"
-    try:
-        fx_rate = latest_rate(session, currency)
-    except LookupError as exc:
-        raise NoFxRateError(
-            f"No FX rate for {currency!r}; cannot price {ticker!r} trade in USD"
-        ) from exc
+    priced = resolve_priced_symbol(session, ticker)
 
     portfolio = ensure_default_portfolio(session, user_id)
-    assert portfolio.id is not None  # ensure_default_portfolio commits/refreshes
-
-    native_cost = (price * quantity).quantize(Decimal("0.000001"))
-    usd_cost = (native_cost * fx_rate).quantize(Decimal("0.000001"))
-    position = _get_or_create_position(session, portfolio_id=portfolio.id, ticker=ticker)
-
-    if side == TradeSide.BUY:
-        if portfolio.cash_balance < usd_cost:
-            raise InsufficientCash(
-                f"Cash balance ${portfolio.cash_balance:.2f} < trade cost ${usd_cost:.2f}"
-            )
-        portfolio.cash_balance = (portfolio.cash_balance - usd_cost).quantize(Decimal("0.000001"))
-
-        if position is None:
-            position = Position(
-                portfolio_id=portfolio.id,
-                ticker=ticker,
-                quantity=quantity,
-                avg_cost=price,
-            )
-            session.add(position)
-        else:
-            # Weighted-average cost recompute, in native currency (the
-            # symbol's currency doesn't change between trades).
-            total_cost = position.avg_cost * position.quantity + native_cost
-            new_qty = position.quantity + quantity
-            position.quantity = new_qty
-            position.avg_cost = (total_cost / new_qty).quantize(Decimal("0.000001"))
-
-    else:  # SELL
-        if position is None or position.quantity < quantity:
-            held = position.quantity if position else Decimal(0)
-            raise InsufficientPosition(f"Held {held} {ticker}, cannot sell {quantity}")
-        portfolio.cash_balance = (portfolio.cash_balance + usd_cost).quantize(Decimal("0.000001"))
-        position.quantity = position.quantity - quantity
-        # Don't recompute avg_cost on sells — keeps cost basis honest for
-        # remaining shares. If the position is fully sold, delete the row so
-        # the portfolio view stays clean.
-        if position.quantity == 0:
-            session.delete(position)
-
-    trade = Trade(
-        portfolio_id=portfolio.id,
+    result = apply_fill(
+        session,
+        portfolio=portfolio,
         ticker=ticker,
         side=side,
         quantity=quantity,
-        price=price,
+        price=priced.price,
+        currency=priced.currency,
+        fx_rate=priced.fx_rate,
     )
-    session.add(trade)
-    session.add(portfolio)
     session.commit()
-    session.refresh(trade)
-    return TradeExecution(
-        trade=trade,
-        currency=currency,
-        fx_rate=fx_rate,
-        native_cost=native_cost,
-        usd_cost=usd_cost,
-    )
+    session.refresh(result.trade)
+    return result

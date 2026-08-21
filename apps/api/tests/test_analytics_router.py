@@ -7,7 +7,7 @@ from decimal import Decimal
 
 from fastapi.testclient import TestClient
 from jose import jwt as jose_jwt
-from sqlmodel import Session
+from sqlmodel import Session, select
 
 from stockviz.models import PortfolioSnapshot, PriceBar, Symbol, TradeSide, User
 from stockviz.services.trading import (
@@ -78,9 +78,24 @@ def test_analytics_zeroed_for_new_account(session: Session, client: TestClient) 
     assert body["risk_free_rate"] == 0.05
 
 
+def _reset_snapshots(session: Session, user_id: int) -> None:
+    """Drop the opening snapshot seeded by ``ensure_default_portfolio``.
+
+    Portfolio creation writes a day-zero NAV row at the funded balance so the
+    equity curve starts from inception. Tests that assert on a hand-built NAV
+    series clear it first so they control the whole window.
+    """
+    for row in session.exec(
+        select(PortfolioSnapshot).where(PortfolioSnapshot.user_id == user_id)
+    ).all():
+        session.delete(row)
+    session.commit()
+
+
 def test_analytics_computes_return_from_snapshots(session: Session, client: TestClient) -> None:
     user_id = _make_user(session)
     ensure_default_portfolio(session, user_id)
+    _reset_snapshots(session, user_id)
     base_date = date(2025, 1, 1)
     # 100k -> 110k = +10% total return over the window.
     session.add_all(

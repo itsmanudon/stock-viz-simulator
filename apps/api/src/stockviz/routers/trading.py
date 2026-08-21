@@ -7,6 +7,7 @@ that should know the token; the browser never sees it.
 
 from __future__ import annotations
 
+from datetime import date as date_type
 from datetime import timedelta
 from decimal import Decimal
 from typing import Annotated
@@ -17,13 +18,14 @@ from sqlmodel import Session, select
 from stockviz._time import utcnow
 from stockviz.auth import UserIdDep
 from stockviz.db import get_session
-from stockviz.models import PortfolioSnapshot, Symbol, Trade, TradeSide, User
+from stockviz.models import PortfolioSnapshot, Position, Symbol, Trade, TradeSide, User
 from stockviz.models.dividend import Dividend, PortfolioDividend
 from stockviz.schemas import (
     DividendCreditOut,
     DividendSummaryOut,
     PortfolioAnalyticsOut,
     PortfolioHistoryPointOut,
+    PortfolioOptionOut,
     PortfolioOut,
     PositionOut,
     ProjectedDividendOut,
@@ -71,6 +73,7 @@ def get_portfolio(session: SessionDep, user_id: UserIdDep) -> PortfolioOut:
         display_currency=snap.display_currency,
         cash_balance=snap.cash_balance,
         market_value=snap.market_value,
+        options_market_value=snap.options_market_value,
         total_value=snap.total_value,
         total_cost_basis=snap.total_cost_basis,
         unrealized_pl=snap.unrealized_pl,
@@ -88,6 +91,22 @@ def get_portfolio(session: SessionDep, user_id: UserIdDep) -> PortfolioOut:
                 unrealized_pl=p.unrealized_pl,
             )
             for p in snap.positions
+        ],
+        option_positions=[
+            PortfolioOptionOut(
+                option_id=o.option_id,
+                ticker=o.ticker,
+                option_type=o.option_type,  # type: ignore[arg-type]
+                strike=o.strike,
+                expiry=o.expiry,
+                quantity=o.quantity,
+                currency=o.currency,
+                premium_paid=o.premium_paid,
+                market_value_native=o.market_value_native,
+                market_value=o.market_value,
+                unrealized_pl=o.unrealized_pl,
+            )
+            for o in snap.option_positions
         ],
     )
 
@@ -128,6 +147,7 @@ def post_trade(body: TradeIn, session: SessionDep, user_id: UserIdDep) -> TradeO
         fx_rate=result.fx_rate,
         total_native=result.native_cost,
         total_usd=result.usd_cost,
+        realized_pnl=result.realized_pnl,
     )
 
 
@@ -161,10 +181,18 @@ def get_portfolio_analytics(
     navs = [s.nav for s in snapshots]
     history_days = (snapshots[-1].date - snapshots[0].date).days or 1 if len(snapshots) >= 2 else 0
 
-    sectors_by_ticker: dict[str, str | None] = {}
-    for p in valuation.positions:
-        sym = session.get(Symbol, p.ticker)
-        sectors_by_ticker[p.ticker] = sym.sector if sym else None
+    position_tickers = [p.ticker for p in valuation.positions]
+    sectors_by_ticker: dict[str, str | None] = (
+        dict(
+            session.exec(
+                select(Symbol.ticker, Symbol.sector).where(
+                    Symbol.ticker.in_(position_tickers)  # type: ignore[attr-defined]
+                )
+            ).all()  # type: ignore[arg-type]
+        )
+        if position_tickers
+        else {}
+    )
 
     allocation = compute_sector_allocation(valuation.positions, sectors_by_ticker=sectors_by_ticker)
     gainers, losers = compute_top_movers(valuation.positions, sectors_by_ticker=sectors_by_ticker)
@@ -234,11 +262,10 @@ def list_trades(
 ) -> list[TradeOut]:
     """Return executed trades, newest first.
 
-    For each row we re-derive the native total from price * quantity; the
-    USD total uses the symbol's *current* FX rate, not the rate at fill
-    time (we don't persist fill-time FX on trade rows). That's good enough
-    for a history list — the trade-confirmation toast on POST is what shows
-    fill-time numbers.
+    ``fx_rate`` is the rate captured at fill time, so ``total_usd`` is what the
+    trade actually cost rather than a re-conversion at today's rate. Rows
+    written before that column existed fall back to the symbol's current rate,
+    which is the old (approximate) behaviour.
     """
     portfolio = ensure_default_portfolio(session, user_id)
     rows = list(
@@ -249,18 +276,30 @@ def list_trades(
             .limit(limit)
         )
     )
+    if not rows:
+        return []
+
+    # One query for every symbol in the page instead of one per trade row.
+    tickers = {t.ticker for t in rows}
+    currency_by_ticker: dict[str, str] = {
+        ticker: (currency or "USD")
+        for ticker, currency in session.exec(
+            select(Symbol.ticker, Symbol.currency).where(Symbol.ticker.in_(tickers))  # type: ignore[attr-defined]
+        ).all()
+    }
 
     out: list[TradeOut] = []
     fx_cache: dict[str, Decimal] = {}
     for trade in rows:
-        sym = session.get(Symbol, trade.ticker)
-        ccy = (sym.currency if sym else None) or "USD"
-        if ccy not in fx_cache:
-            try:
-                fx_cache[ccy] = fx_latest_rate(session, ccy)
-            except LookupError:
-                fx_cache[ccy] = Decimal(1)
-        rate = fx_cache[ccy]
+        ccy = currency_by_ticker.get(trade.ticker, "USD")
+        rate = trade.fx_rate
+        if rate is None:
+            if ccy not in fx_cache:
+                try:
+                    fx_cache[ccy] = fx_latest_rate(session, ccy)
+                except LookupError:
+                    fx_cache[ccy] = Decimal(1)
+            rate = fx_cache[ccy]
         native = trade.price * trade.quantity
         out.append(
             TradeOut(
@@ -274,6 +313,7 @@ def list_trades(
                 fx_rate=rate,
                 total_native=native,
                 total_usd=native * rate,
+                realized_pnl=trade.realized_pnl,
             )
         )
     return out
@@ -282,8 +322,6 @@ def list_trades(
 @router.get("/portfolio/dividends", response_model=DividendSummaryOut)
 def get_portfolio_dividends(session: SessionDep, user_id: UserIdDep) -> DividendSummaryOut:
     """Return dividend income history and projected next payouts for the user's portfolio."""
-    from datetime import date as date_type
-
     portfolio = ensure_default_portfolio(session, user_id)
 
     # Credit history, newest first.
@@ -296,18 +334,16 @@ def get_portfolio_dividends(session: SessionDep, user_id: UserIdDep) -> Dividend
     )
 
     # YTD income (Jan 1 of current year).
-    today = date_type.today()
+    today = utcnow().date()
     ytd_cutoff = date_type(today.year, 1, 1)
     ytd_income = sum(
         (c.amount_credited for c in credits if c.ex_date >= ytd_cutoff),
-        start=__import__("decimal").Decimal(0),
+        start=Decimal(0),
     )
 
     # Projected payouts: for each current position find the most recent
     # dividend in the master calendar and estimate the next payment date
     # by adding the observed payment frequency.
-    from stockviz.models import Position
-
     positions = list(
         session.exec(
             select(Position).where(
@@ -338,8 +374,6 @@ def get_portfolio_dividends(session: SessionDep, user_id: UserIdDep) -> Dividend
         if len(recent_divs) >= 2:
             gap = (recent_divs[0].ex_date - recent_divs[1].ex_date).days
             if gap > 0:
-                from datetime import timedelta
-
                 projected_ex_date = last_div.ex_date + timedelta(days=gap)
 
         projected.append(

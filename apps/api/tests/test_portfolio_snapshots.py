@@ -55,6 +55,20 @@ def _make_user(session: Session, email: str = "trader@stockviz.dev") -> int:
     return user.id
 
 
+def _reset_snapshots(session: Session, user_id: int) -> None:
+    """Drop the opening snapshot seeded by ``ensure_default_portfolio``.
+
+    Portfolio creation writes a day-zero NAV row so the equity curve starts at
+    the funded balance. Tests that assert on a hand-built NAV series clear it
+    first so they control the whole window.
+    """
+    for row in session.exec(
+        select(PortfolioSnapshot).where(PortfolioSnapshot.user_id == user_id)
+    ).all():
+        session.delete(row)
+    session.commit()
+
+
 def test_upsert_user_snapshot_writes_cash_only_nav(session: Session) -> None:
     user_id = _make_user(session)
     ensure_default_portfolio(session, user_id)
@@ -69,6 +83,7 @@ def test_upsert_user_snapshot_is_idempotent(session: Session) -> None:
     _seed_aapl(session)
     user_id = _make_user(session)
     execute_trade(session, user_id=user_id, ticker="AAPL", side=TradeSide.BUY, quantity=Decimal(2))
+    _reset_snapshots(session, user_id)
     today = date(2025, 4, 10)
     upsert_user_snapshot(session, user_id=user_id, snapshot_date=today)
     upsert_user_snapshot(session, user_id=user_id, snapshot_date=today)
@@ -105,6 +120,7 @@ def test_history_returns_empty_with_no_snapshots(session: Session, client: TestC
 def test_history_returns_ascending_window(session: Session, client: TestClient) -> None:
     user_id = _make_user(session)
     ensure_default_portfolio(session, user_id)
+    _reset_snapshots(session, user_id)
 
     today = date.today()
     for i in range(5):
@@ -124,6 +140,7 @@ def test_history_returns_ascending_window(session: Session, client: TestClient) 
 def test_history_filters_by_days_window(session: Session, client: TestClient) -> None:
     user_id = _make_user(session)
     ensure_default_portfolio(session, user_id)
+    _reset_snapshots(session, user_id)
     today = date.today()
     for offset in [0, 10, 60, 120]:
         d = today - timedelta(days=offset)

@@ -61,6 +61,17 @@ class Trade(SQLModel, table=True):
     price: Decimal = Field(sa_column=Column(Numeric(18, 6), nullable=False))
     ts: datetime = Field(default_factory=utcnow, nullable=False, index=True)
 
+    # USD per one unit of the symbol's native currency, captured at fill time.
+    # Persisting it means the trade log can show what the fill actually cost
+    # instead of re-converting historical trades at today's rate. 1 for USD
+    # symbols; NULL only on rows written before this column existed.
+    fx_rate: Decimal | None = Field(default=None, sa_column=Column(Numeric(18, 8), nullable=True))
+    # Realized P&L in USD against the position's weighted-average cost basis.
+    # Set on sells; NULL on buys (a buy realizes nothing).
+    realized_pnl: Decimal | None = Field(
+        default=None, sa_column=Column(Numeric(20, 6), nullable=True)
+    )
+
 
 class PortfolioSnapshot(SQLModel, table=True):
     """One row per user per day with the portfolio's net asset value.

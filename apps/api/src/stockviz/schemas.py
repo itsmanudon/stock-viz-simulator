@@ -155,22 +155,45 @@ class PositionOut(BaseModel):
     unrealized_pl: Decimal
 
 
+class PortfolioOptionOut(BaseModel):
+    """An open option contract marked to its current theoretical value."""
+
+    option_id: int
+    ticker: str
+    option_type: Literal["call", "put"]
+    strike: Decimal
+    expiry: date
+    quantity: int
+    currency: str = "USD"
+    premium_paid: Decimal
+    market_value_native: Decimal
+    market_value: Decimal
+    unrealized_pl: Decimal
+
+
 class PortfolioOut(BaseModel):
     """Snapshot of the user's default portfolio used by /portfolio.
 
     All top-level aggregates (cash_balance, market_value, totals) are in
     ``display_currency``. Per-position fields carry both native and converted
     amounts so the UI can show either.
+
+    ``market_value`` counts equities only; ``options_market_value`` is the
+    mark-to-model value of open contracts. ``total_value`` is the sum of both
+    plus cash — an options book that is not counted here would make NAV
+    understate the account by the premium at risk.
     """
 
     portfolio_id: int
     display_currency: str = "USD"
     cash_balance: Decimal
     market_value: Decimal
+    options_market_value: Decimal = Decimal(0)
     total_value: Decimal
     total_cost_basis: Decimal
     unrealized_pl: Decimal
     positions: list[PositionOut]
+    option_positions: list[PortfolioOptionOut] = []
 
 
 class TradeIn(BaseModel):
@@ -202,6 +225,9 @@ class TradeOut(BaseModel):
     fx_rate: Decimal = Decimal(1)
     total_native: Decimal = Decimal(0)
     total_usd: Decimal = Decimal(0)
+    # USD gain/loss against the position's weighted-average cost basis.
+    # Set on sells; None on buys and on rows written before this was tracked.
+    realized_pnl: Decimal | None = None
 
 
 class PortfolioHistoryPointOut(BaseModel):
@@ -309,6 +335,8 @@ class PendingOrderOut(BaseModel):
     created_at: datetime
     filled_at: datetime | None
     fill_price: Decimal | None
+    # Populated when a triggered order could not be filled.
+    cancel_reason: str | None = None
 
 
 # ---------------------------------------------------------------------------

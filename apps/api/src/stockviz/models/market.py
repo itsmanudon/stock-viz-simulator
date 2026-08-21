@@ -9,7 +9,7 @@ from datetime import date as date_type
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import BigInteger, Numeric
+from sqlalchemy import BigInteger, Index, Numeric
 from sqlmodel import Column, Field, SQLModel
 
 from stockviz._time import utcnow
@@ -44,6 +44,11 @@ class PriceBar(SQLModel, table=True):
     """
 
     __tablename__ = "price_bars"  # pyright: ignore[reportAssignmentType]
+    # The PK is (ticker, ts, interval), which does not serve the shape every
+    # read actually uses: WHERE ticker = ? AND interval = ? ORDER BY ts DESC.
+    # Postgres scans a btree in either direction, so a plain ascending index
+    # on this column order covers it.
+    __table_args__ = (Index("ix_price_bars_ticker_interval_ts", "ticker", "interval", "ts"),)
 
     ticker: str = Field(foreign_key="symbols.ticker", primary_key=True, max_length=16)
     ts: datetime = Field(primary_key=True, index=True)
