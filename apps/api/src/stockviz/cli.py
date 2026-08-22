@@ -28,7 +28,7 @@ from stockviz.services.ingest.metadata import backfill_symbol_metadata
 from stockviz.services.ingest.prices import ingest_ticker
 from stockviz.services.ingest.seed import seed_symbols
 from stockviz.services.metrics import refresh_symbol_metrics
-from stockviz.services.recommend import score_universe
+from stockviz.services.recommend import MAX_SCORE, score_universe
 from stockviz.services.sentiment.store import backfill_unscored, refresh_symbol_sentiment
 from stockviz.services.trading import credit_due_dividends, snapshot_user_navs
 from stockviz.settings import get_settings
@@ -94,7 +94,7 @@ def _cmd_recommend(_args: argparse.Namespace) -> int:
     print(f"scored {len(results)} tickers")
     for r in sorted(results, key=lambda x: x.score, reverse=True):
         flag = "BUY" if r.recommend else "    "
-        print(f"  {flag} {r.ticker:6s} score={r.score}/6")
+        print(f"  {flag} {r.ticker:6s} score={r.score}/{MAX_SCORE}")
     return 0
 
 

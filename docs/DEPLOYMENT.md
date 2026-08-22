@@ -32,15 +32,20 @@ Browser ──HTTPS──▶ Vercel (apps/web) ──HTTPS──▶ Render (apps
 
 ## Secrets you'll generate up front
 
-Generate these once and reuse the same values on both sides. **`AUTH_SECRET`
-(web) and `NEXTAUTH_JWT_SECRET` (api) must be byte-identical** — the web app
-signs JWTs with this, the API verifies them.
+Generate these once and reuse the same values on both sides.
+
+**The web → API auth bridge uses `INTERNAL_API_TOKEN`, not NextAuth's
+session secret.** The Next.js server mints a 60-second HS256 JWT signed with
+`INTERNAL_API_TOKEN`; FastAPI verifies that same secret. `AUTH_SECRET` is
+only for NextAuth session cookies on the web app. `NEXTAUTH_JWT_SECRET` is
+unused leftover on the API (still listed in the Blueprint so existing
+Render services keep the env var).
 
 ```bash
-# AUTH_SECRET / NEXTAUTH_JWT_SECRET (same value)
+# AUTH_SECRET (NextAuth sessions on Vercel only)
 openssl rand -base64 32
 
-# INTERNAL_API_TOKEN (shared bearer for server-to-server)
+# INTERNAL_API_TOKEN (must be identical on Vercel and Render)
 openssl rand -hex 32
 ```
 
@@ -75,10 +80,11 @@ Dashboard → **stockviz-api → Environment**. Set:
 | Variable                | Value                                                              |
 | ----------------------- | ------------------------------------------------------------------ |
 | `CORS_ORIGINS`          | `https://<your-vercel-domain>` (you'll know this after step 2)     |
-| `NEXTAUTH_JWT_SECRET`   | the `AUTH_SECRET` you generated above                              |
-| `INTERNAL_API_TOKEN`    | the bearer token you generated above                               |
+| `INTERNAL_API_TOKEN`    | the shared HS256 secret from “Secrets you'll generate” (must match Vercel) |
+| `NEXTAUTH_JWT_SECRET`   | unused by the current auth bridge; optional on a new deploy        |
 | `ALPHA_VANTAGE_KEY`     | your Alpha Vantage key (or leave blank to disable price ingest)    |
 | `NEWSDATA_KEY`          | your Newsdata.io key (or leave blank to disable news ingest)       |
+| `ANTHROPIC_API_KEY`     | optional; headline sentiment scoring (leave blank to skip)         |
 | `SENTRY_DSN`            | your Sentry DSN (or leave blank)                                   |
 
 `DATABASE_URL`, `ENVIRONMENT`, `DEBUG`, and `ENABLE_SCHEDULER` are pinned by
@@ -111,7 +117,8 @@ python -m stockviz.cli backfill   # CSV → DB historical bars (slow, one-time)
 python -m stockviz.cli metadata   # fills name / sector / industry per symbol
 ```
 
-After this, the nightly cron and in-process scheduler keep data fresh.
+After this, the in-process APScheduler (`ENABLE_SCHEDULER=true`) keeps data
+fresh. There is no separate Render cron job.
 
 ## 2. Deploy the web app to Vercel
 
@@ -181,14 +188,18 @@ Once Vercel gives you a domain:
 If `/portfolio` 500s or hangs, check `Render → stockviz-api → Logs`:
 - `INVALID_INTERNAL_TOKEN` ⇒ `INTERNAL_API_TOKEN` mismatch between Vercel and Render.
 - `Cross-Origin Request Blocked` ⇒ `CORS_ORIGINS` doesn't match the Vercel domain.
-- `JWT decode failed` ⇒ `AUTH_SECRET` ≠ `NEXTAUTH_JWT_SECRET`.
+- `Invalid or expired token` / 401 on `/v1` ⇒ `INTERNAL_API_TOKEN` mismatch
+  (this is the bridge JWT, not `AUTH_SECRET`).
 
 ## Ongoing operations
 
 ### Redeploys
 
-- Both Vercel and Render have `autoDeploy: true` from `main`. Push to `main`
-  → both rebuild automatically.
+- Dashboard auto-deploys for Vercel and Render are currently **off**, so a
+  push to `main` does not ship by itself. `infra/render.yaml` still has
+  `autoDeploy: true` (Blueprint default) — leave it, and turn deploys back
+  on in the dashboards when you want production to follow `main`. Do not
+  flip this from a feature PR unless you intend to start shipping.
 - Migrations apply on every Render deploy (the Dockerfile runs
   `alembic upgrade head` before starting uvicorn). Don't run migrations
   manually unless something failed.
@@ -196,12 +207,20 @@ If `/portfolio` 500s or hangs, check `Render → stockviz-api → Logs`:
 ### Daily refresh (in-process)
 
 With `ENABLE_SCHEDULER=true`, FastAPI runs APScheduler inside the same
-process. The jobs (defined in `apps/api/src/stockviz/scheduler.py`) are:
+process. The jobs (defined in `apps/api/src/stockviz/scheduler.py`,
+timezone `America/New_York`) are:
 
+- **09:30 ET weekdays** — `dividend_credit_refresh`.
+- **Hourly 10:00–16:00 ET weekdays** — `hourly_top_movers` (top-10 tickers)
+  and in-app price-alert evaluation.
 - **16:30 ET weekdays** — `daily_price_refresh` for every active symbol.
-- **Hourly 10:00–16:00 ET weekdays** — `hourly_top_movers`.
-- **Every 4h at :15** — `news_refresh` (skipped if `NEWSDATA_KEY` is empty).
+- **16:45 ET weekdays** — `fx_refresh` and `pending_orders_settlement`.
+- **16:50 ET weekdays** — `symbol_metrics_refresh`.
+- **16:55 ET weekdays** — `sentiment_aggregate_refresh`.
 - **17:00 ET weekdays** — `recommendations_refresh`.
+- **17:15 ET weekdays** — `portfolio_snapshots_refresh`.
+- **17:30 ET weekdays** — `options_expiry_refresh`.
+- **Every 4h at :15** — `news_refresh` (skipped if `NEWSDATA_KEY` is empty).
 
 If the API instance restarts (deploy, OOM, free-tier cold-spin), the
 scheduler restarts with it — no manual intervention needed.
@@ -272,6 +291,7 @@ docker run --rm -p 8000:8000 \
 ## Related docs
 
 - [`SETUP.md`](./SETUP.md) — local development.
-- [`../REWRITE_PLAN.md`](../REWRITE_PLAN.md) — phase-by-phase rewrite history.
+- [`RESUME_GAPS.md`](./RESUME_GAPS.md) — shipped vs claimed, unfinished work.
+- [`../REWRITE_PLAN.md`](../REWRITE_PLAN.md) — historical rewrite plan.
 - [`../apps/api/CLAUDE.md`](../apps/api/CLAUDE.md) — API internals.
 - [`../apps/web/CLAUDE.md`](../apps/web/CLAUDE.md) — web internals.

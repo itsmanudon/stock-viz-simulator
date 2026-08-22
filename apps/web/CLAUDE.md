@@ -33,6 +33,7 @@ lib/
   users.ts         user lookup/create for credentials auth
   utils.ts         cn() helper
 tests/e2e/         Playwright specs (auth, markets, trade)
+tests/unit/        Vitest (csv, markets table, redirect guard, rate-limit)
 types/next-auth.d.ts  augments Session.user with id
 sentry.*.config.ts    Sentry init per runtime; no-op without DSN
 instrumentation.ts    Next 15+ hook that loads the right sentry config

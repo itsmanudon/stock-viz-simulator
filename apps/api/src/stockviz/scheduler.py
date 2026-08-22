@@ -227,7 +227,8 @@ def sentiment_aggregate_refresh() -> None:
     """Roll per-article sentiment into the per-symbol trailing average.
 
     Feeds the screener's sentiment filter, the recommendation engine's
-    sentiment vote, and the ticker-page overlay.
+    sentiment vote, and ``GET /v1/symbols/{ticker}/sentiment``. The ticker
+    page does not yet overlay that series on the price chart.
     """
     with _session_scope() as session:
         updated = refresh_symbol_sentiment(session)

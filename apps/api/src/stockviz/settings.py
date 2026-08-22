@@ -11,9 +11,13 @@ _PRODUCTION_ENVIRONMENTS = frozenset({"production", "prod"})
 
 _DEV_SECRET_DEFAULTS = {
     "internal_api_token": "dev-internal-token-change-me",
-    "nextauth_jwt_secret": "dev-secret-change-me",
 }
-"""Secrets whose committed dev defaults must never reach production."""
+"""Secrets whose committed dev defaults must never reach production.
+
+``nextauth_jwt_secret`` is deliberately not in this list: the auth bridge
+does not read it. Failing the boot because an unused leftover still has its
+dev default would block a correct deploy.
+"""
 
 
 class Settings(BaseSettings):

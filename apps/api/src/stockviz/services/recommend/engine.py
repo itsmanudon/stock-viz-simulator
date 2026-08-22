@@ -1,7 +1,7 @@
-"""6-vote recommendation engine over ``PriceBar`` rows.
+"""7-vote recommendation engine over ``PriceBar`` rows.
 
 Pure function ``score_ticker(bars)`` takes the bar series and returns a
-``RecommendationResult`` with the integer score (0..6), the boolean
+``RecommendationResult`` with the integer score (0..MAX_SCORE), the boolean
 ``recommend`` flag, and per-vote rationale strings. ``score_universe``
 iterates every active symbol in the DB and writes the latest result into
 the ``recommendations`` table so the API can serve it without re-running

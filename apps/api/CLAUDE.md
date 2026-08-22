@@ -37,7 +37,7 @@ src/stockviz/
       anthropic_provider.py, http_provider.py, null_provider.py
       store.py        persist scores, backfill, per-symbol rolling aggregate
 migrations/         Alembic versions/
-tests/              pytest, asyncio mode=auto, ~290 tests today
+tests/              pytest, asyncio mode=auto, ~300 tests today
 Dockerfile          Multi-stage build with uv → uvicorn at runtime
 alembic.ini         prepend_sys_path=src so alembic can import stockviz.*
 ```

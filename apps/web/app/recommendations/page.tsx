@@ -3,7 +3,7 @@
  *
  * Pulls from /v1/recommendations (pre-computed by the daily scheduler job).
  * The page is the operator-friendly view; the algo itself lives in
- * apps/api/services/recommend/.
+ * apps/api/src/stockviz/services/recommend/.
  */
 
 import Link from "next/link";
@@ -13,6 +13,8 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { getRecommendations } from "@/lib/api";
 
 const VOTE_THRESHOLD = 4;
+/** Must match ``MAX_SCORE`` in ``apps/api/src/stockviz/services/recommend/engine.py``. */
+const MAX_SCORE = 7;
 
 function fmtDate(iso: string): string {
   const d = new Date(iso);
@@ -25,7 +27,7 @@ export default async function RecommendationsPage({
   searchParams: Promise<{ min?: string }>;
 }) {
   const { min: rawMin } = await searchParams;
-  const minScore = Math.max(0, Math.min(6, Number.parseInt(rawMin ?? "0", 10) || 0));
+  const minScore = Math.max(0, Math.min(MAX_SCORE, Number.parseInt(rawMin ?? "0", 10) || 0));
 
   const recs = await getRecommendations({ minScore, limit: 100 });
 
@@ -42,7 +44,9 @@ export default async function RecommendationsPage({
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Recommendations</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Algorithmic scores from a 6-vote technical signal. Not financial advice.
+            Algorithmic scores from a 7-vote signal (six price/volume checks
+            plus trailing news sentiment when headlines are scored). Not
+            financial advice.
           </p>
           {lastComputed ? (
             <p className="mt-1 text-xs text-muted-foreground">
@@ -51,7 +55,7 @@ export default async function RecommendationsPage({
           ) : null}
         </div>
         <nav className="flex gap-1 text-xs">
-          {[0, 3, 4, 5].map((threshold) => (
+          {[0, 3, 4, 5, 6].map((threshold) => (
             <Link
               key={threshold}
               href={threshold === 0 ? "/recommendations" : `/recommendations?min=${threshold}`}
@@ -88,7 +92,9 @@ export default async function RecommendationsPage({
                     </div>
                     <div className="flex flex-col items-end gap-1">
                       <Badge variant={buy ? "default" : "secondary"}>{buy ? "BUY" : "HOLD"}</Badge>
-                      <span className="font-mono text-xs text-muted-foreground">{rec.score}/6</span>
+                      <span className="font-mono text-xs text-muted-foreground">
+                        {rec.score}/{MAX_SCORE}
+                      </span>
                     </div>
                   </CardHeader>
                   <CardContent>

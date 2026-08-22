@@ -1,5 +1,12 @@
 # StockViz Rewrite Plan
 
+> **Historical.** Written before the v2 rewrite. All seven phases shipped.
+> Do not treat the stack table, `packages/shared` layout, open questions, or
+> “live URL anyone can sign up to” as current — the app is Next.js 16 +
+> FastAPI, `packages/` was never created, and this repo does not publish a
+> live URL. See [`README.md`](./README.md) and
+> [`docs/RESUME_GAPS.md`](./docs/RESUME_GAPS.md) for what exists today.
+
 Plan for rewriting the 1-year-old `stock-viz-simulator` (static HTML/CSS/JS + standalone Python scripts) into a modern full-stack product with live data, real auth, and a DB-backed paper-trading simulator.
 
 ## Goals
