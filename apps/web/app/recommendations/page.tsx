@@ -44,9 +44,8 @@ export default async function RecommendationsPage({
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Recommendations</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Algorithmic scores from a 7-vote signal (six price/volume checks
-            plus trailing news sentiment when headlines are scored). Not
-            financial advice.
+            Algorithmic scores from a 7-vote signal (six price/volume checks plus trailing news
+            sentiment when headlines are scored). Not financial advice.
           </p>
           {lastComputed ? (
             <p className="mt-1 text-xs text-muted-foreground">
