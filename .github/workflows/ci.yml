@@ -18,7 +18,7 @@ jobs:
       run:
         working-directory: apps/web
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: pnpm/action-setup@v4
 
@@ -96,7 +96,7 @@ jobs:
       run:
         working-directory: apps/api
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: astral-sh/setup-uv@v4
         with:
@@ -146,7 +146,7 @@ jobs:
     name: security (dependency audit)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: pnpm/action-setup@v4
 
@@ -190,7 +190,7 @@ jobs:
     name: docker (api image builds)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # The default docker driver cannot export a cache. Buildx's
       # docker-container driver is what makes cache-to: type=gha work.
@@ -238,7 +238,7 @@ jobs:
       # NextAuth v5 requires explicit host trust in non-production environments
       AUTH_TRUST_HOST: "true"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: pnpm/action-setup@v4
 
