@@ -14,6 +14,8 @@
     "lint:api": "uv --directory apps/api run ruff check .",
     "format": "biome format --write . && prettier --write \"**/*.{md,json,yml,yaml}\" --ignore-path .gitignore",
     "typecheck": "pnpm -r typecheck",
+    "test": "pnpm --filter @stockviz/web test",
+    "test:coverage": "pnpm --filter @stockviz/web test:coverage",
     "db:up": "docker compose -f infra/docker-compose.yml up -d",
     "db:down": "docker compose -f infra/docker-compose.yml down",
     "api:dev": "uv --directory apps/api run uvicorn stockviz.main:app --reload --port 8000",

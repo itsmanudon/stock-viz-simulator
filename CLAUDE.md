@@ -16,7 +16,7 @@ questions" sections are long resolved, don't treat them as current) and
 apps/web/    Next.js 16 (App Router, React 19, TS, Tailwind v4, NextAuth v5) + Playwright e2e
 apps/api/    FastAPI + SQLModel + Alembic + APScheduler (Python 3.12, uv)
 infra/       docker-compose (local Postgres) + render.yaml (prod blueprint)
-.github/workflows/ci.yml   three jobs: web (lint/typecheck/build), api (ruff/pyright/pytest), e2e (full-stack Playwright)
+.github/workflows/ci.yml   web, api, security (advisory audit), docker, e2e
 ```
 
 Each app has its own `CLAUDE.md` with deeper notes. Skim those before editing.
@@ -97,10 +97,14 @@ original (you probably won't), `git fetch upstream` first, then cherry-pick.
 main ← dev ← feat/* | fix/* | chore/*
 ```
 
+**Hard rule:** cut every branch from `dev`. Open every PR against `dev`.
+`main` receives **only** merges of `dev` — never merge a feature/fix/chore
+branch, Cursor agent branch, or hotfix into `main` directly.
+
 - **`main`** — release branch. Auto-deployments (Vercel + Render) are
   **disabled**, so `dev` can be merged into `main` freely after any set of
-  changes — no milestone gate required. Do **not** open feature PRs directly
-  against `main`; still go through `dev` first.
+  changes — no milestone gate required. Do **not** open PRs against `main`
+  except a `dev` → `main` promotion PR.
 - **`dev`** — the integration branch. All feature/fix/chore PRs target `dev`.
   Kept green at all times; merged into `main` for each deployable release.
 - **`feat/<name>`**, **`fix/<name>`**, **`chore/<name>`** — short-lived

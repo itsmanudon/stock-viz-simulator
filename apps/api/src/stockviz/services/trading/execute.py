@@ -16,6 +16,7 @@ import logging
 from dataclasses import dataclass
 from decimal import Decimal
 
+from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
 from stockviz.models import Portfolio, Position, PriceBar, Symbol, Trade, TradeSide
@@ -115,7 +116,14 @@ def _seed_opening_snapshot(session: Session, *, user_id: int, nav: Decimal) -> N
     if existing is not None:
         return
     session.add(PortfolioSnapshot(user_id=user_id, date=today, nav=nav))
-    session.commit()
+    try:
+        session.commit()
+    except IntegrityError:
+        # The portfolio page fans out several /v1 calls in Promise.all; two of
+        # them can pass the SELECT above and one INSERT then hits
+        # uq_portfolio_snapshots_user_date. The other request already wrote
+        # the row — treat that as success.
+        session.rollback()
 
 
 def get_position(session: Session, *, portfolio_id: int, ticker: str) -> Position | None:

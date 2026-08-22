@@ -1,0 +1,15 @@
+---
+description: Git branching — cut from dev; main only receives merges from dev
+alwaysApply: true
+---
+
+# Branching
+
+```
+main ← dev ← feat/* | fix/* | chore/*
+```
+
+- Cut every new branch from **`dev`**, never from `main`.
+- Open every PR against **`dev`**. Never target `main` with a feature, fix, chore, or Cursor agent PR.
+- **`main` only receives merges from `dev`.** No direct merges of any other branch into `main`.
+- After work lands on `dev`, promote to production with a `dev` → `main` merge (or PR).
