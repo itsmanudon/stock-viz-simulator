@@ -5,7 +5,9 @@ in the future tense was actively misleading: an agent reading it would propose
 rebuilding the watchlist or the screener. It is now a changelog with a short
 live backlog at the end.
 
-**Cross-check any idea against the code before starting it.**
+A recruiter-facing shipped-vs-claimed inventory is in
+[`RESUME_GAPS.md`](./RESUME_GAPS.md). **Cross-check any idea against the code
+before starting it.**
 
 ---
 

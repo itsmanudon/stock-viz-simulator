@@ -5,6 +5,7 @@ from __future__ import annotations
 from decimal import Decimal
 
 from stockviz.services.recommend import (
+    MAX_SCORE,
     MIN_DATA_POINTS,
     VOTE_THRESHOLD,
     score_ticker,
@@ -18,6 +19,13 @@ def _bars(closes: list[float], volumes: list[int] | None = None):
 
 def test_score_ticker_returns_none_below_min_data():
     assert score_ticker("AAPL", _bars([100.0] * (MIN_DATA_POINTS - 1))) is None
+
+
+def test_max_score_is_seven_votes():
+    # Six price/volume votes plus the news-sentiment vote. The recommendations
+    # UI and CLI print ``score/MAX_SCORE``; keep that denominator honest.
+    assert MAX_SCORE == 7
+    assert VOTE_THRESHOLD == 4
 
 
 def test_uptrend_strong_buy():

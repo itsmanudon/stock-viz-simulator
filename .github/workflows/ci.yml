@@ -192,6 +192,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # The default docker driver cannot export a cache. Buildx's
+      # docker-container driver is what makes cache-to: type=gha work.
+      - uses: docker/setup-buildx-action@v3
+
       # The Dockerfile is otherwise only exercised at deploy time on Render,
       # so a broken build surfaced in production rather than on the PR.
       - name: Build API image

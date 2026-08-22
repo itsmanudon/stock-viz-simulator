@@ -61,8 +61,10 @@ Copy-Item apps/api/.env.example apps/api/.env
 
 - **`INTERNAL_API_TOKEN`** — must match between `apps/web/.env.local` and
   `apps/api/.env`. The default `dev-internal-token-change-me` works locally.
-- **`AUTH_SECRET`** (web) / **`NEXTAUTH_JWT_SECRET`** (api) — generate with
-  `openssl rand -base64 32`. The committed dev defaults are fine for local use.
+- **`AUTH_SECRET`** (web) — NextAuth session signing. Generate with
+  `openssl rand -base64 32`. The committed dev default is fine for local use.
+  (`NEXTAUTH_JWT_SECRET` on the API is unused leftover; you can leave the
+  example value.)
 - **`ALPHA_VANTAGE_KEY`**, **`NEWSDATA_KEY`** — optional. Ingest services
   short-circuit gracefully when these are blank.
 - **`SENTRY_DSN`** / **`NEXT_PUBLIC_SENTRY_DSN`** — leave blank; both apps
@@ -132,7 +134,7 @@ Visit:
 
 ## Quality gates
 
-These mirror what CI runs on every PR to `main`:
+These mirror what CI runs on every push/PR to `dev` and `main`:
 
 ```bash
 pnpm lint                                  # biome (web) + ruff (api)
@@ -198,5 +200,6 @@ CI runs the full E2E suite in the `e2e` job (see `.github/workflows/ci.yml`).
 
 ## Deployment
 
-See the **Deployment** section in [`../README.md`](../README.md) for Vercel
-(web) and Render (api + db + cron) setup.
+See [`DEPLOYMENT.md`](./DEPLOYMENT.md) for Vercel (web) and Render (api + db)
+setup. There is no separate cron service — daily refresh is in-process
+APScheduler. A recruiter-honest gap list is in [`RESUME_GAPS.md`](./RESUME_GAPS.md).

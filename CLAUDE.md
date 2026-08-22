@@ -16,7 +16,7 @@ questions" sections are long resolved, don't treat them as current) and
 apps/web/    Next.js 16 (App Router, React 19, TS, Tailwind v4, NextAuth v5) + Playwright e2e
 apps/api/    FastAPI + SQLModel + Alembic + APScheduler (Python 3.12, uv)
 infra/       docker-compose (local Postgres) + render.yaml (prod blueprint)
-.github/workflows/ci.yml   three jobs: web (lint/typecheck/build), api (ruff/pyright/pytest), e2e (full-stack Playwright)
+.github/workflows/ci.yml   web, api, security (advisory audit), docker, e2e
 ```
 
 Each app has its own `CLAUDE.md` with deeper notes. Skim those before editing.
