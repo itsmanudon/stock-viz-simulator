@@ -17,6 +17,7 @@ from stockviz.services.trading import (
     snapshot_user_navs,
     upsert_user_snapshot,
 )
+from stockviz.services.trading.execute import _seed_opening_snapshot
 from stockviz.settings import get_settings
 
 SECRET = get_settings().internal_api_token
@@ -67,6 +68,44 @@ def _reset_snapshots(session: Session, user_id: int) -> None:
     ).all():
         session.delete(row)
     session.commit()
+
+
+def test_opening_snapshot_seed_is_idempotent(session: Session) -> None:
+    """The portfolio page fires several /v1 calls in parallel; seeding twice
+    must not 500 on uq_portfolio_snapshots_user_date."""
+    user_id = _make_user(session)
+    ensure_default_portfolio(session, user_id)
+    _seed_opening_snapshot(session, user_id=user_id, nav=DEFAULT_STARTING_CASH)
+    _seed_opening_snapshot(session, user_id=user_id, nav=DEFAULT_STARTING_CASH)
+    rows = list(
+        session.exec(select(PortfolioSnapshot).where(PortfolioSnapshot.user_id == user_id)).all()
+    )
+    assert len(rows) == 1
+    assert Decimal(rows[0].nav) == DEFAULT_STARTING_CASH
+
+
+def test_opening_snapshot_seed_swallows_unique_violation(session: Session) -> None:
+    """If the SELECT misses a row another request just committed, INSERT
+    must not 500 — that's the /portfolio Promise.all race."""
+    user_id = _make_user(session)
+    ensure_default_portfolio(session, user_id)
+
+    orig = session.exec
+
+    class _Empty:
+        def first(self) -> None:
+            return None
+
+    session.exec = lambda _statement, *_a, **_k: _Empty()  # type: ignore[method-assign]
+    try:
+        _seed_opening_snapshot(session, user_id=user_id, nav=DEFAULT_STARTING_CASH)
+    finally:
+        session.exec = orig  # type: ignore[method-assign]
+
+    rows = list(
+        orig(select(PortfolioSnapshot).where(PortfolioSnapshot.user_id == user_id)).all()
+    )
+    assert len(rows) == 1
 
 
 def test_upsert_user_snapshot_writes_cash_only_nav(session: Session) -> None:
