@@ -195,7 +195,7 @@ jobs:
       # The Dockerfile is otherwise only exercised at deploy time on Render,
       # so a broken build surfaced in production rather than on the PR.
       - name: Build API image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: apps/api
           push: false
