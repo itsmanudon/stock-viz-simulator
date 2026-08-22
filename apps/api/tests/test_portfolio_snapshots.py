@@ -102,9 +102,7 @@ def test_opening_snapshot_seed_swallows_unique_violation(session: Session) -> No
     finally:
         session.exec = orig  # type: ignore[method-assign]
 
-    rows = list(
-        orig(select(PortfolioSnapshot).where(PortfolioSnapshot.user_id == user_id)).all()
-    )
+    rows = list(orig(select(PortfolioSnapshot).where(PortfolioSnapshot.user_id == user_id)).all())
     assert len(rows) == 1
 
 
