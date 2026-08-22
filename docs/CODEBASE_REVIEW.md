@@ -17,6 +17,14 @@ Reviewed at commit `c4ecbb8` (main, post-Phase-7 + options/backtesting/leaderboa
 Scope: `apps/api` (FastAPI/SQLModel, ~12.4k LoC Python), `apps/web` (Next.js 16,
 ~8k LoC TS), `infra/`, `.github/`.
 
+**Dependabot (follow-up):** §4.2 recommended adding Dependabot; a
+`.github/dependabot.yml` was added targeting `dev` (npm, uv, GitHub Actions,
+Docker). The owner then asked to turn version-update PRs off, so that file
+was deleted. GitHub Dependabot Alerts / security advisories are unchanged.
+CI still runs `pnpm audit --audit-level high --prod` and `pip-audit`. Open
+Dependabot PRs that already existed at disable-time have to be closed in the
+GitHub UI — this environment's `gh` token cannot comment on or close them.
+
 The codebase is in genuinely good shape — clean layering (routers → services →
 models), Decimal money math, docstrings that explain *why*, 228 API tests, and
 a real e2e suite. The findings below are the things that would bite in
