@@ -3,7 +3,7 @@
 # Stage 1 installs the project (with uv) into a virtualenv; Stage 2 copies that
 # venv + the source into a slim runtime image so the final image stays small.
 
-FROM python:3.12-slim AS builder
+FROM python:3.14-slim AS builder
 
 # Install uv from its prebuilt image (no curl/network footwork needed).
 COPY --from=ghcr.io/astral-sh/uv:0.5.11 /uv /uvx /bin/
@@ -30,7 +30,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev
 
 
-FROM python:3.12-slim AS runtime
+FROM python:3.14-slim AS runtime
 
 ENV PATH=/opt/venv/bin:$PATH \
     PYTHONUNBUFFERED=1 \
