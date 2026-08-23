@@ -28,9 +28,10 @@ includes: paper trading with **pending limit/stop orders** and **options**
 (pricing, positions, expiry settlement), **dividends** and **multi-currency
 FX**, **backtesting** (`/backtest`), **screener**, **leaderboard**,
 **watchlists**, **price alerts**, per-ticker **comments** and **AI sentiment**
-(Anthropic, optional), and a simulated live price ticker over **SSE**
+(Anthropic, optional), and a **simulated quote** ticker over **SSE**
 (`/v1/stream/quotes/{ticker}` — Gaussian random walk from the latest close,
-not real-time data).
+not exchange real-time data). Remaining product/ops constraints:
+[`docs/KNOWN_LIMITATIONS.md`](./docs/KNOWN_LIMITATIONS.md).
 
 News sentiment runs through a pluggable provider (Anthropic, an external HTTP
 service, or off) and feeds a screener filter, a recommendation vote, and a
@@ -73,13 +74,14 @@ new resource, walk the chain in order:
 
 ## Feature backlog
 
-[`docs/IDEAS.md`](./docs/IDEAS.md) is now a **changelog plus a short live
-backlog** — the original 16-item roadmap all shipped, so listing it in the
-future tense had agents proposing to rebuild the screener. Still cross-check
+[`docs/IDEAS.md`](./docs/IDEAS.md) is a **changelog plus a short backlog** —
+the original 16-item roadmap all shipped, so listing it in the future tense
+had agents proposing to rebuild the screener. Current constraints:
+[`docs/KNOWN_LIMITATIONS.md`](./docs/KNOWN_LIMITATIONS.md). Still cross-check
 any idea against the code before starting it.
 
-[`docs/CODEBASE_REVIEW.md`](./docs/CODEBASE_REVIEW.md) is the audit those
-fixes came from; its section numbers are referenced from commit messages.
+[`docs/CODEBASE_REVIEW.md`](./docs/CODEBASE_REVIEW.md) is a **historical**
+audit record; its section numbers are referenced from commit messages.
 
 ## Remotes
 
@@ -101,10 +103,11 @@ main ← dev ← feat/* | fix/* | chore/*
 `main` receives **only** merges of `dev` — never merge a feature/fix/chore
 branch, Cursor agent branch, or hotfix into `main` directly.
 
-- **`main`** — release branch. Auto-deployments (Vercel + Render) are
-  **disabled**, so `dev` can be merged into `main` freely after any set of
-  changes — no milestone gate required. Do **not** open PRs against `main`
-  except a `dev` → `main` promotion PR.
+- **`main`** — release branch. Intended production hosts are Vercel (web) and
+  Render (API + DB). `infra/render.yaml` has `autoDeploy: true`; whether a
+  dashboard currently deploys on push is owner-controlled and **not** recorded
+  in this repo. Promote with a `dev` → `main` merge (or PR). Do **not** open
+  PRs against `main` except that promotion.
 - **`dev`** — the integration branch. All feature/fix/chore PRs target `dev`.
   Kept green at all times; merged into `main` for each deployable release.
 - **`feat/<name>`**, **`fix/<name>`**, **`chore/<name>`** — short-lived

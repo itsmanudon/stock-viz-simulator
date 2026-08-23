@@ -11,7 +11,7 @@ app/
                    — require an auth() session
   api/auth/        NextAuth handler
   markets/         sortable symbol table
-  stocks/[ticker]/ chart + indicators + news + comments + sentiment + live badge
+  stocks/[ticker]/ chart + indicators + news + comments + sentiment + simulated quote badge
   compare/         multi-ticker normalized chart
   screener/        filterable symbol screener
   backtest/        strategy backtest form + equity curve

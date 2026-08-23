@@ -21,7 +21,7 @@ src/stockviz/
                     markets (one-call /markets summary), indicators, news,
                     recommendations, trading, orders, options, backtest,
                     screener, sentiment, leaderboard, watchlist, alerts,
-                    comments, stream (SSE simulated live quotes), health
+                    comments, stream (SSE simulated quotes), health
   services/
     ingest/         External-API fetchers (Alpha Vantage, yfinance, Newsdata)
     indicators/     SMA/EMA/RSI/MACD pure functions
