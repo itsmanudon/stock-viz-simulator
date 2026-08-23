@@ -92,6 +92,24 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
+      kafka:
+        image: apache/kafka:3.9.1
+        ports:
+          - 9092:9092
+        env:
+          KAFKA_NODE_ID: 1
+          KAFKA_PROCESS_ROLES: broker,controller
+          KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
+          KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+          KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+          KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+          KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9093
+          KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+          KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+          KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+          KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+          KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+          CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
     defaults:
       run:
         working-directory: apps/api
@@ -120,10 +138,21 @@ jobs:
       - name: Typecheck
         run: uv run pyright
 
+      - name: Wait for Kafka
+        run: |
+          for i in $(seq 1 30); do
+            uv run python -c "from confluent_kafka.admin import AdminClient; AdminClient({'bootstrap.servers':'localhost:9092'}).list_topics(timeout=5)" && exit 0
+            sleep 2
+          done
+          echo "Kafka did not become reachable on localhost:9092"
+          exit 1
+
       - name: Test
         run: uv run pytest -v --cov=stockviz --cov-report=term-missing --cov-report=xml
         env:
           DATABASE_URL: postgresql+psycopg://stockviz:stockviz_dev@localhost:5432/stockviz
+          KAFKA_BOOTSTRAP_SERVERS: localhost:9092
+          STOCKVIZ_KAFKA_REQUIRED: "1"
 
       # Catches a model change that never got a migration. dev previously had
       # two alembic heads and six columns of enum drift; neither was visible
@@ -141,6 +170,77 @@ jobs:
           name: api-coverage
           path: apps/api/coverage.xml
           retention-days: 7
+
+  events-integration:
+    name: events-integration (Postgres + Kafka)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: stockviz
+          POSTGRES_PASSWORD: stockviz_dev
+          POSTGRES_DB: stockviz
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U stockviz -d stockviz"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      kafka:
+        image: apache/kafka:3.9.1
+        ports:
+          - 9092:9092
+        env:
+          KAFKA_NODE_ID: 1
+          KAFKA_PROCESS_ROLES: broker,controller
+          KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
+          KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+          KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+          KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+          KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9093
+          KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+          KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+          KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+          KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+          KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+          CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
+    defaults:
+      run:
+        working-directory: apps/api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+      - name: Install Python
+        run: uv python install 3.12
+      - name: Sync dependencies
+        run: uv sync --frozen
+      - name: Wait for Kafka
+        run: |
+          for i in $(seq 1 30); do
+            uv run python -c "from confluent_kafka.admin import AdminClient; AdminClient({'bootstrap.servers':'localhost:9092'}).list_topics(timeout=5)" && exit 0
+            sleep 2
+          done
+          echo "Kafka did not become reachable on localhost:9092"
+          exit 1
+      - name: Migrations
+        run: uv run alembic upgrade head
+        env:
+          DATABASE_URL: postgresql+psycopg://stockviz:stockviz_dev@localhost:5432/stockviz
+      - name: Postgres concurrency + Kafka outbox
+        run: |
+          uv run pytest -v \
+            tests/test_pg_concurrency.py \
+            tests/test_pg_outbox_claim.py \
+            tests/test_outbox.py \
+            tests/test_kafka_integration.py
+        env:
+          DATABASE_URL: postgresql+psycopg://stockviz:stockviz_dev@localhost:5432/stockviz
+          KAFKA_BOOTSTRAP_SERVERS: localhost:9092
+          STOCKVIZ_KAFKA_REQUIRED: "1"
 
   security:
     name: security (dependency audit)
