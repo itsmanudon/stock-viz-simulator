@@ -59,9 +59,15 @@ export default async function TradePage() {
 
         <Card>
           <CardContent className="p-4">
-            <h2 className="mb-3 text-sm font-medium text-muted-foreground">Cash available</h2>
-            <p className="font-mono text-2xl">{fmtCurrency(portfolio.cash_balance)}</p>
+            <h2 className="mb-3 text-sm font-medium text-muted-foreground">Buying power</h2>
+            <p className="font-mono text-2xl">{fmtCurrency(portfolio.available_cash)}</p>
             <p className="mt-2 text-xs text-muted-foreground">
+              Cash {fmtCurrency(portfolio.cash_balance)}
+              {Number(portfolio.reserved_cash) > 0
+                ? ` · Reserved ${fmtCurrency(portfolio.reserved_cash)}`
+                : ""}
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
               Total value {fmtCurrency(portfolio.total_value)}
             </p>
             {portfolio.positions.length > 0 ? (
@@ -76,7 +82,10 @@ export default async function TradePage() {
                         {p.ticker}
                       </Link>
                       <span className="font-mono text-xs text-muted-foreground">
-                        {Number(p.quantity).toLocaleString()} sh
+                        {Number(p.available_quantity).toLocaleString()} avail
+                        {Number(p.reserved_quantity) > 0
+                          ? ` / ${Number(p.quantity).toLocaleString()} owned`
+                          : " sh"}
                       </span>
                     </li>
                   ))}

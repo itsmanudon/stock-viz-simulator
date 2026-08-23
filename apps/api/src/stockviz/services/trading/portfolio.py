@@ -25,6 +25,7 @@ from stockviz.models import (
     Symbol,
 )
 from stockviz.models.option import CONTRACT_MULTIPLIER
+from stockviz.services.trading.buying_power import reserved_cash, reserved_shares
 from stockviz.services.trading.fx import convert as fx_convert
 from stockviz.services.trading.fx import latest_rate
 
@@ -47,6 +48,8 @@ class PortfolioPosition:
     # Same numbers converted to the user's display currency.
     market_value: Decimal
     unrealized_pl: Decimal
+    reserved_quantity: Decimal = Decimal(0)
+    available_quantity: Decimal = Decimal(0)
 
 
 @dataclass(frozen=True, slots=True)
@@ -74,6 +77,8 @@ class PortfolioValuation:
     # Currency every aggregate (cash, market_value, totals) is denominated in.
     display_currency: str
     cash_balance: Decimal
+    reserved_cash: Decimal = Decimal(0)
+    available_cash: Decimal = Decimal(0)
     positions: list[PortfolioPosition] = field(default_factory=list)
     option_positions: list[PortfolioOptionPosition] = field(default_factory=list)
     # Equity market value only (kept as-is for existing callers).
@@ -172,6 +177,7 @@ def compute_portfolio(
         cost_display = _to_display(cost_native, native_ccy)
         pl_display = mv_display - cost_display
 
+        reserved_qty = reserved_shares(session, portfolio.id, pos.ticker)
         positions.append(
             PortfolioPosition(
                 ticker=pos.ticker,
@@ -184,24 +190,40 @@ def compute_portfolio(
                 unrealized_pl_native=pl_native,
                 market_value=mv_display,
                 unrealized_pl=pl_display,
+                reserved_quantity=reserved_qty,
+                available_quantity=pos.quantity - reserved_qty,
             )
         )
         market_value_display += mv_display
         cost_basis_display += cost_display
 
-    # Cash is USD-base — convert to display currency.
+    try:
+        reserved_usd = reserved_cash(session, portfolio.id)
+    except LookupError:
+        # Cannot price a pending BUY — fail closed for display.
+        reserved_usd = portfolio.cash_balance
+    available_usd = portfolio.cash_balance - reserved_usd
+
+    # Cash is USD-base — convert it (and reservation figures) to display currency.
     if display_currency == "USD":
         cash_display = portfolio.cash_balance
+        reserved_display = reserved_usd
+        available_display = available_usd
     else:
         try:
             usd_per_display = latest_rate(session, display_currency)
-            cash_display = (
-                portfolio.cash_balance / usd_per_display
-                if usd_per_display != Decimal(0)
-                else portfolio.cash_balance
-            )
+            if usd_per_display != Decimal(0):
+                cash_display = portfolio.cash_balance / usd_per_display
+                reserved_display = reserved_usd / usd_per_display
+                available_display = available_usd / usd_per_display
+            else:
+                cash_display = portfolio.cash_balance
+                reserved_display = reserved_usd
+                available_display = available_usd
         except LookupError:
             cash_display = portfolio.cash_balance
+            reserved_display = reserved_usd
+            available_display = available_usd
 
     option_positions, options_value_display = _value_open_options(
         session, portfolio_id=portfolio.id, to_display=_to_display
@@ -212,6 +234,8 @@ def compute_portfolio(
         portfolio_id=portfolio.id,
         display_currency=display_currency,
         cash_balance=cash_display,
+        reserved_cash=reserved_display,
+        available_cash=available_display,
         positions=positions,
         option_positions=option_positions,
         market_value=market_value_display,

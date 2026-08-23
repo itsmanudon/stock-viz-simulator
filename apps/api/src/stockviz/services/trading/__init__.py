@@ -11,6 +11,13 @@ from stockviz.services.trading.analytics import (
     compute_top_movers,
     compute_total_return_pct,
 )
+from stockviz.services.trading.buying_power import (
+    available_cash,
+    available_shares,
+    lock_portfolio,
+    reserved_cash,
+    reserved_shares,
+)
 from stockviz.services.trading.dividends import credit_due_dividends
 from stockviz.services.trading.execute import (
     DEFAULT_STARTING_CASH,
@@ -52,6 +59,8 @@ __all__ = [
     "TopMover",
     "TradeExecution",
     "TradeExecutionError",
+    "available_cash",
+    "available_shares",
     "compute_annualised_return_pct",
     "compute_max_drawdown_pct",
     "compute_portfolio",
@@ -65,6 +74,9 @@ __all__ = [
     "execute_trade",
     "fx_convert",
     "fx_latest_rate",
+    "lock_portfolio",
+    "reserved_cash",
+    "reserved_shares",
     "settle_pending_orders",
     "snapshot_user_navs",
     "upsert_user_snapshot",

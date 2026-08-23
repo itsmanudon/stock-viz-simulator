@@ -1292,6 +1292,16 @@ export interface components {
             display_currency: string;
             /** Cash Balance */
             cash_balance: string;
+            /**
+             * Reserved Cash
+             * @default 0
+             */
+            reserved_cash: string;
+            /**
+             * Available Cash
+             * @default 0
+             */
+            available_cash: string;
             /** Market Value */
             market_value: string;
             /**
@@ -1344,6 +1354,16 @@ export interface components {
             market_value: string;
             /** Unrealized Pl */
             unrealized_pl: string;
+            /**
+             * Reserved Quantity
+             * @default 0
+             */
+            reserved_quantity: string;
+            /**
+             * Available Quantity
+             * @default 0
+             */
+            available_quantity: string;
         };
         /** ProfileOut */
         ProfileOut: {

@@ -20,6 +20,12 @@ from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
 from stockviz.models import Portfolio, Position, PriceBar, Symbol, Trade, TradeSide
+from stockviz.services.trading.buying_power import (
+    available_cash,
+    available_shares,
+    lock_portfolio,
+    reserved_shares,
+)
 from stockviz.services.trading.fx import latest_rate
 
 logger = logging.getLogger(__name__)
@@ -201,6 +207,7 @@ def apply_fill(
     price: Decimal,
     currency: str,
     fx_rate: Decimal,
+    exclude_order_id: int | None = None,
 ) -> TradeExecution:
     """Mutate cash + position and stage the Trade row for ``portfolio``.
 
@@ -212,28 +219,40 @@ def apply_fill(
     ``price`` is in the symbol's native currency; ``fx_rate`` is USD per one
     unit of that currency. Cash is always USD.
 
+    Spendability is checked against *available* cash/shares (ledger balance
+    minus reservations from *other* pending orders). ``exclude_order_id``
+    lets a filling order consume its own reservation.
+
+    Locks the portfolio row for the rest of the caller's transaction.
+
     Raises ``InsufficientCash`` / ``InsufficientPosition`` without having
     mutated anything, so a caller that catches the error can carry on with the
     same session.
     """
 
     assert portfolio.id is not None
+    portfolio_id = portfolio.id
+    portfolio = lock_portfolio(session, portfolio_id)
 
     native_cost = (price * quantity).quantize(MICROS)
     usd_cost = (native_cost * fx_rate).quantize(MICROS)
-    position = get_position(session, portfolio_id=portfolio.id, ticker=ticker)
+    position = get_position(session, portfolio_id=portfolio_id, ticker=ticker)
     realized_pnl: Decimal | None = None
 
     if side == TradeSide.BUY:
-        if portfolio.cash_balance < usd_cost:
+        try:
+            spendable = available_cash(session, portfolio, exclude_order_id=exclude_order_id)
+        except LookupError as exc:
+            raise NoFxRateError(str(exc)) from exc
+        if spendable < usd_cost:
             raise InsufficientCash(
-                f"Cash balance ${portfolio.cash_balance:.2f} < trade cost ${usd_cost:.2f}"
+                f"Available buying power ${spendable:.2f}; order requires ${usd_cost:.2f}."
             )
         portfolio.cash_balance = (portfolio.cash_balance - usd_cost).quantize(MICROS)
 
         if position is None:
             position = Position(
-                portfolio_id=portfolio.id,
+                portfolio_id=portfolio_id,
                 ticker=ticker,
                 quantity=quantity,
                 avg_cost=price,
@@ -248,9 +267,19 @@ def apply_fill(
             position.avg_cost = (total_cost / new_qty).quantize(MICROS)
 
     else:  # SELL
-        if position is None or position.quantity < quantity:
-            held = position.quantity if position else Decimal(0)
+        held = position.quantity if position else Decimal(0)
+        reserved = reserved_shares(session, portfolio_id, ticker, exclude_order_id=exclude_order_id)
+        spendable = available_shares(
+            session, portfolio_id, ticker, exclude_order_id=exclude_order_id
+        )
+        if spendable < quantity:
+            if reserved > 0:
+                raise InsufficientPosition(
+                    f"Only {spendable} {ticker} shares are available; "
+                    f"{reserved} are reserved by pending orders."
+                )
             raise InsufficientPosition(f"Held {held} {ticker}, cannot sell {quantity}")
+        assert position is not None
         portfolio.cash_balance = (portfolio.cash_balance + usd_cost).quantize(MICROS)
         # Realized P&L against the weighted-average cost basis, in USD.
         realized_pnl = ((price - position.avg_cost) * quantity * fx_rate).quantize(MICROS)
@@ -262,7 +291,7 @@ def apply_fill(
             session.delete(position)
 
     trade = Trade(
-        portfolio_id=portfolio.id,
+        portfolio_id=portfolio_id,
         ticker=ticker,
         side=side,
         quantity=quantity,

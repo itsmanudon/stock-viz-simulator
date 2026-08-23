@@ -8,7 +8,8 @@ Next.js 16 App Router, React 19, TypeScript, Tailwind v4, shadcn/ui, NextAuth v5
 app/
   (auth)/          login + signup pages + server actions (bcrypt, raw pg)
   (authed)/        portfolio, trade, trades, orders, watchlist, alerts, settings
-                   — require an auth() session
+                   — require an auth() session. Portfolio and trade show
+                   reserved vs available cash/shares from pending orders.
   api/auth/        NextAuth handler
   markets/         sortable symbol table
   stocks/[ticker]/ chart + indicators + news + comments + sentiment + simulated quote badge

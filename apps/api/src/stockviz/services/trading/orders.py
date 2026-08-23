@@ -6,6 +6,11 @@ trigger at a close are filled at that price; orders that can't fill (e.g.
 insufficient cash) are cancelled with a ``cancel_reason`` rather than left in
 an inconsistent state.
 
+At creation, pending BUYs reserve USD buying power (``quantity * limit_price``
+at the latest FX rate) and pending SELLs reserve shares. Reservations are
+derived from ``PENDING`` rows — cancel and fill release them automatically.
+A fill may consume its own reservation but not another order's.
+
 The fill itself goes through ``execute.apply_fill``, the same code path market
 orders use — so pending orders honour FX conversion, weighted-average cost,
 and realized-P&L capture identically.
@@ -22,7 +27,16 @@ from sqlmodel import Session, select
 from stockviz._time import utcnow
 from stockviz.models import PendingOrder, Portfolio, Symbol, TradeSide
 from stockviz.models.order import OrderStatus, OrderType
+from stockviz.services.trading.buying_power import (
+    available_cash,
+    available_shares,
+    buy_reservation_usd,
+    lock_portfolio,
+    reserved_shares,
+)
 from stockviz.services.trading.execute import (
+    InsufficientCash,
+    InsufficientPosition,
     NoFxRateError,
     NoMarketDataError,
     PricedSymbol,
@@ -65,9 +79,32 @@ def create_pending_order(
 
     portfolio = ensure_default_portfolio(session, user_id)
     assert portfolio.id is not None
+    portfolio_id = portfolio.id
+    portfolio = lock_portfolio(session, portfolio_id)
+
+    if side == TradeSide.BUY:
+        try:
+            required = buy_reservation_usd(
+                session, ticker=ticker, quantity=quantity, limit_price=limit_price
+            )
+            spendable = available_cash(session, portfolio)
+        except LookupError as exc:
+            raise NoFxRateError(str(exc)) from exc
+        if required > spendable:
+            raise InsufficientCash(
+                f"Available buying power ${spendable:.2f}; order requires ${required:.2f}."
+            )
+    else:
+        reserved = reserved_shares(session, portfolio_id, ticker)
+        spendable = available_shares(session, portfolio_id, ticker)
+        if quantity > spendable:
+            raise InsufficientPosition(
+                f"Only {spendable} {ticker} shares are available; "
+                f"{reserved} are reserved by pending orders."
+            )
 
     order = PendingOrder(
-        portfolio_id=portfolio.id,
+        portfolio_id=portfolio_id,
         ticker=ticker,
         side=side,
         order_type=order_type,
@@ -163,6 +200,7 @@ def _fill(session: Session, order: PendingOrder, priced: PricedSymbol) -> bool:
             price=priced.price,
             currency=priced.currency,
             fx_rate=priced.fx_rate,
+            exclude_order_id=order.id,
         )
     except TradeExecutionError as exc:
         _cancel(session, order, str(exc))

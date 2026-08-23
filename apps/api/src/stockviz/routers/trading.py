@@ -72,6 +72,8 @@ def get_portfolio(session: SessionDep, user_id: UserIdDep) -> PortfolioOut:
         portfolio_id=snap.portfolio_id,
         display_currency=snap.display_currency,
         cash_balance=snap.cash_balance,
+        reserved_cash=snap.reserved_cash,
+        available_cash=snap.available_cash,
         market_value=snap.market_value,
         options_market_value=snap.options_market_value,
         total_value=snap.total_value,
@@ -89,6 +91,8 @@ def get_portfolio(session: SessionDep, user_id: UserIdDep) -> PortfolioOut:
                 unrealized_pl_native=p.unrealized_pl_native,
                 market_value=p.market_value,
                 unrealized_pl=p.unrealized_pl,
+                reserved_quantity=p.reserved_quantity,
+                available_quantity=p.available_quantity,
             )
             for p in snap.positions
         ],
