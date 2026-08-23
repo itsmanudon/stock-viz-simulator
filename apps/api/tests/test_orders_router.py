@@ -9,7 +9,8 @@ from fastapi.testclient import TestClient
 from jose import jwt as jose_jwt
 from sqlmodel import Session
 
-from stockviz.models import PriceBar, Symbol, User
+from stockviz.models import PriceBar, Symbol, TradeSide, User
+from stockviz.services.trading import execute_trade
 from stockviz.settings import get_settings
 
 SECRET = get_settings().internal_api_token
@@ -46,6 +47,13 @@ def _make_user(session: Session) -> int:
     session.refresh(user)
     assert user.id is not None
     return user.id
+
+
+def _hold_shares(session: Session, user_id: int, quantity: str = "10") -> None:
+    """Buy ``quantity`` AAPL so subsequent sell orders have a position to reserve."""
+    execute_trade(
+        session, user_id=user_id, ticker="AAPL", side=TradeSide.BUY, quantity=Decimal(quantity)
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -106,6 +114,7 @@ def test_create_limit_buy_order(session: Session, client: TestClient) -> None:
 def test_create_stop_loss_order(session: Session, client: TestClient) -> None:
     _seed_market(session)
     user_id = _make_user(session)
+    _hold_shares(session, user_id)
 
     response = client.post(
         "/v1/orders",
@@ -125,6 +134,7 @@ def test_create_stop_loss_order(session: Session, client: TestClient) -> None:
 def test_create_take_profit_order(session: Session, client: TestClient) -> None:
     _seed_market(session)
     user_id = _make_user(session)
+    _hold_shares(session, user_id)
 
     response = client.post(
         "/v1/orders",
