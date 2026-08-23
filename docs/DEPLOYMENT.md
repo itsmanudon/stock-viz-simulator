@@ -83,7 +83,7 @@ Dashboard → **stockviz-api → Environment**. Set:
 | `CORS_ORIGINS`        | `https://<your-vercel-domain>` (you'll know this after step 2)             |
 | `INTERNAL_API_TOKEN`  | the shared HS256 secret from “Secrets you'll generate” (must match Vercel) |
 | `NEXTAUTH_JWT_SECRET` | unused by the current auth bridge; optional on a new deploy                |
-| `ALPHA_VANTAGE_KEY`   | your Alpha Vantage key (or leave blank to disable price ingest)            |
+| `ALPHA_VANTAGE_KEY`   | optional Alpha Vantage key (yfinance is primary; blank skips the AV fallback only) |
 | `NEWSDATA_KEY`        | your Newsdata.io key (or leave blank to disable news ingest)               |
 | `ANTHROPIC_API_KEY`   | optional; headline sentiment scoring (leave blank to skip)                 |
 | `SENTRY_DSN`          | your Sentry DSN (or leave blank)                                           |

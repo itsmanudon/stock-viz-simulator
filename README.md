@@ -2,7 +2,7 @@
 
 Full-stack market analytics, strategy backtesting, and paper trading for equities and options.
 
-StockViz is a Next.js + FastAPI + PostgreSQL platform: it ingests **end-of-day** prices and news, computes technical indicators, scores daily recommendations, and runs a FX-aware paper-trading ledger with pending orders, dividends, and long options priced by Black-Scholes. Background jobs run in-process via APScheduler. Auth is NextAuth on the web app, with a short-lived server-to-server JWT on authenticated `/v1` calls.
+StockViz is a Next.js + FastAPI + PostgreSQL platform: it ingests **end-of-day** prices and news, computes technical indicators, scores daily recommendations, and runs a paper-trading ledger with FX-aware **equity** fills, pending orders, dividends, and long options priced by Black-Scholes. Background jobs run in-process via APScheduler. Auth is NextAuth on the web app, with a short-lived server-to-server JWT on authenticated `/v1` calls.
 
 **Docs:** [Setup](./docs/SETUP.md) · [Deployment](./docs/DEPLOYMENT.md) · [Known limitations](./docs/KNOWN_LIMITATIONS.md) · [Sentiment](./docs/SENTIMENT.md) · [Project history](./REWRITE_PLAN.md)
 
@@ -12,7 +12,7 @@ This repository does **not** currently provide a verified public demo. Clone and
 
 - Look-ahead-safe strategy backtesting over stored daily bars, with configurable commission/slippage and a buy-and-hold benchmark.
 - Black-Scholes options pricing with Greeks; volatility is 30-day historical vol, not an implied-vol surface.
-- FX-aware equity and long-options paper-trading ledger (USD cash, native-currency fills, realized P&L on sells, dividends, pending limit/stop/take-profit orders).
+- FX-aware **equity** paper trading (USD cash, native-currency fills, realized P&L on sells, dividends, pending limit/stop/take-profit orders that reserve buying power and shares). Long options are a separate long-only book: premiums debit USD cash and are **not** a complete multi-currency options ledger.
 - PostgreSQL-backed market data, portfolio snapshots, orders, dividends, alerts, comments, and recommendations.
 - Short-lived HS256 JWT auth boundary: the Next.js server mints a 60-second token; the browser never sees it.
 - Scheduled ingest and settlement (prices, FX, news, metrics, sentiment, recommendations, snapshots, pending orders, dividends, option expiry, alerts).
@@ -20,7 +20,7 @@ This repository does **not** currently provide a verified public demo. Clone and
 
 ## Market data (what “live” means here)
 
-Provider ingest is **daily OHLCV**, cached in Postgres (Alpha Vantage primary, yfinance fallback; Newsdata.io for headlines). Fills, charts, backtests, and alerts all price off the latest `1d` close — not an exchange real-time feed.
+Provider ingest is **daily OHLCV**, cached in Postgres (yfinance primary, Alpha Vantage fallback when `ALPHA_VANTAGE_KEY` is set; Newsdata.io for headlines, which requires `NEWSDATA_KEY`). Fills, charts, backtests, and alerts all price off the latest `1d` close — not an exchange real-time feed.
 
 The ticker-page quote badge is a **simulated quote**: an SSE Gaussian random walk starting from that cached close (`GET /v1/stream/quotes/{ticker}`). It is labeled in the UI. Headline sentiment scoring is off unless `ANTHROPIC_API_KEY` or `SENTIMENT_PROVIDER=http` is configured.
 
@@ -42,19 +42,20 @@ Synchronous request path vs scheduled work:
 
 ```mermaid
 flowchart LR
-  Browser -->|"HTTPS"| Web["Next.js<br/>App Router + NextAuth"]
-  Web -->|"public /v1"| API["FastAPI"]
+  Browser -->|"HTTPS pages + authed actions"| Web["Next.js<br/>App Router + NextAuth"]
+  Browser -->|"public /v1 where used<br/>e.g. backtest, SSE quotes"| API["FastAPI"]
+  Web -->|"public /v1"| API
   Web -->|"authed /v1<br/>60s HS256 JWT"| API
   API --> PG[("PostgreSQL")]
   API -.-> Sch["APScheduler<br/>in-process"]
   Sch --> PG
-  Sch --> Ext["Alpha Vantage / yfinance / Newsdata.io"]
+  Sch --> Ext["yfinance / Alpha Vantage / Newsdata.io"]
   Sch -.->|"optional"| Sent["Anthropic or HTTP sentiment"]
 ```
 
-- **Request path.** The browser talks only to Next.js. Public market reads are unauthenticated `/v1` fetches. Authed paper-trading calls are minted on the Next.js server as `Authorization: Bearer <jwt>` (`{ sub: "<user.id>" }`, 60 s, signed with `INTERNAL_API_TOKEN`). FastAPI verifies that in `auth.py::require_user_id`.
+- **Request path.** The browser talks to Next.js for pages and authenticated mutations. Some public FastAPI endpoints are also called from the browser via `NEXT_PUBLIC_API_URL` (for example the client-side backtest form posts to `/v1/backtest`, and the ticker badge opens SSE at `/v1/stream/quotes/{ticker}`). Authed paper-trading calls are minted on the Next.js server as `Authorization: Bearer <jwt>` (`{ sub: "<user.id>" }`, 60 s, signed with `INTERNAL_API_TOKEN`) — the browser never sees that JWT. FastAPI verifies it in `auth.py::require_user_id`.
 - **Scheduled work.** With `ENABLE_SCHEDULER=true`, APScheduler runs inside the API process (weekday NY-time jobs for prices, FX, metrics, sentiment, recommendations, snapshots, pending-order settlement, dividends, option expiry, news, hourly top-movers + alert evaluation). Jobs take a Postgres advisory lock so two instances cannot double-fill.
-- **Third-party ingest.** Keys are server-side only. Unset keys make the matching job log and skip; the rest of the app still runs on cached/seeded data.
+- **Third-party ingest.** Daily OHLCV uses yfinance first (no API key). Alpha Vantage is a fallback when `ALPHA_VANTAGE_KEY` is set and yfinance returns nothing. News ingest requires `NEWSDATA_KEY` and skips when it is blank. Unset keys make the matching *keyed* job log and skip; price ingest still runs through yfinance. The rest of the app still runs on cached/seeded data.
 - **Hosting intent.** Vercel for `apps/web`, Render for `apps/api` + Postgres. See [Deployment](./docs/DEPLOYMENT.md) for what is in source control vs dashboard-owned.
 
 Sentry collects errors from both apps when a DSN is set.
@@ -68,7 +69,7 @@ Sentry collects errors from both apps when a DSN is set.
 | Charts     | lightweight-charts (TradingView)                              |
 | API        | FastAPI, SQLModel, Alembic, APScheduler                       |
 | DB         | Postgres 16                                                   |
-| Ingestion  | Alpha Vantage (primary) + yfinance (fallback) + Newsdata.io   |
+| Ingestion  | yfinance (primary) + Alpha Vantage (fallback) + Newsdata.io   |
 | Hosting    | Vercel (web) + Render (api + db)                              |
 | Monitoring | Sentry                                                        |
 | Tooling    | pnpm + uv, biome + ruff, pyright + tsc                        |
