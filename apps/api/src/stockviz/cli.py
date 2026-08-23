@@ -140,6 +140,18 @@ def _cmd_settle_options(_args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_publish_outbox(args: argparse.Namespace) -> int:
+    from stockviz.workers.outbox_publisher import main as publisher_main
+
+    return publisher_main(["--once"] if args.once else [])
+
+
+def _cmd_consume_trade_activity(args: argparse.Namespace) -> int:
+    from stockviz.workers.trade_activity_consumer import main as consumer_main
+
+    return consumer_main(["--once"] if args.once else [])
+
+
 def _cmd_fx(args: argparse.Namespace) -> int:
     currencies = (
         [c.upper() for c in args.currencies] if args.currencies else _default_fx_currencies()
@@ -248,6 +260,20 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser(
         "settle-options", help="Settle every option position that has reached expiry"
     ).set_defaults(fn=_cmd_settle_options)
+
+    p_pub = sub.add_parser(
+        "publish-outbox",
+        help="Publish unpublished outbox events to Kafka (does not run inside the API process)",
+    )
+    p_pub.add_argument("--once", action="store_true", help="Publish one batch and exit")
+    p_pub.set_defaults(fn=_cmd_publish_outbox)
+
+    p_cons = sub.add_parser(
+        "consume-trade-activity",
+        help="Consume stockviz.trades.v1 into derived portfolio activity",
+    )
+    p_cons.add_argument("--once", action="store_true", help="Handle at most one message and exit")
+    p_cons.set_defaults(fn=_cmd_consume_trade_activity)
 
     args = parser.parse_args(argv)
     return args.fn(args)

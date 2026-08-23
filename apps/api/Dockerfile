@@ -53,6 +53,11 @@ USER stockviz
 ENV PORT=8000
 EXPOSE 8000
 
+# Same image, different command, for later Kubernetes/worker deploys:
+#   uvicorn stockviz.main:app ...                         # API (this default)
+#   python -m stockviz.workers.outbox_publisher           # outbox → Kafka
+#   python -m stockviz.workers.trade_activity_consumer    # trades topic → derived activity
+#
 # Run migrations on boot, then start uvicorn.
 # Render's free tier doesn't support release commands, so we inline it here.
 #
