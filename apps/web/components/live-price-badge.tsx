@@ -53,12 +53,12 @@ export function LivePriceBadge({ ticker, initialPrice }: Props) {
     <div className="flex items-center justify-end gap-2 font-mono">
       <div className="text-3xl">${price !== null ? fmt(price) : "—"}</div>
       {liveState === "live" ? (
-        <span className="relative flex h-2 w-2" title="Simulated live price">
+        <span className="relative flex h-2 w-2" title="Simulated quote">
           <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75" />
           <span className="relative inline-flex h-2 w-2 rounded-full bg-green-500" />
         </span>
       ) : liveState === "error" ? (
-        <span className="h-2 w-2 rounded-full bg-yellow-400" title="Live price unavailable" />
+        <span className="h-2 w-2 rounded-full bg-yellow-400" title="Simulated quote unavailable" />
       ) : null}
     </div>
   );

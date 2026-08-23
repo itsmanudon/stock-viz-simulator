@@ -1,80 +1,77 @@
 # StockViz
 
-Live market data, technical indicators, news, and a paper-trading simulator.
+Full-stack market analytics, strategy backtesting, and paper trading for equities and options.
 
-A Next.js + FastAPI + Postgres rewrite of the original static-HTML site.
-Tag [`v1.0.0`](../../tree/v1.0.0) points at the legacy v1 source;
-[`v2.0.0`](../../tree/v2.0.0) marks the cutover commit where both codebases
-coexisted. The rewrite plan ([`REWRITE_PLAN.md`](./REWRITE_PLAN.md)) is
-**historical** — all seven phases shipped. A recruiter-honest list of what
-ships vs what is still unfinished is in
-[`docs/RESUME_GAPS.md`](./docs/RESUME_GAPS.md).
+StockViz is a Next.js + FastAPI + PostgreSQL platform: it ingests **end-of-day** prices and news, computes technical indicators, scores daily recommendations, and runs a FX-aware paper-trading ledger with pending orders, dividends, and long options priced by Black-Scholes. Background jobs run in-process via APScheduler. Auth is NextAuth on the web app, with a short-lived server-to-server JWT on authenticated `/v1` calls.
 
-There is no public live URL in this repository. Intended hosts are Vercel
-(web) and Render (API + DB); dashboard auto-deploys are currently **off**.
+**Docs:** [Setup](./docs/SETUP.md) · [Deployment](./docs/DEPLOYMENT.md) · [Known limitations](./docs/KNOWN_LIMITATIONS.md) · [Sentiment](./docs/SENTIMENT.md) · [Project history](./REWRITE_PLAN.md)
+
+This repository does **not** currently provide a verified public demo. Clone and run locally (see [Setup](./docs/SETUP.md)).
+
+## Highlights
+
+- Look-ahead-safe strategy backtesting over stored daily bars, with configurable commission/slippage and a buy-and-hold benchmark.
+- Black-Scholes options pricing with Greeks; volatility is 30-day historical vol, not an implied-vol surface.
+- FX-aware equity and long-options paper-trading ledger (USD cash, native-currency fills, realized P&L on sells, dividends, pending limit/stop/take-profit orders).
+- PostgreSQL-backed market data, portfolio snapshots, orders, dividends, alerts, comments, and recommendations.
+- Short-lived HS256 JWT auth boundary: the Next.js server mints a 60-second token; the browser never sees it.
+- Scheduled ingest and settlement (prices, FX, news, metrics, sentiment, recommendations, snapshots, pending orders, dividends, option expiry, alerts).
+- Quality gates spanning Python and TypeScript tests, Alembic migration checks, OpenAPI→client type sync, dependency audits, an API Docker build, and Playwright e2e.
+
+## Market data (what “live” means here)
+
+Provider ingest is **daily OHLCV**, cached in Postgres (Alpha Vantage primary, yfinance fallback; Newsdata.io for headlines). Fills, charts, backtests, and alerts all price off the latest `1d` close — not an exchange real-time feed.
+
+The ticker-page quote badge is a **simulated quote**: an SSE Gaussian random walk starting from that cached close (`GET /v1/stream/quotes/{ticker}`). It is labeled in the UI. Headline sentiment scoring is off unless `ANTHROPIC_API_KEY` or `SENTIMENT_PROVIDER=http` is configured.
 
 ## What it does
 
 - **Markets** — sortable table of tracked symbols with inline sparklines.
-- **Ticker detail** — OHLCV candlesticks (lightweight-charts), SMA/EMA/RSI/MACD overlays, related news and comments.
-- **Compare** — normalized price chart for multiple tickers side-by-side.
+- **Ticker detail** — OHLCV candlesticks (lightweight-charts), SMA/EMA/RSI/MACD, related news, comments, and the simulated quote badge.
+- **Compare** — normalized price chart for multiple tickers.
 - **News** — paginated company-news feed from Newsdata.io, cached in Postgres.
 - **Recommendations** — daily-scored buy candidates (six price/volume votes plus an optional news-sentiment vote).
-- **Screener / backtest / leaderboard** — filter the universe, run a historical strategy, rank public portfolios.
-- **Paper trading** — per-user portfolio with cash, equity and long-only option positions, pending limit/stop orders, trade history, P&L, dividends, and FX conversion to USD.
+- **Screener / backtest / leaderboard** — filter the universe, replay a historical strategy, rank public portfolios by NAV.
+- **Paper trading** — per-user portfolio with cash, equity and long-only option positions, pending orders, trade history, P&L, dividends, and FX conversion to USD.
 - **Watchlist and in-app price alerts** — alerts evaluate hourly on weekdays; there is no email/push.
 - **Auth** — email/password (bcrypt) plus optional Google OAuth (needs `GOOGLE_CLIENT_*`).
 
-The header “live” price badge is a simulated random walk off the last cached
-close, not a real-time exchange feed. Headline sentiment scoring is off
-unless `ANTHROPIC_API_KEY` or `SENTIMENT_PROVIDER=http` is configured.
-
 ## Architecture
 
-```
-┌────────────────┐         ┌─────────────────────┐         ┌─────────────┐
-│  Browser       │  HTTPS  │  Next.js (Vercel)   │  HTTPS  │   FastAPI   │
-│  React + RSC   │ ──────▶ │  - App Router       │ ──────▶ │  (Render)   │
-└────────────────┘         │  - NextAuth v5      │         │  + APScheduler
-                           │  - server-only API  │         └──────┬──────┘
-                           │    client (JWT)     │                │
-                           └─────────┬───────────┘                │
-                                     │                            │
-                                     │     ┌──────────────────────┘
-                                     ▼     ▼
-                              ┌─────────────────┐         ┌──────────────────┐
-                              │  Postgres 16    │         │  Alpha Vantage   │
-                              │  (Render DB)    │         │  yfinance        │
-                              │  - users        │         │  Newsdata.io     │
-                              │  - symbols      │         └──────────────────┘
-                              │  - price_bars   │
-                              │  - portfolios   │
-                              │  - trades       │
-                              └─────────────────┘
+Synchronous request path vs scheduled work:
+
+```mermaid
+flowchart LR
+  Browser -->|"HTTPS"| Web["Next.js<br/>App Router + NextAuth"]
+  Web -->|"public /v1"| API["FastAPI"]
+  Web -->|"authed /v1<br/>60s HS256 JWT"| API
+  API --> PG[("PostgreSQL")]
+  API -.-> Sch["APScheduler<br/>in-process"]
+  Sch --> PG
+  Sch --> Ext["Alpha Vantage / yfinance / Newsdata.io"]
+  Sch -.->|"optional"| Sent["Anthropic or HTTP sentiment"]
 ```
 
-- The Next.js server mints a short-lived HS256 JWT (`{ sub: "<user.id>" }`,
-  60 s) signed with `INTERNAL_API_TOKEN` and sends it as
-  `Authorization: Bearer <jwt>` on authenticated `/v1` calls. The browser
-  never sees the token. FastAPI verifies the signature in
-  `auth.py::require_user_id`.
-- APScheduler runs in-process inside FastAPI for the daily refresh
-  (`ENABLE_SCHEDULER=true` in production).
-- Sentry collects errors from both the web and api (gated on `SENTRY_DSN`).
+- **Request path.** The browser talks only to Next.js. Public market reads are unauthenticated `/v1` fetches. Authed paper-trading calls are minted on the Next.js server as `Authorization: Bearer <jwt>` (`{ sub: "<user.id>" }`, 60 s, signed with `INTERNAL_API_TOKEN`). FastAPI verifies that in `auth.py::require_user_id`.
+- **Scheduled work.** With `ENABLE_SCHEDULER=true`, APScheduler runs inside the API process (weekday NY-time jobs for prices, FX, metrics, sentiment, recommendations, snapshots, pending-order settlement, dividends, option expiry, news, hourly top-movers + alert evaluation). Jobs take a Postgres advisory lock so two instances cannot double-fill.
+- **Third-party ingest.** Keys are server-side only. Unset keys make the matching job log and skip; the rest of the app still runs on cached/seeded data.
+- **Hosting intent.** Vercel for `apps/web`, Render for `apps/api` + Postgres. See [Deployment](./docs/DEPLOYMENT.md) for what is in source control vs dashboard-owned.
+
+Sentry collects errors from both apps when a DSN is set.
 
 ## Stack
 
-| Layer       | Choice                                          |
-| ----------- | ----------------------------------------------- |
-| Web         | Next.js 16 (App Router), React 19, TS, Tailwind v4, shadcn/ui |
-| Auth        | NextAuth v5 (credentials + optional Google OAuth, bcrypt) |
-| Charts      | lightweight-charts (TradingView)                |
-| API         | FastAPI, SQLModel, Alembic, APScheduler         |
-| DB          | Postgres 16                                     |
-| Ingestion   | Alpha Vantage (primary) + yfinance (fallback) + Newsdata.io |
-| Hosting     | Vercel (web) + Render (api + db)                |
-| Monitoring  | Sentry                                          |
-| Tooling     | pnpm + uv, biome + ruff, pyright + tsc          |
+| Layer      | Choice                                                        |
+| ---------- | ------------------------------------------------------------- |
+| Web        | Next.js 16 (App Router), React 19, TS, Tailwind v4, shadcn/ui |
+| Auth       | NextAuth v5 (credentials + optional Google OAuth, bcrypt)     |
+| Charts     | lightweight-charts (TradingView)                              |
+| API        | FastAPI, SQLModel, Alembic, APScheduler                       |
+| DB         | Postgres 16                                                   |
+| Ingestion  | Alpha Vantage (primary) + yfinance (fallback) + Newsdata.io   |
+| Hosting    | Vercel (web) + Render (api + db)                              |
+| Monitoring | Sentry                                                        |
+| Tooling    | pnpm + uv, biome + ruff, pyright + tsc                        |
 
 ## Repo layout
 
@@ -101,14 +98,13 @@ infra/
   docker-compose.yml   Local Postgres + Adminer
   render.yaml          Render Blueprint (api + db)
 .github/workflows/     CI: lint, typecheck, tests, audit, Docker, e2e
-docs/RESUME_GAPS.md    Honest shipped-vs-claimed / next-work list
-REWRITE_PLAN.md        Historical phase-by-phase rewrite plan
+docs/                  Setup, deployment, known limitations, sentiment
+REWRITE_PLAN.md        Historical v1 → v2 rewrite plan
 ```
 
 ## Local dev
 
-Full step-by-step instructions for **macOS / Linux** and **Windows** live in
-[`docs/SETUP.md`](./docs/SETUP.md). The short version:
+Full step-by-step instructions for **macOS / Linux** and **Windows** are in [`docs/SETUP.md`](./docs/SETUP.md). The short version:
 
 ```bash
 pnpm install
@@ -138,8 +134,8 @@ pnpm build                                 # production build of the web app
 ```
 
 GitHub Actions runs the above plus `pnpm audit` / `pip-audit`, an API Docker
-build, `alembic check`, and Playwright e2e on every push and PR to **`dev`**
-and **`main`**.
+build, `alembic check`, OpenAPI client-type sync, and Playwright e2e on every
+push and PR to **`dev`** and **`main`**.
 
 Work off **`dev`**. Open feature PRs into `dev`, not `main`. `main` is the
 release branch. The `migration` and `v2` branches are retired remnants of
@@ -147,16 +143,14 @@ the rewrite.
 
 ## Deployment
 
-Full walkthrough (Vercel for web, Render Blueprint for api + db, env vars,
-secrets, first-time seeding, rollback) lives in
-[`docs/DEPLOYMENT.md`](./docs/DEPLOYMENT.md). The short version:
+Walkthrough (Vercel for web, Render Blueprint for api + db, env vars,
+first-time seeding, rollback) is in [`docs/DEPLOYMENT.md`](./docs/DEPLOYMENT.md).
 
-> **Note:** auto-deployments are currently **disabled** in the Vercel and
-> Render dashboards. `dev` is merged into `main` freely as changes land —
-> no milestone gate. `infra/render.yaml` still has `autoDeploy: true` (the
-> Blueprint default); re-enable deploys in the dashboards when you want
-> production to follow `main`. The instructions below apply when
-> deployments are turned back on.
+Source control records **intended** hosts and Blueprint defaults. It does
+**not** record whether a Vercel or Render dashboard currently deploys on
+push. `infra/render.yaml` sets `autoDeploy: true` (Render’s Blueprint
+default). This repository does not enable, disable, or trigger production
+rollouts.
 
 - **Web → Vercel.** Import the repo, set Root Directory to `apps/web`,
   fill in env vars (`API_URL`, `NEXT_PUBLIC_API_URL`, `DATABASE_URL`,
@@ -171,6 +165,16 @@ secrets, first-time seeding, rollback) lives in
   refresh runs in-process via APScheduler.
 
 Build the API image locally with `docker build -t stockviz-api ./apps/api`.
+
+## Project history
+
+StockViz began as a static HTML/CSS/JS site with offline CSVs. The current
+app is a full rewrite (Next.js + FastAPI + Postgres). Tag
+[`v1.0.0`](../../tree/v1.0.0) is the legacy tree;
+[`v2.0.0`](../../tree/v2.0.0) is the cutover commit where both codebases
+coexisted. The phase-by-phase plan in [`REWRITE_PLAN.md`](./REWRITE_PLAN.md)
+is **historical** — all seven phases shipped; do not treat its open questions
+or stack table as current.
 
 ## License
 

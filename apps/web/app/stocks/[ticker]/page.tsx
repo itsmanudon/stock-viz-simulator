@@ -185,7 +185,7 @@ export default async function StockPage({
                   ? `${tf}: —`
                   : `${tf}: ${periodChangePct >= 0 ? "+" : ""}${periodChangePct.toFixed(2)}%`}
               </div>
-              <p className="mt-0.5 text-xs text-muted-foreground">simulated live</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">simulated quote</p>
             </div>
           </div>
         </header>

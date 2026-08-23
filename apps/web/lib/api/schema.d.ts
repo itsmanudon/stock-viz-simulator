@@ -545,7 +545,7 @@ export interface paths {
         };
         /**
          * Stream Quotes
-         * @description SSE: simulated live price, updated every ~3 s, capped at 15 minutes.
+         * @description SSE: simulated quote (random walk from last close), ~3 s, 15 min cap.
          */
         get: operations["stream_quotes_v1_stream_quotes__ticker__get"];
         put?: never;

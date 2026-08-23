@@ -1,10 +1,11 @@
 # StockViz — codebase review: gaps & improvements
 
-> **Status: addressed.** Everything below was fixed on `dev` across seven
-> commits; each commit message references these section numbers. Items
-> deliberately left for a design decision are recorded in
-> [`IDEAS.md`](./IDEAS.md) with the reasoning. This file stays as the record of
-> what was wrong and why it mattered.
+> **Historical audit record.** Findings below were fixed on `dev` across seven
+> commits; each commit message references these section numbers. Remaining
+> product and ops constraints are in [`KNOWN_LIMITATIONS.md`](./KNOWN_LIMITATIONS.md).
+> Items deliberately left for a design decision are also recorded in
+> [`IDEAS.md`](./IDEAS.md). This file stays as the record of what was wrong
+> and why it mattered.
 >
 > Three claims turned out to be wrong or understated once tested, and are
 > corrected inline below: §8.4's duplicate-scoring case cannot occur

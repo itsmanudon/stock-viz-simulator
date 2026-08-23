@@ -12,8 +12,8 @@ export default function HomePage() {
           Market Intelligence <span className="text-primary">Simplified</span>
         </h1>
         <p className="mt-6 text-lg text-muted-foreground">
-          Live market data, technical indicators, and a paper-trading simulator. Built for investors
-          who want to learn without risking real money.
+          End-of-day market analytics, technical indicators, strategy backtesting, and paper
+          trading. Built for investors who want to learn without risking real money.
         </p>
         <div className="mt-10 flex items-center justify-center gap-4">
           <Button asChild size="lg">
