@@ -1,9 +1,9 @@
-"""`GET /v1/stream/quotes/{ticker}` — simulated live SSE price ticker.
+"""`GET /v1/stream/quotes/{ticker}` — simulated SSE quote ticker.
 
-Since StockViz stores EOD prices (not real-time data), the stream starts
-from the latest close and applies a small Gaussian random walk to simulate
-live price movement. This is clearly a simulation; the ticker detail page
-labels it accordingly.
+Since StockViz stores EOD prices (not exchange real-time data), the stream
+starts from the latest close and applies a small Gaussian random walk to
+simulate intraday movement. This is a simulation; the ticker detail page
+labels it as a simulated quote.
 
 **Connection handling.** The initial close is read inside an explicit session
 that closes before the response starts. This endpoint deliberately does *not*
@@ -78,7 +78,7 @@ InitialCloseDep = Annotated[float | None, Depends(initial_close)]
 async def stream_quotes(
     request: Request, ticker: str, initial: InitialCloseDep
 ) -> StreamingResponse:
-    """SSE: simulated live price, updated every ~3 s, capped at 15 minutes."""
+    """SSE: simulated quote (random walk from last close), ~3 s, 15 min cap."""
     t = ticker.strip().upper()
 
     async def _events() -> AsyncGenerator[str, None]:

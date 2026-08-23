@@ -91,8 +91,8 @@ export default async function TradePage() {
         <header className="mb-4">
           <h2 className="text-2xl font-bold tracking-tight">Options</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Buy calls and puts to open. Premiums are priced with Black-Scholes; manage and close
-            positions from the{" "}
+            Buy calls and puts to open. Premiums use Black-Scholes with 30-day historical
+            volatility, not a live implied-vol surface. Manage and close positions from the{" "}
             <Link href="/portfolio" className="text-foreground underline">
               portfolio page
             </Link>

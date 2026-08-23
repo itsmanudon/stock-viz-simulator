@@ -6,7 +6,8 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "StockViz | Market Visualization Platform",
-  description: "Live market data, news, and paper-trading simulator.",
+  description:
+    "End-of-day market analytics, strategy backtesting, and paper trading for equities and options.",
 };
 
 export default function RootLayout({

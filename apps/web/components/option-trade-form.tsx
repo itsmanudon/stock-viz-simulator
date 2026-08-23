@@ -101,7 +101,8 @@ export function OptionTradeForm({ options }: { options: SymbolOption[] }) {
               required
             />
             <p className="text-xs text-muted-foreground">
-              Premium is priced with Black-Scholes. One contract covers 100 shares.
+              Premium is priced with Black-Scholes using 30-day historical volatility, not a live
+              implied-vol surface. One contract covers 100 shares.
             </p>
           </div>
 
