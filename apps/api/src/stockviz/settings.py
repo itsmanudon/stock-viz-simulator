@@ -101,6 +101,14 @@ class Settings(BaseSettings):
     sentry_dsn: str = ""
     sentry_traces_sample_rate: float = 0.1
 
+    # Kafka is used only by outbox publisher / consumers, never by the API
+    # request path. Defaults target local docker compose ``--profile events``.
+    kafka_bootstrap_servers: str = "localhost:9092"
+    kafka_trades_topic: str = "stockviz.trades.v1"
+    kafka_consumer_group: str = "stockviz.trade-activity.v1"
+    outbox_batch_size: int = 50
+    outbox_poll_interval_seconds: float = 1.0
+
     @model_validator(mode="after")
     def _reject_dev_secrets_in_production(self) -> Settings:
         """Refuse to boot in production while a secret is still its dev default.

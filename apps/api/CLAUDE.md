@@ -16,7 +16,11 @@ src/stockviz/
   schemas.py        shared Pydantic response models
   observability.py  Sentry bootstrap (no-op without DSN)
   models/           SQLModel tables (market, portfolio, user, order, option, dividend,
-                    alert, comment, recommendation, watchlist, metrics, sentiment)
+                    alert, comment, recommendation, watchlist, metrics, sentiment,
+                    events — outbox, consumer inbox, derived trade activity)
+  events/           trade.executed contract, outbox claim/publish, Kafka wrappers,
+                    derived activity applier (not imported by FastAPI startup)
+  workers/          outbox_publisher and trade_activity_consumer processes
   routers/          /v1 endpoints, one file per resource — symbols, quotes, bars,
                     markets (one-call /markets summary), indicators, news,
                     recommendations, trading, orders, options, backtest,
@@ -57,7 +61,16 @@ OpenAPI docs at `/docs` when running. Health at `/health`.
 CLI subcommands (`python -m stockviz.cli <cmd>`): `seed`, `backfill`,
 `metadata`, `ingest <tickers>`, `fx`, `metrics`, `score-sentiment`,
 `sentiment-aggregate`, `recommend`, `snapshot-portfolios`, `dividends`,
-`credit-dividends`, `settle-options`.
+`credit-dividends`, `settle-options`, `publish-outbox [--once]`,
+`consume-trade-activity [--once]`.
+
+Kafka workers (same image, different command; broker optional for the API):
+
+```powershell
+pnpm events:up   # compose profile "events" — KRaft Kafka + topic init
+uv --directory apps/api run python -m stockviz.workers.outbox_publisher --once
+uv --directory apps/api run python -m stockviz.workers.trade_activity_consumer --once
+```
 
 ## Quality gates
 

@@ -8,6 +8,7 @@ imports themselves.
 from stockviz.models.alert import Alert, AlertDirection
 from stockviz.models.comment import Comment
 from stockviz.models.dividend import Dividend, PortfolioDividend
+from stockviz.models.events import ConsumerInbox, OutboxEvent, PortfolioTradeActivity
 from stockviz.models.market import FxRate, NewsArticle, PriceBar, Symbol
 from stockviz.models.metrics import SymbolMetrics
 from stockviz.models.option import OptionsPosition, OptionStatus, OptionType
@@ -22,6 +23,7 @@ __all__ = [
     "Alert",
     "AlertDirection",
     "Comment",
+    "ConsumerInbox",
     "Dividend",
     "FxRate",
     "NewsArticle",
@@ -31,10 +33,12 @@ __all__ = [
     "OptionsPosition",
     "OrderStatus",
     "OrderType",
+    "OutboxEvent",
     "PendingOrder",
     "Portfolio",
     "PortfolioDividend",
     "PortfolioSnapshot",
+    "PortfolioTradeActivity",
     "Position",
     "PriceBar",
     "Recommendation",

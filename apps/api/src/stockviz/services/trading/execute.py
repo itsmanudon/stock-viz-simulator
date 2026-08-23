@@ -322,6 +322,18 @@ def apply_fill(
     )
     session.add(trade)
     session.add(portfolio)
+    # Assign trade.id without committing so the outbox row can reference it
+    # in this same transaction. Kafka is not involved here.
+    session.flush()
+    from stockviz.events.outbox import enqueue_trade_executed
+
+    enqueue_trade_executed(
+        session,
+        trade=trade,
+        currency=currency,
+        fx_rate=fx_rate,
+        usd_notional=usd_cost,
+    )
     return TradeExecution(
         trade=trade,
         currency=currency,

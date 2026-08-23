@@ -1,7 +1,7 @@
 [project]
 name = "stockviz-api"
 version = "0.1.0"
-description = "StockViz backend API - live stock data, news, paper-trading portfolios"
+description = "StockViz backend API — EOD market data, news, and paper-trading portfolios"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
@@ -20,6 +20,7 @@ dependencies = [
     "sentry-sdk[fastapi]>=2.20.0",
     "slowapi>=0.1.9",
     "anthropic>=0.42.0",
+    "confluent-kafka>=2.15.0",
 ]
 
 [dependency-groups]

@@ -131,6 +131,17 @@ Visit:
 | API (FastAPI) | 8000                |
 | Postgres      | 5434                |
 | Adminer       | 8080                |
+| Kafka (optional, `pnpm events:up`) | 9092 |
+
+Optional event stack (KRaft Kafka, not required to trade):
+
+```bash
+pnpm events:up
+uv --directory apps/api run python -m stockviz.workers.outbox_publisher --once
+uv --directory apps/api run python -m stockviz.workers.trade_activity_consumer --once
+```
+
+See [`EVENT_DRIVEN_ARCHITECTURE.md`](./EVENT_DRIVEN_ARCHITECTURE.md).
 
 ## Quality gates
 

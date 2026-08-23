@@ -101,6 +101,22 @@ on news rows appear only when articles have been scored. See
   leftover so existing Render services keep the env var. The auth bridge
   verifies `INTERNAL_API_TOKEN` only.
 
+## Kafka and the transactional outbox
+
+- **Local Kafka is a single KRaft node**, not an HA cluster. Compose profile
+  `events` (`pnpm events:up`). No Schema Registry, Kafka Connect, or UI.
+- **Only `trade.executed` v1** is integrated. Ingest, news, sentiment,
+  recommendations, alerts, snapshots, dividends, and options jobs stay on
+  APScheduler.
+- **At-least-once publication.** The publisher sets `published_at` after a
+  broker ack. A crash between ack and that UPDATE can produce a duplicate.
+  Consumers de-duplicate with `consumer_inbox`.
+- **No dead-letter queue.** An incompatible payload fails validation and
+  does not commit the Kafka offset, which can stall that partition until
+  the worker is fixed.
+- **The API does not require Kafka.** Trades commit to Postgres + outbox
+  when the broker is down. `/health` does not check Kafka.
+
 ## Deployment configuration
 
 Verifiable from this repository:
