@@ -68,7 +68,8 @@ export default async function OrdersPage() {
       <header className="mb-6">
         <h1 className="text-3xl font-bold tracking-tight">Pending orders</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Limit, stop-loss, and take-profit orders. Settled against EOD close each weekday.
+          Limit, stop-loss, and take-profit orders. Pending buys reserve buying power; pending sells
+          reserve shares. Settled against EOD close each weekday.
         </p>
       </header>
 

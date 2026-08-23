@@ -26,18 +26,24 @@ This is not a commitment to build the items below in any particular order.
 - **Simulated ticker quotes.** `GET /v1/stream/quotes/{ticker}` is a Gaussian
   random walk from the last cached close, capped at 15 minutes per connection.
   The ticker page labels it as a simulated quote.
-- **Provider freshness.** Alpha Vantage / yfinance / Newsdata.io jobs no-op
-  when their keys are blank. A clone that only runs `seed` + CSV `backfill`
-  has historical bars, not a live vendor feed.
+- **Provider freshness.** Daily OHLCV ingest uses **yfinance first** (no API
+  key). Alpha Vantage is a fallback only when `ALPHA_VANTAGE_KEY` is set and
+  yfinance returns no rows. A blank Alpha Vantage key does **not** disable
+  price ingest. Newsdata.io jobs no-op when `NEWSDATA_KEY` is blank. A clone
+  that only runs `seed` + CSV `backfill` has historical bars, not a live
+  vendor feed.
 - **Small universe.** Seed data covers a few dozen symbols
   (`apps/api/seed-data/companies.json`). Header typeahead over
   `searchSymbols` is not wired; the API exists.
 
 ## Paper trading
 
-- **Pending orders do not reserve cash or shares.** Two large limit buys can
-  both sit pending and only one may fill at settlement; the other is cancelled
-  when validation fails.
+- **Pending-order FX reservations are estimates.** A pending BUY reserves
+  `quantity × limit_price` converted to USD at the **latest known** FX rate.
+  Settlement still fills at the session close and revalidates actual USD cost
+  against cash minus *other* orders' reservations. If FX moves against the
+  book after the order was accepted, the fill can be cancelled even though
+  the reservation was valid at submit time.
 - **Fills at the close.** Triggered limit/stop/take-profit orders fill at the
   session close, not at the limit price.
 - **Opening cash is fixed.** Every account starts at $100,000. There are no
@@ -49,7 +55,9 @@ This is not a commitment to build the items below in any particular order.
 - **Options are long-only.** No spreads, writing, early exercise, or margin.
   Premiums use Black-Scholes with **30-day historical volatility** as the
   implied-vol proxy and a 5% risk-free rate. The UI should not be read as a
-  live IV surface.
+  live IV surface. Option premium accounting debits the USD cash bucket
+  without the equity path's native-currency FX conversion — do not treat
+  long options as a fully multi-currency book.
 - **Alerts are in-app only.** Evaluation is bundled into the weekday hourly
   top-movers job (10:00–16:00 ET). No email or push; Friday after-hours
   triggers wait until Monday.

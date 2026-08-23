@@ -23,11 +23,11 @@ src/stockviz/
                     screener, sentiment, leaderboard, watchlist, alerts,
                     comments, stream (SSE simulated quotes), health
   services/
-    ingest/         External-API fetchers (Alpha Vantage, yfinance, Newsdata)
+    ingest/         External-API fetchers (yfinance primary, Alpha Vantage fallback, Newsdata)
     indicators/     SMA/EMA/RSI/MACD pure functions
     recommend/      The ported v1 algo
-    trading/        execute, orders (pending limit/stop), portfolio, analytics,
-                    dividends, fx, snapshots
+    trading/        execute, orders (pending limit/stop + derived reservations),
+                    buying_power, portfolio, analytics, dividends, fx, snapshots
     options/        Black-Scholes-style pricing + option trade execution/settlement
     backtest/       engine.py — historical strategy simulation
     alerts.py       price-alert evaluation
@@ -157,11 +157,23 @@ intraday fills anywhere in the app:
 - **Pending orders** (`services/trading/orders.py`): `limit` (buy triggers at
   close ≤ limit, sell at close ≥), `stop_loss`/`take_profit` (sell-only;
   close ≤ / ≥ trigger). Checked once per day by the 16:45 settlement job and
-  filled **at the close price**, not the limit price. Orders that trigger but
-  fail validation (insufficient cash/shares) are **cancelled** with a
-  `cancel_reason`, never retried. Settlement takes a `session_date` and leaves
-  orders pending when the latest bar predates it, so a failed price refresh
-  can't fill against a stale close.
+  filled **at the close price**, not the limit price. Pending BUYs reserve
+  USD buying power (`quantity × limit_price` at the latest FX rate); pending
+  SELLs reserve shares. Reservations are derived from `PENDING` rows in
+  `services/trading/buying_power.py` — cancel/fill releases them. Market
+  equity trades and long-option opens check **available** cash/shares, not
+  raw `cash_balance` / position quantity. A fill may consume its own
+  reservation (`exclude_order_id`) but not another order's. Competing
+  cash writers (`apply_fill`, pending create/cancel/settle, option
+  open/close/expiry, dividend credits) `SELECT … FOR UPDATE` the portfolio
+  row via `lock_portfolio`, which **refreshes** the identity-map instance so
+  a stale `cash_balance` cannot overwrite a concurrent debit. Cancel and
+  fill re-read `order.status == PENDING` after that lock. First-portfolio
+  creation serializes on the user row; `portfolios.user_id` is unique.
+  Orders that trigger but fail validation (insufficient available cash/shares)
+  are **cancelled** with a `cancel_reason`, never retried. Settlement takes a
+  `session_date` and leaves orders pending when the latest bar predates it, so
+  a failed price refresh can't fill against a stale close.
 - **One fill path.** Both market orders and pending-order settlement go through
   `execute.apply_fill`, which owns the cash/position mutation. Keep it that
   way: when the two had separate copies, only one of them converted native
@@ -171,10 +183,13 @@ intraday fills anywhere in the app:
   option debited cash and recorded no offsetting asset.
 - **Options** (`services/options/`): long-only book. Black-Scholes pricing
   with 30-day historical volatility as the IV proxy and a 5% risk-free rate;
-  contracts are ×100 (`CONTRACT_MULTIPLIER`). At expiry (17:30 job): ITM
-  calls exercise into the equity book if cash covers the strike, otherwise
-  cash-settle intrinsic value; ITM puts sell held shares at the strike,
-  otherwise cash-settle; OTM expires worthless.
+  contracts are ×100 (`CONTRACT_MULTIPLIER`). Premiums debit the USD cash
+  bucket and must honour pending-equity-BUY reservations. Option pricing is
+  **not** a complete multi-currency ledger (unlike equity `apply_fill`). At
+  expiry (17:30 job): ITM calls exercise into the equity book if *available*
+  cash covers the strike, otherwise cash-settle intrinsic value; ITM puts
+  sell *available* held shares at the strike, otherwise cash-settle; OTM
+  expires worthless.
 
 ## Auth bridge
 
@@ -194,10 +209,12 @@ revision you'll get **multiple heads** — resolve with
 
 ## Ingestion contract
 
-Each ingest service writes straight to Postgres — no CSV intermediate. They
-short-circuit (with a log line) when their API key is unset, so jobs are
-safe to run unconfigured. Same pattern for `sentiment.py` (Anthropic) — it
-logs and skips when the key or package is missing.
+Each ingest service writes straight to Postgres — no CSV intermediate.
+Price ingest uses **yfinance first** (no key). Alpha Vantage is attempted
+only when `ALPHA_VANTAGE_KEY` is set and yfinance returned no rows. News
+ingest short-circuits when `NEWSDATA_KEY` is unset. Same skip-when-unkeyed
+pattern for sentiment (Anthropic) — it logs and skips when the key or
+package is missing.
 
 ## Testing
 

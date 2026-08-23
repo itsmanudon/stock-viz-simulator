@@ -1,7 +1,9 @@
 # stockviz-api
 
 FastAPI backend for StockViz. Serves end-of-day market data, news, strategy
-backtests, and an FX-aware paper-trading ledger (equities and long options).
+backtests, FX-aware equity paper trading, and a long-only options book
+(Black-Scholes; premiums debit USD cash and are not a full multi-currency
+options ledger).
 
 Quote SSE at `/v1/stream/quotes/{ticker}` is a **simulated** random walk from
 the last cached close, not an exchange real-time feed.
@@ -29,7 +31,7 @@ src/stockviz/
 ├── routers/         # HTTP endpoints, one module per resource
 ├── models/          # SQLModel models (DB tables)
 ├── services/        # business logic, called by routers
-│   ├── ingest/      # Alpha Vantage / yfinance / Newsdata
+│   ├── ingest/      # yfinance (primary) / Alpha Vantage (fallback) / Newsdata
 │   ├── indicators/  # SMA, EMA, RSI, MACD
 │   ├── recommend/   # daily scoring
 │   ├── trading/     # fills, orders, FX, dividends, analytics

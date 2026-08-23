@@ -34,6 +34,7 @@ from stockviz.services.options import (
     open_option,
     value_option,
 )
+from stockviz.services.trading.execute import NoFxRateError
 
 router = APIRouter(prefix="/v1/options", tags=["options"])
 
@@ -109,7 +110,7 @@ def post_options_trade(
             )
         except OptionSymbolNotFound as exc:
             raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
-        except (InsufficientCashForOption, NoOptionMarketData) as exc:
+        except (InsufficientCashForOption, NoOptionMarketData, NoFxRateError) as exc:
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from exc
         except (InvalidExpiry, OptionTradeError) as exc:
             raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc

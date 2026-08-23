@@ -153,6 +153,8 @@ class PositionOut(BaseModel):
     # Same aggregates converted to the portfolio's display currency.
     market_value: Decimal
     unrealized_pl: Decimal
+    reserved_quantity: Decimal = Decimal(0)
+    available_quantity: Decimal = Decimal(0)
 
 
 class PortfolioOptionOut(BaseModel):
@@ -187,6 +189,8 @@ class PortfolioOut(BaseModel):
     portfolio_id: int
     display_currency: str = "USD"
     cash_balance: Decimal
+    reserved_cash: Decimal = Decimal(0)
+    available_cash: Decimal = Decimal(0)
     market_value: Decimal
     options_market_value: Decimal = Decimal(0)
     total_value: Decimal

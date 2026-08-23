@@ -5,10 +5,11 @@ cash), ``close_option`` sells it back at the current theoretical price
 (proceeds credited), and ``settle_expired_options`` runs at/after expiry:
 
 - ITM call  -> exercised into the equity book: buy ``qty * 100`` shares at the
-  strike. If cash can't cover the strike cost, the intrinsic value is
-  cash-settled instead.
-- ITM put   -> if the portfolio holds enough shares they're sold at the strike
-  (protective-put semantics); otherwise the intrinsic value is cash-settled.
+  strike. If *available* cash (ledger minus pending-BUY reservations) can't
+  cover the strike cost, the intrinsic value is cash-settled instead.
+- ITM put   -> if the portfolio has enough *available* shares (held minus
+  pending-SELL reservations) they're sold at the strike; otherwise the
+  intrinsic value is cash-settled.
 - OTM       -> expires worthless; the premium is already lost.
 
 Implied volatility is the 30-day historical volatility of the underlying — a
@@ -36,7 +37,12 @@ from stockviz.models import (
 )
 from stockviz.models.option import CONTRACT_MULTIPLIER
 from stockviz.services.options.pricing import OptionPrice, black_scholes, historical_volatility
-from stockviz.services.trading.execute import ensure_default_portfolio
+from stockviz.services.trading.buying_power import (
+    available_cash,
+    available_shares,
+    lock_portfolio,
+)
+from stockviz.services.trading.execute import NoFxRateError, ensure_default_portfolio
 
 logger = logging.getLogger(__name__)
 
@@ -163,15 +169,21 @@ def open_option(
 
     portfolio = ensure_default_portfolio(session, user_id)
     assert portfolio.id is not None
-    if portfolio.cash_balance < premium:
+    portfolio_id = portfolio.id
+    portfolio = lock_portfolio(session, portfolio_id)
+    try:
+        spendable = available_cash(session, portfolio)
+    except LookupError as exc:
+        raise NoFxRateError(str(exc)) from exc
+    if spendable < premium:
         raise InsufficientCashForOption(
-            f"Cash balance ${portfolio.cash_balance:.2f} < option premium ${premium:.2f}"
+            f"Available buying power ${spendable:.2f}; option premium ${premium:.2f}."
         )
 
     portfolio.cash_balance = (portfolio.cash_balance - premium).quantize(_MICROS)
     position = OptionsPosition(
         user_id=user_id,
-        portfolio_id=portfolio.id,
+        portfolio_id=portfolio_id,
         ticker=ticker,
         option_type=option_type,
         strike=strike,
@@ -203,8 +215,12 @@ def close_option(session: Session, *, user_id: int, option_id: int) -> OptionTra
     if proceeds < 0:
         proceeds = Decimal("0.00")
 
-    portfolio = session.get(Portfolio, position.portfolio_id)
-    assert portfolio is not None
+    assert position.portfolio_id is not None
+    portfolio = lock_portfolio(session, position.portfolio_id)
+    session.refresh(position)
+    if position.status != OptionStatus.OPEN:
+        raise OptionTradeError(f"Option position is already {position.status.value}")
+
     portfolio.cash_balance = (portfolio.cash_balance + proceeds).quantize(_MICROS)
     position.status = OptionStatus.CLOSED
     position.settled_at = utcnow()
@@ -226,7 +242,12 @@ def _exercise_call_into_equity(
     shares = Decimal(position.quantity * CONTRACT_MULTIPLIER)
     strike_cost = (position.strike * shares).quantize(_MICROS)
 
-    if portfolio.cash_balance < strike_cost:
+    try:
+        spendable = available_cash(session, portfolio)
+    except LookupError:
+        spendable = Decimal(0)
+
+    if spendable < strike_cost:
         intrinsic = ((spot - position.strike) * shares).quantize(_CENTS)
         portfolio.cash_balance = (portfolio.cash_balance + intrinsic).quantize(_MICROS)
         logger.info(
@@ -264,13 +285,15 @@ def _exercise_put(
     """ITM put: sell qty*100 held shares at the strike if the portfolio owns
     enough; otherwise cash-settle the intrinsic value."""
     shares = Decimal(position.quantity * CONTRACT_MULTIPLIER)
+    assert portfolio.id is not None
+    spendable = available_shares(session, portfolio.id, position.ticker)
     equity = session.exec(
         select(Position).where(
             Position.portfolio_id == portfolio.id, Position.ticker == position.ticker
         )
     ).first()
 
-    if equity is not None and equity.quantity >= shares:
+    if equity is not None and spendable >= shares:
         proceeds = (position.strike * shares).quantize(_MICROS)
         portfolio.cash_balance = (portfolio.cash_balance + proceeds).quantize(_MICROS)
         equity.quantity = equity.quantity - shares
@@ -306,6 +329,8 @@ def settle_expired_options(session: Session, *, settle_date: date_type) -> int:
             # No closing price to settle against — leave it for a later run.
             logger.warning("options_settle: skipping option %s (no spot/portfolio)", position.id)
             continue
+        assert portfolio.id is not None
+        portfolio = lock_portfolio(session, portfolio.id)
 
         if position.option_type == OptionType.CALL:
             in_the_money = spot > position.strike

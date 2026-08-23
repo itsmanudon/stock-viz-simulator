@@ -131,6 +131,16 @@ export default async function PortfolioPage({
             <p className="mt-1 font-mono text-xl">
               {fmtCurrency(portfolio.cash_balance, displayCcy)}
             </p>
+            {Number(portfolio.reserved_cash) > 0 ? (
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Reserved {fmtCurrency(portfolio.reserved_cash, displayCcy)} · Available{" "}
+                {fmtCurrency(portfolio.available_cash, displayCcy)}
+              </p>
+            ) : (
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Available {fmtCurrency(portfolio.available_cash, displayCcy)}
+              </p>
+            )}
           </CardContent>
         </Card>
         <Card>
@@ -307,7 +317,14 @@ export default async function PortfolioPage({
                       <TableCell className="hidden text-right font-mono text-xs text-muted-foreground sm:table-cell">
                         {nativeCcy}
                       </TableCell>
-                      <TableCell className="text-right font-mono">{fmtQty(p.quantity)}</TableCell>
+                      <TableCell className="text-right font-mono">
+                        {fmtQty(p.quantity)}
+                        {Number(p.reserved_quantity) > 0 ? (
+                          <span className="ml-1 block text-xs text-muted-foreground">
+                            {fmtQty(p.available_quantity)} avail
+                          </span>
+                        ) : null}
+                      </TableCell>
                       <TableCell className="hidden text-right font-mono md:table-cell">
                         {fmtCurrency(p.avg_cost, nativeCcy)}
                       </TableCell>
