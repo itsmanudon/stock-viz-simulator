@@ -215,8 +215,12 @@ def close_option(session: Session, *, user_id: int, option_id: int) -> OptionTra
     if proceeds < 0:
         proceeds = Decimal("0.00")
 
-    portfolio = session.get(Portfolio, position.portfolio_id)
-    assert portfolio is not None
+    assert position.portfolio_id is not None
+    portfolio = lock_portfolio(session, position.portfolio_id)
+    session.refresh(position)
+    if position.status != OptionStatus.OPEN:
+        raise OptionTradeError(f"Option position is already {position.status.value}")
+
     portfolio.cash_balance = (portfolio.cash_balance + proceeds).quantize(_MICROS)
     position.status = OptionStatus.CLOSED
     position.settled_at = utcnow()

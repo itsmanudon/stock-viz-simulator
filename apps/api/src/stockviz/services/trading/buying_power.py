@@ -21,7 +21,7 @@ from decimal import Decimal
 
 from sqlmodel import Session, select
 
-from stockviz.models import PendingOrder, Portfolio, Position, Symbol, TradeSide
+from stockviz.models import PendingOrder, Portfolio, Position, Symbol, TradeSide, User
 from stockviz.models.order import OrderStatus
 from stockviz.services.trading.fx import latest_rate
 
@@ -29,16 +29,33 @@ MICROS = Decimal("0.000001")
 
 
 def lock_portfolio(session: Session, portfolio_id: int) -> Portfolio:
-    """``SELECT ... FOR UPDATE`` the portfolio row and return it.
+    """``SELECT ... FOR UPDATE`` the portfolio row and return a *fresh* copy.
 
     PostgreSQL holds the row lock until this transaction commits or rolls
-    back, serializing competing reservation and cash-spend paths. SQLite
-    accepts the clause but does not enforce it — tests in this repo use
-    SQLite and therefore do not prove concurrent exclusion.
+    back, serializing competing reservation and cash-spend paths.
+
+    ``Session.refresh(..., with_for_update=True)`` is required: a prior
+    ``ensure_default_portfolio`` (or any other load) may already have the
+    row in the identity map. A bare ``SELECT ... FOR UPDATE`` would then
+    reuse the stale ``cash_balance`` and overwrite a concurrent debit.
+
+    SQLite accepts ``FOR UPDATE`` but does not enforce it. Concurrent
+    exclusion is proven by the PostgreSQL test in ``test_pg_concurrency.py``.
     """
-    return session.exec(
-        select(Portfolio).where(Portfolio.id == portfolio_id).with_for_update()
-    ).one()
+    portfolio = session.get(Portfolio, portfolio_id)
+    if portfolio is None:
+        raise LookupError(f"Portfolio {portfolio_id} not found")
+    session.refresh(portfolio, with_for_update=True)
+    return portfolio
+
+
+def lock_user(session: Session, user_id: int) -> User:
+    """``SELECT ... FOR UPDATE`` the user row so first-portfolio creation serializes."""
+    user = session.get(User, user_id)
+    if user is None:
+        raise LookupError(f"User {user_id} not found")
+    session.refresh(user, with_for_update=True)
+    return user
 
 
 def buy_reservation_usd(

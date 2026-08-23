@@ -10,10 +10,12 @@ from __future__ import annotations
 
 from datetime import date, datetime, timedelta
 from decimal import Decimal
+from pathlib import Path
 
 import pytest
 from sqlalchemy.dialects import postgresql
-from sqlmodel import Session, select
+from sqlalchemy.pool import NullPool
+from sqlmodel import Session, SQLModel, create_engine, select
 
 from stockviz.models import (
     FxRate,
@@ -36,6 +38,7 @@ from stockviz.services.trading import (
     InsufficientCash,
     InsufficientPosition,
     NoFxRateError,
+    cancel_pending_order,
     compute_portfolio,
     create_pending_order,
     ensure_default_portfolio,
@@ -49,7 +52,8 @@ from stockviz.services.trading.buying_power import (
     reserved_cash,
     reserved_shares,
 )
-from stockviz.services.trading.execute import get_position
+from stockviz.services.trading.execute import get_position, resolve_priced_symbol
+from stockviz.services.trading.orders import _fill
 
 BAR_DATE = datetime(2025, 4, 10)
 BAR_DAY = BAR_DATE.date()
@@ -637,11 +641,9 @@ def test_itm_put_cash_settles_when_shares_are_reserved(session: Session) -> None
 def test_lock_portfolio_emits_for_update() -> None:
     """Postgres compiles the portfolio lock as SELECT ... FOR UPDATE.
 
-    The in-memory SQLite suite ignores FOR UPDATE, so this is the portable
-    proof that the serialization point is requested. Concurrent over-commit
-    is prevented on PostgreSQL because create_pending_order, execute_trade,
-    and open_option all lock the portfolio row in the same transaction as
-    the reservation check / cash mutation.
+    ``lock_portfolio`` uses ``Session.refresh(..., with_for_update=True)``.
+    SQLite ignores the clause; concurrent over-commit is covered by
+    ``test_pg_concurrency.py`` when DATABASE_URL points at PostgreSQL.
     """
     stmt = select(Portfolio).where(Portfolio.id == 1).with_for_update()
     compiled = str(stmt.compile(dialect=postgresql.dialect()))
@@ -654,3 +656,56 @@ def test_lock_portfolio_returns_the_row(session: Session) -> None:
     locked = lock_portfolio(session, _pid(portfolio))
     assert locked.id == portfolio.id
     assert locked.cash_balance == DEFAULT_STARTING_CASH
+
+
+def test_lock_portfolio_refreshes_stale_identity_map(tmp_path: Path) -> None:
+    """A FOR UPDATE lock must overwrite cash already sitting in the Session.
+
+    ``ensure_default_portfolio`` loads the row before ``lock_portfolio``.
+    Without refresh/populate_existing, a concurrent debit that committed
+    while this session waited would be ignored and then overwritten.
+    """
+    import stockviz.models  # noqa: F401 — register metadata
+
+    engine = create_engine(
+        f"sqlite:///{tmp_path / 'lock.db'}",
+        connect_args={"check_same_thread": False},
+        poolclass=NullPool,
+    )
+    SQLModel.metadata.create_all(engine)
+    try:
+        with Session(engine) as setup:
+            user_id = _user(setup)
+            pid = _pid(_portfolio(setup, user_id))
+
+        with Session(engine) as s1:
+            loaded = s1.get(Portfolio, pid)
+            assert loaded is not None
+            assert loaded.cash_balance == DEFAULT_STARTING_CASH
+            with Session(engine) as s2:
+                other = s2.get(Portfolio, pid)
+                assert other is not None
+                other.cash_balance = Decimal("1.000000")
+                s2.add(other)
+                s2.commit()
+            locked = lock_portfolio(s1, pid)
+            assert locked.cash_balance == Decimal("1.000000")
+            assert loaded.cash_balance == Decimal("1.000000")
+    finally:
+        engine.dispose()
+
+
+def test_fill_skips_order_that_is_no_longer_pending(session: Session) -> None:
+    """Settlement must re-check status after the portfolio lock."""
+    _symbol(session, "AAPL", close=Decimal("150"))
+    user_id = _user(session)
+    order = _pending_buy(session, user_id, quantity=Decimal(10), limit_price=Decimal("200"))
+    assert order.id is not None
+    cancel_pending_order(session, user_id=user_id, order_id=order.id)
+    session.refresh(order)
+    priced = resolve_priced_symbol(session, "AAPL")
+    assert _fill(session, order, priced) is False
+    session.refresh(order)
+    assert order.status == OrderStatus.CANCELLED
+    portfolio = _portfolio(session, user_id)
+    assert portfolio.cash_balance == DEFAULT_STARTING_CASH

@@ -24,6 +24,7 @@ from stockviz.services.trading.buying_power import (
     available_cash,
     available_shares,
     lock_portfolio,
+    lock_user,
     reserved_shares,
 )
 from stockviz.services.trading.fx import latest_rate
@@ -95,9 +96,29 @@ def ensure_default_portfolio(session: Session, user_id: int) -> Portfolio:
     if existing is not None:
         return existing
 
+    # Serialize first-account creation on the user row. Without this, two
+    # concurrent first /portfolio hits can INSERT two portfolios (user_id
+    # uniqueness is enforced in the DB, but the race still needs a lock so
+    # the loser re-reads instead of erroring out to the client).
+    lock_user(session, user_id)
+    existing = session.exec(
+        select(Portfolio).where(Portfolio.user_id == user_id).order_by(Portfolio.id)  # type: ignore[arg-type]
+    ).first()
+    if existing is not None:
+        return existing
+
     portfolio = Portfolio(user_id=user_id, name="Default", cash_balance=DEFAULT_STARTING_CASH)
     session.add(portfolio)
-    session.commit()
+    try:
+        session.commit()
+    except IntegrityError:
+        session.rollback()
+        existing = session.exec(
+            select(Portfolio).where(Portfolio.user_id == user_id).order_by(Portfolio.id)  # type: ignore[arg-type]
+        ).first()
+        if existing is None:
+            raise
+        return existing
     session.refresh(portfolio)
     _seed_opening_snapshot(session, user_id=user_id, nav=DEFAULT_STARTING_CASH)
     return portfolio

@@ -27,6 +27,7 @@ from sqlmodel import Session, select
 
 from stockviz.models import Portfolio, Position, Symbol
 from stockviz.models.dividend import Dividend, PortfolioDividend
+from stockviz.services.trading.buying_power import lock_portfolio
 from stockviz.services.trading.fx import latest_rate
 
 logger = logging.getLogger(__name__)
@@ -67,6 +68,8 @@ def credit_due_dividends(session: Session, *, credit_date: date_type) -> int:
             )
         )
         for pos, portfolio in positions:
+            assert portfolio.id is not None
+            portfolio = lock_portfolio(session, portfolio.id)
             already = session.exec(
                 select(PortfolioDividend.id).where(
                     PortfolioDividend.portfolio_id == portfolio.id,
@@ -75,6 +78,7 @@ def credit_due_dividends(session: Session, *, credit_date: date_type) -> int:
                 )
             ).first()
             if already is not None:
+                session.commit()
                 continue
 
             native_amount = pos.quantity * div.amount

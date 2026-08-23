@@ -164,7 +164,12 @@ intraday fills anywhere in the app:
   equity trades and long-option opens check **available** cash/shares, not
   raw `cash_balance` / position quantity. A fill may consume its own
   reservation (`exclude_order_id`) but not another order's. Competing
-  reservation and cash-spend paths `SELECT … FOR UPDATE` the portfolio row.
+  cash writers (`apply_fill`, pending create/cancel/settle, option
+  open/close/expiry, dividend credits) `SELECT … FOR UPDATE` the portfolio
+  row via `lock_portfolio`, which **refreshes** the identity-map instance so
+  a stale `cash_balance` cannot overwrite a concurrent debit. Cancel and
+  fill re-read `order.status == PENDING` after that lock. First-portfolio
+  creation serializes on the user row; `portfolios.user_id` is unique.
   Orders that trigger but fail validation (insufficient available cash/shares)
   are **cancelled** with a `cancel_reason`, never retried. Settlement takes a
   `session_date` and leaves orders pending when the latest bar predates it, so

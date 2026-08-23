@@ -54,6 +54,10 @@ class OrderError(TradeExecutionError):
     """Raised when an order cannot be created or settled."""
 
 
+class OrderNotFound(OrderError):
+    """Raised when a cancel/lookup targets a missing or foreign order."""
+
+
 def create_pending_order(
     session: Session,
     *,
@@ -115,6 +119,32 @@ def create_pending_order(
     session.commit()
     session.refresh(order)
     return order
+
+
+def cancel_pending_order(session: Session, *, user_id: int, order_id: int) -> None:
+    """Cancel a pending order, serialized on the portfolio row.
+
+    Holds the same ``FOR UPDATE`` lock settlement uses, then re-reads
+    ``order.status`` so a fill that committed while we waited cannot be
+    overwritten back to ``CANCELLED``.
+    """
+    portfolio = session.exec(
+        select(Portfolio).where(Portfolio.user_id == user_id).order_by(Portfolio.id)  # type: ignore[arg-type]
+    ).first()
+    if portfolio is None or portfolio.id is None:
+        raise OrderNotFound("Order not found")
+    lock_portfolio(session, portfolio.id)
+
+    order = session.get(PendingOrder, order_id)
+    if order is None or order.portfolio_id != portfolio.id:
+        raise OrderNotFound("Order not found")
+    session.refresh(order)
+    if order.status != OrderStatus.PENDING:
+        raise OrderError("Only pending orders can be cancelled")
+
+    order.status = OrderStatus.CANCELLED
+    session.add(order)
+    session.commit()
 
 
 def _should_fill(order: PendingOrder, close: Decimal) -> bool:
@@ -185,6 +215,20 @@ def settle_pending_orders(session: Session, *, session_date: date_type | None = 
 
 def _fill(session: Session, order: PendingOrder, priced: PricedSymbol) -> bool:
     """Fill one triggered order. Returns True when it actually filled."""
+    if order.portfolio_id is None or order.id is None:
+        _cancel(session, order, "Portfolio no longer exists")
+        return False
+
+    try:
+        lock_portfolio(session, order.portfolio_id)
+    except LookupError:
+        _cancel(session, order, "Portfolio no longer exists")
+        return False
+
+    session.refresh(order)
+    if order.status != OrderStatus.PENDING:
+        return False
+
     portfolio = session.get(Portfolio, order.portfolio_id)
     if portfolio is None:
         _cancel(session, order, "Portfolio no longer exists")

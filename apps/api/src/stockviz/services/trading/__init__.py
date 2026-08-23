@@ -33,7 +33,13 @@ from stockviz.services.trading.execute import (
 )
 from stockviz.services.trading.fx import convert as fx_convert
 from stockviz.services.trading.fx import latest_rate as fx_latest_rate
-from stockviz.services.trading.orders import OrderError, create_pending_order, settle_pending_orders
+from stockviz.services.trading.orders import (
+    OrderError,
+    OrderNotFound,
+    cancel_pending_order,
+    create_pending_order,
+    settle_pending_orders,
+)
 from stockviz.services.trading.portfolio import (
     PortfolioPosition,
     PortfolioValuation,
@@ -52,6 +58,7 @@ __all__ = [
     "NoFxRateError",
     "NoMarketDataError",
     "OrderError",
+    "OrderNotFound",
     "PortfolioPosition",
     "PortfolioValuation",
     "SectorAllocation",
@@ -61,6 +68,7 @@ __all__ = [
     "TradeExecutionError",
     "available_cash",
     "available_shares",
+    "cancel_pending_order",
     "compute_annualised_return_pct",
     "compute_max_drawdown_pct",
     "compute_portfolio",
