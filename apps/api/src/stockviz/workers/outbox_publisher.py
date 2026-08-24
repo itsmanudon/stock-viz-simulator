@@ -20,9 +20,8 @@ import time
 from sqlmodel import Session
 
 from stockviz.db import engine
-from stockviz.events.contracts import TRADES_TOPIC, TRADES_TOPIC_PARTITIONS
 from stockviz.events.outbox import publish_batch
-from stockviz.events.producer import ConfluentBrokerPublisher, ensure_trades_topic
+from stockviz.events.producer import ConfluentBrokerPublisher, ensure_event_topics
 from stockviz.settings import get_settings
 
 logger = logging.getLogger(__name__)
@@ -41,11 +40,7 @@ def run_once(*, publisher: ConfluentBrokerPublisher | None = None) -> int:
     client = publisher or ConfluentBrokerPublisher(
         bootstrap_servers=settings.kafka_bootstrap_servers
     )
-    ensure_trades_topic(
-        bootstrap_servers=settings.kafka_bootstrap_servers,
-        topic=settings.kafka_trades_topic or TRADES_TOPIC,
-        partitions=TRADES_TOPIC_PARTITIONS,
-    )
+    ensure_event_topics(bootstrap_servers=settings.kafka_bootstrap_servers)
     with Session(engine) as session:
         return publish_batch(session, client, limit=settings.outbox_batch_size)
 
@@ -70,11 +65,7 @@ def main(argv: list[str] | None = None) -> int:
 
         signal.signal(signal.SIGTERM, _request_stop)
         signal.signal(signal.SIGINT, _request_stop)
-        ensure_trades_topic(
-            bootstrap_servers=settings.kafka_bootstrap_servers,
-            topic=settings.kafka_trades_topic or TRADES_TOPIC,
-            partitions=TRADES_TOPIC_PARTITIONS,
-        )
+        ensure_event_topics(bootstrap_servers=settings.kafka_bootstrap_servers)
         while not _stop:
             with Session(engine) as session:
                 published = publish_batch(session, publisher, limit=settings.outbox_batch_size)

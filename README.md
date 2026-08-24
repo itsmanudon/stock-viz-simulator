@@ -47,21 +47,24 @@ flowchart LR
   Web -->|"public /v1"| API
   Web -->|"authed /v1<br/>60s HS256 JWT"| API
   API --> PG[("PostgreSQL")]
-  API -.-> Sch["APScheduler<br/>in-process"]
-  Sch --> PG
-  Sch --> Ext["yfinance / Alpha Vantage / Newsdata.io"]
-  Sch -.->|"optional"| Sent["Anthropic or HTTP sentiment"]
-  PG -->|"outbox row in the same<br/>trade COMMIT"| Pub["Outbox publisher<br/>separate process"]
-  Pub --> Kafka["Kafka stockviz.trades.v1"]
+  API -.-> Sch["APScheduler<br/>control plane"]
+  Sch -->|"durable refresh requests"| PG
+  PG -->|"outbox"| Pub["Outbox publisher"]
+  Pub --> Kafka["Kafka market.v1 / news.v1 / trades.v1"]
+  Kafka --> Mkt["Market ingest + analytics"]
+  Kafka --> News["News ingest → sentiment → aggregate"]
   Kafka --> Cons["Trade-activity consumer"]
+  Mkt --> PG
+  News --> PG
   Cons --> Derived[("Derived activity<br/>not the ledger")]
+  PG -->|"outbox row in the same<br/>trade COMMIT"| Pub
 ```
 
-Kafka is **not** in the trade commit path. Cash and positions commit in PostgreSQL with an outbox row; a worker publishes later. `/health` does not depend on the broker. See [`docs/EVENT_DRIVEN_ARCHITECTURE.md`](./docs/EVENT_DRIVEN_ARCHITECTURE.md).
+Kafka is **not** in the trade commit path and is **not** the source of truth for bars, news, or cash. APScheduler enqueues market/news work; workers call providers. `/health` does not depend on the broker. See [`docs/EVENT_DRIVEN_ARCHITECTURE.md`](./docs/EVENT_DRIVEN_ARCHITECTURE.md).
 
 - **Request path.** The browser talks to Next.js for pages and authenticated mutations. Some public FastAPI endpoints are also called from the browser via `NEXT_PUBLIC_API_URL` (for example the client-side backtest form posts to `/v1/backtest`, and the ticker badge opens SSE at `/v1/stream/quotes/{ticker}`). Authed paper-trading calls are minted on the Next.js server as `Authorization: Bearer <jwt>` (`{ sub: "<user.id>" }`, 60 s, signed with `INTERNAL_API_TOKEN`) — the browser never sees that JWT. FastAPI verifies it in `auth.py::require_user_id`.
-- **Scheduled work.** With `ENABLE_SCHEDULER=true`, APScheduler runs inside the API process (weekday NY-time jobs for prices, FX, metrics, sentiment, recommendations, snapshots, pending-order settlement, dividends, option expiry, news, hourly top-movers + alert evaluation). Jobs take a Postgres advisory lock so two instances cannot double-fill.
-- **Third-party ingest.** Daily OHLCV uses yfinance first (no API key). Alpha Vantage is a fallback when `ALPHA_VANTAGE_KEY` is set and yfinance returns nothing. News ingest requires `NEWSDATA_KEY` and skips when it is blank. Unset keys make the matching *keyed* job log and skip; price ingest still runs through yfinance. The rest of the app still runs on cached/seeded data.
+- **Scheduled work.** With `ENABLE_SCHEDULER=true`, APScheduler runs inside the API process. Market and news crons enqueue outbox requests (workers fetch yfinance / Newsdata). Metrics and sentiment-aggregate crons remain full-universe reconciliation. FX, recommendations, snapshots, pending-order settlement, dividends, and option expiry stay in-process. Jobs take a Postgres advisory lock so two instances cannot double-fill.
+- **Third-party ingest.** Daily OHLCV uses yfinance first (no API key). Alpha Vantage is a fallback when `ALPHA_VANTAGE_KEY` is set and yfinance returns nothing. News ingest requires `NEWSDATA_KEY` and skips when it is blank. The scheduler does not call those providers itself.
 - **Hosting intent.** Vercel for `apps/web`, Render for `apps/api` + Postgres. See [Deployment](./docs/DEPLOYMENT.md) for what is in source control vs dashboard-owned.
 
 Sentry collects errors from both apps when a DSN is set.

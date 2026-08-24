@@ -59,7 +59,12 @@ def compute_for_ticker(session: Session, ticker: str) -> SymbolMetrics | None:
     )
 
 
-def refresh_symbol_metrics(session: Session, *, tickers: list[str] | None = None) -> int:
+def refresh_symbol_metrics(
+    session: Session,
+    *,
+    tickers: list[str] | None = None,
+    commit: bool = True,
+) -> int:
     """Recompute and upsert metrics for ``tickers`` (default: all active symbols).
 
     Sentiment columns are left untouched — they are owned by the sentiment
@@ -75,7 +80,8 @@ def refresh_symbol_metrics(session: Session, *, tickers: list[str] | None = None
             continue
         _upsert(session, row)
         written += 1
-    session.commit()
+    if commit:
+        session.commit()
     logger.info("refresh_symbol_metrics: wrote %d rows", written)
     return written
 

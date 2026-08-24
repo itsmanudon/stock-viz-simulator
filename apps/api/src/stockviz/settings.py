@@ -108,6 +108,10 @@ class Settings(BaseSettings):
     kafka_consumer_group: str = "stockviz.trade-activity.v1"
     outbox_batch_size: int = 50
     outbox_poll_interval_seconds: float = 1.0
+    # Worker poll / retry. Topic and consumer-group names are versioned
+    # constants on the event contracts, not env vars.
+    kafka_poll_timeout_seconds: float = 1.0
+    kafka_retry_backoff_seconds: float = 2.0
 
     @model_validator(mode="after")
     def _reject_dev_secrets_in_production(self) -> Settings:

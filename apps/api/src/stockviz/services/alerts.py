@@ -29,16 +29,22 @@ def _latest_close(session: Session, ticker: str) -> Decimal | None:
     return bar.close if bar else None
 
 
-def evaluate_pending_alerts(session: Session) -> int:
-    """Flip ``triggered_at`` on every pending alert whose condition is met.
+def evaluate_pending_alerts(
+    session: Session,
+    *,
+    ticker: str | None = None,
+    commit: bool = True,
+) -> int:
+    """Flip ``triggered_at`` on pending alerts whose condition is met.
 
-    Returns the number of alerts triggered in this pass. Pending = not yet
-    triggered. Dismissed-but-untriggered shouldn't really exist (you can't
-    dismiss before it triggers), but if they do we treat them like any other
-    pending row.
+    ``ticker`` limits the scan to one symbol (event-driven path). ``None``
+    keeps the full-universe reconciliation behaviour.
     """
 
-    pending = list(session.exec(select(Alert).where(Alert.triggered_at.is_(None))).all())  # type: ignore[attr-defined]
+    stmt = select(Alert).where(Alert.triggered_at.is_(None))  # type: ignore[attr-defined]
+    if ticker is not None:
+        stmt = stmt.where(Alert.ticker == ticker)
+    pending = list(session.exec(stmt).all())
     if not pending:
         return 0
 
@@ -61,6 +67,6 @@ def evaluate_pending_alerts(session: Session) -> int:
             alert.triggered_at = now
             session.add(alert)
             triggered += 1
-    if triggered:
+    if triggered and commit:
         session.commit()
     return triggered

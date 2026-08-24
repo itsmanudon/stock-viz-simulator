@@ -14,7 +14,8 @@ from typing import Any
 
 import httpx
 from sqlalchemy.dialects.postgresql import insert as pg_insert
-from sqlmodel import Session, select
+from sqlalchemy.exc import IntegrityError
+from sqlmodel import Session, col, select
 
 from stockviz.models import NewsArticle
 
@@ -100,11 +101,16 @@ def fetch_newsdata(
     return articles
 
 
-def upsert_articles(session: Session, articles: list[ArticleRecord]) -> int:
-    """Insert articles, skipping any whose URL is already in the table."""
+def insert_new_articles(session: Session, articles: list[ArticleRecord]) -> list[NewsArticle]:
+    """Insert genuinely new articles. Does not commit.
+
+    On PostgreSQL uses ``ON CONFLICT DO NOTHING RETURNING``. SQLite walks
+    rows and skips unique-url collisions. Duplicate URLs never produce a
+    second row.
+    """
 
     if not articles:
-        return 0
+        return []
 
     rows = [
         {
@@ -119,10 +125,44 @@ def upsert_articles(session: Session, articles: list[ArticleRecord]) -> int:
         }
         for a in articles
     ]
-    stmt = pg_insert(NewsArticle).values(rows).on_conflict_do_nothing(index_elements=["url"])
-    session.exec(stmt)  # type: ignore[arg-type]
+
+    bind = session.get_bind()
+    dialect = bind.dialect.name if bind is not None else "sqlite"
+    if dialect == "postgresql":
+        stmt = (
+            pg_insert(NewsArticle)
+            .values(rows)
+            .on_conflict_do_nothing(index_elements=["url"])
+            .returning(col(NewsArticle.id))
+        )
+        result = session.exec(stmt)  # type: ignore[arg-type]
+        ids = [row[0] if not isinstance(row, int) else row for row in result.all()]
+        if not ids:
+            return []
+        stored = list(session.exec(select(NewsArticle).where(NewsArticle.id.in_(ids))).all())  # type: ignore[attr-defined]
+        return stored
+
+    inserted: list[NewsArticle] = []
+    for row in rows:
+        existing = session.exec(select(NewsArticle).where(NewsArticle.url == row["url"])).first()
+        if existing is not None:
+            continue
+        article = NewsArticle(**row)
+        try:
+            with session.begin_nested():
+                session.add(article)
+                session.flush()
+        except IntegrityError:
+            continue
+        inserted.append(article)
+    return inserted
+
+
+def upsert_articles(session: Session, articles: list[ArticleRecord]) -> int:
+    """Insert new articles and commit. Returns the number **actually inserted**."""
+    inserted = insert_new_articles(session, articles)
     session.commit()
-    return len(rows)
+    return len(inserted)
 
 
 def ingest_news_for_ticker(
@@ -131,27 +171,17 @@ def ingest_news_for_ticker(
     ticker: str,
     company_name: str,
     newsdata_key: str,
-    score_sentiment: bool = True,
+    score_sentiment: bool = False,
 ) -> int:
-    """Fetch, store, and (optionally) score news for one ticker.
+    """Fetch and store news for one ticker. Does **not** score sentiment.
 
-    Scoring happens *after* the insert rather than before it, so articles land
-    in the table even when the provider is unavailable — the rows are then
-    picked up by ``backfill_unscored``. Which provider runs (if any) is decided
-    by ``SENTIMENT_PROVIDER``; the default scores nothing.
+    ``score_sentiment`` is ignored; scoring belongs to the news-sentiment
+    worker (or ``score-sentiment`` CLI). Kept as a keyword so older callers
+    do not break.
     """
+    if score_sentiment:
+        logger.info("ingest_news_for_ticker: score_sentiment is ignored; scoring is async")
     articles = fetch_newsdata(api_key=newsdata_key, query=company_name, ticker=ticker)
-    written = upsert_articles(session, articles)
-
-    if written and score_sentiment:
-        from stockviz.services.sentiment.store import score_articles
-
-        urls = [a.url for a in articles]
-        stored = list(
-            session.exec(select(NewsArticle).where(NewsArticle.url.in_(urls))).all()  # type: ignore[attr-defined]
-        )
-        unscored = [a for a in stored if a.sentiment is None]
-        if unscored:
-            score_articles(session, unscored)
-
-    return written
+    inserted = insert_new_articles(session, articles)
+    session.commit()
+    return len(inserted)

@@ -18,9 +18,11 @@ src/stockviz/
   models/           SQLModel tables (market, portfolio, user, order, option, dividend,
                     alert, comment, recommendation, watchlist, metrics, sentiment,
                     events — outbox, consumer inbox, derived trade activity)
-  events/           trade.executed contract, outbox claim/publish, Kafka wrappers,
-                    derived activity applier (not imported by FastAPI startup)
-  workers/          outbox_publisher and trade_activity_consumer processes
+  events/           versioned contracts (trades/market/news), outbox/inbox,
+                    dispatcher, domain handlers, Kafka producer wrappers
+                    (not imported by FastAPI startup)
+  workers/          outbox_publisher plus trade-activity, market ingest/analytics,
+                    news ingest/sentiment, and sentiment-aggregate consumers
   routers/          /v1 endpoints, one file per resource — symbols, quotes, bars,
                     markets (one-call /markets summary), indicators, news,
                     recommendations, trading, orders, options, backtest,
@@ -62,14 +64,18 @@ CLI subcommands (`python -m stockviz.cli <cmd>`): `seed`, `backfill`,
 `metadata`, `ingest <tickers>`, `fx`, `metrics`, `score-sentiment`,
 `sentiment-aggregate`, `recommend`, `snapshot-portfolios`, `dividends`,
 `credit-dividends`, `settle-options`, `publish-outbox [--once]`,
-`consume-trade-activity [--once]`.
+`consume-trade-activity [--once]`, `consume-market-ingest [--once]`,
+`consume-market-analytics [--once]`, `consume-news-ingest [--once]`,
+`consume-news-sentiment [--once]`, `consume-sentiment-aggregate [--once]`.
 
 Kafka workers (same image, different command; broker optional for the API):
 
 ```powershell
 pnpm events:up   # compose profile "events" — KRaft Kafka + topic init
-uv --directory apps/api run python -m stockviz.workers.outbox_publisher --once
-uv --directory apps/api run python -m stockviz.workers.trade_activity_consumer --once
+pnpm events:publisher
+pnpm events:market-ingest
+pnpm events:news-ingest
+# also: events:market-analytics, events:news-sentiment, events:sentiment-aggregate
 ```
 
 ## Quality gates
@@ -90,15 +96,23 @@ owns line length). Pyright is `basic`.
 America/New_York, weekdays unless noted):
 
 - 09:30 — `dividend_credit_refresh` (credit due dividends to portfolios)
-- 10:00–16:00 hourly — `hourly_top_movers` (TOP_TICKERS_HOURLY)
-- 16:30 — `daily_price_refresh` (all active symbols)
+- 10:00–16:00 hourly — `hourly_top_movers` (enqueue `market.refresh.requested`
+  for `TOP_TICKERS_HOURLY`; alerts run in the analytics worker)
+- 16:30 — `daily_price_refresh` (enqueue `market.refresh.requested` for every
+  active symbol; no provider I/O in-process)
 - 16:45 — `fx_refresh` and `pending_orders_settlement` (fill limit/stop orders against the new close)
 - 16:50 — `symbol_metrics_refresh` (RSI / 52w range the screener reads)
 - 16:55 — `sentiment_aggregate_refresh` (rolling per-symbol news sentiment)
 - 17:00 — `recommendations_refresh`
 - 17:15 — `portfolio_snapshots_refresh` (daily NAV snapshot per user)
 - 17:30 — `options_expiry_refresh` (settle expired option positions)
-- Every 4h at :15 (all days) — `news_refresh` (skipped if `NEWSDATA_KEY` empty)
+- Every 4h at :15 (all days) — `news_refresh` (enqueue `news.refresh.requested`;
+  skipped if `NEWSDATA_KEY` empty; sentiment is a Kafka worker)
+
+`symbol_metrics_refresh` and `sentiment_aggregate_refresh` remain
+full-universe **reconciliation** jobs. Kafka consumers are the incremental
+path. Pending orders, options, dividends, FX, snapshots, and recommendations
+stay on APScheduler.
 
 Every job is wrapped in `@single_instance(...)`, which takes a Postgres
 advisory lock. APScheduler runs in-process, so without it a scale-out to two

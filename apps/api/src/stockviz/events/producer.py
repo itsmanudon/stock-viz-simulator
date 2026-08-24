@@ -125,8 +125,8 @@ class ConfluentBrokerConsumer:
         self._consumer.close()
 
 
-def ensure_trades_topic(*, bootstrap_servers: str, topic: str, partitions: int) -> None:
-    """Create the trades topic if it is missing. Safe to call repeatedly."""
+def ensure_topic(*, bootstrap_servers: str, topic: str, partitions: int) -> None:
+    """Create ``topic`` if it is missing. Safe to call repeatedly."""
     from confluent_kafka.admin import AdminClient, NewTopic  # type: ignore[attr-defined]
 
     admin = AdminClient({"bootstrap.servers": bootstrap_servers})
@@ -139,3 +139,36 @@ def ensure_trades_topic(*, bootstrap_servers: str, topic: str, partitions: int) 
     for _name, future in futures.items():
         future.result()
     logger.info("created kafka topic %s partitions=%s", topic, partitions)
+
+
+def ensure_trades_topic(*, bootstrap_servers: str, topic: str, partitions: int) -> None:
+    """Backward-compatible alias for :func:`ensure_topic`."""
+    ensure_topic(bootstrap_servers=bootstrap_servers, topic=topic, partitions=partitions)
+
+
+def ensure_event_topics(*, bootstrap_servers: str) -> None:
+    """Create the local development topics (trades, market, news)."""
+    from stockviz.events.contracts import (
+        MARKET_TOPIC,
+        MARKET_TOPIC_PARTITIONS,
+        NEWS_TOPIC,
+        NEWS_TOPIC_PARTITIONS,
+        TRADES_TOPIC,
+        TRADES_TOPIC_PARTITIONS,
+    )
+
+    ensure_topic(
+        bootstrap_servers=bootstrap_servers,
+        topic=TRADES_TOPIC,
+        partitions=TRADES_TOPIC_PARTITIONS,
+    )
+    ensure_topic(
+        bootstrap_servers=bootstrap_servers,
+        topic=MARKET_TOPIC,
+        partitions=MARKET_TOPIC_PARTITIONS,
+    )
+    ensure_topic(
+        bootstrap_servers=bootstrap_servers,
+        topic=NEWS_TOPIC,
+        partitions=NEWS_TOPIC_PARTITIONS,
+    )

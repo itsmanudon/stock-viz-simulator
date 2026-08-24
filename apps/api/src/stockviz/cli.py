@@ -152,6 +152,36 @@ def _cmd_consume_trade_activity(args: argparse.Namespace) -> int:
     return consumer_main(["--once"] if args.once else [])
 
 
+def _cmd_consume_market_ingest(args: argparse.Namespace) -> int:
+    from stockviz.workers.market_ingest_consumer import main as consumer_main
+
+    return consumer_main(["--once"] if args.once else [])
+
+
+def _cmd_consume_market_analytics(args: argparse.Namespace) -> int:
+    from stockviz.workers.market_analytics_consumer import main as consumer_main
+
+    return consumer_main(["--once"] if args.once else [])
+
+
+def _cmd_consume_news_ingest(args: argparse.Namespace) -> int:
+    from stockviz.workers.news_ingest_consumer import main as consumer_main
+
+    return consumer_main(["--once"] if args.once else [])
+
+
+def _cmd_consume_news_sentiment(args: argparse.Namespace) -> int:
+    from stockviz.workers.news_sentiment_consumer import main as consumer_main
+
+    return consumer_main(["--once"] if args.once else [])
+
+
+def _cmd_consume_sentiment_aggregate(args: argparse.Namespace) -> int:
+    from stockviz.workers.sentiment_aggregate_consumer import main as consumer_main
+
+    return consumer_main(["--once"] if args.once else [])
+
+
 def _cmd_fx(args: argparse.Namespace) -> int:
     currencies = (
         [c.upper() for c in args.currencies] if args.currencies else _default_fx_currencies()
@@ -274,6 +304,37 @@ def main(argv: list[str] | None = None) -> int:
     )
     p_cons.add_argument("--once", action="store_true", help="Handle at most one message and exit")
     p_cons.set_defaults(fn=_cmd_consume_trade_activity)
+
+    for name, help_text, fn in (
+        (
+            "consume-market-ingest",
+            "Consume stockviz.market.v1 market.refresh.requested",
+            _cmd_consume_market_ingest,
+        ),
+        (
+            "consume-market-analytics",
+            "Consume stockviz.market.v1 market.bars.refreshed",
+            _cmd_consume_market_analytics,
+        ),
+        (
+            "consume-news-ingest",
+            "Consume stockviz.news.v1 news.refresh.requested",
+            _cmd_consume_news_ingest,
+        ),
+        (
+            "consume-news-sentiment",
+            "Consume stockviz.news.v1 news.article.ingested",
+            _cmd_consume_news_sentiment,
+        ),
+        (
+            "consume-sentiment-aggregate",
+            "Consume stockviz.news.v1 news.sentiment.scored",
+            _cmd_consume_sentiment_aggregate,
+        ),
+    ):
+        p = sub.add_parser(name, help=help_text)
+        p.add_argument("--once", action="store_true", help="Handle at most one message and exit")
+        p.set_defaults(fn=fn)
 
     args = parser.parse_args(argv)
     return args.fn(args)

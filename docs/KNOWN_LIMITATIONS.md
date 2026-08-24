@@ -105,17 +105,27 @@ on news rows appear only when articles have been scored. See
 
 - **Local Kafka is a single KRaft node**, not an HA cluster. Compose profile
   `events` (`pnpm events:up`). No Schema Registry, Kafka Connect, or UI.
-- **Only `trade.executed` v1** is integrated. Ingest, news, sentiment,
-  recommendations, alerts, snapshots, dividends, and options jobs stay on
-  APScheduler.
+- **No retry topics / DLQ.** A poison payload leaves the offset uncommitted
+  (with backoff). That can stall a partition until the worker is fixed.
+- **Providers may rate-limit or fail.** A failed fetch does not corrupt
+  existing bars/articles; the worker retries the control event. Re-fetching
+  a read-only provider after a crash is expected.
+- **Scheduled reconciliation still exists** on purpose: full-universe
+  `symbol_metrics_refresh` and `sentiment_aggregate_refresh` repair drift.
+  Kafka is the incremental path.
+- **Kafka consumers are not Kubernetes-managed.** They are the same API
+  image with different commands.
+- **Recommendations remain scheduled**, not incremental. They need a
+  universe of technical + sentiment features.
+- **Financial settlement stays synchronous/scheduled by design:** pending
+  orders, option expiry, dividend credits, FX, portfolio snapshots, and
+  the trade ledger itself. That is not a Kafka gap.
 - **At-least-once publication.** The publisher sets `published_at` after a
   broker ack. A crash between ack and that UPDATE can produce a duplicate.
   Consumers de-duplicate with `consumer_inbox`.
-- **No dead-letter queue.** An incompatible payload fails validation and
-  does not commit the Kafka offset, which can stall that partition until
-  the worker is fixed.
-- **The API does not require Kafka.** Trades commit to Postgres + outbox
-  when the broker is down. `/health` does not check Kafka.
+- **The API does not require Kafka.** Trades and scheduled control events
+  commit to Postgres + outbox when the broker is down. `/health` does not
+  check Kafka.
 
 ## Deployment configuration
 
