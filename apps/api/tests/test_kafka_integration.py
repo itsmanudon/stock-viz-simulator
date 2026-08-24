@@ -185,7 +185,9 @@ def _poll_event(
         msg, payload = polled
         inner = payload.get("payload") if isinstance(payload.get("payload"), dict) else {}
         matches_type = payload.get("event_type") == event_type
-        matches_ticker = ticker is None or inner.get("ticker") == ticker or payload.get("aggregate_id") == ticker
+        matches_ticker = (
+            ticker is None or inner.get("ticker") == ticker or payload.get("aggregate_id") == ticker
+        )
         if matches_type and matches_ticker:
             consumer.commit(msg)
             return payload
