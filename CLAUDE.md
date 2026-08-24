@@ -48,6 +48,7 @@ still commits the ledger in FastAPI. See
 
 ```bash
 pnpm db:up                                   # local Postgres on 127.0.0.1:5434
+pnpm events:up                               # KRaft Kafka + topic init (`--profile events`)
 pnpm api:migrate                             # alembic upgrade head
 pnpm api:dev                                 # uvicorn --reload on :8000
 pnpm dev                                     # Next.js dev server on :3000 (or next free port)
