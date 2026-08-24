@@ -76,6 +76,7 @@ def score_articles(
     *,
     provider: SentimentProvider | None = None,
     settings: Settings | None = None,
+    commit: bool = True,
 ) -> int:
     """Score and persist ``articles``. Returns the number of scores written.
 
@@ -133,7 +134,8 @@ def score_articles(
                 article.sentiment = result.label
                 session.add(article)
 
-    session.commit()
+    if commit:
+        session.commit()
     logger.info(
         "sentiment: scored %d/%d documents with %s",
         sum(1 for r in results if r is not None),
@@ -184,6 +186,8 @@ def refresh_symbol_sentiment(
     model: str | None = None,
     window_days: int = ROLLING_WINDOW_DAYS,
     asof: date_type | None = None,
+    tickers: list[str] | None = None,
+    commit: bool = True,
 ) -> int:
     """Recompute the trailing mean sentiment per symbol onto ``symbol_metrics``.
 
@@ -191,6 +195,9 @@ def refresh_symbol_sentiment(
     scored articles in the window get NULL rather than 0 — "no signal" and
     "neutral signal" are different things, and the screener must not treat
     silence as a neutral reading.
+
+    ``tickers`` limits the write set (event-driven path). ``None`` refreshes
+    the full active universe (scheduled reconciliation).
     """
     asof = asof or utcnow().date()
     cutoff = asof - timedelta(days=window_days)
@@ -211,7 +218,8 @@ def refresh_symbol_sentiment(
         if ticker:
             scores_by_ticker.setdefault(ticker, []).append(score)
 
-    tickers = list(session.exec(select(Symbol.ticker).where(Symbol.is_active)).all())
+    if tickers is None:
+        tickers = list(session.exec(select(Symbol.ticker).where(Symbol.is_active)).all())
     updated = 0
     for ticker in tickers:
         scores = scores_by_ticker.get(ticker, [])
@@ -225,7 +233,8 @@ def refresh_symbol_sentiment(
         )
         updated += 1
 
-    session.commit()
+    if commit:
+        session.commit()
     logger.info(
         "sentiment: refreshed rolling aggregate for %d symbols (%d with signal)",
         updated,

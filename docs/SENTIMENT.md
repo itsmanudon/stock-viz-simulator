@@ -128,9 +128,14 @@ uv --directory apps/api run python -m stockviz.cli score-sentiment --since 2026-
 uv --directory apps/api run python -m stockviz.cli sentiment-aggregate
 ```
 
-Both have scheduler twins: news ingest scores new articles inline (every 4h),
-and `sentiment_aggregate_refresh` runs weekdays at 16:55 ET, right after the
-metrics refresh so both land on the same `symbol_metrics` rows in order.
+News ingest no longer scores inline. `news.article.ingested` drives the
+sentiment worker; `news.sentiment.scored` drives the ticker-scoped aggregate
+worker. `sentiment_aggregate_refresh` still runs weekdays at 16:55 ET as a
+full-universe reconciliation pass after `symbol_metrics_refresh`.
+
+If `SENTIMENT_PROVIDER=none`, the sentiment worker records the inbox receipt
+and does not emit `news.sentiment.scored`. `score-sentiment` / `backfill_unscored`
+remain the way to score the archive after a provider is configured.
 
 `SENTIMENT_DAILY_DOCUMENT_CAP` (default 2000) bounds how many documents any one
 run will score, so a runaway backfill can't quietly burn an API budget.

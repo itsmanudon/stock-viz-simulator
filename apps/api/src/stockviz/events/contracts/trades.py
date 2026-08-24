@@ -1,8 +1,4 @@
-"""Versioned Kafka event contracts.
-
-Decimals travel as strings so JSON cannot round-trip them through binary
-floats. ORM models are never placed on the wire.
-"""
+"""``trade.executed`` v1 — unchanged from the first Kafka milestone."""
 
 from __future__ import annotations
 
@@ -13,8 +9,9 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, field_validator
 
+from stockviz.events.contracts.common import SCHEMA_VERSION_V1, decimal_str
+
 EVENT_TYPE_TRADE_EXECUTED = "trade.executed"
-SCHEMA_VERSION_V1 = 1
 TRADES_TOPIC = "stockviz.trades.v1"
 TRADE_ACTIVITY_CONSUMER = "stockviz.trade-activity.v1"
 
@@ -23,10 +20,16 @@ TRADE_ACTIVITY_CONSUMER = "stockviz.trade-activity.v1"
 # ordered on one partition.
 TRADES_TOPIC_PARTITIONS = 3
 
-
-def decimal_str(value: Decimal) -> str:
-    """Canonical non-scientific decimal string."""
-    return format(value, "f")
+__all__ = [
+    "EVENT_TYPE_TRADE_EXECUTED",
+    "SCHEMA_VERSION_V1",
+    "TRADES_TOPIC",
+    "TRADES_TOPIC_PARTITIONS",
+    "TRADE_ACTIVITY_CONSUMER",
+    "TradeExecutedEvent",
+    "TradeExecutedPayload",
+    "decimal_str",
+]
 
 
 class TradeExecutedPayload(BaseModel):

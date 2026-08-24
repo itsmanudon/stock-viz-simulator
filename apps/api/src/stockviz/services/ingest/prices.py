@@ -209,26 +209,73 @@ def upsert_bars(session: Session, bars: list[BarRecord]) -> int:
         for b in bars
     ]
 
-    stmt = pg_insert(PriceBar).values(rows)
-    stmt = stmt.on_conflict_do_update(
-        index_elements=["ticker", "ts", "interval"],
-        set_={
-            "open": stmt.excluded.open,
-            "high": stmt.excluded.high,
-            "low": stmt.excluded.low,
-            "close": stmt.excluded.close,
-            "volume": stmt.excluded.volume,
-            "source": stmt.excluded.source,
-        },
-    )
-    session.exec(stmt)  # type: ignore[arg-type]
-    session.commit()
+    bind = session.get_bind()
+    dialect = bind.dialect.name if bind is not None else "sqlite"
+    if dialect == "postgresql":
+        stmt = pg_insert(PriceBar).values(rows)
+        stmt = stmt.on_conflict_do_update(
+            index_elements=["ticker", "ts", "interval"],
+            set_={
+                "open": stmt.excluded.open,
+                "high": stmt.excluded.high,
+                "low": stmt.excluded.low,
+                "close": stmt.excluded.close,
+                "volume": stmt.excluded.volume,
+                "source": stmt.excluded.source,
+            },
+        )
+        session.exec(stmt)  # type: ignore[arg-type]
+        return len(rows)
+
+    for row in rows:
+        existing = session.get(PriceBar, (row["ticker"], row["ts"], row["interval"]))
+        if existing is None:
+            session.add(PriceBar(**row))
+            continue
+        existing.open = row["open"]
+        existing.high = row["high"]
+        existing.low = row["low"]
+        existing.close = row["close"]
+        existing.volume = row["volume"]
+        existing.source = row["source"]
+        session.add(existing)
     return len(rows)
+
+
+def persist_bars(session: Session, bars: list[BarRecord]) -> int:
+    """:func:`upsert_bars` plus commit — CLI / one-off convenience wrapper."""
+    written = upsert_bars(session, bars)
+    session.commit()
+    return written
 
 
 # ---------------------------------------------------------------------------
 # Orchestration
 # ---------------------------------------------------------------------------
+
+
+def fetch_daily_bars(
+    ticker: str,
+    *,
+    since: date | None = None,
+    alpha_vantage_key: str = "",
+    history_fn: YFinanceHistoryFn | None = None,
+    fetch_fn: AlphaVantageFetchFn | None = None,
+) -> list[BarRecord]:
+    """Provider I/O only. Does not open a database transaction."""
+    kwargs: dict[str, object] = {"start": since}
+    if history_fn is not None:
+        kwargs["history_fn"] = history_fn
+    bars = fetch_yfinance_daily(ticker, **kwargs)  # type: ignore[arg-type]
+    if not bars and alpha_vantage_key:
+        logger.info("ingest_ticker: %s — yfinance empty, falling back to Alpha Vantage", ticker)
+        av_kwargs: dict[str, object] = {"api_key": alpha_vantage_key, "full": since is None}
+        if fetch_fn is not None:
+            av_kwargs["fetch_fn"] = fetch_fn
+        bars = fetch_alpha_vantage_daily(ticker, **av_kwargs)  # type: ignore[arg-type]
+    if not bars:
+        logger.warning("ingest_ticker: %s — no bars from any source", ticker)
+    return bars
 
 
 def ingest_ticker(
@@ -237,18 +284,22 @@ def ingest_ticker(
     *,
     since: date | None = None,
     alpha_vantage_key: str = "",
+    history_fn: YFinanceHistoryFn | None = None,
+    fetch_fn: AlphaVantageFetchFn | None = None,
 ) -> int:
     """Fetch from yfinance, fall back to Alpha Vantage, write to DB.
 
     Returns the number of bars written. ``since`` is optional — without it
-    yfinance returns the full history (cheap on the free tier).
+    yfinance returns the full history (cheap on the free tier). Commits.
     """
 
-    bars = fetch_yfinance_daily(ticker, start=since)
-    if not bars and alpha_vantage_key:
-        logger.info("ingest_ticker: %s — yfinance empty, falling back to Alpha Vantage", ticker)
-        bars = fetch_alpha_vantage_daily(ticker, api_key=alpha_vantage_key, full=since is None)
+    bars = fetch_daily_bars(
+        ticker,
+        since=since,
+        alpha_vantage_key=alpha_vantage_key,
+        history_fn=history_fn,
+        fetch_fn=fetch_fn,
+    )
     if not bars:
-        logger.warning("ingest_ticker: %s — no bars from any source", ticker)
         return 0
-    return upsert_bars(session, bars)
+    return persist_bars(session, bars)

@@ -20,6 +20,12 @@
     "db:down": "docker compose -f infra/docker-compose.yml down",
     "events:up": "docker compose -f infra/docker-compose.yml --profile events up -d",
     "events:down": "docker compose -f infra/docker-compose.yml --profile events down",
+    "events:publisher": "uv --directory apps/api run python -m stockviz.workers.outbox_publisher",
+    "events:market-ingest": "uv --directory apps/api run python -m stockviz.workers.market_ingest_consumer",
+    "events:market-analytics": "uv --directory apps/api run python -m stockviz.workers.market_analytics_consumer",
+    "events:news-ingest": "uv --directory apps/api run python -m stockviz.workers.news_ingest_consumer",
+    "events:news-sentiment": "uv --directory apps/api run python -m stockviz.workers.news_sentiment_consumer",
+    "events:sentiment-aggregate": "uv --directory apps/api run python -m stockviz.workers.sentiment_aggregate_consumer",
     "api:dev": "uv --directory apps/api run uvicorn stockviz.main:app --reload --port 8000",
     "api:migrate": "uv --directory apps/api run alembic upgrade head",
     "e2e": "pnpm --filter @stockviz/web e2e"

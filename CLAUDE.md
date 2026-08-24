@@ -38,10 +38,17 @@ service, or off) and feeds a screener filter, a recommendation vote, and a
 per-ticker series at `/v1/symbols/{ticker}/sentiment` — see
 [`docs/SENTIMENT.md`](./docs/SENTIMENT.md).
 
+Market and news ingest are **event-driven**. APScheduler enqueues durable
+outbox requests; Kafka workers fetch providers and write Postgres. Metrics
+and sentiment-aggregate jobs remain full-universe reconciliation. Trading
+still commits the ledger in FastAPI. See
+[`docs/EVENT_DRIVEN_ARCHITECTURE.md`](./docs/EVENT_DRIVEN_ARCHITECTURE.md).
+
 ## Common commands
 
 ```bash
 pnpm db:up                                   # local Postgres on 127.0.0.1:5434
+pnpm events:up                               # KRaft Kafka + topic init (`--profile events`)
 pnpm api:migrate                             # alembic upgrade head
 pnpm api:dev                                 # uvicorn --reload on :8000
 pnpm dev                                     # Next.js dev server on :3000 (or next free port)
@@ -196,7 +203,7 @@ Full lists live in `apps/web/.env.example` and `apps/api/.env.example`
 | `DATABASE_URL` | both | web wants plain `postgres://` (node-postgres); the API rewrites `postgres://`→`postgresql+psycopg://` in `settings.py`, don't fight it |
 | `ENABLE_SCHEDULER` | api | off by default; only Render sets `true` |
 | `RATELIMIT_ENABLED=0` | api | disables the slowapi rate limiter (handy for tests/load scripts) |
-| `ALPHA_VANTAGE_KEY`, `NEWSDATA_KEY`, `ANTHROPIC_API_KEY` | api | News (`NEWSDATA_KEY`) and sentiment (`ANTHROPIC_API_KEY`) **silently no-op** when blank. A blank `ALPHA_VANTAGE_KEY` only skips the Alpha Vantage **fallback**; yfinance still ingests daily OHLCV |
+| `ALPHA_VANTAGE_KEY`, `NEWSDATA_KEY`, `ANTHROPIC_API_KEY` | api | News (`NEWSDATA_KEY`) and sentiment (`ANTHROPIC_API_KEY`) **silently no-op** when blank. A blank `ALPHA_VANTAGE_KEY` only skips the Alpha Vantage **fallback**; the market-ingest worker still uses yfinance for daily OHLCV |
 | `SENTIMENT_PROVIDER` | api | `none` (default) \| `anthropic` \| `http`. Blank resolves to `anthropic` when `ANTHROPIC_API_KEY` is set. See [`docs/SENTIMENT.md`](./docs/SENTIMENT.md) |
 | `SENTIMENT_SERVICE_URL`, `SENTIMENT_SERVICE_TOKEN` | api | only read when `SENTIMENT_PROVIDER=http` — the standalone scoring service |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | web | Google OAuth sign-in |

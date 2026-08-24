@@ -74,7 +74,11 @@ services:
       - |
         /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --create --if-not-exists \
           --topic stockviz.trades.v1 --partitions 3 --replication-factor 1
-        echo "created stockviz.trades.v1 (3 partitions) keyed by portfolio_id"
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --create --if-not-exists \
+          --topic stockviz.market.v1 --partitions 3 --replication-factor 1
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --create --if-not-exists \
+          --topic stockviz.news.v1 --partitions 3 --replication-factor 1
+        echo "created stockviz.trades.v1 stockviz.market.v1 stockviz.news.v1 (3 partitions, RF=1)"
 
 volumes:
   postgres_data:

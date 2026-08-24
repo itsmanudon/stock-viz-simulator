@@ -137,11 +137,17 @@ Optional event stack (KRaft Kafka, not required to trade):
 
 ```bash
 pnpm events:up
-uv --directory apps/api run python -m stockviz.workers.outbox_publisher --once
-uv --directory apps/api run python -m stockviz.workers.trade_activity_consumer --once
+pnpm events:publisher            # or: python -m stockviz.cli publish-outbox --once
+pnpm events:market-ingest
+pnpm events:market-analytics
+pnpm events:news-ingest
+pnpm events:news-sentiment
+pnpm events:sentiment-aggregate
 ```
 
 See [`EVENT_DRIVEN_ARCHITECTURE.md`](./EVENT_DRIVEN_ARCHITECTURE.md).
+Topics `stockviz.trades.v1`, `stockviz.market.v1`, and `stockviz.news.v1`
+are created explicitly (auto-create is disabled).
 
 ## Quality gates
 
