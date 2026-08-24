@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import json
+from decimal import Decimal
 from pathlib import Path
 
 from sqlmodel import Session, select
 
-from stockviz.models import Symbol
+from stockviz.models import PriceBar, Symbol
+from stockviz.services.ingest.backfill import backfill_price_bars_from_csvs
 from stockviz.services.ingest.seed import seed_symbols
 
 
@@ -48,3 +50,26 @@ def test_seed_symbols_is_idempotent(tmp_path: Path, session: Session) -> None:
 
 def test_seed_symbols_missing_file_returns_zero(tmp_path: Path, session: Session) -> None:
     assert seed_symbols(session, path=tmp_path / "nope.json") == 0
+
+
+def test_backfill_commits_so_a_new_session_sees_bars(tmp_path: Path, engine) -> None:
+    """Regression: upsert_bars no longer commits; backfill must persist the batch.
+
+    E2E fills AAPL from these CSVs. If the session closes without commit, the
+    trade page reports "No market data for AAPL".
+    """
+    csv_path = tmp_path / "AAPL_processed.csv"
+    csv_path.write_text(
+        "Date,Open,High,Low,Close,Volume\n2024-01-02,100,101,99,100.5,1000\n",
+        encoding="utf-8",
+    )
+    with Session(engine) as session:
+        session.add(Symbol(ticker="AAPL", name="Apple Inc."))
+        session.commit()
+        written = backfill_price_bars_from_csvs(session, csv_dir=tmp_path)
+        assert written == {"AAPL": 1}
+
+    with Session(engine) as session:
+        bars = session.exec(select(PriceBar).where(PriceBar.ticker == "AAPL")).all()
+        assert len(bars) == 1
+        assert bars[0].close == Decimal("100.5")

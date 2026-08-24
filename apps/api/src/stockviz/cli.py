@@ -47,6 +47,7 @@ def _cmd_backfill(_args: argparse.Namespace) -> int:
     with Session(engine) as session:
         ensure_symbols_for_backfill(session)
         written = backfill_price_bars_from_csvs(session)
+        session.commit()
     total = sum(written.values())
     print(f"backfilled {total} bars across {len(written)} tickers")
     for ticker, n in sorted(written.items()):

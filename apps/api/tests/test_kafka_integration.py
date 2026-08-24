@@ -183,7 +183,8 @@ def _poll_event(
         if polled is None:
             continue
         msg, payload = polled
-        inner = payload.get("payload") if isinstance(payload.get("payload"), dict) else {}
+        raw_inner = payload.get("payload")
+        inner: dict = raw_inner if isinstance(raw_inner, dict) else {}
         matches_type = payload.get("event_type") == event_type
         matches_ticker = (
             ticker is None or inner.get("ticker") == ticker or payload.get("aggregate_id") == ticker
