@@ -25,7 +25,9 @@ src/stockviz/
   workers/          outbox_publisher, scheduler (dedicated APScheduler process),
                     plus trade-activity, market ingest/analytics, news
                     ingest/sentiment, and sentiment-aggregate consumers
-  benchmarks/       Kafka consumer-group scaling experiment (not domain logic)
+  benchmarks/       Kafka consumer-group scaling experiment (not domain logic).
+                    Runs isolate by seek-to-end + run_id; throughput is
+                    min(produced_at)→max(consumed_at), not collector wall-clock.
   routers/          /v1 endpoints, one file per resource — symbols, quotes, bars,
                     markets (one-call /markets summary), indicators, news,
                     recommendations, trading, orders, options, backtest,

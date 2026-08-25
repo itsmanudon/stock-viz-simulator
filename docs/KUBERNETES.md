@@ -71,13 +71,26 @@ Prerequisites: Docker, kind, kubectl, Helm, ability to build the two images.
 ```bash
 pnpm k8s:create     # kind cluster + metrics-server (kubelet-insecure-tls)
 pnpm k8s:build      # stockviz-api:dev + stockviz-web:dev, kind load
-pnpm k8s:deploy     # Strimzi → Kafka Ready → Postgres → migrate Job → rollouts
+pnpm k8s:deploy     # Strimzi → Kafka Ready → Postgres Ready → migrate Job → apps
 pnpm k8s:smoke      # probes, web GET /, topic existence
 pnpm k8s:destroy
 ```
 
-Order inside `deploy.sh` is deliberate: CRDs, Kafka, Postgres, **Job success**,
-then application Deployments. We do not race pod startup against migrations.
+`scripts/k8s/deploy.sh` applies **layers**, not one combined overlay:
+
+1. namespace + Strimzi + Kafka
+2. `overlays/kind/bootstrap` — config, split Secrets, Postgres
+3. wait until Postgres is Ready (`log "Postgres Ready"`)
+4. `overlays/kind/migrate` — `alembic upgrade head` Job (`restartPolicy: Never`)
+5. wait until the Job is Complete (`log "Migration Complete"`). Failure stops the script.
+6. assert application Deployments are absent on a fresh cluster
+7. `log "Application rollout begins"` then `overlays/kind/app`
+8. `overlays/kind/scale` — HPA / PDB
+9. wait for application rollouts, then smoke
+
+The bootstrap overlay must not create API, web, scheduler, outbox, or Kafka
+consumers. `/health` is only `SELECT 1`, so a FastAPI pod can become Ready
+against an unmigrated database — that is why migrate is a hard gate.
 
 ### Images
 
@@ -99,9 +112,20 @@ A real hosted deploy must rebuild the web image with the public API URL.
 
 ### Secrets
 
-`infra/k8s/overlays/kind/secret.yaml` is **dummy kind credentials**, annotated
-as such. Do not copy it to production. Production belongs in a sealed secret
-store that is out of scope for this milestone.
+Kind dummy credentials are split by concern and annotated
+`stockviz.io/scope: kind-dev-only`. Do not copy them to production.
+
+| Secret | Keys | Who mounts them |
+| --- | --- | --- |
+| `stockviz-db` | `DATABASE_URL`, `POSTGRES_PASSWORD` | Postgres, migrate, API, web, scheduler, all DB-backed workers |
+| `stockviz-auth` | `INTERNAL_API_TOKEN`, `AUTH_SECRET` | API (`INTERNAL_API_TOKEN` only), web (both) |
+| `stockviz-market-provider` | `ALPHA_VANTAGE_KEY` | market-ingest |
+| `stockviz-news-provider` | `NEWSDATA_KEY` | news-ingest |
+| `stockviz-sentiment-provider` | `ANTHROPIC_API_KEY` | news-sentiment |
+
+Workers no longer `envFrom` a single `stockviz-secrets` blob. Kafka bootstrap
+is on the non-secret ConfigMap. Production belongs in a sealed secret store
+that is out of scope for this milestone.
 
 ### Ingress
 
@@ -217,12 +241,15 @@ screenshots.
 ## Validation
 
 ```bash
-kubectl kustomize infra/k8s/overlays/kind >/tmp/kind.yaml
+kubectl kustomize infra/k8s/overlays/kind/bootstrap >/tmp/kind-bootstrap.yaml
+kubectl kustomize infra/k8s/overlays/kind/migrate >/tmp/kind-migrate.yaml
+kubectl kustomize infra/k8s/overlays/kind/app >/tmp/kind-app.yaml
+kubectl kustomize infra/k8s/overlays/kind/scale >/tmp/kind-scale.yaml
 kubectl kustomize infra/k8s/kafka >/tmp/kafka.yaml
 # Built-in kinds only (needs a cluster kubeconfig):
-kubectl apply --dry-run=client -f /tmp/kind.yaml
+kubectl apply --dry-run=client -f /tmp/kind-bootstrap.yaml
 ```
 
 Kafka `Kafka` / `KafkaTopic` CRs cannot be dry-run applied until the Strimzi
-CRDs are installed. CI kustomize-builds both overlays, then dry-runs the
-kind overlay after the cluster exists.
+CRDs are installed. CI kustomize-builds each kind layer plus the Kafka
+overlay, then dry-runs the kind layers after the cluster exists.

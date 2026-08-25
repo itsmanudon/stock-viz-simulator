@@ -18,17 +18,56 @@ consumer group.
 | `stockviz.benchmark.v1` | **12** | 1 | Synthetic events only |
 | `stockviz.benchmark-results.v1` | 12 | 1 | Per-event completion + latency |
 
+## Isolation (methodology correction)
+
+An earlier revision used a **fresh consumer group** plus
+`auto.offset.reset=earliest` on the retained topic `stockviz.benchmark.v1`.
+That does **not** isolate runs. Run 2's group has never committed offsets, so
+`earliest` replays Run 1's retained records as well as Run 2's. The consumer
+also did not filter on `run_id`. Numbers from that harness (commit `1ae731d`,
+CI run [32827747239](https://github.com/itsmanudon/stock-viz-simulator/actions/runs/32827747239))
+are **invalid** and are not the result table below.
+
+Current isolation (both layers; neither is "timing"):
+
+1. Coordinator **seeks the new group to the topic end** and commits those
+   offsets **before** producing this run.
+2. Every event carries `run_id`. Each consumer is given that `run_id` and the
+   expected count. Non-matching records are **not** written to the results
+   topic; the offset is still committed so the group advances.
+3. Collection and latency/throughput stats keep **current-run records only**.
+   Any same-group foreign `run_id` fails the hard gate.
+
+## Metrics
+
+| Field | Meaning |
+| --- | --- |
+| `producer_events_per_second` | Produce+flush wall-clock for this run. Not consumer throughput. |
+| `processing_duration_seconds` | `max(consumed_at) - min(produced_at)` over **current-run** completions. |
+| `consumer_events_per_second` | `current_run_count / processing_duration_seconds`. Not collector read speed. |
+| `p50_ms` / `p95_ms` / `p99_ms` / `mean_ms` | `consumed_at - produced_at` for current-run events only. |
+| `initial_consumer_lag` | First lag sample (committed offset vs watermark, all partitions). |
+| `peak_consumer_lag` | Max lag sample **during** the workload. |
+| `final_consumer_lag` | Last lag sample. |
+| `cpu` / `memory` | Peak `kubectl top` of benchmark-consumer pods **while the run is active**. `null` if metrics-server is not ready. Never a fabricated zero. |
+
+The smoke job **fails** if collected ≠ expected, a foreign `run_id` is counted,
+`processing_duration_seconds` is missing/non-positive, current-run p50/p95 are
+missing, peak lag is missing, or `complete` is not true.
+
 ## Workload
 
 - Keys: `SYM0000` … `SYM0999` (1,000 keys, round-robin). A handful of keys
   would pin traffic on a few partitions and fake a scaling ceiling.
 - Payload: `event_id`, `run_id`, `seq`, `symbol`, `produced_at` (UTC ISO),
   tiny JSON body. No provider I/O. No SQL writes to financial tables.
-- Consumer group: `stockviz.benchmark.<run>.<N>r` — **new group per replica
-  count** so offsets start at beginning and runs do not contaminate each other.
-- Processing: parse JSON, compute latency vs `produced_at`, write one result
-  record, commit the input offset.
-- Lag: watermark high-water minus committed offset, summed across partitions.
+- Consumer group: `stockviz.benchmark.<run_id>` — new group per replica count,
+  seek-to-end, then produce.
+- Processing: parse JSON, skip/commit foreign `run_id`, else write one result
+  record and commit. The process exits after `--expect` matching events
+  (idle timeout is only a stall guard after the first match).
+- Lag: sampled on a sidecar Job via committed offset vs watermark, not after
+  the run is already drained.
 
 ## How to run
 
@@ -50,40 +89,42 @@ Output: `artifacts/benchmarks/kafka-scaling.json` (gitignored).
 CLI used inside the cluster:
 
 ```bash
+python -m stockviz.benchmarks.kafka_scaling seek-end --group stockviz.benchmark.demo
+python -m stockviz.benchmarks.kafka_scaling consume --group stockviz.benchmark.demo --run-id demo --expect 3000
 python -m stockviz.benchmarks.kafka_scaling produce --count 3000 --run-id demo
-python -m stockviz.benchmarks.kafka_scaling consume --group stockviz.benchmark.demo --max-idle 30
-python -m stockviz.benchmarks.kafka_scaling collect --group stockviz.benchmark.demo --expect 3000
+python -m stockviz.benchmarks.kafka_scaling collect --group stockviz.benchmark.demo --run-id demo --expect 3000
 ```
+
+The coordinator script (`scripts/k8s/run-benchmark.sh`) does seek-end, starts
+consumers, samples lag/CPU, then produces, then collects.
 
 ## Results
 
-Source: GitHub Actions kind job on commit `1ae731d`
-([run 32827747239](https://github.com/itsmanudon/stock-viz-simulator/actions/runs/32827747239),
-artifact `kafka-scaling`, generated 2026-08-25T08:45:49Z). kind cluster
-`stockviz`, 1 node, Strimzi 0.45.1 / Kafka 3.9.0, 1 KRaft broker, RF=1,
-topic `stockviz.benchmark.v1` with 12 partitions. Collector wall-clock
-and per-event latency vs `produced_at`. Not a production SLO.
+**Methodology:** seek-to-end + `run_id` filter; consumer throughput from event
+timestamps; lag sampled during the workload. kind cluster `stockviz`, 1 node,
+Strimzi 0.45.1 / Kafka 3.9.0, 1 KRaft broker, RF=1, topic
+`stockviz.benchmark.v1` with 12 partitions. Environment-dependent. Not a
+production SLO.
 
-| Replicas | Events | Collected | Events/sec | p50 ms | p95 ms | Lag | CPU / Memory |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | 3000 | 3000 | 667.23 | 4011 | 5115 | 0 | *empty — `kubectl top` not ready* |
-| 2 | 3000 | 3000 | 365.23 | 19955 | 22197 | 0 | *empty — `kubectl top` not ready* |
-| 4 | 100000 | *not run* | — | — | — | — | — |
-| 8 | 100000 | *not run* | — | — | — | — | — |
+The primary table is filled from the k8s-smoke artifact **after** this
+methodology landed. Until that run finishes, do not cite the superseded
+`1ae731d` rows (collector wall-clock, `earliest` replay of prior runs, lag
+sampled after drain so it was always 0).
 
-Both reduced runs `complete: true` with `consumer_lag: 0`. The 2-replica
-row is **slower**, not faster. On this 3,000-event kind node that is
-expected: a new consumer group rebalances, then the work is gone before
-the extra replica pays back. Do not read it as “Kafka does not scale.”
-Do not invert the numbers to make a nicer graph.
+| Replicas | Events | Collected | Producer evt/s | Consumer evt/s | p50 ms | p95 ms | Peak lag | CPU / Memory |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 1 | 3000 | *pending CI* | — | — | — | — | — | — |
+| 2 | 3000 | *pending CI* | — | — | — | — | — | — |
+| 4 | 100000 | *not run* | — | — | — | — | — | — |
+| 8 | 100000 | *not run* | — | — | — | — | — | — |
 
-`kubectl top` was empty (`kubectl_top: ""`). metrics-server is installed
-with `--kubelet-insecure-tls`; it was not Ready in time for the sample.
-That is a harness gap, not a fabricated zero.
+Do not expect 2 replicas to outperform 1 on a 3,000-event single-node kind
+cluster. Report whatever the run actually measured. Do not invert the
+numbers to make a nicer graph.
 
-The 100,000-event × 1/2/4/8 matrix was **not** executed. Run it with
-`BENCHMARK_COUNT=100000 BENCHMARK_REPLICAS="1 2 4 8"` if you need that
-table. Do not invent those cells.
+The 100,000-event × 1/2/4/8 matrix was **not** executed. The tooling still
+accepts `BENCHMARK_COUNT=100000 BENCHMARK_REPLICAS="1 2 4 8"`. Do not invent
+those cells.
 
 ## Interpretation (what the graph *should* show)
 

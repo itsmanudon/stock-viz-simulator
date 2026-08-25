@@ -16,7 +16,7 @@ questions" sections are long resolved, don't treat them as current) and
 apps/web/    Next.js 16 (App Router, React 19, TS, Tailwind v4, NextAuth v5) + Playwright e2e
 apps/api/    FastAPI + SQLModel + Alembic + APScheduler (Python 3.12, uv)
 infra/       docker-compose (local Postgres; Kafka via `--profile events`) + render.yaml
-             k8s/ (Kustomize app + Strimzi Kafka + kind overlay)
+             k8s/ (Kustomize layers: bootstrap → migrate → app → scale; Strimzi)
 scripts/k8s/ kind create / build / deploy / smoke / destroy
 .github/workflows/ci.yml   web, api, events-integration, security, docker, e2e
 .github/workflows/k8s-smoke.yml   kind + Strimzi + migrate Job + smoke + reduced Kafka benchmark
