@@ -35,5 +35,5 @@ export default proxyAuth((req) => {
 });
 
 export const config = {
-  matcher: ["/((?!_next|api/auth|_static|favicon.ico).*)"],
+  matcher: ["/((?!_next|api/auth|api/health|_static|favicon.ico).*)"],
 };

@@ -42,6 +42,9 @@ spec:
         ports:
         - name: http
           containerPort: 3000
+        env:
+        - name: HOSTNAME
+          value: "0.0.0.0"
         envFrom:
         - configMapRef:
             name: stockviz-config
@@ -49,16 +52,18 @@ spec:
             name: stockviz-secrets
         livenessProbe:
           httpGet:
-            path: /
-            port: http
-          initialDelaySeconds: 15
-          periodSeconds: 20
-        readinessProbe:
-          httpGet:
-            path: /
+            path: /api/health
             port: http
           initialDelaySeconds: 10
           periodSeconds: 10
+          timeoutSeconds: 3
+        readinessProbe:
+          httpGet:
+            path: /api/health
+            port: http
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
         resources:
           requests:
             cpu: 100m

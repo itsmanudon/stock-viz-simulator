@@ -117,10 +117,15 @@ kubectl -n stockviz port-forward svc/stockviz-web 3000:3000
 
 | Probe | Endpoint | Depends on | Why |
 | --- | --- | --- | --- |
-| liveness | `GET /live` | nothing | A Postgres blip must not kill the API process |
-| readiness | `GET /health` | PostgreSQL | Unready pods leave the Service until the DB is back |
+| API liveness | `GET /live` | nothing | A Postgres blip must not kill the API process |
+| API readiness | `GET /health` | PostgreSQL | Unready pods leave the Service until the DB is back |
+| Web liveness/readiness | `GET /api/health` | nothing | Homepage SSR is not a probe; it fans out to `/v1` |
 
 Render still uses `/health` as `healthCheckPath`. That contract is unchanged.
+
+Kubernetes sets `HOSTNAME` to the pod name. Next's standalone server listens
+on that env var, so the web image/command forces `HOSTNAME=0.0.0.0` or
+kubelet probes to the pod IP never succeed.
 
 ## Scheduler separation
 

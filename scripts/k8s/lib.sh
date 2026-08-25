@@ -21,11 +21,25 @@ need() {
 wait_rollout() {
   local deploy="$1"
   log "waiting for rollout ${deploy}"
-  kubectl -n "${NAMESPACE}" rollout status "deployment/${deploy}" --timeout=300s
+  if kubectl -n "${NAMESPACE}" rollout status "deployment/${deploy}" --timeout=300s; then
+    return 0
+  fi
+  log "rollout failed for ${deploy}; dumping diagnostics"
+  kubectl -n "${NAMESPACE}" get pods,deploy,job -o wide || true
+  kubectl -n "${NAMESPACE}" describe "deploy/${deploy}" || true
+  kubectl -n "${NAMESPACE}" logs "deploy/${deploy}" --tail=150 || true
+  kubectl -n "${NAMESPACE}" logs "deploy/${deploy}" --previous --tail=150 || true
+  die "rollout timed out: ${deploy}"
 }
 
 wait_job() {
   local job="$1"
   log "waiting for job ${job}"
-  kubectl -n "${NAMESPACE}" wait --for=condition=complete "job/${job}" --timeout=300s
+  if kubectl -n "${NAMESPACE}" wait --for=condition=complete "job/${job}" --timeout=300s; then
+    return 0
+  fi
+  log "job ${job} failed; dumping diagnostics"
+  kubectl -n "${NAMESPACE}" describe "job/${job}" || true
+  kubectl -n "${NAMESPACE}" logs -l "job-name=${job}" --tail=150 || true
+  die "job did not complete: ${job}"
 }

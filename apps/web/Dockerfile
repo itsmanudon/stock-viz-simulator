@@ -52,4 +52,6 @@ COPY --from=builder --chown=stockviz:stockviz /repo/apps/web/public ./apps/web/p
 USER stockviz
 EXPOSE 3000
 
-CMD ["node", "apps/web/server.js"]
+# Kubernetes sets HOSTNAME to the pod name. Next's standalone server listens
+# on process.env.HOSTNAME, so without this override probes to the pod IP fail.
+CMD ["sh", "-c", "export HOSTNAME=0.0.0.0; exec node apps/web/server.js"]

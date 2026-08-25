@@ -94,6 +94,10 @@ For kind port-forward it must be a URL the laptop can reach (typically
 not reachable from the browser. Server-side fetches use runtime `API_URL`
 (the web Deployment sets `http://stockviz-api:8000`).
 
+Kubernetes overwrites `HOSTNAME` with the pod name. The image `CMD` exports
+`HOSTNAME=0.0.0.0` before `node apps/web/server.js` so the process listens on
+all interfaces. Probes use `GET /api/health` (no SSR), not the homepage.
+
 ## E2E (Playwright)
 
 ```powershell

@@ -58,9 +58,10 @@ for i in $(seq 1 30); do
   sleep 1
 done
 
-check "GET /live" bash -c 'code=$(curl -s -o /tmp/stockviz-live.json -w "%{http_code}" http://127.0.0.1:18000/live); test "$code" = "200"'
-check "GET /health" bash -c 'code=$(curl -s -o /tmp/stockviz-health.json -w "%{http_code}" http://127.0.0.1:18000/health); test "$code" = "200"'
-check "GET web /" bash -c 'code=$(curl -s -o /tmp/stockviz-web.html -w "%{http_code}" http://127.0.0.1:13000/); test "$code" = "200"'
+check "GET /live" bash -c 'code=$(curl -s --max-time 10 -o /tmp/stockviz-live.json -w "%{http_code}" http://127.0.0.1:18000/live); test "$code" = "200"'
+check "GET /health" bash -c 'code=$(curl -s --max-time 10 -o /tmp/stockviz-health.json -w "%{http_code}" http://127.0.0.1:18000/health); test "$code" = "200"'
+check "GET web /api/health" bash -c 'code=$(curl -s --max-time 10 -o /tmp/stockviz-web-health.json -w "%{http_code}" http://127.0.0.1:13000/api/health); test "$code" = "200"'
+check "GET web /" bash -c 'code=$(curl -s --max-time 30 -o /tmp/stockviz-web.html -w "%{http_code}" http://127.0.0.1:13000/); test "$code" = "200"'
 
 if kubectl -n "${NAMESPACE}" get kafkatopic stockviz-trades-v1 >/dev/null 2>&1; then
   for t in stockviz-trades-v1 stockviz-market-v1 stockviz-news-v1; do
