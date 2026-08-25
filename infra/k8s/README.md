@@ -5,10 +5,11 @@ Kind / CI lab for StockViz. This is **not** a production control plane.
 Operator guide: [`docs/KUBERNETES.md`](../../docs/KUBERNETES.md).
 
 ```
+base/            namespace + ConfigMap only (included by kind bootstrap)
 base/app/        API, web, scheduler, Kafka workers, Services
 base/migrate/    alembic Job (applied only after Postgres is Ready)
 base/scale/      API HPA + PDB, market-ingest HPA
-overlays/kind/bootstrap/  Postgres + split dummy Secrets + config
+overlays/kind/bootstrap/  Postgres + split dummy Secrets + base config
 overlays/kind/migrate/    kind image pull policy for the Job
 overlays/kind/app/        kind image pull policy for Deployments
 overlays/kind/scale/      HPA/PDB (after apps exist)

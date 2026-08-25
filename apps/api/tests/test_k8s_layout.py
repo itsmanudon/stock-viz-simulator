@@ -62,6 +62,17 @@ def test_deploy_sh_applies_apps_only_after_migration_complete() -> None:
             assert "|| true" not in line
 
 
+def test_shared_base_kustomization_is_namespace_and_config_only() -> None:
+    """Bootstrap includes ``../../../base``. That directory must not start apps."""
+    text = (K8S / "base" / "kustomization.yaml").read_text(encoding="utf-8")
+    assert "namespace.yaml" in text
+    assert "configmap.yaml" in text
+    assert "app/" not in text
+    assert "migrate/" not in text
+    assert "scale/" not in text
+    assert "deployment" not in text.lower()
+
+
 def test_bootstrap_overlay_does_not_include_application_workloads() -> None:
     bootstrap = (K8S / "overlays" / "kind" / "bootstrap" / "kustomization.yaml").read_text(
         encoding="utf-8"
@@ -70,6 +81,9 @@ def test_bootstrap_overlay_does_not_include_application_workloads() -> None:
     assert "../../../base/migrate" not in bootstrap
     assert "../../../base/scale" not in bootstrap
     assert "postgres.yaml" in bootstrap
+    # kustomize LoadRestrictionsRootOnly: only a kustomization *directory*
+    # may live outside this folder. Raw ``../foo.yaml`` paths fail CI.
+    assert "../postgres.yaml" not in bootstrap
     migrate = (K8S / "overlays" / "kind" / "migrate" / "kustomization.yaml").read_text(
         encoding="utf-8"
     )
@@ -126,6 +140,6 @@ def test_kind_secrets_are_marked_local_only() -> None:
         "secret-news.yaml",
         "secret-sentiment.yaml",
     ):
-        text = (K8S / "overlays" / "kind" / name).read_text(encoding="utf-8")
+        text = (K8S / "overlays" / "kind" / "bootstrap" / name).read_text(encoding="utf-8")
         assert "kind-dev-only" in text
         assert "stockviz.io/warning" in text
