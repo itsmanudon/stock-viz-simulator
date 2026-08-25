@@ -28,7 +28,13 @@
     "events:sentiment-aggregate": "uv --directory apps/api run python -m stockviz.workers.sentiment_aggregate_consumer",
     "api:dev": "uv --directory apps/api run uvicorn stockviz.main:app --reload --port 8000",
     "api:migrate": "uv --directory apps/api run alembic upgrade head",
-    "e2e": "pnpm --filter @stockviz/web e2e"
+    "e2e": "pnpm --filter @stockviz/web e2e",
+    "k8s:create": "bash scripts/k8s/create-kind.sh",
+    "k8s:build": "bash scripts/k8s/build-images.sh",
+    "k8s:deploy": "bash scripts/k8s/deploy.sh",
+    "k8s:smoke": "bash scripts/k8s/smoke.sh",
+    "k8s:destroy": "bash scripts/k8s/destroy-kind.sh",
+    "k8s:benchmark": "bash scripts/k8s/run-benchmark.sh"
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",
