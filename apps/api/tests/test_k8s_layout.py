@@ -24,14 +24,6 @@ APP_DEPLOY_FILES = {
     "sentiment-aggregate-deployment.yaml": {"stockviz-db"},
 }
 
-PROVIDER_KEYS = (
-    "ALPHA_VANTAGE_KEY",
-    "NEWSDATA_KEY",
-    "ANTHROPIC_API_KEY",
-    "AUTH_SECRET",
-    "INTERNAL_API_TOKEN",
-)
-
 
 def _secret_names(text: str) -> set[str]:
     names: set[str] = set()
