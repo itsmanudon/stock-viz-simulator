@@ -51,6 +51,13 @@ def _symbol(i: int) -> str:
     return f"SYM{i % _SYMBOL_COUNT:04d}"
 
 
+def _kafka_timeouts() -> dict[str, int]:
+    return {
+        "socket.timeout.ms": 15000,
+        "api.version.request.timeout.ms": 10000,
+    }
+
+
 def _payload(msg: Any) -> dict[str, Any]:
     raw = msg.value()
     if raw is None:
@@ -74,6 +81,7 @@ def produce(*, count: int, bootstrap: str, run_id: str) -> dict[str, Any]:
             "linger.ms": 5,
             "batch.size": 32768,
             "client.id": "stockviz-benchmark-producer",
+            **_kafka_timeouts(),
         }
     )
     errors: list[str] = []
