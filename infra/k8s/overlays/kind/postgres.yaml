@@ -41,7 +41,7 @@ spec:
         - name: POSTGRES_PASSWORD
           valueFrom:
             secretKeyRef:
-              name: stockviz-secrets
+              name: stockviz-db
               key: POSTGRES_PASSWORD
         readinessProbe:
           exec:

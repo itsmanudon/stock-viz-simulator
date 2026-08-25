@@ -43,8 +43,17 @@ spec:
         envFrom:
         - configMapRef:
             name: stockviz-config
-        - secretRef:
-            name: stockviz-secrets
+        env:
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: stockviz-db
+              key: DATABASE_URL
+        - name: ALPHA_VANTAGE_KEY
+          valueFrom:
+            secretKeyRef:
+              name: stockviz-market-provider
+              key: ALPHA_VANTAGE_KEY
         resources:
           requests:
             cpu: 50m

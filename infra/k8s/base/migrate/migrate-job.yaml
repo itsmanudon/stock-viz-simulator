@@ -1,31 +1,26 @@
-apiVersion: apps/v1
-kind: Deployment
+apiVersion: batch/v1
+kind: Job
 metadata:
-  name: stockviz-trade-activity
+  name: stockviz-migrate
   namespace: stockviz
   labels:
     app.kubernetes.io/name: stockviz
-    app.kubernetes.io/component: trade-activity
+    app.kubernetes.io/component: migrate
     app.kubernetes.io/part-of: stockviz
     app.kubernetes.io/version: 2.0.0
 spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app.kubernetes.io/name: stockviz
-      app.kubernetes.io/component: trade-activity
-  strategy:
-    type: RollingUpdate
+  backoffLimit: 4
+  ttlSecondsAfterFinished: 600
   template:
     metadata:
       labels:
         app.kubernetes.io/name: stockviz
-        app.kubernetes.io/component: trade-activity
+        app.kubernetes.io/component: migrate
         app.kubernetes.io/part-of: stockviz
         app.kubernetes.io/version: 2.0.0
     spec:
+      restartPolicy: Never
       automountServiceAccountToken: false
-      terminationGracePeriodSeconds: 45
       securityContext:
         runAsNonRoot: true
         runAsUser: 10001
@@ -33,18 +28,22 @@ spec:
         seccompProfile:
           type: RuntimeDefault
       containers:
-      - name: worker
+      - name: migrate
         image: stockviz-api:dev
         imagePullPolicy: IfNotPresent
         command:
-        - python
-        - -m
-        - stockviz.workers.trade_activity_consumer
+        - alembic
+        - upgrade
+        - head
         envFrom:
         - configMapRef:
             name: stockviz-config
-        - secretRef:
-            name: stockviz-secrets
+        env:
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: stockviz-db
+              key: DATABASE_URL
         resources:
           requests:
             cpu: 50m

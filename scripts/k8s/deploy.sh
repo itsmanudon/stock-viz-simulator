@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
-# Install Strimzi, Kafka, Postgres, run migrations, then application workloads.
+# Install Strimzi, Kafka, Postgres, run migrations, THEN application workloads.
+#
+# Apply order is the contract:
+#   bootstrap (ns/config/secrets/postgres) → Postgres Ready
+#   → migrate Job → Migration Complete
+#   → application Deployments → HPA/PDB → rollouts
 set -euo pipefail
 # shellcheck source=lib.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
@@ -7,7 +12,11 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
 need kubectl
 need helm
 
-OVERLAY="${OVERLAY:-${ROOT}/infra/k8s/overlays/kind}"
+KIND_OVERLAY="${KIND_OVERLAY:-${ROOT}/infra/k8s/overlays/kind}"
+BOOTSTRAP_OVERLAY="${BOOTSTRAP_OVERLAY:-${KIND_OVERLAY}/bootstrap}"
+MIGRATE_OVERLAY="${MIGRATE_OVERLAY:-${KIND_OVERLAY}/migrate}"
+APP_OVERLAY="${APP_OVERLAY:-${KIND_OVERLAY}/app}"
+SCALE_OVERLAY="${SCALE_OVERLAY:-${KIND_OVERLAY}/scale}"
 
 kubectl apply -f "${ROOT}/infra/k8s/base/namespace.yaml"
 
@@ -32,33 +41,30 @@ kubectl apply -k "${ROOT}/infra/k8s/kafka"
 log "waiting for Kafka to become Ready (this is slow the first time)"
 kubectl -n "${NAMESPACE}" wait kafka/stockviz --for=condition=Ready --timeout=600s
 
-log "applying Postgres + application overlay ${OVERLAY}"
-kubectl apply -k "${OVERLAY}"
+log "applying bootstrap (namespace, config, secrets, Postgres)"
+kubectl apply -k "${BOOTSTRAP_OVERLAY}"
 
-log "waiting for Postgres"
+log "waiting for Postgres Ready"
 kubectl -n "${NAMESPACE}" rollout status deploy/postgres --timeout=180s
 kubectl -n "${NAMESPACE}" wait --for=condition=ready pod -l app.kubernetes.io/component=postgres --timeout=180s
+log "Postgres Ready"
 
 # Recreate the migrate Job only after Postgres is Ready so early connection
 # refused attempts do not exhaust backoffLimit.
-log "running migration Job"
+log "applying migration Job"
 kubectl -n "${NAMESPACE}" delete job stockviz-migrate --ignore-not-found
-kubectl apply -k "${OVERLAY}"
+kubectl apply -k "${MIGRATE_OVERLAY}"
 wait_job stockviz-migrate
+log "Migration Complete"
+
+assert_apps_absent_if_fresh
+log "Application rollout begins"
+kubectl apply -k "${APP_OVERLAY}"
+log "applying HPA / PDB"
+kubectl apply -k "${SCALE_OVERLAY}"
 
 log "waiting for application rollouts"
-for deploy in \
-  stockviz-api \
-  stockviz-web \
-  stockviz-scheduler \
-  stockviz-outbox-publisher \
-  stockviz-trade-activity \
-  stockviz-market-ingest \
-  stockviz-market-analytics \
-  stockviz-news-ingest \
-  stockviz-news-sentiment \
-  stockviz-sentiment-aggregate
-do
+for deploy in "${APP_DEPLOYS[@]}"; do
   wait_rollout "${deploy}"
 done
 

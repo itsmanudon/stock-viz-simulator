@@ -55,11 +55,19 @@ spec:
         env:
         - name: ENABLE_SCHEDULER
           value: 'false'
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: stockviz-db
+              key: DATABASE_URL
+        - name: INTERNAL_API_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: stockviz-auth
+              key: INTERNAL_API_TOKEN
         envFrom:
         - configMapRef:
             name: stockviz-config
-        - secretRef:
-            name: stockviz-secrets
         livenessProbe:
           httpGet:
             path: /live

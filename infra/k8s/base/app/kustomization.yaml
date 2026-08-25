@@ -1,17 +1,11 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
-namespace: stockviz
 resources:
-- namespace.yaml
-- configmap.yaml
 - api-deployment.yaml
 - api-service.yaml
 - web-deployment.yaml
 - web-service.yaml
-- migrate-job.yaml
-- api-hpa.yaml
-- market-ingest-hpa.yaml
-- api-pdb.yaml
+- scheduler-deployment.yaml
 - outbox-publisher-deployment.yaml
 - trade-activity-deployment.yaml
 - market-ingest-deployment.yaml
@@ -19,4 +13,3 @@ resources:
 - news-ingest-deployment.yaml
 - news-sentiment-deployment.yaml
 - sentiment-aggregate-deployment.yaml
-- scheduler-deployment.yaml

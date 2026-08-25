@@ -43,3 +43,39 @@ wait_job() {
   kubectl -n "${NAMESPACE}" logs -l "job-name=${job}" --tail=150 || true
   die "job did not complete: ${job}"
 }
+
+APP_DEPLOYS=(
+  stockviz-api
+  stockviz-web
+  stockviz-scheduler
+  stockviz-outbox-publisher
+  stockviz-trade-activity
+  stockviz-market-ingest
+  stockviz-market-analytics
+  stockviz-news-ingest
+  stockviz-news-sentiment
+  stockviz-sentiment-aggregate
+)
+
+# On a fresh cluster, application Deployments must not exist until after
+# Migration Complete. Re-running deploy.sh against an existing lab is allowed.
+assert_apps_absent_if_fresh() {
+  local present=0
+  local name
+  for name in "${APP_DEPLOYS[@]}"; do
+    if kubectl -n "${NAMESPACE}" get "deploy/${name}" >/dev/null 2>&1; then
+      present=1
+      break
+    fi
+  done
+  if [[ "${present}" -eq 1 ]]; then
+    log "application Deployments already present (re-deploy); migrate still gated apply"
+    return 0
+  fi
+  for name in "${APP_DEPLOYS[@]}"; do
+    if kubectl -n "${NAMESPACE}" get "deploy/${name}" >/dev/null 2>&1; then
+      die "refusing to start apps: ${name} exists before migration completed"
+    fi
+  done
+  log "asserted application Deployments are absent before app apply"
+}

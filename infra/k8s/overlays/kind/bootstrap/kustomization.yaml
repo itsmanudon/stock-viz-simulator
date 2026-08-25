@@ -1,0 +1,13 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: stockviz
+resources:
+- ../../../base/namespace.yaml
+- ../../../base/configmap.yaml
+- ../postgres.yaml
+- ../postgres-service.yaml
+- ../secret-db.yaml
+- ../secret-auth.yaml
+- ../secret-market.yaml
+- ../secret-news.yaml
+- ../secret-sentiment.yaml

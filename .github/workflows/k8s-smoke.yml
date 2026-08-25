@@ -26,12 +26,27 @@ jobs:
 
       - name: Validate kustomize builds (no cluster)
         run: |
-          kubectl kustomize infra/k8s/overlays/kind >/tmp/kind.yaml
+          kubectl kustomize infra/k8s/overlays/kind/bootstrap >/tmp/kind-bootstrap.yaml
+          kubectl kustomize infra/k8s/overlays/kind/migrate >/tmp/kind-migrate.yaml
+          kubectl kustomize infra/k8s/overlays/kind/app >/tmp/kind-app.yaml
+          kubectl kustomize infra/k8s/overlays/kind/scale >/tmp/kind-scale.yaml
           kubectl kustomize infra/k8s/kafka >/tmp/kafka.yaml
-          test -s /tmp/kind.yaml
+          test -s /tmp/kind-bootstrap.yaml
+          test -s /tmp/kind-migrate.yaml
+          test -s /tmp/kind-app.yaml
+          test -s /tmp/kind-scale.yaml
           test -s /tmp/kafka.yaml
+          # Bootstrap (applied before migrate) must not create application workloads.
+          if grep -E '^  name: stockviz-(api|web|scheduler|outbox-publisher|trade-activity|market-ingest|market-analytics|news-ingest|news-sentiment|sentiment-aggregate)$' /tmp/kind-bootstrap.yaml; then
+            echo "bootstrap overlay must not include application Deployments"
+            exit 1
+          fi
+          if grep -q 'kind: Deployment' /tmp/kind-migrate.yaml; then
+            echo "migrate overlay must not include Deployments"
+            exit 1
+          fi
           # Kafka CRs cannot be dry-run applied until Strimzi CRDs exist.
-          # The kind overlay uses built-in kinds; dry-run it after the cluster is up.
+          # Kind layers use built-in kinds; dry-run them after the cluster is up.
 
       - uses: helm/kind-action@v1
         with:
@@ -44,8 +59,12 @@ jobs:
         with:
           version: v3.17.1
 
-      - name: Dry-run kind overlay
-        run: kubectl kustomize infra/k8s/overlays/kind | kubectl apply --dry-run=client -f -
+      - name: Dry-run kind overlays
+        run: |
+          kubectl kustomize infra/k8s/overlays/kind/bootstrap | kubectl apply --dry-run=client -f -
+          kubectl kustomize infra/k8s/overlays/kind/migrate | kubectl apply --dry-run=client -f -
+          kubectl kustomize infra/k8s/overlays/kind/app | kubectl apply --dry-run=client -f -
+          kubectl kustomize infra/k8s/overlays/kind/scale | kubectl apply --dry-run=client -f -
 
       - uses: docker/setup-buildx-action@v3
 

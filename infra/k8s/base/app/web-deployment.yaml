@@ -45,11 +45,24 @@ spec:
         env:
         - name: HOSTNAME
           value: "0.0.0.0"
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: stockviz-db
+              key: DATABASE_URL
+        - name: INTERNAL_API_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: stockviz-auth
+              key: INTERNAL_API_TOKEN
+        - name: AUTH_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: stockviz-auth
+              key: AUTH_SECRET
         envFrom:
         - configMapRef:
             name: stockviz-config
-        - secretRef:
-            name: stockviz-secrets
         livenessProbe:
           httpGet:
             path: /api/health

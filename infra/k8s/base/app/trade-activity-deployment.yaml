@@ -1,11 +1,11 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: stockviz-outbox-publisher
+  name: stockviz-trade-activity
   namespace: stockviz
   labels:
     app.kubernetes.io/name: stockviz
-    app.kubernetes.io/component: outbox-publisher
+    app.kubernetes.io/component: trade-activity
     app.kubernetes.io/part-of: stockviz
     app.kubernetes.io/version: 2.0.0
 spec:
@@ -13,14 +13,14 @@ spec:
   selector:
     matchLabels:
       app.kubernetes.io/name: stockviz
-      app.kubernetes.io/component: outbox-publisher
+      app.kubernetes.io/component: trade-activity
   strategy:
     type: RollingUpdate
   template:
     metadata:
       labels:
         app.kubernetes.io/name: stockviz
-        app.kubernetes.io/component: outbox-publisher
+        app.kubernetes.io/component: trade-activity
         app.kubernetes.io/part-of: stockviz
         app.kubernetes.io/version: 2.0.0
     spec:
@@ -39,12 +39,16 @@ spec:
         command:
         - python
         - -m
-        - stockviz.workers.outbox_publisher
+        - stockviz.workers.trade_activity_consumer
         envFrom:
         - configMapRef:
             name: stockviz-config
-        - secretRef:
-            name: stockviz-secrets
+        env:
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: stockviz-db
+              key: DATABASE_URL
         resources:
           requests:
             cpu: 50m
