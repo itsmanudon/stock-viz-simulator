@@ -4,7 +4,7 @@ Full-stack market analytics, strategy backtesting, and paper trading for equitie
 
 StockViz is a Next.js + FastAPI + PostgreSQL platform: it ingests **end-of-day** prices and news, computes technical indicators, scores daily recommendations, and runs a paper-trading ledger with FX-aware **equity** fills, pending orders, dividends, and long options priced by Black-Scholes. Background jobs run in-process via APScheduler. Auth is NextAuth on the web app, with a short-lived server-to-server JWT on authenticated `/v1` calls.
 
-**Docs:** [Setup](./docs/SETUP.md) · [Deployment](./docs/DEPLOYMENT.md) · [Known limitations](./docs/KNOWN_LIMITATIONS.md) · [Sentiment](./docs/SENTIMENT.md) · [Project history](./REWRITE_PLAN.md)
+**Docs:** [Setup](./docs/SETUP.md) · [Deployment](./docs/DEPLOYMENT.md) · [Kubernetes](./docs/KUBERNETES.md) · [Known limitations](./docs/KNOWN_LIMITATIONS.md) · [Sentiment](./docs/SENTIMENT.md) · [Project history](./REWRITE_PLAN.md)
 
 This repository does **not** currently provide a verified public demo. Clone and run locally (see [Setup](./docs/SETUP.md)).
 
@@ -62,8 +62,10 @@ flowchart LR
 
 Kafka is **not** in the trade commit path and is **not** the source of truth for bars, news, or cash. APScheduler enqueues market/news work; workers call providers. `/health` does not depend on the broker. See [`docs/EVENT_DRIVEN_ARCHITECTURE.md`](./docs/EVENT_DRIVEN_ARCHITECTURE.md).
 
+On Kubernetes (kind/CI), those same processes are separate Deployments — API replicas do not run the scheduler or Alembic. That lab cluster is not a production control plane. See [`docs/KUBERNETES.md`](./docs/KUBERNETES.md).
+
 - **Request path.** The browser talks to Next.js for pages and authenticated mutations. Some public FastAPI endpoints are also called from the browser via `NEXT_PUBLIC_API_URL` (for example the client-side backtest form posts to `/v1/backtest`, and the ticker badge opens SSE at `/v1/stream/quotes/{ticker}`). Authed paper-trading calls are minted on the Next.js server as `Authorization: Bearer <jwt>` (`{ sub: "<user.id>" }`, 60 s, signed with `INTERNAL_API_TOKEN`) — the browser never sees that JWT. FastAPI verifies it in `auth.py::require_user_id`.
-- **Scheduled work.** With `ENABLE_SCHEDULER=true`, APScheduler runs inside the API process. Market and news crons enqueue outbox requests (workers fetch yfinance / Newsdata). Metrics and sentiment-aggregate crons remain full-universe reconciliation. FX, recommendations, snapshots, pending-order settlement, dividends, and option expiry stay in-process. Jobs take a Postgres advisory lock so two instances cannot double-fill.
+- **Scheduled work.** With `ENABLE_SCHEDULER=true`, APScheduler runs inside the API process (Render). Kubernetes sets it false on API pods and runs `python -m stockviz.workers.scheduler` as a singleton Deployment. Market and news crons enqueue outbox requests (workers fetch yfinance / Newsdata). Metrics and sentiment-aggregate crons remain full-universe reconciliation. FX, recommendations, snapshots, pending-order settlement, dividends, and option expiry stay in-process. Jobs take a Postgres advisory lock so two instances cannot double-fill.
 - **Third-party ingest.** Daily OHLCV uses yfinance first (no API key). Alpha Vantage is a fallback when `ALPHA_VANTAGE_KEY` is set and yfinance returns nothing. News ingest requires `NEWSDATA_KEY` and skips when it is blank. The scheduler does not call those providers itself.
 - **Hosting intent.** Vercel for `apps/web`, Render for `apps/api` + Postgres. See [Deployment](./docs/DEPLOYMENT.md) for what is in source control vs dashboard-owned.
 
@@ -100,15 +102,19 @@ apps/
       services/        ingest, recommend, indicators, trading, sentiment
       models/          SQLModel tables
       scheduler.py     APScheduler jobs
+      workers/         outbox publisher, Kafka consumers, dedicated scheduler
     migrations/        Alembic
     tests/             pytest
     seed-data/         companies.json + price CSVs for backfill
-    Dockerfile         Production image (uv + uvicorn)
+    Dockerfile         Production image (uv + uvicorn); Kubernetes overrides CMD
+  web/Dockerfile       Production Next.js standalone image (build from repo root)
 infra/
-  docker-compose.yml   Local Postgres + Adminer
+  docker-compose.yml   Local Postgres + Adminer; Kafka via `--profile events`
   render.yaml          Render Blueprint (api + db)
-.github/workflows/     CI: lint, typecheck, tests, audit, Docker, e2e
-docs/                  Setup, deployment, known limitations, sentiment
+  k8s/                 Kustomize (app) + Strimzi Kafka CRs + kind overlay
+scripts/k8s/           kind create/build/deploy/smoke/destroy + benchmark
+.github/workflows/     CI: lint, typecheck, tests, audit, Docker, e2e, k8s smoke
+docs/                  Setup, deployment, Kubernetes, Kafka scaling, limitations
 REWRITE_PLAN.md        Historical v1 → v2 rewrite plan
 ```
 
@@ -173,8 +179,12 @@ rollouts.
   `ALPHA_VANTAGE_KEY`, `NEWSDATA_KEY`, optional `ANTHROPIC_API_KEY` /
   `SENTRY_DSN`), redeploy, then seed once via the service shell. Daily
   refresh runs in-process via APScheduler.
+- **kind lab (not production).** `pnpm k8s:create && pnpm k8s:build &&
+  pnpm k8s:deploy && pnpm k8s:smoke`. See [`docs/KUBERNETES.md`](./docs/KUBERNETES.md).
 
 Build the API image locally with `docker build -t stockviz-api ./apps/api`.
+Build the web image from the repo root with
+`docker build -f apps/web/Dockerfile -t stockviz-web .`.
 
 ## Project history
 

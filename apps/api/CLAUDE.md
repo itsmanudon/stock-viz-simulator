@@ -11,8 +11,9 @@ src/stockviz/
   db.py             engine + get_session dependency
   auth.py           require_user_id / UserIdDep — verifies the HS256 Bearer JWT from the Next.js server
   limiter.py        slowapi rate limiter, keyed per-user then per-IP
-  scheduler.py      APScheduler jobs (see below)
+  scheduler.py      APScheduler jobs (see below) — also run as a dedicated process
   cli.py            argparse one-shot commands mirroring the scheduler jobs
+                    (+ `run-scheduler` for the Kubernetes singleton)
   schemas.py        shared Pydantic response models
   observability.py  Sentry bootstrap (no-op without DSN)
   models/           SQLModel tables (market, portfolio, user, order, option, dividend,
@@ -21,13 +22,16 @@ src/stockviz/
   events/           versioned contracts (trades/market/news), outbox/inbox,
                     dispatcher, domain handlers, Kafka producer wrappers
                     (not imported by FastAPI startup)
-  workers/          outbox_publisher plus trade-activity, market ingest/analytics,
-                    news ingest/sentiment, and sentiment-aggregate consumers
+  workers/          outbox_publisher, scheduler (dedicated APScheduler process),
+                    plus trade-activity, market ingest/analytics, news
+                    ingest/sentiment, and sentiment-aggregate consumers
+  benchmarks/       Kafka consumer-group scaling experiment (not domain logic)
   routers/          /v1 endpoints, one file per resource — symbols, quotes, bars,
                     markets (one-call /markets summary), indicators, news,
                     recommendations, trading, orders, options, backtest,
                     screener, sentiment, leaderboard, watchlist, alerts,
                     comments, stream (SSE simulated quotes), health
+                    (`GET /live` liveness, `GET /health` readiness + DB)
   services/
     ingest/         External-API fetchers (yfinance primary, Alpha Vantage fallback, Newsdata)
     indicators/     SMA/EMA/RSI/MACD pure functions
@@ -44,7 +48,10 @@ src/stockviz/
       store.py        persist scores, backfill, per-symbol rolling aggregate
 migrations/         Alembic versions/
 tests/              pytest, asyncio mode=auto, ~300 tests today
-Dockerfile          Multi-stage build with uv → uvicorn at runtime
+Dockerfile          Multi-stage build with uv. Default CMD is
+                    `alembic upgrade head && uvicorn` (Render). Kubernetes
+                    overrides the command per workload so API replicas do
+                    not migrate or run the scheduler.
 alembic.ini         prepend_sys_path=src so alembic can import stockviz.*
 ```
 
@@ -58,12 +65,15 @@ uv --directory apps/api run python -m stockviz.cli backfill   # one-time, CSV �
 pnpm api:dev                                          # uvicorn --reload on :8000
 ```
 
-OpenAPI docs at `/docs` when running. Health at `/health`.
+OpenAPI docs at `/docs` when running. Liveness at `/live` (no I/O).
+Readiness at `/health` (Postgres; 503 if down). Kubernetes probes those
+separately; Render still uses `/health` as `healthCheckPath`.
 
 CLI subcommands (`python -m stockviz.cli <cmd>`): `seed`, `backfill`,
 `metadata`, `ingest <tickers>`, `fx`, `metrics`, `score-sentiment`,
 `sentiment-aggregate`, `recommend`, `snapshot-portfolios`, `dividends`,
-`credit-dividends`, `settle-options`, `publish-outbox [--once]`,
+`credit-dividends`, `settle-options`, `run-scheduler`,
+`publish-outbox [--once]`,
 `consume-trade-activity [--once]`, `consume-market-ingest [--once]`,
 `consume-market-analytics [--once]`, `consume-news-ingest [--once]`,
 `consume-news-sentiment [--once]`, `consume-sentiment-aggregate [--once]`.
@@ -119,9 +129,13 @@ advisory lock. APScheduler runs in-process, so without it a scale-out to two
 API instances double-fires every job — for order settlement and option expiry
 that means filling the same order twice.
 
-**Off by default.** `ENABLE_SCHEDULER=false` so pytest / CLI / local dev don't
-fire jobs. Render flips it on. Each job has a matching `stockviz.cli`
-subcommand for manual re-runs (there is no separate Render cron service).
+**Off by default.** `ENABLE_SCHEDULER=false` so pytest / CLI / local dev /
+horizontally scaled API pods don't fire jobs. Render flips it on (in-process
+inside FastAPI). Kubernetes keeps the flag false on API pods and runs
+`python -m stockviz.workers.scheduler` as a 1-replica Deployment
+(`python -m stockviz.cli run-scheduler` is the CLI twin). Advisory locks
+remain defense-in-depth. Each job has a matching `stockviz.cli` subcommand
+for manual re-runs (there is no separate Render cron service).
 
 ## Data model — the load-bearing relationships
 
