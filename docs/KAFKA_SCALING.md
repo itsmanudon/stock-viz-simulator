@@ -57,25 +57,33 @@ python -m stockviz.benchmarks.kafka_scaling collect --group stockviz.benchmark.d
 
 ## Results
 
-**The 100,000-event × 1/2/4/8 matrix was not executed in the environment
-that authored this document** (no Docker/kind on the agent VM). Inventing
-events/sec, p50, p95, lag, or CPU would violate the honesty rule.
+Source: GitHub Actions kind job on commit `1ae731d`
+([run 32827747239](https://github.com/itsmanudon/stock-viz-simulator/actions/runs/32827747239),
+artifact `kafka-scaling`, generated 2026-08-25T08:45:49Z). kind cluster
+`stockviz`, 1 node, Strimzi 0.45.1 / Kafka 3.9.0, 1 KRaft broker, RF=1,
+topic `stockviz.benchmark.v1` with 12 partitions. Collector wall-clock
+and per-event latency vs `produced_at`. Not a production SLO.
 
-CI is required to run the **reduced** matrix (3,000 events, 1 and 2 replicas)
-and upload `artifacts/benchmarks/`. After that job is green, paste the JSON
-summary here rather than guessing.
-
-Until a real run exists, the only honest table is:
-
-| Replicas | Events | Events/sec | p50 ms | p95 ms | Max lag | CPU | Memory |
+| Replicas | Events | Collected | Events/sec | p50 ms | p95 ms | Lag | CPU / Memory |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | *not run here* | — | — | — | — | — | — |
-| 2 | *not run here* | — | — | — | — | — | — |
-| 4 | *not run here* | — | — | — | — | — | — |
-| 8 | *not run here* | — | — | — | — | — | — |
+| 1 | 3000 | 3000 | 667.23 | 4011 | 5115 | 0 | *empty — `kubectl top` not ready* |
+| 2 | 3000 | 3000 | 365.23 | 19955 | 22197 | 0 | *empty — `kubectl top` not ready* |
+| 4 | 100000 | *not run* | — | — | — | — | — |
+| 8 | 100000 | *not run* | — | — | — | — | — |
 
-`kubectl top` is recorded when metrics-server is Ready; otherwise the field
-is empty. That is a gap in the harness, not a fabricated zero.
+Both reduced runs `complete: true` with `consumer_lag: 0`. The 2-replica
+row is **slower**, not faster. On this 3,000-event kind node that is
+expected: a new consumer group rebalances, then the work is gone before
+the extra replica pays back. Do not read it as “Kafka does not scale.”
+Do not invert the numbers to make a nicer graph.
+
+`kubectl top` was empty (`kubectl_top: ""`). metrics-server is installed
+with `--kubelet-insecure-tls`; it was not Ready in time for the sample.
+That is a harness gap, not a fabricated zero.
+
+The 100,000-event × 1/2/4/8 matrix was **not** executed. Run it with
+`BENCHMARK_COUNT=100000 BENCHMARK_REPLICAS="1 2 4 8"` if you need that
+table. Do not invent those cells.
 
 ## Interpretation (what the graph *should* show)
 
