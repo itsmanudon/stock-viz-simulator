@@ -41,13 +41,15 @@ spec:
         - consume
         - --group
         - stockviz.benchmark.manual
+        - --run-id
+        - none
+        - --expect
+        - "0"
         - --max-idle
         - '60'
         envFrom:
         - configMapRef:
             name: stockviz-config
-        - secretRef:
-            name: stockviz-secrets
         resources:
           requests:
             cpu: 50m
