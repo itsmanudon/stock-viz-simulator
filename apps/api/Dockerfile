@@ -53,13 +53,21 @@ USER stockviz
 ENV PORT=8000
 EXPOSE 8000
 
-# Same image, different command, for later Kubernetes/worker deploys:
-#   uvicorn stockviz.main:app ...                         # API (this default)
+# Same image, different command, for Kubernetes worker deploys:
+#   uvicorn stockviz.main:app --host 0.0.0.0 --port 8000  # API (no migrations)
+#   alembic upgrade head                                  # one-shot migrate Job
+#   python -m stockviz.workers.scheduler                  # APScheduler singleton
 #   python -m stockviz.workers.outbox_publisher           # outbox → Kafka
-#   python -m stockviz.workers.trade_activity_consumer    # trades topic → derived activity
+#   python -m stockviz.workers.trade_activity_consumer
+#   python -m stockviz.workers.market_ingest_consumer
+#   python -m stockviz.workers.market_analytics_consumer
+#   python -m stockviz.workers.news_ingest_consumer
+#   python -m stockviz.workers.news_sentiment_consumer
+#   python -m stockviz.workers.sentiment_aggregate_consumer
 #
 # Run migrations on boot, then start uvicorn.
 # Render's free tier doesn't support release commands, so we inline it here.
+# Kubernetes MUST override this CMD so API replicas do not all migrate.
 #
 # --proxy-headers / --forwarded-allow-ips: behind Render's load balancer,
 # request.client.host is the proxy for every request, so without these the

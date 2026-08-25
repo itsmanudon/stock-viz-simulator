@@ -141,6 +141,12 @@ def _cmd_settle_options(_args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_run_scheduler(_args: argparse.Namespace) -> int:
+    from stockviz.workers.scheduler import main as scheduler_main
+
+    return scheduler_main()
+
+
 def _cmd_publish_outbox(args: argparse.Namespace) -> int:
     from stockviz.workers.outbox_publisher import main as publisher_main
 
@@ -291,6 +297,11 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser(
         "settle-options", help="Settle every option position that has reached expiry"
     ).set_defaults(fn=_cmd_settle_options)
+
+    sub.add_parser(
+        "run-scheduler",
+        help="Run APScheduler as a dedicated process (Kubernetes singleton)",
+    ).set_defaults(fn=_cmd_run_scheduler)
 
     p_pub = sub.add_parser(
         "publish-outbox",
