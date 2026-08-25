@@ -98,6 +98,10 @@ Kubernetes overwrites `HOSTNAME` with the pod name. The image `CMD` exports
 `HOSTNAME=0.0.0.0` before `node apps/web/server.js` so the process listens on
 all interfaces. Probes use `GET /api/health` (no SSR), not the homepage.
 
+The image `pnpm install` uses `node-linker=hoisted` so Next standalone tracing
+can copy `@swc/helpers`. Isolated pnpm (the local default) omits that package
+and the container crashes with `MODULE_NOT_FOUND`.
+
 ## E2E (Playwright)
 
 ```powershell

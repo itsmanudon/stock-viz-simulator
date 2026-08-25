@@ -16,6 +16,12 @@ WORKDIR /repo
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/web/package.json apps/web/package.json
 
+# Isolated pnpm layout leaves @swc/helpers as a nested symlink that Next
+# standalone tracing does not copy. The resulting image crashes on boot:
+#   Cannot find module '.../node_modules/@swc/helpers/esm/_interop_require_default.js'
+# Hoist only in this image; local `pnpm install` is unchanged.
+RUN printf 'node-linker=hoisted\n' > .npmrc
+
 RUN pnpm install --frozen-lockfile --filter @stockviz/web...
 
 FROM deps AS builder
@@ -29,6 +35,7 @@ ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL} \
     NODE_ENV=production
 
 RUN pnpm --filter @stockviz/web build
+RUN test -f apps/web/.next/standalone/apps/web/server.js
 
 FROM node:22-bookworm-slim AS runtime
 
