@@ -100,27 +100,39 @@ consumers, samples lag/CPU, then produces, then collects.
 
 ## Results
 
-**Methodology:** seek-to-end + `run_id` filter; consumer throughput from event
-timestamps; lag sampled during the workload. kind cluster `stockviz`, 1 node,
-Strimzi 0.45.1 / Kafka 3.9.0, 1 KRaft broker, RF=1, topic
-`stockviz.benchmark.v1` with 12 partitions. Environment-dependent. Not a
+Source: GitHub Actions kind job on commit `e88553e`
+([run 32870127548](https://github.com/itsmanudon/stock-viz-simulator/actions/runs/32870127548),
+artifact `kafka-scaling`, generated 2026-08-25T16:14:56Z). kind cluster
+`stockviz`, 1 node, Strimzi 0.45.1 / Kafka 3.9.0, 1 KRaft broker, RF=1,
+topic `stockviz.benchmark.v1` with 12 partitions.
+
+**Methodology (corrected):** seek the fresh group to the topic end, then
+produce this `run_id`. Consumers skip/commit foreign `run_id`. Consumer
+throughput is `3000 / (max(consumed_at) - min(produced_at))` on current-run
+events. Lag is sampled **during** the workload. Environment-dependent. Not a
 production SLO.
 
-The primary table is filled from the k8s-smoke artifact **after** this
-methodology landed. Until that run finishes, do not cite the superseded
-`1ae731d` rows (collector wall-clock, `earliest` replay of prior runs, lag
-sampled after drain so it was always 0).
+The `1ae731d` table is **superseded**. Those rows used collector wall-clock,
+`auto.offset.reset=earliest` (so later runs could replay earlier ones), and
+lag sampled after drain (always 0). Do not cite them.
 
-| Replicas | Events | Collected | Producer evt/s | Consumer evt/s | p50 ms | p95 ms | Peak lag | CPU / Memory |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | 3000 | *pending CI* | — | — | — | — | — | — |
-| 2 | 3000 | *pending CI* | — | — | — | — | — | — |
-| 4 | 100000 | *not run* | — | — | — | — | — | — |
-| 8 | 100000 | *not run* | — | — | — | — | — | — |
+| Replicas | Events | Collected | foreign | Producer evt/s | Consumer evt/s | p50 ms | p95 ms | Peak lag | CPU / Memory |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 1 | 3000 | 3000 | 0 | 20189.17 | 483.48 | 4711 | 6125 | 3000 | *null — `kubectl top` empty on this run* |
+| 2 | 3000 | 3000 | 0 | 21460.13 | 411.47 | 5756 | 7086 | 3000 | 105m / 26Mi peak per pod |
+| 4 | 100000 | *not run* | — | — | — | — | — | — | — |
+| 8 | 100000 | *not run* | — | — | — | — | — | — | — |
 
-Do not expect 2 replicas to outperform 1 on a 3,000-event single-node kind
-cluster. Report whatever the run actually measured. Do not invert the
-numbers to make a nicer graph.
+Both reduced runs `complete: true`, `foreign_records: 0`, initial lag 0,
+final lag 0, peak lag 3000 (the full batch visible before the group caught
+up). The 2-replica row is **slower** (411 vs 484 consumer evt/s). On this
+3,000-event kind node that is expected: a new group rebalances, then the
+work is gone before the extra replica pays back. Do not read it as “Kafka
+does not scale.” Do not invert the numbers.
+
+Run 1 CPU/memory stayed `null` because metrics-server had not yet produced
+pod metrics for the sampler. Run 2 captured real `kubectl top` samples.
+That is not a fabricated zero.
 
 The 100,000-event × 1/2/4/8 matrix was **not** executed. The tooling still
 accepts `BENCHMARK_COUNT=100000 BENCHMARK_REPLICAS="1 2 4 8"`. Do not invent
