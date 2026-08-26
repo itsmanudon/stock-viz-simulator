@@ -9,11 +9,10 @@
 #
 # The Next.js frontend deploys separately on Vercel; see apps/web/vercel.json.
 #
-# Note: there is no nightly cron service in this Blueprint. Render dropped
-# the free plan for cron jobs (Starter+ only), so we rely on the in-process
-# APScheduler inside FastAPI (ENABLE_SCHEDULER=true) for daily price + news
-# refreshes. If you want a separate cron safety net, add a service block with
-# `type: cron` and `plan: starter` — see docs/DEPLOYMENT.md.
+# Note: there is no nightly cron service in this Blueprint. This hosting path
+# relies on APScheduler inside FastAPI (ENABLE_SCHEDULER=true) for daily price
+# and news refreshes. See docs/DEPLOYMENT.md before adding a cron resource;
+# provider plan names and pricing should be verified at deploy time.
 
 databases:
   - name: stockviz-postgres

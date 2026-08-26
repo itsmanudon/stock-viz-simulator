@@ -5,10 +5,9 @@ code in this repository.
 
 # StockViz — agent guide
 
-Two-app pnpm + uv monorepo. See [`REWRITE_PLAN.md`](./REWRITE_PLAN.md) for the
-v2 rewrite history (**historical** — all seven phases shipped; its "open
-questions" sections are long resolved, don't treat them as current) and
-[`README.md`](./README.md) for setup/deploy.
+Two-app pnpm + uv monorepo. See [`README.md`](./README.md) for the current
+architecture and setup, and [`docs/ENGINEERING_ROADMAP.md`](./docs/ENGINEERING_ROADMAP.md)
+for the remaining honest gaps.
 
 ## Layout you'll actually touch
 
@@ -84,16 +83,12 @@ new resource, walk the chain in order:
 8. If the data needs periodic refresh, add a `scheduler.py` job **and** a
    matching `cli.py` subcommand (every job has a manual CLI twin).
 
-## Feature backlog
+## Current gaps
 
-[`docs/IDEAS.md`](./docs/IDEAS.md) is a **changelog plus a short backlog** —
-the original 16-item roadmap all shipped, so listing it in the future tense
-had agents proposing to rebuild the screener. Current constraints:
-[`docs/KNOWN_LIMITATIONS.md`](./docs/KNOWN_LIMITATIONS.md). Still cross-check
-any idea against the code before starting it.
-
-[`docs/CODEBASE_REVIEW.md`](./docs/CODEBASE_REVIEW.md) is a **historical**
-audit record; its section numbers are referenced from commit messages.
+Use [`docs/KNOWN_LIMITATIONS.md`](./docs/KNOWN_LIMITATIONS.md) for verified
+constraints and [`docs/ENGINEERING_ROADMAP.md`](./docs/ENGINEERING_ROADMAP.md)
+for possible production hardening. Cross-check any proposal against the code
+before starting it.
 
 ## Remotes
 
@@ -139,8 +134,8 @@ Tags:
 - `v2.0.0` — the moment v1 and v2 coexisted, right before the v1 tree was
   deleted (`git checkout v2.0.0` to see both side-by-side).
 
-The phase-by-phase rewrite history is preserved as merge commits in `main`'s
-log; see `REWRITE_PLAN.md` for background.
+The rewrite history is preserved in the Git log and release tags; it is not
+current architecture guidance.
 
 ## Common gotchas (Windows dev)
 
@@ -200,19 +195,19 @@ older docs/comments mentioning those headers are historical.
 Full lists live in `apps/web/.env.example` and `apps/api/.env.example`
 (committed values are safe dev defaults). The ones that cause real breakage:
 
-| Var | App(s) | What breaks / notes |
-| --- | --- | --- |
-| `INTERNAL_API_TOKEN` | both — **must be identical** | signs/verifies the web→api JWT; mismatch = every authed `/v1` call 401s |
-| `AUTH_SECRET` | web | NextAuth session JWT signing |
-| `AUTH_TRUST_HOST=true` | web | needed whenever you run a **production** build outside Vercel (CI e2e, local `next start`) |
-| `DATABASE_URL` | both | web wants plain `postgres://` (node-postgres); the API rewrites `postgres://`→`postgresql+psycopg://` in `settings.py`, don't fight it |
-| `ENABLE_SCHEDULER` | api | off by default; Render sets `true` (in-process). Kubernetes API pods keep it `false` and run `python -m stockviz.workers.scheduler` |
-| `RATELIMIT_ENABLED=0` | api | disables the slowapi rate limiter (handy for tests/load scripts) |
-| `ALPHA_VANTAGE_KEY`, `NEWSDATA_KEY`, `ANTHROPIC_API_KEY` | api | News (`NEWSDATA_KEY`) and sentiment (`ANTHROPIC_API_KEY`) **silently no-op** when blank. A blank `ALPHA_VANTAGE_KEY` only skips the Alpha Vantage **fallback**; the market-ingest worker still uses yfinance for daily OHLCV |
-| `SENTIMENT_PROVIDER` | api | `none` (default) \| `anthropic` \| `http`. Blank resolves to `anthropic` when `ANTHROPIC_API_KEY` is set. See [`docs/SENTIMENT.md`](./docs/SENTIMENT.md) |
-| `SENTIMENT_SERVICE_URL`, `SENTIMENT_SERVICE_TOKEN` | api | only read when `SENTIMENT_PROVIDER=http` — the standalone scoring service |
-| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | web | Google OAuth sign-in |
-| `NEXTAUTH_JWT_SECRET` | api | **legacy** — still in `settings.py` but no longer read by the auth bridge |
+| Var                                                      | App(s)                       | What breaks / notes                                                                                                                                                                                                          |
+| -------------------------------------------------------- | ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `INTERNAL_API_TOKEN`                                     | both — **must be identical** | signs/verifies the web→api JWT; mismatch = every authed `/v1` call 401s                                                                                                                                                      |
+| `AUTH_SECRET`                                            | web                          | NextAuth session JWT signing                                                                                                                                                                                                 |
+| `AUTH_TRUST_HOST=true`                                   | web                          | needed whenever you run a **production** build outside Vercel (CI e2e, local `next start`)                                                                                                                                   |
+| `DATABASE_URL`                                           | both                         | web wants plain `postgres://` (node-postgres); the API rewrites `postgres://`→`postgresql+psycopg://` in `settings.py`, don't fight it                                                                                       |
+| `ENABLE_SCHEDULER`                                       | api                          | off by default; Render sets `true` (in-process). Kubernetes API pods keep it `false` and run `python -m stockviz.workers.scheduler`                                                                                          |
+| `RATELIMIT_ENABLED=0`                                    | api                          | disables the slowapi rate limiter (handy for tests/load scripts)                                                                                                                                                             |
+| `ALPHA_VANTAGE_KEY`, `NEWSDATA_KEY`, `ANTHROPIC_API_KEY` | api                          | News (`NEWSDATA_KEY`) and sentiment (`ANTHROPIC_API_KEY`) **silently no-op** when blank. A blank `ALPHA_VANTAGE_KEY` only skips the Alpha Vantage **fallback**; the market-ingest worker still uses yfinance for daily OHLCV |
+| `SENTIMENT_PROVIDER`                                     | api                          | `none` (default) \| `anthropic` \| `http`. Blank resolves to `anthropic` when `ANTHROPIC_API_KEY` is set. See [`docs/SENTIMENT.md`](./docs/SENTIMENT.md)                                                                     |
+| `SENTIMENT_SERVICE_URL`, `SENTIMENT_SERVICE_TOKEN`       | api                          | only read when `SENTIMENT_PROVIDER=http` — the standalone scoring service                                                                                                                                                    |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`               | web                          | Google OAuth sign-in                                                                                                                                                                                                         |
+| `NEXTAUTH_JWT_SECRET`                                    | api                          | **legacy** — still in `settings.py` but no longer read by the auth bridge                                                                                                                                                    |
 
 ## Sentry
 

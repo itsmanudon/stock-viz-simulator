@@ -1,225 +1,119 @@
 # Event-driven architecture
 
-StockViz uses Kafka for **asynchronous orchestration** of market ingest, news
-ingest, and derived calculations. PostgreSQL remains the source of truth for
-price bars, news, sentiment, metrics, and every financial ledger row.
+StockViz uses Kafka for asynchronous orchestration and derived processing. PostgreSQL remains the source of truth for price bars, news, sentiment, metrics, and every financial ledger row. Kafka is not in the trade commit path.
 
-Kafka is **not** a source of truth. Kafka is **not** in the trade commit path.
+## Market and news pipeline
 
-```
-                         ┌────────────────┐
-                         │  APScheduler   │
-                         └───────┬────────┘
-                                 │
-                         durable requests
-                                 │
-                                 ▼
-                             Postgres
-                               Outbox
-                                 │
-                                 ▼
-                               Kafka
-               ┌─────────────────┴─────────────────┐
-               │                                   │
-               ▼                                   ▼
-        Market Ingest                        News Ingest
-               │                                   │
-           PostgreSQL                          PostgreSQL
-               │                                   │
-        bars.refreshed                    article.ingested
-               │                                   │
-               ▼                                   ▼
-             Kafka                               Kafka
-               │                                   │
-        Market Analytics                    Sentiment Worker
-               │                                   │
-        metrics + alerts                     sentiment row
-                                                   │
-                                           sentiment.scored
-                                                   │
-                                                   ▼
-                                                 Kafka
-                                                   │
-                                                   ▼
-                                         Sentiment Aggregate
+```mermaid
+flowchart LR
+  Scheduler[Singleton scheduler] -->|durable refresh request| Outbox[(PostgreSQL outbox)]
+  Outbox --> Publisher[Outbox publisher]
+  Publisher --> Kafka[Kafka]
 
+  Kafka --> MarketIngest[Market ingestion]
+  MarketIngest -->|fetch provider outside transaction| MarketProvider[yfinance / Alpha Vantage]
+  MarketIngest -->|bars + output outbox + inbox, atomic| PG[(PostgreSQL)]
+  PG --> MarketEvent[market.bars.refreshed]
+  MarketEvent --> MarketAnalytics[Metrics + alerts]
+  MarketAnalytics --> PG
 
-Trading remains independently strongly consistent:
+  Kafka --> NewsIngest[News ingestion]
+  NewsIngest -->|fetch provider outside transaction| NewsProvider[Newsdata.io]
+  NewsIngest -->|articles + output outbox + inbox, atomic| PG
+  PG --> NewsEvent[news.article.ingested]
+  NewsEvent --> Sentiment[Sentiment worker]
+  Sentiment --> PG
+  Sentiment --> Scored[news.sentiment.scored]
+  Scored --> Aggregate[Sentiment aggregate]
+  Aggregate --> PG
 
-FastAPI → PostgreSQL ledger + outbox → COMMIT
+  Reconcile[Scheduled full-universe reconciliation] -. repairs metrics / sentiment drift .-> PG
 ```
 
-## Control events vs domain events
+The reconciliation path is intentionally separate from the incremental event path. It repairs drift without making Kafka the source of truth.
 
-**Control events** are durable work requests. The scheduler (or a CLI) writes
-them to the outbox. They mean "please do this work," not "this fact is now
-true."
+## Trade commit path
 
-| event_type | topic | key | producer | consumer group | side effect |
-| --- | --- | --- | --- | --- | --- |
-| `market.refresh.requested` | `stockviz.market.v1` | ticker | scheduler / CLI outbox | `stockviz.market-ingestion.v1` | fetch bars, upsert `price_bars` |
-| `news.refresh.requested` | `stockviz.news.v1` | ticker | scheduler / CLI outbox | `stockviz.news-ingestion.v1` | fetch headlines, insert new `news_articles` |
+Trade execution is independently strongly consistent:
 
-**Domain events** record that PostgreSQL state changed. Downstream workers
-derive metrics, alerts, or sentiment from them. They are not a second ledger.
+```text
+FastAPI -> BEGIN -> lock portfolio -> validate reservations
+        -> update cash/position -> insert trade + outbox -> COMMIT
+```
 
-| event_type | topic | key | producer | consumer group | side effect |
-| --- | --- | --- | --- | --- | --- |
-| `market.bars.refreshed` | `stockviz.market.v1` | ticker | market-ingest worker | `stockviz.market-analytics.v1` | ticker-scoped `symbol_metrics` + price alerts |
-| `news.article.ingested` | `stockviz.news.v1` | ticker | news-ingest worker | `stockviz.news-sentiment.v1` | score one article |
-| `news.sentiment.scored` | `stockviz.news.v1` | ticker | news-sentiment worker | `stockviz.sentiment-aggregate.v1` | ticker-scoped rolling sentiment |
-| `trade.executed` | `stockviz.trades.v1` | portfolio_id | trading ledger (same COMMIT) | `stockviz.trade-activity.v1` | derived `portfolio_trade_activity` |
+Only later does the outbox publisher send `trade.executed`. The trade-activity consumer writes derived activity, never ledger cash, positions, or orders.
 
-One `market.bars.refreshed` is emitted **per successful ticker refresh**, not
-per OHLCV row. `ingest_ticker` may write hundreds of bars; a bar-per-event
-stream would be noise.
+## Events and keys
 
-`news.article.ingested` is emitted only for rows that were **actually
-inserted**. Duplicate URLs hit `ON CONFLICT DO NOTHING` (Postgres
-`RETURNING`) and produce no event.
+Control events are durable requests; domain events state that PostgreSQL changed.
 
-## Why the scheduler no longer calls providers
+| Event                      | Topic                | Key          | Producer             | Consumer group                    | Side effect                |
+| -------------------------- | -------------------- | ------------ | -------------------- | --------------------------------- | -------------------------- |
+| `market.refresh.requested` | `stockviz.market.v1` | ticker       | scheduler/CLI outbox | `stockviz.market-ingestion.v1`    | fetch and upsert bars      |
+| `market.bars.refreshed`    | `stockviz.market.v1` | ticker       | market ingestion     | `stockviz.market-analytics.v1`    | ticker metrics and alerts  |
+| `news.refresh.requested`   | `stockviz.news.v1`   | ticker       | scheduler/CLI outbox | `stockviz.news-ingestion.v1`      | fetch and insert headlines |
+| `news.article.ingested`    | `stockviz.news.v1`   | ticker       | news ingestion       | `stockviz.news-sentiment.v1`      | score one article          |
+| `news.sentiment.scored`    | `stockviz.news.v1`   | ticker       | sentiment worker     | `stockviz.sentiment-aggregate.v1` | ticker sentiment rollup    |
+| `trade.executed`           | `stockviz.trades.v1` | portfolio_id | trading transaction  | `stockviz.trade-activity.v1`      | derived portfolio activity |
 
-`daily_price_refresh`, `hourly_top_movers`, and `news_refresh` enqueue
-control events and commit. If Kafka is down at fire time, the request stays
-in `outbox_events` until the publisher retries. The API stays healthy.
+Kafka orders within a partition. Ticker and portfolio keys preserve useful domain-local order while unrelated entities progress concurrently.
 
-The scheduler does **not** publish to Kafka directly.
+One `market.bars.refreshed` is emitted per successful ticker refresh, not per OHLCV row. One `news.article.ingested` is emitted only for a newly inserted URL; a uniqueness conflict creates no event.
 
-`hourly_top_movers` no longer evaluates alerts. Alerts run in market
-analytics **after** refreshed bars are persisted.
+## Scheduler responsibilities
 
-## APScheduler vs workers (before / after)
+`daily_price_refresh`, `hourly_top_movers`, and `news_refresh` insert control events into the outbox and commit. They do not call providers or publish directly to Kafka. If Kafka is unavailable, these durable requests remain in PostgreSQL.
 
-| Job | Before | After |
-| --- | --- | --- |
-| `daily_price_refresh` | yfinance / Alpha Vantage per ticker | enqueue `market.refresh.requested` (`reason=daily`) |
-| `hourly_top_movers` | ingest + evaluate all alerts | enqueue `market.refresh.requested` (`reason=hourly`) |
-| `news_refresh` | Newsdata.io + optional inline sentiment | enqueue `news.refresh.requested` (skipped if no newsdata key) |
-| `symbol_metrics_refresh` | full-universe RSI / 52w | **unchanged reconciliation** |
-| `sentiment_aggregate_refresh` | full-universe rollup | **unchanged reconciliation** |
-| `recommendations_refresh` | universe score | **unchanged** (not on Kafka yet) |
-| FX, pending orders, dividends, options, snapshots | in-process SQL | **unchanged by design** |
+Financial jobs—FX, pending-order settlement, dividends, option expiry, portfolio snapshots—and universe-wide recommendations remain scheduled/PostgreSQL operations by design. Symbol-metrics and sentiment-aggregate schedules remain reconciliation paths.
 
-## Incremental path vs reconciliation
-
-Kafka consumers are the **freshness** path: one ticker, one event, fast.
-
-Scheduled full-universe jobs are the **repair** path: drift, a missed
-consumer, a worker that was down. This duplication is intentional.
-
-Recommendations stay scheduled. They need both technicals and sentiment
-across the universe; a `symbol.features.updated` event is a future option,
-not this milestone.
-
-Financial settlement stays on APScheduler/PostgreSQL. Those jobs mutate
-ledger source of truth and have stronger ordering/accounting requirements.
-That is a product choice, not a defect.
+On Kubernetes the scheduler runs as its own one-replica Deployment; API pods set `ENABLE_SCHEDULER=false`. Other environments may enable the same scheduler in the API process. PostgreSQL advisory locks prevent overlapping money-moving jobs.
 
 ## Transaction boundaries
 
-Every side-effecting consumer commits **one** PostgreSQL transaction that
-includes:
+Every side-effecting consumer commits one PostgreSQL transaction containing:
 
-1. domain writes (bars, articles, scores, metrics, alerts)
-2. any **output** outbox row
-3. the consumer **inbox** receipt `(consumer_name, event_id)`
+1. its domain or derived writes;
+2. any output outbox rows;
+3. its durable inbox receipt `(consumer_name, event_id)`.
 
-Then it commits the Kafka offset. Offset-before-DB is forbidden.
+Only after the database commit succeeds does it commit the Kafka offset. Provider HTTP occurs before the database transaction: fetch first, then atomically persist.
 
-Atomic units:
+Atomic units include:
 
-- market ingest: `price_bars` upsert + `market.bars.refreshed` outbox + inbox
-- market analytics: ticker metrics + matching alerts + inbox
-- news ingest: new `news_articles` + one `news.article.ingested` per insert + inbox
-- news sentiment: `news_sentiment` + denormalized article label + `news.sentiment.scored` + inbox
-- sentiment aggregate: ticker `symbol_metrics` sentiment columns + inbox
-- trade execute: ledger + `trade.executed` outbox (FastAPI request transaction)
+- market ingestion: bar upserts + `market.bars.refreshed` outbox + inbox;
+- market analytics: ticker metrics + matching alerts + inbox;
+- news ingestion: inserted articles + their output events + inbox;
+- news sentiment: score + article label + output event + inbox;
+- sentiment aggregate: ticker sentiment fields + inbox;
+- synchronous trade: ledger + `trade.executed` outbox.
 
-Provider HTTP runs **before** the DB transaction (fetch, then persist).
+## Delivery and failure semantics
 
-## Delivery semantics
+Publication and consumption are at least once:
 
-Publication and consumption are **at-least-once**.
+- publisher crash after broker acknowledgement but before `published_at`: the outbox row publishes again;
+- consumer crash after database commit but before offset commit: Kafka redelivers and the inbox suppresses the duplicate side effect;
+- provider failure before database commit: no result is recorded, the offset remains uncommitted, and the worker backs off;
+- duplicate scheduled requests have distinct event IDs, but bar upserts and article URL uniqueness keep persistence idempotent.
 
-- Crash after DB commit, before offset commit → Kafka redelivers → inbox skip.
-- Crash after provider fetch, before DB commit → may re-fetch; DB stays consistent.
-- Duplicate scheduled requests have **new** `event_id`s. Bars upsert; article
-  URLs stay unique. Re-fetching a read-only provider is acceptable.
-- A failed provider call does **not** claim success. The offset stays
-  uncommitted and the worker backs off (`kafka_retry_backoff_seconds`,
-  default 2s). No tight retry loop. There is no retry topic / DLQ in this
-  milestone; a poison payload can stall that partition until fixed.
+There is no retry topic or dead-letter queue. A poison record can stall one partition until corrected.
 
-## Sentiment disabled
+## Sentiment-disabled behavior
 
-`NullProvider` (`SENTIMENT_PROVIDER=none`, or no real key) is a first-class
-configuration. The sentiment worker:
+When the provider is `none`, the sentiment consumer records the inbox receipt but emits no fake score or downstream event. Articles remain available for later backfill. A configured provider error does not create a score and does not commit the Kafka offset.
 
-- consumes `news.article.ingested`
-- writes the inbox receipt
-- does **not** emit `news.sentiment.scored`
+## Local operation
 
-Articles remain stored. `backfill_unscored` / `score-sentiment` CLI still
-work later when a provider is configured.
-
-If a real provider is configured but the HTTP call fails, the worker does
-not write a fake score and does not commit the offset (retry with backoff).
-The article row is untouched.
-
-## Local topics
-
-Compose profile `events` (`pnpm events:up`) runs Kafka in **KRaft** mode
-(no ZooKeeper). Auto-create is **off**. Init creates:
-
-- `stockviz.trades.v1`
-- `stockviz.market.v1`
-- `stockviz.news.v1`
-
-Development: **3 partitions**, replication factor **1**.
-
-## Kubernetes process view
-
-Logical events (outbox → Kafka → consumers) are unchanged. Kubernetes only
-places each process in its own Deployment:
-
-```
-kind cluster
-└── namespace stockviz
-    ├── web, api (ENABLE_SCHEDULER=false)
-    ├── scheduler (replicas=1)
-    ├── migrate Job
-    ├── outbox publisher
-    ├── trade / market / news consumers
-    ├── Postgres (kind only)
-    └── Strimzi Kafka (1 KRaft node, kind only)
-```
-
-Do not collapse those two diagrams. Kafka architecture is *what* is
-published; Kubernetes architecture is *where* it runs.
-
-## Commands
+Docker Compose's `events` profile starts one KRaft Kafka node with auto-create disabled and three-partition domain topics:
 
 ```bash
 pnpm events:up
-pnpm events:publisher          # long-running outbox → Kafka
+pnpm events:publisher
 pnpm events:market-ingest
 pnpm events:market-analytics
 pnpm events:news-ingest
 pnpm events:news-sentiment
 pnpm events:sentiment-aggregate
-pnpm events:down
 ```
 
-`--once` flags exist on the Python modules and on `python -m stockviz.cli`.
-Manual ingest CLIs (`ingest`, `score-sentiment`) still talk to providers
-directly for one-off repair.
-
-## What this milestone is not
-
-No Schema Registry, Kafka Connect, Debezium, Flink, retry topics, or
-event-sourced trading ledger. Price bars live in PostgreSQL.
-
-Kubernetes (kind + Strimzi) is an **orchestration** layer for the same
-processes; it does not change those delivery semantics. See
-[`KUBERNETES.md`](./KUBERNETES.md).
+Kubernetes places the same processes in separate Deployments; it does not change consistency or delivery semantics. See [Kubernetes](./KUBERNETES.md) and [Kafka scaling](./KAFKA_SCALING.md).

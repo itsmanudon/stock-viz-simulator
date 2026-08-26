@@ -125,13 +125,13 @@ Visit:
 
 ## Ports
 
-| Service       | Port                |
-| ------------- | ------------------- |
-| Web (Next.js) | 3000 (or next free) |
-| API (FastAPI) | 8000                |
-| Postgres      | 5434                |
-| Adminer       | 8080                |
-| Kafka (optional, `pnpm events:up`) | 9092 |
+| Service                            | Port                |
+| ---------------------------------- | ------------------- |
+| Web (Next.js)                      | 3000 (or next free) |
+| API (FastAPI)                      | 8000                |
+| Postgres                           | 5434                |
+| Adminer                            | 8080                |
+| Kafka (optional, `pnpm events:up`) | 9092                |
 
 Optional event stack (KRaft Kafka, not required to trade):
 
@@ -148,6 +148,24 @@ pnpm events:sentiment-aggregate
 See [`EVENT_DRIVEN_ARCHITECTURE.md`](./EVENT_DRIVEN_ARCHITECTURE.md).
 Topics `stockviz.trades.v1`, `stockviz.market.v1`, and `stockviz.news.v1`
 are created explicitly (auto-create is disabled).
+
+## Full Kubernetes lab
+
+For the complete locally validated topology, install kind, kubectl, and Helm,
+then run from the repository root:
+
+```bash
+pnpm k8s:create
+pnpm k8s:build
+pnpm k8s:deploy
+pnpm k8s:smoke
+```
+
+This provisions a single-node kind cluster, Strimzi Kafka, development
+PostgreSQL, the migration Job, API/web, singleton scheduler, publisher, and
+independent consumers. It is a lab/CI reference rather than a production
+deployment. See [`KUBERNETES.md`](./KUBERNETES.md) for prerequisites, access,
+troubleshooting, and `pnpm k8s:destroy`.
 
 ## Quality gates
 
