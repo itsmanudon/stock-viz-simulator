@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: stockviz
+  labels:
+    app.kubernetes.io/name: stockviz
+    app.kubernetes.io/part-of: stockviz

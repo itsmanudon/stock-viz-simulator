@@ -1,0 +1,105 @@
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: stockviz-trades-v1
+  namespace: stockviz
+  labels:
+    strimzi.io/cluster: stockviz
+    app.kubernetes.io/name: stockviz
+    app.kubernetes.io/component: kafka-topic
+    app.kubernetes.io/part-of: stockviz
+    app.kubernetes.io/version: 2.0.0
+  annotations:
+    stockviz.io/purpose: Domain trades. Changing partitions reshuffles keyed ordering.
+spec:
+  topicName: stockviz.trades.v1
+  partitions: 3
+  replicas: 1
+  config:
+    retention.ms: 604800000
+    min.insync.replicas: 1
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: stockviz-market-v1
+  namespace: stockviz
+  labels:
+    strimzi.io/cluster: stockviz
+    app.kubernetes.io/name: stockviz
+    app.kubernetes.io/component: kafka-topic
+    app.kubernetes.io/part-of: stockviz
+    app.kubernetes.io/version: 2.0.0
+  annotations:
+    stockviz.io/purpose: Domain market events. Consumer HPA maxReplicas=3 matches
+      this.
+spec:
+  topicName: stockviz.market.v1
+  partitions: 3
+  replicas: 1
+  config:
+    retention.ms: 604800000
+    min.insync.replicas: 1
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: stockviz-news-v1
+  namespace: stockviz
+  labels:
+    strimzi.io/cluster: stockviz
+    app.kubernetes.io/name: stockviz
+    app.kubernetes.io/component: kafka-topic
+    app.kubernetes.io/part-of: stockviz
+    app.kubernetes.io/version: 2.0.0
+  annotations:
+    stockviz.io/purpose: Domain news events.
+spec:
+  topicName: stockviz.news.v1
+  partitions: 3
+  replicas: 1
+  config:
+    retention.ms: 604800000
+    min.insync.replicas: 1
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: stockviz-benchmark-v1
+  namespace: stockviz
+  labels:
+    strimzi.io/cluster: stockviz
+    app.kubernetes.io/name: stockviz
+    app.kubernetes.io/component: kafka-topic
+    app.kubernetes.io/part-of: stockviz
+    app.kubernetes.io/version: 2.0.0
+  annotations:
+    stockviz.io/purpose: Benchmark only. Independent of domain partition mapping.
+spec:
+  topicName: stockviz.benchmark.v1
+  partitions: 12
+  replicas: 1
+  config:
+    retention.ms: 604800000
+    min.insync.replicas: 1
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: stockviz-benchmark-results-v1
+  namespace: stockviz
+  labels:
+    strimzi.io/cluster: stockviz
+    app.kubernetes.io/name: stockviz
+    app.kubernetes.io/component: kafka-topic
+    app.kubernetes.io/part-of: stockviz
+    app.kubernetes.io/version: 2.0.0
+  annotations:
+    stockviz.io/purpose: Benchmark completion records.
+spec:
+  topicName: stockviz.benchmark-results.v1
+  partitions: 12
+  replicas: 1
+  config:
+    retention.ms: 604800000
+    min.insync.replicas: 1

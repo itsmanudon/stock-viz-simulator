@@ -87,9 +87,10 @@ class Settings(BaseSettings):
     # can't quietly burn an API budget.
     sentiment_daily_document_cap: int = 2000
 
-    # APScheduler is off by default so tests, migrations, and ad-hoc CLI runs
-    # don't accidentally trigger external API calls. The deployed server flips
-    # this on via env.
+    # Off by default so tests, CLI, and horizontally scaled API pods do not
+    # all fire jobs. Render sets true (in-process). Kubernetes API pods leave
+    # this false; the singleton ``stockviz.workers.scheduler`` process runs the
+    # schedule instead.
     enable_scheduler: bool = False
 
     # Shared HS256 secret for the web -> api bridge. The Next.js server signs

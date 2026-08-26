@@ -1,0 +1,96 @@
+name: Kubernetes smoke
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+
+concurrency:
+  group: k8s-smoke-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  k8s-smoke:
+    name: k8s (kind + Strimzi)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      CLUSTER_NAME: stockviz
+      IMAGE_TAG: ${{ github.sha }}
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: azure/setup-kubectl@v4
+
+      - name: Validate kustomize builds (no cluster)
+        run: |
+          kubectl kustomize infra/k8s/overlays/kind/bootstrap >/tmp/kind-bootstrap.yaml
+          kubectl kustomize infra/k8s/overlays/kind/migrate >/tmp/kind-migrate.yaml
+          kubectl kustomize infra/k8s/overlays/kind/app >/tmp/kind-app.yaml
+          kubectl kustomize infra/k8s/overlays/kind/scale >/tmp/kind-scale.yaml
+          kubectl kustomize infra/k8s/kafka >/tmp/kafka.yaml
+          test -s /tmp/kind-bootstrap.yaml
+          test -s /tmp/kind-migrate.yaml
+          test -s /tmp/kind-app.yaml
+          test -s /tmp/kind-scale.yaml
+          test -s /tmp/kafka.yaml
+          # Bootstrap (applied before migrate) must not create application workloads.
+          if grep -E '^  name: stockviz-(api|web|scheduler|outbox-publisher|trade-activity|market-ingest|market-analytics|news-ingest|news-sentiment|sentiment-aggregate)$' /tmp/kind-bootstrap.yaml; then
+            echo "bootstrap overlay must not include application Deployments"
+            exit 1
+          fi
+          if grep -q 'kind: Deployment' /tmp/kind-migrate.yaml; then
+            echo "migrate overlay must not include Deployments"
+            exit 1
+          fi
+          # Kafka CRs cannot be dry-run applied until Strimzi CRDs exist.
+          # Kind layers use built-in kinds; dry-run them after the cluster is up.
+
+      - uses: helm/kind-action@v1
+        with:
+          cluster_name: stockviz
+          version: v0.27.0
+          kubectl_version: v1.32.2
+          node_image: kindest/node:v1.32.2
+
+      - uses: azure/setup-helm@v4
+        with:
+          version: v3.17.1
+
+      - name: Dry-run kind overlays
+        run: |
+          kubectl kustomize infra/k8s/overlays/kind/bootstrap | kubectl apply --dry-run=client -f -
+          kubectl kustomize infra/k8s/overlays/kind/migrate | kubectl apply --dry-run=client -f -
+          kubectl kustomize infra/k8s/overlays/kind/app | kubectl apply --dry-run=client -f -
+          kubectl kustomize infra/k8s/overlays/kind/scale | kubectl apply --dry-run=client -f -
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build images
+        run: bash scripts/k8s/build-images.sh
+
+      - name: Install metrics-server
+        run: bash scripts/k8s/create-kind.sh
+
+      - name: Deploy Strimzi, Kafka, Postgres, StockViz
+        run: bash scripts/k8s/deploy.sh
+
+      - name: Smoke test
+        run: bash scripts/k8s/smoke.sh
+
+      - name: Reduced Kafka scaling benchmark
+        env:
+          BENCHMARK_COUNT: "3000"
+          BENCHMARK_REPLICAS: "1 2"
+        run: bash scripts/k8s/run-benchmark.sh
+
+      - name: Upload benchmark artifacts
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: kafka-scaling
+          path: artifacts/benchmarks/
+          retention-days: 14
+          if-no-files-found: warn

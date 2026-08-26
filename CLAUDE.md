@@ -16,7 +16,10 @@ questions" sections are long resolved, don't treat them as current) and
 apps/web/    Next.js 16 (App Router, React 19, TS, Tailwind v4, NextAuth v5) + Playwright e2e
 apps/api/    FastAPI + SQLModel + Alembic + APScheduler (Python 3.12, uv)
 infra/       docker-compose (local Postgres; Kafka via `--profile events`) + render.yaml
+             k8s/ (Kustomize layers: bootstrap → migrate → app → scale; Strimzi)
+scripts/k8s/ kind create / build / deploy / smoke / destroy
 .github/workflows/ci.yml   web, api, events-integration, security, docker, e2e
+.github/workflows/k8s-smoke.yml   kind + Strimzi + migrate Job + smoke + reduced Kafka benchmark
 ```
 
 Each app has its own `CLAUDE.md` with deeper notes. Skim those before editing.
@@ -55,6 +58,8 @@ pnpm dev                                     # Next.js dev server on :3000 (or n
 pnpm lint && pnpm typecheck && pnpm build    # web + api lint, TS, build
 uv --directory apps/api run pytest           # API tests (pytest -k <name> to focus)
 pnpm e2e                                     # Playwright (needs built web + running API)
+pnpm k8s:create && pnpm k8s:build && pnpm k8s:deploy && pnpm k8s:smoke
+                                             # kind + Strimzi lab (needs Docker)
 ```
 
 ## Adding a feature end-to-end
@@ -201,7 +206,7 @@ Full lists live in `apps/web/.env.example` and `apps/api/.env.example`
 | `AUTH_SECRET` | web | NextAuth session JWT signing |
 | `AUTH_TRUST_HOST=true` | web | needed whenever you run a **production** build outside Vercel (CI e2e, local `next start`) |
 | `DATABASE_URL` | both | web wants plain `postgres://` (node-postgres); the API rewrites `postgres://`→`postgresql+psycopg://` in `settings.py`, don't fight it |
-| `ENABLE_SCHEDULER` | api | off by default; only Render sets `true` |
+| `ENABLE_SCHEDULER` | api | off by default; Render sets `true` (in-process). Kubernetes API pods keep it `false` and run `python -m stockviz.workers.scheduler` |
 | `RATELIMIT_ENABLED=0` | api | disables the slowapi rate limiter (handy for tests/load scripts) |
 | `ALPHA_VANTAGE_KEY`, `NEWSDATA_KEY`, `ANTHROPIC_API_KEY` | api | News (`NEWSDATA_KEY`) and sentiment (`ANTHROPIC_API_KEY`) **silently no-op** when blank. A blank `ALPHA_VANTAGE_KEY` only skips the Alpha Vantage **fallback**; the market-ingest worker still uses yfinance for daily OHLCV |
 | `SENTIMENT_PROVIDER` | api | `none` (default) \| `anthropic` \| `http`. Blank resolves to `anthropic` when `ANTHROPIC_API_KEY` is set. See [`docs/SENTIMENT.md`](./docs/SENTIMENT.md) |
@@ -219,9 +224,12 @@ work fine without one. Env vars live in `apps/web/.env.example` and
 
 - Web → Vercel (`apps/web/vercel.json`)
 - API + DB → Render (`infra/render.yaml`)
+- kind / CI lab → [`docs/KUBERNETES.md`](./docs/KUBERNETES.md) (Kustomize +
+  Strimzi). Not a production control plane.
 
-Daily refresh runs **in-process** via APScheduler (`ENABLE_SCHEDULER=true`)
-inside the FastAPI service — there's no separate cron service in the
-Blueprint because Render dropped the free cron tier. The `stockviz` CLI
-subcommands re-run the same job logic manually. See `docs/DEPLOYMENT.md`
-for how to re-add a cron service on a paid plan.
+Daily refresh on Render runs **in-process** via APScheduler
+(`ENABLE_SCHEDULER=true`) inside the FastAPI service — there's no separate
+cron service in the Blueprint because Render dropped the free cron tier.
+Kubernetes runs the same jobs in a singleton scheduler Deployment. The
+`stockviz` CLI subcommands re-run the same job logic manually. See
+`docs/DEPLOYMENT.md` for how to re-add a cron service on a paid plan.

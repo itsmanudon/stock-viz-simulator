@@ -178,6 +178,26 @@ Compose profile `events` (`pnpm events:up`) runs Kafka in **KRaft** mode
 
 Development: **3 partitions**, replication factor **1**.
 
+## Kubernetes process view
+
+Logical events (outbox → Kafka → consumers) are unchanged. Kubernetes only
+places each process in its own Deployment:
+
+```
+kind cluster
+└── namespace stockviz
+    ├── web, api (ENABLE_SCHEDULER=false)
+    ├── scheduler (replicas=1)
+    ├── migrate Job
+    ├── outbox publisher
+    ├── trade / market / news consumers
+    ├── Postgres (kind only)
+    └── Strimzi Kafka (1 KRaft node, kind only)
+```
+
+Do not collapse those two diagrams. Kafka architecture is *what* is
+published; Kubernetes architecture is *where* it runs.
+
 ## Commands
 
 ```bash
@@ -197,6 +217,9 @@ directly for one-off repair.
 
 ## What this milestone is not
 
-No Kubernetes, Helm, Schema Registry, Kafka Connect, Debezium, Flink,
-retry topics, or event-sourced trading ledger. Price bars live in
-PostgreSQL. Consumers are processes you run, not a mesh.
+No Schema Registry, Kafka Connect, Debezium, Flink, retry topics, or
+event-sourced trading ledger. Price bars live in PostgreSQL.
+
+Kubernetes (kind + Strimzi) is an **orchestration** layer for the same
+processes; it does not change those delivery semantics. See
+[`KUBERNETES.md`](./KUBERNETES.md).

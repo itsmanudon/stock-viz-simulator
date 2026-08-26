@@ -4,6 +4,29 @@
  */
 
 export interface paths {
+    "/live": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Live
+         * @description Process liveness. Does not touch PostgreSQL, Kafka, or providers.
+         *
+         *     Kubernetes should probe this for ``livenessProbe``. A database outage
+         *     must not restart a healthy API process — that is what ``/health`` is for.
+         */
+        get: operations["live_live_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health": {
         parameters: {
             query?: never;
@@ -13,11 +36,14 @@ export interface paths {
         };
         /**
          * Health
-         * @description Liveness + DB reachability.
+         * @description Readiness + DB reachability.
          *
          *     Returns **503** when the database is unreachable. ``render.yaml`` points
          *     ``healthCheckPath`` here, and a always-200 response meant Render would
          *     never notice — let alone restart — an instance that had lost its database.
+         *
+         *     Kubernetes should probe this for ``readinessProbe`` so pods drop out of
+         *     the Service while Postgres is gone, without being killed.
          */
         get: operations["health_health_get"];
         put?: never;
@@ -970,6 +996,14 @@ export interface components {
              */
             ranked: boolean;
         };
+        /** LiveResponse */
+        LiveResponse: {
+            /**
+             * Status
+             * @constant
+             */
+            status: "ok";
+        };
         /** MACDPointOut */
         MACDPointOut: {
             /**
@@ -1693,6 +1727,26 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    live_live_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LiveResponse"];
+                };
+            };
+        };
+    };
     health_health_get: {
         parameters: {
             query?: never;

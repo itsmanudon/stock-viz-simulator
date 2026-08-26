@@ -85,13 +85,21 @@ on news rows appear only when articles have been scored. See
 
 ## Operations
 
-- **Scheduler and rate limiter are in-process.** APScheduler and slowapi both
-  live inside the FastAPI web service. Advisory locks prevent double settlement
-  across instances; a multi-instance rate limit still needs shared storage
-  (not implemented).
+- **kind is a single-node lab.** [`docs/KUBERNETES.md`](./KUBERNETES.md)
+  describes a local/CI cluster. It is not a multi-AZ production platform.
+  In-cluster Postgres and single-node Strimzi Kafka are **dev/CI only**.
+- **API scheduler is split in Kubernetes.** API pods set `ENABLE_SCHEDULER=false`.
+  A singleton `stockviz-scheduler` Deployment runs APScheduler. Render can
+  still run the scheduler in-process (`ENABLE_SCHEDULER=true`). Advisory
+  locks remain defense-in-depth.
+- **API rate limiter is in-process.** slowapi is per-pod; a multi-replica
+  rate limit still needs shared storage (not implemented).
+- **Consumer HPA uses CPU, not Kafka lag.** Market-ingest `maxReplicas: 3`
+  matches `stockviz.market.v1`'s 3 partitions. Extra replicas in one group
+  are idle. KEDA lag-based scaling is future work (not in this repo).
 - **No coverage fail-under gate.** CI runs pytest, Vitest, audits, Docker
-  build, `alembic check`, and Playwright, but does not fail on a coverage
-  percentage.
+  build, `alembic check`, Playwright, and a kind smoke job, but does not
+  fail on a coverage percentage.
 - **Playwright covers a thin path.** Markets, signup, and one equity buy.
   Options, pending orders, backtest, screener, and leaderboard are not in e2e.
 - **Unused v1 news CSVs.** `apps/api/seed-data/news-data-csv-files/` is not
@@ -113,8 +121,10 @@ on news rows appear only when articles have been scored. See
 - **Scheduled reconciliation still exists** on purpose: full-universe
   `symbol_metrics_refresh` and `sentiment_aggregate_refresh` repair drift.
   Kafka is the incremental path.
-- **Kafka consumers are not Kubernetes-managed.** They are the same API
-  image with different commands.
+- **Kafka consumers can run as Kubernetes Deployments** (same API image,
+  different commands). kind + Strimzi is documented in
+  [`KUBERNETES.md`](./KUBERNETES.md). Compose `pnpm events:up` remains the
+  non-Kubernetes local path.
 - **Recommendations remain scheduled**, not incremental. They need a
   universe of technical + sentiment features.
 - **Financial settlement stays synchronous/scheduled by design:** pending

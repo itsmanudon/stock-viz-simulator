@@ -1,0 +1,21 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: stockviz
+resources:
+- ../../../base/app
+patches:
+  # Never pull local StockViz images. Postgres lives in the bootstrap overlay.
+  - target:
+      kind: Deployment
+      name: stockviz-.*
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/imagePullPolicy
+        value: Never
+images:
+  - name: stockviz-api
+    newName: stockviz-api
+    newTag: dev
+  - name: stockviz-web
+    newName: stockviz-web
+    newTag: dev

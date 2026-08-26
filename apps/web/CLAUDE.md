@@ -38,6 +38,8 @@ tests/unit/        Vitest (csv, markets table, redirect guard, rate-limit)
 types/next-auth.d.ts  augments Session.user with id
 sentry.*.config.ts    Sentry init per runtime; no-op without DSN
 instrumentation.ts    Next 15+ hook that loads the right sentry config
+Dockerfile            Production standalone image; build from the **repo root**
+next.config.ts        `output: "standalone"` + `outputFileTracingRoot` at repo root
 ```
 
 ## Two API clients — pick the right one
@@ -77,6 +79,28 @@ pnpm --filter @stockviz/web typecheck
 
 The build runs `next build` with Turbopack. If `SENTRY_AUTH_TOKEN` is set,
 `withSentryConfig` uploads source maps; otherwise it's a plain build.
+
+`next.config.ts` sets `output: "standalone"` so `apps/web/Dockerfile` can
+copy `.next/standalone` into a slim Node image (`CMD node apps/web/server.js`).
+Build from the repository root:
+
+```powershell
+docker build -f apps/web/Dockerfile --build-arg NEXT_PUBLIC_API_URL=http://localhost:8000 -t stockviz-web:dev .
+```
+
+`NEXT_PUBLIC_API_URL` is inlined into the **browser** bundle at image build.
+For kind port-forward it must be a URL the laptop can reach (typically
+`http://localhost:8000`). Cluster DNS such as `http://stockviz-api:8000` is
+not reachable from the browser. Server-side fetches use runtime `API_URL`
+(the web Deployment sets `http://stockviz-api:8000`).
+
+Kubernetes overwrites `HOSTNAME` with the pod name. The image `CMD` exports
+`HOSTNAME=0.0.0.0` before `node apps/web/server.js` so the process listens on
+all interfaces. Probes use `GET /api/health` (no SSR), not the homepage.
+
+The image `pnpm install` uses `node-linker=hoisted` so Next standalone tracing
+can copy `@swc/helpers`. Isolated pnpm (the local default) omits that package
+and the container crashes with `MODULE_NOT_FOUND`.
 
 ## E2E (Playwright)
 

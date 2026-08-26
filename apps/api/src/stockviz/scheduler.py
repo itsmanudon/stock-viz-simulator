@@ -1,10 +1,11 @@
 """APScheduler bootstrap.
 
-Runs in-process alongside FastAPI (via lifespan). Every job is wrapped in
-``single_instance``, which takes a Postgres advisory lock so a scale-out to two
-API instances doesn't double-fire jobs that move money. If schedule volume ever
-outgrows in-process, promote to a separate worker; for ~30 tickers a day that's
-a long way off.
+Can run in-process alongside FastAPI (via lifespan, ``ENABLE_SCHEDULER=true``)
+or as a dedicated process (``python -m stockviz.workers.scheduler``). Kubernetes
+uses the dedicated process so API replicas can scale without multiplying crons.
+
+Every job is wrapped in ``single_instance``, which takes a Postgres advisory
+lock so two scheduler copies cannot double-fire jobs that move money.
 
 Market and news jobs enqueue durable outbox requests; they do not call
 providers. Provider I/O lives in Kafka workers. Financial jobs (orders,

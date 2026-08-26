@@ -287,7 +287,7 @@ jobs:
             --ignore-vuln PYSEC-2026-1325
 
   docker:
-    name: docker (api image builds)
+    name: docker (api + web images)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -304,8 +304,20 @@ jobs:
           context: apps/api
           push: false
           load: false
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=api
+          cache-to: type=gha,scope=api,mode=max
+
+      - name: Build web image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/web/Dockerfile
+          push: false
+          load: false
+          build-args: |
+            NEXT_PUBLIC_API_URL=http://localhost:8000
+          cache-from: type=gha,scope=web
+          cache-to: type=gha,scope=web,mode=max
 
   e2e:
     name: e2e (Playwright)

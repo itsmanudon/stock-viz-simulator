@@ -1,0 +1,48 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: stockviz
+  namespace: stockviz
+  labels:
+    app.kubernetes.io/name: stockviz
+    app.kubernetes.io/component: ingress
+    app.kubernetes.io/part-of: stockviz
+    app.kubernetes.io/version: 2.0.0
+  annotations:
+    stockviz.io/optional: 'true'
+    stockviz.io/note: CI does not install an ingress controller. Default local access
+      is kubectl port-forward.
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: stockviz.local
+    http:
+      paths:
+      - path: /v1
+        pathType: Prefix
+        backend:
+          service:
+            name: stockviz-api
+            port:
+              number: 8000
+      - path: /live
+        pathType: Prefix
+        backend:
+          service:
+            name: stockviz-api
+            port:
+              number: 8000
+      - path: /health
+        pathType: Exact
+        backend:
+          service:
+            name: stockviz-api
+            port:
+              number: 8000
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: stockviz-web
+            port:
+              number: 3000
