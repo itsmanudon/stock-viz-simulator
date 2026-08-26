@@ -2,12 +2,22 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AppMobileNav } from "@/components/app-mobile-nav";
+import { AppShell } from "@/components/app-shell";
 import { AppSidebar } from "@/components/app-sidebar";
 
 let pathname = "/compare";
 
 vi.mock("next/navigation", () => ({
   usePathname: () => pathname,
+  useRouter: () => ({ push: vi.fn() }),
+}));
+
+vi.mock("@/components/account-menu", () => ({
+  AccountMenu: () => <button type="button">Account menu</button>,
+}));
+
+vi.mock("@/components/alerts-bell", () => ({
+  AlertsBell: () => <button type="button">Alerts</button>,
 }));
 
 describe("AppSidebar", () => {
@@ -51,5 +61,20 @@ describe("AppMobileNav", () => {
     fireEvent.click(destination);
 
     expect(screen.queryByRole("dialog", { name: "Product navigation" })).not.toBeInTheDocument();
+  });
+});
+
+describe("AppShell", () => {
+  it("renders the workstation main landmark and utilities without a website footer", () => {
+    render(
+      <AppShell signedIn>
+        <h1>Markets</h1>
+      </AppShell>,
+    );
+
+    expect(screen.getByRole("main")).toHaveAttribute("id", "main");
+    expect(screen.getByRole("combobox", { name: "Search tickers and companies" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Alerts" })).toBeVisible();
+    expect(screen.queryByRole("contentinfo")).not.toBeInTheDocument();
   });
 });

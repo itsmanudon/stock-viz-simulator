@@ -73,14 +73,14 @@ export function AlertsBell({ enabled }: { enabled: boolean }) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
-        className="relative inline-flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground transition hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="relative inline-flex h-9 w-9 items-center justify-center rounded-sm text-muted-foreground transition hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         aria-label={
           triggered.length > 0
             ? `${triggered.length} unread alert${triggered.length === 1 ? "" : "s"}`
             : "Alerts"
         }
       >
-        <Bell className="h-5 w-5" aria-hidden />
+        <Bell className="h-4 w-4" aria-hidden />
         {triggered.length > 0 ? (
           <span className="absolute -right-0.5 -top-0.5 inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-semibold leading-none text-white">
             {triggered.length > 9 ? "9+" : triggered.length}
