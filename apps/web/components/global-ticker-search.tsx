@@ -128,7 +128,7 @@ export function GlobalTickerSearch({
         aria-activedescendant={activeOptionId}
         placeholder="Search ticker or company"
         autoComplete="off"
-        className="h-9 w-full rounded-md border bg-background py-1 pl-9 pr-16 text-sm text-foreground outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30"
+        className="h-9 w-full rounded-md border border-input bg-surface-elevated py-1 pl-9 pr-16 text-sm text-foreground outline-none placeholder:text-text-tertiary focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30"
       />
       <kbd className="pointer-events-none absolute right-2.5 top-1/2 hidden -translate-y-1/2 items-center rounded border bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground sm:inline-flex">
         Ctrl K
@@ -145,7 +145,7 @@ export function GlobalTickerSearch({
           role="listbox"
           tabIndex={-1}
           aria-label="Ticker search results"
-          className="absolute left-0 right-0 top-[calc(100%+0.375rem)] z-50 overflow-hidden rounded-md border bg-background p-1 shadow-lg"
+          className="absolute left-0 right-0 top-[calc(100%+0.375rem)] z-50 overflow-hidden rounded-md border border-border-muted bg-popover p-1 shadow-lg"
         >
           {status === "loading" ? (
             <p className="px-3 py-3 text-sm text-muted-foreground">Searching…</p>

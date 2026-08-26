@@ -6,7 +6,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 
 export function TopUtilityBar({ signedIn }: { signedIn: boolean }) {
   return (
-    <header className="sticky top-0 z-30 flex h-13 items-center gap-2 border-b bg-background/95 px-3 backdrop-blur lg:px-5">
+    <header className="sticky top-0 z-30 flex h-13 items-center gap-2 border-b border-border-muted bg-background/95 px-3 backdrop-blur lg:px-5">
       <AppMobileNav />
       <div className="min-w-0 max-w-xl flex-1">
         <GlobalTickerSearch />

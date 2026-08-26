@@ -50,8 +50,8 @@ export function AppNavigation({ onNavigate }: { onNavigate?: () => void }) {
                 aria-current={groupActive && !group.items ? "page" : undefined}
                 onClick={onNavigate}
                 className={cn(
-                  "group relative flex h-9 items-center gap-3 rounded-sm px-3 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:z-10",
-                  groupActive && "bg-accent text-foreground",
+                  "group relative flex h-9 items-center gap-3 rounded-sm px-3 text-sm font-medium text-text-secondary transition-colors hover:bg-surface-hover hover:text-foreground focus-visible:z-10",
+                  groupActive && "bg-surface-secondary text-foreground",
                 )}
               >
                 {groupActive ? (
@@ -65,7 +65,7 @@ export function AppNavigation({ onNavigate }: { onNavigate?: () => void }) {
               </Link>
 
               {group.items ? (
-                <div className="ml-5 border-l border-border py-1 pl-3">
+                <div className="ml-5 border-l border-border-muted py-1 pl-3">
                   {group.items.map((item) => {
                     const itemActive = active.itemHref === item.href;
                     return (
@@ -75,7 +75,7 @@ export function AppNavigation({ onNavigate }: { onNavigate?: () => void }) {
                         aria-current={itemActive ? "page" : undefined}
                         onClick={onNavigate}
                         className={cn(
-                          "flex min-h-8 items-center rounded-sm px-2 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground",
+                          "flex min-h-8 items-center rounded-sm px-2 text-xs text-text-tertiary transition-colors hover:bg-surface-hover hover:text-foreground",
                           itemActive && "font-medium text-primary",
                         )}
                       >

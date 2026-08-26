@@ -23,13 +23,13 @@ export function AppMobileNav() {
       </Dialog.Trigger>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-50 bg-black/55 backdrop-blur-[2px] data-[state=closed]:animate-out data-[state=open]:animate-in data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 lg:hidden" />
-        <Dialog.Content className="fixed inset-y-0 left-0 z-50 flex w-[min(18rem,86vw)] flex-col border-r bg-background shadow-2xl outline-none data-[state=closed]:animate-out data-[state=open]:animate-in data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left lg:hidden">
+        <Dialog.Content className="fixed inset-y-0 left-0 z-50 flex w-[min(18rem,86vw)] flex-col border-r border-border-muted bg-surface-elevated shadow-2xl outline-none data-[state=closed]:animate-out data-[state=open]:animate-in data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left lg:hidden">
           <Dialog.Title className="sr-only">Product navigation</Dialog.Title>
           <Dialog.Description className="sr-only">
             Navigate StockViz research, trading, portfolio, and community tools.
           </Dialog.Description>
 
-          <div className="flex h-13 items-center justify-between border-b px-4">
+          <div className="flex h-13 items-center justify-between border-b border-border-muted px-4">
             <Link
               href="/dashboard"
               onClick={() => setOpen(false)}
