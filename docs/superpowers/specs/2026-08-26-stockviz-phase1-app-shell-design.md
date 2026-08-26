@@ -1,8 +1,8 @@
 # StockViz Phase 1 Application Shell Design
 
-**Date:** 2026-08-26  
-**Base branch:** `origin/dev`  
-**Base commit:** `df6e771a32f426421bb4b0f78b61594c9dac91a1`  
+**Date:** 2026-08-26
+**Base branch:** `origin/dev`
+**Base commit:** `df6e771a32f426421bb4b0f78b61594c9dac91a1`
 **Feature branch:** `redesign/ui-phase1-app-shell`
 
 ## Purpose

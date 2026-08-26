@@ -35,7 +35,7 @@ export function AppMobileNav() {
               onClick={() => setOpen(false)}
               className="flex items-center gap-2.5 rounded-sm font-semibold tracking-tight focus-visible:ring-2 focus-visible:ring-ring"
             >
-              <span className="flex size-7 items-center justify-center rounded-sm border border-primary/30 bg-primary/10 text-primary">
+              <span className="flex size-7 items-center justify-center rounded-sm border border-brand/40 bg-brand/10 text-brand">
                 <LineChart className="size-4" aria-hidden />
               </span>
               <span>StockViz</span>

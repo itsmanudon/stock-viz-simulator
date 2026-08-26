@@ -47,7 +47,7 @@ export default function DashboardPage() {
   return (
     <PageFrame width="workstation" className="py-10 xl:py-12">
       <div className="max-w-3xl">
-        <p className="text-xs font-medium tracking-[0.12em] text-primary uppercase">
+        <p className="text-xs font-medium tracking-[0.12em] text-brand uppercase">
           StockViz workspace
         </p>
         <h1 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">
@@ -83,7 +83,7 @@ export default function DashboardPage() {
                   <span className="flex items-center justify-between gap-3 font-medium">
                     {destination.label}
                     <ArrowUpRight
-                      className="size-4 text-text-tertiary transition-colors group-hover:text-primary"
+                      className="size-4 text-text-tertiary transition-colors group-hover:text-brand"
                       aria-hidden
                     />
                   </span>

@@ -6,10 +6,12 @@ Next.js 16 App Router, React 19, TypeScript, Tailwind v4, shadcn/ui, NextAuth v5
 
 ```
 app/
-  (auth)/          login + signup pages + server actions (bcrypt, raw pg)
-  (authed)/        portfolio, trade, trades, orders, watchlist, alerts, settings
-                   — require an auth() session. Portfolio and trade show
-                   reserved vs available cash/shares from pending orders.
+  (public)/        marketing home, login, signup, sign-in-required; owns the
+                   concise public header and traditional website footer
+  (product)/       guest-capable research routes plus the workstation shell
+    (authed)/      portfolio, trade, trades, orders, watchlist, alerts, settings
+                   — protected by proxy.ts. Portfolio and trade show reserved
+                   vs available cash/shares from pending orders.
   api/auth/        NextAuth handler
   markets/         sortable symbol table
   stocks/[ticker]/ chart + indicators + news + comments + sentiment + simulated quote badge
@@ -19,22 +21,22 @@ app/
   leaderboard/     user NAV ranking
   news/, recommendations/
   sign-in-required/  redirect target for unauthenticated access
-  layout.tsx       SiteHeader + SiteFooter wrap every route
+  layout.tsx       document providers + skip link only; route groups own chrome
 auth.ts            NextAuth v5 setup (credentials provider, bcrypt)
 auth.config.ts     Edge-safe config (no node-only imports)
 proxy.ts           NextAuth middleware
 components/
   ui/              shadcn-generated primitives — don't hand-edit
-  *.tsx            site-header, price-chart, trade-form, option-trade-form,
-                   backtest-form, alerts-bell, live-price-badge, etc.
+  *.tsx            app-shell/sidebar/navigation, global-ticker-search,
+                   public-header, price-chart, trade-form, backtest-form, etc.
 lib/
   api/             fetch client for FastAPI, one module per resource
                    (client.ts = public, server.ts = authed, types.ts = shared types)
   db.ts            raw pg pool (only used by the credentials provider)
   users.ts         user lookup/create for credentials auth
   utils.ts         cn() helper
-tests/e2e/         Playwright specs (auth, markets, trade)
-tests/unit/        Vitest (csv, markets table, redirect guard, rate-limit)
+tests/e2e/         Playwright specs (shell, auth, markets, trade)
+tests/unit/        Vitest (shell/navigation/search, csv, tables, guards, rate-limit)
 types/next-auth.d.ts  augments Session.user with id
 sentry.*.config.ts    Sentry init per runtime; no-op without DSN
 instrumentation.ts    Next 15+ hook that loads the right sentry config

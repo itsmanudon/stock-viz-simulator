@@ -32,7 +32,7 @@ export function AppNavigation({ onNavigate }: { onNavigate?: () => void }) {
     <nav aria-label="Product" className="flex min-h-0 flex-1 flex-col">
       <div className="mb-5 px-3">
         <span className="inline-flex items-center gap-2 text-[11px] font-medium tracking-wide text-muted-foreground">
-          <span className="size-1.5 rounded-full bg-primary" aria-hidden />
+          <span className="size-1.5 rounded-full bg-brand" aria-hidden />
           EOD data
         </span>
       </div>
@@ -56,7 +56,7 @@ export function AppNavigation({ onNavigate }: { onNavigate?: () => void }) {
               >
                 {groupActive ? (
                   <span
-                    className="absolute inset-y-1 left-0 w-0.5 rounded-full bg-primary"
+                    className="absolute inset-y-1 left-0 w-0.5 rounded-full bg-brand"
                     aria-hidden
                   />
                 ) : null}
@@ -76,7 +76,7 @@ export function AppNavigation({ onNavigate }: { onNavigate?: () => void }) {
                         onClick={onNavigate}
                         className={cn(
                           "flex min-h-8 items-center rounded-sm px-2 text-xs text-text-tertiary transition-colors hover:bg-surface-hover hover:text-foreground",
-                          itemActive && "font-medium text-primary",
+                          itemActive && "font-medium text-brand",
                         )}
                       >
                         {item.label}
