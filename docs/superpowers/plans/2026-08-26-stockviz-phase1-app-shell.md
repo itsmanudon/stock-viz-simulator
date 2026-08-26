@@ -23,6 +23,7 @@
 - The desktop sidebar is 224px at `lg` and above; below `lg` navigation uses an accessible drawer.
 - The product workspace has no traditional footer.
 - Preserve the skip link, landmarks, keyboard navigation, visible focus, contrast, and reduced-motion behavior.
+- Approved TDD exception: CSS token declarations and mechanical route moves are configuration changes. Verify them with real layout/component rendering, lint, typecheck, production build, and Playwright where available; do not add source-text/change-detector tests.
 - Work only in `D:\Github Repos\stock-viz-simulator\logs\worktrees\redesign-ui-phase1-app-shell` on `redesign/ui-phase1-app-shell`.
 
 ## File Map
@@ -44,8 +45,7 @@
 - `apps/web/tests/unit/app-navigation.test.ts` — route-domain behavior.
 - `apps/web/tests/unit/global-ticker-search.test.tsx` — typeahead and keyboard behavior.
 - `apps/web/tests/unit/app-shell.test.tsx` — shell landmarks, active navigation, and drawer behavior.
-- `apps/web/tests/unit/route-shells.test.ts` — physical route-group ownership and stable paths.
-- `apps/web/tests/unit/design-tokens.test.ts` — required semantic CSS and motion/focus foundations.
+- `apps/web/tests/unit/route-shells.test.tsx` — real public/product layout landmark behavior after relocation.
 - `apps/web/tests/e2e/app-shell.spec.ts` — guest shell and mobile navigation integration.
 
 ### Modified or relocated units
@@ -629,7 +629,7 @@ git commit -m "feat(web): compose workstation utility shell"
 ### Task 5: Public/product route-group separation
 
 **Files:**
-- Create: `apps/web/tests/unit/route-shells.test.ts`
+- Create: `apps/web/tests/unit/route-shells.test.tsx`
 - Create: `apps/web/app/(public)/layout.tsx`
 - Create: `apps/web/app/(product)/layout.tsx`
 - Modify: `apps/web/app/layout.tsx`
@@ -644,42 +644,41 @@ git commit -m "feat(web): compose workstation utility shell"
 - Product URLs remain `/markets`, `/stocks/[ticker]`, `/screener`, `/compare`, `/recommendations`, `/news`, `/backtest`, `/leaderboard`, `/portfolio`, `/watchlist`, `/trade`, `/orders`, `/trades`, and `/settings`.
 - Product layout calls `auth()` and passes `Boolean(session?.user?.id)` to `AppShell`.
 
-- [ ] **Step 1: Write a failing filesystem topology test**
+- [ ] **Step 1: Write a failing real-layout test at the intended route-group imports**
 
-```ts
-import { existsSync } from "node:fs";
-import { resolve } from "node:path";
-import { describe, expect, it } from "vitest";
+```tsx
+import { render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 
-const app = resolve(process.cwd(), "app");
+import ProductLayout from "@/app/(product)/layout";
+import PublicLayout from "@/app/(public)/layout";
+
+vi.mock("@/auth", () => ({ auth: vi.fn().mockResolvedValue(null) }));
+vi.mock("@/components/account-menu", () => ({ AccountMenu: () => <button>Account</button> }));
+vi.mock("@/components/alerts-bell", () => ({ AlertsBell: () => null }));
+vi.mock("@/components/theme-toggle", () => ({ ThemeToggle: () => <button>Theme</button> }));
 
 describe("route shell ownership", () => {
-  it.each([
-    "(public)/layout.tsx",
-    "(public)/page.tsx",
-    "(public)/(auth)/login/page.tsx",
-    "(public)/(auth)/signup/page.tsx",
-    "(product)/layout.tsx",
-    "(product)/markets/page.tsx",
-    "(product)/stocks/[ticker]/page.tsx",
-    "(product)/(authed)/portfolio/page.tsx",
-    "(product)/(authed)/trade/page.tsx",
-  ])("places %s under an explicit shell", (path) => {
-    expect(existsSync(resolve(app, path))).toBe(true);
+  it("renders public content with website footer", async () => {
+    render(await PublicLayout({ children: <h1>Welcome</h1> }));
+    expect(screen.getByRole("main")).toHaveAttribute("id", "main");
+    expect(screen.getByRole("contentinfo")).toBeVisible();
   });
 
-  it.each(["page.tsx", "markets/page.tsx", "(authed)/portfolio/page.tsx"])(
-    "removes root-owned route %s",
-    (path) => expect(existsSync(resolve(app, path))).toBe(false),
-  );
+  it("renders product content with workstation navigation and no footer", async () => {
+    render(await ProductLayout({ children: <h1>Markets</h1> }));
+    expect(screen.getByRole("navigation", { name: "Product" })).toBeVisible();
+    expect(screen.getByRole("main")).toHaveAttribute("id", "main");
+    expect(screen.queryByRole("contentinfo")).not.toBeInTheDocument();
+  });
 });
 ```
 
 - [ ] **Step 2: Run the topology test and verify RED**
 
-Run: `pnpm.cmd --filter @stockviz/web test -- tests/unit/route-shells.test.ts`
+Run: `pnpm.cmd --filter @stockviz/web test -- tests/unit/route-shells.test.tsx`
 
-Expected: FAIL because the route groups do not yet own the pages.
+Expected: FAIL because the intended public/product layout modules do not yet exist.
 
 - [ ] **Step 3: Move route directories without changing URL-visible names**
 
@@ -728,7 +727,7 @@ The public layout renders `PublicHeader`, `<main id="main" tabIndex={-1}>`, and 
 
 - [ ] **Step 7: Run topology, typecheck, and unit tests**
 
-Run: `pnpm.cmd --filter @stockviz/web test -- tests/unit/route-shells.test.ts`
+Run: `pnpm.cmd --filter @stockviz/web test -- tests/unit/route-shells.test.tsx`
 
 Expected: PASS.
 
@@ -743,7 +742,7 @@ Expected: all unit tests PASS.
 - [ ] **Step 8: Commit the route split**
 
 ```powershell
-git add apps/web/app apps/web/components apps/web/tests/unit/route-shells.test.ts
+git add apps/web/app apps/web/components apps/web/tests/unit/route-shells.test.tsx
 git commit -m "refactor(web): separate public and product shells"
 ```
 
@@ -752,56 +751,12 @@ git commit -m "refactor(web): separate public and product shells"
 **Files:**
 - Modify: `apps/web/app/globals.css`
 - Create: `apps/web/components/page-frame.tsx`
-- Create: `apps/web/tests/unit/design-tokens.test.ts`
 
 **Interfaces:**
 - Produces Tailwind colors: `surface-elevated`, `surface-secondary`, `surface-hover`, `border-muted`, `text-secondary`, `text-tertiary`, `positive`, `negative`, and `warning`, while preserving shadcn tokens.
 - Produces `PageFrame({ width: "workstation" | "content" | "narrow", className?, children })`.
 
-- [ ] **Step 1: Write the failing token-foundation test**
-
-```ts
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
-import { describe, expect, it } from "vitest";
-
-const css = readFileSync(resolve(process.cwd(), "app/globals.css"), "utf8");
-
-describe("workstation design foundations", () => {
-  it.each([
-    "--surface-elevated",
-    "--surface-secondary",
-    "--surface-hover",
-    "--border-muted",
-    "--text-secondary",
-    "--text-tertiary",
-    "--positive",
-    "--negative",
-    "--warning",
-    "--popover",
-    "--secondary",
-    "--input",
-    "--destructive",
-  ])("defines %s", (token) => expect(css).toContain(token));
-
-  it("defines visible focus and reduced-motion behavior", () => {
-    expect(css).toContain(":focus-visible");
-    expect(css).toContain("prefers-reduced-motion: reduce");
-  });
-
-  it("lets direct product page containers use workspace width", () => {
-    expect(css).toContain(".workspace-main > .container");
-  });
-});
-```
-
-- [ ] **Step 2: Run the focused token test and verify RED**
-
-Run: `pnpm.cmd --filter @stockviz/web test -- tests/unit/design-tokens.test.ts`
-
-Expected: FAIL on the missing semantic tokens and CSS foundations.
-
-- [ ] **Step 3: Replace the minimal token set with the approved semantic palette**
+- [ ] **Step 1: Replace the minimal token set with the approved semantic palette**
 
 Define complete light and dark `:root`/`.dark` OKLCH values for background, foreground, card, popover, primary, secondary, muted, accent, destructive, border, input, ring, surface hierarchy, text hierarchy, positive, negative, and warning. Map every token through `@theme inline`. Set `--radius: 0.375rem`, a system UI sans stack, a platform monospace/data stack, tabular financial numerals, a high-contrast `.skip-link`, direct-child workspace container override, and `.page-frame-*` width classes.
 
@@ -830,7 +785,7 @@ Add:
 }
 ```
 
-- [ ] **Step 4: Add the page-width primitive**
+- [ ] **Step 2: Add the page-width primitive**
 
 ```tsx
 const widths = {
@@ -848,9 +803,9 @@ export function PageFrame({
 }
 ```
 
-- [ ] **Step 5: Run token and shell tests, then lint CSS/TSX**
+- [ ] **Step 3: Verify the configuration through the real shell, lint, and typecheck**
 
-Run: `pnpm.cmd --filter @stockviz/web test -- tests/unit/design-tokens.test.ts tests/unit/app-shell.test.tsx`
+Run: `pnpm.cmd --filter @stockviz/web test -- tests/unit/app-shell.test.tsx`
 
 Expected: PASS.
 
@@ -858,10 +813,14 @@ Run: `pnpm.cmd --filter @stockviz/web lint`
 
 Expected: PASS with Biome accepting the new component and CSS.
 
-- [ ] **Step 6: Commit design foundations**
+Run: `pnpm.cmd --filter @stockviz/web typecheck`
+
+Expected: PASS with every mapped semantic utility recognized by TypeScript consumers.
+
+- [ ] **Step 4: Commit design foundations**
 
 ```powershell
-git add apps/web/app/globals.css apps/web/components/page-frame.tsx apps/web/tests/unit/design-tokens.test.ts
+git add apps/web/app/globals.css apps/web/components/page-frame.tsx
 git commit -m "style(web): establish workstation design tokens"
 ```
 
@@ -931,7 +890,7 @@ Update `(public)/layout.tsx` to import `PublicHeader`. Confirm no imports refere
 
 - [ ] **Step 6: Run focused tests and full web checks**
 
-Run: `pnpm.cmd --filter @stockviz/web test -- tests/unit/app-shell.test.tsx tests/unit/route-shells.test.ts`
+Run: `pnpm.cmd --filter @stockviz/web test -- tests/unit/app-shell.test.tsx tests/unit/route-shells.test.tsx`
 
 Expected: PASS.
 
