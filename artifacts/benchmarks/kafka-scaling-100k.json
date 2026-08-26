@@ -1,0 +1,134 @@
+{
+  "generated_at": "2026-08-26T15:51:50.207465+00:00",
+  "event_count_per_run": 100000,
+  "replica_schedule": [
+    "1",
+    "2",
+    "4",
+    "8"
+  ],
+  "topic": "stockviz.benchmark.v1",
+  "partitions": 12,
+  "methodology": {
+    "isolation": "seek-end then produce; consumers skip/commit non-matching run_id",
+    "consumer_events_per_second": "current_run_count / (max(consumed_at) - min(produced_at))",
+    "producer_events_per_second": "produce flush wall-clock",
+    "lag": "sampled during the workload via committed offset vs watermark",
+    "cpu_memory": "peak kubectl top during the workload; null if metrics-server unavailable"
+  },
+  "runs": [
+    {
+      "run_id": "20260826T154319Z-r1",
+      "replicas": 1,
+      "events": 100000,
+      "partitions": 12,
+      "collected": 100000,
+      "foreign_records": 0,
+      "producer_events_per_second": 29822.17,
+      "processing_duration_seconds": 63.9876,
+      "consumer_events_per_second": 1562.8,
+      "p50_ms": 36267.128,
+      "p95_ms": 58144.133,
+      "p99_ms": 60404.032,
+      "mean_ms": 34579.036,
+      "initial_consumer_lag": 0,
+      "peak_consumer_lag": 99251,
+      "final_consumer_lag": 0,
+      "cpu": {
+        "peak_millicores_per_pod": 450,
+        "source": "kubectl_top_during_workload"
+      },
+      "memory": {
+        "peak_mi_per_pod": 79,
+        "source": "kubectl_top_during_workload"
+      },
+      "complete": true,
+      "group": "stockviz.benchmark.20260826T154319Z-r1"
+    },
+    {
+      "run_id": "20260826T154319Z-r2",
+      "replicas": 2,
+      "events": 100000,
+      "partitions": 12,
+      "collected": 100000,
+      "foreign_records": 0,
+      "producer_events_per_second": 37428.19,
+      "processing_duration_seconds": 34.3001,
+      "consumer_events_per_second": 2915.44,
+      "p50_ms": 18140.474,
+      "p95_ms": 30042.097,
+      "p99_ms": 31477.093,
+      "mean_ms": 17188.888,
+      "initial_consumer_lag": 0,
+      "peak_consumer_lag": 100000,
+      "final_consumer_lag": 0,
+      "cpu": {
+        "peak_millicores_per_pod": 418,
+        "source": "kubectl_top_during_workload"
+      },
+      "memory": {
+        "peak_mi_per_pod": 52,
+        "source": "kubectl_top_during_workload"
+      },
+      "complete": true,
+      "group": "stockviz.benchmark.20260826T154319Z-r2"
+    },
+    {
+      "run_id": "20260826T154319Z-r4",
+      "replicas": 4,
+      "events": 100000,
+      "partitions": 12,
+      "collected": 100000,
+      "foreign_records": 0,
+      "producer_events_per_second": 43761.42,
+      "processing_duration_seconds": 30.9177,
+      "consumer_events_per_second": 3234.39,
+      "p50_ms": 16462.126,
+      "p95_ms": 27685.212,
+      "p99_ms": 28394.164,
+      "mean_ms": 15833.508,
+      "initial_consumer_lag": 0,
+      "peak_consumer_lag": 99072,
+      "final_consumer_lag": 0,
+      "cpu": {
+        "peak_millicores_per_pod": 248,
+        "source": "kubectl_top_during_workload"
+      },
+      "memory": {
+        "peak_mi_per_pod": 41,
+        "source": "kubectl_top_during_workload"
+      },
+      "complete": true,
+      "group": "stockviz.benchmark.20260826T154319Z-r4"
+    },
+    {
+      "run_id": "20260826T154319Z-r8",
+      "replicas": 8,
+      "events": 100000,
+      "partitions": 12,
+      "collected": 100000,
+      "foreign_records": 0,
+      "producer_events_per_second": 26173.76,
+      "processing_duration_seconds": 32.7643,
+      "consumer_events_per_second": 3052.1,
+      "p50_ms": 16393.6,
+      "p95_ms": 27696.073,
+      "p99_ms": 28834.661,
+      "mean_ms": 16323.536,
+      "initial_consumer_lag": 0,
+      "peak_consumer_lag": 97298,
+      "final_consumer_lag": 0,
+      "cpu": {
+        "peak_millicores_per_pod": 213,
+        "source": "kubectl_top_during_workload"
+      },
+      "memory": {
+        "peak_mi_per_pod": 79,
+        "source": "kubectl_top_during_workload"
+      },
+      "complete": true,
+      "group": "stockviz.benchmark.20260826T154319Z-r8"
+    }
+  ],
+  "note": "These numbers are from the environment that executed the script. They are not production SLOs."
+}
