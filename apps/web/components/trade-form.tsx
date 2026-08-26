@@ -7,7 +7,7 @@ import {
   type TradeFormState,
   placeOrderAction,
   placeTradeAction,
-} from "@/app/(authed)/trade/actions";
+} from "@/app/(product)/(authed)/trade/actions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";

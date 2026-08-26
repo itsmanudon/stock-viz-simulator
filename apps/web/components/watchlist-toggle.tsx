@@ -3,7 +3,10 @@
 import { Star } from "lucide-react";
 import { useActionState } from "react";
 
-import { type WatchlistActionState, toggleWatchlistAction } from "@/app/(authed)/watchlist/actions";
+import {
+  type WatchlistActionState,
+  toggleWatchlistAction,
+} from "@/app/(product)/(authed)/watchlist/actions";
 import { Button } from "@/components/ui/button";
 
 type Props = {

@@ -8,7 +8,7 @@
 
 import Link from "next/link";
 
-import { signOutAction } from "@/app/(auth)/actions";
+import { signOutAction } from "@/app/(public)/(auth)/actions";
 import { auth } from "@/auth";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {

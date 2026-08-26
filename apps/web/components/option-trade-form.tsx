@@ -7,7 +7,10 @@
 
 import { useActionState, useState } from "react";
 
-import { type OptionTradeState, openOptionAction } from "@/app/(authed)/trade/options-actions";
+import {
+  type OptionTradeState,
+  openOptionAction,
+} from "@/app/(product)/(authed)/trade/options-actions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";

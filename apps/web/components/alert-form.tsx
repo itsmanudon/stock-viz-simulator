@@ -3,7 +3,7 @@
 import { Bell } from "lucide-react";
 import { useActionState, useState } from "react";
 
-import { type CreateAlertState, createAlertAction } from "@/app/(authed)/alerts/actions";
+import { type CreateAlertState, createAlertAction } from "@/app/(product)/(authed)/alerts/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";

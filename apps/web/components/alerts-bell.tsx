@@ -12,7 +12,7 @@
 import { Bell } from "lucide-react";
 import { useEffect, useState } from "react";
 
-import { deleteAlertAction, dismissAlertAction } from "@/app/(authed)/alerts/actions";
+import { deleteAlertAction, dismissAlertAction } from "@/app/(product)/(authed)/alerts/actions";
 import {
   DropdownMenu,
   DropdownMenuContent,

@@ -6,7 +6,7 @@ import {
   type PostCommentState,
   deleteCommentAction,
   postCommentAction,
-} from "@/app/stocks/[ticker]/comments-actions";
+} from "@/app/(product)/stocks/[ticker]/comments-actions";
 import { Button } from "@/components/ui/button";
 import type { Comment } from "@/lib/api/comments";
 

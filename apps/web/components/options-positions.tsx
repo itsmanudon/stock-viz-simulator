@@ -5,7 +5,7 @@
  * server action, which sells the contract back at its theoretical value.
  */
 
-import { closeOptionAction } from "@/app/(authed)/trade/options-actions";
+import { closeOptionAction } from "@/app/(product)/(authed)/trade/options-actions";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   Table,
