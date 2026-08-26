@@ -1,3 +1,4 @@
 # Local benchmark outputs. Numbers must come from a real run — do not commit invented results.
 *.json
 !README.md
+!kafka-scaling-100k.json

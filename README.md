@@ -1,200 +1,193 @@
 # StockViz
 
-Full-stack market analytics, strategy backtesting, and paper trading for equities and options.
+A full-stack market analytics and paper-trading platform built to explore strongly consistent financial transactions, event-driven processing, and independently scalable Kubernetes workers.
 
-StockViz is a Next.js + FastAPI + PostgreSQL platform: it ingests **end-of-day** prices and news, computes technical indicators, scores daily recommendations, and runs a paper-trading ledger with FX-aware **equity** fills, pending orders, dividends, and long options priced by Black-Scholes. Background jobs run in-process via APScheduler. Auth is NextAuth on the web app, with a short-lived server-to-server JWT on authenticated `/v1` calls.
+## Measured evidence
 
-**Docs:** [Setup](./docs/SETUP.md) · [Deployment](./docs/DEPLOYMENT.md) · [Kubernetes](./docs/KUBERNETES.md) · [Known limitations](./docs/KNOWN_LIMITATIONS.md) · [Sentiment](./docs/SENTIMENT.md) · [Project history](./REWRITE_PLAN.md)
+![Kafka consumer throughput across 1, 2, 4, and 8 replicas](./docs/images/kafka-consumer-throughput.svg)
 
-This repository does **not** currently provide a verified public demo. Clone and run locally (see [Setup](./docs/SETUP.md)).
+StockViz combines a usable Next.js financial application with a deliberately split consistency model: money and positions commit synchronously in PostgreSQL, while Kafka carries durable asynchronous work and derived events. The complete stack is locally validated on a real single-node kind cluster with Strimzi.
 
-## Highlights
+## What makes this project interesting
 
-- Look-ahead-safe strategy backtesting over stored daily bars, with configurable commission/slippage and a buy-and-hold benchmark.
-- Black-Scholes options pricing with Greeks; volatility is 30-day historical vol, not an implied-vol surface.
-- FX-aware **equity** paper trading (USD cash, native-currency fills, realized P&L on sells, dividends, pending limit/stop/take-profit orders that reserve buying power and shares). Long options are a separate long-only book: premiums debit USD cash and are **not** a complete multi-currency options ledger.
-- PostgreSQL-backed market data, portfolio snapshots, orders, dividends, alerts, comments, and recommendations.
-- Short-lived HS256 JWT auth boundary: the Next.js server mints a 60-second token; the browser never sees it.
-- Scheduled ingest and settlement (prices, FX, news, metrics, sentiment, recommendations, snapshots, pending orders, dividends, option expiry, alerts).
-- Quality gates spanning Python and TypeScript tests, Alembic migration checks, OpenAPI→client type sync, dependency audits, an API Docker build, and Playwright e2e.
-
-## Market data (what “live” means here)
-
-Provider ingest is **daily OHLCV**, cached in Postgres (yfinance primary, Alpha Vantage fallback when `ALPHA_VANTAGE_KEY` is set; Newsdata.io for headlines, which requires `NEWSDATA_KEY`). Fills, charts, backtests, and alerts all price off the latest `1d` close — not an exchange real-time feed.
-
-The ticker-page quote badge is a **simulated quote**: an SSE Gaussian random walk starting from that cached close (`GET /v1/stream/quotes/{ticker}`). It is labeled in the UI. Headline sentiment scoring is off unless `ANTHROPIC_API_KEY` or `SENTIMENT_PROVIDER=http` is configured.
-
-## What it does
-
-- **Markets** — sortable table of tracked symbols with inline sparklines.
-- **Ticker detail** — OHLCV candlesticks (lightweight-charts), SMA/EMA/RSI/MACD, related news, comments, and the simulated quote badge.
-- **Compare** — normalized price chart for multiple tickers.
-- **News** — paginated company-news feed from Newsdata.io, cached in Postgres.
-- **Recommendations** — daily-scored buy candidates (six price/volume votes plus an optional news-sentiment vote).
-- **Screener / backtest / leaderboard** — filter the universe, replay a historical strategy, rank public portfolios by NAV.
-- **Paper trading** — per-user portfolio with cash, equity and long-only option positions, pending orders, trade history, P&L, dividends, and FX conversion to USD.
-- **Watchlist and in-app price alerts** — alerts evaluate hourly on weekdays; there is no email/push.
-- **Auth** — email/password (bcrypt) plus optional Google OAuth (needs `GOOGLE_CLIENT_*`).
+- **Strongly consistent trading ledger.** PostgreSQL row locks, cash/share reservations, and one transaction for cash, positions, trades, and the outbox prevent concurrent portfolio overcommit.
+- **Deterministic backtesting.** Strategies replay stored daily bars with explicit commission, slippage, and a buy-and-hold benchmark without using future data.
+- **Transactional outbox.** A committed trade cannot lose its event because publication is retried independently after the financial transaction.
+- **At-least-once Kafka processing.** Consumer inbox rows make duplicate delivery safe; application keys retain useful portfolio/ticker ordering.
+- **Event-driven ingestion.** The scheduler emits durable market/news requests; dedicated workers call providers, persist results, and publish downstream domain events.
+- **Kubernetes orchestration.** API, web, migration, scheduler, publisher, and consumers have distinct workloads, probes, disruption policies, and appropriate scaling limits.
+- **Measured scaling.** A 100,000-event, 12-partition benchmark compares 1/2/4/8 consumer replicas with throughput, latency, lag, CPU, and memory evidence.
 
 ## Architecture
 
-Synchronous request path vs scheduled work:
+```mermaid
+flowchart LR
+  subgraph K8s["Kubernetes deployment boundary"]
+    Browser[Browser] --> Web[Next.js]
+    Web --> API[FastAPI]
+    API --> PG[(PostgreSQL)]
+    PG -->|transactional outbox| Publisher[Outbox publisher]
+    Publisher --> Kafka[Kafka / Strimzi]
+    Kafka --> Workers[Independent workers]
+    Workers -->|derived / asynchronous state| PG
+  end
+```
+
+The synchronous ledger and asynchronous pipelines are intentionally separate. See [Event-driven architecture](./docs/EVENT_DRIVEN_ARCHITECTURE.md), [Kubernetes](./docs/KUBERNETES.md), and the [interview guide](./docs/INTERVIEW_GUIDE.md).
+
+## Financial correctness
+
+A trade request locks its portfolio row, validates available cash or shares after pending-order reservations, updates balances and positions, inserts the trade, and inserts `trade.executed` into the outbox—all in one PostgreSQL transaction. Any failure rolls the entire operation back. Only after `COMMIT` does the HTTP request succeed.
+
+Kafka is **not** in the trade commit path and never executes trades. PostgreSQL remains the financial source of truth.
+
+```mermaid
+sequenceDiagram
+  participant Client
+  participant API as FastAPI
+  participant DB as PostgreSQL
+  participant Pub as Outbox Publisher
+  participant K as Kafka
+  participant C as Trade Activity Consumer
+
+  Client->>API: Place trade
+  API->>DB: BEGIN
+  API->>DB: SELECT portfolio FOR UPDATE
+  API->>DB: Validate available cash / shares
+  API->>DB: Update cash and position
+  API->>DB: Insert trade + trade.executed outbox row
+  API->>DB: COMMIT
+  API-->>Client: HTTP success
+  Note over API,DB: Kafka is not in this commit path
+  Pub->>DB: Claim unpublished outbox row
+  Pub->>K: Publish (broker ack)
+  Pub->>DB: Set published_at
+  K->>C: At-least-once delivery
+  C->>DB: consumer_inbox + derived activity, then commit
+```
+
+## Event-driven processing
+
+The outbox closes the database/Kafka dual-write gap: application state and the event intent commit together, and a publisher retries until the broker acknowledges. A crash after Kafka acknowledgement but before `published_at` can publish a duplicate, so consumers atomically insert a durable inbox key with their derived writes before committing the Kafka offset.
+
+Trades are keyed by `portfolio_id`; market and news events are keyed by `ticker`. Kafka ordering is partition-local, so these keys keep each portfolio or ticker ordered without promising global order.
 
 ```mermaid
 flowchart LR
-  Browser -->|"HTTPS pages + authed actions"| Web["Next.js<br/>App Router + NextAuth"]
-  Browser -->|"public /v1 where used<br/>e.g. backtest, SSE quotes"| API["FastAPI"]
-  Web -->|"public /v1"| API
-  Web -->|"authed /v1<br/>60s HS256 JWT"| API
-  API --> PG[("PostgreSQL")]
-  API -.-> Sch["APScheduler<br/>control plane"]
-  Sch -->|"durable refresh requests"| PG
-  PG -->|"outbox"| Pub["Outbox publisher"]
-  Pub --> Kafka["Kafka market.v1 / news.v1 / trades.v1"]
-  Kafka --> Mkt["Market ingest + analytics"]
-  Kafka --> News["News ingest → sentiment → aggregate"]
-  Kafka --> Cons["Trade-activity consumer"]
-  Mkt --> PG
-  News --> PG
-  Cons --> Derived[("Derived activity<br/>not the ledger")]
-  PG -->|"outbox row in the same<br/>trade COMMIT"| Pub
+  Scheduler[Singleton scheduler] -->|durable refresh request| Outbox[(PostgreSQL outbox)]
+  Outbox --> Publisher[Outbox publisher]
+  Publisher --> Kafka[Kafka]
+  Kafka --> MarketIngest[Market ingestion]
+  Kafka --> NewsIngest[News ingestion]
+  MarketIngest -->|bars + domain event, atomic| PG[(PostgreSQL)]
+  NewsIngest -->|articles + domain event, atomic| PG
+  PG --> MarketEvent[market.bars.refreshed]
+  PG --> NewsEvent[news.article.ingested]
+  MarketEvent --> Analytics[Market analytics]
+  NewsEvent --> Sentiment[News sentiment]
+  Analytics --> PG
+  Sentiment --> PG
+  Reconcile[Scheduled metrics / sentiment reconciliation] -. repairs drift .-> PG
 ```
 
-Kafka is **not** in the trade commit path and is **not** the source of truth for bars, news, or cash. APScheduler enqueues market/news work; workers call providers. `/health` does not depend on the broker. See [`docs/EVENT_DRIVEN_ARCHITECTURE.md`](./docs/EVENT_DRIVEN_ARCHITECTURE.md).
+## Kubernetes lab
 
-On Kubernetes (kind/CI), those same processes are separate Deployments — API replicas do not run the scheduler or Alembic. That lab cluster is not a production control plane. See [`docs/KUBERNETES.md`](./docs/KUBERNETES.md).
+The kind reference separates the FastAPI and Next.js Deployments from a singleton scheduler, one-shot migration Job, outbox publisher, trade-activity consumer, market/news ingestion and analytics workers, and sentiment workers. Strimzi runs Kafka 3.9.0. Readiness can depend on PostgreSQL; `/live` is process liveness and deliberately does not. The market-ingest HPA caps at three replicas because its domain topic has three partitions.
 
-- **Request path.** The browser talks to Next.js for pages and authenticated mutations. Some public FastAPI endpoints are also called from the browser via `NEXT_PUBLIC_API_URL` (for example the client-side backtest form posts to `/v1/backtest`, and the ticker badge opens SSE at `/v1/stream/quotes/{ticker}`). Authed paper-trading calls are minted on the Next.js server as `Authorization: Bearer <jwt>` (`{ sub: "<user.id>" }`, 60 s, signed with `INTERNAL_API_TOKEN`) — the browser never sees that JWT. FastAPI verifies it in `auth.py::require_user_id`.
-- **Scheduled work.** With `ENABLE_SCHEDULER=true`, APScheduler runs inside the API process (Render). Kubernetes sets it false on API pods and runs `python -m stockviz.workers.scheduler` as a singleton Deployment. Market and news crons enqueue outbox requests (workers fetch yfinance / Newsdata). Metrics and sentiment-aggregate crons remain full-universe reconciliation. FX, recommendations, snapshots, pending-order settlement, dividends, and option expiry stay in-process. Jobs take a Postgres advisory lock so two instances cannot double-fill.
-- **Third-party ingest.** Daily OHLCV uses yfinance first (no API key). Alpha Vantage is a fallback when `ALPHA_VANTAGE_KEY` is set and yfinance returns nothing. News ingest requires `NEWSDATA_KEY` and skips when it is blank. The scheduler does not call those providers itself.
-- **Hosting intent.** Vercel for `apps/web`, Render for `apps/api` + Postgres. See [Deployment](./docs/DEPLOYMENT.md) for what is in source control vs dashboard-owned.
+This is a locally and CI-validated deployment reference—not a cloud, multi-zone, or production-capacity claim.
 
-Sentry collects errors from both apps when a DSN is set.
+## Kafka scaling results
 
-## Stack
+Environment: kind v0.27.0, Kubernetes v1.32.2, Strimzi 0.45.1, Kafka 3.9.0, one node, one broker, 12 benchmark partitions, 100,000 events per run.
 
-| Layer      | Choice                                                        |
-| ---------- | ------------------------------------------------------------- |
-| Web        | Next.js 16 (App Router), React 19, TS, Tailwind v4, shadcn/ui |
-| Auth       | NextAuth v5 (credentials + optional Google OAuth, bcrypt)     |
-| Charts     | lightweight-charts (TradingView)                              |
-| API        | FastAPI, SQLModel, Alembic, APScheduler                       |
-| DB         | Postgres 16                                                   |
-| Ingestion  | yfinance (primary) + Alpha Vantage (fallback) + Newsdata.io   |
-| Hosting    | Vercel (web) + Render (api + db)                              |
-| Monitoring | Sentry                                                        |
-| Tooling    | pnpm + uv, biome + ruff, pyright + tsc                        |
+<!-- kafka-benchmark-table:start -->
+| Replicas | Events | Consumer events/sec | p50 | p95 | Peak lag | Peak CPU/pod | Peak memory/pod |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 | 100,000 | 1,562.80 | 36,267.1 ms | 58,144.1 ms | 99,251 | 450m | 79Mi |
+| 2 | 100,000 | 2,915.44 | 18,140.5 ms | 30,042.1 ms | 100,000 | 418m | 52Mi |
+| 4 | 100,000 | 3,234.39 | 16,462.1 ms | 27,685.2 ms | 99,072 | 248m | 41Mi |
+| 8 | 100,000 | 3,052.10 | 16,393.6 ms | 27,696.1 ms | 97,298 | 213m | 79Mi |
+<!-- kafka-benchmark-table:end -->
 
-## Repo layout
+All four runs collected exactly 100,000 current-run records, counted zero foreign records, and drained final lag to zero. Throughput improved sharply from one to two replicas, flattened at four, and regressed 5.6% at eight on the single-node/single-broker lab. See the [methodology and full interpretation](./docs/KAFKA_SCALING.md).
 
-```
-apps/
-  web/                 Next.js frontend
-    app/               App Router routes (markets, stocks, screener, backtest, …)
-    components/        shadcn/ui + custom (chart, trade form, etc.)
-    lib/               server-only API client, auth helpers
-    tests/             Vitest unit tests + Playwright e2e
-    auth.ts            NextAuth v5 setup
-    sentry.*.config.ts Sentry init for each runtime
-  api/                 FastAPI backend
-    src/stockviz/
-      routers/         /v1 endpoints (symbols, bars, trades, options, …)
-      services/        ingest, recommend, indicators, trading, sentiment
-      models/          SQLModel tables
-      scheduler.py     APScheduler jobs
-      workers/         outbox publisher, Kafka consumers, dedicated scheduler
-    migrations/        Alembic
-    tests/             pytest
-    seed-data/         companies.json + price CSVs for backfill
-    Dockerfile         Production image (uv + uvicorn); Kubernetes overrides CMD
-  web/Dockerfile       Production Next.js standalone image (build from repo root)
-infra/
-  docker-compose.yml   Local Postgres + Adminer; Kafka via `--profile events`
-  render.yaml          Render Blueprint (api + db)
-  k8s/                 Kustomize (app) + Strimzi Kafka CRs + kind overlay
-scripts/k8s/           kind create/build/deploy/smoke/destroy + benchmark
-.github/workflows/     CI: lint, typecheck, tests, audit, Docker, e2e, k8s smoke
-docs/                  Setup, deployment, Kubernetes, Kafka scaling, limitations
-REWRITE_PLAN.md        Historical v1 → v2 rewrite plan
-```
+## Features
 
-## Local dev
+- Markets dashboard, ticker charts, indicators, comparison, screener, news, watchlists, and in-app price alerts
+- Email/password authentication with optional Google OAuth
+- FX-aware equity paper trading, pending limit/stop/take-profit orders, dividends, portfolio analytics, and leaderboard
+- Long-only Black-Scholes options priced with a historical-volatility proxy
+- Configurable, look-ahead-safe strategy backtesting
+- Rule-based technical and optional sentiment recommendations
 
-Full step-by-step instructions for **macOS / Linux** and **Windows** are in [`docs/SETUP.md`](./docs/SETUP.md). The short version:
+## Tech stack
+
+| Layer         | Technologies                                                                 |
+| ------------- | ---------------------------------------------------------------------------- |
+| Web           | Next.js 16, React 19, TypeScript, Tailwind CSS, NextAuth, lightweight-charts |
+| API           | FastAPI, SQLModel, Alembic, APScheduler, Pyright, Ruff                       |
+| Data          | PostgreSQL 16, yfinance, Alpha Vantage fallback, Newsdata.io                 |
+| Events        | Kafka 3.9, transactional outbox, idempotent consumer inbox                   |
+| Orchestration | Kubernetes, kind, Strimzi, Kustomize, HPA/PDB/probes                         |
+| Testing       | pytest, Vitest, Playwright, real PostgreSQL/Kafka integration                |
+
+## Running locally
+
+Prerequisites: Node/pnpm, Python 3.12+/uv, and Docker. Copy `apps/web/.env.example` to `apps/web/.env.local` and `apps/api/.env.example` to `apps/api/.env` first.
+
+### 1. Simple development: PostgreSQL + API + web
 
 ```bash
 pnpm install
 uv --directory apps/api sync
-cp apps/web/.env.example apps/web/.env.local        # Windows: Copy-Item
-cp apps/api/.env.example apps/api/.env              # Windows: Copy-Item
-pnpm db:up                                          # Postgres on :5434, Adminer on :8080
+pnpm db:up
 uv --directory apps/api run alembic upgrade head
 uv --directory apps/api run python -m stockviz.cli seed
 uv --directory apps/api run python -m stockviz.cli backfill
-pnpm api:dev      # terminal 1 — FastAPI on :8000
-pnpm dev:web      # terminal 2 — Next.js on :3000 (auto-bumps to next free port)
+pnpm api:dev      # terminal 1
+pnpm dev:web      # terminal 2
 ```
 
-`seed` without `backfill` leaves the markets table empty (symbols, no bars).
-Google sign-in needs `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`; email
-signup works without them.
-
-## Quality gates
+### 2. Event-driven development: add Kafka + workers
 
 ```bash
-pnpm lint                                  # biome (web) + ruff (api)
-pnpm typecheck                             # tsc + pyright
-pnpm --filter @stockviz/web test           # Vitest
-uv --directory apps/api run pytest
-pnpm build                                 # production build of the web app
+pnpm events:up
+pnpm events:publisher       # separate terminals
+uv --directory apps/api run python -m stockviz.workers.trade_activity_consumer
+pnpm events:market-ingest
+pnpm events:market-analytics
+pnpm events:news-ingest
+pnpm events:news-sentiment
 ```
 
-GitHub Actions runs the above plus `pnpm audit` / `pip-audit`, an API Docker
-build, `alembic check`, OpenAPI client-type sync, and Playwright e2e on every
-push and PR to **`dev`** and **`main`**.
+### 3. Full Kubernetes lab: kind + Strimzi
 
-Work off **`dev`**. Open feature PRs into `dev`, not `main`. `main` is the
-release branch. The `migration` and `v2` branches are retired remnants of
-the rewrite.
+```bash
+pnpm k8s:create
+pnpm k8s:build
+pnpm k8s:deploy
+pnpm k8s:smoke
+```
 
-## Deployment
+See [setup](./docs/SETUP.md) for Windows equivalents and environment variables, or [Kubernetes](./docs/KUBERNETES.md) for cluster internals and teardown.
 
-Walkthrough (Vercel for web, Render Blueprint for api + db, env vars,
-first-time seeding, rollback) is in [`docs/DEPLOYMENT.md`](./docs/DEPLOYMENT.md).
+## Testing and CI
 
-Source control records **intended** hosts and Blueprint defaults. It does
-**not** record whether a Vercel or Render dashboard currently deploys on
-push. `infra/render.yaml` sets `autoDeploy: true` (Render’s Blueprint
-default). This repository does not enable, disable, or trigger production
-rollouts.
+GitHub Actions exercises frontend lint, type checking, unit tests, and production build; API lint, formatting, type checking, pytest, migration drift and head checks; real PostgreSQL concurrency; real trade/market/news Kafka integration; Playwright; API and web image builds; and a real kind + Strimzi smoke deployment. Local entry points:
 
-- **Web → Vercel.** Import the repo, set Root Directory to `apps/web`,
-  fill in env vars (`API_URL`, `NEXT_PUBLIC_API_URL`, `DATABASE_URL`,
-  `AUTH_SECRET`, `AUTH_URL`, `INTERNAL_API_TOKEN`, optional Sentry). Build
-  settings come from `apps/web/vercel.json`.
-- **API + DB → Render.** Dashboard → New + → Blueprint → point at this
-  repo. Render reads `infra/render.yaml` and provisions Postgres 16 plus
-  the FastAPI web service (Docker). Fill in the `sync: false` secrets
-  (`INTERNAL_API_TOKEN` must match Vercel, `CORS_ORIGINS`,
-  `ALPHA_VANTAGE_KEY`, `NEWSDATA_KEY`, optional `ANTHROPIC_API_KEY` /
-  `SENTRY_DSN`), redeploy, then seed once via the service shell. Daily
-  refresh runs in-process via APScheduler.
-- **kind lab (not production).** `pnpm k8s:create && pnpm k8s:build &&
-  pnpm k8s:deploy && pnpm k8s:smoke`. See [`docs/KUBERNETES.md`](./docs/KUBERNETES.md).
+```bash
+pnpm lint
+pnpm typecheck
+pnpm --filter @stockviz/web test
+uv --directory apps/api run pytest
+pnpm build
+```
 
-Build the API image locally with `docker build -t stockviz-api ./apps/api`.
-Build the web image from the repo root with
-`docker build -f apps/web/Dockerfile -t stockviz-web .`.
+## Engineering tradeoffs and limitations
 
-## Project history
+What is demonstrated: local Docker, real PostgreSQL and Kafka, a real kind/Strimzi cluster, multi-consumer benchmark evidence, and CI smoke coverage.
 
-StockViz began as a static HTML/CSS/JS site with offline CSVs. The current
-app is a full rewrite (Next.js + FastAPI + Postgres). Tag
-[`v1.0.0`](../../tree/v1.0.0) is the legacy tree;
-[`v2.0.0`](../../tree/v2.0.0) is the cutover commit where both codebases
-coexisted. The phase-by-phase plan in [`REWRITE_PLAN.md`](./REWRITE_PLAN.md)
-is **historical** — all seven phases shipped; do not treat its open questions
-or stack table as current.
+What is not demonstrated: cloud Kubernetes, multi-node Kafka HA, multi-AZ PostgreSQL, production traffic, managed secrets, a full observability stack, or production SLOs. Market data is end-of-day rather than exchange-grade; options and backtests intentionally use simplified fill/pricing models. Read the current [known limitations](./docs/KNOWN_LIMITATIONS.md), [technical audit](./docs/TECHNICAL_AUDIT.md), and [resume-safe project copy](./docs/RESUME.md).
 
 ## License
 
