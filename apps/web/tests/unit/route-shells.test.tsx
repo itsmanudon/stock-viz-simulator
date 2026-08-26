@@ -25,8 +25,8 @@ vi.mock("@/components/theme-toggle", () => ({
   ThemeToggle: () => <button type="button">Theme</button>,
 }));
 
-vi.mock("@/components/site-header", () => ({
-  SiteHeader: () => <header>Public header</header>,
+vi.mock("@/components/public-header", () => ({
+  PublicHeader: () => <header>Public header</header>,
 }));
 
 describe("route shell ownership", () => {

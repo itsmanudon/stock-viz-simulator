@@ -1,9 +1,11 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import DashboardPage from "@/app/(product)/dashboard/page";
 import { AppMobileNav } from "@/components/app-mobile-nav";
 import { AppShell } from "@/components/app-shell";
 import { AppSidebar } from "@/components/app-sidebar";
+import { PublicHeader } from "@/components/public-header";
 
 let pathname = "/compare";
 
@@ -18,6 +20,10 @@ vi.mock("@/components/account-menu", () => ({
 
 vi.mock("@/components/alerts-bell", () => ({
   AlertsBell: () => <button type="button">Alerts</button>,
+}));
+
+vi.mock("@/auth", () => ({
+  auth: vi.fn().mockResolvedValue(null),
 }));
 
 describe("AppSidebar", () => {
@@ -76,5 +82,27 @@ describe("AppShell", () => {
     expect(screen.getByRole("combobox", { name: "Search tickers and companies" })).toBeVisible();
     expect(screen.getByRole("button", { name: "Alerts" })).toBeVisible();
     expect(screen.queryByRole("contentinfo")).not.toBeInTheDocument();
+  });
+});
+
+describe("PublicHeader", () => {
+  it("keeps marketing navigation concise", async () => {
+    render(await PublicHeader());
+    const nav = screen.getByRole("navigation", { name: "Public" });
+
+    expect(within(nav).getAllByRole("link")).toHaveLength(3);
+    expect(screen.queryByRole("link", { name: "Orders" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Create account" })).toHaveAttribute("href", "/signup");
+  });
+});
+
+describe("DashboardPage", () => {
+  it("orients the workspace around product domains", () => {
+    render(<DashboardPage />);
+
+    expect(screen.getByRole("heading", { name: "Your research workspace" })).toBeVisible();
+    for (const name of ["Markets", "Research", "Trade", "Portfolio", "Community"]) {
+      expect(screen.getByRole("link", { name: new RegExp(`^${name}`, "i") })).toBeVisible();
+    }
   });
 });
