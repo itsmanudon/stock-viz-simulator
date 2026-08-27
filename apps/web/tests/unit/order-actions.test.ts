@@ -41,5 +41,6 @@ describe("order actions", () => {
     expect(revalidatePath).toHaveBeenCalledWith("/orders");
     expect(revalidatePath).toHaveBeenCalledWith("/stocks/AAPL");
     expect(revalidatePath).toHaveBeenCalledWith("/portfolio");
+    expect(revalidatePath).toHaveBeenCalledWith("/trade");
   });
 });

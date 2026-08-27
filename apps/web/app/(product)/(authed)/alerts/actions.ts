@@ -54,6 +54,8 @@ export async function createAlertAction(
       target_price: parsed.data.target_price,
     });
     revalidatePath(`/stocks/${alert.ticker}`);
+    revalidatePath("/alerts");
+    revalidatePath("/watchlist");
     return { createdId: alert.id };
   } catch (err) {
     if (err instanceof UnauthenticatedError) return { error: "Sign in to set alerts" };
@@ -78,6 +80,7 @@ export async function deleteAlertAction(formData: FormData): Promise<void> {
     }
   }
   revalidatePath("/");
+  revalidatePath("/alerts");
 }
 
 export async function dismissAlertAction(formData: FormData): Promise<void> {
@@ -96,4 +99,5 @@ export async function dismissAlertAction(formData: FormData): Promise<void> {
     }
   }
   revalidatePath("/");
+  revalidatePath("/alerts");
 }

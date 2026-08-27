@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 
 import { cancelOrderAction } from "@/app/(product)/(authed)/orders/actions";
 import {
@@ -20,8 +21,11 @@ export function PortfolioOrders({ orders }: { orders: PendingOrder[] | null }) {
   if (orders.length === 0) {
     return (
       <PanelState>
-        No pending orders across your portfolio. Orders placed from a stock workspace will appear
-        here.
+        No pending orders across your portfolio.{" "}
+        <Link href="/trade" className="text-foreground underline">
+          Place an order
+        </Link>{" "}
+        or open a stock workspace ticket.
       </PanelState>
     );
   }
@@ -155,7 +159,7 @@ function CancelOrderButton({ order }: { order: PendingOrder }) {
   );
 }
 
-function PanelState({ children }: { children: string }) {
+function PanelState({ children }: { children: ReactNode }) {
   return (
     <p className="border-y border-border-muted py-8 text-sm text-muted-foreground">{children}</p>
   );

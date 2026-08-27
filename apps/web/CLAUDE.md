@@ -11,7 +11,11 @@ app/
   (product)/       guest-capable research routes plus the workstation shell
     (authed)/      portfolio, trade, trades, orders, watchlist, alerts, settings
                    — protected by proxy.ts. Portfolio and trade show reserved
-                   vs available cash/shares from pending orders.
+                   vs available cash/shares from pending orders. `/trade` is
+                   the execution workstation; `/stocks/[ticker]` keeps the
+                   contextual ticket. `/alerts` is alert management; the header
+                   bell is compact status. Operational prices (close, trigger,
+                   fill, alert target) format in the symbol-native currency.
   api/auth/        NextAuth handler
   markets/         sortable symbol table
   stocks/[ticker]/ chart + indicators + news + comments + sentiment + simulated quote badge
@@ -29,7 +33,7 @@ proxy.ts           NextAuth middleware
 components/
   ui/              shadcn-generated primitives — don't hand-edit
   *.tsx            app-shell/sidebar/navigation, global-ticker-search,
-                   public-header, price-chart, trade-form, backtest-form, etc.
+                   public-header, price-chart, order-ticket, backtest-form, etc.
 lib/
   api/             fetch client for FastAPI, one module per resource
                    (client.ts = public, server.ts = authed, types.ts = shared types)
@@ -149,3 +153,8 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   three routes. See [`docs/RESEARCH.md`](../../docs/RESEARCH.md). Keep URL state
   shareable (`tickers`/`tf`, `ticker`, `min`/`signal`/`q`). Do not present
   Signals as AI advice; the engine is a seven-vote rule set.
+- Operational trading (`/trade`, `/orders`, `/watchlist`, `/alerts`) is the
+  authenticated execution/monitoring loop. See
+  [`docs/OPERATIONAL_TRADING.md`](../../docs/OPERATIONAL_TRADING.md).
+  `/trade?ticker=` prefills the ticket. `/orders?status=` is URL-backed.
+  Do not describe EOD fills or alert evaluation as live exchange execution.

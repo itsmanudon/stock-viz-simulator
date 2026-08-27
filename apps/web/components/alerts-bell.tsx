@@ -41,11 +41,9 @@ async function fetchAlerts(): Promise<Alert[]> {
 }
 
 function fmtPrice(raw: string): string {
-  return Number(raw).toLocaleString("en-US", {
-    style: "currency",
-    currency: "USD",
-    minimumFractionDigits: 2,
-  });
+  const value = Number(raw);
+  if (!Number.isFinite(value)) return "—";
+  return value.toLocaleString("en-US", { maximumFractionDigits: 2 });
 }
 
 export function AlertsBell({ enabled }: { enabled: boolean }) {
@@ -92,7 +90,10 @@ export function AlertsBell({ enabled }: { enabled: boolean }) {
         <DropdownMenuSeparator />
         {alerts.length === 0 ? (
           <p className="px-2 py-3 text-xs text-muted-foreground">
-            No alerts yet. Set one from any stock page.
+            No alerts yet.{" "}
+            <a href="/alerts" className="text-foreground underline">
+              Manage alerts
+            </a>
           </p>
         ) : (
           <ul className="max-h-80 overflow-y-auto">
@@ -140,6 +141,10 @@ export function AlertsBell({ enabled }: { enabled: boolean }) {
             })}
           </ul>
         )}
+        <DropdownMenuSeparator />
+        <a href="/alerts" className="block px-2 py-2 text-xs text-foreground hover:underline">
+          Manage all alerts
+        </a>
       </DropdownMenuContent>
     </DropdownMenu>
   );

@@ -34,7 +34,7 @@ These are the current, code-verified boundaries of StockViz. They are not commit
 - **No cloud deployment evidence.** Render/Vercel configuration exists, but the repository does not prove a currently healthy public deployment or cloud Kubernetes environment.
 - **No production secret manager or observability stack.** Kubernetes development secrets and optional Sentry configuration do not constitute managed secrets, centralized telemetry, on-call alerting, or SLOs.
 - **CPU-local rate limiting.** API/web request limits are process-local, so replicas do not share one global budget.
-- **Thin browser e2e path.** Playwright covers markets, account creation, and an equity buy; it does not cover every option, pending-order, backtest, screener, and leaderboard path.
+- **Thin browser e2e path.** Playwright covers markets, account creation, research workspace, an equity buy, and the operational trading loop; it does not cover every option, pending-order, backtest, screener, and leaderboard path.
 
 ## Authentication and UI
 

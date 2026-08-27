@@ -163,6 +163,9 @@ function SignalEvidence({ row }: { row: SignalRow }) {
         >
           Compare {row.ticker}
         </Link>
+        <Link href={`/trade?ticker=${row.ticker}`} className="text-text-tertiary hover:underline">
+          Trade {row.ticker}
+        </Link>
       </div>
     </div>
   );

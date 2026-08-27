@@ -26,7 +26,7 @@ const DESTINATIONS = [
   {
     label: "Trade",
     href: "/trade",
-    description: "Place simulated trades and review pending orders.",
+    description: "Execute paper orders and manage pending conditions.",
     icon: ArrowLeftRight,
   },
   {

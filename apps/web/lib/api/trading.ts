@@ -141,6 +141,7 @@ export type PendingOrder = {
   created_at: string;
   filled_at: string | null;
   fill_price: string | null;
+  cancel_reason: string | null;
 };
 
 export type PendingOrderInput = {

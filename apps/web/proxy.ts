@@ -19,6 +19,7 @@ const PROTECTED_PREFIXES = [
   "/portfolio",
   "/trades",
   "/watchlist",
+  "/alerts",
   "/settings",
   "/orders",
 ];
