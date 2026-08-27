@@ -38,7 +38,8 @@ not exchange real-time data). Remaining product/ops constraints:
 News sentiment runs through a pluggable provider (Anthropic, an external HTTP
 service, or off) and feeds a screener filter, a recommendation vote, and a
 per-ticker series at `/v1/symbols/{ticker}/sentiment` — see
-[`docs/SENTIMENT.md`](./docs/SENTIMENT.md).
+[`docs/SENTIMENT.md`](./docs/SENTIMENT.md). Compare, Backtest, and Signals
+form the Research workspace; see [`docs/RESEARCH.md`](./docs/RESEARCH.md).
 
 Market and news ingest are **event-driven**. APScheduler enqueues durable
 outbox requests; Kafka workers fetch providers and write Postgres. Metrics

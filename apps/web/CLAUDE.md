@@ -15,11 +15,12 @@ app/
   api/auth/        NextAuth handler
   markets/         sortable symbol table
   stocks/[ticker]/ chart + indicators + news + comments + sentiment + simulated quote badge
-  compare/         multi-ticker normalized chart
+  compare/         Research workspace: normalized multi-ticker comparison
   screener/        filterable symbol screener
-  backtest/        strategy backtest form + equity curve
+  backtest/        Research workspace: strategy experiment + equity curve
+  recommendations/ Research workspace titled Signals (route unchanged)
   leaderboard/     user NAV ranking
-  news/, recommendations/
+  news/
   sign-in-required/  redirect target for unauthenticated access
   layout.tsx       document providers + skip link only; route groups own chrome
 auth.ts            NextAuth v5 setup (credentials provider, bcrypt)
@@ -141,5 +142,10 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   in `app/globals.css` via CSS variables.
 - Charts use `lightweight-charts` v5. The wrapper lives in
   `components/price-chart.tsx`; reuse it rather than instantiating a chart inline.
+  Compare and backtest charts live in `compare-chart.tsx` and `equity-curve.tsx`.
 - Server components by default — only mark `"use client"` when you need state,
   effects, or interactivity.
+- Research (`/compare`, `/backtest`, `/recommendations`) is one domain with
+  three routes. See [`docs/RESEARCH.md`](../../docs/RESEARCH.md). Keep URL state
+  shareable (`tickers`/`tf`, `ticker`, `min`/`signal`/`q`). Do not present
+  Signals as AI advice; the engine is a seven-vote rule set.
