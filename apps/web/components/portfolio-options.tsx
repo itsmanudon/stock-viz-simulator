@@ -10,11 +10,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import type { PortfolioOption } from "@/lib/api/trading";
-import {
-  formatCurrency,
-  formatQuantity,
-  formatSignedCurrency,
-} from "@/lib/portfolio-view-model";
+import { formatCurrency, formatQuantity, formatSignedCurrency } from "@/lib/portfolio-view-model";
 
 export function PortfolioOptions({
   positions,
@@ -78,7 +74,9 @@ export function PortfolioOptions({
                   <TableCell className="text-right font-mono" data-financial>
                     {formatCurrency(position.strike, position.currency)}
                   </TableCell>
-                  <TableCell className="text-muted-foreground">{formatDate(position.expiry)}</TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {formatDate(position.expiry)}
+                  </TableCell>
                   <TableCell className="text-right font-mono" data-financial>
                     {formatQuantity(position.quantity)}
                   </TableCell>
@@ -106,7 +104,10 @@ export function PortfolioOptions({
         </Table>
       </div>
 
-      <ul aria-label="Options positions on mobile" className="divide-y divide-border-muted md:hidden">
+      <ul
+        aria-label="Options positions on mobile"
+        className="divide-y divide-border-muted md:hidden"
+      >
         {positions.map((position) => {
           const pnl = Number(position.unrealized_pl);
           return (

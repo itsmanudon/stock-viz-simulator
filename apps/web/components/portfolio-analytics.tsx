@@ -90,7 +90,7 @@ export function PortfolioInsights({
         </dl>
       </div>
 
-      <div role="region" aria-labelledby="movers-heading">
+      <section aria-labelledby="movers-heading">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <h2 id="movers-heading" className="text-lg font-semibold tracking-tight">
             Top movers
@@ -111,7 +111,7 @@ export function PortfolioInsights({
             direction="loss"
           />
         </div>
-      </div>
+      </section>
     </section>
   );
 }
@@ -145,10 +145,7 @@ function MoverList({
       ) : (
         <ul className="mt-2 divide-y divide-border-muted border-y border-border-muted">
           {movers.slice(0, 5).map((mover) => (
-            <li
-              key={mover.ticker}
-              className="grid grid-cols-[minmax(0,1fr)_auto] gap-4 py-2.5"
-            >
+            <li key={mover.ticker} className="grid grid-cols-[minmax(0,1fr)_auto] gap-4 py-2.5">
               <div className="min-w-0">
                 <Link
                   href={`/stocks/${mover.ticker}`}

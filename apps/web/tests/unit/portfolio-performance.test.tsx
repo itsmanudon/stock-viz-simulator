@@ -84,20 +84,12 @@ describe("portfolio performance hierarchy", () => {
     expect(screen.getByText(/Latest EOD valuation/)).toBeVisible();
     expect(screen.getByRole("link", { name: "Trade" })).toHaveAttribute("href", "/trade");
     expect(screen.getByRole("link", { name: "3M" })).toHaveAttribute("aria-current", "true");
-    expect(screen.getByRole("link", { name: "1Y" })).toHaveAttribute(
-      "href",
-      "/portfolio?range=1y",
-    );
+    expect(screen.getByRole("link", { name: "1Y" })).toHaveAttribute("href", "/portfolio?range=1y");
   });
 
   it("distinguishes unavailable history from insufficient successful history", () => {
     const { rerender } = render(
-      <PortfolioPerformance
-        portfolio={portfolio}
-        history={null}
-        range="3m"
-        tab="orders"
-      />,
+      <PortfolioPerformance portfolio={portfolio} history={null} range="3m" tab="orders" />,
     );
     expect(screen.getByText("Performance history is temporarily unavailable.")).toBeVisible();
 

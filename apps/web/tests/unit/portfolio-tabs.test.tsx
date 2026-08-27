@@ -30,10 +30,7 @@ describe("portfolio tabs", () => {
     );
 
     expect(screen.getByRole("tablist", { name: "Portfolio sections" })).toBeVisible();
-    expect(screen.getByRole("tab", { name: "Positions" })).toHaveAttribute(
-      "aria-selected",
-      "true",
-    );
+    expect(screen.getByRole("tab", { name: "Positions" })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByRole("tab", { name: "Options 2" })).toBeVisible();
     expect(screen.getByRole("tab", { name: "Orders 1" })).toBeVisible();
     expect(screen.getByText("Positions panel")).toBeVisible();

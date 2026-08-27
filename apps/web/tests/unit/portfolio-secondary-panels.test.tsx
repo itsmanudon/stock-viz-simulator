@@ -4,12 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { PortfolioIncome } from "@/components/portfolio-income";
 import { PortfolioOptions } from "@/components/portfolio-options";
 import { PortfolioOrders } from "@/components/portfolio-orders";
-import type {
-  DividendSummary,
-  PendingOrder,
-  PortfolioOption,
-  Position,
-} from "@/lib/api/trading";
+import type { DividendSummary, PendingOrder, PortfolioOption, Position } from "@/lib/api/trading";
 
 vi.mock("@/app/(product)/(authed)/trade/options-actions", () => ({
   closeOptionAction: vi.fn(),
@@ -113,8 +108,13 @@ describe("portfolio operational panels", () => {
     expect(within(table).queryByText("$180.00")).not.toBeInTheDocument();
     expect(within(table).getByText("BUY")).toBeVisible();
     expect(within(table).getByText("Limit")).toBeVisible();
-    expect(within(table).getByRole("button", { name: "Cancel AAPL buy limit order" })).toBeVisible();
-    expect(screen.getByRole("link", { name: "View all orders" })).toHaveAttribute("href", "/orders");
+    expect(
+      within(table).getByRole("button", { name: "Cancel AAPL buy limit order" }),
+    ).toBeVisible();
+    expect(screen.getByRole("link", { name: "View all orders" })).toHaveAttribute(
+      "href",
+      "/orders",
+    );
   });
 
   it("distinguishes unavailable orders from a successful empty response", () => {

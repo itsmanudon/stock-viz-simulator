@@ -90,7 +90,10 @@ export function PortfolioOrders({ orders }: { orders: PendingOrder[] | null }) {
         </Table>
       </div>
 
-      <ul aria-label="Pending portfolio orders on mobile" className="divide-y divide-border-muted md:hidden">
+      <ul
+        aria-label="Pending portfolio orders on mobile"
+        className="divide-y divide-border-muted md:hidden"
+      >
         {orders.map((order) => (
           <li
             key={order.id}
@@ -128,9 +131,7 @@ function SideLabel({ side }: { side: PendingOrder["side"] }) {
   return (
     <span
       className={`inline-flex rounded-sm px-1.5 py-0.5 text-[11px] font-semibold ${
-        side === "buy"
-          ? "bg-positive/10 text-positive"
-          : "bg-negative/10 text-negative"
+        side === "buy" ? "bg-positive/10 text-positive" : "bg-negative/10 text-negative"
       }`}
     >
       {side.toUpperCase()}
@@ -155,7 +156,9 @@ function CancelOrderButton({ order }: { order: PendingOrder }) {
 }
 
 function PanelState({ children }: { children: string }) {
-  return <p className="border-y border-border-muted py-8 text-sm text-muted-foreground">{children}</p>;
+  return (
+    <p className="border-y border-border-muted py-8 text-sm text-muted-foreground">{children}</p>
+  );
 }
 
 function orderTypeLabel(value: PendingOrder["order_type"]): string {

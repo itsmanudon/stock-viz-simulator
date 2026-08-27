@@ -20,9 +20,7 @@ export type NavChange = {
 };
 
 export function parsePortfolioRange(raw: string | undefined): PortfolioRange {
-  return PORTFOLIO_RANGES.some((range) => range.value === raw)
-    ? (raw as PortfolioRange)
-    : "3m";
+  return PORTFOLIO_RANGES.some((range) => range.value === raw) ? (raw as PortfolioRange) : "3m";
 }
 
 export function parsePortfolioTab(raw: string | undefined): PortfolioTab {
@@ -74,10 +72,7 @@ export function calculatePortfolioWeight(
   return (position / total) * 100;
 }
 
-export function currencyForProjectedDividend(
-  ticker: string,
-  positions: Position[],
-): string | null {
+export function currencyForProjectedDividend(ticker: string, positions: Position[]): string | null {
   const position = positions.find(
     (candidate) => candidate.ticker.toUpperCase() === ticker.toUpperCase(),
   );
@@ -108,10 +103,7 @@ export function formatQuantity(raw: string | number): string {
   return value.toLocaleString("en-US", { maximumFractionDigits: 6 });
 }
 
-export function formatSignedCurrency(
-  raw: string | number | null,
-  currency = "USD",
-): string {
+export function formatSignedCurrency(raw: string | number | null, currency = "USD"): string {
   if (raw === null) return "—";
   const value = Number(raw);
   if (!Number.isFinite(value)) return "—";

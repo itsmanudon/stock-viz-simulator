@@ -44,9 +44,7 @@ describe("portfolio view model", () => {
     expect(buildPortfolioHref({ range: "1y", tab: "orders" })).toBe(
       "/portfolio?range=1y&tab=orders",
     );
-    expect(buildPortfolioHref({ range: "3m", tab: "positions" })).toBe(
-      "/portfolio?range=3m",
-    );
+    expect(buildPortfolioHref({ range: "3m", tab: "positions" })).toBe("/portfolio?range=3m");
   });
 
   it("calculates selected-range USD NAV change from ordered snapshots", () => {

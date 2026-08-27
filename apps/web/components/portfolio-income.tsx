@@ -125,7 +125,10 @@ export function PortfolioIncome({
               </TableHeader>
               <TableBody>
                 {dividends.history.map((credit) => (
-                  <TableRow key={`${credit.ticker}-${credit.ex_date}`} className="border-border-muted">
+                  <TableRow
+                    key={`${credit.ticker}-${credit.ex_date}`}
+                    className="border-border-muted"
+                  >
                     <TableCell>
                       <Link
                         href={`/stocks/${credit.ticker}`}

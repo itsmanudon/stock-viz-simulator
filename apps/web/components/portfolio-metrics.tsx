@@ -34,7 +34,11 @@ export function PortfolioMetrics({ portfolio, analytics }: Props) {
     });
   }
 
-  if (hasInvestments && analytics?.total_return_pct !== null && analytics?.total_return_pct !== undefined) {
+  if (
+    hasInvestments &&
+    analytics?.total_return_pct !== null &&
+    analytics?.total_return_pct !== undefined
+  ) {
     metrics.push({
       label: "All-history return",
       value: formatSignedPercent(analytics.total_return_pct),

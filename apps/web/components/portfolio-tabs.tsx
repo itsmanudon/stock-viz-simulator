@@ -5,9 +5,9 @@ import { Tabs } from "radix-ui";
 import type { ReactNode } from "react";
 
 import {
-  buildPortfolioHref,
   type PortfolioRange,
   type PortfolioTab,
+  buildPortfolioHref,
 } from "@/lib/portfolio-view-model";
 
 type Props = {
@@ -46,10 +46,7 @@ export function PortfolioTabs({
   return (
     <Tabs.Root value={activeTab} onValueChange={selectTab} className="min-w-0">
       <div className="overflow-x-auto border-b border-border-muted">
-        <Tabs.List
-          aria-label="Portfolio sections"
-          className="flex min-w-max gap-7 px-0.5 sm:gap-9"
-        >
+        <Tabs.List aria-label="Portfolio sections" className="flex min-w-max gap-7 px-0.5 sm:gap-9">
           <Tab value="positions">Positions</Tab>
           <Tab value="options" count={optionCount}>
             Options
