@@ -169,13 +169,3 @@ function MoverList({
     </section>
   );
 }
-
-/** Compatibility export while the Portfolio route is migrated in the next task. */
-export function PortfolioAnalyticsSection({ analytics }: { analytics: PortfolioAnalytics }) {
-  return (
-    <PortfolioInsights
-      analytics={analytics}
-      hasEquityPositions={analytics.sector_allocation.length > 0}
-    />
-  );
-}
