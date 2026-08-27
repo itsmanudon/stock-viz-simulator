@@ -18,7 +18,8 @@ src/stockviz/
   observability.py  Sentry bootstrap (no-op without DSN)
   models/           SQLModel tables (market, portfolio, user, order, option, dividend,
                     alert, comment, recommendation, watchlist, metrics, sentiment,
-                    events — outbox, consumer inbox, derived trade activity)
+                    events — outbox, consumer inbox, derived trade activity,
+                    execution — SimulatedExecution provenance)
   events/           versioned contracts (trades/market/news), outbox/inbox,
                     dispatcher, domain handlers, Kafka producer wrappers
                     (not imported by FastAPI startup)
@@ -40,10 +41,13 @@ src/stockviz/
     recommend/      7-vote scorer; API now returns structured votes + rationale
     trading/        execute, orders (pending limit/stop + derived reservations),
                     simulation_adapter (PriceBar / PendingOrder → kernel types),
+                    execution_provenance (SimulatedExecution writer),
                     buying_power, portfolio, analytics, dividends, fx, snapshots
-    simulation/     pure deterministic execution kernel. Live MARKET and
-                    pending equity fills call evaluate_order; apply_fill
-                    remains the ledger. See docs/SIMULATION.md
+    simulation/     pure deterministic execution kernel + profile registry.
+                    Live MARKET and pending equity fills call evaluate_order
+                    with LIVE_PAPER_EXECUTION_PROFILE; apply_fill remains the
+                    ledger; SimulatedExecution snapshots the FillDecision.
+                    See docs/SIMULATION.md
     options/        Black-Scholes-style pricing + option trade execution/settlement
     backtest/       engine.py — historical strategy simulation
     alerts.py       price-alert evaluation
@@ -228,14 +232,17 @@ intraday fills anywhere in the app:
 - **Execution kernel.** `services/simulation.evaluate_order` is a pure
   function. All live equity paper fills — MARKET (`execute_trade`) and
   pending LIMIT / STOP_LOSS / TAKE_PROFIT (`settle_pending_orders`) — call
-  it with `LEGACY_CLOSE` and pass `decision.fill_price` into `apply_fill`.
-  The simulation package must stay free of Session, FX, settings, Kafka,
-  and clocks. Account failures stay in the trading layer. Shared adapters
-  live in `services/trading/simulation_adapter.py` (naive-UTC labeling,
-  `MarketSnapshot` from `PriceBar`). Live `observed_at` is evaluation /
-  settlement time, not `PriceBar.ts`. Pending `submitted_at` is the
-  order's persisted `created_at`. A stale `session_date` bar is skipped
-  before the kernel runs. Kernel `INELIGIBLE` is logged and left pending.
+  it with `LIVE_PAPER_EXECUTION_PROFILE` (`LEGACY_CLOSE`) and pass
+  `decision.fill_price` into `apply_fill`. The same `FillDecision` is
+  snapshotted as `SimulatedExecution` in the same transaction (SIM-04).
+  Historical pre-SIM-04 trades may have no provenance. `get_execution_profile`
+  looks up versioned profiles; unknown pairs fail with no fallback.
+  `GET /v1/trades/{id}/execution` exposes provenance; `TradeOut` and
+  `trade.executed.v1` are unchanged. The simulation package must stay free
+  of Session, FX, settings, Kafka, and clocks. Account failures stay in the
+  trading layer. Shared adapters live in
+  `services/trading/simulation_adapter.py`. Live `observed_at` /
+  `evaluated_at` is evaluation / settlement time, not `PriceBar.ts`.
 - **Options count toward NAV.** `compute_portfolio` marks open contracts to
   their Black-Scholes value (`options_market_value`). Without it, buying an
   option debited cash and recorded no offsetting asset.
