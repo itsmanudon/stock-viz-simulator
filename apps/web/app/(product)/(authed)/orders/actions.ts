@@ -22,6 +22,7 @@ export async function cancelOrderAction(formData: FormData): Promise<void> {
     }
   }
   revalidatePath("/orders");
+  revalidatePath("/portfolio");
   if (typeof tickerRaw === "string" && tickerRaw) {
     revalidatePath(`/stocks/${tickerRaw.toUpperCase()}`);
   }
