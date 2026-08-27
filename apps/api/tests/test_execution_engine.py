@@ -16,16 +16,18 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
 from types import SimpleNamespace
+from typing import cast
 
 import pytest
 
-from stockviz.models.order import OrderType
+from stockviz.models.order import OrderType, PendingOrder
 from stockviz.models.portfolio import TradeSide
 from stockviz.services.simulation import (
     LEGACY_CLOSE,
     LEGACY_CLOSE_MODEL_VERSION,
     LEGACY_CLOSE_NAME,
     ExecutionProfile,
+    FillDecision,
     FillStatus,
     MarketSnapshot,
     OrderIntent,
@@ -117,8 +119,22 @@ def _evaluate(
     order: OrderIntent,
     market: MarketSnapshot,
     profile: ExecutionProfile = LEGACY_CLOSE,
-):
+) -> FillDecision:
     return evaluate_order(order, market, profile)
+
+
+def _pending_stub(
+    *,
+    order_type: OrderType,
+    side: TradeSide,
+    limit_price: Decimal,
+) -> PendingOrder:
+    """Duck-typed stand-in for ``_should_fill``; avoids constructing a SQLModel row."""
+
+    return cast(
+        PendingOrder,
+        SimpleNamespace(order_type=order_type, side=side, limit_price=limit_price),
+    )
 
 
 # --- MARKET -----------------------------------------------------------------
@@ -546,7 +562,7 @@ def test_legacy_close_limit_buy_matches_pending_order_semantics(
     limit_price = _dec("100")
     close_price = _dec(close)
     current = _should_fill(
-        SimpleNamespace(order_type=OrderType.LIMIT, side=TradeSide.BUY, limit_price=limit_price),
+        _pending_stub(order_type=OrderType.LIMIT, side=TradeSide.BUY, limit_price=limit_price),
         close_price,
     )
     assert current is expect_fill
@@ -575,7 +591,7 @@ def test_legacy_close_limit_sell_matches_pending_order_semantics(
     limit_price = _dec("100")
     close_price = _dec(close)
     current = _should_fill(
-        SimpleNamespace(order_type=OrderType.LIMIT, side=TradeSide.SELL, limit_price=limit_price),
+        _pending_stub(order_type=OrderType.LIMIT, side=TradeSide.SELL, limit_price=limit_price),
         close_price,
     )
     assert current is expect_fill
@@ -604,7 +620,7 @@ def test_legacy_close_stop_loss_matches_pending_order_semantics(
     trigger = _dec("100")
     close_price = _dec(close)
     current = _should_fill(
-        SimpleNamespace(order_type=OrderType.STOP_LOSS, side=TradeSide.SELL, limit_price=trigger),
+        _pending_stub(order_type=OrderType.STOP_LOSS, side=TradeSide.SELL, limit_price=trigger),
         close_price,
     )
     assert current is expect_fill
@@ -631,7 +647,7 @@ def test_legacy_close_take_profit_matches_pending_order_semantics(
     target = _dec("100")
     close_price = _dec(close)
     current = _should_fill(
-        SimpleNamespace(order_type=OrderType.TAKE_PROFIT, side=TradeSide.SELL, limit_price=target),
+        _pending_stub(order_type=OrderType.TAKE_PROFIT, side=TradeSide.SELL, limit_price=target),
         close_price,
     )
     assert current is expect_fill
