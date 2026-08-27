@@ -50,10 +50,9 @@ src/stockviz/
                     evaluate_order with LIVE_PAPER_EXECUTION_PROFILE; apply_fill
                     remains the ledger; SimulatedExecution snapshots the
                     FillDecision. See docs/SIMULATION.md
-    replay/         isolated ReplaySession book (SIM-05). Owns the simulation
-                    clock and ReplayFill rows; does not call apply_fill or
-                    write Trade / trade.executed.v1. Snapshots are caller-
-                    supplied; stored-bar walking is SIM-06.
+    replay/         isolated ReplaySession book (SIM-05). Frozen ticker/range,
+                    next-bar SimulationClock, server-owned PriceBar snapshots.
+                    ReplayFill is isolated from Trade / apply_fill / Kafka.
     options/        Black-Scholes-style pricing + option trade execution/settlement
     backtest/       engine.py — historical strategy simulation
     alerts.py       price-alert evaluation
@@ -250,11 +249,14 @@ intraday fills anywhere in the app:
   trading layer. Shared adapters live in
   `services/trading/simulation_adapter.py`. Live `observed_at` /
   `evaluated_at` is evaluation / settlement time, not `PriceBar.ts`.
-- **Replay sessions** (`services/replay/`, `GET|POST /v1/replay/...`):
-  isolated cash/positions, monotonic `SimulationClock`, kernel fills as
-  `ReplayFill` (no `trade_id`). `clock_now` is required on create. A
-  snapshot after the clock is lookahead (400). Closed sessions return 409.
-  No frontend. Unknown execution profiles fail with no fallback.
+- **Replay sessions** (`services/replay/`, `/v1/replay/...`): isolated
+  cash/positions over a frozen ticker/`start_at`/`end_at` 1d range.
+  `current_at` is the currently observable stored bar. `POST .../advance`
+  moves to the next stored bar under `SELECT … FOR UPDATE`. Market and
+  history never return bars after `current_at`. Orders take intent only;
+  fill price is the current bar close. USD symbols only. Cancel is
+  manual; exhausting `end_at` marks `completed`. No delete endpoint;
+  child rows cascade if a session row is removed. No frontend.
 - **Options count toward NAV.** `compute_portfolio` marks open contracts to
   their Black-Scholes value (`options_market_value`). Without it, buying an
   option debited cash and recorded no offsetting asset.

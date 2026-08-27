@@ -22,12 +22,12 @@ runs on the weekday EOD schedule.
 | Versioned profile registry | ✅ SIM-04 — `get_execution_profile(name, version)` |
 | Durable execution provenance | ✅ SIM-04 — `simulated_executions` (fill-only, no backfill) |
 | Backtester | **Unchanged** — separate engine (SIM-08) |
-| Replay sessions | ✅ SIM-05 — `ReplaySession` + `SimulationClock`; isolated book |
-| Blind historical replay | **Not implemented** (SIM-06) |
+| Replay sessions | ✅ SIM-05 — frozen ticker/start/end, next-bar clock, server-owned 1d bars |
+| Blind historical replay | **Not implemented** (SIM-06 — Replay Lab UX) |
 | Kafka `trade.executed.v1` | **Unchanged** |
 | Database | Additive `simulated_executions` + `replay_sessions` / `_positions` / `_fills` |
 | API | Additive execution provenance + `/v1/replay/*`; `TradeOut` unchanged |
-| Frontend | **Unchanged** |
+| Frontend | **Unchanged** (no Replay Lab) |
 
 PostgreSQL remains the source of truth. Kafka is not authoritative for
 execution. Trade and accounting mutations stay synchronous and transactional.
@@ -212,9 +212,10 @@ Live paper trading still:
 - Does not model latency, commissions, or liquidity
 - Uses a simulated SSE quote that is **not** a fill source
 
-Those limitations remain after SIM-05. Replay sessions make fills **clocked
-and isolated**. They do not add spreads, slippage, OHLC-touch fills, partial
-fills, or a historical bar walker. See [KNOWN_LIMITATIONS.md](./KNOWN_LIMITATIONS.md).
+Those limitations remain after SIM-05. Replay adds a **frozen 1d historical
+clock** and an isolated book; it does not add spreads, slippage, OHLC-touch
+fills, partial fills, rewind, or a Replay Lab UI. See
+[KNOWN_LIMITATIONS.md](./KNOWN_LIMITATIONS.md).
 
 ## Why same-day OHLC touches are not used
 
@@ -308,42 +309,62 @@ There is no user-facing profile selector.
 
 ## ReplaySession + simulation clock
 
-SIM-05 adds an isolated paper book that is **not** the live `Portfolio`.
+SIM-05 is a **server-authoritative** historical replay book. It is not the
+live `Portfolio`, and callers do not supply OHLC.
 
 ```text
-SimulationClock(now=explicit instant)
-    → never reads the wall clock
-    → time only moves forward
-
 ReplaySession
-    → pinned profile + version
-    → isolated cash / positions
-    → current clock_now
+    ticker (pinned, one symbol)
+    start_at / current_at / end_at  (stored 1d PriceBar.ts, frozen at create)
+    pinned profile + version (legacy_close v1)
+    isolated cash / positions
 
-evaluate_order(order, caller_supplied_snapshot, session profile)
-    → FILLED persists ReplayFill (ledger + provenance together)
-    → does not write Trade, SimulatedExecution, or trade.executed.v1
+SimulationClock(now=current_at)
+    → never reads the wall clock
+    → time only moves forward, one stored bar per advance
+
+GET market / history
+    → PriceBar rows where start_at <= ts <= current_at (<= end_at)
+    → never bars after current_at
+
+POST advance
+    → next stored 1d bar (weekends/holidays skip naturally)
+    → completes when that bar is the last in the frozen range
+
+POST orders (intent only)
+    → MarketSnapshot from the current stored bar
+    → evaluate_order(session profile)
+    → ReplayFill on FILLED (no Trade / SimulatedExecution / Kafka)
 ```
 
-The kernel is unchanged. `observed_at` and `submitted_at` come from the
-session clock (or an explicit instant that the clock `permits`). A snapshot
-whose `observed_at` is after `clock.now` is **lookahead** and is rejected
-before `evaluate_order`. Advancing the clock does not load `price_bars` and
-does not settle orders — walking stored history without peeking is SIM-06.
+**Range snapping.** `start_at` becomes the first stored 1d bar at-or-after the
+request. `end_at` becomes the last stored 1d bar at-or-before the request, or
+the latest stored 1d bar at creation if omitted. The resolved timestamps are
+persisted; ingesting a later bar does not extend the session. A usable range
+needs at least two 1d bars. Non-USD symbols are rejected (no historical FX).
 
-Replay fills reuse the provenance *concept* (profile, version, assumptions,
-reference vs fill, reason, interval, `evaluated_at`) without a `trade_id`
-FK. Live `simulated_executions.trade_id` stays 1:1 with live `trades`.
+**Current bar.** `current_at` is the `PriceBar.ts` of the currently observable
+session. That bar and earlier bars in `[start_at, current_at]` are visible.
+The next stored bar is not. Kernel `observed_at` / order `submitted_at` are
+that timestamp labeled UTC. Bar N cannot fill until replay has advanced to N.
 
-USD-only isolated cash: no FX, no share/cash reservations, no Kafka. Default
-profile is `legacy_close` v1 via `get_execution_profile`; unknown pairs fail.
+**Statuses.** `active` → `completed` when advance lands on `end_at` (no next
+bar). Manual `POST .../cancel` → `cancelled`. Advance or orders on a terminal
+session return 409. Sessions are not deleted; child rows cascade if a session
+row is removed.
+
+**Not in SIM-05.** Replay Lab UI, rewind, branching, dataset version snapshots,
+intraday, spreads/slippage, historical FX. Historical bar *corrections* can
+still change observations; the horizon is frozen, the row contents are not.
 
 Authed API (no frontend):
 
-- `POST /v1/replay/sessions` — `clock_now` is required; never defaulted to now
-- `POST /v1/replay/sessions/{id}/clock` — advance only
-- `POST /v1/replay/sessions/{id}/orders` — caller-supplied snapshot
-- `POST /v1/replay/sessions/{id}/close`
+- `POST /v1/replay/sessions` — `ticker`, `start_at`, optional `end_at` / cash
+- `POST /v1/replay/sessions/{id}/advance` — next stored bar
+- `GET /v1/replay/sessions/{id}/market` — current server bar
+- `GET /v1/replay/sessions/{id}/history` — visible bars through `current_at`
+- `POST /v1/replay/sessions/{id}/orders` — intent only; fill at current close
+- `POST /v1/replay/sessions/{id}/cancel`
 
 Live `evaluation_clock()` remains wall-clock UTC for paper trading.
 
@@ -354,7 +375,7 @@ Live `evaluation_clock()` remains wall-clock UTC for paper trading.
 | SIM-02 | **Done.** Live MARKET fills call `evaluate_order(..., LEGACY_CLOSE)`; `apply_fill` is unchanged |
 | SIM-03 | **Done.** Live pending LIMIT / STOP_LOSS / TAKE_PROFIT settlement uses the same kernel; `_should_fill` is gone from production |
 | SIM-04 | **Done.** Versioned profile registry + durable `SimulatedExecution` provenance |
-| SIM-05 | **Done.** ReplaySession + `SimulationClock`; isolated book; no live Trade FK |
+| SIM-05 | **Done.** ReplaySession with frozen ticker/start/end, next-bar clock, server-owned 1d bars |
 | SIM-06 | Blind historical market replay |
 | SIM-07 | Post-trade forensic analytics |
 | SIM-08 | Backtester uses the same execution kernel |
