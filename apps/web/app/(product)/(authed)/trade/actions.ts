@@ -77,6 +77,7 @@ export async function placeTradeAction(
     revalidatePath("/portfolio");
     revalidatePath("/trades");
     revalidatePath("/trade");
+    revalidatePath("/orders");
     revalidatePath(`/stocks/${parsed.data.ticker}`);
     return {
       success: {
@@ -125,6 +126,7 @@ export async function placeOrderAction(
   try {
     const order = await createOrder(parsed.data);
     revalidatePath("/orders");
+    revalidatePath("/trade");
     revalidatePath(`/stocks/${parsed.data.ticker}`);
     const label = order.order_type.replace("_", " ");
     return {
