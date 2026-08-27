@@ -143,6 +143,43 @@ describe("BacktestForm", () => {
     expect(screen.getByLabelText("Symbol")).toHaveValue("AAPL");
     expect(screen.queryByRole("heading", { name: "Equity curve" })).not.toBeInTheDocument();
   });
+
+  it("replaces prior results with a running state instead of leaving stale metrics", async () => {
+    let finish: ((value: BacktestResult) => void) | undefined;
+    runBacktest.mockImplementationOnce(
+      () =>
+        new Promise<BacktestResult>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    render(
+      <BacktestForm symbols={[{ ticker: "AAPL", name: "Apple Inc." }]} initialTicker="AAPL" />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Run backtest" }));
+    expect(screen.getByText(/Running the rule over stored daily bars/)).toBeVisible();
+    expect(screen.queryByRole("heading", { name: "No experiment yet" })).not.toBeInTheDocument();
+
+    finish?.(success);
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "Equity curve" })).toBeVisible();
+    });
+
+    let finishSecond: ((value: BacktestResult) => void) | undefined;
+    runBacktest.mockImplementationOnce(
+      () =>
+        new Promise<BacktestResult>((resolve) => {
+          finishSecond = resolve;
+        }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Run backtest" }));
+    expect(screen.getByText(/Running the rule over stored daily bars/)).toBeVisible();
+    expect(screen.queryByRole("heading", { name: "Equity curve" })).not.toBeInTheDocument();
+    finishSecond?.(success);
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "Equity curve" })).toBeVisible();
+    });
+  });
 });
 
 describe("SignalsTable", () => {

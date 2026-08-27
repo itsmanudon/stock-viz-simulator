@@ -356,7 +356,7 @@ export function BacktestForm({
       </section>
 
       <div aria-busy={pending} aria-live="polite">
-        {pending && result === null && error === null ? (
+        {pending ? (
           <div className="border-y border-border-muted px-4 py-10 text-sm text-text-secondary sm:border-x sm:px-6">
             Running the rule over stored daily bars…
           </div>
