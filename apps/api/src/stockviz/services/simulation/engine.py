@@ -1,8 +1,8 @@
 """Deterministic order-execution decisions.
 
 Pure functions: no Session, settings, clock, or I/O. Fill economics for
-``LEGACY_CLOSE`` match ``services/trading/execute.py`` (market at latest 1d
-close) and ``services/trading/orders.py::_should_fill`` (pending EOD close).
+``LEGACY_CLOSE`` match live paper trading: MARKET fills at the latest 1d
+close, and pending LIMIT / STOP_LOSS / TAKE_PROFIT trigger on that close.
 """
 
 from __future__ import annotations
@@ -83,7 +83,7 @@ def evaluate_order(
 
 
 def _legacy_should_fill(order: OrderIntent, close: Decimal) -> bool:
-    """Parity with ``services/trading/orders.py::_should_fill``."""
+    """Close-only LIMIT / STOP_LOSS / TAKE_PROFIT trigger rules."""
 
     assert order.limit_price is not None
     if order.order_type is SimulationOrderType.LIMIT:

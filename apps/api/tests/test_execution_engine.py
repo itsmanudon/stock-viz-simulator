@@ -15,12 +15,10 @@ from dataclasses import FrozenInstanceError
 from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
-from types import SimpleNamespace
-from typing import cast
 
 import pytest
 
-from stockviz.models.order import OrderType, PendingOrder
+from stockviz.models.order import OrderType
 from stockviz.models.portfolio import TradeSide
 from stockviz.services.simulation import (
     LEGACY_CLOSE,
@@ -37,7 +35,6 @@ from stockviz.services.simulation import (
     evaluate_order,
     is_legacy_close,
 )
-from stockviz.services.trading.orders import _should_fill
 
 SIMULATION_ROOT = (
     Path(__file__).resolve().parents[1] / "src" / "stockviz" / "services" / "simulation"
@@ -125,18 +122,22 @@ def _evaluate(
     return evaluate_order(order, market, profile)
 
 
-def _pending_stub(
+def _legacy_pending_triggers(
     *,
     order_type: OrderType,
     side: TradeSide,
     limit_price: Decimal,
-) -> PendingOrder:
-    """Duck-typed stand-in for ``_should_fill``; avoids constructing a SQLModel row."""
+    close: Decimal,
+) -> bool:
+    """Historical ``_should_fill`` boolean, kept only to pin kernel parity."""
 
-    return cast(
-        PendingOrder,
-        SimpleNamespace(order_type=order_type, side=side, limit_price=limit_price),
-    )
+    if order_type == OrderType.LIMIT:
+        return close <= limit_price if side == TradeSide.BUY else close >= limit_price
+    if order_type == OrderType.STOP_LOSS:
+        return close <= limit_price
+    if order_type == OrderType.TAKE_PROFIT:
+        return close >= limit_price
+    return False
 
 
 # --- MARKET -----------------------------------------------------------------
@@ -687,9 +688,8 @@ def test_legacy_close_limit_buy_matches_pending_order_semantics(
 ) -> None:
     limit_price = _dec("100")
     close_price = _dec(close)
-    current = _should_fill(
-        _pending_stub(order_type=OrderType.LIMIT, side=TradeSide.BUY, limit_price=limit_price),
-        close_price,
+    current = _legacy_pending_triggers(
+        order_type=OrderType.LIMIT, side=TradeSide.BUY, limit_price=limit_price, close=close_price
     )
     assert current is expect_fill
     decision = _evaluate(
@@ -716,9 +716,8 @@ def test_legacy_close_limit_sell_matches_pending_order_semantics(
 ) -> None:
     limit_price = _dec("100")
     close_price = _dec(close)
-    current = _should_fill(
-        _pending_stub(order_type=OrderType.LIMIT, side=TradeSide.SELL, limit_price=limit_price),
-        close_price,
+    current = _legacy_pending_triggers(
+        order_type=OrderType.LIMIT, side=TradeSide.SELL, limit_price=limit_price, close=close_price
     )
     assert current is expect_fill
     decision = _evaluate(
@@ -745,9 +744,8 @@ def test_legacy_close_stop_loss_matches_pending_order_semantics(
 ) -> None:
     trigger = _dec("100")
     close_price = _dec(close)
-    current = _should_fill(
-        _pending_stub(order_type=OrderType.STOP_LOSS, side=TradeSide.SELL, limit_price=trigger),
-        close_price,
+    current = _legacy_pending_triggers(
+        order_type=OrderType.STOP_LOSS, side=TradeSide.SELL, limit_price=trigger, close=close_price
     )
     assert current is expect_fill
     decision = _evaluate(
@@ -772,9 +770,8 @@ def test_legacy_close_take_profit_matches_pending_order_semantics(
 ) -> None:
     target = _dec("100")
     close_price = _dec(close)
-    current = _should_fill(
-        _pending_stub(order_type=OrderType.TAKE_PROFIT, side=TradeSide.SELL, limit_price=target),
-        close_price,
+    current = _legacy_pending_triggers(
+        order_type=OrderType.TAKE_PROFIT, side=TradeSide.SELL, limit_price=target, close=close_price
     )
     assert current is expect_fill
     decision = _evaluate(

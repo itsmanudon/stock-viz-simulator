@@ -1,6 +1,7 @@
 """Pure deterministic execution kernel (SIM-01).
 
-Not on the live trade-commit path. See ``docs/SIMULATION.md``.
+Live MARKET and pending equity paper fills call ``evaluate_order``.
+Accounting stays in ``services.trading.apply_fill``. See ``docs/SIMULATION.md``.
 """
 
 from stockviz.services.simulation.contracts import (

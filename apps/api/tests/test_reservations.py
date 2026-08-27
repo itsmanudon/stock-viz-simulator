@@ -704,7 +704,7 @@ def test_fill_skips_order_that_is_no_longer_pending(session: Session) -> None:
     cancel_pending_order(session, user_id=user_id, order_id=order.id)
     session.refresh(order)
     priced = resolve_priced_symbol(session, "AAPL")
-    assert _fill(session, order, priced) is False
+    assert _fill(session, order, priced, fill_price=priced.price) is False
     session.refresh(order)
     assert order.status == OrderStatus.CANCELLED
     portfolio = _portfolio(session, user_id)

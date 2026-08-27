@@ -4,17 +4,21 @@ SIM-01 introduces a **pure, deterministic execution engine**: given an order
 intent, an observable market snapshot, and an execution profile, should this
 order fill, at what price, and why?
 
-This document describes that kernel and how live paper **MARKET** orders use
-it. Pending limit/stop/take-profit orders still settle outside the kernel.
+**All live equity paper-order execution decisions** (MARKET, LIMIT, STOP_LOSS,
+TAKE_PROFIT) now go through `evaluate_order(..., LEGACY_CLOSE)`. Accounting
+still mutates only in `apply_fill`. Execution realism has **not** improved:
+the profile is still close-only `legacy_close`, and pending settlement still
+runs on the weekday EOD schedule.
 
 ## Status
 
 | Layer | Status |
 | --- | --- |
-| Pure kernel (`apps/api/src/stockviz/services/simulation`) | Implemented (SIM-01) |
-| Live `execute_trade` / **MARKET** fills | **SIM-02:** routed through `evaluate_order(..., LEGACY_CLOSE)` |
-| Live pending-order settlement | **Unchanged** — `services/trading/orders.py::_should_fill` (SIM-03) |
+| Pure kernel (`apps/api/src/stockviz/services/simulation`) | ✅ SIM-01 |
+| Live `execute_trade` / **MARKET** fills | ✅ SIM-02 — `evaluate_order(..., LEGACY_CLOSE)` |
+| Live pending-order settlement | ✅ SIM-03 — LIMIT / STOP_LOSS / TAKE_PROFIT via the same kernel |
 | Backtester | **Unchanged** — separate engine (SIM-08) |
+| Trace persistence | **Not implemented** (SIM-04) |
 | Kafka `trade.executed.v1` | **Unchanged** |
 | Database / API / frontend | **Unchanged** |
 
@@ -110,6 +114,35 @@ Using `bar.ts` as `observed_at` would be wrong: a naive midnight bar can be
 strictly before `submitted_at`, and the kernel would refuse a fill that
 today's paper path must still complete.
 
+### Live pending adapter (SIM-03)
+
+Pending LIMIT / STOP_LOSS / TAKE_PROFIT orders exist across time. The adapter
+therefore:
+
+- Sets `OrderIntent.submitted_at` to the persisted `PendingOrder.created_at`,
+  normalized to aware UTC. StockViz stores naive UTC (`stockviz._time.utcnow`);
+  naive values are labeled UTC at the adapter boundary. Local-timezone
+  invention is not performed.
+- Sets `MarketSnapshot.observed_at` to the **settlement evaluation instant**,
+  not `PriceBar.ts`.
+
+`PriceBar.ts` remains the market/session timestamp. `observed_at` is when
+that stored daily close is considered available to the simulator. Ingest
+does not persist a separate availability timestamp, so settlement time is
+the deterministic availability instant: the 16:45 ET job runs after the
+16:30 daily refresh, and a stored close is known when settlement evaluates it.
+
+The trading layer still refuses a stale calendar session **before** building
+`MarketSnapshot` / `OrderIntent`. A prior-day close that numerically crosses
+a limit does not reach the kernel when `session_date` is today.
+
+A kernel `INELIGIBLE` result (ticker mismatch, snapshot earlier than
+submission, unsupported BUY stop/take-profit, malformed adapter state) is
+logged with order id / ticker / type / side / reason and the row is left
+**pending**. That is adapter/domain inconsistency, not an account failure.
+Insufficient cash/shares/FX still cancel in the trading layer after a
+`FILLED` decision.
+
 ## Temporal eligibility
 
 If `market.observed_at < order.submitted_at`, the engine returns
@@ -172,8 +205,10 @@ Live paper trading still:
 - Does not model latency, commissions, or liquidity
 - Uses a simulated SSE quote that is **not** a fill source
 
-Those limitations remain after SIM-01 because SIM-01 does not change runtime
-paths. See [KNOWN_LIMITATIONS.md](./KNOWN_LIMITATIONS.md).
+Those limitations remain after SIM-03. Unifying the trigger/fill-price
+decision on `evaluate_order` did not add spreads, slippage, OHLC-touch fills,
+partial fills, or a market clock. See
+[KNOWN_LIMITATIONS.md](./KNOWN_LIMITATIONS.md).
 
 ## Why same-day OHLC touches are not used
 
@@ -188,10 +223,10 @@ If a user submits a buy limit at 14:00 and the daily low printed at 11:00,
 the daily OHLC cannot prove the touch happened after submission. Using the
 full-day high/low would create impossible pre-submission fills.
 
-`legacy_close` therefore uses **close-only** comparison, matching
-`services/trading/orders.py::_should_fill`. Future replay/backtest profiles
-may use **next-bar** OHLC under explicit, documented assumptions. They must
-not silently replace live EOD settlement.
+`legacy_close` therefore uses **close-only** comparison, matching the
+historical pending-order EOD rules. Future replay/backtest profiles may use
+**next-bar** OHLC under explicit, documented assumptions. They must not
+silently replace live EOD settlement.
 
 ## Future execution profiles (not implemented)
 
@@ -214,7 +249,7 @@ profile + trace persistence task.
 | ID | Scope |
 | --- | --- |
 | SIM-02 | **Done.** Live MARKET fills call `evaluate_order(..., LEGACY_CLOSE)`; `apply_fill` is unchanged |
-| SIM-03 | Route **pending** conditional orders through the same kernel |
+| SIM-03 | **Done.** Live pending LIMIT / STOP_LOSS / TAKE_PROFIT settlement uses the same kernel; `_should_fill` is gone from production |
 | SIM-04 | Versioned profiles + persist execution traces |
 | SIM-05 | ReplaySession + simulation clock |
 | SIM-06 | Blind historical market replay |
@@ -223,5 +258,7 @@ profile + trace persistence task.
 | SIM-09 | Intraday market data |
 | SIM-10 | Liquidity + partial fills |
 
-Kernel unit tests still do not prove pending-order or backtest behavior.
-Live MARKET tests in `test_market_kernel_integration.py` pin the adapter.
+Kernel unit tests pin `legacy_close` itself. Live MARKET tests live in
+`test_market_kernel_integration.py`. Live pending tests live in
+`test_pending_kernel_integration.py`. The backtester is still a separate
+engine.
