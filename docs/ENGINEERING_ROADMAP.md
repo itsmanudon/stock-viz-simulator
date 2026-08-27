@@ -23,4 +23,4 @@ None of these capabilities is claimed as implemented. Current constraints are li
 
 ## Simulation fidelity
 
-SIM-01 added a pure `legacy_close` execution kernel that documents and tests current EOD fill rules. Live paper trading does not call it yet. Later tasks (SIM-02+) can route market and pending fills through that kernel without changing ledger semantics. See [SIMULATION.md](./SIMULATION.md).
+SIM-01 added a pure `legacy_close` execution kernel. SIM-02 routes live MARKET fills through it without changing `apply_fill` economics. Pending orders are still on `_should_fill` (SIM-03). See [SIMULATION.md](./SIMULATION.md).

@@ -1,25 +1,38 @@
 """Trade execution.
 
-A market order fills at the most recent ``1d`` close in ``price_bars``. We
-validate cash on buys and position size on sells, update the ``positions``
-row, and write the ``trades`` row in a single transaction.
+A market order fills at the most recent ``1d`` close in ``price_bars``. The
+fill *price* is decided by ``evaluate_order(..., LEGACY_CLOSE)`` (SIM-02).
+Cash, shares, FX, and the ledger still mutate only in :func:`apply_fill`,
+which is shared with the pending-order settlement job in
+``services/trading/orders.py``. Both paths must debit the *USD* cash bucket
+at the symbol's FX rate — keeping that in one place is what stops the two
+from drifting apart.
 
-The cash/position mutation lives in :func:`apply_fill`, which is shared with
-the pending-order settlement job in ``services/trading/orders.py``. Both paths
-must debit the *USD* cash bucket at the symbol's FX rate — keeping that in one
-place is what stops the two from drifting apart.
+Pending limit/stop/take-profit settlement is still close-comparison in
+``orders.py`` (SIM-03).
 """
 
 from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from decimal import Decimal
 
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
 from stockviz.models import Portfolio, Position, PriceBar, Symbol, Trade, TradeSide
+from stockviz.services.simulation import (
+    LEGACY_CLOSE,
+    FillDecision,
+    FillStatus,
+    MarketSnapshot,
+    OrderIntent,
+    OrderSide,
+    SimulationOrderType,
+    evaluate_order,
+)
 from stockviz.services.trading.buying_power import (
     available_cash,
     available_shares,
@@ -357,6 +370,9 @@ def execute_trade(
     The price stored on the Trade row is in the symbol's native currency.
     Cash (always USD) is debited/credited at today's FX rate for non-USD
     symbols. USD symbols pass through unchanged.
+
+    Fill price comes from the SIM-01 kernel (``LEGACY_CLOSE``). Account
+    validity, FX, and persistence stay in :func:`apply_fill`.
     """
 
     if quantity <= 0:
@@ -364,6 +380,7 @@ def execute_trade(
 
     ticker = ticker.upper()
     priced = resolve_priced_symbol(session, ticker)
+    fill_price = _market_fill_price(bar=priced.bar, side=side, quantity=quantity)
 
     portfolio = ensure_default_portfolio(session, user_id)
     result = apply_fill(
@@ -372,10 +389,82 @@ def execute_trade(
         ticker=ticker,
         side=side,
         quantity=quantity,
-        price=priced.price,
+        price=fill_price,
         currency=priced.currency,
         fx_rate=priced.fx_rate,
     )
     session.commit()
     session.refresh(result.trade)
     return result
+
+
+def _evaluation_clock() -> datetime:
+    """Aware UTC instant at which this live paper order is evaluated.
+
+    ``PriceBar.ts`` is a session/bar timestamp, often naive midnight, and is
+    **not** an information-availability clock. Live MARKET fills treat the
+    latest stored close as already observable now, so ``submitted_at`` and
+    ``observed_at`` share this instant. The kernel still rejects a snapshot
+    that is strictly older than the order; we do not rewrite ``PriceBar.ts``.
+    """
+
+    return datetime.now(UTC)
+
+
+def _order_side(side: TradeSide) -> OrderSide:
+    if side is TradeSide.BUY:
+        return OrderSide.BUY
+    if side is TradeSide.SELL:
+        return OrderSide.SELL
+    raise TradeExecutionError(f"unsupported trade side {side!r}")
+
+
+def market_snapshot_from_bar(bar: PriceBar, *, observed_at: datetime) -> MarketSnapshot:
+    """Adapt a stored 1d bar. ``observed_at`` is caller-supplied availability time."""
+
+    return MarketSnapshot(
+        ticker=bar.ticker,
+        observed_at=observed_at,
+        interval=bar.interval,
+        open=bar.open,
+        high=bar.high,
+        low=bar.low,
+        close=bar.close,
+        volume=Decimal(bar.volume),
+    )
+
+
+def _market_fill_price(*, bar: PriceBar, side: TradeSide, quantity: Decimal) -> Decimal:
+    """Ask ``LEGACY_CLOSE`` for the MARKET fill price. Does not touch the ledger."""
+
+    evaluated_at = _evaluation_clock()
+    order = OrderIntent(
+        ticker=bar.ticker,
+        side=_order_side(side),
+        order_type=SimulationOrderType.MARKET,
+        quantity=quantity,
+        remaining_quantity=quantity,
+        submitted_at=evaluated_at,
+    )
+    market = market_snapshot_from_bar(bar, observed_at=evaluated_at)
+    decision = evaluate_order(order, market, LEGACY_CLOSE)
+    return _require_full_market_fill(decision, quantity=quantity)
+
+
+def _require_full_market_fill(decision: FillDecision, *, quantity: Decimal) -> Decimal:
+    if (
+        decision.status is FillStatus.FILLED
+        and decision.fill_price is not None
+        and decision.fill_quantity == quantity
+        and decision.remaining_quantity == Decimal(0)
+    ):
+        return decision.fill_price
+
+    logger.error(
+        "market kernel did not fully fill: status=%s fill_qty=%s remaining=%s reason=%s",
+        decision.status,
+        decision.fill_quantity,
+        decision.remaining_quantity,
+        decision.trace.reason,
+    )
+    raise TradeExecutionError("Unable to fill market order against the latest close")
