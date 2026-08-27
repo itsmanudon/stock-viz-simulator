@@ -1,7 +1,8 @@
 """SIM-02: live MARKET fills go through evaluate_order(..., LEGACY_CLOSE).
 
 These tests pin parity with pre-kernel market economics and prove the kernel
-fill price is what ``apply_fill`` records. Pending orders are not covered.
+fill price is what ``apply_fill`` records. Pending settlement is covered by
+``test_pending_kernel_integration.py`` (SIM-03).
 """
 
 from __future__ import annotations
