@@ -10,14 +10,8 @@ import {
   STOCK_TIMEFRAMES,
   type StockIndicator,
   type StockTimeframe,
+  buildStockChartHref,
 } from "@/lib/stock-workspace";
-
-function href(ticker: string, timeframe: StockTimeframe, indicators: StockIndicator[]): string {
-  const params = new URLSearchParams();
-  params.set("tf", timeframe);
-  if (indicators.length) params.set("indicators", indicators.join(","));
-  return `/stocks/${ticker}?${params.toString()}`;
-}
 
 export function StockChartToolbar({
   ticker,
@@ -34,7 +28,7 @@ export function StockChartToolbar({
     const next = new Set(indicators);
     if (next.has(indicator)) next.delete(indicator);
     else next.add(indicator);
-    router.push(href(ticker, timeframe, Array.from(next)));
+    router.push(buildStockChartHref(ticker, timeframe, Array.from(next)));
   }
 
   return (
@@ -43,7 +37,7 @@ export function StockChartToolbar({
         {STOCK_TIMEFRAMES.map((value) => (
           <Link
             key={value}
-            href={href(ticker, value, indicators)}
+            href={buildStockChartHref(ticker, value, indicators)}
             aria-current={timeframe === value ? "page" : undefined}
             className={`inline-flex h-8 min-w-9 items-center justify-center rounded-sm px-2 font-mono text-xs font-medium transition-colors ${
               timeframe === value

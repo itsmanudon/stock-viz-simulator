@@ -3,6 +3,7 @@ import { X } from "lucide-react";
 import { cancelOrderAction } from "@/app/(product)/(authed)/orders/actions";
 import { Button } from "@/components/ui/button";
 import type { PendingOrder } from "@/lib/api/trading";
+import { formatQuantity } from "@/lib/stock-workspace";
 
 function money(value: string, currency: string): string {
   const number = Number(value);
@@ -25,7 +26,7 @@ export function TickerOrders({
 }: {
   ticker: string;
   currency: string;
-  orders: PendingOrder[];
+  orders: PendingOrder[] | null;
 }) {
   return (
     <section aria-labelledby="ticker-orders-title" className="space-y-4">
@@ -34,13 +35,17 @@ export function TickerOrders({
           Open orders
         </h3>
         <span className="font-mono text-xs text-muted-foreground tabular-nums">
-          {orders.length} pending
+          {orders === null ? "Unavailable" : `${orders.length} pending`}
         </span>
       </div>
-      {orders.length ? (
+      {orders === null ? (
+        <p className="border-y border-border-muted py-6 text-sm text-warning">
+          Order data is temporarily unavailable.
+        </p>
+      ) : orders.length ? (
         <ul className="divide-y divide-border-muted border-y border-border-muted">
           {orders.map((order) => (
-            <li key={order.id} className="flex items-center gap-4 py-3">
+            <li key={order.id} className="flex flex-wrap items-center gap-3 py-3 sm:flex-nowrap">
               <span
                 className={`w-24 shrink-0 font-mono text-xs font-semibold ${
                   order.side === "buy" ? "text-positive" : "text-negative"
@@ -49,8 +54,10 @@ export function TickerOrders({
                 {order.side.toUpperCase()} {order.order_type.replace("_", " ").toUpperCase()}
               </span>
               <span className="min-w-0 flex-1 font-mono text-sm tabular-nums">
-                {Number(order.quantity).toLocaleString("en-US")} {ticker} @{" "}
-                {money(order.limit_price, currency)}
+                {formatQuantity(order.quantity)} {ticker} @ {money(order.limit_price, currency)}
+              </span>
+              <span className="rounded-sm bg-surface-secondary px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-text-tertiary">
+                Pending
               </span>
               <form action={cancelOrderAction}>
                 <input type="hidden" name="id" value={order.id} />

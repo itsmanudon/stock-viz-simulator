@@ -33,6 +33,7 @@ export function SecurityHeader({
   signedIn,
   inWatchlist,
   hasPosition,
+  callbackUrl,
 }: {
   symbol: SymbolDetail;
   latestClose: number | null;
@@ -41,8 +42,8 @@ export function SecurityHeader({
   signedIn: boolean;
   inWatchlist: boolean;
   hasPosition: boolean;
+  callbackUrl: string;
 }) {
-  const callbackUrl = encodeURIComponent(`/stocks/${symbol.ticker}`);
   const positive = periodReturnPct !== null && periodReturnPct >= 0;
   const quoteDate = latestDate(symbol.latest?.ts);
 
@@ -115,7 +116,7 @@ export function SecurityHeader({
             ) : (
               <>
                 <Link
-                  href={`/login?callbackUrl=${callbackUrl}`}
+                  href={`/login?callbackUrl=${encodeURIComponent(callbackUrl)}`}
                   className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border-muted px-2.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground"
                   aria-label={`Sign in to watch ${symbol.ticker}`}
                 >
@@ -123,7 +124,7 @@ export function SecurityHeader({
                   Watch
                 </Link>
                 <Link
-                  href={`/login?callbackUrl=${callbackUrl}`}
+                  href={`/login?callbackUrl=${encodeURIComponent(callbackUrl)}`}
                   className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border-muted px-2.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground"
                   aria-label={`Sign in to set an alert for ${symbol.ticker}`}
                 >

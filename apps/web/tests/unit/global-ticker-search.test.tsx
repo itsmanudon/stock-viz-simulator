@@ -78,6 +78,19 @@ describe("GlobalTickerSearch", () => {
     expect(push).toHaveBeenCalledWith("/stocks/AAPL?tf=5Y&indicators=sma_50%2Crsi_14");
   });
 
+  it("preserves an explicitly empty indicator selection", async () => {
+    pathname = "/stocks/MSFT";
+    currentSearchParams = new URLSearchParams("tf=1Y&indicators=");
+    const search = vi.fn().mockResolvedValue([symbol("AAPL", "Apple Inc.")]);
+    render(<GlobalTickerSearch search={search} debounceMs={20} />);
+
+    fireEvent.change(screen.getByRole("combobox"), { target: { value: "app" } });
+    await act(() => vi.advanceTimersByTimeAsync(20));
+    fireEvent.mouseDown(screen.getByRole("option", { name: /AAPL/i }));
+
+    expect(push).toHaveBeenCalledWith("/stocks/AAPL?tf=1Y&indicators=");
+  });
+
   it("keeps the newest results when requests resolve out of order", async () => {
     let resolveFirst!: (value: SymbolRow[]) => void;
     const first = new Promise<SymbolRow[]>((resolve) => {

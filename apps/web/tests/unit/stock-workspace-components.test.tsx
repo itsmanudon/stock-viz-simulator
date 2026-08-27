@@ -44,8 +44,8 @@ describe("stock workspace presentation", () => {
         nativeCurrency="USD"
         displayCurrency="USD"
         position={{
-          quantity: 8,
-          availableQuantity: 5,
+          quantity: 0.000001,
+          availableQuantity: 0.000001,
           averageCost: 20,
           marketValue: 200,
           unrealizedPnl: 40,
@@ -56,7 +56,7 @@ describe("stock workspace presentation", () => {
     );
 
     expect(screen.getByRole("heading", { name: "Your AAPL position" })).toBeVisible();
-    expect(screen.getByText("8")).toBeVisible();
+    expect(screen.getByText("0.000001")).toBeVisible();
     expect(screen.getByText("+$40.00")).toBeVisible();
     expect(screen.getByText("+25.00%")).toBeVisible();
     expect(screen.getByText("20.00%")).toBeVisible();
@@ -86,7 +86,15 @@ describe("stock workspace presentation", () => {
 
     expect(screen.getByText("BUY LIMIT")).toBeVisible();
     expect(screen.getByText("5 AAPL @ $180.00")).toBeVisible();
+    expect(screen.getByText("Pending")).toBeVisible();
     expect(screen.getByRole("button", { name: "Cancel AAPL buy limit order" })).toBeVisible();
+  });
+
+  it("distinguishes unavailable order data from a genuine empty state", () => {
+    render(<TickerOrders ticker="AAPL" currency="USD" orders={null} />);
+
+    expect(screen.getByText("Order data is temporarily unavailable.")).toBeVisible();
+    expect(screen.queryByText("No pending orders for AAPL.")).not.toBeInTheDocument();
   });
 
   it("organizes secondary research in keyboard-capable tabs", async () => {

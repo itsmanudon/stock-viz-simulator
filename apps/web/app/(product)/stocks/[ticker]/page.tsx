@@ -35,14 +35,15 @@ import {
 } from "@/lib/api/trading";
 import { listWatchlist } from "@/lib/api/watchlist";
 import {
-  STOCK_INDICATORS,
   STOCK_TIMEFRAMES,
   type StockIndicator,
   type StockTimeframe,
+  buildStockChartHref,
   calculateAllocationPct,
   calculatePeriodReturnPct,
   calculatePositionReturnPct,
-  deriveBarMetrics,
+  deriveTrailingBarMetrics,
+  parseStockIndicators,
 } from "@/lib/stock-workspace";
 
 const TIMEFRAME_DAYS: Record<StockTimeframe, number> = {
@@ -56,15 +57,6 @@ const TIMEFRAME_DAYS: Record<StockTimeframe, number> = {
 
 function parseTimeframe(raw: string | undefined): StockTimeframe {
   return STOCK_TIMEFRAMES.includes(raw as StockTimeframe) ? (raw as StockTimeframe) : "1Y";
-}
-
-function parseIndicators(raw: string | undefined): StockIndicator[] {
-  if (!raw) return ["sma_50"];
-  const valid = new Set(STOCK_INDICATORS.map((indicator) => indicator.value));
-  return raw
-    .split(",")
-    .map((value) => value.trim())
-    .filter((value): value is StockIndicator => valid.has(value as StockIndicator));
 }
 
 function ticketPosition(position: Position, portfolio: Portfolio): TicketPosition {
@@ -95,7 +87,7 @@ export default async function StockPage({
   const [{ ticker: rawTicker }, query] = await Promise.all([params, searchParams]);
   const ticker = rawTicker.toUpperCase();
   const timeframe = parseTimeframe(query.tf);
-  const selectedIndicators = parseIndicators(query.indicators);
+  const selectedIndicators = parseStockIndicators(query.indicators);
   const timeframeDays = TIMEFRAME_DAYS[timeframe];
 
   let symbol: SymbolDetail;
@@ -122,17 +114,17 @@ export default async function StockPage({
   const signedIn = Boolean(session?.user?.id);
   const currentUserId = session?.user?.id ? Number(session.user.id) : null;
   let portfolio: Portfolio | null = null;
-  let tickerOrders: PendingOrder[] = [];
+  let tickerOrders: PendingOrder[] | null = null;
   let inWatchlist = false;
 
   if (signedIn) {
     const [portfolioResult, ordersResult, watchlistResult] = await Promise.all([
       getPortfolio().catch(() => null),
-      listOrders("pending").catch(() => []),
+      listOrders("pending").catch(() => null),
       listWatchlist().catch(() => []),
     ]);
     portfolio = portfolioResult;
-    tickerOrders = ordersResult.filter((order) => order.ticker === ticker);
+    tickerOrders = ordersResult?.filter((order) => order.ticker === ticker) ?? null;
     inWatchlist = watchlistResult.some((item) => item.ticker === ticker);
   }
 
@@ -145,11 +137,18 @@ export default async function StockPage({
         position,
       }
     : null;
+  const positionStatus = !signedIn
+    ? "sign-in"
+    : !portfolio
+      ? "unavailable"
+      : position
+        ? "held"
+        : "not-held";
 
   const latestClose = symbol.latest ? Number(symbol.latest.close) : null;
   const firstClose = bars[0] ? Number(bars[0].close) : null;
   const periodReturnPct = calculatePeriodReturnPct(firstClose, latestClose);
-  const metrics = deriveBarMetrics(rangeBars);
+  const metrics = deriveTrailingBarMetrics(rangeBars);
   const rsiSeries = indicatorBundle.series.rsi_14;
   const latestRsi = rsiSeries?.at(-1)?.value ?? null;
   const overlaySeries = Object.fromEntries(
@@ -159,6 +158,7 @@ export default async function StockPage({
   );
   const showMacd = selectedIndicators.includes("macd");
   const validCurrentUserId = Number.isFinite(currentUserId) ? currentUserId : null;
+  const activeStockUrl = buildStockChartHref(ticker, timeframe, selectedIndicators);
   const ticketProps = {
     ticker,
     name: symbol.name,
@@ -166,7 +166,8 @@ export default async function StockPage({
     latestClose,
     signedIn,
     account,
-    openOrderCount: tickerOrders.length,
+    callbackUrl: activeStockUrl,
+    openOrderCount: tickerOrders?.length ?? (signedIn ? null : 0),
   };
 
   return (
@@ -179,6 +180,7 @@ export default async function StockPage({
         signedIn={signedIn}
         inWatchlist={inWatchlist}
         hasPosition={position !== null}
+        callbackUrl={activeStockUrl}
       />
 
       <div className="mt-4 xl:hidden">
@@ -225,19 +227,27 @@ export default async function StockPage({
       <section aria-label={`${ticker} research`} className="mt-8">
         <StockResearchTabs
           newsCount={news.length}
-          orderCount={tickerOrders.length}
+          orderCount={tickerOrders?.length ?? 0}
           overview={
             <Overview
               symbol={symbol}
               latestTimestamp={metrics.latestTimestamp}
-              hasPosition={position !== null}
+              positionStatus={positionStatus}
             />
           }
           news={<NewsList articles={news} variant="workspace" />}
           positionOrders={
             signedIn ? (
               <div className="space-y-8">
-                {position ? (
+                {!portfolio ? (
+                  <div className="border-y border-border-muted py-6">
+                    <h3 className="text-base font-semibold">Portfolio context unavailable</h3>
+                    <p className="mt-1 text-sm text-warning">
+                      StockViz could not verify your current position or buying power. No holding
+                      status is being inferred.
+                    </p>
+                  </div>
+                ) : position ? (
                   <PositionSummary
                     ticker={ticker}
                     nativeCurrency={symbol.currency}
@@ -256,7 +266,7 @@ export default async function StockPage({
                 <TickerOrders ticker={ticker} currency={symbol.currency} orders={tickerOrders} />
               </div>
             ) : (
-              <GuestPersonalContext ticker={ticker} />
+              <GuestPersonalContext ticker={ticker} callbackUrl={activeStockUrl} />
             )
           }
           discussion={
@@ -276,11 +286,11 @@ export default async function StockPage({
 function Overview({
   symbol,
   latestTimestamp,
-  hasPosition,
+  positionStatus,
 }: {
   symbol: SymbolDetail;
   latestTimestamp: string | null;
-  hasPosition: boolean;
+  positionStatus: "held" | "not-held" | "sign-in" | "unavailable";
 }) {
   const items = [
     ["Ticker", symbol.ticker],
@@ -319,7 +329,13 @@ function Overview({
             Portfolio status
           </dt>
           <dd className="mt-1 text-sm font-medium">
-            {hasPosition ? "Current holding" : "Not held"}
+            {positionStatus === "held"
+              ? "Current holding"
+              : positionStatus === "not-held"
+                ? "Not held"
+                : positionStatus === "sign-in"
+                  ? "Sign in to view"
+                  : "Unavailable"}
           </dd>
         </div>
       </dl>
@@ -327,7 +343,7 @@ function Overview({
   );
 }
 
-function GuestPersonalContext({ ticker }: { ticker: string }) {
+function GuestPersonalContext({ ticker, callbackUrl }: { ticker: string; callbackUrl: string }) {
   return (
     <div className="border-y border-border-muted py-7">
       <h3 className="text-base font-semibold">Your position and orders</h3>
@@ -336,7 +352,7 @@ function GuestPersonalContext({ ticker }: { ticker: string }) {
         manage pending paper orders.
       </p>
       <Link
-        href={`/login?callbackUrl=${encodeURIComponent(`/stocks/${ticker}`)}`}
+        href={`/login?callbackUrl=${encodeURIComponent(callbackUrl)}`}
         className="mt-4 inline-flex h-9 items-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
       >
         Sign in

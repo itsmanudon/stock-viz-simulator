@@ -15,7 +15,7 @@ test("guest can research a stock and retain shareable chart state", async ({ pag
 
   await expect(page.getByRole("heading", { level: 1, name: /Apple Inc\./ })).toBeVisible();
   await expect(page.getByText("Latest close", { exact: false }).first()).toBeVisible();
-  await expect(page.getByLabel("AAPL price chart")).toBeVisible();
+  await expect(page.getByRole("region", { name: "AAPL price chart" }).first()).toBeVisible();
   await expect(
     page.locator("aside").getByRole("link", { name: "Sign in to trade AAPL" }),
   ).toBeVisible();
@@ -24,9 +24,17 @@ test("guest can research a stock and retain shareable chart state", async ({ pag
   await expect(page).toHaveURL(/\/stocks\/AAPL\?tf=5Y&indicators=sma_50/);
 
   await page.getByRole("button", { name: /Indicators, 1 selected/ }).click();
+  await page.getByRole("menuitemcheckbox", { name: "SMA 50" }).click();
+  await expect(page).toHaveURL(/tf=5Y&indicators=$/);
+  await expect(page.getByRole("menu", { name: /Indicators, 0 selected/ })).toBeVisible();
+
   await page.getByRole("menuitemcheckbox", { name: "RSI 14" }).click();
   await expect(page).toHaveURL(/tf=5Y/);
-  await expect(page).toHaveURL(/indicators=sma_50%2Crsi_14/);
+  await expect(page).toHaveURL(/indicators=rsi_14/);
+  await page.keyboard.press("Escape");
+  await expect(
+    page.locator("aside").getByRole("link", { name: "Sign in to trade AAPL" }),
+  ).toHaveAttribute("href", "/login?callbackUrl=%2Fstocks%2FAAPL%3Ftf%3D5Y%26indicators%3Drsi_14");
 });
 
 test("mobile research opens trading as an intentional bottom sheet", async ({ page }) => {
@@ -50,11 +58,10 @@ test("desktop workspace preserves chart dominance at workstation widths", async 
     await page.setViewportSize(viewport);
     await page.goto("/stocks/AAPL");
 
-    const chart = await page.getByLabel("AAPL price chart").boundingBox();
-    const ticket = await page
-      .locator('aside[aria-label="Paper trade AAPL"]')
-      .first()
-      .boundingBox();
+    const chartRegion = page.getByRole("region", { name: "AAPL price chart" });
+    await expect(chartRegion).toBeVisible();
+    const chart = await chartRegion.boundingBox();
+    const ticket = await page.locator('aside[aria-label="Paper trade AAPL"]').first().boundingBox();
     expect(chart).not.toBeNull();
     expect(ticket).not.toBeNull();
     expect(ticket?.width).toBeGreaterThanOrEqual(300);

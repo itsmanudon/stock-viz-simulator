@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   estimateNotional,
+  formatQuantity,
   getBuyShortcutQuantity,
   getSellShortcutQuantity,
 } from "@/lib/stock-workspace";
@@ -44,8 +45,9 @@ export type ContextualTradeTicketProps = {
   latestClose: number | null;
   signedIn: boolean;
   account: TradeTicketAccount | null;
+  callbackUrl: string;
   initialSide?: Side;
-  openOrderCount?: number;
+  openOrderCount?: number | null;
 };
 
 const SHORTCUTS = [
@@ -79,6 +81,7 @@ export function ContextualTradeTicket({
   latestClose,
   signedIn,
   account,
+  callbackUrl,
   initialSide = "buy",
   openOrderCount = 0,
 }: ContextualTradeTicketProps) {
@@ -97,7 +100,6 @@ export function ContextualTradeTicket({
   );
 
   if (!signedIn) {
-    const callbackUrl = encodeURIComponent(`/stocks/${ticker}`);
     return (
       <section aria-labelledby={`${fieldId}-title`} className="space-y-5">
         <TicketHeading id={`${fieldId}-title`} ticker={ticker} />
@@ -109,7 +111,7 @@ export function ContextualTradeTicket({
         </div>
         <Button asChild className="w-full">
           <Link
-            href={`/login?callbackUrl=${callbackUrl}`}
+            href={`/login?callbackUrl=${encodeURIComponent(callbackUrl)}`}
             aria-label={`Sign in to trade ${ticker}`}
           >
             Sign in to paper trade
@@ -179,7 +181,7 @@ export function ContextualTradeTicket({
           <div>
             <p className="text-muted-foreground">Current position</p>
             <p className="mt-0.5 font-mono font-medium tabular-nums">
-              {position.quantity.toLocaleString("en-US")} shares
+              {formatQuantity(position.quantity)} shares
             </p>
           </div>
           <div className="text-right">
@@ -189,13 +191,19 @@ export function ContextualTradeTicket({
                 {formatMoney(position.unrealizedPnl, account?.displayCurrency ?? currency)}
               </span>
             </p>
-            {openOrderCount ? (
+            {openOrderCount === null ? (
+              <p className="mt-0.5 text-warning">Orders unavailable</p>
+            ) : openOrderCount ? (
               <p className="mt-0.5 text-text-tertiary">
                 {openOrderCount} open {openOrderCount === 1 ? "order" : "orders"}
               </p>
             ) : null}
           </div>
         </div>
+      ) : openOrderCount === null ? (
+        <p className="border-y border-border-muted py-3 text-xs text-warning">
+          Open-order context is temporarily unavailable.
+        </p>
       ) : openOrderCount ? (
         <p className="border-y border-border-muted py-3 text-xs text-muted-foreground">
           {openOrderCount} open {openOrderCount === 1 ? "order" : "orders"} for {ticker}
@@ -264,7 +272,7 @@ export function ContextualTradeTicket({
             <Label htmlFor={`${fieldId}-quantity`}>Quantity</Label>
             {effectiveSide === "sell" && position ? (
               <span className="font-mono text-xs text-muted-foreground">
-                {availableQuantity.toLocaleString("en-US")} available
+                {formatQuantity(availableQuantity)} available
               </span>
             ) : null}
           </div>
@@ -279,6 +287,8 @@ export function ContextualTradeTicket({
             value={quantity}
             onChange={(event) => setQuantity(event.target.value)}
             className="font-mono tabular-nums"
+            aria-invalid={Boolean(error)}
+            aria-describedby={error ? `${fieldId}-error` : undefined}
           />
           {shortcutValues.some((shortcut) => shortcut.quantity !== null) ? (
             <div className="grid grid-cols-4 gap-1.5">
@@ -326,6 +336,8 @@ export function ContextualTradeTicket({
                 onChange={(event) => setTriggerPrice(event.target.value)}
                 placeholder="0.00"
                 className="pr-14 font-mono tabular-nums"
+                aria-invalid={Boolean(error)}
+                aria-describedby={error ? `${fieldId}-error` : undefined}
               />
               <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-text-tertiary">
                 {currency}
@@ -342,7 +354,7 @@ export function ContextualTradeTicket({
             <dd className="font-mono tabular-nums">
               {effectiveSide === "buy"
                 ? buyingPower
-                : `${availableQuantity.toLocaleString("en-US")} ${ticker}`}
+                : `${formatQuantity(availableQuantity)} ${ticker}`}
             </dd>
           </div>
           <div className="flex items-center justify-between gap-4">
@@ -361,7 +373,7 @@ export function ContextualTradeTicket({
         </dl>
 
         {error ? (
-          <p className="text-sm text-negative" role="alert">
+          <p id={`${fieldId}-error`} className="text-sm text-negative" role="alert">
             {error}
           </p>
         ) : null}
@@ -385,8 +397,7 @@ export function ContextualTradeTicket({
             Protect position
           </summary>
           <p className="mt-2 text-xs leading-5 text-text-tertiary">
-            Create a sell trigger against your {availableQuantity.toLocaleString("en-US")} available
-            shares.
+            Create a sell trigger against your {formatQuantity(availableQuantity)} available shares.
           </p>
           <div className="mt-3 grid grid-cols-2 gap-2">
             <Button

@@ -15,6 +15,37 @@ export const STOCK_INDICATORS = [
 export type StockTimeframe = (typeof STOCK_TIMEFRAMES)[number];
 export type StockIndicator = (typeof STOCK_INDICATORS)[number]["value"];
 
+export function parseStockIndicators(raw: string | undefined): StockIndicator[] {
+  if (raw === undefined) return ["sma_50"];
+  if (raw === "") return [];
+  const valid = new Set(STOCK_INDICATORS.map((indicator) => indicator.value));
+  return raw
+    .split(",")
+    .map((value) => value.trim())
+    .filter((value): value is StockIndicator => valid.has(value as StockIndicator));
+}
+
+export function buildStockChartHref(
+  ticker: string,
+  timeframe: StockTimeframe,
+  indicators: StockIndicator[],
+): string {
+  const params = new URLSearchParams();
+  params.set("tf", timeframe);
+  params.set("indicators", indicators.join(","));
+  return `/stocks/${ticker}?${params.toString()}`;
+}
+
+export function formatQuantity(value: number | string): string {
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue)) return "—";
+  return new Intl.NumberFormat("en-US", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 6,
+    useGrouping: true,
+  }).format(numericValue);
+}
+
 function isPositiveFinite(value: number): boolean {
   return Number.isFinite(value) && value > 0;
 }
@@ -142,4 +173,8 @@ export function deriveBarMetrics(bars: Bar[]): BarMetrics {
     rangeLow: lows.length ? Math.min(...lows) : null,
     latestTimestamp: latest.ts,
   };
+}
+
+export function deriveTrailingBarMetrics(bars: Bar[], window = 252): BarMetrics {
+  return deriveBarMetrics(bars.slice(-window));
 }

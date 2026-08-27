@@ -16,6 +16,7 @@ describe("MobileTradeSheet", () => {
         name="Apple Inc."
         currency="USD"
         latestClose={25}
+        callbackUrl="/stocks/AAPL?tf=1Y&indicators=sma_50"
         signedIn
         account={{ displayCurrency: "USD", availableCash: 100, position: null }}
       />,

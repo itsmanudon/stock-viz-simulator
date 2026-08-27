@@ -1,4 +1,5 @@
 import type { TicketPosition } from "@/components/contextual-trade-ticket";
+import { formatQuantity } from "@/lib/stock-workspace";
 
 function money(value: number, currency: string, signed = false): string {
   let formatted: string;
@@ -54,15 +55,14 @@ export function PositionSummary({
         </p>
       </div>
       <dl className="grid grid-cols-2 gap-x-6 gap-y-4 border-y border-border-muted py-4 sm:grid-cols-4">
-        <Metric label="Quantity" value={position.quantity.toLocaleString("en-US")} />
+        <Metric label="Quantity" value={formatQuantity(position.quantity)} />
         <Metric label="Average cost" value={money(position.averageCost, nativeCurrency)} />
         <Metric label="Current value" value={money(position.marketValue, displayCurrency)} />
         <Metric label="Portfolio allocation" value={percentage(position.allocationPct)} />
       </dl>
       {position.availableQuantity < position.quantity ? (
         <p className="text-xs text-muted-foreground">
-          {position.availableQuantity.toLocaleString("en-US")} shares remain available after open
-          orders.
+          {formatQuantity(position.availableQuantity)} shares remain available after open orders.
         </p>
       ) : null}
     </section>

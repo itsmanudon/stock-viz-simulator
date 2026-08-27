@@ -76,9 +76,10 @@ export function GlobalTickerSearch({
     const destination = new URLSearchParams();
     if (pathname.startsWith("/stocks/")) {
       const timeframe = searchParams.get("tf");
-      const indicators = searchParams.get("indicators");
       if (timeframe) destination.set("tf", timeframe);
-      if (indicators) destination.set("indicators", indicators);
+      if (searchParams.has("indicators")) {
+        destination.set("indicators", searchParams.get("indicators") ?? "");
+      }
     }
     const queryString = destination.toString();
     router.push(

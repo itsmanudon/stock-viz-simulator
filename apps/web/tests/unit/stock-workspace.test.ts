@@ -2,13 +2,17 @@ import { describe, expect, it } from "vitest";
 
 import type { Bar } from "@/lib/api/types";
 import {
+  buildStockChartHref,
   calculateAllocationPct,
   calculatePeriodReturnPct,
   calculatePositionReturnPct,
   deriveBarMetrics,
+  deriveTrailingBarMetrics,
   estimateNotional,
+  formatQuantity,
   getBuyShortcutQuantity,
   getSellShortcutQuantity,
+  parseStockIndicators,
 } from "@/lib/stock-workspace";
 
 function bar(
@@ -112,5 +116,38 @@ describe("stock workspace financial calculations", () => {
       rangeLow: null,
       latestTimestamp: null,
     });
+  });
+
+  it("limits a 52-week range to the trailing 252 sessions", () => {
+    const history = [
+      bar("2025-08-01", "900", "999", "1", "500", 1),
+      ...Array.from({ length: 252 }, (_, index) =>
+        bar(
+          `2026-${String(Math.floor(index / 28) + 1).padStart(2, "0")}-${String((index % 28) + 1).padStart(2, "0")}`,
+          "100",
+          String(120 + (index % 5)),
+          String(80 - (index % 5)),
+          "110",
+          1_000,
+        ),
+      ),
+    ];
+
+    const metrics = deriveTrailingBarMetrics(history, 252);
+    expect(metrics.rangeHigh).toBe(124);
+    expect(metrics.rangeLow).toBe(76);
+  });
+
+  it("formats fractional share quantities at the backend's six-decimal precision", () => {
+    expect(formatQuantity("0.000001")).toBe("0.000001");
+    expect(formatQuantity(3.625)).toBe("3.625");
+    expect(formatQuantity("1000.000000")).toBe("1,000");
+  });
+
+  it("distinguishes default indicators from an explicitly empty selection", () => {
+    expect(parseStockIndicators(undefined)).toEqual(["sma_50"]);
+    expect(parseStockIndicators("")).toEqual([]);
+    expect(parseStockIndicators("sma_20,unknown,rsi_14")).toEqual(["sma_20", "rsi_14"]);
+    expect(buildStockChartHref("AAPL", "1Y", [])).toBe("/stocks/AAPL?tf=1Y&indicators=");
   });
 });

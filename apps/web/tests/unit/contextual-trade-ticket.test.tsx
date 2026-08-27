@@ -13,6 +13,7 @@ const baseProps = {
   name: "Apple Inc.",
   currency: "USD",
   latestClose: 25,
+  callbackUrl: "/stocks/AAPL?tf=1Y&indicators=sma_50",
 };
 
 const account = {
@@ -28,7 +29,7 @@ describe("ContextualTradeTicket", () => {
     expect(screen.getByRole("heading", { name: "Paper trade" })).toBeVisible();
     expect(screen.getByRole("link", { name: "Sign in to trade AAPL" })).toHaveAttribute(
       "href",
-      "/login?callbackUrl=%2Fstocks%2FAAPL",
+      "/login?callbackUrl=%2Fstocks%2FAAPL%3Ftf%3D1Y%26indicators%3Dsma_50",
     );
   });
 
