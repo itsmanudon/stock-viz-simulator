@@ -250,6 +250,100 @@ class TradeOut(BaseModel):
     realized_pnl: Decimal | None = None
 
 
+class ReplaySnapshotIn(BaseModel):
+    """Caller-supplied OHLC. Replay does not load stored bars (that is SIM-06)."""
+
+    ticker: str | None = None
+    interval: str = "1d"
+    open: Decimal
+    high: Decimal
+    low: Decimal
+    close: Decimal
+    volume: Decimal
+    observed_at: datetime | None = None
+
+
+class ReplaySessionCreateIn(BaseModel):
+    """Open an isolated replay book. ``clock_now`` is required — never wall-clock."""
+
+    clock_now: datetime
+    starting_cash: Decimal = Field(default=Decimal("100000.00"))
+    profile_name: str = "legacy_close"
+    model_version: str = "v1"
+
+
+class ReplayClockIn(BaseModel):
+    now: datetime
+
+
+class ReplayOrderIn(BaseModel):
+    ticker: str
+    side: Literal["buy", "sell"]
+    order_type: Literal["market", "limit", "stop_loss", "take_profit"] = "market"
+    quantity: Decimal
+    limit_price: Decimal | None = None
+    submitted_at: datetime | None = None
+    snapshot: ReplaySnapshotIn
+
+
+class ReplayPositionOut(BaseModel):
+    ticker: str
+    quantity: Decimal
+    avg_cost: Decimal
+
+
+class ReplayFillOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    session_id: int
+    ticker: str
+    side: str
+    quantity: Decimal
+    fill_price: Decimal
+    realized_pnl: Decimal | None = None
+    profile_name: str
+    model_version: str
+    reference_price: Decimal | None
+    reason: str
+    assumptions: list[str]
+    market_interval: str
+    order_type: str
+    evaluated_at: datetime
+    created_at: datetime
+
+
+class ReplaySessionOut(BaseModel):
+    id: int
+    profile_name: str
+    model_version: str
+    clock_now: datetime
+    starting_cash: Decimal
+    cash_balance: Decimal
+    status: str
+    created_at: datetime
+    updated_at: datetime
+    positions: list[ReplayPositionOut] = []
+
+
+class ReplayDecisionOut(BaseModel):
+    status: str
+    fill_quantity: Decimal
+    fill_price: Decimal | None
+    remaining_quantity: Decimal
+    reason: str
+    profile_name: str
+    model_version: str
+    reference_price: Decimal | None
+    assumptions: list[str]
+
+
+class ReplaySubmitOut(BaseModel):
+    session: ReplaySessionOut
+    decision: ReplayDecisionOut
+    fill: ReplayFillOut | None = None
+
+
 class ExecutionProvenanceOut(BaseModel):
     """Durable kernel provenance for one live equity paper fill (SIM-04).
 
