@@ -13,9 +13,10 @@ describe("getActiveNavigation", () => {
   it.each([
     ["/dashboard", "/dashboard", "/dashboard"],
     ["/markets", "/markets", "/markets"],
-    ["/stocks/AAPL", "/screener", null],
-    ["/compare?tickers=AAPL", "/screener", "/compare"],
-    ["/backtest", "/trade", "/backtest"],
+    ["/stocks/AAPL", "/compare", null],
+    ["/compare?tickers=AAPL", "/compare", "/compare"],
+    ["/backtest?ticker=AAPL", "/compare", "/backtest"],
+    ["/recommendations", "/compare", "/recommendations"],
     ["/orders/42", "/trade", "/orders"],
     ["/watchlist", "/portfolio", "/watchlist"],
     ["/trades", "/portfolio", "/trades"],
@@ -28,14 +29,17 @@ describe("getActiveNavigation", () => {
     expect(getActiveNavigation("/login")).toEqual({ groupHref: null, itemHref: null });
   });
 
-  it("defines six top-level product domains", () => {
-    expect(APP_NAVIGATION.map((group) => group.label)).toEqual([
-      "Home",
-      "Markets",
-      "Research",
-      "Trade",
-      "Portfolio",
-      "Community",
+  it("places Compare, Backtest, and Signals under Research", () => {
+    const research = APP_NAVIGATION.find((group) => group.label === "Research");
+    expect(research?.href).toBe("/compare");
+    expect(research?.items?.map((item) => item.label)).toEqual([
+      "Compare",
+      "Backtest",
+      "Signals",
+      "Screener",
+      "News",
     ]);
+    const trade = APP_NAVIGATION.find((group) => group.label === "Trade");
+    expect(trade?.items?.map((item) => item.label)).not.toContain("Backtest");
   });
 });

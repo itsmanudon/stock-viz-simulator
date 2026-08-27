@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 
 const PUBLIC_LINKS = [
   { href: "/markets", label: "Markets" },
-  { href: "/screener", label: "Research" },
+  { href: "/compare", label: "Research" },
   { href: "/backtest", label: "Backtest" },
 ];
 

@@ -13,27 +13,23 @@ export const APP_NAVIGATION: readonly NavigationGroup[] = [
   { label: "Markets", href: "/markets", matches: ["/markets"] },
   {
     label: "Research",
-    href: "/screener",
-    matches: ["/screener", "/compare", "/recommendations", "/news", "/stocks"],
+    href: "/compare",
+    matches: ["/screener", "/compare", "/recommendations", "/news", "/stocks", "/backtest"],
     items: [
-      { label: "Screener", href: "/screener", matches: ["/screener"] },
       { label: "Compare", href: "/compare", matches: ["/compare"] },
-      {
-        label: "Recommendations",
-        href: "/recommendations",
-        matches: ["/recommendations"],
-      },
+      { label: "Backtest", href: "/backtest", matches: ["/backtest"] },
+      { label: "Signals", href: "/recommendations", matches: ["/recommendations"] },
+      { label: "Screener", href: "/screener", matches: ["/screener"] },
       { label: "News", href: "/news", matches: ["/news"] },
     ],
   },
   {
     label: "Trade",
     href: "/trade",
-    matches: ["/trade", "/orders", "/backtest"],
+    matches: ["/trade", "/orders"],
     items: [
       { label: "Trade ticket", href: "/trade", matches: ["/trade"] },
       { label: "Orders", href: "/orders", matches: ["/orders"] },
-      { label: "Backtest", href: "/backtest", matches: ["/backtest"] },
     ],
   },
   {
@@ -52,6 +48,12 @@ export const APP_NAVIGATION: readonly NavigationGroup[] = [
     matches: ["/leaderboard"],
     items: [{ label: "Leaderboard", href: "/leaderboard", matches: ["/leaderboard"] }],
   },
+] as const;
+
+export const RESEARCH_SUBNAV = [
+  { href: "/compare", label: "Compare" },
+  { href: "/backtest", label: "Backtest" },
+  { href: "/recommendations", label: "Signals" },
 ] as const;
 
 export function pathMatches(pathname: string, prefixes: readonly string[]): boolean {
