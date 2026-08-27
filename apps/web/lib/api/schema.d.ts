@@ -706,7 +706,7 @@ export interface paths {
         put?: never;
         /**
          * Post Replay Session
-         * @description Create an isolated replay book pinned to a registered execution profile.
+         * @description Create an isolated replay book over a frozen stored-1d ticker range.
          */
         post: operations["post_replay_session_v1_replay_sessions_post"];
         delete?: never;
@@ -732,7 +732,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/v1/replay/sessions/{session_id}/clock": {
+    "/v1/replay/sessions/{session_id}/advance": {
         parameters: {
             query?: never;
             header?: never;
@@ -742,17 +742,17 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Post Replay Clock
-         * @description Advance the simulation clock. Does not walk bars or settle orders.
+         * Post Replay Advance
+         * @description Advance one stored 1d bar. Completes when the frozen end is reached.
          */
-        post: operations["post_replay_clock_v1_replay_sessions__session_id__clock_post"];
+        post: operations["post_replay_advance_v1_replay_sessions__session_id__advance_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/v1/replay/sessions/{session_id}/close": {
+    "/v1/replay/sessions/{session_id}/cancel": {
         parameters: {
             query?: never;
             header?: never;
@@ -761,8 +761,42 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Post Replay Close */
-        post: operations["post_replay_close_v1_replay_sessions__session_id__close_post"];
+        /** Post Replay Cancel */
+        post: operations["post_replay_cancel_v1_replay_sessions__session_id__cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/replay/sessions/{session_id}/market": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Replay Market */
+        get: operations["get_replay_market_v1_replay_sessions__session_id__market_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/replay/sessions/{session_id}/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Replay History */
+        get: operations["get_replay_history_v1_replay_sessions__session_id__history_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -780,7 +814,7 @@ export interface paths {
         put?: never;
         /**
          * Post Replay Order
-         * @description Evaluate a caller-supplied snapshot at the session clock; fill if the kernel says so.
+         * @description Fill against the server-authoritative current bar. Intent only.
          */
         post: operations["post_replay_order_v1_replay_sessions__session_id__orders_post"];
         delete?: never;
@@ -1658,13 +1692,27 @@ export interface components {
             /** Detail */
             detail: string;
         };
-        /** ReplayClockIn */
-        ReplayClockIn: {
+        /** ReplayBarOut */
+        ReplayBarOut: {
+            /** Ticker */
+            ticker: string;
             /**
-             * Now
+             * Ts
              * Format: date-time
              */
-            now: string;
+            ts: string;
+            /** Interval */
+            interval: string;
+            /** Open */
+            open: string;
+            /** High */
+            high: string;
+            /** Low */
+            low: string;
+            /** Close */
+            close: string;
+            /** Volume */
+            volume: number;
         };
         /** ReplayDecisionOut */
         ReplayDecisionOut: {
@@ -1728,10 +1776,36 @@ export interface components {
              */
             created_at: string;
         };
-        /** ReplayOrderIn */
-        ReplayOrderIn: {
+        /** ReplayMarketOut */
+        ReplayMarketOut: {
             /** Ticker */
             ticker: string;
+            /**
+             * Current At
+             * Format: date-time
+             */
+            current_at: string;
+            /**
+             * Start At
+             * Format: date-time
+             */
+            start_at: string;
+            /**
+             * End At
+             * Format: date-time
+             */
+            end_at: string;
+            /** Has Next */
+            has_next: boolean;
+            /** Status */
+            status: string;
+            bar: components["schemas"]["ReplayBarOut"];
+        };
+        /**
+         * ReplayOrderIn
+         * @description Intent only. Prices come from the session's current stored bar.
+         */
+        ReplayOrderIn: {
             /**
              * Side
              * @enum {string}
@@ -1747,9 +1821,6 @@ export interface components {
             quantity: number | string;
             /** Limit Price */
             limit_price?: number | string | null;
-            /** Submitted At */
-            submitted_at?: string | null;
-            snapshot: components["schemas"]["ReplaySnapshotIn"];
         };
         /** ReplayPositionOut */
         ReplayPositionOut: {
@@ -1762,49 +1833,66 @@ export interface components {
         };
         /**
          * ReplaySessionCreateIn
-         * @description Open an isolated replay book. ``clock_now`` is required — never wall-clock.
+         * @description Open an isolated replay book over a frozen stored-1d range.
+         *
+         *     ``start_at`` snaps to the first 1d bar at-or-after the request.
+         *     ``end_at`` snaps to the last 1d bar at-or-before the request (or the latest
+         *     stored bar at creation if omitted). Profile is server-pinned.
          */
         ReplaySessionCreateIn: {
+            /** Ticker */
+            ticker: string;
             /**
-             * Clock Now
+             * Start At
              * Format: date-time
              */
-            clock_now: string;
+            start_at: string;
+            /** End At */
+            end_at?: string | null;
             /**
              * Starting Cash
              * @default 100000.00
              */
             starting_cash: number | string;
-            /**
-             * Profile Name
-             * @default legacy_close
-             */
-            profile_name: string;
-            /**
-             * Model Version
-             * @default v1
-             */
-            model_version: string;
         };
         /** ReplaySessionOut */
         ReplaySessionOut: {
             /** Id */
             id: number;
+            /** Ticker */
+            ticker: string;
             /** Profile Name */
             profile_name: string;
             /** Model Version */
             model_version: string;
             /**
-             * Clock Now
+             * Start At
              * Format: date-time
              */
-            clock_now: string;
+            start_at: string;
+            /**
+             * Current At
+             * Format: date-time
+             */
+            current_at: string;
+            /**
+             * End At
+             * Format: date-time
+             */
+            end_at: string;
             /** Starting Cash */
             starting_cash: string;
             /** Cash Balance */
             cash_balance: string;
             /** Status */
             status: string;
+            /**
+             * Has Next
+             * @default false
+             */
+            has_next: boolean;
+            /** Completed At */
+            completed_at?: string | null;
             /**
              * Created At
              * Format: date-time
@@ -1820,31 +1908,6 @@ export interface components {
              * @default []
              */
             positions: components["schemas"]["ReplayPositionOut"][];
-        };
-        /**
-         * ReplaySnapshotIn
-         * @description Caller-supplied OHLC. Replay does not load stored bars (that is SIM-06).
-         */
-        ReplaySnapshotIn: {
-            /** Ticker */
-            ticker?: string | null;
-            /**
-             * Interval
-             * @default 1d
-             */
-            interval: string;
-            /** Open */
-            open: number | string;
-            /** High */
-            high: number | string;
-            /** Low */
-            low: number | string;
-            /** Close */
-            close: number | string;
-            /** Volume */
-            volume: number | string;
-            /** Observed At */
-            observed_at?: string | null;
         };
         /** ReplaySubmitOut */
         ReplaySubmitOut: {
@@ -3531,7 +3594,7 @@ export interface operations {
             };
         };
     };
-    post_replay_clock_v1_replay_sessions__session_id__clock_post: {
+    post_replay_advance_v1_replay_sessions__session_id__advance_post: {
         parameters: {
             query?: never;
             header?: {
@@ -3542,11 +3605,7 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ReplayClockIn"];
-            };
-        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
             200: {
@@ -3568,7 +3627,7 @@ export interface operations {
             };
         };
     };
-    post_replay_close_v1_replay_sessions__session_id__close_post: {
+    post_replay_cancel_v1_replay_sessions__session_id__cancel_post: {
         parameters: {
             query?: never;
             header?: {
@@ -3588,6 +3647,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ReplaySessionOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_replay_market_v1_replay_sessions__session_id__market_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                session_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReplayMarketOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_replay_history_v1_replay_sessions__session_id__history_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                session_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReplayBarOut"][];
                 };
             };
             /** @description Validation Error */
