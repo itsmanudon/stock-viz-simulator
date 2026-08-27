@@ -223,11 +223,13 @@ intraday fills anywhere in the app:
   `execute.apply_fill`, which owns the cash/position mutation. Keep it that
   way: when the two had separate copies, only one of them converted native
   currency to USD.
-- **Execution kernel (SIM-01).** `services/simulation.evaluate_order` is a pure
-  function that reproduces the close-only fill rules above. Live
-  `execute_trade` / `settle_pending_orders` do **not** call it yet (SIM-02 /
-  SIM-03). The package must stay free of Session, FX, settings, Kafka, and
-  clocks. Account failures stay in the trading layer.
+- **Execution kernel.** `services/simulation.evaluate_order` is a pure
+  function. Live **MARKET** fills (`execute_trade`) call it with
+  `LEGACY_CLOSE` and pass `decision.fill_price` into `apply_fill` (SIM-02).
+  Pending `settle_pending_orders` still uses `_should_fill` (SIM-03). The
+  simulation package must stay free of Session, FX, settings, Kafka, and
+  clocks. Account failures stay in the trading layer. Live MARKET
+  `observed_at` is evaluation time, not `PriceBar.ts`.
 - **Options count toward NAV.** `compute_portfolio` marks open contracts to
   their Black-Scholes value (`options_market_value`). Without it, buying an
   option debited cash and recorded no offsetting asset.

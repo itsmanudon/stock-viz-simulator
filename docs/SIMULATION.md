@@ -4,17 +4,17 @@ SIM-01 introduces a **pure, deterministic execution engine**: given an order
 intent, an observable market snapshot, and an execution profile, should this
 order fill, at what price, and why?
 
-This document describes that kernel. It does **not** claim that live paper
-trading already uses it.
+This document describes that kernel and how live paper **MARKET** orders use
+it. Pending limit/stop/take-profit orders still settle outside the kernel.
 
 ## Status
 
-| Layer | SIM-01 |
+| Layer | Status |
 | --- | --- |
-| Pure kernel (`apps/api/src/stockviz/services/simulation`) | Implemented |
-| `legacy_close` profile matching current fill rules | Implemented |
-| Live `execute_trade` / market fills | **Unchanged** — still `services/trading/execute.py` |
-| Live pending-order settlement | **Unchanged** — still `services/trading/orders.py` |
+| Pure kernel (`apps/api/src/stockviz/services/simulation`) | Implemented (SIM-01) |
+| Live `execute_trade` / **MARKET** fills | **SIM-02:** routed through `evaluate_order(..., LEGACY_CLOSE)` |
+| Live pending-order settlement | **Unchanged** — `services/trading/orders.py::_should_fill` (SIM-03) |
+| Backtester | **Unchanged** — separate engine (SIM-08) |
 | Kafka `trade.executed.v1` | **Unchanged** |
 | Database / API / frontend | **Unchanged** |
 
@@ -94,6 +94,21 @@ that close time, not the bar's open, and not `datetime.now()`.
 OHLC fields are present on the snapshot so later profiles can use them. The
 `legacy_close` profile **does not** read `open` / `high` / `low` for triggers
 or fill prices. Volume is unused.
+
+### Live MARKET adapter (SIM-02)
+
+`PriceBar.ts` remains the bar's market/session timestamp. It is **not** copied
+into `MarketSnapshot.observed_at`.
+
+The stored 1d close is already the paper-trading quote at order time. The
+adapter therefore sets both `OrderIntent.submitted_at` and
+`MarketSnapshot.observed_at` to the same aware UTC evaluation instant. That
+does not rewrite historical bar chronology; it states that this close is
+allowed to influence **this** live ticket.
+
+Using `bar.ts` as `observed_at` would be wrong: a naive midnight bar can be
+strictly before `submitted_at`, and the kernel would refuse a fill that
+today's paper path must still complete.
 
 ## Temporal eligibility
 
@@ -194,11 +209,11 @@ and must not be passed to `evaluate_order` expecting a fill.
 Do not add stub classes that pretend these work. SIM-04 is the versioned
 profile + trace persistence task.
 
-## Later program (not this PR)
+## Later program
 
 | ID | Scope |
 | --- | --- |
-| SIM-02 | Route current **market** fills through `legacy_close` (adapter only; economics unchanged) |
+| SIM-02 | **Done.** Live MARKET fills call `evaluate_order(..., LEGACY_CLOSE)`; `apply_fill` is unchanged |
 | SIM-03 | Route **pending** conditional orders through the same kernel |
 | SIM-04 | Versioned profiles + persist execution traces |
 | SIM-05 | ReplaySession + simulation clock |
@@ -208,6 +223,5 @@ profile + trace persistence task.
 | SIM-09 | Intraday market data |
 | SIM-10 | Liquidity + partial fills |
 
-Until SIM-02/SIM-03, treating kernel tests as proof of live fill behavior is
-wrong. Parity tests pin the kernel to today's `_should_fill` / latest-close
-rules; they do not rewire `apply_fill`.
+Kernel unit tests still do not prove pending-order or backtest behavior.
+Live MARKET tests in `test_market_kernel_integration.py` pin the adapter.
