@@ -44,7 +44,8 @@ Trade, Orders, Watchlist, and Alerts form the operational trading loop; see
 [`docs/OPERATIONAL_TRADING.md`](./docs/OPERATIONAL_TRADING.md). All live
 equity paper fills (MARKET, LIMIT, STOP_LOSS, TAKE_PROFIT) go through a
 pure execution kernel (`legacy_close`); cash/positions still mutate in
-`apply_fill`. See [`docs/SIMULATION.md`](./docs/SIMULATION.md).
+`apply_fill`. Successful live fills persist versioned execution provenance.
+See [`docs/SIMULATION.md`](./docs/SIMULATION.md).
 
 Market and news ingest are **event-driven**. APScheduler enqueues durable
 outbox requests; Kafka workers fetch providers and write Postgres. Metrics

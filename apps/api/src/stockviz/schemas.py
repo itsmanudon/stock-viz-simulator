@@ -250,6 +250,29 @@ class TradeOut(BaseModel):
     realized_pnl: Decimal | None = None
 
 
+class ExecutionProvenanceOut(BaseModel):
+    """Durable kernel provenance for one live equity paper fill (SIM-04).
+
+    Absent for trades written before provenance existed. ``evaluated_at`` is
+    the adapter evaluation instant (UTC); ``created_at`` is when the row was
+    persisted.
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+
+    trade_id: int
+    profile_name: str
+    model_version: str
+    reference_price: Decimal | None
+    fill_price: Decimal
+    reason: str
+    assumptions: list[str]
+    market_interval: str
+    order_type: str
+    evaluated_at: datetime
+    created_at: datetime
+
+
 class PortfolioHistoryPointOut(BaseModel):
     """One row of the equity-curve series returned by /v1/portfolio/history."""
 

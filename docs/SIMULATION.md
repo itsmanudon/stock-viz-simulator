@@ -5,9 +5,11 @@ intent, an observable market snapshot, and an execution profile, should this
 order fill, at what price, and why?
 
 **All live equity paper-order execution decisions** (MARKET, LIMIT, STOP_LOSS,
-TAKE_PROFIT) now go through `evaluate_order(..., LEGACY_CLOSE)`. Accounting
-still mutates only in `apply_fill`. Execution realism has **not** improved:
-the profile is still close-only `legacy_close`, and pending settlement still
+TAKE_PROFIT) go through `evaluate_order(..., LIVE_PAPER_EXECUTION_PROFILE)`
+where that constant is canonical `LEGACY_CLOSE`. Accounting still mutates
+only in `apply_fill`. Successful fills persist a `SimulatedExecution` row
+from the same `FillDecision`. Execution realism has **not** improved: the
+profile is still close-only `legacy_close`, and pending settlement still
 runs on the weekday EOD schedule.
 
 ## Status
@@ -17,10 +19,14 @@ runs on the weekday EOD schedule.
 | Pure kernel (`apps/api/src/stockviz/services/simulation`) | ✅ SIM-01 |
 | Live `execute_trade` / **MARKET** fills | ✅ SIM-02 — `evaluate_order(..., LEGACY_CLOSE)` |
 | Live pending-order settlement | ✅ SIM-03 — LIMIT / STOP_LOSS / TAKE_PROFIT via the same kernel |
+| Versioned profile registry | ✅ SIM-04 — `get_execution_profile(name, version)` |
+| Durable execution provenance | ✅ SIM-04 — `simulated_executions` (fill-only, no backfill) |
 | Backtester | **Unchanged** — separate engine (SIM-08) |
-| Trace persistence | **Not implemented** (SIM-04) |
+| Replay sessions | **Not implemented** (SIM-05) |
 | Kafka `trade.executed.v1` | **Unchanged** |
-| Database / API / frontend | **Unchanged** |
+| Database | Additive `simulated_executions` table |
+| API | Additive `GET /v1/trades/{trade_id}/execution`; `TradeOut` unchanged |
+| Frontend | **Unchanged** |
 
 PostgreSQL remains the source of truth. Kafka is not authoritative for
 execution. Trade and accounting mutations stay synchronous and transactional.
@@ -205,10 +211,9 @@ Live paper trading still:
 - Does not model latency, commissions, or liquidity
 - Uses a simulated SSE quote that is **not** a fill source
 
-Those limitations remain after SIM-03. Unifying the trigger/fill-price
-decision on `evaluate_order` did not add spreads, slippage, OHLC-touch fills,
-partial fills, or a market clock. See
-[KNOWN_LIMITATIONS.md](./KNOWN_LIMITATIONS.md).
+Those limitations remain after SIM-04. Provenance makes fills **explainable
+and versioned**. It does not add spreads, slippage, OHLC-touch fills, partial
+fills, or a market clock. See [KNOWN_LIMITATIONS.md](./KNOWN_LIMITATIONS.md).
 
 ## Why same-day OHLC touches are not used
 
@@ -241,8 +246,64 @@ and must not be passed to `evaluate_order` expecting a fill.
 | Stress | Wide spreads, partial fills, liquidity caps |
 | Custom | Caller-supplied parameters once the profile schema exists |
 
-Do not add stub classes that pretend these work. SIM-04 is the versioned
-profile + trace persistence task.
+Do not add stub classes that pretend these work. They are not registered in
+`get_execution_profile`. Unknown name/version pairs fail explicitly; there is
+no silent fallback to `legacy_close`.
+
+## Simulation Truth Layer
+
+Every successful live equity paper fill now has two related records:
+
+1. **Ledger** — `trades` (cash/position economics via `apply_fill`)
+2. **Provenance** — `simulated_executions` (how the simulator priced that fill)
+
+They commit in the same transaction as the outbox `trade.executed.v1` row.
+Provenance is **not** copied onto the Kafka v1 payload.
+
+```text
+Observed:
+  stored OHLCV snapshot
+  market interval (currently 1d)
+  evaluated_at (adapter evaluation instant, not PriceBar.ts)
+
+Modelled:
+  execution profile + model version
+  snapshotted assumptions
+  fill decision (reason, reference_price, fill_price)
+```
+
+Current `legacy_close` v1:
+
+| Field | Value |
+| --- | --- |
+| Reference close | stored 1d close |
+| Model adjustment | none |
+| Simulated fill | the same close |
+| Profile | `legacy_close` v1 |
+| Granularity | 1d |
+
+Future Retail Realistic (unimplemented):
+
+| Field | Value |
+| --- | --- |
+| Reference price | X |
+| Spread | modelled |
+| Slippage | modelled |
+| Simulated fill | Y ≠ X |
+
+`reference_price` and `fill_price` are stored separately so that future
+profiles do not need a schema change when they diverge.
+
+Provenance is recorded only for **successful fills**. NOT_TRIGGERED,
+INELIGIBLE, and account-layer cancellations do not get a row. Trades written
+before SIM-04 have none; `GET /v1/trades/{id}/execution` returns 404.
+
+`evaluated_at` is when the trading adapter asked the kernel.
+`created_at` is when the provenance row was persisted. They are not the same
+column.
+
+Live paper always uses `LIVE_PAPER_EXECUTION_PROFILE` (`legacy_close` v1).
+There is no user-facing profile selector.
 
 ## Later program
 
@@ -250,7 +311,7 @@ profile + trace persistence task.
 | --- | --- |
 | SIM-02 | **Done.** Live MARKET fills call `evaluate_order(..., LEGACY_CLOSE)`; `apply_fill` is unchanged |
 | SIM-03 | **Done.** Live pending LIMIT / STOP_LOSS / TAKE_PROFIT settlement uses the same kernel; `_should_fill` is gone from production |
-| SIM-04 | Versioned profiles + persist execution traces |
+| SIM-04 | **Done.** Versioned profile registry + durable `SimulatedExecution` provenance |
 | SIM-05 | ReplaySession + simulation clock |
 | SIM-06 | Blind historical market replay |
 | SIM-07 | Post-trade forensic analytics |
@@ -260,5 +321,5 @@ profile + trace persistence task.
 
 Kernel unit tests pin `legacy_close` itself. Live MARKET tests live in
 `test_market_kernel_integration.py`. Live pending tests live in
-`test_pending_kernel_integration.py`. The backtester is still a separate
-engine.
+`test_pending_kernel_integration.py`. Provenance tests live in
+`test_execution_provenance.py`. The backtester is still a separate engine.

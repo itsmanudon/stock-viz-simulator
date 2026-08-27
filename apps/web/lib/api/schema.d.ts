@@ -376,6 +376,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/trades/{trade_id}/execution": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Trade Execution
+         * @description Return kernel provenance for one of the user's live equity fills.
+         *
+         *     404 when the trade is missing, not owned by the caller, or was written
+         *     before SIM-04 (no provenance row). Does not change ``GET /v1/trades``.
+         */
+        get: operations["get_trade_execution_v1_trades__trade_id__execution_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/portfolio/dividends": {
         parameters: {
             query?: never;
@@ -914,6 +937,44 @@ export interface components {
             date: string;
             /** Nav */
             nav: string;
+        };
+        /**
+         * ExecutionProvenanceOut
+         * @description Durable kernel provenance for one live equity paper fill (SIM-04).
+         *
+         *     Absent for trades written before provenance existed. ``evaluated_at`` is
+         *     the adapter evaluation instant (UTC); ``created_at`` is when the row was
+         *     persisted.
+         */
+        ExecutionProvenanceOut: {
+            /** Trade Id */
+            trade_id: number;
+            /** Profile Name */
+            profile_name: string;
+            /** Model Version */
+            model_version: string;
+            /** Reference Price */
+            reference_price: string | null;
+            /** Fill Price */
+            fill_price: string;
+            /** Reason */
+            reason: string;
+            /** Assumptions */
+            assumptions: string[];
+            /** Market Interval */
+            market_interval: string;
+            /** Order Type */
+            order_type: string;
+            /**
+             * Evaluated At
+             * Format: date-time
+             */
+            evaluated_at: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -2346,6 +2407,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PortfolioHistoryPointOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_trade_execution_v1_trades__trade_id__execution_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                trade_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExecutionProvenanceOut"];
                 };
             };
             /** @description Validation Error */

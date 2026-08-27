@@ -25,6 +25,7 @@ from stockviz.services.simulation import (
     LEGACY_CLOSE_ASSUMPTIONS,
     LEGACY_CLOSE_MODEL_VERSION,
     LEGACY_CLOSE_NAME,
+    LIVE_PAPER_EXECUTION_PROFILE,
     ExecutionProfile,
     FillDecision,
     FillStatus,
@@ -32,7 +33,9 @@ from stockviz.services.simulation import (
     OrderIntent,
     OrderSide,
     SimulationOrderType,
+    UnknownExecutionProfileError,
     evaluate_order,
+    get_execution_profile,
     is_legacy_close,
 )
 
@@ -797,6 +800,27 @@ def test_legacy_close_fills_remaining_quantity_not_original() -> None:
     )
     assert decision.fill_quantity == _dec("4")
     assert decision.remaining_quantity == Decimal(0)
+
+
+# --- PROFILE REGISTRY (SIM-04) ---------------------------------------------
+
+
+def test_registry_returns_canonical_legacy_close() -> None:
+    profile = get_execution_profile(LEGACY_CLOSE_NAME, LEGACY_CLOSE_MODEL_VERSION)
+    assert profile is LEGACY_CLOSE
+    assert profile is LIVE_PAPER_EXECUTION_PROFILE
+    assert profile.assumptions == LEGACY_CLOSE_ASSUMPTIONS
+    assert is_legacy_close(profile)
+
+
+def test_registry_unknown_name_does_not_fall_back() -> None:
+    with pytest.raises(UnknownExecutionProfileError, match="retail_realistic"):
+        get_execution_profile("retail_realistic", LEGACY_CLOSE_MODEL_VERSION)
+
+
+def test_registry_unknown_version_does_not_fall_back() -> None:
+    with pytest.raises(UnknownExecutionProfileError, match="v2"):
+        get_execution_profile(LEGACY_CLOSE_NAME, "v2")
 
 
 # --- IMPORT BOUNDARY --------------------------------------------------------

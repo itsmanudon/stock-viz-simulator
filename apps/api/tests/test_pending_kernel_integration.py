@@ -678,4 +678,4 @@ def test_sim03_production_orders_module_has_no_should_fill() -> None:
     ).read_text(encoding="utf-8")
     assert "_should_fill" not in source
     assert "evaluate_order" in source
-    assert "LEGACY_CLOSE" in source
+    assert "LIVE_PAPER_EXECUTION_PROFILE" in source
