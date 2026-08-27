@@ -9,7 +9,9 @@ at the symbol's FX rate — keeping that in one place is what stops the two
 from drifting apart.
 
 Pending limit/stop/take-profit settlement also uses the kernel (SIM-03);
-account mutations still go through :func:`apply_fill`.
+account mutations still go through :func:`apply_fill`. Successful fills
+persist ``SimulatedExecution`` provenance from the same FillDecision
+(SIM-04).
 """
 
 from __future__ import annotations
@@ -23,7 +25,7 @@ from sqlmodel import Session, select
 
 from stockviz.models import Portfolio, Position, PriceBar, Symbol, Trade, TradeSide
 from stockviz.services.simulation import (
-    LEGACY_CLOSE,
+    LIVE_PAPER_EXECUTION_PROFILE,
     FillDecision,
     FillStatus,
     OrderIntent,
@@ -36,6 +38,10 @@ from stockviz.services.trading.buying_power import (
     lock_portfolio,
     lock_user,
     reserved_shares,
+)
+from stockviz.services.trading.execution_provenance import (
+    FillProvenance,
+    record_execution_provenance,
 )
 from stockviz.services.trading.fx import latest_rate
 from stockviz.services.trading.simulation_adapter import (
@@ -373,8 +379,9 @@ def execute_trade(
     Cash (always USD) is debited/credited at today's FX rate for non-USD
     symbols. USD symbols pass through unchanged.
 
-    Fill price comes from the SIM-01 kernel (``LEGACY_CLOSE``). Account
-    validity, FX, and persistence stay in :func:`apply_fill`.
+    Fill price comes from the SIM-01 kernel (``LIVE_PAPER_EXECUTION_PROFILE``,
+    currently ``LEGACY_CLOSE``). Account validity, FX, and persistence stay in
+    :func:`apply_fill`. Provenance is recorded from the same ``FillDecision``.
     """
 
     if quantity <= 0:
@@ -382,7 +389,9 @@ def execute_trade(
 
     ticker = ticker.upper()
     priced = resolve_priced_symbol(session, ticker)
-    fill_price = _market_fill_price(bar=priced.bar, side=side, quantity=quantity)
+    provenance = _market_fill_provenance(bar=priced.bar, side=side, quantity=quantity)
+    fill_price = provenance.decision.fill_price
+    assert fill_price is not None
 
     portfolio = ensure_default_portfolio(session, user_id)
     result = apply_fill(
@@ -395,13 +404,14 @@ def execute_trade(
         currency=priced.currency,
         fx_rate=priced.fx_rate,
     )
+    record_execution_provenance(session, trade=result.trade, provenance=provenance)
     session.commit()
     session.refresh(result.trade)
     return result
 
 
-def _market_fill_price(*, bar: PriceBar, side: TradeSide, quantity: Decimal) -> Decimal:
-    """Ask ``LEGACY_CLOSE`` for the MARKET fill price. Does not touch the ledger."""
+def _market_fill_provenance(*, bar: PriceBar, side: TradeSide, quantity: Decimal) -> FillProvenance:
+    """Ask the live paper profile for a MARKET fill. Does not touch the ledger."""
 
     evaluated_at = evaluation_clock()
     order = OrderIntent(
@@ -413,8 +423,14 @@ def _market_fill_price(*, bar: PriceBar, side: TradeSide, quantity: Decimal) -> 
         submitted_at=evaluated_at,
     )
     market = market_snapshot_from_bar(bar, observed_at=evaluated_at)
-    decision = evaluate_order(order, market, LEGACY_CLOSE)
-    return _require_full_market_fill(decision, quantity=quantity)
+    decision = evaluate_order(order, market, LIVE_PAPER_EXECUTION_PROFILE)
+    _require_full_market_fill(decision, quantity=quantity)
+    return FillProvenance(
+        decision=decision,
+        market_interval=bar.interval,
+        evaluated_at=evaluated_at,
+        order_type=SimulationOrderType.MARKET.value,
+    )
 
 
 def _require_full_market_fill(decision: FillDecision, *, quantity: Decimal) -> Decimal:

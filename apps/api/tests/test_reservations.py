@@ -8,7 +8,7 @@ releases the reservation.
 
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
 
@@ -33,6 +33,7 @@ from stockviz.services.options.trade import (
     open_option,
     settle_expired_options,
 )
+from stockviz.services.simulation import LEGACY_CLOSE, ExecutionTrace, FillDecision, FillStatus
 from stockviz.services.trading import (
     DEFAULT_STARTING_CASH,
     InsufficientCash,
@@ -53,6 +54,7 @@ from stockviz.services.trading.buying_power import (
     reserved_shares,
 )
 from stockviz.services.trading.execute import get_position, resolve_priced_symbol
+from stockviz.services.trading.execution_provenance import FillProvenance
 from stockviz.services.trading.orders import _fill
 
 BAR_DATE = datetime(2025, 4, 10)
@@ -704,7 +706,27 @@ def test_fill_skips_order_that_is_no_longer_pending(session: Session) -> None:
     cancel_pending_order(session, user_id=user_id, order_id=order.id)
     session.refresh(order)
     priced = resolve_priced_symbol(session, "AAPL")
-    assert _fill(session, order, priced, fill_price=priced.price) is False
+    dummy = FillDecision(
+        status=FillStatus.FILLED,
+        fill_quantity=order.quantity,
+        fill_price=priced.price,
+        remaining_quantity=Decimal(0),
+        trace=ExecutionTrace(
+            profile=LEGACY_CLOSE.name,
+            model_version=LEGACY_CLOSE.model_version,
+            reference_price=priced.price,
+            fill_price=priced.price,
+            reason="unused: order already cancelled",
+            assumptions=LEGACY_CLOSE.assumptions,
+        ),
+    )
+    provenance = FillProvenance(
+        decision=dummy,
+        market_interval=priced.bar.interval,
+        evaluated_at=datetime.now(UTC),
+        order_type=order.order_type.value,
+    )
+    assert _fill(session, order, priced, fill_price=priced.price, provenance=provenance) is False
     session.refresh(order)
     assert order.status == OrderStatus.CANCELLED
     portfolio = _portfolio(session, user_id)

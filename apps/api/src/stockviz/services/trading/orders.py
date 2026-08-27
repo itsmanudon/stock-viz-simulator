@@ -2,9 +2,10 @@
 
 Limit, stop-loss, and take-profit orders are stored in ``pending_orders`` and
 checked against each EOD close by ``settle_pending_orders``. Trigger and fill
-price come from ``evaluate_order(..., LEGACY_CLOSE)``. Orders that can't fill
-(e.g. insufficient cash) are cancelled with a ``cancel_reason`` rather than
-left in an inconsistent state.
+price come from ``evaluate_order(..., LIVE_PAPER_EXECUTION_PROFILE)``. Orders that
+can't fill (e.g. insufficient cash) are cancelled with a ``cancel_reason``
+rather than left in an inconsistent state. Successful fills persist kernel
+provenance in the same transaction as the Trade.
 
 At creation, pending BUYs reserve USD buying power (``quantity * limit_price``
 at the latest FX rate) and pending SELLs reserve shares. Reservations are
@@ -27,7 +28,12 @@ from sqlmodel import Session, select
 from stockviz._time import utcnow
 from stockviz.models import PendingOrder, Portfolio, Symbol, TradeSide
 from stockviz.models.order import OrderStatus, OrderType
-from stockviz.services.simulation import LEGACY_CLOSE, FillDecision, FillStatus, evaluate_order
+from stockviz.services.simulation import (
+    LIVE_PAPER_EXECUTION_PROFILE,
+    FillDecision,
+    FillStatus,
+    evaluate_order,
+)
 from stockviz.services.trading.buying_power import (
     available_cash,
     available_shares,
@@ -46,6 +52,10 @@ from stockviz.services.trading.execute import (
     apply_fill,
     ensure_default_portfolio,
     resolve_priced_symbol,
+)
+from stockviz.services.trading.execution_provenance import (
+    FillProvenance,
+    record_execution_provenance,
 )
 from stockviz.services.trading.simulation_adapter import (
     evaluation_clock,
@@ -169,7 +179,7 @@ def settle_pending_orders(session: Session, *, session_date: date_type | None = 
     leaves orders **pending** for the next run rather than filling them
     against yesterday's close. Pass ``None`` to skip the freshness check.
 
-    Trigger and fill price come from ``evaluate_order(..., LEGACY_CLOSE)``.
+    Trigger and fill price come from ``evaluate_order(..., LIVE_PAPER_EXECUTION_PROFILE)``.
     Account failures still cancel the order. Kernel ``INELIGIBLE`` (adapter
     inconsistency) is logged and the order is left pending so one bad row
     cannot abort the batch.
@@ -199,37 +209,44 @@ def settle_pending_orders(session: Session, *, session_date: date_type | None = 
             )
             continue
 
-        decision = _evaluate_pending(order, priced)
-        if decision is None or decision.status is FillStatus.NOT_TRIGGERED:
+        provenance = _evaluate_pending(order, priced)
+        if provenance is None or provenance.decision.status is FillStatus.NOT_TRIGGERED:
             continue
-        if decision.status is FillStatus.INELIGIBLE:
+        if provenance.decision.status is FillStatus.INELIGIBLE:
             logger.error(
                 "pending order %s ineligible for kernel evaluation: ticker=%s type=%s side=%s reason=%s",
                 order.id,
                 order.ticker,
                 order.order_type,
                 order.side,
-                decision.trace.reason,
+                provenance.decision.trace.reason,
             )
             continue
-        fill_price = _require_full_pending_fill(order, decision)
+        fill_price = _require_full_pending_fill(order, provenance.decision)
         if fill_price is None:
             continue
 
-        if _fill(session, order, priced, fill_price=fill_price):
+        if _fill(session, order, priced, fill_price=fill_price, provenance=provenance):
             filled += 1
 
     session.commit()
     return filled
 
 
-def _evaluate_pending(order: PendingOrder, priced: PricedSymbol) -> FillDecision | None:
+def _evaluate_pending(order: PendingOrder, priced: PricedSymbol) -> FillProvenance | None:
     """Ask the kernel whether this pending order triggers. Does not mutate state."""
 
     try:
         intent = order_intent_from_pending(order)
-        market = market_snapshot_from_bar(priced.bar, observed_at=evaluation_clock())
-        return evaluate_order(intent, market, LEGACY_CLOSE)
+        evaluated_at = evaluation_clock()
+        market = market_snapshot_from_bar(priced.bar, observed_at=evaluated_at)
+        decision = evaluate_order(intent, market, LIVE_PAPER_EXECUTION_PROFILE)
+        return FillProvenance(
+            decision=decision,
+            market_interval=priced.bar.interval,
+            evaluated_at=evaluated_at,
+            order_type=order.order_type.value,
+        )
     except (TypeError, ValueError) as exc:
         logger.error("pending order %s adapter failed: %s", order.id, exc)
         return None
@@ -260,6 +277,7 @@ def _fill(
     priced: PricedSymbol,
     *,
     fill_price: Decimal,
+    provenance: FillProvenance,
 ) -> bool:
     """Fill one triggered order. Returns True when it actually filled."""
     if order.portfolio_id is None or order.id is None:
@@ -282,7 +300,7 @@ def _fill(
         return False
 
     try:
-        apply_fill(
+        result = apply_fill(
             session,
             portfolio=portfolio,
             ticker=order.ticker,
@@ -296,6 +314,8 @@ def _fill(
     except TradeExecutionError as exc:
         _cancel(session, order, str(exc))
         return False
+
+    record_execution_provenance(session, trade=result.trade, provenance=provenance)
 
     order.status = OrderStatus.FILLED
     order.filled_at = utcnow()
