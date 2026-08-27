@@ -8,15 +8,14 @@ which is shared with the pending-order settlement job in
 at the symbol's FX rate — keeping that in one place is what stops the two
 from drifting apart.
 
-Pending limit/stop/take-profit settlement is still close-comparison in
-``orders.py`` (SIM-03).
+Pending limit/stop/take-profit settlement also uses the kernel (SIM-03);
+account mutations still go through :func:`apply_fill`.
 """
 
 from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from datetime import UTC, datetime
 from decimal import Decimal
 
 from sqlalchemy.exc import IntegrityError
@@ -27,9 +26,7 @@ from stockviz.services.simulation import (
     LEGACY_CLOSE,
     FillDecision,
     FillStatus,
-    MarketSnapshot,
     OrderIntent,
-    OrderSide,
     SimulationOrderType,
     evaluate_order,
 )
@@ -41,6 +38,11 @@ from stockviz.services.trading.buying_power import (
     reserved_shares,
 )
 from stockviz.services.trading.fx import latest_rate
+from stockviz.services.trading.simulation_adapter import (
+    evaluation_clock,
+    market_snapshot_from_bar,
+    order_side,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -398,49 +400,13 @@ def execute_trade(
     return result
 
 
-def _evaluation_clock() -> datetime:
-    """Aware UTC instant at which this live paper order is evaluated.
-
-    ``PriceBar.ts`` is a session/bar timestamp, often naive midnight, and is
-    **not** an information-availability clock. Live MARKET fills treat the
-    latest stored close as already observable now, so ``submitted_at`` and
-    ``observed_at`` share this instant. The kernel still rejects a snapshot
-    that is strictly older than the order; we do not rewrite ``PriceBar.ts``.
-    """
-
-    return datetime.now(UTC)
-
-
-def _order_side(side: TradeSide) -> OrderSide:
-    if side is TradeSide.BUY:
-        return OrderSide.BUY
-    if side is TradeSide.SELL:
-        return OrderSide.SELL
-    raise TradeExecutionError(f"unsupported trade side {side!r}")
-
-
-def market_snapshot_from_bar(bar: PriceBar, *, observed_at: datetime) -> MarketSnapshot:
-    """Adapt a stored 1d bar. ``observed_at`` is caller-supplied availability time."""
-
-    return MarketSnapshot(
-        ticker=bar.ticker,
-        observed_at=observed_at,
-        interval=bar.interval,
-        open=bar.open,
-        high=bar.high,
-        low=bar.low,
-        close=bar.close,
-        volume=Decimal(bar.volume),
-    )
-
-
 def _market_fill_price(*, bar: PriceBar, side: TradeSide, quantity: Decimal) -> Decimal:
     """Ask ``LEGACY_CLOSE`` for the MARKET fill price. Does not touch the ledger."""
 
-    evaluated_at = _evaluation_clock()
+    evaluated_at = evaluation_clock()
     order = OrderIntent(
         ticker=bar.ticker,
-        side=_order_side(side),
+        side=order_side(side),
         order_type=SimulationOrderType.MARKET,
         quantity=quantity,
         remaining_quantity=quantity,

@@ -1,10 +1,10 @@
 """Pending order creation and EOD settlement.
 
 Limit, stop-loss, and take-profit orders are stored in ``pending_orders`` and
-checked against each EOD close by ``settle_pending_orders``. Orders that
-trigger at a close are filled at that price; orders that can't fill (e.g.
-insufficient cash) are cancelled with a ``cancel_reason`` rather than left in
-an inconsistent state.
+checked against each EOD close by ``settle_pending_orders``. Trigger and fill
+price come from ``evaluate_order(..., LEGACY_CLOSE)``. Orders that can't fill
+(e.g. insufficient cash) are cancelled with a ``cancel_reason`` rather than
+left in an inconsistent state.
 
 At creation, pending BUYs reserve USD buying power (``quantity * limit_price``
 at the latest FX rate) and pending SELLs reserve shares. Reservations are
@@ -27,6 +27,7 @@ from sqlmodel import Session, select
 from stockviz._time import utcnow
 from stockviz.models import PendingOrder, Portfolio, Symbol, TradeSide
 from stockviz.models.order import OrderStatus, OrderType
+from stockviz.services.simulation import LEGACY_CLOSE, FillDecision, FillStatus, evaluate_order
 from stockviz.services.trading.buying_power import (
     available_cash,
     available_shares,
@@ -45,6 +46,11 @@ from stockviz.services.trading.execute import (
     apply_fill,
     ensure_default_portfolio,
     resolve_priced_symbol,
+)
+from stockviz.services.trading.simulation_adapter import (
+    evaluation_clock,
+    market_snapshot_from_bar,
+    order_intent_from_pending,
 )
 
 logger = logging.getLogger(__name__)
@@ -147,21 +153,6 @@ def cancel_pending_order(session: Session, *, user_id: int, order_id: int) -> No
     session.commit()
 
 
-def _should_fill(order: PendingOrder, close: Decimal) -> bool:
-    """Return True if the EOD close should trigger this order."""
-    if order.order_type == OrderType.LIMIT:
-        return (
-            close <= order.limit_price
-            if order.side == TradeSide.BUY
-            else close >= order.limit_price
-        )
-    if order.order_type == OrderType.STOP_LOSS:
-        return close <= order.limit_price
-    if order.order_type == OrderType.TAKE_PROFIT:
-        return close >= order.limit_price
-    return False
-
-
 def _cancel(session: Session, order: PendingOrder, reason: str) -> None:
     order.status = OrderStatus.CANCELLED
     order.cancel_reason = reason[:200]
@@ -177,6 +168,11 @@ def settle_pending_orders(session: Session, *, session_date: date_type | None = 
     The scheduler passes today's date, so a failed or slow price refresh
     leaves orders **pending** for the next run rather than filling them
     against yesterday's close. Pass ``None`` to skip the freshness check.
+
+    Trigger and fill price come from ``evaluate_order(..., LEGACY_CLOSE)``.
+    Account failures still cancel the order. Kernel ``INELIGIBLE`` (adapter
+    inconsistency) is logged and the order is left pending so one bad row
+    cannot abort the batch.
 
     Returns the number of orders filled.
     """
@@ -203,17 +199,68 @@ def settle_pending_orders(session: Session, *, session_date: date_type | None = 
             )
             continue
 
-        if not _should_fill(order, priced.price):
+        decision = _evaluate_pending(order, priced)
+        if decision is None or decision.status is FillStatus.NOT_TRIGGERED:
+            continue
+        if decision.status is FillStatus.INELIGIBLE:
+            logger.error(
+                "pending order %s ineligible for kernel evaluation: ticker=%s type=%s side=%s reason=%s",
+                order.id,
+                order.ticker,
+                order.order_type,
+                order.side,
+                decision.trace.reason,
+            )
+            continue
+        fill_price = _require_full_pending_fill(order, decision)
+        if fill_price is None:
             continue
 
-        if _fill(session, order, priced):
+        if _fill(session, order, priced, fill_price=fill_price):
             filled += 1
 
     session.commit()
     return filled
 
 
-def _fill(session: Session, order: PendingOrder, priced: PricedSymbol) -> bool:
+def _evaluate_pending(order: PendingOrder, priced: PricedSymbol) -> FillDecision | None:
+    """Ask the kernel whether this pending order triggers. Does not mutate state."""
+
+    try:
+        intent = order_intent_from_pending(order)
+        market = market_snapshot_from_bar(priced.bar, observed_at=evaluation_clock())
+        return evaluate_order(intent, market, LEGACY_CLOSE)
+    except (TypeError, ValueError) as exc:
+        logger.error("pending order %s adapter failed: %s", order.id, exc)
+        return None
+
+
+def _require_full_pending_fill(order: PendingOrder, decision: FillDecision) -> Decimal | None:
+    if (
+        decision.status is FillStatus.FILLED
+        and decision.fill_price is not None
+        and decision.fill_quantity == order.quantity
+        and decision.remaining_quantity == Decimal(0)
+    ):
+        return decision.fill_price
+    logger.error(
+        "pending order %s kernel did not fully fill: status=%s fill_qty=%s remaining=%s reason=%s",
+        order.id,
+        decision.status,
+        decision.fill_quantity,
+        decision.remaining_quantity,
+        decision.trace.reason,
+    )
+    return None
+
+
+def _fill(
+    session: Session,
+    order: PendingOrder,
+    priced: PricedSymbol,
+    *,
+    fill_price: Decimal,
+) -> bool:
     """Fill one triggered order. Returns True when it actually filled."""
     if order.portfolio_id is None or order.id is None:
         _cancel(session, order, "Portfolio no longer exists")
@@ -241,7 +288,7 @@ def _fill(session: Session, order: PendingOrder, priced: PricedSymbol) -> bool:
             ticker=order.ticker,
             side=order.side,
             quantity=order.quantity,
-            price=priced.price,
+            price=fill_price,
             currency=priced.currency,
             fx_rate=priced.fx_rate,
             exclude_order_id=order.id,
@@ -252,6 +299,6 @@ def _fill(session: Session, order: PendingOrder, priced: PricedSymbol) -> bool:
 
     order.status = OrderStatus.FILLED
     order.filled_at = utcnow()
-    order.fill_price = priced.price
+    order.fill_price = fill_price
     session.add(order)
     return True
