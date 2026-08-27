@@ -58,6 +58,13 @@ def test_replay_sessions_migration_upgrade_downgrade_reupgrade() -> None:
                 {"ts": datetime(2026, 1, 1)},
             )
             user_id = session.execute(text("SELECT id FROM users")).scalar_one()
+            session.execute(
+                text(
+                    "INSERT INTO symbols (ticker, name, currency, is_active, created_at) "
+                    "VALUES ('AAPL', 'Apple', 'USD', true, :ts)"
+                ),
+                {"ts": datetime(2026, 1, 1)},
+            )
             session.commit()
 
         _alembic(_url(engine), "upgrade", "head")
@@ -66,6 +73,12 @@ def test_replay_sessions_migration_upgrade_downgrade_reupgrade() -> None:
         assert "replay_sessions" in names
         assert "replay_positions" in names
         assert "replay_fills" in names
+        columns = {col["name"] for col in inspector.get_columns("replay_sessions")}
+        assert "ticker" in columns
+        assert "start_at" in columns
+        assert "current_at" in columns
+        assert "end_at" in columns
+        assert "clock_now" not in columns
 
         with Session(engine) as session:
             remaining = session.execute(
@@ -76,11 +89,12 @@ def test_replay_sessions_migration_upgrade_downgrade_reupgrade() -> None:
             session.execute(
                 text(
                     "INSERT INTO replay_sessions "
-                    "(user_id, profile_name, model_version, clock_now, starting_cash, "
-                    "cash_balance, status, created_at, updated_at) "
-                    "VALUES (:uid, 'legacy_close', 'v1', :ts, 100000, 100000, 'open', :ts, :ts)"
+                    "(user_id, ticker, profile_name, model_version, start_at, current_at, "
+                    "end_at, starting_cash, cash_balance, status, created_at, updated_at) "
+                    "VALUES (:uid, 'AAPL', 'legacy_close', 'v1', :ts, :ts, :ts, "
+                    "100000, 100000, 'active', :ts, :ts)"
                 ),
-                {"uid": user_id, "ts": datetime(2024, 6, 3, 21, 0, 0)},
+                {"uid": user_id, "ts": datetime(2024, 6, 3, 0, 0, 0)},
             )
             session.commit()
             session_id = session.execute(text("SELECT id FROM replay_sessions")).scalar_one()
