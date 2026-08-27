@@ -589,17 +589,17 @@ def test_sim03_batch_handles_mixed_outcomes(session: Session) -> None:
         PendingOrder(
             portfolio_id=portfolio.id,
             ticker="AAPL",
-            side=TradeSide.SELL,
-            order_type=OrderType.TAKE_PROFIT,
-            quantity=Decimal(50),
-            limit_price=Decimal("50"),
+            side=TradeSide.BUY,
+            order_type=OrderType.LIMIT,
+            quantity=Decimal(1000),
+            limit_price=Decimal("200"),
         )
     )
     session.commit()
     assert settle_pending_orders(session, session_date=BAR_DAY) == 1
     session.refresh(stay)
     session.refresh(fill)
-    ghost = session.exec(select(PendingOrder).where(PendingOrder.quantity == Decimal(50))).one()
+    ghost = session.exec(select(PendingOrder).where(PendingOrder.quantity == Decimal(1000))).one()
     assert stay.status == OrderStatus.PENDING
     assert fill.status == OrderStatus.FILLED
     assert ghost.status == OrderStatus.CANCELLED
