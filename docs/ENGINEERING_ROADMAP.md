@@ -20,3 +20,7 @@ StockViz's core portfolio story—transactional trading, event-driven processing
 - Add full account recovery/verification flows before accepting durable public accounts.
 
 None of these capabilities is claimed as implemented. Current constraints are listed in [Known limitations](./KNOWN_LIMITATIONS.md).
+
+## Simulation fidelity
+
+SIM-01 added a pure `legacy_close` execution kernel that documents and tests current EOD fill rules. Live paper trading does not call it yet. Later tasks (SIM-02+) can route market and pending fills through that kernel without changing ledger semantics. See [SIMULATION.md](./SIMULATION.md).
