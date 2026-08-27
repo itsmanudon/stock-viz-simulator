@@ -78,12 +78,21 @@ export type Indicators = {
   macd: MACDPoint[] | null;
 };
 
+export type RecommendationVote = {
+  id: string;
+  label: string;
+  passed: boolean;
+  detail: string;
+};
+
 export type Recommendation = {
   ticker: string;
   name: string;
   sector: string | null;
   score: number;
   rationale: string[];
+  votes: RecommendationVote[];
+  sentiment_7d: number | null;
   computed_at: string;
 };
 
@@ -99,6 +108,7 @@ export type ScreenerResult = {
   momentum_days: number | null;
   high_52w: string;
   low_52w: string;
+  sentiment_7d: number | null;
 };
 
 export type BacktestStrategy =

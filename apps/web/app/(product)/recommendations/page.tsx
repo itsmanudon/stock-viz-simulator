@@ -1,121 +1,186 @@
 /**
- * /recommendations — cards keyed by ticker showing the latest score.
+ * /recommendations — Signals workspace.
  *
- * Pulls from /v1/recommendations (pre-computed by the daily scheduler job).
- * The page is the operator-friendly view; the algo itself lives in
- * apps/api/src/stockviz/services/recommend/.
+ * Rule-based, explainable votes over the tracked universe. The route stays
+ * `/recommendations`; the surface is titled Signals so it is not mistaken for
+ * an AI buy list.
  */
 
 import Link from "next/link";
 
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { PageFrame } from "@/components/page-frame";
+import {
+  ResearchEmptyState,
+  ResearchPageHeader,
+  ResearchSubnav,
+} from "@/components/research-page-header";
+import { SignalsTable } from "@/components/signals-table";
 import { getRecommendations } from "@/lib/api";
-
-const VOTE_THRESHOLD = 4;
-/** Must match ``MAX_SCORE`` in ``apps/api/src/stockviz/services/recommend/engine.py``. */
-const MAX_SCORE = 7;
-
-function fmtDate(iso: string): string {
-  const d = new Date(iso);
-  return d.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
-}
+import {
+  type SignalFilter,
+  type SignalSearchParams,
+  type SignalSortKey,
+  buildSignalsHref,
+  filterSignals,
+  parseMinScore,
+  parseSignalFilter,
+  parseSignalSort,
+  parseSignalSortDir,
+  recommendationToSignal,
+  sortSignals,
+} from "@/lib/signals-workspace";
 
 export default async function RecommendationsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ min?: string }>;
+  searchParams: Promise<SignalSearchParams>;
 }) {
-  const { min: rawMin } = await searchParams;
-  const minScore = Math.max(0, Math.min(MAX_SCORE, Number.parseInt(rawMin ?? "0", 10) || 0));
+  const params = await searchParams;
+  const minScore = parseMinScore(params.min);
+  const signal = parseSignalFilter(params.signal);
+  const sort = parseSignalSort(params.sort);
+  const dir = parseSignalSortDir(params.dir, sort);
+  const sector = params.sector?.trim() || undefined;
+  const query = params.q?.trim() || undefined;
 
   const recs = await getRecommendations({ minScore, limit: 100 });
+  const allRows = recs.map(recommendationToSignal);
+  const sectors = Array.from(
+    new Set(allRows.map((row) => row.sector).filter((value): value is string => Boolean(value))),
+  ).sort();
+  const rows = sortSignals(filterSignals(allRows, { signal, sector, query }), sort, dir);
 
-  const lastComputed = recs.length
-    ? recs.reduce(
-        (latest, r) => (r.computed_at > latest ? r.computed_at : latest),
-        recs[0].computed_at,
+  const lastComputed = rows.length
+    ? rows.reduce(
+        (latest, row) => (row.computedAt > latest ? row.computedAt : latest),
+        rows[0].computedAt,
       )
     : null;
 
-  return (
-    <div className="container mx-auto px-4 py-10 sm:px-6">
-      <header className="mb-6 flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Recommendations</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Algorithmic scores from a 7-vote signal (six price/volume checks plus trailing news
-            sentiment when headlines are scored). Not financial advice.
-          </p>
-          {lastComputed ? (
-            <p className="mt-1 text-xs text-muted-foreground">
-              Last computed {fmtDate(lastComputed)}
-            </p>
-          ) : null}
-        </div>
-        <nav className="flex gap-1 text-xs">
-          {[0, 3, 4, 5, 6].map((threshold) => (
-            <Link
-              key={threshold}
-              href={threshold === 0 ? "/recommendations" : `/recommendations?min=${threshold}`}
-              className={`rounded-md border px-3 py-1.5 transition hover:bg-accent ${
-                minScore === threshold ? "border-primary text-foreground" : "text-muted-foreground"
-              }`}
-            >
-              {threshold === 0 ? "All" : `≥ ${threshold}`}
-            </Link>
-          ))}
-        </nav>
-      </header>
+  const hrefFor = (
+    overrides: Partial<{
+      min: number;
+      signal: SignalFilter;
+      sector: string;
+      q: string;
+      sort: SignalSortKey;
+      dir: "asc" | "desc";
+    }>,
+  ) =>
+    buildSignalsHref({
+      min: overrides.min ?? minScore,
+      signal: overrides.signal ?? signal,
+      sector: overrides.sector === "" ? undefined : (overrides.sector ?? sector),
+      q: overrides.q === "" ? undefined : (overrides.q ?? query),
+      sort: overrides.sort ?? sort,
+      dir: overrides.dir ?? dir,
+    });
 
-      {recs.length === 0 ? (
-        <p className="rounded-lg border bg-card p-6 text-sm text-muted-foreground">
-          No recommendations match this filter. Run{" "}
-          <code className="rounded bg-muted px-1.5 py-0.5 text-xs">stockviz recommend</code> to
-          recompute, or relax the score threshold.
-        </p>
-      ) : (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {recs.map((rec) => {
-            const buy = rec.score >= VOTE_THRESHOLD;
-            return (
-              <Link key={rec.ticker} href={`/stocks/${rec.ticker}`} className="block">
-                <Card className="h-full transition hover:border-primary/50">
-                  <CardHeader className="flex flex-row items-start justify-between gap-2 space-y-0">
-                    <div>
-                      <div className="font-mono text-lg font-semibold">{rec.ticker}</div>
-                      <div className="text-xs text-muted-foreground">{rec.name}</div>
-                      {rec.sector ? (
-                        <div className="mt-1 text-xs text-muted-foreground">{rec.sector}</div>
-                      ) : null}
-                    </div>
-                    <div className="flex flex-col items-end gap-1">
-                      <Badge variant={buy ? "default" : "secondary"}>{buy ? "BUY" : "HOLD"}</Badge>
-                      <span className="font-mono text-xs text-muted-foreground">
-                        {rec.score}/{MAX_SCORE}
-                      </span>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    {rec.rationale.length > 0 ? (
-                      <ul className="space-y-1 text-xs text-muted-foreground">
-                        {rec.rationale.map((reason) => (
-                          <li key={reason} className="flex gap-2">
-                            <span aria-hidden>·</span>
-                            <span>{reason}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <p className="text-xs text-muted-foreground">No signals — the score is 0.</p>
-                    )}
-                  </CardContent>
-                </Card>
-              </Link>
-            );
-          })}
-        </div>
-      )}
-    </div>
+  function sortHref(key: SignalSortKey): string {
+    const nextDir =
+      sort === key && dir === "desc"
+        ? "asc"
+        : sort === key && dir === "asc"
+          ? "desc"
+          : key === "ticker"
+            ? "asc"
+            : "desc";
+    return hrefFor({ sort: key, dir: nextDir });
+  }
+
+  return (
+    <PageFrame width="workstation" className="py-6 sm:py-8">
+      <ResearchPageHeader
+        title="Signals"
+        description="Explainable technical and sentiment evidence across the tracked universe. This is a seven-vote rule set, not an AI recommendation and not financial advice."
+        meta={
+          lastComputed
+            ? `Last computed ${new Date(lastComputed).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })}`
+            : undefined
+        }
+      />
+      <ResearchSubnav current="/recommendations" />
+
+      <form method="GET" action="/recommendations" className="mt-6 flex flex-wrap items-end gap-3">
+        {minScore > 0 ? <input type="hidden" name="min" value={minScore} /> : null}
+        {sort !== "score" ? <input type="hidden" name="sort" value={sort} /> : null}
+        {dir !== "desc" ? <input type="hidden" name="dir" value={dir} /> : null}
+
+        <label className="space-y-1 text-xs">
+          <span className="block font-medium text-text-secondary">Signal</span>
+          <select
+            name="signal"
+            defaultValue={signal}
+            className="h-9 rounded-sm border border-input bg-transparent px-2 text-sm"
+          >
+            <option value="all">All</option>
+            <option value="bullish">Bullish</option>
+            <option value="neutral">Neutral</option>
+          </select>
+        </label>
+
+        <label className="space-y-1 text-xs">
+          <span className="block font-medium text-text-secondary">Sector</span>
+          <select
+            name="sector"
+            defaultValue={sector ?? ""}
+            className="h-9 min-w-40 rounded-sm border border-input bg-transparent px-2 text-sm"
+          >
+            <option value="">All sectors</option>
+            {sectors.map((item) => (
+              <option key={item} value={item}>
+                {item}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="space-y-1 text-xs">
+          <span className="block font-medium text-text-secondary">Ticker</span>
+          <input
+            name="q"
+            defaultValue={query ?? ""}
+            placeholder="AAPL"
+            className="h-9 w-32 rounded-sm border border-input bg-transparent px-2 font-mono text-sm"
+          />
+        </label>
+
+        <button
+          type="submit"
+          className="h-9 rounded-sm border border-border-muted px-3 text-sm hover:bg-surface-hover"
+        >
+          Apply
+        </button>
+      </form>
+
+      <nav aria-label="Minimum supporting votes" className="mt-4 flex flex-wrap gap-1 text-xs">
+        {[0, 3, 4, 5, 6].map((threshold) => (
+          <Link
+            key={threshold}
+            href={hrefFor({ min: threshold })}
+            className={`rounded-sm border px-2.5 py-1 transition-colors hover:bg-surface-hover ${
+              minScore === threshold
+                ? "border-brand text-foreground"
+                : "border-border-muted text-text-tertiary"
+            }`}
+          >
+            {threshold === 0 ? "All scores" : `≥ ${threshold}`}
+          </Link>
+        ))}
+      </nav>
+
+      <div className="mt-6">
+        {rows.length === 0 ? (
+          <ResearchEmptyState title="No signals match these filters">
+            <p>
+              Relax the score threshold or signal class, or recompute with{" "}
+              <code className="rounded-sm bg-muted px-1.5 py-0.5 text-xs">stockviz recommend</code>.
+            </p>
+          </ResearchEmptyState>
+        ) : (
+          <SignalsTable rows={rows} sort={sort} dir={dir} sortHref={sortHref} />
+        )}
+      </div>
+    </PageFrame>
   );
 }

@@ -22,8 +22,11 @@ from stockviz.services.recommend.engine import (
     MIN_DATA_POINTS,
     VOTE_THRESHOLD,
     RecommendationResult,
+    Vote,
     score_ticker,
     score_universe,
+    votes_from_payload,
+    votes_from_rationale,
 )
 
 __all__ = [
@@ -31,6 +34,9 @@ __all__ = [
     "MIN_DATA_POINTS",
     "VOTE_THRESHOLD",
     "RecommendationResult",
+    "Vote",
     "score_ticker",
     "score_universe",
+    "votes_from_payload",
+    "votes_from_rationale",
 ]

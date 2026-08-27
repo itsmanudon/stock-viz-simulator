@@ -19,8 +19,8 @@ const DESTINATIONS = [
   },
   {
     label: "Research",
-    href: "/screener",
-    description: "Screen, compare, and review market context.",
+    href: "/compare",
+    description: "Compare securities, inspect signals, and backtest rules.",
     icon: SearchCode,
   },
   {

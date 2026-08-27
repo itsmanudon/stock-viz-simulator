@@ -314,6 +314,23 @@ function Overview({
           End-of-day data{latestTimestamp ? ` through ${latestTimestamp}` : ""}. The indicative
           price is simulated from the cached close and is not a realtime market quote.
         </p>
+        <nav aria-label="Research this security" className="mt-4 flex flex-wrap gap-3 text-sm">
+          <Link href={`/compare?tickers=${symbol.ticker}`} className="hover:underline">
+            Compare
+          </Link>
+          <Link
+            href={`/backtest?ticker=${symbol.ticker}`}
+            className="text-text-secondary hover:underline"
+          >
+            Backtest
+          </Link>
+          <Link
+            href={`/recommendations?q=${symbol.ticker}`}
+            className="text-text-secondary hover:underline"
+          >
+            Signals
+          </Link>
+        </nav>
       </div>
       <dl className="grid grid-cols-2 gap-x-6 gap-y-5 border-y border-border-muted py-5">
         {items.map(([label, value]) => (

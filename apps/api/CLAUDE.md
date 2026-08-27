@@ -37,7 +37,7 @@ src/stockviz/
   services/
     ingest/         External-API fetchers (yfinance primary, Alpha Vantage fallback, Newsdata)
     indicators/     SMA/EMA/RSI/MACD pure functions
-    recommend/      The ported v1 algo
+    recommend/      7-vote scorer; API now returns structured votes + rationale
     trading/        execute, orders (pending limit/stop + derived reservations),
                     buying_power, portfolio, analytics, dividends, fx, snapshots
     options/        Black-Scholes-style pricing + option trade execution/settlement

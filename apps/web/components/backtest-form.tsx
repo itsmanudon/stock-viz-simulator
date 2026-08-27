@@ -1,18 +1,19 @@
 "use client";
 
 /**
- * Interactive backtest form + results.
+ * Interactive backtest experiment: setup on the left, results on the right.
  *
- * The /v1/backtest endpoint is public, so this client component calls it
- * directly from the browser — no server action needed. Results render in
- * place: summary stat cards, an equity-curve chart, and a trade log.
+ * POST /v1/backtest is public, so this client island calls it from the browser.
+ * The engine remains authoritative — this component only composes the UX.
  */
 
-import { useState } from "react";
+import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useMemo, useState } from "react";
 
 import { EquityCurve } from "@/components/equity-curve";
+import { ResearchEmptyState, ResearchSectionHeader } from "@/components/research-page-header";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -24,14 +25,17 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ApiError, type BacktestRequest, type BacktestResult, runBacktest } from "@/lib/api";
+import { cn } from "@/lib/utils";
 
 type SymbolOption = { ticker: string; name: string };
 type StrategyType = "rsi_threshold" | "sma_crossover";
 
+const RISK_FREE_RATE = 0.05;
+
 function isoDaysAgo(days: number): string {
-  const d = new Date();
-  d.setUTCDate(d.getUTCDate() - days);
-  return d.toISOString().slice(0, 10);
+  const date = new Date();
+  date.setUTCDate(date.getUTCDate() - days);
+  return date.toISOString().slice(0, 10);
 }
 
 function fmtCurrency(raw: string): string {
@@ -49,17 +53,37 @@ function fmtPct(fraction: number): string {
 }
 
 function parseApiDetail(err: ApiError): string {
+  const raw = err.message.replace(/^API \d+ [^:]+:\s*/, "");
   try {
-    const parsed = JSON.parse(err.message.split(": ").slice(2).join(": ")) as { detail?: string };
-    if (parsed.detail) return parsed.detail;
+    const parsed = JSON.parse(raw) as { detail?: unknown };
+    if (typeof parsed.detail === "string") return parsed.detail;
   } catch {
     // fall through
   }
-  return err.message;
+  return raw || err.message;
 }
 
-export function BacktestForm({ symbols }: { symbols: SymbolOption[] }) {
-  const [ticker, setTicker] = useState(symbols[0]?.ticker ?? "");
+function signedClass(value: number): string {
+  if (value > 0) return "text-positive";
+  if (value < 0) return "text-negative";
+  return "text-foreground";
+}
+
+export function BacktestForm({
+  symbols,
+  initialTicker,
+}: {
+  symbols: SymbolOption[];
+  initialTicker?: string;
+}) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const known = useMemo(() => new Set(symbols.map((item) => item.ticker)), [symbols]);
+  const startingTicker =
+    initialTicker && known.has(initialTicker) ? initialTicker : (symbols[0]?.ticker ?? "");
+
+  const [ticker, setTicker] = useState(startingTicker);
   const [from, setFrom] = useState(isoDaysAgo(365));
   const [to, setTo] = useState(isoDaysAgo(0));
   const [initialCash, setInitialCash] = useState("100000");
@@ -72,11 +96,21 @@ export function BacktestForm({ symbols }: { symbols: SymbolOption[] }) {
   const [slippageBps, setSlippageBps] = useState("0");
 
   const [pending, setPending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<{ message: string; kind: "validation" | "system" } | null>(
+    null,
+  );
   const [result, setResult] = useState<BacktestResult | null>(null);
+  const [lastCosts, setLastCosts] = useState({ commissionBps: 0, slippageBps: 0 });
 
-  async function onSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  function syncTicker(next: string) {
+    setTicker(next);
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("ticker", next);
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  }
+
+  async function onSubmit(event: React.FormEvent) {
+    event.preventDefault();
     setPending(true);
     setError(null);
 
@@ -93,6 +127,9 @@ export function BacktestForm({ symbols }: { symbols: SymbolOption[] }) {
             long_window: Number(longWindow),
           };
 
+    const commission = Number(commissionBps) || 0;
+    const slippage = Number(slippageBps) || 0;
+
     try {
       const res = await runBacktest({
         ticker,
@@ -100,329 +137,385 @@ export function BacktestForm({ symbols }: { symbols: SymbolOption[] }) {
         to,
         initial_cash: initialCash,
         strategy,
-        commission_bps: Number(commissionBps) || 0,
-        slippage_bps: Number(slippageBps) || 0,
+        commission_bps: commission,
+        slippage_bps: slippage,
       });
+      setLastCosts({ commissionBps: commission, slippageBps: slippage });
       setResult(res);
     } catch (err) {
       setResult(null);
-      setError(err instanceof ApiError ? parseApiDetail(err) : "Backtest failed");
+      if (err instanceof ApiError) {
+        setError({
+          message: parseApiDetail(err),
+          kind: err.status >= 400 && err.status < 500 ? "validation" : "system",
+        });
+      } else {
+        setError({ message: "Backtest failed", kind: "system" });
+      }
     } finally {
       setPending(false);
     }
   }
 
   return (
-    <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-      <Card className="lg:col-span-1">
-        <CardContent className="p-6">
-          <form onSubmit={onSubmit} className="space-y-5">
-            <div className="space-y-2">
-              <Label htmlFor="bt-ticker">Symbol</Label>
-              <select
-                id="bt-ticker"
-                value={ticker}
-                onChange={(e) => setTicker(e.target.value)}
-                required
-                className="flex h-10 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-              >
-                {symbols.map((s) => (
-                  <option key={s.ticker} value={s.ticker}>
-                    {s.ticker} — {s.name}
-                  </option>
-                ))}
-              </select>
-            </div>
+    <div className="mt-6 grid grid-cols-1 gap-8 lg:grid-cols-[minmax(18rem,22rem)_minmax(0,1fr)] lg:items-start">
+      <section
+        aria-labelledby="backtest-setup-heading"
+        className="border-y border-border-muted sm:border-x"
+      >
+        <div className="border-b border-border-muted px-4 py-3">
+          <h2 id="backtest-setup-heading" className="text-sm font-semibold">
+            Strategy setup
+          </h2>
+          <p className="mt-1 text-xs leading-5 text-text-tertiary">
+            Signals from a completed bar execute on the following bar to avoid same-bar look-ahead
+            bias.
+          </p>
+        </div>
+        <form onSubmit={onSubmit} className="space-y-5 p-4">
+          <div className="space-y-2">
+            <Label htmlFor="bt-ticker">Symbol</Label>
+            <select
+              id="bt-ticker"
+              value={ticker}
+              onChange={(event) => syncTicker(event.target.value)}
+              required
+              className="flex h-10 w-full rounded-sm border border-input bg-transparent px-3 py-2 text-sm"
+            >
+              {symbols.map((symbol) => (
+                <option key={symbol.ticker} value={symbol.ticker}>
+                  {symbol.ticker} — {symbol.name}
+                </option>
+              ))}
+            </select>
+            {ticker ? (
+              <p className="text-xs text-text-tertiary">
+                <Link href={`/stocks/${ticker}`} className="hover:underline">
+                  Open {ticker} workspace
+                </Link>
+              </p>
+            ) : null}
+          </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label htmlFor="bt-from">From</Label>
-                <Input
-                  id="bt-from"
-                  type="date"
-                  value={from}
-                  onChange={(e) => setFrom(e.target.value)}
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="bt-to">To</Label>
-                <Input
-                  id="bt-to"
-                  type="date"
-                  value={to}
-                  onChange={(e) => setTo(e.target.value)}
-                  required
-                />
-              </div>
-            </div>
-
+          <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
-              <Label htmlFor="bt-cash">Initial cash</Label>
+              <Label htmlFor="bt-from">From</Label>
               <Input
-                id="bt-cash"
-                type="number"
-                min="1"
-                step="1"
-                value={initialCash}
-                onChange={(e) => setInitialCash(e.target.value)}
+                id="bt-from"
+                type="date"
+                value={from}
+                onChange={(event) => setFrom(event.target.value)}
                 required
               />
             </div>
-
-            <fieldset className="space-y-2">
-              <legend className="text-sm font-medium">Trading costs</legend>
-              <p className="text-xs text-muted-foreground">
-                Charged on both sides of every round trip. Leave at 0 for a frictionless run.
-              </p>
-              <div className="grid grid-cols-2 gap-2">
-                <div className="space-y-1">
-                  <Label htmlFor="bt-commission" className="text-xs">
-                    Commission (bps)
-                  </Label>
-                  <Input
-                    id="bt-commission"
-                    type="number"
-                    min="0"
-                    max="1000"
-                    step="1"
-                    value={commissionBps}
-                    onChange={(e) => setCommissionBps(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label htmlFor="bt-slippage" className="text-xs">
-                    Slippage (bps)
-                  </Label>
-                  <Input
-                    id="bt-slippage"
-                    type="number"
-                    min="0"
-                    max="1000"
-                    step="1"
-                    value={slippageBps}
-                    onChange={(e) => setSlippageBps(e.target.value)}
-                  />
-                </div>
-              </div>
-            </fieldset>
-
             <div className="space-y-2">
-              <Label htmlFor="bt-strategy">Strategy</Label>
-              <select
-                id="bt-strategy"
-                value={strategyType}
-                onChange={(e) => setStrategyType(e.target.value as StrategyType)}
-                className="flex h-10 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-              >
-                <option value="rsi_threshold">RSI threshold</option>
-                <option value="sma_crossover">SMA crossover</option>
-              </select>
-            </div>
-
-            {strategyType === "rsi_threshold" ? (
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-2">
-                  <Label htmlFor="bt-buy-below">Buy below RSI</Label>
-                  <Input
-                    id="bt-buy-below"
-                    type="number"
-                    min="0"
-                    max="100"
-                    value={buyBelow}
-                    onChange={(e) => setBuyBelow(e.target.value)}
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="bt-sell-above">Sell above RSI</Label>
-                  <Input
-                    id="bt-sell-above"
-                    type="number"
-                    min="0"
-                    max="100"
-                    value={sellAbove}
-                    onChange={(e) => setSellAbove(e.target.value)}
-                    required
-                  />
-                </div>
-              </div>
-            ) : (
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-2">
-                  <Label htmlFor="bt-short">Short window</Label>
-                  <Input
-                    id="bt-short"
-                    type="number"
-                    min="1"
-                    max="500"
-                    value={shortWindow}
-                    onChange={(e) => setShortWindow(e.target.value)}
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="bt-long">Long window</Label>
-                  <Input
-                    id="bt-long"
-                    type="number"
-                    min="2"
-                    max="500"
-                    value={longWindow}
-                    onChange={(e) => setLongWindow(e.target.value)}
-                    required
-                  />
-                </div>
-              </div>
-            )}
-
-            {error ? (
-              <p className="text-sm text-red-500" role="alert">
-                {error}
-              </p>
-            ) : null}
-
-            <Button type="submit" disabled={pending} className="w-full">
-              {pending ? "Running…" : "Run backtest"}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
-
-      <div className="lg:col-span-2">
-        {result === null ? (
-          <Card>
-            <CardContent className="p-6 text-sm text-muted-foreground">
-              Configure a strategy and run a backtest to see results here.
-            </CardContent>
-          </Card>
-        ) : result.equity_curve.length === 0 ? (
-          <Card>
-            <CardContent className="p-6 text-sm text-muted-foreground">
-              No bars stored for {result.ticker} in that date range. Try a wider window.
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="space-y-6">
-            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-              <Card>
-                <CardContent className="p-4">
-                  <p className="text-xs text-muted-foreground">Total return</p>
-                  <p
-                    className={`mt-1 font-mono text-xl ${
-                      result.summary.total_return >= 0 ? "text-green-500" : "text-red-500"
-                    }`}
-                  >
-                    {fmtPct(result.summary.total_return)}
-                  </p>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="p-4">
-                  <p className="text-xs text-muted-foreground">Final NAV</p>
-                  <p className="mt-1 font-mono text-xl">{fmtCurrency(result.summary.final_nav)}</p>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="p-4">
-                  <p className="text-xs text-muted-foreground">Sharpe</p>
-                  <p className="mt-1 font-mono text-xl">{result.summary.sharpe.toFixed(2)}</p>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="p-4">
-                  <p className="text-xs text-muted-foreground">Max drawdown</p>
-                  <p className="mt-1 font-mono text-xl text-red-500">
-                    -{(result.summary.max_drawdown * 100).toFixed(2)}%
-                  </p>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="p-4">
-                  <p className="text-xs text-muted-foreground">Buy &amp; hold</p>
-                  <p className="mt-1 font-mono text-xl">
-                    {fmtPct(result.summary.benchmark_return)}
-                  </p>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="p-4">
-                  <p className="text-xs text-muted-foreground">vs buy &amp; hold</p>
-                  <p
-                    className={`mt-1 font-mono text-xl ${
-                      result.summary.excess_return >= 0 ? "text-green-500" : "text-red-500"
-                    }`}
-                  >
-                    {result.summary.excess_return >= 0 ? "+" : ""}
-                    {result.summary.excess_return.toFixed(2)} pts
-                  </p>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="p-4">
-                  <p className="text-xs text-muted-foreground">Trading costs</p>
-                  <p className="mt-1 font-mono text-xl">
-                    {fmtCurrency(result.summary.total_costs)}
-                  </p>
-                </CardContent>
-              </Card>
-            </div>
-
-            <div className="rounded-lg border bg-card p-4">
-              <h2 className="mb-3 text-sm font-medium text-muted-foreground">Equity curve</h2>
-              <EquityCurve points={result.equity_curve} />
-            </div>
-
-            <div>
-              <h2 className="mb-3 text-sm font-medium text-muted-foreground">
-                Trade log ({result.trades.length})
-              </h2>
-              {result.trades.length === 0 ? (
-                <Card>
-                  <CardContent className="p-6 text-sm text-muted-foreground">
-                    The strategy never triggered a trade over this window.
-                  </CardContent>
-                </Card>
-              ) : (
-                <div className="rounded-lg border">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Date</TableHead>
-                        <TableHead className="w-[80px]">Side</TableHead>
-                        <TableHead className="text-right">Price</TableHead>
-                        <TableHead className="text-right">Shares</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {result.trades.map((t, i) => (
-                        <TableRow key={`${t.date}-${t.side}-${i}`}>
-                          <TableCell className="text-muted-foreground">{t.date}</TableCell>
-                          <TableCell
-                            className={`font-medium uppercase ${
-                              t.side === "buy" ? "text-green-500" : "text-red-500"
-                            }`}
-                          >
-                            {t.side}
-                          </TableCell>
-                          <TableCell className="text-right font-mono">
-                            {fmtCurrency(t.price)}
-                          </TableCell>
-                          <TableCell className="text-right font-mono">
-                            {Number(t.shares).toLocaleString("en-US", {
-                              maximumFractionDigits: 4,
-                            })}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              )}
+              <Label htmlFor="bt-to">To</Label>
+              <Input
+                id="bt-to"
+                type="date"
+                value={to}
+                onChange={(event) => setTo(event.target.value)}
+                required
+              />
             </div>
           </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="bt-cash">Initial cash</Label>
+            <Input
+              id="bt-cash"
+              type="number"
+              min="1"
+              step="1"
+              value={initialCash}
+              onChange={(event) => setInitialCash(event.target.value)}
+              required
+            />
+          </div>
+
+          <fieldset className="space-y-2">
+            <legend className="text-sm font-medium">Trading costs</legend>
+            <p className="text-xs text-text-tertiary">
+              Charged on both sides of every round trip. Zero is a frictionless run, not a live
+              broker model.
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1">
+                <Label htmlFor="bt-commission" className="text-xs">
+                  Commission (bps)
+                </Label>
+                <Input
+                  id="bt-commission"
+                  type="number"
+                  min="0"
+                  max="1000"
+                  step="1"
+                  value={commissionBps}
+                  onChange={(event) => setCommissionBps(event.target.value)}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="bt-slippage" className="text-xs">
+                  Slippage (bps)
+                </Label>
+                <Input
+                  id="bt-slippage"
+                  type="number"
+                  min="0"
+                  max="1000"
+                  step="1"
+                  value={slippageBps}
+                  onChange={(event) => setSlippageBps(event.target.value)}
+                />
+              </div>
+            </div>
+          </fieldset>
+
+          <div className="space-y-2">
+            <Label htmlFor="bt-strategy">Strategy</Label>
+            <select
+              id="bt-strategy"
+              value={strategyType}
+              onChange={(event) => setStrategyType(event.target.value as StrategyType)}
+              className="flex h-10 w-full rounded-sm border border-input bg-transparent px-3 py-2 text-sm"
+            >
+              <option value="rsi_threshold">RSI threshold</option>
+              <option value="sma_crossover">SMA crossover</option>
+            </select>
+          </div>
+
+          {strategyType === "rsi_threshold" ? (
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label htmlFor="bt-buy-below">Buy below RSI</Label>
+                <Input
+                  id="bt-buy-below"
+                  type="number"
+                  min="0"
+                  max="100"
+                  value={buyBelow}
+                  onChange={(event) => setBuyBelow(event.target.value)}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="bt-sell-above">Sell above RSI</Label>
+                <Input
+                  id="bt-sell-above"
+                  type="number"
+                  min="0"
+                  max="100"
+                  value={sellAbove}
+                  onChange={(event) => setSellAbove(event.target.value)}
+                  required
+                />
+              </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label htmlFor="bt-short">Short window</Label>
+                <Input
+                  id="bt-short"
+                  type="number"
+                  min="1"
+                  max="500"
+                  value={shortWindow}
+                  onChange={(event) => setShortWindow(event.target.value)}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="bt-long">Long window</Label>
+                <Input
+                  id="bt-long"
+                  type="number"
+                  min="2"
+                  max="500"
+                  value={longWindow}
+                  onChange={(event) => setLongWindow(event.target.value)}
+                  required
+                />
+              </div>
+            </div>
+          )}
+
+          {error ? (
+            <div className="border border-negative/40 bg-negative/5 px-3 py-2 text-sm" role="alert">
+              <p className="font-medium">
+                {error.kind === "validation" ? "Check the setup" : "Run failed"}
+              </p>
+              <p className="mt-1 text-text-secondary">{error.message}</p>
+            </div>
+          ) : null}
+
+          <Button type="submit" disabled={pending} className="w-full rounded-sm">
+            {pending ? "Running…" : "Run backtest"}
+          </Button>
+        </form>
+      </section>
+
+      <div aria-busy={pending} aria-live="polite">
+        {pending ? (
+          <div className="border-y border-border-muted px-4 py-10 text-sm text-text-secondary sm:border-x sm:px-6">
+            Running the rule over stored daily bars…
+          </div>
+        ) : result === null ? (
+          <ResearchEmptyState title="No experiment yet">
+            <p>
+              Test RSI threshold or SMA crossover rules on stored end-of-day closes. Positions are
+              all-in or all-out. This is not a brokerage-grade market-microstructure simulation.
+            </p>
+          </ResearchEmptyState>
+        ) : result.equity_curve.length === 0 ? (
+          <ResearchEmptyState title={`No bars for ${result.ticker}`}>
+            <p>Nothing is stored in that date range. Widen the window or pick another symbol.</p>
+          </ResearchEmptyState>
+        ) : (
+          <BacktestResults
+            result={result}
+            commissionBps={lastCosts.commissionBps}
+            slippageBps={lastCosts.slippageBps}
+          />
         )}
       </div>
+    </div>
+  );
+}
+
+function Metric({
+  label,
+  value,
+  className,
+}: {
+  label: string;
+  value: string;
+  className?: string;
+}) {
+  return (
+    <div className="min-w-0 px-3 py-3">
+      <dt className="text-[10px] font-semibold tracking-[0.12em] text-text-tertiary uppercase">
+        {label}
+      </dt>
+      <dd className={cn("mt-1 font-mono text-lg tabular-nums", className)}>{value}</dd>
+    </div>
+  );
+}
+
+function BacktestResults({
+  result,
+  commissionBps,
+  slippageBps,
+}: {
+  result: BacktestResult;
+  commissionBps: number;
+  slippageBps: number;
+}) {
+  return (
+    <div className="space-y-8">
+      <section aria-labelledby="equity-heading">
+        <ResearchSectionHeader
+          id="equity-heading"
+          title="Equity curve"
+          description={`Strategy NAV versus the run window. Buy-and-hold benchmark return ${fmtPct(result.summary.benchmark_return)}.`}
+        />
+        <div className="border-y border-border-muted bg-surface-elevated p-3 sm:border-x sm:p-4">
+          <EquityCurve
+            points={result.equity_curve}
+            accessibleLabel={`${result.ticker} strategy equity curve from the backtest run.`}
+          />
+        </div>
+      </section>
+
+      <section aria-labelledby="primary-metrics-heading">
+        <ResearchSectionHeader id="primary-metrics-heading" title="Performance" />
+        <dl className="grid grid-cols-2 border-y border-border-muted sm:grid-cols-4">
+          <Metric
+            label="Strategy return"
+            value={fmtPct(result.summary.total_return)}
+            className={signedClass(result.summary.total_return)}
+          />
+          <Metric
+            label="Benchmark return"
+            value={fmtPct(result.summary.benchmark_return)}
+            className={signedClass(result.summary.benchmark_return)}
+          />
+          <Metric
+            label="Excess return"
+            value={`${result.summary.excess_return >= 0 ? "+" : ""}${result.summary.excess_return.toFixed(2)} pts`}
+            className={signedClass(result.summary.excess_return)}
+          />
+          <Metric label="Final NAV" value={fmtCurrency(result.summary.final_nav)} />
+        </dl>
+      </section>
+
+      <section aria-labelledby="risk-metrics-heading">
+        <ResearchSectionHeader id="risk-metrics-heading" title="Risk and costs" />
+        <dl className="grid grid-cols-2 border-y border-border-muted sm:grid-cols-4">
+          <Metric label="Sharpe" value={result.summary.sharpe.toFixed(2)} />
+          <Metric
+            label="Max drawdown"
+            value={`-${(result.summary.max_drawdown * 100).toFixed(2)}%`}
+            className="text-negative"
+          />
+          <Metric label="Total costs" value={fmtCurrency(result.summary.total_costs)} />
+          <Metric label="Trades" value={String(result.trades.length)} />
+        </dl>
+        <p className="mt-3 text-xs leading-5 text-text-tertiary">
+          Commission {commissionBps} bps · slippage {slippageBps} bps · Sharpe uses a{" "}
+          {(RISK_FREE_RATE * 100).toFixed(0)}% annual risk-free rate. Fills use the next bar&apos;s
+          close after a completed-bar signal.
+        </p>
+      </section>
+
+      <section aria-labelledby="trades-heading">
+        <ResearchSectionHeader
+          id="trades-heading"
+          title={`Trade log (${result.trades.length})`}
+          description="All-in / all-out fills at the execution bar close."
+        />
+        {result.trades.length === 0 ? (
+          <p className="border-y border-border-muted py-6 text-sm text-text-secondary">
+            The strategy never triggered a trade over this window.
+          </p>
+        ) : (
+          <div className="border-y border-border-muted">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Date</TableHead>
+                  <TableHead className="w-[80px]">Side</TableHead>
+                  <TableHead className="text-right">Price</TableHead>
+                  <TableHead className="hidden text-right sm:table-cell">Shares</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {result.trades.map((trade, index) => (
+                  <TableRow key={`${trade.date}-${trade.side}-${index}`}>
+                    <TableCell className="text-muted-foreground">{trade.date}</TableCell>
+                    <TableCell
+                      className={cn(
+                        "font-medium uppercase",
+                        trade.side === "buy" ? "text-positive" : "text-negative",
+                      )}
+                    >
+                      {trade.side}
+                    </TableCell>
+                    <TableCell className="text-right font-mono">
+                      {fmtCurrency(trade.price)}
+                    </TableCell>
+                    <TableCell className="hidden text-right font-mono sm:table-cell">
+                      {Number(trade.shares).toLocaleString("en-US", {
+                        maximumFractionDigits: 4,
+                      })}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </section>
     </div>
   );
 }

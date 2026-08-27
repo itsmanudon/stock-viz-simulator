@@ -10,7 +10,9 @@ async function signUp(page: Page, email: string): Promise<void> {
   await page.waitForURL("/");
 }
 
-test("authenticated user can place a buy order", async ({ page }) => {
+// One signup covers both assertions. Credential signup is capped at 5/IP/hour,
+// and auth + portfolio + stock-workspace already consume four of those slots.
+test("authenticated user can place a buy order and see it in history", async ({ page }) => {
   const email = `e2e+trade+${Date.now()}@example.com`;
   await signUp(page, email);
 
@@ -23,19 +25,7 @@ test("authenticated user can place a buy order", async ({ page }) => {
 
   // On success, a green confirmation message is shown
   await expect(page.locator("output")).toContainText("Filled BUY", { timeout: 10_000 });
-});
 
-test("buy order appears in trade history", async ({ page }) => {
-  const email = `e2e+history+${Date.now()}@example.com`;
-  await signUp(page, email);
-
-  // Place a trade using a ticker with backfilled price data
-  await page.goto("/trade");
-  await page.getByLabel("Symbol").selectOption("AAPL");
-  await page.getByRole("button", { name: "Place buy order" }).click();
-  await expect(page.locator("output")).toContainText("Filled BUY", { timeout: 10_000 });
-
-  // Verify it shows up in /trades
   await page.goto("/trades");
   await expect(page.getByRole("heading", { name: "Trade history" })).toBeVisible();
   const firstRow = page.locator("tbody tr").first();

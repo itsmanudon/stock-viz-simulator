@@ -1,44 +1,38 @@
 /**
- * /compare?tickers=AAPL,MSFT,... — normalized line chart over a shared window.
+ * /compare?tickers=AAPL,MSFT,... — normalized comparison over a shared window.
  *
- * Pulls bars for every ticker in the query string in parallel, hands them to
- * the client-side CompareChart, and shows a per-ticker summary (return %,
- * absolute change, sector) underneath. The chart rebases each series to 100
- * at the first bar so the lines are visually comparable.
+ * Server component: loads bars in parallel, optionally joins screener metrics,
+ * and derives window statistics. Symbol picking and the chart are client islands.
  */
 
 import Link from "next/link";
-import { redirect } from "next/navigation";
 
 import { CompareChart } from "@/components/compare-chart";
-import { Card, CardContent } from "@/components/ui/card";
-import { ApiError, type Bar, getBars, getSymbol } from "@/lib/api";
-
-const TIMEFRAMES = [
-  { value: "1M", days: 22 },
-  { value: "3M", days: 65 },
-  { value: "6M", days: 130 },
-  { value: "1Y", days: 252 },
-  { value: "5Y", days: 1260 },
-] as const;
-
-type Timeframe = (typeof TIMEFRAMES)[number]["value"];
-
-function parseTickers(raw: string | undefined): string[] {
-  if (!raw) return [];
-  return Array.from(
-    new Set(
-      raw
-        .split(",")
-        .map((t) => t.trim().toUpperCase())
-        .filter(Boolean),
-    ),
-  ).slice(0, 6);
-}
-
-function parseTimeframe(raw: string | undefined): Timeframe {
-  return TIMEFRAMES.find((t) => t.value === raw)?.value ?? "1Y";
-}
+import { CompareInsights, CompareMetricsTable } from "@/components/compare-metrics";
+import { CompareSymbolPicker } from "@/components/compare-symbol-picker";
+import { PageFrame } from "@/components/page-frame";
+import {
+  ResearchEmptyState,
+  ResearchPageHeader,
+  ResearchSectionHeader,
+  ResearchSubnav,
+} from "@/components/research-page-header";
+import { ApiError, type Bar, getBars, getSymbol, listSymbols, screenSymbols } from "@/lib/api";
+import type { ScreenerResult } from "@/lib/api/types";
+import {
+  type CompareMetrics,
+  SAMPLE_COMPARE_TICKERS,
+  annualizedVolatilityPct,
+  buildCompareHref,
+  closesFromBars,
+  compareTimeframeDays,
+  deriveCompareInsights,
+  maxDrawdownPct,
+  parseCompareSearchParams,
+  rangeReturnPct,
+  seriesColor,
+  week52PositionPct,
+} from "@/lib/compare-workspace";
 
 async function loadSeries(
   ticker: string,
@@ -60,125 +54,157 @@ async function loadSeries(
   }
 }
 
-function pct(n: number | null): string {
-  if (n === null) return "—";
-  const sign = n > 0 ? "+" : "";
-  return `${sign}${n.toFixed(2)}%`;
-}
-
-function tfHref(tickers: string[], tf: Timeframe): string {
-  const params = new URLSearchParams();
-  if (tickers.length) params.set("tickers", tickers.join(","));
-  params.set("tf", tf);
-  return `/compare?${params.toString()}`;
-}
-
 export default async function ComparePage({
   searchParams,
 }: {
-  searchParams: Promise<{ tickers?: string; tf?: string }>;
+  searchParams: Promise<{ tickers?: string; symbols?: string; tf?: string }>;
 }) {
-  const { tickers: rawTickers, tf: rawTf } = await searchParams;
-  const tickers = parseTickers(rawTickers);
-  const tf = parseTimeframe(rawTf);
-  const days = TIMEFRAMES.find((t) => t.value === tf)?.days ?? 252;
+  const params = await searchParams;
+  const { tickers, timeframe } = parseCompareSearchParams(params);
+  const days = compareTimeframeDays(timeframe);
+  const sampleHref = buildCompareHref([...SAMPLE_COMPARE_TICKERS], timeframe);
 
-  if (tickers.length === 0) {
-    // Default to a sensible quartet so the page has something to show on a
-    // bare visit. Redirect (rather than render in-place) so the URL reflects
-    // the actual query and is shareable.
-    redirect("/compare?tickers=AAPL,MSFT,GOOGL,AMZN&tf=1Y");
-  }
+  const universePromise = listSymbols().catch(() => []);
+  const screenPromise = tickers.length
+    ? screenSymbols().catch(() => [] as ScreenerResult[])
+    : Promise.resolve([] as ScreenerResult[]);
 
-  const seriesByTicker = await Promise.all(tickers.map((t) => loadSeries(t, days)));
+  const [universe, screenRows, seriesByTicker] = await Promise.all([
+    universePromise,
+    screenPromise,
+    tickers.length
+      ? Promise.all(tickers.map((ticker) => loadSeries(ticker, days)))
+      : Promise.resolve([]),
+  ]);
 
-  // Summary rows: total return % over the loaded window, plus sector.
-  const summary = seriesByTicker.map((s) => {
-    const first = s.bars[0] ? Number(s.bars[0].close) : null;
-    const last = s.bars[s.bars.length - 1] ? Number(s.bars[s.bars.length - 1].close) : null;
-    const returnPct =
-      first !== null && last !== null && first !== 0 ? ((last - first) / first) * 100 : null;
-    return { ...s, first, last, returnPct };
+  const screenByTicker = new Map(screenRows.map((row) => [row.ticker, row]));
+  const names: Record<string, string> = {};
+  for (const symbol of universe) names[symbol.ticker] = symbol.name;
+  for (const row of seriesByTicker) names[row.ticker] = row.name;
+
+  const metrics: CompareMetrics[] = seriesByTicker.map((row, index) => {
+    const closes = closesFromBars(row.bars);
+    const lastPrice = closes.length ? closes[closes.length - 1] : null;
+    const screen = screenByTicker.get(row.ticker);
+    const high52 = screen ? Number(screen.high_52w) : null;
+    const low52 = screen ? Number(screen.low_52w) : null;
+    return {
+      ticker: row.ticker,
+      name: row.name,
+      sector: row.sector ?? screen?.sector ?? null,
+      color: seriesColor(index),
+      bars: row.bars,
+      lastPrice,
+      returnPct: rangeReturnPct(closes),
+      volatilityPct: annualizedVolatilityPct(closes),
+      maxDrawdownPct: maxDrawdownPct(closes),
+      rsi14: screen?.rsi_14 ?? null,
+      week52PositionPct: week52PositionPct(
+        lastPrice,
+        low52 !== null && Number.isFinite(low52) ? low52 : null,
+        high52 !== null && Number.isFinite(high52) ? high52 : null,
+      ),
+      sentiment7d: screen?.sentiment_7d ?? null,
+    };
   });
-
-  // Sector breakdown — count of tickers per sector in the current basket.
-  const sectorCounts = summary.reduce<Map<string, number>>((acc, row) => {
-    const key = row.sector ?? "Unknown";
-    acc.set(key, (acc.get(key) ?? 0) + 1);
-    return acc;
-  }, new Map());
+  const insights = deriveCompareInsights(metrics);
 
   return (
-    <div className="container mx-auto px-4 py-10 sm:px-6">
-      <header className="mb-6 flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Compare</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Normalized to 100 at the start of the window. Up to 6 tickers.
-          </p>
-        </div>
-        <nav className="flex gap-1">
-          {TIMEFRAMES.map((t) => (
-            <Link
-              key={t.value}
-              href={tfHref(tickers, t.value)}
-              className={`rounded-md border px-2.5 py-1 text-xs transition hover:bg-accent ${
-                tf === t.value ? "border-primary text-foreground" : "text-muted-foreground"
-              }`}
-            >
-              {t.value}
-            </Link>
-          ))}
-        </nav>
-      </header>
+    <PageFrame width="workstation" className="py-6 sm:py-8">
+      <ResearchPageHeader
+        title="Compare"
+        description="How do these assets compare over the selected period? Series are rebased to 100 at the first stored close in the window."
+        actions={
+          <nav aria-label="Comparison window" className="flex gap-1">
+            {(["1M", "3M", "6M", "1Y", "5Y"] as const).map((value) => (
+              <Link
+                key={value}
+                href={buildCompareHref(tickers, value)}
+                className={`rounded-sm border px-2.5 py-1 text-xs transition-colors hover:bg-surface-hover ${
+                  timeframe === value
+                    ? "border-brand text-foreground"
+                    : "border-border-muted text-text-tertiary"
+                }`}
+              >
+                {value}
+              </Link>
+            ))}
+          </nav>
+        }
+      />
+      <ResearchSubnav current="/compare" />
 
-      <div className="rounded-lg border bg-card p-4">
-        <CompareChart series={seriesByTicker.map(({ ticker, bars }) => ({ ticker, bars }))} />
-      </div>
+      <div className="mt-6 space-y-8">
+        <CompareSymbolPicker tickers={tickers} timeframe={timeframe} names={names} />
 
-      <section className="mt-8 grid grid-cols-1 gap-4 md:grid-cols-2">
-        <Card>
-          <CardContent className="p-4">
-            <h2 className="mb-3 text-sm font-medium text-muted-foreground">Tickers</h2>
-            <ul className="space-y-2 text-sm">
-              {summary.map((row) => (
-                <li key={row.ticker} className="flex items-baseline justify-between gap-3">
-                  <Link href={`/stocks/${row.ticker}`} className="font-mono hover:underline">
-                    {row.ticker}
+        {tickers.length === 0 ? (
+          <ResearchEmptyState
+            title="Select symbols to compare"
+            action={
+              <Link
+                href={sampleHref}
+                className="inline-flex h-9 items-center rounded-sm border border-border-muted px-3 text-sm hover:bg-surface-hover"
+              >
+                Load sample set (AAPL, MSFT, GOOGL, AMZN)
+              </Link>
+            }
+          >
+            <p>
+              Compare up to six securities on normalized performance, then inspect window return,
+              volatility, and any available RSI or sentiment metrics.
+            </p>
+          </ResearchEmptyState>
+        ) : (
+          <>
+            <section aria-labelledby="compare-chart-heading">
+              <ResearchSectionHeader
+                id="compare-chart-heading"
+                title="Normalized performance"
+                description={`${timeframe} window · 100 at the first bar. End-of-day closes only.`}
+              />
+              <div className="border-y border-border-muted bg-surface-elevated p-3 sm:border-x sm:p-4">
+                <CompareChart
+                  series={metrics.map((row) => ({
+                    ticker: row.ticker,
+                    bars: row.bars,
+                    color: row.color,
+                  }))}
+                />
+              </div>
+            </section>
+
+            <section aria-labelledby="compare-metrics-heading">
+              <ResearchSectionHeader
+                id="compare-metrics-heading"
+                title="Comparison metrics"
+                description="Window statistics are derived from the loaded closes. RSI, 52-week positioning, and sentiment come from daily metrics when available."
+              />
+              <CompareMetricsTable rows={metrics} />
+            </section>
+
+            <CompareInsights insights={insights} />
+
+            <p className="text-xs text-text-tertiary">
+              Open a name in the stock workspace or send it to Backtest from the table links.
+            </p>
+            <ul className="flex flex-wrap gap-3 text-xs">
+              {tickers.map((ticker) => (
+                <li key={ticker} className="flex gap-2">
+                  <Link href={`/stocks/${ticker}`} className="font-mono hover:underline">
+                    {ticker}
                   </Link>
-                  <span className="flex-1 truncate text-xs text-muted-foreground">{row.name}</span>
-                  <span
-                    className={`font-mono text-xs ${
-                      row.returnPct === null
-                        ? "text-muted-foreground"
-                        : row.returnPct >= 0
-                          ? "text-green-500"
-                          : "text-red-500"
-                    }`}
+                  <Link
+                    href={`/backtest?ticker=${ticker}`}
+                    className="text-text-tertiary hover:underline"
                   >
-                    {pct(row.returnPct)}
-                  </span>
+                    Backtest
+                  </Link>
                 </li>
               ))}
             </ul>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <h2 className="mb-3 text-sm font-medium text-muted-foreground">Sector breakdown</h2>
-            <ul className="space-y-2 text-sm">
-              {Array.from(sectorCounts.entries())
-                .sort((a, b) => b[1] - a[1])
-                .map(([sector, count]) => (
-                  <li key={sector} className="flex items-baseline justify-between">
-                    <span>{sector}</span>
-                    <span className="font-mono text-xs text-muted-foreground">{count}</span>
-                  </li>
-                ))}
-            </ul>
-          </CardContent>
-        </Card>
-      </section>
-    </div>
+          </>
+        )}
+      </div>
+    </PageFrame>
   );
 }
