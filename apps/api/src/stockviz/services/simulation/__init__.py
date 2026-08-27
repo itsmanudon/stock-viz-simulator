@@ -19,6 +19,7 @@ from stockviz.services.simulation.profiles import (
     LEGACY_CLOSE_ASSUMPTIONS,
     LEGACY_CLOSE_MODEL_VERSION,
     LEGACY_CLOSE_NAME,
+    is_legacy_close,
 )
 
 __all__ = [
@@ -35,4 +36,5 @@ __all__ = [
     "OrderSide",
     "SimulationOrderType",
     "evaluate_order",
+    "is_legacy_close",
 ]

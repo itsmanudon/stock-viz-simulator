@@ -119,6 +119,12 @@ class OrderIntent:
     remaining_quantity: Decimal | None = None
 
     def __post_init__(self) -> None:
+        if not isinstance(self.side, OrderSide):
+            raise TypeError(f"side must be OrderSide, got {type(self.side).__name__}")
+        if not isinstance(self.order_type, SimulationOrderType):
+            raise TypeError(
+                f"order_type must be SimulationOrderType, got {type(self.order_type).__name__}"
+            )
         object.__setattr__(self, "ticker", _require_ticker(self.ticker))
         object.__setattr__(
             self, "submitted_at", _require_aware(self.submitted_at, field="submitted_at")

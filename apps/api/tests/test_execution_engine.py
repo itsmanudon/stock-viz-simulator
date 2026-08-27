@@ -24,6 +24,7 @@ from stockviz.models.order import OrderType, PendingOrder
 from stockviz.models.portfolio import TradeSide
 from stockviz.services.simulation import (
     LEGACY_CLOSE,
+    LEGACY_CLOSE_ASSUMPTIONS,
     LEGACY_CLOSE_MODEL_VERSION,
     LEGACY_CLOSE_NAME,
     ExecutionProfile,
@@ -34,6 +35,7 @@ from stockviz.services.simulation import (
     OrderSide,
     SimulationOrderType,
     evaluate_order,
+    is_legacy_close,
 )
 from stockviz.services.trading.orders import _should_fill
 
@@ -399,6 +401,62 @@ def test_empty_ticker_is_invalid() -> None:
         _intent(side=OrderSide.BUY, order_type=SimulationOrderType.MARKET, ticker="  ")
 
 
+def test_order_intent_rejects_raw_side_string() -> None:
+    with pytest.raises(TypeError, match="OrderSide"):
+        OrderIntent(
+            ticker="AAPL",
+            side="buy",  # type: ignore[arg-type]
+            order_type=SimulationOrderType.MARKET,
+            quantity=_dec("1"),
+            submitted_at=SUBMITTED_AT,
+        )
+
+
+def test_order_intent_rejects_raw_order_type_string() -> None:
+    with pytest.raises(TypeError, match="SimulationOrderType"):
+        OrderIntent(
+            ticker="AAPL",
+            side=OrderSide.BUY,
+            order_type="market",  # type: ignore[arg-type]
+            quantity=_dec("1"),
+            submitted_at=SUBMITTED_AT,
+        )
+
+
+def test_order_intent_rejects_arbitrary_invalid_side() -> None:
+    with pytest.raises(TypeError, match="OrderSide"):
+        OrderIntent(
+            ticker="AAPL",
+            side="long",  # type: ignore[arg-type]
+            order_type=SimulationOrderType.MARKET,
+            quantity=_dec("1"),
+            submitted_at=SUBMITTED_AT,
+        )
+
+
+def test_order_intent_rejects_arbitrary_invalid_order_type() -> None:
+    with pytest.raises(TypeError, match="SimulationOrderType"):
+        OrderIntent(
+            ticker="AAPL",
+            side=OrderSide.BUY,
+            order_type="stop",  # type: ignore[arg-type]
+            quantity=_dec("1"),
+            submitted_at=SUBMITTED_AT,
+        )
+
+
+def test_order_intent_accepts_enum_members() -> None:
+    order = OrderIntent(
+        ticker="AAPL",
+        side=OrderSide.BUY,
+        order_type=SimulationOrderType.MARKET,
+        quantity=_dec("1"),
+        submitted_at=SUBMITTED_AT,
+    )
+    assert order.side is OrderSide.BUY
+    assert order.order_type is SimulationOrderType.MARKET
+
+
 def test_unknown_profile_is_ineligible() -> None:
     decision = _evaluate(
         _intent(side=OrderSide.BUY, order_type=SimulationOrderType.MARKET),
@@ -407,6 +465,73 @@ def test_unknown_profile_is_ineligible() -> None:
     )
     assert decision.status is FillStatus.INELIGIBLE
     assert "not implemented" in decision.trace.reason
+
+
+def test_legacy_close_singleton_is_recognized() -> None:
+    assert is_legacy_close(LEGACY_CLOSE)
+    decision = _evaluate(
+        _intent(side=OrderSide.BUY, order_type=SimulationOrderType.MARKET),
+        _snapshot(close=_dec("10")),
+        LEGACY_CLOSE,
+    )
+    assert decision.status is FillStatus.FILLED
+    assert decision.trace.profile == LEGACY_CLOSE_NAME
+    assert decision.trace.model_version == LEGACY_CLOSE_MODEL_VERSION
+    assert decision.trace.assumptions == LEGACY_CLOSE_ASSUMPTIONS
+
+
+def test_canonical_equal_legacy_close_clone_is_recognized() -> None:
+    clone = ExecutionProfile(
+        name=LEGACY_CLOSE_NAME,
+        model_version=LEGACY_CLOSE_MODEL_VERSION,
+        assumptions=LEGACY_CLOSE_ASSUMPTIONS,
+    )
+    assert clone == LEGACY_CLOSE
+    assert is_legacy_close(clone)
+    decision = _evaluate(
+        _intent(side=OrderSide.BUY, order_type=SimulationOrderType.MARKET),
+        _snapshot(close=_dec("10")),
+        clone,
+    )
+    assert decision.status is FillStatus.FILLED
+    assert decision.trace.assumptions == LEGACY_CLOSE_ASSUMPTIONS
+    assert decision.trace.assumptions is LEGACY_CLOSE_ASSUMPTIONS
+
+
+def test_same_name_version_with_different_assumptions_is_not_legacy_close() -> None:
+    spoofed = ExecutionProfile(
+        name=LEGACY_CLOSE_NAME,
+        model_version=LEGACY_CLOSE_MODEL_VERSION,
+        assumptions=("Uses bid/ask mid",),
+    )
+    assert not is_legacy_close(spoofed)
+    decision = _evaluate(
+        _intent(side=OrderSide.BUY, order_type=SimulationOrderType.MARKET),
+        _snapshot(close=_dec("10")),
+        spoofed,
+    )
+    assert decision.status is FillStatus.INELIGIBLE
+    assert decision.fill_price is None
+    assert "not implemented" in decision.trace.reason
+
+
+def test_spoofed_legacy_profile_cannot_publish_custom_assumptions_on_a_fill() -> None:
+    spoofed = ExecutionProfile(
+        name=LEGACY_CLOSE_NAME,
+        model_version=LEGACY_CLOSE_MODEL_VERSION,
+        assumptions=("Uses bid/ask mid", "Custom slippage"),
+    )
+    decision = _evaluate(
+        _intent(side=OrderSide.BUY, order_type=SimulationOrderType.MARKET),
+        _snapshot(close=_dec("184.12")),
+        spoofed,
+    )
+    assert decision.status is FillStatus.INELIGIBLE
+    assert decision.fill_quantity == Decimal(0)
+    assert decision.fill_price is None
+    assert decision.trace.assumptions == ("Uses bid/ask mid", "Custom slippage")
+    assert decision.trace.assumptions != LEGACY_CLOSE_ASSUMPTIONS
+    assert "Market order fills at observable daily close" not in decision.trace.reason
 
 
 # --- DETERMINISM ------------------------------------------------------------
@@ -477,8 +602,7 @@ def test_fill_trace_explains_profile_and_reason() -> None:
     assert decision.trace.reference_price == _dec("184.12")
     assert decision.trace.fill_price == _dec("184.12")
     assert "daily close" in decision.trace.reason.lower()
-    assert "Uses stored 1d close" in decision.trace.assumptions
-    assert "No spread model" in decision.trace.assumptions
+    assert decision.trace.assumptions == LEGACY_CLOSE_ASSUMPTIONS
 
 
 def test_non_trigger_trace_explains_why() -> None:
@@ -491,6 +615,8 @@ def test_non_trigger_trace_explains_why() -> None:
     assert decision.trace.fill_price is None
     assert decision.trace.reference_price == _dec("101")
     assert decision.trace.profile == LEGACY_CLOSE_NAME
+    assert decision.trace.model_version == LEGACY_CLOSE_MODEL_VERSION
+    assert decision.trace.assumptions == LEGACY_CLOSE_ASSUMPTIONS
 
 
 # --- IMMUTABILITY -----------------------------------------------------------

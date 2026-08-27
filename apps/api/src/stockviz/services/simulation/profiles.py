@@ -28,4 +28,10 @@ LEGACY_CLOSE = ExecutionProfile(
 
 
 def is_legacy_close(profile: ExecutionProfile) -> bool:
-    return profile.name == LEGACY_CLOSE_NAME and profile.model_version == LEGACY_CLOSE_MODEL_VERSION
+    """True only for the canonical profile, including its assumption tuple.
+
+    Name and version alone are not enough: a caller must not get ``legacy_close``
+    fills while publishing a different provenance string.
+    """
+
+    return profile == LEGACY_CLOSE

@@ -19,7 +19,7 @@ from stockviz.services.simulation.contracts import (
     OrderSide,
     SimulationOrderType,
 )
-from stockviz.services.simulation.profiles import is_legacy_close
+from stockviz.services.simulation.profiles import LEGACY_CLOSE, is_legacy_close
 
 
 def evaluate_order(
@@ -35,6 +35,9 @@ def evaluate_order(
             profile,
             reason=f"Execution profile {profile.name!r} {profile.model_version!r} is not implemented",
         )
+
+    # Provenance is the canonical object, not a caller-built lookalike.
+    profile = LEGACY_CLOSE
 
     if _norm_ticker(order.ticker) != _norm_ticker(market.ticker):
         return _ineligible(

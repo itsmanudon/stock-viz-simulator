@@ -112,7 +112,11 @@ explicitly.
 
 ## `legacy_close` (v1)
 
-The only implemented profile. `name = "legacy_close"`, `model_version = "v1"`.
+The only implemented profile. The canonical object is `LEGACY_CLOSE`
+(`name = "legacy_close"`, `model_version = "v1"`, plus a fixed assumption
+tuple). Recognition is dataclass equality against that object, not name and
+version alone. A profile that reuses the name/version with different
+assumptions is **not** `legacy_close` and returns `INELIGIBLE`.
 
 It reproduces **current** StockViz paper-trading fill economics. It does not
 improve them.
@@ -137,8 +141,10 @@ Assumptions recorded on every `legacy_close` trace:
 - No partial fill model
 - Does not use same-day OHLC high/low touches
 
-Unknown profile names return `INELIGIBLE`. They do not silently fall back to
-`legacy_close`.
+Unknown or non-canonical profiles return `INELIGIBLE`. They do not silently
+fall back to `legacy_close`, and they cannot attach custom assumptions to a
+legacy fill. A genuine `legacy_close` decision always traces the canonical
+assumption tuple.
 
 ## Current EOD limitations
 
