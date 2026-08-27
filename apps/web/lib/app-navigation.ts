@@ -35,10 +35,11 @@ export const APP_NAVIGATION: readonly NavigationGroup[] = [
   {
     label: "Portfolio",
     href: "/portfolio",
-    matches: ["/portfolio", "/watchlist", "/trades"],
+    matches: ["/portfolio", "/watchlist", "/alerts", "/trades"],
     items: [
       { label: "Overview", href: "/portfolio", matches: ["/portfolio"] },
       { label: "Watchlist", href: "/watchlist", matches: ["/watchlist"] },
+      { label: "Alerts", href: "/alerts", matches: ["/alerts"] },
       { label: "Trade history", href: "/trades", matches: ["/trades"] },
     ],
   },
