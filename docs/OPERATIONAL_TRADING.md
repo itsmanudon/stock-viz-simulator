@@ -25,7 +25,7 @@ Markets / Research / Stock workspace
 `/orders?status=pending|filled|cancelled|all` (default `pending`).
 
 - Pending BUY orders reserve cash; pending SELL orders reserve shares. The backend is authoritative.
-- Settlement compares the latest **1d close** to the limit/trigger and fills at that close, not at the trigger price, on the weekday 16:45 ET job (after the daily refresh).
+- Settlement compares the latest **1d close** to the limit/trigger (via the shared `legacy_close` kernel) and fills at that close, not at the trigger price, on the weekday 16:45 ET job (after the daily refresh).
 - `cancel_reason` is shown when the API provides one (insufficient cash/shares at settlement, missing FX, missing portfolio). A user cancel currently stores no reason; the UI labels that as cancelled by the user.
 
 ## Watchlist placement

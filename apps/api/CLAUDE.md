@@ -39,9 +39,11 @@ src/stockviz/
     indicators/     SMA/EMA/RSI/MACD pure functions
     recommend/      7-vote scorer; API now returns structured votes + rationale
     trading/        execute, orders (pending limit/stop + derived reservations),
+                    simulation_adapter (PriceBar / PendingOrder → kernel types),
                     buying_power, portfolio, analytics, dividends, fx, snapshots
-    simulation/     pure deterministic execution kernel (SIM-01). Not on the
-                    live trade-commit path; see docs/SIMULATION.md
+    simulation/     pure deterministic execution kernel. Live MARKET and
+                    pending equity fills call evaluate_order; apply_fill
+                    remains the ledger. See docs/SIMULATION.md
     options/        Black-Scholes-style pricing + option trade execution/settlement
     backtest/       engine.py — historical strategy simulation
     alerts.py       price-alert evaluation
@@ -224,12 +226,16 @@ intraday fills anywhere in the app:
   way: when the two had separate copies, only one of them converted native
   currency to USD.
 - **Execution kernel.** `services/simulation.evaluate_order` is a pure
-  function. Live **MARKET** fills (`execute_trade`) call it with
-  `LEGACY_CLOSE` and pass `decision.fill_price` into `apply_fill` (SIM-02).
-  Pending `settle_pending_orders` still uses `_should_fill` (SIM-03). The
-  simulation package must stay free of Session, FX, settings, Kafka, and
-  clocks. Account failures stay in the trading layer. Live MARKET
-  `observed_at` is evaluation time, not `PriceBar.ts`.
+  function. All live equity paper fills — MARKET (`execute_trade`) and
+  pending LIMIT / STOP_LOSS / TAKE_PROFIT (`settle_pending_orders`) — call
+  it with `LEGACY_CLOSE` and pass `decision.fill_price` into `apply_fill`.
+  The simulation package must stay free of Session, FX, settings, Kafka,
+  and clocks. Account failures stay in the trading layer. Shared adapters
+  live in `services/trading/simulation_adapter.py` (naive-UTC labeling,
+  `MarketSnapshot` from `PriceBar`). Live `observed_at` is evaluation /
+  settlement time, not `PriceBar.ts`. Pending `submitted_at` is the
+  order's persisted `created_at`. A stale `session_date` bar is skipped
+  before the kernel runs. Kernel `INELIGIBLE` is logged and left pending.
 - **Options count toward NAV.** `compute_portfolio` marks open contracts to
   their Black-Scholes value (`options_market_value`). Without it, buying an
   option debited cash and recorded no offsetting asset.
