@@ -111,7 +111,11 @@ export function SecurityHeader({
             {signedIn ? (
               <>
                 <WatchlistToggle ticker={symbol.ticker} initialInWatchlist={inWatchlist} compact />
-                <AlertForm ticker={symbol.ticker} />
+                <AlertForm
+                  ticker={symbol.ticker}
+                  lastClose={symbol.latest?.close ?? null}
+                  currency={symbol.currency}
+                />
               </>
             ) : (
               <>

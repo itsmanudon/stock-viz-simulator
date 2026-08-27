@@ -15,16 +15,18 @@ import {
   OperationalPageHeader,
 } from "@/components/operational-page-header";
 import { PageFrame } from "@/components/page-frame";
-import { getQuotes } from "@/lib/api";
+import { getQuotes, listSymbols } from "@/lib/api";
 import { type Alert, listAlerts } from "@/lib/api/alerts";
 import {
   type AlertView,
   alertDirectionLabel,
   buildAlertsHref,
+  currencyByTicker,
+  formatNativePrice,
   parseAlertTicker,
   parseAlertView,
+  tickerCurrency,
 } from "@/lib/operational-trading";
-import { formatCurrency } from "@/lib/portfolio-view-model";
 import { cn } from "@/lib/utils";
 import { deleteAlertAction, dismissAlertAction } from "./actions";
 
@@ -58,7 +60,8 @@ export default async function AlertsPage({
   const params = await searchParams;
   const view = parseAlertView(params.view);
   const createTicker = parseAlertTicker(params.ticker);
-  const alerts = await listAlerts();
+  const [alerts, symbols] = await Promise.all([listAlerts(), listSymbols().catch(() => [])]);
+  const currencies = currencyByTicker(symbols);
   const visible = alerts.filter((alert) => matchesView(alert, view));
   const quote = createTicker ? await getQuotes([createTicker]).catch(() => []) : [];
 
@@ -82,7 +85,12 @@ export default async function AlertsPage({
           </h2>
         </div>
         <div className="max-w-md p-4">
-          <AlertForm ticker={createTicker} lastClose={quote[0]?.close ?? null} variant="inline" />
+          <AlertForm
+            ticker={createTicker}
+            lastClose={quote[0]?.close ?? null}
+            currency={createTicker ? tickerCurrency(createTicker, currencies) : undefined}
+            variant="inline"
+          />
         </div>
       </section>
 
@@ -171,7 +179,7 @@ export default async function AlertsPage({
                     {alertDirectionLabel(alert.direction)}
                   </td>
                   <td className="px-3 py-3 text-right font-mono">
-                    {formatCurrency(alert.target_price)}
+                    {formatNativePrice(alert.target_price, alert.ticker, currencies)}
                   </td>
                   <td className="px-3 py-3">
                     <AlertStatusBadge

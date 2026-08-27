@@ -14,6 +14,7 @@ function AlertFields({
   ticker,
   tickerEditable,
   lastClose,
+  currency,
   fieldId,
   pending,
   state,
@@ -23,6 +24,7 @@ function AlertFields({
   ticker: string;
   tickerEditable: boolean;
   lastClose: string | null;
+  currency: string;
   fieldId: string;
   pending: boolean;
   state: CreateAlertState;
@@ -79,7 +81,7 @@ function AlertFields({
         />
         {lastClose ? (
           <p className="text-xs text-text-tertiary">
-            Current stored close: {formatCurrency(lastClose, "USD")}. Evaluated when daily bars
+            Current stored close: {formatCurrency(lastClose, currency)}. Evaluated when daily bars
             refresh — not a real-time stream.
           </p>
         ) : (
@@ -104,10 +106,12 @@ function AlertFields({
 export function AlertForm({
   ticker,
   lastClose = null,
+  currency = "USD",
   variant = "popover",
 }: {
   ticker: string;
   lastClose?: string | null;
+  currency?: string;
   variant?: "popover" | "inline";
 }) {
   const fieldId = useId();
@@ -125,6 +129,7 @@ export function AlertForm({
           ticker={ticker}
           tickerEditable={!ticker}
           lastClose={lastClose}
+          currency={currency}
           fieldId={fieldId}
           pending={pending}
           state={state}
@@ -161,6 +166,7 @@ export function AlertForm({
               ticker={ticker}
               tickerEditable={false}
               lastClose={lastClose}
+              currency={currency}
               fieldId={fieldId}
               pending={pending}
               state={state}

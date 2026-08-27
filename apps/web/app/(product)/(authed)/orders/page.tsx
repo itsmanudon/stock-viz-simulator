@@ -2,32 +2,27 @@
  * /orders — operational blotter for limit / stop-loss / take-profit orders.
  *
  * URL: ?status=pending|filled|cancelled|all (default pending).
- * Market fills live on /trades; this page is conditional paper orders.
+ * Market fills are recorded on /trades; this page is conditional paper orders.
  */
 
 import Link from "next/link";
 
-import { CancelOrderButton } from "@/components/cancel-order-button";
 import {
   OperationalEmptyState,
   OperationalPageHeader,
   OperationalSubnav,
-  OrderSideBadge,
-  OrderStatusBadge,
-  OrderTypeBadge,
 } from "@/components/operational-page-header";
+import { OrderBlotterRow } from "@/components/order-blotter-row";
 import { PageFrame } from "@/components/page-frame";
-import { type PendingOrder, listOrders } from "@/lib/api/trading";
+import { listSymbols } from "@/lib/api";
+import { listOrders } from "@/lib/api/trading";
 import {
   type OrderStatusFilter,
   buildOrdersHref,
-  buildTradeHref,
+  currencyByTicker,
   parseOrdersStatus,
-  userCancelReason,
 } from "@/lib/operational-trading";
-import { formatCurrency, formatQuantity } from "@/lib/portfolio-view-model";
 import { cn } from "@/lib/utils";
-import { cancelOrderAction } from "./actions";
 
 const FILTERS: { value: OrderStatusFilter; label: string }[] = [
   { value: "pending", label: "Pending" },
@@ -35,17 +30,6 @@ const FILTERS: { value: OrderStatusFilter; label: string }[] = [
   { value: "cancelled", label: "Cancelled" },
   { value: "all", label: "All" },
 ];
-
-function fmtWhen(iso: string | null): string {
-  if (!iso) return "—";
-  return new Date(iso).toLocaleString("en-US", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
 
 function emptyCopy(status: OrderStatusFilter): { title: string; body: string } {
   switch (status) {
@@ -79,7 +63,11 @@ export default async function OrdersPage({
 }) {
   const { status: rawStatus } = await searchParams;
   const status = parseOrdersStatus(rawStatus);
-  const orders = status === "all" ? await listOrders() : await listOrders(status);
+  const [orders, symbols] = await Promise.all([
+    status === "all" ? listOrders() : listOrders(status),
+    listSymbols().catch(() => []),
+  ]);
+  const currencies = currencyByTicker(symbols);
 
   return (
     <PageFrame width="workstation" className="py-6 sm:py-8">
@@ -174,62 +162,12 @@ export default async function OrdersPage({
             </thead>
             <tbody>
               {orders.map((order) => (
-                <OrderRow key={order.id} order={order} />
+                <OrderBlotterRow key={order.id} order={order} currencies={currencies} />
               ))}
             </tbody>
           </table>
         </div>
       )}
     </PageFrame>
-  );
-}
-
-function OrderRow({ order }: { order: PendingOrder }) {
-  const settledAt = order.filled_at;
-  return (
-    <tr className="border-b border-border-muted last:border-0 align-top">
-      <td className="px-3 py-3 font-mono">
-        <Link href={`/stocks/${order.ticker}`} className="hover:underline">
-          {order.ticker}
-        </Link>
-      </td>
-      <td className="px-3 py-3">
-        <OrderSideBadge side={order.side} />
-      </td>
-      <td className="px-3 py-3">
-        <OrderTypeBadge type={order.order_type} />
-      </td>
-      <td className="px-3 py-3 text-right font-mono">{formatQuantity(order.quantity)}</td>
-      <td className="px-3 py-3 text-right font-mono">{formatCurrency(order.limit_price, "USD")}</td>
-      <td className="px-3 py-3">
-        <OrderStatusBadge status={order.status} />
-      </td>
-      <td className="hidden px-3 py-3 text-text-tertiary md:table-cell">
-        {fmtWhen(order.created_at)}
-      </td>
-      <td className="hidden px-3 py-3 text-xs leading-5 text-text-secondary lg:table-cell">
-        {order.status === "pending"
-          ? "Waiting on the next stored daily close that meets the condition."
-          : order.status === "filled"
-            ? fmtWhen(settledAt)
-            : userCancelReason(order.cancel_reason)}
-      </td>
-      <td className="px-3 py-3 text-right font-mono">
-        {order.fill_price ? formatCurrency(order.fill_price, "USD") : "—"}
-      </td>
-      <td className="px-3 py-3 text-right">
-        {order.status === "pending" ? (
-          <form action={cancelOrderAction}>
-            <input type="hidden" name="id" value={order.id} />
-            <input type="hidden" name="ticker" value={order.ticker} />
-            <CancelOrderButton />
-          </form>
-        ) : (
-          <Link href={buildTradeHref(order.ticker)} className="text-xs hover:underline">
-            Trade
-          </Link>
-        )}
-      </td>
-    </tr>
   );
 }

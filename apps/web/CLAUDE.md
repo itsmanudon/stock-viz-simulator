@@ -14,7 +14,8 @@ app/
                    vs available cash/shares from pending orders. `/trade` is
                    the execution workstation; `/stocks/[ticker]` keeps the
                    contextual ticket. `/alerts` is alert management; the header
-                   bell is compact status.
+                   bell is compact status. Operational prices (close, trigger,
+                   fill, alert target) format in the symbol-native currency.
   api/auth/        NextAuth handler
   markets/         sortable symbol table
   stocks/[ticker]/ chart + indicators + news + comments + sentiment + simulated quote badge

@@ -16,11 +16,12 @@ import {
   OrderTypeBadge,
 } from "@/components/operational-page-header";
 import { OptionTradeForm } from "@/components/option-trade-form";
+import { PendingOrderQuote } from "@/components/order-blotter-row";
 import { OrderTicket } from "@/components/order-ticket";
 import { PageFrame } from "@/components/page-frame";
 import { ApiError, getQuotes, listSymbols } from "@/lib/api";
 import { getPortfolio, listOrders, listTrades } from "@/lib/api/trading";
-import { parseTradeTicker } from "@/lib/operational-trading";
+import { currencyByTicker, parseTradeTicker } from "@/lib/operational-trading";
 import { formatCurrency, formatQuantity } from "@/lib/portfolio-view-model";
 
 function fmtWhen(iso: string | null): string {
@@ -68,6 +69,7 @@ export default async function TradePage({
   const selectedQuote = quote[0] ?? null;
   const position = portfolio.positions.find((item) => item.ticker === activeTicker) ?? null;
   const tickerOrders = pendingOrders.filter((order) => order.ticker === activeTicker);
+  const currencies = currencyByTicker(options);
 
   return (
     <PageFrame width="workstation" className="py-6 sm:py-8">
@@ -194,8 +196,7 @@ export default async function TradePage({
                       <span className="flex items-center gap-2">
                         <OrderSideBadge side={order.side} />
                         <OrderTypeBadge type={order.order_type} />
-                        {formatQuantity(order.quantity)} @{" "}
-                        {formatCurrency(order.limit_price, "USD")}
+                        <PendingOrderQuote order={order} currencies={currencies} />
                       </span>
                       <Link href="/orders" className="hover:underline">
                         Manage

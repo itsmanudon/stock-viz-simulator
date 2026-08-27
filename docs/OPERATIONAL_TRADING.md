@@ -55,6 +55,10 @@ Watchlist stays under **Portfolio**, not Trade. It is a monitoring surface (“w
 
 Server Components load account, orders, quotes, watchlist, and alerts. Client islands submit server actions. Optional quote/sparkline fetches fail independently.
 
+## Currency display
+
+Operational prices for a security (close, limit/trigger, fill, alert target, estimated notional) use that symbol's ISO-4217 currency from the tracked universe. Cash, reserved cash, buying power, and total value stay in the portfolio display currency. The ledger and FX conversion are unchanged; this is formatting only. Unknown tickers fall back to USD.
+
 ## Known EOD execution limitations (intentional)
 
 - Market orders fill immediately at the latest stored daily close.

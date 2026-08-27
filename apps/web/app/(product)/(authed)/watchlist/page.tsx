@@ -17,8 +17,8 @@ import { Sparkline } from "@/components/sparkline";
 import { AddWatchlistForm, WatchlistRowActions } from "@/components/watchlist-controls";
 import { getBars, listSymbols } from "@/lib/api";
 import { listWatchlist } from "@/lib/api/watchlist";
-import { dayMovePct } from "@/lib/operational-trading";
-import { formatCurrency, formatSignedPercent } from "@/lib/portfolio-view-model";
+import { currencyByTicker, dayMovePct, formatNativePrice } from "@/lib/operational-trading";
+import { formatSignedPercent } from "@/lib/portfolio-view-model";
 import { cn } from "@/lib/utils";
 
 function fmtDate(iso: string): string {
@@ -44,6 +44,8 @@ export default async function WatchlistPage() {
         .catch(() => [] as number[]),
     ),
   );
+
+  const currencies = currencyByTicker(universe);
 
   return (
     <PageFrame width="workstation" className="py-6 sm:py-8">
@@ -123,7 +125,7 @@ export default async function WatchlistPage() {
                       {item.sector ?? "—"}
                     </td>
                     <td className="px-3 py-3 text-right font-mono">
-                      {formatCurrency(item.last_close)}
+                      {formatNativePrice(item.last_close, item.ticker, currencies)}
                     </td>
                     <td
                       className={cn(

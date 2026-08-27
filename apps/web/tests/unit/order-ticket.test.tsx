@@ -18,6 +18,7 @@ vi.mock("@/app/(product)/(authed)/trade/actions", () => ({
 const symbols = [
   { ticker: "AAPL", name: "Apple Inc.", currency: "USD" },
   { ticker: "MSFT", name: "Microsoft", currency: "USD" },
+  { ticker: "7203.T", name: "Toyota Motor Corporation", currency: "JPY" },
 ];
 
 describe("OrderTicket", () => {
@@ -120,5 +121,23 @@ describe("OrderTicket", () => {
     expect(screen.getByLabelText("Trigger price")).toBeVisible();
     expect(screen.getByText(/5 shares available after pending sells/)).toBeVisible();
     expect(screen.getByRole("button", { name: /Submit stop-loss sell/i })).toBeVisible();
+  });
+
+  it("estimates notional in the symbol-native currency", () => {
+    render(
+      <OrderTicket
+        symbols={symbols}
+        initialTicker="7203.T"
+        quoteClose="2800"
+        quoteAt="2026-08-26T00:00:00Z"
+        position={null}
+        availableCash="100000"
+        displayCurrency="USD"
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText("Quantity"), { target: { value: "2" } });
+    expect(screen.getByText("¥5,600")).toBeVisible();
+    expect(screen.getByText(/Available cash \$100,000\.00/)).toBeVisible();
   });
 });

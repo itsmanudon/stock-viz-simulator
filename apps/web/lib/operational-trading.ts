@@ -1,3 +1,5 @@
+import { formatCurrency } from "@/lib/portfolio-view-model";
+
 export const ORDER_TYPES = ["limit", "stop_loss", "take_profit"] as const;
 export const ORDER_STATUSES = ["pending", "filled", "cancelled"] as const;
 export const ORDER_STATUS_FILTERS = ["pending", "filled", "cancelled", "all"] as const;
@@ -100,6 +102,29 @@ export function userCancelReason(reason: string | null | undefined): string {
   const trimmed = reason?.trim();
   if (trimmed) return trimmed;
   return "Cancelled by user";
+}
+
+export function currencyByTicker(
+  symbols: Iterable<{ ticker: string; currency?: string | null }>,
+): Record<string, string> {
+  const currencies: Record<string, string> = {};
+  for (const symbol of symbols) {
+    const code = symbol.currency?.trim();
+    currencies[symbol.ticker.trim().toUpperCase()] = code || "USD";
+  }
+  return currencies;
+}
+
+export function tickerCurrency(ticker: string, currencies: Record<string, string>): string {
+  return currencies[ticker.trim().toUpperCase()] ?? "USD";
+}
+
+export function formatNativePrice(
+  amount: string | number | null,
+  ticker: string,
+  currencies: Record<string, string>,
+): string {
+  return formatCurrency(amount, tickerCurrency(ticker, currencies));
 }
 
 export function dayMovePct(

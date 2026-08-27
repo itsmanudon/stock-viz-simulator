@@ -41,11 +41,9 @@ async function fetchAlerts(): Promise<Alert[]> {
 }
 
 function fmtPrice(raw: string): string {
-  return Number(raw).toLocaleString("en-US", {
-    style: "currency",
-    currency: "USD",
-    minimumFractionDigits: 2,
-  });
+  const value = Number(raw);
+  if (!Number.isFinite(value)) return "—";
+  return value.toLocaleString("en-US", { maximumFractionDigits: 2 });
 }
 
 export function AlertsBell({ enabled }: { enabled: boolean }) {

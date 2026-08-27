@@ -26,6 +26,7 @@ Standalone `/trade` is an **execution workstation** (symbol switching, buying po
 - **Alerts get a dedicated `/alerts` route** under Portfolio, next to Watchlist. The utility-bar bell stays a compact unread/triggered indicator plus a jump to `/alerts`. No email/push/SMS.
 - **Honesty copy.** Market fills and alert evaluation use stored daily closes. Pending orders settle on the weekday EOD job. Do not say live exchange, real spread, or real-time monitoring.
 - **No new accounting.** Estimated notional is display-only from API decimal strings. Buying power, reservations, and fills stay on the backend.
+- **Native currency formatting.** Limit/trigger, fill, watchlist close, and alert target use the symbol's ISO currency from the universe lookup. Portfolio cash figures stay in display currency.
 
 ## Information architecture
 
