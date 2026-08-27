@@ -49,7 +49,9 @@ test("backtest is an experiment workspace with visible assumptions", async ({ pa
   await expect(page.getByLabel("Symbol")).toHaveValue("AAPL");
   await expect(page.getByRole("heading", { name: "No experiment yet" })).toBeVisible();
   await expect(page.getByLabel("Commission (bps)")).toBeVisible();
-  await expect(page.getByText(/look-ahead bias/i)).toBeVisible();
+  await expect(
+    page.getByRole("region", { name: "Strategy setup" }).getByText(/look-ahead bias/i),
+  ).toBeVisible();
 });
 
 test("signals page exposes explainable evidence rather than an AI buy list", async ({ page }) => {
