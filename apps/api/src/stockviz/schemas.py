@@ -250,40 +250,31 @@ class TradeOut(BaseModel):
     realized_pnl: Decimal | None = None
 
 
-class ReplaySnapshotIn(BaseModel):
-    """Caller-supplied OHLC. Replay does not load stored bars (that is SIM-06)."""
-
-    ticker: str | None = None
-    interval: str = "1d"
-    open: Decimal
-    high: Decimal
-    low: Decimal
-    close: Decimal
-    volume: Decimal
-    observed_at: datetime | None = None
-
-
 class ReplaySessionCreateIn(BaseModel):
-    """Open an isolated replay book. ``clock_now`` is required — never wall-clock."""
+    """Open an isolated replay book over a frozen stored-1d range.
 
-    clock_now: datetime
+    ``start_at`` snaps to the first 1d bar at-or-after the request.
+    ``end_at`` snaps to the last 1d bar at-or-before the request (or the latest
+    stored bar at creation if omitted). Profile is server-pinned.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    ticker: str
+    start_at: datetime
+    end_at: datetime | None = None
     starting_cash: Decimal = Field(default=Decimal("100000.00"))
-    profile_name: str = "legacy_close"
-    model_version: str = "v1"
-
-
-class ReplayClockIn(BaseModel):
-    now: datetime
 
 
 class ReplayOrderIn(BaseModel):
-    ticker: str
+    """Intent only. Prices come from the session's current stored bar."""
+
+    model_config = ConfigDict(extra="forbid")
+
     side: Literal["buy", "sell"]
     order_type: Literal["market", "limit", "stop_loss", "take_profit"] = "market"
     quantity: Decimal
     limit_price: Decimal | None = None
-    submitted_at: datetime | None = None
-    snapshot: ReplaySnapshotIn
 
 
 class ReplayPositionOut(BaseModel):
@@ -315,15 +306,41 @@ class ReplayFillOut(BaseModel):
 
 class ReplaySessionOut(BaseModel):
     id: int
+    ticker: str
     profile_name: str
     model_version: str
-    clock_now: datetime
+    start_at: datetime
+    current_at: datetime
+    end_at: datetime
     starting_cash: Decimal
     cash_balance: Decimal
     status: str
+    has_next: bool = False
+    completed_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
     positions: list[ReplayPositionOut] = []
+
+
+class ReplayBarOut(BaseModel):
+    ticker: str
+    ts: datetime
+    interval: str
+    open: Decimal
+    high: Decimal
+    low: Decimal
+    close: Decimal
+    volume: int
+
+
+class ReplayMarketOut(BaseModel):
+    ticker: str
+    current_at: datetime
+    start_at: datetime
+    end_at: datetime
+    has_next: bool
+    status: str
+    bar: ReplayBarOut
 
 
 class ReplayDecisionOut(BaseModel):

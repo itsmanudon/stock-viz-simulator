@@ -1,7 +1,8 @@
-"""`/v1/replay` — isolated ReplaySession + simulation clock (SIM-05).
+"""`/v1/replay` — isolated ReplaySession over stored 1d PriceBars (SIM-05).
 
-Authenticated. Caller-supplied snapshots only; this router does not read
-``price_bars``. Live ``Trade`` / ``Portfolio`` / Kafka paths are untouched.
+Authenticated. Market truth is server-selected historical bars inside the
+session's frozen range. Live ``Trade`` / ``Portfolio`` / Kafka paths are
+untouched. Sessions are not deleted.
 """
 
 from __future__ import annotations
@@ -14,9 +15,10 @@ from sqlmodel import Session
 from stockviz.auth import UserIdDep
 from stockviz.db import get_session
 from stockviz.schemas import (
-    ReplayClockIn,
+    ReplayBarOut,
     ReplayDecisionOut,
     ReplayFillOut,
+    ReplayMarketOut,
     ReplayOrderIn,
     ReplayPositionOut,
     ReplaySessionCreateIn,
@@ -25,19 +27,26 @@ from stockviz.schemas import (
 )
 from stockviz.services.replay import (
     ReplayClosed,
+    ReplayCompleted,
     ReplayInsufficientCash,
     ReplayInsufficientPosition,
     ReplayLookaheadError,
+    ReplayNoMarketError,
     ReplayNotFound,
+    ReplayRangeError,
     ReplaySubmitResult,
-    advance_replay_clock,
-    close_replay_session,
+    ReplaySymbolNotFound,
+    ReplayUnsupportedCurrency,
+    advance_replay_session,
+    cancel_replay_session,
     create_replay_session,
+    get_next_session_bar,
     get_replay_session,
+    get_session_bar,
+    get_visible_replay_history,
     list_replay_fills,
     list_replay_positions,
     list_replay_sessions,
-    market_snapshot_for_session,
     submit_replay_order,
 )
 from stockviz.services.replay.timeutil import as_aware_utc
@@ -45,7 +54,6 @@ from stockviz.services.simulation import (
     OrderSide,
     SimulationClockError,
     SimulationOrderType,
-    UnknownExecutionProfileError,
 )
 from stockviz.services.simulation.contracts import FillDecision
 
@@ -54,19 +62,38 @@ router = APIRouter(prefix="/v1/replay", tags=["replay"])
 SessionDep = Annotated[Session, Depends(get_session)]
 
 
+def _bar_out(bar) -> ReplayBarOut:
+    return ReplayBarOut(
+        ticker=bar.ticker,
+        ts=as_aware_utc(bar.ts),
+        interval=bar.interval,
+        open=bar.open,
+        high=bar.high,
+        low=bar.low,
+        close=bar.close,
+        volume=bar.volume,
+    )
+
+
 def _session_out(db: Session, replay) -> ReplaySessionOut:
     positions = [
         ReplayPositionOut(ticker=row.ticker, quantity=row.quantity, avg_cost=row.avg_cost)
         for row in list_replay_positions(db, replay=replay)
     ]
+    has_next = get_next_session_bar(db, replay) is not None
     return ReplaySessionOut(
         id=replay.id,
+        ticker=replay.ticker,
         profile_name=replay.profile_name,
         model_version=replay.model_version,
-        clock_now=as_aware_utc(replay.clock_now),
+        start_at=as_aware_utc(replay.start_at),
+        current_at=as_aware_utc(replay.current_at),
+        end_at=as_aware_utc(replay.end_at),
         starting_cash=replay.starting_cash,
         cash_balance=replay.cash_balance,
         status=replay.status,
+        has_next=has_next,
+        completed_at=as_aware_utc(replay.completed_at) if replay.completed_at else None,
         created_at=as_aware_utc(replay.created_at),
         updated_at=as_aware_utc(replay.updated_at),
         positions=positions,
@@ -127,20 +154,20 @@ def _load(db: Session, session_id: int, user_id: int):
 def post_replay_session(
     body: ReplaySessionCreateIn, session: SessionDep, user_id: UserIdDep
 ) -> ReplaySessionOut:
-    """Create an isolated replay book pinned to a registered execution profile."""
+    """Create an isolated replay book over a frozen stored-1d ticker range."""
 
     try:
         replay = create_replay_session(
             session,
             user_id=user_id,
-            clock_now=body.clock_now,
+            ticker=body.ticker,
+            start_at=body.start_at,
+            end_at=body.end_at,
             starting_cash=body.starting_cash,
-            profile_name=body.profile_name,
-            model_version=body.model_version,
         )
-    except UnknownExecutionProfileError as exc:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
-    except (SimulationClockError, ValueError) as exc:
+    except ReplaySymbolNotFound as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+    except (ReplayRangeError, ReplayUnsupportedCurrency, ValueError) as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
     return _session_out(session, replay)
 
@@ -158,65 +185,82 @@ def get_one_replay_session(
     return _session_out(session, replay)
 
 
-@router.post("/sessions/{session_id}/clock", response_model=ReplaySessionOut)
-def post_replay_clock(
-    session_id: int, body: ReplayClockIn, session: SessionDep, user_id: UserIdDep
+@router.post("/sessions/{session_id}/advance", response_model=ReplaySessionOut)
+def post_replay_advance(
+    session_id: int, session: SessionDep, user_id: UserIdDep
 ) -> ReplaySessionOut:
-    """Advance the simulation clock. Does not walk bars or settle orders."""
+    """Advance one stored 1d bar. Completes when the frozen end is reached."""
 
     replay = _load(session, session_id, user_id)
     try:
-        replay = advance_replay_clock(session, replay=replay, instant=body.now)
-    except ReplayClosed as exc:
+        replay = advance_replay_session(session, replay=replay)
+    except (ReplayClosed, ReplayCompleted) as exc:
         raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
-    except (SimulationClockError, ReplayLookaheadError, ValueError) as exc:
+    except SimulationClockError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
     return _session_out(session, replay)
 
 
-@router.post("/sessions/{session_id}/close", response_model=ReplaySessionOut)
-def post_replay_close(session_id: int, session: SessionDep, user_id: UserIdDep) -> ReplaySessionOut:
+@router.post("/sessions/{session_id}/cancel", response_model=ReplaySessionOut)
+def post_replay_cancel(
+    session_id: int, session: SessionDep, user_id: UserIdDep
+) -> ReplaySessionOut:
     replay = _load(session, session_id, user_id)
-    replay = close_replay_session(session, replay=replay)
+    try:
+        replay = cancel_replay_session(session, replay=replay)
+    except ReplayCompleted as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
     return _session_out(session, replay)
+
+
+@router.get("/sessions/{session_id}/market", response_model=ReplayMarketOut)
+def get_replay_market(session_id: int, session: SessionDep, user_id: UserIdDep) -> ReplayMarketOut:
+    replay = _load(session, session_id, user_id)
+    try:
+        bar = get_session_bar(session, replay)
+    except ReplayNoMarketError as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
+    return ReplayMarketOut(
+        ticker=replay.ticker,
+        current_at=as_aware_utc(replay.current_at),
+        start_at=as_aware_utc(replay.start_at),
+        end_at=as_aware_utc(replay.end_at),
+        has_next=get_next_session_bar(session, replay) is not None,
+        status=replay.status,
+        bar=_bar_out(bar),
+    )
+
+
+@router.get("/sessions/{session_id}/history", response_model=list[ReplayBarOut])
+def get_replay_history(
+    session_id: int, session: SessionDep, user_id: UserIdDep
+) -> list[ReplayBarOut]:
+    replay = _load(session, session_id, user_id)
+    return [_bar_out(bar) for bar in get_visible_replay_history(session, replay)]
 
 
 @router.post("/sessions/{session_id}/orders", response_model=ReplaySubmitOut)
 def post_replay_order(
     session_id: int, body: ReplayOrderIn, session: SessionDep, user_id: UserIdDep
 ) -> ReplaySubmitOut:
-    """Evaluate a caller-supplied snapshot at the session clock; fill if the kernel says so."""
+    """Fill against the server-authoritative current bar. Intent only."""
 
     replay = _load(session, session_id, user_id)
-    ticker = body.ticker.upper()
-    snap_ticker = (body.snapshot.ticker or ticker).upper()
     try:
-        snapshot = market_snapshot_for_session(
-            replay,
-            ticker=snap_ticker,
-            interval=body.snapshot.interval,
-            open=body.snapshot.open,
-            high=body.snapshot.high,
-            low=body.snapshot.low,
-            close=body.snapshot.close,
-            volume=body.snapshot.volume,
-            observed_at=body.snapshot.observed_at,
-        )
         result = submit_replay_order(
             session,
             replay=replay,
-            ticker=ticker,
             side=OrderSide(body.side),
             order_type=SimulationOrderType(body.order_type),
             quantity=body.quantity,
-            snapshot=snapshot,
             limit_price=body.limit_price,
-            submitted_at=body.submitted_at,
         )
-    except ReplayClosed as exc:
+    except (ReplayClosed, ReplayCompleted) as exc:
         raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
     except ReplayLookaheadError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
+    except ReplayNoMarketError as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
     except (ReplayInsufficientCash, ReplayInsufficientPosition) as exc:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from exc
     except (SimulationClockError, TypeError, ValueError) as exc:

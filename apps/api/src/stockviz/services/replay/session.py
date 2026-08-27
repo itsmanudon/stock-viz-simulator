@@ -1,8 +1,8 @@
-"""ReplaySession lifecycle: create, clock, close, submit.
+"""ReplaySession lifecycle: create, next-bar advance, cancel, submit.
 
-Evaluation uses the session's ``SimulationClock`` and ``evaluate_order``.
-Callers supply the market snapshot; this module does not load ``PriceBar``
-rows. Walking stored history without lookahead is SIM-06.
+Market snapshots are built from stored ``PriceBar`` rows clipped to the
+session's frozen range. Callers never supply OHLC. Live ``Trade`` /
+``SimulatedExecution`` / outbox rows are never written.
 """
 
 from __future__ import annotations
@@ -14,18 +14,29 @@ from decimal import Decimal
 from sqlmodel import Session, select
 
 from stockviz._time import utcnow
-from stockviz.models import ReplayFill, ReplayPosition, ReplaySession, ReplaySessionStatus
+from stockviz.models import ReplayFill, ReplayPosition, ReplaySession, ReplaySessionStatus, Symbol
 from stockviz.services.replay.errors import (
     ReplayClosed,
+    ReplayCompleted,
     ReplayLookaheadError,
     ReplayNotFound,
+    ReplayRangeError,
+    ReplaySymbolNotFound,
+    ReplayUnsupportedCurrency,
 )
 from stockviz.services.replay.ledger import apply_replay_fill, get_replay_position
+from stockviz.services.replay.market import (
+    count_replay_bars,
+    get_next_session_bar,
+    market_snapshot_for_replay,
+    resolve_replay_end,
+    resolve_replay_start,
+)
 from stockviz.services.replay.timeutil import as_aware_utc, as_naive_utc
 from stockviz.services.simulation import (
+    LIVE_PAPER_EXECUTION_PROFILE,
     FillDecision,
     FillStatus,
-    MarketSnapshot,
     OrderIntent,
     OrderSide,
     SimulationClock,
@@ -35,6 +46,7 @@ from stockviz.services.simulation import (
 )
 
 DEFAULT_REPLAY_CASH = Decimal("100000.00")
+MIN_REPLAY_BARS = 2
 
 
 @dataclass(frozen=True, slots=True)
@@ -45,16 +57,28 @@ class ReplaySubmitResult:
 
 
 def _clock_from_row(replay: ReplaySession) -> SimulationClock:
-    return SimulationClock(now=as_aware_utc(replay.clock_now))
+    return SimulationClock(now=as_aware_utc(replay.current_at))
 
 
 def _touch(replay: ReplaySession) -> None:
     replay.updated_at = utcnow()
 
 
-def _require_open(replay: ReplaySession) -> ReplaySession:
-    if replay.status != ReplaySessionStatus.OPEN.value:
-        raise ReplayClosed(f"Replay session {replay.id} is closed")
+def _require_active(replay: ReplaySession) -> ReplaySession:
+    if replay.status == ReplaySessionStatus.CANCELLED.value:
+        raise ReplayClosed(f"Replay session {replay.id} is cancelled")
+    if replay.status == ReplaySessionStatus.COMPLETED.value:
+        raise ReplayCompleted(f"Replay session {replay.id} is completed")
+    if replay.status != ReplaySessionStatus.ACTIVE.value:
+        raise ReplayClosed(f"Replay session {replay.id} is not active")
+    return replay
+
+
+def lock_replay_session(session: Session, *, session_id: int, user_id: int) -> ReplaySession:
+    """``SELECT ... FOR UPDATE`` the session row and return a fresh copy."""
+
+    replay = get_replay_session(session, session_id=session_id, user_id=user_id)
+    session.refresh(replay, with_for_update=True)
     return replay
 
 
@@ -97,30 +121,66 @@ def list_replay_positions(session: Session, *, replay: ReplaySession) -> list[Re
     )
 
 
+def _complete(replay: ReplaySession) -> None:
+    replay.status = ReplaySessionStatus.COMPLETED.value
+    replay.completed_at = utcnow()
+    _touch(replay)
+
+
 def create_replay_session(
     session: Session,
     *,
     user_id: int,
-    clock_now: datetime,
+    ticker: str,
+    start_at: datetime,
+    end_at: datetime | None = None,
     starting_cash: Decimal = DEFAULT_REPLAY_CASH,
-    profile_name: str = "legacy_close",
-    model_version: str = "v1",
 ) -> ReplaySession:
-    """Open an isolated book pinned to a registered execution profile."""
+    """Open an isolated book over a frozen stored-1d range.
+
+    Profile is pinned to ``LIVE_PAPER_EXECUTION_PROFILE`` (legacy_close v1).
+    ``end_at`` is resolved once at creation; later PriceBar ingest cannot extend
+    the horizon.
+    """
 
     if starting_cash <= 0:
         raise ValueError("starting_cash must be greater than 0")
-    profile = get_execution_profile(profile_name, model_version)
-    clock = SimulationClock(now=as_aware_utc(clock_now))
+    ticker = ticker.strip().upper()
+    symbol = session.get(Symbol, ticker)
+    if symbol is None:
+        raise ReplaySymbolNotFound(f"Symbol {ticker!r} not found")
+    currency = symbol.currency or "USD"
+    if currency != "USD":
+        raise ReplayUnsupportedCurrency(
+            f"Replay sessions are USD-only until historical FX exists; {ticker!r} is {currency}"
+        )
+
+    start_bar = resolve_replay_start(session, ticker=ticker, requested=start_at)
+    end_bar = resolve_replay_end(session, ticker=ticker, requested=end_at)
+    if end_bar.ts < start_bar.ts:
+        raise ReplayRangeError("Resolved replay end is before start")
+    n_bars = count_replay_bars(session, ticker=ticker, start_ts=start_bar.ts, end_ts=end_bar.ts)
+    if n_bars < MIN_REPLAY_BARS:
+        raise ReplayRangeError(
+            f"Replay range for {ticker!r} must contain at least {MIN_REPLAY_BARS} "
+            f"stored 1d bars; resolved {n_bars}"
+        )
+
+    profile = get_execution_profile(
+        LIVE_PAPER_EXECUTION_PROFILE.name, LIVE_PAPER_EXECUTION_PROFILE.model_version
+    )
     now = utcnow()
     row = ReplaySession(
         user_id=user_id,
+        ticker=ticker,
         profile_name=profile.name,
         model_version=profile.model_version,
-        clock_now=as_naive_utc(clock.instant()),
+        start_at=start_bar.ts,
+        current_at=start_bar.ts,
+        end_at=end_bar.ts,
         starting_cash=starting_cash,
         cash_balance=starting_cash,
-        status=ReplaySessionStatus.OPEN.value,
+        status=ReplaySessionStatus.ACTIVE.value,
         created_at=now,
         updated_at=now,
     )
@@ -130,110 +190,81 @@ def create_replay_session(
     return row
 
 
-def advance_replay_clock(
-    session: Session,
-    *,
-    replay: ReplaySession,
-    instant: datetime,
-) -> ReplaySession:
-    """Move the session clock forward. Does not evaluate orders or load bars."""
+def advance_replay_session(session: Session, *, replay: ReplaySession) -> ReplaySession:
+    """Move ``current_at`` to the next stored 1d bar inside the frozen range.
 
-    _require_open(replay)
-    clock = _clock_from_row(replay).advance_to(as_aware_utc(instant))
-    replay.clock_now = as_naive_utc(clock.instant())
-    _touch(replay)
-    session.add(replay)
-    session.commit()
-    session.refresh(replay)
-    return replay
-
-
-def close_replay_session(session: Session, *, replay: ReplaySession) -> ReplaySession:
-    if replay.status == ReplaySessionStatus.CLOSED.value:
-        return replay
-    replay.status = ReplaySessionStatus.CLOSED.value
-    _touch(replay)
-    session.add(replay)
-    session.commit()
-    session.refresh(replay)
-    return replay
-
-
-def market_snapshot_for_session(
-    replay: ReplaySession,
-    *,
-    ticker: str,
-    interval: str,
-    open: Decimal,
-    high: Decimal,
-    low: Decimal,
-    close: Decimal,
-    volume: Decimal,
-    observed_at: datetime | None = None,
-) -> MarketSnapshot:
-    """Build a kernel snapshot. Default ``observed_at`` is the session clock.
-
-    Passing a future ``observed_at`` is allowed here; ``submit_replay_order``
-    rejects it as lookahead. This helper does not load ``PriceBar`` rows.
+    Skips weekends/holidays by following stored bars. Completes the session
+    when that bar is the last eligible bar (``end_at``).
     """
 
-    clock = _clock_from_row(replay)
-    observed = clock.instant() if observed_at is None else as_aware_utc(observed_at)
-    return MarketSnapshot(
-        ticker=ticker,
-        observed_at=observed,
-        interval=interval,
-        open=open,
-        high=high,
-        low=low,
-        close=close,
-        volume=volume,
-    )
+    if replay.id is None:
+        raise ValueError("replay session must be persisted before advance")
+    locked = lock_replay_session(session, session_id=replay.id, user_id=replay.user_id)
+    _require_active(locked)
+    nxt = get_next_session_bar(session, locked)
+    if nxt is None:
+        _complete(locked)
+        session.add(locked)
+        session.commit()
+        session.refresh(locked)
+        return locked
+    clock = _clock_from_row(locked).advance_to(as_aware_utc(nxt.ts))
+    locked.current_at = as_naive_utc(clock.instant())
+    if get_next_session_bar(session, locked) is None:
+        _complete(locked)
+    else:
+        _touch(locked)
+    session.add(locked)
+    session.commit()
+    session.refresh(locked)
+    return locked
+
+
+def cancel_replay_session(session: Session, *, replay: ReplaySession) -> ReplaySession:
+    if replay.id is None:
+        raise ValueError("replay session must be persisted before cancel")
+    locked = lock_replay_session(session, session_id=replay.id, user_id=replay.user_id)
+    if locked.status == ReplaySessionStatus.COMPLETED.value:
+        raise ReplayCompleted(f"Replay session {locked.id} is completed")
+    if locked.status == ReplaySessionStatus.CANCELLED.value:
+        return locked
+    locked.status = ReplaySessionStatus.CANCELLED.value
+    _touch(locked)
+    session.add(locked)
+    session.commit()
+    session.refresh(locked)
+    return locked
 
 
 def submit_replay_order(
     session: Session,
     *,
     replay: ReplaySession,
-    ticker: str,
     side: OrderSide,
     order_type: SimulationOrderType,
     quantity: Decimal,
-    snapshot: MarketSnapshot,
     limit_price: Decimal | None = None,
-    submitted_at: datetime | None = None,
 ) -> ReplaySubmitResult:
-    """Evaluate ``order`` against a caller-supplied snapshot at the session clock.
+    """Evaluate against the server-selected current bar at ``current_at``.
 
-    FILLED decisions mutate isolated cash/positions and persist a ``ReplayFill``.
-    NOT_TRIGGERED / INELIGIBLE do not. Live ``Trade`` / ``SimulatedExecution`` /
-    outbox rows are never written.
+    ``submitted_at`` is the session clock. FILLED mutates isolated cash only.
     """
 
-    _require_open(replay)
-    clock = _clock_from_row(replay)
-    ticker = ticker.strip().upper()
-    if snapshot.ticker.upper() != ticker:
-        raise ValueError(
-            f"snapshot ticker {snapshot.ticker!r} does not match order ticker {ticker!r}"
-        )
-
+    if replay.id is None:
+        raise ValueError("replay session must be persisted before submit")
+    locked = lock_replay_session(session, session_id=replay.id, user_id=replay.user_id)
+    _require_active(locked)
+    clock = _clock_from_row(locked)
+    snapshot = market_snapshot_for_replay(session, locked)
     if not clock.permits(snapshot.observed_at):
         raise ReplayLookaheadError(
             "snapshot observed_at is after the simulation clock "
             f"({snapshot.observed_at.isoformat()} > {clock.instant().isoformat()})"
         )
-
-    submitted = clock.instant() if submitted_at is None else as_aware_utc(submitted_at)
-    if not clock.permits(submitted):
-        raise ReplayLookaheadError(
-            "order submitted_at is after the simulation clock "
-            f"({submitted.isoformat()} > {clock.instant().isoformat()})"
-        )
-
-    profile = get_execution_profile(replay.profile_name, replay.model_version)
+    submitted = clock.instant()
+    profile = get_execution_profile(locked.profile_name, locked.model_version)
     intent = OrderIntent(
-        ticker=ticker,
+        ticker=locked.ticker,
         side=side,
         order_type=order_type,
         quantity=quantity,
@@ -246,8 +277,8 @@ def submit_replay_order(
     if decision.status is FillStatus.FILLED:
         fill = apply_replay_fill(
             session,
-            replay=replay,
-            ticker=ticker,
+            replay=locked,
+            ticker=locked.ticker,
             side=side,
             quantity=quantity,
             decision=decision,
@@ -255,29 +286,29 @@ def submit_replay_order(
             order_type=order_type.value,
             evaluated_at_naive=as_naive_utc(clock.instant()),
         )
-        _touch(replay)
-        session.add(replay)
+        _touch(locked)
+        session.add(locked)
         session.commit()
-        session.refresh(replay)
+        session.refresh(locked)
         if fill.id is None:
             session.refresh(fill)
     else:
         session.commit()
 
-    return ReplaySubmitResult(replay=replay, decision=decision, fill=fill)
+    return ReplaySubmitResult(replay=locked, decision=decision, fill=fill)
 
 
 __all__ = [
     "DEFAULT_REPLAY_CASH",
     "ReplaySubmitResult",
-    "advance_replay_clock",
-    "close_replay_session",
+    "advance_replay_session",
+    "cancel_replay_session",
     "create_replay_session",
     "get_replay_position",
     "get_replay_session",
     "list_replay_fills",
     "list_replay_positions",
     "list_replay_sessions",
-    "market_snapshot_for_session",
+    "lock_replay_session",
     "submit_replay_order",
 ]
