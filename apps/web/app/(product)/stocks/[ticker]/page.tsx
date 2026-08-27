@@ -1,23 +1,22 @@
-/**
- * /stocks/[ticker] — OHLCV chart + indicators + recent news.
- *
- * Server-rendered shell that fetches everything in parallel: symbol detail,
- * bars for the selected timeframe, the indicator bundle the user toggled on
- * via search params, and the ticker's news. The chart itself is a client
- * component (lightweight-charts needs ``window``).
- */
-
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { auth } from "@/auth";
-import { AlertForm } from "@/components/alert-form";
 import { CommentsSection } from "@/components/comments-section";
-import { LivePriceBadge } from "@/components/live-price-badge";
+import {
+  ContextualTradeTicket,
+  type TicketPosition,
+  type TradeTicketAccount,
+} from "@/components/contextual-trade-ticket";
+import { MobileTradeSheet } from "@/components/mobile-trade-sheet";
 import { NewsList } from "@/components/news-list";
+import { PositionSummary } from "@/components/position-summary";
 import { PriceChart } from "@/components/price-chart";
-import { StockSidebar } from "@/components/stock-sidebar";
-import { WatchlistToggle } from "@/components/watchlist-toggle";
+import { SecurityHeader } from "@/components/security-header";
+import { StockChartToolbar } from "@/components/stock-chart-toolbar";
+import { StockMetricsStrip } from "@/components/stock-metrics-strip";
+import { StockResearchTabs } from "@/components/stock-research-tabs";
+import { TickerOrders } from "@/components/ticker-orders";
 import {
   ApiError,
   type SymbolDetail,
@@ -25,64 +24,65 @@ import {
   getIndicators,
   getNewsForTicker,
   getSymbol,
-  listSymbols,
 } from "@/lib/api";
 import { listComments } from "@/lib/api/comments";
+import {
+  type PendingOrder,
+  type Portfolio,
+  type Position,
+  getPortfolio,
+  listOrders,
+} from "@/lib/api/trading";
 import { listWatchlist } from "@/lib/api/watchlist";
+import {
+  STOCK_INDICATORS,
+  STOCK_TIMEFRAMES,
+  type StockIndicator,
+  type StockTimeframe,
+  calculateAllocationPct,
+  calculatePeriodReturnPct,
+  calculatePositionReturnPct,
+  deriveBarMetrics,
+} from "@/lib/stock-workspace";
 
-const TIMEFRAMES = [
-  { value: "1M", days: 22 },
-  { value: "3M", days: 65 },
-  { value: "6M", days: 130 },
-  { value: "1Y", days: 252 },
-  { value: "5Y", days: 1260 },
-  { value: "MAX", days: 5000 },
-] as const;
+const TIMEFRAME_DAYS: Record<StockTimeframe, number> = {
+  "1M": 22,
+  "3M": 65,
+  "6M": 130,
+  "1Y": 252,
+  "5Y": 1260,
+  MAX: 5000,
+};
 
-type Timeframe = (typeof TIMEFRAMES)[number]["value"];
-
-const ALL_INDICATORS = ["sma_20", "sma_50", "sma_200", "ema_50", "rsi_14", "macd"] as const;
-type IndicatorName = (typeof ALL_INDICATORS)[number];
-
-function parseTimeframe(raw: string | undefined): Timeframe {
-  const valid = TIMEFRAMES.find((t) => t.value === raw)?.value;
-  return valid ?? "1Y";
+function parseTimeframe(raw: string | undefined): StockTimeframe {
+  return STOCK_TIMEFRAMES.includes(raw as StockTimeframe) ? (raw as StockTimeframe) : "1Y";
 }
 
-function parseIndicators(raw: string | undefined): IndicatorName[] {
+function parseIndicators(raw: string | undefined): StockIndicator[] {
   if (!raw) return ["sma_50"];
-  const valid = new Set<string>(ALL_INDICATORS);
+  const valid = new Set(STOCK_INDICATORS.map((indicator) => indicator.value));
   return raw
     .split(",")
-    .map((s) => s.trim())
-    .filter((s): s is IndicatorName => valid.has(s));
+    .map((value) => value.trim())
+    .filter((value): value is StockIndicator => valid.has(value as StockIndicator));
 }
 
-function fmtPrice(n: number | null | undefined): string {
-  if (n === null || n === undefined) return "—";
-  return n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-
-function toggleHref(
-  ticker: string,
-  current: IndicatorName[],
-  toggle: IndicatorName,
-  timeframe: Timeframe,
-): string {
-  const set = new Set(current);
-  if (set.has(toggle)) set.delete(toggle);
-  else set.add(toggle);
-  const params = new URLSearchParams();
-  if (set.size) params.set("indicators", Array.from(set).join(","));
-  params.set("tf", timeframe);
-  return `/stocks/${ticker}?${params.toString()}`;
-}
-
-function timeframeHref(ticker: string, indicators: IndicatorName[], tf: Timeframe): string {
-  const params = new URLSearchParams();
-  if (indicators.length) params.set("indicators", indicators.join(","));
-  params.set("tf", tf);
-  return `/stocks/${ticker}?${params.toString()}`;
+function ticketPosition(position: Position, portfolio: Portfolio): TicketPosition {
+  const quantity = Number(position.quantity);
+  const averageCost = Number(position.avg_cost);
+  const unrealizedNative = Number(position.unrealized_pl_native);
+  return {
+    quantity,
+    availableQuantity: Number(position.available_quantity),
+    averageCost,
+    marketValue: Number(position.market_value),
+    unrealizedPnl: Number(position.unrealized_pl),
+    returnPct: calculatePositionReturnPct(unrealizedNative, averageCost * quantity),
+    allocationPct: calculateAllocationPct(
+      Number(position.market_value),
+      Number(portfolio.total_value),
+    ),
+  };
 }
 
 export default async function StockPage({
@@ -92,178 +92,255 @@ export default async function StockPage({
   params: Promise<{ ticker: string }>;
   searchParams: Promise<{ tf?: string; indicators?: string }>;
 }) {
-  const { ticker: rawTicker } = await params;
+  const [{ ticker: rawTicker }, query] = await Promise.all([params, searchParams]);
   const ticker = rawTicker.toUpperCase();
-  const sp = await searchParams;
-  const tf = parseTimeframe(sp.tf);
-  const indicators = parseIndicators(sp.indicators);
-  const tfDays = TIMEFRAMES.find((t) => t.value === tf)?.days ?? 252;
+  const timeframe = parseTimeframe(query.tf);
+  const selectedIndicators = parseIndicators(query.indicators);
+  const timeframeDays = TIMEFRAME_DAYS[timeframe];
 
   let symbol: SymbolDetail;
   try {
     symbol = await getSymbol(ticker);
-  } catch (err) {
-    if (err instanceof ApiError && err.status === 404) notFound();
-    throw err;
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) notFound();
+    throw error;
   }
 
-  const [bars, indicatorBundle, news, session, allSymbols, comments] = await Promise.all([
-    getBars(ticker, { limit: tfDays }),
-    indicators.length
-      ? getIndicators(ticker, { names: indicators, limit: tfDays })
-      : Promise.resolve(null),
+  const barsPromise = getBars(ticker, { limit: timeframeDays });
+  const rangeBarsPromise = timeframeDays >= 252 ? barsPromise : getBars(ticker, { limit: 252 });
+  const requestedIndicators = Array.from(new Set([...selectedIndicators, "rsi_14"]));
+
+  const [bars, rangeBars, indicatorBundle, news, session, comments] = await Promise.all([
+    barsPromise,
+    rangeBarsPromise,
+    getIndicators(ticker, { names: requestedIndicators, limit: timeframeDays }),
     getNewsForTicker(ticker, 8).catch(() => []),
     auth(),
-    listSymbols(),
     listComments(ticker).catch(() => [] as Awaited<ReturnType<typeof listComments>>),
   ]);
+
   const signedIn = Boolean(session?.user?.id);
   const currentUserId = session?.user?.id ? Number(session.user.id) : null;
-
+  let portfolio: Portfolio | null = null;
+  let tickerOrders: PendingOrder[] = [];
   let inWatchlist = false;
-  if (session?.user?.id) {
-    try {
-      const items = await listWatchlist();
-      inWatchlist = items.some((i) => i.ticker === ticker);
-    } catch {
-      // If the watchlist call fails (e.g. token expired), just hide state.
-      inWatchlist = false;
-    }
+
+  if (signedIn) {
+    const [portfolioResult, ordersResult, watchlistResult] = await Promise.all([
+      getPortfolio().catch(() => null),
+      listOrders("pending").catch(() => []),
+      listWatchlist().catch(() => []),
+    ]);
+    portfolio = portfolioResult;
+    tickerOrders = ordersResult.filter((order) => order.ticker === ticker);
+    inWatchlist = watchlistResult.some((item) => item.ticker === ticker);
   }
 
-  const last = symbol.latest?.close ? Number(symbol.latest.close) : null;
-  const firstBarClose = bars.length ? Number(bars[0].close) : null;
-  const periodChangePct =
-    last !== null && firstBarClose !== null && firstBarClose !== 0
-      ? ((last - firstBarClose) / firstBarClose) * 100
-      : null;
+  const rawPosition = portfolio?.positions.find((position) => position.ticker === ticker) ?? null;
+  const position = rawPosition && portfolio ? ticketPosition(rawPosition, portfolio) : null;
+  const account: TradeTicketAccount | null = portfolio
+    ? {
+        displayCurrency: portfolio.display_currency,
+        availableCash: Number(portfolio.available_cash),
+        position,
+      }
+    : null;
 
-  const overlaySeries = indicatorBundle
-    ? Object.fromEntries(
-        Object.entries(indicatorBundle.series).filter(([name]) => name !== "rsi_14"),
-      )
-    : {};
-  const showMacd = indicators.includes("macd");
+  const latestClose = symbol.latest ? Number(symbol.latest.close) : null;
+  const firstClose = bars[0] ? Number(bars[0].close) : null;
+  const periodReturnPct = calculatePeriodReturnPct(firstClose, latestClose);
+  const metrics = deriveBarMetrics(rangeBars);
+  const rsiSeries = indicatorBundle.series.rsi_14;
+  const latestRsi = rsiSeries?.at(-1)?.value ?? null;
+  const overlaySeries = Object.fromEntries(
+    Object.entries(indicatorBundle.series).filter(
+      ([name]) => name !== "rsi_14" && selectedIndicators.includes(name as StockIndicator),
+    ),
+  );
+  const showMacd = selectedIndicators.includes("macd");
+  const validCurrentUserId = Number.isFinite(currentUserId) ? currentUserId : null;
+  const ticketProps = {
+    ticker,
+    name: symbol.name,
+    currency: symbol.currency,
+    latestClose,
+    signedIn,
+    account,
+    openOrderCount: tickerOrders.length,
+  };
 
   return (
-    <div className="flex">
-      <StockSidebar
-        symbols={allSymbols}
-        currentTicker={ticker}
-        tf={tf}
-        indicators={indicators.join(",")}
+    <div className="px-4 py-5 sm:px-6 sm:py-7 lg:px-8">
+      <SecurityHeader
+        symbol={symbol}
+        latestClose={latestClose}
+        periodReturnPct={periodReturnPct}
+        timeframe={timeframe}
+        signedIn={signedIn}
+        inWatchlist={inWatchlist}
+        hasPosition={position !== null}
       />
-      <div className="min-w-0 flex-1 px-4 py-10 sm:px-6">
-        <header className="mb-6 flex flex-wrap items-baseline justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">
-              <span className="font-mono">{symbol.ticker}</span>
-              <span className="ml-3 text-base font-normal text-muted-foreground">
-                {symbol.name}
-              </span>
-            </h1>
-            <p className="mt-1 text-xs text-muted-foreground">
-              {symbol.sector ?? "—"} · {symbol.exchange ?? "—"}
-            </p>
-          </div>
-          <div className="flex items-baseline gap-4">
-            {session?.user?.id ? (
-              <WatchlistToggle ticker={symbol.ticker} initialInWatchlist={inWatchlist} />
-            ) : null}
-            <div className="text-right">
-              <LivePriceBadge ticker={ticker} initialPrice={last} />
-              <div
-                className={`text-sm font-mono ${
-                  periodChangePct === null
-                    ? "text-muted-foreground"
-                    : periodChangePct >= 0
-                      ? "text-green-500"
-                      : "text-red-500"
-                }`}
-              >
-                {periodChangePct === null
-                  ? `${tf}: —`
-                  : `${tf}: ${periodChangePct >= 0 ? "+" : ""}${periodChangePct.toFixed(2)}%`}
-              </div>
-              <p className="mt-0.5 text-xs text-muted-foreground">simulated quote</p>
-            </div>
-          </div>
-        </header>
 
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <nav className="flex gap-1">
-            {TIMEFRAMES.map((t) => (
-              <Link
-                key={t.value}
-                href={timeframeHref(ticker, indicators, t.value)}
-                className={`rounded-md border px-2.5 py-1 text-xs transition hover:bg-accent ${
-                  tf === t.value ? "border-primary text-foreground" : "text-muted-foreground"
-                }`}
-              >
-                {t.value}
-              </Link>
-            ))}
-          </nav>
-          <nav className="flex flex-wrap gap-1">
-            {ALL_INDICATORS.map((name) => {
-              const on = indicators.includes(name);
-              return (
-                <Link
-                  key={name}
-                  href={toggleHref(ticker, indicators, name, tf)}
-                  className={`rounded-md border px-2.5 py-1 text-xs uppercase transition hover:bg-accent ${
-                    on ? "border-primary text-foreground" : "text-muted-foreground"
-                  }`}
-                >
-                  {name.replace("_", " ")}
-                </Link>
-              );
-            })}
-          </nav>
-        </div>
-
-        <div className="rounded-lg border bg-card p-4">
-          {bars.length ? (
-            <PriceChart
-              bars={bars}
-              overlays={overlaySeries}
-              macd={showMacd ? (indicatorBundle?.macd ?? null) : null}
-            />
-          ) : (
-            <p className="py-12 text-center text-sm text-muted-foreground">
-              No bars in this timeframe.
-            </p>
-          )}
-        </div>
-
-        {signedIn ? (
-          <div className="mt-4">
-            <AlertForm ticker={symbol.ticker} />
-          </div>
-        ) : null}
-
-        {indicators.includes("rsi_14") && indicatorBundle?.series.rsi_14 ? (
-          <p className="mt-3 text-xs text-muted-foreground">
-            Latest RSI(14):{" "}
-            <span className="font-mono text-foreground">
-              {indicatorBundle.series.rsi_14[
-                indicatorBundle.series.rsi_14.length - 1
-              ]?.value.toFixed(2) ?? "—"}
-            </span>
-          </p>
-        ) : null}
-
-        <section className="mt-12">
-          <h2 className="mb-4 text-lg font-semibold">Recent news</h2>
-          <NewsList articles={news} />
-        </section>
-
-        <CommentsSection
-          ticker={symbol.ticker}
-          comments={comments}
-          currentUserId={Number.isFinite(currentUserId) ? currentUserId : null}
-        />
+      <div className="mt-4 xl:hidden">
+        <MobileTradeSheet {...ticketProps} />
       </div>
+
+      <div className="mt-6 grid min-w-0 gap-6 xl:grid-cols-[minmax(0,1fr)_20.5rem] xl:items-start">
+        <div className="min-w-0 space-y-5">
+          <section
+            aria-label={`${ticker} price chart`}
+            className="overflow-hidden border-y border-border-muted bg-surface-elevated sm:border-x"
+          >
+            <StockChartToolbar
+              ticker={ticker}
+              timeframe={timeframe}
+              indicators={selectedIndicators}
+            />
+            <div className="p-2 sm:p-4">
+              {bars.length ? (
+                <PriceChart
+                  bars={bars}
+                  overlays={overlaySeries}
+                  macd={showMacd ? indicatorBundle.macd : null}
+                />
+              ) : (
+                <p className="py-24 text-center text-sm text-muted-foreground">
+                  No price history is available for this timeframe.
+                </p>
+              )}
+            </div>
+          </section>
+
+          <StockMetricsStrip metrics={metrics} currency={symbol.currency} rsi={latestRsi} />
+        </div>
+
+        <aside
+          aria-label={`Paper trade ${ticker}`}
+          className="sticky top-17 hidden max-h-[calc(100dvh-5rem)] overflow-y-auto border border-border-muted bg-surface-elevated p-5 xl:block"
+        >
+          <ContextualTradeTicket {...ticketProps} />
+        </aside>
+      </div>
+
+      <section aria-label={`${ticker} research`} className="mt-8">
+        <StockResearchTabs
+          newsCount={news.length}
+          orderCount={tickerOrders.length}
+          overview={
+            <Overview
+              symbol={symbol}
+              latestTimestamp={metrics.latestTimestamp}
+              hasPosition={position !== null}
+            />
+          }
+          news={<NewsList articles={news} variant="workspace" />}
+          positionOrders={
+            signedIn ? (
+              <div className="space-y-8">
+                {position ? (
+                  <PositionSummary
+                    ticker={ticker}
+                    nativeCurrency={symbol.currency}
+                    displayCurrency={portfolio?.display_currency ?? symbol.currency}
+                    position={position}
+                  />
+                ) : (
+                  <div className="border-y border-border-muted py-6">
+                    <h3 className="text-base font-semibold">No current position</h3>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      You do not currently hold {ticker}. Your research and open orders remain
+                      available here.
+                    </p>
+                  </div>
+                )}
+                <TickerOrders ticker={ticker} currency={symbol.currency} orders={tickerOrders} />
+              </div>
+            ) : (
+              <GuestPersonalContext ticker={ticker} />
+            )
+          }
+          discussion={
+            <CommentsSection
+              ticker={ticker}
+              comments={comments}
+              currentUserId={validCurrentUserId}
+              embedded
+            />
+          }
+        />
+      </section>
+    </div>
+  );
+}
+
+function Overview({
+  symbol,
+  latestTimestamp,
+  hasPosition,
+}: {
+  symbol: SymbolDetail;
+  latestTimestamp: string | null;
+  hasPosition: boolean;
+}) {
+  const items = [
+    ["Ticker", symbol.ticker],
+    ["Exchange", symbol.exchange ?? "—"],
+    ["Sector", symbol.sector ?? "—"],
+    ["Trading currency", symbol.currency],
+  ];
+
+  return (
+    <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,0.55fr)]">
+      <div>
+        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-text-tertiary">
+          Security overview
+        </p>
+        <h2 className="mt-2 text-xl font-semibold tracking-tight">{symbol.name}</h2>
+        <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">
+          Price history, technical analysis, company news, and paper-trading context are organized
+          around this security. Market orders use the latest cached close as their simulation basis.
+        </p>
+        <p className="mt-3 text-xs leading-5 text-text-tertiary">
+          End-of-day data{latestTimestamp ? ` through ${latestTimestamp}` : ""}. The indicative
+          price is simulated from the cached close and is not a realtime market quote.
+        </p>
+      </div>
+      <dl className="grid grid-cols-2 gap-x-6 gap-y-5 border-y border-border-muted py-5">
+        {items.map(([label, value]) => (
+          <div key={label}>
+            <dt className="text-[10px] font-semibold uppercase tracking-[0.12em] text-text-tertiary">
+              {label}
+            </dt>
+            <dd className="mt-1 text-sm font-medium">{value}</dd>
+          </div>
+        ))}
+        <div>
+          <dt className="text-[10px] font-semibold uppercase tracking-[0.12em] text-text-tertiary">
+            Portfolio status
+          </dt>
+          <dd className="mt-1 text-sm font-medium">
+            {hasPosition ? "Current holding" : "Not held"}
+          </dd>
+        </div>
+      </dl>
+    </div>
+  );
+}
+
+function GuestPersonalContext({ ticker }: { ticker: string }) {
+  return (
+    <div className="border-y border-border-muted py-7">
+      <h3 className="text-base font-semibold">Your position and orders</h3>
+      <p className="mt-1.5 max-w-xl text-sm leading-6 text-muted-foreground">
+        Sign in to see whether you hold {ticker}, review reserved shares and buying power, and
+        manage pending paper orders.
+      </p>
+      <Link
+        href={`/login?callbackUrl=${encodeURIComponent(`/stocks/${ticker}`)}`}
+        className="mt-4 inline-flex h-9 items-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+      >
+        Sign in
+      </Link>
     </div>
   );
 }

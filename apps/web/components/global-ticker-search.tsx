@@ -1,7 +1,7 @@
 "use client";
 
 import { Search } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useId, useRef, useState } from "react";
 
 import { searchSymbols } from "@/lib/api/symbols";
@@ -18,6 +18,8 @@ export function GlobalTickerSearch({
   debounceMs?: number;
 }) {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const listboxId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
   const requestRef = useRef(0);
@@ -71,7 +73,17 @@ export function GlobalTickerSearch({
     setResults([]);
     setStatus("idle");
     setActiveIndex(-1);
-    router.push(`/stocks/${encodeURIComponent(result.ticker)}`);
+    const destination = new URLSearchParams();
+    if (pathname.startsWith("/stocks/")) {
+      const timeframe = searchParams.get("tf");
+      const indicators = searchParams.get("indicators");
+      if (timeframe) destination.set("tf", timeframe);
+      if (indicators) destination.set("indicators", indicators);
+    }
+    const queryString = destination.toString();
+    router.push(
+      `/stocks/${encodeURIComponent(result.ticker)}${queryString ? `?${queryString}` : ""}`,
+    );
   }
 
   function onKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {

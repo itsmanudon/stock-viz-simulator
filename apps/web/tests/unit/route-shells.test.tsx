@@ -11,6 +11,7 @@ vi.mock("@/auth", () => ({
 vi.mock("next/navigation", () => ({
   usePathname: () => "/markets",
   useRouter: () => ({ push: vi.fn() }),
+  useSearchParams: () => new URLSearchParams(),
 }));
 
 vi.mock("@/components/account-menu", () => ({

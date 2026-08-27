@@ -7,6 +7,7 @@ import { cancelOrder } from "@/lib/api/trading";
 
 export async function cancelOrderAction(formData: FormData): Promise<void> {
   const idRaw = formData.get("id");
+  const tickerRaw = formData.get("ticker");
   const id = typeof idRaw === "string" ? Number(idRaw) : Number.NaN;
   if (!Number.isFinite(id)) return;
   try {
@@ -21,4 +22,7 @@ export async function cancelOrderAction(formData: FormData): Promise<void> {
     }
   }
   revalidatePath("/orders");
+  if (typeof tickerRaw === "string" && tickerRaw) {
+    revalidatePath(`/stocks/${tickerRaw.toUpperCase()}`);
+  }
 }

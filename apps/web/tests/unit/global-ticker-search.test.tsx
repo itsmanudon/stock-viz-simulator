@@ -5,9 +5,13 @@ import { GlobalTickerSearch } from "@/components/global-ticker-search";
 import type { Symbol as SymbolRow } from "@/lib/api/types";
 
 const push = vi.fn();
+let pathname = "/markets";
+let currentSearchParams = new URLSearchParams();
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push }),
+  usePathname: () => pathname,
+  useSearchParams: () => currentSearchParams,
 }));
 
 function symbol(ticker: string, name: string): SymbolRow {
@@ -25,6 +29,8 @@ describe("GlobalTickerSearch", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     push.mockReset();
+    pathname = "/markets";
+    currentSearchParams = new URLSearchParams();
   });
 
   afterEach(() => {
@@ -54,6 +60,22 @@ describe("GlobalTickerSearch", () => {
     fireEvent.keyDown(input, { key: "Enter" });
 
     expect(push).toHaveBeenCalledWith("/stocks/AAPL");
+  });
+
+  it("preserves chart analysis state when changing tickers from a stock workspace", async () => {
+    pathname = "/stocks/MSFT";
+    currentSearchParams = new URLSearchParams(
+      "tf=5Y&indicators=sma_50%2Crsi_14&unrelated=discard-me",
+    );
+    const search = vi.fn().mockResolvedValue([symbol("AAPL", "Apple Inc.")]);
+    render(<GlobalTickerSearch search={search} debounceMs={20} />);
+    const input = screen.getByRole("combobox");
+
+    fireEvent.change(input, { target: { value: "app" } });
+    await act(() => vi.advanceTimersByTimeAsync(20));
+    fireEvent.mouseDown(screen.getByRole("option", { name: /AAPL/i }));
+
+    expect(push).toHaveBeenCalledWith("/stocks/AAPL?tf=5Y&indicators=sma_50%2Crsi_14");
   });
 
   it("keeps the newest results when requests resolve out of order", async () => {

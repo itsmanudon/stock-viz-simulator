@@ -5,15 +5,25 @@ import { useEffect, useRef, useState } from "react";
 type Props = {
   ticker: string;
   initialPrice: number | null;
+  currency: string;
 };
 
 type LiveState = "connecting" | "live" | "error";
 
-function fmt(n: number): string {
-  return n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+function fmt(n: number, currency: string): string {
+  try {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency,
+      minimumFractionDigits: currency === "JPY" ? 0 : 2,
+      maximumFractionDigits: currency === "JPY" ? 0 : 2,
+    }).format(n);
+  } catch {
+    return `${currency} ${n.toFixed(2)}`;
+  }
 }
 
-export function LivePriceBadge({ ticker, initialPrice }: Props) {
+export function LivePriceBadge({ ticker, initialPrice, currency }: Props) {
   const [price, setPrice] = useState<number | null>(initialPrice);
   const [liveState, setLiveState] = useState<LiveState>("connecting");
   const esRef = useRef<EventSource | null>(null);
@@ -50,16 +60,15 @@ export function LivePriceBadge({ ticker, initialPrice }: Props) {
   }, [ticker]);
 
   return (
-    <div className="flex items-center justify-end gap-2 font-mono">
-      <div className="text-3xl">${price !== null ? fmt(price) : "—"}</div>
-      {liveState === "live" ? (
-        <span className="relative flex h-2 w-2" title="Simulated quote">
-          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75" />
-          <span className="relative inline-flex h-2 w-2 rounded-full bg-green-500" />
-        </span>
-      ) : liveState === "error" ? (
-        <span className="h-2 w-2 rounded-full bg-yellow-400" title="Simulated quote unavailable" />
-      ) : null}
+    <div
+      className="inline-flex items-center gap-1.5 text-[11px] text-text-tertiary"
+      title="Indicative price simulated from the latest cached close"
+    >
+      <span>Indicative</span>
+      <span className="font-mono tabular-nums">{price !== null ? fmt(price, currency) : "—"}</span>
+      <span aria-hidden>·</span>
+      <span>{liveState === "error" ? "unavailable" : "simulated"}</span>
+      <span className="sr-only">This is not a realtime market quote.</span>
     </div>
   );
 }

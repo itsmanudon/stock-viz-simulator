@@ -12,6 +12,7 @@ let pathname = "/compare";
 vi.mock("next/navigation", () => ({
   usePathname: () => pathname,
   useRouter: () => ({ push: vi.fn() }),
+  useSearchParams: () => new URLSearchParams(),
 }));
 
 vi.mock("@/components/account-menu", () => ({
