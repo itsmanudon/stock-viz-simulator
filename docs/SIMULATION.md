@@ -22,10 +22,11 @@ runs on the weekday EOD schedule.
 | Versioned profile registry | ✅ SIM-04 — `get_execution_profile(name, version)` |
 | Durable execution provenance | ✅ SIM-04 — `simulated_executions` (fill-only, no backfill) |
 | Backtester | **Unchanged** — separate engine (SIM-08) |
-| Replay sessions | **Not implemented** (SIM-05) |
+| Replay sessions | ✅ SIM-05 — `ReplaySession` + `SimulationClock`; isolated book |
+| Blind historical replay | **Not implemented** (SIM-06) |
 | Kafka `trade.executed.v1` | **Unchanged** |
-| Database | Additive `simulated_executions` table |
-| API | Additive `GET /v1/trades/{trade_id}/execution`; `TradeOut` unchanged |
+| Database | Additive `simulated_executions` + `replay_sessions` / `_positions` / `_fills` |
+| API | Additive execution provenance + `/v1/replay/*`; `TradeOut` unchanged |
 | Frontend | **Unchanged** |
 
 PostgreSQL remains the source of truth. Kafka is not authoritative for
@@ -211,9 +212,9 @@ Live paper trading still:
 - Does not model latency, commissions, or liquidity
 - Uses a simulated SSE quote that is **not** a fill source
 
-Those limitations remain after SIM-04. Provenance makes fills **explainable
-and versioned**. It does not add spreads, slippage, OHLC-touch fills, partial
-fills, or a market clock. See [KNOWN_LIMITATIONS.md](./KNOWN_LIMITATIONS.md).
+Those limitations remain after SIM-05. Replay sessions make fills **clocked
+and isolated**. They do not add spreads, slippage, OHLC-touch fills, partial
+fills, or a historical bar walker. See [KNOWN_LIMITATIONS.md](./KNOWN_LIMITATIONS.md).
 
 ## Why same-day OHLC touches are not used
 
@@ -305,6 +306,47 @@ column.
 Live paper always uses `LIVE_PAPER_EXECUTION_PROFILE` (`legacy_close` v1).
 There is no user-facing profile selector.
 
+## ReplaySession + simulation clock
+
+SIM-05 adds an isolated paper book that is **not** the live `Portfolio`.
+
+```text
+SimulationClock(now=explicit instant)
+    → never reads the wall clock
+    → time only moves forward
+
+ReplaySession
+    → pinned profile + version
+    → isolated cash / positions
+    → current clock_now
+
+evaluate_order(order, caller_supplied_snapshot, session profile)
+    → FILLED persists ReplayFill (ledger + provenance together)
+    → does not write Trade, SimulatedExecution, or trade.executed.v1
+```
+
+The kernel is unchanged. `observed_at` and `submitted_at` come from the
+session clock (or an explicit instant that the clock `permits`). A snapshot
+whose `observed_at` is after `clock.now` is **lookahead** and is rejected
+before `evaluate_order`. Advancing the clock does not load `price_bars` and
+does not settle orders — walking stored history without peeking is SIM-06.
+
+Replay fills reuse the provenance *concept* (profile, version, assumptions,
+reference vs fill, reason, interval, `evaluated_at`) without a `trade_id`
+FK. Live `simulated_executions.trade_id` stays 1:1 with live `trades`.
+
+USD-only isolated cash: no FX, no share/cash reservations, no Kafka. Default
+profile is `legacy_close` v1 via `get_execution_profile`; unknown pairs fail.
+
+Authed API (no frontend):
+
+- `POST /v1/replay/sessions` — `clock_now` is required; never defaulted to now
+- `POST /v1/replay/sessions/{id}/clock` — advance only
+- `POST /v1/replay/sessions/{id}/orders` — caller-supplied snapshot
+- `POST /v1/replay/sessions/{id}/close`
+
+Live `evaluation_clock()` remains wall-clock UTC for paper trading.
+
 ## Later program
 
 | ID | Scope |
@@ -312,7 +354,7 @@ There is no user-facing profile selector.
 | SIM-02 | **Done.** Live MARKET fills call `evaluate_order(..., LEGACY_CLOSE)`; `apply_fill` is unchanged |
 | SIM-03 | **Done.** Live pending LIMIT / STOP_LOSS / TAKE_PROFIT settlement uses the same kernel; `_should_fill` is gone from production |
 | SIM-04 | **Done.** Versioned profile registry + durable `SimulatedExecution` provenance |
-| SIM-05 | ReplaySession + simulation clock |
+| SIM-05 | **Done.** ReplaySession + `SimulationClock`; isolated book; no live Trade FK |
 | SIM-06 | Blind historical market replay |
 | SIM-07 | Post-trade forensic analytics |
 | SIM-08 | Backtester uses the same execution kernel |
@@ -322,4 +364,5 @@ There is no user-facing profile selector.
 Kernel unit tests pin `legacy_close` itself. Live MARKET tests live in
 `test_market_kernel_integration.py`. Live pending tests live in
 `test_pending_kernel_integration.py`. Provenance tests live in
-`test_execution_provenance.py`. The backtester is still a separate engine.
+`test_execution_provenance.py`. Replay session tests live in
+`test_replay_session.py`. The backtester is still a separate engine.

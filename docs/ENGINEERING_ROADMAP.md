@@ -23,4 +23,4 @@ None of these capabilities is claimed as implemented. Current constraints are li
 
 ## Simulation fidelity
 
-SIM-01 added a pure `legacy_close` execution kernel. SIM-02 and SIM-03 route all live equity paper fills (MARKET, LIMIT, STOP_LOSS, TAKE_PROFIT) through `evaluate_order` without changing `apply_fill` economics or fill realism. SIM-04 persists versioned execution provenance for successful fills. Replay is SIM-05. See [SIMULATION.md](./SIMULATION.md).
+SIM-01 added a pure `legacy_close` execution kernel. SIM-02 and SIM-03 route all live equity paper fills (MARKET, LIMIT, STOP_LOSS, TAKE_PROFIT) through `evaluate_order` without changing `apply_fill` economics or fill realism. SIM-04 persists versioned execution provenance for successful fills. SIM-05 adds `ReplaySession` plus a monotonic `SimulationClock` as an isolated book (not live `Trade`). Blind historical replay is SIM-06. See [SIMULATION.md](./SIMULATION.md).

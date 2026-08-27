@@ -19,7 +19,8 @@ src/stockviz/
   models/           SQLModel tables (market, portfolio, user, order, option, dividend,
                     alert, comment, recommendation, watchlist, metrics, sentiment,
                     events — outbox, consumer inbox, derived trade activity,
-                    execution — SimulatedExecution provenance)
+                    execution — SimulatedExecution provenance,
+                    replay — ReplaySession / ReplayPosition / ReplayFill)
   events/           versioned contracts (trades/market/news), outbox/inbox,
                     dispatcher, domain handlers, Kafka producer wrappers
                     (not imported by FastAPI startup)
@@ -33,7 +34,8 @@ src/stockviz/
                     markets (one-call /markets summary), indicators, news,
                     recommendations, trading, orders, options, backtest,
                     screener, sentiment, leaderboard, watchlist, alerts,
-                    comments, stream (SSE simulated quotes), health
+                    comments, stream (SSE simulated quotes), replay
+                    (isolated ReplaySession), health
                     (`GET /live` liveness, `GET /health` readiness + DB)
   services/
     ingest/         External-API fetchers (yfinance primary, Alpha Vantage fallback, Newsdata)
@@ -43,11 +45,15 @@ src/stockviz/
                     simulation_adapter (PriceBar / PendingOrder → kernel types),
                     execution_provenance (SimulatedExecution writer),
                     buying_power, portfolio, analytics, dividends, fx, snapshots
-    simulation/     pure deterministic execution kernel + profile registry.
-                    Live MARKET and pending equity fills call evaluate_order
-                    with LIVE_PAPER_EXECUTION_PROFILE; apply_fill remains the
-                    ledger; SimulatedExecution snapshots the FillDecision.
-                    See docs/SIMULATION.md
+    simulation/     pure deterministic execution kernel + profile registry +
+                    SimulationClock. Live MARKET and pending equity fills call
+                    evaluate_order with LIVE_PAPER_EXECUTION_PROFILE; apply_fill
+                    remains the ledger; SimulatedExecution snapshots the
+                    FillDecision. See docs/SIMULATION.md
+    replay/         isolated ReplaySession book (SIM-05). Owns the simulation
+                    clock and ReplayFill rows; does not call apply_fill or
+                    write Trade / trade.executed.v1. Snapshots are caller-
+                    supplied; stored-bar walking is SIM-06.
     options/        Black-Scholes-style pricing + option trade execution/settlement
     backtest/       engine.py — historical strategy simulation
     alerts.py       price-alert evaluation
@@ -239,10 +245,16 @@ intraday fills anywhere in the app:
   looks up versioned profiles; unknown pairs fail with no fallback.
   `GET /v1/trades/{id}/execution` exposes provenance; `TradeOut` and
   `trade.executed.v1` are unchanged. The simulation package must stay free
-  of Session, FX, settings, Kafka, and clocks. Account failures stay in the
+  of Session, FX, settings, Kafka, and wall-clock reads. `SimulationClock`
+  is constructed with an explicit instant. Account failures stay in the
   trading layer. Shared adapters live in
   `services/trading/simulation_adapter.py`. Live `observed_at` /
   `evaluated_at` is evaluation / settlement time, not `PriceBar.ts`.
+- **Replay sessions** (`services/replay/`, `GET|POST /v1/replay/...`):
+  isolated cash/positions, monotonic `SimulationClock`, kernel fills as
+  `ReplayFill` (no `trade_id`). `clock_now` is required on create. A
+  snapshot after the clock is lookahead (400). Closed sessions return 409.
+  No frontend. Unknown execution profiles fail with no fallback.
 - **Options count toward NAV.** `compute_portfolio` marks open contracts to
   their Black-Scholes value (`options_market_value`). Without it, buying an
   option debited cash and recorded no offsetting asset.
