@@ -22,12 +22,18 @@ from stockviz.services.simulation.profiles import (
     LEGACY_CLOSE_NAME,
     is_legacy_close,
 )
+from stockviz.services.simulation.registry import (
+    LIVE_PAPER_EXECUTION_PROFILE,
+    UnknownExecutionProfileError,
+    get_execution_profile,
+)
 
 __all__ = [
     "LEGACY_CLOSE",
     "LEGACY_CLOSE_ASSUMPTIONS",
     "LEGACY_CLOSE_MODEL_VERSION",
     "LEGACY_CLOSE_NAME",
+    "LIVE_PAPER_EXECUTION_PROFILE",
     "ExecutionProfile",
     "ExecutionTrace",
     "FillDecision",
@@ -36,6 +42,8 @@ __all__ = [
     "OrderIntent",
     "OrderSide",
     "SimulationOrderType",
+    "UnknownExecutionProfileError",
     "evaluate_order",
+    "get_execution_profile",
     "is_legacy_close",
 ]
