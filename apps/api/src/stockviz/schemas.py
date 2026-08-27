@@ -94,8 +94,22 @@ class IndicatorsOut(BaseModel):
     macd: list[MACDPointOut] | None = None
 
 
+class RecommendationVoteOut(BaseModel):
+    """One of the seven deterministic recommendation checks."""
+
+    id: str
+    label: str
+    passed: bool
+    detail: str
+
+
 class RecommendationOut(BaseModel):
-    """One row from the ``recommendations`` table, joined with the symbol name."""
+    """One row from the ``recommendations`` table, joined with the symbol name.
+
+    ``votes`` is the full seven-check evidence list. ``rationale`` remains the
+    passing phrases only so older clients keep working. ``sentiment_7d`` is the
+    trailing-week mean from ``symbol_metrics`` when present.
+    """
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -104,6 +118,8 @@ class RecommendationOut(BaseModel):
     sector: str | None = None
     score: int
     rationale: list[str]
+    votes: list[RecommendationVoteOut] = Field(default_factory=list)
+    sentiment_7d: float | None = None
     computed_at: datetime
 
 

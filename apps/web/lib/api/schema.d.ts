@@ -1445,6 +1445,10 @@ export interface components {
         /**
          * RecommendationOut
          * @description One row from the ``recommendations`` table, joined with the symbol name.
+         *
+         *     ``votes`` is the full seven-check evidence list. ``rationale`` remains the
+         *     passing phrases only so older clients keep working. ``sentiment_7d`` is the
+         *     trailing-week mean from ``symbol_metrics`` when present.
          */
         RecommendationOut: {
             /** Ticker */
@@ -1457,11 +1461,29 @@ export interface components {
             score: number;
             /** Rationale */
             rationale: string[];
+            /** Votes */
+            votes?: components["schemas"]["RecommendationVoteOut"][];
+            /** Sentiment 7D */
+            sentiment_7d?: number | null;
             /**
              * Computed At
              * Format: date-time
              */
             computed_at: string;
+        };
+        /**
+         * RecommendationVoteOut
+         * @description One of the seven deterministic recommendation checks.
+         */
+        RecommendationVoteOut: {
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+            /** Passed */
+            passed: boolean;
+            /** Detail */
+            detail: string;
         };
         /**
          * RsiThresholdStrategy

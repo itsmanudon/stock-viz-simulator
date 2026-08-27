@@ -3,7 +3,7 @@
 Reads pre-computed rows from the ``recommendations`` table (the scheduler
 recomputes daily; the CLI can force a recompute). Joins with ``symbols``
 so the response includes the company name + sector without a second
-round-trip.
+round-trip, and left-joins ``symbol_metrics`` for trailing sentiment.
 """
 
 from __future__ import annotations
@@ -16,8 +16,9 @@ from sqlmodel import Session, select
 
 from stockviz.db import get_session
 from stockviz.limiter import limiter
-from stockviz.models import Recommendation, Symbol
-from stockviz.schemas import RecommendationOut
+from stockviz.models import Recommendation, Symbol, SymbolMetrics
+from stockviz.schemas import RecommendationOut, RecommendationVoteOut
+from stockviz.services.recommend import votes_from_payload
 
 router = APIRouter(prefix="/v1", tags=["recommendations"])
 
@@ -35,7 +36,7 @@ def _parse_rationale(raw: str | None) -> list[str]:
 def list_recommendations(
     request: Request,
     session: SessionDep,
-    min_score: Annotated[int, Query(ge=0, le=6)] = 0,
+    min_score: Annotated[int, Query(ge=0, le=7)] = 0,
     limit: Annotated[int, Query(ge=1, le=500)] = 100,
 ) -> list[RecommendationOut]:
     # Per-ticker latest computed_at, joined back so we get the score + rationale
@@ -46,27 +47,40 @@ def list_recommendations(
         .subquery()
     )
     stmt = (
-        select(Recommendation, Symbol)
+        select(Recommendation, Symbol, SymbolMetrics)
         .join(
             latest,
             (Recommendation.ticker == latest.c.ticker)  # type: ignore[arg-type]
             & (Recommendation.computed_at == latest.c.computed_at),  # type: ignore[arg-type]
         )
         .join(Symbol, Symbol.ticker == Recommendation.ticker)  # type: ignore[arg-type]
+        .outerjoin(SymbolMetrics, SymbolMetrics.ticker == Recommendation.ticker)  # type: ignore[arg-type]
         .where(Recommendation.score >= min_score)
         .order_by(Recommendation.score.desc(), Recommendation.ticker)  # type: ignore[attr-defined]
         .limit(limit)
     )
 
     out: list[RecommendationOut] = []
-    for rec, symbol in session.exec(stmt).all():
+    for rec, symbol, metrics in session.exec(stmt).all():
+        rationale = _parse_rationale(rec.rationale)
+        votes = votes_from_payload(rec.votes, rationale)
         out.append(
             RecommendationOut(
                 ticker=rec.ticker,
                 name=symbol.name,
                 sector=symbol.sector,
                 score=int(rec.score),
-                rationale=_parse_rationale(rec.rationale),
+                rationale=rationale,
+                votes=[
+                    RecommendationVoteOut(
+                        id=vote.id,
+                        label=vote.label,
+                        passed=vote.passed,
+                        detail=vote.detail,
+                    )
+                    for vote in votes
+                ],
+                sentiment_7d=metrics.sentiment_7d if metrics is not None else None,
                 computed_at=rec.computed_at,
             )
         )
