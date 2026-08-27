@@ -93,7 +93,7 @@ function AlertFields({
           {state.error}
         </p>
       ) : null}
-      {state.createdId ? <p className="text-xs text-positive">Alert set.</p> : null}
+      {state.createdId ? <output className="block text-xs text-positive">Alert set.</output> : null}
       <Button type="submit" size="sm" className="rounded-sm" disabled={pending}>
         {pending ? "Saving…" : "Create alert"}
       </Button>

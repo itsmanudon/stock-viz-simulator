@@ -62,8 +62,15 @@ test("operational trading loop from ticket to orders, watchlist, and alerts", as
 
   await page.goto("/alerts?ticker=AAPL");
   await expect(page.getByRole("heading", { name: "Alerts", exact: true })).toBeVisible();
-  await expect(page.getByText(/not email, push, or real-time exchange monitoring/i)).toBeVisible();
-  await page.getByLabel("Target price").fill("1");
-  await page.getByRole("button", { name: "Create alert" }).click();
-  await expect(page.getByText("Alert set.")).toBeVisible();
+  await expect(page.locator("#main header")).toContainText(
+    /This is not email, push, or real-time exchange monitoring/i,
+  );
+
+  const create = page.getByRole("region", { name: "Create alert" });
+  await create.getByLabel("Target price").fill("1");
+  await create.getByRole("button", { name: "Create alert" }).click();
+  await expect(page.getByRole("table", { name: "Price alerts" })).toContainText("AAPL", {
+    timeout: 10_000,
+  });
+  await expect(create.getByText("Alert set.")).toBeVisible();
 });
