@@ -40,6 +40,8 @@ src/stockviz/
     recommend/      7-vote scorer; API now returns structured votes + rationale
     trading/        execute, orders (pending limit/stop + derived reservations),
                     buying_power, portfolio, analytics, dividends, fx, snapshots
+    simulation/     pure deterministic execution kernel (SIM-01). Not on the
+                    live trade-commit path; see docs/SIMULATION.md
     options/        Black-Scholes-style pricing + option trade execution/settlement
     backtest/       engine.py — historical strategy simulation
     alerts.py       price-alert evaluation
@@ -221,6 +223,11 @@ intraday fills anywhere in the app:
   `execute.apply_fill`, which owns the cash/position mutation. Keep it that
   way: when the two had separate copies, only one of them converted native
   currency to USD.
+- **Execution kernel (SIM-01).** `services/simulation.evaluate_order` is a pure
+  function that reproduces the close-only fill rules above. Live
+  `execute_trade` / `settle_pending_orders` do **not** call it yet (SIM-02 /
+  SIM-03). The package must stay free of Session, FX, settings, Kafka, and
+  clocks. Account failures stay in the trading layer.
 - **Options count toward NAV.** `compute_portfolio` marks open contracts to
   their Black-Scholes value (`options_market_value`). Without it, buying an
   option debited cash and recorded no offsetting asset.

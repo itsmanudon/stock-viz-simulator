@@ -12,7 +12,7 @@ These are the current, code-verified boundaries of StockViz. They are not commit
 
 ## Trading and quantitative models
 
-- **Paper fills use daily closes.** Market orders use the latest stored close. Triggered limit/stop/take-profit orders fill at that session's close rather than the trigger price or an intraday order book.
+- **Paper fills use daily closes.** Market orders use the latest stored close. Triggered limit/stop/take-profit orders fill at that session's close rather than the trigger price or an intraday order book. SIM-01 models those rules in a pure kernel ([SIMULATION.md](./SIMULATION.md)) but does not change live settlement.
 - **Pending BUY FX reservations are estimates.** Reservation uses the latest known USD conversion; settlement revalidates the actual converted cost and may cancel if FX moved against available cash.
 - **Fixed opening cash and simplified accounting.** Accounts start with $100,000; there are no deposits/withdrawals. Equity cost basis is weighted average rather than tax-lot FIFO/LIFO.
 - **Long-only options.** There are no written contracts, spreads, early exercise, or margin. Black-Scholes uses 30-day historical volatility as an implied-volatility proxy and a fixed 5% risk-free rate.
