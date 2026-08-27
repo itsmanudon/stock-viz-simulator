@@ -108,6 +108,17 @@ export function formatQuantity(raw: string | number): string {
   return value.toLocaleString("en-US", { maximumFractionDigits: 6 });
 }
 
+export function formatSignedCurrency(
+  raw: string | number | null,
+  currency = "USD",
+): string {
+  if (raw === null) return "—";
+  const value = Number(raw);
+  if (!Number.isFinite(value)) return "—";
+  const formatted = formatCurrency(value, currency);
+  return value > 0 ? `+${formatted}` : formatted;
+}
+
 export function formatSignedPercent(value: number | null, digits = 2): string {
   if (value === null || !Number.isFinite(value)) return "—";
   const sign = value > 0 ? "+" : "";

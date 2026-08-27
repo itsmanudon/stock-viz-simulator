@@ -8,6 +8,7 @@ import {
   currencyForProjectedDividend,
   formatCurrency,
   formatQuantity,
+  formatSignedCurrency,
   formatSignedPercent,
   parsePortfolioRange,
   parsePortfolioTab,
@@ -96,6 +97,8 @@ describe("portfolio view model", () => {
     expect(formatCurrency("10", "INVALID")).toBe("INVALID 10.00");
     expect(formatQuantity("0.000001")).toBe("0.000001");
     expect(formatQuantity("1000.000000")).toBe("1,000");
+    expect(formatSignedCurrency("2100", "USD")).toBe("+$2,100.00");
+    expect(formatSignedCurrency("-2100", "USD")).toBe("-$2,100.00");
     expect(formatSignedPercent(12.5)).toBe("+12.50%");
     expect(formatSignedPercent(-8.725)).toBe("-8.73%");
     expect(formatSignedPercent(null)).toBe("—");
