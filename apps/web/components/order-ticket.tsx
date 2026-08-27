@@ -10,7 +10,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useActionState, useMemo, useState } from "react";
+import { useActionState, useEffect, useMemo, useState } from "react";
 
 import {
   type OrderFormState,
@@ -82,6 +82,13 @@ export function OrderTicket({
   const [mode, setMode] = useState<TradeOrderMode>("market");
   const [quantity, setQuantity] = useState("1");
   const [limitPrice, setLimitPrice] = useState("");
+
+  // Do not key this island from the server page. revalidatePath("/trade") after a
+  // fill must keep useActionState so the fill announcement survives. Sync the
+  // URL-selected ticker in instead.
+  useEffect(() => {
+    if (startingTicker) setTicker(startingTicker);
+  }, [startingTicker]);
 
   const selected = symbols.find((item) => item.ticker === ticker);
   const currency = selected?.currency || "USD";
@@ -286,13 +293,15 @@ export function OrderTicket({
           </p>
         ) : null}
         {marketSuccess ? (
-          <output className="block text-sm text-positive">
+          <output aria-live="polite" className="block text-sm text-positive">
             Filled {marketSuccess.side.toUpperCase()} {marketSuccess.quantity}{" "}
             {marketSuccess.ticker} @ {formatCurrency(marketSuccess.price, marketSuccess.currency)}
           </output>
         ) : null}
         {orderSuccess ? (
-          <output className="block text-sm text-positive">{orderSuccess}</output>
+          <output aria-live="polite" className="block text-sm text-positive">
+            {orderSuccess}
+          </output>
         ) : null}
 
         <Button type="submit" disabled={pending || !ticker} className="w-full rounded-sm">

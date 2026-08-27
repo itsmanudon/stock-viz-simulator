@@ -40,6 +40,42 @@ describe("OrderTicket", () => {
     expect(replace).toHaveBeenCalledWith("/trade?ticker=AAPL", { scroll: false });
   });
 
+  it("keeps the fill announcement after the parent passes a new quote", () => {
+    const { rerender } = render(
+      <OrderTicket
+        symbols={symbols}
+        initialTicker="AAPL"
+        quoteClose="188.38"
+        quoteAt="2026-08-26T00:00:00Z"
+        position={null}
+        availableCash="100000"
+        displayCurrency="USD"
+      />,
+    );
+
+    expect(screen.getByLabelText("Symbol")).toHaveValue("AAPL");
+    rerender(
+      <OrderTicket
+        symbols={symbols}
+        initialTicker="AAPL"
+        quoteClose="188.38"
+        quoteAt="2026-08-26T00:00:00Z"
+        position={{
+          quantity: "1",
+          availableQuantity: "1",
+          reservedQuantity: "0",
+          averageCost: "188.38",
+          lastClose: "188.38",
+          currency: "USD",
+        }}
+        availableCash="99811.62"
+        displayCurrency="USD"
+      />,
+    );
+    expect(screen.getByLabelText("Symbol")).toHaveValue("AAPL");
+    expect(screen.getByRole("button", { name: /Submit market buy/i })).toBeVisible();
+  });
+
   it("shows buying-power context for buys and estimated notional from the stored close", () => {
     render(
       <OrderTicket

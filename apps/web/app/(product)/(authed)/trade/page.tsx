@@ -97,8 +97,8 @@ export default async function TradePage({
         </div>
       ) : (
         <div className="mt-6 grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1.2fr)_minmax(16rem,20rem)] lg:items-start">
+          {/* Unkeyed: a fill revalidates this page and must not remount the ticket. */}
           <OrderTicket
-            key={activeTicker}
             symbols={options.map((symbol) => ({
               ticker: symbol.ticker,
               name: symbol.name,

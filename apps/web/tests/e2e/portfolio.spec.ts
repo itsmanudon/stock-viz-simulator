@@ -15,10 +15,14 @@ test("authenticated user can move from a paper trade into the Portfolio workspac
 }) => {
   await signUp(page, "populated");
 
-  await page.goto("/trade");
-  await page.getByLabel("Symbol").selectOption("AAPL");
+  await page.goto("/trade?ticker=AAPL");
+  await expect(page.getByLabel("Symbol")).toHaveValue("AAPL");
   await page.getByRole("button", { name: /Submit market buy/i }).click();
-  await expect(page.locator("output")).toContainText("Filled BUY", { timeout: 10_000 });
+  await expect(page.getByRole("region", { name: "Order ticket" }).locator("output")).toContainText(
+    "Filled BUY",
+    { timeout: 10_000 },
+  );
+  await expect(page.getByRole("table", { name: "Recent paper fills" })).toContainText("AAPL");
 
   await page.goto("/portfolio");
   await expect(page.getByRole("heading", { level: 1, name: "Portfolio" })).toBeVisible();

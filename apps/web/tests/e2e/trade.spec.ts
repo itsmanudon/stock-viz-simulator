@@ -24,7 +24,11 @@ test("operational trading loop from ticket to orders, watchlist, and alerts", as
 
   await page.getByLabel("Quantity").fill("1");
   await page.getByRole("button", { name: /Submit market buy/i }).click();
-  await expect(page.locator("output")).toContainText("Filled BUY", { timeout: 10_000 });
+  await expect(page.getByRole("region", { name: "Order ticket" }).locator("output")).toContainText(
+    "Filled BUY",
+    { timeout: 10_000 },
+  );
+  await expect(page.getByRole("table", { name: "Recent paper fills" })).toContainText("AAPL");
 
   await page.goto("/trades");
   await expect(page.getByRole("heading", { name: "Trade history" })).toBeVisible();
