@@ -16,7 +16,8 @@ from sqlmodel import Session
 
 from stockviz.auth import require_user_id
 from stockviz.main import app
-from stockviz.models import PriceBar, Symbol, User
+from stockviz.models import PriceBar, Symbol, Trade, TradeSide, User
+from stockviz.services.trading import ensure_default_portfolio
 from stockviz.settings import get_settings
 
 SECRET = get_settings().internal_api_token
@@ -103,6 +104,21 @@ def test_trade_buy_then_portfolio_reflects(session: Session, client: TestClient)
     body = response.json()
     assert len(body) == 1
     assert body[0]["ticker"] == "AAPL"
+    assert "execution" not in body[0]
+    assert "profile_name" not in body[0]
+
+    trade_id = trade["id"]
+    response = client.get(f"/v1/trades/{trade_id}/execution", headers=_auth_headers(user_id))
+    assert response.status_code == 200
+    provenance = response.json()
+    assert provenance["profile_name"] == "legacy_close"
+    assert provenance["model_version"] == "v1"
+    assert provenance["fill_price"] == "150.000000"
+    assert provenance["reference_price"] == "150.000000"
+    assert provenance["market_interval"] == "1d"
+    assert provenance["order_type"] == "market"
+    assert provenance["assumptions"]
+    assert provenance["evaluated_at"].endswith("+00:00") or provenance["evaluated_at"].endswith("Z")
 
 
 def test_insufficient_cash_returns_422(session: Session, client: TestClient) -> None:
@@ -123,6 +139,41 @@ def test_unknown_symbol_returns_404(session: Session, client: TestClient) -> Non
         headers=_auth_headers(user_id),
         json={"ticker": "NOPE", "side": "buy", "quantity": "1"},
     )
+    assert response.status_code == 404
+
+
+def test_execution_404_for_historical_trade_without_provenance(
+    session: Session, client: TestClient
+) -> None:
+
+    _seed_market(session)
+    user_id = _make_user(session)
+    portfolio = ensure_default_portfolio(session, user_id)
+    assert portfolio.id is not None
+    trade = Trade(
+        portfolio_id=portfolio.id,
+        ticker="AAPL",
+        side=TradeSide.BUY,
+        quantity=Decimal(1),
+        price=Decimal("150"),
+        fx_rate=Decimal(1),
+    )
+    session.add(trade)
+    session.commit()
+    session.refresh(trade)
+
+    history = client.get("/v1/trades", headers=_auth_headers(user_id))
+    assert history.status_code == 200
+    assert len(history.json()) == 1
+
+    response = client.get(f"/v1/trades/{trade.id}/execution", headers=_auth_headers(user_id))
+    assert response.status_code == 404
+    assert "provenance" in response.json()["detail"].lower()
+
+
+def test_execution_404_for_missing_trade(session: Session, client: TestClient) -> None:
+    user_id = _make_user(session)
+    response = client.get("/v1/trades/999999/execution", headers=_auth_headers(user_id))
     assert response.status_code == 404
 
 

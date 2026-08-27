@@ -21,6 +21,7 @@ from sqlmodel import Session, SQLModel, create_engine, text
 import stockviz.models  # noqa: F401 — register metadata
 
 _SCRATCH_DB = "stockviz_lock_test"
+_ALEMBIC_DB = "stockviz_alembic_test"
 
 
 def postgres_admin_url() -> str | None:
@@ -73,6 +74,31 @@ def scratch_postgres_engine() -> Iterator[Engine]:
         engine.dispose()
         with admin.connect() as conn:
             _terminate_and_drop(conn, _SCRATCH_DB)
+        admin.dispose()
+
+
+@contextmanager
+def scratch_alembic_engine() -> Iterator[Engine]:
+    """Yield an empty PostgreSQL database (no ``create_all``) for Alembic tests."""
+
+    admin_url = postgres_admin_url()
+    if admin_url is None:
+        raise RuntimeError("scratch_alembic_engine requires a PostgreSQL DATABASE_URL")
+
+    parsed = make_url(admin_url)
+    admin = create_engine(parsed, isolation_level="AUTOCOMMIT")
+    with admin.connect() as conn:
+        _terminate_and_drop(conn, _ALEMBIC_DB)
+        conn.execute(text(f'CREATE DATABASE "{_ALEMBIC_DB}"'))
+
+    test_url = parsed.set(database=_ALEMBIC_DB)
+    engine = create_engine(test_url, pool_pre_ping=True)
+    try:
+        yield engine
+    finally:
+        engine.dispose()
+        with admin.connect() as conn:
+            _terminate_and_drop(conn, _ALEMBIC_DB)
         admin.dispose()
 
 
