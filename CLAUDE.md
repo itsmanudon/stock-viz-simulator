@@ -40,6 +40,8 @@ service, or off) and feeds a screener filter, a recommendation vote, and a
 per-ticker series at `/v1/symbols/{ticker}/sentiment` — see
 [`docs/SENTIMENT.md`](./docs/SENTIMENT.md). Compare, Backtest, and Signals
 form the Research workspace; see [`docs/RESEARCH.md`](./docs/RESEARCH.md).
+Trade, Orders, Watchlist, and Alerts form the operational trading loop; see
+[`docs/OPERATIONAL_TRADING.md`](./docs/OPERATIONAL_TRADING.md).
 
 Market and news ingest are **event-driven**. APScheduler enqueues durable
 outbox requests; Kafka workers fetch providers and write Postgres. Metrics
