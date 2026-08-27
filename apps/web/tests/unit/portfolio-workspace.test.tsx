@@ -103,6 +103,7 @@ const orders: PendingOrder[] = [
     created_at: "2026-08-26T10:00:00Z",
     filled_at: null,
     fill_price: null,
+    cancel_reason: null,
   },
 ];
 

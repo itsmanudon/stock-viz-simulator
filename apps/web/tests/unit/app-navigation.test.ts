@@ -19,6 +19,7 @@ describe("getActiveNavigation", () => {
     ["/recommendations", "/compare", "/recommendations"],
     ["/orders/42", "/trade", "/orders"],
     ["/watchlist", "/portfolio", "/watchlist"],
+    ["/alerts", "/portfolio", "/alerts"],
     ["/trades", "/portfolio", "/trades"],
     ["/leaderboard", "/leaderboard", "/leaderboard"],
   ])("maps %s to its owning domain", (pathname, groupHref, itemHref) => {
@@ -41,5 +42,12 @@ describe("getActiveNavigation", () => {
     ]);
     const trade = APP_NAVIGATION.find((group) => group.label === "Trade");
     expect(trade?.items?.map((item) => item.label)).not.toContain("Backtest");
+    const portfolio = APP_NAVIGATION.find((group) => group.label === "Portfolio");
+    expect(portfolio?.items?.map((item) => item.label)).toEqual([
+      "Overview",
+      "Watchlist",
+      "Alerts",
+      "Trade history",
+    ]);
   });
 });

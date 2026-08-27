@@ -10,25 +10,47 @@ async function signUp(page: Page, email: string): Promise<void> {
   await page.waitForURL("/");
 }
 
-// One signup covers both assertions. Credential signup is capped at 5/IP/hour,
-// and auth + portfolio + stock-workspace already consume four of those slots.
-test("authenticated user can place a buy order and see it in history", async ({ page }) => {
-  const email = `e2e+trade+${Date.now()}@example.com`;
+// One signup covers the operational loop. Credential signup is capped at
+// 5/IP/hour, and auth + portfolio + stock-workspace already consume four slots.
+test("operational trading loop from ticket to orders, watchlist, and alerts", async ({ page }) => {
+  const email = `e2e+ops+${Date.now()}@example.com`;
   await signUp(page, email);
 
-  await page.goto("/trade");
-  await expect(page.getByRole("heading", { name: "Place a trade" })).toBeVisible();
+  await page.goto("/trade?ticker=AAPL");
+  await expect(page.getByRole("heading", { name: "Trade", exact: true })).toBeVisible();
+  await expect(page.getByLabel("Symbol")).toHaveValue("AAPL");
+  await expect(page.getByText(/latest stored daily close/i)).toBeVisible();
+  await expect(page.getByText("Buying power")).toBeVisible();
 
-  // Select a ticker with backfilled price data; quantity defaults to 1
-  await page.getByLabel("Symbol").selectOption("AAPL");
-  await page.getByRole("button", { name: "Place buy order" }).click();
-
-  // On success, a green confirmation message is shown
+  await page.getByLabel("Quantity").fill("1");
+  await page.getByRole("button", { name: /Submit market buy/i }).click();
   await expect(page.locator("output")).toContainText("Filled BUY", { timeout: 10_000 });
 
   await page.goto("/trades");
   await expect(page.getByRole("heading", { name: "Trade history" })).toBeVisible();
-  const firstRow = page.locator("tbody tr").first();
-  await expect(firstRow).toBeVisible({ timeout: 10_000 });
-  await expect(firstRow).toContainText("BUY");
+  await expect(page.locator("tbody tr").first()).toContainText("BUY");
+
+  await page.goto("/orders");
+  await expect(page.getByRole("heading", { name: "Orders", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "No pending orders" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Filled" })).toHaveAttribute(
+    "href",
+    "/orders?status=filled",
+  );
+
+  await page.goto("/watchlist");
+  await expect(page.getByRole("heading", { name: "Watchlist", exact: true })).toBeVisible();
+  await page.getByLabel("Add symbol").selectOption("AAPL");
+  await page.getByRole("button", { name: "Add to watchlist" }).click();
+  await expect(page.getByRole("link", { name: "AAPL" }).first()).toHaveAttribute(
+    "href",
+    "/stocks/AAPL",
+  );
+
+  await page.goto("/alerts?ticker=AAPL");
+  await expect(page.getByRole("heading", { name: "Alerts", exact: true })).toBeVisible();
+  await expect(page.getByText(/not email, push/i)).toBeVisible();
+  await page.getByLabel("Target price").fill("1");
+  await page.getByRole("button", { name: "Create alert" }).click();
+  await expect(page.getByText("Alert set.")).toBeVisible();
 });

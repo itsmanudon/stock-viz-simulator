@@ -17,7 +17,7 @@ test("authenticated user can move from a paper trade into the Portfolio workspac
 
   await page.goto("/trade");
   await page.getByLabel("Symbol").selectOption("AAPL");
-  await page.getByRole("button", { name: "Place buy order" }).click();
+  await page.getByRole("button", { name: /Submit market buy/i }).click();
   await expect(page.locator("output")).toContainText("Filled BUY", { timeout: 10_000 });
 
   await page.goto("/portfolio");
