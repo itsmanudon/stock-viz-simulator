@@ -32,6 +32,8 @@ from stockviz.services.simulation import (
     MarketSnapshot,
     OrderIntent,
     OrderSide,
+    SimulationClock,
+    SimulationClockError,
     SimulationOrderType,
     UnknownExecutionProfileError,
     evaluate_order,
@@ -65,6 +67,7 @@ FORBIDDEN_IMPORT_PREFIXES = (
     "stockviz.services.trading",
     "stockviz.services.options",
     "stockviz.services.backtest",
+    "stockviz.services.replay",
     "stockviz._time",
 )
 
@@ -821,6 +824,41 @@ def test_registry_unknown_name_does_not_fall_back() -> None:
 def test_registry_unknown_version_does_not_fall_back() -> None:
     with pytest.raises(UnknownExecutionProfileError, match="v2"):
         get_execution_profile(LEGACY_CLOSE_NAME, "v2")
+
+
+# --- SIMULATION CLOCK (SIM-05) ---------------------------------------------
+
+
+def test_simulation_clock_requires_aware_datetime() -> None:
+    with pytest.raises(SimulationClockError, match="timezone-aware"):
+        SimulationClock(now=datetime(2024, 1, 2, 21, 0, 0))
+
+
+def test_simulation_clock_normalizes_to_utc() -> None:
+    from datetime import timedelta, timezone
+
+    eastern = timezone(timedelta(hours=-5))
+    clock = SimulationClock(now=datetime(2024, 1, 2, 16, 0, tzinfo=eastern))
+    assert clock.instant() == datetime(2024, 1, 2, 21, 0, tzinfo=UTC)
+
+
+def test_simulation_clock_refuses_to_move_backwards() -> None:
+    clock = SimulationClock(now=datetime(2024, 1, 2, tzinfo=UTC))
+    with pytest.raises(SimulationClockError, match="backwards"):
+        clock.advance_to(datetime(2024, 1, 1, tzinfo=UTC))
+
+
+def test_simulation_clock_advance_equal_returns_same() -> None:
+    instant = datetime(2024, 1, 2, 21, 0, tzinfo=UTC)
+    clock = SimulationClock(now=instant)
+    assert clock.advance_to(instant) is clock
+
+
+def test_simulation_clock_permits_current_and_past_not_future() -> None:
+    clock = SimulationClock(now=datetime(2024, 1, 2, 21, 0, tzinfo=UTC))
+    assert clock.permits(datetime(2024, 1, 2, 21, 0, tzinfo=UTC))
+    assert clock.permits(datetime(2024, 1, 2, 20, 0, tzinfo=UTC))
+    assert not clock.permits(datetime(2024, 1, 2, 21, 0, 1, tzinfo=UTC))
 
 
 # --- IMPORT BOUNDARY --------------------------------------------------------

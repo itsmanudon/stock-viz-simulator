@@ -1,9 +1,12 @@
 """Pure deterministic execution kernel (SIM-01).
 
 Live MARKET and pending equity paper fills call ``evaluate_order``.
-Accounting stays in ``services.trading.apply_fill``. See ``docs/SIMULATION.md``.
+Accounting stays in ``services.trading.apply_fill``. Replay sessions own a
+``SimulationClock`` and never read the wall clock for evaluation.
+See ``docs/SIMULATION.md``.
 """
 
+from stockviz.services.simulation.clock import SimulationClock, SimulationClockError
 from stockviz.services.simulation.contracts import (
     ExecutionProfile,
     ExecutionTrace,
@@ -41,6 +44,8 @@ __all__ = [
     "MarketSnapshot",
     "OrderIntent",
     "OrderSide",
+    "SimulationClock",
+    "SimulationClockError",
     "SimulationOrderType",
     "UnknownExecutionProfileError",
     "evaluate_order",
