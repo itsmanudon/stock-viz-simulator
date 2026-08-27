@@ -1,37 +1,25 @@
 /**
- * /watchlist — symbols the user has starred.
+ * /watchlist — monitoring list of securities the user cares about.
  *
- * Server-rendered. Each row shows latest close + a 30-day sparkline; clicking
- * the row deep-links to /stocks/[ticker]. The "remove" button posts to the
- * shared toggleWatchlistAction.
+ * Server-rendered snapshot rows. Add/remove and row actions are client islands.
+ * Watchlist stays under Portfolio; this is not an order blotter.
  */
 
 import Link from "next/link";
 
-import { Sparkline } from "@/components/sparkline";
-import { Card, CardContent } from "@/components/ui/card";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { getBars } from "@/lib/api/bars";
+  MonitoringSubnav,
+  OperationalEmptyState,
+  OperationalPageHeader,
+} from "@/components/operational-page-header";
+import { PageFrame } from "@/components/page-frame";
+import { Sparkline } from "@/components/sparkline";
+import { AddWatchlistForm, WatchlistRowActions } from "@/components/watchlist-controls";
+import { getBars, listSymbols } from "@/lib/api";
 import { listWatchlist } from "@/lib/api/watchlist";
-
-import { WatchlistToggle } from "@/components/watchlist-toggle";
-
-function fmtCurrency(raw: string | null): string {
-  if (raw === null) return "—";
-  const n = Number(raw);
-  return n.toLocaleString("en-US", {
-    style: "currency",
-    currency: "USD",
-    minimumFractionDigits: 2,
-  });
-}
+import { dayMovePct } from "@/lib/operational-trading";
+import { formatCurrency, formatSignedPercent } from "@/lib/portfolio-view-model";
+import { cn } from "@/lib/utils";
 
 function fmtDate(iso: string): string {
   return new Date(iso).toLocaleDateString("en-US", {
@@ -42,77 +30,126 @@ function fmtDate(iso: string): string {
 }
 
 export default async function WatchlistPage() {
-  const items = await listWatchlist();
+  const [items, universe] = await Promise.all([listWatchlist(), listSymbols().catch(() => [])]);
+  const listed = new Set(items.map((item) => item.ticker));
+  const addable = universe
+    .filter((symbol) => !listed.has(symbol.ticker))
+    .sort((a, b) => a.ticker.localeCompare(b.ticker))
+    .map((symbol) => ({ ticker: symbol.ticker, name: symbol.name }));
 
-  // Fetch 30-day sparkline bars in parallel.
   const sparklines = await Promise.all(
     items.map((item) =>
       getBars(item.ticker, { limit: 30 })
-        .then((bars) => bars.map((b) => Number(b.close)))
+        .then((bars) => bars.map((bar) => Number(bar.close)))
         .catch(() => [] as number[]),
     ),
   );
 
   return (
-    <div className="container mx-auto px-6 py-10">
-      <header className="mb-6">
-        <h1 className="text-3xl font-bold tracking-tight">Watchlist</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {items.length} symbol{items.length === 1 ? "" : "s"}. Add or remove from any stock page.
-        </p>
-      </header>
+    <PageFrame width="workstation" className="py-6 sm:py-8">
+      <OperationalPageHeader
+        eyebrow="Portfolio"
+        title="Watchlist"
+        description="Securities you are monitoring. Last close is the latest stored daily bar, not a live quote."
+        meta={`${items.length} symbol${items.length === 1 ? "" : "s"}`}
+      />
+      <MonitoringSubnav current="/watchlist" />
+
+      <div className="mt-6 border-y border-border-muted px-4 py-4 sm:border-x">
+        <AddWatchlistForm symbols={addable} />
+      </div>
 
       {items.length === 0 ? (
-        <Card>
-          <CardContent className="p-6 text-sm text-muted-foreground">
-            Your watchlist is empty.{" "}
-            <Link href="/markets" className="text-foreground underline">
-              Browse markets →
-            </Link>
-          </CardContent>
-        </Card>
+        <div className="mt-6">
+          <OperationalEmptyState
+            title="Nothing on this list yet"
+            action={
+              <Link href="/markets" className="text-sm hover:underline">
+                Discover symbols in Markets
+              </Link>
+            }
+          >
+            <p>
+              Add a ticker above, or star one from a stock workspace. From here you can research,
+              trade, or create a price alert.
+            </p>
+          </OperationalEmptyState>
+        </div>
       ) : (
-        <div className="rounded-lg border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-[120px]">Ticker</TableHead>
-                <TableHead>Name</TableHead>
-                <TableHead>Sector</TableHead>
-                <TableHead className="text-right">Last close</TableHead>
-                <TableHead className="w-[120px]">30-day</TableHead>
-                <TableHead>Added</TableHead>
-                <TableHead className="w-[180px] text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {items.map((item, i) => (
-                <TableRow key={item.ticker}>
-                  <TableCell className="font-mono font-semibold">
-                    <Link href={`/stocks/${item.ticker}`} className="hover:underline">
-                      {item.ticker}
-                    </Link>
-                  </TableCell>
-                  <TableCell className="truncate text-muted-foreground">{item.name}</TableCell>
-                  <TableCell className="text-muted-foreground">{item.sector ?? "—"}</TableCell>
-                  <TableCell className="text-right font-mono">
-                    {fmtCurrency(item.last_close)}
-                  </TableCell>
-                  <TableCell>
-                    <Sparkline closes={sparklines[i] ?? []} />
-                  </TableCell>
-                  <TableCell className="text-xs text-muted-foreground">
-                    {fmtDate(item.added_at)}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <WatchlistToggle ticker={item.ticker} initialInWatchlist={true} />
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+        <div className="mt-6 overflow-x-auto border-y border-border-muted">
+          <table className="w-full min-w-[44rem] text-sm">
+            <caption className="sr-only">Watched securities</caption>
+            <thead>
+              <tr className="border-b border-border-muted text-left text-[10px] font-semibold tracking-[0.12em] text-text-tertiary uppercase">
+                <th scope="col" className="px-3 py-2.5">
+                  Ticker
+                </th>
+                <th scope="col" className="px-3 py-2.5">
+                  Name
+                </th>
+                <th scope="col" className="hidden px-3 py-2.5 md:table-cell">
+                  Sector
+                </th>
+                <th scope="col" className="px-3 py-2.5 text-right">
+                  Last close
+                </th>
+                <th scope="col" className="px-3 py-2.5 text-right">
+                  Window
+                </th>
+                <th scope="col" className="hidden w-[7.5rem] px-3 py-2.5 lg:table-cell">
+                  30-day
+                </th>
+                <th scope="col" className="hidden px-3 py-2.5 sm:table-cell">
+                  Added
+                </th>
+                <th scope="col" className="px-3 py-2.5 text-right">
+                  <span className="sr-only">Actions</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((item, index) => {
+                const closes = sparklines[index] ?? [];
+                const move = dayMovePct(closes[0], closes[closes.length - 1]);
+                return (
+                  <tr key={item.ticker} className="border-b border-border-muted last:border-0">
+                    <td className="px-3 py-3 font-mono font-medium">
+                      <Link href={`/stocks/${item.ticker}`} className="hover:underline">
+                        {item.ticker}
+                      </Link>
+                    </td>
+                    <td className="truncate px-3 py-3 text-text-secondary">{item.name}</td>
+                    <td className="hidden px-3 py-3 text-text-tertiary md:table-cell">
+                      {item.sector ?? "—"}
+                    </td>
+                    <td className="px-3 py-3 text-right font-mono">
+                      {formatCurrency(item.last_close)}
+                    </td>
+                    <td
+                      className={cn(
+                        "px-3 py-3 text-right font-mono",
+                        move !== null && move > 0 && "text-positive",
+                        move !== null && move < 0 && "text-negative",
+                      )}
+                    >
+                      {formatSignedPercent(move)}
+                    </td>
+                    <td className="hidden px-3 py-3 lg:table-cell">
+                      <Sparkline closes={closes} />
+                    </td>
+                    <td className="hidden px-3 py-3 text-xs text-text-tertiary sm:table-cell">
+                      {fmtDate(item.added_at)}
+                    </td>
+                    <td className="px-3 py-3 text-right">
+                      <WatchlistRowActions ticker={item.ticker} />
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       )}
-    </div>
+    </PageFrame>
   );
 }
