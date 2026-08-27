@@ -1,6 +1,10 @@
 import type { Page } from "@playwright/test";
 import { expect, test } from "@playwright/test";
 
+// Signup is capped at 5/IP/hour. A retry would consume a sixth attempt and
+// mask the original locator error behind a rate-limit timeout.
+test.describe.configure({ retries: 0 });
+
 async function signUp(page: Page, email: string): Promise<void> {
   await page.goto("/signup");
   await page.getByLabel("Name").fill("E2E Trader");
@@ -19,8 +23,14 @@ test("operational trading loop from ticket to orders, watchlist, and alerts", as
   await page.goto("/trade?ticker=AAPL");
   await expect(page.getByRole("heading", { name: "Trade", exact: true })).toBeVisible();
   await expect(page.getByLabel("Symbol")).toHaveValue("AAPL");
-  await expect(page.getByText(/latest stored daily close/i)).toBeVisible();
-  await expect(page.getByText("Buying power")).toBeVisible();
+  await expect(
+    page
+      .getByRole("region", { name: "Order ticket" })
+      .getByText(/Submits immediately at the latest stored daily close/i),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("region", { name: "Account context" }).getByText("Buying power"),
+  ).toBeVisible();
 
   await page.getByLabel("Quantity").fill("1");
   await page.getByRole("button", { name: /Submit market buy/i }).click();
@@ -37,10 +47,9 @@ test("operational trading loop from ticket to orders, watchlist, and alerts", as
   await page.goto("/orders");
   await expect(page.getByRole("heading", { name: "Orders", exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "No pending orders" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Filled" })).toHaveAttribute(
-    "href",
-    "/orders?status=filled",
-  );
+  await expect(
+    page.getByRole("navigation", { name: "Order status" }).getByRole("link", { name: "Filled" }),
+  ).toHaveAttribute("href", "/orders?status=filled");
 
   await page.goto("/watchlist");
   await expect(page.getByRole("heading", { name: "Watchlist", exact: true })).toBeVisible();
@@ -53,7 +62,7 @@ test("operational trading loop from ticket to orders, watchlist, and alerts", as
 
   await page.goto("/alerts?ticker=AAPL");
   await expect(page.getByRole("heading", { name: "Alerts", exact: true })).toBeVisible();
-  await expect(page.getByText(/not email, push/i)).toBeVisible();
+  await expect(page.getByText(/not email, push, or real-time exchange monitoring/i)).toBeVisible();
   await page.getByLabel("Target price").fill("1");
   await page.getByRole("button", { name: "Create alert" }).click();
   await expect(page.getByText("Alert set.")).toBeVisible();

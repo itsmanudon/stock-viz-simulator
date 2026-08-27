@@ -1,6 +1,8 @@
 import type { Page } from "@playwright/test";
 import { expect, test } from "@playwright/test";
 
+test.describe.configure({ retries: 0 });
+
 async function signUp(page: Page, email: string): Promise<void> {
   await page.goto("/signup");
   await page.getByLabel("Name").fill("Stock Workspace Tester");
