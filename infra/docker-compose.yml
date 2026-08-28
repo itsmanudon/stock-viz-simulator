@@ -80,6 +80,78 @@ services:
           --topic stockviz.news.v1 --partitions 3 --replication-factor 1
         echo "created stockviz.trades.v1 stockviz.market.v1 stockviz.news.v1 (3 partitions, RF=1)"
 
+  # --- Application stack ---------------------------------------------------
+  # Behind the "app" profile so `pnpm db:up` stays a fast Postgres-only start
+  # for native development. `pnpm stack:up` brings these up as well.
+  #
+  # Build context is the repository root for both images: the web Dockerfile
+  # needs the pnpm workspace, and the api Dockerfile is given apps/api.
+
+  api:
+    build:
+      context: ../apps/api
+      dockerfile: Dockerfile
+    image: stockviz-api:local
+    container_name: stockviz-api
+    profiles: ["app"]
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      # Inside the compose network Postgres is on its own hostname and the
+      # container port (5432), not the 5434 the host publishes.
+      DATABASE_URL: postgresql+psycopg://stockviz:stockviz_dev@postgres:5432/stockviz
+      # From infra/.env — see infra/.env.example. Must match the web service.
+      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:?set INTERNAL_API_TOKEN in infra/.env (see infra/.env.example)}
+      PORT: "8000"
+      ENVIRONMENT: development
+      ENABLE_SCHEDULER: "false"
+      CORS_ORIGINS: '["http://localhost:3100"]'
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test:
+        ["CMD-SHELL", "python -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/live', timeout=3).status==200 else 1)\""]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+  web:
+    build:
+      context: ..
+      dockerfile: apps/web/Dockerfile
+      args:
+        # Inlined into the browser bundle at build time, so it must be a URL
+        # the laptop can reach — not the compose hostname.
+        NEXT_PUBLIC_API_URL: http://localhost:8000
+    image: stockviz-web:local
+    container_name: stockviz-web
+    profiles: ["app"]
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+    environment:
+      # Server-side fetches go over the compose network; the browser bundle
+      # uses NEXT_PUBLIC_API_URL from the build arg above.
+      API_URL: http://api:8000
+      DATABASE_URL: postgres://stockviz:stockviz_dev@postgres:5432/stockviz
+      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:?set INTERNAL_API_TOKEN in infra/.env (see infra/.env.example)}
+      # The web image is a production build, and lib/env.ts refuses the dev
+      # defaults committed to this repo when NODE_ENV=production.
+      AUTH_SECRET: ${AUTH_SECRET:?set AUTH_SECRET in infra/.env (see infra/.env.example)}
+      # Production builds outside Vercel don't trust the request host by
+      # default; without this every auth callback 500s.
+      AUTH_TRUST_HOST: "true"
+    ports:
+      # 3000 is commonly taken by another local project, so publish 3100.
+      # AUTH_URL stays unset, so NextAuth derives the origin from the request.
+      - "3100:3000"
+
 volumes:
   postgres_data:
     name: stockviz_postgres_data
