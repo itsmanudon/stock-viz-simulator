@@ -153,8 +153,16 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
 ## Conventions
 
 - shadcn components go in `components/ui/`. To add one: `pnpm dlx shadcn@latest add <name>`.
-- Use Tailwind utilities; the existing v1 palette (dark + gold accent) is captured
-  in `app/globals.css` via CSS variables. `--*-soft` / `--*-soft-foreground`
+- Use Tailwind utilities; the palette lives in `app/globals.css` as CSS
+  variables. The identity is **Electric**: deep indigo canvas (`#0b0d14`),
+  electric-lime brand (`#c4f82a`), 12px radius, Space Grotesk display +
+  JetBrains Mono numerals (both self-hosted via `next/font`, no runtime
+  request). Dark-first; light mode re-grounds the same hues on a cool paper.
+  **Lime is the brand, never the "up" colour** — a lime gain sitting next to a
+  lime button is unreadable, so positive is a cyan-leaning green
+  (`--positive`). Lime is unreadable as text on white, so light mode darkens
+  `--brand` for type while `--primary` keeps full chroma for fills with dark
+  ink on top. `--*-soft` / `--*-soft-foreground`
   pairs (positive/negative/warning/neutral) are the tinted fills behind delta
   and status pills — use `DeltaPill` rather than re-rolling the chip.
   `--surface-elevated` is one step *above* `--card` (overlays: sidebar,

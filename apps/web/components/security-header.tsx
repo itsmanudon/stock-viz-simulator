@@ -61,7 +61,7 @@ export function SecurityHeader({
             ) : null}
             <span className="text-xs text-text-tertiary">Paper trading available</span>
           </div>
-          <h1 className="mt-1 flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1 text-2xl font-semibold tracking-[-0.025em] sm:text-3xl">
+          <h1 className="mt-1 flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1 text-2xl font-bold tracking-[-0.025em] sm:text-3xl">
             <span className="font-mono text-xl tracking-[0.04em] text-brand sm:text-2xl">
               {symbol.ticker}
             </span>
@@ -88,7 +88,7 @@ export function SecurityHeader({
               Latest close{quoteDate ? ` · ${quoteDate}` : ""}
             </p>
             <div className="mt-1 flex flex-wrap items-baseline gap-x-3 sm:justify-end">
-              <span className="font-mono text-3xl font-semibold tracking-[-0.04em] tabular-nums sm:text-4xl">
+              <span className="font-mono text-3xl font-bold tracking-[-0.04em] tabular-nums sm:text-4xl">
                 {money(latestClose, symbol.currency)}
               </span>
               {periodReturnPct === null ? (

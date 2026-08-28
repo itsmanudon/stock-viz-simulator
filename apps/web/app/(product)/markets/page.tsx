@@ -154,7 +154,7 @@ function SectorChip({ href, label, active }: { href: string; label: string; acti
       className={cn(
         "rounded-full border px-3 py-1 text-xs transition-colors",
         active
-          ? "border-brand bg-brand/10 font-medium text-foreground"
+          ? "border-primary bg-primary font-semibold text-primary-foreground"
           : "border-border-muted text-text-secondary hover:bg-surface-hover hover:text-foreground",
       )}
     >

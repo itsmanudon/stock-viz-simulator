@@ -27,7 +27,7 @@ export default function RouteError({
 
   return (
     <div className="mx-auto flex max-w-lg flex-col items-start gap-4 px-4 py-24">
-      <h1 className="text-2xl font-semibold">Something went wrong</h1>
+      <h1 className="text-2xl font-bold">Something went wrong</h1>
       <p className="text-muted-foreground">
         We couldn&apos;t load this page. The market data service may still be starting up — that can
         take up to a minute after a period of inactivity.

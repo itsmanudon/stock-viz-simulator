@@ -25,14 +25,17 @@ export type ChartPalette = {
 };
 
 const FALLBACK: ChartPalette = {
-  positive: "#187c59",
-  negative: "#b83f48",
-  positiveFill: "rgba(24, 124, 89, 0.4)",
-  negativeFill: "rgba(184, 63, 72, 0.4)",
-  text: "#747d89",
-  grid: "rgba(84, 94, 110, 0.16)",
-  axis: "#d7dce3",
-  overlays: ["#3b82f6", "#a855f7", "#f59e0b", "#ec4899", "#22d3ee"],
+  positive: "#00845c",
+  negative: "#d81e50",
+  positiveFill: "rgba(0, 132, 92, 0.4)",
+  negativeFill: "rgba(216, 30, 80, 0.4)",
+  text: "#6b7288",
+  grid: "rgba(226, 229, 240, 0.9)",
+  axis: "#e2e5f0",
+  /* Categorical ramp for indicator overlays, tuned to the indigo canvas:
+     violet, cyan, magenta, orange, sky. Deliberately excludes lime and the
+     P&L green/red so an overlay is never mistaken for the brand or a gain. */
+  overlays: ["#8b7dff", "#22d3ee", "#f472b6", "#fb923c", "#60a5fa"],
 };
 
 function readToken(styles: CSSStyleDeclaration, name: string, fallback: string): string {

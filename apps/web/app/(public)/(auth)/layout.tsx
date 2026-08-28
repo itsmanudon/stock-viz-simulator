@@ -37,7 +37,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         {/* Secondary on mobile — the form is what the visitor came for, so the
             pitch drops below the fold rather than pushing the fields down. */}
         <aside className="order-first max-w-md lg:order-last">
-          <h2 className="text-2xl font-semibold tracking-tight text-balance sm:text-3xl">
+          <h2 className="text-2xl font-bold tracking-tight text-balance sm:text-3xl">
             A trading workspace where mistakes are free
           </h2>
           <ul className="mt-8 space-y-6">
