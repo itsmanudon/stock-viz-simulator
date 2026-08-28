@@ -10,7 +10,7 @@ app/
                    concise public header and traditional website footer
   (product)/       guest-capable research routes plus the workstation shell
     (authed)/      dashboard, portfolio, trade, trades, orders, watchlist,
-                   alerts, settings — protected by proxy.ts. `/dashboard` is
+                   alerts, settings, earnings — protected by proxy.ts. `/dashboard` is
                    the signed-in home: a bento grid of portfolio widgets fed by
                    `lib/dashboard-data.ts` (every widget but the portfolio hero
                    degrades to its own empty state if its request fails).
@@ -45,7 +45,7 @@ components/
   status-badge.tsx one tone-mapped chip behind the order/alert badges
   order-side-toggle.tsx  buy/sell segmented control shared by both tickets
   ui/              shadcn-generated primitives — don't hand-edit
-  *.tsx            app-shell/sidebar/navigation, global-ticker-search,
+  *.tsx            app-shell/sidebar/navigation, global-ticker-search, earnings-calendar,
                    public-header, price-chart, order-ticket, backtest-form, etc.
 lib/
   api/             fetch client for FastAPI, one module per resource
