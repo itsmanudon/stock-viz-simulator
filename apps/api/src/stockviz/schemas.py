@@ -250,6 +250,117 @@ class TradeOut(BaseModel):
     realized_pnl: Decimal | None = None
 
 
+class ReplaySessionCreateIn(BaseModel):
+    """Open an isolated replay book over a frozen stored-1d range.
+
+    ``start_at`` snaps to the first 1d bar at-or-after the request.
+    ``end_at`` snaps to the last 1d bar at-or-before the request (or the latest
+    stored bar at creation if omitted). Profile is server-pinned.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    ticker: str
+    start_at: datetime
+    end_at: datetime | None = None
+    starting_cash: Decimal = Field(default=Decimal("100000.00"))
+
+
+class ReplayOrderIn(BaseModel):
+    """Intent only. Prices come from the session's current stored bar."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    side: Literal["buy", "sell"]
+    order_type: Literal["market", "limit", "stop_loss", "take_profit"] = "market"
+    quantity: Decimal
+    limit_price: Decimal | None = None
+
+
+class ReplayPositionOut(BaseModel):
+    ticker: str
+    quantity: Decimal
+    avg_cost: Decimal
+
+
+class ReplayFillOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    session_id: int
+    ticker: str
+    side: str
+    quantity: Decimal
+    fill_price: Decimal
+    realized_pnl: Decimal | None = None
+    profile_name: str
+    model_version: str
+    reference_price: Decimal | None
+    reason: str
+    assumptions: list[str]
+    market_interval: str
+    order_type: str
+    evaluated_at: datetime
+    created_at: datetime
+
+
+class ReplaySessionOut(BaseModel):
+    id: int
+    ticker: str
+    profile_name: str
+    model_version: str
+    start_at: datetime
+    current_at: datetime
+    end_at: datetime
+    starting_cash: Decimal
+    cash_balance: Decimal
+    status: str
+    has_next: bool = False
+    completed_at: datetime | None = None
+    created_at: datetime
+    updated_at: datetime
+    positions: list[ReplayPositionOut] = []
+
+
+class ReplayBarOut(BaseModel):
+    ticker: str
+    ts: datetime
+    interval: str
+    open: Decimal
+    high: Decimal
+    low: Decimal
+    close: Decimal
+    volume: int
+
+
+class ReplayMarketOut(BaseModel):
+    ticker: str
+    current_at: datetime
+    start_at: datetime
+    end_at: datetime
+    has_next: bool
+    status: str
+    bar: ReplayBarOut
+
+
+class ReplayDecisionOut(BaseModel):
+    status: str
+    fill_quantity: Decimal
+    fill_price: Decimal | None
+    remaining_quantity: Decimal
+    reason: str
+    profile_name: str
+    model_version: str
+    reference_price: Decimal | None
+    assumptions: list[str]
+
+
+class ReplaySubmitOut(BaseModel):
+    session: ReplaySessionOut
+    decision: ReplayDecisionOut
+    fill: ReplayFillOut | None = None
+
+
 class ExecutionProvenanceOut(BaseModel):
     """Durable kernel provenance for one live equity paper fill (SIM-04).
 

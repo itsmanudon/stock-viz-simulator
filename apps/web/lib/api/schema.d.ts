@@ -694,6 +694,152 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/replay/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Replay Sessions */
+        get: operations["get_replay_sessions_v1_replay_sessions_get"];
+        put?: never;
+        /**
+         * Post Replay Session
+         * @description Create an isolated replay book over a frozen stored-1d ticker range.
+         */
+        post: operations["post_replay_session_v1_replay_sessions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/replay/sessions/{session_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get One Replay Session */
+        get: operations["get_one_replay_session_v1_replay_sessions__session_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/replay/sessions/{session_id}/advance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Post Replay Advance
+         * @description Advance one stored 1d bar. Completes when the frozen end is reached.
+         */
+        post: operations["post_replay_advance_v1_replay_sessions__session_id__advance_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/replay/sessions/{session_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Post Replay Cancel */
+        post: operations["post_replay_cancel_v1_replay_sessions__session_id__cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/replay/sessions/{session_id}/market": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Replay Market */
+        get: operations["get_replay_market_v1_replay_sessions__session_id__market_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/replay/sessions/{session_id}/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Replay History */
+        get: operations["get_replay_history_v1_replay_sessions__session_id__history_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/replay/sessions/{session_id}/orders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Post Replay Order
+         * @description Fill against the server-authoritative current bar. Intent only.
+         */
+        post: operations["post_replay_order_v1_replay_sessions__session_id__orders_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/replay/sessions/{session_id}/fills": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Replay Fills */
+        get: operations["get_replay_fills_v1_replay_sessions__session_id__fills_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1545,6 +1691,229 @@ export interface components {
             passed: boolean;
             /** Detail */
             detail: string;
+        };
+        /** ReplayBarOut */
+        ReplayBarOut: {
+            /** Ticker */
+            ticker: string;
+            /**
+             * Ts
+             * Format: date-time
+             */
+            ts: string;
+            /** Interval */
+            interval: string;
+            /** Open */
+            open: string;
+            /** High */
+            high: string;
+            /** Low */
+            low: string;
+            /** Close */
+            close: string;
+            /** Volume */
+            volume: number;
+        };
+        /** ReplayDecisionOut */
+        ReplayDecisionOut: {
+            /** Status */
+            status: string;
+            /** Fill Quantity */
+            fill_quantity: string;
+            /** Fill Price */
+            fill_price: string | null;
+            /** Remaining Quantity */
+            remaining_quantity: string;
+            /** Reason */
+            reason: string;
+            /** Profile Name */
+            profile_name: string;
+            /** Model Version */
+            model_version: string;
+            /** Reference Price */
+            reference_price: string | null;
+            /** Assumptions */
+            assumptions: string[];
+        };
+        /** ReplayFillOut */
+        ReplayFillOut: {
+            /** Id */
+            id: number;
+            /** Session Id */
+            session_id: number;
+            /** Ticker */
+            ticker: string;
+            /** Side */
+            side: string;
+            /** Quantity */
+            quantity: string;
+            /** Fill Price */
+            fill_price: string;
+            /** Realized Pnl */
+            realized_pnl?: string | null;
+            /** Profile Name */
+            profile_name: string;
+            /** Model Version */
+            model_version: string;
+            /** Reference Price */
+            reference_price: string | null;
+            /** Reason */
+            reason: string;
+            /** Assumptions */
+            assumptions: string[];
+            /** Market Interval */
+            market_interval: string;
+            /** Order Type */
+            order_type: string;
+            /**
+             * Evaluated At
+             * Format: date-time
+             */
+            evaluated_at: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
+        /** ReplayMarketOut */
+        ReplayMarketOut: {
+            /** Ticker */
+            ticker: string;
+            /**
+             * Current At
+             * Format: date-time
+             */
+            current_at: string;
+            /**
+             * Start At
+             * Format: date-time
+             */
+            start_at: string;
+            /**
+             * End At
+             * Format: date-time
+             */
+            end_at: string;
+            /** Has Next */
+            has_next: boolean;
+            /** Status */
+            status: string;
+            bar: components["schemas"]["ReplayBarOut"];
+        };
+        /**
+         * ReplayOrderIn
+         * @description Intent only. Prices come from the session's current stored bar.
+         */
+        ReplayOrderIn: {
+            /**
+             * Side
+             * @enum {string}
+             */
+            side: "buy" | "sell";
+            /**
+             * Order Type
+             * @default market
+             * @enum {string}
+             */
+            order_type: "market" | "limit" | "stop_loss" | "take_profit";
+            /** Quantity */
+            quantity: number | string;
+            /** Limit Price */
+            limit_price?: number | string | null;
+        };
+        /** ReplayPositionOut */
+        ReplayPositionOut: {
+            /** Ticker */
+            ticker: string;
+            /** Quantity */
+            quantity: string;
+            /** Avg Cost */
+            avg_cost: string;
+        };
+        /**
+         * ReplaySessionCreateIn
+         * @description Open an isolated replay book over a frozen stored-1d range.
+         *
+         *     ``start_at`` snaps to the first 1d bar at-or-after the request.
+         *     ``end_at`` snaps to the last 1d bar at-or-before the request (or the latest
+         *     stored bar at creation if omitted). Profile is server-pinned.
+         */
+        ReplaySessionCreateIn: {
+            /** Ticker */
+            ticker: string;
+            /**
+             * Start At
+             * Format: date-time
+             */
+            start_at: string;
+            /** End At */
+            end_at?: string | null;
+            /**
+             * Starting Cash
+             * @default 100000.00
+             */
+            starting_cash: number | string;
+        };
+        /** ReplaySessionOut */
+        ReplaySessionOut: {
+            /** Id */
+            id: number;
+            /** Ticker */
+            ticker: string;
+            /** Profile Name */
+            profile_name: string;
+            /** Model Version */
+            model_version: string;
+            /**
+             * Start At
+             * Format: date-time
+             */
+            start_at: string;
+            /**
+             * Current At
+             * Format: date-time
+             */
+            current_at: string;
+            /**
+             * End At
+             * Format: date-time
+             */
+            end_at: string;
+            /** Starting Cash */
+            starting_cash: string;
+            /** Cash Balance */
+            cash_balance: string;
+            /** Status */
+            status: string;
+            /**
+             * Has Next
+             * @default false
+             */
+            has_next: boolean;
+            /** Completed At */
+            completed_at?: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /**
+             * Positions
+             * @default []
+             */
+            positions: components["schemas"]["ReplayPositionOut"][];
+        };
+        /** ReplaySubmitOut */
+        ReplaySubmitOut: {
+            session: components["schemas"]["ReplaySessionOut"];
+            decision: components["schemas"]["ReplayDecisionOut"];
+            fill?: components["schemas"]["ReplayFillOut"] | null;
         };
         /**
          * RsiThresholdStrategy
@@ -3113,6 +3482,307 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BacktestOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_replay_sessions_v1_replay_sessions_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReplaySessionOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    post_replay_session_v1_replay_sessions_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReplaySessionCreateIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReplaySessionOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_one_replay_session_v1_replay_sessions__session_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                session_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReplaySessionOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    post_replay_advance_v1_replay_sessions__session_id__advance_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                session_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReplaySessionOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    post_replay_cancel_v1_replay_sessions__session_id__cancel_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                session_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReplaySessionOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_replay_market_v1_replay_sessions__session_id__market_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                session_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReplayMarketOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_replay_history_v1_replay_sessions__session_id__history_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                session_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReplayBarOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    post_replay_order_v1_replay_sessions__session_id__orders_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                session_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReplayOrderIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReplaySubmitOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_replay_fills_v1_replay_sessions__session_id__fills_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                session_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReplayFillOut"][];
                 };
             };
             /** @description Validation Error */
