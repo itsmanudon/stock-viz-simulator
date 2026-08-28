@@ -27,8 +27,9 @@ test("authenticated user can move from a paper trade into the Portfolio workspac
   await expect(page.getByRole("table", { name: "Recent paper fills" })).toContainText("AAPL");
 
   await page.goto("/portfolio");
-  await expect(page.getByRole("heading", { level: 1, name: "Portfolio" })).toBeVisible();
-  await expect(page.getByText("Latest EOD valuation", { exact: false })).toBeVisible();
+  const main = page.locator("#main");
+  await expect(main.getByRole("heading", { level: 1, name: "Portfolio" })).toBeVisible();
+  await expect(main.getByText("Latest EOD valuation", { exact: false })).toBeVisible();
   await expect(page.getByRole("tab", { name: "Positions" })).toHaveAttribute(
     "aria-selected",
     "true",

@@ -136,6 +136,7 @@ migrated + seeded DB. Full local sequence from the repo root:
 pnpm db:up && pnpm api:migrate
 uv --directory apps/api run python -m stockviz.cli seed
 uv --directory apps/api run python -m stockviz.cli backfill
+uv --directory apps/api run python -m stockviz.cli recommend
 pnpm api:dev                          # keep running in another terminal
 $env:AUTH_TRUST_HOST = "true"         # prod builds don't trust the host by default
 pnpm --filter @stockviz/web build
