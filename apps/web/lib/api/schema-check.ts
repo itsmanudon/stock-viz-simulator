@@ -19,6 +19,7 @@
  * generated types agree, so the assertions hold without casts.
  */
 
+import type { ReplaySessionList, ReplaySummary } from "./replay";
 import type { components } from "./schema";
 import type { Portfolio, PortfolioOption, TradeRow } from "./trading";
 import type { BacktestSummary, MarketsSummary, Recommendation, ScreenerResult } from "./types";
@@ -58,8 +59,9 @@ export type _ScreenerMatches = Expect<Assignable<ScreenerResult, Schemas["Screen
 export type _RecommendationMatches = Expect<
   Assignable<Recommendation, Schemas["RecommendationOut"]>
 >;
-export type _BacktestSummaryMatches = Expect<
-  Assignable<BacktestSummary, Schemas["BacktestSummaryOut"]>
+export type _ReplaySummaryMatches = Expect<Assignable<ReplaySummary, Schemas["ReplaySummaryOut"]>>;
+export type _ReplaySessionListMatches = Expect<
+  Assignable<ReplaySessionList, Schemas["ReplaySessionListOut"]>
 >;
 
 // Keep `Exact` referenced so an unused-type lint doesn't remove the helper —

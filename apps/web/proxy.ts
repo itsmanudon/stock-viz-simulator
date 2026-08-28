@@ -22,6 +22,7 @@ const PROTECTED_PREFIXES = [
   "/alerts",
   "/settings",
   "/orders",
+  "/replay",
 ];
 
 export default proxyAuth((req) => {

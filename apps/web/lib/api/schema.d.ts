@@ -694,6 +694,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/replay/availability": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Replay Ticker Availability
+         * @description Stored 1d bar range for the Replay Lab date picker.
+         */
+        get: operations["get_replay_ticker_availability_v1_replay_availability_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/replay/sessions": {
         parameters: {
             query?: never;
@@ -795,6 +815,23 @@ export interface paths {
         };
         /** Get Replay History */
         get: operations["get_replay_history_v1_replay_sessions__session_id__history_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/replay/sessions/{session_id}/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Replay Summary */
+        get: operations["get_replay_summary_v1_replay_sessions__session_id__summary_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1692,6 +1729,25 @@ export interface components {
             /** Detail */
             detail: string;
         };
+        /** ReplayAvailabilityOut */
+        ReplayAvailabilityOut: {
+            /** Ticker */
+            ticker: string;
+            /** Currency */
+            currency: string;
+            /**
+             * First Bar
+             * Format: date-time
+             */
+            first_bar: string;
+            /**
+             * Last Bar
+             * Format: date-time
+             */
+            last_bar: string;
+            /** Bars Count */
+            bars_count: number;
+        };
         /** ReplayBarOut */
         ReplayBarOut: {
             /** Ticker */
@@ -1855,6 +1911,44 @@ export interface components {
              */
             starting_cash: number | string;
         };
+        /**
+         * ReplaySessionListOut
+         * @description Lightweight list row. Positions and next-bar lookups are detail-only.
+         */
+        ReplaySessionListOut: {
+            /** Id */
+            id: number;
+            /** Ticker */
+            ticker: string;
+            /**
+             * Start At
+             * Format: date-time
+             */
+            start_at: string;
+            /**
+             * Current At
+             * Format: date-time
+             */
+            current_at: string;
+            /**
+             * End At
+             * Format: date-time
+             */
+            end_at: string;
+            /** Status */
+            status: string;
+            /** Starting Cash */
+            starting_cash: string;
+            /** Cash Balance */
+            cash_balance: string;
+            /** Has Next */
+            has_next: boolean;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
         /** ReplaySessionOut */
         ReplaySessionOut: {
             /** Id */
@@ -1914,6 +2008,47 @@ export interface components {
             session: components["schemas"]["ReplaySessionOut"];
             decision: components["schemas"]["ReplayDecisionOut"];
             fill?: components["schemas"]["ReplayFillOut"] | null;
+        };
+        /**
+         * ReplaySummaryOut
+         * @description Mark-to-market at the current observable replay bar only.
+         */
+        ReplaySummaryOut: {
+            /** Ticker */
+            ticker: string;
+            /** Status */
+            status: string;
+            /**
+             * Current At
+             * Format: date-time
+             */
+            current_at: string;
+            /** Current Close */
+            current_close: string;
+            /** Cash */
+            cash: string;
+            /** Starting Cash */
+            starting_cash: string;
+            /** Positions Market Value */
+            positions_market_value: string;
+            /** Equity */
+            equity: string;
+            /** Realized Pnl */
+            realized_pnl: string;
+            /** Unrealized Pnl */
+            unrealized_pnl: string;
+            /** Total Pnl */
+            total_pnl: string;
+            /** Return Pct */
+            return_pct: string;
+            /** Fills Count */
+            fills_count: number;
+            /** Has Next */
+            has_next: boolean;
+            /** Visible High */
+            visible_high: string;
+            /** Visible Low */
+            visible_low: string;
         };
         /**
          * RsiThresholdStrategy
@@ -3495,6 +3630,39 @@ export interface operations {
             };
         };
     };
+    get_replay_ticker_availability_v1_replay_availability_get: {
+        parameters: {
+            query: {
+                ticker: string;
+            };
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReplayAvailabilityOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_replay_sessions_v1_replay_sessions_get: {
         parameters: {
             query?: never;
@@ -3512,7 +3680,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ReplaySessionOut"][];
+                    "application/json": components["schemas"]["ReplaySessionListOut"][];
                 };
             };
             /** @description Validation Error */
@@ -3713,6 +3881,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ReplayBarOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_replay_summary_v1_replay_sessions__session_id__summary_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                session_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReplaySummaryOut"];
                 };
             };
             /** @description Validation Error */

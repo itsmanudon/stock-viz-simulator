@@ -9,8 +9,8 @@ app/
   (public)/        marketing home, login, signup, sign-in-required; owns the
                    concise public header and traditional website footer
   (product)/       guest-capable research routes plus the workstation shell
-    (authed)/      portfolio, trade, trades, orders, watchlist, alerts, settings
-                   — protected by proxy.ts. Portfolio and trade show reserved
+    (authed)/      portfolio, trade, trades, orders, watchlist, alerts, settings,
+                   replay — protected by proxy.ts. Portfolio and trade show reserved
                    vs available cash/shares from pending orders. `/trade` is
                    the execution workstation; `/stocks/[ticker]` keeps the
                    contextual ticket. `/alerts` is alert management; the header
@@ -23,6 +23,7 @@ app/
   screener/        filterable symbol screener
   backtest/        Research workspace: strategy experiment + equity curve
   recommendations/ Research workspace titled Signals (route unchanged)
+  replay/          Research workspace: blind historical Replay Lab (authed)
   leaderboard/     user NAV ranking
   news/
   sign-in-required/  redirect target for unauthenticated access
@@ -149,10 +150,12 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   Compare and backtest charts live in `compare-chart.tsx` and `equity-curve.tsx`.
 - Server components by default — only mark `"use client"` when you need state,
   effects, or interactivity.
-- Research (`/compare`, `/backtest`, `/recommendations`) is one domain with
-  three routes. See [`docs/RESEARCH.md`](../../docs/RESEARCH.md). Keep URL state
+- Research (`/compare`, `/backtest`, `/recommendations`, `/replay`) is one
+  domain. See [`docs/RESEARCH.md`](../../docs/RESEARCH.md). Keep URL state
   shareable (`tickers`/`tf`, `ticker`, `min`/`signal`/`q`). Do not present
-  Signals as AI advice; the engine is a seven-vote rule set.
+  Signals as AI advice; the engine is a seven-vote rule set. Replay Lab is
+  future-blind historical simulation; never fetch live bars, SSE quotes, or
+  news into `/replay/[id]`.
 - Operational trading (`/trade`, `/orders`, `/watchlist`, `/alerts`) is the
   authenticated execution/monitoring loop. See
   [`docs/OPERATIONAL_TRADING.md`](../../docs/OPERATIONAL_TRADING.md).

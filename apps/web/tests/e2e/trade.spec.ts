@@ -73,4 +73,53 @@ test("operational trading loop from ticket to orders, watchlist, and alerts", as
     timeout: 10_000,
   });
   await expect(create.getByText("Alert set.")).toBeVisible();
+
+  const leaked: string[] = [];
+  page.on("request", (request) => {
+    const url = request.url();
+    if (url.includes("/v1/symbols/")) leaked.push(url);
+    if (url.includes("/v1/quotes")) leaked.push(url);
+    if (url.includes("/v1/stream/quotes")) leaked.push(url);
+    if (url.includes("/v1/news")) leaked.push(url);
+  });
+
+  await page.goto("/replay");
+  await expect(page.getByRole("heading", { name: "Replay", exact: true })).toBeVisible();
+  await expect(page.getByText(/legacy_close v1/i)).toBeVisible();
+  await page.getByLabel("Symbol").selectOption("AAPL");
+  await expect(page.getByText(/Stored daily bars for AAPL/i)).toBeVisible({ timeout: 10_000 });
+  await page.getByLabel("Start date").fill("2020-01-04");
+  await page.getByLabel("End date").fill("2020-01-19");
+  await page.getByRole("button", { name: "Start replay" }).click();
+  await expect(page).toHaveURL(/\/replay\/\d+/, { timeout: 15_000 });
+  await expect(page.getByRole("heading", { name: "AAPL", exact: true })).toBeVisible();
+  await expect(page.getByText(/Requested 2020-01-04/)).toBeVisible();
+  await expect(page.getByText(/Resolved 2020-01-06/)).toBeVisible();
+  await expect(page.getByRole("region", { name: /replay price chart/i })).toBeVisible();
+  await expect(page.getByText("Replay close", { exact: true })).toBeVisible();
+  await expect(page.getByText(/Indicative/i)).toHaveCount(0);
+
+  const desktopTicket = page.locator("aside").getByRole("button", { name: /Submit market buy/i });
+  if (await desktopTicket.isVisible()) {
+    await desktopTicket.click();
+  } else {
+    await page.getByRole("button", { name: /Buy AAPL in replay/i }).click();
+    await page.getByRole("button", { name: /Submit market buy/i }).click();
+  }
+  await expect(page.getByText(/Filled BUY/i)).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByRole("table", { name: "Replay fills" })).toContainText("AAPL");
+  await expect(page.getByRole("heading", { name: "No open replay position." })).toHaveCount(0);
+
+  const before = await page
+    .getByRole("heading", { name: "AAPL", exact: true })
+    .locator("..")
+    .textContent();
+  await page.getByRole("button", { name: "Advance to next session" }).click();
+  await expect(page.getByText(/Advanced:/i)).toBeVisible({ timeout: 10_000 });
+  const after = await page
+    .getByRole("heading", { name: "AAPL", exact: true })
+    .locator("..")
+    .textContent();
+  expect(after).not.toEqual(before);
+  expect(leaked).toEqual([]);
 });

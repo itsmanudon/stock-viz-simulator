@@ -20,6 +20,7 @@ test("research navigation keeps compare, backtest, and signals as one domain", a
     "href",
     "/recommendations",
   );
+  await expect(product.getByRole("link", { name: "Replay" })).toHaveAttribute("href", "/replay");
 
   const subnav = page.getByRole("navigation", { name: "Research tools" });
   await expect(subnav.getByRole("link", { name: "Compare" })).toHaveAttribute(

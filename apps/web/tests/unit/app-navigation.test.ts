@@ -16,6 +16,8 @@ describe("getActiveNavigation", () => {
     ["/stocks/AAPL", "/compare", null],
     ["/compare?tickers=AAPL", "/compare", "/compare"],
     ["/backtest?ticker=AAPL", "/compare", "/backtest"],
+    ["/replay", "/compare", "/replay"],
+    ["/replay/12", "/compare", "/replay"],
     ["/recommendations", "/compare", "/recommendations"],
     ["/orders/42", "/trade", "/orders"],
     ["/watchlist", "/portfolio", "/watchlist"],
@@ -39,6 +41,7 @@ describe("getActiveNavigation", () => {
       "Signals",
       "Screener",
       "News",
+      "Replay",
     ]);
     const trade = APP_NAVIGATION.find((group) => group.label === "Trade");
     expect(trade?.items?.map((item) => item.label)).not.toContain("Backtest");
