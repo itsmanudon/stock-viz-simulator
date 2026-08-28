@@ -422,6 +422,103 @@ class ReplaySubmitOut(BaseModel):
     fill: ReplayFillOut | None = None
 
 
+class ReplayEpisodeFillOut(BaseModel):
+    """ReplayFill facts plus post-fill concentration for forensic detail."""
+
+    id: int
+    ticker: str
+    side: str
+    quantity: Decimal
+    fill_price: Decimal
+    realized_pnl: Decimal | None = None
+    profile_name: str
+    model_version: str
+    reference_price: Decimal | None
+    reason: str
+    assumptions: list[str]
+    market_interval: str
+    order_type: str
+    evaluated_at: datetime
+    created_at: datetime
+    equity_after: Decimal | None = None
+    concentration_pct: Decimal | None = None
+
+
+class ReplayEpisodeForensicsOut(BaseModel):
+    """One reconstructed long-only exposure episode."""
+
+    index: int
+    ticker: str
+    opened_at: datetime
+    closed_at: datetime | None = None
+    status: Literal["open", "closed"]
+    entry_price: Decimal
+    exit_price: Decimal | None = None
+    entry_quantity: Decimal
+    peak_quantity: Decimal
+    weighted_entry_price: Decimal
+    weighted_exit_price: Decimal | None = None
+    realized_pnl: Decimal
+    unrealized_pnl: Decimal | None = None
+    return_pct: Decimal | None = None
+    holding_bars: int
+    holding_calendar_days: int
+    mae_amount: Decimal | None = None
+    mae_pct: Decimal | None = None
+    mfe_amount: Decimal | None = None
+    mfe_pct: Decimal | None = None
+    benchmark_return_pct: Decimal | None = None
+    excess_return_pct: Decimal | None = None
+    max_position_pct: Decimal | None = None
+    entry_equity: Decimal | None = None
+    peak_exposure: Decimal
+    fills: list[ReplayEpisodeFillOut] = []
+
+
+class ReplayForensicsOut(BaseModel):
+    """Session-level forensic scorecard. Derived; not persisted."""
+
+    ticker: str
+    status: str
+    analysis_scope: Literal["so_far", "final", "cancelled"]
+    analysis_at: datetime
+    starting_cash: Decimal
+    equity: Decimal
+    replay_return_pct: Decimal
+    buy_hold_return_pct: Decimal | None = None
+    excess_return_pct: Decimal | None = None
+    max_drawdown_pct: Decimal | None = None
+    max_concentration_pct: Decimal | None = None
+    fills_count: int
+    episodes_count: int
+    closed_episodes_count: int
+    open_episodes_count: int
+    episodes: list[ReplayEpisodeForensicsOut] = []
+
+
+class ReplayJournalIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    thesis: str | None = Field(default=None, max_length=4000)
+    invalidation: str | None = Field(default=None, max_length=4000)
+    expected_holding_bars: int | None = Field(default=None, ge=1, le=10000)
+    confidence: int | None = Field(default=None, ge=1, le=5)
+    reflection: str | None = Field(default=None, max_length=8000)
+
+
+class ReplayJournalOut(BaseModel):
+    session_id: int
+    thesis: str | None = None
+    invalidation: str | None = None
+    expected_holding_bars: int | None = None
+    confidence: int | None = None
+    reflection: str | None = None
+    locked: bool
+    locked_at: datetime | None = None
+    created_at: datetime
+    updated_at: datetime
+
+
 class ExecutionProvenanceOut(BaseModel):
     """Durable kernel provenance for one live equity paper fill (SIM-04).
 

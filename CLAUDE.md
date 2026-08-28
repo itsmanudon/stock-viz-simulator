@@ -45,8 +45,11 @@ Trade, Orders, Watchlist, and Alerts form the operational trading loop; see
 equity paper fills (MARKET, LIMIT, STOP_LOSS, TAKE_PROFIT) go through a
 pure execution kernel (`legacy_close`); cash/positions still mutate in
 `apply_fill`. Successful live fills persist versioned execution provenance.
-Replay sessions (`/v1/replay`) are an isolated book over a frozen 1d
-historical range; the server owns PriceBar selection. See
+Replay sessions (`/replay`) are an isolated book over a frozen 1d
+historical range; the server owns PriceBar selection. Replay Lab is
+future-blind. Post-trade forensics reconstruct episodes, MAE/MFE,
+buy-and-hold excess, and a first-fill-locked journal from replay-visible
+bars only. See
 [`docs/SIMULATION.md`](./docs/SIMULATION.md).
 
 Market and news ingest are **event-driven**. APScheduler enqueues durable

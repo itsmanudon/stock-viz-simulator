@@ -81,13 +81,42 @@ export function replayStatusLabel(status: string): string {
   return "Active";
 }
 
-export function replayErrorMessage(status: number): string {
+export function replayErrorMessage(status: number, detail?: string): string {
   if (status === 404) return "That replay session was not found.";
+  if (status === 409 && detail?.toLowerCase().includes("locked")) {
+    return "Thesis fields are locked after the first fill. You can still update reflection.";
+  }
   if (status === 409) return "This replay is no longer active.";
   if (status === 400) return "That historical range has no stored daily bars.";
   if (status === 422) return "Not enough replay cash or shares for that order.";
   if (status === 401) return "Sign in to use Replay Lab.";
   return "Something went wrong with this replay.";
+}
+
+export function replayFillMarkers(fills: Array<{ side: string; evaluated_at: string }>): Array<{
+  time: string;
+  position: "aboveBar" | "belowBar";
+  color: string;
+  shape: "arrowUp" | "arrowDown";
+  text: string;
+}> {
+  return fills.map((fill) =>
+    fill.side.toLowerCase() === "buy"
+      ? {
+          time: fill.evaluated_at,
+          position: "belowBar" as const,
+          color: "rgb(34 197 94)",
+          shape: "arrowUp" as const,
+          text: "BUY",
+        }
+      : {
+          time: fill.evaluated_at,
+          position: "aboveBar" as const,
+          color: "rgb(239 68 68)",
+          shape: "arrowDown" as const,
+          text: "SELL",
+        },
+  );
 }
 
 export function datesDiffer(requested: string | undefined, resolvedIso: string): boolean {

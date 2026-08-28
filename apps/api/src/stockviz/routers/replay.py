@@ -18,7 +18,12 @@ from stockviz.schemas import (
     ReplayAvailabilityOut,
     ReplayBarOut,
     ReplayDecisionOut,
+    ReplayEpisodeFillOut,
+    ReplayEpisodeForensicsOut,
     ReplayFillOut,
+    ReplayForensicsOut,
+    ReplayJournalIn,
+    ReplayJournalOut,
     ReplayMarketOut,
     ReplayOrderIn,
     ReplayPositionOut,
@@ -33,6 +38,7 @@ from stockviz.services.replay import (
     ReplayCompleted,
     ReplayInsufficientCash,
     ReplayInsufficientPosition,
+    ReplayJournalLocked,
     ReplayLookaheadError,
     ReplayNoMarketError,
     ReplayNotFound,
@@ -52,6 +58,8 @@ from stockviz.services.replay import (
     list_replay_sessions,
     submit_replay_order,
 )
+from stockviz.services.replay.forensics import compute_replay_forensics
+from stockviz.services.replay.journal import get_replay_journal, update_replay_journal
 from stockviz.services.replay.market import get_replay_availability
 from stockviz.services.replay.session import session_can_advance
 from stockviz.services.replay.summary import compute_replay_summary
@@ -352,3 +360,134 @@ def get_replay_fills(
 ) -> list[ReplayFillOut]:
     replay = _load(session, session_id, user_id)
     return [_fill_out(row) for row in list_replay_fills(session, replay=replay)]
+
+
+def _episode_fill_out(fill) -> ReplayEpisodeFillOut:
+    return ReplayEpisodeFillOut(
+        id=fill.id,
+        ticker=fill.ticker,
+        side=fill.side,
+        quantity=fill.quantity,
+        fill_price=fill.fill_price,
+        realized_pnl=fill.realized_pnl,
+        profile_name=fill.profile_name,
+        model_version=fill.model_version,
+        reference_price=fill.reference_price,
+        reason=fill.reason,
+        assumptions=list(fill.assumptions),
+        market_interval=fill.market_interval,
+        order_type=fill.order_type,
+        evaluated_at=as_aware_utc(fill.evaluated_at),
+        created_at=as_aware_utc(fill.created_at),
+        equity_after=fill.equity_after,
+        concentration_pct=fill.concentration_pct,
+    )
+
+
+def _episode_out(episode) -> ReplayEpisodeForensicsOut:
+    return ReplayEpisodeForensicsOut(
+        index=episode.index,
+        ticker=episode.ticker,
+        opened_at=as_aware_utc(episode.opened_at),
+        closed_at=as_aware_utc(episode.closed_at) if episode.closed_at else None,
+        status=episode.status,
+        entry_price=episode.entry_price,
+        exit_price=episode.exit_price,
+        entry_quantity=episode.entry_quantity,
+        peak_quantity=episode.peak_quantity,
+        weighted_entry_price=episode.weighted_entry_price,
+        weighted_exit_price=episode.weighted_exit_price,
+        realized_pnl=episode.realized_pnl,
+        unrealized_pnl=episode.unrealized_pnl,
+        return_pct=episode.return_pct,
+        holding_bars=episode.holding_bars,
+        holding_calendar_days=episode.holding_calendar_days,
+        mae_amount=episode.mae_amount,
+        mae_pct=episode.mae_pct,
+        mfe_amount=episode.mfe_amount,
+        mfe_pct=episode.mfe_pct,
+        benchmark_return_pct=episode.benchmark_return_pct,
+        excess_return_pct=episode.excess_return_pct,
+        max_position_pct=episode.max_position_pct,
+        entry_equity=episode.entry_equity,
+        peak_exposure=episode.peak_exposure,
+        fills=[_episode_fill_out(fill) for fill in episode.fills],
+    )
+
+
+def _forensics_out(db: Session, replay) -> ReplayForensicsOut:
+    result = compute_replay_forensics(db, replay)
+    return ReplayForensicsOut(
+        ticker=result.ticker,
+        status=result.status,
+        analysis_scope=result.analysis_scope,
+        analysis_at=as_aware_utc(result.analysis_at),
+        starting_cash=result.starting_cash,
+        equity=result.equity,
+        replay_return_pct=result.replay_return_pct,
+        buy_hold_return_pct=result.buy_hold_return_pct,
+        excess_return_pct=result.excess_return_pct,
+        max_drawdown_pct=result.max_drawdown_pct,
+        max_concentration_pct=result.max_concentration_pct,
+        fills_count=result.fills_count,
+        episodes_count=result.episodes_count,
+        closed_episodes_count=result.closed_episodes_count,
+        open_episodes_count=result.open_episodes_count,
+        episodes=[_episode_out(item) for item in result.episodes],
+    )
+
+
+def _journal_out(row) -> ReplayJournalOut:
+    return ReplayJournalOut(
+        session_id=row.session_id,
+        thesis=row.thesis,
+        invalidation=row.invalidation,
+        expected_holding_bars=row.expected_holding_bars,
+        confidence=row.confidence,
+        reflection=row.reflection,
+        locked=row.locked_at is not None,
+        locked_at=as_aware_utc(row.locked_at) if row.locked_at else None,
+        created_at=as_aware_utc(row.created_at),
+        updated_at=as_aware_utc(row.updated_at),
+    )
+
+
+@router.get("/sessions/{session_id}/forensics", response_model=ReplayForensicsOut)
+def get_replay_session_forensics(
+    session_id: int, session: SessionDep, user_id: UserIdDep
+) -> ReplayForensicsOut:
+    """Deterministic post-trade analytics through the replay clock only."""
+
+    replay = _load(session, session_id, user_id)
+    try:
+        return _forensics_out(session, replay)
+    except ReplayNoMarketError as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
+
+
+@router.get("/sessions/{session_id}/journal", response_model=ReplayJournalOut)
+def get_replay_session_journal(
+    session_id: int, session: SessionDep, user_id: UserIdDep
+) -> ReplayJournalOut:
+    replay = _load(session, session_id, user_id)
+    return _journal_out(get_replay_journal(session, replay=replay))
+
+
+@router.put("/sessions/{session_id}/journal", response_model=ReplayJournalOut)
+def put_replay_session_journal(
+    session_id: int, body: ReplayJournalIn, session: SessionDep, user_id: UserIdDep
+) -> ReplayJournalOut:
+    replay = _load(session, session_id, user_id)
+    try:
+        row = update_replay_journal(
+            session,
+            replay=replay,
+            thesis=body.thesis,
+            invalidation=body.invalidation,
+            expected_holding_bars=body.expected_holding_bars,
+            confidence=body.confidence,
+            reflection=body.reflection,
+        )
+    except ReplayJournalLocked as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
+    return _journal_out(row)

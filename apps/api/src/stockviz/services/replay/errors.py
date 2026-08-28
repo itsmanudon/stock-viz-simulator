@@ -45,3 +45,7 @@ class ReplayInsufficientCash(ReplayError):
 
 class ReplayInsufficientPosition(ReplayError):
     """Isolated session shares cannot cover the sell."""
+
+
+class ReplayJournalLocked(ReplayError):
+    """Thesis fields cannot change after the first replay fill."""

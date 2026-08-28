@@ -1,6 +1,6 @@
 import "server-only";
 
-import { authedGet, authedPost } from "./server";
+import { authedGet, authedPost, authedPut } from "./server";
 
 export type ReplaySessionList = {
   id: number;
@@ -127,6 +127,80 @@ export type ReplayOrderInput = {
   quantity: string;
 };
 
+export type ReplayEpisodeFill = ReplayFill & {
+  equity_after: string | null;
+  concentration_pct: string | null;
+};
+
+export type ReplayEpisodeForensics = {
+  index: number;
+  ticker: string;
+  opened_at: string;
+  closed_at: string | null;
+  status: "open" | "closed";
+  entry_price: string;
+  exit_price: string | null;
+  entry_quantity: string;
+  peak_quantity: string;
+  weighted_entry_price: string;
+  weighted_exit_price: string | null;
+  realized_pnl: string;
+  unrealized_pnl: string | null;
+  return_pct: string | null;
+  holding_bars: number;
+  holding_calendar_days: number;
+  mae_amount: string | null;
+  mae_pct: string | null;
+  mfe_amount: string | null;
+  mfe_pct: string | null;
+  benchmark_return_pct: string | null;
+  excess_return_pct: string | null;
+  max_position_pct: string | null;
+  entry_equity: string | null;
+  peak_exposure: string;
+  fills: ReplayEpisodeFill[];
+};
+
+export type ReplayForensics = {
+  ticker: string;
+  status: string;
+  analysis_scope: "so_far" | "final" | "cancelled";
+  analysis_at: string;
+  starting_cash: string;
+  equity: string;
+  replay_return_pct: string;
+  buy_hold_return_pct: string | null;
+  excess_return_pct: string | null;
+  max_drawdown_pct: string | null;
+  max_concentration_pct: string | null;
+  fills_count: number;
+  episodes_count: number;
+  closed_episodes_count: number;
+  open_episodes_count: number;
+  episodes: ReplayEpisodeForensics[];
+};
+
+export type ReplayJournal = {
+  session_id: number;
+  thesis: string | null;
+  invalidation: string | null;
+  expected_holding_bars: number | null;
+  confidence: number | null;
+  reflection: string | null;
+  locked: boolean;
+  locked_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ReplayJournalInput = {
+  thesis?: string | null;
+  invalidation?: string | null;
+  expected_holding_bars?: number | null;
+  confidence?: number | null;
+  reflection?: string | null;
+};
+
 export function listReplaySessions(): Promise<ReplaySessionList[]> {
   return authedGet("/v1/replay/sessions");
 }
@@ -177,4 +251,19 @@ export function submitReplayOrder(
 export function getReplayAvailability(ticker: string): Promise<ReplayAvailability> {
   const q = new URLSearchParams({ ticker });
   return authedGet(`/v1/replay/availability?${q.toString()}`);
+}
+
+export function getReplayForensics(sessionId: number): Promise<ReplayForensics> {
+  return authedGet(`/v1/replay/sessions/${sessionId}/forensics`);
+}
+
+export function getReplayJournal(sessionId: number): Promise<ReplayJournal> {
+  return authedGet(`/v1/replay/sessions/${sessionId}/journal`);
+}
+
+export function putReplayJournal(
+  sessionId: number,
+  body: ReplayJournalInput,
+): Promise<ReplayJournal> {
+  return authedPut(`/v1/replay/sessions/${sessionId}/journal`, body);
 }
