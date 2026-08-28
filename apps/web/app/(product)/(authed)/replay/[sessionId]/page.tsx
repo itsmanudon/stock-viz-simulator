@@ -28,7 +28,6 @@ import {
   REPLAY_PROFILE_LABEL,
   datesDiffer,
   formatReplayDate,
-  formatReplayShortDate,
   replayBarsToChart,
   replayStatusLabel,
 } from "@/lib/replay";
@@ -75,8 +74,8 @@ export default async function ReplaySessionPage({
               {formatReplayDate(session.current_at)}
             </p>
             <p className="mt-1 text-xs text-text-tertiary">
-              {replayStatusLabel(session.status)} · {formatReplayShortDate(session.start_at)} →{" "}
-              {formatReplayShortDate(session.end_at)}
+              {replayStatusLabel(session.status)} · stored sessions {session.start_at.slice(0, 10)}{" "}
+              → {session.end_at.slice(0, 10)}
             </p>
           </div>
           <Link

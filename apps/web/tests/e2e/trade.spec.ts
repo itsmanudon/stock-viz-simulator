@@ -93,10 +93,12 @@ test("operational trading loop from ticket to orders, watchlist, and alerts", as
   await page.getByRole("button", { name: "Start replay" }).click();
   await expect(page).toHaveURL(/\/replay\/\d+/, { timeout: 15_000 });
   await expect(page.getByRole("heading", { name: "AAPL", exact: true })).toBeVisible();
-  await expect(page.getByText(/Requested 2020-01-04/)).toBeVisible();
-  await expect(page.getByText(/Resolved 2020-01-06/)).toBeVisible();
+  await expect(page.getByText(/stored sessions 2020-01-04 → 2020-01-19/)).toBeVisible();
+  await expect(page.getByText(/Saturday, January 4, 2020/)).toBeVisible();
   await expect(page.getByRole("region", { name: /replay price chart/i })).toBeVisible();
-  await expect(page.getByText("Replay close", { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("region", { name: /replay price chart/i }).getByText("Replay close"),
+  ).toBeVisible();
   await expect(page.getByText(/Indicative/i)).toHaveCount(0);
 
   const desktopTicket = page.locator("aside").getByRole("button", { name: /Submit market buy/i });
