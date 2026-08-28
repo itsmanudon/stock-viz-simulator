@@ -10,6 +10,7 @@
 import { ClickableRow } from "@/components/clickable-row";
 import { DataTableFrame, NumericCell } from "@/components/data-table";
 import { ResearchPageHeader } from "@/components/research-page-header";
+import { type SymbolCardData, SymbolCardList } from "@/components/symbol-card-list";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -236,48 +237,73 @@ export default async function ScreenerPage({
               52-week constraint.
             </p>
           ) : (
-            <DataTableFrame>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-[110px]">Ticker</TableHead>
-                    <TableHead>Name</TableHead>
-                    <TableHead className="hidden md:table-cell">Sector</TableHead>
-                    <TableHead className="text-right">Price</TableHead>
-                    <TableHead className="text-right">RSI(14)</TableHead>
-                    <TableHead className="text-right">
-                      {momentumDays ? `${momentumDays}d %` : "Momentum"}
-                    </TableHead>
-                    <TableHead className="hidden text-right md:table-cell">52w Low</TableHead>
-                    <TableHead className="hidden text-right md:table-cell">52w High</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {results.map((row) => (
-                    <ClickableRow key={row.ticker} href={`/stocks/${row.ticker}`}>
-                      <TableCell className="font-mono font-semibold">{row.ticker}</TableCell>
-                      <TableCell className="truncate">{row.name}</TableCell>
-                      <TableCell className="hidden text-text-tertiary md:table-cell">
-                        {row.sector ?? "—"}
-                      </TableCell>
-                      <NumericCell>${fmt(row.last_close)}</NumericCell>
-                      <NumericCell>
-                        {row.rsi_14 === null ? null : row.rsi_14.toFixed(1)}
-                      </NumericCell>
-                      <NumericCell signedBy={row.momentum_pct}>
-                        {row.momentum_pct === null ? null : fmtPct(row.momentum_pct)}
-                      </NumericCell>
-                      <NumericCell muted className="hidden md:table-cell">
-                        ${fmt(row.low_52w)}
-                      </NumericCell>
-                      <NumericCell muted className="hidden md:table-cell">
-                        ${fmt(row.high_52w)}
-                      </NumericCell>
-                    </ClickableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </DataTableFrame>
+            <>
+              {/* Cards below md, table above — the eight-column table is far
+                  wider than a phone viewport. */}
+              <SymbolCardList
+                className="md:hidden"
+                rows={results.map(
+                  (row): SymbolCardData => ({
+                    ticker: row.ticker,
+                    name: row.name,
+                    price: `$${fmt(row.last_close)}`,
+                    changePct: row.momentum_pct,
+                    changeLabel: row.momentum_pct === null ? null : fmtPct(row.momentum_pct),
+                    metrics: [
+                      {
+                        label: "RSI 14",
+                        value: row.rsi_14 === null ? "—" : row.rsi_14.toFixed(1),
+                      },
+                      { label: "52w Low", value: `$${fmt(row.low_52w)}` },
+                      { label: "52w High", value: `$${fmt(row.high_52w)}` },
+                    ],
+                  }),
+                )}
+              />
+
+              <DataTableFrame className="hidden md:block">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-[110px]">Ticker</TableHead>
+                      <TableHead>Name</TableHead>
+                      <TableHead className="hidden md:table-cell">Sector</TableHead>
+                      <TableHead className="text-right">Price</TableHead>
+                      <TableHead className="text-right">RSI(14)</TableHead>
+                      <TableHead className="text-right">
+                        {momentumDays ? `${momentumDays}d %` : "Momentum"}
+                      </TableHead>
+                      <TableHead className="hidden text-right md:table-cell">52w Low</TableHead>
+                      <TableHead className="hidden text-right md:table-cell">52w High</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {results.map((row) => (
+                      <ClickableRow key={row.ticker} href={`/stocks/${row.ticker}`}>
+                        <TableCell className="font-mono font-semibold">{row.ticker}</TableCell>
+                        <TableCell className="truncate">{row.name}</TableCell>
+                        <TableCell className="hidden text-text-tertiary md:table-cell">
+                          {row.sector ?? "—"}
+                        </TableCell>
+                        <NumericCell>${fmt(row.last_close)}</NumericCell>
+                        <NumericCell>
+                          {row.rsi_14 === null ? null : row.rsi_14.toFixed(1)}
+                        </NumericCell>
+                        <NumericCell signedBy={row.momentum_pct}>
+                          {row.momentum_pct === null ? null : fmtPct(row.momentum_pct)}
+                        </NumericCell>
+                        <NumericCell muted className="hidden md:table-cell">
+                          ${fmt(row.low_52w)}
+                        </NumericCell>
+                        <NumericCell muted className="hidden md:table-cell">
+                          ${fmt(row.high_52w)}
+                        </NumericCell>
+                      </ClickableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </DataTableFrame>
+            </>
           )}
         </section>
       </div>

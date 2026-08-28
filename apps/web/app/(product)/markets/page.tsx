@@ -16,6 +16,7 @@ import { ClickableRow } from "@/components/clickable-row";
 import { DataTableFrame, NumericCell, SortableHead, TableToolbar } from "@/components/data-table";
 import { PageHeader } from "@/components/page-header";
 import { Sparkline } from "@/components/sparkline";
+import { CardSortBar, type SymbolCardData, SymbolCardList } from "@/components/symbol-card-list";
 import {
   Table,
   TableBody,
@@ -61,6 +62,24 @@ export default async function MarketsPage({
 
   const sortDirection = (col: SortKey) => (sort === col ? dir : null);
 
+  const cardRows: SymbolCardData[] = sorted.map((row) => ({
+    ticker: row.ticker,
+    name: row.name,
+    price: row.last === null ? null : `$${fmtPrice(row.last)}`,
+    changePct: row.changePct,
+    changeLabel: row.changePct === null ? null : fmtPct(row.changePct),
+    // Only surface classification the symbol actually has; a row of em
+    // dashes costs vertical space on a phone and says nothing.
+    metrics: [
+      ...(row.sector ? [{ label: "Sector", value: row.sector }] : []),
+      ...(row.exchange ? [{ label: "Exchange", value: row.exchange }] : []),
+    ],
+    visual:
+      row.closes.length > 1 ? (
+        <Sparkline closes={row.closes} width={280} height={36} className="w-full" />
+      ) : null,
+  }));
+
   return (
     <div className="w-full px-4 py-8 sm:px-6 xl:px-8">
       <PageHeader
@@ -90,7 +109,22 @@ export default async function MarketsPage({
           </nav>
         </TableToolbar>
 
-        <DataTableFrame>
+        {/* Cards below md, table above: the table is ~500px at its narrowest
+            and would otherwise overflow a phone viewport. */}
+        <div className="md:hidden">
+          <CardSortBar
+            options={[
+              { key: "ticker", label: "Ticker", href: sortHref("ticker", params) },
+              { key: "price", label: "Price", href: sortHref("price", params) },
+              { key: "change", label: "1d %", href: sortHref("change", params) },
+            ]}
+            activeKey={sort}
+            direction={dir}
+          />
+          <SymbolCardList className="mt-3" rows={cardRows} />
+        </div>
+
+        <DataTableFrame className="hidden md:block">
           <Table>
             <TableHeader>
               <TableRow>

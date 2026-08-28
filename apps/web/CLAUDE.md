@@ -38,6 +38,8 @@ components/
   dashboard/       signed-in home widgets (hero, movers, orders, alerts,
                    watchlist, allocation) + the shared WidgetCard/DeltaPill
   data-table.tsx   DataTableFrame / NumericCell / SortableHead / TableToolbar
+  symbol-card-list.tsx  card layout the symbol tables switch to under `md`,
+                   plus CardSortBar (cards have no column headers to sort by)
   page-header.tsx  PageHeader / PageSubnav / PageEmptyState — the single
                    implementation behind the Operational* and Research* wrappers
   status-badge.tsx one tone-mapped chip behind the order/alert badges
@@ -174,6 +176,10 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   vocabulary and the app's `text-secondary`/`text-tertiary` pair render
   identically. Prefer the semantic names in app code; `text-muted-foreground`
   stays only because `components/ui/` is generated against it.
+- Symbol tables are ~500px+ wide at their narrowest, so `/markets` and
+  `/screener` render `SymbolCardList` under `md` and the table above it. Both
+  branches carry the same figures — mobile re-lays them out rather than
+  dropping columns. Any new symbol table should do the same.
 - Tables: use `DataTableFrame` + `NumericCell` rather than hand-rolling the
   bordered wrapper and the right-aligned tinted number. `NumericCell` owns the
   sign→token mapping and the em-dash fallback — never write `text-green-500`
