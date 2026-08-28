@@ -7,12 +7,15 @@ import type { BacktestResult } from "@/lib/api";
 import { recommendationToSignal } from "@/lib/signals-workspace";
 
 const replace = vi.fn();
+const push = vi.fn();
 const runBacktest = vi.fn();
+let searchQuery = "ticker=AAPL";
+let pathname = "/backtest";
 
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: vi.fn(), replace }),
-  usePathname: () => "/backtest",
-  useSearchParams: () => new URLSearchParams("ticker=AAPL"),
+  useRouter: () => ({ push, replace }),
+  usePathname: () => pathname,
+  useSearchParams: () => new URLSearchParams(window.location.search || searchQuery),
 }));
 
 vi.mock("next-themes", () => ({
@@ -62,6 +65,10 @@ describe("BacktestForm", () => {
   beforeEach(() => {
     runBacktest.mockReset();
     replace.mockReset();
+    push.mockReset();
+    searchQuery = "ticker=AAPL";
+    pathname = "/backtest";
+    window.history.replaceState(null, "", `${pathname}?${searchQuery}`);
   });
 
   it("shows a meaningful empty state before the first run", () => {
@@ -183,7 +190,7 @@ describe("BacktestForm", () => {
 });
 
 describe("SignalsTable", () => {
-  it("renders bullish and neutral rows with expandable vote evidence", () => {
+  function renderSignals() {
     const bullish = recommendationToSignal({
       ticker: "AAPL",
       name: "Apple Inc.",
@@ -218,19 +225,54 @@ describe("SignalsTable", () => {
       computed_at: "2026-08-26T00:00:00Z",
     });
 
-    render(
+    pathname = "/recommendations";
+    window.history.replaceState(null, "", `${pathname}?${searchQuery}`);
+    return render(
       <SignalsTable
         rows={[bullish, neutral]}
         sort="score"
         dir="desc"
-        sortHref={(key) => `/recommendations?sort=${key}`}
+        sortHrefs={{
+          score: "/recommendations?sort=score",
+          ticker: "/recommendations?sort=ticker",
+          sentiment: "/recommendations?sort=sentiment",
+          updated: "/recommendations?sort=updated",
+        }}
       />,
     );
+  }
+
+  it("renders a full scan view and moves evidence into a selected detail pane", () => {
+    renderSignals();
 
     expect(screen.getByText("Bullish")).toBeVisible();
     expect(screen.getByText("Neutral")).toBeVisible();
     expect(screen.getByText("5/7")).toBeVisible();
-    fireEvent.click(screen.getByText("AAPL"));
+    expect(screen.getByRole("columnheader", { name: "Ticker" })).toHaveAttribute(
+      "aria-sort",
+      "none",
+    );
+    expect(screen.getByRole("columnheader", { name: "Strength" })).toHaveAttribute(
+      "aria-sort",
+      "descending",
+    );
+    const list = screen.getByRole("region", { name: "Signals list" });
+    expect(list).toHaveClass("h-full", "min-h-0");
+    expect(list.querySelector("ul")).toHaveClass("lg:flex-1", "lg:overflow-y-auto");
+    expect(screen.queryByRole("heading", { name: "Seven vote checks" })).not.toBeInTheDocument();
+    expect(document.querySelector("details")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: /AAPL, Apple Inc\./ }));
+
+    expect(screen.getByRole("heading", { name: "Apple Inc." })).toBeVisible();
+    expect(screen.getByRole("heading", { name: "Seven vote checks" })).toBeVisible();
+    expect(screen.getByText("Below historical median")).toBeVisible();
+    expect(screen.getByText("Within 1 stdev below mean")).toBeVisible();
+    expect(screen.getByText("Volume above average")).toBeVisible();
+    expect(screen.getByText("3-bar uptrend")).toBeVisible();
+    expect(screen.getByText("Positive 5-bar slope")).toBeVisible();
+    expect(screen.getAllByText("Not passed")).toHaveLength(6);
+    expect(screen.getByText(/Computed Aug 26, 2026/)).toBeVisible();
     expect(screen.getByRole("link", { name: "Open AAPL workspace" })).toHaveAttribute(
       "href",
       "/stocks/AAPL",
@@ -241,14 +283,109 @@ describe("SignalsTable", () => {
     );
     expect(screen.getAllByText("Below historical mean").length).toBeGreaterThan(0);
     expect(screen.getByText("No scored headlines in the trailing week")).toBeVisible();
-    expect(screen.getAllByText("—").length).toBeGreaterThan(0);
-    expect(screen.getByRole("columnheader", { name: "Ticker" })).toHaveAttribute(
-      "aria-sort",
-      "none",
+    expect(screen.getByRole("button", { name: /AAPL, Apple Inc\./ })).toHaveAttribute(
+      "aria-pressed",
+      "true",
     );
-    expect(screen.getByRole("columnheader", { name: "Strength" })).toHaveAttribute(
-      "aria-sort",
-      "descending",
+    const detail = screen.getByText("Signal detail").closest("section");
+    expect(detail).toHaveClass("h-full", "min-h-0", "animate-in", "fade-in-0");
+    expect(detail).not.toHaveClass("slide-in-from-left-1", "slide-in-from-right-1");
+    expect(detail?.parentElement).toHaveClass("transition-opacity");
+    expect(detail?.parentElement).not.toHaveClass("translate-x-0", "translate-x-3");
+  });
+
+  it("fades ticker content when switching and keeps native-history sync idempotent", async () => {
+    searchQuery = "";
+    renderSignals();
+
+    fireEvent.click(screen.getByRole("button", { name: /AAPL, Apple Inc\./ }));
+    const firstDetail = screen.getByText("Signal detail").closest("section");
+    expect(firstDetail).not.toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: /MSFT, Microsoft/ }));
+    const switchedDetail = screen.getByText("Signal detail").closest("section");
+    expect(screen.getByRole("heading", { name: "Microsoft" })).toBeVisible();
+    expect(switchedDetail).not.toHaveClass("slide-in-from-left-1", "slide-in-from-right-1");
+    expect(switchedDetail).toHaveClass("animate-in", "fade-in-0");
+    expect(switchedDetail).not.toBe(firstDetail);
+
+    window.history.replaceState(null, "", "/recommendations?selected=MSFT");
+    fireEvent.popState(window);
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "Microsoft" })).toBeVisible();
+    });
+    expect(screen.getByText("Signal detail").closest("section")).toBe(switchedDetail);
+  });
+
+  it("preserves current filters and sort state when selecting and closing", () => {
+    searchQuery = "min=4&signal=bullish&sort=ticker&dir=asc&q=app";
+    renderSignals();
+    const pushState = vi.spyOn(window.history, "pushState");
+    const replaceState = vi.spyOn(window.history, "replaceState");
+
+    fireEvent.click(screen.getByRole("button", { name: /AAPL, Apple Inc\./ }));
+    expect(push).not.toHaveBeenCalled();
+    expect(pushState).toHaveBeenLastCalledWith(
+      null,
+      "",
+      "/recommendations?min=4&signal=bullish&sort=ticker&dir=asc&q=app&selected=AAPL",
     );
+
+    fireEvent.click(screen.getByRole("button", { name: "Back to signals" }));
+    const closingWrapper = screen.getByText("Signal detail").closest("section")?.parentElement;
+    expect(closingWrapper).toHaveClass("opacity-0");
+    expect(closingWrapper).not.toHaveClass("hidden");
+    expect(replace).not.toHaveBeenCalled();
+    expect(replaceState).toHaveBeenLastCalledWith(
+      null,
+      "",
+      "/recommendations?min=4&signal=bullish&sort=ticker&dir=asc&q=app",
+    );
+    return waitFor(() => {
+      expect(screen.queryByRole("heading", { name: "Seven vote checks" })).not.toBeInTheDocument();
+    });
+  });
+
+  it("closes the detail pane with Escape and ignores an invalid URL selection", () => {
+    searchQuery = "selected=UNKNOWN&min=4";
+    const invalidRender = renderSignals();
+    expect(screen.queryByRole("heading", { name: "Seven vote checks" })).not.toBeInTheDocument();
+
+    invalidRender.unmount();
+    searchQuery = "ticker=AAPL";
+    renderSignals();
+    fireEvent.click(screen.getByRole("button", { name: /AAPL, Apple Inc\./ }));
+    fireEvent.keyDown(window, { key: "Escape" });
+
+    expect(replace).not.toHaveBeenCalled();
+    expect(window.location.pathname + window.location.search).toBe("/recommendations?ticker=AAPL");
+    return waitFor(() => {
+      expect(screen.queryByRole("heading", { name: "Seven vote checks" })).not.toBeInTheDocument();
+    });
+  });
+
+  it("syncs selected detail from browser back and forward without router navigation", async () => {
+    searchQuery = "";
+    renderSignals();
+    const apple = screen.getByRole("button", { name: /AAPL, Apple Inc\./ });
+    const pushState = vi.spyOn(window.history, "pushState");
+
+    fireEvent.click(apple);
+    expect(pushState).toHaveBeenLastCalledWith(null, "", "/recommendations?selected=AAPL");
+    expect(screen.getByRole("heading", { name: "Seven vote checks" })).toBeVisible();
+
+    window.history.replaceState(null, "", "/recommendations");
+    fireEvent.popState(window);
+    await waitFor(() => {
+      expect(screen.queryByRole("heading", { name: "Seven vote checks" })).not.toBeInTheDocument();
+    });
+
+    window.history.replaceState(null, "", "/recommendations?selected=AAPL");
+    fireEvent.popState(window);
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "Seven vote checks" })).toBeVisible();
+    });
+    expect(push).not.toHaveBeenCalled();
+    expect(replace).not.toHaveBeenCalled();
   });
 });
