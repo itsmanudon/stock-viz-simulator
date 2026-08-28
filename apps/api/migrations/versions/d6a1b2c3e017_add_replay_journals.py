@@ -4,7 +4,7 @@
 Derived forensics (MAE/MFE, episodes) are computed, not stored.
 
 Revision ID: d6a1b2c3e017
-Revises: c5f9d3e2b016
+Revises: c8e5f1a2b3c4
 Create Date: 2026-08-28
 """
 
