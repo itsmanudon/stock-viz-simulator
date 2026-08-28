@@ -3,13 +3,33 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { PositionSummary } from "@/components/position-summary";
-import { StockMetricsStrip } from "@/components/stock-metrics-strip";
+import { StockMetricsStrip, rangePosition } from "@/components/stock-metrics-strip";
 import { StockResearchTabs } from "@/components/stock-research-tabs";
 import { TickerOrders } from "@/components/ticker-orders";
 
 vi.mock("@/app/(product)/(authed)/orders/actions", () => ({
   cancelOrderAction: vi.fn(),
 }));
+
+describe("rangePosition", () => {
+  it("maps a value onto its position between the bounds", () => {
+    expect(rangePosition(115, 80, 150)).toBe(50);
+    expect(rangePosition(80, 80, 150)).toBe(0);
+    expect(rangePosition(150, 80, 150)).toBe(100);
+  });
+
+  it("clamps values that fall outside the range", () => {
+    expect(rangePosition(20, 80, 150)).toBe(0);
+    expect(rangePosition(900, 80, 150)).toBe(100);
+  });
+
+  it("returns null when the range is unusable", () => {
+    expect(rangePosition(null, 80, 150)).toBeNull();
+    expect(rangePosition(100, null, 150)).toBeNull();
+    // A flat range would divide by zero.
+    expect(rangePosition(100, 100, 100)).toBeNull();
+  });
+});
 
 describe("stock workspace presentation", () => {
   it("renders a compact, labelled market metric strip", () => {
@@ -33,8 +53,54 @@ describe("stock workspace presentation", () => {
     expect(screen.getByText("Open")).toBeVisible();
     expect(screen.getByText("$110.00")).toBeVisible();
     expect(screen.getByText("1.25M")).toBeVisible();
-    expect(screen.getByText("$80.00 – $150.00")).toBeVisible();
     expect(screen.getByText("54.32")).toBeVisible();
+    // The 52-week range renders its bounds as separate endpoints.
+    expect(screen.getByText("$80.00")).toBeVisible();
+    expect(screen.getByText("$150.00")).toBeVisible();
+  });
+
+  it("marks where the latest close sits in the 52-week range", () => {
+    render(
+      <StockMetricsStrip
+        currency="USD"
+        metrics={{
+          open: 110,
+          high: 115,
+          low: 109,
+          previousClose: 108,
+          volume: 1_250_000,
+          rangeHigh: 150,
+          rangeLow: 80,
+          latestTimestamp: "2026-08-26",
+        }}
+        rsi={54.321}
+        latestClose={115}
+      />,
+    );
+
+    // 115 of an 80-150 range is halfway.
+    expect(screen.getByRole("img", { name: /50 percent of the way/ })).toBeVisible();
+  });
+
+  it("omits the range marker when there is no latest close to place", () => {
+    render(
+      <StockMetricsStrip
+        currency="USD"
+        metrics={{
+          open: null,
+          high: null,
+          low: null,
+          previousClose: null,
+          volume: null,
+          rangeHigh: 150,
+          rangeLow: 80,
+          latestTimestamp: null,
+        }}
+        rsi={null}
+      />,
+    );
+
+    expect(screen.queryByRole("img", { name: /of the way/ })).not.toBeInTheDocument();
   });
 
   it("describes the user's relationship to a held security", () => {

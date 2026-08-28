@@ -9,6 +9,7 @@ import {
   placeOrderAction,
   placeTradeAction,
 } from "@/app/(product)/(authed)/trade/actions";
+import { OrderSideToggle } from "@/components/order-side-toggle";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -217,32 +218,7 @@ export function ContextualTradeTicket({
           <input type="hidden" name="order_type" value={orderMode} />
         ) : null}
 
-        <div
-          className="grid grid-cols-2 gap-1 rounded-md bg-surface-secondary p-1"
-          aria-label="Order side"
-        >
-          {(["buy", "sell"] as const).map((value) => {
-            const active = effectiveSide === value;
-            return (
-              <button
-                key={value}
-                type="button"
-                disabled={isProtective}
-                aria-pressed={active}
-                onClick={() => setSide(value)}
-                className={`h-9 rounded-sm border text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
-                  active
-                    ? value === "buy"
-                      ? "border-positive/40 bg-positive/10 text-positive"
-                      : "border-negative/40 bg-negative/10 text-negative"
-                    : "border-transparent text-muted-foreground hover:bg-surface-hover hover:text-foreground"
-                }`}
-              >
-                {value === "buy" ? "Buy" : "Sell"}
-              </button>
-            );
-          })}
-        </div>
+        <OrderSideToggle side={effectiveSide} onChange={setSide} disabled={isProtective} />
 
         <fieldset className="space-y-2">
           <legend className="text-xs font-medium uppercase tracking-[0.12em] text-text-tertiary">
@@ -305,7 +281,7 @@ export function ContextualTradeTicket({
                         ? `Use ${shortcut.label} of buying power`
                         : `Use ${shortcut.label} of available shares`
                   }
-                  className="h-7 rounded-sm border border-border-muted font-mono text-[11px] text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground disabled:hidden"
+                  className="h-7 rounded-sm border border-border-muted font-mono text-2xs text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground disabled:hidden"
                 >
                   {shortcut.label}
                 </button>
@@ -363,7 +339,7 @@ export function ContextualTradeTicket({
               {notional === null ? "—" : formatMoney(notional, currency)}
             </dd>
           </div>
-          <p className="text-right text-[11px] leading-4 text-text-tertiary">
+          <p className="text-right text-2xs leading-4 text-text-tertiary">
             {orderMode === "market"
               ? "Estimated at the latest cached close"
               : orderMode === "limit"
@@ -427,9 +403,7 @@ function TicketHeading({ id, ticker }: { id: string; ticker: string }) {
   return (
     <div className="flex items-start justify-between gap-4">
       <div>
-        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-brand">
-          Simulation
-        </p>
+        <p className="text-2xs font-semibold uppercase tracking-[0.16em] text-brand">Simulation</p>
         <h2 id={id} className="mt-1 text-base font-semibold tracking-tight">
           Paper trade
         </h2>

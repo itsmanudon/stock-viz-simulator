@@ -8,6 +8,9 @@
  */
 
 import { ClickableRow } from "@/components/clickable-row";
+import { DataTableFrame, NumericCell } from "@/components/data-table";
+import { ResearchPageHeader } from "@/components/research-page-header";
+import { type SymbolCardData, SymbolCardList } from "@/components/symbol-card-list";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -97,16 +100,13 @@ export default async function ScreenerPage({
   }
 
   return (
-    <div className="container mx-auto px-4 py-10 sm:px-6">
-      <header className="mb-6">
-        <h1 className="text-3xl font-bold tracking-tight">Screener</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Filter symbols by sector, RSI, momentum, and 52-week proximity. Filters combine with AND
-          logic.
-        </p>
-      </header>
+    <div className="w-full px-4 py-8 sm:px-6 xl:px-8">
+      <ResearchPageHeader
+        title="Screener"
+        description="Filter symbols by sector, RSI, momentum, and 52-week proximity. Filters combine with AND logic."
+      />
 
-      <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
+      <div className="mt-6 grid gap-6 lg:grid-cols-[280px_1fr]">
         <form
           method="GET"
           action="/screener"
@@ -237,61 +237,73 @@ export default async function ScreenerPage({
               52-week constraint.
             </p>
           ) : (
-            <div className="rounded-lg border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-[110px]">Ticker</TableHead>
-                    <TableHead>Name</TableHead>
-                    <TableHead className="hidden md:table-cell">Sector</TableHead>
-                    <TableHead className="text-right">Price</TableHead>
-                    <TableHead className="text-right">RSI(14)</TableHead>
-                    <TableHead className="text-right">
-                      {momentumDays ? `${momentumDays}d %` : "Momentum"}
-                    </TableHead>
-                    <TableHead className="hidden text-right md:table-cell">52w Low</TableHead>
-                    <TableHead className="hidden text-right md:table-cell">52w High</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {results.map((row) => {
-                    const up = row.momentum_pct !== null && row.momentum_pct >= 0;
-                    return (
+            <>
+              {/* Cards below lg, table above — see the markets page for why
+                  the switch is lg rather than md. */}
+              <SymbolCardList
+                className="lg:hidden"
+                rows={results.map(
+                  (row): SymbolCardData => ({
+                    ticker: row.ticker,
+                    name: row.name,
+                    price: `$${fmt(row.last_close)}`,
+                    changePct: row.momentum_pct,
+                    changeLabel: row.momentum_pct === null ? null : fmtPct(row.momentum_pct),
+                    metrics: [
+                      {
+                        label: "RSI 14",
+                        value: row.rsi_14 === null ? "—" : row.rsi_14.toFixed(1),
+                      },
+                      { label: "52w Low", value: `$${fmt(row.low_52w)}` },
+                      { label: "52w High", value: `$${fmt(row.high_52w)}` },
+                    ],
+                  }),
+                )}
+              />
+
+              <DataTableFrame className="hidden lg:block">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-[110px]">Ticker</TableHead>
+                      <TableHead>Name</TableHead>
+                      <TableHead className="hidden xl:table-cell">Sector</TableHead>
+                      <TableHead className="text-right">Price</TableHead>
+                      <TableHead className="text-right">RSI(14)</TableHead>
+                      <TableHead className="text-right">
+                        {momentumDays ? `${momentumDays}d %` : "Momentum"}
+                      </TableHead>
+                      <TableHead className="hidden text-right xl:table-cell">52w Low</TableHead>
+                      <TableHead className="hidden text-right xl:table-cell">52w High</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {results.map((row) => (
                       <ClickableRow key={row.ticker} href={`/stocks/${row.ticker}`}>
                         <TableCell className="font-mono font-semibold">{row.ticker}</TableCell>
                         <TableCell className="truncate">{row.name}</TableCell>
-                        <TableCell className="hidden text-muted-foreground md:table-cell">
+                        <TableCell className="hidden text-text-tertiary md:table-cell">
                           {row.sector ?? "—"}
                         </TableCell>
-                        <TableCell className="text-right font-mono">
-                          ${fmt(row.last_close)}
-                        </TableCell>
-                        <TableCell className="text-right font-mono">
-                          {row.rsi_14 === null ? "—" : row.rsi_14.toFixed(1)}
-                        </TableCell>
-                        <TableCell
-                          className={`text-right font-mono ${
-                            row.momentum_pct === null
-                              ? "text-muted-foreground"
-                              : up
-                                ? "text-green-500"
-                                : "text-red-500"
-                          }`}
-                        >
-                          {fmtPct(row.momentum_pct)}
-                        </TableCell>
-                        <TableCell className="hidden text-right font-mono text-muted-foreground md:table-cell">
+                        <NumericCell>${fmt(row.last_close)}</NumericCell>
+                        <NumericCell>
+                          {row.rsi_14 === null ? null : row.rsi_14.toFixed(1)}
+                        </NumericCell>
+                        <NumericCell signedBy={row.momentum_pct}>
+                          {row.momentum_pct === null ? null : fmtPct(row.momentum_pct)}
+                        </NumericCell>
+                        <NumericCell muted className="hidden xl:table-cell">
                           ${fmt(row.low_52w)}
-                        </TableCell>
-                        <TableCell className="hidden text-right font-mono text-muted-foreground md:table-cell">
+                        </NumericCell>
+                        <NumericCell muted className="hidden xl:table-cell">
                           ${fmt(row.high_52w)}
-                        </TableCell>
+                        </NumericCell>
                       </ClickableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </div>
+                    ))}
+                  </TableBody>
+                </Table>
+              </DataTableFrame>
+            </>
           )}
         </section>
       </div>

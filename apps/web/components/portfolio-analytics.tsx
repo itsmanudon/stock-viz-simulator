@@ -48,7 +48,7 @@ export function PortfolioInsights({
           <h2 id="allocation-heading" className="text-lg font-semibold tracking-tight">
             Equity sector allocation
           </h2>
-          <p className="text-[11px] text-muted-foreground">Cash and options excluded</p>
+          <p className="text-2xs text-muted-foreground">Cash and options excluded</p>
         </div>
 
         <div
@@ -95,7 +95,7 @@ export function PortfolioInsights({
           <h2 id="movers-heading" className="text-lg font-semibold tracking-tight">
             Top movers
           </h2>
-          <p className="text-[11px] text-muted-foreground">Position return, not attribution</p>
+          <p className="text-2xs text-muted-foreground">Position return, not attribution</p>
         </div>
         <div className="mt-5 grid gap-6 sm:grid-cols-2">
           <MoverList
@@ -153,11 +153,11 @@ function MoverList({
                 >
                   {mover.ticker}
                 </Link>
-                <p className="truncate text-[11px] text-muted-foreground">{mover.name}</p>
+                <p className="truncate text-2xs text-muted-foreground">{mover.name}</p>
               </div>
               <div className={`text-right font-mono ${tone}`} data-financial>
                 <p className="text-sm font-medium">{formatSignedPercent(mover.return_pct)}</p>
-                <p className="mt-0.5 text-[11px]">
+                <p className="mt-0.5 text-2xs">
                   {direction === "gain" ? "Gain" : "Loss"}{" "}
                   {formatSignedCurrency(mover.unrealized_pl, currency)}
                 </p>

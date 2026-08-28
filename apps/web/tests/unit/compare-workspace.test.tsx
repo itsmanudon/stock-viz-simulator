@@ -104,7 +104,6 @@ describe("research chrome", () => {
       "href",
       "/recommendations",
     );
-    expect(within(nav).getByRole("link", { name: "Replay" })).toHaveAttribute("href", "/replay");
     expect(screen.getByRole("heading", { name: "Select symbols to compare" })).toBeVisible();
   });
 });

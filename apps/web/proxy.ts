@@ -15,6 +15,7 @@ import { authConfig } from "@/auth.config";
 const { auth: proxyAuth } = NextAuth(authConfig);
 
 const PROTECTED_PREFIXES = [
+  "/dashboard",
   "/trade",
   "/portfolio",
   "/trades",

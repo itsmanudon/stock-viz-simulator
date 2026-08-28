@@ -4,74 +4,102 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  --background: #f5f6f8;
-  --foreground: #15171b;
+  /* ELECTRIC — deep indigo base, electric lime accent.
+     Dark-first identity; light mode is the same hues re-grounded on a cool
+     paper so the product doesn't change personality when the theme flips.
+
+     Lime (#c4f82a) is the brand, and it is deliberately NOT the "up" colour:
+     a lime gain in a table sitting next to a lime button makes the two
+     unreadable at a glance. Positive is a cyan-leaning green instead
+     (#00e0a0 dark / #00845c light) — a different hue family, so the accent
+     and P&L never collide. */
+  --background: #f6f7fb;
+  --foreground: #0b0d14;
   --card: #ffffff;
-  --card-foreground: #15171b;
+  --card-foreground: #0b0d14;
   --popover: #ffffff;
-  --popover-foreground: #15171b;
-  --primary: #d3a83f;
-  --primary-foreground: #211b0d;
-  --brand: #8a6515;
-  --secondary: #eceff3;
-  --secondary-foreground: #252a31;
-  --muted: #eceff3;
-  --muted-foreground: #626b77;
-  --accent: #e5e8ed;
-  --accent-foreground: #1c2026;
-  --destructive: #b83f48;
+  --popover-foreground: #0b0d14;
+  /* Lime is unreadable as text on white, so light mode darkens it for type
+     while buttons keep the full-chroma fill with dark ink on top. */
+  --primary: #c4f82a;
+  --primary-foreground: #0b0d14;
+  --brand: #4f6b00;
+  --secondary: #eceef6;
+  --secondary-foreground: #1b2030;
+  --muted: #eceef6;
+  --muted-foreground: var(--text-secondary);
+  --accent: #e3e6f2;
+  --accent-foreground: #151a28;
+  --destructive: #d81e50;
   --destructive-foreground: #ffffff;
-  --border: #d7dce3;
-  --input: #c8ced7;
-  --ring: #9b7219;
+  --border: #d5d9e8;
+  --input: #c3c9de;
+  --ring: #8fbe00;
   --surface-elevated: #ffffff;
-  --surface-secondary: #eceff3;
-  --surface-hover: #e5e8ed;
-  --border-muted: #e3e6eb;
-  --text-secondary: #59616d;
-  --text-tertiary: #747d89;
-  --positive: #187c59;
+  --surface-secondary: #eceef6;
+  --surface-hover: #e3e6f2;
+  --border-muted: #e2e5f0;
+  --text-secondary: #4b5268;
+  --text-tertiary: #6b7288;
+  --positive: #00845c;
   --positive-foreground: #ffffff;
-  --negative: #b83f48;
+  --negative: #d81e50;
   --negative-foreground: #ffffff;
-  --warning: #ad6b00;
+  --warning: #9a6300;
   --warning-foreground: #ffffff;
-  --radius: 0.375rem;
+  --positive-soft: #d6f5ea;
+  --positive-soft-foreground: #00694a;
+  --negative-soft: #fde3ea;
+  --negative-soft-foreground: #a81340;
+  --warning-soft: #fbeed6;
+  --warning-soft-foreground: #7d5000;
+  --neutral-soft: #e6e9f4;
+  --neutral-soft-foreground: #4b5268;
+  --radius: 0.75rem;
 }
 
 .dark {
-  --background: #0c0e12;
-  --foreground: #f3f4f6;
-  --card: #13161c;
-  --card-foreground: #f3f4f6;
-  --popover: #171a21;
-  --popover-foreground: #f3f4f6;
-  --primary: #d3a83f;
-  --primary-foreground: #171309;
-  --brand: #d3a83f;
-  --secondary: #1a1e26;
-  --secondary-foreground: #e4e7eb;
-  --muted: #1a1e26;
-  --muted-foreground: #9ba3af;
-  --accent: #20252e;
-  --accent-foreground: #f3f4f6;
-  --destructive: #d75d63;
-  --destructive-foreground: #ffffff;
-  --border: #2b303a;
-  --input: #343a45;
-  --ring: #d3a83f;
-  --surface-elevated: #13161c;
-  --surface-secondary: #1a1e26;
-  --surface-hover: #20252e;
-  --border-muted: #20252d;
-  --text-secondary: #a7aeb9;
-  --text-tertiary: #7d8592;
-  --positive: #2ba477;
-  --positive-foreground: #071a12;
-  --negative: #d75d63;
-  --negative-foreground: #21090b;
-  --warning: #d69b39;
-  --warning-foreground: #1d1405;
+  --background: #0b0d14;
+  --foreground: #eef0f8;
+  --card: #141826;
+  --card-foreground: #eef0f8;
+  --popover: #1a1f30;
+  --popover-foreground: #eef0f8;
+  --primary: #c4f82a;
+  --primary-foreground: #0b0d14;
+  --brand: #c4f82a;
+  --secondary: #1b2133;
+  --secondary-foreground: #dfe3f0;
+  --muted: #1b2133;
+  --muted-foreground: var(--text-secondary);
+  --accent: #232a3d;
+  --accent-foreground: #eef0f8;
+  --destructive: #ff5c7a;
+  --destructive-foreground: #2a0912;
+  --border: #2b3349;
+  --input: #38415a;
+  --ring: #c4f82a;
+  /* One step above --card so overlays separate from the tiles they sit on. */
+  --surface-elevated: #1a2032;
+  --surface-secondary: #1b2133;
+  --surface-hover: #232a3d;
+  --border-muted: #232a3d;
+  --text-secondary: #a5adc4;
+  --text-tertiary: #767f99;
+  --positive: #00e0a0;
+  --positive-foreground: #002418;
+  --negative: #ff5c7a;
+  --negative-foreground: #2a0912;
+  --warning: #ffc247;
+  --warning-foreground: #241800;
+  --positive-soft: #042c22;
+  --positive-soft-foreground: #4fe9bd;
+  --negative-soft: #33121d;
+  --negative-soft-foreground: #ff8fa5;
+  --warning-soft: #2e2410;
+  --warning-soft-foreground: #ffcf74;
+  --neutral-soft: #232a3d;
+  --neutral-soft-foreground: #a5adc4;
 }
 
 @theme inline {
@@ -107,8 +135,38 @@
   --color-negative-foreground: var(--negative-foreground);
   --color-warning: var(--warning);
   --color-warning-foreground: var(--warning-foreground);
-  --font-sans: "Segoe UI Variable", "Segoe UI", Inter, ui-sans-serif, system-ui, sans-serif;
-  --font-mono: "Cascadia Code", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  --color-positive-soft: var(--positive-soft);
+  --color-positive-soft-foreground: var(--positive-soft-foreground);
+  --color-negative-soft: var(--negative-soft);
+  --color-negative-soft-foreground: var(--negative-soft-foreground);
+  --color-warning-soft: var(--warning-soft);
+  --color-warning-soft-foreground: var(--warning-soft-foreground);
+  --color-neutral-soft: var(--neutral-soft);
+  --color-neutral-soft-foreground: var(--neutral-soft-foreground);
+  --font-sans: var(--font-display), "Segoe UI Variable", Inter, ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-numeric), "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+
+  /* Type ramp.
+     `3xs`/`2xs` are the dense-UI steps below Tailwind's `xs` — table meta,
+     column labels, footnotes. They exist so those sizes stop being written as
+     arbitrary `text-[10px]` / `text-[11px]`, which bypassed the scale and
+     drifted apart across components. Display sizes get tighter line-height and
+     negative tracking; long-form sizes keep their default leading. */
+  --text-3xs: 0.625rem;
+  --text-3xs--line-height: 0.875rem;
+  --text-2xs: 0.6875rem;
+  --text-2xs--line-height: 1rem;
+  --text-2xl--line-height: 1.2;
+  --text-2xl--letter-spacing: -0.01em;
+  --text-3xl--line-height: 1.15;
+  --text-3xl--letter-spacing: -0.018em;
+  --text-4xl--line-height: 1.1;
+  --text-4xl--letter-spacing: -0.022em;
+  --text-5xl--line-height: 1.05;
+  --text-5xl--letter-spacing: -0.026em;
+  --text-6xl--line-height: 1;
+  --text-6xl--letter-spacing: -0.03em;
+
   --radius-sm: calc(var(--radius) - 0.25rem);
   --radius-md: calc(var(--radius) - 0.125rem);
   --radius-lg: var(--radius);

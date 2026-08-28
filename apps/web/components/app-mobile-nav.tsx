@@ -6,8 +6,9 @@ import { Dialog } from "radix-ui";
 import { useState } from "react";
 
 import { AppNavigation } from "@/components/app-navigation";
+import { homeHref } from "@/lib/app-navigation";
 
-export function AppMobileNav() {
+export function AppMobileNav({ signedIn }: { signedIn: boolean }) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -31,7 +32,7 @@ export function AppMobileNav() {
 
           <div className="flex h-13 items-center justify-between border-b border-border-muted px-4">
             <Link
-              href="/dashboard"
+              href={homeHref(signedIn)}
               onClick={() => setOpen(false)}
               className="flex items-center gap-2.5 rounded-sm font-semibold tracking-tight focus-visible:ring-2 focus-visible:ring-ring"
             >
@@ -52,7 +53,7 @@ export function AppMobileNav() {
           </div>
 
           <div className="min-h-0 flex-1 overflow-y-auto px-2 py-5">
-            <AppNavigation onNavigate={() => setOpen(false)} />
+            <AppNavigation signedIn={signedIn} onNavigate={() => setOpen(false)} />
           </div>
         </Dialog.Content>
       </Dialog.Portal>

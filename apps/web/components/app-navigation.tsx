@@ -12,7 +12,7 @@ import {
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-import { APP_NAVIGATION, getActiveNavigation } from "@/lib/app-navigation";
+import { APP_NAVIGATION, getActiveNavigation, homeHref } from "@/lib/app-navigation";
 import { cn } from "@/lib/utils";
 
 const ICONS: Record<string, LucideIcon> = {
@@ -24,15 +24,21 @@ const ICONS: Record<string, LucideIcon> = {
   Community: Users,
 };
 
-export function AppNavigation({ onNavigate }: { onNavigate?: () => void }) {
+export function AppNavigation({
+  signedIn,
+  onNavigate,
+}: {
+  signedIn: boolean;
+  onNavigate?: () => void;
+}) {
   const pathname = usePathname();
   const active = getActiveNavigation(pathname);
 
   return (
     <nav aria-label="Product" className="flex min-h-0 flex-1 flex-col">
       <div className="mb-5 px-3">
-        <span className="inline-flex items-center gap-2 text-[11px] font-medium tracking-wide text-muted-foreground">
-          <span className="size-1.5 rounded-full bg-brand" aria-hidden />
+        <span className="inline-flex items-center gap-2 text-2xs font-medium tracking-wide text-muted-foreground">
+          <span className="size-1.5 rounded-full bg-primary" aria-hidden />
           EOD data
         </span>
       </div>
@@ -41,11 +47,12 @@ export function AppNavigation({ onNavigate }: { onNavigate?: () => void }) {
         {APP_NAVIGATION.map((group) => {
           const Icon = ICONS[group.label];
           const groupActive = active.groupHref === group.href;
+          const href = group.label === "Home" ? homeHref(signedIn) : group.href;
 
           return (
             <div key={group.href} className="relative">
               <Link
-                href={group.href}
+                href={href}
                 data-active={groupActive ? "true" : undefined}
                 aria-current={groupActive && !group.items ? "page" : undefined}
                 onClick={onNavigate}
@@ -56,7 +63,7 @@ export function AppNavigation({ onNavigate }: { onNavigate?: () => void }) {
               >
                 {groupActive ? (
                   <span
-                    className="absolute inset-y-1 left-0 w-0.5 rounded-full bg-brand"
+                    className="absolute inset-y-1 left-0 w-[3px] rounded-full bg-primary"
                     aria-hidden
                   />
                 ) : null}

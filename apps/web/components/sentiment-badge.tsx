@@ -5,9 +5,9 @@ type Props = {
 };
 
 const STYLES: Record<Sentiment, string> = {
-  positive: "border-green-500/40 bg-green-500/10 text-green-600 dark:text-green-400",
-  neutral: "border-zinc-500/40 bg-zinc-500/10 text-zinc-600 dark:text-zinc-400",
-  negative: "border-red-500/40 bg-red-500/10 text-red-600 dark:text-red-400",
+  positive: "border-positive/40 bg-positive-soft text-positive-soft-foreground",
+  neutral: "border-border bg-neutral-soft text-neutral-soft-foreground",
+  negative: "border-negative/40 bg-negative-soft text-negative-soft-foreground",
 };
 
 const LABELS: Record<Sentiment, string> = {
@@ -20,7 +20,7 @@ export function SentimentBadge({ sentiment }: Props) {
   if (sentiment === null) return null;
   return (
     <span
-      className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide ${STYLES[sentiment]}`}
+      className={`inline-flex items-center rounded-full border px-2 py-0.5 text-3xs font-medium uppercase tracking-wide ${STYLES[sentiment]}`}
       aria-label={`Sentiment: ${LABELS[sentiment]}`}
     >
       {LABELS[sentiment]}

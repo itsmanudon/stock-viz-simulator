@@ -109,7 +109,7 @@ function DesktopPositionRow({
       <TableCell className="text-right font-mono" data-financial>
         {formatQuantity(position.quantity)}
         {Number(position.reserved_quantity) > 0 ? (
-          <span className="mt-0.5 block text-[11px] text-muted-foreground">
+          <span className="mt-0.5 block text-2xs text-muted-foreground">
             {formatQuantity(position.available_quantity)} available
           </span>
         ) : null}
@@ -123,7 +123,7 @@ function DesktopPositionRow({
       <TableCell className="text-right font-mono font-medium" data-financial>
         {formatCurrency(position.market_value, displayCurrency)}
         {showNative ? (
-          <span className="mt-0.5 block text-[11px] font-normal text-muted-foreground">
+          <span className="mt-0.5 block text-2xs font-normal text-muted-foreground">
             {formatCurrency(position.market_value_native, position.currency)} native
           </span>
         ) : null}
@@ -132,7 +132,7 @@ function DesktopPositionRow({
         <span className="block text-sm font-medium">
           {values.direction} {formatSignedCurrency(position.unrealized_pl, displayCurrency)}
         </span>
-        <span className="mt-0.5 block text-[11px]">{formatSignedPercent(values.returnPct)}</span>
+        <span className="mt-0.5 block text-2xs">{formatSignedPercent(values.returnPct)}</span>
       </TableCell>
       <TableCell className="text-right font-mono text-sm" data-financial>
         {weight === null ? "—" : `${weight.toFixed(2)}%`}
@@ -178,7 +178,7 @@ function MobilePositionRow({
         <p className="truncate text-xs text-muted-foreground">{position.name}</p>
       </div>
       <div className="text-right">
-        <p className="text-[11px] text-muted-foreground">Market value</p>
+        <p className="text-2xs text-muted-foreground">Market value</p>
         <p className="font-mono font-semibold" data-financial>
           {formatCurrency(position.market_value, displayCurrency)}
         </p>

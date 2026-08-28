@@ -27,7 +27,7 @@ export function SignalsTable({
           Explainable market signals for the tracked universe. Expand a row for vote evidence.
         </caption>
         <thead>
-          <tr className="border-y border-border-muted text-left text-[10px] font-semibold tracking-[0.12em] text-text-tertiary uppercase">
+          <tr className="border-y border-border-muted text-left text-3xs font-semibold tracking-[0.12em] text-text-tertiary uppercase">
             <th scope="col" className="px-3 py-2.5" aria-sort={ariaSort(sort === "ticker", dir)}>
               <a href={sortHref("ticker")} className="hover:text-foreground">
                 Ticker
@@ -108,7 +108,7 @@ function SignalBadge({ signal }: { signal: SignalRow["signal"] }) {
   return (
     <span
       className={cn(
-        "inline-flex items-center rounded-sm px-1.5 py-0.5 text-[11px] font-semibold tracking-wide uppercase",
+        "inline-flex items-center rounded-sm px-1.5 py-0.5 text-2xs font-semibold tracking-wide uppercase",
         signal === "bullish"
           ? "bg-positive/15 text-positive"
           : "bg-surface-secondary text-text-secondary",

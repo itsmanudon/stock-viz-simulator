@@ -67,6 +67,16 @@ export const RESEARCH_SUBNAV = [
   { href: "/replay", label: "Replay" },
 ] as const;
 
+/**
+ * Where the logo and the "Home" nav item point.
+ *
+ * `/dashboard` is portfolio-backed and sits behind proxy.ts, so sending a
+ * signed-out visitor there would bounce them straight to the sign-in wall.
+ */
+export function homeHref(signedIn: boolean): string {
+  return signedIn ? "/dashboard" : "/";
+}
+
 export function pathMatches(pathname: string, prefixes: readonly string[]): boolean {
   const path = pathname.split(/[?#]/, 1)[0];
   return prefixes.some((prefix) => path === prefix || path.startsWith(`${prefix}/`));

@@ -10,7 +10,7 @@ export function AppShell({
 }) {
   return (
     <div className="min-h-screen bg-background lg:grid lg:grid-cols-[14rem_minmax(0,1fr)]">
-      <AppSidebar />
+      <AppSidebar signedIn={signedIn} />
       <div className="min-w-0">
         <TopUtilityBar signedIn={signedIn} />
         <main id="main" tabIndex={-1} className="workspace-main min-w-0">

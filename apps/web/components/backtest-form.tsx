@@ -394,7 +394,7 @@ function Metric({
 }) {
   return (
     <div className="min-w-0 px-3 py-3">
-      <dt className="text-[10px] font-semibold tracking-[0.12em] text-text-tertiary uppercase">
+      <dt className="text-3xs font-semibold tracking-[0.12em] text-text-tertiary uppercase">
         {label}
       </dt>
       <dd className={cn("mt-1 font-mono text-lg tabular-nums", className)}>{value}</dd>

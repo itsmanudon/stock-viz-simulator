@@ -14,9 +14,9 @@ async function signUp(page: Page, email: string): Promise<void> {
   await page.waitForURL("/");
 }
 
-// One signup covers the operational loop. Credential signup is capped at
-// 5/IP/hour, and auth + portfolio + stock-workspace already consume four slots.
-test("operational trading loop from ticket to orders, watchlist, and alerts", async ({ page }) => {
+// One signup covers the operational loop and Replay Lab. Credential signup is
+// capped at 5/IP/hour, and auth + portfolio + stock-workspace consume the other slots.
+test("operational trading loop from ticket to orders, watchlist, alerts, and replay", async ({ page }) => {
   const email = `e2e+ops+${Date.now()}@example.com`;
   await signUp(page, email);
 
@@ -93,7 +93,7 @@ test("operational trading loop from ticket to orders, watchlist, and alerts", as
   await page.getByRole("button", { name: "Start replay" }).click();
   await expect(page).toHaveURL(/\/replay\/\d+/, { timeout: 15_000 });
   await expect(page.getByRole("heading", { name: "AAPL", exact: true })).toBeVisible();
-  await expect(page.getByText(/stored daily bars 2020-01-04 → 2020-01-19/)).toBeVisible();
+  await expect(page.getByText(/stored sessions 2020-01-04 → 2020-01-19/)).toBeVisible();
   await expect(page.getByText(/Saturday, January 4, 2020/)).toBeVisible();
   await expect(page.getByRole("region", { name: /replay price chart/i })).toBeVisible();
   await expect(

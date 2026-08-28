@@ -53,7 +53,7 @@ export function LoginForm() {
     callbackUrl === "/" ? "/signup" : `/signup?callbackUrl=${encodeURIComponent(callbackUrl)}`;
 
   return (
-    <Card className="w-full max-w-md">
+    <Card className="w-full">
       <CardHeader>
         <CardTitle>Sign in</CardTitle>
         <CardDescription>Welcome back. Enter your credentials to continue.</CardDescription>
@@ -76,7 +76,7 @@ export function LoginForm() {
             />
           </div>
           {state.error ? (
-            <p className="text-sm text-red-500" role="alert">
+            <p className="text-sm text-negative" role="alert">
               {state.error}
             </p>
           ) : null}
@@ -90,7 +90,7 @@ export function LoginForm() {
               <span className="w-full border-t" />
             </div>
             <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-card px-2 text-muted-foreground">or</span>
+              <span className="bg-card px-2 text-text-tertiary">or</span>
             </div>
           </div>
           <Button
@@ -102,7 +102,7 @@ export function LoginForm() {
             <GoogleIcon />
             Continue with Google
           </Button>
-          <p className="text-center text-sm text-muted-foreground">
+          <p className="text-center text-sm text-text-secondary">
             No account?{" "}
             <Link href={signupHref} className="text-foreground underline">
               Sign up

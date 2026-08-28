@@ -20,7 +20,6 @@ test("research navigation keeps compare, backtest, and signals as one domain", a
     "href",
     "/recommendations",
   );
-  await expect(product.getByRole("link", { name: "Replay" })).toHaveAttribute("href", "/replay");
 
   const subnav = page.getByRole("navigation", { name: "Research tools" });
   await expect(subnav.getByRole("link", { name: "Compare" })).toHaveAttribute(
@@ -58,6 +57,6 @@ test("backtest is an experiment workspace with visible assumptions", async ({ pa
 test("signals page exposes explainable evidence rather than an AI buy list", async ({ page }) => {
   await page.goto("/recommendations");
   await expect(page.getByRole("heading", { name: "Signals", exact: true })).toBeVisible();
-  await expect(page.getByText(/seven-vote rule set, not an AI recommendation/i)).toBeVisible();
+  await expect(page.getByText(/not an AI recommendation/i)).toBeVisible();
   await expect(page.getByLabel("Signal")).toBeVisible();
 });

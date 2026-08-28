@@ -146,7 +146,7 @@ export default async function AlertsPage({
           <table className="w-full min-w-[40rem] text-sm">
             <caption className="sr-only">Price alerts</caption>
             <thead>
-              <tr className="border-b border-border-muted text-left text-[10px] font-semibold tracking-[0.12em] text-text-tertiary uppercase">
+              <tr className="border-b border-border-muted text-left text-3xs font-semibold tracking-[0.12em] text-text-tertiary uppercase">
                 <th scope="col" className="px-3 py-2.5">
                   Symbol
                 </th>

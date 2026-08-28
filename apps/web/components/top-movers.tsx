@@ -92,10 +92,10 @@ export async function TopMovers() {
                   <span
                     className={`font-mono text-xs ${
                       row.changePct === null
-                        ? "text-muted-foreground"
+                        ? "text-text-tertiary"
                         : up
-                          ? "text-green-500"
-                          : "text-red-500"
+                          ? "text-positive"
+                          : "text-negative"
                     }`}
                   >
                     {fmtPct(row.changePct)}

@@ -9,8 +9,9 @@
  */
 
 import { AreaSeries, type IChartApi, type UTCTimestamp, createChart } from "lightweight-charts";
-import { useTheme } from "next-themes";
 import { useEffect, useMemo, useRef } from "react";
+
+import { useChartPalette } from "@/lib/chart-theme";
 
 type Point = { date: string; nav: string };
 
@@ -27,7 +28,7 @@ export function EquityCurve({
   accessibleLabel?: string;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const { resolvedTheme } = useTheme();
+  const palette = useChartPalette();
 
   const data = useMemo(
     () => points.map((p) => ({ time: toUtcSeconds(p.date), value: Number(p.nav) })),
@@ -38,42 +39,27 @@ export function EquityCurve({
   useEffect(() => {
     if (!containerRef.current) return;
 
-    const isDark = resolvedTheme !== "light";
-    const lineColor = isPositive
-      ? isDark
-        ? "#2ba477"
-        : "#187c59"
-      : isDark
-        ? "#d75d63"
-        : "#b83f48";
-    const gridColor = isDark ? "rgba(133, 142, 158, 0.12)" : "rgba(84, 94, 110, 0.12)";
-    const axisColor = isDark ? "rgba(133, 142, 158, 0.3)" : "rgba(84, 94, 110, 0.25)";
-    const textColor = isDark ? "#9299a7" : "#657083";
+    const lineColor = isPositive ? palette.positive : palette.negative;
+    const fillColor = isPositive ? palette.positiveFill : palette.negativeFill;
 
     const chart: IChartApi = createChart(containerRef.current, {
       autoSize: true,
       layout: {
         background: { color: "transparent" },
-        textColor,
+        textColor: palette.text,
       },
       grid: {
-        vertLines: { color: gridColor },
-        horzLines: { color: gridColor },
+        vertLines: { color: palette.grid },
+        horzLines: { color: palette.grid },
       },
-      timeScale: { borderColor: axisColor, timeVisible: false },
-      rightPriceScale: { borderColor: axisColor },
+      timeScale: { borderColor: palette.axis, timeVisible: false },
+      rightPriceScale: { borderColor: palette.axis },
       crosshair: { mode: 1 },
     });
 
     const series = chart.addSeries(AreaSeries, {
       lineColor,
-      topColor: isPositive
-        ? isDark
-          ? "rgba(43, 164, 119, 0.28)"
-          : "rgba(24, 124, 89, 0.2)"
-        : isDark
-          ? "rgba(215, 93, 99, 0.24)"
-          : "rgba(184, 63, 72, 0.18)",
+      topColor: fillColor,
       bottomColor: "rgba(0, 0, 0, 0)",
       lineWidth: 2,
       priceLineVisible: false,
@@ -84,7 +70,7 @@ export function EquityCurve({
     return () => {
       chart.remove();
     };
-  }, [data, isPositive, resolvedTheme]);
+  }, [data, isPositive, palette]);
 
   return (
     <div role="img" aria-label={accessibleLabel} className="w-full">
