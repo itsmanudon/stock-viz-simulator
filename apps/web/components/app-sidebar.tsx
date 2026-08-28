@@ -21,7 +21,7 @@ export function AppSidebar({ signedIn }: { signedIn: boolean }) {
       <div className="min-h-0 flex-1 overflow-y-auto px-2 py-5">
         <AppNavigation signedIn={signedIn} />
       </div>
-      <div className="border-t border-border-muted px-4 py-3 text-[11px] leading-relaxed text-text-tertiary">
+      <div className="border-t border-border-muted px-4 py-3 text-2xs leading-relaxed text-text-tertiary">
         Research and simulation workspace
       </div>
     </aside>

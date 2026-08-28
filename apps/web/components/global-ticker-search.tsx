@@ -143,7 +143,7 @@ export function GlobalTickerSearch({
         autoComplete="off"
         className="h-9 w-full rounded-md border border-input bg-surface-elevated py-1 pl-9 pr-16 text-sm text-foreground outline-none placeholder:text-text-tertiary focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30"
       />
-      <kbd className="pointer-events-none absolute right-2.5 top-1/2 hidden -translate-y-1/2 items-center rounded border bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground sm:inline-flex">
+      <kbd className="pointer-events-none absolute right-2.5 top-1/2 hidden -translate-y-1/2 items-center rounded border bg-muted px-1.5 py-0.5 font-mono text-3xs text-muted-foreground sm:inline-flex">
         Ctrl K
       </kbd>
 

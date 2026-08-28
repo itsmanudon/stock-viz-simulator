@@ -39,7 +39,7 @@ export function PositionSummary({
     <section aria-labelledby="position-summary-title" className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-text-tertiary">
+          <p className="text-2xs font-semibold uppercase tracking-[0.14em] text-text-tertiary">
             Portfolio relationship
           </p>
           <h3 id="position-summary-title" className="mt-1 text-base font-semibold">
@@ -72,7 +72,7 @@ export function PositionSummary({
 function Metric({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <dt className="text-[10px] font-semibold uppercase tracking-[0.12em] text-text-tertiary">
+      <dt className="text-3xs font-semibold uppercase tracking-[0.12em] text-text-tertiary">
         {label}
       </dt>
       <dd className="mt-1 font-mono text-sm font-medium tabular-nums">{value}</dd>

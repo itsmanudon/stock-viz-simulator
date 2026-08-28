@@ -305,7 +305,7 @@ export function ContextualTradeTicket({
                         ? `Use ${shortcut.label} of buying power`
                         : `Use ${shortcut.label} of available shares`
                   }
-                  className="h-7 rounded-sm border border-border-muted font-mono text-[11px] text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground disabled:hidden"
+                  className="h-7 rounded-sm border border-border-muted font-mono text-2xs text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground disabled:hidden"
                 >
                   {shortcut.label}
                 </button>
@@ -363,7 +363,7 @@ export function ContextualTradeTicket({
               {notional === null ? "—" : formatMoney(notional, currency)}
             </dd>
           </div>
-          <p className="text-right text-[11px] leading-4 text-text-tertiary">
+          <p className="text-right text-2xs leading-4 text-text-tertiary">
             {orderMode === "market"
               ? "Estimated at the latest cached close"
               : orderMode === "limit"
@@ -427,9 +427,7 @@ function TicketHeading({ id, ticker }: { id: string; ticker: string }) {
   return (
     <div className="flex items-start justify-between gap-4">
       <div>
-        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-brand">
-          Simulation
-        </p>
+        <p className="text-2xs font-semibold uppercase tracking-[0.16em] text-brand">Simulation</p>
         <h2 id={id} className="mt-1 text-base font-semibold tracking-tight">
           Paper trade
         </h2>

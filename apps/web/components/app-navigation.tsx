@@ -37,7 +37,7 @@ export function AppNavigation({
   return (
     <nav aria-label="Product" className="flex min-h-0 flex-1 flex-col">
       <div className="mb-5 px-3">
-        <span className="inline-flex items-center gap-2 text-[11px] font-medium tracking-wide text-muted-foreground">
+        <span className="inline-flex items-center gap-2 text-2xs font-medium tracking-wide text-muted-foreground">
           <span className="size-1.5 rounded-full bg-brand" aria-hidden />
           EOD data
         </span>

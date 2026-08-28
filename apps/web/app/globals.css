@@ -69,7 +69,9 @@
   --border: #2b303a;
   --input: #343a45;
   --ring: #d3a83f;
-  --surface-elevated: #13161c;
+  /* One step lighter than --card: overlays (sidebar, popovers, sheets) must
+     separate from the cards they sit on, not just from the page. */
+  --surface-elevated: #1b1f27;
   --surface-secondary: #1a1e26;
   --surface-hover: #20252e;
   --border-muted: #20252d;
@@ -134,6 +136,28 @@
   --color-neutral-soft-foreground: var(--neutral-soft-foreground);
   --font-sans: "Segoe UI Variable", "Segoe UI", Inter, ui-sans-serif, system-ui, sans-serif;
   --font-mono: "Cascadia Code", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+
+  /* Type ramp.
+     `3xs`/`2xs` are the dense-UI steps below Tailwind's `xs` — table meta,
+     column labels, footnotes. They exist so those sizes stop being written as
+     arbitrary `text-[10px]` / `text-[11px]`, which bypassed the scale and
+     drifted apart across components. Display sizes get tighter line-height and
+     negative tracking; long-form sizes keep their default leading. */
+  --text-3xs: 0.625rem;
+  --text-3xs--line-height: 0.875rem;
+  --text-2xs: 0.6875rem;
+  --text-2xs--line-height: 1rem;
+  --text-2xl--line-height: 1.2;
+  --text-2xl--letter-spacing: -0.01em;
+  --text-3xl--line-height: 1.15;
+  --text-3xl--letter-spacing: -0.018em;
+  --text-4xl--line-height: 1.1;
+  --text-4xl--letter-spacing: -0.022em;
+  --text-5xl--line-height: 1.05;
+  --text-5xl--letter-spacing: -0.026em;
+  --text-6xl--line-height: 1;
+  --text-6xl--letter-spacing: -0.03em;
+
   --radius-sm: calc(var(--radius) - 0.25rem);
   --radius-md: calc(var(--radius) - 0.125rem);
   --radius-lg: var(--radius);

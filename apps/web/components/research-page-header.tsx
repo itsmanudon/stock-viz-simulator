@@ -15,7 +15,7 @@ export function ResearchPageHeader({
   return (
     <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
       <div className="min-w-0 max-w-3xl">
-        <p className="text-[11px] font-semibold tracking-[0.14em] text-brand uppercase">Research</p>
+        <p className="text-2xs font-semibold tracking-[0.14em] text-brand uppercase">Research</p>
         <h1 className="mt-2 text-3xl font-semibold tracking-tight">{title}</h1>
         <p className="mt-2 max-w-2xl text-sm leading-6 text-text-secondary">{description}</p>
         {meta ? <div className="mt-2 text-xs text-text-tertiary">{meta}</div> : null}

@@ -134,7 +134,7 @@ export function PortfolioOrders({ orders }: { orders: PendingOrder[] | null }) {
 function SideLabel({ side }: { side: PendingOrder["side"] }) {
   return (
     <span
-      className={`inline-flex rounded-sm px-1.5 py-0.5 text-[11px] font-semibold ${
+      className={`inline-flex rounded-sm px-1.5 py-0.5 text-2xs font-semibold ${
         side === "buy" ? "bg-positive/10 text-positive" : "bg-negative/10 text-negative"
       }`}
     >

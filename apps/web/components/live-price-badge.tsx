@@ -61,7 +61,7 @@ export function LivePriceBadge({ ticker, initialPrice, currency }: Props) {
 
   return (
     <div
-      className="inline-flex items-center gap-1.5 text-[11px] text-text-tertiary"
+      className="inline-flex items-center gap-1.5 text-2xs text-text-tertiary"
       title="Indicative price simulated from the latest cached close"
     >
       <span>Indicative</span>

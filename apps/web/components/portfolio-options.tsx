@@ -86,7 +86,7 @@ export function PortfolioOptions({
                   <TableCell className="text-right font-mono" data-financial>
                     {formatCurrency(position.market_value, displayCurrency)}
                     {position.currency !== displayCurrency ? (
-                      <span className="mt-0.5 block text-[11px] text-muted-foreground">
+                      <span className="mt-0.5 block text-2xs text-muted-foreground">
                         {formatCurrency(position.market_value_native, position.currency)} native
                       </span>
                     ) : null}

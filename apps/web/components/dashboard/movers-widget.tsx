@@ -48,7 +48,7 @@ function MoverRow({ mover, currency }: { mover: TopMover; currency: string }) {
         </span>
         <span className="flex shrink-0 flex-col items-end gap-1">
           <DeltaPill value={formatSignedPercent(mover.return_pct)} />
-          <span className="font-mono text-[11px] text-text-secondary" data-financial>
+          <span className="font-mono text-2xs text-text-secondary" data-financial>
             {formatSignedCurrency(mover.unrealized_pl, currency)}
           </span>
         </span>

@@ -96,7 +96,7 @@ export function PortfolioIncome({
                         : `${formatBareAmount(projection.projected_amount)} · Currency unavailable`}
                     </p>
                     {currency ? (
-                      <p className="mt-0.5 text-[11px] text-muted-foreground">Native projection</p>
+                      <p className="mt-0.5 text-2xs text-muted-foreground">Native projection</p>
                     ) : null}
                   </div>
                 </li>

@@ -20,7 +20,7 @@ export function SentimentBadge({ sentiment }: Props) {
   if (sentiment === null) return null;
   return (
     <span
-      className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide ${STYLES[sentiment]}`}
+      className={`inline-flex items-center rounded-full border px-2 py-0.5 text-3xs font-medium uppercase tracking-wide ${STYLES[sentiment]}`}
       aria-label={`Sentiment: ${LABELS[sentiment]}`}
     >
       {LABELS[sentiment]}

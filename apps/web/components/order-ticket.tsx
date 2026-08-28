@@ -270,7 +270,7 @@ export function OrderTicket({
         ) : null}
 
         <p className="text-sm">
-          <span className="block text-[10px] font-semibold tracking-[0.12em] text-text-tertiary uppercase">
+          <span className="block text-3xs font-semibold tracking-[0.12em] text-text-tertiary uppercase">
             {estimateLabel}
           </span>
           <span className="mt-1 block font-mono text-lg tabular-nums">

@@ -58,7 +58,7 @@ export function StockMetricsStrip({
               index >= 4 ? "sm:border-t xl:border-t-0" : ""
             }`}
           >
-            <dt className="truncate text-[10px] font-semibold uppercase tracking-[0.12em] text-text-tertiary">
+            <dt className="truncate text-3xs font-semibold uppercase tracking-[0.12em] text-text-tertiary">
               {label}
             </dt>
             <dd

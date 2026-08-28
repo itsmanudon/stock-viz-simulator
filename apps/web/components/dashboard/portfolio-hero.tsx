@@ -93,7 +93,7 @@ export function PortfolioHero({
               key={entry.label}
               className="min-w-0 border-l border-border-muted px-4 py-3 first:border-l-0 sm:px-5"
             >
-              <dt className="text-[11px] font-medium text-text-tertiary">{entry.label}</dt>
+              <dt className="text-2xs font-medium text-text-tertiary">{entry.label}</dt>
               <dd className="mt-0.5 truncate font-mono text-sm font-semibold" data-financial>
                 {formatCurrency(entry.value, currency)}
               </dd>

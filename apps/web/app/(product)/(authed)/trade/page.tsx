@@ -140,7 +140,7 @@ export default async function TradePage({
               </div>
               <dl className="grid grid-cols-2 gap-px bg-border-muted">
                 <div className="bg-background px-4 py-3">
-                  <dt className="text-[10px] font-semibold tracking-[0.12em] text-text-tertiary uppercase">
+                  <dt className="text-3xs font-semibold tracking-[0.12em] text-text-tertiary uppercase">
                     Buying power
                   </dt>
                   <dd className="mt-1 font-mono text-lg tabular-nums">
@@ -148,7 +148,7 @@ export default async function TradePage({
                   </dd>
                 </div>
                 <div className="bg-background px-4 py-3">
-                  <dt className="text-[10px] font-semibold tracking-[0.12em] text-text-tertiary uppercase">
+                  <dt className="text-3xs font-semibold tracking-[0.12em] text-text-tertiary uppercase">
                     Cash
                   </dt>
                   <dd className="mt-1 font-mono text-lg tabular-nums">
@@ -156,7 +156,7 @@ export default async function TradePage({
                   </dd>
                 </div>
                 <div className="bg-background px-4 py-3">
-                  <dt className="text-[10px] font-semibold tracking-[0.12em] text-text-tertiary uppercase">
+                  <dt className="text-3xs font-semibold tracking-[0.12em] text-text-tertiary uppercase">
                     Reserved
                   </dt>
                   <dd className="mt-1 font-mono text-lg tabular-nums">
@@ -164,7 +164,7 @@ export default async function TradePage({
                   </dd>
                 </div>
                 <div className="bg-background px-4 py-3">
-                  <dt className="text-[10px] font-semibold tracking-[0.12em] text-text-tertiary uppercase">
+                  <dt className="text-3xs font-semibold tracking-[0.12em] text-text-tertiary uppercase">
                     Total value
                   </dt>
                   <dd className="mt-1 font-mono text-lg tabular-nums">
@@ -234,7 +234,7 @@ export default async function TradePage({
             <table className="w-full min-w-[36rem] text-sm">
               <caption className="sr-only">Recent paper fills</caption>
               <thead>
-                <tr className="border-b border-border-muted text-left text-[10px] font-semibold tracking-[0.12em] text-text-tertiary uppercase">
+                <tr className="border-b border-border-muted text-left text-3xs font-semibold tracking-[0.12em] text-text-tertiary uppercase">
                   <th scope="col" className="px-3 py-2.5">
                     When
                   </th>

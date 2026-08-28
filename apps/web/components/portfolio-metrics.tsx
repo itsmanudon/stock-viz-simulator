@@ -73,7 +73,7 @@ export function PortfolioMetrics({ portfolio, analytics }: Props) {
             key={metric.label}
             className="min-w-0 border-b border-border-muted px-3 py-4 even:border-l sm:px-4 lg:border-b-0 lg:border-l lg:first:border-l-0"
           >
-            <dt className="text-[11px] font-medium text-muted-foreground">{metric.label}</dt>
+            <dt className="text-2xs font-medium text-muted-foreground">{metric.label}</dt>
             <dd
               className={`mt-1 font-mono text-base font-semibold ${
                 metric.tone === "positive"
@@ -87,13 +87,13 @@ export function PortfolioMetrics({ portfolio, analytics }: Props) {
               {metric.value}
             </dd>
             {metric.detail ? (
-              <dd className="mt-0.5 text-[11px] text-muted-foreground">{metric.detail}</dd>
+              <dd className="mt-0.5 text-2xs text-muted-foreground">{metric.detail}</dd>
             ) : null}
           </div>
         ))}
       </dl>
       {hasInvestments && analytics?.history_days ? (
-        <p className="border-t border-border-muted px-4 py-2 text-[11px] text-muted-foreground">
+        <p className="border-t border-border-muted px-4 py-2 text-2xs text-muted-foreground">
           All-history risk metrics · Based on {analytics.history_days} daily snapshots
         </p>
       ) : null}

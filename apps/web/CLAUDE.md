@@ -152,9 +152,20 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   in `app/globals.css` via CSS variables. `--*-soft` / `--*-soft-foreground`
   pairs (positive/negative/warning/neutral) are the tinted fills behind delta
   and status pills — use `DeltaPill` rather than re-rolling the chip.
+  `--surface-elevated` is one step *above* `--card` (overlays: sidebar,
+  popovers, sheets); `--card` is for content tiles sitting on the page.
+- The type ramp adds `text-3xs` (10px) and `text-2xs` (11px) below Tailwind's
+  `text-xs` for dense table meta and column labels. Use them instead of
+  arbitrary `text-[10px]` / `text-[11px]`, which bypass the scale.
 - Charts use `lightweight-charts` v5. The wrapper lives in
   `components/price-chart.tsx`; reuse it rather than instantiating a chart inline.
   Compare and backtest charts live in `compare-chart.tsx` and `equity-curve.tsx`.
+  Canvas can't read CSS vars, so all three take their colours from
+  `useChartPalette()` (`lib/chart-theme.ts`), which reads the tokens off the
+  document and re-reads on theme change — never hard-code chart colours. The
+  hook keeps its object identity stable while colours are unchanged because
+  callers pass it to `useEffect`, and a new identity forces a full chart
+  rebuild.
 - Server components by default — only mark `"use client"` when you need state,
   effects, or interactivity.
 - Research (`/compare`, `/backtest`, `/recommendations`) is one domain with
@@ -166,3 +177,13 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   [`docs/OPERATIONAL_TRADING.md`](../../docs/OPERATIONAL_TRADING.md).
   `/trade?ticker=` prefills the ticket. `/orders?status=` is URL-backed.
   Do not describe EOD fills or alert evaluation as live exchange execution.
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+# This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->

@@ -1,11 +1,15 @@
 /**
  * Tiny SVG sparkline rendered server-side from a series of closes.
  *
- * Just a polyline, no axes / tooltips / interactivity. Stroke flips green
- * when the last close is above the first, red otherwise. ``null`` data
- * yields an empty placeholder so layout stays stable when the API has no
- * bars to return yet.
+ * Just a polyline, no axes / tooltips / interactivity. Stroke flips to the
+ * positive token when the last close is above the first, negative otherwise —
+ * server-rendered, so it reads the tokens through a Tailwind text colour
+ * rather than the runtime palette the canvas charts use. Fewer than two
+ * closes yields an empty placeholder so layout stays stable when the API has
+ * no bars to return yet.
  */
+
+import { cn } from "@/lib/utils";
 
 type Props = {
   closes: number[];
@@ -51,7 +55,7 @@ export function Sparkline({ closes, width = 100, height = 28, className }: Props
       viewBox={`0 0 ${width} ${height}`}
       width={width}
       height={height}
-      className={className}
+      className={cn(up ? "text-positive" : "text-negative", className)}
       role="img"
       aria-label={`30-day price sparkline, ${up ? "up" : "down"}`}
     >
@@ -59,7 +63,7 @@ export function Sparkline({ closes, width = 100, height = 28, className }: Props
       <polyline
         points={points}
         fill="none"
-        stroke={up ? "rgb(34 197 94)" : "rgb(239 68 68)"}
+        stroke="currentColor"
         strokeWidth="1.5"
         strokeLinejoin="round"
         strokeLinecap="round"

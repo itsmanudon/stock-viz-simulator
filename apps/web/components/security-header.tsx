@@ -53,7 +53,7 @@ export function SecurityHeader({
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             {hasPosition ? (
-              <span className="inline-flex items-center gap-1 rounded-sm bg-surface-secondary px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-text-secondary">
+              <span className="inline-flex items-center gap-1 rounded-sm bg-surface-secondary px-2 py-1 text-3xs font-semibold uppercase tracking-[0.1em] text-text-secondary">
                 <BriefcaseBusiness className="size-3" aria-hidden />
                 Held
               </span>
@@ -77,7 +77,7 @@ export function SecurityHeader({
 
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
           <div className="sm:text-right">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-text-tertiary">
+            <p className="text-3xs font-semibold uppercase tracking-[0.14em] text-text-tertiary">
               Latest close{quoteDate ? ` · ${quoteDate}` : ""}
             </p>
             <div className="mt-1 flex flex-wrap items-baseline gap-x-3 sm:justify-end">

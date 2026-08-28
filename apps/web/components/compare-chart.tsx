@@ -8,10 +8,10 @@
  */
 
 import { type IChartApi, LineSeries, type UTCTimestamp, createChart } from "lightweight-charts";
-import { useTheme } from "next-themes";
 import { useEffect, useId, useRef } from "react";
 
 import type { Bar } from "@/lib/api";
+import { useChartPalette } from "@/lib/chart-theme";
 import { seriesColor } from "@/lib/compare-workspace";
 
 type Series = { ticker: string; bars: Bar[]; color?: string };
@@ -28,7 +28,7 @@ export function CompareChart({
   accessibleLabel?: string;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const { resolvedTheme } = useTheme();
+  const palette = useChartPalette();
   const summaryId = useId();
 
   const summaries = series.map((item) => {
@@ -41,23 +41,19 @@ export function CompareChart({
 
   useEffect(() => {
     if (!containerRef.current) return;
-    const isDark = resolvedTheme !== "light";
-    const gridColor = isDark ? "rgba(133, 142, 158, 0.12)" : "rgba(84, 94, 110, 0.12)";
-    const axisColor = isDark ? "rgba(133, 142, 158, 0.3)" : "rgba(84, 94, 110, 0.25)";
-    const textColor = isDark ? "#9299a7" : "#657083";
 
     const chart: IChartApi = createChart(containerRef.current, {
       autoSize: true,
       layout: {
         background: { color: "transparent" },
-        textColor,
+        textColor: palette.text,
       },
       grid: {
-        vertLines: { color: gridColor },
-        horzLines: { color: gridColor },
+        vertLines: { color: palette.grid },
+        horzLines: { color: palette.grid },
       },
-      timeScale: { borderColor: axisColor },
-      rightPriceScale: { borderColor: axisColor },
+      timeScale: { borderColor: palette.axis },
+      rightPriceScale: { borderColor: palette.axis },
       crosshair: { mode: 1 },
       handleScale: true,
     });
@@ -82,7 +78,7 @@ export function CompareChart({
 
     chart.timeScale().fitContent();
     return () => chart.remove();
-  }, [resolvedTheme, series]);
+  }, [palette, series]);
 
   return (
     <div>
