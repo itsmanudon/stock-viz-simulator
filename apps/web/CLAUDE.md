@@ -147,6 +147,10 @@ pnpm e2e
 committed dev defaults already do). CI runs the same sequence — see the `e2e`
 job in `.github/workflows/ci.yml`. Runs single-worker, chromium only.
 
+`pnpm start` (`next start`) warns under `output: standalone` and can duplicate
+the page tree. Scope product assertions to `#main` rather than matching the
+whole document.
+
 ## Sentry
 
 `instrumentation.ts` → `sentry.server.config.ts` (Node) or `sentry.edge.config.ts`

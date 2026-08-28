@@ -46,20 +46,23 @@ test("compare query params drive the workspace", async ({ page }) => {
 
 test("backtest is an experiment workspace with visible assumptions", async ({ page }) => {
   await page.goto("/backtest?ticker=AAPL");
-  await expect(page.getByRole("heading", { name: "Backtest", exact: true })).toBeVisible();
-  await expect(page.getByLabel("Symbol")).toHaveValue("AAPL");
-  await expect(page.getByRole("heading", { name: "No experiment yet" })).toBeVisible();
-  await expect(page.getByLabel("Commission (bps)")).toBeVisible();
+  const main = page.locator("#main");
+  await expect(main.getByRole("heading", { name: "Backtest", exact: true })).toBeVisible();
+  await expect(main.getByLabel("Symbol")).toHaveValue("AAPL");
+  await expect(main.getByRole("heading", { name: "No experiment yet" })).toBeVisible();
+  await expect(main.getByLabel("Commission (bps)")).toBeVisible();
   await expect(
-    page.getByRole("region", { name: "Strategy setup" }).getByText(/look-ahead bias/i),
+    main.getByRole("region", { name: "Strategy setup" }).getByText(/look-ahead bias/i),
   ).toBeVisible();
 });
 
 test("signals page exposes explainable evidence rather than an AI buy list", async ({ page }) => {
   await page.goto("/recommendations");
-  await expect(page.getByRole("heading", { name: "Signals", exact: true })).toBeVisible();
-  await expect(page.getByText(/not an AI recommendation/i)).toBeVisible();
-  await expect(page.getByLabel("Signal")).toBeVisible();
+  const main = page.locator("#main");
+  await expect(main.getByRole("heading", { name: "Signals", exact: true })).toBeVisible();
+  await expect(main.getByText(/not an AI recommendation/i)).toBeVisible();
+  await expect(main.locator('select[name="signal"]')).toBeVisible();
+  await expect(main.getByRole("region", { name: "Signals list" })).toBeVisible();
 });
 
 test("signals selection opens a shareable master-detail evidence workspace", async ({ page }) => {

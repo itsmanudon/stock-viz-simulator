@@ -21,57 +21,58 @@ test("operational trading loop from ticket to orders, watchlist, alerts, and rep
 }) => {
   const email = `e2e+ops+${Date.now()}@example.com`;
   await signUp(page, email);
+  const main = page.locator("#main");
 
   await page.goto("/trade?ticker=AAPL");
-  await expect(page.getByRole("heading", { name: "Trade", exact: true })).toBeVisible();
-  await expect(page.getByLabel("Symbol")).toHaveValue("AAPL");
+  await expect(main.getByRole("heading", { name: "Trade", exact: true })).toBeVisible();
+  await expect(main.getByLabel("Symbol")).toHaveValue("AAPL");
   await expect(
-    page
+    main
       .getByRole("region", { name: "Order ticket" })
       .getByText(/Submits immediately at the latest stored daily close/i),
   ).toBeVisible();
   await expect(
-    page.getByRole("region", { name: "Account context" }).getByText("Buying power"),
+    main.getByRole("region", { name: "Account context" }).getByText("Buying power"),
   ).toBeVisible();
 
-  await page.getByLabel("Quantity").fill("1");
-  await page.getByRole("button", { name: /Submit market buy/i }).click();
-  await expect(page.getByRole("region", { name: "Order ticket" }).locator("output")).toContainText(
+  await main.getByLabel("Quantity").fill("1");
+  await main.getByRole("button", { name: /Submit market buy/i }).click();
+  await expect(main.getByRole("region", { name: "Order ticket" }).locator("output")).toContainText(
     "Filled BUY",
     { timeout: 10_000 },
   );
-  await expect(page.getByRole("table", { name: "Recent paper fills" })).toContainText("AAPL");
+  await expect(main.getByRole("table", { name: "Recent paper fills" })).toContainText("AAPL");
 
   await page.goto("/trades");
-  await expect(page.getByRole("heading", { name: "Trade history" })).toBeVisible();
-  await expect(page.locator("tbody tr").first()).toContainText("BUY");
+  await expect(main.getByRole("heading", { name: "Trade history" })).toBeVisible();
+  await expect(main.locator("tbody tr").first()).toContainText("BUY");
 
   await page.goto("/orders");
-  await expect(page.getByRole("heading", { name: "Orders", exact: true })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "No pending orders" })).toBeVisible();
+  await expect(main.getByRole("heading", { name: "Orders", exact: true })).toBeVisible();
+  await expect(main.getByRole("heading", { name: "No pending orders" })).toBeVisible();
   await expect(
-    page.getByRole("navigation", { name: "Order status" }).getByRole("link", { name: "Filled" }),
+    main.getByRole("navigation", { name: "Order status" }).getByRole("link", { name: "Filled" }),
   ).toHaveAttribute("href", "/orders?status=filled");
 
   await page.goto("/watchlist");
-  await expect(page.getByRole("heading", { name: "Watchlist", exact: true })).toBeVisible();
-  await page.getByLabel("Add symbol").selectOption("AAPL");
-  await page.getByRole("button", { name: "Add to watchlist" }).click();
-  await expect(page.getByRole("link", { name: "AAPL" }).first()).toHaveAttribute(
+  await expect(main.getByRole("heading", { name: "Watchlist", exact: true })).toBeVisible();
+  await main.getByLabel("Add symbol").selectOption("AAPL");
+  await main.getByRole("button", { name: "Add to watchlist" }).click();
+  await expect(main.getByRole("link", { name: "AAPL" }).first()).toHaveAttribute(
     "href",
     "/stocks/AAPL",
   );
 
   await page.goto("/alerts?ticker=AAPL");
-  await expect(page.getByRole("heading", { name: "Alerts", exact: true })).toBeVisible();
-  await expect(page.locator("#main header")).toContainText(
+  await expect(main.getByRole("heading", { name: "Alerts", exact: true })).toBeVisible();
+  await expect(main.locator("header")).toContainText(
     /This is not email, push, or real-time exchange monitoring/i,
   );
 
-  const create = page.getByRole("region", { name: "Create alert" });
+  const create = main.getByRole("region", { name: "Create alert" });
   await create.getByLabel("Target price").fill("1");
   await create.getByRole("button", { name: "Create alert" }).click();
-  await expect(page.getByRole("table", { name: "Price alerts" })).toContainText("AAPL", {
+  await expect(main.getByRole("table", { name: "Price alerts" })).toContainText("AAPL", {
     timeout: 10_000,
   });
   await expect(create.getByText("Alert set.")).toBeVisible();
@@ -85,7 +86,6 @@ test("operational trading loop from ticket to orders, watchlist, alerts, and rep
     if (url.includes("/v1/news")) leaked.push(url);
   });
 
-  const main = page.locator("#main");
   await page.goto("/replay");
   await expect(main.getByRole("heading", { name: "Replay", exact: true })).toBeVisible();
   await expect(main.getByText("legacy_close v1", { exact: true })).toBeVisible();
