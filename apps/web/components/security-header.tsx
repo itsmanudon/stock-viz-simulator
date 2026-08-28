@@ -2,6 +2,7 @@ import { Bell, BriefcaseBusiness, Star } from "lucide-react";
 import Link from "next/link";
 
 import { AlertForm } from "@/components/alert-form";
+import { DeltaPill } from "@/components/dashboard/delta-pill";
 import { LivePriceBadge } from "@/components/live-price-badge";
 import { WatchlistToggle } from "@/components/watchlist-toggle";
 import type { SymbolDetail } from "@/lib/api";
@@ -66,12 +67,18 @@ export function SecurityHeader({
             </span>
             <span className="min-w-0 truncate">{symbol.name}</span>
           </h1>
-          <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-            <span>{symbol.exchange ?? "Exchange unavailable"}</span>
-            <span aria-hidden>·</span>
-            <span>{symbol.sector ?? "Sector unavailable"}</span>
-            <span aria-hidden>·</span>
-            <span>{symbol.currency}</span>
+          {/* Only list the facts we actually have — an unknown sector and
+              exchange previously rendered as "Exchange unavailable · Sector
+              unavailable · USD", which is three-quarters apology. */}
+          <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-text-secondary">
+            {[symbol.exchange, symbol.sector, symbol.currency]
+              .filter((fact): fact is string => Boolean(fact))
+              .map((fact, index) => (
+                <span key={fact} className="flex items-center gap-x-2">
+                  {index > 0 ? <span aria-hidden>·</span> : null}
+                  {fact}
+                </span>
+              ))}
           </p>
         </div>
 
@@ -84,19 +91,14 @@ export function SecurityHeader({
               <span className="font-mono text-3xl font-semibold tracking-[-0.04em] tabular-nums sm:text-4xl">
                 {money(latestClose, symbol.currency)}
               </span>
-              <span
-                className={`font-mono text-sm font-semibold tabular-nums ${
-                  periodReturnPct === null
-                    ? "text-muted-foreground"
-                    : positive
-                      ? "text-positive"
-                      : "text-negative"
-                }`}
-              >
-                {periodReturnPct === null
-                  ? `${timeframe} —`
-                  : `${positive ? "+" : ""}${periodReturnPct.toFixed(2)}% ${timeframe}`}
-              </span>
+              {periodReturnPct === null ? (
+                <span className="font-mono text-sm text-text-tertiary">{timeframe} —</span>
+              ) : (
+                <DeltaPill
+                  value={`${positive ? "+" : ""}${periodReturnPct.toFixed(2)}%`}
+                  period={timeframe}
+                />
+              )}
             </div>
             <div className="mt-1.5 sm:flex sm:justify-end">
               <LivePriceBadge

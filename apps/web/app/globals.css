@@ -16,7 +16,12 @@
   --secondary: #eceff3;
   --secondary-foreground: #252a31;
   --muted: #eceff3;
-  --muted-foreground: #626b77;
+  /* Alias, not a separate grey: shadcn primitives in components/ui/ are
+     generated against --muted-foreground, while app code uses the expressive
+     --text-secondary / --text-tertiary pair. Pointing one at the other keeps
+     the two vocabularies rendering identically instead of drifting a few
+     percent apart. */
+  --muted-foreground: var(--text-secondary);
   --accent: #e5e8ed;
   --accent-foreground: #1c2026;
   --destructive: #b83f48;
@@ -61,7 +66,7 @@
   --secondary: #1a1e26;
   --secondary-foreground: #e4e7eb;
   --muted: #1a1e26;
-  --muted-foreground: #9ba3af;
+  --muted-foreground: var(--text-secondary);
   --accent: #20252e;
   --accent-foreground: #f3f4f6;
   --destructive: #d75d63;

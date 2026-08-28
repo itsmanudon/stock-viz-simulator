@@ -37,6 +37,11 @@ proxy.ts           NextAuth middleware
 components/
   dashboard/       signed-in home widgets (hero, movers, orders, alerts,
                    watchlist, allocation) + the shared WidgetCard/DeltaPill
+  data-table.tsx   DataTableFrame / NumericCell / SortableHead / TableToolbar
+  page-header.tsx  PageHeader / PageSubnav / PageEmptyState — the single
+                   implementation behind the Operational* and Research* wrappers
+  status-badge.tsx one tone-mapped chip behind the order/alert badges
+  order-side-toggle.tsx  buy/sell segmented control shared by both tickets
   ui/              shadcn-generated primitives — don't hand-edit
   *.tsx            app-shell/sidebar/navigation, global-ticker-search,
                    public-header, price-chart, order-ticket, backtest-form, etc.
@@ -157,6 +162,14 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
 - The type ramp adds `text-3xs` (10px) and `text-2xs` (11px) below Tailwind's
   `text-xs` for dense table meta and column labels. Use them instead of
   arbitrary `text-[10px]` / `text-[11px]`, which bypass the scale.
+- `--muted-foreground` is an **alias** of `--text-secondary`, so the shadcn
+  vocabulary and the app's `text-secondary`/`text-tertiary` pair render
+  identically. Prefer the semantic names in app code; `text-muted-foreground`
+  stays only because `components/ui/` is generated against it.
+- Tables: use `DataTableFrame` + `NumericCell` rather than hand-rolling the
+  bordered wrapper and the right-aligned tinted number. `NumericCell` owns the
+  sign→token mapping and the em-dash fallback — never write `text-green-500`
+  or `text-red-500`, which are not the `--positive`/`--negative` tokens.
 - Charts use `lightweight-charts` v5. The wrapper lives in
   `components/price-chart.tsx`; reuse it rather than instantiating a chart inline.
   Compare and backtest charts live in `compare-chart.tsx` and `equity-curve.tsx`.

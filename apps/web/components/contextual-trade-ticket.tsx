@@ -9,6 +9,7 @@ import {
   placeOrderAction,
   placeTradeAction,
 } from "@/app/(product)/(authed)/trade/actions";
+import { OrderSideToggle } from "@/components/order-side-toggle";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -217,32 +218,7 @@ export function ContextualTradeTicket({
           <input type="hidden" name="order_type" value={orderMode} />
         ) : null}
 
-        <div
-          className="grid grid-cols-2 gap-1 rounded-md bg-surface-secondary p-1"
-          aria-label="Order side"
-        >
-          {(["buy", "sell"] as const).map((value) => {
-            const active = effectiveSide === value;
-            return (
-              <button
-                key={value}
-                type="button"
-                disabled={isProtective}
-                aria-pressed={active}
-                onClick={() => setSide(value)}
-                className={`h-9 rounded-sm border text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
-                  active
-                    ? value === "buy"
-                      ? "border-positive/40 bg-positive/10 text-positive"
-                      : "border-negative/40 bg-negative/10 text-negative"
-                    : "border-transparent text-muted-foreground hover:bg-surface-hover hover:text-foreground"
-                }`}
-              >
-                {value === "buy" ? "Buy" : "Sell"}
-              </button>
-            );
-          })}
-        </div>
+        <OrderSideToggle side={effectiveSide} onChange={setSide} disabled={isProtective} />
 
         <fieldset className="space-y-2">
           <legend className="text-xs font-medium uppercase tracking-[0.12em] text-text-tertiary">

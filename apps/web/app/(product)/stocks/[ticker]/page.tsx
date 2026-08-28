@@ -213,7 +213,12 @@ export default async function StockPage({
             </div>
           </section>
 
-          <StockMetricsStrip metrics={metrics} currency={symbol.currency} rsi={latestRsi} />
+          <StockMetricsStrip
+            metrics={metrics}
+            currency={symbol.currency}
+            rsi={latestRsi}
+            latestClose={latestClose}
+          />
         </div>
 
         <aside
