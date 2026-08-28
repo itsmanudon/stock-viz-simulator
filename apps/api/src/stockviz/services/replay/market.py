@@ -16,8 +16,13 @@ from decimal import Decimal
 
 from sqlmodel import Session, select
 
-from stockviz.models import PriceBar, ReplaySession
-from stockviz.services.replay.errors import ReplayNoMarketError, ReplayRangeError
+from stockviz.models import PriceBar, ReplaySession, Symbol
+from stockviz.services.replay.errors import (
+    ReplayNoMarketError,
+    ReplayRangeError,
+    ReplaySymbolNotFound,
+    ReplayUnsupportedCurrency,
+)
 from stockviz.services.replay.timeutil import as_aware_utc, as_naive_utc
 from stockviz.services.simulation import MarketSnapshot
 
@@ -142,3 +147,29 @@ def market_snapshot_for_replay(session: Session, replay: ReplaySession) -> Marke
 
     bar = get_session_bar(session, replay)
     return snapshot_from_bar(bar, observed_at=replay.current_at)
+
+
+def get_replay_availability(
+    session: Session, *, ticker: str
+) -> tuple[Symbol, PriceBar, PriceBar, int]:
+    """Stored 1d range for the launcher. Rejects unknown and non-USD tickers."""
+
+    ticker = ticker.strip().upper()
+    symbol = session.get(Symbol, ticker)
+    if symbol is None:
+        raise ReplaySymbolNotFound(f"Symbol {ticker!r} not found")
+    currency = symbol.currency or "USD"
+    if currency != "USD":
+        raise ReplayUnsupportedCurrency(
+            f"Replay sessions are USD-only until historical FX exists; {ticker!r} is {currency}"
+        )
+    first = session.exec(_ticker_bars(ticker).order_by(PriceBar.ts.asc()).limit(1)).first()  # type: ignore[attr-defined]
+    last = session.exec(_ticker_bars(ticker).order_by(PriceBar.ts.desc()).limit(1)).first()  # type: ignore[attr-defined]
+    if first is None or last is None:
+        raise ReplayRangeError(f"No stored 1d bars for {ticker!r}")
+    return (
+        symbol,
+        first,
+        last,
+        count_replay_bars(session, ticker=ticker, start_ts=first.ts, end_ts=last.ts),
+    )

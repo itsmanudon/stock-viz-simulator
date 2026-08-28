@@ -23,11 +23,12 @@ runs on the weekday EOD schedule.
 | Durable execution provenance | ✅ SIM-04 — `simulated_executions` (fill-only, no backfill) |
 | Backtester | **Unchanged** — separate engine (SIM-08) |
 | Replay sessions | ✅ SIM-05 — frozen ticker/start/end, next-bar clock, server-owned 1d bars |
-| Blind historical replay | **Not implemented** (SIM-06 — Replay Lab UX) |
+| Replay Lab UI | ✅ SIM-06 — launcher, blind chart, MARKET ticket, next-session, summary |
+| Blind historical replay | **Done at product surface** (SIM-06). Forensics remain SIM-07 |
 | Kafka `trade.executed.v1` | **Unchanged** |
 | Database | Additive `simulated_executions` + `replay_sessions` / `_positions` / `_fills` |
 | API | Additive execution provenance + `/v1/replay/*`; `TradeOut` unchanged |
-| Frontend | **Unchanged** (no Replay Lab) |
+| Frontend | Replay Lab at `/replay` (SIM-06); live Trade/Portfolio unchanged |
 
 PostgreSQL remains the source of truth. Kafka is not authoritative for
 execution. Trade and accounting mutations stay synchronous and transactional.
@@ -212,10 +213,10 @@ Live paper trading still:
 - Does not model latency, commissions, or liquidity
 - Uses a simulated SSE quote that is **not** a fill source
 
-Those limitations remain after SIM-05. Replay adds a **frozen 1d historical
-clock** and an isolated book; it does not add spreads, slippage, OHLC-touch
-fills, partial fills, rewind, or a Replay Lab UI. See
-[KNOWN_LIMITATIONS.md](./KNOWN_LIMITATIONS.md).
+Those limitations remain after SIM-06. Replay Lab adds a **frozen 1d
+historical clock**, an isolated book, and a future-blind UI; it does not add
+spreads, slippage, OHLC-touch fills, partial fills, rewind, or intraday
+replay. See [KNOWN_LIMITATIONS.md](./KNOWN_LIMITATIONS.md).
 
 ## Why same-day OHLC touches are not used
 
@@ -328,7 +329,7 @@ GET market / history
     → never bars after current_at
 
 POST advance
-    → next stored 1d bar (weekends/holidays skip naturally)
+    → next stored 1d bar
     → completes when that bar is the last in the frozen range
 
 POST orders (intent only)
@@ -344,27 +345,39 @@ persisted; ingesting a later bar does not extend the session. A usable range
 needs at least two 1d bars. Non-USD symbols are rejected (no historical FX).
 
 **Current bar.** `current_at` is the `PriceBar.ts` of the currently observable
-session. That bar and earlier bars in `[start_at, current_at]` are visible.
-The next stored bar is not. Kernel `observed_at` / order `submitted_at` are
-that timestamp labeled UTC. Bar N cannot fill until replay has advanced to N.
+stored daily bar. That bar and earlier bars in `[start_at, current_at]` are
+visible. The next stored bar is not. Kernel `observed_at` / order
+`submitted_at` are that timestamp labeled UTC. Bar N cannot fill until replay
+has advanced to N. Stored 1d rows may include calendar days when the dataset
+contains them; Replay does not skip weekends or holidays unless those dates
+have no stored bar.
 
 **Statuses.** `active` → `completed` when advance lands on `end_at` (no next
 bar). Manual `POST .../cancel` → `cancelled`. Advance or orders on a terminal
 session return 409. Sessions are not deleted; child rows cascade if a session
 row is removed.
 
-**Not in SIM-05.** Replay Lab UI, rewind, branching, dataset version snapshots,
-intraday, spreads/slippage, historical FX. Historical bar *corrections* can
-still change observations; the horizon is frozen, the row contents are not.
+**Replay Lab (SIM-06).** `/replay` launches a session. `/replay/{id}` is the
+workspace: server-visible history chart, MARKET ticket, next-session control,
+isolated cash/position/fills, and a computed summary marked at the current
+replay close. The UI never fetches generic bars, live quotes, or SSE.
 
-Authed API (no frontend):
+**Not in SIM-06.** Intraday, rewind, branching, dataset version snapshots,
+spreads/slippage, historical FX, pending replay orders, SIM-07 forensics.
+Historical bar *corrections* can still change observations; the horizon is
+frozen, the row contents are not.
+
+Authed API and Replay Lab UI:
 
 - `POST /v1/replay/sessions` — `ticker`, `start_at`, optional `end_at` / cash
+- `GET /v1/replay/availability` — stored 1d range for a ticker
 - `POST /v1/replay/sessions/{id}/advance` — next stored bar
 - `GET /v1/replay/sessions/{id}/market` — current server bar
 - `GET /v1/replay/sessions/{id}/history` — visible bars through `current_at`
+- `GET /v1/replay/sessions/{id}/summary` — cash/equity/PnL at current close
 - `POST /v1/replay/sessions/{id}/orders` — intent only; fill at current close
 - `POST /v1/replay/sessions/{id}/cancel`
+- UI: `/replay`, `/replay/{id}`
 
 Live `evaluation_clock()` remains wall-clock UTC for paper trading.
 
@@ -376,7 +389,7 @@ Live `evaluation_clock()` remains wall-clock UTC for paper trading.
 | SIM-03 | **Done.** Live pending LIMIT / STOP_LOSS / TAKE_PROFIT settlement uses the same kernel; `_should_fill` is gone from production |
 | SIM-04 | **Done.** Versioned profile registry + durable `SimulatedExecution` provenance |
 | SIM-05 | **Done.** ReplaySession with frozen ticker/start/end, next-bar clock, server-owned 1d bars |
-| SIM-06 | Blind historical market replay |
+| SIM-06 | **Done.** Blind historical Replay Lab UI |
 | SIM-07 | Post-trade forensic analytics |
 | SIM-08 | Backtester uses the same execution kernel |
 | SIM-09 | Intraday market data |

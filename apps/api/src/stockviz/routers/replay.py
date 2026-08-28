@@ -1,4 +1,4 @@
-"""`/v1/replay` — isolated ReplaySession over stored 1d PriceBars (SIM-05).
+"""`/v1/replay` — isolated ReplaySession over stored 1d PriceBars.
 
 Authenticated. Market truth is server-selected historical bars inside the
 session's frozen range. Live ``Trade`` / ``Portfolio`` / Kafka paths are
@@ -9,12 +9,13 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlmodel import Session
 
 from stockviz.auth import UserIdDep
 from stockviz.db import get_session
 from stockviz.schemas import (
+    ReplayAvailabilityOut,
     ReplayBarOut,
     ReplayDecisionOut,
     ReplayFillOut,
@@ -22,8 +23,10 @@ from stockviz.schemas import (
     ReplayOrderIn,
     ReplayPositionOut,
     ReplaySessionCreateIn,
+    ReplaySessionListOut,
     ReplaySessionOut,
     ReplaySubmitOut,
+    ReplaySummaryOut,
 )
 from stockviz.services.replay import (
     ReplayClosed,
@@ -49,6 +52,9 @@ from stockviz.services.replay import (
     list_replay_sessions,
     submit_replay_order,
 )
+from stockviz.services.replay.market import get_replay_availability
+from stockviz.services.replay.session import session_can_advance
+from stockviz.services.replay.summary import compute_replay_summary
 from stockviz.services.replay.timeutil import as_aware_utc
 from stockviz.services.simulation import (
     OrderSide,
@@ -72,6 +78,21 @@ def _bar_out(bar) -> ReplayBarOut:
         low=bar.low,
         close=bar.close,
         volume=bar.volume,
+    )
+
+
+def _list_out(replay) -> ReplaySessionListOut:
+    return ReplaySessionListOut(
+        id=replay.id,
+        ticker=replay.ticker,
+        start_at=as_aware_utc(replay.start_at),
+        current_at=as_aware_utc(replay.current_at),
+        end_at=as_aware_utc(replay.end_at),
+        status=replay.status,
+        starting_cash=replay.starting_cash,
+        cash_balance=replay.cash_balance,
+        has_next=session_can_advance(replay),
+        created_at=as_aware_utc(replay.created_at),
     )
 
 
@@ -143,11 +164,57 @@ def _submit_out(db: Session, result: ReplaySubmitResult) -> ReplaySubmitOut:
     )
 
 
+def _summary_out(db: Session, replay) -> ReplaySummaryOut:
+    summary = compute_replay_summary(db, replay)
+    return ReplaySummaryOut(
+        ticker=replay.ticker,
+        status=replay.status,
+        current_at=as_aware_utc(replay.current_at),
+        current_close=summary.current_close,
+        cash=summary.cash,
+        starting_cash=summary.starting_cash,
+        positions_market_value=summary.positions_market_value,
+        equity=summary.equity,
+        realized_pnl=summary.realized_pnl,
+        unrealized_pnl=summary.unrealized_pnl,
+        total_pnl=summary.total_pnl,
+        return_pct=summary.return_pct,
+        fills_count=summary.fills_count,
+        has_next=summary.has_next,
+        visible_high=summary.visible_high,
+        visible_low=summary.visible_low,
+    )
+
+
 def _load(db: Session, session_id: int, user_id: int):
     try:
         return get_replay_session(db, session_id=session_id, user_id=user_id)
     except ReplayNotFound as exc:
         raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+
+
+@router.get("/availability", response_model=ReplayAvailabilityOut)
+def get_replay_ticker_availability(
+    session: SessionDep,
+    user_id: UserIdDep,
+    ticker: Annotated[str, Query(min_length=1, max_length=16)],
+) -> ReplayAvailabilityOut:
+    """Stored 1d bar range for the Replay Lab date picker."""
+
+    del user_id
+    try:
+        symbol, first, last, count = get_replay_availability(session, ticker=ticker)
+    except ReplaySymbolNotFound as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+    except (ReplayRangeError, ReplayUnsupportedCurrency) as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
+    return ReplayAvailabilityOut(
+        ticker=symbol.ticker,
+        currency=symbol.currency or "USD",
+        first_bar=as_aware_utc(first.ts),
+        last_bar=as_aware_utc(last.ts),
+        bars_count=count,
+    )
 
 
 @router.post("/sessions", response_model=ReplaySessionOut, status_code=status.HTTP_201_CREATED)
@@ -172,9 +239,9 @@ def post_replay_session(
     return _session_out(session, replay)
 
 
-@router.get("/sessions", response_model=list[ReplaySessionOut])
-def get_replay_sessions(session: SessionDep, user_id: UserIdDep) -> list[ReplaySessionOut]:
-    return [_session_out(session, row) for row in list_replay_sessions(session, user_id=user_id)]
+@router.get("/sessions", response_model=list[ReplaySessionListOut])
+def get_replay_sessions(session: SessionDep, user_id: UserIdDep) -> list[ReplaySessionListOut]:
+    return [_list_out(row) for row in list_replay_sessions(session, user_id=user_id)]
 
 
 @router.get("/sessions/{session_id}", response_model=ReplaySessionOut)
@@ -237,6 +304,17 @@ def get_replay_history(
 ) -> list[ReplayBarOut]:
     replay = _load(session, session_id, user_id)
     return [_bar_out(bar) for bar in get_visible_replay_history(session, replay)]
+
+
+@router.get("/sessions/{session_id}/summary", response_model=ReplaySummaryOut)
+def get_replay_summary(
+    session_id: int, session: SessionDep, user_id: UserIdDep
+) -> ReplaySummaryOut:
+    replay = _load(session, session_id, user_id)
+    try:
+        return _summary_out(session, replay)
+    except ReplayNoMarketError as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
 
 
 @router.post("/sessions/{session_id}/orders", response_model=ReplaySubmitOut)

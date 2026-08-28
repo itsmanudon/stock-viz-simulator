@@ -136,6 +136,7 @@ migrated + seeded DB. Full local sequence from the repo root:
 pnpm db:up && pnpm api:migrate
 uv --directory apps/api run python -m stockviz.cli seed
 uv --directory apps/api run python -m stockviz.cli backfill
+uv --directory apps/api run python -m stockviz.cli recommend
 pnpm api:dev                          # keep running in another terminal
 $env:AUTH_TRUST_HOST = "true"         # prod builds don't trust the host by default
 pnpm --filter @stockviz/web build
@@ -145,6 +146,10 @@ pnpm e2e
 `INTERNAL_API_TOKEN` and `AUTH_SECRET` must match what the API/.env uses (the
 committed dev defaults already do). CI runs the same sequence — see the `e2e`
 job in `.github/workflows/ci.yml`. Runs single-worker, chromium only.
+
+`pnpm start` (`next start`) warns under `output: standalone` and can duplicate
+the page tree. Scope product assertions to `#main` rather than matching the
+whole document.
 
 ## Sentry
 

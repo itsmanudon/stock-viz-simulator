@@ -99,6 +99,12 @@ def list_replay_sessions(session: Session, *, user_id: int) -> list[ReplaySessio
     )
 
 
+def session_can_advance(replay: ReplaySession) -> bool:
+    """O(1) next-bar flag for list rows. True only while active and before end_at."""
+
+    return replay.status == ReplaySessionStatus.ACTIVE.value and replay.current_at < replay.end_at
+
+
 def list_replay_fills(session: Session, *, replay: ReplaySession) -> list[ReplayFill]:
     assert replay.id is not None
     return list(
@@ -193,8 +199,8 @@ def create_replay_session(
 def advance_replay_session(session: Session, *, replay: ReplaySession) -> ReplaySession:
     """Move ``current_at`` to the next stored 1d bar inside the frozen range.
 
-    Skips weekends/holidays by following stored bars. Completes the session
-    when that bar is the last eligible bar (``end_at``).
+    Completes the session when that bar is the last eligible bar (``end_at``).
+    Replay follows stored daily bars; it does not apply an exchange calendar.
     """
 
     if replay.id is None:
@@ -310,5 +316,6 @@ __all__ = [
     "list_replay_positions",
     "list_replay_sessions",
     "lock_replay_session",
+    "session_can_advance",
     "submit_replay_order",
 ]

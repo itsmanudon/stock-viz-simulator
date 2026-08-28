@@ -85,11 +85,12 @@ def test_earnings_holdings_scope_is_private_to_user(session: Session, client: Te
     session.add(portfolio)
     session.commit()
     session.refresh(portfolio)
+    assert portfolio.id is not None
     session.add(
         Position(
             portfolio_id=portfolio.id, ticker="AAPL", quantity=Decimal("2"), avg_cost=Decimal("100")
         )
-    )  # type: ignore[arg-type]
+    )
     session.add(
         EarningsEvent(
             ticker="AAPL",

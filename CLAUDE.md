@@ -223,8 +223,8 @@ gh issue close <n> --repo itsmanudon/stock-viz-simulator
 
 `pnpm lint && pnpm typecheck && pnpm build && uv --directory apps/api run pytest` — all
 of these run in CI on PRs, plus a full-stack **e2e job** (migrate + seed +
-backfill against a real Postgres, start the API, build the web app, run
-Playwright). Don't bypass with `--no-verify` etc.
+backfill + recommend against a real Postgres, start the API, build the web app,
+run Playwright). Don't bypass with `--no-verify` etc.
 
 ## Auth bridge (web ↔ api)
 

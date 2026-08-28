@@ -255,10 +255,13 @@ intraday fills anywhere in the app:
   cash/positions over a frozen ticker/`start_at`/`end_at` 1d range.
   `current_at` is the currently observable stored bar. `POST .../advance`
   moves to the next stored bar under `SELECT … FOR UPDATE`. Market and
-  history never return bars after `current_at`. Orders take intent only;
-  fill price is the current bar close. USD symbols only. Cancel is
-  manual; exhausting `end_at` marks `completed`. No delete endpoint;
-  child rows cascade if a session row is removed. No frontend.
+  history never return bars after `current_at`. `GET .../summary` marks
+  positions at the current replay close. `GET .../availability` returns the
+  stored 1d range for the launcher. List rows omit positions (no N+1).
+  Orders take intent only; fill price is the current bar close. USD
+  symbols only. Cancel is manual; exhausting `end_at` marks `completed`.
+  No delete endpoint; child rows cascade if a session row is removed.
+  Replay Lab UI is `/replay` (SIM-06). MARKET-only in the UI.
 - **Options count toward NAV.** `compute_portfolio` marks open contracts to
   their Black-Scholes value (`options_market_value`). Without it, buying an
   option debited cash and recorded no offsetting asset.

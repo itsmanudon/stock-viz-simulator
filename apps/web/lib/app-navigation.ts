@@ -15,13 +15,22 @@ export const APP_NAVIGATION: readonly NavigationGroup[] = [
   {
     label: "Research",
     href: "/compare",
-    matches: ["/screener", "/compare", "/recommendations", "/news", "/stocks", "/backtest"],
+    matches: [
+      "/screener",
+      "/compare",
+      "/recommendations",
+      "/news",
+      "/stocks",
+      "/backtest",
+      "/replay",
+    ],
     items: [
       { label: "Compare", href: "/compare", matches: ["/compare"] },
       { label: "Backtest", href: "/backtest", matches: ["/backtest"] },
       { label: "Signals", href: "/recommendations", matches: ["/recommendations"] },
       { label: "Screener", href: "/screener", matches: ["/screener"] },
       { label: "News", href: "/news", matches: ["/news"] },
+      { label: "Replay", href: "/replay", matches: ["/replay"] },
     ],
   },
   {
@@ -56,6 +65,7 @@ export const RESEARCH_SUBNAV = [
   { href: "/compare", label: "Compare" },
   { href: "/backtest", label: "Backtest" },
   { href: "/recommendations", label: "Signals" },
+  { href: "/replay", label: "Replay" },
 ] as const;
 
 /**

@@ -200,6 +200,7 @@ def test_missing_session_returns_404(session: Session, client: TestClient) -> No
         == 404
     )
     assert client.get("/v1/replay/sessions/999999/fills", headers=headers).status_code == 404
+    assert client.get("/v1/replay/sessions/999999/summary", headers=headers).status_code == 404
 
 
 def test_other_user_cannot_access_session_actions(session: Session, client: TestClient) -> None:
@@ -223,3 +224,88 @@ def test_other_user_cannot_access_session_actions(session: Session, client: Test
         ).status_code
         == 404
     )
+    assert client.get(f"/v1/replay/sessions/{session_id}/summary", headers=other).status_code == 404
+
+
+def test_list_is_lightweight_and_availability_works(session: Session, client: TestClient) -> None:
+    _seed(session)
+    headers = _auth_headers(_make_user(session))
+    created = _create(client, headers)
+    assert created.status_code == 201
+    listed = client.get("/v1/replay/sessions", headers=headers)
+    assert listed.status_code == 200
+    row = listed.json()[0]
+    assert "positions" not in row
+    assert row["ticker"] == "AAPL"
+    assert row["has_next"] is True
+
+    available = client.get("/v1/replay/availability?ticker=AAPL", headers=headers)
+    assert available.status_code == 200
+    body = available.json()
+    assert body["ticker"] == "AAPL"
+    assert body["bars_count"] == 3
+    assert body["first_bar"].startswith("2024-06-03")
+    assert body["last_bar"].startswith("2024-06-05")
+
+    missing = client.get("/v1/replay/availability?ticker=NOPE", headers=headers)
+    assert missing.status_code == 404
+
+
+def test_summary_and_history_never_include_future_bars(
+    session: Session, client: TestClient
+) -> None:
+    _seed(session)
+    headers = _auth_headers(_make_user(session))
+    session_id = _create(client, headers).json()["id"]
+    client.post(
+        f"/v1/replay/sessions/{session_id}/orders",
+        headers=headers,
+        json={"side": "buy", "quantity": "1"},
+    )
+    client.post(f"/v1/replay/sessions/{session_id}/advance", headers=headers)
+
+    summary = client.get(f"/v1/replay/sessions/{session_id}/summary", headers=headers)
+    assert summary.status_code == 200
+    payload = summary.json()
+    assert Decimal(payload["current_close"]) == Decimal("120")
+    assert Decimal(payload["visible_high"]) == Decimal("120")
+    assert Decimal(payload["unrealized_pnl"]) == Decimal("20")
+
+    history = client.get(f"/v1/replay/sessions/{session_id}/history", headers=headers).json()
+    closes = [Decimal(row["close"]) for row in history]
+    assert Decimal("80") not in closes
+    assert max(closes) == Decimal("120")
+    market = client.get(f"/v1/replay/sessions/{session_id}/market", headers=headers).json()
+    assert Decimal(market["bar"]["close"]) == Decimal("120")
+    detail = client.get(f"/v1/replay/sessions/{session_id}", headers=headers).json()
+    assert detail["current_at"].startswith("2024-06-04")
+    assert not detail["current_at"].startswith("2024-06-05")
+
+
+def test_summary_and_orders_on_terminal_sessions(session: Session, client: TestClient) -> None:
+    _seed(session)
+    headers = _auth_headers(_make_user(session))
+    session_id = _create(client, headers).json()["id"]
+    client.post(f"/v1/replay/sessions/{session_id}/advance", headers=headers)
+    completed = client.post(f"/v1/replay/sessions/{session_id}/advance", headers=headers)
+    assert completed.json()["status"] == "completed"
+    summary = client.get(f"/v1/replay/sessions/{session_id}/summary", headers=headers)
+    assert summary.status_code == 200
+    assert Decimal(summary.json()["current_close"]) == Decimal("80")
+    assert (
+        client.post(
+            f"/v1/replay/sessions/{session_id}/orders",
+            headers=headers,
+            json={"side": "buy", "quantity": "1"},
+        ).status_code
+        == 409
+    )
+
+    other = _create(client, headers).json()["id"]
+    client.post(f"/v1/replay/sessions/{other}/cancel", headers=headers)
+    cancelled = client.get(f"/v1/replay/sessions/{other}/summary", headers=headers)
+    assert cancelled.status_code == 200
+    assert client.get(f"/v1/replay/sessions/{other}", headers=headers).json()["status"] == (
+        "cancelled"
+    )
+    assert client.post(f"/v1/replay/sessions/{other}/advance", headers=headers).status_code == 409

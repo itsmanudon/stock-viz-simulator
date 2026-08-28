@@ -321,6 +321,21 @@ class ReplayFillOut(BaseModel):
     created_at: datetime
 
 
+class ReplaySessionListOut(BaseModel):
+    """Lightweight list row. Positions and next-bar lookups are detail-only."""
+
+    id: int
+    ticker: str
+    start_at: datetime
+    current_at: datetime
+    end_at: datetime
+    status: str
+    starting_cash: Decimal
+    cash_balance: Decimal
+    has_next: bool
+    created_at: datetime
+
+
 class ReplaySessionOut(BaseModel):
     id: int
     ticker: str
@@ -337,6 +352,35 @@ class ReplaySessionOut(BaseModel):
     created_at: datetime
     updated_at: datetime
     positions: list[ReplayPositionOut] = []
+
+
+class ReplayAvailabilityOut(BaseModel):
+    ticker: str
+    currency: str
+    first_bar: datetime
+    last_bar: datetime
+    bars_count: int
+
+
+class ReplaySummaryOut(BaseModel):
+    """Mark-to-market at the current observable replay bar only."""
+
+    ticker: str
+    status: str
+    current_at: datetime
+    current_close: Decimal
+    cash: Decimal
+    starting_cash: Decimal
+    positions_market_value: Decimal
+    equity: Decimal
+    realized_pnl: Decimal
+    unrealized_pnl: Decimal
+    total_pnl: Decimal
+    return_pct: Decimal
+    fills_count: int
+    has_next: bool
+    visible_high: Decimal
+    visible_low: Decimal
 
 
 class ReplayBarOut(BaseModel):

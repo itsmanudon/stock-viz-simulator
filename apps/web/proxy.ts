@@ -23,6 +23,7 @@ const PROTECTED_PREFIXES = [
   "/alerts",
   "/settings",
   "/orders",
+  "/replay",
   "/earnings",
 ];
 

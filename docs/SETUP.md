@@ -197,7 +197,7 @@ E2E tests run against a **production build** of the web app, so you need:
 
 1. Both servers running (`pnpm api:dev` + `pnpm dev:web` → or let Playwright
    handle Next.js automatically)
-2. The database seeded (`pnpm api:migrate` + CLI seed/backfill)
+2. The database seeded (`pnpm api:migrate` + CLI seed/backfill/recommend)
 
 With both servers already running on their default ports:
 

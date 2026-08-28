@@ -17,6 +17,7 @@ describe("getActiveNavigation", () => {
     ["/compare?tickers=AAPL", "/compare", "/compare"],
     ["/backtest?ticker=AAPL", "/compare", "/backtest"],
     ["/recommendations", "/compare", "/recommendations"],
+    ["/replay/42", "/compare", "/replay"],
     ["/orders/42", "/trade", "/orders"],
     ["/watchlist", "/portfolio", "/watchlist"],
     ["/alerts", "/portfolio", "/alerts"],
@@ -30,7 +31,7 @@ describe("getActiveNavigation", () => {
     expect(getActiveNavigation("/login")).toEqual({ groupHref: null, itemHref: null });
   });
 
-  it("places Compare, Backtest, and Signals under Research", () => {
+  it("places Compare, Backtest, Signals, and Replay under Research", () => {
     const research = APP_NAVIGATION.find((group) => group.label === "Research");
     expect(research?.href).toBe("/compare");
     expect(research?.items?.map((item) => item.label)).toEqual([
@@ -39,6 +40,7 @@ describe("getActiveNavigation", () => {
       "Signals",
       "Screener",
       "News",
+      "Replay",
     ]);
     const trade = APP_NAVIGATION.find((group) => group.label === "Trade");
     expect(trade?.items?.map((item) => item.label)).not.toContain("Backtest");
