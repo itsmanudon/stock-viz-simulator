@@ -20,6 +20,7 @@ from stockviz.services.replay.errors import (
 )
 from stockviz.services.replay.market import (
     get_next_session_bar,
+    get_replay_availability,
     get_session_bar,
     get_visible_replay_history,
     market_snapshot_for_replay,
@@ -35,8 +36,10 @@ from stockviz.services.replay.session import (
     list_replay_positions,
     list_replay_sessions,
     lock_replay_session,
+    session_can_advance,
     submit_replay_order,
 )
+from stockviz.services.replay.summary import ReplaySummary, compute_replay_summary
 
 __all__ = [
     "DEFAULT_REPLAY_CASH",
@@ -50,12 +53,15 @@ __all__ = [
     "ReplayNotFound",
     "ReplayRangeError",
     "ReplaySubmitResult",
+    "ReplaySummary",
     "ReplaySymbolNotFound",
     "ReplayUnsupportedCurrency",
     "advance_replay_session",
     "cancel_replay_session",
+    "compute_replay_summary",
     "create_replay_session",
     "get_next_session_bar",
+    "get_replay_availability",
     "get_replay_session",
     "get_session_bar",
     "get_visible_replay_history",
@@ -64,5 +70,6 @@ __all__ = [
     "list_replay_sessions",
     "lock_replay_session",
     "market_snapshot_for_replay",
+    "session_can_advance",
     "submit_replay_order",
 ]

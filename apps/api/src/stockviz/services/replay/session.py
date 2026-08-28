@@ -99,6 +99,12 @@ def list_replay_sessions(session: Session, *, user_id: int) -> list[ReplaySessio
     )
 
 
+def session_can_advance(replay: ReplaySession) -> bool:
+    """O(1) next-bar flag for list rows. True only while active and before end_at."""
+
+    return replay.status == ReplaySessionStatus.ACTIVE.value and replay.current_at < replay.end_at
+
+
 def list_replay_fills(session: Session, *, replay: ReplaySession) -> list[ReplayFill]:
     assert replay.id is not None
     return list(
@@ -310,5 +316,6 @@ __all__ = [
     "list_replay_positions",
     "list_replay_sessions",
     "lock_replay_session",
+    "session_can_advance",
     "submit_replay_order",
 ]
