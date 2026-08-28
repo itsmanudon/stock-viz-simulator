@@ -53,11 +53,11 @@ export function PortfolioWorkspace({
   );
 
   return (
-    <div className="w-full px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+    <div className="w-full px-4 py-5 sm:px-6 lg:px-8 lg:py-7">
       <PortfolioPerformance portfolio={portfolio} history={history} range={range} tab={tab} />
       <PortfolioMetrics portfolio={portfolio} analytics={analytics} />
 
-      <section aria-labelledby="portfolio-workspace-heading" className="mt-8">
+      <section aria-labelledby="portfolio-workspace-heading" className="mt-7">
         <h2 id="portfolio-workspace-heading" className="sr-only">
           Portfolio holdings and activity
         </h2>

@@ -24,6 +24,7 @@ const PROTECTED_PREFIXES = [
   "/settings",
   "/orders",
   "/replay",
+  "/earnings",
 ];
 
 export default proxyAuth((req) => {

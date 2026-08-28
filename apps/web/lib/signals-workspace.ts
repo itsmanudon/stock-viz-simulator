@@ -25,6 +25,7 @@ export type SignalSearchParams = {
   q?: string;
   sort?: string;
   dir?: string;
+  selected?: string;
 };
 
 export type SignalRow = {
@@ -65,7 +66,9 @@ export function parseMinScore(raw: string | undefined): number {
 }
 
 export function recommendationToSignal(rec: Recommendation): SignalRow {
-  const votes = rec.votes?.length ? rec.votes : votesFromRationale(rec.rationale ?? []);
+  const votes = completeSignalVotes(
+    rec.votes?.length ? rec.votes : votesFromRationale(rec.rationale ?? []),
+  );
   return {
     ticker: rec.ticker,
     name: rec.name,
@@ -79,18 +82,37 @@ export function recommendationToSignal(rec: Recommendation): SignalRow {
   };
 }
 
+const SIGNAL_VOTE_SPECS: Array<[string, string, string]> = [
+  ["below_mean", "Below historical mean", "Below historical mean"],
+  ["below_median", "Below historical median", "Below historical median"],
+  ["within_one_stdev", "Within 1 stdev below mean", "Within 1 stdev below mean"],
+  ["volume_above_mean", "Volume above average", "Volume above average"],
+  ["recent_uptrend", "3-bar uptrend", "uptrend"],
+  ["positive_slope", "Positive 5-bar slope", "-bar slope"],
+  ["positive_sentiment", "Positive news sentiment", "Positive news sentiment"],
+];
+
+/**
+ * The API normally returns all seven structured votes, but older records can
+ * contain only the checks that contributed to a score. Keep the detail pane
+ * complete without changing the score: missing checks are explicit failures.
+ */
+function completeSignalVotes(votes: RecommendationVote[]): RecommendationVote[] {
+  const byId = new Map(votes.map((vote) => [vote.id, vote]));
+  return SIGNAL_VOTE_SPECS.map(
+    ([id, label]) =>
+      byId.get(id) ?? {
+        id,
+        label,
+        passed: false,
+        detail: `${label} did not contribute to this score`,
+      },
+  );
+}
+
 export function votesFromRationale(rationale: string[]): RecommendationVote[] {
-  const specs: Array<[string, string, string]> = [
-    ["below_mean", "Below historical mean", "Below historical mean"],
-    ["below_median", "Below historical median", "Below historical median"],
-    ["within_one_stdev", "Within 1 stdev below mean", "Within 1 stdev below mean"],
-    ["volume_above_mean", "Volume above average", "Volume above average"],
-    ["recent_uptrend", "3-bar uptrend", "uptrend"],
-    ["positive_slope", "Positive 5-bar slope", "-bar slope"],
-    ["positive_sentiment", "Positive news sentiment", "Positive news sentiment"],
-  ];
   const remaining = [...rationale];
-  return specs.map(([id, label, needle]) => {
+  return SIGNAL_VOTE_SPECS.map(([id, label, needle]) => {
     const match = remaining.find((item) => item.toLowerCase().includes(needle.toLowerCase()));
     if (match) {
       remaining.splice(remaining.indexOf(match), 1);
@@ -164,6 +186,7 @@ export function buildSignalsHref(params: {
   q?: string;
   sort?: SignalSortKey;
   dir?: SignalSortDir;
+  selected?: string;
 }): string {
   const search = new URLSearchParams();
   if (params.min && params.min > 0) search.set("min", String(params.min));
@@ -174,6 +197,7 @@ export function buildSignalsHref(params: {
   if (params.dir && !(params.sort === "score" && params.dir === "desc")) {
     search.set("dir", params.dir);
   }
+  if (params.selected) search.set("selected", params.selected);
   const qs = search.toString();
   return qs ? `/recommendations?${qs}` : "/recommendations";
 }
@@ -182,4 +206,13 @@ export function formatSignalDate(iso: string): string {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return "—";
   return date.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
+}
+
+export function formatSignalDateTime(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "—";
+  return date.toLocaleString("en-US", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
 }

@@ -16,7 +16,7 @@ export function AppMobileNav({ signedIn }: { signedIn: boolean }) {
       <Dialog.Trigger asChild>
         <button
           type="button"
-          className="inline-flex size-10 shrink-0 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring lg:hidden"
+          className="inline-flex size-10 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring lg:hidden"
           aria-label="Open navigation"
         >
           <Menu className="size-5" aria-hidden />
@@ -24,19 +24,19 @@ export function AppMobileNav({ signedIn }: { signedIn: boolean }) {
       </Dialog.Trigger>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-50 bg-black/55 backdrop-blur-[2px] data-[state=closed]:animate-out data-[state=open]:animate-in data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 lg:hidden" />
-        <Dialog.Content className="fixed inset-y-0 left-0 z-50 flex w-[min(18rem,86vw)] flex-col border-r border-border-muted bg-surface-elevated shadow-2xl outline-none data-[state=closed]:animate-out data-[state=open]:animate-in data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left lg:hidden">
+        <Dialog.Content className="fixed inset-y-0 left-0 z-50 flex w-[min(19rem,88vw)] flex-col border-r border-border-muted bg-surface-elevated outline-none data-[state=closed]:animate-out data-[state=open]:animate-in data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left lg:hidden">
           <Dialog.Title className="sr-only">Product navigation</Dialog.Title>
           <Dialog.Description className="sr-only">
             Navigate StockViz research, trading, portfolio, and community tools.
           </Dialog.Description>
 
-          <div className="flex h-13 items-center justify-between border-b border-border-muted px-4">
+          <div className="flex h-14 items-center justify-between border-b border-border-muted px-5">
             <Link
               href={homeHref(signedIn)}
               onClick={() => setOpen(false)}
               className="flex items-center gap-2.5 rounded-sm font-semibold tracking-tight focus-visible:ring-2 focus-visible:ring-ring"
             >
-              <span className="flex size-7 items-center justify-center rounded-sm border border-brand/40 bg-brand/10 text-brand">
+              <span className="flex size-7 items-center justify-center rounded-md border border-brand/40 bg-brand/10 text-brand">
                 <LineChart className="size-4" aria-hidden />
               </span>
               <span>StockViz</span>
@@ -52,7 +52,7 @@ export function AppMobileNav({ signedIn }: { signedIn: boolean }) {
             </Dialog.Close>
           </div>
 
-          <div className="min-h-0 flex-1 overflow-y-auto px-2 py-5">
+          <div className="min-h-0 flex-1 overflow-y-auto px-3 py-6">
             <AppNavigation signedIn={signedIn} onNavigate={() => setOpen(false)} />
           </div>
         </Dialog.Content>

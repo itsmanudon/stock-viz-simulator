@@ -129,9 +129,9 @@ export function OrderTicket({
   return (
     <section
       aria-labelledby="order-ticket-heading"
-      className="border-y border-border-muted sm:border-x"
+      className="overflow-hidden rounded-md border border-border-muted bg-card"
     >
-      <div className="border-b border-border-muted px-4 py-3">
+      <div className="border-b border-border-muted px-5 py-4">
         <h2 id="order-ticket-heading" className="text-sm font-semibold">
           Order ticket
         </h2>
@@ -141,7 +141,7 @@ export function OrderTicket({
         </p>
       </div>
 
-      <form action={action} className="space-y-5 p-4">
+      <form action={action} className="space-y-5 p-5">
         {mode !== "market" ? <input type="hidden" name="order_type" value={mode} /> : null}
         <input type="hidden" name="side" value={effectiveSide} />
         <input type="hidden" name="ticker" value={ticker} />
@@ -153,7 +153,7 @@ export function OrderTicket({
             value={ticker}
             onChange={(event) => syncTicker(event.target.value)}
             required
-            className="flex h-10 w-full rounded-sm border border-input bg-transparent px-3 py-2 text-sm"
+            className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm"
           >
             {symbols.map((symbol) => (
               <option key={symbol.ticker} value={symbol.ticker}>
@@ -199,7 +199,7 @@ export function OrderTicket({
             id="trade-mode"
             value={mode}
             onChange={(event) => onModeChange(event.target.value as TradeOrderMode)}
-            className="flex h-10 w-full rounded-sm border border-input bg-transparent px-3 py-2 text-sm"
+            className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm"
           >
             <option value="market">Market</option>
             <option value="limit">Limit</option>
@@ -291,7 +291,7 @@ export function OrderTicket({
           </output>
         ) : null}
 
-        <Button type="submit" disabled={pending || !ticker} className="w-full rounded-sm">
+        <Button type="submit" disabled={pending || !ticker} className="w-full">
           {pending
             ? "Submitting…"
             : `Submit ${orderTypeLabel(mode).toLowerCase()} ${effectiveSide}`}

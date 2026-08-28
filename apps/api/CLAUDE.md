@@ -12,12 +12,13 @@ src/stockviz/
   auth.py           require_user_id / UserIdDep — verifies the HS256 Bearer JWT from the Next.js server
   limiter.py        slowapi rate limiter, keyed per-user then per-IP
   scheduler.py      APScheduler jobs (see below) — also run as a dedicated process
-  cli.py            argparse one-shot commands mirroring the scheduler jobs
+  cli.py            argparse one-shot commands mirroring the scheduler jobs;
+                    `earnings` refreshes the idempotent yfinance calendar
                     (+ `run-scheduler` for the Kubernetes singleton)
   schemas.py        shared Pydantic response models
   observability.py  Sentry bootstrap (no-op without DSN)
   models/           SQLModel tables (market, portfolio, user, order, option, dividend,
-                    alert, comment, recommendation, watchlist, metrics, sentiment,
+                    earnings, alert, comment, recommendation, watchlist, metrics, sentiment,
                     events — outbox, consumer inbox, derived trade activity,
                     execution — SimulatedExecution provenance,
                     replay — ReplaySession / ReplayPosition / ReplayFill)
@@ -34,11 +35,12 @@ src/stockviz/
                     markets (one-call /markets summary), indicators, news,
                     recommendations, trading, orders, options, backtest,
                     screener, sentiment, leaderboard, watchlist, alerts,
-                    comments, stream (SSE simulated quotes), replay
+                    comments, earnings, stream (SSE simulated quotes), replay
                     (isolated ReplaySession), health
                     (`GET /live` liveness, `GET /health` readiness + DB)
   services/
-    ingest/         External-API fetchers (yfinance primary, Alpha Vantage fallback, Newsdata)
+    ingest/         External-API fetchers (yfinance primary, Alpha Vantage fallback, Newsdata);
+                    earnings ingestion is available through `stockviz earnings`
     indicators/     SMA/EMA/RSI/MACD pure functions
     recommend/      7-vote scorer; API now returns structured votes + rationale
     trading/        execute, orders (pending limit/stop + derived reservations),

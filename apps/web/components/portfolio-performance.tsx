@@ -33,13 +33,13 @@ export function PortfolioPerformance({ portfolio, history, range, tab }: Props) 
         : "text-foreground";
 
   return (
-    <section aria-labelledby="portfolio-heading" className="border-b border-border-muted pb-6">
+    <section aria-labelledby="portfolio-heading" className="border-b border-border-muted pb-5">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
             Paper portfolio
           </p>
-          <h1 id="portfolio-heading" className="mt-1 text-2xl font-bold tracking-tight">
+          <h1 id="portfolio-heading" className="mt-1 text-2xl font-semibold tracking-tight">
             Portfolio
           </h1>
         </div>
@@ -51,9 +51,12 @@ export function PortfolioPerformance({ portfolio, history, range, tab }: Props) 
         </Link>
       </div>
 
-      <div className="mt-7 grid gap-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+      <div className="mt-5 grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
         <div className="min-w-0">
-          <p className="font-mono text-4xl font-bold tracking-[-0.04em] sm:text-5xl" data-financial>
+          <p
+            className="font-mono text-4xl font-semibold tracking-[-0.04em] sm:text-5xl"
+            data-financial
+          >
             {formatCurrency(portfolio.total_value, portfolio.display_currency || "USD")}
           </p>
           <p className="mt-2 text-xs text-muted-foreground">
@@ -110,7 +113,7 @@ export function PortfolioPerformance({ portfolio, history, range, tab }: Props) 
       ) : null}
 
       {hasInvestments ? (
-        <div className="mt-4 min-h-[240px] border-t border-border-muted pt-4">
+        <div className="mt-3 min-h-[220px] border-t border-border-muted pt-3">
           {history === null ? (
             <ChartMessage>Performance history is temporarily unavailable.</ChartMessage>
           ) : history.length < 2 || !change ? (
@@ -131,7 +134,7 @@ export function PortfolioPerformance({ portfolio, history, range, tab }: Props) 
 
 function ChartMessage({ children }: { children: string }) {
   return (
-    <div className="flex min-h-[240px] items-center justify-center text-center text-sm text-muted-foreground sm:min-h-[300px] lg:min-h-[340px]">
+    <div className="flex min-h-[220px] items-center justify-center text-center text-sm text-muted-foreground sm:min-h-[280px] lg:min-h-[320px]">
       <p className="max-w-md">{children}</p>
     </div>
   );

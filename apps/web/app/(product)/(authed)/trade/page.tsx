@@ -72,7 +72,7 @@ export default async function TradePage({
   const currencies = currencyByTicker(options);
 
   return (
-    <PageFrame width="workstation" className="py-6 sm:py-8">
+    <PageFrame width="workstation" className="py-5 sm:py-7">
       <OperationalPageHeader
         eyebrow="Trade"
         title="Trade"
@@ -98,7 +98,7 @@ export default async function TradePage({
           </OperationalEmptyState>
         </div>
       ) : (
-        <div className="mt-6 grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1.2fr)_minmax(16rem,20rem)] lg:items-start">
+        <div className="mt-5 grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(16rem,20rem)] lg:items-start">
           {/* Unkeyed: a fill revalidates this page and must not remount the ticket. */}
           <OrderTicket
             symbols={options.map((symbol) => ({
@@ -128,9 +128,9 @@ export default async function TradePage({
           <aside className="space-y-8">
             <section
               aria-labelledby="account-context-heading"
-              className="border-y border-border-muted sm:border-x"
+              className="overflow-hidden rounded-md border border-border-muted bg-card"
             >
-              <div className="border-b border-border-muted px-4 py-3">
+              <div className="border-b border-border-muted px-4 py-3.5">
                 <h2 id="account-context-heading" className="text-sm font-semibold">
                   Account context
                 </h2>
@@ -214,7 +214,7 @@ export default async function TradePage({
         </div>
       )}
 
-      <section aria-labelledby="recent-activity-heading" className="mt-10">
+      <section aria-labelledby="recent-activity-heading" className="mt-8">
         <h2 id="recent-activity-heading" className="text-sm font-semibold">
           Recent execution
         </h2>
@@ -278,7 +278,7 @@ export default async function TradePage({
         )}
       </section>
 
-      <section aria-labelledby="options-ticket-heading" className="mt-10">
+      <section aria-labelledby="options-ticket-heading" className="mt-8">
         <h2 id="options-ticket-heading" className="text-sm font-semibold">
           Options
         </h2>

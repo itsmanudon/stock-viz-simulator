@@ -18,14 +18,14 @@ export async function PublicHeader() {
   const signedIn = Boolean(session?.user?.id);
 
   return (
-    <header className="sticky top-0 z-40 border-b border-border-muted bg-background/90 backdrop-blur">
+    <header className="sticky top-0 z-40 border-b border-border-muted bg-background/95 backdrop-blur">
       <div className="mx-auto flex h-14 w-full max-w-7xl items-center gap-3 px-4 sm:px-6">
         <MobileNav links={PUBLIC_LINKS} />
         <Link
           href="/"
           className="flex items-center gap-2.5 rounded-sm font-semibold tracking-tight focus-visible:ring-2 focus-visible:ring-ring"
         >
-          <span className="flex size-7 items-center justify-center rounded-sm border border-brand/40 bg-brand/10 text-brand">
+          <span className="flex size-7 items-center justify-center rounded-md border border-brand/40 bg-brand/10 text-brand">
             <LineChart className="size-4" aria-hidden />
           </span>
           <span>StockViz</span>

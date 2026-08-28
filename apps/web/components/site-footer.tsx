@@ -40,7 +40,7 @@ export function SiteFooter() {
         <div className="grid gap-10 lg:grid-cols-[1fr_2fr]">
           <div className="max-w-xs">
             <Link href="/" className="flex items-center gap-2.5 font-semibold tracking-tight">
-              <span className="flex size-7 items-center justify-center rounded-sm border border-brand/40 bg-brand/10 text-brand">
+              <span className="flex size-7 items-center justify-center rounded-md border border-brand/40 bg-brand/10 text-brand">
                 <LineChart className="size-4" aria-hidden />
               </span>
               StockViz

@@ -48,7 +48,7 @@ export default async function WatchlistPage() {
   const currencies = currencyByTicker(universe);
 
   return (
-    <PageFrame width="workstation" className="py-6 sm:py-8">
+    <PageFrame width="workstation" className="py-5 sm:py-7">
       <OperationalPageHeader
         eyebrow="Portfolio"
         title="Watchlist"
@@ -57,7 +57,7 @@ export default async function WatchlistPage() {
       />
       <MonitoringSubnav current="/watchlist" />
 
-      <div className="mt-6 border-y border-border-muted px-4 py-4 sm:border-x">
+      <div className="mt-5 rounded-md border border-border-muted bg-card px-4 py-4">
         <AddWatchlistForm symbols={addable} />
       </div>
 
@@ -78,7 +78,7 @@ export default async function WatchlistPage() {
           </OperationalEmptyState>
         </div>
       ) : (
-        <div className="mt-6 overflow-x-auto border-y border-border-muted">
+        <div className="mt-5 overflow-x-auto rounded-md border border-border-muted bg-card">
           <table className="w-full min-w-[44rem] text-sm">
             <caption className="sr-only">Watched securities</caption>
             <thead>

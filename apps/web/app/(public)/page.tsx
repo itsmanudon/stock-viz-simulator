@@ -78,12 +78,12 @@ const STEPS = [
 export default function HomePage() {
   return (
     <div>
-      <section className="mx-auto w-full max-w-7xl px-4 pt-16 pb-12 sm:px-6 sm:pt-24">
+      <section className="mx-auto w-full max-w-7xl px-4 pt-12 pb-10 sm:px-6 sm:pt-20">
         <div className="mx-auto max-w-3xl text-center">
           <p className="text-2xs font-semibold tracking-[0.16em] text-brand uppercase">
             Paper trading · End-of-day data
           </p>
-          <h1 className="mt-4 text-4xl font-bold tracking-tight text-balance sm:text-5xl lg:text-6xl">
+          <h1 className="mt-4 text-4xl font-semibold tracking-tight text-balance sm:text-5xl lg:text-6xl">
             Learn the market without risking the money
           </h1>
           <p className="mx-auto mt-6 max-w-2xl text-lg leading-8 text-text-secondary text-pretty">
@@ -124,7 +124,7 @@ export default function HomePage() {
 
       <section
         aria-labelledby="features-heading"
-        className="mx-auto w-full max-w-7xl px-4 py-20 sm:px-6 sm:py-28"
+        className="mx-auto w-full max-w-7xl px-4 py-16 sm:px-6 sm:py-20"
       >
         <div className="max-w-2xl">
           <p className="text-2xs font-semibold tracking-[0.16em] text-brand uppercase">
@@ -132,13 +132,13 @@ export default function HomePage() {
           </p>
           <h2
             id="features-heading"
-            className="mt-3 text-3xl font-bold tracking-tight text-balance sm:text-4xl"
+            className="mt-3 text-3xl font-semibold tracking-tight text-balance sm:text-4xl"
           >
             The whole loop, not just the chart
           </h2>
         </div>
 
-        <ul className="mt-12 grid gap-x-10 gap-y-10 sm:grid-cols-2 lg:grid-cols-3">
+        <ul className="mt-10 grid gap-x-10 gap-y-8 sm:grid-cols-2 lg:grid-cols-3">
           {FEATURES.map((feature) => {
             const Icon = feature.icon;
             return (
@@ -166,14 +166,14 @@ export default function HomePage() {
         aria-labelledby="how-heading"
         className="border-y border-border-muted bg-surface-secondary/40"
       >
-        <div className="mx-auto w-full max-w-7xl px-4 py-20 sm:px-6 sm:py-24">
+        <div className="mx-auto w-full max-w-7xl px-4 py-16 sm:px-6 sm:py-20">
           <h2
             id="how-heading"
-            className="max-w-2xl text-3xl font-bold tracking-tight text-balance sm:text-4xl"
+            className="max-w-2xl text-3xl font-semibold tracking-tight text-balance sm:text-4xl"
           >
             How a session usually goes
           </h2>
-          <ol className="mt-12 grid gap-10 lg:grid-cols-3">
+          <ol className="mt-10 grid gap-8 lg:grid-cols-3">
             {STEPS.map((step, index) => (
               <li key={step.title} className="border-t border-border-muted pt-5">
                 <span className="font-mono text-xs font-semibold text-brand">
@@ -187,9 +187,9 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className="mx-auto w-full max-w-7xl px-4 py-20 sm:px-6 sm:py-28">
+      <section className="mx-auto w-full max-w-7xl px-4 py-16 sm:px-6 sm:py-20">
         <div className="mx-auto max-w-2xl text-center">
-          <h2 className="text-3xl font-bold tracking-tight text-balance sm:text-4xl">
+          <h2 className="text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
             Start with $100,000 that isn&rsquo;t real
           </h2>
           <p className="mt-4 text-base leading-7 text-text-secondary text-pretty">

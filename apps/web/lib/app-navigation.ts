@@ -11,6 +11,7 @@ export type NavigationGroup = NavigationItem & {
 export const APP_NAVIGATION: readonly NavigationGroup[] = [
   { label: "Home", href: "/dashboard", matches: ["/dashboard"] },
   { label: "Markets", href: "/markets", matches: ["/markets"] },
+  { label: "Earnings", href: "/earnings", matches: ["/earnings"] },
   {
     label: "Research",
     href: "/compare",

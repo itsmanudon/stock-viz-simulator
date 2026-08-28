@@ -28,8 +28,8 @@ const POINTS = [
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="mx-auto w-full max-w-5xl px-4 py-12 sm:px-6 lg:py-20">
-      <div className="grid items-center gap-12 lg:grid-cols-2">
+    <div className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6 lg:py-14">
+      <div className="grid items-center gap-10 lg:grid-cols-2">
         <div className="flex justify-center lg:justify-end">
           <div className="w-full max-w-md">{children}</div>
         </div>

@@ -25,6 +25,11 @@ function symbol(ticker: string, name: string): SymbolRow {
   };
 }
 
+function openPalette() {
+  fireEvent.click(screen.getByRole("combobox", { name: "Search tickers and companies" }));
+  return within(screen.getByRole("dialog")).getByRole("combobox");
+}
+
 describe("GlobalTickerSearch", () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -41,7 +46,7 @@ describe("GlobalTickerSearch", () => {
     const search = vi.fn().mockResolvedValue([]);
     render(<GlobalTickerSearch search={search} debounceMs={20} />);
 
-    fireEvent.change(screen.getByRole("combobox"), { target: { value: "   " } });
+    fireEvent.change(openPalette(), { target: { value: "   " } });
     await act(() => vi.advanceTimersByTimeAsync(20));
 
     expect(search).not.toHaveBeenCalled();
@@ -50,7 +55,7 @@ describe("GlobalTickerSearch", () => {
   it("shows complete symbol results and supports keyboard selection", async () => {
     const search = vi.fn().mockResolvedValue([symbol("AAPL", "Apple Inc.")]);
     render(<GlobalTickerSearch search={search} debounceMs={20} />);
-    const input = screen.getByRole("combobox");
+    const input = openPalette();
 
     fireEvent.change(input, { target: { value: "app" } });
     await act(() => vi.advanceTimersByTimeAsync(20));
@@ -69,7 +74,7 @@ describe("GlobalTickerSearch", () => {
     );
     const search = vi.fn().mockResolvedValue([symbol("AAPL", "Apple Inc.")]);
     render(<GlobalTickerSearch search={search} debounceMs={20} />);
-    const input = screen.getByRole("combobox");
+    const input = openPalette();
 
     fireEvent.change(input, { target: { value: "app" } });
     await act(() => vi.advanceTimersByTimeAsync(20));
@@ -84,7 +89,7 @@ describe("GlobalTickerSearch", () => {
     const search = vi.fn().mockResolvedValue([symbol("AAPL", "Apple Inc.")]);
     render(<GlobalTickerSearch search={search} debounceMs={20} />);
 
-    fireEvent.change(screen.getByRole("combobox"), { target: { value: "app" } });
+    fireEvent.change(openPalette(), { target: { value: "app" } });
     await act(() => vi.advanceTimersByTimeAsync(20));
     fireEvent.mouseDown(screen.getByRole("option", { name: /AAPL/i }));
 
@@ -101,7 +106,7 @@ describe("GlobalTickerSearch", () => {
       .mockReturnValueOnce(first)
       .mockResolvedValueOnce([symbol("MSFT", "Microsoft")]);
     render(<GlobalTickerSearch search={search} debounceMs={20} />);
-    const input = screen.getByRole("combobox");
+    const input = openPalette();
 
     fireEvent.change(input, { target: { value: "app" } });
     await act(() => vi.advanceTimersByTimeAsync(20));
@@ -116,14 +121,56 @@ describe("GlobalTickerSearch", () => {
   it("reports an unavailable search and focuses with the advertised shortcut", async () => {
     const search = vi.fn().mockRejectedValue(new Error("offline"));
     render(<GlobalTickerSearch search={search} debounceMs={20} />);
-    const input = screen.getByRole("combobox");
 
     fireEvent.keyDown(window, { key: "k", ctrlKey: true });
+    const input = within(screen.getByRole("dialog")).getByRole("combobox");
     expect(input).toHaveFocus();
 
     fireEvent.change(input, { target: { value: "aapl" } });
     await act(() => vi.advanceTimersByTimeAsync(20));
 
     expect(within(screen.getByRole("listbox")).getByText("Search unavailable")).toBeVisible();
+    fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("restores focus to the inline trigger after Escape", () => {
+    render(<GlobalTickerSearch search={vi.fn()} debounceMs={20} />);
+    const trigger = screen.getByRole("combobox", { name: "Search tickers and companies" });
+    const input = openPalette();
+
+    expect(input).toHaveFocus();
+    fireEvent.keyDown(input, { key: "Escape" });
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
+  });
+
+  it("opens the centered palette with slash and exposes keyboard-selectable popular symbols", async () => {
+    const search = vi.fn().mockResolvedValue([]);
+    render(<GlobalTickerSearch search={search} debounceMs={20} />);
+
+    fireEvent.keyDown(window, { key: "/" });
+
+    expect(screen.getByRole("dialog")).toBeVisible();
+    expect(screen.getByRole("dialog")).toHaveClass(
+      "fixed",
+      "left-1/2",
+      "top-1/2",
+      "-translate-x-1/2",
+      "-translate-y-1/2",
+    );
+    expect(screen.getByRole("dialog").parentElement).toBe(document.body);
+    const overlay = document.body.querySelector('[data-state="open"].fixed.inset-0');
+    expect(overlay).toBeTruthy();
+    expect(overlay).toHaveClass("fixed", "inset-0", "z-50");
+    expect(screen.getByText("Popular symbols")).toBeVisible();
+    const input = within(screen.getByRole("dialog")).getByRole("combobox");
+    await act(async () => {
+      fireEvent.keyDown(input, { key: "ArrowDown" });
+    });
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    expect(push).toHaveBeenCalledWith("/stocks/AAPL");
   });
 });

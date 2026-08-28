@@ -171,7 +171,7 @@ export default async function StockPage({
   };
 
   return (
-    <div className="px-4 py-5 sm:px-6 sm:py-7 lg:px-8">
+    <div className="px-4 py-5 sm:px-6 sm:py-6 lg:px-8 lg:py-7">
       <SecurityHeader
         symbol={symbol}
         latestClose={latestClose}
@@ -187,18 +187,18 @@ export default async function StockPage({
         <MobileTradeSheet {...ticketProps} />
       </div>
 
-      <div className="mt-6 grid min-w-0 gap-6 xl:grid-cols-[minmax(0,1fr)_20.5rem] xl:items-start">
-        <div className="min-w-0 space-y-5">
+      <div className="mt-5 grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_19.5rem] xl:items-start xl:gap-6">
+        <div className="min-w-0 space-y-4">
           <section
             aria-label={`${ticker} price chart`}
-            className="overflow-hidden border-y border-border-muted bg-surface-elevated sm:border-x"
+            className="overflow-hidden rounded-md border border-border-muted bg-card"
           >
             <StockChartToolbar
               ticker={ticker}
               timeframe={timeframe}
               indicators={selectedIndicators}
             />
-            <div className="p-2 sm:p-4">
+            <div className="p-1.5 sm:p-3">
               {bars.length ? (
                 <PriceChart
                   bars={bars}
@@ -223,13 +223,13 @@ export default async function StockPage({
 
         <aside
           aria-label={`Paper trade ${ticker}`}
-          className="sticky top-17 hidden max-h-[calc(100dvh-5rem)] overflow-y-auto border border-border-muted bg-surface-elevated p-5 xl:block"
+          className="sticky top-[4.5rem] hidden max-h-[calc(100dvh-5.5rem)] overflow-y-auto rounded-md border border-border-muted bg-surface-elevated p-4 xl:block"
         >
           <ContextualTradeTicket {...ticketProps} />
         </aside>
       </div>
 
-      <section aria-label={`${ticker} research`} className="mt-8">
+      <section aria-label={`${ticker} research`} className="mt-7 xl:mt-8">
         <StockResearchTabs
           newsCount={news.length}
           orderCount={tickerOrders?.length ?? 0}

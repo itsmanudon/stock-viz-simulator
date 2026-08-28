@@ -46,7 +46,7 @@ export function PortfolioTabs({
   return (
     <Tabs.Root value={activeTab} onValueChange={selectTab} className="min-w-0">
       <div className="overflow-x-auto border-b border-border-muted">
-        <Tabs.List aria-label="Portfolio sections" className="flex min-w-max gap-7 px-0.5 sm:gap-9">
+        <Tabs.List aria-label="Portfolio sections" className="flex min-w-max gap-6 px-0.5 sm:gap-8">
           <Tab value="positions">Positions</Tab>
           <Tab value="options" count={optionCount}>
             Options
@@ -78,7 +78,7 @@ function Tab({
   return (
     <Tabs.Trigger
       value={value}
-      className="relative shrink-0 py-3 text-sm font-medium text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background data-[state=active]:text-foreground data-[state=active]:after:absolute data-[state=active]:after:inset-x-0 data-[state=active]:after:bottom-0 data-[state=active]:after:h-0.5 data-[state=active]:after:bg-brand"
+      className="relative shrink-0 py-2.5 text-sm font-medium text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background data-[state=active]:text-foreground data-[state=active]:after:absolute data-[state=active]:after:inset-x-0 data-[state=active]:after:bottom-0 data-[state=active]:after:h-0.5 data-[state=active]:after:bg-brand"
     >
       {children}
       {count ? (
@@ -95,7 +95,7 @@ function TabPanel({ value, children }: { value: PortfolioTab; children: ReactNod
   return (
     <Tabs.Content
       value={value}
-      className="py-6 outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className="py-5 outline-none focus-visible:ring-2 focus-visible:ring-ring sm:py-6"
     >
       {children}
     </Tabs.Content>

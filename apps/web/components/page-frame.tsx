@@ -1,9 +1,9 @@
 import { cn } from "@/lib/utils";
 
 const widths = {
-  workstation: "w-full px-4 py-8 sm:px-6 xl:px-8",
-  content: "mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 xl:px-8",
-  narrow: "mx-auto w-full max-w-xl px-4 py-8 sm:px-6",
+  workstation: "w-full px-4 py-6 sm:px-6 lg:px-8 lg:py-7",
+  content: "mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:py-7 xl:px-8",
+  narrow: "mx-auto w-full max-w-xl px-4 py-7 sm:px-6",
 } as const;
 
 export function PageFrame({
@@ -14,5 +14,5 @@ export function PageFrame({
   width?: keyof typeof widths;
   className?: string;
 }>) {
-  return <div className={cn(widths[width], className)}>{children}</div>;
+  return <div className={cn("density-workspace", widths[width], className)}>{children}</div>;
 }

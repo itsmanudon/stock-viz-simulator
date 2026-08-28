@@ -37,6 +37,21 @@ export type SymbolDetail = Symbol & {
   latest: Quote | null;
 };
 
+export type EarningsEvent = {
+  id: number;
+  ticker: string;
+  name: string;
+  event_date: string;
+  report_time: string | null;
+  fiscal_period: string | null;
+  eps_estimate: string | null;
+  eps_actual: string | null;
+  surprise_pct: string | null;
+  result: "beat" | "miss" | "in_line" | "unknown";
+  source: string;
+  fetched_at: string;
+};
+
 export type Bar = {
   ts: string;
   open: string;

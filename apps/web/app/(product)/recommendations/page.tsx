@@ -7,6 +7,7 @@
  */
 
 import Link from "next/link";
+import { Suspense } from "react";
 
 import { PageFrame } from "@/components/page-frame";
 import {
@@ -49,6 +50,11 @@ export default async function RecommendationsPage({
     new Set(allRows.map((row) => row.sector).filter((value): value is string => Boolean(value))),
   ).sort();
   const rows = sortSignals(filterSignals(allRows, { signal, sector, query }), sort, dir);
+  const requestedTicker = params.selected?.trim().toUpperCase();
+  const selectedTicker =
+    requestedTicker && rows.some((row) => row.ticker === requestedTicker)
+      ? requestedTicker
+      : undefined;
 
   const lastComputed = rows.length
     ? rows.reduce(
@@ -65,6 +71,7 @@ export default async function RecommendationsPage({
       q: string;
       sort: SignalSortKey;
       dir: "asc" | "desc";
+      selected: string;
     }>,
   ) =>
     buildSignalsHref({
@@ -74,6 +81,7 @@ export default async function RecommendationsPage({
       q: overrides.q === "" ? undefined : (overrides.q ?? query),
       sort: overrides.sort ?? sort,
       dir: overrides.dir ?? dir,
+      selected: overrides.selected === "" ? undefined : (overrides.selected ?? selectedTicker),
     });
 
   function sortHref(key: SignalSortKey): string {
@@ -88,8 +96,15 @@ export default async function RecommendationsPage({
     return hrefFor({ sort: key, dir: nextDir });
   }
 
+  const sortHrefs: Record<SignalSortKey, string> = {
+    score: sortHref("score"),
+    ticker: sortHref("ticker"),
+    sentiment: sortHref("sentiment"),
+    updated: sortHref("updated"),
+  };
+
   return (
-    <PageFrame width="workstation" className="py-6 sm:py-8">
+    <PageFrame width="workstation" className="py-5 sm:py-7">
       <ResearchPageHeader
         title="Signals"
         description="Explainable technical and sentiment evidence across the tracked universe. This is a seven-vote rule set, not an AI recommendation and not financial advice."
@@ -101,7 +116,7 @@ export default async function RecommendationsPage({
       />
       <ResearchSubnav current="/recommendations" />
 
-      <form method="GET" action="/recommendations" className="mt-6 flex flex-wrap items-end gap-3">
+      <form method="GET" action="/recommendations" className="mt-5 flex flex-wrap items-end gap-3">
         {minScore > 0 ? <input type="hidden" name="min" value={minScore} /> : null}
         {sort !== "score" ? <input type="hidden" name="sort" value={sort} /> : null}
         {dir !== "desc" ? <input type="hidden" name="dir" value={dir} /> : null}
@@ -111,7 +126,7 @@ export default async function RecommendationsPage({
           <select
             name="signal"
             defaultValue={signal}
-            className="h-9 rounded-sm border border-input bg-transparent px-2 text-sm"
+            className="h-9 rounded-md border border-input bg-transparent px-2 text-sm"
           >
             <option value="all">All</option>
             <option value="bullish">Bullish</option>
@@ -124,7 +139,7 @@ export default async function RecommendationsPage({
           <select
             name="sector"
             defaultValue={sector ?? ""}
-            className="h-9 min-w-40 rounded-sm border border-input bg-transparent px-2 text-sm"
+            className="h-9 min-w-40 rounded-md border border-input bg-transparent px-2 text-sm"
           >
             <option value="">All sectors</option>
             {sectors.map((item) => (
@@ -141,13 +156,13 @@ export default async function RecommendationsPage({
             name="q"
             defaultValue={query ?? ""}
             placeholder="AAPL"
-            className="h-9 w-32 rounded-sm border border-input bg-transparent px-2 font-mono text-sm"
+            className="h-9 w-32 rounded-md border border-input bg-transparent px-2 font-mono text-sm"
           />
         </label>
 
         <button
           type="submit"
-          className="h-9 rounded-sm border border-border-muted px-3 text-sm hover:bg-surface-hover"
+          className="h-9 rounded-md border border-border-muted px-3 text-sm hover:bg-surface-hover"
         >
           Apply
         </button>
@@ -178,7 +193,15 @@ export default async function RecommendationsPage({
             </p>
           </ResearchEmptyState>
         ) : (
-          <SignalsTable rows={rows} sort={sort} dir={dir} sortHref={sortHref} />
+          <Suspense fallback={<div className="h-64 animate-pulse bg-surface-secondary" />}>
+            <SignalsTable
+              rows={rows}
+              sort={sort}
+              dir={dir}
+              sortHrefs={sortHrefs}
+              initialSelectedTicker={selectedTicker}
+            />
+          </Suspense>
         )}
       </div>
     </PageFrame>

@@ -4,102 +4,97 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  /* ELECTRIC — deep indigo base, electric lime accent.
-     Dark-first identity; light mode is the same hues re-grounded on a cool
-     paper so the product doesn't change personality when the theme flips.
-
-     Lime (#c4f82a) is the brand, and it is deliberately NOT the "up" colour:
-     a lime gain in a table sitting next to a lime button makes the two
-     unreadable at a glance. Positive is a cyan-leaning green instead
-     (#00e0a0 dark / #00845c light) — a different hue family, so the accent
-     and P&L never collide. */
-  --background: #f6f7fb;
-  --foreground: #0b0d14;
-  --card: #ffffff;
-  --card-foreground: #0b0d14;
-  --popover: #ffffff;
-  --popover-foreground: #0b0d14;
-  /* Lime is unreadable as text on white, so light mode darkens it for type
-     while buttons keep the full-chroma fill with dark ink on top. */
-  --primary: #c4f82a;
-  --primary-foreground: #0b0d14;
-  --brand: #4f6b00;
-  --secondary: #eceef6;
-  --secondary-foreground: #1b2030;
-  --muted: #eceef6;
+  /* ATLAS — warm paper and restrained gold for research workspaces.
+     Gold is reserved for identity, focus, and the selected action. Positive
+     and negative remain separate semantic hues so a price change never reads
+     like a button state. */
+  --background: #f7f6f2;
+  --foreground: #1c1b18;
+  --card: #fffefa;
+  --card-foreground: #1c1b18;
+  --popover: #fffefa;
+  --popover-foreground: #1c1b18;
+  --primary: #c6a35c;
+  --primary-foreground: #211b10;
+  --brand: #96702b;
+  --brand-muted: #efe5cd;
+  --secondary: #eeece6;
+  --secondary-foreground: #292722;
+  --muted: #eeece6;
   --muted-foreground: var(--text-secondary);
-  --accent: #e3e6f2;
-  --accent-foreground: #151a28;
-  --destructive: #d81e50;
+  --accent: #e9e5dc;
+  --accent-foreground: #24221d;
+  --destructive: #b94343;
   --destructive-foreground: #ffffff;
-  --border: #d5d9e8;
-  --input: #c3c9de;
-  --ring: #8fbe00;
-  --surface-elevated: #ffffff;
-  --surface-secondary: #eceef6;
-  --surface-hover: #e3e6f2;
-  --border-muted: #e2e5f0;
-  --text-secondary: #4b5268;
-  --text-tertiary: #6b7288;
-  --positive: #00845c;
+  --border: #d9d5cc;
+  --input: #c8c2b6;
+  --ring: #b68b3c;
+  --surface-elevated: #fcfbf8;
+  --surface-secondary: #eeece6;
+  --surface-hover: #f0ede6;
+  --border-muted: #e5e1d8;
+  --text-secondary: #625f57;
+  --text-tertiary: #89857b;
+  --positive: #137558;
   --positive-foreground: #ffffff;
-  --negative: #d81e50;
+  --negative: #b94343;
   --negative-foreground: #ffffff;
   --warning: #9a6300;
   --warning-foreground: #ffffff;
-  --positive-soft: #d6f5ea;
-  --positive-soft-foreground: #00694a;
-  --negative-soft: #fde3ea;
-  --negative-soft-foreground: #a81340;
-  --warning-soft: #fbeed6;
-  --warning-soft-foreground: #7d5000;
-  --neutral-soft: #e6e9f4;
-  --neutral-soft-foreground: #4b5268;
-  --radius: 0.75rem;
+  --positive-soft: #dcefe7;
+  --positive-soft-foreground: #0b674a;
+  --negative-soft: #f5e2df;
+  --negative-soft-foreground: #983636;
+  --warning-soft: #f4ecd8;
+  --warning-soft-foreground: #7a5a18;
+  --neutral-soft: #e9e7e1;
+  --neutral-soft-foreground: #625f57;
+  --radius: 0.625rem;
 }
 
 .dark {
-  --background: #0b0d14;
-  --foreground: #eef0f8;
-  --card: #141826;
-  --card-foreground: #eef0f8;
-  --popover: #1a1f30;
-  --popover-foreground: #eef0f8;
-  --primary: #c4f82a;
-  --primary-foreground: #0b0d14;
-  --brand: #c4f82a;
-  --secondary: #1b2133;
-  --secondary-foreground: #dfe3f0;
-  --muted: #1b2133;
+  --background: #0f1112;
+  --foreground: #f0eee8;
+  --card: #17191b;
+  --card-foreground: #f0eee8;
+  --popover: #1c1f21;
+  --popover-foreground: #f0eee8;
+  --primary: #d5b36a;
+  --primary-foreground: #211b10;
+  --brand: #d5b36a;
+  --brand-muted: #3a2f1d;
+  --secondary: #1d2022;
+  --secondary-foreground: #e5e2d9;
+  --muted: #1d2022;
   --muted-foreground: var(--text-secondary);
-  --accent: #232a3d;
-  --accent-foreground: #eef0f8;
-  --destructive: #ff5c7a;
-  --destructive-foreground: #2a0912;
-  --border: #2b3349;
-  --input: #38415a;
-  --ring: #c4f82a;
+  --accent: #25282a;
+  --accent-foreground: #f0eee8;
+  --destructive: #ed7770;
+  --destructive-foreground: #2e1110;
+  --border: #303335;
+  --input: #3b3e40;
+  --ring: #d5b36a;
   /* One step above --card so overlays separate from the tiles they sit on. */
-  --surface-elevated: #1a2032;
-  --surface-secondary: #1b2133;
-  --surface-hover: #232a3d;
-  --border-muted: #232a3d;
-  --text-secondary: #a5adc4;
-  --text-tertiary: #767f99;
-  --positive: #00e0a0;
-  --positive-foreground: #002418;
-  --negative: #ff5c7a;
-  --negative-foreground: #2a0912;
-  --warning: #ffc247;
-  --warning-foreground: #241800;
-  --positive-soft: #042c22;
-  --positive-soft-foreground: #4fe9bd;
-  --negative-soft: #33121d;
-  --negative-soft-foreground: #ff8fa5;
-  --warning-soft: #2e2410;
-  --warning-soft-foreground: #ffcf74;
-  --neutral-soft: #232a3d;
-  --neutral-soft-foreground: #a5adc4;
+  --surface-elevated: #1b1e20;
+  --surface-secondary: #1d2022;
+  --surface-hover: #25282a;
+  --border-muted: #25282a;
+  --text-secondary: #b1afa8;
+  --text-tertiary: #7e7f7b;
+  --positive: #46c297;
+  --positive-foreground: #06291e;
+  --negative: #ed7770;
+  --negative-foreground: #2e1110;
+  --warning: #e8bd68;
+  --warning-foreground: #2b1e08;
+  --positive-soft: #10382c;
+  --positive-soft-foreground: #77d8b3;
+  --negative-soft: #3c1e1d;
+  --negative-soft-foreground: #f29a91;
+  --warning-soft: #3a2e18;
+  --warning-soft-foreground: #f1cc7e;
+  --neutral-soft: #25282a;
+  --neutral-soft-foreground: #b1afa8;
 }
 
 @theme inline {
@@ -112,6 +107,7 @@
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
   --color-brand: var(--brand);
+  --color-brand-muted: var(--brand-muted);
   --color-secondary: var(--secondary);
   --color-secondary-foreground: var(--secondary-foreground);
   --color-muted: var(--muted);
@@ -188,6 +184,7 @@
     color: var(--color-foreground);
     font-family: var(--font-sans);
     font-feature-settings: "rlig" 1, "calt" 1;
+    letter-spacing: -0.005em;
     text-rendering: optimizeLegibility;
   }
 
@@ -204,6 +201,22 @@
 .workspace-main > .container {
   width: 100%;
   max-width: none;
+}
+
+/* The setting is persisted in the browser and applied at the document root,
+   so every authenticated workspace gets the same table rhythm. The default
+   values remain the comfortable density used by the existing product UI. */
+html[data-density="compact"] .workspace-main [data-slot="table-head"] {
+  height: 2rem;
+}
+
+html[data-density="compact"] .workspace-main [data-slot="table-cell"] {
+  padding-block: 0.375rem;
+  padding-inline: 0.625rem;
+}
+
+html[data-density="compact"] .workspace-main .density-workspace {
+  padding-block: 1.25rem;
 }
 
 @media (prefers-reduced-motion: reduce) {

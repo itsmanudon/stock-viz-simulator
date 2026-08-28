@@ -39,7 +39,7 @@ export function StockChartToolbar({
             key={value}
             href={buildStockChartHref(ticker, value, indicators)}
             aria-current={timeframe === value ? "page" : undefined}
-            className={`inline-flex h-8 min-w-9 items-center justify-center rounded-sm px-2 font-mono text-xs font-medium transition-colors ${
+            className={`inline-flex h-8 min-w-9 items-center justify-center rounded-md px-2 font-mono text-xs font-medium transition-colors ${
               timeframe === value
                 ? "bg-brand/12 text-brand"
                 : "text-muted-foreground hover:bg-surface-hover hover:text-foreground"
@@ -54,7 +54,7 @@ export function StockChartToolbar({
         <DropdownMenu.Trigger asChild>
           <button
             type="button"
-            className="inline-flex h-8 items-center gap-2 rounded-sm border border-border-muted px-2.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground data-[state=open]:bg-surface-hover data-[state=open]:text-foreground"
+            className="inline-flex h-8 items-center gap-2 rounded-md border border-border-muted px-2.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground data-[state=open]:bg-surface-hover data-[state=open]:text-foreground"
             aria-label={`Indicators, ${indicators.length} selected`}
           >
             <SlidersHorizontal className="size-3.5" aria-hidden />
@@ -69,7 +69,7 @@ export function StockChartToolbar({
           <DropdownMenu.Content
             align="end"
             sideOffset={6}
-            className="z-50 min-w-48 rounded-md border border-border-muted bg-popover p-1 shadow-xl"
+            className="z-50 min-w-48 rounded-md border border-border-muted bg-popover p-1"
           >
             <DropdownMenu.Label className="px-2 py-1.5 text-3xs font-semibold uppercase tracking-[0.12em] text-text-tertiary">
               Technical indicators

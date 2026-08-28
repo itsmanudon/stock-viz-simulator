@@ -72,6 +72,16 @@ export default async function ScreenerPage({
   const momentumMax = num(params.momentum_max);
   const near52wHigh = params.near_52w_high === "true";
   const near52wLow = params.near_52w_low === "true";
+  const activeFilterCount = [
+    sector,
+    rsiMin,
+    rsiMax,
+    momentumDays,
+    momentumMin,
+    momentumMax,
+    near52wHigh ? true : undefined,
+    near52wLow ? true : undefined,
+  ].filter((value) => value !== undefined).length;
 
   const allSymbols = await listSymbols();
   const sectors = Array.from(
@@ -100,25 +110,38 @@ export default async function ScreenerPage({
   }
 
   return (
-    <div className="w-full px-4 py-8 sm:px-6 xl:px-8">
+    <div className="w-full px-4 py-6 sm:px-6 lg:py-7 xl:px-8">
       <ResearchPageHeader
         title="Screener"
         description="Filter symbols by sector, RSI, momentum, and 52-week proximity. Filters combine with AND logic."
       />
 
-      <div className="mt-6 grid gap-6 lg:grid-cols-[280px_1fr]">
+      <div className="mt-5 grid gap-5 lg:grid-cols-[240px_minmax(0,1fr)] lg:gap-7">
         <form
           method="GET"
           action="/screener"
-          className="space-y-4 rounded-lg border bg-card p-4 text-sm"
+          className="space-y-4 rounded-md border border-border-muted bg-card p-4 text-sm"
         >
+          <div className="flex items-start justify-between gap-3 border-b border-border-muted pb-3">
+            <div>
+              <p className="text-2xs font-semibold tracking-[0.12em] text-text-tertiary uppercase">
+                Filters
+              </p>
+              <p className="mt-1 text-xs text-text-secondary">Combine with AND logic</p>
+            </div>
+            {activeFilterCount ? (
+              <span className="rounded-md bg-brand-muted px-2 py-1 text-2xs font-semibold text-brand">
+                {activeFilterCount} active
+              </span>
+            ) : null}
+          </div>
           <div className="space-y-1.5">
             <Label htmlFor="sector">Sector</Label>
             <select
               id="sector"
               name="sector"
               defaultValue={sector ?? ""}
-              className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+              className="h-9 w-full rounded-md border border-input bg-transparent px-3 py-1.5 text-sm focus-visible:border-ring focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30"
             >
               <option value="">All sectors</option>
               {sectors.map((s) => (
@@ -129,90 +152,104 @@ export default async function ScreenerPage({
             </select>
           </div>
 
-          <fieldset className="space-y-1.5">
-            <legend className="text-xs font-medium uppercase text-muted-foreground">
+          <details className="group rounded-md border border-border-muted/70 px-3 py-2 lg:border-0 lg:px-0 lg:py-0">
+            <summary className="cursor-pointer list-none text-xs font-semibold uppercase tracking-[0.1em] text-text-secondary marker:hidden [&::-webkit-details-marker]:hidden">
               RSI (14)
-            </legend>
-            <div className="flex gap-2">
-              <Input
-                type="number"
-                name="rsi_min"
-                placeholder="Min"
-                min={0}
-                max={100}
-                step="0.1"
-                defaultValue={params.rsi_min ?? ""}
-              />
-              <Input
-                type="number"
-                name="rsi_max"
-                placeholder="Max"
-                min={0}
-                max={100}
-                step="0.1"
-                defaultValue={params.rsi_max ?? ""}
-              />
-            </div>
-          </fieldset>
+            </summary>
+            <fieldset className="mt-2 space-y-1.5">
+              <legend className="sr-only">RSI (14)</legend>
+              <div className="flex gap-2">
+                <Input
+                  type="number"
+                  name="rsi_min"
+                  aria-label="Minimum RSI"
+                  placeholder="Min"
+                  min={0}
+                  max={100}
+                  step="0.1"
+                  defaultValue={params.rsi_min ?? ""}
+                />
+                <Input
+                  type="number"
+                  name="rsi_max"
+                  aria-label="Maximum RSI"
+                  placeholder="Max"
+                  min={0}
+                  max={100}
+                  step="0.1"
+                  defaultValue={params.rsi_max ?? ""}
+                />
+              </div>
+            </fieldset>
+          </details>
 
-          <fieldset className="space-y-1.5">
-            <legend className="text-xs font-medium uppercase text-muted-foreground">
+          <details className="group rounded-md border border-border-muted/70 px-3 py-2 lg:border-0 lg:px-0 lg:py-0">
+            <summary className="cursor-pointer list-none text-xs font-semibold uppercase tracking-[0.1em] text-text-secondary marker:hidden [&::-webkit-details-marker]:hidden">
               Momentum
-            </legend>
-            <Input
-              type="number"
-              name="momentum_days"
-              placeholder="Window (days)"
-              min={1}
-              max={252}
-              defaultValue={params.momentum_days ?? ""}
-            />
-            <div className="flex gap-2">
+            </summary>
+            <fieldset className="mt-2 space-y-1.5">
+              <legend className="sr-only">Momentum</legend>
               <Input
                 type="number"
-                name="momentum_min"
-                placeholder="Min %"
-                step="0.1"
-                defaultValue={params.momentum_min ?? ""}
+                name="momentum_days"
+                aria-label="Momentum window in days"
+                placeholder="Window (days)"
+                min={1}
+                max={252}
+                defaultValue={params.momentum_days ?? ""}
               />
-              <Input
-                type="number"
-                name="momentum_max"
-                placeholder="Max %"
-                step="0.1"
-                defaultValue={params.momentum_max ?? ""}
-              />
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Min/Max apply only when a window is set.
-            </p>
-          </fieldset>
+              <div className="flex gap-2">
+                <Input
+                  type="number"
+                  name="momentum_min"
+                  aria-label="Minimum momentum percent"
+                  placeholder="Min %"
+                  step="0.1"
+                  defaultValue={params.momentum_min ?? ""}
+                />
+                <Input
+                  type="number"
+                  name="momentum_max"
+                  aria-label="Maximum momentum percent"
+                  placeholder="Max %"
+                  step="0.1"
+                  defaultValue={params.momentum_max ?? ""}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Min/Max apply only when a window is set.
+              </p>
+            </fieldset>
+          </details>
 
-          <fieldset className="space-y-2">
-            <legend className="text-xs font-medium uppercase text-muted-foreground">
+          <details className="group rounded-md border border-border-muted/70 px-3 py-2 lg:border-0 lg:px-0 lg:py-0">
+            <summary className="cursor-pointer list-none text-xs font-semibold uppercase tracking-[0.1em] text-text-secondary marker:hidden [&::-webkit-details-marker]:hidden">
               52-week range
-            </legend>
-            <label className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                name="near_52w_high"
-                value="true"
-                defaultChecked={near52wHigh}
-                className="h-4 w-4"
-              />
-              <span>Near 52-week high (within 5%)</span>
-            </label>
-            <label className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                name="near_52w_low"
-                value="true"
-                defaultChecked={near52wLow}
-                className="h-4 w-4"
-              />
-              <span>Near 52-week low (within 5%)</span>
-            </label>
-          </fieldset>
+            </summary>
+            <fieldset className="mt-2 space-y-2">
+              <legend className="sr-only">52-week range</legend>
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  name="near_52w_high"
+                  value="true"
+                  defaultChecked={near52wHigh}
+                  className="h-4 w-4 accent-brand"
+                />
+                <span>Near 52-week high (within 5%)</span>
+              </label>
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  name="near_52w_low"
+                  value="true"
+                  defaultChecked={near52wLow}
+                  className="h-4 w-4 accent-brand"
+                />
+                <span>Near 52-week low (within 5%)</span>
+              </label>
+            </fieldset>
+          </details>
 
           <div className="flex gap-2 pt-2">
             <Button type="submit" className="flex-1">
@@ -225,10 +262,17 @@ export default async function ScreenerPage({
         </form>
 
         <section>
-          <div className="mb-3 text-sm text-muted-foreground">
-            {errorMessage
-              ? `Error: ${errorMessage}`
-              : `${results.length} match${results.length === 1 ? "" : "es"}`}
+          <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2 text-sm">
+            <span className="text-text-secondary">
+              {errorMessage
+                ? `Error: ${errorMessage}`
+                : `${results.length} match${results.length === 1 ? "" : "es"}`}
+            </span>
+            <span className="text-xs text-text-tertiary">
+              {activeFilterCount
+                ? `${activeFilterCount} active filter${activeFilterCount === 1 ? "" : "s"}`
+                : "All symbols"}
+            </span>
           </div>
 
           {results.length === 0 && !errorMessage ? (
@@ -267,14 +311,14 @@ export default async function ScreenerPage({
                     <TableRow>
                       <TableHead className="w-[110px]">Ticker</TableHead>
                       <TableHead>Name</TableHead>
-                      <TableHead className="hidden xl:table-cell">Sector</TableHead>
+                      <TableHead className="hidden 2xl:table-cell">Sector</TableHead>
                       <TableHead className="text-right">Price</TableHead>
                       <TableHead className="text-right">RSI(14)</TableHead>
                       <TableHead className="text-right">
                         {momentumDays ? `${momentumDays}d %` : "Momentum"}
                       </TableHead>
-                      <TableHead className="hidden text-right xl:table-cell">52w Low</TableHead>
-                      <TableHead className="hidden text-right xl:table-cell">52w High</TableHead>
+                      <TableHead className="hidden text-right 2xl:table-cell">52w Low</TableHead>
+                      <TableHead className="hidden text-right 2xl:table-cell">52w High</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -282,7 +326,7 @@ export default async function ScreenerPage({
                       <ClickableRow key={row.ticker} href={`/stocks/${row.ticker}`}>
                         <TableCell className="font-mono font-semibold">{row.ticker}</TableCell>
                         <TableCell className="truncate">{row.name}</TableCell>
-                        <TableCell className="hidden text-text-tertiary md:table-cell">
+                        <TableCell className="hidden text-text-tertiary 2xl:table-cell">
                           {row.sector ?? "—"}
                         </TableCell>
                         <NumericCell>${fmt(row.last_close)}</NumericCell>
@@ -292,10 +336,10 @@ export default async function ScreenerPage({
                         <NumericCell signedBy={row.momentum_pct}>
                           {row.momentum_pct === null ? null : fmtPct(row.momentum_pct)}
                         </NumericCell>
-                        <NumericCell muted className="hidden xl:table-cell">
+                        <NumericCell muted className="hidden 2xl:table-cell">
                           ${fmt(row.low_52w)}
                         </NumericCell>
-                        <NumericCell muted className="hidden xl:table-cell">
+                        <NumericCell muted className="hidden 2xl:table-cell">
                           ${fmt(row.high_52w)}
                         </NumericCell>
                       </ClickableRow>

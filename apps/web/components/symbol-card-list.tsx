@@ -47,10 +47,10 @@ function toneClass(value: number | null | undefined): string {
 
 export function SymbolCard({ row }: { row: SymbolCardData }) {
   return (
-    <li>
+    <li className="border-b border-border-muted last:border-b-0">
       <Link
         href={`/stocks/${encodeURIComponent(row.ticker)}`}
-        className="block rounded-lg border border-border-muted bg-card p-4 transition-colors hover:bg-surface-hover"
+        className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-2 py-3 transition-colors hover:bg-surface-hover focus-visible:bg-surface-hover sm:py-3.5"
       >
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
@@ -81,7 +81,7 @@ export function SymbolCard({ row }: { row: SymbolCardData }) {
         {row.metrics && row.metrics.length > 0 ? (
           <dl
             className={cn(
-              "mt-3 grid gap-x-3 gap-y-2 border-t border-border-muted pt-3",
+              "col-span-2 grid gap-x-3 gap-y-1.5 border-t border-border-muted pt-2.5",
               // Match the column count to the data so a two-metric card
               // doesn't leave a dead third column.
               row.metrics.length <= 2 ? "grid-cols-2" : "grid-cols-3",
@@ -89,12 +89,12 @@ export function SymbolCard({ row }: { row: SymbolCardData }) {
           >
             {row.metrics.map((metric) => (
               <div key={metric.label} className="min-w-0">
-                <dt className="truncate text-3xs font-semibold tracking-[0.1em] text-text-tertiary uppercase">
+                <dt className="inline truncate text-3xs font-semibold tracking-[0.1em] text-text-tertiary uppercase">
                   {metric.label}
                 </dt>
                 <dd
                   className={cn(
-                    "mt-0.5 truncate font-mono text-xs",
+                    "ml-1 inline truncate font-mono text-xs",
                     metric.signedBy === undefined ? "text-foreground" : toneClass(metric.signedBy),
                   )}
                   data-financial
@@ -106,7 +106,7 @@ export function SymbolCard({ row }: { row: SymbolCardData }) {
           </dl>
         ) : null}
 
-        {row.visual ? <div className="mt-3">{row.visual}</div> : null}
+        {row.visual ? <div className="col-span-2 hidden pt-0.5 sm:block">{row.visual}</div> : null}
       </Link>
     </li>
   );
@@ -120,7 +120,7 @@ export function SymbolCardList({
   className?: string;
 }) {
   return (
-    <ul className={cn("space-y-2", className)}>
+    <ul className={cn("border-y border-border-muted", className)}>
       {rows.map((row) => (
         <SymbolCard key={row.ticker} row={row} />
       ))}
@@ -159,7 +159,7 @@ export function CardSortBar({
             href={option.href}
             aria-current={active ? "true" : undefined}
             className={cn(
-              "inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs transition-colors",
+              "inline-flex items-center gap-1 rounded-md border px-2.5 py-1 text-xs transition-colors",
               active
                 ? "border-primary bg-primary font-semibold text-primary-foreground"
                 : "border-border-muted text-text-secondary hover:bg-surface-hover hover:text-foreground",

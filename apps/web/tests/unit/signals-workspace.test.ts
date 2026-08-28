@@ -61,6 +61,7 @@ describe("recommendationToSignal", () => {
     );
     expect(withVotes.signal).toBe("bullish");
     expect(withVotes.supportingVotes).toBe(1);
+    expect(withVotes.votes).toHaveLength(7);
 
     const reconstructed = recommendationToSignal(rec({ votes: [] }));
     expect(reconstructed.votes).toHaveLength(7);
@@ -110,5 +111,17 @@ describe("buildSignalsHref", () => {
     expect(buildSignalsHref({ min: 4, signal: "bullish", q: "AAPL" })).toBe(
       "/recommendations?min=4&signal=bullish&q=AAPL",
     );
+  });
+
+  it("keeps a selected ticker shareable alongside filters and sorting", () => {
+    expect(
+      buildSignalsHref({
+        min: 4,
+        signal: "bullish",
+        sort: "ticker",
+        dir: "asc",
+        selected: "AAPL",
+      }),
+    ).toBe("/recommendations?min=4&signal=bullish&sort=ticker&dir=asc&selected=AAPL");
   });
 });
