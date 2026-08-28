@@ -76,7 +76,13 @@ export default async function MarketsPage({
     ],
     visual:
       row.closes.length > 1 ? (
-        <Sparkline closes={row.closes} width={280} height={36} className="w-full" />
+        <Sparkline
+          closes={row.closes}
+          width={280}
+          height={40}
+          className="w-full"
+          periodLabel="30-day"
+        />
       ) : null,
   }));
 
@@ -109,9 +115,14 @@ export default async function MarketsPage({
           </nav>
         </TableToolbar>
 
-        {/* Cards below md, table above: the table is ~500px at its narrowest
-            and would otherwise overflow a phone viewport. */}
-        <div className="md:hidden">
+        {/* Cards below lg, table above.
+            Measured against real data, the full column set is 891px wide
+            (Sector alone is 183px — "Communication Services"). The content box
+            is ~720px at md and ~752px at lg, because the sidebar claims 224px
+            from lg up. So the switch is lg, and Sector and Exchange both wait
+            for xl: that leaves 627px at lg and the full 891px inside the 992px
+            available at xl. */}
+        <div className="lg:hidden">
           <CardSortBar
             options={[
               { key: "ticker", label: "Ticker", href: sortHref("ticker", params) },
@@ -124,7 +135,7 @@ export default async function MarketsPage({
           <SymbolCardList className="mt-3" rows={cardRows} />
         </div>
 
-        <DataTableFrame className="hidden md:block">
+        <DataTableFrame className="hidden lg:block">
           <Table>
             <TableHeader>
               <TableRow>
@@ -135,8 +146,8 @@ export default async function MarketsPage({
                   className="w-[120px]"
                 />
                 <TableHead>Name</TableHead>
-                <TableHead className="hidden md:table-cell">Sector</TableHead>
-                <TableHead className="hidden md:table-cell">Exchange</TableHead>
+                <TableHead className="hidden xl:table-cell">Sector</TableHead>
+                <TableHead className="hidden xl:table-cell">Exchange</TableHead>
                 <SortableHead
                   href={sortHref("price", params)}
                   label="Price"
@@ -149,7 +160,7 @@ export default async function MarketsPage({
                   direction={sortDirection("change")}
                   align="right"
                 />
-                <TableHead className="hidden text-right sm:table-cell">30d</TableHead>
+                <TableHead className="hidden text-right lg:table-cell">30d</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -157,18 +168,18 @@ export default async function MarketsPage({
                 <ClickableRow key={row.ticker} href={`/stocks/${row.ticker}`}>
                   <TableCell className="font-mono font-semibold">{row.ticker}</TableCell>
                   <TableCell className="truncate">{row.name}</TableCell>
-                  <TableCell className="hidden text-text-tertiary md:table-cell">
+                  <TableCell className="hidden text-text-tertiary xl:table-cell">
                     {row.sector ?? "—"}
                   </TableCell>
-                  <TableCell className="hidden text-text-tertiary md:table-cell">
+                  <TableCell className="hidden text-text-tertiary xl:table-cell">
                     {row.exchange ?? "—"}
                   </TableCell>
                   <NumericCell>{row.last === null ? null : `$${fmtPrice(row.last)}`}</NumericCell>
                   <NumericCell signedBy={row.changePct}>
                     {row.changePct === null ? null : fmtPct(row.changePct)}
                   </NumericCell>
-                  <TableCell className="hidden text-right sm:table-cell">
-                    <Sparkline closes={row.closes} />
+                  <TableCell className="hidden text-right lg:table-cell">
+                    <Sparkline closes={row.closes} periodLabel="30-day" />
                   </TableCell>
                 </ClickableRow>
               ))}

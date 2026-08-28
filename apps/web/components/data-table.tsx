@@ -17,13 +17,21 @@ import { cn } from "@/lib/utils";
  * above a bordered table whose numeric columns are right-aligned and tabular.
  */
 
-/** Bordered, rounded, horizontally scrollable shell around a `<Table>`. */
+/**
+ * Bordered, rounded shell around a `<Table>`.
+ *
+ * `overflow-x-auto` rather than `overflow-hidden`: the inner `Table` primitive
+ * has its own scroll container, but a clipping parent means a table wider than
+ * its box pushes the whole page into horizontal scrolling instead. Column
+ * visibility is tuned so this shouldn't trigger, but a long company name or a
+ * translated header shouldn't be able to break the page layout.
+ */
 export function DataTableFrame({
   className,
   children,
 }: React.PropsWithChildren<{ className?: string }>) {
   return (
-    <div className={cn("overflow-hidden rounded-lg border border-border-muted", className)}>
+    <div className={cn("overflow-x-auto rounded-lg border border-border-muted", className)}>
       {children}
     </div>
   );

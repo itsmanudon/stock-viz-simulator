@@ -238,10 +238,10 @@ export default async function ScreenerPage({
             </p>
           ) : (
             <>
-              {/* Cards below md, table above — the eight-column table is far
-                  wider than a phone viewport. */}
+              {/* Cards below lg, table above — see the markets page for why
+                  the switch is lg rather than md. */}
               <SymbolCardList
-                className="md:hidden"
+                className="lg:hidden"
                 rows={results.map(
                   (row): SymbolCardData => ({
                     ticker: row.ticker,
@@ -261,20 +261,20 @@ export default async function ScreenerPage({
                 )}
               />
 
-              <DataTableFrame className="hidden md:block">
+              <DataTableFrame className="hidden lg:block">
                 <Table>
                   <TableHeader>
                     <TableRow>
                       <TableHead className="w-[110px]">Ticker</TableHead>
                       <TableHead>Name</TableHead>
-                      <TableHead className="hidden md:table-cell">Sector</TableHead>
+                      <TableHead className="hidden xl:table-cell">Sector</TableHead>
                       <TableHead className="text-right">Price</TableHead>
                       <TableHead className="text-right">RSI(14)</TableHead>
                       <TableHead className="text-right">
                         {momentumDays ? `${momentumDays}d %` : "Momentum"}
                       </TableHead>
-                      <TableHead className="hidden text-right md:table-cell">52w Low</TableHead>
-                      <TableHead className="hidden text-right md:table-cell">52w High</TableHead>
+                      <TableHead className="hidden text-right xl:table-cell">52w Low</TableHead>
+                      <TableHead className="hidden text-right xl:table-cell">52w High</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -292,10 +292,10 @@ export default async function ScreenerPage({
                         <NumericCell signedBy={row.momentum_pct}>
                           {row.momentum_pct === null ? null : fmtPct(row.momentum_pct)}
                         </NumericCell>
-                        <NumericCell muted className="hidden md:table-cell">
+                        <NumericCell muted className="hidden xl:table-cell">
                           ${fmt(row.low_52w)}
                         </NumericCell>
-                        <NumericCell muted className="hidden md:table-cell">
+                        <NumericCell muted className="hidden xl:table-cell">
                           ${fmt(row.high_52w)}
                         </NumericCell>
                       </ClickableRow>

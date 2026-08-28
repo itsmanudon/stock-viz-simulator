@@ -168,6 +168,14 @@ Web publishes **3100**, not 3000 — 3000 is commonly taken by another local
 project. `AUTH_URL` stays unset so NextAuth derives the origin from the request
 host, which is why `AUTH_TRUST_HOST=true` is set.
 
+Symbols are seeded with only ticker and name; `sector` and `exchange` come from
+`stockviz.cli metadata` (yfinance, needs network). Run it once after seeding or
+the markets/screener classification columns stay empty:
+
+```bash
+docker exec stockviz-api python -m stockviz.cli metadata
+```
+
 `pnpm stack:seed` (`apps/web/scripts/seed-demo.mjs`) fills the database with
 three demo accounts, their trades, pending orders, alerts, watchlists, and 120
 days of NAV snapshots. Trades go through the **real API** so cash, average
