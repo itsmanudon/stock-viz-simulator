@@ -11,7 +11,7 @@ from datetime import date, timedelta
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlmodel import Session, select
+from sqlmodel import Session, col, select
 
 from stockviz.auth import UserIdDep
 from stockviz.db import get_session
@@ -72,7 +72,7 @@ def list_earnings(
         watchlists = select(Watchlist.id).where(Watchlist.user_id == user_id)
         ticker_filter = set(
             session.exec(
-                select(WatchlistItem.ticker).where(WatchlistItem.watchlist_id.in_(watchlists))
+                select(WatchlistItem.ticker).where(col(WatchlistItem.watchlist_id).in_(watchlists))
             ).all()  # type: ignore[attr-defined]
         )
 
@@ -80,7 +80,7 @@ def list_earnings(
         select(EarningsEvent, Symbol.name)
         .join(Symbol, Symbol.ticker == EarningsEvent.ticker)  # type: ignore[arg-type]
         .where(EarningsEvent.event_date >= start, EarningsEvent.event_date <= end)
-        .order_by(EarningsEvent.event_date, EarningsEvent.ticker)
+        .order_by(col(EarningsEvent.event_date), col(EarningsEvent.ticker))
     )
     if ticker_filter is not None:
         if not ticker_filter:
