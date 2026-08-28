@@ -127,13 +127,13 @@ test("operational trading loop from ticket to orders, watchlist, alerts, and rep
     .textContent();
   expect(after).not.toEqual(before);
 
-  await page
+  await main
     .getByRole("navigation", { name: "Replay workspace" })
     .getByRole("link", { name: "Forensics" })
     .click();
-  await expect(page.getByRole("heading", { name: "Trade forensics" })).toBeVisible();
-  await expect(page.getByText("So far")).toBeVisible();
-  await expect(page.getByRole("table", { name: "Replay episodes" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Decision journal" })).toBeVisible();
+  await expect(main.getByRole("heading", { name: "Trade forensics" })).toBeVisible();
+  await expect(main.getByText("So far", { exact: true })).toBeVisible();
+  await expect(main.getByRole("table", { name: "Replay episodes" })).toBeVisible();
+  await expect(main.getByRole("heading", { name: "Decision journal" })).toBeVisible();
   expect(leaked).toEqual([]);
 });
