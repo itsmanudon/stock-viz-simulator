@@ -1,12 +1,13 @@
 # Research domain
 
-StockViz Research is a three-route quantitative workspace inside the product shell. It is not a combined dashboard and not an AI advisory product.
+StockViz Research is a quantitative workspace inside the product shell. It is not a combined dashboard and not an AI advisory product.
 
 ```
 Markets / Screener  →  /stocks/[ticker]  →  Research
                                             ├── /compare
                                             ├── /backtest
-                                            └── /recommendations  (Signals)
+                                            ├── /recommendations  (Signals)
+                                            └── /replay           (Replay Lab, signed-in)
 ```
 
 ## Routes and URL state
@@ -16,8 +17,11 @@ Markets / Screener  →  /stocks/[ticker]  →  Research
 | `/compare` | Normalized relative performance | `tickers` (canonical; `symbols` alias), `tf` (`1M`…`5Y`) |
 | `/backtest` | Historical rule replay | `ticker` prefills the experiment |
 | `/recommendations` | Explainable technical + sentiment votes | `min`, `signal` (`bullish`\|`neutral`\|`all`), `sector`, `q`, `sort`, `dir` |
+| `/replay` | Blind historical Replay Lab | session id is `/replay/[id]`; optional `ticker` on the launcher |
 
 Deep links and back/forward must keep working. Do not hide these filters in client-only stores.
+
+Replay Lab is **future-blind**. The workspace chart and quote come only from `/v1/replay/sessions/{id}/history` and `/market`. Do not fetch generic bars, live quotes, SSE, news, comments, or fundamentals into a replay session.
 
 ## Server / client boundaries
 
