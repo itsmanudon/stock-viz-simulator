@@ -16,7 +16,9 @@ async function signUp(page: Page, email: string): Promise<void> {
 
 // One signup covers the operational loop and Replay Lab. Credential signup is
 // capped at 5/IP/hour, and auth + portfolio + stock-workspace consume the other slots.
-test("operational trading loop from ticket to orders, watchlist, alerts, and replay", async ({ page }) => {
+test("operational trading loop from ticket to orders, watchlist, alerts, and replay", async ({
+  page,
+}) => {
   const email = `e2e+ops+${Date.now()}@example.com`;
   await signUp(page, email);
 
