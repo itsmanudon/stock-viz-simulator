@@ -76,7 +76,7 @@ export function LoginForm() {
             />
           </div>
           {state.error ? (
-            <p className="text-sm text-red-500" role="alert">
+            <p className="text-sm text-negative" role="alert">
               {state.error}
             </p>
           ) : null}

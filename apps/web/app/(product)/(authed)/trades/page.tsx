@@ -8,6 +8,7 @@
 
 import Link from "next/link";
 
+import { DataTableFrame, NumericCell } from "@/components/data-table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -74,7 +75,7 @@ export default async function TradesPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="rounded-lg border">
+        <DataTableFrame>
           <Table>
             <TableHeader>
               <TableRow>
@@ -112,24 +113,19 @@ export default async function TradesPage() {
                     <TableCell className="text-right font-mono">
                       {fmtCurrency(String(total))}
                     </TableCell>
-                    <TableCell
-                      className={`hidden text-right font-mono sm:table-cell ${
-                        trade.realized_pnl === null
-                          ? "text-muted-foreground"
-                          : Number(trade.realized_pnl) >= 0
-                            ? "text-green-500"
-                            : "text-red-500"
-                      }`}
+                    {/* Only sells realize a gain or loss; a buy shows an em dash. */}
+                    <NumericCell
+                      signedBy={trade.realized_pnl === null ? null : Number(trade.realized_pnl)}
+                      className="hidden sm:table-cell"
                     >
-                      {/* Only sells realize a gain or loss; a buy shows an em dash. */}
-                      {trade.realized_pnl === null ? "—" : fmtCurrency(trade.realized_pnl)}
-                    </TableCell>
+                      {trade.realized_pnl === null ? null : fmtCurrency(trade.realized_pnl)}
+                    </NumericCell>
                   </TableRow>
                 );
               })}
             </TableBody>
           </Table>
-        </div>
+        </DataTableFrame>
       )}
     </div>
   );

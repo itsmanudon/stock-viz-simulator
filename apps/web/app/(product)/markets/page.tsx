@@ -13,6 +13,8 @@
 import Link from "next/link";
 
 import { ClickableRow } from "@/components/clickable-row";
+import { DataTableFrame, NumericCell, SortableHead, TableToolbar } from "@/components/data-table";
+import { PageHeader } from "@/components/page-header";
 import { Sparkline } from "@/components/sparkline";
 import {
   Table,
@@ -32,6 +34,7 @@ import {
   fmtPrice,
   sortHref,
 } from "@/lib/markets-table";
+import { cn } from "@/lib/utils";
 
 export default async function MarketsPage({
   searchParams,
@@ -56,105 +59,106 @@ export default async function MarketsPage({
   }));
   const sorted = compare(rows, sort, dir);
 
-  const arrow = (col: SortKey) => (sort === col ? (dir === "asc" ? " ↑" : " ↓") : "");
-  // The arrow glyph alone doesn't reach assistive tech; aria-sort does.
-  const ariaSort = (col: SortKey): "ascending" | "descending" | "none" =>
-    sort === col ? (dir === "asc" ? "ascending" : "descending") : "none";
+  const sortDirection = (col: SortKey) => (sort === col ? dir : null);
 
   return (
-    <div className="container mx-auto px-4 py-10 sm:px-6">
-      <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Markets</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
+    <div className="w-full px-4 py-8 sm:px-6 xl:px-8">
+      <PageHeader
+        eyebrow="Markets"
+        title="Markets"
+        description="End-of-day prices across the tracked universe. Sort any column or filter by sector; the view is captured in the URL."
+        meta={
+          <>
             {sorted.length} symbol{sorted.length === 1 ? "" : "s"}
             {params.sector ? ` in ${params.sector}` : ""}
-          </p>
-        </div>
-        <nav className="flex flex-wrap gap-2 text-xs">
-          <Link
-            href="/markets"
-            className={`rounded-md border px-3 py-1.5 transition hover:bg-accent ${
-              !params.sector ? "border-primary text-foreground" : "text-muted-foreground"
-            }`}
-          >
-            All
-          </Link>
-          {sectors.map((sector) => (
-            <Link
-              key={sector}
-              href={`/markets?sector=${encodeURIComponent(sector)}`}
-              className={`rounded-md border px-3 py-1.5 transition hover:bg-accent ${
-                params.sector === sector
-                  ? "border-primary text-foreground"
-                  : "text-muted-foreground"
-              }`}
-            >
-              {sector}
-            </Link>
-          ))}
-        </nav>
-      </div>
+          </>
+        }
+      />
 
-      <div className="rounded-lg border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-[120px]" aria-sort={ariaSort("ticker")}>
-                <Link href={sortHref("ticker", params)} className="hover:text-foreground">
-                  Ticker{arrow("ticker")}
-                </Link>
-              </TableHead>
-              <TableHead>Name</TableHead>
-              <TableHead className="hidden md:table-cell">Sector</TableHead>
-              <TableHead className="hidden md:table-cell">Exchange</TableHead>
-              <TableHead className="text-right" aria-sort={ariaSort("price")}>
-                <Link href={sortHref("price", params)} className="hover:text-foreground">
-                  Price{arrow("price")}
-                </Link>
-              </TableHead>
-              <TableHead className="text-right" aria-sort={ariaSort("change")}>
-                <Link href={sortHref("change", params)} className="hover:text-foreground">
-                  1d % {arrow("change")}
-                </Link>
-              </TableHead>
-              <TableHead className="hidden text-right sm:table-cell">30d</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {sorted.map((row) => {
-              const up = row.changePct !== null && row.changePct >= 0;
-              return (
+      <div className="mt-6">
+        <TableToolbar>
+          <nav aria-label="Filter by sector" className="flex flex-wrap gap-2">
+            <SectorChip href="/markets" label="All" active={!params.sector} />
+            {sectors.map((sector) => (
+              <SectorChip
+                key={sector}
+                href={`/markets?sector=${encodeURIComponent(sector)}`}
+                label={sector}
+                active={params.sector === sector}
+              />
+            ))}
+          </nav>
+        </TableToolbar>
+
+        <DataTableFrame>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <SortableHead
+                  href={sortHref("ticker", params)}
+                  label="Ticker"
+                  direction={sortDirection("ticker")}
+                  className="w-[120px]"
+                />
+                <TableHead>Name</TableHead>
+                <TableHead className="hidden md:table-cell">Sector</TableHead>
+                <TableHead className="hidden md:table-cell">Exchange</TableHead>
+                <SortableHead
+                  href={sortHref("price", params)}
+                  label="Price"
+                  direction={sortDirection("price")}
+                  align="right"
+                />
+                <SortableHead
+                  href={sortHref("change", params)}
+                  label="1d %"
+                  direction={sortDirection("change")}
+                  align="right"
+                />
+                <TableHead className="hidden text-right sm:table-cell">30d</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {sorted.map((row) => (
                 <ClickableRow key={row.ticker} href={`/stocks/${row.ticker}`}>
                   <TableCell className="font-mono font-semibold">{row.ticker}</TableCell>
                   <TableCell className="truncate">{row.name}</TableCell>
-                  <TableCell className="hidden text-muted-foreground md:table-cell">
+                  <TableCell className="hidden text-text-tertiary md:table-cell">
                     {row.sector ?? "—"}
                   </TableCell>
-                  <TableCell className="hidden text-muted-foreground md:table-cell">
+                  <TableCell className="hidden text-text-tertiary md:table-cell">
                     {row.exchange ?? "—"}
                   </TableCell>
-                  <TableCell className="text-right font-mono">${fmtPrice(row.last)}</TableCell>
-                  <TableCell
-                    className={`text-right font-mono ${
-                      row.changePct === null
-                        ? "text-muted-foreground"
-                        : up
-                          ? "text-green-500"
-                          : "text-red-500"
-                    }`}
-                  >
-                    {fmtPct(row.changePct)}
-                  </TableCell>
+                  <NumericCell>{row.last === null ? null : `$${fmtPrice(row.last)}`}</NumericCell>
+                  <NumericCell signedBy={row.changePct}>
+                    {row.changePct === null ? null : fmtPct(row.changePct)}
+                  </NumericCell>
                   <TableCell className="hidden text-right sm:table-cell">
                     <Sparkline closes={row.closes} />
                   </TableCell>
                 </ClickableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
+              ))}
+            </TableBody>
+          </Table>
+        </DataTableFrame>
       </div>
     </div>
+  );
+}
+
+function SectorChip({ href, label, active }: { href: string; label: string; active: boolean }) {
+  return (
+    <Link
+      href={href}
+      aria-current={active ? "true" : undefined}
+      className={cn(
+        "rounded-full border px-3 py-1 text-xs transition-colors",
+        active
+          ? "border-brand bg-brand/10 font-medium text-foreground"
+          : "border-border-muted text-text-secondary hover:bg-surface-hover hover:text-foreground",
+      )}
+    >
+      {label}
+    </Link>
   );
 }

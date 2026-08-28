@@ -108,12 +108,12 @@ export function OptionTradeForm({ options }: { options: SymbolOption[] }) {
         </div>
 
         {state.error ? (
-          <p className="text-sm text-red-500" role="alert">
+          <p className="text-sm text-negative" role="alert">
             {state.error}
           </p>
         ) : null}
         {state.success ? (
-          <output className="block text-sm text-green-500">
+          <output className="block text-sm text-positive">
             Bought {state.success.quantity} {state.success.ticker}{" "}
             {state.success.option_type.toUpperCase()} @ ${Number(state.success.strike).toFixed(2)}{" "}
             for ${Number(state.success.premium_paid).toFixed(2)}

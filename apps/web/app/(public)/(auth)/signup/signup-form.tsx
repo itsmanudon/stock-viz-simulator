@@ -82,7 +82,7 @@ export function SignupForm() {
             <p className="text-xs text-muted-foreground">At least 8 characters.</p>
           </div>
           {state.error ? (
-            <p className="text-sm text-red-500" role="alert">
+            <p className="text-sm text-negative" role="alert">
               {state.error}
             </p>
           ) : null}

@@ -96,7 +96,7 @@ export default async function SettingsPage() {
             </button>
             <span className="text-sm text-muted-foreground">
               Currently:{" "}
-              <span className={profile.public_profile ? "text-green-500" : "text-muted-foreground"}>
+              <span className={profile.public_profile ? "text-positive" : "text-text-tertiary"}>
                 {profile.public_profile ? "visible" : "hidden"}
               </span>
             </span>
