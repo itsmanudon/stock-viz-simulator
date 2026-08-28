@@ -74,8 +74,8 @@ export default async function ReplaySessionPage({
               {formatReplayDate(session.current_at)}
             </p>
             <p className="mt-1 text-xs text-text-tertiary">
-              {replayStatusLabel(session.status)} · stored sessions {session.start_at.slice(0, 10)}{" "}
-              → {session.end_at.slice(0, 10)}
+              {replayStatusLabel(session.status)} · stored daily bars{" "}
+              {session.start_at.slice(0, 10)} → {session.end_at.slice(0, 10)}
             </p>
           </div>
           <Link
@@ -89,8 +89,7 @@ export default async function ReplaySessionPage({
         {startChanged || endChanged ? (
           <p className="mt-4 border-y border-border-muted py-3 text-sm text-text-secondary sm:border-x sm:px-4">
             Requested {requested.requestedStart} → {requested.requestedEnd}. Resolved{" "}
-            {session.start_at.slice(0, 10)} → {session.end_at.slice(0, 10)} to stored market
-            sessions.
+            {session.start_at.slice(0, 10)} → {session.end_at.slice(0, 10)} to stored daily bars.
           </p>
         ) : null}
 

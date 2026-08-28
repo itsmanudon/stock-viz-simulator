@@ -51,7 +51,7 @@ export function ReplayAdvanceControls({
           {advancing ? "Advancing…" : "Next session"}
         </Button>
         <p className="mt-2 text-xs leading-5 text-text-tertiary">
-          Moves to the next stored market day. Weekends and holidays are skipped.
+          Moves to the next stored daily bar.
         </p>
       </form>
       {advanceState.from && advanceState.to ? (

@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
+import { ReplayAdvanceControls } from "@/components/replay-controls";
 import { ReplayFillTable } from "@/components/replay-fills";
 import { ReplayTradeTicket } from "@/components/replay-trade-ticket";
 import type { ReplayFill } from "@/lib/api/replay";
@@ -68,5 +69,20 @@ describe("Replay Lab presentation", () => {
   it("explains an empty book", () => {
     render(<ReplayFillTable fills={[]} />);
     expect(screen.getByRole("heading", { name: "No replay trades yet." })).toBeVisible();
+  });
+
+  it("describes advance as the next stored daily bar, not an exchange calendar", () => {
+    render(
+      <ReplayAdvanceControls
+        sessionId={1}
+        currentAt="2020-01-04T00:00:00Z"
+        hasNext
+        readOnly={false}
+      />,
+    );
+    expect(screen.getByRole("button", { name: "Advance to next session" })).toBeVisible();
+    expect(screen.getByText(/Moves to the next stored daily bar/i)).toBeVisible();
+    expect(screen.queryByText(/weekends/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/holidays/i)).not.toBeInTheDocument();
   });
 });

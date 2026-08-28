@@ -29,7 +29,7 @@ export default async function ReplayPage({
     <PageFrame width="workstation" className="py-6 sm:py-8">
       <ResearchPageHeader
         title="Replay"
-        description="Stand in a historical market day. You will not see what happens next. Trades fill at the stored daily close on an isolated replay book."
+        description="Stand on a historical replay date. You will not see what happens next. Trades fill at the stored daily close on an isolated replay book."
       />
       <ResearchSubnav current="/replay" />
       <div className="mt-6 space-y-8">

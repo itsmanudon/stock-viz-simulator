@@ -59,6 +59,9 @@ export type _ScreenerMatches = Expect<Assignable<ScreenerResult, Schemas["Screen
 export type _RecommendationMatches = Expect<
   Assignable<Recommendation, Schemas["RecommendationOut"]>
 >;
+export type _BacktestSummaryMatches = Expect<
+  Assignable<BacktestSummary, Schemas["BacktestSummaryOut"]>
+>;
 export type _ReplaySummaryMatches = Expect<Assignable<ReplaySummary, Schemas["ReplaySummaryOut"]>>;
 export type _ReplaySessionListMatches = Expect<
   Assignable<ReplaySessionList, Schemas["ReplaySessionListOut"]>

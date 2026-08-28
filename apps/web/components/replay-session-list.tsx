@@ -36,7 +36,7 @@ export function ReplaySessionTable({ sessions }: { sessions: ReplaySessionList[]
       <ResearchSectionHeader
         id="replay-sessions-heading"
         title="Recent sessions"
-        description="Resume an active replay or review a completed one. Dates are historical session dates, not today."
+        description="Resume an active replay or review a completed one. Dates are historical replay dates, not today."
       />
       <div className="border-y border-border-muted sm:border-x">
         <Table aria-label="Replay sessions">

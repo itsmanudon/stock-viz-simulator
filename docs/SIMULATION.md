@@ -329,7 +329,7 @@ GET market / history
     → never bars after current_at
 
 POST advance
-    → next stored 1d bar (weekends/holidays skip naturally)
+    → next stored 1d bar
     → completes when that bar is the last in the frozen range
 
 POST orders (intent only)
@@ -345,9 +345,12 @@ persisted; ingesting a later bar does not extend the session. A usable range
 needs at least two 1d bars. Non-USD symbols are rejected (no historical FX).
 
 **Current bar.** `current_at` is the `PriceBar.ts` of the currently observable
-session. That bar and earlier bars in `[start_at, current_at]` are visible.
-The next stored bar is not. Kernel `observed_at` / order `submitted_at` are
-that timestamp labeled UTC. Bar N cannot fill until replay has advanced to N.
+stored daily bar. That bar and earlier bars in `[start_at, current_at]` are
+visible. The next stored bar is not. Kernel `observed_at` / order
+`submitted_at` are that timestamp labeled UTC. Bar N cannot fill until replay
+has advanced to N. Stored 1d rows may include calendar days when the dataset
+contains them; Replay does not skip weekends or holidays unless those dates
+have no stored bar.
 
 **Statuses.** `active` → `completed` when advance lands on `end_at` (no next
 bar). Manual `POST .../cancel` → `cancelled`. Advance or orders on a terminal

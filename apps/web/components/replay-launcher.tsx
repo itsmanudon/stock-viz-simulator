@@ -67,7 +67,7 @@ export function ReplayLauncher({
       <ResearchSectionHeader
         id={`${fieldId}-title`}
         title="Start a historical replay"
-        description="You will only see prices that were knowable on the replay date. The server snaps your dates to stored market sessions."
+        description="You will only see prices that were knowable on the replay date. The server snaps your dates to stored daily bars."
       />
       <form action={action} className="mt-5 grid gap-5 md:grid-cols-2">
         <div className="space-y-4">
@@ -117,7 +117,7 @@ export function ReplayLauncher({
           </div>
           {range ? (
             <p className="text-xs leading-5 text-text-tertiary">
-              Stored daily bars for {ticker}: {range.first} → {range.last} ({range.bars} sessions).
+              Stored daily bars for {ticker}: {range.first} → {range.last} ({range.bars} bars).
             </p>
           ) : null}
           {rangeError ? <p className="text-sm text-negative">{rangeError}</p> : null}

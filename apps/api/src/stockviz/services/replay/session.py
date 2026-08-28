@@ -199,8 +199,8 @@ def create_replay_session(
 def advance_replay_session(session: Session, *, replay: ReplaySession) -> ReplaySession:
     """Move ``current_at`` to the next stored 1d bar inside the frozen range.
 
-    Skips weekends/holidays by following stored bars. Completes the session
-    when that bar is the last eligible bar (``end_at``).
+    Completes the session when that bar is the last eligible bar (``end_at``).
+    Replay follows stored daily bars; it does not apply an exchange calendar.
     """
 
     if replay.id is None:
