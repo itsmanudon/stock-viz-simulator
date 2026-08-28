@@ -21,6 +21,7 @@ import {
 import { useEffect, useMemo, useRef } from "react";
 
 import type { Bar, IndicatorPoint, MACDPoint } from "@/lib/api";
+import { useChartPalette } from "@/lib/chart-theme";
 
 type Props = {
   bars: Bar[];
@@ -32,17 +33,10 @@ function toUtcSeconds(iso: string): UTCTimestamp {
   return Math.floor(new Date(iso).getTime() / 1000) as UTCTimestamp;
 }
 
-const OVERLAY_COLORS = [
-  "#3b82f6", // blue-500
-  "#a855f7", // purple-500
-  "#f59e0b", // amber-500
-  "#ec4899", // pink-500
-  "#22d3ee", // cyan-400
-];
-
 export function PriceChart({ bars, overlays, macd }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const macdRef = useRef<HTMLDivElement | null>(null);
+  const palette = useChartPalette();
 
   // Stable identity so the effect doesn't re-run on every render.
   const candles = useMemo(
@@ -61,9 +55,9 @@ export function PriceChart({ bars, overlays, macd }: Props) {
       bars.map((b) => ({
         time: toUtcSeconds(b.ts),
         value: b.volume,
-        color: Number(b.close) >= Number(b.open) ? "rgba(34,197,94,0.4)" : "rgba(239,68,68,0.4)",
+        color: Number(b.close) >= Number(b.open) ? palette.positiveFill : palette.negativeFill,
       })),
-    [bars],
+    [bars, palette],
   );
 
   useEffect(() => {
@@ -73,23 +67,23 @@ export function PriceChart({ bars, overlays, macd }: Props) {
       autoSize: true,
       layout: {
         background: { color: "transparent" },
-        textColor: "rgb(161 161 170)", // zinc-400
+        textColor: palette.text,
       },
       grid: {
-        vertLines: { color: "rgba(82, 82, 91, 0.3)" }, // zinc-600 @ 30%
-        horzLines: { color: "rgba(82, 82, 91, 0.3)" },
+        vertLines: { color: palette.grid },
+        horzLines: { color: palette.grid },
       },
-      timeScale: { borderColor: "rgb(63 63 70)", timeVisible: false },
-      rightPriceScale: { borderColor: "rgb(63 63 70)" },
+      timeScale: { borderColor: palette.axis, timeVisible: false },
+      rightPriceScale: { borderColor: palette.axis },
       crosshair: { mode: 1 },
     });
 
     const candleSeries = chart.addSeries(CandlestickSeries, {
-      upColor: "rgb(34 197 94)",
-      downColor: "rgb(239 68 68)",
+      upColor: palette.positive,
+      downColor: palette.negative,
       borderVisible: false,
-      wickUpColor: "rgb(34 197 94)",
-      wickDownColor: "rgb(239 68 68)",
+      wickUpColor: palette.positive,
+      wickDownColor: palette.negative,
     });
     candleSeries.setData(candles);
 
@@ -107,7 +101,7 @@ export function PriceChart({ bars, overlays, macd }: Props) {
     for (const [name, points] of Object.entries(overlays ?? {})) {
       if (!points.length) continue;
       const line = chart.addSeries(LineSeries, {
-        color: OVERLAY_COLORS[colorIdx % OVERLAY_COLORS.length],
+        color: palette.overlays[colorIdx % palette.overlays.length],
         lineWidth: 2,
         priceLineVisible: false,
         title: name.toUpperCase(),
@@ -122,23 +116,23 @@ export function PriceChart({ bars, overlays, macd }: Props) {
         autoSize: true,
         layout: {
           background: { color: "transparent" },
-          textColor: "rgb(161 161 170)",
+          textColor: palette.text,
         },
         grid: {
-          vertLines: { color: "rgba(82, 82, 91, 0.3)" },
-          horzLines: { color: "rgba(82, 82, 91, 0.3)" },
+          vertLines: { color: palette.grid },
+          horzLines: { color: palette.grid },
         },
-        timeScale: { borderColor: "rgb(63 63 70)", timeVisible: false },
-        rightPriceScale: { borderColor: "rgb(63 63 70)" },
+        timeScale: { borderColor: palette.axis, timeVisible: false },
+        rightPriceScale: { borderColor: palette.axis },
       });
       const macdLine = macdChart.addSeries(LineSeries, {
-        color: "#3b82f6",
+        color: palette.overlays[0],
         lineWidth: 2,
         priceLineVisible: false,
         title: "MACD",
       });
       const signalLine = macdChart.addSeries(LineSeries, {
-        color: "#f59e0b",
+        color: palette.overlays[2],
         lineWidth: 2,
         priceLineVisible: false,
         title: "Signal",
@@ -164,7 +158,7 @@ export function PriceChart({ bars, overlays, macd }: Props) {
       macdChart?.remove();
       chart.remove();
     };
-  }, [candles, volumes, overlays, macd]);
+  }, [candles, volumes, overlays, macd, palette]);
 
   // Text equivalent of the canvas: range, endpoints, and direction.
   const chartSummary = useMemo(() => {

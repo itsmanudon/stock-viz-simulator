@@ -39,7 +39,7 @@ export function PortfolioPerformance({ portfolio, history, range, tab }: Props) 
           <p className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
             Paper portfolio
           </p>
-          <h1 id="portfolio-heading" className="mt-1 text-2xl font-semibold tracking-tight">
+          <h1 id="portfolio-heading" className="mt-1 text-2xl font-bold tracking-tight">
             Portfolio
           </h1>
         </div>
@@ -53,10 +53,7 @@ export function PortfolioPerformance({ portfolio, history, range, tab }: Props) 
 
       <div className="mt-7 grid gap-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
         <div className="min-w-0">
-          <p
-            className="font-mono text-4xl font-semibold tracking-[-0.04em] sm:text-5xl"
-            data-financial
-          >
+          <p className="font-mono text-4xl font-bold tracking-[-0.04em] sm:text-5xl" data-financial>
             {formatCurrency(portfolio.total_value, portfolio.display_currency || "USD")}
           </p>
           <p className="mt-2 text-xs text-muted-foreground">

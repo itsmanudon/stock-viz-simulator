@@ -56,7 +56,7 @@ export function TickerOrders({
               <span className="min-w-0 flex-1 font-mono text-sm tabular-nums">
                 {formatQuantity(order.quantity)} {ticker} @ {money(order.limit_price, currency)}
               </span>
-              <span className="rounded-sm bg-surface-secondary px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-text-tertiary">
+              <span className="rounded-sm bg-surface-secondary px-2 py-1 text-3xs font-semibold uppercase tracking-[0.1em] text-text-tertiary">
                 Pending
               </span>
               <form action={cancelOrderAction}>

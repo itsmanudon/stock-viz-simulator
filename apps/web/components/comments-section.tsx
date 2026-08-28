@@ -122,7 +122,7 @@ function CommentItem({
           <form action={deleteCommentAction} className="ml-auto">
             <input type="hidden" name="id" value={comment.id} />
             <input type="hidden" name="ticker" value={ticker} />
-            <button type="submit" className="text-xs text-muted-foreground hover:text-red-500">
+            <button type="submit" className="text-xs text-muted-foreground hover:text-negative">
               Delete
             </button>
           </form>
@@ -208,11 +208,11 @@ function CommentForm({
           </Button>
         ) : null}
         {state.error ? (
-          <p className="text-xs text-red-500" role="alert">
+          <p className="text-xs text-negative" role="alert">
             {state.error}
           </p>
         ) : state.postedAt ? (
-          <p className="text-xs text-green-500">Posted.</p>
+          <p className="text-xs text-positive">Posted.</p>
         ) : null}
       </div>
     </form>

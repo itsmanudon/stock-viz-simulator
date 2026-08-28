@@ -53,7 +53,7 @@ export function SignupForm() {
     callbackUrl === "/" ? "/login" : `/login?callbackUrl=${encodeURIComponent(callbackUrl)}`;
 
   return (
-    <Card className="w-full max-w-md">
+    <Card className="w-full">
       <CardHeader>
         <CardTitle>Create your account</CardTitle>
         <CardDescription>Paper-trade and track your portfolio. Free forever.</CardDescription>
@@ -82,7 +82,7 @@ export function SignupForm() {
             <p className="text-xs text-muted-foreground">At least 8 characters.</p>
           </div>
           {state.error ? (
-            <p className="text-sm text-red-500" role="alert">
+            <p className="text-sm text-negative" role="alert">
               {state.error}
             </p>
           ) : null}
@@ -96,7 +96,7 @@ export function SignupForm() {
               <span className="w-full border-t" />
             </div>
             <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-card px-2 text-muted-foreground">or</span>
+              <span className="bg-card px-2 text-text-tertiary">or</span>
             </div>
           </div>
           <Button
@@ -108,7 +108,7 @@ export function SignupForm() {
             <GoogleIcon />
             Continue with Google
           </Button>
-          <p className="text-center text-sm text-muted-foreground">
+          <p className="text-center text-sm text-text-secondary">
             Already have an account?{" "}
             <Link href={loginHref} className="text-foreground underline">
               Sign in

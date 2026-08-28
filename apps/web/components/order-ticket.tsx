@@ -18,6 +18,7 @@ import {
   placeOrderAction,
   placeTradeAction,
 } from "@/app/(product)/(authed)/trade/actions";
+import { OrderSideToggle } from "@/components/order-side-toggle";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -180,25 +181,11 @@ export function OrderTicket({
 
         <fieldset className="space-y-2">
           <legend className="text-sm font-medium">Side</legend>
-          <div className="grid grid-cols-2 gap-2">
-            <Button
-              type="button"
-              variant={effectiveSide === "buy" ? "default" : "outline"}
-              className="rounded-sm"
-              disabled={mode === "stop_loss" || mode === "take_profit"}
-              onClick={() => setSide("buy")}
-            >
-              Buy
-            </Button>
-            <Button
-              type="button"
-              variant={effectiveSide === "sell" ? "default" : "outline"}
-              className="rounded-sm"
-              onClick={() => setSide("sell")}
-            >
-              Sell
-            </Button>
-          </div>
+          <OrderSideToggle
+            side={effectiveSide}
+            onChange={setSide}
+            disabled={mode === "stop_loss" || mode === "take_profit"}
+          />
           {mode === "stop_loss" || mode === "take_profit" ? (
             <p className="text-xs text-text-tertiary">
               {orderTypeLabel(mode)} orders are sell-only in this simulator.
@@ -270,7 +257,7 @@ export function OrderTicket({
         ) : null}
 
         <p className="text-sm">
-          <span className="block text-[10px] font-semibold tracking-[0.12em] text-text-tertiary uppercase">
+          <span className="block text-3xs font-semibold tracking-[0.12em] text-text-tertiary uppercase">
             {estimateLabel}
           </span>
           <span className="mt-1 block font-mono text-lg tabular-nums">

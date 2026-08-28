@@ -80,7 +80,7 @@ export function AlertsBell({ enabled }: { enabled: boolean }) {
       >
         <Bell className="h-4 w-4" aria-hidden />
         {triggered.length > 0 ? (
-          <span className="absolute -right-0.5 -top-0.5 inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-semibold leading-none text-white">
+          <span className="absolute -right-0.5 -top-0.5 inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-red-500 px-1 text-3xs font-semibold leading-none text-white">
             {triggered.length > 9 ? "9+" : triggered.length}
           </span>
         ) : null}
@@ -110,7 +110,7 @@ export function AlertsBell({ enabled }: { enabled: boolean }) {
                     <div className="text-xs text-muted-foreground">
                       {alert.direction === "above" ? "≥" : "≤"} {fmtPrice(alert.target_price)}
                     </div>
-                    <div className="text-[10px] text-muted-foreground">
+                    <div className="text-3xs text-muted-foreground">
                       {isTriggered ? (isDismissed ? "Dismissed" : "Triggered") : "Pending"}
                     </div>
                   </div>

@@ -57,7 +57,7 @@ export function PortfolioIncome({
         </p>
         <div className="mt-5 border-y border-border-muted py-4">
           <p className="text-xs font-medium text-muted-foreground">YTD credited income · USD</p>
-          <p className="mt-1 font-mono text-2xl font-semibold text-positive" data-financial>
+          <p className="mt-1 font-mono text-2xl font-bold text-positive" data-financial>
             {formatCurrency(dividends.ytd_income, "USD")}
           </p>
         </div>
@@ -96,7 +96,7 @@ export function PortfolioIncome({
                         : `${formatBareAmount(projection.projected_amount)} · Currency unavailable`}
                     </p>
                     {currency ? (
-                      <p className="mt-0.5 text-[11px] text-muted-foreground">Native projection</p>
+                      <p className="mt-0.5 text-2xs text-muted-foreground">Native projection</p>
                     ) : null}
                   </div>
                 </li>

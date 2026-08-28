@@ -59,6 +59,10 @@ still commits the ledger in FastAPI. See
 
 ```bash
 pnpm db:up                                   # local Postgres on 127.0.0.1:5434
+pnpm stack:up                                # full docker stack: db + api + web
+pnpm stack:seed                              # populate demo accounts and trades
+pnpm stack:logs                              # tail api + web containers
+pnpm stack:down                              # stop the app containers
 pnpm events:up                               # KRaft Kafka + topic init (`--profile events`)
 pnpm api:migrate                             # alembic upgrade head
 pnpm api:dev                                 # uvicorn --reload on :8000
@@ -145,6 +149,41 @@ Tags:
 
 The rewrite history is preserved in the Git log and release tags; it is not
 current architecture guidance.
+
+## Running the whole thing in Docker
+
+`pnpm stack:up` builds and starts `api` (:8000) and `web` (:3100) alongside
+Postgres, using the **`app` compose profile** — so plain `pnpm db:up` stays a
+fast Postgres-only start for native development. Postgres already uses a named
+volume (`stockviz_postgres_data`), so data survives `stack:down`.
+
+The web image runs a **production** build, and `apps/web/lib/env.ts`
+deliberately refuses the dev secrets committed to this repo when
+`NODE_ENV=production`. So the stack needs real values: copy
+`infra/.env.example` to `infra/.env` and generate both with
+`openssl rand -base64 32`. `INTERNAL_API_TOKEN` must be identical for the two
+services or every authenticated `/v1` call 401s. `infra/.env` is gitignored.
+
+Web publishes **3100**, not 3000 — 3000 is commonly taken by another local
+project. `AUTH_URL` stays unset so NextAuth derives the origin from the request
+host, which is why `AUTH_TRUST_HOST=true` is set.
+
+Symbols are seeded with only ticker and name; `sector` and `exchange` come from
+`stockviz.cli metadata` (yfinance, needs network). Run it once after seeding or
+the markets/screener classification columns stay empty:
+
+```bash
+docker exec stockviz-api python -m stockviz.cli metadata
+```
+
+`pnpm stack:seed` (`apps/web/scripts/seed-demo.mjs`) fills the database with
+three demo accounts, their trades, pending orders, alerts, watchlists, and 120
+days of NAV snapshots. Trades go through the **real API** so cash, average
+cost, and realized P&L stay consistent with the trading engine; only
+`portfolio_snapshots` are written directly, because they are a derived daily
+cache that no endpoint can backdate. See the script header for why cost basis
+is derived from today's close rather than read from history (the bundled CSVs
+are not split-adjusted).
 
 ## Common gotchas (Windows dev)
 

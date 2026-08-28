@@ -213,7 +213,12 @@ export default async function StockPage({
             </div>
           </section>
 
-          <StockMetricsStrip metrics={metrics} currency={symbol.currency} rsi={latestRsi} />
+          <StockMetricsStrip
+            metrics={metrics}
+            currency={symbol.currency}
+            rsi={latestRsi}
+            latestClose={latestClose}
+          />
         </div>
 
         <aside
@@ -302,7 +307,7 @@ function Overview({
   return (
     <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,0.55fr)]">
       <div>
-        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-text-tertiary">
+        <p className="text-2xs font-semibold uppercase tracking-[0.14em] text-text-tertiary">
           Security overview
         </p>
         <h2 className="mt-2 text-xl font-semibold tracking-tight">{symbol.name}</h2>
@@ -335,14 +340,14 @@ function Overview({
       <dl className="grid grid-cols-2 gap-x-6 gap-y-5 border-y border-border-muted py-5">
         {items.map(([label, value]) => (
           <div key={label}>
-            <dt className="text-[10px] font-semibold uppercase tracking-[0.12em] text-text-tertiary">
+            <dt className="text-3xs font-semibold uppercase tracking-[0.12em] text-text-tertiary">
               {label}
             </dt>
             <dd className="mt-1 text-sm font-medium">{value}</dd>
           </div>
         ))}
         <div>
-          <dt className="text-[10px] font-semibold uppercase tracking-[0.12em] text-text-tertiary">
+          <dt className="text-3xs font-semibold uppercase tracking-[0.12em] text-text-tertiary">
             Portfolio status
           </dt>
           <dd className="mt-1 text-sm font-medium">
