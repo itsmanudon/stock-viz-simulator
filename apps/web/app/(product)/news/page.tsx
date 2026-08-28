@@ -33,10 +33,11 @@ export default async function NewsPage({
   const hasNext = raw.length > skip + PAGE_SIZE;
 
   return (
-    <div className="container mx-auto px-4 py-10 sm:px-6">
-      <header className="mb-6">
-        <h1 className="text-3xl font-bold tracking-tight">News</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
+    <div className="container mx-auto px-4 py-6 sm:px-6 lg:py-7">
+      <header className="mb-5">
+        <p className="text-2xs font-semibold tracking-[0.14em] text-brand uppercase">Research</p>
+        <h1 className="mt-1.5 text-3xl font-semibold tracking-tight">News</h1>
+        <p className="mt-1.5 text-sm text-muted-foreground">
           Latest market news ingested from newsdata.io.
         </p>
       </header>

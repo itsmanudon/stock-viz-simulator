@@ -3,6 +3,7 @@
 import {
   ArrowLeftRight,
   BriefcaseBusiness,
+  CalendarDays,
   ChartCandlestick,
   House,
   type LucideIcon,
@@ -22,6 +23,7 @@ const ICONS: Record<string, LucideIcon> = {
   Trade: ArrowLeftRight,
   Portfolio: BriefcaseBusiness,
   Community: Users,
+  Earnings: CalendarDays,
 };
 
 export function AppNavigation({
@@ -36,14 +38,14 @@ export function AppNavigation({
 
   return (
     <nav aria-label="Product" className="flex min-h-0 flex-1 flex-col">
-      <div className="mb-5 px-3">
+      <div className="mb-6 px-2">
         <span className="inline-flex items-center gap-2 text-2xs font-medium tracking-wide text-muted-foreground">
           <span className="size-1.5 rounded-full bg-primary" aria-hidden />
           EOD data
         </span>
       </div>
 
-      <div className="space-y-1">
+      <div className="space-y-1.5">
         {APP_NAVIGATION.map((group) => {
           const Icon = ICONS[group.label];
           const groupActive = active.groupHref === group.href;
@@ -57,13 +59,13 @@ export function AppNavigation({
                 aria-current={groupActive && !group.items ? "page" : undefined}
                 onClick={onNavigate}
                 className={cn(
-                  "group relative flex h-9 items-center gap-3 rounded-sm px-3 text-sm font-medium text-text-secondary transition-colors hover:bg-surface-hover hover:text-foreground focus-visible:z-10",
+                  "group relative flex h-9 items-center gap-3 rounded-md px-3 text-sm font-medium text-text-secondary transition-colors hover:bg-surface-hover hover:text-foreground focus-visible:z-10",
                   groupActive && "bg-surface-secondary text-foreground",
                 )}
               >
                 {groupActive ? (
                   <span
-                    className="absolute inset-y-1 left-0 w-[3px] rounded-full bg-primary"
+                    className="absolute inset-y-1.5 left-0 w-0.5 rounded-full bg-brand"
                     aria-hidden
                   />
                 ) : null}
@@ -72,7 +74,7 @@ export function AppNavigation({
               </Link>
 
               {group.items ? (
-                <div className="ml-5 border-l border-border-muted py-1 pl-3">
+                <div className="ml-5 border-l border-border-muted py-1.5 pl-3">
                   {group.items.map((item) => {
                     const itemActive = active.itemHref === item.href;
                     return (
@@ -82,7 +84,7 @@ export function AppNavigation({
                         aria-current={itemActive ? "page" : undefined}
                         onClick={onNavigate}
                         className={cn(
-                          "flex min-h-8 items-center rounded-sm px-2 text-xs text-text-tertiary transition-colors hover:bg-surface-hover hover:text-foreground",
+                          "flex min-h-8 items-center rounded-md px-2 text-xs text-text-tertiary transition-colors hover:bg-surface-hover hover:text-foreground",
                           itemActive && "font-medium text-brand",
                         )}
                       >

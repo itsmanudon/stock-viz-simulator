@@ -23,6 +23,7 @@ const PROTECTED_PREFIXES = [
   "/alerts",
   "/settings",
   "/orders",
+  "/earnings",
 ];
 
 export default proxyAuth((req) => {

@@ -60,3 +60,21 @@ test("signals page exposes explainable evidence rather than an AI buy list", asy
   await expect(page.getByText(/not an AI recommendation/i)).toBeVisible();
   await expect(page.getByLabel("Signal")).toBeVisible();
 });
+
+test("signals selection opens a shareable master-detail evidence workspace", async ({ page }) => {
+  await page.goto("/recommendations?sort=ticker&dir=asc");
+
+  const apple = page.getByRole("button", { name: /AAPL, Apple/i });
+  await expect(apple).toBeVisible();
+  await apple.click();
+
+  await expect(page).toHaveURL(/\/recommendations\?sort=ticker&dir=asc&selected=AAPL/);
+  await expect(page.getByRole("heading", { name: "Seven vote checks" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Open AAPL workspace" })).toBeVisible();
+  await expect(page.locator("details")).toHaveCount(0);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.getByRole("button", { name: "Back to signals" })).toBeVisible();
+  await page.getByRole("button", { name: "Back to signals" }).click();
+  await expect(page).toHaveURL(/\/recommendations\?sort=ticker&dir=asc$/);
+});

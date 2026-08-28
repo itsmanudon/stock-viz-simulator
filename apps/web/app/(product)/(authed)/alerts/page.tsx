@@ -66,7 +66,7 @@ export default async function AlertsPage({
   const quote = createTicker ? await getQuotes([createTicker]).catch(() => []) : [];
 
   return (
-    <PageFrame width="workstation" className="py-6 sm:py-8">
+    <PageFrame width="workstation" className="py-5 sm:py-7">
       <OperationalPageHeader
         eyebrow="Portfolio"
         title="Alerts"
@@ -77,9 +77,9 @@ export default async function AlertsPage({
 
       <section
         aria-labelledby="create-alert-heading"
-        className="mt-6 border-y border-border-muted sm:border-x"
+        className="mt-5 overflow-hidden rounded-md border border-border-muted bg-card"
       >
-        <div className="border-b border-border-muted px-4 py-3">
+        <div className="border-b border-border-muted px-4 py-3.5">
           <h2 id="create-alert-heading" className="text-sm font-semibold">
             Create alert
           </h2>
@@ -96,7 +96,7 @@ export default async function AlertsPage({
 
       <nav
         aria-label="Alert status"
-        className="mt-8 flex flex-wrap gap-1 border-b border-border-muted"
+        className="mt-7 flex flex-wrap gap-1 border-b border-border-muted"
       >
         {VIEWS.map((item) => {
           const active = item.value === view;
@@ -106,7 +106,7 @@ export default async function AlertsPage({
               href={buildAlertsHref({ view: item.value, ticker: createTicker || undefined })}
               aria-current={active ? "page" : undefined}
               className={cn(
-                "inline-flex h-10 items-center border-b-2 px-3 text-sm",
+                "inline-flex h-9 items-center border-b-2 px-2.5 text-sm",
                 active
                   ? "border-brand font-medium text-foreground"
                   : "border-transparent text-text-tertiary hover:text-foreground",
@@ -142,7 +142,7 @@ export default async function AlertsPage({
           </OperationalEmptyState>
         </div>
       ) : (
-        <div className="mt-6 overflow-x-auto border-y border-border-muted">
+        <div className="mt-5 overflow-x-auto rounded-md border border-border-muted bg-card">
           <table className="w-full min-w-[40rem] text-sm">
             <caption className="sr-only">Price alerts</caption>
             <thead>

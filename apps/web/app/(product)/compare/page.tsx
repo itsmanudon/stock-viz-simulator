@@ -110,7 +110,7 @@ export default async function ComparePage({
   const insights = deriveCompareInsights(metrics);
 
   return (
-    <PageFrame width="workstation" className="py-6 sm:py-8">
+    <PageFrame width="workstation" className="py-5 sm:py-7">
       <ResearchPageHeader
         title="Compare"
         description="How do these assets compare over the selected period? Series are rebased to 100 at the first stored close in the window."
@@ -134,7 +134,7 @@ export default async function ComparePage({
       />
       <ResearchSubnav current="/compare" />
 
-      <div className="mt-6 space-y-8">
+      <div className="mt-5 space-y-7">
         <CompareSymbolPicker tickers={tickers} timeframe={timeframe} names={names} />
 
         {tickers.length === 0 ? (
@@ -162,7 +162,7 @@ export default async function ComparePage({
                 title="Normalized performance"
                 description={`${timeframe} window · 100 at the first bar. End-of-day closes only.`}
               />
-              <div className="border-y border-border-muted bg-surface-elevated p-3 sm:border-x sm:p-4">
+              <div className="overflow-hidden rounded-md border border-border-muted bg-card p-3 sm:p-4">
                 <CompareChart
                   series={metrics.map((row) => ({
                     ticker: row.ticker,

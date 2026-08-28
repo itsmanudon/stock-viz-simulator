@@ -70,7 +70,7 @@ export default async function OrdersPage({
   const currencies = currencyByTicker(symbols);
 
   return (
-    <PageFrame width="workstation" className="py-6 sm:py-8">
+    <PageFrame width="workstation" className="py-5 sm:py-7">
       <OperationalPageHeader
         eyebrow="Trade"
         title="Orders"
@@ -85,7 +85,7 @@ export default async function OrdersPage({
 
       <nav
         aria-label="Order status"
-        className="mt-6 flex flex-wrap gap-1 border-b border-border-muted"
+        className="mt-5 flex flex-wrap gap-1 border-b border-border-muted"
       >
         {FILTERS.map((filter) => {
           const active = filter.value === status;
@@ -95,7 +95,7 @@ export default async function OrdersPage({
               href={buildOrdersHref(filter.value)}
               aria-current={active ? "page" : undefined}
               className={cn(
-                "inline-flex h-10 items-center border-b-2 px-3 text-sm",
+                "inline-flex h-9 items-center border-b-2 px-2.5 text-sm",
                 active
                   ? "border-brand font-medium text-foreground"
                   : "border-transparent text-text-tertiary hover:text-foreground",
@@ -121,7 +121,7 @@ export default async function OrdersPage({
           </OperationalEmptyState>
         </div>
       ) : (
-        <div className="mt-6 overflow-x-auto border-y border-border-muted">
+        <div className="mt-5 overflow-x-auto rounded-md border border-border-muted bg-card">
           <table className="w-full min-w-[52rem] text-sm">
             <caption className="sr-only">
               {status === "all" ? "All paper orders" : `${status} paper orders`}

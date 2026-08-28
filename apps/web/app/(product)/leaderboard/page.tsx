@@ -38,14 +38,14 @@ export default async function LeaderboardPage() {
   const entries = await getLeaderboard().catch(() => []);
 
   return (
-    <div className="w-full px-4 py-8 sm:px-6 xl:px-8">
+    <div className="w-full px-4 py-6 sm:px-6 lg:py-7 xl:px-8">
       <PageHeader
         eyebrow="Community"
         title="Leaderboard"
-        description="Top 50 traders by portfolio return, across every public paper portfolio."
+        description="Public paper traders ranked by portfolio return. Only opted-in profiles appear."
         meta={
           <>
-            Opt in from{" "}
+            {entries.length} public trader{entries.length === 1 ? "" : "s"} · opt in from{" "}
             <Link href="/settings" className="text-foreground underline">
               Settings
             </Link>
@@ -54,7 +54,7 @@ export default async function LeaderboardPage() {
         }
       />
 
-      <div className="mt-6">
+      <div className="mt-5">
         {entries.length === 0 ? (
           <Card>
             <CardContent className="p-6 text-sm text-muted-foreground">

@@ -28,8 +28,8 @@ export function OptionTradeForm({ options }: { options: SymbolOption[] }) {
   const [optionType, setOptionType] = useState<"call" | "put">("call");
 
   return (
-    <div className="border-y border-border-muted sm:border-x">
-      <form action={action} className="space-y-5 p-4">
+    <div className="overflow-hidden rounded-md border border-border-muted bg-card">
+      <form action={action} className="space-y-5 p-5">
         <div className="grid grid-cols-2 gap-3">
           <Button
             type="button"
@@ -55,7 +55,7 @@ export function OptionTradeForm({ options }: { options: SymbolOption[] }) {
             name="ticker"
             required
             defaultValue={options[0]?.ticker ?? ""}
-            className="flex h-10 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
           >
             {options.map((opt) => (
               <option key={opt.ticker} value={opt.ticker}>
@@ -120,7 +120,7 @@ export function OptionTradeForm({ options }: { options: SymbolOption[] }) {
           </output>
         ) : null}
 
-        <Button type="submit" disabled={pending} className="w-full rounded-sm">
+        <Button type="submit" disabled={pending} className="w-full">
           {pending ? "Placing order…" : `Buy ${optionType}`}
         </Button>
       </form>

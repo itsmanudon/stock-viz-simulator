@@ -19,7 +19,7 @@ export function NewsList({
         className={
           variant === "workspace"
             ? "border-y border-border-muted py-6 text-sm text-muted-foreground"
-            : "rounded-lg border bg-card p-6 text-sm text-muted-foreground"
+            : "rounded-md border border-border-muted bg-card p-5 text-sm text-muted-foreground"
         }
       >
         No recent news. The news ingest runs every 4 hours when a NEWSDATA_KEY is configured.
@@ -35,7 +35,7 @@ export function NewsList({
           className={
             variant === "workspace"
               ? "transition-colors hover:bg-surface-hover/60"
-              : "rounded-lg border bg-card p-4 transition hover:bg-accent"
+              : "rounded-md border border-border-muted bg-card p-4 transition hover:bg-accent"
           }
         >
           <a href={article.url} target="_blank" rel="noopener noreferrer" className="block">

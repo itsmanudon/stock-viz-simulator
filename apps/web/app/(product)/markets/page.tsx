@@ -87,7 +87,7 @@ export default async function MarketsPage({
   }));
 
   return (
-    <div className="w-full px-4 py-8 sm:px-6 xl:px-8">
+    <div className="w-full px-4 py-6 sm:px-6 lg:py-7 xl:px-8">
       <PageHeader
         eyebrow="Markets"
         title="Markets"
@@ -100,9 +100,9 @@ export default async function MarketsPage({
         }
       />
 
-      <div className="mt-6">
+      <div className="mt-5">
         <TableToolbar>
-          <nav aria-label="Filter by sector" className="flex flex-wrap gap-2">
+          <nav aria-label="Filter by sector" className="flex max-w-full flex-wrap gap-1.5">
             <SectorChip href="/markets" label="All" active={!params.sector} />
             {sectors.map((sector) => (
               <SectorChip
@@ -197,7 +197,7 @@ function SectorChip({ href, label, active }: { href: string; label: string; acti
       href={href}
       aria-current={active ? "true" : undefined}
       className={cn(
-        "rounded-full border px-3 py-1 text-xs transition-colors",
+        "rounded-md border px-2.5 py-1 text-xs transition-colors",
         active
           ? "border-primary bg-primary font-semibold text-primary-foreground"
           : "border-border-muted text-text-secondary hover:bg-surface-hover hover:text-foreground",

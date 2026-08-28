@@ -21,7 +21,13 @@
 
 import type { components } from "./schema";
 import type { Portfolio, PortfolioOption, TradeRow } from "./trading";
-import type { BacktestSummary, MarketsSummary, Recommendation, ScreenerResult } from "./types";
+import type {
+  BacktestSummary,
+  EarningsEvent,
+  MarketsSummary,
+  Recommendation,
+  ScreenerResult,
+} from "./types";
 
 type Schemas = components["schemas"];
 
@@ -58,6 +64,7 @@ export type _ScreenerMatches = Expect<Assignable<ScreenerResult, Schemas["Screen
 export type _RecommendationMatches = Expect<
   Assignable<Recommendation, Schemas["RecommendationOut"]>
 >;
+export type _EarningsEventMatches = Expect<Assignable<EarningsEvent, Schemas["EarningsEventOut"]>>;
 export type _BacktestSummaryMatches = Expect<
   Assignable<BacktestSummary, Schemas["BacktestSummaryOut"]>
 >;

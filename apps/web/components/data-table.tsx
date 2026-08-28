@@ -31,7 +31,7 @@ export function DataTableFrame({
   children,
 }: React.PropsWithChildren<{ className?: string }>) {
   return (
-    <div className={cn("overflow-x-auto rounded-lg border border-border-muted", className)}>
+    <div className={cn("overflow-x-auto rounded-md border border-border-muted bg-card", className)}>
       {children}
     </div>
   );

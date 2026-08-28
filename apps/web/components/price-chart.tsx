@@ -146,7 +146,7 @@ export function PriceChart({ bars, overlays, macd }: Props) {
         macd.map((p) => ({
           time: toUtcSeconds(p.ts) as Time,
           value: p.histogram,
-          color: p.histogram >= 0 ? "rgba(34,197,94,0.5)" : "rgba(239,68,68,0.5)",
+          color: p.histogram >= 0 ? palette.positiveFill : palette.negativeFill,
         })),
       );
     }
@@ -185,7 +185,12 @@ export function PriceChart({ bars, overlays, macd }: Props) {
       {/* lightweight-charts renders to a canvas, which is opaque to assistive
           tech. The figure caption carries the same headline facts in text. */}
       <figure className="m-0">
-        <div ref={containerRef} className="h-[420px] w-full" role="img" aria-label={chartSummary} />
+        <div
+          ref={containerRef}
+          className="h-[360px] w-full sm:h-[420px]"
+          role="img"
+          aria-label={chartSummary}
+        />
         <figcaption className="sr-only">{chartSummary}</figcaption>
       </figure>
       {macd?.length ? <div ref={macdRef} className="h-[140px] w-full" /> : null}

@@ -60,15 +60,10 @@ export function StockMetricsStrip({
   ];
 
   return (
-    <section aria-label="Market and technical metrics" className="border-y border-border-muted">
-      {/* Uniform cell borders via ring insets rather than per-index border
-          arithmetic, which had to be re-derived for every breakpoint. */}
-      <dl className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-7">
+    <section aria-label="Market and technical metrics" className="border-b border-border-muted">
+      <dl className="grid grid-cols-2 divide-x divide-y divide-border-muted sm:grid-cols-4 xl:grid-cols-7 xl:divide-y-0">
         {items.map((item) => (
-          <div
-            key={item.label}
-            className="min-w-0 px-3 py-3.5 ring-1 ring-border-muted ring-inset sm:px-4"
-          >
+          <div key={item.label} className="min-w-0 px-3 py-3 sm:px-4">
             <dt className="truncate text-3xs font-semibold tracking-[0.12em] text-text-tertiary uppercase">
               {item.label}
             </dt>
@@ -81,7 +76,7 @@ export function StockMetricsStrip({
           </div>
         ))}
 
-        <div className="col-span-2 min-w-0 px-3 py-3.5 ring-1 ring-border-muted ring-inset sm:col-span-4 sm:px-4 xl:col-span-1">
+        <div className="col-span-2 min-w-0 px-3 py-3 sm:col-span-4 sm:px-4 xl:col-span-1">
           <dt className="truncate text-3xs font-semibold tracking-[0.12em] text-text-tertiary uppercase">
             52-week range
           </dt>

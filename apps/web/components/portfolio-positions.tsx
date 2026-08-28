@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { DataTableFrame } from "@/components/data-table";
 import {
   Table,
   TableBody,
@@ -42,7 +43,7 @@ export function PortfolioPositions({ positions, displayCurrency, totalValue }: P
         <p className="text-xs text-muted-foreground">Latest available EOD closes</p>
       </div>
 
-      <div className="hidden overflow-hidden border-y border-border-muted md:block">
+      <DataTableFrame className="hidden md:block">
         <Table aria-label="Stock positions">
           <TableHeader>
             <TableRow className="hover:bg-transparent">
@@ -67,9 +68,12 @@ export function PortfolioPositions({ positions, displayCurrency, totalValue }: P
             ))}
           </TableBody>
         </Table>
-      </div>
+      </DataTableFrame>
 
-      <ul aria-label="Stock positions on mobile" className="divide-y divide-border-muted md:hidden">
+      <ul
+        aria-label="Stock positions on mobile"
+        className="divide-y divide-border-muted border-y border-border-muted md:hidden"
+      >
         {positions.map((position) => (
           <MobilePositionRow
             key={position.ticker}
