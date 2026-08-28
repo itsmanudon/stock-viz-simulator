@@ -24,11 +24,12 @@ runs on the weekday EOD schedule.
 | Backtester | **Unchanged** — separate engine (SIM-08) |
 | Replay sessions | ✅ SIM-05 — frozen ticker/start/end, next-bar clock, server-owned 1d bars |
 | Replay Lab UI | ✅ SIM-06 — launcher, blind chart, MARKET ticket, next-session, summary |
-| Blind historical replay | **Done at product surface** (SIM-06). Forensics remain SIM-07 |
+| Replay forensics | ✅ SIM-07 — episodes, MAE/MFE, buy-and-hold excess, concentration, journal |
+| Blind historical replay | **Done at product surface** (SIM-06 + SIM-07 forensics) |
 | Kafka `trade.executed.v1` | **Unchanged** |
-| Database | Additive `simulated_executions` + `replay_sessions` / `_positions` / `_fills` |
+| Database | Additive `simulated_executions` + `replay_sessions` / `_positions` / `_fills` / `_journals` |
 | API | Additive execution provenance + `/v1/replay/*`; `TradeOut` unchanged |
-| Frontend | Replay Lab at `/replay` (SIM-06); live Trade/Portfolio unchanged |
+| Frontend | Replay Lab at `/replay` (SIM-06) with forensics/journal (SIM-07); live Trade/Portfolio unchanged |
 
 PostgreSQL remains the source of truth. Kafka is not authoritative for
 execution. Trade and accounting mutations stay synchronous and transactional.
@@ -362,8 +363,40 @@ workspace: server-visible history chart, MARKET ticket, next-session control,
 isolated cash/position/fills, and a computed summary marked at the current
 replay close. The UI never fetches generic bars, live quotes, or SSE.
 
-**Not in SIM-06.** Intraday, rewind, branching, dataset version snapshots,
-spreads/slippage, historical FX, pending replay orders, SIM-07 forensics.
+**Replay forensics (SIM-07).** `GET /v1/replay/sessions/{id}/forensics`
+reconstructs long-only **episodes** from `ReplayFill` chronology
+(`evaluated_at`, then fill id). Partial sells stay in one episode; a full
+exit then a new buy starts another. Analytics use only bars already visible
+at `current_at` (cancelled the same; completed through frozen `end_at`).
+Derived MAE/MFE/benchmark/concentration are computed, not stored.
+
+MAE/MFE are **daily-bar** range statistics, not tick excursion and not
+execution timestamps. After each bar's fills, if quantity is still open,
+compare that bar's stored low/high against the **active weighted entry**
+(buy-notional / buy-quantity):
+
+* `MAE_pct` = worst `(low - entry) / entry * 100`
+* `MFE_pct` = best `(high - entry) / entry * 100`
+
+A dedicated exit bar does not contribute same-day high/low once quantity is
+zero. Holding is reported as **bars held** plus **calendar duration**, not
+"trading days" — stored 1d rows may include calendar days.
+
+Session benchmark is percentage-only: start-bar close → analysis-bar close
+versus replay equity return on starting cash. Excess = replay return % −
+buy-and-hold %. No assumed 100% capital deployment in dollars. Concentration
+is `position_notional / replay_equity` at fills (one-ticker replay
+exposure, not portfolio diversification). Optional session max drawdown
+walks visible closes, applying fills at actual fill prices.
+
+`ReplayJournal` is 1:1 with the session. Thesis, invalidation, expected
+holding bars, and confidence (1–5) may be edited until the first fill;
+then they lock (`409 ReplayJournalLocked`). Reflection stays editable.
+There is no R-multiple: Replay does not store a stop/invalidation *price*.
+No retrospective LLM and no buy/sell advice.
+
+**Not in SIM-06 / SIM-07.** Intraday, rewind, branching, dataset version
+snapshots, spreads/slippage, historical FX, pending replay orders.
 Historical bar *corrections* can still change observations; the horizon is
 frozen, the row contents are not.
 
@@ -375,9 +408,11 @@ Authed API and Replay Lab UI:
 - `GET /v1/replay/sessions/{id}/market` — current server bar
 - `GET /v1/replay/sessions/{id}/history` — visible bars through `current_at`
 - `GET /v1/replay/sessions/{id}/summary` — cash/equity/PnL at current close
+- `GET /v1/replay/sessions/{id}/forensics` — episodes, MAE/MFE, benchmark, concentration
+- `GET` / `PUT /v1/replay/sessions/{id}/journal` — thesis (locks after first fill)
 - `POST /v1/replay/sessions/{id}/orders` — intent only; fill at current close
 - `POST /v1/replay/sessions/{id}/cancel`
-- UI: `/replay`, `/replay/{id}`
+- UI: `/replay`, `/replay/{id}`, `/replay/{id}?view=forensics`
 
 Live `evaluation_clock()` remains wall-clock UTC for paper trading.
 
@@ -390,7 +425,8 @@ Live `evaluation_clock()` remains wall-clock UTC for paper trading.
 | SIM-04 | **Done.** Versioned profile registry + durable `SimulatedExecution` provenance |
 | SIM-05 | **Done.** ReplaySession with frozen ticker/start/end, next-bar clock, server-owned 1d bars |
 | SIM-06 | **Done.** Blind historical Replay Lab UI |
-| SIM-07 | Post-trade forensic analytics |
+| SIM-07 | **Done.** Post-trade forensic analytics + decision journal |
+| SIM-08 | Backtester uses the same execution kernel |
 | SIM-08 | Backtester uses the same execution kernel |
 | SIM-09 | Intraday market data |
 | SIM-10 | Liquidity + partial fills |
@@ -399,4 +435,5 @@ Kernel unit tests pin `legacy_close` itself. Live MARKET tests live in
 `test_market_kernel_integration.py`. Live pending tests live in
 `test_pending_kernel_integration.py`. Provenance tests live in
 `test_execution_provenance.py`. Replay session tests live in
-`test_replay_session.py`. The backtester is still a separate engine.
+`test_replay_session.py`. Forensics tests live in
+`test_replay_forensics.py` and `test_replay_forensics_router.py`. The backtester is still a separate engine.

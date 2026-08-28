@@ -24,6 +24,7 @@ from stockviz.services.replay.errors import (
     ReplaySymbolNotFound,
     ReplayUnsupportedCurrency,
 )
+from stockviz.services.replay.journal import freeze_replay_journal
 from stockviz.services.replay.ledger import apply_replay_fill, get_replay_position
 from stockviz.services.replay.market import (
     count_replay_bars,
@@ -292,6 +293,7 @@ def submit_replay_order(
             order_type=order_type.value,
             evaluated_at_naive=as_naive_utc(clock.instant()),
         )
+        freeze_replay_journal(session, replay=locked, locked_at=as_naive_utc(clock.instant()))
         _touch(locked)
         session.add(locked)
         session.commit()

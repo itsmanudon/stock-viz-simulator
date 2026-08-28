@@ -21,7 +21,8 @@ src/stockviz/
                     earnings, alert, comment, recommendation, watchlist, metrics, sentiment,
                     events — outbox, consumer inbox, derived trade activity,
                     execution — SimulatedExecution provenance,
-                    replay — ReplaySession / ReplayPosition / ReplayFill)
+                    replay — ReplaySession / ReplayPosition / ReplayFill /
+                    ReplayJournal)
   events/           versioned contracts (trades/market/news), outbox/inbox,
                     dispatcher, domain handlers, Kafka producer wrappers
                     (not imported by FastAPI startup)
@@ -55,6 +56,8 @@ src/stockviz/
     replay/         isolated ReplaySession book (SIM-05). Frozen ticker/range,
                     next-bar SimulationClock, server-owned PriceBar snapshots.
                     ReplayFill is isolated from Trade / apply_fill / Kafka.
+                    SIM-07 forensics.py reconstructs episodes/MAE/MFE;
+                    journal.py persists the first-fill-locked thesis.
     options/        Black-Scholes-style pricing + option trade execution/settlement
     backtest/       engine.py — historical strategy simulation
     alerts.py       price-alert evaluation
@@ -262,6 +265,12 @@ intraday fills anywhere in the app:
   symbols only. Cancel is manual; exhausting `end_at` marks `completed`.
   No delete endpoint; child rows cascade if a session row is removed.
   Replay Lab UI is `/replay` (SIM-06). MARKET-only in the UI.
+  `GET .../forensics` is derived (episodes, MAE/MFE vs active weighted
+  entry using stored daily high/low, same-symbol buy-and-hold excess,
+  one-ticker concentration). Horizon is `current_at` (cancelled the
+  same; completed through frozen `end_at`). `GET`/`PUT .../journal`
+  stores thesis/invalidation/expected bars/confidence; those fields
+  lock after the first fill (`409`); reflection stays editable.
 - **Options count toward NAV.** `compute_portfolio` marks open contracts to
   their Black-Scholes value (`options_market_value`). Without it, buying an
   option debited cash and recorded no offsetting asset.

@@ -9,6 +9,7 @@ import {
   cancelReplaySession,
   createReplaySession,
   getReplayAvailability,
+  putReplayJournal,
   submitReplayOrder,
 } from "@/lib/api/replay";
 import { AuthedApiError, UnauthenticatedError } from "@/lib/api/server";
@@ -30,7 +31,7 @@ function mapError(err: unknown): ReplayActionState {
     return { error: replayErrorMessage(401) };
   }
   if (err instanceof AuthedApiError) {
-    return { error: replayErrorMessage(err.status) };
+    return { error: replayErrorMessage(err.status, err.detail) };
   }
   throw err;
 }
@@ -95,7 +96,7 @@ export async function loadReplayAvailabilityAction(ticker: string): Promise<{
     };
   } catch (err) {
     if (err instanceof AuthedApiError) {
-      return { error: replayErrorMessage(err.status) };
+      return { error: replayErrorMessage(err.status, err.detail) };
     }
     if (err instanceof UnauthenticatedError) {
       return { error: replayErrorMessage(401) };
@@ -180,6 +181,53 @@ export async function submitReplayOrderAction(
       };
     }
     return { error: "The order did not fill at this session's close." };
+  } catch (err) {
+    return mapError(err);
+  }
+}
+
+const JournalSchema = z.object({
+  session_id: z.string().regex(/^\d+$/),
+  thesis: z.string().max(4000).optional(),
+  invalidation: z.string().max(4000).optional(),
+  expected_holding_bars: z.string().optional(),
+  confidence: z.string().optional(),
+  reflection: z.string().max(8000).optional(),
+});
+
+function emptyToNull(value: string | undefined): string | null {
+  const trimmed = value?.trim() ?? "";
+  return trimmed.length === 0 ? null : trimmed;
+}
+
+export async function saveReplayJournalAction(
+  _prev: ReplayActionState,
+  formData: FormData,
+): Promise<ReplayActionState> {
+  const parsed = JournalSchema.safeParse({
+    session_id: formData.get("session_id"),
+    thesis: formData.get("thesis") ?? undefined,
+    invalidation: formData.get("invalidation") ?? undefined,
+    expected_holding_bars: formData.get("expected_holding_bars") ?? undefined,
+    confidence: formData.get("confidence") ?? undefined,
+    reflection: formData.get("reflection") ?? undefined,
+  });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Invalid journal." };
+  }
+  const sessionId = Number(parsed.data.session_id);
+  const barsRaw = parsed.data.expected_holding_bars?.trim() ?? "";
+  const confidenceRaw = parsed.data.confidence?.trim() ?? "";
+  try {
+    await putReplayJournal(sessionId, {
+      thesis: emptyToNull(parsed.data.thesis),
+      invalidation: emptyToNull(parsed.data.invalidation),
+      expected_holding_bars: barsRaw === "" ? null : Number(barsRaw),
+      confidence: confidenceRaw === "" ? null : Number(confidenceRaw),
+      reflection: emptyToNull(parsed.data.reflection),
+    });
+    revalidatePath(`/replay/${sessionId}`);
+    return { status: "saved" };
   } catch (err) {
     return mapError(err);
   }

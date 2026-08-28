@@ -14,26 +14,37 @@ import {
   HistogramSeries,
   type IChartApi,
   LineSeries,
+  type SeriesMarker,
   type Time,
   type UTCTimestamp,
   createChart,
+  createSeriesMarkers,
 } from "lightweight-charts";
 import { useEffect, useMemo, useRef } from "react";
 
 import type { Bar, IndicatorPoint, MACDPoint } from "@/lib/api";
 import { useChartPalette } from "@/lib/chart-theme";
 
+export type PriceChartMarker = {
+  time: string;
+  position: "aboveBar" | "belowBar";
+  color: string;
+  shape: "arrowUp" | "arrowDown" | "circle";
+  text: string;
+};
+
 type Props = {
   bars: Bar[];
   overlays?: Record<string, IndicatorPoint[]>;
   macd?: MACDPoint[] | null;
+  markers?: PriceChartMarker[];
 };
 
 function toUtcSeconds(iso: string): UTCTimestamp {
   return Math.floor(new Date(iso).getTime() / 1000) as UTCTimestamp;
 }
 
-export function PriceChart({ bars, overlays, macd }: Props) {
+export function PriceChart({ bars, overlays, macd, markers }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const macdRef = useRef<HTMLDivElement | null>(null);
   const palette = useChartPalette();
@@ -86,6 +97,20 @@ export function PriceChart({ bars, overlays, macd }: Props) {
       wickDownColor: palette.negative,
     });
     candleSeries.setData(candles);
+    if (markers?.length) {
+      createSeriesMarkers(
+        candleSeries,
+        markers.map(
+          (marker): SeriesMarker<Time> => ({
+            time: toUtcSeconds(marker.time),
+            position: marker.position,
+            color: marker.color,
+            shape: marker.shape,
+            text: marker.text,
+          }),
+        ),
+      );
+    }
 
     const volumeSeries = chart.addSeries(HistogramSeries, {
       priceFormat: { type: "volume" },
@@ -158,7 +183,7 @@ export function PriceChart({ bars, overlays, macd }: Props) {
       macdChart?.remove();
       chart.remove();
     };
-  }, [candles, volumes, overlays, macd, palette]);
+  }, [candles, volumes, overlays, macd, markers, palette]);
 
   // Text equivalent of the canvas: range, endpoints, and direction.
   const chartSummary = useMemo(() => {
@@ -171,14 +196,17 @@ export function PriceChart({ bars, overlays, macd }: Props) {
     const direction = changePct >= 0 ? "up" : "down";
     const overlayNames = Object.keys(overlays ?? {});
     const withOverlays = overlayNames.length ? ` Overlays: ${overlayNames.join(", ")}.` : "";
+    const markerText = markers?.length
+      ? ` Trade markers: ${markers.map((marker) => `${marker.text} on ${new Date(marker.time).toLocaleDateString("en-US")}`).join("; ")}.`
+      : "";
     return (
-      `Candlestick price chart covering ${bars.length} sessions from ` +
+      `Candlestick price chart covering ${bars.length} bars from ` +
       `${new Date(first.ts).toLocaleDateString("en-US")} to ` +
       `${new Date(last.ts).toLocaleDateString("en-US")}. ` +
       `Closed at ${close.toFixed(2)}, ${direction} ${Math.abs(changePct).toFixed(2)} percent ` +
-      `over the period.${withOverlays}`
+      `over the period.${withOverlays}${markerText}`
     );
-  }, [bars, overlays]);
+  }, [bars, overlays, markers]);
 
   return (
     <div className="space-y-2">

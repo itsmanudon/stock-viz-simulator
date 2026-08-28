@@ -200,10 +200,13 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   rebuild.
 - Server components by default — only mark `"use client"` when you need state,
   effects, or interactivity.
-- Research (`/compare`, `/backtest`, `/recommendations`) is one domain with
-  three routes. See [`docs/RESEARCH.md`](../../docs/RESEARCH.md). Keep URL state
+- Research (`/compare`, `/backtest`, `/recommendations`, `/replay`) is one
+  domain. See [`docs/RESEARCH.md`](../../docs/RESEARCH.md). Keep URL state
   shareable (`tickers`/`tf`, `ticker`, `min`/`signal`/`q`). Do not present
-  Signals as AI advice; the engine is a seven-vote rule set.
+  Signals as AI advice; the engine is a seven-vote rule set. Replay Lab is
+  future-blind historical simulation; never fetch live bars, SSE quotes, or
+  news into `/replay/[id]`. Forensics (`?view=forensics`) may call session
+  `/forensics`, `/journal`, `/history`, `/summary`, and `/fills` only.
 - Operational trading (`/trade`, `/orders`, `/watchlist`, `/alerts`) is the
   authenticated execution/monitoring loop. See
   [`docs/OPERATIONAL_TRADING.md`](../../docs/OPERATIONAL_TRADING.md).

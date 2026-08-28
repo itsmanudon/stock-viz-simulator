@@ -12,12 +12,16 @@ import { PageFrame } from "@/components/page-frame";
 import { PriceChart } from "@/components/price-chart";
 import { ReplayAdvanceControls } from "@/components/replay-controls";
 import { ReplayFillTable } from "@/components/replay-fills";
+import { ReplayForensicsPanel, ReplayScorecard } from "@/components/replay-forensics";
+import { ReplayJournalForm } from "@/components/replay-journal";
 import { ReplayMobileSheet } from "@/components/replay-mobile-sheet";
 import { ReplayTradeTicket } from "@/components/replay-trade-ticket";
 import { ResearchEmptyState, ResearchSectionHeader } from "@/components/research-page-header";
 import {
   getReplayFills,
+  getReplayForensics,
   getReplayHistory,
+  getReplayJournal,
   getReplayMarket,
   getReplaySession,
   getReplaySummary,
@@ -29,6 +33,7 @@ import {
   datesDiffer,
   formatReplayDate,
   replayBarsToChart,
+  replayFillMarkers,
   replayStatusLabel,
 } from "@/lib/replay";
 import { cn } from "@/lib/utils";
@@ -38,21 +43,24 @@ export default async function ReplaySessionPage({
   searchParams,
 }: {
   params: Promise<{ sessionId: string }>;
-  searchParams: Promise<{ requestedStart?: string; requestedEnd?: string }>;
+  searchParams: Promise<{ requestedStart?: string; requestedEnd?: string; view?: string }>;
 }) {
   const { sessionId: rawId } = await params;
   const sessionId = Number(rawId);
   if (!Number.isInteger(sessionId) || sessionId <= 0) notFound();
 
   const requested = await searchParams;
+  const view = requested.view === "forensics" ? "forensics" : "replay";
 
   try {
-    const [session, market, history, summary, fills] = await Promise.all([
+    const [session, market, history, summary, fills, forensics, journal] = await Promise.all([
       getReplaySession(sessionId),
       getReplayMarket(sessionId),
       getReplayHistory(sessionId),
       getReplaySummary(sessionId),
       getReplayFills(sessionId),
+      getReplayForensics(sessionId),
+      getReplayJournal(sessionId),
     ]);
 
     const readOnly = session.status !== "active";
@@ -67,7 +75,8 @@ export default async function ReplaySessionPage({
         <header className="flex flex-col gap-3 border-b border-border-muted pb-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <p className="text-[11px] font-semibold tracking-[0.14em] text-brand uppercase">
-              Replay · Historical session · Daily data
+              {session.status === "completed" ? "Replay Review" : "Replay"} · Historical session ·
+              Daily data
             </p>
             <h1 className="mt-2 text-3xl font-semibold tracking-tight">{session.ticker}</h1>
             <p className="mt-1 text-lg text-text-secondary">
@@ -103,12 +112,25 @@ export default async function ReplaySessionPage({
             </h2>
             {fills.length === 0 ? (
               <p className="mt-2 text-sm text-text-secondary">
-                You completed this replay without placing a trade.
+                You completed this replay without placing a trade.{" "}
+                <Link
+                  href={`/replay/${session.id}?view=forensics`}
+                  className="underline-offset-4 hover:underline"
+                >
+                  Review decisions
+                </Link>{" "}
+                still compares replay equity with same-symbol buy-and-hold.
               </p>
             ) : (
               <p className="mt-2 text-sm text-text-secondary">
-                This historical range is finished. Review the isolated book below or start another
-                replay.
+                This historical range is finished.{" "}
+                <Link
+                  href={`/replay/${session.id}?view=forensics`}
+                  className="underline-offset-4 hover:underline"
+                >
+                  Review decisions
+                </Link>{" "}
+                — replay versus buy-and-hold, MAE/MFE, episodes, and journal.
               </p>
             )}
             <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
@@ -143,83 +165,156 @@ export default async function ReplaySessionPage({
                 </dd>
               </div>
             </dl>
+            {view === "replay" ? (
+              <div className="mt-5">
+                <ReplayScorecard forensics={forensics} />
+              </div>
+            ) : null}
           </section>
         ) : null}
 
         {session.status === "cancelled" ? (
           <p className="mt-4 border-y border-border-muted py-3 text-sm text-text-secondary sm:border-x sm:px-4">
-            This replay was cancelled and is now read-only.
+            This replay was cancelled and is now read-only. Analysis is available through the
+            cancellation point.{" "}
+            <Link
+              href={`/replay/${session.id}?view=forensics`}
+              className="underline-offset-4 hover:underline"
+            >
+              Review decisions
+            </Link>
           </p>
         ) : null}
 
-        <div className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1fr)_20rem]">
-          <div className="min-w-0 space-y-4">
-            <ReplayMobileSheet
-              sessionId={session.id}
-              ticker={session.ticker}
-              currentClose={market.bar.close}
-              cash={summary.cash}
-              quantityHeld={position?.quantity ?? "0"}
-              readOnly={readOnly}
-            />
-            <section
-              aria-label={`${session.ticker} replay price chart`}
-              className="border-y border-border-muted bg-surface-elevated sm:border-x"
-            >
-              <div className="flex flex-wrap items-end justify-between gap-3 px-4 py-3">
-                <div>
-                  <p className="text-[11px] font-semibold tracking-[0.14em] text-text-tertiary uppercase">
-                    Replay close
-                  </p>
-                  <p className="font-mono text-2xl tabular-nums">
-                    {formatCurrency(market.bar.close)}
-                  </p>
-                </div>
-                <p className="text-xs text-text-tertiary">
-                  Visible high {formatCurrency(summary.visible_high)} · low{" "}
-                  {formatCurrency(summary.visible_low)}
-                </p>
-              </div>
-              <div className="px-2 pb-4">
-                <PriceChart bars={chartBars} />
-              </div>
-            </section>
-            <p className="sr-only">
-              Chart dataset high {chartHigh}. Future prices are not included.
-            </p>
-            <ReplayMetrics summary={summary} />
-            <ReplayAssumptions />
-          </div>
-          <aside
-            className="hidden border-y border-border-muted py-5 xl:block sm:border-x sm:px-5"
-            aria-label={`Replay ticket ${session.ticker}`}
-          >
-            <ReplayTradeTicket
-              sessionId={session.id}
-              ticker={session.ticker}
-              currentClose={market.bar.close}
-              cash={summary.cash}
-              quantityHeld={position?.quantity ?? "0"}
-              readOnly={readOnly}
-            />
-          </aside>
-        </div>
+        <nav aria-label="Replay workspace" className="mt-6 border-b border-border-muted">
+          <ul className="flex gap-1">
+            <li>
+              <Link
+                href={`/replay/${session.id}`}
+                aria-current={view === "replay" ? "page" : undefined}
+                className={cn(
+                  "inline-flex h-10 items-center border-b-2 px-3 text-sm",
+                  view === "replay"
+                    ? "border-brand font-medium text-foreground"
+                    : "border-transparent text-text-tertiary hover:text-foreground",
+                )}
+              >
+                Replay
+              </Link>
+            </li>
+            <li>
+              <Link
+                href={`/replay/${session.id}?view=forensics`}
+                aria-current={view === "forensics" ? "page" : undefined}
+                className={cn(
+                  "inline-flex h-10 items-center border-b-2 px-3 text-sm",
+                  view === "forensics"
+                    ? "border-brand font-medium text-foreground"
+                    : "border-transparent text-text-tertiary hover:text-foreground",
+                )}
+              >
+                Forensics
+              </Link>
+            </li>
+          </ul>
+        </nav>
 
-        <div className="mt-8 space-y-8">
-          <ReplayPositionCard
-            ticker={session.ticker}
-            position={position}
-            close={market.bar.close}
-            unrealized={summary.unrealized_pnl}
-          />
-          <ReplayFillTable fills={fills} />
-          <ReplayAdvanceControls
-            sessionId={session.id}
-            currentAt={session.current_at}
-            hasNext={session.has_next}
-            readOnly={readOnly}
-          />
-        </div>
+        {view === "forensics" ? (
+          <div className="mt-6 space-y-8">
+            <ReplayForensicsPanel forensics={forensics} />
+            <ReplayJournalForm
+              sessionId={session.id}
+              journal={journal}
+              hasFills={fills.length > 0}
+              completed={session.status === "completed"}
+            />
+          </div>
+        ) : (
+          <>
+            <div className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1fr)_20rem]">
+              <div className="min-w-0 space-y-4">
+                <ReplayMobileSheet
+                  sessionId={session.id}
+                  ticker={session.ticker}
+                  currentClose={market.bar.close}
+                  cash={summary.cash}
+                  quantityHeld={position?.quantity ?? "0"}
+                  readOnly={readOnly}
+                />
+                <section
+                  aria-label={`${session.ticker} replay price chart`}
+                  className="border-y border-border-muted bg-surface-elevated sm:border-x"
+                >
+                  <div className="flex flex-wrap items-end justify-between gap-3 px-4 py-3">
+                    <div>
+                      <p className="text-[11px] font-semibold tracking-[0.14em] text-text-tertiary uppercase">
+                        Replay close
+                      </p>
+                      <p className="font-mono text-2xl tabular-nums">
+                        {formatCurrency(market.bar.close)}
+                      </p>
+                    </div>
+                    <p className="text-xs text-text-tertiary">
+                      Visible high {formatCurrency(summary.visible_high)} · low{" "}
+                      {formatCurrency(summary.visible_low)}
+                    </p>
+                  </div>
+                  <div className="px-2 pb-4">
+                    <PriceChart bars={chartBars} markers={replayFillMarkers(fills)} />
+                  </div>
+                </section>
+                <p className="sr-only">
+                  Chart dataset high {chartHigh}. Future prices are not included.{" "}
+                  {fills.length === 0
+                    ? "No trade markers."
+                    : `Trade markers: ${fills.map((fill) => `${fill.side.toUpperCase()} on ${formatReplayDate(fill.evaluated_at)}`).join("; ")}.`}
+                </p>
+                <ReplayMetrics summary={summary} />
+                {session.status === "active" && fills.length === 0 ? (
+                  <p className="text-sm text-text-secondary">
+                    <Link
+                      href={`/replay/${session.id}?view=forensics`}
+                      className="underline-offset-4 hover:underline"
+                    >
+                      Record your thesis
+                    </Link>{" "}
+                    before the first fill. Thesis fields lock once a trade exists.
+                  </p>
+                ) : null}
+                <ReplayAssumptions />
+              </div>
+              <aside
+                className="hidden border-y border-border-muted py-5 xl:block sm:border-x sm:px-5"
+                aria-label={`Replay ticket ${session.ticker}`}
+              >
+                <ReplayTradeTicket
+                  sessionId={session.id}
+                  ticker={session.ticker}
+                  currentClose={market.bar.close}
+                  cash={summary.cash}
+                  quantityHeld={position?.quantity ?? "0"}
+                  readOnly={readOnly}
+                />
+              </aside>
+            </div>
+
+            <div className="mt-8 space-y-8">
+              <ReplayPositionCard
+                ticker={session.ticker}
+                position={position}
+                close={market.bar.close}
+                unrealized={summary.unrealized_pnl}
+              />
+              <ReplayFillTable fills={fills} />
+              <ReplayAdvanceControls
+                sessionId={session.id}
+                currentAt={session.current_at}
+                hasNext={session.has_next}
+                readOnly={readOnly}
+              />
+            </div>
+          </>
+        )}
       </PageFrame>
     );
   } catch (error) {

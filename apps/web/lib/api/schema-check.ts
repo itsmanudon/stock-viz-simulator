@@ -19,7 +19,7 @@
  * generated types agree, so the assertions hold without casts.
  */
 
-import type { ReplaySessionList, ReplaySummary } from "./replay";
+import type { ReplayForensics, ReplayJournal, ReplaySessionList, ReplaySummary } from "./replay";
 import type { components } from "./schema";
 import type { Portfolio, PortfolioOption, TradeRow } from "./trading";
 import type {
@@ -73,6 +73,10 @@ export type _ReplaySummaryMatches = Expect<Assignable<ReplaySummary, Schemas["Re
 export type _ReplaySessionListMatches = Expect<
   Assignable<ReplaySessionList, Schemas["ReplaySessionListOut"]>
 >;
+export type _ReplayForensicsMatches = Expect<
+  Assignable<ReplayForensics, Schemas["ReplayForensicsOut"]>
+>;
+export type _ReplayJournalMatches = Expect<Assignable<ReplayJournal, Schemas["ReplayJournalOut"]>>;
 
 // Keep `Exact` referenced so an unused-type lint doesn't remove the helper —
 // it's the stricter check to reach for when a shape should match exactly.

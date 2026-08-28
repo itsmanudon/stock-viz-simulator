@@ -112,3 +112,33 @@ class ReplayFill(SQLModel, table=True):
     order_type: str = Field(max_length=16)
     evaluated_at: datetime = Field(nullable=False)
     created_at: datetime = Field(default_factory=utcnow, nullable=False)
+
+
+class ReplayJournal(SQLModel, table=True):
+    """User-authored decision journal for one ReplaySession (SIM-07).
+
+    Thesis / invalidation / expected horizon / confidence freeze after the
+    first ``ReplayFill``. ``reflection`` stays editable. Forensics never
+    persist derived MAE/MFE; only this user-authored row is stored.
+    """
+
+    __tablename__ = "replay_journals"  # pyright: ignore[reportAssignmentType]
+
+    id: int | None = Field(default=None, primary_key=True)
+    session_id: int = Field(
+        sa_column=Column(
+            Integer,
+            ForeignKey("replay_sessions.id", ondelete="CASCADE"),
+            nullable=False,
+            unique=True,
+            index=True,
+        )
+    )
+    thesis: str | None = Field(default=None, sa_column=Column(Text, nullable=True))
+    invalidation: str | None = Field(default=None, sa_column=Column(Text, nullable=True))
+    expected_holding_bars: int | None = Field(default=None)
+    confidence: int | None = Field(default=None)
+    reflection: str | None = Field(default=None, sa_column=Column(Text, nullable=True))
+    locked_at: datetime | None = Field(default=None)
+    created_at: datetime = Field(default_factory=utcnow, nullable=False)
+    updated_at: datetime = Field(default_factory=utcnow, nullable=False)

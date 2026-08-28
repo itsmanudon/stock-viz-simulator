@@ -54,6 +54,9 @@ describe("replay helpers", () => {
   it("maps API failures to product copy", () => {
     expect(replayErrorMessage(404)).toMatch(/not found/i);
     expect(replayErrorMessage(409)).toMatch(/no longer active/i);
+    expect(
+      replayErrorMessage(409, "Thesis fields are locked after the first replay fill."),
+    ).toMatch(/locked after the first fill/i);
     expect(replayErrorMessage(422)).toMatch(/cash or shares/i);
   });
 

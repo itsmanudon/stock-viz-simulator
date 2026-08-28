@@ -21,7 +21,7 @@ Markets / Screener  →  /stocks/[ticker]  →  Research
 
 Deep links and back/forward must keep working. Do not hide these filters in client-only stores.
 
-Replay Lab is **future-blind**. The workspace chart and quote come only from `/v1/replay/sessions/{id}/history` and `/market`. Do not fetch generic bars, live quotes, SSE, news, comments, or fundamentals into a replay session.
+Replay Lab is **future-blind**. The workspace chart and quote come only from `/v1/replay/sessions/{id}/history` and `/market`. Forensics and journal use `/forensics` and `/journal` on the same session. Do not fetch generic bars, live quotes, SSE, news, comments, or fundamentals into a replay session. `/replay/[id]?view=forensics` is a sub-view of the session, not a new Research domain.
 
 ## Server / client boundaries
 
