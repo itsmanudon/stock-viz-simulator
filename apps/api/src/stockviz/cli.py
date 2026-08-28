@@ -23,6 +23,7 @@ from stockviz.services.ingest.backfill import (
     ensure_symbols_for_backfill,
 )
 from stockviz.services.ingest.dividends import ingest_dividends_for_all
+from stockviz.services.ingest.earnings import ingest_earnings_for_all
 from stockviz.services.ingest.fx import ingest_fx
 from stockviz.services.ingest.metadata import backfill_symbol_metadata
 from stockviz.services.ingest.prices import ingest_ticker
@@ -104,6 +105,18 @@ def _cmd_dividends(args: argparse.Namespace) -> int:
         results = ingest_dividends_for_all(session, only=args.tickers or None)
     total = sum(results.values())
     print(f"ingested {total} dividend rows across {len(results)} tickers")
+    for ticker, n in sorted(results.items()):
+        if n:
+            print(f"  {ticker}: {n}")
+    return 0
+
+
+def _cmd_earnings(args: argparse.Namespace) -> int:
+    """Refresh the provider-backed earnings calendar for active symbols."""
+    with Session(engine) as session:
+        results = ingest_earnings_for_all(session, only=args.tickers or None)
+    total = sum(results.values())
+    print(f"ingested {total} earnings rows across {len(results)} tickers")
     for ticker, n in sorted(results.items()):
         if n:
             print(f"  {ticker}: {n}")
@@ -289,6 +302,12 @@ def main(argv: list[str] | None = None) -> int:
     )
     p_div.add_argument("tickers", nargs="*", help="Optional ticker filter")
     p_div.set_defaults(fn=_cmd_dividends)
+
+    p_earnings = sub.add_parser(
+        "earnings", help="Refresh upcoming and recently reported earnings dates from yfinance"
+    )
+    p_earnings.add_argument("tickers", nargs="*", help="Optional ticker filter")
+    p_earnings.set_defaults(fn=_cmd_earnings)
 
     sub.add_parser(
         "credit-dividends", help="Credit today's due dividends to all eligible portfolios"

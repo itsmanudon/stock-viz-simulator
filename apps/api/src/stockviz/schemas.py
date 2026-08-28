@@ -69,6 +69,23 @@ class SymbolDetailOut(BaseModel):
     latest: QuoteOut | None = None
 
 
+class EarningsEventOut(BaseModel):
+    """One provider-backed earnings date for the calendar."""
+
+    id: int
+    ticker: str
+    name: str
+    event_date: date
+    report_time: str | None = None
+    fiscal_period: str | None = None
+    eps_estimate: Decimal | None = None
+    eps_actual: Decimal | None = None
+    surprise_pct: Decimal | None = None
+    result: Literal["beat", "miss", "in_line", "unknown"] = "unknown"
+    source: str
+    fetched_at: datetime
+
+
 class IndicatorPointOut(BaseModel):
     ts: datetime
     value: float
