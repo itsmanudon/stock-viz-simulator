@@ -12,7 +12,7 @@ import {
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-import { APP_NAVIGATION, getActiveNavigation } from "@/lib/app-navigation";
+import { APP_NAVIGATION, getActiveNavigation, homeHref } from "@/lib/app-navigation";
 import { cn } from "@/lib/utils";
 
 const ICONS: Record<string, LucideIcon> = {
@@ -24,7 +24,13 @@ const ICONS: Record<string, LucideIcon> = {
   Community: Users,
 };
 
-export function AppNavigation({ onNavigate }: { onNavigate?: () => void }) {
+export function AppNavigation({
+  signedIn,
+  onNavigate,
+}: {
+  signedIn: boolean;
+  onNavigate?: () => void;
+}) {
   const pathname = usePathname();
   const active = getActiveNavigation(pathname);
 
@@ -41,11 +47,12 @@ export function AppNavigation({ onNavigate }: { onNavigate?: () => void }) {
         {APP_NAVIGATION.map((group) => {
           const Icon = ICONS[group.label];
           const groupActive = active.groupHref === group.href;
+          const href = group.label === "Home" ? homeHref(signedIn) : group.href;
 
           return (
             <div key={group.href} className="relative">
               <Link
-                href={group.href}
+                href={href}
                 data-active={groupActive ? "true" : undefined}
                 aria-current={groupActive && !group.items ? "page" : undefined}
                 onClick={onNavigate}

@@ -1,7 +1,6 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import DashboardPage from "@/app/(product)/dashboard/page";
 import { AppMobileNav } from "@/components/app-mobile-nav";
 import { AppShell } from "@/components/app-shell";
 import { AppSidebar } from "@/components/app-sidebar";
@@ -29,7 +28,7 @@ vi.mock("@/auth", () => ({
 
 describe("AppSidebar", () => {
   it("groups product destinations and marks both the active domain and route", () => {
-    render(<AppSidebar />);
+    render(<AppSidebar signedIn />);
     const nav = screen.getByRole("navigation", { name: "Product" });
 
     expect(within(nav).getByRole("link", { name: "Research" })).toHaveAttribute(
@@ -44,13 +43,29 @@ describe("AppSidebar", () => {
   });
 });
 
+describe("AppSidebar home link", () => {
+  it("keeps signed-out visitors on the marketing home instead of the sign-in wall", () => {
+    render(<AppSidebar signedIn={false} />);
+    const nav = screen.getByRole("navigation", { name: "Product" });
+
+    expect(within(nav).getByRole("link", { name: "Home" })).toHaveAttribute("href", "/");
+  });
+
+  it("points signed-in users at the dashboard", () => {
+    render(<AppSidebar signedIn />);
+    const nav = screen.getByRole("navigation", { name: "Product" });
+
+    expect(within(nav).getByRole("link", { name: "Home" })).toHaveAttribute("href", "/dashboard");
+  });
+});
+
 describe("AppMobileNav", () => {
   beforeEach(() => {
     pathname = "/markets";
   });
 
   it("opens an accessible drawer and closes on Escape", () => {
-    render(<AppMobileNav />);
+    render(<AppMobileNav signedIn />);
 
     fireEvent.click(screen.getByRole("button", { name: "Open navigation" }));
     expect(screen.getByRole("dialog", { name: "Product navigation" })).toBeVisible();
@@ -60,7 +75,7 @@ describe("AppMobileNav", () => {
   });
 
   it("closes after selecting a destination", () => {
-    render(<AppMobileNav />);
+    render(<AppMobileNav signedIn />);
 
     fireEvent.click(screen.getByRole("button", { name: "Open navigation" }));
     const destination = screen.getByRole("link", { name: "Screener" });
@@ -94,16 +109,5 @@ describe("PublicHeader", () => {
     expect(within(nav).getAllByRole("link")).toHaveLength(3);
     expect(screen.queryByRole("link", { name: "Orders" })).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Create account" })).toHaveAttribute("href", "/signup");
-  });
-});
-
-describe("DashboardPage", () => {
-  it("orients the workspace around product domains", () => {
-    render(<DashboardPage />);
-
-    expect(screen.getByRole("heading", { name: "Your research workspace" })).toBeVisible();
-    for (const name of ["Markets", "Research", "Trade", "Portfolio", "Community"]) {
-      expect(screen.getByRole("link", { name: new RegExp(`^${name}`, "i") })).toBeVisible();
-    }
   });
 });

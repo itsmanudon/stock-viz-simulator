@@ -9,8 +9,12 @@ app/
   (public)/        marketing home, login, signup, sign-in-required; owns the
                    concise public header and traditional website footer
   (product)/       guest-capable research routes plus the workstation shell
-    (authed)/      portfolio, trade, trades, orders, watchlist, alerts, settings
-                   — protected by proxy.ts. Portfolio and trade show reserved
+    (authed)/      dashboard, portfolio, trade, trades, orders, watchlist,
+                   alerts, settings — protected by proxy.ts. `/dashboard` is
+                   the signed-in home: a bento grid of portfolio widgets fed by
+                   `lib/dashboard-data.ts` (every widget but the portfolio hero
+                   degrades to its own empty state if its request fails).
+                   Portfolio and trade show reserved
                    vs available cash/shares from pending orders. `/trade` is
                    the execution workstation; `/stocks/[ticker]` keeps the
                    contextual ticket. `/alerts` is alert management; the header
@@ -31,6 +35,8 @@ auth.ts            NextAuth v5 setup (credentials provider, bcrypt)
 auth.config.ts     Edge-safe config (no node-only imports)
 proxy.ts           NextAuth middleware
 components/
+  dashboard/       signed-in home widgets (hero, movers, orders, alerts,
+                   watchlist, allocation) + the shared WidgetCard/DeltaPill
   ui/              shadcn-generated primitives — don't hand-edit
   *.tsx            app-shell/sidebar/navigation, global-ticker-search,
                    public-header, price-chart, order-ticket, backtest-form, etc.
@@ -143,7 +149,9 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
 
 - shadcn components go in `components/ui/`. To add one: `pnpm dlx shadcn@latest add <name>`.
 - Use Tailwind utilities; the existing v1 palette (dark + gold accent) is captured
-  in `app/globals.css` via CSS variables.
+  in `app/globals.css` via CSS variables. `--*-soft` / `--*-soft-foreground`
+  pairs (positive/negative/warning/neutral) are the tinted fills behind delta
+  and status pills — use `DeltaPill` rather than re-rolling the chip.
 - Charts use `lightweight-charts` v5. The wrapper lives in
   `components/price-chart.tsx`; reuse it rather than instantiating a chart inline.
   Compare and backtest charts live in `compare-chart.tsx` and `equity-curve.tsx`.

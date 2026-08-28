@@ -36,6 +36,15 @@
   --negative-foreground: #ffffff;
   --warning: #ad6b00;
   --warning-foreground: #ffffff;
+  /* Tinted fills behind delta/status pills — readable against --*-soft-foreground. */
+  --positive-soft: #dcf1e8;
+  --positive-soft-foreground: #106144;
+  --negative-soft: #fbe3e5;
+  --negative-soft-foreground: #8f2f37;
+  --warning-soft: #fbeed6;
+  --warning-soft-foreground: #855200;
+  --neutral-soft: #e7eaef;
+  --neutral-soft-foreground: #4d5563;
   --radius: 0.375rem;
 }
 
@@ -72,6 +81,14 @@
   --negative-foreground: #21090b;
   --warning: #d69b39;
   --warning-foreground: #1d1405;
+  --positive-soft: #10291f;
+  --positive-soft-foreground: #57c79b;
+  --negative-soft: #2e1518;
+  --negative-soft-foreground: #ea8f94;
+  --warning-soft: #2c2110;
+  --warning-soft-foreground: #e0b064;
+  --neutral-soft: #20252e;
+  --neutral-soft-foreground: #a7aeb9;
 }
 
 @theme inline {
@@ -107,6 +124,14 @@
   --color-negative-foreground: var(--negative-foreground);
   --color-warning: var(--warning);
   --color-warning-foreground: var(--warning-foreground);
+  --color-positive-soft: var(--positive-soft);
+  --color-positive-soft-foreground: var(--positive-soft-foreground);
+  --color-negative-soft: var(--negative-soft);
+  --color-negative-soft-foreground: var(--negative-soft-foreground);
+  --color-warning-soft: var(--warning-soft);
+  --color-warning-soft-foreground: var(--warning-soft-foreground);
+  --color-neutral-soft: var(--neutral-soft);
+  --color-neutral-soft-foreground: var(--neutral-soft-foreground);
   --font-sans: "Segoe UI Variable", "Segoe UI", Inter, ui-sans-serif, system-ui, sans-serif;
   --font-mono: "Cascadia Code", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
   --radius-sm: calc(var(--radius) - 0.25rem);
