@@ -28,8 +28,11 @@ NEW_YORK = ZoneInfo("America/New_York")
 
 
 class DailyBarLike(Protocol):
-    ts: datetime
-    interval: str
+    @property
+    def ts(self) -> datetime: ...
+
+    @property
+    def interval(self) -> str: ...
 
 
 def session_label(value: date) -> datetime:

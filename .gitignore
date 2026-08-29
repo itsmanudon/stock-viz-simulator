@@ -56,6 +56,9 @@ coverage/
 .coverage
 htmlcov/
 
+# Private provider-derived evidence (never publish or copy into images)
+artifacts/private/
+
 # Logs
 *.log
 logs/

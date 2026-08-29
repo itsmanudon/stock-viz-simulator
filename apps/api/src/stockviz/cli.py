@@ -14,7 +14,10 @@ from __future__ import annotations
 import argparse
 import logging
 import sys
-from datetime import date
+from datetime import UTC, date, datetime
+from decimal import Decimal
+from pathlib import Path
+from zoneinfo import ZoneInfo
 
 from sqlmodel import Session
 
@@ -23,12 +26,32 @@ from stockviz.services.ingest.backfill import (
     backfill_price_bars_from_csvs,
     ensure_symbols_for_backfill,
 )
+from stockviz.services.ingest.bar_semantics import completed_daily_bars
 from stockviz.services.ingest.dividends import ingest_dividends_for_all
 from stockviz.services.ingest.earnings import ingest_earnings_for_all
 from stockviz.services.ingest.fx import ingest_fx
 from stockviz.services.ingest.metadata import backfill_symbol_metadata
-from stockviz.services.ingest.prices import ingest_ticker
+from stockviz.services.ingest.prices import BarRecord, fetch_yfinance_daily, ingest_ticker
+from stockviz.services.ingest.providers.massive import (
+    MassiveProviderError,
+    fetch_massive_daily,
+    fetch_massive_dividends,
+    fetch_massive_open_close,
+    fetch_massive_splits,
+)
 from stockviz.services.ingest.seed import seed_symbols
+from stockviz.services.ingest.shadow import (
+    ActionWindow,
+    RawLatestSessions,
+    SymbolComparison,
+    audit_volume_precision,
+    compare_symbol,
+)
+from stockviz.services.ingest.shadow_report import (
+    SessionScopeSample,
+    ShadowRun,
+    write_shadow_report,
+)
 from stockviz.services.metrics import refresh_symbol_metrics
 from stockviz.services.recommend import MAX_SCORE, score_universe
 from stockviz.services.sentiment.store import backfill_unscored, refresh_symbol_sentiment
@@ -36,6 +59,10 @@ from stockviz.services.trading import credit_due_dividends, snapshot_user_navs
 from stockviz.settings import get_settings
 
 logger = logging.getLogger(__name__)
+
+DEFAULT_SHADOW_SYMBOLS = ["AAPL", "MSFT", "NVDA", "AMZN", "META", "TSLA", "JPM"]
+VOLUME_PRECISION_PROBES = ["C", "GE", "AIG"]
+DEFAULT_SHADOW_OUTPUT = Path("artifacts/private/massive-shadow")
 
 
 def _cmd_seed(_args: argparse.Namespace) -> int:
@@ -312,6 +339,220 @@ def _cmd_ingest(args: argparse.Namespace) -> int:
     return 0
 
 
+def _relative_error(reference: Decimal, candidate: Decimal) -> Decimal | None:
+    if reference == 0:
+        return Decimal(0) if candidate == 0 else None
+    return abs(candidate - reference) / abs(reference)
+
+
+def _session_scope_sample(
+    aggregate: BarRecord,
+    *,
+    regular_open: Decimal,
+    regular_high: Decimal,
+    regular_low: Decimal,
+    regular_close: Decimal,
+    regular_volume: Decimal,
+) -> SessionScopeSample:
+    price_errors = [
+        _relative_error(reference, candidate)
+        for reference, candidate in (
+            (regular_open, aggregate.open),
+            (regular_high, aggregate.high),
+            (regular_low, aggregate.low),
+            (regular_close, aggregate.close),
+        )
+    ]
+    volume_error = _relative_error(regular_volume, aggregate.volume)
+    price_max = max((value for value in price_errors if value is not None), default=None)
+    passed = (
+        all(value is not None and value <= Decimal("0.001") for value in price_errors)
+        and volume_error is not None
+        and volume_error <= Decimal("0.01")
+    )
+    return SessionScopeSample(
+        ticker=aggregate.ticker,
+        session_date=aggregate.ts.date(),
+        price_max_relative_error=price_max,
+        volume_relative_error=volume_error,
+        passed=passed,
+    )
+
+
+def _sample_session_dates(
+    common_dates: list[date],
+    actions: list[ActionWindow],
+) -> list[date]:
+    if not common_dates:
+        return []
+    indexes = {0, len(common_dates) // 2, len(common_dates) - 1}
+    selected = {common_dates[index] for index in indexes}
+    common = set(common_dates)
+    selected.update(action.effective_date for action in actions if action.effective_date in common)
+    return sorted(selected)
+
+
+def _technical_gate(
+    comparisons: dict[str, SymbolComparison],
+    session_scope_samples: list[SessionScopeSample],
+) -> tuple[str, list[str]]:
+    blockers: list[str] = []
+    for result in comparisons.values():
+        if result.common_sessions == 0:
+            blockers.append(f"{result.ticker}: no common completed sessions")
+        if result.reference_only_sessions or result.candidate_only_sessions:
+            blockers.append(f"{result.ticker}: missing or extra provider sessions")
+        if any(stats.over_10_bps for stats in result.fields.values()):
+            blockers.append(f"{result.ticker}: OHLC mismatch exceeds 10 bps")
+        if result.volume.over_1_percent:
+            blockers.append(f"{result.ticker}: volume mismatch exceeds 1 percent")
+    if not session_scope_samples:
+        blockers.append("Massive daily aggregate session scope was not independently sampled")
+    elif any(not sample.passed for sample in session_scope_samples):
+        blockers.append("Massive daily aggregate differs materially from regular open-close probes")
+    if blockers:
+        return "failed_private_shadow_evidence", blockers
+    return "passed_private_shadow_evidence", []
+
+
+def run_market_shadow(
+    *,
+    symbols: list[str],
+    start: date,
+    end: date,
+    api_key: str,
+    precision_symbols: list[str] | None = None,
+) -> ShadowRun:
+    """Run a private, in-memory yfinance/Massive comparison without a DB session."""
+
+    comparisons: dict[str, SymbolComparison] = {}
+    candidate_bars_for_precision: list[BarRecord] = []
+    scope_samples: list[SessionScopeSample] = []
+    for ticker in symbols:
+        reference_raw = [
+            bar
+            for bar in fetch_yfinance_daily(ticker, start=start)
+            if start <= bar.ts.date() <= end
+        ]
+        candidate_raw = fetch_massive_daily(
+            ticker,
+            start=start,
+            end=end,
+            api_key=api_key,
+        )
+        candidate_bars_for_precision.extend(candidate_raw)
+        provider_actions = [
+            *fetch_massive_splits(ticker, start=start, end=end, api_key=api_key),
+            *fetch_massive_dividends(ticker, start=start, end=end, api_key=api_key),
+        ]
+        actions = [
+            ActionWindow(kind=action.kind, effective_date=action.effective_date)
+            for action in provider_actions
+        ]
+        reference_completed = completed_daily_bars(reference_raw)
+        candidate_completed = completed_daily_bars(candidate_raw)
+        raw_latest = RawLatestSessions(
+            reference=max((bar.ts.date() for bar in reference_raw), default=None),
+            candidate=max((bar.ts.date() for bar in candidate_raw), default=None),
+        )
+        result = compare_symbol(
+            reference_completed,
+            candidate_completed,
+            actions=actions,
+            raw_latest=raw_latest,
+        )
+        comparisons[ticker] = result
+
+        reference_dates = {bar.ts.date() for bar in reference_completed}
+        candidate_by_date = {bar.ts.date(): bar for bar in candidate_completed}
+        common_dates = sorted(reference_dates & set(candidate_by_date))
+        for session_date in _sample_session_dates(common_dates, actions):
+            regular = fetch_massive_open_close(
+                ticker,
+                session_date=session_date,
+                api_key=api_key,
+            )
+            scope_samples.append(
+                _session_scope_sample(
+                    candidate_by_date[session_date],
+                    regular_open=regular.open,
+                    regular_high=regular.high,
+                    regular_low=regular.low,
+                    regular_close=regular.close,
+                    regular_volume=regular.volume,
+                )
+            )
+
+    comparison_symbols = set(symbols)
+    for ticker in precision_symbols if precision_symbols is not None else VOLUME_PRECISION_PROBES:
+        if ticker in comparison_symbols:
+            continue
+        candidate_bars_for_precision.extend(
+            fetch_massive_daily(ticker, start=start, end=end, api_key=api_key)
+        )
+
+    technical_gate, blockers = _technical_gate(comparisons, scope_samples)
+    return ShadowRun(
+        started_at=datetime.now(UTC),
+        requested_start=start,
+        requested_end=end,
+        symbols=comparisons,
+        volume_precision=audit_volume_precision(candidate_bars_for_precision),
+        session_scope_samples=scope_samples,
+        blockers=blockers,
+        technical_gate=technical_gate,
+        licensing_gate="not_approved_individual_subscription",
+        cutover_recommendation="do_not_cut_over",
+        verification={
+            "unit_tests": "not run by market-shadow command",
+            "clean_container": "run credential-free workflow separately",
+        },
+    )
+
+
+def _five_years_before(value: date) -> date:
+    try:
+        return value.replace(year=value.year - 5)
+    except ValueError:
+        return value.replace(year=value.year - 5, day=28)
+
+
+def _cmd_market_shadow(args: argparse.Namespace) -> int:
+    settings = get_settings()
+    if not settings.massive_api_key.strip():
+        print(
+            "market-shadow: MASSIVE_API_KEY is required for private shadow execution.",
+            file=sys.stderr,
+        )
+        return 2
+    try:
+        start = date.fromisoformat(args.from_date)
+        end = date.fromisoformat(args.to_date)
+    except ValueError:
+        print("market-shadow: date range values must use YYYY-MM-DD.", file=sys.stderr)
+        return 2
+    if start > end:
+        print("market-shadow: date range start must be on or before end.", file=sys.stderr)
+        return 2
+    symbols = list(dict.fromkeys(ticker.strip().upper() for ticker in args.tickers if ticker.strip()))
+    if not symbols:
+        symbols = list(DEFAULT_SHADOW_SYMBOLS)
+    try:
+        run = run_market_shadow(
+            symbols=symbols,
+            start=start,
+            end=end,
+            api_key=settings.massive_api_key,
+        )
+    except MassiveProviderError as exc:
+        print(f"market-shadow: provider execution failed: {exc}", file=sys.stderr)
+        return 1
+    json_path, markdown_path = write_shadow_report(run, Path(args.output_dir))
+    print(f"private JSON report: {json_path}")
+    print(f"private Markdown report: {markdown_path}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 
@@ -339,6 +580,31 @@ def main(argv: list[str] | None = None) -> int:
     )
     p_news.add_argument("tickers", nargs="*", help="Defaults to every active symbol")
     p_news.set_defaults(fn=_cmd_news)
+
+    new_york_today = datetime.now(ZoneInfo("America/New_York")).date()
+    p_shadow = sub.add_parser(
+        "market-shadow",
+        help="Privately compare Massive daily bars with yfinance; never persists or serves data",
+    )
+    p_shadow.add_argument("tickers", nargs="*", help="Defaults to the representative US set")
+    p_shadow.add_argument(
+        "--from",
+        dest="from_date",
+        default=_five_years_before(new_york_today).isoformat(),
+        help="First requested session date (YYYY-MM-DD)",
+    )
+    p_shadow.add_argument(
+        "--to",
+        dest="to_date",
+        default=new_york_today.isoformat(),
+        help="Last requested session date (YYYY-MM-DD)",
+    )
+    p_shadow.add_argument(
+        "--output-dir",
+        default=str(DEFAULT_SHADOW_OUTPUT),
+        help="Private artifact root (default: artifacts/private/massive-shadow)",
+    )
+    p_shadow.set_defaults(fn=_cmd_market_shadow)
 
     p_fx = sub.add_parser(
         "fx", help="Refresh daily FX rates (defaults to all non-USD currencies in use)"
