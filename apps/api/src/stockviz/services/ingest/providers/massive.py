@@ -10,7 +10,7 @@ from __future__ import annotations
 import json
 from collections.abc import Callable, Iterator, Mapping
 from dataclasses import dataclass
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 from decimal import Decimal, InvalidOperation
 from typing import Any
 from urllib.parse import parse_qsl, quote, urlencode, urlsplit, urlunsplit
@@ -18,6 +18,7 @@ from urllib.parse import parse_qsl, quote, urlencode, urlsplit, urlunsplit
 import httpx
 
 from stockviz.services.ingest.bar_semantics import (
+    NEW_YORK,
     AdjustmentSemantics,
     SessionScope,
     new_york_session_date,
@@ -66,6 +67,79 @@ class MassiveOpenClose:
     volume: Decimal
     pre_market: Decimal | None
     after_hours: Decimal | None
+
+
+@dataclass(frozen=True, slots=True)
+class MassiveRequestEvidence:
+    """Credential-free description of one completed provider request."""
+
+    purpose: str
+    endpoint: str
+    params: Mapping[str, str]
+    requested_start: date
+    requested_end: date
+    adjusted: bool
+    page_count: int
+    returned_rows: int
+    pagination_complete: bool
+
+    def as_dict(self) -> dict[str, object]:
+        return {
+            "purpose": self.purpose,
+            "endpoint": self.endpoint,
+            "params": dict(self.params),
+            "requested_start": self.requested_start.isoformat(),
+            "requested_end": self.requested_end.isoformat(),
+            "adjusted": self.adjusted,
+            "page_count": self.page_count,
+            "returned_rows": self.returned_rows,
+            "pagination_complete": self.pagination_complete,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class MassiveMinuteBar:
+    """Provider-private adjusted one-minute aggregate."""
+
+    observed_at: datetime
+    open: Decimal
+    high: Decimal
+    low: Decimal
+    close: Decimal
+    volume: Decimal
+
+
+@dataclass(frozen=True, slots=True)
+class MassiveMinuteGap:
+    local_minute: datetime
+    reason: str
+
+
+@dataclass(frozen=True, slots=True)
+class MassiveMinuteSeries:
+    ticker: str
+    session_date: date
+    bars: tuple[MassiveMinuteBar, ...]
+    request: MassiveRequestEvidence
+
+
+@dataclass(frozen=True, slots=True)
+class MassiveReconstructedSession:
+    ticker: str
+    session_date: date
+    regular: BarRecord | None
+    all_session: BarRecord | None
+    expected_regular_minutes: int
+    observed_regular_minutes: int
+    gaps: tuple[MassiveMinuteGap, ...]
+    retrieval_status: str
+    request: MassiveRequestEvidence
+
+    def gap_reason(self, local_minute: datetime) -> str | None:
+        for gap in self.gaps:
+            if gap.local_minute == local_minute:
+                return gap.reason
+        return None
 
 
 def _default_get(
@@ -265,7 +339,9 @@ def fetch_massive_daily(
             volume = _row_decimal(row, "v")
             millis = _row_decimal(row, "t")
             if millis != millis.to_integral_value():
-                raise MassiveSemanticError("Massive aggregate timestamp must be integer milliseconds")
+                raise MassiveSemanticError(
+                    "Massive aggregate timestamp must be integer milliseconds"
+                )
             instant = datetime(1970, 1, 1, tzinfo=UTC) + timedelta(milliseconds=int(millis))
             session_date = new_york_session_date(instant)
             if session_date in seen_sessions:
@@ -400,10 +476,7 @@ def fetch_massive_open_close(
     get_fn: MassiveGetFn = _default_get,
 ) -> MassiveOpenClose:
     symbol = _ticker(ticker)
-    url = (
-        f"{MASSIVE_API_ROOT}/v1/open-close/{quote(symbol, safe='.')}/"
-        f"{session_date.isoformat()}"
-    )
+    url = f"{MASSIVE_API_ROOT}/v1/open-close/{quote(symbol, safe='.')}/{session_date.isoformat()}"
     payload = _call_get(get_fn, url, {"adjusted": "true"}, _headers(api_key))
     response_date = payload.get("from")
     if response_date != session_date.isoformat():
@@ -428,8 +501,153 @@ def fetch_massive_open_close(
             _decimal(pre_market_raw, field="preMarket") if pre_market_raw is not None else None
         ),
         after_hours=(
-            _decimal(after_hours_raw, field="afterHours")
-            if after_hours_raw is not None
-            else None
+            _decimal(after_hours_raw, field="afterHours") if after_hours_raw is not None else None
         ),
+    )
+
+
+def fetch_massive_minutes(
+    ticker: str,
+    *,
+    session_date: date,
+    api_key: str,
+    get_fn: MassiveGetFn = _default_get,
+) -> MassiveMinuteSeries:
+    """Fetch adjusted one-minute aggregates for exactly one New York date."""
+
+    symbol = _ticker(ticker)
+    endpoint = (
+        f"{MASSIVE_API_ROOT}/v2/aggs/ticker/{quote(symbol, safe='.')}/range/1/minute/"
+        f"{session_date.isoformat()}/{session_date.isoformat()}"
+    )
+    params = {"adjusted": "true", "sort": "asc", "limit": "50000"}
+    bars: list[MassiveMinuteBar] = []
+    seen: set[datetime] = set()
+    page_count = 0
+    for payload in _pages(endpoint, params=params, api_key=api_key, get_fn=get_fn):
+        page_count += 1
+        if payload.get("adjusted") is not True:
+            raise MassiveSemanticError("Massive minute response must be adjusted=true")
+        rows = _results(payload)
+        results_count = payload.get("resultsCount")
+        if results_count is not None:
+            parsed_count = _decimal(results_count, field="resultsCount")
+            if parsed_count != parsed_count.to_integral_value() or int(parsed_count) != len(rows):
+                raise MassiveSemanticError("Massive minute retrieval or pagination gap")
+        for row in rows:
+            open_ = _row_decimal(row, "o")
+            high = _row_decimal(row, "h")
+            low = _row_decimal(row, "l")
+            close = _row_decimal(row, "c")
+            volume = _row_decimal(row, "v")
+            millis = _row_decimal(row, "t")
+            if millis != millis.to_integral_value():
+                raise MassiveSemanticError("Massive minute timestamp must be integer milliseconds")
+            observed_at = (
+                datetime(1970, 1, 1, tzinfo=UTC) + timedelta(milliseconds=int(millis))
+            ).astimezone(NEW_YORK)
+            if observed_at.date() != session_date:
+                raise MassiveSemanticError(
+                    "Massive minute timestamp is outside the requested New York session"
+                )
+            if observed_at.second or observed_at.microsecond:
+                raise MassiveSemanticError("Massive minute timestamp is not minute-aligned")
+            if observed_at in seen:
+                raise MassiveSemanticError("Massive minute response contains a duplicate timestamp")
+            _validate_ohlcv(open_=open_, high=high, low=low, close=close, volume=volume)
+            seen.add(observed_at)
+            bars.append(
+                MassiveMinuteBar(
+                    observed_at=observed_at,
+                    open=open_,
+                    high=high,
+                    low=low,
+                    close=close,
+                    volume=volume,
+                )
+            )
+    bars.sort(key=lambda bar: bar.observed_at)
+    return MassiveMinuteSeries(
+        ticker=symbol,
+        session_date=session_date,
+        bars=tuple(bars),
+        request=MassiveRequestEvidence(
+            purpose="adjusted_one_minute_aggregates",
+            endpoint=endpoint,
+            params=params,
+            requested_start=session_date,
+            requested_end=session_date,
+            adjusted=True,
+            page_count=page_count,
+            returned_rows=len(bars),
+            pagination_complete=True,
+        ),
+    )
+
+
+def _aggregate_minutes(
+    series: MassiveMinuteSeries,
+    bars: list[MassiveMinuteBar],
+    *,
+    session_scope: SessionScope,
+) -> BarRecord | None:
+    if not bars:
+        return None
+    return BarRecord(
+        ticker=series.ticker,
+        ts=session_label(series.session_date),
+        interval=DAILY_INTERVAL,
+        open=bars[0].open,
+        high=max(bar.high for bar in bars),
+        low=min(bar.low for bar in bars),
+        close=bars[-1].close,
+        volume=sum((bar.volume for bar in bars), start=Decimal(0)),
+        source="massive_intraday_reconstruction",
+        adjustment_semantics=AdjustmentSemantics.SPLIT_ADJUSTED,
+        session_scope=session_scope,
+    )
+
+
+def reconstruct_massive_session(
+    series: MassiveMinuteSeries,
+) -> MassiveReconstructedSession:
+    """Reconstruct regular and all-session daily bars without timestamp changes."""
+
+    if not series.bars:
+        return MassiveReconstructedSession(
+            ticker=series.ticker,
+            session_date=series.session_date,
+            regular=None,
+            all_session=None,
+            expected_regular_minutes=390,
+            observed_regular_minutes=0,
+            gaps=(),
+            retrieval_status="provider_data_unavailable",
+            request=series.request,
+        )
+    regular_start = time(9, 30)
+    regular_end = time(16, 0)
+    regular_bars = [
+        bar for bar in series.bars if regular_start <= bar.observed_at.time() < regular_end
+    ]
+    observed = {bar.observed_at.replace(tzinfo=None) for bar in regular_bars}
+    first_minute = datetime.combine(series.session_date, regular_start)
+    expected = tuple(first_minute + timedelta(minutes=index) for index in range(390))
+    gaps = tuple(
+        MassiveMinuteGap(local_minute=value, reason="no_qualifying_trade")
+        for value in expected
+        if value not in observed
+    )
+    return MassiveReconstructedSession(
+        ticker=series.ticker,
+        session_date=series.session_date,
+        regular=_aggregate_minutes(series, regular_bars, session_scope=SessionScope.REGULAR),
+        all_session=_aggregate_minutes(
+            series, list(series.bars), session_scope=SessionScope.PROVIDER_DAILY
+        ),
+        expected_regular_minutes=390,
+        observed_regular_minutes=len(regular_bars),
+        gaps=gaps,
+        retrieval_status="complete",
+        request=series.request,
     )

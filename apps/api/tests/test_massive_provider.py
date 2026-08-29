@@ -17,8 +17,10 @@ from stockviz.services.ingest.providers.massive import (
     _default_get,
     fetch_massive_daily,
     fetch_massive_dividends,
+    fetch_massive_minutes,
     fetch_massive_open_close,
     fetch_massive_splits,
+    reconstruct_massive_session,
 )
 
 GetFn = Callable[[str, dict[str, str], dict[str, str]], dict[str, Any]]
@@ -116,15 +118,11 @@ def test_massive_daily_follows_sanitized_next_url_with_bearer_auth() -> None:
     }
     second = {
         **MASSIVE_AGGS_OK,
-        "results": [
-            {**MASSIVE_AGGS_OK["results"][0], "t": _millis("2025-01-03T05:00:00Z")}
-        ],
+        "results": [{**MASSIVE_AGGS_OK["results"][0], "t": _millis("2025-01-03T05:00:00Z")}],
     }
     pages = iter((first, second))
 
-    def recording_get(
-        url: str, params: dict[str, str], headers: dict[str, str]
-    ) -> dict[str, Any]:
+    def recording_get(url: str, params: dict[str, str], headers: dict[str, str]) -> dict[str, Any]:
         calls.append((url, params, headers))
         return next(pages)
 
@@ -291,3 +289,193 @@ def test_massive_open_close_parses_regular_and_extended_session_probe() -> None:
     assert result.volume == Decimal("40000000.5")
     assert result.pre_market == Decimal("242.10")
     assert result.after_hours == Decimal("244.00")
+
+
+def test_minute_reconstruction_uses_exact_new_york_regular_session_and_decimal_math() -> None:
+    payload = {
+        "adjusted": True,
+        "status": "OK",
+        "queryCount": Decimal("5"),
+        "resultsCount": Decimal("5"),
+        "results": [
+            {
+                "o": Decimal("99"),
+                "h": Decimal("100"),
+                "l": Decimal("98"),
+                "c": Decimal("99.5"),
+                "v": Decimal("10.1"),
+                "t": _millis("2025-01-02T14:29:00Z"),
+            },
+            {
+                "o": Decimal("100.125"),
+                "h": Decimal("101.250"),
+                "l": Decimal("99.875"),
+                "c": Decimal("101.000"),
+                "v": Decimal("100.125"),
+                "t": _millis("2025-01-02T14:30:00Z"),
+            },
+            {
+                "o": Decimal("101.000"),
+                "h": Decimal("102.500"),
+                "l": Decimal("100.500"),
+                "c": Decimal("102.000"),
+                "v": Decimal("200.250"),
+                "t": _millis("2025-01-02T14:31:00Z"),
+            },
+            {
+                "o": Decimal("103.000"),
+                "h": Decimal("104.000"),
+                "l": Decimal("102.750"),
+                "c": Decimal("103.500"),
+                "v": Decimal("300.375"),
+                "t": _millis("2025-01-02T20:59:00Z"),
+            },
+            {
+                "o": Decimal("104"),
+                "h": Decimal("105"),
+                "l": Decimal("103"),
+                "c": Decimal("104.5"),
+                "v": Decimal("20.2"),
+                "t": _millis("2025-01-02T21:00:00Z"),
+            },
+        ],
+    }
+    calls: list[tuple[str, dict[str, str], dict[str, str]]] = []
+
+    def recording_get(url: str, params: dict[str, str], headers: dict[str, str]):
+        calls.append((url, params, headers))
+        return payload
+
+    series = fetch_massive_minutes(
+        "AAPL",
+        session_date=date(2025, 1, 2),
+        api_key="secret",
+        get_fn=recording_get,
+    )
+    reconstructed = reconstruct_massive_session(series)
+
+    assert calls[0][0].endswith("/v2/aggs/ticker/AAPL/range/1/minute/2025-01-02/2025-01-02")
+    assert calls[0][1] == {"adjusted": "true", "sort": "asc", "limit": "50000"}
+    assert calls[0][2] == {"Authorization": "Bearer secret"}
+    assert reconstructed.regular is not None
+    assert reconstructed.regular.open == Decimal("100.125")
+    assert reconstructed.regular.high == Decimal("104.000")
+    assert reconstructed.regular.low == Decimal("99.875")
+    assert reconstructed.regular.close == Decimal("103.500")
+    assert reconstructed.regular.volume == Decimal("600.750")
+    assert reconstructed.regular.session_scope is SessionScope.REGULAR
+    assert reconstructed.all_session is not None
+    assert reconstructed.all_session.volume == Decimal("631.05")
+    assert reconstructed.observed_regular_minutes == 3
+    assert reconstructed.expected_regular_minutes == 390
+    assert reconstructed.gap_reason(datetime(2025, 1, 2, 9, 32)) == "no_qualifying_trade"
+    assert reconstructed.request.pagination_complete is True
+    assert "secret" not in str(reconstructed.request.as_dict())
+
+
+def test_minute_reconstruction_handles_dst_without_timestamp_reinterpretation() -> None:
+    payload = {
+        "adjusted": True,
+        "status": "OK",
+        "queryCount": Decimal("1"),
+        "resultsCount": Decimal("1"),
+        "results": [
+            {
+                "o": Decimal("1"),
+                "h": Decimal("2"),
+                "l": Decimal("1"),
+                "c": Decimal("2"),
+                "v": Decimal("3.25"),
+                "t": _millis("2025-07-01T13:30:00Z"),
+            },
+        ],
+    }
+
+    series = fetch_massive_minutes(
+        "AAPL",
+        session_date=date(2025, 7, 1),
+        api_key="secret",
+        get_fn=_fake_pages(payload),
+    )
+    reconstructed = reconstruct_massive_session(series)
+
+    assert series.bars[0].observed_at.isoformat() == "2025-07-01T09:30:00-04:00"
+    assert reconstructed.regular is not None
+    assert reconstructed.regular.volume == Decimal("3.25")
+
+
+def test_minute_retrieval_marks_empty_provider_data_distinct_from_absent_trade_minutes() -> None:
+    series = fetch_massive_minutes(
+        "AAPL",
+        session_date=date(2025, 1, 2),
+        api_key="secret",
+        get_fn=_fake_pages(
+            {
+                "adjusted": True,
+                "status": "OK",
+                "queryCount": Decimal("0"),
+                "resultsCount": Decimal("0"),
+                "results": [],
+            }
+        ),
+    )
+
+    reconstructed = reconstruct_massive_session(series)
+
+    assert reconstructed.retrieval_status == "provider_data_unavailable"
+    assert reconstructed.regular is None
+    assert reconstructed.gaps == ()
+
+
+def test_minute_retrieval_rejects_response_count_gap() -> None:
+    payload = {
+        "adjusted": True,
+        "status": "OK",
+        "queryCount": Decimal("2"),
+        "resultsCount": Decimal("2"),
+        "results": [
+            {
+                "o": Decimal("1"),
+                "h": Decimal("2"),
+                "l": Decimal("1"),
+                "c": Decimal("2"),
+                "v": Decimal("3"),
+                "t": _millis("2025-01-02T14:30:00Z"),
+            },
+        ],
+    }
+
+    with pytest.raises(MassiveSemanticError, match="retrieval or pagination gap"):
+        fetch_massive_minutes(
+            "AAPL",
+            session_date=date(2025, 1, 2),
+            api_key="secret",
+            get_fn=_fake_pages(payload),
+        )
+
+
+def test_minute_retrieval_rejects_timestamp_from_wrong_new_york_session() -> None:
+    payload = {
+        "adjusted": True,
+        "status": "OK",
+        "queryCount": Decimal("1"),
+        "resultsCount": Decimal("1"),
+        "results": [
+            {
+                "o": Decimal("1"),
+                "h": Decimal("2"),
+                "l": Decimal("1"),
+                "c": Decimal("2"),
+                "v": Decimal("3"),
+                "t": _millis("2025-01-03T14:30:00Z"),
+            },
+        ],
+    }
+
+    with pytest.raises(MassiveSemanticError, match="requested New York session"):
+        fetch_massive_minutes(
+            "AAPL",
+            session_date=date(2025, 1, 2),
+            api_key="secret",
+            get_fn=_fake_pages(payload),
+        )
