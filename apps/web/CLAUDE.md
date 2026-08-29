@@ -37,6 +37,23 @@ proxy.ts           NextAuth middleware
 components/
   dashboard/       signed-in home widgets (hero, movers, orders, alerts,
                    watchlist, allocation) + the shared WidgetCard/DeltaPill
+  marketing/       public-page-only pieces. `hero.tsx` + `hero-panel.tsx` (the
+                   `.panel-inset` product replica, real bars only, aria-hidden),
+                   `market-ticker.tsx` (the `.marquee` price strip — halves are
+                   `min-w-[100vw]`, never `min-w-full`, see the file header),
+                   `floating-header.tsx` (the public header's sticky pill; the
+                   only client part — it flips `data-scrolled` past 24px and
+                   everything inside stays server-rendered), `market-status.tsx`
+                   (latest stored EOD bar date; never claims a live market),
+                   `product-tour.tsx` + `tour-tabs.tsx` + `tour-panels.tsx`
+                   (the tabbed Screen/Research/Simulate/Track tour — panels are
+                   live recreations off the public API, never screenshots; a
+                   surface that fails is dropped, <2 tabs hides the section),
+                   `by-the-numbers.tsx` (counts read live off the API; a stat
+                   that can't be counted is omitted, never shown as 0),
+                   `closing-cta.tsx` (the gold-tinted full-bleed close),
+                   `reveal.tsx` (scroll reveal: IntersectionObserver + the
+                   `[data-reveal]` transition in globals.css — no motion library)
   data-table.tsx   DataTableFrame / NumericCell / SortableHead / TableToolbar
   symbol-card-list.tsx  card layout the symbol tables switch to under `md`,
                    plus CardSortBar (cards have no column headers to sort by)
@@ -45,6 +62,8 @@ components/
   status-badge.tsx one tone-mapped chip behind the order/alert badges
   order-side-toggle.tsx  buy/sell segmented control shared by both tickets
   ui/              shadcn-generated primitives — don't hand-edit
+  site-footer.tsx  public footer: rides `.panel-inset` squared off, so the page
+                   ends dark; disclosures are numbered notes, not buried prose
   *.tsx            app-shell/sidebar/navigation, global-ticker-search, earnings-calendar,
                    public-header, price-chart, order-ticket, backtest-form, etc.
 lib/
@@ -53,7 +72,12 @@ lib/
   db.ts            raw pg pool (only used by the credentials provider)
   users.ts         user lookup/create for credentials auth
   utils.ts         cn() helper
-tests/e2e/         Playwright specs (shell, auth, markets, trade)
+tests/e2e/         Playwright specs (shell, auth, markets, trade, marketing).
+                   `marketing.spec.ts` covers the public home: tour tabs and
+                   keyboard nav, reduced motion (via `page.emulateMedia` — the
+                   `reducedMotion` fixture did not reach the page), both themes,
+                   and horizontal overflow at 320-1440. Keep 1024/1280/1366 in
+                   that width list: the hero's cropped panel broke only there.
 tests/unit/        Vitest (shell/navigation/search, csv, tables, guards, rate-limit)
 types/next-auth.d.ts  augments Session.user with id
 sentry.*.config.ts    Sentry init per runtime; no-op without DSN
@@ -161,15 +185,16 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
 
 - shadcn components go in `components/ui/`. To add one: `pnpm dlx shadcn@latest add <name>`.
 - Use Tailwind utilities; the palette lives in `app/globals.css` as CSS
-  variables. The identity is **Electric**: deep indigo canvas (`#0b0d14`),
-  electric-lime brand (`#c4f82a`), 12px radius, Space Grotesk display +
-  JetBrains Mono numerals (both self-hosted via `next/font`, no runtime
-  request). Dark-first; light mode re-grounds the same hues on a cool paper.
-  **Lime is the brand, never the "up" colour** — a lime gain sitting next to a
-  lime button is unreadable, so positive is a cyan-leaning green
-  (`--positive`). Lime is unreadable as text on white, so light mode darkens
-  `--brand` for type while `--primary` keeps full chroma for fills with dark
-  ink on top. `--*-soft` / `--*-soft-foreground`
+  variables. The identity is **ATLAS**: warm paper canvas (`#f7f6f2`),
+  restrained gold brand, 10px radius (`--radius: 0.625rem`), Space Grotesk
+  display + JetBrains Mono numerals (both self-hosted via `next/font`, no
+  runtime request). Light is the base; `.dark` re-grounds the same hues on a
+  near-black canvas (`#0f1112`). **Gold is the brand, never the "up" colour** —
+  a gold gain sitting next to a gold button is unreadable, so positive is a
+  separate green (`--positive`) and negative a separate red. Gold is
+  unreadable as type on paper, so light mode darkens `--brand` to `#96702b`
+  for text while `--primary` (`#c6a35c`) keeps full chroma for fills with dark
+  ink on top; dark mode uses `#d5b36a` for both. `--*-soft` / `--*-soft-foreground`
   pairs (positive/negative/warning/neutral) are the tinted fills behind delta
   and status pills — use `DeltaPill` rather than re-rolling the chip.
   `--surface-elevated` is one step *above* `--card` (overlays: sidebar,
