@@ -62,6 +62,20 @@ New here? Read [Local setup](./SETUP.md), then
 | [Stale market data](./operations/runbooks/stale-market-data.md) | Prices stop updating |
 | [Postgres connection exhaustion](./operations/runbooks/postgres-connections.md) | API 500s under load |
 
+## Testing
+
+| Doc | What it answers |
+| --- | --- |
+| [Testing strategy](./testing/strategy.md) | The speed/fidelity ladder, what each tier can and cannot prove, CI jobs, known gaps |
+
+## Security
+
+| Doc | What it answers |
+| --- | --- |
+| [Authentication](./security/authentication.md) | Session auth, the web→api bridge, authorization, rate limiting |
+| [Secrets](./security/secrets.md) | Where secrets live per environment, the dev-default guard, rotation |
+| [Threat model](./security/threat-model.md) | Assets, trust boundaries, ten threats with controls and residual risk |
+
 ## Observability
 
 | Doc | What it answers |

@@ -22,30 +22,30 @@ Status of the interview-prep curriculum. Update as topics are covered.
 | Production debugging | 6 drills | [runbooks](../operations/runbooks.md) | [production-debugging/](./production-debugging/incident-drills.md) | ✅ | ✅ |
 | Project deep dive | whole repo | — | [explain-…](./explain-stockviz-in-interviews.md) | ✅ | ✅ |
 | Observability | Sentry + probes only | [observability](../observability/overview.md) | ⬜ | 🟡 | 🟡 |
+| Testing strategy | 620 pytest, pg_scratch, Playwright, k8s smoke | [strategy](../testing/strategy.md) | [testing/](./testing/testing-distributed-systems.md) | ✅ | ✅ |
+| Security & threat model | auth bridge, secrets, hardening | [security/](../security/threat-model.md) | [security/](./security/auth-and-threats.md) | ✅ | ✅ |
+| System design | 3 exercises vs. real architecture | — | [system-design/](./system-design/README.md) | ✅ | ✅ |
 | Docker | `apps/*/Dockerfile`, compose | [DEPLOYMENT](../DEPLOYMENT.md) | ⬜ | ⬜ | 🟡 |
 | Networking | Services, Ingress, CORS, proxy headers | [KUBERNETES](../KUBERNETES.md) | ⬜ | ⬜ | ⬜ |
-| Security / threat model | auth bridge, secrets, securityContext | ⬜ | ⬜ | 🟡 | ⬜ |
-| Testing strategy | ~300 pytest, Playwright, CI | ⬜ | ⬜ | ⬜ | ⬜ |
-| System design exercises | — | ⬜ | ⬜ | ⬜ | ⬜ |
 | Performance | benchmark harness | [KAFKA_SCALING](../KAFKA_SCALING.md) | ⬜ | ⬜ | 🟡 |
 | **Redis / caching** | **none in repo** | [ADR-0004](../adr/ADR-0004-no-redis.md) | — | ✅ | ➖ |
 
 ## Suggested next iterations
 
-1. **Testing strategy** (`docs/testing/strategy.md` + study note) — the
-   repo has ~300 pytest tests, a Postgres-scratch harness, Playwright
-   e2e, and a k8s smoke workflow. Currently undocumented as a strategy,
-   and "how do you test a distributed pipeline?" is a common question.
-2. **Security / threat model** (`docs/security/`) — the auth bridge,
-   secret handling, rate limiting, and container hardening exist but
-   there's no consolidated threat model.
-3. **System-design exercises** — design market-data ingestion, real-time
-   price delivery, and a backtesting service, then compare each against
-   what StockViz actually does.
-4. **Networking** — Services, DNS, `--proxy-headers`, CORS, Ingress.
-5. **Docker study note** — multi-stage uv builds, one image with
-   per-workload commands, and why the web image refuses dev secrets in
-   production.
+1. **Networking** — Services and cluster DNS, `--proxy-headers` and the
+   forwarded chain, CORS configuration, Ingress, and the north-south vs.
+   east-west distinction.
+2. **Docker study note** — multi-stage `uv` builds, one image with
+   per-workload commands, and why the web image refuses dev secrets under
+   `NODE_ENV=production`.
+3. **Performance** — read [KAFKA_SCALING.md](../KAFKA_SCALING.md) closely;
+   the 1→2→4→8 replica curve (including the 5.6% regression at eight) is
+   good material for a "how do you know?" conversation.
+4. **Frontend/backend boundary** — server components, the `server-only`
+   boundary, and where rendering happens. Weakest area of the curriculum.
+5. **Close the open findings** in [FINDINGS.md](./FINDINGS.md) — F-002
+   (DLQ) and F-003 (shared rate-limit store) are the two with real
+   engineering substance.
 
 ## Notes on scope
 

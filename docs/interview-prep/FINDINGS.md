@@ -70,6 +70,38 @@ implement. Corrected as part of F-001, and now accurate.
 
 ---
 
+### F-009 — Auth bridge security properties were untested ✅ FIXED
+
+**Severity:** Medium · **Category:** security, maintainability
+
+**Problem.** The web→api bridge's guarantees had no test coverage. Router
+tests covered the happy path plus two obvious rejections (missing header,
+garbage string). Nothing verified the controls that make the bridge
+*secure* rather than merely present.
+
+**Evidence.** No test constructed a token signed with a different secret,
+an expired token, or an `alg: none` token. A change to `require_user_id`
+that passed `options={"verify_signature": False}` would have left the
+entire suite green — confirmed by making exactly that change: 8 of 11 new
+tests failed, but the pre-existing suite did not notice.
+
+**Impact.** No live vulnerability — the implementation was correct. The
+risk was regression: signature verification, expiry enforcement, and the
+`algorithms=["HS256"]` pin are three one-line controls, each silently
+removable.
+
+**Fix.** Tests only; no production code changed.
+`apps/api/tests/test_auth_bridge.py` — 11 tests covering wrong-secret
+rejection, expiry, a valid-token control, hand-built `alg: none`,
+missing and non-numeric `sub`, malformed headers, and `sub`-selects-user.
+Verified to fail when the verifier is weakened.
+
+**Docs.** [authentication](../security/authentication.md),
+[threat model T1](../security/threat-model.md),
+[security study note](./security/auth-and-threats.md).
+
+---
+
 ## Open — tracked, not yet actioned
 
 ### F-002 — No dead-letter queue or retry ceiling
@@ -154,6 +186,66 @@ then sorts. Trivial at demo volume. **Not added** without an
 evidence, and adding indexes on intuition is how you end up with unused
 ones.
 
+### F-010 — Stale bridge token for a deleted user returns 500
+
+**Severity:** Low · **Category:** reliability
+
+A correctly signed, unexpired token whose `sub` names a nonexistent user
+raises `LookupError: User <id> not found` from
+`buying_power.py::lock_user` (via `ensure_default_portfolio`), surfacing as
+an uncaught 500 rather than a clean 401.
+
+Not reachable by an attacker: forging a token requires the shared secret,
+and the Next.js server only mints tokens for real sessions. It is reachable
+by a **deleted user holding a live 60-second token**.
+
+**Not fixed here.** The clean fix is at the boundary — an exception handler
+mapping `LookupError` to 401 — but `ensure_default_portfolio` is called by
+most authenticated routers, so changing its failure behaviour is a
+cross-cutting change to the trading path. That is larger than a
+contained fix and deserves its own change with its own tests, rather than
+being folded into a documentation iteration.
+
+*Observed while writing `test_auth_bridge.py`.*
+
+### F-011 — No plausibility bounds on ingested prices
+
+**Severity:** Medium · **Category:** data quality
+
+Nothing validates provider data before it reaches `price_bars`. A negative,
+zero, or absurd close would be stored and would flow into fills, alerts,
+NAV, backtests, and replay. There is no check that
+`low ≤ open, close ≤ high`, and no bound against the prior close.
+
+`Numeric(18, 6)` rejects non-numerics; that is the only guard.
+
+For a system that models money this is the cheapest high-value validation
+available. **Not fixed here** because choosing thresholds is a domain
+decision (what move is implausible? how are halts and genuine 50% gaps
+handled?) and silently rejecting real market data would be worse than
+storing it. Proposed: reject bars violating OHLC ordering outright, and
+route large moves to a quarantine table rather than dropping them.
+
+**Docs.** [threat model T7](../security/threat-model.md),
+[market-data semantics](../database/market-data.md).
+
+### F-012 — No login throttling or account lockout
+
+**Severity:** Medium · **Category:** security
+
+The NextAuth credentials provider has no per-account rate limit, no
+lockout, and no CAPTCHA. bcrypt's cost factor is the only barrier to
+credential stuffing. The API's slowapi limits do not apply — the login
+route is a Next.js route, not a `/v1` endpoint.
+
+Mitigating factors: paper trading, no financial value at risk, and the
+only PII is an email address.
+
+**Not fixed here** because it needs a shared attempt store to be
+meaningful across replicas — the same infrastructure decision as F-003.
+Identified in [threat model T3](../security/threat-model.md) as the
+highest-priority security gap.
+
 ---
 
 ## Noted as strengths
@@ -174,3 +266,18 @@ finding what's wrong:
   of a correct row lock.
 - **Every scheduled job has a manual CLI twin** — makes every runbook
   recovery step trivially available.
+- **SSE avoids the `yield`-dependency trap** — `routers/stream.py`
+  deliberately does not take `get_session`, because FastAPI holds
+  generator dependencies open for the response lifetime; with a 15-slot
+  pool, ~15 concurrent viewers would have deadlocked the API.
+- **No endpoint accepts a `user_id` parameter** — identity comes only from
+  the signed claim, removing the largest IDOR surface by construction.
+- **Ownership mismatches return 404, not 403** — the API does not confirm
+  that another user's resource id exists.
+- **CI drift guards** — `alembic check` catches a model change with no
+  migration, and the OpenAPI type-sync check fails the build when the web
+  client's types go stale. Both exist because of real incidents.
+- **A narrowly suppressed CVE** — `PYSEC-2026-1325` is ignored with a
+  recorded reason (it reaches the project only via python-jose's ES*
+  algorithms, which the HS256 bridge never uses) rather than by disabling
+  the audit.

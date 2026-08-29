@@ -25,3 +25,6 @@ questions stay together:
 | Databases / transactions | [transactions-and-locking](../databases/transactions-and-locking.md#interview-questions) |
 | Distributed systems | [failure-scenarios](../distributed-systems/failure-scenarios.md#interview-questions) |
 | Production debugging | [incident-drills](../production-debugging/incident-drills.md) |
+| Testing | [testing-distributed-systems](../testing/testing-distributed-systems.md#interview-questions) |
+| Security | [auth-and-threats](../security/auth-and-threats.md#interview-questions) |
+| System design | [system-design/](../system-design/README.md) |

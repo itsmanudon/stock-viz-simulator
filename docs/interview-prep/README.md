@@ -44,7 +44,7 @@ backend/infra interview outcome.
 | Schema, keys, indexes | [databases/](./databases/indexes-and-keys.md) | [schema](../database/schema.md) | ★★★ |
 | Transactions, locking, concurrency | [databases/](./databases/transactions-and-locking.md) | [schema](../database/schema.md#concurrency) | ★★★ |
 | Market-data correctness | — | [market-data](../database/market-data.md) | ★★ |
-| Auth bridge | [code-patterns/](./code-patterns/README.md#4-the-auth-bridge) | [request-lifecycle](../architecture/request-lifecycle.md) | ★★ |
+| Auth bridge | [security/](./security/auth-and-threats.md) | [authentication](../security/authentication.md) | ★★ |
 
 ### Stage 3 — Distributed systems and messaging
 
@@ -69,8 +69,18 @@ backend/infra interview outcome.
 | --- | --- | --- | --- |
 | Observability gaps | — | [observability](../observability/overview.md) | ★★ |
 | Incident debugging | [production-debugging/](./production-debugging/incident-drills.md) | [runbooks](../operations/runbooks.md) | ★★★ |
+| Testing distributed systems | [testing/](./testing/testing-distributed-systems.md) | [strategy](../testing/strategy.md) | ★★★ |
+| Security and threat reasoning | [security/](./security/auth-and-threats.md) | [threat model](../security/threat-model.md) | ★★ |
 
-### Stage 6 — Interview delivery
+### Stage 6 — System design
+
+| Topic | Study note | Importance |
+| --- | --- | --- |
+| Market-data ingestion | [system-design/](./system-design/market-data-ingestion.md) | ★★★ |
+| Real-time price delivery | [system-design/](./system-design/real-time-price-delivery.md) | ★★★ |
+| Stock alerts at scale | [system-design/](./system-design/stock-alerts.md) | ★★ |
+
+### Stage 7 — Interview delivery
 
 | Topic | Study note |
 | --- | --- |
