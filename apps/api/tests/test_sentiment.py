@@ -12,6 +12,7 @@ from unittest.mock import patch
 
 import httpx
 import pytest
+from pydantic import ValidationError
 
 from stockviz.services.sentiment import NullProvider, get_provider
 from stockviz.services.sentiment import anthropic_provider as anthropic_mod
@@ -281,8 +282,10 @@ def test_http_provider_is_selectable() -> None:
     assert isinstance(provider, HttpProvider)
 
 
-def test_selection_falls_back_to_null_when_misconfigured() -> None:
-    # Named a provider but gave it nothing to talk to.
-    assert isinstance(get_provider(Settings(sentiment_provider="http")), NullProvider)
-    assert isinstance(get_provider(Settings(sentiment_provider="anthropic")), NullProvider)
-    assert isinstance(get_provider(Settings(sentiment_provider="wat")), NullProvider)
+def test_explicit_selection_fails_fast_when_misconfigured() -> None:
+    with pytest.raises(ValidationError, match="SENTIMENT_SERVICE_URL"):
+        Settings(sentiment_provider="http")
+    with pytest.raises(ValidationError, match="ANTHROPIC_API_KEY"):
+        Settings(sentiment_provider="anthropic")
+    with pytest.raises(ValidationError, match="SENTIMENT_PROVIDER"):
+        Settings(sentiment_provider="wat")

@@ -169,6 +169,26 @@ troubleshooting, and `pnpm k8s:destroy`.
 
 ## Quality gates
 
+The deterministic clean-container workflow rebuilds API and web images from
+source without a cache, runs credential-free market/news/event tests, checks
+both health endpoints, and removes its isolated containers and volume:
+
+```powershell
+pnpm verify:pipeline:clean
+```
+
+Massive is private shadow-only. For the optional live workflow, set
+`MASSIVE_SHADOW_ENABLED=true` and `MASSIVE_API_KEY` in `infra/.env` locally.
+Set `NEWS_PROVIDER=newsdata` only with `NEWSDATA_KEY`. Never commit either key.
+The command validates selections before Docker, starts no API or web service,
+and writes provider-derived reports only below ignored `artifacts/private/`:
+
+```powershell
+pnpm verify:providers:live
+```
+
+See [market-data semantics](./MARKET_DATA.md) before interpreting a result.
+
 These mirror what CI runs on every push/PR to `dev` and `main`:
 
 ```bash

@@ -9,7 +9,7 @@ from datetime import date as date_type
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import BigInteger, Index, Numeric
+from sqlalchemy import BigInteger, CheckConstraint, Index, Numeric
 from sqlmodel import Column, Field, SQLModel
 
 from stockviz._time import utcnow
@@ -48,7 +48,18 @@ class PriceBar(SQLModel, table=True):
     # read actually uses: WHERE ticker = ? AND interval = ? ORDER BY ts DESC.
     # Postgres scans a btree in either direction, so a plain ascending index
     # on this column order covers it.
-    __table_args__ = (Index("ix_price_bars_ticker_interval_ts", "ticker", "interval", "ts"),)
+    __table_args__ = (
+        Index("ix_price_bars_ticker_interval_ts", "ticker", "interval", "ts"),
+        CheckConstraint(
+            "adjustment_semantics IN "
+            "('unadjusted', 'split_adjusted', 'split_dividend_adjusted')",
+            name="ck_price_bars_adjustment_semantics",
+        ),
+        CheckConstraint(
+            "session_scope IN ('regular', 'provider_daily')",
+            name="ck_price_bars_session_scope",
+        ),
+    )
 
     ticker: str = Field(foreign_key="symbols.ticker", primary_key=True, max_length=16)
     ts: datetime = Field(primary_key=True, index=True)
@@ -61,6 +72,8 @@ class PriceBar(SQLModel, table=True):
     volume: int = Field(sa_column=Column(BigInteger, nullable=False))
 
     source: str | None = Field(default=None, max_length=32)
+    adjustment_semantics: str = Field(default="split_adjusted", max_length=32, nullable=False)
+    session_scope: str = Field(default="regular", max_length=32, nullable=False)
 
 
 class NewsArticle(SQLModel, table=True):

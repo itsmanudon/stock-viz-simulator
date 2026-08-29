@@ -22,6 +22,13 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlmodel import Session
 
 from stockviz.models import PriceBar
+from stockviz.services.ingest.bar_semantics import (
+    AdjustmentSemantics,
+    SessionScope,
+    completed_daily_bars,
+    new_york_session_date,
+    session_label,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -32,10 +39,25 @@ SOURCE_ALPHA_VANTAGE = "alpha_vantage"
 UPSERT_CHUNK_ROWS = 1000
 """Bars per multi-row INSERT.
 
-``price_bars`` binds 9 parameters per row, so Postgres' 65535 parameter cap
-allows ~7280. 1000 keeps a wide margin and each statement small enough to stay
+``price_bars`` binds 11 parameters per row, so Postgres' 65535 parameter cap
+allows ~5957. 1000 keeps a wide margin and each statement small enough to stay
 responsive.
 """
+
+
+def _legacy_integer_volume(value: Decimal) -> int:
+    """Bridge canonical Decimal volume to the pre-migration BIGINT column.
+
+    The persisted providers currently emit integral values. Massive remains
+    non-persistent, so a fractional value reaching this boundary is rejected
+    until evidence determines the replacement NUMERIC scale.
+    """
+
+    if not value.is_finite() or value < 0:
+        raise ValueError("volume must be a finite non-negative Decimal")
+    if value != value.to_integral_value():
+        raise ValueError("fractional volume cannot be persisted before the NUMERIC migration")
+    return int(value)
 
 
 @dataclass(frozen=True, slots=True)
@@ -49,8 +71,10 @@ class BarRecord:
     high: Decimal
     low: Decimal
     close: Decimal
-    volume: int
+    volume: Decimal
     source: str
+    adjustment_semantics: AdjustmentSemantics
+    session_scope: SessionScope
 
 
 # ---------------------------------------------------------------------------
@@ -93,20 +117,38 @@ def fetch_yfinance_daily(
     bars: list[BarRecord] = []
     for raw_ts, row in df.iterrows():
         ts = raw_ts.to_pydatetime() if hasattr(raw_ts, "to_pydatetime") else raw_ts
-        if hasattr(ts, "tzinfo") and ts.tzinfo is not None:
-            ts = ts.replace(tzinfo=None)
+        if not isinstance(ts, datetime):
+            logger.warning("yfinance: skipping row with non-datetime index for %s: %r", ticker, ts)
+            continue
+        if ts.tzinfo is not None and ts.utcoffset() is not None:
+            ts = session_label(new_york_session_date(ts))
+        else:
+            ts = session_label(ts.date())
         try:
+            open_ = Decimal(str(row["Open"]))
+            high = Decimal(str(row["High"]))
+            low = Decimal(str(row["Low"]))
+            close = Decimal(str(row["Close"]))
+            volume = Decimal(str(row["Volume"]))
+            if any(not value.is_finite() for value in (open_, high, low, close, volume)):
+                raise ValueError("OHLCV values must be finite")
+            if any(value < 0 for value in (open_, high, low, close, volume)):
+                raise ValueError("OHLCV values must be non-negative")
+            if high < max(open_, close, low) or low > min(open_, close, high):
+                raise ValueError("malformed OHLC range")
             bars.append(
                 BarRecord(
                     ticker=ticker,
                     ts=ts,
                     interval=DAILY_INTERVAL,
-                    open=Decimal(str(row["Open"])),
-                    high=Decimal(str(row["High"])),
-                    low=Decimal(str(row["Low"])),
-                    close=Decimal(str(row["Close"])),
-                    volume=int(row["Volume"]),
+                    open=open_,
+                    high=high,
+                    low=low,
+                    close=close,
+                    volume=volume,
                     source=SOURCE_YFINANCE,
+                    adjustment_semantics=AdjustmentSemantics.SPLIT_ADJUSTED,
+                    session_scope=SessionScope.REGULAR,
                 )
             )
         except (KeyError, ValueError, TypeError) as exc:
@@ -176,8 +218,10 @@ def fetch_alpha_vantage_daily(
                     high=Decimal(row["2. high"]),
                     low=Decimal(row["3. low"]),
                     close=Decimal(row["4. close"]),
-                    volume=int(row["5. volume"]),
+                    volume=Decimal(row["5. volume"]),
                     source=SOURCE_ALPHA_VANTAGE,
+                    adjustment_semantics=AdjustmentSemantics.UNADJUSTED,
+                    session_scope=SessionScope.REGULAR,
                 )
             )
         except (KeyError, ValueError) as exc:
@@ -215,8 +259,10 @@ def upsert_bars(session: Session, bars: list[BarRecord]) -> int:
             "high": b.high,
             "low": b.low,
             "close": b.close,
-            "volume": b.volume,
+            "volume": _legacy_integer_volume(b.volume),
             "source": b.source,
+            "adjustment_semantics": b.adjustment_semantics.value,
+            "session_scope": b.session_scope.value,
         }
         for b in bars
     ]
@@ -236,6 +282,8 @@ def upsert_bars(session: Session, bars: list[BarRecord]) -> int:
                     "close": stmt.excluded.close,
                     "volume": stmt.excluded.volume,
                     "source": stmt.excluded.source,
+                    "adjustment_semantics": stmt.excluded.adjustment_semantics,
+                    "session_scope": stmt.excluded.session_scope,
                 },
             )
             session.exec(stmt)  # type: ignore[arg-type]
@@ -252,6 +300,8 @@ def upsert_bars(session: Session, bars: list[BarRecord]) -> int:
         existing.close = row["close"]
         existing.volume = row["volume"]
         existing.source = row["source"]
+        existing.adjustment_semantics = row["adjustment_semantics"]
+        existing.session_scope = row["session_scope"]
         session.add(existing)
     return len(rows)
 
@@ -289,7 +339,7 @@ def fetch_daily_bars(
         bars = fetch_alpha_vantage_daily(ticker, **av_kwargs)  # type: ignore[arg-type]
     if not bars:
         logger.warning("ingest_ticker: %s — no bars from any source", ticker)
-    return bars
+    return completed_daily_bars(bars)
 
 
 def ingest_ticker(

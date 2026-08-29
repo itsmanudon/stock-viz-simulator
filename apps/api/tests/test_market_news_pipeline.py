@@ -51,6 +51,7 @@ from stockviz.scheduler import (
     hourly_top_movers,
     news_refresh,
 )
+from stockviz.services.ingest.bar_semantics import AdjustmentSemantics, SessionScope
 from stockviz.services.ingest.news import ArticleRecord, ingest_news_for_ticker
 from stockviz.services.ingest.prices import DAILY_INTERVAL, SOURCE_YFINANCE, BarRecord
 from stockviz.services.sentiment.base import SentimentScore
@@ -78,8 +79,10 @@ def _bars(ticker: str, *, n: int = 20, close: Decimal = Decimal("100")) -> list[
                 high=c,
                 low=c,
                 close=c,
-                volume=1_000,
+                volume=Decimal("1000"),
                 source=SOURCE_YFINANCE,
+                adjustment_semantics=AdjustmentSemantics.SPLIT_ADJUSTED,
+                session_scope=SessionScope.REGULAR,
             )
         )
     return out
@@ -242,7 +245,7 @@ def test_market_analytics_is_ticker_scoped_and_evaluates_alerts(session: Session
                 high=bar.high,
                 low=bar.low,
                 close=bar.close,
-                volume=bar.volume,
+                volume=int(bar.volume),
                 source=bar.source,
             )
         )

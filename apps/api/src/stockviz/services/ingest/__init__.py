@@ -9,6 +9,7 @@ This split keeps unit tests dead simple: fixtures for the parser, an in-memory
 SQLite for the writer, and a single thin orchestrator on top.
 """
 
+from stockviz.services.ingest.bar_semantics import AdjustmentSemantics, SessionScope
 from stockviz.services.ingest.news import (
     ArticleRecord,
     fetch_newsdata,
@@ -25,8 +26,10 @@ from stockviz.services.ingest.prices import (
 from stockviz.services.ingest.seed import seed_symbols
 
 __all__ = [
+    "AdjustmentSemantics",
     "ArticleRecord",
     "BarRecord",
+    "SessionScope",
     "fetch_alpha_vantage_daily",
     "fetch_newsdata",
     "fetch_yfinance_daily",
