@@ -58,6 +58,7 @@ from stockviz.models import (
     User,
 )
 from stockviz.models.events import ConsumerInbox
+from stockviz.services.ingest.bar_semantics import AdjustmentSemantics, SessionScope
 from stockviz.services.ingest.news import ArticleRecord
 from stockviz.services.ingest.prices import DAILY_INTERVAL, SOURCE_YFINANCE, BarRecord
 from stockviz.services.sentiment.base import SentimentScore
@@ -235,8 +236,10 @@ def test_market_event_pipeline_roundtrip() -> None:
                     high=close,
                     low=close,
                     close=close + Decimal(i),
-                    volume=1_000,
+                    volume=Decimal("1000"),
                     source=SOURCE_YFINANCE,
+                    adjustment_semantics=AdjustmentSemantics.SPLIT_ADJUSTED,
+                    session_scope=SessionScope.REGULAR,
                 )
                 for i in range(20)
             ]
