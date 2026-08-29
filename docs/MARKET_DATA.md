@@ -128,19 +128,21 @@ into an image, or published.
 
 ## Per-symbol mismatch statistics
 
-No live Massive credential was available in this implementation environment,
-so statistics have not been fabricated. The optional workflow failed before
-Docker as designed.
+The credentialed private workflow completed for AAPL, MSFT, NVDA, AMZN, META,
+TSLA, and JPM. Exact per-symbol common/missing/extra sessions, newest bars,
+OHLC distributions, volume distributions, action windows, and session probes
+remain in the ignored JSON/Markdown artifacts and are not copied into public
+documentation.
 
 | Symbol | Common sessions | OHLC stats | Volume stats | Missing/extra sessions | Newest bar | Status |
 | --- | ---: | --- | --- | --- | --- | --- |
-| AAPL | n/a | not evaluated | not evaluated | not evaluated | not evaluated | blocked on local live key |
-| MSFT | n/a | not evaluated | not evaluated | not evaluated | not evaluated | blocked on local live key |
-| NVDA | n/a | not evaluated | not evaluated | not evaluated | not evaluated | blocked on local live key |
-| AMZN | n/a | not evaluated | not evaluated | not evaluated | not evaluated | blocked on local live key |
-| META | n/a | not evaluated | not evaluated | not evaluated | not evaluated | blocked on local live key |
-| TSLA | n/a | not evaluated | not evaluated | not evaluated | not evaluated | blocked on local live key |
-| JPM | n/a | not evaluated | not evaluated | not evaluated | not evaluated | blocked on local live key |
+| AAPL | private | private | private | private | private | evaluated; unresolved session reconstruction |
+| MSFT | private | private | private | private | private | evaluated; unresolved session reconstruction |
+| NVDA | private | private | private | private | private | evaluated; supplemental throttled-date probe completed |
+| AMZN | private | private | private | private | private | evaluated; unresolved session reconstruction |
+| META | private | private | private | private | private | evaluated; unresolved session reconstruction |
+| TSLA | private | private | private | private | private | evaluated; unresolved session reconstruction |
+| JPM | private | private | private | private | private | evaluated; unresolved session reconstruction |
 
 Run `pnpm verify:providers:live` after placing local values in `infra/.env`.
 The private Markdown report then contains quantified per-symbol values and the
@@ -154,9 +156,13 @@ timestamp normalization, incomplete-session filtering, adjusted/unadjusted
 classification, missing/extra sessions, Decimal statistics, and independent
 session-scope sampling.
 
-Live split-period, dividend-period, and aggregate-scope findings remain not
-evaluated until a private credentialed run completes. This is a technical
-blocker, not evidence that the providers agree.
+The private live run covered ordinary, split, and dividend windows. Historical
+daily agreement remained close, including action windows, but independently
+reconstructed regular-session minute bars did not reproduce the daily/open-close
+close and volume semantics. All-session reconstruction did not resolve the
+difference. The report therefore leaves daily aggregates as `provider_daily`
+and classifies the remaining cause as qualifying-trade or adjustment-methodology
+disagreement rather than altering values to force a match.
 
 ## Volume precision and downstream integer assumptions
 
@@ -174,15 +180,17 @@ Canonical `BarRecord.volume` is `Decimal`. The persistence bridge accepts
 integral values from current persisted providers and rejects—not rounds—any
 fractional value. Massive remains nonpersistent.
 
-The database/public-schema conversion to fixed precision is deferred until the
-live report measures Massive's whole-number magnitude and fractional scale.
+The database/public-schema conversion remains deferred even though the live
+report measured Massive's whole-number magnitude and fractional scale.
 The recommendation policy uses a minimum 38-digit envelope with at least 12
 fractional digits, then expands it when necessary to retain at least four scale
 digits and eight whole-number digits beyond observation. This is deliberately
 not a mechanical copy of the sample maximum. SQLAlchemy must use
 `Numeric(P, S, asdecimal=True)` and every incompatible `int` boundary must move
 to `Decimal`; rounding remains forbidden. No persistence migration is part of
-semantic acceptance.
+semantic acceptance. The evidence-backed recommendation is
+`NUMERIC(38,12)` / `Numeric(38, 12, asdecimal=True)`; it includes policy
+headroom beyond the sample rather than copying the observed scale mechanically.
 
 ## Tests and clean-container verification
 
@@ -207,27 +215,34 @@ Optional private live-provider verification:
 pnpm verify:providers:live
 ```
 
-It rebuilds the API image, starts only an isolated database, migrates, seeds,
-exercises persisted yfinance ingest, optionally exercises explicitly selected
-news, and runs the seven-symbol comparison under
-`artifacts/private/live-verification/`. It never starts API or web services, so
-Individual-subscription responses cannot become publicly served data.
+Credentialed Massive semantic acceptance without persistence or news:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-providers-live.ps1 -MassiveSemanticOnly
+```
+
+Semantic-only mode rebuilds the API image and runs the seven-symbol comparison
+under `artifacts/private/live-verification/`; it does not start PostgreSQL, API,
+or web services and does not run persisted ingest. Individual-subscription
+responses therefore cannot become publicly served data. The broader optional
+live-provider workflow remains separate from this acceptance run.
 
 ## Blockers, licensing assumptions, and recommendation
 
 The technical provider gate and production/commercial licensing gate are
 independent:
 
-- **Technical provider gate — not evaluated.** It requires live quantified
-  coverage, ordinary/action-window mismatches, latest timing, timestamp
-  normalization, independent session-scope evidence, and measured precision.
+- **Technical provider gate — not approved.** Historical daily agreement is
+  insufficient while independently reconstructed regular-session close and
+  volume semantics remain unresolved.
 - **Commercial licensing gate — not approved.** An Individual subscription is
   private/local evaluation only here. Production persistence, display, derived
   analytics, redistribution, and end-user access require a separate agreement.
 
-Recommendation: **do not cut over**. Massive is not safe to select as the
-primary US provider until both gates pass. yfinance remains the sole persisted
-and default path.
+Technical recommendation: **DO NOT APPROVE pending unresolved discrepancies.**
+Massive is not safe to select as the primary US provider until its regular-session
+retrieval semantics are resolved. yfinance remains the sole persisted and
+default path.
 
 ## Deferred NSE/BSE and mixed-currency changes
 

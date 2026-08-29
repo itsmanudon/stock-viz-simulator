@@ -125,16 +125,27 @@ def fetch_yfinance_daily(
         else:
             ts = session_label(ts.date())
         try:
+            open_ = Decimal(str(row["Open"]))
+            high = Decimal(str(row["High"]))
+            low = Decimal(str(row["Low"]))
+            close = Decimal(str(row["Close"]))
+            volume = Decimal(str(row["Volume"]))
+            if any(not value.is_finite() for value in (open_, high, low, close, volume)):
+                raise ValueError("OHLCV values must be finite")
+            if any(value < 0 for value in (open_, high, low, close, volume)):
+                raise ValueError("OHLCV values must be non-negative")
+            if high < max(open_, close, low) or low > min(open_, close, high):
+                raise ValueError("malformed OHLC range")
             bars.append(
                 BarRecord(
                     ticker=ticker,
                     ts=ts,
                     interval=DAILY_INTERVAL,
-                    open=Decimal(str(row["Open"])),
-                    high=Decimal(str(row["High"])),
-                    low=Decimal(str(row["Low"])),
-                    close=Decimal(str(row["Close"])),
-                    volume=Decimal(str(row["Volume"])),
+                    open=open_,
+                    high=high,
+                    low=low,
+                    close=close,
+                    volume=volume,
                     source=SOURCE_YFINANCE,
                     adjustment_semantics=AdjustmentSemantics.SPLIT_ADJUSTED,
                     session_scope=SessionScope.REGULAR,

@@ -616,6 +616,12 @@ def run_market_shadow(
                 "yfinance_auto_adjust": False,
             },
             "endpoint_requests": request_evidence,
+            "http_retry_policy": {
+                "statuses": [429, 503, 504],
+                "maximum_attempts": 7,
+                "retry_after_seconds_ceiling": 30,
+                "fallback_backoff_seconds": [1, 2, 4, 8, 16, 30],
+            },
             "arithmetic": "exact Decimal only; no float coercion, truncation, or rounding",
         },
         blockers=blockers,

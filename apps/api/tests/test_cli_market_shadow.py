@@ -187,3 +187,9 @@ def test_runner_stays_in_memory_and_independently_samples_session_scope(monkeypa
     assert run.technical_recommendation == APPROVE_CANONICAL
     assert run.licensing_gate == "not_approved_individual_subscription"
     assert run.reproducibility["regular_session"] == "09:30 inclusive to 16:00 exclusive"
+    assert run.reproducibility["http_retry_policy"] == {
+        "statuses": [429, 503, 504],
+        "maximum_attempts": 7,
+        "retry_after_seconds_ceiling": 30,
+        "fallback_backoff_seconds": [1, 2, 4, 8, 16, 30],
+    }

@@ -2,7 +2,12 @@
 
 from __future__ import annotations
 
+import os
+import shutil
+import subprocess
 from pathlib import Path
+
+import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 SCRIPT = REPO_ROOT / "scripts" / "verify-providers-live.ps1"
@@ -77,3 +82,58 @@ def test_package_exposes_optional_live_verification() -> None:
 
     assert '"verify:providers:live"' in package
     assert "verify-providers-live.ps1" in package
+
+
+def test_massive_semantic_only_mode_skips_persistence_and_news(tmp_path: Path) -> None:
+    powershell = shutil.which("powershell")
+    if powershell is None or os.name != "nt":
+        pytest.skip("PowerShell command interception is Windows-specific")
+
+    env_file = tmp_path / ".env"
+    env_file.write_text(
+        "MASSIVE_SHADOW_ENABLED=true\nMASSIVE_API_KEY=test-only-key\n",
+        encoding="utf-8",
+    )
+    docker_log = tmp_path / "docker.log"
+    fake_docker = tmp_path / "docker.cmd"
+    fake_docker.write_text(
+        "@echo off\n"
+        'echo %*>>"%FAKE_DOCKER_LOG%"\n'
+        'if "%1"=="image" if "%2"=="inspect" echo sha256:test-image\n'
+        "exit /b 0\n",
+        encoding="utf-8",
+    )
+    environment = os.environ.copy()
+    environment["FAKE_DOCKER_LOG"] = str(docker_log)
+    environment["PATH"] = f"{tmp_path}{os.pathsep}{environment['PATH']}"
+
+    result = subprocess.run(
+        [
+            powershell,
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            str(SCRIPT),
+            "-EnvFile",
+            str(env_file),
+            "-MassiveSemanticOnly",
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+        env=environment,
+    )
+
+    assert result.returncode == 0, result.stderr
+    calls = docker_log.read_text(encoding="utf-8")
+    assert "build api" in calls
+    assert "python -m stockviz.cli market-shadow" in calls
+    for forbidden in (
+        "up -d --wait postgres",
+        "alembic upgrade head",
+        "python -m stockviz.cli seed",
+        "python -m stockviz.cli ingest",
+        "python -m stockviz.cli news",
+    ):
+        assert forbidden not in calls

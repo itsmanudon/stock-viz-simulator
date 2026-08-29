@@ -73,6 +73,55 @@ def test_default_get_decodes_json_numbers_directly_to_decimal(monkeypatch) -> No
     assert payload == {"whole": Decimal("12"), "fractional": Decimal("25933.6000")}
 
 
+def test_default_get_retries_transient_rate_limit_using_retry_after(monkeypatch) -> None:
+    request = httpx.Request("GET", "https://api.massive.com/test")
+    responses = iter(
+        (
+            httpx.Response(429, headers={"Retry-After": "2"}, request=request),
+            httpx.Response(200, content=b'{"status":"OK","value":1.25}', request=request),
+        )
+    )
+    sleeps: list[float] = []
+    monkeypatch.setattr(httpx, "get", lambda *_args, **_kwargs: next(responses))
+    monkeypatch.setattr(
+        "stockviz.services.ingest.providers.massive.sleep",
+        lambda seconds: sleeps.append(seconds),
+        raising=False,
+    )
+
+    payload = _default_get(
+        "https://api.massive.com/test",
+        {},
+        {"Authorization": "Bearer secret"},
+    )
+
+    assert payload == {"status": "OK", "value": Decimal("1.25")}
+    assert sleeps == [2.0]
+
+
+def test_default_get_waits_through_full_rate_limit_window(monkeypatch) -> None:
+    request = httpx.Request("GET", "https://api.massive.com/test")
+    responses = iter(
+        [httpx.Response(429, request=request) for _ in range(6)]
+        + [httpx.Response(200, content=b'{"status":"OK"}', request=request)]
+    )
+    sleeps: list[float] = []
+    monkeypatch.setattr(httpx, "get", lambda *_args, **_kwargs: next(responses))
+    monkeypatch.setattr(
+        "stockviz.services.ingest.providers.massive.sleep",
+        lambda seconds: sleeps.append(seconds),
+    )
+
+    payload = _default_get(
+        "https://api.massive.com/test",
+        {},
+        {"Authorization": "Bearer secret"},
+    )
+
+    assert payload == {"status": "OK"}
+    assert sleeps == [1, 2, 4, 8, 16, 30]
+
+
 def test_massive_daily_maps_decimal_values_and_new_york_session_date() -> None:
     bars = fetch_massive_daily(
         "aapl",
@@ -91,6 +140,20 @@ def test_massive_daily_maps_decimal_values_and_new_york_session_date() -> None:
     assert bar.adjustment_semantics is AdjustmentSemantics.SPLIT_ADJUSTED
     assert bar.session_scope is SessionScope.PROVIDER_DAILY
     assert not hasattr(bar, "request_id")
+
+
+def test_massive_daily_accepts_data_bearing_delayed_response() -> None:
+    payload = {**MASSIVE_AGGS_OK, "status": "DELAYED"}
+
+    bars = fetch_massive_daily(
+        "AAPL",
+        start=date(2025, 1, 2),
+        end=date(2025, 1, 3),
+        api_key="secret",
+        get_fn=_fake_pages(payload),
+    )
+
+    assert [bar.ts for bar in bars] == [datetime(2025, 1, 2)]
 
 
 def test_massive_daily_handles_dst_session_timestamp() -> None:
@@ -370,7 +433,37 @@ def test_minute_reconstruction_uses_exact_new_york_regular_session_and_decimal_m
     assert reconstructed.expected_regular_minutes == 390
     assert reconstructed.gap_reason(datetime(2025, 1, 2, 9, 32)) == "no_qualifying_trade"
     assert reconstructed.request.pagination_complete is True
+    assert reconstructed.request.response_statuses == ("OK",)
     assert "secret" not in str(reconstructed.request.as_dict())
+
+
+def test_minute_request_evidence_records_delayed_delivery_status() -> None:
+    payload = {
+        "adjusted": True,
+        "status": "DELAYED",
+        "queryCount": Decimal("1"),
+        "resultsCount": Decimal("1"),
+        "results": [
+            {
+                "o": Decimal("1"),
+                "h": Decimal("2"),
+                "l": Decimal("1"),
+                "c": Decimal("2"),
+                "v": Decimal("3.25"),
+                "t": _millis("2025-01-02T14:30:00Z"),
+            },
+        ],
+    }
+
+    series = fetch_massive_minutes(
+        "AAPL",
+        session_date=date(2025, 1, 2),
+        api_key="secret",
+        get_fn=_fake_pages(payload),
+    )
+
+    assert series.request.response_statuses == ("DELAYED",)
+    assert series.request.as_dict()["response_statuses"] == ["DELAYED"]
 
 
 def test_minute_reconstruction_handles_dst_without_timestamp_reinterpretation() -> None:

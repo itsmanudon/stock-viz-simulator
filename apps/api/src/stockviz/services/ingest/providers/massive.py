@@ -11,7 +11,8 @@ import json
 from collections.abc import Callable, Iterator, Mapping
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, time, timedelta
-from decimal import Decimal, InvalidOperation
+from decimal import ROUND_CEILING, Decimal, InvalidOperation
+from time import sleep
 from typing import Any
 from urllib.parse import parse_qsl, quote, urlencode, urlsplit, urlunsplit
 
@@ -82,6 +83,7 @@ class MassiveRequestEvidence:
     page_count: int
     returned_rows: int
     pagination_complete: bool
+    response_statuses: tuple[str, ...]
 
     def as_dict(self) -> dict[str, object]:
         return {
@@ -94,6 +96,7 @@ class MassiveRequestEvidence:
             "page_count": self.page_count,
             "returned_rows": self.returned_rows,
             "pagination_complete": self.pagination_complete,
+            "response_statuses": list(self.response_statuses),
         }
 
 
@@ -149,8 +152,27 @@ def _default_get(
 ) -> dict[str, Any]:
     """Fetch one page while preserving every JSON number as ``Decimal``."""
 
-    response = httpx.get(url, params=params, headers=headers, timeout=30.0)
-    response.raise_for_status()
+    response: httpx.Response | None = None
+    for attempt in range(7):
+        response = httpx.get(url, params=params, headers=headers, timeout=30.0)
+        if response.status_code not in {429, 503, 504} or attempt == 6:
+            response.raise_for_status()
+            break
+        retry_after = response.headers.get("Retry-After", "").strip()
+        try:
+            requested_delay = Decimal(retry_after) if retry_after else None
+        except InvalidOperation:
+            requested_delay = None
+        if requested_delay is not None and requested_delay.is_finite() and requested_delay >= 0:
+            delay_seconds = min(
+                30,
+                max(1, int(requested_delay.to_integral_value(rounding=ROUND_CEILING))),
+            )
+        else:
+            delay_seconds = min(30, 2**attempt)
+        sleep(delay_seconds)
+    if response is None:  # pragma: no cover - the bounded loop always executes
+        raise MassiveProviderError("Massive request did not execute")
     try:
         payload = json.loads(response.content, parse_float=Decimal, parse_int=Decimal)
     except (json.JSONDecodeError, UnicodeDecodeError) as exc:
@@ -193,7 +215,7 @@ def _provider_message(payload: Mapping[str, Any]) -> str:
 
 def _validate_status(payload: Mapping[str, Any]) -> None:
     status = str(payload.get("status", "")).strip().upper()
-    if status == "OK":
+    if status in {"OK", "DELAYED"}:
         return
     if status == "ERROR":
         raise MassiveProviderError(f"Massive provider error: {_provider_message(payload)}")
@@ -524,8 +546,12 @@ def fetch_massive_minutes(
     bars: list[MassiveMinuteBar] = []
     seen: set[datetime] = set()
     page_count = 0
+    response_statuses: list[str] = []
     for payload in _pages(endpoint, params=params, api_key=api_key, get_fn=get_fn):
         page_count += 1
+        response_status = str(payload["status"]).strip().upper()
+        if response_status not in response_statuses:
+            response_statuses.append(response_status)
         if payload.get("adjusted") is not True:
             raise MassiveSemanticError("Massive minute response must be adjusted=true")
         rows = _results(payload)
@@ -581,6 +607,7 @@ def fetch_massive_minutes(
             page_count=page_count,
             returned_rows=len(bars),
             pagination_complete=True,
+            response_statuses=tuple(response_statuses),
         ),
     )
 

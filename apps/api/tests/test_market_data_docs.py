@@ -25,7 +25,7 @@ def test_market_data_runbook_documents_canonical_and_shadow_contracts() -> None:
         "JPM",
         "technical provider gate",
         "commercial licensing gate",
-        "do not cut over",
+        "DO NOT APPROVE pending unresolved discrepancies",
         "NUMERIC",
         "exchange-qualified",
         "historical FX",

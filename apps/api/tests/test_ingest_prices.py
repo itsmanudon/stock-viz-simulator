@@ -80,6 +80,15 @@ def test_fetch_yfinance_daily_returns_empty_for_empty_df():
     assert bars == []
 
 
+def test_fetch_yfinance_daily_skips_non_finite_latest_session_row() -> None:
+    frame = _yf_fixture_df()
+    frame.loc[frame.index[-1], "Close"] = float("nan")
+
+    bars = fetch_yfinance_daily("AAPL", history_fn=lambda ticker, start: frame)
+
+    assert [bar.ts.date() for bar in bars] == [date(2025, 4, 10)]
+
+
 def test_fetch_yfinance_daily_passes_start_through():
     captured: dict = {}
 

@@ -1,5 +1,6 @@
 param(
-    [string]$EnvFile = ""
+    [string]$EnvFile = "",
+    [switch]$MassiveSemanticOnly
 )
 
 $ErrorActionPreference = "Stop"
@@ -160,12 +161,14 @@ try {
     }
     "image stockviz-api:pipeline-verify $imageId" | Add-Content -LiteralPath $logPath -Encoding UTF8
 
-    Invoke-LiveCompose up -d --wait postgres
-    Invoke-LiveApi alembic upgrade head
-    Invoke-LiveApi python -m stockviz.cli seed
-    Invoke-LiveApi python -m stockviz.cli ingest AAPL MSFT NVDA AMZN META TSLA JPM
-    if ($newsProvider -eq "newsdata") {
-        Invoke-LiveApi python -m stockviz.cli news AAPL
+    if (-not $MassiveSemanticOnly) {
+        Invoke-LiveCompose up -d --wait postgres
+        Invoke-LiveApi alembic upgrade head
+        Invoke-LiveApi python -m stockviz.cli seed
+        Invoke-LiveApi python -m stockviz.cli ingest AAPL MSFT NVDA AMZN META TSLA JPM
+        if ($newsProvider -eq "newsdata") {
+            Invoke-LiveApi python -m stockviz.cli news AAPL
+        }
     }
     Invoke-LiveApi python -m stockviz.cli market-shadow AAPL MSFT NVDA AMZN META TSLA JPM --output-dir /private-artifacts/massive-shadow
 
