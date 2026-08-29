@@ -183,7 +183,7 @@ pnpm verify:pipeline:clean
 
 This uses an isolated Compose project, no-cache source builds, separate ports,
 network, and database volume. On 2026-08-29 it rebuilt API, web, and API-test
-images; started healthy Postgres, Kafka, API, and web services; passed 65
+images; started healthy Postgres, Kafka, API, and web services; passed 66
 selected settings, market, news, outbox, PostgreSQL, and Kafka tests (including
 market and news/sentiment roundtrips); received HTTP 200 from API and web; and
 removed the environment. Non-provider evidence is summarized in
