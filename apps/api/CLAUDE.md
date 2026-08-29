@@ -310,17 +310,24 @@ revision you'll get **multiple heads** — resolve with
 
 Each ingest service writes straight to Postgres — no CSV intermediate.
 Price ingest uses **yfinance first** (no key). Alpha Vantage is attempted
-only when `ALPHA_VANTAGE_KEY` is set and yfinance returned no rows. News
-ingest short-circuits when `NEWSDATA_KEY` is unset. Same skip-when-unkeyed
-pattern for sentiment (Anthropic) — it logs and skips when the key or
-package is missing. `stockviz.cli news` is the one exception: it **exits 2**
-rather than silently ingesting nothing, because a manual operator command
-that no-ops looks identical to one that found no articles.
+only when `ALPHA_VANTAGE_KEY` is set and yfinance returned no rows. Massive is
+private/nonpersistent shadow only: `MASSIVE_SHADOW_ENABLED=true` requires
+`MASSIVE_API_KEY`, and candidate bars never enter persistence, events, or APIs.
+An explicit `NEWS_PROVIDER=newsdata` requires `NEWSDATA_KEY`; an explicit
+Anthropic/HTTP sentiment provider similarly requires its credential/endpoint.
+Blank selections retain legacy key-based resolution. `stockviz.cli news` also
+exits 2 rather than silently ingesting nothing.
 
 `upsert_bars` writes in chunks of `UPSERT_CHUNK_ROWS` (1000). `price_bars`
-binds 9 parameters per row, and a full-history yfinance fetch is ~11k bars —
+binds 11 parameters per row, including provider provenance plus generic
+adjustment/session semantics, and a full-history yfinance fetch is ~11k bars —
 one multi-row INSERT of that size exceeds Postgres' 65535 parameter ceiling,
 which made `stockviz.cli ingest` fail outright against Postgres.
+
+Canonical volume is `Decimal`, but persisted volume remains `BIGINT` until a
+private live Massive run establishes the required fixed scale. Fractional
+values are rejected, never rounded. See
+[`docs/MARKET_DATA.md`](../../docs/MARKET_DATA.md).
 
 The newsdata.io query string is the **company name**, resolved by
 `scheduler.company_name_map()`: `symbols.name` from the database, with
