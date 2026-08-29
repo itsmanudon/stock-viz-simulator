@@ -37,6 +37,9 @@ build/
 !.vscode/extensions.json
 .idea/
 
+# Agent-isolated feature worktrees
+.worktrees/
+
 # OS
 .DS_Store
 Thumbs.db
