@@ -17,6 +17,7 @@
     "test": "pnpm --filter @stockviz/web test",
     "test:coverage": "pnpm --filter @stockviz/web test:coverage",
     "verify:pipeline:clean": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-pipeline-clean.ps1",
+    "verify:providers:live": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-providers-live.ps1",
     "db:up": "docker compose -f infra/docker-compose.yml up -d",
     "db:down": "docker compose -f infra/docker-compose.yml down",
     "stack:up": "docker compose -f infra/docker-compose.yml --profile app up -d --build",
