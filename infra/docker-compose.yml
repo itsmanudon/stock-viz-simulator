@@ -108,6 +108,17 @@ services:
       ENVIRONMENT: development
       ENABLE_SCHEDULER: "false"
       CORS_ORIGINS: '["http://localhost:3100"]'
+      # Provider credentials/config, all optional and all blank by default so
+      # the stack still boots with no infra/.env entries. Without these the
+      # news ingest and sentiment scoring silently no-op inside the container
+      # even when apps/api/.env has a key — that file is not read by compose.
+      ALPHA_VANTAGE_KEY: ${ALPHA_VANTAGE_KEY:-}
+      NEWSDATA_KEY: ${NEWSDATA_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      SENTIMENT_PROVIDER: ${SENTIMENT_PROVIDER:-}
+      SENTIMENT_SERVICE_URL: ${SENTIMENT_SERVICE_URL:-}
+      SENTIMENT_SERVICE_TOKEN: ${SENTIMENT_SERVICE_TOKEN:-}
+      SENTIMENT_MODEL_HINT: ${SENTIMENT_MODEL_HINT:-}
     ports:
       - "8000:8000"
     healthcheck:

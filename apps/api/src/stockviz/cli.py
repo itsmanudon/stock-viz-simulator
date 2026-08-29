@@ -3,6 +3,7 @@
     uv run python -m stockviz.cli seed
     uv run python -m stockviz.cli backfill
     uv run python -m stockviz.cli ingest AAPL [MSFT ...]
+    uv run python -m stockviz.cli news AAPL [MSFT ...]
 
 Kept argparse-only so we don't add another dep. The scheduler covers the
 recurring path; this module is for manual setup and debugging.
@@ -231,6 +232,72 @@ def _default_fx_currencies() -> list[str]:
     return [r for r in rows if r]
 
 
+def _cmd_news(args: argparse.Namespace) -> int:
+    """Manual twin of the news-ingest Kafka consumer.
+
+    Builds the same ``news.refresh.requested`` envelope the scheduler enqueues
+    and hands it to the consumer's own ``process_payload``. Provider I/O,
+    de-duplication, the ``news.article.ingested`` outbox rows and the inbox
+    receipt are therefore the worker's code, not a second copy of it — the only
+    thing this skips is the trip through Kafka.
+    """
+    from sqlmodel import select
+
+    from stockviz.events.outbox import build_news_refresh_requested
+    from stockviz.models import Symbol
+    from stockviz.scheduler import company_name_map
+    from stockviz.workers.news_ingest_consumer import process_payload
+
+    settings = get_settings()
+    if not settings.newsdata_key:
+        print(
+            "news: NEWSDATA_KEY is not set — the provider cannot be called, so "
+            "this would silently ingest nothing. Refusing to run.",
+            file=sys.stderr,
+        )
+        return 2
+
+    if args.tickers:
+        tickers = [t.strip().upper() for t in args.tickers]
+    else:
+        with Session(engine) as session:
+            tickers = list(session.exec(select(Symbol.ticker).where(Symbol.is_active)).all())
+    if not tickers:
+        print("news: no tickers to refresh")
+        return 0
+
+    names = company_name_map()
+    total = 0
+    for ticker in tickers:
+        query = names.get(ticker, ticker)
+        envelope = build_news_refresh_requested(
+            ticker=ticker,
+            company_name=query,
+            reason="manual",
+        )
+        before = _news_article_count(ticker)
+        result = process_payload(envelope.model_dump(mode="json"))
+        inserted = _news_article_count(ticker) - before
+        total += inserted
+        print(f"  {ticker}: {inserted} new ({result}, query={query!r})")
+    print(f"ingested {total} new article(s) across {len(tickers)} ticker(s)")
+    return 0
+
+
+def _news_article_count(ticker: str) -> int:
+    from sqlalchemy import func
+    from sqlmodel import select
+
+    from stockviz.models import NewsArticle
+
+    with Session(engine) as session:
+        return int(
+            session.exec(
+                select(func.count()).select_from(NewsArticle).where(NewsArticle.ticker == ticker)
+            ).one()
+        )
+
+
 def _cmd_ingest(args: argparse.Namespace) -> int:
     settings = get_settings()
     total = 0
@@ -265,6 +332,13 @@ def main(argv: list[str] | None = None) -> int:
     p_ingest = sub.add_parser("ingest", help="Refresh daily bars for one or more tickers")
     p_ingest.add_argument("tickers", nargs="+")
     p_ingest.set_defaults(fn=_cmd_ingest)
+
+    p_news = sub.add_parser(
+        "news",
+        help="Fetch and store news for tickers (manual twin of the news-ingest worker)",
+    )
+    p_news.add_argument("tickers", nargs="*", help="Defaults to every active symbol")
+    p_news.set_defaults(fn=_cmd_news)
 
     p_fx = sub.add_parser(
         "fx", help="Refresh daily FX rates (defaults to all non-USD currencies in use)"

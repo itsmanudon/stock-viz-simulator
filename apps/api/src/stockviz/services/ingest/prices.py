@@ -29,6 +29,14 @@ DAILY_INTERVAL = "1d"
 SOURCE_YFINANCE = "yfinance"
 SOURCE_ALPHA_VANTAGE = "alpha_vantage"
 
+UPSERT_CHUNK_ROWS = 1000
+"""Bars per multi-row INSERT.
+
+``price_bars`` binds 9 parameters per row, so Postgres' 65535 parameter cap
+allows ~7280. 1000 keeps a wide margin and each statement small enough to stay
+responsive.
+"""
+
 
 @dataclass(frozen=True, slots=True)
 class BarRecord:
@@ -189,6 +197,10 @@ def upsert_bars(session: Session, bars: list[BarRecord]) -> int:
     Uses Postgres ``ON CONFLICT`` so a re-ingest of the same date refreshes
     the row instead of failing. Returns the number of bars submitted (not the
     number actually changed — Postgres doesn't tell us that cheaply).
+
+    Rows are written in chunks: a full-history yfinance fetch is ~11k bars,
+    and one multi-row INSERT of that size blows past Postgres' 65535 bind
+    parameter ceiling. See :data:`UPSERT_CHUNK_ROWS`.
     """
 
     if not bars:
@@ -212,19 +224,21 @@ def upsert_bars(session: Session, bars: list[BarRecord]) -> int:
     bind = session.get_bind()
     dialect = bind.dialect.name if bind is not None else "sqlite"
     if dialect == "postgresql":
-        stmt = pg_insert(PriceBar).values(rows)
-        stmt = stmt.on_conflict_do_update(
-            index_elements=["ticker", "ts", "interval"],
-            set_={
-                "open": stmt.excluded.open,
-                "high": stmt.excluded.high,
-                "low": stmt.excluded.low,
-                "close": stmt.excluded.close,
-                "volume": stmt.excluded.volume,
-                "source": stmt.excluded.source,
-            },
-        )
-        session.exec(stmt)  # type: ignore[arg-type]
+        for start in range(0, len(rows), UPSERT_CHUNK_ROWS):
+            chunk = rows[start : start + UPSERT_CHUNK_ROWS]
+            stmt = pg_insert(PriceBar).values(chunk)
+            stmt = stmt.on_conflict_do_update(
+                index_elements=["ticker", "ts", "interval"],
+                set_={
+                    "open": stmt.excluded.open,
+                    "high": stmt.excluded.high,
+                    "low": stmt.excluded.low,
+                    "close": stmt.excluded.close,
+                    "volume": stmt.excluded.volume,
+                    "source": stmt.excluded.source,
+                },
+            )
+            session.exec(stmt)  # type: ignore[arg-type]
         return len(rows)
 
     for row in rows:

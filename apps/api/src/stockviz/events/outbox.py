@@ -306,19 +306,24 @@ def enqueue_market_bars_refreshed(
     return enqueue_envelope(session, envelope, topic=MARKET_TOPIC, partition_key=ticker)
 
 
-def enqueue_news_refresh_requested(
-    session: Session,
+def build_news_refresh_requested(
     *,
     ticker: str,
     company_name: str,
     reason: str = "scheduled",
     requested_at: datetime | None = None,
-) -> OutboxEvent:
+) -> NewsRefreshRequestedEvent:
+    """Build a ``news.refresh.requested`` envelope without staging an outbox row.
+
+    Shared by :func:`enqueue_news_refresh_requested` (the scheduled Kafka path)
+    and the ``stockviz.cli news`` manual twin, which feeds the envelope straight
+    to the consumer handler instead of going through a broker. Both therefore
+    hand the ingest path a byte-identical event.
+    """
     occurred_at = requested_at or utcnow()
-    event_id = uuid4()
     ticker = ticker.strip().upper()
-    envelope = NewsRefreshRequestedEvent(
-        event_id=event_id,
+    return NewsRefreshRequestedEvent(
+        event_id=uuid4(),
         occurred_at=occurred_at,
         aggregate_id=ticker,
         payload=NewsRefreshRequestedPayload(
@@ -328,7 +333,25 @@ def enqueue_news_refresh_requested(
             requested_at=occurred_at,
         ),
     )
-    return enqueue_envelope(session, envelope, topic=NEWS_TOPIC, partition_key=ticker)
+
+
+def enqueue_news_refresh_requested(
+    session: Session,
+    *,
+    ticker: str,
+    company_name: str,
+    reason: str = "scheduled",
+    requested_at: datetime | None = None,
+) -> OutboxEvent:
+    envelope = build_news_refresh_requested(
+        ticker=ticker,
+        company_name=company_name,
+        reason=reason,
+        requested_at=requested_at,
+    )
+    return enqueue_envelope(
+        session, envelope, topic=NEWS_TOPIC, partition_key=envelope.payload.ticker
+    )
 
 
 def enqueue_news_article_ingested(

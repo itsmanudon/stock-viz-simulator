@@ -117,3 +117,42 @@ pnpm events:sentiment-aggregate
 ```
 
 Kubernetes places the same processes in separate Deployments; it does not change consistency or delivery semantics. See [Kubernetes](./KUBERNETES.md) and [Kafka scaling](./KAFKA_SCALING.md).
+
+### What the event path actually requires (verified 2026-08-29)
+
+The `pnpm events:*` scripts run the workers on the **host** via `uv`. To drive
+the same path with the containerised stack (`pnpm stack:up`), the worker needs
+the in-network broker address — the published `localhost:9092` listener is not
+reachable from inside a container:
+
+```bash
+docker compose -f infra/docker-compose.yml --profile events up -d kafka kafka-init
+
+# every worker invocation needs this; the default is localhost:9092
+docker exec -e KAFKA_BOOTSTRAP_SERVERS=kafka:29092 stockviz-api \
+  python -m stockviz.cli publish-outbox --once
+docker exec -e KAFKA_BOOTSTRAP_SERVERS=kafka:29092 stockviz-api \
+  python -m stockviz.cli consume-market-ingest --once
+docker exec -e KAFKA_BOOTSTRAP_SERVERS=kafka:29092 stockviz-api \
+  python -m stockviz.cli consume-market-analytics --once
+```
+
+Checklist for a working end-to-end run:
+
+1. **Kafka + topics.** `kafka-init` creates the three topics; auto-create is off,
+   so without it every publish fails.
+2. **`KAFKA_BOOTSTRAP_SERVERS`.** Not set by the compose `api` service — the API
+   itself never produces to Kafka, only the workers do.
+3. **A scheduler tick.** `ENABLE_SCHEDULER=false` in compose, so nothing enqueues
+   on its own. Either run `stockviz.cli run-scheduler`, or call a job directly
+   (`python -c "from stockviz.scheduler import hourly_top_movers; hourly_top_movers()"`).
+4. **The publisher.** Outbox rows stay unpublished until `publish-outbox` runs;
+   it drains **50 per `--once` batch**, so a backlog needs several passes.
+5. **Provider credentials** for whichever consumer does the fetching
+   (`NEWSDATA_KEY` for news ingest — see `infra/.env.example`).
+
+Note that market and news share one topic per domain, and each consumer filters
+by `event_type`. A consumer group starting at `earliest` therefore walks — and
+commits `ignored` for — every event of the other types before reaching its own.
+That is correct, but it means "no effect yet" is not evidence of a broken
+consumer; check `consumer_inbox` rather than the first few log lines.

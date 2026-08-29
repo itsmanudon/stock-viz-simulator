@@ -518,3 +518,36 @@ def test_sentiment_aggregate_is_ticker_scoped(session: Session) -> None:
     assert aapl.sentiment_7d is not None
     assert msft is None or msft.sentiment_7d is None
     assert apply_news_sentiment_scored(session, scored) == "duplicate"
+
+
+# --- company-name resolution -------------------------------------------------
+#
+# companies.json is not shipped in the API image. When it is missing the
+# newsdata.io query used to degrade to the bare ticker, which materially
+# changes what the provider returns, so the database is the dependable layer.
+
+
+def test_company_name_map_falls_back_to_database_names(session, engine, monkeypatch, tmp_path):
+    from stockviz.scheduler import company_name_map
+
+    monkeypatch.setattr("stockviz.scheduler.engine", engine)
+    monkeypatch.setattr("stockviz.scheduler.DEFAULT_COMPANIES_PATH", tmp_path / "missing.json")
+    _symbol(session, "AAPL", name="Apple Inc.")
+
+    assert company_name_map()["AAPL"] == "Apple Inc."
+
+
+def test_company_name_map_prefers_the_seed_file_over_the_database(
+    session, engine, monkeypatch, tmp_path
+):
+    import json
+
+    from stockviz.scheduler import company_name_map
+
+    monkeypatch.setattr("stockviz.scheduler.engine", engine)
+    path = tmp_path / "companies.json"
+    path.write_text(json.dumps([{"symbol": "AAPL", "name": "Apple Computer"}]), encoding="utf-8")
+    monkeypatch.setattr("stockviz.scheduler.DEFAULT_COMPANIES_PATH", path)
+    _symbol(session, "AAPL", name="Apple Inc.")
+
+    assert company_name_map()["AAPL"] == "Apple Computer"

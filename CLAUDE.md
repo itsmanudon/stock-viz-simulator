@@ -155,6 +155,11 @@ current architecture guidance.
 
 ## Running the whole thing in Docker
 
+Compose does **not** read `apps/api/.env`. Provider credentials
+(`NEWSDATA_KEY`, `ANTHROPIC_API_KEY`, `SENTIMENT_*`, `ALPHA_VANTAGE_KEY`) must be
+set in `infra/.env` or they never reach the container, and news ingest and
+sentiment scoring silently no-op. See `infra/.env.example`.
+
 `pnpm stack:up` builds and starts `api` (:8000) and `web` (:3100) alongside
 Postgres, using the **`app` compose profile** — so plain `pnpm db:up` stays a
 fast Postgres-only start for native development. Postgres already uses a named
@@ -256,7 +261,8 @@ Full lists live in `apps/web/.env.example` and `apps/api/.env.example`
 | `RATELIMIT_ENABLED=0`                                    | api                          | disables the slowapi rate limiter (handy for tests/load scripts)                                                                                                                                                             |
 | `ALPHA_VANTAGE_KEY`, `NEWSDATA_KEY`, `ANTHROPIC_API_KEY` | api                          | News (`NEWSDATA_KEY`) and sentiment (`ANTHROPIC_API_KEY`) **silently no-op** when blank. A blank `ALPHA_VANTAGE_KEY` only skips the Alpha Vantage **fallback**; the market-ingest worker still uses yfinance for daily OHLCV |
 | `SENTIMENT_PROVIDER`                                     | api                          | `none` (default) \| `anthropic` \| `http`. Blank resolves to `anthropic` when `ANTHROPIC_API_KEY` is set. See [`docs/SENTIMENT.md`](./docs/SENTIMENT.md)                                                                     |
-| `SENTIMENT_SERVICE_URL`, `SENTIMENT_SERVICE_TOKEN`       | api                          | only read when `SENTIMENT_PROVIDER=http` — the standalone scoring service                                                                                                                                                    |
+| `SENTIMENT_SERVICE_URL`, `SENTIMENT_SERVICE_TOKEN`       | api                          | only read when `SENTIMENT_PROVIDER=http` — the standalone scoring service. `HttpProvider` posts to `{URL}/score`, so include any path prefix the service uses (e.g. `.../v1`) |
+| `KAFKA_BOOTSTRAP_SERVERS`                                | api workers                  | defaults to `localhost:9092`; workers run inside compose need `kafka:29092`. The API never produces to Kafka, so the compose `api` service does not set it |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`               | web                          | Google OAuth sign-in                                                                                                                                                                                                         |
 | `NEXTAUTH_JWT_SECRET`                                    | api                          | **legacy** — still in `settings.py` but no longer read by the auth bridge                                                                                                                                                    |
 

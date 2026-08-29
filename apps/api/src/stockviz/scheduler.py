@@ -27,6 +27,7 @@ from contextlib import contextmanager
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import Session, select
 
 from stockviz._time import utcnow
@@ -120,17 +121,33 @@ def single_instance(job_id: str) -> Callable[[Callable[[], None]], Callable[[], 
     return decorate
 
 
-def _company_name_map() -> dict[str, str]:
+def company_name_map() -> dict[str, str]:
     """Ticker -> company name, used as the newsdata.io query string.
 
-    Falls back to an empty dict if companies.json is missing (e.g. in tests).
+    Reads ``symbols.name`` first and lets companies.json override it. The seed
+    file is not shipped in the API image, and when it is missing the query
+    string used to degrade to the bare ticker ("AMZN" instead of "Amazon.com
+    Inc."), which materially changes what newsdata.io returns. The database
+    always has a name, so it is the dependable layer.
+
+    Public because the ``stockviz.cli news`` manual twin resolves query names
+    the same way the scheduled job does.
     """
+    names: dict[str, str] = {}
+    try:
+        with _session_scope() as session:
+            for ticker, name in session.exec(select(Symbol.ticker, Symbol.name)).all():
+                if name:
+                    names[ticker] = name
+    except SQLAlchemyError as exc:
+        logger.warning("scheduler: could not load company names from the database: %s", exc)
+
     try:
         raw = json.loads(DEFAULT_COMPANIES_PATH.read_text(encoding="utf-8"))
-        return {item["symbol"]: item["name"] for item in raw}
+        names.update({item["symbol"]: item["name"] for item in raw})
     except (OSError, KeyError, json.JSONDecodeError) as exc:
-        logger.warning("scheduler: could not load company names: %s", exc)
-        return {}
+        logger.info("scheduler: companies.json unavailable (%s); using database names", exc)
+    return names
 
 
 @single_instance("daily_price_refresh")
@@ -179,7 +196,7 @@ def news_refresh() -> None:
     if not settings.newsdata_key:
         logger.info("news_refresh: NEWSDATA_KEY not set, skipping")
         return
-    names = _company_name_map()
+    names = company_name_map()
     with _session_scope() as session:
         tickers = list(session.exec(select(Symbol.ticker).where(Symbol.is_active)).all())
         if not tickers:

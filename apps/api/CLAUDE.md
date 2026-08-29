@@ -13,7 +13,13 @@ src/stockviz/
   limiter.py        slowapi rate limiter, keyed per-user then per-IP
   scheduler.py      APScheduler jobs (see below) — also run as a dedicated process
   cli.py            argparse one-shot commands mirroring the scheduler jobs;
-                    `earnings` refreshes the idempotent yfinance calendar
+                    `earnings` refreshes the idempotent yfinance calendar;
+                    `news` is the manual twin of the news-ingest worker —
+                    it builds the same `news.refresh.requested` envelope the
+                    scheduler enqueues and calls the consumer's own
+                    `process_payload`, so provider I/O, de-dup, the inbox
+                    receipt and the `news.article.ingested` fan-out are the
+                    worker's code and not a second copy
                     (+ `run-scheduler` for the Kubernetes singleton)
   schemas.py        shared Pydantic response models
   observability.py  Sentry bootstrap (no-op without DSN)
@@ -90,9 +96,9 @@ Readiness at `/health` (Postgres; 503 if down). Kubernetes probes those
 separately; Render still uses `/health` as `healthCheckPath`.
 
 CLI subcommands (`python -m stockviz.cli <cmd>`): `seed`, `backfill`,
-`metadata`, `ingest <tickers>`, `fx`, `metrics`, `score-sentiment`,
-`sentiment-aggregate`, `recommend`, `snapshot-portfolios`, `dividends`,
-`credit-dividends`, `settle-options`, `run-scheduler`,
+`metadata`, `ingest <tickers>`, `news [tickers]`, `fx`, `metrics`,
+`score-sentiment`, `sentiment-aggregate`, `recommend`, `snapshot-portfolios`,
+`dividends`, `credit-dividends`, `settle-options`, `run-scheduler`,
 `publish-outbox [--once]`,
 `consume-trade-activity [--once]`, `consume-market-ingest [--once]`,
 `consume-market-analytics [--once]`, `consume-news-ingest [--once]`,
@@ -307,7 +313,20 @@ Price ingest uses **yfinance first** (no key). Alpha Vantage is attempted
 only when `ALPHA_VANTAGE_KEY` is set and yfinance returned no rows. News
 ingest short-circuits when `NEWSDATA_KEY` is unset. Same skip-when-unkeyed
 pattern for sentiment (Anthropic) — it logs and skips when the key or
-package is missing.
+package is missing. `stockviz.cli news` is the one exception: it **exits 2**
+rather than silently ingesting nothing, because a manual operator command
+that no-ops looks identical to one that found no articles.
+
+`upsert_bars` writes in chunks of `UPSERT_CHUNK_ROWS` (1000). `price_bars`
+binds 9 parameters per row, and a full-history yfinance fetch is ~11k bars —
+one multi-row INSERT of that size exceeds Postgres' 65535 parameter ceiling,
+which made `stockviz.cli ingest` fail outright against Postgres.
+
+The newsdata.io query string is the **company name**, resolved by
+`scheduler.company_name_map()`: `symbols.name` from the database, with
+`seed-data/companies.json` layered on top. The seed file is not shipped in
+the API image, and before the database layer existed the query silently
+degraded to the bare ticker ("AMZN" rather than "Amazon.com Inc.").
 
 ## Testing
 
