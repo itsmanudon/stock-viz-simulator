@@ -39,8 +39,8 @@ SOURCE_ALPHA_VANTAGE = "alpha_vantage"
 UPSERT_CHUNK_ROWS = 1000
 """Bars per multi-row INSERT.
 
-``price_bars`` binds 9 parameters per row, so Postgres' 65535 parameter cap
-allows ~7280. 1000 keeps a wide margin and each statement small enough to stay
+``price_bars`` binds 11 parameters per row, so Postgres' 65535 parameter cap
+allows ~5957. 1000 keeps a wide margin and each statement small enough to stay
 responsive.
 """
 
@@ -250,6 +250,8 @@ def upsert_bars(session: Session, bars: list[BarRecord]) -> int:
             "close": b.close,
             "volume": _legacy_integer_volume(b.volume),
             "source": b.source,
+            "adjustment_semantics": b.adjustment_semantics.value,
+            "session_scope": b.session_scope.value,
         }
         for b in bars
     ]
@@ -269,6 +271,8 @@ def upsert_bars(session: Session, bars: list[BarRecord]) -> int:
                     "close": stmt.excluded.close,
                     "volume": stmt.excluded.volume,
                     "source": stmt.excluded.source,
+                    "adjustment_semantics": stmt.excluded.adjustment_semantics,
+                    "session_scope": stmt.excluded.session_scope,
                 },
             )
             session.exec(stmt)  # type: ignore[arg-type]
@@ -285,6 +289,8 @@ def upsert_bars(session: Session, bars: list[BarRecord]) -> int:
         existing.close = row["close"]
         existing.volume = row["volume"]
         existing.source = row["source"]
+        existing.adjustment_semantics = row["adjustment_semantics"]
+        existing.session_scope = row["session_scope"]
         session.add(existing)
     return len(rows)
 

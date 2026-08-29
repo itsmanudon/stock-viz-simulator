@@ -218,7 +218,7 @@ def test_fetch_alpha_vantage_daily_returns_empty_without_key():
 
 # --- writer chunking ---------------------------------------------------------
 #
-# A full-history yfinance fetch is ~11k bars. price_bars binds 9 parameters per
+# A full-history yfinance fetch is ~11k bars. price_bars binds 11 parameters per
 # row, so a single multi-row INSERT of that size exceeded Postgres' 65535
 # parameter ceiling and `stockviz.cli ingest` failed outright against Postgres.
 
@@ -263,8 +263,8 @@ def test_upsert_bars_chunks_large_batches_under_the_parameter_ceiling():
     assert upsert_bars(session, _bars(count)) == count  # type: ignore[arg-type]
 
     assert len(session.statements) == 3, "expected one INSERT per chunk"
-    # 9 bound parameters per row must stay well under Postgres' 65535 cap.
-    assert UPSERT_CHUNK_ROWS * 9 < 65535
+    # 11 bound parameters per row must stay well under Postgres' 65535 cap.
+    assert UPSERT_CHUNK_ROWS * 11 < 65535
 
 
 def test_upsert_bars_issues_a_single_statement_for_a_small_batch():
@@ -301,3 +301,28 @@ def test_upsert_bars_writes_every_row_of_a_large_batch(session):
     session.commit()
 
     assert session.exec(select(func.count()).select_from(PriceBar)).one() == count
+
+
+def test_upsert_bars_persists_provider_neutral_financial_semantics(session):
+    bar = BarRecord(
+        ticker="AAPL",
+        ts=datetime(2025, 1, 2),
+        interval=DAILY_INTERVAL,
+        open=Decimal("1"),
+        high=Decimal("2"),
+        low=Decimal("0.5"),
+        close=Decimal("1.5"),
+        volume=Decimal("100"),
+        source=SOURCE_ALPHA_VANTAGE,
+        adjustment_semantics=AdjustmentSemantics.UNADJUSTED,
+        session_scope=SessionScope.REGULAR,
+    )
+
+    assert upsert_bars(session, [bar]) == 1
+    session.commit()
+
+    persisted = session.get(PriceBar, (bar.ticker, bar.ts, bar.interval))
+    assert persisted is not None
+    assert persisted.source == SOURCE_ALPHA_VANTAGE
+    assert persisted.adjustment_semantics == AdjustmentSemantics.UNADJUSTED
+    assert persisted.session_scope == SessionScope.REGULAR
