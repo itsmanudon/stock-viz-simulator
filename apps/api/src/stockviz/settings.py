@@ -69,6 +69,15 @@ class Settings(BaseSettings):
     nextauth_jwt_secret: str = "dev-secret-change-me"
 
     alpha_vantage_key: str = ""
+    # yfinance remains the persisted/default provider. Massive is an optional,
+    # private shadow comparison only and must never be exposed by an API path.
+    massive_shadow_enabled: bool = False
+    massive_api_key: str = ""
+    massive_shadow_lookback_days: int = 90
+
+    # Blank preserves the original key-based behavior. Explicit selection is
+    # validated so a requested live provider cannot silently become a no-op.
+    news_provider: str = ""
     newsdata_key: str = ""
     anthropic_api_key: str = ""
 
@@ -114,9 +123,16 @@ class Settings(BaseSettings):
     kafka_poll_timeout_seconds: float = 1.0
     kafka_retry_backoff_seconds: float = 2.0
 
+    @property
+    def resolved_news_provider(self) -> str:
+        value = self.news_provider.strip().lower()
+        if value:
+            return value
+        return "newsdata" if self.newsdata_key.strip() else "none"
+
     @model_validator(mode="after")
-    def _reject_dev_secrets_in_production(self) -> Settings:
-        """Refuse to boot in production while a secret is still its dev default.
+    def _validate_runtime_configuration(self) -> Settings:
+        """Fail closed for selected providers and unsafe production secrets.
 
         ``internal_api_token`` signs the web -> api bridge JWT, and
         ``auth.require_user_id`` trusts the ``sub`` claim as the user id. The
@@ -128,6 +144,25 @@ class Settings(BaseSettings):
         set by hand after the first deploy — exactly the kind of step that gets
         missed. Failing loudly at startup beats failing open.
         """
+
+        if self.massive_shadow_enabled and not self.massive_api_key.strip():
+            raise ValueError("MASSIVE_SHADOW_ENABLED requires MASSIVE_API_KEY")
+        if self.massive_shadow_lookback_days <= 0:
+            raise ValueError("MASSIVE_SHADOW_LOOKBACK_DAYS must be > 0")
+
+        news_provider = self.resolved_news_provider
+        if news_provider not in {"none", "newsdata"}:
+            raise ValueError("NEWS_PROVIDER must be none or newsdata")
+        if self.news_provider.strip().lower() == "newsdata" and not self.newsdata_key.strip():
+            raise ValueError("NEWS_PROVIDER=newsdata requires NEWSDATA_KEY")
+
+        sentiment_provider = self.sentiment_provider.strip().lower()
+        if sentiment_provider not in {"", "none", "anthropic", "http"}:
+            raise ValueError("SENTIMENT_PROVIDER must be none, anthropic, or http")
+        if sentiment_provider == "anthropic" and not self.anthropic_api_key.strip():
+            raise ValueError("SENTIMENT_PROVIDER=anthropic requires ANTHROPIC_API_KEY")
+        if sentiment_provider == "http" and not self.sentiment_service_url.strip():
+            raise ValueError("SENTIMENT_PROVIDER=http requires SENTIMENT_SERVICE_URL")
 
         if self.environment.strip().lower() not in _PRODUCTION_ENVIRONMENTS:
             return self
