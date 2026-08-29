@@ -15,6 +15,7 @@ from stockviz.routers import (
     backtest,
     bars,
     comments,
+    earnings,
     health,
     indicators,
     leaderboard,
@@ -24,6 +25,7 @@ from stockviz.routers import (
     orders,
     quotes,
     recommendations,
+    replay,
     screener,
     sentiment,
     stream,
@@ -102,6 +104,8 @@ def create_app() -> FastAPI:
     app.include_router(comments.router)
     app.include_router(options.router)
     app.include_router(backtest.router)
+    app.include_router(replay.router)
+    app.include_router(earnings.router)
 
     return app
 

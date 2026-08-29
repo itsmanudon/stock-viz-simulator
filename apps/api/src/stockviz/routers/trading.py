@@ -18,11 +18,20 @@ from sqlmodel import Session, select
 from stockviz._time import utcnow
 from stockviz.auth import UserIdDep
 from stockviz.db import get_session
-from stockviz.models import PortfolioSnapshot, Position, Symbol, Trade, TradeSide, User
+from stockviz.models import (
+    PortfolioSnapshot,
+    Position,
+    SimulatedExecution,
+    Symbol,
+    Trade,
+    TradeSide,
+    User,
+)
 from stockviz.models.dividend import Dividend, PortfolioDividend
 from stockviz.schemas import (
     DividendCreditOut,
     DividendSummaryOut,
+    ExecutionProvenanceOut,
     PortfolioAnalyticsOut,
     PortfolioHistoryPointOut,
     PortfolioOptionOut,
@@ -52,6 +61,7 @@ from stockviz.services.trading import (
     execute_trade,
 )
 from stockviz.services.trading.fx import latest_rate as fx_latest_rate
+from stockviz.services.trading.simulation_adapter import as_aware_utc
 
 router = APIRouter(prefix="/v1", tags=["trading"])
 
@@ -72,6 +82,8 @@ def get_portfolio(session: SessionDep, user_id: UserIdDep) -> PortfolioOut:
         portfolio_id=snap.portfolio_id,
         display_currency=snap.display_currency,
         cash_balance=snap.cash_balance,
+        reserved_cash=snap.reserved_cash,
+        available_cash=snap.available_cash,
         market_value=snap.market_value,
         options_market_value=snap.options_market_value,
         total_value=snap.total_value,
@@ -89,6 +101,8 @@ def get_portfolio(session: SessionDep, user_id: UserIdDep) -> PortfolioOut:
                 unrealized_pl_native=p.unrealized_pl_native,
                 market_value=p.market_value,
                 unrealized_pl=p.unrealized_pl,
+                reserved_quantity=p.reserved_quantity,
+                available_quantity=p.available_quantity,
             )
             for p in snap.positions
         ],
@@ -317,6 +331,41 @@ def list_trades(
             )
         )
     return out
+
+
+@router.get("/trades/{trade_id}/execution", response_model=ExecutionProvenanceOut)
+def get_trade_execution(
+    trade_id: int, session: SessionDep, user_id: UserIdDep
+) -> ExecutionProvenanceOut:
+    """Return kernel provenance for one of the user's live equity fills.
+
+    404 when the trade is missing, not owned by the caller, or was written
+    before SIM-04 (no provenance row). Does not change ``GET /v1/trades``.
+    """
+    portfolio = ensure_default_portfolio(session, user_id)
+    trade = session.get(Trade, trade_id)
+    if trade is None or trade.portfolio_id != portfolio.id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Trade not found")
+
+    row = session.exec(
+        select(SimulatedExecution).where(SimulatedExecution.trade_id == trade_id)
+    ).first()
+    if row is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Execution provenance not found")
+
+    return ExecutionProvenanceOut(
+        trade_id=row.trade_id,
+        profile_name=row.profile_name,
+        model_version=row.model_version,
+        reference_price=row.reference_price,
+        fill_price=row.fill_price,
+        reason=row.reason,
+        assumptions=list(row.assumptions),
+        market_interval=row.market_interval,
+        order_type=row.order_type,
+        evaluated_at=as_aware_utc(row.evaluated_at),
+        created_at=as_aware_utc(row.created_at),
+    )
 
 
 @router.get("/portfolio/dividends", response_model=DividendSummaryOut)

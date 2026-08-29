@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test";
 
+test.describe.configure({ retries: 0 });
+
 test("sign up creates an account and starts the session", async ({ page }) => {
   const email = `e2e+${Date.now()}@example.com`;
 

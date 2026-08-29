@@ -7,17 +7,24 @@ injectable callable so we can hand them a fixture and inspect the parsed
 
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from decimal import Decimal
+from types import SimpleNamespace
 
 import pandas as pd
+from sqlalchemy import func
+from sqlmodel import select
 
+from stockviz.models import PriceBar
 from stockviz.services.ingest.prices import (
     DAILY_INTERVAL,
     SOURCE_ALPHA_VANTAGE,
     SOURCE_YFINANCE,
+    UPSERT_CHUNK_ROWS,
+    BarRecord,
     fetch_alpha_vantage_daily,
     fetch_yfinance_daily,
+    upsert_bars,
 )
 
 
@@ -130,3 +137,69 @@ def test_fetch_alpha_vantage_daily_returns_empty_without_key():
     bars = fetch_alpha_vantage_daily("AAPL", api_key="", fetch_fn=fake_fetch)
     assert bars == []
     assert called == []
+
+
+# --- writer chunking ---------------------------------------------------------
+#
+# A full-history yfinance fetch is ~11k bars. price_bars binds 9 parameters per
+# row, so a single multi-row INSERT of that size exceeded Postgres' 65535
+# parameter ceiling and `stockviz.cli ingest` failed outright against Postgres.
+
+
+def _bars(count: int) -> list[BarRecord]:
+    start = datetime(1990, 1, 1)
+    return [
+        BarRecord(
+            ticker="AAPL",
+            ts=start + timedelta(days=i),
+            interval=DAILY_INTERVAL,
+            open=Decimal("1"),
+            high=Decimal("2"),
+            low=Decimal("0.5"),
+            close=Decimal("1.5"),
+            volume=100,
+            source=SOURCE_YFINANCE,
+        )
+        for i in range(count)
+    ]
+
+
+class _FakePostgresSession:
+    """Just enough Session for the Postgres branch of ``upsert_bars``."""
+
+    def __init__(self) -> None:
+        self.statements: list[object] = []
+
+    def get_bind(self):
+        return SimpleNamespace(dialect=SimpleNamespace(name="postgresql"))
+
+    def exec(self, statement):
+        self.statements.append(statement)
+
+
+def test_upsert_bars_chunks_large_batches_under_the_parameter_ceiling():
+    session = _FakePostgresSession()
+    count = UPSERT_CHUNK_ROWS * 2 + 37
+
+    assert upsert_bars(session, _bars(count)) == count  # type: ignore[arg-type]
+
+    assert len(session.statements) == 3, "expected one INSERT per chunk"
+    # 9 bound parameters per row must stay well under Postgres' 65535 cap.
+    assert UPSERT_CHUNK_ROWS * 9 < 65535
+
+
+def test_upsert_bars_issues_a_single_statement_for_a_small_batch():
+    session = _FakePostgresSession()
+
+    upsert_bars(session, _bars(10))  # type: ignore[arg-type]
+
+    assert len(session.statements) == 1
+
+
+def test_upsert_bars_writes_every_row_of_a_large_batch(session):
+    """SQLite path: the row-by-row branch must not drop anything either."""
+    count = UPSERT_CHUNK_ROWS + 5
+    assert upsert_bars(session, _bars(count)) == count
+    session.commit()
+
+    assert session.exec(select(func.count()).select_from(PriceBar)).one() == count

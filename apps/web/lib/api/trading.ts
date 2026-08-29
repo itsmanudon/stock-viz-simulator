@@ -17,6 +17,8 @@ export type Position = {
   // Aggregates converted to the portfolio's display currency.
   market_value: string;
   unrealized_pl: string;
+  reserved_quantity: string;
+  available_quantity: string;
 };
 
 export type Portfolio = {
@@ -24,6 +26,8 @@ export type Portfolio = {
   // All top-level aggregates (cash + market value + totals) are in this currency.
   display_currency: string;
   cash_balance: string;
+  reserved_cash: string;
+  available_cash: string;
   market_value: string;
   total_value: string;
   total_cost_basis: string;
@@ -137,6 +141,7 @@ export type PendingOrder = {
   created_at: string;
   filled_at: string | null;
   fill_price: string | null;
+  cancel_reason: string | null;
 };
 
 export type PendingOrderInput = {

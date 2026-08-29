@@ -6,7 +6,7 @@ import {
   type PostCommentState,
   deleteCommentAction,
   postCommentAction,
-} from "@/app/stocks/[ticker]/comments-actions";
+} from "@/app/(product)/stocks/[ticker]/comments-actions";
 import { Button } from "@/components/ui/button";
 import type { Comment } from "@/lib/api/comments";
 
@@ -14,6 +14,7 @@ type Props = {
   ticker: string;
   comments: Comment[];
   currentUserId: number | null;
+  embedded?: boolean;
 };
 
 function fmtWhen(iso: string): string {
@@ -26,32 +27,40 @@ function fmtWhen(iso: string): string {
   });
 }
 
-export function CommentsSection({ ticker, comments, currentUserId }: Props) {
+export function CommentsSection({ ticker, comments, currentUserId, embedded = false }: Props) {
   const [open, setOpen] = useState(true);
 
   const totalCount = comments.reduce((sum, c) => sum + 1 + c.replies.length, 0);
 
   return (
-    <section className="mt-12">
-      <div className="mb-3 flex items-baseline justify-between gap-3">
-        <h2 className="text-lg font-semibold">
-          Discussion{" "}
-          <span className="ml-1 text-sm font-normal text-muted-foreground">
-            ({totalCount} {totalCount === 1 ? "comment" : "comments"})
-          </span>
-        </h2>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          onClick={() => setOpen((v) => !v)}
-          aria-expanded={open}
-        >
-          {open ? "Collapse" : "Expand"}
-        </Button>
+    <section className={embedded ? "" : "mt-12"}>
+      <div className={embedded ? "mb-4" : "mb-3 flex items-baseline justify-between gap-3"}>
+        {embedded ? (
+          <p className="text-sm text-muted-foreground">
+            {totalCount} {totalCount === 1 ? "comment" : "comments"}
+          </p>
+        ) : (
+          <>
+            <h2 className="text-lg font-semibold">
+              Discussion{" "}
+              <span className="ml-1 text-sm font-normal text-muted-foreground">
+                ({totalCount} {totalCount === 1 ? "comment" : "comments"})
+              </span>
+            </h2>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setOpen((v) => !v)}
+              aria-expanded={open}
+            >
+              {open ? "Collapse" : "Expand"}
+            </Button>
+          </>
+        )}
       </div>
 
-      {open ? (
+      {open || embedded ? (
         <div className="space-y-6">
           {currentUserId !== null ? (
             <CommentForm ticker={ticker} />
@@ -113,7 +122,7 @@ function CommentItem({
           <form action={deleteCommentAction} className="ml-auto">
             <input type="hidden" name="id" value={comment.id} />
             <input type="hidden" name="ticker" value={ticker} />
-            <button type="submit" className="text-xs text-muted-foreground hover:text-red-500">
+            <button type="submit" className="text-xs text-muted-foreground hover:text-negative">
               Delete
             </button>
           </form>
@@ -199,11 +208,11 @@ function CommentForm({
           </Button>
         ) : null}
         {state.error ? (
-          <p className="text-xs text-red-500" role="alert">
+          <p className="text-xs text-negative" role="alert">
             {state.error}
           </p>
         ) : state.postedAt ? (
-          <p className="text-xs text-green-500">Posted.</p>
+          <p className="text-xs text-positive">Posted.</p>
         ) : null}
       </div>
     </form>

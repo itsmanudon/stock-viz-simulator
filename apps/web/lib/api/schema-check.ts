@@ -19,9 +19,16 @@
  * generated types agree, so the assertions hold without casts.
  */
 
+import type { ReplayForensics, ReplayJournal, ReplaySessionList, ReplaySummary } from "./replay";
 import type { components } from "./schema";
 import type { Portfolio, PortfolioOption, TradeRow } from "./trading";
-import type { BacktestSummary, MarketsSummary, ScreenerResult } from "./types";
+import type {
+  BacktestSummary,
+  EarningsEvent,
+  MarketsSummary,
+  Recommendation,
+  ScreenerResult,
+} from "./types";
 
 type Schemas = components["schemas"];
 
@@ -55,9 +62,21 @@ export type _MarketsSummaryMatches = Expect<
   Assignable<MarketsSummary, Schemas["MarketsSummaryOut"]>
 >;
 export type _ScreenerMatches = Expect<Assignable<ScreenerResult, Schemas["ScreenerResultOut"]>>;
+export type _RecommendationMatches = Expect<
+  Assignable<Recommendation, Schemas["RecommendationOut"]>
+>;
+export type _EarningsEventMatches = Expect<Assignable<EarningsEvent, Schemas["EarningsEventOut"]>>;
 export type _BacktestSummaryMatches = Expect<
   Assignable<BacktestSummary, Schemas["BacktestSummaryOut"]>
 >;
+export type _ReplaySummaryMatches = Expect<Assignable<ReplaySummary, Schemas["ReplaySummaryOut"]>>;
+export type _ReplaySessionListMatches = Expect<
+  Assignable<ReplaySessionList, Schemas["ReplaySessionListOut"]>
+>;
+export type _ReplayForensicsMatches = Expect<
+  Assignable<ReplayForensics, Schemas["ReplayForensicsOut"]>
+>;
+export type _ReplayJournalMatches = Expect<Assignable<ReplayJournal, Schemas["ReplayJournalOut"]>>;
 
 // Keep `Exact` referenced so an unused-type lint doesn't remove the helper —
 // it's the stricter check to reach for when a shape should match exactly.

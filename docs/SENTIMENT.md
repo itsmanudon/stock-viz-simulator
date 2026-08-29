@@ -128,9 +128,14 @@ uv --directory apps/api run python -m stockviz.cli score-sentiment --since 2026-
 uv --directory apps/api run python -m stockviz.cli sentiment-aggregate
 ```
 
-Both have scheduler twins: news ingest scores new articles inline (every 4h),
-and `sentiment_aggregate_refresh` runs weekdays at 16:55 ET, right after the
-metrics refresh so both land on the same `symbol_metrics` rows in order.
+News ingest no longer scores inline. `news.article.ingested` drives the
+sentiment worker; `news.sentiment.scored` drives the ticker-scoped aggregate
+worker. `sentiment_aggregate_refresh` still runs weekdays at 16:55 ET as a
+full-universe reconciliation pass after `symbol_metrics_refresh`.
+
+If `SENTIMENT_PROVIDER=none`, the sentiment worker records the inbox receipt
+and does not emit `news.sentiment.scored`. `score-sentiment` / `backfill_unscored`
+remain the way to score the archive after a provider is configured.
 
 `SENTIMENT_DAILY_DOCUMENT_CAP` (default 2000) bounds how many documents any one
 run will score, so a runaway backfill can't quietly burn an API budget.
@@ -154,3 +159,56 @@ runtime out of the API image — which matters on Render's free tier — and let
 the two repositories deploy independently. If the model is small enough for CPU
 inference and you'd rather import it, add a `LocalModelProvider` next to the
 existing ones; nothing outside `services/sentiment/` needs to change.
+
+## A concrete `http` provider: the sentiment-pipeline service
+
+[`sentiment-pipeline`](https://github.com/itsmanudon/sentiment-pipeline)
+implements this contract at `POST /v1/score` (`services/intelligence/app/api/score.py`).
+
+Its LLM extraction step already emits, per event, a `sentiment` in `[-1, 1]`
+and a `confidence` in `[0, 1]` — the same ranges and the same polarity
+`SentimentScore` defines, so the endpoint is a **mapping layer only**. It calls
+the same `extract_events()` the pipeline's own Celery task calls; no prompt,
+model call, or scoring rule is re-implemented, and it deliberately does not
+persist articles, dedupe, or run opportunity scoring.
+
+Mapping decisions worth knowing:
+
+| Situation | Result |
+| --- | --- |
+| Article yields several events | The one matching the requested `ticker` wins; within the matches, highest `confidence`. Averaging would blur the signal `confidence` exists to express. |
+| Article yields no market-relevant event | `null` — "nothing to say" is not "said neutral", and a null is retried by `backfill_unscored`. |
+| `ANTHROPIC_API_KEY` unset on the service | **503**, not a batch of nulls. A batch of nulls is indistinguishable from "nothing was scoreable" and would silently degrade this pipeline. |
+
+`model` comes back as `<llm_model>/extraction-v<SCHEMA_VERSION>` (e.g.
+`claude-sonnet-5/extraction-v1`) — the extraction schema version is part of the
+scorer's identity, so a bumped contract re-scores rather than silently mixing.
+
+Auth: the service accepts `Authorization: Bearer <key>` as an equivalent of its
+native `X-API-Key`, which is what `SENTIMENT_SERVICE_TOKEN` sends.
+
+### Running it locally against the docker stack
+
+```bash
+# infra/.env — compose does NOT read apps/api/.env
+SENTIMENT_PROVIDER=http
+SENTIMENT_SERVICE_URL=http://host.docker.internal:18000/v1
+SENTIMENT_MODEL_HINT=sentiment-pipeline
+```
+
+`SENTIMENT_SERVICE_URL` carries the `/v1` prefix because `HttpProvider` posts to
+`{base_url}/score`. Then:
+
+```bash
+docker exec stockviz-api python -m stockviz.cli news AAPL MSFT NVDA
+docker exec stockviz-api python -m stockviz.cli score-sentiment
+docker exec stockviz-api python -m stockviz.cli sentiment-aggregate
+curl http://127.0.0.1:8000/v1/symbols/NVDA/sentiment
+```
+
+**Caveat — market specialisation.** The extractor's system prompt is written for
+*Indian* financial news (NSE symbols, crore/lakh conversion). The schema and the
+sentiment/confidence semantics are market-agnostic and map cleanly, but scoring a
+US-equity corpus with it is running the model outside its prompt's stated domain.
+Treat US scores as unvalidated until the prompt is generalised or a second
+profile is added.

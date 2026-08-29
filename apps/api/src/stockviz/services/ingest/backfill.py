@@ -82,6 +82,10 @@ def backfill_price_bars_from_csvs(
             continue
         written[ticker] = upsert_bars(session, bars)
         logger.info("backfill: %s — %d bars from %s", ticker, written[ticker], path.name)
+    # upsert_bars stages rows only. This is the high-level CLI/e2e path, so
+    # persist the batch; otherwise Session.__exit__ rolls the bars back.
+    if written:
+        session.commit()
     return written
 
 

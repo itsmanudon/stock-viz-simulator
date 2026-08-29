@@ -10,6 +10,13 @@ export type ScreenParams = {
   momentumMax?: number;
   near52wHigh?: boolean;
   near52wLow?: boolean;
+  /**
+   * Opt into the Next data cache. Left unset (uncached) for the screener page,
+   * where the user just changed a filter and expects their own query back; the
+   * marketing tour sets it, since that panel is the same canned query for
+   * every visitor.
+   */
+  revalidateSeconds?: number;
 };
 
 export function screenSymbols(params: ScreenParams = {}): Promise<ScreenerResult[]> {
@@ -23,5 +30,10 @@ export function screenSymbols(params: ScreenParams = {}): Promise<ScreenerResult
   if (params.near52wHigh) q.set("near_52w_high", "true");
   if (params.near52wLow) q.set("near_52w_low", "true");
   const qs = q.toString();
-  return apiGet<ScreenerResult[]>(`/v1/symbols/screen${qs ? `?${qs}` : ""}`);
+  return apiGet<ScreenerResult[]>(
+    `/v1/symbols/screen${qs ? `?${qs}` : ""}`,
+    params.revalidateSeconds === undefined
+      ? undefined
+      : { revalidateSeconds: params.revalidateSeconds, tags: ["screener"] },
+  );
 }

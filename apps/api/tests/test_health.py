@@ -21,6 +21,27 @@ from stockviz.db import get_session
 from stockviz.main import app
 
 
+def test_live_is_ok_without_touching_the_database() -> None:
+    """Liveness must not depend on Postgres, Kafka, or providers."""
+
+    class _BrokenSession:
+        def exec(self, *_args, **_kwargs):
+            raise RuntimeError("connection refused")
+
+    def _override() -> Iterator[object]:
+        yield _BrokenSession()
+
+    app.dependency_overrides[get_session] = _override
+    try:
+        with TestClient(app) as isolated:
+            response = isolated.get("/live")
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok"}
+
+
 def test_health_reports_ok_when_the_database_answers(session: Session, client: TestClient) -> None:
     response = client.get("/health")
 

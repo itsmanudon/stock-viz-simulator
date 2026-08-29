@@ -37,6 +37,21 @@ export type SymbolDetail = Symbol & {
   latest: Quote | null;
 };
 
+export type EarningsEvent = {
+  id: number;
+  ticker: string;
+  name: string;
+  event_date: string;
+  report_time: string | null;
+  fiscal_period: string | null;
+  eps_estimate: string | null;
+  eps_actual: string | null;
+  surprise_pct: string | null;
+  result: "beat" | "miss" | "in_line" | "unknown";
+  source: string;
+  fetched_at: string;
+};
+
 export type Bar = {
   ts: string;
   open: string;
@@ -78,12 +93,21 @@ export type Indicators = {
   macd: MACDPoint[] | null;
 };
 
+export type RecommendationVote = {
+  id: string;
+  label: string;
+  passed: boolean;
+  detail: string;
+};
+
 export type Recommendation = {
   ticker: string;
   name: string;
   sector: string | null;
   score: number;
   rationale: string[];
+  votes: RecommendationVote[];
+  sentiment_7d: number | null;
   computed_at: string;
 };
 
@@ -99,6 +123,7 @@ export type ScreenerResult = {
   momentum_days: number | null;
   high_52w: string;
   low_52w: string;
+  sentiment_7d: number | null;
 };
 
 export type BacktestStrategy =

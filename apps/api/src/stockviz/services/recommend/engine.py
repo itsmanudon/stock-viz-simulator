@@ -2,10 +2,11 @@
 
 Pure function ``score_ticker(bars)`` takes the bar series and returns a
 ``RecommendationResult`` with the integer score (0..MAX_SCORE), the boolean
-``recommend`` flag, and per-vote rationale strings. ``score_universe``
-iterates every active symbol in the DB and writes the latest result into
-the ``recommendations`` table so the API can serve it without re-running
-the algo per request.
+``recommend`` flag, per-vote rationale strings, and structured ``votes`` so
+the Signals workspace can show pass/fail evidence without re-running the
+algo. ``score_universe`` iterates every active symbol in the DB and writes
+the latest result into the ``recommendations`` table so the API can serve
+it without re-running the algo per request.
 """
 
 from __future__ import annotations
@@ -14,6 +15,7 @@ import logging
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
+from typing import Any
 
 import numpy as np
 from sqlmodel import Session, select
@@ -42,6 +44,36 @@ penalised for it."""
 TREND_LOOKBACK = 3
 SLOPE_LOOKBACK = 5
 
+# Stable ids + labels for the seven votes, in engine order. Matching needles
+# reconstruct votes from older rows that only stored passing rationale strings.
+VOTE_SPECS: tuple[tuple[str, str, str], ...] = (
+    ("below_mean", "Below historical mean", "Below historical mean"),
+    ("below_median", "Below historical median", "Below historical median"),
+    ("within_one_stdev", "Within 1 stdev below mean", "Within 1 stdev below mean"),
+    ("volume_above_mean", "Volume above average", "Volume above average"),
+    ("recent_uptrend", "3-bar uptrend", "uptrend"),
+    ("positive_slope", "Positive 5-bar slope", "-bar slope"),
+    ("positive_sentiment", "Positive news sentiment", "Positive news sentiment"),
+)
+
+
+@dataclass(frozen=True, slots=True)
+class Vote:
+    """One of the seven deterministic checks.
+
+    ``detail`` is the human evidence string. For a passing vote it is exactly
+    the rationale phrase persisted historically; for a failing vote it explains
+    why the check did not contribute. Pass/fail logic is unchanged.
+    """
+
+    id: str
+    label: str
+    passed: bool
+    detail: str
+
+    def as_dict(self) -> dict[str, Any]:
+        return {"id": self.id, "label": self.label, "passed": self.passed, "detail": self.detail}
+
 
 @dataclass(frozen=True, slots=True)
 class RecommendationResult:
@@ -50,63 +82,180 @@ class RecommendationResult:
     recommend: bool
     rationale: list[str]
     computed_at: datetime
+    votes: list[Vote]
 
 
-def _vote_below_mean(current: float, mean: float) -> str | None:
-    return f"Below historical mean (${current:.2f} < ${mean:.2f})" if current < mean else None
+def _vote_below_mean(current: float, mean: float) -> Vote:
+    passed = current < mean
+    if passed:
+        detail = f"Below historical mean (${current:.2f} < ${mean:.2f})"
+    else:
+        detail = f"Not below historical mean (${current:.2f} ≥ ${mean:.2f})"
+    return Vote("below_mean", "Below historical mean", passed, detail)
 
 
-def _vote_below_median(current: float, median: float) -> str | None:
-    return f"Below historical median (${current:.2f} < ${median:.2f})" if current < median else None
+def _vote_below_median(current: float, median: float) -> Vote:
+    passed = current < median
+    if passed:
+        detail = f"Below historical median (${current:.2f} < ${median:.2f})"
+    else:
+        detail = f"Not below historical median (${current:.2f} ≥ ${median:.2f})"
+    return Vote("below_median", "Below historical median", passed, detail)
 
 
-def _vote_within_one_stdev(current: float, mean: float, stdev: float) -> str | None:
-    if stdev <= 0 or current >= mean:
-        return None
+def _vote_within_one_stdev(current: float, mean: float, stdev: float) -> Vote:
+    label = "Within 1 stdev below mean"
+    if stdev <= 0:
+        return Vote(
+            "within_one_stdev",
+            label,
+            False,
+            "Historical stdev is zero or undefined",
+        )
+    if current >= mean:
+        return Vote(
+            "within_one_stdev",
+            label,
+            False,
+            f"Not below the mean (${current:.2f} ≥ ${mean:.2f})",
+        )
     if abs(current - mean) > stdev:
-        return None
-    return f"Within 1 stdev below mean (gap ${mean - current:.2f}, stdev ${stdev:.2f})"
+        return Vote(
+            "within_one_stdev",
+            label,
+            False,
+            f"More than 1 stdev below mean (gap ${mean - current:.2f}, stdev ${stdev:.2f})",
+        )
+    return Vote(
+        "within_one_stdev",
+        label,
+        True,
+        f"Within 1 stdev below mean (gap ${mean - current:.2f}, stdev ${stdev:.2f})",
+    )
 
 
-def _vote_volume_above_mean(current: float, mean: float) -> str | None:
+def _vote_volume_above_mean(current: float, mean: float) -> Vote:
+    label = "Volume above average"
     if mean <= 0:
-        return None
-    return f"Volume above average ({current:,.0f} vs avg {mean:,.0f})" if current > mean else None
+        return Vote("volume_above_mean", label, False, "Historical average volume is unavailable")
+    passed = current > mean
+    if passed:
+        detail = f"Volume above average ({current:,.0f} vs avg {mean:,.0f})"
+    else:
+        detail = f"Volume not above average ({current:,.0f} vs avg {mean:,.0f})"
+    return Vote("volume_above_mean", label, passed, detail)
 
 
-def _vote_recent_uptrend(closes: list[float]) -> str | None:
+def _vote_recent_uptrend(closes: list[float]) -> Vote:
+    label = f"{TREND_LOOKBACK}-bar uptrend"
     if len(closes) < TREND_LOOKBACK:
-        return None
+        return Vote(
+            "recent_uptrend", label, False, f"Fewer than {TREND_LOOKBACK} historical closes"
+        )
     recent = closes[-TREND_LOOKBACK:]
-    if all(recent[i] > recent[i - 1] for i in range(1, len(recent))):
-        return f"{TREND_LOOKBACK}-bar uptrend ({recent[0]:.2f} → {recent[-1]:.2f})"
-    return None
+    passed = all(recent[i] > recent[i - 1] for i in range(1, len(recent)))
+    if passed:
+        detail = f"{TREND_LOOKBACK}-bar uptrend ({recent[0]:.2f} → {recent[-1]:.2f})"
+    else:
+        detail = f"No {TREND_LOOKBACK}-bar uptrend ({recent[0]:.2f} → {recent[-1]:.2f})"
+    return Vote("recent_uptrend", label, passed, detail)
 
 
-def _vote_positive_sentiment(mean_score: float | None, article_count: int) -> str | None:
+def _vote_positive_sentiment(mean_score: float | None, article_count: int) -> Vote:
     """Vote when the trailing-week news sentiment is clearly positive.
 
-    The seventh vote, and the only one that isn't derived from price. It gives
-    ``/recommendations`` a reason to move when the news does — previously the
-    sentiment pipeline fed a badge and nothing else.
+    The seventh vote, and the only one that isn't derived from price. A
+    symbol with no scored news simply doesn't get the vote, rather than
+    being penalised for it.
     """
+    label = "Positive news sentiment"
     if mean_score is None or article_count == 0:
-        return None
+        return Vote("positive_sentiment", label, False, "No scored headlines in the trailing week")
     if mean_score <= SENTIMENT_VOTE_THRESHOLD:
-        return None
-    return f"Positive news sentiment ({mean_score:+.2f} over {article_count} article(s))"
+        return Vote(
+            "positive_sentiment",
+            label,
+            False,
+            f"News sentiment not clearly positive ({mean_score:+.2f} over {article_count} article(s))",
+        )
+    return Vote(
+        "positive_sentiment",
+        label,
+        True,
+        f"Positive news sentiment ({mean_score:+.2f} over {article_count} article(s))",
+    )
 
 
-def _vote_positive_slope(closes: list[float]) -> str | None:
+def _vote_positive_slope(closes: list[float]) -> Vote:
+    label = f"Positive {SLOPE_LOOKBACK}-bar slope"
     if len(closes) < SLOPE_LOOKBACK:
-        return None
+        return Vote(
+            "positive_slope",
+            label,
+            False,
+            f"Fewer than {SLOPE_LOOKBACK} historical closes",
+        )
     y = np.array(closes[-SLOPE_LOOKBACK:], dtype=float)
     x = np.arange(SLOPE_LOOKBACK, dtype=float)
     try:
         slope = float(np.polyfit(x, y, 1)[0])
     except (np.linalg.LinAlgError, ValueError):
-        return None
-    return f"Positive {SLOPE_LOOKBACK}-bar slope ({slope:+.4f}/bar)" if slope > 0 else None
+        return Vote("positive_slope", label, False, "Slope could not be estimated")
+    passed = slope > 0
+    if passed:
+        detail = f"Positive {SLOPE_LOOKBACK}-bar slope ({slope:+.4f}/bar)"
+    else:
+        detail = f"Non-positive {SLOPE_LOOKBACK}-bar slope ({slope:+.4f}/bar)"
+    return Vote("positive_slope", label, passed, detail)
+
+
+def votes_from_rationale(rationale: list[str]) -> list[Vote]:
+    """Rebuild the seven-vote list from stored passing rationale strings.
+
+    Older recommendation rows only persisted the passing phrases. Failed
+    votes are marked as not contributing; their metric detail is unknown.
+    """
+    remaining = list(rationale)
+    votes: list[Vote] = []
+    for vote_id, label, needle in VOTE_SPECS:
+        match = next((item for item in remaining if needle.lower() in item.lower()), None)
+        if match is not None:
+            remaining.remove(match)
+            votes.append(Vote(vote_id, label, True, match))
+        else:
+            votes.append(
+                Vote(
+                    vote_id,
+                    label,
+                    False,
+                    f"{label} did not contribute to this score",
+                )
+            )
+    return votes
+
+
+def votes_from_payload(payload: list[Any] | None, rationale: list[str]) -> list[Vote]:
+    """Prefer persisted structured votes; fall back to rationale reconstruction."""
+    if not payload:
+        return votes_from_rationale(rationale)
+    votes: list[Vote] = []
+    for item in payload:
+        if not isinstance(item, dict):
+            return votes_from_rationale(rationale)
+        try:
+            votes.append(
+                Vote(
+                    id=str(item["id"]),
+                    label=str(item["label"]),
+                    passed=bool(item["passed"]),
+                    detail=str(item["detail"]),
+                )
+            )
+        except KeyError:
+            return votes_from_rationale(rationale)
+    if len(votes) != MAX_SCORE:
+        return votes_from_rationale(rationale)
+    return votes
 
 
 def score_ticker(
@@ -143,8 +292,7 @@ def score_ticker(
     hist_stdev = float(np.std(hist_prices, ddof=1)) if len(hist_prices) > 1 else 0.0
     hist_vol_mean = float(np.mean(hist_volumes))
 
-    rationale: list[str] = []
-    for vote in (
+    votes = [
         _vote_below_mean(current_price, hist_mean),
         _vote_below_median(current_price, hist_median),
         _vote_within_one_stdev(current_price, hist_mean, hist_stdev),
@@ -152,10 +300,8 @@ def score_ticker(
         _vote_recent_uptrend(hist_prices),
         _vote_positive_slope(hist_prices),
         _vote_positive_sentiment(sentiment_7d, sentiment_article_count),
-    ):
-        if vote is not None:
-            rationale.append(vote)
-
+    ]
+    rationale = [vote.detail for vote in votes if vote.passed]
     score = len(rationale)
     return RecommendationResult(
         ticker=ticker,
@@ -163,6 +309,7 @@ def score_ticker(
         recommend=score >= VOTE_THRESHOLD,
         rationale=rationale,
         computed_at=utcnow(),
+        votes=votes,
     )
 
 
@@ -222,6 +369,7 @@ def score_universe(
                     ticker=result.ticker,
                     score=Decimal(result.score),
                     rationale="; ".join(result.rationale) or None,
+                    votes=[vote.as_dict() for vote in result.votes],
                     computed_at=result.computed_at,
                 )
             )

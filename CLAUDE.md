@@ -5,18 +5,20 @@ code in this repository.
 
 # StockViz — agent guide
 
-Two-app pnpm + uv monorepo. See [`REWRITE_PLAN.md`](./REWRITE_PLAN.md) for the
-v2 rewrite history (**historical** — all seven phases shipped; its "open
-questions" sections are long resolved, don't treat them as current) and
-[`README.md`](./README.md) for setup/deploy.
+Two-app pnpm + uv monorepo. See [`README.md`](./README.md) for the current
+architecture and setup, and [`docs/ENGINEERING_ROADMAP.md`](./docs/ENGINEERING_ROADMAP.md)
+for the remaining honest gaps.
 
 ## Layout you'll actually touch
 
 ```
 apps/web/    Next.js 16 (App Router, React 19, TS, Tailwind v4, NextAuth v5) + Playwright e2e
 apps/api/    FastAPI + SQLModel + Alembic + APScheduler (Python 3.12, uv)
-infra/       docker-compose (local Postgres) + render.yaml (prod blueprint)
-.github/workflows/ci.yml   web, api, security (advisory audit), docker, e2e
+infra/       docker-compose (local Postgres; Kafka via `--profile events`) + render.yaml
+             k8s/ (Kustomize layers: bootstrap → migrate → app → scale; Strimzi)
+scripts/k8s/ kind create / build / deploy / smoke / destroy
+.github/workflows/ci.yml   web, api, events-integration, security, docker, e2e
+.github/workflows/k8s-smoke.yml   kind + Strimzi + migrate Job + smoke + reduced Kafka benchmark
 ```
 
 Each app has its own `CLAUDE.md` with deeper notes. Skim those before editing.
@@ -28,25 +30,51 @@ includes: paper trading with **pending limit/stop orders** and **options**
 (pricing, positions, expiry settlement), **dividends** and **multi-currency
 FX**, **backtesting** (`/backtest`), **screener**, **leaderboard**,
 **watchlists**, **price alerts**, per-ticker **comments** and **AI sentiment**
-(Anthropic, optional), and a simulated live price ticker over **SSE**
+(Anthropic, optional), and a **simulated quote** ticker over **SSE**
 (`/v1/stream/quotes/{ticker}` — Gaussian random walk from the latest close,
-not real-time data).
+not exchange real-time data). Remaining product/ops constraints:
+[`docs/KNOWN_LIMITATIONS.md`](./docs/KNOWN_LIMITATIONS.md).
 
 News sentiment runs through a pluggable provider (Anthropic, an external HTTP
 service, or off) and feeds a screener filter, a recommendation vote, and a
 per-ticker series at `/v1/symbols/{ticker}/sentiment` — see
-[`docs/SENTIMENT.md`](./docs/SENTIMENT.md).
+[`docs/SENTIMENT.md`](./docs/SENTIMENT.md). Compare, Backtest, and Signals
+form the Research workspace; see [`docs/RESEARCH.md`](./docs/RESEARCH.md).
+Trade, Orders, Watchlist, and Alerts form the operational trading loop; see
+[`docs/OPERATIONAL_TRADING.md`](./docs/OPERATIONAL_TRADING.md). All live
+equity paper fills (MARKET, LIMIT, STOP_LOSS, TAKE_PROFIT) go through a
+pure execution kernel (`legacy_close`); cash/positions still mutate in
+`apply_fill`. Successful live fills persist versioned execution provenance.
+Replay sessions (`/replay`) are an isolated book over a frozen 1d
+historical range; the server owns PriceBar selection. Replay Lab is
+future-blind. Post-trade forensics reconstruct episodes, MAE/MFE,
+buy-and-hold excess, and a first-fill-locked journal from replay-visible
+bars only. See
+[`docs/SIMULATION.md`](./docs/SIMULATION.md).
+
+Market and news ingest are **event-driven**. APScheduler enqueues durable
+outbox requests; Kafka workers fetch providers and write Postgres. Metrics
+and sentiment-aggregate jobs remain full-universe reconciliation. Trading
+still commits the ledger in FastAPI. See
+[`docs/EVENT_DRIVEN_ARCHITECTURE.md`](./docs/EVENT_DRIVEN_ARCHITECTURE.md).
 
 ## Common commands
 
 ```bash
 pnpm db:up                                   # local Postgres on 127.0.0.1:5434
+pnpm stack:up                                # full docker stack: db + api + web
+pnpm stack:seed                              # populate demo accounts and trades
+pnpm stack:logs                              # tail api + web containers
+pnpm stack:down                              # stop the app containers
+pnpm events:up                               # KRaft Kafka + topic init (`--profile events`)
 pnpm api:migrate                             # alembic upgrade head
 pnpm api:dev                                 # uvicorn --reload on :8000
 pnpm dev                                     # Next.js dev server on :3000 (or next free port)
 pnpm lint && pnpm typecheck && pnpm build    # web + api lint, TS, build
 uv --directory apps/api run pytest           # API tests (pytest -k <name> to focus)
 pnpm e2e                                     # Playwright (needs built web + running API)
+pnpm k8s:create && pnpm k8s:build && pnpm k8s:deploy && pnpm k8s:smoke
+                                             # kind + Strimzi lab (needs Docker)
 ```
 
 ## Adding a feature end-to-end
@@ -71,15 +99,12 @@ new resource, walk the chain in order:
 8. If the data needs periodic refresh, add a `scheduler.py` job **and** a
    matching `cli.py` subcommand (every job has a manual CLI twin).
 
-## Feature backlog
+## Current gaps
 
-[`docs/IDEAS.md`](./docs/IDEAS.md) is now a **changelog plus a short live
-backlog** — the original 16-item roadmap all shipped, so listing it in the
-future tense had agents proposing to rebuild the screener. Still cross-check
-any idea against the code before starting it.
-
-[`docs/CODEBASE_REVIEW.md`](./docs/CODEBASE_REVIEW.md) is the audit those
-fixes came from; its section numbers are referenced from commit messages.
+Use [`docs/KNOWN_LIMITATIONS.md`](./docs/KNOWN_LIMITATIONS.md) for verified
+constraints and [`docs/ENGINEERING_ROADMAP.md`](./docs/ENGINEERING_ROADMAP.md)
+for possible production hardening. Cross-check any proposal against the code
+before starting it.
 
 ## Remotes
 
@@ -101,10 +126,11 @@ main ← dev ← feat/* | fix/* | chore/*
 `main` receives **only** merges of `dev` — never merge a feature/fix/chore
 branch, Cursor agent branch, or hotfix into `main` directly.
 
-- **`main`** — release branch. Auto-deployments (Vercel + Render) are
-  **disabled**, so `dev` can be merged into `main` freely after any set of
-  changes — no milestone gate required. Do **not** open PRs against `main`
-  except a `dev` → `main` promotion PR.
+- **`main`** — release branch. Intended production hosts are Vercel (web) and
+  Render (API + DB). `infra/render.yaml` has `autoDeploy: true`; whether a
+  dashboard currently deploys on push is owner-controlled and **not** recorded
+  in this repo. Promote with a `dev` → `main` merge (or PR). Do **not** open
+  PRs against `main` except that promotion.
 - **`dev`** — the integration branch. All feature/fix/chore PRs target `dev`.
   Kept green at all times; merged into `main` for each deployable release.
 - **`feat/<name>`**, **`fix/<name>`**, **`chore/<name>`** — short-lived
@@ -124,8 +150,48 @@ Tags:
 - `v2.0.0` — the moment v1 and v2 coexisted, right before the v1 tree was
   deleted (`git checkout v2.0.0` to see both side-by-side).
 
-The phase-by-phase rewrite history is preserved as merge commits in `main`'s
-log; see `REWRITE_PLAN.md` for background.
+The rewrite history is preserved in the Git log and release tags; it is not
+current architecture guidance.
+
+## Running the whole thing in Docker
+
+Compose does **not** read `apps/api/.env`. Provider credentials
+(`NEWSDATA_KEY`, `ANTHROPIC_API_KEY`, `SENTIMENT_*`, `ALPHA_VANTAGE_KEY`) must be
+set in `infra/.env` or they never reach the container, and news ingest and
+sentiment scoring silently no-op. See `infra/.env.example`.
+
+`pnpm stack:up` builds and starts `api` (:8000) and `web` (:3100) alongside
+Postgres, using the **`app` compose profile** — so plain `pnpm db:up` stays a
+fast Postgres-only start for native development. Postgres already uses a named
+volume (`stockviz_postgres_data`), so data survives `stack:down`.
+
+The web image runs a **production** build, and `apps/web/lib/env.ts`
+deliberately refuses the dev secrets committed to this repo when
+`NODE_ENV=production`. So the stack needs real values: copy
+`infra/.env.example` to `infra/.env` and generate both with
+`openssl rand -base64 32`. `INTERNAL_API_TOKEN` must be identical for the two
+services or every authenticated `/v1` call 401s. `infra/.env` is gitignored.
+
+Web publishes **3100**, not 3000 — 3000 is commonly taken by another local
+project. `AUTH_URL` stays unset so NextAuth derives the origin from the request
+host, which is why `AUTH_TRUST_HOST=true` is set.
+
+Symbols are seeded with only ticker and name; `sector` and `exchange` come from
+`stockviz.cli metadata` (yfinance, needs network). Run it once after seeding or
+the markets/screener classification columns stay empty:
+
+```bash
+docker exec stockviz-api python -m stockviz.cli metadata
+```
+
+`pnpm stack:seed` (`apps/web/scripts/seed-demo.mjs`) fills the database with
+three demo accounts, their trades, pending orders, alerts, watchlists, and 120
+days of NAV snapshots. Trades go through the **real API** so cash, average
+cost, and realized P&L stay consistent with the trading engine; only
+`portfolio_snapshots` are written directly, because they are a derived daily
+cache that no endpoint can backdate. See the script header for why cost basis
+is derived from today's close rather than read from history (the bundled CSVs
+are not split-adjusted).
 
 ## Common gotchas (Windows dev)
 
@@ -165,8 +231,8 @@ gh issue close <n> --repo itsmanudon/stock-viz-simulator
 
 `pnpm lint && pnpm typecheck && pnpm build && uv --directory apps/api run pytest` — all
 of these run in CI on PRs, plus a full-stack **e2e job** (migrate + seed +
-backfill against a real Postgres, start the API, build the web app, run
-Playwright). Don't bypass with `--no-verify` etc.
+backfill + recommend against a real Postgres, start the API, build the web app,
+run Playwright). Don't bypass with `--no-verify` etc.
 
 ## Auth bridge (web ↔ api)
 
@@ -185,19 +251,20 @@ older docs/comments mentioning those headers are historical.
 Full lists live in `apps/web/.env.example` and `apps/api/.env.example`
 (committed values are safe dev defaults). The ones that cause real breakage:
 
-| Var | App(s) | What breaks / notes |
-| --- | --- | --- |
-| `INTERNAL_API_TOKEN` | both — **must be identical** | signs/verifies the web→api JWT; mismatch = every authed `/v1` call 401s |
-| `AUTH_SECRET` | web | NextAuth session JWT signing |
-| `AUTH_TRUST_HOST=true` | web | needed whenever you run a **production** build outside Vercel (CI e2e, local `next start`) |
-| `DATABASE_URL` | both | web wants plain `postgres://` (node-postgres); the API rewrites `postgres://`→`postgresql+psycopg://` in `settings.py`, don't fight it |
-| `ENABLE_SCHEDULER` | api | off by default; only Render sets `true` |
-| `RATELIMIT_ENABLED=0` | api | disables the slowapi rate limiter (handy for tests/load scripts) |
-| `ALPHA_VANTAGE_KEY`, `NEWSDATA_KEY`, `ANTHROPIC_API_KEY` | api | ingest / news / sentiment **silently no-op** (log + skip) when blank |
-| `SENTIMENT_PROVIDER` | api | `none` (default) \| `anthropic` \| `http`. Blank resolves to `anthropic` when `ANTHROPIC_API_KEY` is set. See [`docs/SENTIMENT.md`](./docs/SENTIMENT.md) |
-| `SENTIMENT_SERVICE_URL`, `SENTIMENT_SERVICE_TOKEN` | api | only read when `SENTIMENT_PROVIDER=http` — the standalone scoring service |
-| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | web | Google OAuth sign-in |
-| `NEXTAUTH_JWT_SECRET` | api | **legacy** — still in `settings.py` but no longer read by the auth bridge |
+| Var                                                      | App(s)                       | What breaks / notes                                                                                                                                                                                                          |
+| -------------------------------------------------------- | ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `INTERNAL_API_TOKEN`                                     | both — **must be identical** | signs/verifies the web→api JWT; mismatch = every authed `/v1` call 401s                                                                                                                                                      |
+| `AUTH_SECRET`                                            | web                          | NextAuth session JWT signing                                                                                                                                                                                                 |
+| `AUTH_TRUST_HOST=true`                                   | web                          | needed whenever you run a **production** build outside Vercel (CI e2e, local `next start`)                                                                                                                                   |
+| `DATABASE_URL`                                           | both                         | web wants plain `postgres://` (node-postgres); the API rewrites `postgres://`→`postgresql+psycopg://` in `settings.py`, don't fight it                                                                                       |
+| `ENABLE_SCHEDULER`                                       | api                          | off by default; Render sets `true` (in-process). Kubernetes API pods keep it `false` and run `python -m stockviz.workers.scheduler`                                                                                          |
+| `RATELIMIT_ENABLED=0`                                    | api                          | disables the slowapi rate limiter (handy for tests/load scripts)                                                                                                                                                             |
+| `ALPHA_VANTAGE_KEY`, `NEWSDATA_KEY`, `ANTHROPIC_API_KEY` | api                          | News (`NEWSDATA_KEY`) and sentiment (`ANTHROPIC_API_KEY`) **silently no-op** when blank. A blank `ALPHA_VANTAGE_KEY` only skips the Alpha Vantage **fallback**; the market-ingest worker still uses yfinance for daily OHLCV |
+| `SENTIMENT_PROVIDER`                                     | api                          | `none` (default) \| `anthropic` \| `http`. Blank resolves to `anthropic` when `ANTHROPIC_API_KEY` is set. See [`docs/SENTIMENT.md`](./docs/SENTIMENT.md)                                                                     |
+| `SENTIMENT_SERVICE_URL`, `SENTIMENT_SERVICE_TOKEN`       | api                          | only read when `SENTIMENT_PROVIDER=http` — the standalone scoring service. `HttpProvider` posts to `{URL}/score`, so include any path prefix the service uses (e.g. `.../v1`) |
+| `KAFKA_BOOTSTRAP_SERVERS`                                | api workers                  | defaults to `localhost:9092`; workers run inside compose need `kafka:29092`. The API never produces to Kafka, so the compose `api` service does not set it |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`               | web                          | Google OAuth sign-in                                                                                                                                                                                                         |
+| `NEXTAUTH_JWT_SECRET`                                    | api                          | **legacy** — still in `settings.py` but no longer read by the auth bridge                                                                                                                                                    |
 
 ## Sentry
 
@@ -209,9 +276,12 @@ work fine without one. Env vars live in `apps/web/.env.example` and
 
 - Web → Vercel (`apps/web/vercel.json`)
 - API + DB → Render (`infra/render.yaml`)
+- kind / CI lab → [`docs/KUBERNETES.md`](./docs/KUBERNETES.md) (Kustomize +
+  Strimzi). Not a production control plane.
 
-Daily refresh runs **in-process** via APScheduler (`ENABLE_SCHEDULER=true`)
-inside the FastAPI service — there's no separate cron service in the
-Blueprint because Render dropped the free cron tier. The `stockviz` CLI
-subcommands re-run the same job logic manually. See `docs/DEPLOYMENT.md`
-for how to re-add a cron service on a paid plan.
+Daily refresh on Render runs **in-process** via APScheduler
+(`ENABLE_SCHEDULER=true`) inside the FastAPI service — there's no separate
+cron service in the Blueprint because Render dropped the free cron tier.
+Kubernetes runs the same jobs in a singleton scheduler Deployment. The
+`stockviz` CLI subcommands re-run the same job logic manually. See
+`docs/DEPLOYMENT.md` for how to re-add a cron service on a paid plan.

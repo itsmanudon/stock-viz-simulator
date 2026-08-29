@@ -3,6 +3,7 @@
     uv run python -m stockviz.cli seed
     uv run python -m stockviz.cli backfill
     uv run python -m stockviz.cli ingest AAPL [MSFT ...]
+    uv run python -m stockviz.cli news AAPL [MSFT ...]
 
 Kept argparse-only so we don't add another dep. The scheduler covers the
 recurring path; this module is for manual setup and debugging.
@@ -23,6 +24,7 @@ from stockviz.services.ingest.backfill import (
     ensure_symbols_for_backfill,
 )
 from stockviz.services.ingest.dividends import ingest_dividends_for_all
+from stockviz.services.ingest.earnings import ingest_earnings_for_all
 from stockviz.services.ingest.fx import ingest_fx
 from stockviz.services.ingest.metadata import backfill_symbol_metadata
 from stockviz.services.ingest.prices import ingest_ticker
@@ -47,6 +49,7 @@ def _cmd_backfill(_args: argparse.Namespace) -> int:
     with Session(engine) as session:
         ensure_symbols_for_backfill(session)
         written = backfill_price_bars_from_csvs(session)
+        session.commit()
     total = sum(written.values())
     print(f"backfilled {total} bars across {len(written)} tickers")
     for ticker, n in sorted(written.items()):
@@ -109,6 +112,18 @@ def _cmd_dividends(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_earnings(args: argparse.Namespace) -> int:
+    """Refresh the provider-backed earnings calendar for active symbols."""
+    with Session(engine) as session:
+        results = ingest_earnings_for_all(session, only=args.tickers or None)
+    total = sum(results.values())
+    print(f"ingested {total} earnings rows across {len(results)} tickers")
+    for ticker, n in sorted(results.items()):
+        if n:
+            print(f"  {ticker}: {n}")
+    return 0
+
+
 def _cmd_credit_dividends(_args: argparse.Namespace) -> int:
     from stockviz._time import utcnow
 
@@ -140,6 +155,54 @@ def _cmd_settle_options(_args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_run_scheduler(_args: argparse.Namespace) -> int:
+    from stockviz.workers.scheduler import main as scheduler_main
+
+    return scheduler_main()
+
+
+def _cmd_publish_outbox(args: argparse.Namespace) -> int:
+    from stockviz.workers.outbox_publisher import main as publisher_main
+
+    return publisher_main(["--once"] if args.once else [])
+
+
+def _cmd_consume_trade_activity(args: argparse.Namespace) -> int:
+    from stockviz.workers.trade_activity_consumer import main as consumer_main
+
+    return consumer_main(["--once"] if args.once else [])
+
+
+def _cmd_consume_market_ingest(args: argparse.Namespace) -> int:
+    from stockviz.workers.market_ingest_consumer import main as consumer_main
+
+    return consumer_main(["--once"] if args.once else [])
+
+
+def _cmd_consume_market_analytics(args: argparse.Namespace) -> int:
+    from stockviz.workers.market_analytics_consumer import main as consumer_main
+
+    return consumer_main(["--once"] if args.once else [])
+
+
+def _cmd_consume_news_ingest(args: argparse.Namespace) -> int:
+    from stockviz.workers.news_ingest_consumer import main as consumer_main
+
+    return consumer_main(["--once"] if args.once else [])
+
+
+def _cmd_consume_news_sentiment(args: argparse.Namespace) -> int:
+    from stockviz.workers.news_sentiment_consumer import main as consumer_main
+
+    return consumer_main(["--once"] if args.once else [])
+
+
+def _cmd_consume_sentiment_aggregate(args: argparse.Namespace) -> int:
+    from stockviz.workers.sentiment_aggregate_consumer import main as consumer_main
+
+    return consumer_main(["--once"] if args.once else [])
+
+
 def _cmd_fx(args: argparse.Namespace) -> int:
     currencies = (
         [c.upper() for c in args.currencies] if args.currencies else _default_fx_currencies()
@@ -167,6 +230,72 @@ def _default_fx_currencies() -> list[str]:
             )
         )
     return [r for r in rows if r]
+
+
+def _cmd_news(args: argparse.Namespace) -> int:
+    """Manual twin of the news-ingest Kafka consumer.
+
+    Builds the same ``news.refresh.requested`` envelope the scheduler enqueues
+    and hands it to the consumer's own ``process_payload``. Provider I/O,
+    de-duplication, the ``news.article.ingested`` outbox rows and the inbox
+    receipt are therefore the worker's code, not a second copy of it — the only
+    thing this skips is the trip through Kafka.
+    """
+    from sqlmodel import select
+
+    from stockviz.events.outbox import build_news_refresh_requested
+    from stockviz.models import Symbol
+    from stockviz.scheduler import company_name_map
+    from stockviz.workers.news_ingest_consumer import process_payload
+
+    settings = get_settings()
+    if not settings.newsdata_key:
+        print(
+            "news: NEWSDATA_KEY is not set — the provider cannot be called, so "
+            "this would silently ingest nothing. Refusing to run.",
+            file=sys.stderr,
+        )
+        return 2
+
+    if args.tickers:
+        tickers = [t.strip().upper() for t in args.tickers]
+    else:
+        with Session(engine) as session:
+            tickers = list(session.exec(select(Symbol.ticker).where(Symbol.is_active)).all())
+    if not tickers:
+        print("news: no tickers to refresh")
+        return 0
+
+    names = company_name_map()
+    total = 0
+    for ticker in tickers:
+        query = names.get(ticker, ticker)
+        envelope = build_news_refresh_requested(
+            ticker=ticker,
+            company_name=query,
+            reason="manual",
+        )
+        before = _news_article_count(ticker)
+        result = process_payload(envelope.model_dump(mode="json"))
+        inserted = _news_article_count(ticker) - before
+        total += inserted
+        print(f"  {ticker}: {inserted} new ({result}, query={query!r})")
+    print(f"ingested {total} new article(s) across {len(tickers)} ticker(s)")
+    return 0
+
+
+def _news_article_count(ticker: str) -> int:
+    from sqlalchemy import func
+    from sqlmodel import select
+
+    from stockviz.models import NewsArticle
+
+    with Session(engine) as session:
+        return int(
+            session.exec(
+                select(func.count()).select_from(NewsArticle).where(NewsArticle.ticker == ticker)
+            ).one()
+        )
 
 
 def _cmd_ingest(args: argparse.Namespace) -> int:
@@ -203,6 +332,13 @@ def main(argv: list[str] | None = None) -> int:
     p_ingest = sub.add_parser("ingest", help="Refresh daily bars for one or more tickers")
     p_ingest.add_argument("tickers", nargs="+")
     p_ingest.set_defaults(fn=_cmd_ingest)
+
+    p_news = sub.add_parser(
+        "news",
+        help="Fetch and store news for tickers (manual twin of the news-ingest worker)",
+    )
+    p_news.add_argument("tickers", nargs="*", help="Defaults to every active symbol")
+    p_news.set_defaults(fn=_cmd_news)
 
     p_fx = sub.add_parser(
         "fx", help="Refresh daily FX rates (defaults to all non-USD currencies in use)"
@@ -241,6 +377,12 @@ def main(argv: list[str] | None = None) -> int:
     p_div.add_argument("tickers", nargs="*", help="Optional ticker filter")
     p_div.set_defaults(fn=_cmd_dividends)
 
+    p_earnings = sub.add_parser(
+        "earnings", help="Refresh upcoming and recently reported earnings dates from yfinance"
+    )
+    p_earnings.add_argument("tickers", nargs="*", help="Optional ticker filter")
+    p_earnings.set_defaults(fn=_cmd_earnings)
+
     sub.add_parser(
         "credit-dividends", help="Credit today's due dividends to all eligible portfolios"
     ).set_defaults(fn=_cmd_credit_dividends)
@@ -248,6 +390,56 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser(
         "settle-options", help="Settle every option position that has reached expiry"
     ).set_defaults(fn=_cmd_settle_options)
+
+    sub.add_parser(
+        "run-scheduler",
+        help="Run APScheduler as a dedicated process (Kubernetes singleton)",
+    ).set_defaults(fn=_cmd_run_scheduler)
+
+    p_pub = sub.add_parser(
+        "publish-outbox",
+        help="Publish unpublished outbox events to Kafka (does not run inside the API process)",
+    )
+    p_pub.add_argument("--once", action="store_true", help="Publish one batch and exit")
+    p_pub.set_defaults(fn=_cmd_publish_outbox)
+
+    p_cons = sub.add_parser(
+        "consume-trade-activity",
+        help="Consume stockviz.trades.v1 into derived portfolio activity",
+    )
+    p_cons.add_argument("--once", action="store_true", help="Handle at most one message and exit")
+    p_cons.set_defaults(fn=_cmd_consume_trade_activity)
+
+    for name, help_text, fn in (
+        (
+            "consume-market-ingest",
+            "Consume stockviz.market.v1 market.refresh.requested",
+            _cmd_consume_market_ingest,
+        ),
+        (
+            "consume-market-analytics",
+            "Consume stockviz.market.v1 market.bars.refreshed",
+            _cmd_consume_market_analytics,
+        ),
+        (
+            "consume-news-ingest",
+            "Consume stockviz.news.v1 news.refresh.requested",
+            _cmd_consume_news_ingest,
+        ),
+        (
+            "consume-news-sentiment",
+            "Consume stockviz.news.v1 news.article.ingested",
+            _cmd_consume_news_sentiment,
+        ),
+        (
+            "consume-sentiment-aggregate",
+            "Consume stockviz.news.v1 news.sentiment.scored",
+            _cmd_consume_sentiment_aggregate,
+        ),
+    ):
+        p = sub.add_parser(name, help=help_text)
+        p.add_argument("--once", action="store_true", help="Handle at most one message and exit")
+        p.set_defaults(fn=fn)
 
     args = parser.parse_args(argv)
     return args.fn(args)

@@ -69,6 +69,23 @@ class SymbolDetailOut(BaseModel):
     latest: QuoteOut | None = None
 
 
+class EarningsEventOut(BaseModel):
+    """One provider-backed earnings date for the calendar."""
+
+    id: int
+    ticker: str
+    name: str
+    event_date: date
+    report_time: str | None = None
+    fiscal_period: str | None = None
+    eps_estimate: Decimal | None = None
+    eps_actual: Decimal | None = None
+    surprise_pct: Decimal | None = None
+    result: Literal["beat", "miss", "in_line", "unknown"] = "unknown"
+    source: str
+    fetched_at: datetime
+
+
 class IndicatorPointOut(BaseModel):
     ts: datetime
     value: float
@@ -94,8 +111,22 @@ class IndicatorsOut(BaseModel):
     macd: list[MACDPointOut] | None = None
 
 
+class RecommendationVoteOut(BaseModel):
+    """One of the seven deterministic recommendation checks."""
+
+    id: str
+    label: str
+    passed: bool
+    detail: str
+
+
 class RecommendationOut(BaseModel):
-    """One row from the ``recommendations`` table, joined with the symbol name."""
+    """One row from the ``recommendations`` table, joined with the symbol name.
+
+    ``votes`` is the full seven-check evidence list. ``rationale`` remains the
+    passing phrases only so older clients keep working. ``sentiment_7d`` is the
+    trailing-week mean from ``symbol_metrics`` when present.
+    """
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -104,6 +135,8 @@ class RecommendationOut(BaseModel):
     sector: str | None = None
     score: int
     rationale: list[str]
+    votes: list[RecommendationVoteOut] = Field(default_factory=list)
+    sentiment_7d: float | None = None
     computed_at: datetime
 
 
@@ -153,6 +186,8 @@ class PositionOut(BaseModel):
     # Same aggregates converted to the portfolio's display currency.
     market_value: Decimal
     unrealized_pl: Decimal
+    reserved_quantity: Decimal = Decimal(0)
+    available_quantity: Decimal = Decimal(0)
 
 
 class PortfolioOptionOut(BaseModel):
@@ -187,6 +222,8 @@ class PortfolioOut(BaseModel):
     portfolio_id: int
     display_currency: str = "USD"
     cash_balance: Decimal
+    reserved_cash: Decimal = Decimal(0)
+    available_cash: Decimal = Decimal(0)
     market_value: Decimal
     options_market_value: Decimal = Decimal(0)
     total_value: Decimal
@@ -228,6 +265,281 @@ class TradeOut(BaseModel):
     # USD gain/loss against the position's weighted-average cost basis.
     # Set on sells; None on buys and on rows written before this was tracked.
     realized_pnl: Decimal | None = None
+
+
+class ReplaySessionCreateIn(BaseModel):
+    """Open an isolated replay book over a frozen stored-1d range.
+
+    ``start_at`` snaps to the first 1d bar at-or-after the request.
+    ``end_at`` snaps to the last 1d bar at-or-before the request (or the latest
+    stored bar at creation if omitted). Profile is server-pinned.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    ticker: str
+    start_at: datetime
+    end_at: datetime | None = None
+    starting_cash: Decimal = Field(default=Decimal("100000.00"))
+
+
+class ReplayOrderIn(BaseModel):
+    """Intent only. Prices come from the session's current stored bar."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    side: Literal["buy", "sell"]
+    order_type: Literal["market", "limit", "stop_loss", "take_profit"] = "market"
+    quantity: Decimal
+    limit_price: Decimal | None = None
+
+
+class ReplayPositionOut(BaseModel):
+    ticker: str
+    quantity: Decimal
+    avg_cost: Decimal
+
+
+class ReplayFillOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    session_id: int
+    ticker: str
+    side: str
+    quantity: Decimal
+    fill_price: Decimal
+    realized_pnl: Decimal | None = None
+    profile_name: str
+    model_version: str
+    reference_price: Decimal | None
+    reason: str
+    assumptions: list[str]
+    market_interval: str
+    order_type: str
+    evaluated_at: datetime
+    created_at: datetime
+
+
+class ReplaySessionListOut(BaseModel):
+    """Lightweight list row. Positions and next-bar lookups are detail-only."""
+
+    id: int
+    ticker: str
+    start_at: datetime
+    current_at: datetime
+    end_at: datetime
+    status: str
+    starting_cash: Decimal
+    cash_balance: Decimal
+    has_next: bool
+    created_at: datetime
+
+
+class ReplaySessionOut(BaseModel):
+    id: int
+    ticker: str
+    profile_name: str
+    model_version: str
+    start_at: datetime
+    current_at: datetime
+    end_at: datetime
+    starting_cash: Decimal
+    cash_balance: Decimal
+    status: str
+    has_next: bool = False
+    completed_at: datetime | None = None
+    created_at: datetime
+    updated_at: datetime
+    positions: list[ReplayPositionOut] = []
+
+
+class ReplayAvailabilityOut(BaseModel):
+    ticker: str
+    currency: str
+    first_bar: datetime
+    last_bar: datetime
+    bars_count: int
+
+
+class ReplaySummaryOut(BaseModel):
+    """Mark-to-market at the current observable replay bar only."""
+
+    ticker: str
+    status: str
+    current_at: datetime
+    current_close: Decimal
+    cash: Decimal
+    starting_cash: Decimal
+    positions_market_value: Decimal
+    equity: Decimal
+    realized_pnl: Decimal
+    unrealized_pnl: Decimal
+    total_pnl: Decimal
+    return_pct: Decimal
+    fills_count: int
+    has_next: bool
+    visible_high: Decimal
+    visible_low: Decimal
+
+
+class ReplayBarOut(BaseModel):
+    ticker: str
+    ts: datetime
+    interval: str
+    open: Decimal
+    high: Decimal
+    low: Decimal
+    close: Decimal
+    volume: int
+
+
+class ReplayMarketOut(BaseModel):
+    ticker: str
+    current_at: datetime
+    start_at: datetime
+    end_at: datetime
+    has_next: bool
+    status: str
+    bar: ReplayBarOut
+
+
+class ReplayDecisionOut(BaseModel):
+    status: str
+    fill_quantity: Decimal
+    fill_price: Decimal | None
+    remaining_quantity: Decimal
+    reason: str
+    profile_name: str
+    model_version: str
+    reference_price: Decimal | None
+    assumptions: list[str]
+
+
+class ReplaySubmitOut(BaseModel):
+    session: ReplaySessionOut
+    decision: ReplayDecisionOut
+    fill: ReplayFillOut | None = None
+
+
+class ReplayEpisodeFillOut(BaseModel):
+    """ReplayFill facts plus post-fill concentration for forensic detail."""
+
+    id: int
+    ticker: str
+    side: str
+    quantity: Decimal
+    fill_price: Decimal
+    realized_pnl: Decimal | None = None
+    profile_name: str
+    model_version: str
+    reference_price: Decimal | None
+    reason: str
+    assumptions: list[str]
+    market_interval: str
+    order_type: str
+    evaluated_at: datetime
+    created_at: datetime
+    equity_after: Decimal | None = None
+    concentration_pct: Decimal | None = None
+
+
+class ReplayEpisodeForensicsOut(BaseModel):
+    """One reconstructed long-only exposure episode."""
+
+    index: int
+    ticker: str
+    opened_at: datetime
+    closed_at: datetime | None = None
+    status: Literal["open", "closed"]
+    entry_price: Decimal
+    exit_price: Decimal | None = None
+    entry_quantity: Decimal
+    peak_quantity: Decimal
+    weighted_entry_price: Decimal
+    weighted_exit_price: Decimal | None = None
+    realized_pnl: Decimal
+    unrealized_pnl: Decimal | None = None
+    return_pct: Decimal | None = None
+    holding_bars: int
+    holding_calendar_days: int
+    mae_amount: Decimal | None = None
+    mae_pct: Decimal | None = None
+    mfe_amount: Decimal | None = None
+    mfe_pct: Decimal | None = None
+    benchmark_return_pct: Decimal | None = None
+    excess_return_pct: Decimal | None = None
+    max_position_pct: Decimal | None = None
+    entry_equity: Decimal | None = None
+    peak_exposure: Decimal
+    fills: list[ReplayEpisodeFillOut] = []
+
+
+class ReplayForensicsOut(BaseModel):
+    """Session-level forensic scorecard. Derived; not persisted."""
+
+    ticker: str
+    status: str
+    analysis_scope: Literal["so_far", "final", "cancelled"]
+    analysis_at: datetime
+    starting_cash: Decimal
+    equity: Decimal
+    replay_return_pct: Decimal
+    buy_hold_return_pct: Decimal | None = None
+    excess_return_pct: Decimal | None = None
+    max_drawdown_pct: Decimal | None = None
+    max_concentration_pct: Decimal | None = None
+    fills_count: int
+    episodes_count: int
+    closed_episodes_count: int
+    open_episodes_count: int
+    episodes: list[ReplayEpisodeForensicsOut] = []
+
+
+class ReplayJournalIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    thesis: str | None = Field(default=None, max_length=4000)
+    invalidation: str | None = Field(default=None, max_length=4000)
+    expected_holding_bars: int | None = Field(default=None, ge=1, le=10000)
+    confidence: int | None = Field(default=None, ge=1, le=5)
+    reflection: str | None = Field(default=None, max_length=8000)
+
+
+class ReplayJournalOut(BaseModel):
+    session_id: int
+    thesis: str | None = None
+    invalidation: str | None = None
+    expected_holding_bars: int | None = None
+    confidence: int | None = None
+    reflection: str | None = None
+    locked: bool
+    locked_at: datetime | None = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class ExecutionProvenanceOut(BaseModel):
+    """Durable kernel provenance for one live equity paper fill (SIM-04).
+
+    Absent for trades written before provenance existed. ``evaluated_at`` is
+    the adapter evaluation instant (UTC); ``created_at`` is when the row was
+    persisted.
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+
+    trade_id: int
+    profile_name: str
+    model_version: str
+    reference_price: Decimal | None
+    fill_price: Decimal
+    reason: str
+    assumptions: list[str]
+    market_interval: str
+    order_type: str
+    evaluated_at: datetime
+    created_at: datetime
 
 
 class PortfolioHistoryPointOut(BaseModel):

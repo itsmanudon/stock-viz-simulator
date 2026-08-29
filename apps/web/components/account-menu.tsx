@@ -8,7 +8,7 @@
 
 import Link from "next/link";
 
-import { signOutAction } from "@/app/(auth)/actions";
+import { signOutAction } from "@/app/(public)/(auth)/actions";
 import { auth } from "@/auth";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -34,7 +34,7 @@ export async function AccountMenu() {
     return (
       <Link
         href="/login"
-        className="text-sm text-muted-foreground transition hover:text-foreground"
+        className="inline-flex h-9 items-center rounded-sm px-2 text-sm text-muted-foreground transition hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
       >
         Sign in
       </Link>
@@ -46,7 +46,7 @@ export async function AccountMenu() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
-        className="rounded-full outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring"
+        className="rounded-md outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring"
         aria-label="Account menu"
       >
         <Avatar className="h-8 w-8">

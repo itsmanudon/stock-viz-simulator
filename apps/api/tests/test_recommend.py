@@ -9,6 +9,7 @@ from stockviz.services.recommend import (
     MIN_DATA_POINTS,
     VOTE_THRESHOLD,
     score_ticker,
+    votes_from_rationale,
 )
 
 
@@ -85,3 +86,40 @@ def test_positive_slope_vote():
     result = score_ticker("AAPL", _bars(closes))
     assert result is not None
     assert any("Positive" in r for r in result.rationale)
+
+
+def test_score_ticker_exposes_all_seven_votes():
+    result = score_ticker("AAPL", _bars([100.0] * 10))
+    assert result is not None
+    assert [vote.id for vote in result.votes] == [
+        "below_mean",
+        "below_median",
+        "within_one_stdev",
+        "volume_above_mean",
+        "recent_uptrend",
+        "positive_slope",
+        "positive_sentiment",
+    ]
+    assert result.score == sum(1 for vote in result.votes if vote.passed)
+    assert result.rationale == [vote.detail for vote in result.votes if vote.passed]
+    assert all(vote.passed is False for vote in result.votes)
+
+
+def test_failed_votes_include_metric_detail():
+    result = score_ticker("AAPL", _bars([100.0] * 10))
+    assert result is not None
+    by_id = {vote.id: vote for vote in result.votes}
+    assert "Not below historical mean" in by_id["below_mean"].detail
+    assert by_id["positive_sentiment"].detail == "No scored headlines in the trailing week"
+
+
+def test_votes_from_rationale_reconstructs_pass_fail():
+    votes = votes_from_rationale(
+        ["Below historical mean ($70.00 < $88.00)", "3-bar uptrend (92.00 → 96.00)"]
+    )
+    passed = {vote.id: vote.passed for vote in votes}
+    assert passed["below_mean"] is True
+    assert passed["recent_uptrend"] is True
+    assert passed["volume_above_mean"] is False
+    assert passed["positive_sentiment"] is False
+    assert len(votes) == MAX_SCORE

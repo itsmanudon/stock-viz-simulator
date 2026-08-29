@@ -4,34 +4,114 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.78 0.13 85);
-  --primary-foreground: oklch(0.145 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --border: oklch(0.922 0 0);
-  --ring: oklch(0.78 0.13 85);
-  --radius: 0.5rem;
+  /* ATLAS — warm paper and restrained gold for research workspaces.
+     Gold is reserved for identity, focus, and the selected action. Positive
+     and negative remain separate semantic hues so a price change never reads
+     like a button state. */
+  --background: #f7f6f2;
+  --foreground: #1c1b18;
+  --card: #fffefa;
+  --card-foreground: #1c1b18;
+  --popover: #fffefa;
+  --popover-foreground: #1c1b18;
+  --primary: #c6a35c;
+  --primary-foreground: #211b10;
+  --brand: #96702b;
+  --brand-muted: #efe5cd;
+  --secondary: #eeece6;
+  --secondary-foreground: #292722;
+  --muted: #eeece6;
+  --muted-foreground: var(--text-secondary);
+  --accent: #e9e5dc;
+  --accent-foreground: #24221d;
+  --destructive: #b94343;
+  --destructive-foreground: #ffffff;
+  --border: #d9d5cc;
+  --input: #c8c2b6;
+  --ring: #b68b3c;
+  --surface-elevated: #fcfbf8;
+  --surface-secondary: #eeece6;
+  --surface-hover: #f0ede6;
+  --border-muted: #e5e1d8;
+  --text-secondary: #625f57;
+  --text-tertiary: #89857b;
+  --positive: #137558;
+  --positive-foreground: #ffffff;
+  --negative: #b94343;
+  --negative-foreground: #ffffff;
+  --warning: #9a6300;
+  --warning-foreground: #ffffff;
+  --positive-soft: #dcefe7;
+  --positive-soft-foreground: #0b674a;
+  --negative-soft: #f5e2df;
+  --negative-soft-foreground: #983636;
+  --warning-soft: #f4ecd8;
+  --warning-soft-foreground: #7a5a18;
+  --neutral-soft: #e9e7e1;
+  --neutral-soft-foreground: #625f57;
+  --radius: 0.625rem;
+
+  /* Marketing surfaces.
+     The public pages alternate warm paper against one recurring object: a
+     dark inset panel that holds product UI. It is dark in BOTH themes — on
+     paper it supplies the contrast light mode otherwise lacks, and in dark
+     mode it sits a step above --card so it still reads as elevated. */
+  --marketing-panel: #1b1e20;
+  --marketing-panel-border: #33383a;
+  --marketing-glow: rgb(150 112 43 / 0.16);
+  --grid-line: #e5e1d8;
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.83 0.13 85);
-  --primary-foreground: oklch(0.145 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --border: oklch(0.269 0 0);
-  --ring: oklch(0.83 0.13 85);
+  --background: #0f1112;
+  --foreground: #f0eee8;
+  --card: #17191b;
+  --card-foreground: #f0eee8;
+  --popover: #1c1f21;
+  --popover-foreground: #f0eee8;
+  --primary: #d5b36a;
+  --primary-foreground: #211b10;
+  --brand: #d5b36a;
+  --brand-muted: #3a2f1d;
+  --secondary: #1d2022;
+  --secondary-foreground: #e5e2d9;
+  --muted: #1d2022;
+  --muted-foreground: var(--text-secondary);
+  --accent: #25282a;
+  --accent-foreground: #f0eee8;
+  --destructive: #ed7770;
+  --destructive-foreground: #2e1110;
+  --border: #303335;
+  --input: #3b3e40;
+  --ring: #d5b36a;
+  /* One step above --card so overlays separate from the tiles they sit on. */
+  --surface-elevated: #1b1e20;
+  --surface-secondary: #1d2022;
+  --surface-hover: #25282a;
+  --border-muted: #25282a;
+  --text-secondary: #b1afa8;
+  --text-tertiary: #7e7f7b;
+  --positive: #46c297;
+  --positive-foreground: #06291e;
+  --negative: #ed7770;
+  --negative-foreground: #2e1110;
+  --warning: #e8bd68;
+  --warning-foreground: #2b1e08;
+  --positive-soft: #10382c;
+  --positive-soft-foreground: #77d8b3;
+  --negative-soft: #3c1e1d;
+  --negative-soft-foreground: #f29a91;
+  --warning-soft: #3a2e18;
+  --warning-soft-foreground: #f1cc7e;
+  --neutral-soft: #25282a;
+  --neutral-soft-foreground: #b1afa8;
+
+  /* The panel itself is already the dark value, so only the surrounding
+     treatment changes: the hairline drops to the regular border and the glow
+     switches to the lighter dark-mode gold. */
+  --marketing-panel-border: #303335;
+  --marketing-glow: rgb(213 179 106 / 0.18);
+  --grid-line: #25282a;
 }
 
 @theme inline {
@@ -39,27 +119,297 @@
   --color-foreground: var(--foreground);
   --color-card: var(--card);
   --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
+  --color-brand: var(--brand);
+  --color-brand-muted: var(--brand-muted);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
   --color-muted: var(--muted);
   --color-muted-foreground: var(--muted-foreground);
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
   --color-border: var(--border);
+  --color-input: var(--input);
   --color-ring: var(--ring);
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
+  --color-surface-elevated: var(--surface-elevated);
+  --color-surface-secondary: var(--surface-secondary);
+  --color-surface-hover: var(--surface-hover);
+  --color-border-muted: var(--border-muted);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-tertiary: var(--text-tertiary);
+  --color-positive: var(--positive);
+  --color-positive-foreground: var(--positive-foreground);
+  --color-negative: var(--negative);
+  --color-negative-foreground: var(--negative-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-positive-soft: var(--positive-soft);
+  --color-positive-soft-foreground: var(--positive-soft-foreground);
+  --color-negative-soft: var(--negative-soft);
+  --color-negative-soft-foreground: var(--negative-soft-foreground);
+  --color-warning-soft: var(--warning-soft);
+  --color-warning-soft-foreground: var(--warning-soft-foreground);
+  --color-neutral-soft: var(--neutral-soft);
+  --color-neutral-soft-foreground: var(--neutral-soft-foreground);
+  --color-marketing-panel: var(--marketing-panel);
+  --color-marketing-panel-border: var(--marketing-panel-border);
+  --color-grid-line: var(--grid-line);
+  --font-sans: var(--font-display), "Segoe UI Variable", Inter, ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-numeric), "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+
+  /* Type ramp.
+     `3xs`/`2xs` are the dense-UI steps below Tailwind's `xs` — table meta,
+     column labels, footnotes. They exist so those sizes stop being written as
+     arbitrary `text-[10px]` / `text-[11px]`, which bypassed the scale and
+     drifted apart across components. Display sizes get tighter line-height and
+     negative tracking; long-form sizes keep their default leading. */
+  --text-3xs: 0.625rem;
+  --text-3xs--line-height: 0.875rem;
+  --text-2xs: 0.6875rem;
+  --text-2xs--line-height: 1rem;
+  --text-2xl--line-height: 1.2;
+  --text-2xl--letter-spacing: -0.01em;
+  --text-3xl--line-height: 1.15;
+  --text-3xl--letter-spacing: -0.018em;
+  --text-4xl--line-height: 1.1;
+  --text-4xl--letter-spacing: -0.022em;
+  --text-5xl--line-height: 1.05;
+  --text-5xl--letter-spacing: -0.026em;
+  --text-6xl--line-height: 1;
+  --text-6xl--letter-spacing: -0.03em;
+
+  --radius-sm: calc(var(--radius) - 0.25rem);
+  --radius-md: calc(var(--radius) - 0.125rem);
   --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
+  --radius-xl: calc(var(--radius) + 0.125rem);
 }
 
 @layer base {
   * {
     border-color: var(--color-border);
   }
+
+  html {
+    min-width: 20rem;
+    background-color: var(--color-background);
+  }
+
   body {
     background-color: var(--color-background);
     color: var(--color-foreground);
+    font-family: var(--font-sans);
     font-feature-settings: "rlig" 1, "calt" 1;
+    letter-spacing: -0.005em;
+    text-rendering: optimizeLegibility;
+  }
+
+  *:focus-visible {
+    outline: 2px solid var(--color-ring);
+    outline-offset: 2px;
+  }
+
+  :where(.font-mono, .tabular-nums, [data-financial]) {
+    font-variant-numeric: tabular-nums slashed-zero;
+  }
+}
+
+.workspace-main > .container {
+  width: 100%;
+  max-width: none;
+}
+
+/* The setting is persisted in the browser and applied at the document root,
+   so every authenticated workspace gets the same table rhythm. The default
+   values remain the comfortable density used by the existing product UI. */
+html[data-density="compact"] .workspace-main [data-slot="table-head"] {
+  height: 2rem;
+}
+
+html[data-density="compact"] .workspace-main [data-slot="table-cell"] {
+  padding-block: 0.375rem;
+  padding-inline: 0.625rem;
+}
+
+html[data-density="compact"] .workspace-main .density-workspace {
+  padding-block: 1.25rem;
+}
+
+/* --- Marketing primitives -------------------------------------------------
+   Used only by the public pages (`app/(public)/`) and `components/marketing/`.
+   They live here rather than in a component because `.panel-inset` has to
+   rebind theme variables for its whole subtree, which Tailwind classes can't
+   express.
+
+   They sit in `@layer components` on purpose. Unlayered CSS outranks every
+   Tailwind layer, so as plain rules these would beat the utilities and a
+   `.panel-inset rounded-none border-x-0` (the full-bleed numbers band) would
+   silently keep its radius and side borders. In the components layer the
+   utilities win, which is the expected way to vary one of these. */
+
+/* The signature object: a dark panel that holds product UI on either theme.
+   Rebinding the palette inside it means existing workspace components can be
+   dropped in unchanged and still resolve `text-text-secondary`,
+   `border-border-muted`, `text-positive`, and friends to their dark values. */
+@layer components {
+  .panel-inset {
+    --foreground: #f0eee8;
+    --card: #17191b;
+    --card-foreground: #f0eee8;
+    --popover: #1c1f21;
+    --popover-foreground: #f0eee8;
+    --primary: #d5b36a;
+    --brand: #d5b36a;
+    --brand-muted: #3a2f1d;
+    --secondary: #1d2022;
+    --secondary-foreground: #e5e2d9;
+    --muted: #1d2022;
+    --accent: #25282a;
+    --accent-foreground: #f0eee8;
+    --border: #303335;
+    --border-muted: #2b2f31;
+    --input: #3b3e40;
+    --ring: #d5b36a;
+    --surface-elevated: #212426;
+    --surface-secondary: #1d2022;
+    --surface-hover: #25282a;
+    --text-secondary: #b1afa8;
+    --text-tertiary: #7e7f7b;
+    --positive: #46c297;
+    --negative: #ed7770;
+    --warning: #e8bd68;
+
+    position: relative;
+    overflow: hidden;
+    border: 1px solid var(--marketing-panel-border);
+    border-radius: calc(var(--radius) + 0.375rem);
+    background-color: var(--marketing-panel);
+    color: var(--foreground);
+    /* Form controls and scrollbars inside the panel need to know they're on a
+       dark ground even when the document theme is light. */
+    color-scheme: dark;
+  }
+
+  /* Gold bloom behind a panel or hero. Decorative and pointer-transparent, so it
+     never intercepts a click on the content it sits under. */
+  .panel-glow::before {
+    content: "";
+    position: absolute;
+    inset: -30% -10% auto -10%;
+    height: 70%;
+    pointer-events: none;
+    background: radial-gradient(60% 60% at 50% 0%, var(--marketing-glow), transparent 70%);
+  }
+
+  /* Blueprint grid, faded out at the edges so it never fights the content that
+     sits on top of it. */
+  .grid-backdrop {
+    background-image: repeating-linear-gradient(
+        to right,
+        var(--grid-line) 0 1px,
+        transparent 1px var(--grid-backdrop-size, 3rem)
+      ),
+      repeating-linear-gradient(
+        to bottom,
+        var(--grid-line) 0 1px,
+        transparent 1px var(--grid-backdrop-size, 3rem)
+      );
+    mask-image: radial-gradient(70% 70% at 50% 40%, black, transparent 100%);
+  }
+
+  /* Horizontal ticker. The track has to contain the same content twice for the
+     -50% wrap to be seamless; mark the duplicate `aria-hidden`. */
+  .marquee {
+    overflow: hidden;
+    mask-image: linear-gradient(
+      to right,
+      transparent,
+      black 4rem,
+      black calc(100% - 4rem),
+      transparent
+    );
+  }
+
+  .marquee-track {
+    display: flex;
+    width: max-content;
+    animation: marquee-scroll var(--marquee-duration, 60s) linear infinite;
+    /* The track is two viewport-widths of continuously animated content sitting
+       under a masked parent. Promoting it to its own layer keeps the loop on the
+       compositor instead of repainting the strip every frame. */
+    will-change: transform;
+    backface-visibility: hidden;
+  }
+
+  .marquee:hover .marquee-track,
+  .marquee:focus-within .marquee-track {
+    animation-play-state: paused;
+  }
+
+  /* Hollow display type — the oversized number behind the closing CTA and the
+     wordmark that closes the footer. The stroke can't be `currentColor`: the
+     fill has to be transparent, which would make the stroke transparent too.
+     Set `--outline-color` at the call site instead. */
+  .text-outline {
+    color: transparent;
+    -webkit-text-stroke: 1px var(--outline-color, var(--border));
+  }
+}
+
+@keyframes marquee-scroll {
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+/* The global reduced-motion block only collapses animation *duration*, which
+   would snap the track to -50% and leave the aria-hidden duplicate on screen.
+   Drop the animation by name instead and let the strip scroll by hand. */
+@media (prefers-reduced-motion: reduce) {
+  .marquee {
+    overflow-x: auto;
+    mask-image: none;
+  }
+
+  .marquee-track {
+    animation: none;
+  }
+}
+
+/* Scroll reveal. The transition lives here so `components/marketing/reveal.tsx`
+   only has to flip one attribute. */
+@layer components {
+  [data-reveal] {
+    transition: opacity 400ms cubic-bezier(0.16, 1, 0.3, 1), transform 400ms
+      cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  [data-reveal="pending"] {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+
+  /* Without JS the observer never fires, so the pending state would hide the
+     content permanently. */
+  @media (scripting: none) {
+    [data-reveal="pending"] {
+      opacity: 1;
+      transform: none;
+    }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }

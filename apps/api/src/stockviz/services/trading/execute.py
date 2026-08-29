@@ -1,13 +1,17 @@
 """Trade execution.
 
-A market order fills at the most recent ``1d`` close in ``price_bars``. We
-validate cash on buys and position size on sells, update the ``positions``
-row, and write the ``trades`` row in a single transaction.
+A market order fills at the most recent ``1d`` close in ``price_bars``. The
+fill *price* is decided by ``evaluate_order(..., LEGACY_CLOSE)`` (SIM-02).
+Cash, shares, FX, and the ledger still mutate only in :func:`apply_fill`,
+which is shared with the pending-order settlement job in
+``services/trading/orders.py``. Both paths must debit the *USD* cash bucket
+at the symbol's FX rate — keeping that in one place is what stops the two
+from drifting apart.
 
-The cash/position mutation lives in :func:`apply_fill`, which is shared with
-the pending-order settlement job in ``services/trading/orders.py``. Both paths
-must debit the *USD* cash bucket at the symbol's FX rate — keeping that in one
-place is what stops the two from drifting apart.
+Pending limit/stop/take-profit settlement also uses the kernel (SIM-03);
+account mutations still go through :func:`apply_fill`. Successful fills
+persist ``SimulatedExecution`` provenance from the same FillDecision
+(SIM-04).
 """
 
 from __future__ import annotations
@@ -20,7 +24,31 @@ from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
 from stockviz.models import Portfolio, Position, PriceBar, Symbol, Trade, TradeSide
+from stockviz.services.simulation import (
+    LIVE_PAPER_EXECUTION_PROFILE,
+    FillDecision,
+    FillStatus,
+    OrderIntent,
+    SimulationOrderType,
+    evaluate_order,
+)
+from stockviz.services.trading.buying_power import (
+    available_cash,
+    available_shares,
+    lock_portfolio,
+    lock_user,
+    reserved_shares,
+)
+from stockviz.services.trading.execution_provenance import (
+    FillProvenance,
+    record_execution_provenance,
+)
 from stockviz.services.trading.fx import latest_rate
+from stockviz.services.trading.simulation_adapter import (
+    evaluation_clock,
+    market_snapshot_from_bar,
+    order_side,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -89,9 +117,29 @@ def ensure_default_portfolio(session: Session, user_id: int) -> Portfolio:
     if existing is not None:
         return existing
 
+    # Serialize first-account creation on the user row. Without this, two
+    # concurrent first /portfolio hits can INSERT two portfolios (user_id
+    # uniqueness is enforced in the DB, but the race still needs a lock so
+    # the loser re-reads instead of erroring out to the client).
+    lock_user(session, user_id)
+    existing = session.exec(
+        select(Portfolio).where(Portfolio.user_id == user_id).order_by(Portfolio.id)  # type: ignore[arg-type]
+    ).first()
+    if existing is not None:
+        return existing
+
     portfolio = Portfolio(user_id=user_id, name="Default", cash_balance=DEFAULT_STARTING_CASH)
     session.add(portfolio)
-    session.commit()
+    try:
+        session.commit()
+    except IntegrityError:
+        session.rollback()
+        existing = session.exec(
+            select(Portfolio).where(Portfolio.user_id == user_id).order_by(Portfolio.id)  # type: ignore[arg-type]
+        ).first()
+        if existing is None:
+            raise
+        return existing
     session.refresh(portfolio)
     _seed_opening_snapshot(session, user_id=user_id, nav=DEFAULT_STARTING_CASH)
     return portfolio
@@ -201,6 +249,7 @@ def apply_fill(
     price: Decimal,
     currency: str,
     fx_rate: Decimal,
+    exclude_order_id: int | None = None,
 ) -> TradeExecution:
     """Mutate cash + position and stage the Trade row for ``portfolio``.
 
@@ -212,28 +261,40 @@ def apply_fill(
     ``price`` is in the symbol's native currency; ``fx_rate`` is USD per one
     unit of that currency. Cash is always USD.
 
+    Spendability is checked against *available* cash/shares (ledger balance
+    minus reservations from *other* pending orders). ``exclude_order_id``
+    lets a filling order consume its own reservation.
+
+    Locks the portfolio row for the rest of the caller's transaction.
+
     Raises ``InsufficientCash`` / ``InsufficientPosition`` without having
     mutated anything, so a caller that catches the error can carry on with the
     same session.
     """
 
     assert portfolio.id is not None
+    portfolio_id = portfolio.id
+    portfolio = lock_portfolio(session, portfolio_id)
 
     native_cost = (price * quantity).quantize(MICROS)
     usd_cost = (native_cost * fx_rate).quantize(MICROS)
-    position = get_position(session, portfolio_id=portfolio.id, ticker=ticker)
+    position = get_position(session, portfolio_id=portfolio_id, ticker=ticker)
     realized_pnl: Decimal | None = None
 
     if side == TradeSide.BUY:
-        if portfolio.cash_balance < usd_cost:
+        try:
+            spendable = available_cash(session, portfolio, exclude_order_id=exclude_order_id)
+        except LookupError as exc:
+            raise NoFxRateError(str(exc)) from exc
+        if spendable < usd_cost:
             raise InsufficientCash(
-                f"Cash balance ${portfolio.cash_balance:.2f} < trade cost ${usd_cost:.2f}"
+                f"Available buying power ${spendable:.2f}; order requires ${usd_cost:.2f}."
             )
         portfolio.cash_balance = (portfolio.cash_balance - usd_cost).quantize(MICROS)
 
         if position is None:
             position = Position(
-                portfolio_id=portfolio.id,
+                portfolio_id=portfolio_id,
                 ticker=ticker,
                 quantity=quantity,
                 avg_cost=price,
@@ -248,9 +309,19 @@ def apply_fill(
             position.avg_cost = (total_cost / new_qty).quantize(MICROS)
 
     else:  # SELL
-        if position is None or position.quantity < quantity:
-            held = position.quantity if position else Decimal(0)
+        held = position.quantity if position else Decimal(0)
+        reserved = reserved_shares(session, portfolio_id, ticker, exclude_order_id=exclude_order_id)
+        spendable = available_shares(
+            session, portfolio_id, ticker, exclude_order_id=exclude_order_id
+        )
+        if spendable < quantity:
+            if reserved > 0:
+                raise InsufficientPosition(
+                    f"Only {spendable} {ticker} shares are available; "
+                    f"{reserved} are reserved by pending orders."
+                )
             raise InsufficientPosition(f"Held {held} {ticker}, cannot sell {quantity}")
+        assert position is not None
         portfolio.cash_balance = (portfolio.cash_balance + usd_cost).quantize(MICROS)
         # Realized P&L against the weighted-average cost basis, in USD.
         realized_pnl = ((price - position.avg_cost) * quantity * fx_rate).quantize(MICROS)
@@ -262,7 +333,7 @@ def apply_fill(
             session.delete(position)
 
     trade = Trade(
-        portfolio_id=portfolio.id,
+        portfolio_id=portfolio_id,
         ticker=ticker,
         side=side,
         quantity=quantity,
@@ -272,6 +343,18 @@ def apply_fill(
     )
     session.add(trade)
     session.add(portfolio)
+    # Assign trade.id without committing so the outbox row can reference it
+    # in this same transaction. Kafka is not involved here.
+    session.flush()
+    from stockviz.events.outbox import enqueue_trade_executed
+
+    enqueue_trade_executed(
+        session,
+        trade=trade,
+        currency=currency,
+        fx_rate=fx_rate,
+        usd_notional=usd_cost,
+    )
     return TradeExecution(
         trade=trade,
         currency=currency,
@@ -295,6 +378,10 @@ def execute_trade(
     The price stored on the Trade row is in the symbol's native currency.
     Cash (always USD) is debited/credited at today's FX rate for non-USD
     symbols. USD symbols pass through unchanged.
+
+    Fill price comes from the SIM-01 kernel (``LIVE_PAPER_EXECUTION_PROFILE``,
+    currently ``LEGACY_CLOSE``). Account validity, FX, and persistence stay in
+    :func:`apply_fill`. Provenance is recorded from the same ``FillDecision``.
     """
 
     if quantity <= 0:
@@ -302,6 +389,9 @@ def execute_trade(
 
     ticker = ticker.upper()
     priced = resolve_priced_symbol(session, ticker)
+    provenance = _market_fill_provenance(bar=priced.bar, side=side, quantity=quantity)
+    fill_price = provenance.decision.fill_price
+    assert fill_price is not None
 
     portfolio = ensure_default_portfolio(session, user_id)
     result = apply_fill(
@@ -310,10 +400,53 @@ def execute_trade(
         ticker=ticker,
         side=side,
         quantity=quantity,
-        price=priced.price,
+        price=fill_price,
         currency=priced.currency,
         fx_rate=priced.fx_rate,
     )
+    record_execution_provenance(session, trade=result.trade, provenance=provenance)
     session.commit()
     session.refresh(result.trade)
     return result
+
+
+def _market_fill_provenance(*, bar: PriceBar, side: TradeSide, quantity: Decimal) -> FillProvenance:
+    """Ask the live paper profile for a MARKET fill. Does not touch the ledger."""
+
+    evaluated_at = evaluation_clock()
+    order = OrderIntent(
+        ticker=bar.ticker,
+        side=order_side(side),
+        order_type=SimulationOrderType.MARKET,
+        quantity=quantity,
+        remaining_quantity=quantity,
+        submitted_at=evaluated_at,
+    )
+    market = market_snapshot_from_bar(bar, observed_at=evaluated_at)
+    decision = evaluate_order(order, market, LIVE_PAPER_EXECUTION_PROFILE)
+    _require_full_market_fill(decision, quantity=quantity)
+    return FillProvenance(
+        decision=decision,
+        market_interval=bar.interval,
+        evaluated_at=evaluated_at,
+        order_type=SimulationOrderType.MARKET.value,
+    )
+
+
+def _require_full_market_fill(decision: FillDecision, *, quantity: Decimal) -> Decimal:
+    if (
+        decision.status is FillStatus.FILLED
+        and decision.fill_price is not None
+        and decision.fill_quantity == quantity
+        and decision.remaining_quantity == Decimal(0)
+    ):
+        return decision.fill_price
+
+    logger.error(
+        "market kernel did not fully fill: status=%s fill_qty=%s remaining=%s reason=%s",
+        decision.status,
+        decision.fill_quantity,
+        decision.remaining_quantity,
+        decision.trace.reason,
+    )
+    raise TradeExecutionError("Unable to fill market order against the latest close")

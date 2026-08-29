@@ -5,12 +5,12 @@ Step-by-step setup for the StockViz monorepo. Commands are given for **macOS / L
 
 ## Prerequisites
 
-| Tool          | Version | macOS / Linux                                                 | Windows                                                    |
-| ------------- | ------- | ------------------------------------------------------------- | ---------------------------------------------------------- |
-| Node.js       | 22+     | `brew install node@22` (or [nvm](https://github.com/nvm-sh/nvm)) | [nvm-windows](https://github.com/coreybutler/nvm-windows) |
-| pnpm          | 11+     | `npm install -g pnpm`                                         | `npm install -g pnpm`                                      |
-| Python + uv   | 3.12+   | `brew install uv`                                             | `winget install --id=astral-sh.uv`                         |
-| Docker        | latest  | Docker Desktop for Mac                                        | Docker Desktop for Windows                                 |
+| Tool        | Version | macOS / Linux                                                    | Windows                                                   |
+| ----------- | ------- | ---------------------------------------------------------------- | --------------------------------------------------------- |
+| Node.js     | 22+     | `brew install node@22` (or [nvm](https://github.com/nvm-sh/nvm)) | [nvm-windows](https://github.com/coreybutler/nvm-windows) |
+| pnpm        | 11+     | `npm install -g pnpm`                                            | `npm install -g pnpm`                                     |
+| Python + uv | 3.12+   | `brew install uv`                                                | `winget install --id=astral-sh.uv`                        |
+| Docker      | latest  | Docker Desktop for Mac                                           | Docker Desktop for Windows                                |
 
 Verify with:
 
@@ -125,12 +125,47 @@ Visit:
 
 ## Ports
 
-| Service       | Port |
-| ------------- | ---- |
-| Web (Next.js) | 3000 (or next free) |
-| API (FastAPI) | 8000 |
-| Postgres      | 5434 |
-| Adminer       | 8080 |
+| Service                            | Port                |
+| ---------------------------------- | ------------------- |
+| Web (Next.js)                      | 3000 (or next free) |
+| API (FastAPI)                      | 8000                |
+| Postgres                           | 5434                |
+| Adminer                            | 8080                |
+| Kafka (optional, `pnpm events:up`) | 9092                |
+
+Optional event stack (KRaft Kafka, not required to trade):
+
+```bash
+pnpm events:up
+pnpm events:publisher            # or: python -m stockviz.cli publish-outbox --once
+pnpm events:market-ingest
+pnpm events:market-analytics
+pnpm events:news-ingest
+pnpm events:news-sentiment
+pnpm events:sentiment-aggregate
+```
+
+See [`EVENT_DRIVEN_ARCHITECTURE.md`](./EVENT_DRIVEN_ARCHITECTURE.md).
+Topics `stockviz.trades.v1`, `stockviz.market.v1`, and `stockviz.news.v1`
+are created explicitly (auto-create is disabled).
+
+## Full Kubernetes lab
+
+For the complete locally validated topology, install kind, kubectl, and Helm,
+then run from the repository root:
+
+```bash
+pnpm k8s:create
+pnpm k8s:build
+pnpm k8s:deploy
+pnpm k8s:smoke
+```
+
+This provisions a single-node kind cluster, Strimzi Kafka, development
+PostgreSQL, the migration Job, API/web, singleton scheduler, publisher, and
+independent consumers. It is a lab/CI reference rather than a production
+deployment. See [`KUBERNETES.md`](./KUBERNETES.md) for prerequisites, access,
+troubleshooting, and `pnpm k8s:destroy`.
 
 ## Quality gates
 
@@ -162,7 +197,7 @@ E2E tests run against a **production build** of the web app, so you need:
 
 1. Both servers running (`pnpm api:dev` + `pnpm dev:web` → or let Playwright
    handle Next.js automatically)
-2. The database seeded (`pnpm api:migrate` + CLI seed/backfill)
+2. The database seeded (`pnpm api:migrate` + CLI seed/backfill/recommend)
 
 With both servers already running on their default ports:
 
@@ -177,11 +212,11 @@ running separately.
 
 ### Test suites
 
-| File | Coverage |
-|------|----------|
-| `markets.spec.ts` | `/markets` loads and rows are clickable (no auth) |
-| `auth.spec.ts` | Sign-up flow + protected-route redirect |
-| `trade.spec.ts` | Place a buy order; verify it appears in trade history |
+| File              | Coverage                                              |
+| ----------------- | ----------------------------------------------------- |
+| `markets.spec.ts` | `/markets` loads and rows are clickable (no auth)     |
+| `auth.spec.ts`    | Sign-up flow + protected-route redirect               |
+| `trade.spec.ts`   | Place a buy order; verify it appears in trade history |
 
 CI runs the full E2E suite in the `e2e` job (see `.github/workflows/ci.yml`).
 
@@ -202,4 +237,4 @@ CI runs the full E2E suite in the `e2e` job (see `.github/workflows/ci.yml`).
 
 See [`DEPLOYMENT.md`](./DEPLOYMENT.md) for Vercel (web) and Render (api + db)
 setup. There is no separate cron service — daily refresh is in-process
-APScheduler. A recruiter-honest gap list is in [`RESUME_GAPS.md`](./RESUME_GAPS.md).
+APScheduler. Current constraints are in [`KNOWN_LIMITATIONS.md`](./KNOWN_LIMITATIONS.md).

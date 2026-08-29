@@ -22,8 +22,15 @@ export type ProfilePatch = {
   display_currency?: string;
 };
 
-export function getLeaderboard(): Promise<LeaderboardEntry[]> {
-  return apiGet<LeaderboardEntry[]>("/v1/leaderboard");
+/**
+ * The API already caches this for an hour server-side; `revalidateSeconds`
+ * additionally keeps the marketing page from re-requesting it per visitor.
+ */
+export function getLeaderboard(revalidateSeconds?: number): Promise<LeaderboardEntry[]> {
+  return apiGet<LeaderboardEntry[]>(
+    "/v1/leaderboard",
+    revalidateSeconds === undefined ? undefined : { revalidateSeconds, tags: ["leaderboard"] },
+  );
 }
 
 export function getProfile(): Promise<UserProfile> {

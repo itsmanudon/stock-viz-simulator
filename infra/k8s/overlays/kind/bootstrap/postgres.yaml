@@ -1,0 +1,76 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+  namespace: stockviz
+  labels:
+    app.kubernetes.io/name: stockviz
+    app.kubernetes.io/component: postgres
+    app.kubernetes.io/part-of: stockviz
+    app.kubernetes.io/version: 2.0.0
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: stockviz
+      app.kubernetes.io/component: postgres
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: stockviz
+        app.kubernetes.io/component: postgres
+        app.kubernetes.io/part-of: stockviz
+        app.kubernetes.io/version: 2.0.0
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        fsGroup: 70
+      containers:
+      - name: postgres
+        image: postgres:16-alpine
+        ports:
+        - name: pg
+          containerPort: 5432
+        env:
+        - name: POSTGRES_USER
+          value: stockviz
+        - name: POSTGRES_DB
+          value: stockviz
+        - name: PGDATA
+          value: /var/lib/postgresql/data/pgdata
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: stockviz-db
+              key: POSTGRES_PASSWORD
+        readinessProbe:
+          exec:
+            command:
+            - pg_isready
+            - -U
+            - stockviz
+            - -d
+            - stockviz
+          periodSeconds: 5
+        livenessProbe:
+          exec:
+            command:
+            - pg_isready
+            - -U
+            - stockviz
+            - -d
+            - stockviz
+          periodSeconds: 10
+        resources:
+          requests:
+            cpu: 50m
+            memory: 256Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+        volumeMounts:
+        - name: data
+          mountPath: /var/lib/postgresql/data
+      volumes:
+      - name: data
+        emptyDir: {}

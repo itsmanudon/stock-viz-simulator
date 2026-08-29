@@ -12,7 +12,7 @@
 import { Bell } from "lucide-react";
 import { useEffect, useState } from "react";
 
-import { deleteAlertAction, dismissAlertAction } from "@/app/(authed)/alerts/actions";
+import { deleteAlertAction, dismissAlertAction } from "@/app/(product)/(authed)/alerts/actions";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -41,11 +41,9 @@ async function fetchAlerts(): Promise<Alert[]> {
 }
 
 function fmtPrice(raw: string): string {
-  return Number(raw).toLocaleString("en-US", {
-    style: "currency",
-    currency: "USD",
-    minimumFractionDigits: 2,
-  });
+  const value = Number(raw);
+  if (!Number.isFinite(value)) return "—";
+  return value.toLocaleString("en-US", { maximumFractionDigits: 2 });
 }
 
 export function AlertsBell({ enabled }: { enabled: boolean }) {
@@ -73,16 +71,16 @@ export function AlertsBell({ enabled }: { enabled: boolean }) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
-        className="relative inline-flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground transition hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="relative inline-flex h-9 w-9 items-center justify-center rounded-sm text-muted-foreground transition hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         aria-label={
           triggered.length > 0
             ? `${triggered.length} unread alert${triggered.length === 1 ? "" : "s"}`
             : "Alerts"
         }
       >
-        <Bell className="h-5 w-5" aria-hidden />
+        <Bell className="h-4 w-4" aria-hidden />
         {triggered.length > 0 ? (
-          <span className="absolute -right-0.5 -top-0.5 inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-semibold leading-none text-white">
+          <span className="absolute -right-0.5 -top-0.5 inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-red-500 px-1 text-3xs font-semibold leading-none text-white">
             {triggered.length > 9 ? "9+" : triggered.length}
           </span>
         ) : null}
@@ -92,7 +90,10 @@ export function AlertsBell({ enabled }: { enabled: boolean }) {
         <DropdownMenuSeparator />
         {alerts.length === 0 ? (
           <p className="px-2 py-3 text-xs text-muted-foreground">
-            No alerts yet. Set one from any stock page.
+            No alerts yet.{" "}
+            <a href="/alerts" className="text-foreground underline">
+              Manage alerts
+            </a>
           </p>
         ) : (
           <ul className="max-h-80 overflow-y-auto">
@@ -109,7 +110,7 @@ export function AlertsBell({ enabled }: { enabled: boolean }) {
                     <div className="text-xs text-muted-foreground">
                       {alert.direction === "above" ? "≥" : "≤"} {fmtPrice(alert.target_price)}
                     </div>
-                    <div className="text-[10px] text-muted-foreground">
+                    <div className="text-3xs text-muted-foreground">
                       {isTriggered ? (isDismissed ? "Dismissed" : "Triggered") : "Pending"}
                     </div>
                   </div>
@@ -140,6 +141,10 @@ export function AlertsBell({ enabled }: { enabled: boolean }) {
             })}
           </ul>
         )}
+        <DropdownMenuSeparator />
+        <a href="/alerts" className="block px-2 py-2 text-xs text-foreground hover:underline">
+          Manage all alerts
+        </a>
       </DropdownMenuContent>
     </DropdownMenu>
   );

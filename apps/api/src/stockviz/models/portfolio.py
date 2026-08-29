@@ -26,7 +26,9 @@ class Portfolio(SQLModel, table=True):
     __tablename__ = "portfolios"  # pyright: ignore[reportAssignmentType]
 
     id: int | None = Field(default=None, primary_key=True)
-    user_id: int = Field(foreign_key="users.id", index=True)
+    # One default paper book per user — concurrent first-use INSERTs collide
+    # on this unique index and retry as a read of the winner's row.
+    user_id: int = Field(foreign_key="users.id", unique=True, index=True)
     name: str = Field(default="Default", max_length=128)
     cash_balance: Decimal = Field(sa_column=Column(Numeric(20, 6), nullable=False))
     created_at: datetime = Field(default_factory=utcnow, nullable=False)

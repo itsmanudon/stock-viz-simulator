@@ -13,7 +13,8 @@ export function ThemeToggle() {
       variant="ghost"
       size="icon"
       onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-      aria-label="Toggle theme"
+      aria-label="Toggle color theme"
+      className="rounded-sm"
     >
       <Sun className="h-4 w-4 scale-100 transition-all dark:scale-0" />
       <Moon className="absolute h-4 w-4 scale-0 transition-all dark:scale-100" />

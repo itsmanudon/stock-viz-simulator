@@ -15,12 +15,16 @@ import { authConfig } from "@/auth.config";
 const { auth: proxyAuth } = NextAuth(authConfig);
 
 const PROTECTED_PREFIXES = [
+  "/dashboard",
   "/trade",
   "/portfolio",
   "/trades",
   "/watchlist",
+  "/alerts",
   "/settings",
   "/orders",
+  "/replay",
+  "/earnings",
 ];
 
 export default proxyAuth((req) => {
@@ -35,5 +39,5 @@ export default proxyAuth((req) => {
 });
 
 export const config = {
-  matcher: ["/((?!_next|api/auth|_static|favicon.ico).*)"],
+  matcher: ["/((?!_next|api/auth|api/health|_static|favicon.ico).*)"],
 };

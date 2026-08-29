@@ -1,0 +1,14 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: stockviz
+resources:
+  # Directory base (namespace + ConfigMap). Raw files outside this folder
+  # are rejected by kustomize LoadRestrictionsRootOnly.
+- ../../../base
+- postgres.yaml
+- postgres-service.yaml
+- secret-db.yaml
+- secret-auth.yaml
+- secret-market.yaml
+- secret-news.yaml
+- secret-sentiment.yaml

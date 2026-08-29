@@ -1,0 +1,16 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: stockviz-api
+  namespace: stockviz
+  labels:
+    app.kubernetes.io/name: stockviz
+    app.kubernetes.io/component: api
+    app.kubernetes.io/part-of: stockviz
+    app.kubernetes.io/version: 2.0.0
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: stockviz
+      app.kubernetes.io/component: api

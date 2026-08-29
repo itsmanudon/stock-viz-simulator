@@ -11,6 +11,13 @@ from stockviz.services.trading.analytics import (
     compute_top_movers,
     compute_total_return_pct,
 )
+from stockviz.services.trading.buying_power import (
+    available_cash,
+    available_shares,
+    lock_portfolio,
+    reserved_cash,
+    reserved_shares,
+)
 from stockviz.services.trading.dividends import credit_due_dividends
 from stockviz.services.trading.execute import (
     DEFAULT_STARTING_CASH,
@@ -26,7 +33,13 @@ from stockviz.services.trading.execute import (
 )
 from stockviz.services.trading.fx import convert as fx_convert
 from stockviz.services.trading.fx import latest_rate as fx_latest_rate
-from stockviz.services.trading.orders import OrderError, create_pending_order, settle_pending_orders
+from stockviz.services.trading.orders import (
+    OrderError,
+    OrderNotFound,
+    cancel_pending_order,
+    create_pending_order,
+    settle_pending_orders,
+)
 from stockviz.services.trading.portfolio import (
     PortfolioPosition,
     PortfolioValuation,
@@ -45,6 +58,7 @@ __all__ = [
     "NoFxRateError",
     "NoMarketDataError",
     "OrderError",
+    "OrderNotFound",
     "PortfolioPosition",
     "PortfolioValuation",
     "SectorAllocation",
@@ -52,6 +66,9 @@ __all__ = [
     "TopMover",
     "TradeExecution",
     "TradeExecutionError",
+    "available_cash",
+    "available_shares",
+    "cancel_pending_order",
     "compute_annualised_return_pct",
     "compute_max_drawdown_pct",
     "compute_portfolio",
@@ -65,6 +82,9 @@ __all__ = [
     "execute_trade",
     "fx_convert",
     "fx_latest_rate",
+    "lock_portfolio",
+    "reserved_cash",
+    "reserved_shares",
     "settle_pending_orders",
     "snapshot_user_navs",
     "upsert_user_snapshot",

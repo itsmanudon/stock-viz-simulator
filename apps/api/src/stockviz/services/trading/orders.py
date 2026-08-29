@@ -1,10 +1,16 @@
 """Pending order creation and EOD settlement.
 
 Limit, stop-loss, and take-profit orders are stored in ``pending_orders`` and
-checked against each EOD close by ``settle_pending_orders``. Orders that
-trigger at a close are filled at that price; orders that can't fill (e.g.
-insufficient cash) are cancelled with a ``cancel_reason`` rather than left in
-an inconsistent state.
+checked against each EOD close by ``settle_pending_orders``. Trigger and fill
+price come from ``evaluate_order(..., LIVE_PAPER_EXECUTION_PROFILE)``. Orders that
+can't fill (e.g. insufficient cash) are cancelled with a ``cancel_reason``
+rather than left in an inconsistent state. Successful fills persist kernel
+provenance in the same transaction as the Trade.
+
+At creation, pending BUYs reserve USD buying power (``quantity * limit_price``
+at the latest FX rate) and pending SELLs reserve shares. Reservations are
+derived from ``PENDING`` rows — cancel and fill release them automatically.
+A fill may consume its own reservation but not another order's.
 
 The fill itself goes through ``execute.apply_fill``, the same code path market
 orders use — so pending orders honour FX conversion, weighted-average cost,
@@ -22,7 +28,22 @@ from sqlmodel import Session, select
 from stockviz._time import utcnow
 from stockviz.models import PendingOrder, Portfolio, Symbol, TradeSide
 from stockviz.models.order import OrderStatus, OrderType
+from stockviz.services.simulation import (
+    LIVE_PAPER_EXECUTION_PROFILE,
+    FillDecision,
+    FillStatus,
+    evaluate_order,
+)
+from stockviz.services.trading.buying_power import (
+    available_cash,
+    available_shares,
+    buy_reservation_usd,
+    lock_portfolio,
+    reserved_shares,
+)
 from stockviz.services.trading.execute import (
+    InsufficientCash,
+    InsufficientPosition,
     NoFxRateError,
     NoMarketDataError,
     PricedSymbol,
@@ -32,12 +53,25 @@ from stockviz.services.trading.execute import (
     ensure_default_portfolio,
     resolve_priced_symbol,
 )
+from stockviz.services.trading.execution_provenance import (
+    FillProvenance,
+    record_execution_provenance,
+)
+from stockviz.services.trading.simulation_adapter import (
+    evaluation_clock,
+    market_snapshot_from_bar,
+    order_intent_from_pending,
+)
 
 logger = logging.getLogger(__name__)
 
 
 class OrderError(TradeExecutionError):
     """Raised when an order cannot be created or settled."""
+
+
+class OrderNotFound(OrderError):
+    """Raised when a cancel/lookup targets a missing or foreign order."""
 
 
 def create_pending_order(
@@ -65,9 +99,32 @@ def create_pending_order(
 
     portfolio = ensure_default_portfolio(session, user_id)
     assert portfolio.id is not None
+    portfolio_id = portfolio.id
+    portfolio = lock_portfolio(session, portfolio_id)
+
+    if side == TradeSide.BUY:
+        try:
+            required = buy_reservation_usd(
+                session, ticker=ticker, quantity=quantity, limit_price=limit_price
+            )
+            spendable = available_cash(session, portfolio)
+        except LookupError as exc:
+            raise NoFxRateError(str(exc)) from exc
+        if required > spendable:
+            raise InsufficientCash(
+                f"Available buying power ${spendable:.2f}; order requires ${required:.2f}."
+            )
+    else:
+        reserved = reserved_shares(session, portfolio_id, ticker)
+        spendable = available_shares(session, portfolio_id, ticker)
+        if quantity > spendable:
+            raise InsufficientPosition(
+                f"Only {spendable} {ticker} shares are available; "
+                f"{reserved} are reserved by pending orders."
+            )
 
     order = PendingOrder(
-        portfolio_id=portfolio.id,
+        portfolio_id=portfolio_id,
         ticker=ticker,
         side=side,
         order_type=order_type,
@@ -80,19 +137,30 @@ def create_pending_order(
     return order
 
 
-def _should_fill(order: PendingOrder, close: Decimal) -> bool:
-    """Return True if the EOD close should trigger this order."""
-    if order.order_type == OrderType.LIMIT:
-        return (
-            close <= order.limit_price
-            if order.side == TradeSide.BUY
-            else close >= order.limit_price
-        )
-    if order.order_type == OrderType.STOP_LOSS:
-        return close <= order.limit_price
-    if order.order_type == OrderType.TAKE_PROFIT:
-        return close >= order.limit_price
-    return False
+def cancel_pending_order(session: Session, *, user_id: int, order_id: int) -> None:
+    """Cancel a pending order, serialized on the portfolio row.
+
+    Holds the same ``FOR UPDATE`` lock settlement uses, then re-reads
+    ``order.status`` so a fill that committed while we waited cannot be
+    overwritten back to ``CANCELLED``.
+    """
+    portfolio = session.exec(
+        select(Portfolio).where(Portfolio.user_id == user_id).order_by(Portfolio.id)  # type: ignore[arg-type]
+    ).first()
+    if portfolio is None or portfolio.id is None:
+        raise OrderNotFound("Order not found")
+    lock_portfolio(session, portfolio.id)
+
+    order = session.get(PendingOrder, order_id)
+    if order is None or order.portfolio_id != portfolio.id:
+        raise OrderNotFound("Order not found")
+    session.refresh(order)
+    if order.status != OrderStatus.PENDING:
+        raise OrderError("Only pending orders can be cancelled")
+
+    order.status = OrderStatus.CANCELLED
+    session.add(order)
+    session.commit()
 
 
 def _cancel(session: Session, order: PendingOrder, reason: str) -> None:
@@ -110,6 +178,11 @@ def settle_pending_orders(session: Session, *, session_date: date_type | None = 
     The scheduler passes today's date, so a failed or slow price refresh
     leaves orders **pending** for the next run rather than filling them
     against yesterday's close. Pass ``None`` to skip the freshness check.
+
+    Trigger and fill price come from ``evaluate_order(..., LIVE_PAPER_EXECUTION_PROFILE)``.
+    Account failures still cancel the order. Kernel ``INELIGIBLE`` (adapter
+    inconsistency) is logged and the order is left pending so one bad row
+    cannot abort the batch.
 
     Returns the number of orders filled.
     """
@@ -136,40 +209,116 @@ def settle_pending_orders(session: Session, *, session_date: date_type | None = 
             )
             continue
 
-        if not _should_fill(order, priced.price):
+        provenance = _evaluate_pending(order, priced)
+        if provenance is None or provenance.decision.status is FillStatus.NOT_TRIGGERED:
+            continue
+        if provenance.decision.status is FillStatus.INELIGIBLE:
+            logger.error(
+                "pending order %s ineligible for kernel evaluation: ticker=%s type=%s side=%s reason=%s",
+                order.id,
+                order.ticker,
+                order.order_type,
+                order.side,
+                provenance.decision.trace.reason,
+            )
+            continue
+        fill_price = _require_full_pending_fill(order, provenance.decision)
+        if fill_price is None:
             continue
 
-        if _fill(session, order, priced):
+        if _fill(session, order, priced, fill_price=fill_price, provenance=provenance):
             filled += 1
 
     session.commit()
     return filled
 
 
-def _fill(session: Session, order: PendingOrder, priced: PricedSymbol) -> bool:
+def _evaluate_pending(order: PendingOrder, priced: PricedSymbol) -> FillProvenance | None:
+    """Ask the kernel whether this pending order triggers. Does not mutate state."""
+
+    try:
+        intent = order_intent_from_pending(order)
+        evaluated_at = evaluation_clock()
+        market = market_snapshot_from_bar(priced.bar, observed_at=evaluated_at)
+        decision = evaluate_order(intent, market, LIVE_PAPER_EXECUTION_PROFILE)
+        return FillProvenance(
+            decision=decision,
+            market_interval=priced.bar.interval,
+            evaluated_at=evaluated_at,
+            order_type=order.order_type.value,
+        )
+    except (TypeError, ValueError) as exc:
+        logger.error("pending order %s adapter failed: %s", order.id, exc)
+        return None
+
+
+def _require_full_pending_fill(order: PendingOrder, decision: FillDecision) -> Decimal | None:
+    if (
+        decision.status is FillStatus.FILLED
+        and decision.fill_price is not None
+        and decision.fill_quantity == order.quantity
+        and decision.remaining_quantity == Decimal(0)
+    ):
+        return decision.fill_price
+    logger.error(
+        "pending order %s kernel did not fully fill: status=%s fill_qty=%s remaining=%s reason=%s",
+        order.id,
+        decision.status,
+        decision.fill_quantity,
+        decision.remaining_quantity,
+        decision.trace.reason,
+    )
+    return None
+
+
+def _fill(
+    session: Session,
+    order: PendingOrder,
+    priced: PricedSymbol,
+    *,
+    fill_price: Decimal,
+    provenance: FillProvenance,
+) -> bool:
     """Fill one triggered order. Returns True when it actually filled."""
+    if order.portfolio_id is None or order.id is None:
+        _cancel(session, order, "Portfolio no longer exists")
+        return False
+
+    try:
+        lock_portfolio(session, order.portfolio_id)
+    except LookupError:
+        _cancel(session, order, "Portfolio no longer exists")
+        return False
+
+    session.refresh(order)
+    if order.status != OrderStatus.PENDING:
+        return False
+
     portfolio = session.get(Portfolio, order.portfolio_id)
     if portfolio is None:
         _cancel(session, order, "Portfolio no longer exists")
         return False
 
     try:
-        apply_fill(
+        result = apply_fill(
             session,
             portfolio=portfolio,
             ticker=order.ticker,
             side=order.side,
             quantity=order.quantity,
-            price=priced.price,
+            price=fill_price,
             currency=priced.currency,
             fx_rate=priced.fx_rate,
+            exclude_order_id=order.id,
         )
     except TradeExecutionError as exc:
         _cancel(session, order, str(exc))
         return False
 
+    record_execution_provenance(session, trade=result.trade, provenance=provenance)
+
     order.status = OrderStatus.FILLED
     order.filled_at = utcnow()
-    order.fill_price = priced.price
+    order.fill_price = fill_price
     session.add(order)
     return True

@@ -17,12 +17,13 @@ from stockviz.auth import UserIdDep
 from stockviz.db import get_session
 from stockviz.models import TradeSide
 from stockviz.models.order import OrderStatus, OrderType, PendingOrder
-from stockviz.models.portfolio import Portfolio
 from stockviz.schemas import PendingOrderIn, PendingOrderOut
 from stockviz.services.trading import (
     OrderError,
+    OrderNotFound,
     SymbolNotFound,
     TradeExecutionError,
+    cancel_pending_order,
     create_pending_order,
     ensure_default_portfolio,
 )
@@ -98,20 +99,9 @@ def list_orders(
 
 @router.delete("/orders/{order_id}", status_code=status.HTTP_204_NO_CONTENT)
 def cancel_order(order_id: int, session: SessionDep, user_id: UserIdDep) -> None:
-    portfolio = session.exec(
-        select(Portfolio).where(Portfolio.user_id == user_id).limit(1)  # pyright: ignore[reportArgumentType]
-    ).first()
-    if portfolio is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Order not found")
-
-    order = session.get(PendingOrder, order_id)
-    if order is None or order.portfolio_id != portfolio.id:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Order not found")
-    if order.status != OrderStatus.PENDING:
-        raise HTTPException(
-            status.HTTP_400_BAD_REQUEST, detail="Only pending orders can be cancelled"
-        )
-
-    order.status = OrderStatus.CANCELLED
-    session.add(order)
-    session.commit()
+    try:
+        cancel_pending_order(session, user_id=user_id, order_id=order_id)
+    except OrderNotFound as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except OrderError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc

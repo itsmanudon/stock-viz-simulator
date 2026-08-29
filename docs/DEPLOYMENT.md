@@ -1,18 +1,20 @@
 # StockViz — deployment
 
-Production deploy of the StockViz monorepo. The two apps deploy to **different
-hosts**:
+How to deploy the StockViz monorepo using the source-controlled hosting
+configuration. This is an operator guide, not evidence that a public URL is
+currently healthy or that these hosts have been production-tested. The two
+apps are configured for different hosts:
 
-| App           | Host    | What it runs                                       |
-| ------------- | ------- | -------------------------------------------------- |
-| `apps/web`    | Vercel  | Next.js 16 (App Router, NextAuth v5)               |
-| `apps/api`    | Render  | FastAPI + Postgres + in-process APScheduler        |
+| App        | Host   | What it runs                                |
+| ---------- | ------ | ------------------------------------------- |
+| `apps/web` | Vercel | Next.js 16 (App Router, NextAuth v5)        |
+| `apps/api` | Render | FastAPI + Postgres + in-process APScheduler |
 
 The web app is reverse-proxied by Vercel; the API + Postgres are provisioned
 together from `infra/render.yaml` as a Render Blueprint. Daily price + news
 refreshes run **in-process** inside FastAPI via APScheduler
 (`ENABLE_SCHEDULER=true`); there is no separate cron service in the
-Blueprint because Render no longer offers a free plan for cron jobs.
+Blueprint; that hosting path runs APScheduler inside FastAPI.
 
 ```
 Browser ──HTTPS──▶ Vercel (apps/web) ──HTTPS──▶ Render (apps/api) ──▶ Render Postgres
@@ -55,10 +57,8 @@ both Render and Vercel.
 ## 1. Deploy the API + database to Render
 
 Render reads `infra/render.yaml` and provisions two resources in one shot:
-Postgres 16 and the `stockviz-api` web service. (No separate cron job —
-Render dropped the free cron plan; the daily refresh runs in-process via
-APScheduler instead. See **Adding a cron safety net** below if you want to
-re-introduce one on a paid plan.)
+Postgres 16 and the `stockviz-api` web service. The Blueprint has no separate
+cron resource; daily refresh runs in-process via APScheduler.
 
 ### 1a. Create the Blueprint
 
@@ -77,15 +77,15 @@ because the `sync: false` env vars are still empty. Fix that next.
 
 Dashboard → **stockviz-api → Environment**. Set:
 
-| Variable                | Value                                                              |
-| ----------------------- | ------------------------------------------------------------------ |
-| `CORS_ORIGINS`          | `https://<your-vercel-domain>` (you'll know this after step 2)     |
-| `INTERNAL_API_TOKEN`    | the shared HS256 secret from “Secrets you'll generate” (must match Vercel) |
-| `NEXTAUTH_JWT_SECRET`   | unused by the current auth bridge; optional on a new deploy        |
-| `ALPHA_VANTAGE_KEY`     | your Alpha Vantage key (or leave blank to disable price ingest)    |
-| `NEWSDATA_KEY`          | your Newsdata.io key (or leave blank to disable news ingest)       |
-| `ANTHROPIC_API_KEY`     | optional; headline sentiment scoring (leave blank to skip)         |
-| `SENTRY_DSN`            | your Sentry DSN (or leave blank)                                   |
+| Variable              | Value                                                                              |
+| --------------------- | ---------------------------------------------------------------------------------- |
+| `CORS_ORIGINS`        | `https://<your-vercel-domain>` (you'll know this after step 2)                     |
+| `INTERNAL_API_TOKEN`  | the shared HS256 secret from “Secrets you'll generate” (must match Vercel)         |
+| `NEXTAUTH_JWT_SECRET` | unused by the current auth bridge; optional on a new deploy                        |
+| `ALPHA_VANTAGE_KEY`   | optional Alpha Vantage key (yfinance is primary; blank skips the AV fallback only) |
+| `NEWSDATA_KEY`        | your Newsdata.io key (or leave blank to disable news ingest)                       |
+| `ANTHROPIC_API_KEY`   | optional; headline sentiment scoring (leave blank to skip)                         |
+| `SENTRY_DSN`          | your Sentry DSN (or leave blank)                                                   |
 
 `DATABASE_URL`, `ENVIRONMENT`, `DEBUG`, and `ENABLE_SCHEDULER` are pinned by
 the Blueprint; don't override them. `ENABLE_SCHEDULER=true` is what turns on
@@ -139,23 +139,23 @@ Vercel dashboard → **Project Settings → Environment Variables**. Add all of
 these for **Production** (and **Preview**, if you want preview deploys to
 work):
 
-| Variable                              | Value                                                |
-| ------------------------------------- | ---------------------------------------------------- |
-| `API_URL`                             | `https://<your-api>.onrender.com`                    |
-| `NEXT_PUBLIC_API_URL`                 | `https://<your-api>.onrender.com`                    |
-| `DATABASE_URL`                        | the **External Database URL** from Render            |
-| `INTERNAL_API_TOKEN`                  | the bearer token from step "Secrets you'll generate" |
-| `AUTH_SECRET`                         | the JWT secret from step "Secrets you'll generate"   |
-| `AUTH_URL`                            | `https://<your-vercel-domain>` (no trailing slash)   |
-| `NEXT_PUBLIC_SENTRY_DSN`              | your Sentry browser DSN (optional)                   |
-| `SENTRY_DSN`                          | your Sentry server DSN (optional)                    |
-| `SENTRY_AUTH_TOKEN`                   | for source-map upload (optional)                     |
-| `SENTRY_ORG`, `SENTRY_PROJECT`        | Sentry slugs (optional)                              |
-| `NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE` | `0.1` (optional)                                   |
+| Variable                                | Value                                                |
+| --------------------------------------- | ---------------------------------------------------- |
+| `API_URL`                               | `https://<your-api>.onrender.com`                    |
+| `NEXT_PUBLIC_API_URL`                   | `https://<your-api>.onrender.com`                    |
+| `DATABASE_URL`                          | the **External Database URL** from Render            |
+| `INTERNAL_API_TOKEN`                    | the bearer token from step "Secrets you'll generate" |
+| `AUTH_SECRET`                           | the JWT secret from step "Secrets you'll generate"   |
+| `AUTH_URL`                              | `https://<your-vercel-domain>` (no trailing slash)   |
+| `NEXT_PUBLIC_SENTRY_DSN`                | your Sentry browser DSN (optional)                   |
+| `SENTRY_DSN`                            | your Sentry server DSN (optional)                    |
+| `SENTRY_AUTH_TOKEN`                     | for source-map upload (optional)                     |
+| `SENTRY_ORG`, `SENTRY_PROJECT`          | Sentry slugs (optional)                              |
+| `NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE` | `0.1` (optional)                                     |
 
 > **`DATABASE_URL` on Vercel:** the web app reads/writes the `users` table
 > directly via the credentials provider's `pg` pool (see
-> `apps/web/lib/db.ts`). Use Render's *External* DB URL, not the internal one.
+> `apps/web/lib/db.ts`). Use Render's _External_ DB URL, not the internal one.
 
 > **`AUTH_URL` is required in production.** Unlike dev (where NextAuth
 > derives it from the request host), production needs an explicit value so
@@ -186,6 +186,7 @@ Once Vercel gives you a domain:
 5. Open `/docs` on the API — Swagger UI should load.
 
 If `/portfolio` 500s or hangs, check `Render → stockviz-api → Logs`:
+
 - `INVALID_INTERNAL_TOKEN` ⇒ `INTERNAL_API_TOKEN` mismatch between Vercel and Render.
 - `Cross-Origin Request Blocked` ⇒ `CORS_ORIGINS` doesn't match the Vercel domain.
 - `Invalid or expired token` / 401 on `/v1` ⇒ `INTERNAL_API_TOKEN` mismatch
@@ -195,11 +196,13 @@ If `/portfolio` 500s or hangs, check `Render → stockviz-api → Logs`:
 
 ### Redeploys
 
-- Dashboard auto-deploys for Vercel and Render are currently **off**, so a
-  push to `main` does not ship by itself. `infra/render.yaml` still has
-  `autoDeploy: true` (Blueprint default) — leave it, and turn deploys back
-  on in the dashboards when you want production to follow `main`. Do not
-  flip this from a feature PR unless you intend to start shipping.
+- **Source control vs dashboards.** `infra/render.yaml` sets
+  `autoDeploy: true` (Render’s Blueprint default) and pins `branch: main`.
+  `apps/web/vercel.json` does not encode Vercel auto-deploy; that is a
+  dashboard/Git-integration setting. Whether either host currently deploys
+  on push is **owner-controlled and not verifiable from this repository**.
+  Do not flip Blueprint `autoDeploy` or trigger a production rollout from a
+  docs/feature PR unless the intent is to start shipping.
 - Migrations apply on every Render deploy (the Dockerfile runs
   `alembic upgrade head` before starting uvicorn). Don't run migrations
   manually unless something failed.
@@ -225,45 +228,37 @@ timezone `America/New_York`) are:
 If the API instance restarts (deploy, OOM, free-tier cold-spin), the
 scheduler restarts with it — no manual intervention needed.
 
-### Adding a cron safety net (optional, paid)
+### Adding a cron safety net (optional)
 
 Render's in-process scheduler is fine in practice but stops firing if the
 service goes down for the whole window. For extra safety, append a cron
 service to `infra/render.yaml`:
 
 ```yaml
-  - type: cron
-    name: stockviz-nightly-refresh
-    runtime: docker
-    repo: <your repo URL>
-    branch: main
-    rootDir: apps/api
-    dockerfilePath: apps/api/Dockerfile
-    plan: starter   # NOT free — Render removed the free cron tier
-    schedule: "30 21 * * 1-5"   # 21:30 UTC = 16:30 ET, weekdays
-    dockerCommand: sh -c "python -m stockviz.cli ingest AAPL MSFT GOOGL && python -m stockviz.cli recommend"
-    envVars:
-      - key: DATABASE_URL
-        fromDatabase:
-          name: stockviz-postgres
-          property: connectionString
-      - key: ALPHA_VANTAGE_KEY
-        sync: false
-      - key: SENTRY_DSN
-        sync: false
+- type: cron
+  name: stockviz-nightly-refresh
+  runtime: docker
+  repo: <your repo URL>
+  branch: main
+  rootDir: apps/api
+  dockerfilePath: apps/api/Dockerfile
+  plan: starter # verify current Render plan availability and pricing
+  schedule: "30 21 * * 1-5" # 21:30 UTC = 16:30 ET, weekdays
+  dockerCommand: sh -c "python -m stockviz.cli ingest AAPL MSFT GOOGL && python -m stockviz.cli recommend"
+  envVars:
+    - key: DATABASE_URL
+      fromDatabase:
+        name: stockviz-postgres
+        property: connectionString
+    - key: ALPHA_VANTAGE_KEY
+      sync: false
+    - key: SENTRY_DSN
+      sync: false
 ```
 
-Cost is per-run on Starter — a single nightly invocation is in the
-~$1/month range.
-
-### Scaling beyond the free tier
-
-Both Render's Postgres-free and web-service-free plans spin down after
-inactivity (~15 min cold start). For real use:
-- Upgrade the API service to Starter or higher to avoid cold starts.
-- Upgrade Postgres so it doesn't expire after 90 days.
-- Vercel's Hobby tier is fine for personal projects; upgrade to Pro if you
-  need preview deploys without API rate limits.
+Hosting plans and pricing change. Verify current Render and Vercel behavior
+before using this optional resource; the repository does not claim a specific
+price, cold-start policy, retention period, or SLA.
 
 ## Building the API image locally
 
@@ -285,13 +280,14 @@ docker run --rm -p 8000:8000 \
 - **Render:** dashboard → stockviz-api → Deploys → pick a previous deploy
   → **Rollback**. Requires the Docker image to be cached; if not, redeploy
   from a previous commit on `main`.
-- **Database:** Render's free Postgres has daily backups. Restore from
-  dashboard → stockviz-postgres → Backups.
+- **Database:** use the backup/restore workflow provided by the selected
+  database plan; verify it and test recovery before treating the deployment
+  as durable.
 
 ## Related docs
 
 - [`SETUP.md`](./SETUP.md) — local development.
-- [`RESUME_GAPS.md`](./RESUME_GAPS.md) — shipped vs claimed, unfinished work.
-- [`../REWRITE_PLAN.md`](../REWRITE_PLAN.md) — historical rewrite plan.
-- [`../apps/api/CLAUDE.md`](../apps/api/CLAUDE.md) — API internals.
-- [`../apps/web/CLAUDE.md`](../apps/web/CLAUDE.md) — web internals.
+- [`KNOWN_LIMITATIONS.md`](./KNOWN_LIMITATIONS.md) — current product and ops constraints.
+- [`EVENT_DRIVEN_ARCHITECTURE.md`](./EVENT_DRIVEN_ARCHITECTURE.md) — outbox and worker semantics.
+- [`KUBERNETES.md`](./KUBERNETES.md) — locally validated kind/Strimzi deployment.
+- [`ENGINEERING_ROADMAP.md`](./ENGINEERING_ROADMAP.md) — remaining production-hardening work.
