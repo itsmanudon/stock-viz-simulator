@@ -22,6 +22,13 @@ vi.mock("@/components/alerts-bell", () => ({
   AlertsBell: () => <button type="button">Alerts</button>,
 }));
 
+// Async server component: it awaits a bars fetch, which React can't render in a
+// synchronous client-side test. Its freshness dot has no bearing on the header
+// navigation assertions here.
+vi.mock("@/components/marketing/market-status", () => ({
+  MarketStatus: () => <span>EOD</span>,
+}));
+
 vi.mock("@/auth", () => ({
   auth: vi.fn().mockResolvedValue(null),
 }));
