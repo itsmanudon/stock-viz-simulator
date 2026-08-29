@@ -56,14 +56,16 @@ preserving the canonical session date.
 `services/ingest/providers/massive.py` owns endpoint URLs, Bearer
 authentication, pagination, ticker normalization, JSON keys, request/action
 IDs, raw millisecond timestamps, status payloads, split/dividend payloads, and
-the daily open-close probe. Exact JSON numbers are parsed directly as `Decimal`.
+the daily open-close probe, and adjusted one-minute aggregates. Exact JSON
+numbers are parsed directly as `Decimal`.
 
 The adapter requests adjusted daily aggregates and emits only canonical
 `BarRecord` objects with `source=massive`, `split_adjusted` semantics, and
 `provider_daily` scope. The provisional scope is intentional: a Massive
 aggregate is not silently labeled `regular`. The live workflow samples the same
-dates through the independent daily open-close endpoint; material price or
-volume differences block the technical provider gate.
+dates through the independent daily open-close endpoint and an exact-Decimal
+09:30-inclusive/16:00-exclusive New York reconstruction from one-minute bars.
+Material differences block the technical provider gate.
 
 No Massive-specific type crosses into persistence, Kafka events, analytics,
 portfolio, backtest, screener, or API code. Corporate-action and open-close
@@ -104,9 +106,13 @@ For each symbol, it:
 6. reports mean, median, nearest-rank p95, p99, and maximum error;
 7. separates ordinary sessions from the action date and two common sessions on
    each side of Massive split/dividend dates;
-8. compares selected aggregates with Massive's independent open-close endpoint
-   to test whether `provider_daily` may be promoted to `regular`;
-9. classifies differences as adjustment basis, provider timing, corporate
+8. reconstructs ordinary and latest split/dividend-window samples from adjusted
+   one-minute bars, separately computing canonical regular-session and
+   all-session OHLCV;
+9. compares those reconstructions with Massive daily aggregates, its independent
+   open-close endpoint, and yfinance to test whether `provider_daily` may be
+   promoted to `regular`;
+10. classifies differences as adjustment basis, provider timing, corporate
    action, session/timezone normalization, incomplete latest session, provider
    eligibility/session scope, or actual provider disagreement.
 
@@ -169,9 +175,14 @@ integral values from current persisted providers and rejects—not rounds—any
 fractional value. Massive remains nonpersistent.
 
 The database/public-schema conversion to fixed precision is deferred until the
-live report measures Massive's maximum whole and fractional digits. The planned
-shape is `NUMERIC(19 + S, S)`, where `S` is the observed maximum provider scale
-across required and precision-probe symbols. No arbitrary scale was selected.
+live report measures Massive's whole-number magnitude and fractional scale.
+The recommendation policy uses a minimum 38-digit envelope with at least 12
+fractional digits, then expands it when necessary to retain at least four scale
+digits and eight whole-number digits beyond observation. This is deliberately
+not a mechanical copy of the sample maximum. SQLAlchemy must use
+`Numeric(P, S, asdecimal=True)` and every incompatible `int` boundary must move
+to `Decimal`; rounding remains forbidden. No persistence migration is part of
+semantic acceptance.
 
 ## Tests and clean-container verification
 
