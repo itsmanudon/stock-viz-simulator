@@ -12,6 +12,7 @@ import pytest
 from stockviz import cli
 from stockviz.services.ingest.bar_semantics import AdjustmentSemantics, SessionScope
 from stockviz.services.ingest.prices import BarRecord
+from stockviz.services.ingest.semantic_acceptance import APPROVE_CANONICAL
 
 
 def _bar(source: str, scope: SessionScope) -> BarRecord:
@@ -139,6 +140,7 @@ def test_market_shadow_normalizes_explicit_symbols(monkeypatch, tmp_path: Path) 
 def test_runner_stays_in_memory_and_independently_samples_session_scope(monkeypatch) -> None:
     reference = _bar("yfinance", SessionScope.REGULAR)
     candidate = _bar("massive", SessionScope.PROVIDER_DAILY)
+    intraday = _bar("massive_intraday_reconstruction", SessionScope.REGULAR)
     open_close = SimpleNamespace(
         open=candidate.open,
         high=candidate.high,
@@ -151,8 +153,24 @@ def test_runner_stays_in_memory_and_independently_samples_session_scope(monkeypa
     monkeypatch.setattr(cli, "fetch_massive_splits", lambda *_args, **_kwargs: [])
     monkeypatch.setattr(cli, "fetch_massive_dividends", lambda *_args, **_kwargs: [])
     monkeypatch.setattr(cli, "fetch_massive_open_close", lambda *_args, **_kwargs: open_close)
+    monkeypatch.setattr(cli, "fetch_massive_minutes", lambda *_args, **_kwargs: object())
+    monkeypatch.setattr(
+        cli,
+        "reconstruct_massive_session",
+        lambda _series: SimpleNamespace(
+            regular=intraday,
+            all_session=intraday,
+            retrieval_status="complete",
+            expected_regular_minutes=390,
+            observed_regular_minutes=390,
+            gaps=(),
+            request=SimpleNamespace(as_dict=lambda: {"adjusted": True}),
+        ),
+    )
     monkeypatch.setattr(cli, "Session", lambda *_args, **_kwargs: pytest.fail("no DB session"))
-    monkeypatch.setattr(cli, "ingest_ticker", lambda *_args, **_kwargs: pytest.fail("no persistence"))
+    monkeypatch.setattr(
+        cli, "ingest_ticker", lambda *_args, **_kwargs: pytest.fail("no persistence")
+    )
 
     run = cli.run_market_shadow(
         symbols=["AAPL"],
@@ -163,9 +181,9 @@ def test_runner_stays_in_memory_and_independently_samples_session_scope(monkeypa
     )
 
     assert run.symbols["AAPL"].common_sessions == 1
-    assert len(run.session_scope_samples) == 1
-    assert run.session_scope_samples[0].passed is True
+    assert len(run.session_scope_evidence) == 1
+    assert run.session_scope_evidence[0].classification == "regular_session_consistent"
     assert run.volume_precision.maximum_fractional_digits == 4
-    assert run.technical_gate == "passed_private_shadow_evidence"
+    assert run.technical_recommendation == APPROVE_CANONICAL
     assert run.licensing_gate == "not_approved_individual_subscription"
-    assert run.cutover_recommendation == "do_not_cut_over"
+    assert run.reproducibility["regular_session"] == "09:30 inclusive to 16:00 exclusive"

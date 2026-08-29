@@ -11,6 +11,11 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
+from stockviz.services.ingest.semantic_acceptance import (
+    TECHNICAL_RECOMMENDATIONS,
+    DecimalStorageRecommendation,
+    SessionScopeEvidence,
+)
 from stockviz.services.ingest.shadow import SymbolComparison, VolumePrecisionAudit
 
 
@@ -34,9 +39,7 @@ class SessionScopeSample:
                 else None
             ),
             "volume_relative_error": (
-                str(self.volume_relative_error)
-                if self.volume_relative_error is not None
-                else None
+                str(self.volume_relative_error) if self.volume_relative_error is not None else None
             ),
             "passed": self.passed,
         }
@@ -49,16 +52,22 @@ class ShadowRun:
     requested_end: date
     symbols: Mapping[str, SymbolComparison]
     volume_precision: VolumePrecisionAudit
-    session_scope_samples: Sequence[SessionScopeSample] = field(default_factory=tuple)
+    session_scope_evidence: Sequence[SessionScopeEvidence] = field(default_factory=tuple)
+    decimal_boundaries: Mapping[str, str] = field(default_factory=dict)
+    decimal_storage_recommendation: DecimalStorageRecommendation | None = None
+    reproducibility: Mapping[str, object] = field(default_factory=dict)
     blockers: Sequence[str] = field(default_factory=tuple)
-    technical_gate: str = "not_evaluated"
+    technical_recommendation: str = "DO NOT APPROVE pending unresolved discrepancies"
     licensing_gate: str = "not_approved_individual_subscription"
-    cutover_recommendation: str = "do_not_cut_over"
     verification: Mapping[str, object] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        if self.technical_recommendation not in TECHNICAL_RECOMMENDATIONS:
+            raise ValueError("technical recommendation must be one approved acceptance outcome")
 
     def as_dict(self) -> dict[str, object]:
         return {
-            "schema_version": 1,
+            "schema_version": 2,
             "started_at": self.started_at.isoformat(),
             "requested_start": self.requested_start.isoformat(),
             "requested_end": self.requested_end.isoformat(),
@@ -84,15 +93,22 @@ class ShadowRun:
                 "volume_thresholds_percent": ["0.01", "0.1", "1", "5"],
                 "quantiles": "nearest_rank",
                 "corporate_action_window": "two_common_sessions_before_and_after",
+                "intraday_reconstruction": "09:30_inclusive_16:00_exclusive_America/New_York",
                 "values_modified_to_match": False,
             },
             "symbols": {ticker: result.as_dict() for ticker, result in self.symbols.items()},
             "volume_precision": self.volume_precision.as_dict(),
-            "session_scope_samples": [sample.as_dict() for sample in self.session_scope_samples],
+            "session_scope_evidence": [sample.as_dict() for sample in self.session_scope_evidence],
+            "decimal_boundaries": dict(self.decimal_boundaries),
+            "decimal_storage_recommendation": (
+                self.decimal_storage_recommendation.as_dict()
+                if self.decimal_storage_recommendation is not None
+                else None
+            ),
+            "reproducibility": _json_safe(dict(self.reproducibility)),
             "blockers": list(self.blockers),
-            "technical_gate": self.technical_gate,
+            "technical_recommendation": self.technical_recommendation,
             "licensing_gate": self.licensing_gate,
-            "cutover_recommendation": self.cutover_recommendation,
             "verification": _json_safe(dict(self.verification)),
         }
 
@@ -164,6 +180,8 @@ def _markdown(run: ShadowRun) -> str:
         "Bars are joined by canonical session date. Absolute and relative OHLC/volume errors use",
         "exact Decimal inputs; quantiles use nearest rank. Ordinary sessions and the two sessions",
         "on either side of action dates are reported separately. No input is adjusted to improve a match.",
+        "Selected completed sessions are independently reconstructed from adjusted one-minute bars",
+        "using 09:30 inclusive through 16:00 exclusive in America/New_York.",
         "",
         "## Per-symbol mismatch statistics",
         "",
@@ -204,23 +222,64 @@ def _markdown(run: ShadowRun) -> str:
             "",
             "## Session-scope findings",
             "",
-            "Massive custom daily aggregates are checked independently against its per-date",
-            "regular open/close endpoint; pre-market and after-hours values are not folded into",
-            "the canonical bar.",
+            "Massive daily aggregates remain `provider_daily`. Each selected session compares",
+            "the daily aggregate, open-close result, exact-Decimal regular minute reconstruction,",
+            "all-session minute reconstruction, and canonical yfinance bar without normalization.",
             "",
-            "| Symbol | Session | Max price relative error | Volume relative error | Gate |",
-            "| --- | --- | ---: | ---: | --- |",
+            "| Symbol | Session | Sample | Retrieval | Minutes | Classification |",
+            "| --- | --- | --- | --- | ---: | --- |",
         ]
     )
-    for sample in run.session_scope_samples:
+    for sample in run.session_scope_evidence:
         lines.append(
-            f"| {sample.ticker} | {sample.session_date} | "
-            f"{sample.price_max_relative_error if sample.price_max_relative_error is not None else 'n/a'} | "
-            f"{sample.volume_relative_error if sample.volume_relative_error is not None else 'n/a'} | "
-            f"{'pass' if sample.passed else 'fail'} |"
+            f"| {sample.ticker} | {sample.selection.session_date} | "
+            f"{sample.selection.category} | {sample.retrieval_status} | "
+            f"{sample.observed_regular_minutes}/{sample.expected_regular_minutes} | "
+            f"{sample.classification} |"
         )
-    if not run.session_scope_samples:
-        lines.append("| n/a | n/a | n/a | n/a | not evaluated |")
+    if not run.session_scope_evidence:
+        lines.append("| n/a | n/a | n/a | not evaluated | n/a | not evaluated |")
+
+    lines.extend(
+        [
+            "",
+            "| Symbol | Session | Comparison | Max price error (bps) | Volume error (%) | Result |",
+            "| --- | --- | --- | ---: | ---: | --- |",
+        ]
+    )
+    for sample in run.session_scope_evidence:
+        for name, comparison in sorted(sample.comparisons.items()):
+            price_relative = max(
+                (
+                    value.relative_error
+                    for field_name, value in comparison.fields.items()
+                    if field_name != "volume" and value.relative_error is not None
+                ),
+                default=None,
+            )
+            volume_relative = comparison.fields["volume"].relative_error
+            lines.append(
+                f"| {sample.ticker} | {sample.selection.session_date} | {name} | "
+                f"{_scaled(price_relative, Decimal('10000'))} | "
+                f"{_scaled(volume_relative, Decimal('100'))} | "
+                f"{'pass' if comparison.passed else 'fail'} |"
+            )
+
+    lines.extend(["", "## Reproducibility", "", "```json"])
+    lines.append(json.dumps(_json_safe(dict(run.reproducibility)), indent=2, sort_keys=True))
+    lines.extend(["```", "", "## Decimal persistence recommendation", ""])
+    if run.decimal_storage_recommendation is None:
+        lines.append("Not evaluated.")
+    else:
+        recommendation = run.decimal_storage_recommendation
+        lines.extend(
+            [
+                f"Recommended future database representation: `{recommendation.database_type}`.",
+                f"Observed whole/scale: `{recommendation.observed_whole_digits}`/`{recommendation.observed_scale}`; "
+                f"headroom: `{recommendation.magnitude_headroom_digits}` whole and `{recommendation.scale_headroom}` fractional digits.",
+                "This is a recommendation only; persistence is unchanged and rounding is forbidden.",
+            ]
+        )
 
     lines.extend(["", "## Tests", ""])
     unit_evidence = run.verification.get("unit_tests", "not recorded")
@@ -240,9 +299,9 @@ def _markdown(run: ShadowRun) -> str:
     lines.extend(
         [
             "",
-            "## Technical provider gate",
+            "## Technical recommendation",
             "",
-            f"Status: `{run.technical_gate}`.",
+            f"**{run.technical_recommendation}**",
             "",
             "This gate evaluates semantic mapping, coverage, action windows, timing, session scope,",
             "precision, and operational reliability. It is independent of commercial permission.",
@@ -253,11 +312,6 @@ def _markdown(run: ShadowRun) -> str:
             "",
             "A separate agreement must explicitly permit StockViz's deployment, display, derived",
             "analytics, persistence, and redistribution model before production use.",
-            "",
-            "## Cutover recommendation",
-            "",
-            f"Recommendation: `{run.cutover_recommendation}`. Massive is not enabled as the",
-            "production/default provider by this milestone.",
             "",
             "## Deferred India domain changes",
             "",

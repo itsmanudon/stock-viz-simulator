@@ -7,8 +7,7 @@ from collections import Counter
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import date
-from decimal import Decimal
-from math import ceil
+from decimal import ROUND_CEILING, Decimal
 
 from stockviz.services.ingest.prices import BarRecord
 
@@ -223,8 +222,6 @@ class VolumePrecisionAudit:
     maximum_fractional_digits: int
     scale_counts: Mapping[int, int]
     maximum_scale_observations: list[VolumePrecisionObservation]
-    recommended_precision: int
-    recommended_scale: int
 
     def as_dict(self) -> dict[str, object]:
         return {
@@ -235,8 +232,6 @@ class VolumePrecisionAudit:
             "maximum_scale_observations": [
                 item.as_dict() for item in self.maximum_scale_observations
             ],
-            "recommended_precision": self.recommended_precision,
-            "recommended_scale": self.recommended_scale,
         }
 
 
@@ -244,7 +239,10 @@ def _nearest_rank(values: Sequence[Decimal], percentile: Decimal) -> Decimal | N
     if not values:
         return None
     ordered = sorted(values)
-    rank = max(1, ceil(float(percentile * len(ordered))))
+    rank = max(
+        1,
+        int((percentile * Decimal(len(ordered))).to_integral_value(rounding=ROUND_CEILING)),
+    )
     return ordered[rank - 1]
 
 
@@ -619,6 +617,4 @@ def audit_volume_precision(bars: Sequence[BarRecord]) -> VolumePrecisionAudit:
         maximum_fractional_digits=maximum_scale,
         scale_counts=dict(sorted(counts.items())),
         maximum_scale_observations=maximum_observations,
-        recommended_precision=19 + maximum_scale,
-        recommended_scale=maximum_scale,
     )

@@ -63,6 +63,15 @@ def test_live_script_invokes_primary_news_and_shadow_commands() -> None:
         assert ticker in script
 
 
+def test_live_script_can_read_an_explicit_local_env_file_without_copying_it() -> None:
+    script = SCRIPT.read_text(encoding="utf-8")
+
+    assert "param(" in script
+    assert "$EnvFile" in script
+    assert "Resolve-Path -LiteralPath $EnvFile" in script
+    assert "Copy-Item" not in script
+
+
 def test_package_exposes_optional_live_verification() -> None:
     package = PACKAGE_JSON.read_text(encoding="utf-8")
 

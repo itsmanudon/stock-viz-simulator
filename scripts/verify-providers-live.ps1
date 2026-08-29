@@ -1,8 +1,17 @@
+param(
+    [string]$EnvFile = ""
+)
+
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
 $repoRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot "..")).Path
-$envFile = Join-Path $repoRoot "infra/.env"
+$envFile = if ($EnvFile) {
+    (Resolve-Path -LiteralPath $EnvFile).Path
+}
+else {
+    Join-Path $repoRoot "infra/.env"
+}
 if (-not (Test-Path -LiteralPath $envFile)) {
     throw "infra/.env is required. MASSIVE_SHADOW_ENABLED=true is required for this workflow."
 }

@@ -181,7 +181,7 @@ def test_duplicate_sessions_are_rejected() -> None:
         compare_symbol([_bar("2025-01-02"), _bar("2025-01-02")], _candidate(), actions=[])
 
 
-def test_volume_precision_preserves_provider_exponent() -> None:
+def test_volume_precision_preserves_provider_exponent_without_making_storage_decision() -> None:
     bars = [
         _bar("2025-01-02", volume="10", source="massive"),
         _bar("2025-01-03", volume="25933.6000", source="massive"),
@@ -192,12 +192,28 @@ def test_volume_precision_preserves_provider_exponent() -> None:
     assert audit.maximum_whole_number_digits == 5
     assert audit.maximum_fractional_digits == 4
     assert audit.scale_counts == {0: 1, 4: 1}
-    assert audit.recommended_precision == 23
-    assert audit.recommended_scale == 4
     assert [(item.ticker, item.session_date) for item in audit.maximum_scale_observations] == [
         ("AAPL", date(2025, 1, 3))
     ]
-    assert json.loads(json.dumps(audit.as_dict()))["scale_counts"] == {"0": 1, "4": 1}
+    payload = json.loads(json.dumps(audit.as_dict()))
+    assert payload["scale_counts"] == {"0": 1, "4": 1}
+    assert "recommended_precision" not in payload
+    assert "recommended_scale" not in payload
+
+
+def test_comparison_statistics_never_coerce_decimal_percentiles_to_float(monkeypatch) -> None:
+    def reject_float(_value):
+        raise AssertionError("comparison arithmetic must remain Decimal")
+
+    monkeypatch.setattr("builtins.float", reject_float)
+
+    result = compare_symbol(
+        [_bar("2025-01-02"), _bar("2025-01-03", close="101")],
+        [_bar("2025-01-02", source="massive"), _bar("2025-01-03", close="101.1", source="massive")],
+        actions=[],
+    )
+
+    assert result.fields["close"].p95_relative_error == Decimal("0.1") / Decimal("101")
 
 
 def test_volume_precision_rejects_invalid_volume() -> None:
