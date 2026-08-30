@@ -46,6 +46,18 @@ MAX_INTRABAR_RANGE_RATIO = Decimal("0.60")
 MAX_ABS_DAILY_RETURN = Decimal("0.60")
 """Ceiling on ``|close - prev_close| / prev_close`` before a bar is quarantined."""
 
+MAX_CONSECUTIVE_DAY_OVER_DAY_QUARANTINE = 2
+"""How many consecutive day-over-day quarantines the batch walker tolerates
+before it re-anchors the trusted prior close to the current level.
+
+A transient bad print spikes for a day or two and then the series snaps back —
+that snap-back looks like a second big move, so parking those follow-on days is
+correct. But a *sustained* run means the price level genuinely shifted (a split
+in an unadjusted history, a currency redenomination, a v1-CSV series seam), and
+without a re-anchor every remaining bar in the batch would quarantine against a
+now-stale close. Re-anchoring quarantines the discontinuity itself and the days
+it takes to confirm, not the decade of real history behind it."""
+
 
 class Disposition(StrEnum):
     ACCEPT = "accept"
