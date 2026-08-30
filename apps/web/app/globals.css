@@ -73,10 +73,11 @@
   --radius: 0.625rem;
 
   /* Marketing surfaces.
-     The public pages alternate warm paper against one recurring object: a
-     dark inset panel that holds product UI. It is dark in BOTH themes — on
-     paper it supplies the contrast light mode otherwise lacks, and in dark
-     mode it sits a step above --card so it still reads as elevated. */
+     The public pages alternate warm paper against one recurring object: the
+     `.panel-inset` that holds product UI. It follows the theme — a warm
+     elevated card in light mode; `--marketing-panel` (below), a step above
+     --card, in dark mode. `--marketing-glow` is the faint gold bloom behind
+     it, and `--marketing-panel-border` its dark-mode hairline. */
   --marketing-panel: #1b1e20;
   --marketing-panel-border: #33383a;
   --marketing-glow: rgb(150 112 43 / 0.16);
@@ -273,46 +274,31 @@ html[data-density="compact"] .workspace-main .density-workspace {
    silently keep its radius and side borders. In the components layer the
    utilities win, which is the expected way to vary one of these. */
 
-/* The signature object: a dark panel that holds product UI on either theme.
-   Rebinding the palette inside it means existing workspace components can be
-   dropped in unchanged and still resolve `text-text-secondary`,
-   `border-border-muted`, `text-positive`, and friends to their dark values. */
+/* The signature object: a panel that holds product UI.
+   Light mode  — a warm elevated card that shares the page's palette.
+   Dark mode   — drops to the near-black `--marketing-panel`, a step above
+                 `--card`, so it still reads as elevated.
+   Either way the workspace components dropped inside resolve
+   `text-text-secondary`, `border-border-muted`, `text-positive`, and friends
+   to the *current theme's* values — no per-panel palette rebind needed now
+   that the panel follows the theme. */
 @layer components {
   .panel-inset {
-    --foreground: #f0eee8;
-    --card: #17191b;
-    --card-foreground: #f0eee8;
-    --popover: #1c1f21;
-    --popover-foreground: #f0eee8;
-    --primary: #d5b36a;
-    --brand: #d5b36a;
-    --brand-muted: #3a2f1d;
-    --secondary: #1d2022;
-    --secondary-foreground: #e5e2d9;
-    --muted: #1d2022;
-    --accent: #25282a;
-    --accent-foreground: #f0eee8;
-    --border: #303335;
-    --border-muted: #2b2f31;
-    --input: #3b3e40;
-    --ring: #d5b36a;
-    --surface-elevated: #212426;
-    --surface-secondary: #1d2022;
-    --surface-hover: #25282a;
-    --text-secondary: #b1afa8;
-    --text-tertiary: #7e7f7b;
-    --positive: #46c297;
-    --negative: #ed7770;
-    --warning: #e8bd68;
-
     position: relative;
     overflow: hidden;
-    border: 1px solid var(--marketing-panel-border);
+    border: 1px solid var(--border);
     border-radius: calc(var(--radius) + 0.375rem);
-    background-color: var(--marketing-panel);
+    background-color: var(--card);
     color: var(--foreground);
-    /* Form controls and scrollbars inside the panel need to know they're on a
-       dark ground even when the document theme is light. */
+    color-scheme: light;
+  }
+
+  .dark .panel-inset {
+    /* A shade above --card so nested tiles still separate from the panel. */
+    --surface-elevated: #212426;
+    --border-muted: #2b2f31;
+    border-color: var(--marketing-panel-border);
+    background-color: var(--marketing-panel);
     color-scheme: dark;
   }
 

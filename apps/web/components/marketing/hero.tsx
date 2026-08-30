@@ -40,10 +40,8 @@ export async function Hero() {
   ];
 
   return (
-    // `overflow-hidden` is load-bearing, not decorative: the panel below is
-    // pulled past the right edge with a negative margin, and without a clipping
-    // ancestor that widens the whole document and gives every laptop-width
-    // viewport (1024-1400) a horizontal scrollbar.
+    // `overflow-hidden` stays as a guard against any child (chart canvas,
+    // shadow) nudging past the edge on a narrow viewport.
     <section className="mx-auto w-full max-w-7xl overflow-hidden px-4 pt-12 pb-14 sm:px-6 sm:pt-20 lg:pt-24">
       <div className="grid items-center gap-12 lg:grid-cols-[minmax(0,1fr)_1.15fr] lg:gap-16">
         <div>
@@ -92,9 +90,9 @@ export async function Hero() {
           </ul>
         </div>
 
-        {/* Crops past the right edge on wide screens so the panel reads as a
-            window onto a larger workspace rather than a framed screenshot. */}
-        <div className="lg:-mr-12 xl:-mr-24">
+        {/* The panel sits fully inside its grid column — the shadow and the
+            gold bloom already give it depth without cropping the content. */}
+        <div>
           <HeroPanel />
         </div>
       </div>
