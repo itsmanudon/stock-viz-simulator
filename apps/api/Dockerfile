@@ -16,7 +16,7 @@ WORKDIR /app
 
 # Cache dependencies first — re-runs only when the lockfile changes.
 COPY pyproject.toml uv.lock ./
-RUN --mount=type=cache,target=/root/.cache/uv \
+RUN --mount=type=cache,id=uv-cache,target=/root/.cache/uv \
     uv sync --frozen --no-install-project --no-dev
 
 # Now bring in the source and install the project itself.
@@ -26,7 +26,7 @@ COPY src ./src
 COPY migrations ./migrations
 COPY alembic.ini ./alembic.ini
 COPY README.md ./README.md
-RUN --mount=type=cache,target=/root/.cache/uv \
+RUN --mount=type=cache,id=uv-cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev
 
 
@@ -35,7 +35,7 @@ FROM builder AS test
 # Install the dev group from the exact same lockfile/source used by the
 # production builder. Tests are present only in this target, never runtime.
 ENV PATH=/opt/venv/bin:$PATH
-RUN --mount=type=cache,target=/root/.cache/uv \
+RUN --mount=type=cache,id=uv-cache,target=/root/.cache/uv \
     uv sync --frozen
 COPY tests ./tests
 
