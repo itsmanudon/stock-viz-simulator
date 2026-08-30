@@ -21,10 +21,11 @@ import { getLeaderboard } from "@/lib/api/leaderboard";
 import type { LeaderboardEntry } from "@/lib/api/leaderboard";
 import type { BacktestResult, Recommendation, ScreenerResult } from "@/lib/api/types";
 
-// MSFT, not a mega-cap that has split recently — the stored series is
-// unadjusted, so a post-split ticker (AAPL 4:1, NVDA 10:1, AMZN/GOOGL 20:1)
-// draws a cliff in the middle of the demo backtest. MSFT last split in 2003.
-const BACKTEST_TICKER = "MSFT";
+// HDFCBANK.NS: deep (1996-) and *fresh* daily history with no split or bonus
+// in the window, so the demo equity curve is continuous and current. A
+// recently-split US mega-cap (AAPL 4:1, NVDA 10:1) draws a cliff; the US
+// backfill CSVs also stop months short of the NSE series.
+const BACKTEST_TICKER = "HDFCBANK.NS";
 
 /**
  * These panels are the same canned queries for every visitor and the data
