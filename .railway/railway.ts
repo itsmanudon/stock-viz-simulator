@@ -3,13 +3,19 @@ import { defineRailway, github, group, postgres, preserve, project, service } fr
 /**
  * StockViz on Railway — lean, low-idle-cost topology.
  *
- * Four resources: managed Postgres, the FastAPI app, the Next.js web app (both
- * sleep-on-idle), and one nightly cron service that runs the end-of-day
- * refresh through the `stockviz.cli` job twins — the same service code the
- * Kafka workers run, called synchronously, so no broker is needed to host the
- * site. The full event-driven stack still lives in
+ * Four resources: managed Postgres, the FastAPI app (always on), the Next.js
+ * web app (sleeps on idle), and one nightly cron service that runs the
+ * end-of-day refresh through the `stockviz.cli` job twins — the same service
+ * code the Kafka workers run, called synchronously, so no broker is needed to
+ * host the site. The full event-driven stack still lives in
  * `docker-compose --profile events` and `infra/k8s/` for demonstrating that
  * architecture; it just doesn't run 24/7 here.
+ *
+ * `api` does NOT sleep: every web page is server-rendered and fetches the API
+ * over the private network, and Railway answers a private request to a
+ * sleeping service with a 503 rather than waking it — so a sleeping api makes
+ * `/markets`, `/stocks/*` and the home page fail on the first hit. web still
+ * sleeps (it is the heavier container) and its cold start is self-contained.
  *
  * Secrets are NOT in source. After the first apply, set with `railway variable set`:
  *   - INTERNAL_API_TOKEN   on `api` AND `web` (identical; signs the web->api HS256 bridge)
@@ -77,6 +83,10 @@ export default defineRailway(() => {
     build: apiBuild,
     env: {
       ...pyBase,
+      // Pin the listen port so `${{api.PORT}}` resolves for web's API_URL —
+      // Railway's auto-injected PORT is not a referenceable stored variable,
+      // and an unpinned `${{api.PORT}}` renders as an empty string.
+      PORT: "8080",
       // The cron service owns the scheduled jobs; keep the in-process one off.
       ENABLE_SCHEDULER: "false",
       CORS_ORIGINS: WEB_PUBLIC_URL,
@@ -88,7 +98,8 @@ export default defineRailway(() => {
     healthcheck: "/health",
     healthcheckTimeout: 30,
     replicas: 1,
-    deploy: { sleepApplication: true },
+    // Always on — a sleeping api 503s web's server-side render (see header).
+    deploy: { sleepApplication: false },
   });
 
   const web = service("web", {
