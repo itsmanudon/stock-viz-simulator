@@ -109,4 +109,6 @@ fabricated one — and an interviewer will find the gap in sixty seconds.
 
 ## Progress
 
-See [PROGRESS.md](./PROGRESS.md).
+See [PROGRESS.md](./PROGRESS.md) for topic coverage and
+[FINDINGS.md](./FINDINGS.md) for open engineering issues.
+[HANDOFF.md](./HANDOFF.md) carries the current branch's working state.
