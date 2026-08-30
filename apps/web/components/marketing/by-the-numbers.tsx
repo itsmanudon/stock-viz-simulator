@@ -15,7 +15,10 @@
 import { Reveal } from "@/components/marketing/reveal";
 import { ApiError, getBars, getMarketsSummary, getRecommendations } from "@/lib/api";
 
-const HISTORY_TICKER = "AAPL";
+// Matches the tour's backtest ticker so the copy ("the window every backtest
+// reads") stays literally true. MSFT also avoids the unadjusted split cliff a
+// recently-split mega-cap would show.
+const HISTORY_TICKER = "MSFT";
 
 /**
  * The bars endpoint hard-caps `limit` at 5000 (`MAX_BARS` in

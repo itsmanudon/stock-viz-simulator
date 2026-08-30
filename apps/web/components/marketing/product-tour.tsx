@@ -21,7 +21,10 @@ import { getLeaderboard } from "@/lib/api/leaderboard";
 import type { LeaderboardEntry } from "@/lib/api/leaderboard";
 import type { BacktestResult, Recommendation, ScreenerResult } from "@/lib/api/types";
 
-const BACKTEST_TICKER = "AAPL";
+// MSFT, not a mega-cap that has split recently — the stored series is
+// unadjusted, so a post-split ticker (AAPL 4:1, NVDA 10:1, AMZN/GOOGL 20:1)
+// draws a cliff in the middle of the demo backtest. MSFT last split in 2003.
+const BACKTEST_TICKER = "MSFT";
 
 /**
  * These panels are the same canned queries for every visitor and the data
