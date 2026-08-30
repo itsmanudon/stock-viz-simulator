@@ -31,8 +31,8 @@ import {
   type SortDir,
   type SortKey,
   compare,
+  fmtMoney,
   fmtPct,
-  fmtPrice,
   sortHref,
 } from "@/lib/markets-table";
 import { cn } from "@/lib/utils";
@@ -54,6 +54,7 @@ export default async function MarketsPage({
     name: r.name,
     sector: r.sector,
     exchange: r.exchange,
+    currency: r.currency,
     closes: r.closes.map(Number),
     last: r.last_close === null ? null : Number(r.last_close),
     changePct: r.change_pct,
@@ -65,7 +66,7 @@ export default async function MarketsPage({
   const cardRows: SymbolCardData[] = sorted.map((row) => ({
     ticker: row.ticker,
     name: row.name,
-    price: row.last === null ? null : `$${fmtPrice(row.last)}`,
+    price: row.last === null ? null : fmtMoney(row.last, row.currency),
     changePct: row.changePct,
     changeLabel: row.changePct === null ? null : fmtPct(row.changePct),
     // Only surface classification the symbol actually has; a row of em
@@ -174,7 +175,7 @@ export default async function MarketsPage({
                   <TableCell className="hidden text-text-tertiary xl:table-cell">
                     {row.exchange ?? "—"}
                   </TableCell>
-                  <NumericCell>{row.last === null ? null : `$${fmtPrice(row.last)}`}</NumericCell>
+                  <NumericCell>{fmtMoney(row.last, row.currency)}</NumericCell>
                   <NumericCell signedBy={row.changePct}>
                     {row.changePct === null ? null : fmtPct(row.changePct)}
                   </NumericCell>
