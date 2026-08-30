@@ -14,10 +14,12 @@ ENV UV_LINK_MODE=copy \
 
 WORKDIR /app
 
-# Cache dependencies first — re-runs only when the lockfile changes.
+# Cache dependencies first — this layer re-runs only when the lockfile changes.
+# No BuildKit `--mount=type=cache` here: Railway's builder requires cache-mount
+# ids to be prefixed `s/<service-id>-`, which is per-service and non-portable.
+# The dependency set is small, so a cold `uv sync` per build is cheap enough.
 COPY pyproject.toml uv.lock ./
-RUN --mount=type=cache,id=uv-cache,target=/root/.cache/uv \
-    uv sync --frozen --no-install-project --no-dev
+RUN uv sync --frozen --no-install-project --no-dev
 
 # Now bring in the source and install the project itself.
 # README.md is required because pyproject.toml declares `readme = "README.md"`;
@@ -26,8 +28,7 @@ COPY src ./src
 COPY migrations ./migrations
 COPY alembic.ini ./alembic.ini
 COPY README.md ./README.md
-RUN --mount=type=cache,id=uv-cache,target=/root/.cache/uv \
-    uv sync --frozen --no-dev
+RUN uv sync --frozen --no-dev
 
 
 FROM builder AS test
@@ -35,8 +36,7 @@ FROM builder AS test
 # Install the dev group from the exact same lockfile/source used by the
 # production builder. Tests are present only in this target, never runtime.
 ENV PATH=/opt/venv/bin:$PATH
-RUN --mount=type=cache,id=uv-cache,target=/root/.cache/uv \
-    uv sync --frozen
+RUN uv sync --frozen
 COPY tests ./tests
 
 CMD ["pytest"]
