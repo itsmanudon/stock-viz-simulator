@@ -25,27 +25,32 @@ Status of the interview-prep curriculum. Update as topics are covered.
 | Testing strategy | 620 pytest, pg_scratch, Playwright, k8s smoke | [strategy](../testing/strategy.md) | [testing/](./testing/testing-distributed-systems.md) | ✅ | ✅ |
 | Security & threat model | auth bridge, secrets, hardening | [security/](../security/threat-model.md) | [security/](./security/auth-and-threats.md) | ✅ | ✅ |
 | System design | 3 exercises vs. real architecture | — | [system-design/](./system-design/README.md) | ✅ | ✅ |
-| Docker | `apps/*/Dockerfile`, compose | [DEPLOYMENT](../DEPLOYMENT.md) | ⬜ | ⬜ | 🟡 |
-| Networking | Services, Ingress, CORS, proxy headers | [KUBERNETES](../KUBERNETES.md) | ⬜ | ⬜ | ⬜ |
-| Performance | benchmark harness | [KAFKA_SCALING](../KAFKA_SCALING.md) | ⬜ | ⬜ | 🟡 |
+| Docker | `apps/*/Dockerfile`, compose | [docker](../infrastructure/docker.md) | [docker/](./docker/images-and-layers.md) | ✅ | ✅ |
+| Networking | Services, Ingress, CORS, proxy headers | [networking](../infrastructure/networking.md) | [networking/](./networking/service-discovery-and-proxies.md) | ✅ | ✅ |
+| Performance | benchmark harness, 100k scaling matrix | [KAFKA_SCALING](../KAFKA_SCALING.md) | [performance/](./performance/reading-the-scaling-curve.md) | ✅ | ✅ |
+| Frontend/backend boundary | server-only, two clients, retry policy | [boundary](../architecture/frontend-backend-boundary.md) | [frontend/](./frontend/server-client-boundary.md) | ✅ | ✅ |
 | **Redis / caching** | **none in repo** | [ADR-0004](../adr/ADR-0004-no-redis.md) | — | ✅ | ➖ |
 
 ## Suggested next iterations
 
-1. **Networking** — Services and cluster DNS, `--proxy-headers` and the
-   forwarded chain, CORS configuration, Ingress, and the north-south vs.
-   east-west distinction.
-2. **Docker study note** — multi-stage `uv` builds, one image with
-   per-workload commands, and why the web image refuses dev secrets under
-   `NODE_ENV=production`.
-3. **Performance** — read [KAFKA_SCALING.md](../KAFKA_SCALING.md) closely;
-   the 1→2→4→8 replica curve (including the 5.6% regression at eight) is
-   good material for a "how do you know?" conversation.
-4. **Frontend/backend boundary** — server components, the `server-only`
-   boundary, and where rendering happens. Weakest area of the curriculum.
-5. **Close the open findings** in [FINDINGS.md](./FINDINGS.md) — F-002
-   (DLQ) and F-003 (shared rate-limit store) are the two with real
-   engineering substance.
+The breadth-first pass is complete: every major subsystem now has a
+canonical doc and a study note. Remaining work is depth and upkeep.
+
+1. **Close the open findings** in [FINDINGS.md](./FINDINGS.md). F-011
+   (plausibility bounds on ingested prices) is the highest-value one —
+   it is a financial system with no validation on the data everything
+   prices off. F-002 (DLQ) and F-003/F-012 (shared store for rate limits
+   and login throttling) are the two with real architectural substance.
+2. **Observability** stays 🟡 until the system grows metrics. Adding
+   consumer lag and outbox-backlog gauges would close both the biggest
+   operational gap and the biggest curriculum gap at once.
+3. **Rehearse out loud.** The material is written; the remaining work is
+   delivery. Start with
+   [explain-stockviz-in-interviews](./explain-stockviz-in-interviews.md),
+   then the repository-specific question bank.
+4. **Keep it honest.** Any change to auth, trading semantics, event
+   contracts, or infrastructure must update the canonical doc in the same
+   PR, or this hierarchy becomes the thing it was built to replace.
 
 ## Notes on scope
 

@@ -24,6 +24,7 @@ New here? Read [Local setup](./SETUP.md), then
 | --- | --- |
 | [Architecture overview](./architecture/overview.md) | Process inventory, service boundaries, sync vs async split |
 | [Request lifecycle](./architecture/request-lifecycle.md) | Browser → Next.js → FastAPI → service → Postgres, and the ingest path |
+| [Frontend/backend boundary](./architecture/frontend-backend-boundary.md) | Server vs client contexts, the `server-only` guard, retry and caching policy |
 | [EVENT_DRIVEN_ARCHITECTURE.md](./EVENT_DRIVEN_ARCHITECTURE.md) | Outbox/inbox, topics, keys, transaction boundaries, delivery semantics |
 | [SIMULATION.md](./SIMULATION.md) | Execution kernel, determinism, replay sessions, forensics |
 
@@ -48,6 +49,8 @@ New here? Read [Local setup](./SETUP.md), then
 
 | Doc | What it answers |
 | --- | --- |
+| [Docker](./infrastructure/docker.md) | Both images, layer caching, one image many commands, build-time vs runtime env |
+| [Networking](./infrastructure/networking.md) | The address matrix, service discovery, proxy headers, CORS |
 | [KUBERNETES.md](./KUBERNETES.md) | Process inventory, probes, HPA, PDB, Strimzi, kind walkthrough |
 | [KAFKA_SCALING.md](./KAFKA_SCALING.md) | Measured consumer-group scaling, partition ceilings, methodology |
 | [DEPLOYMENT.md](./DEPLOYMENT.md) | Render + Vercel deploy, secrets, verification, rollback |

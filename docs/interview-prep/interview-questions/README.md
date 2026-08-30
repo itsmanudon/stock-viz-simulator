@@ -28,3 +28,7 @@ questions stay together:
 | Testing | [testing-distributed-systems](../testing/testing-distributed-systems.md#interview-questions) |
 | Security | [auth-and-threats](../security/auth-and-threats.md#interview-questions) |
 | System design | [system-design/](../system-design/README.md) |
+| Networking | [service-discovery-and-proxies](../networking/service-discovery-and-proxies.md#interview-questions) |
+| Docker | [images-and-layers](../docker/images-and-layers.md#interview-questions) |
+| Performance | [reading-the-scaling-curve](../performance/reading-the-scaling-curve.md#interview-questions) |
+| Frontend boundary | [server-client-boundary](../frontend/server-client-boundary.md#interview-questions) |

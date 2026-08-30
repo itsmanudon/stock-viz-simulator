@@ -61,7 +61,8 @@ backend/infra interview outcome.
 | --- | --- | --- | --- |
 | Kubernetes mapped to StockViz | [kubernetes/](./kubernetes/stockviz-to-kubernetes.md) | [KUBERNETES](../KUBERNETES.md) | ★★★ |
 | Probes, scaling, disruption | [kubernetes/](./kubernetes/stockviz-to-kubernetes.md#probes) | [KUBERNETES](../KUBERNETES.md#probes) | ★★★ |
-| Docker and deployment | — | [DEPLOYMENT](../DEPLOYMENT.md) | ★★ |
+| Docker images and layers | [docker/](./docker/images-and-layers.md) | [docker](../infrastructure/docker.md) | ★★ |
+| Service discovery and proxies | [networking/](./networking/service-discovery-and-proxies.md) | [networking](../infrastructure/networking.md) | ★★★ |
 
 ### Stage 5 — Production engineering
 
@@ -71,6 +72,8 @@ backend/infra interview outcome.
 | Incident debugging | [production-debugging/](./production-debugging/incident-drills.md) | [runbooks](../operations/runbooks.md) | ★★★ |
 | Testing distributed systems | [testing/](./testing/testing-distributed-systems.md) | [strategy](../testing/strategy.md) | ★★★ |
 | Security and threat reasoning | [security/](./security/auth-and-threats.md) | [threat model](../security/threat-model.md) | ★★ |
+| Reading a scaling curve | [performance/](./performance/reading-the-scaling-curve.md) | [KAFKA_SCALING](../KAFKA_SCALING.md) | ★★ |
+| Server/client boundary | [frontend/](./frontend/server-client-boundary.md) | [boundary](../architecture/frontend-backend-boundary.md) | ★★ |
 
 ### Stage 6 — System design
 

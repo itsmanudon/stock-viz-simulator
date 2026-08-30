@@ -102,6 +102,44 @@ Verified to fail when the verifier is weakened.
 
 ---
 
+### F-013 — CSV export made every negative number a text cell ✅ FIXED
+
+**Severity:** Low · **Category:** data quality
+
+**Problem.** `apps/web/lib/csv.ts::neutralise` prefixed any field starting
+with `=`, `+`, `-`, `@`, tab or CR with a single quote to block spreadsheet
+formula injection. That guard is correct in principle, but `-` also starts
+every negative number — so in the trades export, every negative realized
+P&L became `'-12.50`: a **text cell that Excel will not sum or chart**,
+which is the point of exporting to a spreadsheet.
+
+**Evidence.** `app/api/export/trades/route.ts` emits
+`Number(t.realized_pnl).toFixed(2)`, negative for any losing trade. The
+old behaviour was deliberate and tested — the test read *"Trade-off we
+accept: correctness beats prettiness for a leading '-'"* — but its inline
+comment (*"Numbers pass through as numbers, so real negatives are
+unaffected"*) contradicted the assertion directly beneath it, which
+asserted `csvField(-12.5) === "'-12.5"`.
+
+**Why the trade-off was avoidable.** It was framed as safety vs.
+prettiness, but a narrower guard gives both. A field that parses entirely
+as a finite number cannot carry a payload: `-12.50` evaluates to −12.5 and
+nothing else. Anything a spreadsheet would treat as an expression
+(`-1+1`, `-A1`, `-HYPERLINK(...)`) is **not** a number and is still
+neutralised.
+
+**Fix.** Exempt a leading `-` only when the whole field is a finite number.
+`=`, `+`, `@`, tab and CR are never exempt — deliberately, since `+1234`
+has no legitimate use here and the narrow exemption is easier to defend.
+
+**Tests.** `apps/web/tests/unit/csv.test.ts` — the old expectation was
+replaced with three cases: negatives stay numeric (`-12.50`, `-12.5`,
+`-0`, `-1e3`); non-numeric leading `-` is still neutralised; and the other
+prefixes are never exempt even for numeric-looking values. Verified an
+over-broad exemption fails 2 tests.
+
+---
+
 ## Open — tracked, not yet actioned
 
 ### F-002 — No dead-letter queue or retry ceiling
@@ -281,3 +319,19 @@ finding what's wrong:
   recorded reason (it reaches the project only via python-jose's ES*
   algorithms, which the HS256 bridge never uses) rather than by disabling
   the audit.
+- **`apiPost` does not retry** — with the reason in a comment: a timed-out
+  POST may already have committed, and replaying it could duplicate a
+  trade. The same idempotency question the Kafka pipeline answers "yes" to
+  is correctly answered "no" on the HTTP write path.
+- **`import "server-only"` on ten modules** — makes leaking
+  `INTERNAL_API_TOKEN` into a client bundle a *build error* rather than
+  something code review must catch.
+- **`exec` in both container CMDs** — without it a shell stays PID 1 and
+  SIGTERM never reaches the app, which would silently defeat the graceful
+  shutdown handlers in `dispatcher.py::run_loop`.
+- **`RUN test -f .../server.js`** — the web build asserts its own output,
+  so an incomplete standalone trace fails the build instead of producing
+  an image that crashes on boot.
+- **`HOSTNAME=0.0.0.0` before starting Next** — Kubernetes sets `HOSTNAME`
+  to the pod name, which Next's standalone server would otherwise try to
+  bind to.
