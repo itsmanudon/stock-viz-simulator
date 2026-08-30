@@ -17,7 +17,7 @@ from sqlmodel import Session
 
 from stockviz.db import engine
 from stockviz.events.outbox import SchemaIncompatibleError
-from stockviz.events.producer import ConfluentBrokerConsumer
+from stockviz.events.producer import BrokerConsumer, ConfluentBrokerConsumer
 from stockviz.settings import get_settings
 
 logger = logging.getLogger(__name__)
@@ -43,13 +43,36 @@ def handle_message(
     return handler(session, payload)
 
 
+def _rewind(consumer: BrokerConsumer, msg: object) -> None:
+    """Put a failed record back at the head of its partition.
+
+    Without this, a handler failure silently drops the record. ``poll()``
+    advances the consumer position regardless of commits, so the next poll
+    returns the *following* message; if that one succeeds, its commit moves
+    the committed offset past the failed record and it is never redelivered.
+    For market bars, news, and trade activity that is silent data loss, so we
+    rewind and let the same record be retried.
+
+    The consequence is the documented one: a genuinely poison record stalls
+    its partition until the code or data is fixed. That is deliberate — this
+    pipeline has no dead-letter topic, and for financial data a loud stall
+    beats a silent gap. A seek failure must not kill the loop, so it is
+    logged and swallowed; the record is then retried after the next
+    rebalance or restart.
+    """
+    try:
+        consumer.seek(msg)
+    except Exception:
+        logger.exception("failed to rewind partition; record may be skipped until restart")
+
+
 def consume_once(
     *,
     topic: str,
     group_id: str,
     timeout: float,
     backoff_seconds: float,
-    consumer: ConfluentBrokerConsumer | None = None,
+    consumer: BrokerConsumer | None = None,
     bootstrap_servers: str,
     handlers: dict[str, Handler] | None = None,
     process: ProcessFn | None = None,
@@ -81,11 +104,13 @@ def consume_once(
                     result = handle_message(session, payload, handlers=handlers or {})
                     session.commit()
         except SchemaIncompatibleError:
-            logger.exception("incompatible payload; offset not committed")
+            logger.exception("incompatible payload; offset not committed, rewinding")
+            _rewind(client, msg)
             time.sleep(backoff_seconds)
             return True
         except Exception:
-            logger.exception("handler failed; offset not committed, backing off")
+            logger.exception("handler failed; offset not committed, rewinding and backing off")
+            _rewind(client, msg)
             time.sleep(backoff_seconds)
             return True
         client.commit(msg)

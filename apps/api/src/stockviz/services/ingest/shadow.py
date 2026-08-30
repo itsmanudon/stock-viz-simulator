@@ -173,8 +173,12 @@ class SymbolComparison:
             "reference_rows": self.reference_rows,
             "candidate_rows": self.candidate_rows,
             "common_sessions": self.common_sessions,
-            "reference_only_sessions": [value.isoformat() for value in self.reference_only_sessions],
-            "candidate_only_sessions": [value.isoformat() for value in self.candidate_only_sessions],
+            "reference_only_sessions": [
+                value.isoformat() for value in self.reference_only_sessions
+            ],
+            "candidate_only_sessions": [
+                value.isoformat() for value in self.candidate_only_sessions
+            ],
             "newest_completed_reference": optional_date(self.newest_completed_reference),
             "newest_completed_candidate": optional_date(self.newest_completed_candidate),
             "newest_raw_reference": optional_date(self.newest_raw_reference),
@@ -459,8 +463,7 @@ def compare_symbol(
             )
         relative_volume = _relative_error(reference_bar.volume, candidate_bar.volume)
         if (relative_volume is None and reference_bar.volume != candidate_bar.volume) or (
-            relative_volume is not None
-            and relative_volume > VOLUME_THRESHOLDS["over_1_percent"]
+            relative_volume is not None and relative_volume > VOLUME_THRESHOLDS["over_1_percent"]
         ):
             discrepancies.append(
                 Discrepancy(
@@ -529,7 +532,14 @@ def compare_symbol(
         )
         if newest_raw is not None:
             newest_completed = max(
-                (value for value in (max(reference_dates, default=None), max(candidate_dates, default=None)) if value is not None),
+                (
+                    value
+                    for value in (
+                        max(reference_dates, default=None),
+                        max(candidate_dates, default=None),
+                    )
+                    if value is not None
+                ),
                 default=None,
             )
             classification = (

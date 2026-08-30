@@ -129,7 +129,11 @@ def test_operational_shadow_bounds_requested_history(monkeypatch) -> None:
 
     def fake_massive(_ticker, *, start, end, api_key):
         captured.update(start=start, end=end)
-        return [_bar("massive", scope=SessionScope.PROVIDER_DAILY, session_date=today - timedelta(days=1))]
+        return [
+            _bar(
+                "massive", scope=SessionScope.PROVIDER_DAILY, session_date=today - timedelta(days=1)
+            )
+        ]
 
     settings = _settings(True)
     settings.massive_shadow_lookback_days = 5

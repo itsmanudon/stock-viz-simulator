@@ -186,6 +186,52 @@ def test_duplicate_market_refresh_is_db_safe(session: Session) -> None:
     assert latest.close != Decimal("999") + Decimal(19)
 
 
+def test_market_refresh_quarantines_implausible_bars_and_reports_only_accepted(
+    session: Session,
+) -> None:
+    from stockviz.models import QuarantinedPriceBar
+
+    _symbol(session, "AAPL")
+    req = enqueue_market_refresh_requested(session, ticker="AAPL", reason="manual")
+    session.commit()
+    event = parse_market_refresh_requested(req.payload)
+
+    bars = _bars("AAPL", n=5, close=Decimal("100"))
+    # Corrupt the last (latest) bar into an implausible intrabar range.
+    bad = bars[-1]
+    bars[-1] = BarRecord(
+        ticker=bad.ticker,
+        ts=bad.ts,
+        interval=bad.interval,
+        open=Decimal("100"),
+        high=Decimal("400"),
+        low=Decimal("100"),
+        close=Decimal("390"),
+        volume=bad.volume,
+        source=bad.source,
+        adjustment_semantics=bad.adjustment_semantics,
+        session_scope=bad.session_scope,
+    )
+
+    result = persist_market_refresh(session, event, bars)
+    session.commit()
+    assert result == "applied"
+
+    stored = session.exec(select(PriceBar).where(PriceBar.ticker == "AAPL")).all()
+    assert len(stored) == 4
+    assert max(b.ts for b in stored) == BAR_START + timedelta(days=3)
+
+    quarantined = session.exec(select(QuarantinedPriceBar)).all()
+    assert len(quarantined) == 1
+
+    payload = parse_market_bars_refreshed(
+        _outbox(session, EVENT_TYPE_MARKET_BARS_REFRESHED)[0].payload
+    ).payload
+    # bar_count and latest_close must describe what actually reached price_bars.
+    assert payload.bar_count == 4
+    assert payload.latest_close == "103"
+
+
 def test_failed_market_transaction_writes_nothing(session: Session) -> None:
     _symbol(session, "AAPL")
     req = enqueue_market_refresh_requested(session, ticker="AAPL", reason="daily")

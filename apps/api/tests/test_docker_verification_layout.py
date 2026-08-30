@@ -20,7 +20,7 @@ def test_api_test_target_uses_the_same_source_and_lockfile() -> None:
     assert "ENV PATH=/opt/venv/bin:$PATH" in dockerfile
     assert "uv sync --frozen" in dockerfile
     assert "COPY tests ./tests" in dockerfile
-    assert "CMD [\"pytest\"]" in dockerfile
+    assert 'CMD ["pytest"]' in dockerfile
     assert "\ntests\n" not in f"\n{dockerignore}"
     assert "FROM python:3.12-slim AS runtime" in dockerfile
 

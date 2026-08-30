@@ -234,15 +234,17 @@ def test_fetch_alpha_vantage_daily_returns_empty_without_key():
 
 def _bars(count: int) -> list[BarRecord]:
     start = datetime(1990, 1, 1)
+    # Plausible OHLC so these bars survive screening (F-011) — this suite is
+    # about the chunked writer, not the screen. See test_ingest_screening.py.
     return [
         BarRecord(
             ticker="AAPL",
             ts=start + timedelta(days=i),
             interval=DAILY_INTERVAL,
-            open=Decimal("1"),
-            high=Decimal("2"),
-            low=Decimal("0.5"),
-            close=Decimal("1.5"),
+            open=Decimal("1.00"),
+            high=Decimal("1.02"),
+            low=Decimal("0.99"),
+            close=Decimal("1.01"),
             volume=Decimal("100"),
             source=SOURCE_YFINANCE,
             adjustment_semantics=AdjustmentSemantics.SPLIT_ADJUSTED,
@@ -253,7 +255,11 @@ def _bars(count: int) -> list[BarRecord]:
 
 
 class _FakePostgresSession:
-    """Just enough Session for the Postgres branch of ``upsert_bars``."""
+    """Just enough Session for the Postgres branch of ``upsert_bars``.
+
+    Records only INSERT statements — screening (F-011) issues a prior-close
+    SELECT first, which returns nothing here and is not what these tests count.
+    """
 
     def __init__(self) -> None:
         self.statements: list[object] = []
@@ -262,7 +268,8 @@ class _FakePostgresSession:
         return SimpleNamespace(dialect=SimpleNamespace(name="postgresql"))
 
     def exec(self, statement):
-        self.statements.append(statement)
+        if statement.__class__.__name__ == "Insert":
+            self.statements.append(statement)
 
 
 def test_upsert_bars_chunks_large_batches_under_the_parameter_ceiling():
@@ -289,10 +296,10 @@ def test_upsert_bars_rejects_fractional_volume_before_numeric_migration(session)
         ticker="AAPL",
         ts=datetime(2025, 1, 2),
         interval=DAILY_INTERVAL,
-        open=Decimal("1"),
-        high=Decimal("2"),
-        low=Decimal("0.5"),
-        close=Decimal("1.5"),
+        open=Decimal("1.00"),
+        high=Decimal("1.02"),
+        low=Decimal("0.99"),
+        close=Decimal("1.01"),
         volume=Decimal("100.25"),
         source=SOURCE_YFINANCE,
         adjustment_semantics=AdjustmentSemantics.SPLIT_ADJUSTED,
@@ -317,10 +324,10 @@ def test_upsert_bars_persists_provider_neutral_financial_semantics(session):
         ticker="AAPL",
         ts=datetime(2025, 1, 2),
         interval=DAILY_INTERVAL,
-        open=Decimal("1"),
-        high=Decimal("2"),
-        low=Decimal("0.5"),
-        close=Decimal("1.5"),
+        open=Decimal("1.00"),
+        high=Decimal("1.02"),
+        low=Decimal("0.99"),
+        close=Decimal("1.01"),
         volume=Decimal("100"),
         source=SOURCE_ALPHA_VANTAGE,
         adjustment_semantics=AdjustmentSemantics.UNADJUSTED,

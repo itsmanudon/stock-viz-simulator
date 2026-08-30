@@ -184,6 +184,15 @@ pnpm build
 pnpm verify:pipeline:clean
 ```
 
+## Documentation
+
+The full engineering knowledge base lives in **[docs/README.md](./docs/README.md)** —
+architecture, request lifecycle, database and market-data semantics,
+infrastructure, operational runbooks, and architecture decision records.
+
+For repository-grounded engineering study, see the
+[Interview Preparation Hub](./docs/interview-prep/README.md).
+
 ## Engineering tradeoffs and limitations
 
 What is demonstrated: local Docker, real PostgreSQL and Kafka, a real kind/Strimzi cluster, multi-consumer benchmark evidence, and CI smoke coverage.

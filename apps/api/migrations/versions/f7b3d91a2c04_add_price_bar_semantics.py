@@ -41,14 +41,12 @@ def upgrade() -> None:
     # existing fallback whose parser intentionally emits raw OHLC is Alpha
     # Vantage, so preserve that distinction during the one-time backfill.
     op.execute(
-        "UPDATE price_bars SET adjustment_semantics = 'unadjusted' "
-        "WHERE source = 'alpha_vantage'"
+        "UPDATE price_bars SET adjustment_semantics = 'unadjusted' WHERE source = 'alpha_vantage'"
     )
     op.create_check_constraint(
         "ck_price_bars_adjustment_semantics",
         "price_bars",
-        "adjustment_semantics IN "
-        "('unadjusted', 'split_adjusted', 'split_dividend_adjusted')",
+        "adjustment_semantics IN ('unadjusted', 'split_adjusted', 'split_dividend_adjusted')",
     )
     op.create_check_constraint(
         "ck_price_bars_session_scope",

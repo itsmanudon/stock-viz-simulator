@@ -679,6 +679,68 @@ def _cmd_market_shadow(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_ingest_quarantine(args: argparse.Namespace) -> int:
+    """Inspect or release bars parked by plausibility screening (F-011)."""
+    from decimal import Decimal
+
+    from sqlmodel import col, select
+
+    from stockviz.models import QuarantinedPriceBar
+    from stockviz.services.ingest.bar_semantics import AdjustmentSemantics, SessionScope
+    from stockviz.services.ingest.prices import BarRecord, write_accepted_bars
+
+    with Session(engine) as session:
+        if args.release:
+            rows = session.exec(
+                select(QuarantinedPriceBar).where(col(QuarantinedPriceBar.id).in_(args.release))
+            ).all()
+            found = {r.id for r in rows}
+            for r in rows:
+                write_accepted_bars(
+                    session,
+                    [
+                        BarRecord(
+                            ticker=r.ticker,
+                            ts=r.ts,
+                            interval=r.interval,
+                            open=r.open,
+                            high=r.high,
+                            low=r.low,
+                            close=r.close,
+                            volume=Decimal(r.volume),
+                            source=r.source or "quarantine_release",
+                            adjustment_semantics=AdjustmentSemantics(
+                                r.adjustment_semantics or AdjustmentSemantics.SPLIT_ADJUSTED
+                            ),
+                            session_scope=SessionScope(r.session_scope or SessionScope.REGULAR),
+                        )
+                    ],
+                )
+                session.delete(r)
+                print(f"  released #{r.id}: {r.ticker} {r.ts.date()} close={r.close}")
+            session.commit()
+            missing = sorted(set(args.release) - found)
+            for rid in missing:
+                print(f"  #{rid} not found", file=sys.stderr)
+            return 1 if missing else 0
+
+        stmt = select(QuarantinedPriceBar).order_by(col(QuarantinedPriceBar.detected_at).desc())
+        if args.ticker:
+            stmt = stmt.where(QuarantinedPriceBar.ticker == args.ticker.upper())
+        rows = session.exec(stmt.limit(args.limit)).all()
+        if not rows:
+            print("no quarantined bars")
+            return 0
+        for r in rows:
+            print(
+                f"  #{r.id}  {r.ticker:<6} {r.ts.date()} {r.interval}  "
+                f"O={r.open} H={r.high} L={r.low} C={r.close}  "
+                f"prev_close={r.prev_close}  — {r.reason}"
+            )
+        print(f"{len(rows)} row(s); release with: stockviz ingest-quarantine --release <id> ...")
+        return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 
@@ -699,6 +761,21 @@ def main(argv: list[str] | None = None) -> int:
     p_ingest = sub.add_parser("ingest", help="Refresh daily bars for one or more tickers")
     p_ingest.add_argument("tickers", nargs="+")
     p_ingest.set_defaults(fn=_cmd_ingest)
+
+    p_quar = sub.add_parser(
+        "ingest-quarantine",
+        help="List (or --release) price bars held back by plausibility screening (F-011)",
+    )
+    p_quar.add_argument("--ticker", help="Filter the listing to one ticker")
+    p_quar.add_argument("--limit", type=int, default=50, help="Max rows to list (default 50)")
+    p_quar.add_argument(
+        "--release",
+        nargs="+",
+        type=int,
+        metavar="ID",
+        help="Write these quarantine rows into price_bars and delete them",
+    )
+    p_quar.set_defaults(fn=_cmd_ingest_quarantine)
 
     p_news = sub.add_parser(
         "news",

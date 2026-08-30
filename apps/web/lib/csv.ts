@@ -14,12 +14,38 @@
  * Today every field comes from our own database, so this is defence in depth
  * rather than a live hole — but a user-supplied portfolio name or ticker note
  * would make it one.
+ *
+ * The one exception is a leading `-` on a value that is entirely a number.
+ * Negative amounts are ordinary data here (realized P&L, cash movements), and
+ * prefixing them turns every one into a text cell that Excel will not sum —
+ * which defeats the point of exporting to a spreadsheet. A bare negative
+ * number cannot carry a payload, so exempting it costs nothing; anything a
+ * spreadsheet would evaluate as an expression is not a number and is still
+ * neutralised.
  */
 
 const FORMULA_PREFIXES = ["=", "+", "-", "@", "\t", "\r"];
 
+/**
+ * A field that is entirely a finite number, e.g. `-12.50` or `-1e3`.
+ *
+ * Only a leading `-` is exempted below, and only for these: a bare negative
+ * number cannot carry a payload, because anything a spreadsheet would treat
+ * as an expression (`-1+1`, `-HYPERLINK(...)`) fails this test and is still
+ * neutralised. `=`, `+`, `@`, tab and CR are never exempt.
+ */
+function isPlainNumber(value: string): boolean {
+  return value.trim() !== "" && Number.isFinite(Number(value));
+}
+
 function neutralise(value: string): string {
-  return FORMULA_PREFIXES.some((p) => value.startsWith(p)) ? `'${value}` : value;
+  if (!FORMULA_PREFIXES.some((p) => value.startsWith(p))) return value;
+  // Negative amounts are ordinary data in a financial export. Prefixing them
+  // makes every negative P&L a text cell, so the column cannot be summed or
+  // charted — the export's whole purpose. Exempt them, but only when the
+  // field parses as a number and therefore cannot be an expression.
+  if (value.startsWith("-") && isPlainNumber(value)) return value;
+  return `'${value}`;
 }
 
 /** Quote and escape one CSV field. */
