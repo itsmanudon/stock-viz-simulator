@@ -15,6 +15,8 @@ StockViz combines a usable Next.js financial application with a deliberately spl
 - **Transactional outbox.** A committed trade cannot lose its event because publication is retried independently after the financial transaction.
 - **At-least-once Kafka processing.** Consumer inbox rows make duplicate delivery safe; application keys retain useful portfolio/ticker ordering.
 - **Event-driven ingestion.** The scheduler emits durable market/news requests; dedicated workers call providers, persist results, and publish downstream domain events.
+- **Plausibility-screened ingest.** Every price bar passes structural checks (positive, finite, `low ≤ open,close ≤ high`) before it reaches `price_bars`; implausible bars (huge intrabar range or day-over-day move) are quarantined for review, never dropped, so a bad provider row can't flow into fills, NAV, or backtests.
+- **Multi-currency universe.** US, Indian (NSE equities + NIFTY indices), and European tickers plus USD commodities, each priced in its native currency with FX-aware conversion to the USD ledger.
 - **Kubernetes orchestration.** API, web, migration, scheduler, publisher, and consumers have distinct workloads, probes, disruption policies, and appropriate scaling limits.
 - **Measured scaling.** A 100,000-event, 12-partition benchmark compares 1/2/4/8 consumer replicas with throughput, latency, lag, CPU, and memory evidence.
 
@@ -113,7 +115,8 @@ All four runs collected exactly 100,000 current-run records, counted zero foreig
 
 ## Features
 
-- Markets dashboard, ticker charts, indicators, comparison, screener, news, watchlists, and in-app price alerts
+- Public marketing site (the **ATLAS** identity: warm paper, restrained gold) with a live product tour driven by the real API — no screenshots
+- Markets dashboard, ticker charts, indicators, comparison, screener, news, watchlists, and in-app price alerts across a multi-currency universe (USD / INR / EUR / …)
 - Email/password authentication with optional Google OAuth
 - FX-aware equity paper trading, pending limit/stop/take-profit orders, dividends, portfolio analytics, and leaderboard
 - Long-only Black-Scholes options priced with a historical-volatility proxy
@@ -126,9 +129,10 @@ All four runs collected exactly 100,000 current-run records, counted zero foreig
 | ------------- | ---------------------------------------------------------------------------- |
 | Web           | Next.js 16, React 19, TypeScript, Tailwind CSS, NextAuth, lightweight-charts |
 | API           | FastAPI, SQLModel, Alembic, APScheduler, Pyright, Ruff                       |
-| Data          | PostgreSQL 16, yfinance, Alpha Vantage fallback, Newsdata.io                 |
+| Data          | PostgreSQL 16, yfinance, Alpha Vantage fallback, Newsdata.io, F-011 plausibility screening |
 | Events        | Kafka 3.9, transactional outbox, idempotent consumer inbox                   |
 | Orchestration | Kubernetes, kind, Strimzi, Kustomize, HPA/PDB/probes                         |
+| Deployment    | Railway (whole stack, TypeScript IaC), Vercel (web), Render (API + DB)       |
 | Testing       | pytest, Vitest, Playwright, real PostgreSQL/Kafka integration                |
 
 ## Running locally
@@ -170,6 +174,13 @@ pnpm k8s:smoke
 ```
 
 See [setup](./docs/SETUP.md) for Windows equivalents and environment variables, or [Kubernetes](./docs/KUBERNETES.md) for cluster internals and teardown.
+
+## Deployment
+
+Two source-controlled hosting paths, both described in [docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md):
+
+- **Railway (whole stack)** — `.railway/railway.ts`, a TypeScript Infrastructure-as-Code file driven by `railway config plan` / `apply`. A lean four-resource topology: managed PostgreSQL, the FastAPI `api` and Next.js `web` apps, and one nightly `cron` service that runs the end-of-day `stockviz.cli` jobs directly (no broker needed to host the site). The full event-driven stack still lives in the Docker Compose `events` profile and the Kubernetes lab.
+- **Vercel + Render** — `apps/web/vercel.json` for the web app, `infra/render.yaml` (a Render Blueprint) for the API + PostgreSQL, with the daily refresh running in-process via APScheduler.
 
 ## Testing and CI
 
