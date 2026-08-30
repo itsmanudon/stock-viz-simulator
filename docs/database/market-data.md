@@ -3,7 +3,8 @@
 Market data is not ordinary CRUD data. This document states the
 assumptions StockViz's ingest and pricing code actually makes, so they can
 be checked rather than guessed at. Every claim here is verifiable in
-`apps/api/src/stockviz/services/ingest/prices.py` and
+`apps/api/src/stockviz/services/ingest/prices.py`,
+`apps/api/src/stockviz/services/ingest/screening.py`, and
 `apps/api/src/stockviz/models/market.py`.
 
 Read alongside [Schema and indexing](./schema.md) and
@@ -67,6 +68,36 @@ price history.
 | Reverse splits | No |
 | Mergers / ticker changes | No — `symbols.ticker` is the natural PK; a renamed ticker is a new symbol |
 | Delistings | Partial — `symbols.is_active` lets the scheduler skip a symbol without losing history |
+
+## Plausibility screening
+
+Every write to `price_bars` goes through `upsert_bars`, which screens each
+bar first (`services/ingest/screening.py::screen_bar`). Two classes of check:
+
+| Class | Rule | Outcome |
+| --- | --- | --- |
+| **Structural** | O/H/L/C finite and `> 0`; `volume >= 0`; `low <= open, close <= high` | **Reject** — dropped, logged at `WARNING`. A bar failing these is corrupt and carries no recoverable information. |
+| **Plausibility** | `(high - low) / low <= 0.60`; `\|close - prev_close\| / prev_close <= 0.60` | **Quarantine** — written to `price_bar_quarantine` (with `reason` and the `prev_close` it was screened against), *not* to `price_bars`. Nothing prices off the quarantine table. |
+
+`prev_close` is the previous accepted bar in the same batch, falling back to
+the latest already-stored bar for the `(ticker, interval)`. A quarantined bar
+does **not** advance the running `prev_close` — screening fails toward review,
+so a genuine spike parks the days after it too until an operator releases the
+first one with `stockviz ingest-quarantine --release <id>`.
+
+**The 60% threshold is a deliberate, tunable choice**
+(`MAX_INTRABAR_RANGE_RATIO`, `MAX_ABS_DAILY_RETURN`). It sits above essentially
+every organic single-day equity move while still catching a whole-row
+decimal-point error (~900%). Because the series is **unadjusted** (see above),
+a stock split of 3:1 or more shows up as a ~67%+ "move" and is quarantined —
+acceptable, since nothing else in the repo detects splits and a human glance
+at a split date is desirable. Real 60%+ moves happen (halt-resumes, biotech
+binary events, bank runs), which is why they are quarantined for review rather
+than dropped.
+
+The Kafka ingest handler (`persist_market_refresh`) screens too: the
+`market.bars.refreshed` event's `bar_count` and `latest_close` describe only
+the bars that reached `price_bars`, never quarantined or rejected ones.
 
 ## Idempotent ingest
 
@@ -135,6 +166,8 @@ never stored.
 
 ## Checklist when touching ingest
 
+- Does every write path go through `upsert_bars` (or `screen_bars` +
+  `write_accepted_bars`), so plausibility screening cannot be bypassed?
 - Does the write stay idempotent under replay?
 - Does it preserve the `(ticker, ts, interval)` key meaning?
 - Does it mix adjusted and unadjusted prices?

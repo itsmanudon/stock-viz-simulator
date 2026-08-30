@@ -37,10 +37,11 @@ The breadth-first pass is complete: every major subsystem now has a
 canonical doc and a study note. Remaining work is depth and upkeep.
 
 1. **Close the open findings** in [FINDINGS.md](./FINDINGS.md). F-011
-   (plausibility bounds on ingested prices) is the highest-value one —
-   it is a financial system with no validation on the data everything
-   prices off. F-002 (DLQ) and F-003/F-012 (shared store for rate limits
-   and login throttling) are the two with real architectural substance.
+   (plausibility bounds on ingested prices) is **done** —
+   `services/ingest/screening.py` rejects impossible bars and quarantines
+   implausible ones. F-002 (DLQ) and F-003/F-012 (shared store for rate
+   limits and login throttling) are the two remaining with real
+   architectural substance.
 2. **Observability** stays 🟡 until the system grows metrics. Adding
    consumer lag and outbox-backlog gauges would close both the biggest
    operational gap and the biggest curriculum gap at once.

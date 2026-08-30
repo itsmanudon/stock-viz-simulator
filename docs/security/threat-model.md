@@ -89,10 +89,16 @@ React escaping is doing the work there.
 **Impact:** Moderate. **Likelihood:** Low.
 Controls: Pydantic/dataclass shaping into `BarRecord`; `Numeric(18,6)`
 columns reject non-numerics; `(ticker, ts, interval)` upsert bounds the
-blast radius to overwriting a bar.
-**Residual:** **no sanity bounds on prices.** A provider returning a
-negative or absurd close would be stored and would flow into fills,
-alerts, and NAV. There is no plausibility check.
+blast radius to overwriting a bar. **Plausibility screening**
+(`services/ingest/screening.py`, applied in `upsert_bars`) rejects bars
+that are non-positive, non-finite, or violate `low <= open, close <= high`,
+and quarantines bars with an implausible intrabar range or day-over-day
+move (>60%) into `price_bar_quarantine` instead of `price_bars` — see
+[market-data semantics](../database/market-data.md#plausibility-screening).
+**Residual:** the 60% threshold is a judgement call: a data error smaller
+than 60% (e.g. a single mis-keyed cent) still lands in `price_bars`, and a
+real 60%+ move is held for manual release. There is no automated
+cross-provider reconciliation.
 
 ### T8 — Supply chain
 **Impact:** High. **Likelihood:** Low.
@@ -130,8 +136,10 @@ logged (the event pipeline logs `event_id`, topic, and key).
    rotation means downtime.
 4. **NetworkPolicies** (T9).
 5. **Content-Security-Policy** (T6).
-6. **Plausibility bounds on ingested prices** (T7) — cheap, and this is a
-   financial system.
+
+Done since this list was written: **plausibility bounds on ingested prices**
+(T7) — `services/ingest/screening.py` rejects structurally impossible bars
+and quarantines implausible ones.
 
 Deliberately *not* on this list: WAF, DDoS protection, and pen testing —
 appropriate for a real service, but not meaningful for a paper-trading

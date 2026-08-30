@@ -63,6 +63,43 @@ class PriceBar(SQLModel, table=True):
     source: str | None = Field(default=None, max_length=32)
 
 
+class QuarantinedPriceBar(SQLModel, table=True):
+    """A bar that failed plausibility screening on ingest (F-011).
+
+    Structurally valid (``low <= open, close <= high``, positive, finite) but
+    implausible relative to context — an enormous intrabar range or a
+    day-over-day move far past anything organic. Real markets do produce these
+    (halt-resumes, biotech events, bank runs), so the bar is parked here for
+    review rather than dropped. **Nothing prices off this table.**
+
+    Each detection is a new row (surrogate ``id`` PK), so re-ingesting the same
+    date leaves an audit trail instead of overwriting. See
+    :mod:`stockviz.services.ingest.screening`.
+    """
+
+    __tablename__ = "price_bar_quarantine"  # pyright: ignore[reportAssignmentType]
+    __table_args__ = (Index("ix_price_bar_quarantine_ticker_ts", "ticker", "ts"),)
+
+    id: int | None = Field(default=None, primary_key=True)
+    ticker: str = Field(foreign_key="symbols.ticker", max_length=16)
+    ts: datetime
+    interval: str = Field(max_length=8)
+
+    open: Decimal = Field(sa_column=Column(Numeric(18, 6), nullable=False))
+    high: Decimal = Field(sa_column=Column(Numeric(18, 6), nullable=False))
+    low: Decimal = Field(sa_column=Column(Numeric(18, 6), nullable=False))
+    close: Decimal = Field(sa_column=Column(Numeric(18, 6), nullable=False))
+    volume: int = Field(sa_column=Column(BigInteger, nullable=False))
+
+    source: str | None = Field(default=None, max_length=32)
+    # The close the bar was screened against, when one was known. NULL when the
+    # bar was the first for its (ticker, interval) or the prior close was
+    # itself quarantined.
+    prev_close: Decimal | None = Field(default=None, sa_column=Column(Numeric(18, 6)))
+    reason: str = Field(max_length=256)
+    detected_at: datetime = Field(default_factory=utcnow, nullable=False)
+
+
 class NewsArticle(SQLModel, table=True):
     """News article attached to a symbol.
 

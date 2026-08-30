@@ -11,7 +11,13 @@ from stockviz.models.dividend import Dividend, PortfolioDividend
 from stockviz.models.earnings import EarningsEvent
 from stockviz.models.events import ConsumerInbox, OutboxEvent, PortfolioTradeActivity
 from stockviz.models.execution import SimulatedExecution
-from stockviz.models.market import FxRate, NewsArticle, PriceBar, Symbol
+from stockviz.models.market import (
+    FxRate,
+    NewsArticle,
+    PriceBar,
+    QuarantinedPriceBar,
+    Symbol,
+)
 from stockviz.models.metrics import SymbolMetrics
 from stockviz.models.option import OptionsPosition, OptionStatus, OptionType
 from stockviz.models.order import OrderStatus, OrderType, PendingOrder
@@ -51,6 +57,7 @@ __all__ = [
     "PortfolioTradeActivity",
     "Position",
     "PriceBar",
+    "QuarantinedPriceBar",
     "Recommendation",
     "ReplayFill",
     "ReplayJournal",

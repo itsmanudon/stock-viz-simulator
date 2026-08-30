@@ -19,9 +19,10 @@ from typing import Any
 
 import httpx
 from sqlalchemy.dialects.postgresql import insert as pg_insert
-from sqlmodel import Session
+from sqlmodel import Session, select
 
-from stockviz.models import PriceBar
+from stockviz.models import PriceBar, QuarantinedPriceBar
+from stockviz.services.ingest.screening import Disposition, screen_bar
 
 logger = logging.getLogger(__name__)
 
@@ -191,8 +192,130 @@ def fetch_alpha_vantage_daily(
 # ---------------------------------------------------------------------------
 
 
-def upsert_bars(session: Session, bars: list[BarRecord]) -> int:
-    """Idempotent insert into ``price_bars``.
+def _latest_stored_close(
+    session: Session, *, ticker: str, interval: str, before: datetime
+) -> Decimal | None:
+    """Close of the most recent ``price_bars`` row for ``ticker`` strictly
+    before ``before``. Used as the trusted prior close for day-over-day
+    screening. Best-effort: any failure yields ``None`` (the check is skipped)
+    so screening can never break the write path."""
+
+    try:
+        stmt = (
+            select(PriceBar)
+            .where(
+                PriceBar.ticker == ticker,
+                PriceBar.interval == interval,
+                PriceBar.ts < before,
+            )
+            .order_by(PriceBar.ts.desc())  # type: ignore[attr-defined]
+            .limit(1)
+        )
+        result = session.exec(stmt)
+        bar = result.first() if result is not None else None
+        return bar.close if bar is not None else None
+    except Exception:
+        # Screening must never break the write path — a lookup failure just
+        # means the day-over-day check is skipped for this bar.
+        logger.debug("screening: prior-close lookup failed for %s", ticker, exc_info=True)
+        return None
+
+
+@dataclass(frozen=True, slots=True)
+class QuarantinedBar:
+    bar: BarRecord
+    reason: str
+    prev_close: Decimal | None
+
+
+def screen_bars(
+    session: Session, bars: list[BarRecord]
+) -> tuple[list[BarRecord], list[QuarantinedBar]]:
+    """Split ``bars`` into (accepted, quarantined), dropping rejects with a
+    ``WARNING``.
+
+    Bars are walked per ``(ticker, interval)`` in timestamp order. The prior
+    close starts from the latest already-stored bar and then follows accepted
+    bars in the batch. A quarantined bar does **not** advance the prior close
+    — screening fails toward review, so a genuine spike parks the days that
+    follow it too until a human releases the first one.
+    """
+
+    if not bars:
+        return [], []
+
+    accepted: list[BarRecord] = []
+    quarantined: list[QuarantinedBar] = []
+
+    ordered = sorted(bars, key=lambda b: (b.ticker, b.interval, b.ts))
+    group_start = 0
+    while group_start < len(ordered):
+        first = ordered[group_start]
+        group_end = group_start
+        while (
+            group_end < len(ordered)
+            and ordered[group_end].ticker == first.ticker
+            and ordered[group_end].interval == first.interval
+        ):
+            group_end += 1
+
+        prev_close = _latest_stored_close(
+            session, ticker=first.ticker, interval=first.interval, before=first.ts
+        )
+        for bar in ordered[group_start:group_end]:
+            verdict = screen_bar(bar, prev_close)
+            if verdict.disposition is Disposition.REJECT:
+                logger.warning(
+                    "ingest: rejecting bar %s %s %s — %s",
+                    bar.ticker,
+                    bar.ts.date(),
+                    bar.interval,
+                    verdict.reason,
+                )
+                continue
+            if verdict.disposition is Disposition.QUARANTINE:
+                logger.warning(
+                    "ingest: quarantining bar %s %s %s — %s",
+                    bar.ticker,
+                    bar.ts.date(),
+                    bar.interval,
+                    verdict.reason,
+                )
+                quarantined.append(QuarantinedBar(bar, verdict.reason or "", prev_close))
+                continue
+            accepted.append(bar)
+            prev_close = bar.close
+
+        group_start = group_end
+
+    return accepted, quarantined
+
+
+def record_quarantined_bars(session: Session, quarantined: list[QuarantinedBar]) -> int:
+    """Stage one ``price_bar_quarantine`` row per detection. Does not commit."""
+
+    for item in quarantined:
+        b = item.bar
+        session.add(
+            QuarantinedPriceBar(
+                ticker=b.ticker,
+                ts=b.ts,
+                interval=b.interval,
+                open=b.open,
+                high=b.high,
+                low=b.low,
+                close=b.close,
+                volume=b.volume,
+                source=b.source,
+                prev_close=item.prev_close,
+                reason=item.reason,
+            )
+        )
+    return len(quarantined)
+
+
+def write_accepted_bars(session: Session, bars: list[BarRecord]) -> int:
+    """Idempotent insert of already-screened bars into ``price_bars``.
 
     Uses Postgres ``ON CONFLICT`` so a re-ingest of the same date refreshes
     the row instead of failing. Returns the number of bars submitted (not the
@@ -254,6 +377,25 @@ def upsert_bars(session: Session, bars: list[BarRecord]) -> int:
         existing.source = row["source"]
         session.add(existing)
     return len(rows)
+
+
+def upsert_bars(session: Session, bars: list[BarRecord]) -> int:
+    """Screen ``bars`` (F-011), then upsert the survivors into ``price_bars``.
+
+    The single choke point for every price-bar write (CLI, backfill, Kafka
+    ingest handler). Implausible bars are staged in ``price_bar_quarantine``
+    instead; structurally broken bars are dropped with a ``WARNING``. Returns
+    the number of rows written to ``price_bars`` — i.e. accepted bars only.
+    Does not commit.
+    """
+
+    if not bars:
+        return 0
+
+    accepted, quarantined = screen_bars(session, bars)
+    if quarantined:
+        record_quarantined_bars(session, quarantined)
+    return write_accepted_bars(session, accepted)
 
 
 def persist_bars(session: Session, bars: list[BarRecord]) -> int:

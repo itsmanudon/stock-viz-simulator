@@ -102,6 +102,61 @@ Verified to fail when the verifier is weakened.
 
 ---
 
+### F-011 — No plausibility bounds on ingested prices ✅ FIXED
+
+**Severity:** Medium · **Category:** data quality
+
+**Problem.** Nothing validated provider data before it reached `price_bars`.
+A negative, zero, `NaN`, or absurd close would be stored and flow into fills,
+alerts, NAV, backtests, and replay. `Numeric(18, 6)` rejects non-numerics and
+nothing else — not even `Decimal('NaN')`, which `Decimal(str(float('nan')))`
+produces and yfinance emits for missing fields.
+
+**Evidence.** No check for `low <= open, close <= high`, price sign,
+finiteness, or any bound against the prior close anywhere in
+`services/ingest/prices.py` or the `BarRecord` dataclass. Three builders
+(`fetch_yfinance_daily`, `fetch_alpha_vantage_daily`, `backfill._parse_csv`)
+and two write paths (`persist_bars`, `persist_market_refresh`) fed
+`upsert_bars` unscreened.
+
+**Fix.** New pure module `services/ingest/screening.py::screen_bar` with two
+classes of check, applied inside `upsert_bars` (the one choke point every
+write goes through):
+
+- **Structural → reject** (drop + `WARNING`): O/H/L/C finite and `> 0`,
+  `volume >= 0`, `low <= open, close <= high`.
+- **Plausibility → quarantine** (new `price_bar_quarantine` table, not
+  `price_bars`): `(high - low) / low > 0.60`, or
+  `|close - prev_close| / prev_close > 0.60`. `prev_close` follows accepted
+  bars in the batch and falls back to the latest stored bar; a quarantined
+  bar does not advance it (fails toward review). Thresholds are tunable
+  module constants.
+
+`persist_market_refresh` screens too and derives the `market.bars.refreshed`
+`bar_count` / `latest_close` from accepted bars only. New
+`stockviz ingest-quarantine [--ticker] [--release ID ...]` CLI lists held
+bars and releases them into `price_bars`.
+
+**Why 60%.** Above essentially every organic single-day equity move; a
+whole-row decimal-point error (~900%) is always caught. It interacts with the
+*unadjusted* series (F-007 neighbourhood): splits ≥ 3:1 quarantine, which is
+acceptable — nothing else detects splits and a human glance at a split date
+is desirable.
+
+**Tests.** `tests/test_ingest_screening.py` (14, pure), `tests/test_ingest_quarantine.py`
+(7, writer end-to-end on SQLite), plus a `persist_market_refresh` case in
+`tests/test_market_news_pipeline.py`. Migration `2c1a9603e92b`; `alembic check`
+clean; full suite green against Postgres (649 passed).
+
+**Docs.** [market-data semantics](../database/market-data.md#plausibility-screening);
+[threat model T7](../security/threat-model.md).
+
+**Accepted consequence.** A data error smaller than 60% still lands in
+`price_bars`, and a genuine 60%+ move is held until an operator releases it.
+Cross-provider reconciliation is still absent.
+
+---
+
 ### F-013 — CSV export made every negative number a text cell ✅ FIXED
 
 **Severity:** Low · **Category:** data quality
@@ -245,27 +300,6 @@ contained fix and deserves its own change with its own tests, rather than
 being folded into a documentation iteration.
 
 *Observed while writing `test_auth_bridge.py`.*
-
-### F-011 — No plausibility bounds on ingested prices
-
-**Severity:** Medium · **Category:** data quality
-
-Nothing validates provider data before it reaches `price_bars`. A negative,
-zero, or absurd close would be stored and would flow into fills, alerts,
-NAV, backtests, and replay. There is no check that
-`low ≤ open, close ≤ high`, and no bound against the prior close.
-
-`Numeric(18, 6)` rejects non-numerics; that is the only guard.
-
-For a system that models money this is the cheapest high-value validation
-available. **Not fixed here** because choosing thresholds is a domain
-decision (what move is implausible? how are halts and genuine 50% gaps
-handled?) and silently rejecting real market data would be worse than
-storing it. Proposed: reject bars violating OHLC ordering outright, and
-route large moves to a quarantine table rather than dropping them.
-
-**Docs.** [threat model T7](../security/threat-model.md),
-[market-data semantics](../database/market-data.md).
 
 ### F-012 — No login throttling or account lockout
 
