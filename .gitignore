@@ -37,6 +37,9 @@ build/
 !.vscode/extensions.json
 .idea/
 
+# Agent-isolated feature worktrees
+.worktrees/
+
 # OS
 .DS_Store
 Thumbs.db
@@ -52,6 +55,9 @@ Thumbs.db
 coverage/
 .coverage
 htmlcov/
+
+# Private provider-derived evidence (never publish or copy into images)
+artifacts/private/
 
 # Logs
 *.log

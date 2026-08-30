@@ -96,7 +96,8 @@ Readiness at `/health` (Postgres; 503 if down). Kubernetes probes those
 separately; Render still uses `/health` as `healthCheckPath`.
 
 CLI subcommands (`python -m stockviz.cli <cmd>`): `seed`, `backfill`,
-`metadata`, `ingest <tickers>`, `news [tickers]`, `fx`, `metrics`,
+`metadata`, `ingest <tickers>`, `ingest-quarantine [--ticker T] [--release ID ...]`,
+`news [tickers]`, `fx`, `metrics`,
 `score-sentiment`, `sentiment-aggregate`, `recommend`, `snapshot-portfolios`,
 `dividends`, `credit-dividends`, `settle-options`, `run-scheduler`,
 `publish-outbox [--once]`,
@@ -310,17 +311,40 @@ revision you'll get **multiple heads** — resolve with
 
 Each ingest service writes straight to Postgres — no CSV intermediate.
 Price ingest uses **yfinance first** (no key). Alpha Vantage is attempted
-only when `ALPHA_VANTAGE_KEY` is set and yfinance returned no rows. News
-ingest short-circuits when `NEWSDATA_KEY` is unset. Same skip-when-unkeyed
-pattern for sentiment (Anthropic) — it logs and skips when the key or
-package is missing. `stockviz.cli news` is the one exception: it **exits 2**
-rather than silently ingesting nothing, because a manual operator command
-that no-ops looks identical to one that found no articles.
+only when `ALPHA_VANTAGE_KEY` is set and yfinance returned no rows. Massive is
+private/nonpersistent shadow only: `MASSIVE_SHADOW_ENABLED=true` requires
+`MASSIVE_API_KEY`, and candidate bars never enter persistence, events, or APIs.
+An explicit `NEWS_PROVIDER=newsdata` requires `NEWSDATA_KEY`; an explicit
+Anthropic/HTTP sentiment provider similarly requires its credential/endpoint.
+Blank selections retain legacy key-based resolution. `stockviz.cli news` also
+exits 2 rather than silently ingesting nothing.
 
 `upsert_bars` writes in chunks of `UPSERT_CHUNK_ROWS` (1000). `price_bars`
-binds 9 parameters per row, and a full-history yfinance fetch is ~11k bars —
+binds 11 parameters per row, including provider provenance plus generic
+adjustment/session semantics, and a full-history yfinance fetch is ~11k bars —
 one multi-row INSERT of that size exceeds Postgres' 65535 parameter ceiling,
 which made `stockviz.cli ingest` fail outright against Postgres.
+
+Canonical volume is `Decimal`, but persisted volume remains `BIGINT` until a
+private live Massive run establishes the required fixed scale. Fractional
+values are rejected, never rounded. See
+[`docs/MARKET_DATA.md`](../../docs/MARKET_DATA.md).
+
+**Plausibility screening (F-011).** `upsert_bars` is the single choke point
+for every price-bar write. Before writing it runs
+`services/ingest/screening.py::screen_bar` on each bar: structurally
+impossible bars (non-positive/non-finite price, `low > open|close` or
+`open|close > high`, negative volume) are **rejected** with a `WARNING`;
+bars with an implausible intrabar range or day-over-day move (>60%, both
+tunable constants) are **quarantined** into `price_bar_quarantine`
+(`QuarantinedPriceBar`) instead of `price_bars`. Nothing prices off the
+quarantine table. Release a held bar with
+`stockviz ingest-quarantine --release <id>`. The Kafka handler
+(`persist_market_refresh`) screens too, and emits `market.bars.refreshed`
+counts/close from accepted bars only. Any new write path must go through
+`upsert_bars` or `screen_bars` + `write_accepted_bars`, never a raw
+`PriceBar` insert. See
+[market-data semantics](../../docs/database/market-data.md#plausibility-screening).
 
 The newsdata.io query string is the **company name**, resolved by
 `scheduler.company_name_map()`: `symbols.name` from the database, with

@@ -33,7 +33,7 @@ flowchart LR
   end
 ```
 
-The synchronous ledger and asynchronous pipelines are intentionally separate. See [Event-driven architecture](./docs/EVENT_DRIVEN_ARCHITECTURE.md), [Kubernetes](./docs/KUBERNETES.md), and the [interview guide](./docs/INTERVIEW_GUIDE.md).
+The synchronous ledger and asynchronous pipelines are intentionally separate. See [event-driven architecture](./docs/EVENT_DRIVEN_ARCHITECTURE.md), [market-data semantics and Massive shadow evaluation](./docs/MARKET_DATA.md), [Kubernetes](./docs/KUBERNETES.md), and the [interview guide](./docs/INTERVIEW_GUIDE.md).
 
 ## Financial correctness
 
@@ -181,7 +181,17 @@ pnpm typecheck
 pnpm --filter @stockviz/web test
 uv --directory apps/api run pytest
 pnpm build
+pnpm verify:pipeline:clean
 ```
+
+## Documentation
+
+The full engineering knowledge base lives in **[docs/README.md](./docs/README.md)** —
+architecture, request lifecycle, database and market-data semantics,
+infrastructure, operational runbooks, and architecture decision records.
+
+For repository-grounded engineering study, see the
+[Interview Preparation Hub](./docs/interview-prep/README.md).
 
 ## Engineering tradeoffs and limitations
 

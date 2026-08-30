@@ -3,6 +3,27 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* JetBrains Mono (Google Fonts build, all subsets) has no Indian rupee glyph
+   at U+20B9, so a price like "₹801.05" fell through to next/font's
+   size-adjusted fallback face and rendered ~25% oversized and soft next to
+   the tabular digits. This alias, scoped to just that codepoint and placed
+   first in --font-mono, routes ₹ to a platform mono (Consolas / DejaVu Sans
+   Mono / Menlo). It carries no other glyphs, so digits and letters still
+   resolve to JetBrains Mono (and its fallback keeps the swap from shifting
+   layout). If none of the locals exist, ₹ simply falls through to the rest
+   of the stack — no worse than before.
+
+   size-adjust: 112% lifts the ₹ cap-height to match JetBrains Mono's digits
+   — Consolas/DejaVu draw ₹ ~11% shorter than JBM's figures at the same
+   font-size, so without this the symbol reads a size smaller than the
+   amount it prefixes. Measured against the digit ascent at 36px/600. */
+@font-face {
+  font-family: "Currency Mono";
+  src: local("Consolas"), local("DejaVu Sans Mono"), local("Menlo");
+  unicode-range: U+20B9;
+  size-adjust: 112%;
+}
+
 :root {
   /* ATLAS — warm paper and restrained gold for research workspaces.
      Gold is reserved for identity, focus, and the selected action. Positive
@@ -160,7 +181,8 @@
   --color-marketing-panel-border: var(--marketing-panel-border);
   --color-grid-line: var(--grid-line);
   --font-sans: var(--font-display), "Segoe UI Variable", Inter, ui-sans-serif, system-ui, sans-serif;
-  --font-mono: var(--font-numeric), "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+  --font-mono: "Currency Mono", var(--font-numeric), "Cascadia Code", "SFMono-Regular", Consolas,
+    monospace;
 
   /* Type ramp.
      `3xs`/`2xs` are the dense-UI steps below Tailwind's `xs` — table meta,
