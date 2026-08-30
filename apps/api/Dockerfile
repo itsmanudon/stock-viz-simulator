@@ -14,10 +14,12 @@ ENV UV_LINK_MODE=copy \
 
 WORKDIR /app
 
-# Cache dependencies first — re-runs only when the lockfile changes.
+# Cache dependencies first — this layer re-runs only when the lockfile changes.
+# No BuildKit `--mount=type=cache` here: Railway's builder requires cache-mount
+# ids to be prefixed `s/<service-id>-`, which is per-service and non-portable.
+# The dependency set is small, so a cold `uv sync` per build is cheap enough.
 COPY pyproject.toml uv.lock ./
-RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-install-project --no-dev
+RUN uv sync --frozen --no-install-project --no-dev
 
 # Now bring in the source and install the project itself.
 # README.md is required because pyproject.toml declares `readme = "README.md"`;
@@ -26,8 +28,7 @@ COPY src ./src
 COPY migrations ./migrations
 COPY alembic.ini ./alembic.ini
 COPY README.md ./README.md
-RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-dev
+RUN uv sync --frozen --no-dev
 
 
 FROM builder AS test
@@ -35,8 +36,7 @@ FROM builder AS test
 # Install the dev group from the exact same lockfile/source used by the
 # production builder. Tests are present only in this target, never runtime.
 ENV PATH=/opt/venv/bin:$PATH
-RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen
+RUN uv sync --frozen
 COPY tests ./tests
 
 CMD ["pytest"]
@@ -54,6 +54,12 @@ COPY --from=builder /opt/venv /opt/venv
 COPY --from=builder /app/src ./src
 COPY --from=builder /app/migrations ./migrations
 COPY --from=builder /app/alembic.ini ./alembic.ini
+
+# Seed inputs for `stockviz.cli seed` / `backfill` on a fresh deploy — the
+# company list and the split-unadjusted daily OHLCV history. News CSVs are
+# left out (news comes from the live provider). ~5 MB.
+COPY seed-data/companies.json ./seed-data/companies.json
+COPY seed-data/stock-data-csv-files ./seed-data/stock-data-csv-files
 
 # Run as a non-root user. Nothing here needs to write to the image at runtime,
 # so the app owns only what it must.

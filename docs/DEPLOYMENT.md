@@ -2,8 +2,15 @@
 
 How to deploy the StockViz monorepo using the source-controlled hosting
 configuration. This is an operator guide, not evidence that a public URL is
-currently healthy or that these hosts have been production-tested. The two
-apps are configured for different hosts:
+currently healthy or that these hosts have been production-tested. There are
+two source-controlled hosting paths:
+
+| Path | Config | What it runs |
+| --- | --- | --- |
+| **Vercel + Render** | `apps/web/vercel.json`, `infra/render.yaml` | web on Vercel; API + Postgres on Render; in-process APScheduler |
+| **Railway (whole stack)** | `.railway/railway.ts` | Postgres + `api` + `web` (sleep-on-idle) + one nightly `cron` service; see [§Railway](#railway-whole-stack) |
+
+The Vercel + Render split:
 
 | App        | Host   | What it runs                                |
 | ---------- | ------ | ------------------------------------------- |
@@ -283,6 +290,66 @@ docker run --rm -p 8000:8000 \
 - **Database:** use the backup/restore workflow provided by the selected
   database plan; verify it and test recovery before treating the deployment
   as durable.
+
+## Railway (whole stack)
+
+Railway deprecated config-as-code (`railway.json` / `.toml`) in favour of
+**TypeScript Infrastructure as Code** — `.railway/railway.ts`, evaluated by
+the Railway CLI (`railway config plan` / `apply`). The `railway` root
+devDependency is the SDK the CLI evaluates. Requires CLI ≥ 5.42.1 and Node ≥ 22.
+
+`.railway/railway.ts` describes a **lean, low-idle-cost** topology — four
+resources instead of the full event-driven stack:
+
+```
+Browser ─▶ web (Next.js, sleeps on idle) ─▶ api (FastAPI, sleeps on idle) ─▶ Postgres
+                                                                    ▲
+                                            cron (nightly, 22:00 UTC Mon–Fri) ┘
+```
+
+- **`api`** and **`web`** build from the same Dockerfiles as the Render/Vercel
+  path. Both set `deploy.sleepApplication: true`, so idle compute scales to
+  zero (first request after a sleep pays a cold start).
+- **`cron`** is the same `apps/api` image with a `cronSchedule`; its start
+  command runs the end-of-day `stockviz.cli` job twins (`ingest`, `fx`,
+  `news`, `score-sentiment`, `sentiment-aggregate`, `metrics`, `dividends`,
+  `credit-dividends`, `settle-options`, `recommend`, `snapshot-portfolios`)
+  **synchronously** — no Kafka broker. The full event-driven stack still
+  lives in `docker-compose --profile events` and `infra/k8s/`.
+- `ENABLE_SCHEDULER=false` on `api` (the `cron` service owns the jobs).
+
+### First deploy
+
+```bash
+railway login && railway init --name stockviz
+railway config plan          # review
+railway config apply --yes   # creates Postgres + api + web + cron
+
+# secrets (kept out of source; railway.ts marks them preserve())
+railway variable set INTERNAL_API_TOKEN=$(openssl rand -hex 32) --service api
+#   ^ set the SAME value on web:
+railway variable set INTERNAL_API_TOKEN=<that value> --service web
+railway variable set AUTH_SECRET=$(openssl rand -base64 32) --service web
+# optional providers: ALPHA_VANTAGE_KEY, NEWSDATA_KEY, ANTHROPIC_API_KEY,
+#   GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET, SENTRY_DSN — add `preserve()`
+#   lines in railway.ts for any you set, or a re-apply will delete them.
+
+# public domains, then rebuild web so NEXT_PUBLIC_API_URL bakes in
+railway domain --service api && railway domain --service web
+railway redeploy --service web
+
+# seed a fresh database (the api image ships seed-data/)
+railway ssh --service api "python -m stockviz.cli seed"
+railway ssh --service api "python -m stockviz.cli backfill"
+railway ssh --service api "python -m stockviz.cli metadata"
+railway ssh --service api "python -m stockviz.cli fx"
+railway ssh --service api "python -m stockviz.cli metrics"
+railway ssh --service api "python -m stockviz.cli recommend"
+```
+
+Demo accounts (`apps/web/scripts/seed-demo.mjs`) need direct DB access; run
+it against a temporary `railway tcp-proxy` on the Postgres service, or skip
+it — the site is fully browsable without them.
 
 ## Related docs
 

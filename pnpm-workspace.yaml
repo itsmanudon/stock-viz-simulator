@@ -3,4 +3,5 @@ packages:
 allowBuilds:
   "@biomejs/biome": true
   "@sentry/cli": true
+  esbuild: false
   sharp: true
