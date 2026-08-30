@@ -58,10 +58,10 @@ FX_ANCHOR_END = date(2026, 6, 30)
 def _daily_from_intraday(
     rows: list[tuple[date, Decimal, Decimal, Decimal, Decimal, int]],
 ) -> list[tuple[date, Decimal, Decimal, Decimal, Decimal, int]]:
-    """Collapse (date, o, h, l, c, v) intraday rows into one bar per date."""
+    """Collapse (date, o, h, lo, c, v) intraday rows into one bar per date."""
     buckets: dict[date, list[tuple[Decimal, Decimal, Decimal, Decimal, int]]] = defaultdict(list)
-    for d, o, h, l, c, v in rows:
-        buckets[d].append((o, h, l, c, v))
+    for d, o, h, lo, c, v in rows:
+        buckets[d].append((o, h, lo, c, v))
     out = []
     for d in sorted(buckets):
         bars = buckets[d]
@@ -184,30 +184,60 @@ def main() -> int:
     ap.add_argument("--commit", action="store_true", help="persist (default: dry run + rollback)")
     args = ap.parse_args()
 
-    nse_dir = args.data_dir / "1hr-10-years-data"
+    # (dir, filename glob, filename-suffix to strip, resample source tag).
+    # The 1-minute set is loaded *after* the hourly one so its finer highs/lows
+    # win on the ~3 years they overlap, and it extends the series to its later
+    # last session.
+    nse_sources = [
+        (
+            args.data_dir / "1hr-10-years-data",
+            "*_1hr_bulk_data.csv",
+            "_1hr_bulk_data.csv",
+            "bulk_1hr_resampled",
+        ),
+        (
+            args.data_dir / "1-min-3-years-data",
+            "*_bulk_data.csv",
+            "_bulk_data.csv",
+            "bulk_1min_resampled",
+        ),
+    ]
     cmdty_dir = args.data_dir / "2025-USD-commodities"
-    if not nse_dir.exists():
-        log.error("not found: %s", nse_dir)
+    if not nse_sources[0][0].exists():
+        log.error("not found: %s", nse_sources[0][0])
         return 1
 
     inr_dates: set[date] = set()
     total_syms = total_bars = 0
+    seen_tickers: set[str] = set()
 
     with Session(engine) as session:
-        for path in sorted(nse_dir.glob("*_1hr_bulk_data.csv")):
-            name = path.name.replace("_1hr_bulk_data.csv", "")
-            ticker = f"{name}.NS"
-            daily = _daily_from_intraday(_read_nse_hourly(path))
-            if not daily:
-                log.warning("%s: no rows", path.name)
+        for src_dir, glob_pat, suffix, tag in nse_sources:
+            if not src_dir.exists():
                 continue
-            _upsert_symbol(session, ticker, name, "INR", "NSE")
-            bars = _bar_records(ticker, daily, source="bulk_1hr_resampled")
-            written = upsert_bars(session, bars)
-            inr_dates.update(d for d, *_ in daily)
-            total_syms += 1
-            total_bars += written
-            log.info("%-16s %5d daily bars  %s..%s", ticker, written, daily[0][0], daily[-1][0])
+            for path in sorted(src_dir.glob(glob_pat)):
+                name = path.name.replace(suffix, "")
+                ticker = f"{name}.NS"
+                daily = _daily_from_intraday(_read_nse_hourly(path))
+                if not daily:
+                    log.warning("%s: no rows", path.name)
+                    continue
+                _upsert_symbol(session, ticker, name, "INR", "NSE")
+                bars = _bar_records(ticker, daily, source=tag)
+                written = upsert_bars(session, bars)
+                inr_dates.update(d for d, *_ in daily)
+                total_bars += written
+                if ticker not in seen_tickers:
+                    seen_tickers.add(ticker)
+                    total_syms += 1
+                log.info(
+                    "%-16s %5d daily bars  %s..%s  (%s)",
+                    ticker,
+                    written,
+                    daily[0][0],
+                    daily[-1][0],
+                    tag,
+                )
 
         if cmdty_dir.exists():
             for path in sorted(cmdty_dir.glob("*.csv")):
@@ -230,7 +260,9 @@ def main() -> int:
             log.info("committed: %d symbols, %d daily bars, %d fx rows", total_syms, total_bars, fx)
         else:
             session.rollback()
-            log.info("DRY RUN (rolled back): would load %d symbols, %d bars", total_syms, total_bars)
+            log.info(
+                "DRY RUN (rolled back): would load %d symbols, %d bars", total_syms, total_bars
+            )
     return 0
 
 

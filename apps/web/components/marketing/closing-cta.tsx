@@ -21,7 +21,7 @@ export function ClosingCta() {
     <section className="relative isolate overflow-hidden border-y border-border-muted bg-brand-muted">
       <span
         aria-hidden
-        className="text-outline pointer-events-none absolute inset-x-0 top-1/2 -z-10 -translate-y-1/2 text-center font-mono text-[clamp(5rem,22vw,18rem)] leading-none font-bold whitespace-nowrap select-none [--outline-color:var(--brand)] opacity-[0.10]"
+        className="text-outline pointer-events-none absolute inset-x-0 top-1/2 -z-10 -translate-y-1/2 text-center font-mono text-[clamp(5rem,22vw,18rem)] leading-none font-bold whitespace-nowrap select-none [--outline-color:var(--brand)]"
       >
         $100,000
       </span>
