@@ -55,6 +55,12 @@ COPY --from=builder /app/src ./src
 COPY --from=builder /app/migrations ./migrations
 COPY --from=builder /app/alembic.ini ./alembic.ini
 
+# Seed inputs for `stockviz.cli seed` / `backfill` on a fresh deploy — the
+# company list and the split-unadjusted daily OHLCV history. News CSVs are
+# left out (news comes from the live provider). ~5 MB.
+COPY seed-data/companies.json ./seed-data/companies.json
+COPY seed-data/stock-data-csv-files ./seed-data/stock-data-csv-files
+
 # Run as a non-root user. Nothing here needs to write to the image at runtime,
 # so the app owns only what it must.
 RUN useradd --system --create-home --uid 10001 stockviz \
