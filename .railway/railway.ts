@@ -98,8 +98,9 @@ export default defineRailway(() => {
     healthcheck: "/health",
     healthcheckTimeout: 30,
     replicas: 1,
-    // Always on — a sleeping api 503s web's server-side render (see header).
-    deploy: { sleepApplication: false },
+    // No `sleepApplication` key: the default is always-on, which is what the
+    // api needs (a sleeping api 503s web's server-side render — see header).
+    // Setting it explicitly to false made `config plan` loop on a no-op.
   });
 
   const web = service("web", {
