@@ -74,3 +74,6 @@ apps/web/test-results/
 *.temp
 temp.json
 temp_*.json
+
+# Local bulk market-data drops for seeding (not shipped)
+/data/
