@@ -227,13 +227,17 @@ def test_market_event_pipeline_roundtrip() -> None:
 
             event = parse_market_refresh_requested(payload)
             close = Decimal("123.45")
+            # A gently rising close over 20 sessions. `high` has to track the
+            # close (and `low` the open) or F-011 plausibility screening in
+            # `upsert_bars` rejects the bar as structurally impossible and it
+            # never reaches `price_bars`.
             bars = [
                 BarRecord(
                     ticker=ticker,
                     ts=datetime(2024, 6, 3) + timedelta(days=i),
                     interval=DAILY_INTERVAL,
                     open=close,
-                    high=close,
+                    high=close + Decimal(i),
                     low=close,
                     close=close + Decimal(i),
                     volume=Decimal("1000"),

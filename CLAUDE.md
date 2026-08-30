@@ -127,11 +127,19 @@ main ← dev ← feat/* | fix/* | chore/*
 `main` receives **only** merges of `dev` — never merge a feature/fix/chore
 branch, Cursor agent branch, or hotfix into `main` directly.
 
-- **`main`** — release branch. Intended production hosts are Vercel (web) and
-  Render (API + DB). `infra/render.yaml` has `autoDeploy: true`; whether a
-  dashboard currently deploys on push is owner-controlled and **not** recorded
-  in this repo. Promote with a `dev` → `main` merge (or PR). Do **not** open
-  PRs against `main` except that promotion.
+**Hard rule (agents):** never `git commit`, `git merge`, `git push`, or
+otherwise write to `main`. Do all work on `dev` (or a `feat/`|`fix/`|`chore/`
+branch off `dev`) and push that. `dev` → `main` promotion happens **only** as
+a PR that the repo owner explicitly approves — an agent does not open, merge,
+or fast-forward it, even when asked to "deploy" or "ship". If a task seems to
+need a `main` change, stop and ask.
+
+- **`main`** — release branch. Production hosts: Railway (whole stack via
+  `.railway/railway.ts`), plus Vercel (web) / Render (API + DB) blueprints.
+  `infra/render.yaml` has `autoDeploy: true`; whether a dashboard currently
+  deploys on push is owner-controlled and **not** recorded in this repo.
+  Promote with a **`dev` → `main` PR that the owner approves**. Agents do not
+  write to `main` at all (see the hard rule above).
 - **`dev`** — the integration branch. All feature/fix/chore PRs target `dev`.
   Kept green at all times; merged into `main` for each deployable release.
 - **`feat/<name>`**, **`fix/<name>`**, **`chore/<name>`** — short-lived
@@ -206,6 +214,12 @@ are not split-adjusted).
   works on any port. Only set `AUTH_URL` in production.
 
 ## Commits and PRs
+
+**Agents commit and push to `dev` only** (or a short-lived branch off `dev`).
+`main` is off-limits — no direct commits, merges, or pushes, and no
+opening/merging the `dev` → `main` PR. That promotion is the owner's, done
+with explicit approval. "Deploy" / "ship" means *land it on `dev`*, not touch
+`main`.
 
 **Keep these guides honest:** a PR that adds a router, page, model, scheduler
 job, or env var — or changes auth/trading semantics — must update the relevant

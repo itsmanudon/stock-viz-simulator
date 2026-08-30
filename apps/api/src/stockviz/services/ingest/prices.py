@@ -29,7 +29,11 @@ from stockviz.services.ingest.bar_semantics import (
     new_york_session_date,
     session_label,
 )
-from stockviz.services.ingest.screening import Disposition, screen_bar
+from stockviz.services.ingest.screening import (
+    MAX_CONSECUTIVE_DAY_OVER_DAY_QUARANTINE,
+    Disposition,
+    screen_bar,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -306,6 +310,7 @@ def screen_bars(
         prev_close = _latest_stored_close(
             session, ticker=first.ticker, interval=first.interval, before=first.ts
         )
+        consecutive_quarantine = 0
         for bar in ordered[group_start:group_end]:
             verdict = screen_bar(bar, prev_close)
             if verdict.disposition is Disposition.REJECT:
@@ -326,9 +331,19 @@ def screen_bars(
                     verdict.reason,
                 )
                 quarantined.append(QuarantinedBar(bar, verdict.reason or "", prev_close))
+                consecutive_quarantine += 1
+                # A sustained run of quarantines is a real level shift (a split
+                # in unadjusted history, a v1-CSV series seam), not a transient
+                # spike. Re-anchor so the rest of the batch is screened against
+                # the new level instead of every bar failing against a stale
+                # close. The discontinuity itself still stays quarantined.
+                if consecutive_quarantine >= MAX_CONSECUTIVE_DAY_OVER_DAY_QUARANTINE:
+                    prev_close = bar.close
+                    consecutive_quarantine = 0
                 continue
             accepted.append(bar)
             prev_close = bar.close
+            consecutive_quarantine = 0
 
         group_start = group_end
 
