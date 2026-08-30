@@ -133,7 +133,10 @@
      switches to the lighter dark-mode gold. */
   --marketing-panel-border: #303335;
   --marketing-glow: rgb(213 179 106 / 0.18);
-  --grid-line: #25282a;
+  /* Blueprint grid behind the "by the numbers" band. Matched to the light
+     value's contrast against its panel (~+33/channel) so the lines read the
+     same on the dark ground instead of vanishing into it. */
+  --grid-line: #3c4045;
 }
 
 @theme inline {
@@ -360,15 +363,17 @@ html[data-density="compact"] .workspace-main .density-workspace {
 
   /* Near-hollow display type — the oversized number behind the closing CTA and
      the wordmark that closes the footer. A hairline outline on a 15rem glyph
-     reads as nothing, so this keeps a legible stroke plus a whisper of fill.
-     Both derive from `--outline-color` (set per call site) via `color-mix`, so
-     the mark stays readable on either theme's ground without a hardcoded
-     opacity. `currentColor` can't be used — the fill would take the stroke
-     transparent with it. */
+     reads as nothing, so this keeps a legible stroke plus a whisper of fill,
+     both mixed from `--outline-color` (set per call site) so the mark works on
+     either theme's ground. `opacity` then holds the whole thing back to a
+     watermark — present but not competing with the heading in front of it.
+     `currentColor` can't be used: the fill would take the stroke transparent
+     with it. */
   .text-outline {
     color: color-mix(in oklab, var(--outline-color, var(--border)) 14%, transparent);
     -webkit-text-stroke: 2px
       color-mix(in oklab, var(--outline-color, var(--border)) 55%, transparent);
+    opacity: 0.3;
   }
 }
 
