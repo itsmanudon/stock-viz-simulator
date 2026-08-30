@@ -101,8 +101,17 @@ test.describe("reduced motion", () => {
 test.describe("themes", () => {
   // next-themes runs with `defaultTheme="dark"` and `enableSystem={false}`, so
   // the theme comes from localStorage rather than a media query.
+  //
+  // `.panel-inset` now follows the theme: a warm elevated card (`--card`) in
+  // light mode, the near-black `--marketing-panel` step-above-`--card` in dark
+  // mode. It used to stay dark in both.
+  const PANEL_BG = {
+    light: "rgb(255, 254, 250)",
+    dark: "rgb(27, 30, 32)",
+  } as const;
+
   for (const theme of ["light", "dark"] as const) {
-    test(`${theme} mode keeps the product panel dark`, async ({ page }) => {
+    test(`${theme} mode grounds the product panel in the theme palette`, async ({ page }) => {
       await page.addInitScript((value) => {
         window.localStorage.setItem("theme", value);
       }, theme);
@@ -112,20 +121,11 @@ test.describe("themes", () => {
         new RegExp(theme === "dark" ? "dark" : "^(?!.*\\bdark\\b).*$"),
       );
 
-      const shades = await page.evaluate(() => {
-        const panel = document.querySelector(".panel-inset") as HTMLElement;
-        return {
-          body: getComputedStyle(document.body).backgroundColor,
-          panel: getComputedStyle(panel).backgroundColor,
-        };
+      const panel = await page.evaluate(() => {
+        const el = document.querySelector(".panel-inset") as HTMLElement;
+        return getComputedStyle(el).backgroundColor;
       });
-
-      // The whole point of `.panel-inset`: it is the same dark ground in both
-      // themes, which is where light mode gets its contrast from.
-      expect(shades.panel).toBe("rgb(27, 30, 32)");
-      if (theme === "light") {
-        expect(shades.body).not.toBe(shades.panel);
-      }
+      expect(panel).toBe(PANEL_BG[theme]);
 
       const overflows = await page.evaluate(
         () => document.documentElement.scrollWidth > document.documentElement.clientWidth,

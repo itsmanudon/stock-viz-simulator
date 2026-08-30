@@ -21,11 +21,14 @@ import { getLeaderboard } from "@/lib/api/leaderboard";
 import type { LeaderboardEntry } from "@/lib/api/leaderboard";
 import type { BacktestResult, Recommendation, ScreenerResult } from "@/lib/api/types";
 
-// HDFCBANK.NS: deep (1996-) and *fresh* daily history with no split or bonus
-// in the window, so the demo equity curve is continuous and current. A
-// recently-split US mega-cap (AAPL 4:1, NVDA 10:1) draws a cliff; the US
-// backfill CSVs also stop months short of the NSE series.
-const BACKTEST_TICKER = "HDFCBANK.NS";
+// Tried in order; the first with enough stored history wins — same fallback
+// reasoning as the hero panel. HDFCBANK.NS has deep (1996-) and *fresh* daily
+// history with no split or bonus in the window, so the demo equity curve is
+// continuous and current. The US names trail because a recent split (AAPL 4:1,
+// NVDA 10:1) draws a cliff and the backfill CSVs stop months short of the NSE
+// series — but they keep CI (US-only backfill) and a cold database covered so
+// the Simulate tab never silently disappears.
+const BACKTEST_CANDIDATES = ["HDFCBANK.NS", "RELIANCE.NS", "TCS.NS", "NVDA", "AAPL", "MSFT"];
 
 /**
  * These panels are the same canned queries for every visitor and the data
@@ -54,23 +57,25 @@ async function safe<T>(run: () => Promise<T>): Promise<T | null> {
  * otherwise get an empty range and no curve.
  */
 async function loadBacktest(): Promise<BacktestResult | null> {
-  const bars = await safe(() => getBars(BACKTEST_TICKER, { limit: 400 }));
-  if (!bars || bars.length < 60) return null;
+  for (const ticker of BACKTEST_CANDIDATES) {
+    const bars = await safe(() => getBars(ticker, { limit: 400 }));
+    if (!bars || bars.length < 60) continue;
 
-  const from = bars[0].ts.slice(0, 10);
-  const to = bars[bars.length - 1].ts.slice(0, 10);
+    const from = bars[0].ts.slice(0, 10);
+    const to = bars[bars.length - 1].ts.slice(0, 10);
 
-  const result = await safe(() =>
-    runBacktest({
-      ticker: BACKTEST_TICKER,
-      from,
-      to,
-      initial_cash: "100000",
-      strategy: { type: "sma_crossover", short_window: 20, long_window: 50 },
-    }),
-  );
-  if (!result || result.equity_curve.length < 2) return null;
-  return result;
+    const result = await safe(() =>
+      runBacktest({
+        ticker,
+        from,
+        to,
+        initial_cash: "100000",
+        strategy: { type: "sma_crossover", short_window: 20, long_window: 50 },
+      }),
+    );
+    if (result && result.equity_curve.length >= 2) return result;
+  }
+  return null;
 }
 
 export async function ProductTour() {
