@@ -1,4 +1,4 @@
-import { defineRailway, github, group, postgres, project, service } from "railway/iac";
+import { defineRailway, github, group, postgres, preserve, project, service } from "railway/iac";
 
 /**
  * StockViz on Railway — lean, low-idle-cost topology.
@@ -62,7 +62,10 @@ export default defineRailway(() => {
   const db = postgres("Postgres");
 
   const apiSource = github(REPO, { branch: BRANCH, rootDirectory: "apps/api" });
-  const apiBuild = { builder: "DOCKERFILE" as const, watchPatterns: API_WATCH };
+  // Railway auto-detects apps/api/Dockerfile at the root dir; only the watch
+  // paths need declaring. Setting builder explicitly here made `config plan`
+  // loop forever on a null->DOCKERFILE no-op.
+  const apiBuild = { watchPatterns: API_WATCH };
   const pyBase = {
     DATABASE_URL: db.env.DATABASE_URL,
     ENVIRONMENT: "production",
@@ -78,6 +81,9 @@ export default defineRailway(() => {
       ENABLE_SCHEDULER: "false",
       CORS_ORIGINS: WEB_PUBLIC_URL,
       SENTRY_TRACES_SAMPLE_RATE: "0.1",
+      // Set out of band (`railway variable set`); preserve() keeps the value
+      // and stops a re-apply from deleting it. Must match web's value.
+      INTERNAL_API_TOKEN: preserve(),
     },
     healthcheck: "/health",
     healthcheckTimeout: 30,
@@ -98,6 +104,10 @@ export default defineRailway(() => {
       DATABASE_URL: db.env.DATABASE_URL,
       NODE_ENV: "production",
       AUTH_TRUST_HOST: "true",
+      // Set out of band; preserve() keeps them across re-applies.
+      // INTERNAL_API_TOKEN must equal api's value.
+      INTERNAL_API_TOKEN: preserve(),
+      AUTH_SECRET: preserve(),
     },
     healthcheck: "/api/health",
     healthcheckTimeout: 30,

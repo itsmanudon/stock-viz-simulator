@@ -16,6 +16,7 @@ apps/web/    Next.js 16 (App Router, React 19, TS, Tailwind v4, NextAuth v5) + P
 apps/api/    FastAPI + SQLModel + Alembic + APScheduler (Python 3.12, uv)
 infra/       docker-compose (local Postgres; Kafka via `--profile events`) + render.yaml
              k8s/ (Kustomize layers: bootstrap → migrate → app → scale; Strimzi)
+.railway/    railway.ts — Railway TypeScript IaC (lean 4-resource topology)
 scripts/k8s/ kind create / build / deploy / smoke / destroy
 .github/workflows/ci.yml   web, api, events-integration, security, docker, e2e
 .github/workflows/k8s-smoke.yml   kind + Strimzi + migrate Job + smoke + reduced Kafka benchmark
@@ -279,6 +280,18 @@ work fine without one. Env vars live in `apps/web/.env.example` and
 
 - Web → Vercel (`apps/web/vercel.json`)
 - API + DB → Render (`infra/render.yaml`)
+- **Whole stack → Railway** (`.railway/railway.ts`, TypeScript IaC — Railway
+  deprecated `railway.json`/`.toml`). A lean 4-resource topology: managed
+  Postgres, the FastAPI `api` and Next.js `web` (both `sleepApplication:
+  true`), and one nightly `cron` service running the `stockviz.cli` job
+  twins (no Kafka — the site does not need the broker running to serve).
+  `railway config plan` / `apply` from the repo root; the `railway`
+  devDependency is the SDK the CLI evaluates. Secrets
+  (`INTERNAL_API_TOKEN` on api+web, `AUTH_SECRET` on web) are set with
+  `railway variable set` and kept out of source via `preserve()`.
+  `NEXT_PUBLIC_API_URL` bakes at web build time, so after the first apply:
+  `railway domain --service api && railway domain --service web`, then
+  `railway redeploy --service web`. See `docs/DEPLOYMENT.md`.
 - kind / CI lab → [`docs/KUBERNETES.md`](./docs/KUBERNETES.md) (Kustomize +
   Strimzi). Not a production control plane.
 
