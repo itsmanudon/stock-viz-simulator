@@ -62,6 +62,16 @@
   --negative-foreground: #ffffff;
   --warning: #9a6300;
   --warning-foreground: #ffffff;
+  /* Trading Journal P&L tints.
+     The calendar tints a *surface* rather than painting an opaque card, so a
+     profitable day still reads as part of the same table. Three strengths,
+     because the eye can rank three steps reliably and not thirty — which is
+     also why `lib/journal-view-model.ts` buckets rather than interpolating.
+     Kept as percentages so both hues stay on the existing --positive /
+     --negative tokens instead of new hard-coded greens and reds. */
+  --financial-tint-1: 5%;
+  --financial-tint-2: 9%;
+  --financial-tint-3: 14%;
   --positive-soft: #dcefe7;
   --positive-soft-foreground: #0b674a;
   --negative-soft: #f5e2df;
@@ -119,6 +129,11 @@
   --negative-foreground: #2e1110;
   --warning: #e8bd68;
   --warning-foreground: #2b1e08;
+  /* Warm paper takes a tint readily; a near-black ground swallows it, so the
+     dark steps sit higher to land at the same perceived separation. */
+  --financial-tint-1: 6%;
+  --financial-tint-2: 11%;
+  --financial-tint-3: 17%;
   --positive-soft: #10382c;
   --positive-soft-foreground: #77d8b3;
   --negative-soft: #3c1e1d;
@@ -397,6 +412,119 @@ html[data-density="compact"] .workspace-main .density-workspace {
   }
 }
 
+/* Trading Journal inspector motion.
+   Hand-written keyframes rather than `animate-in` / `animate-out` utilities:
+   on this build those resolve to `animation-name: enter|exit` without ever
+   starting an animation, so no `animationend` fires — and Radix's Presence
+   waits for that event before unmounting. The result was a closed dialog left
+   in the DOM, still focusable. Keyframes declared here always run, so the
+   panel animates *and* unmounts. The global `prefers-reduced-motion` block
+   below collapses the duration to 0.01ms, which keeps `animationend` firing —
+   that is why it collapses duration instead of setting `animation: none`. */
+@keyframes journal-sheet-in {
+  from {
+    transform: translateY(100%);
+  }
+}
+
+@keyframes journal-sheet-out {
+  to {
+    transform: translateY(100%);
+  }
+}
+
+@keyframes journal-panel-in {
+  from {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes journal-panel-out {
+  to {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes journal-veil-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes journal-veil-out {
+  to {
+    opacity: 0;
+  }
+}
+
+@layer components {
+  /* Below `sm` the inspector is a bottom sheet; from `sm` up it is the
+     right-hand panel, so the direction it travels changes with it. */
+  .journal-inspector {
+    animation: journal-sheet-in 190ms cubic-bezier(0.32, 0.72, 0, 1);
+  }
+
+  .journal-inspector[data-state="closed"] {
+    animation: journal-sheet-out 160ms cubic-bezier(0.32, 0.72, 0, 1);
+  }
+
+  .journal-veil {
+    animation: journal-veil-in 190ms ease-out;
+  }
+
+  .journal-veil[data-state="closed"] {
+    animation: journal-veil-out 160ms ease-in;
+  }
+
+  @media (width >= 64rem) {
+    .journal-inspector {
+      animation-name: journal-panel-in;
+    }
+
+    .journal-inspector[data-state="closed"] {
+      animation-name: journal-panel-out;
+    }
+  }
+}
+
+/* --- Trading Journal ------------------------------------------------------
+   `data-sign` picks the semantic hue, `data-level` the strength. Doing the
+   mixing here means no component ever names a colour, and retuning the whole
+   calendar is four numbers in one place.
+
+   A cell with no realized P&L gets no tint at all: an inactive day should be
+   quiet, not neutral-grey-loud. */
+@layer components {
+  .pnl-tint[data-sign="positive"] {
+    --pnl-color: var(--positive);
+  }
+
+  .pnl-tint[data-sign="negative"] {
+    --pnl-color: var(--negative);
+  }
+
+  .pnl-tint[data-level="1"] {
+    --pnl-strength: var(--financial-tint-1);
+  }
+
+  .pnl-tint[data-level="2"] {
+    --pnl-strength: var(--financial-tint-2);
+  }
+
+  .pnl-tint[data-level="3"] {
+    --pnl-strength: var(--financial-tint-3);
+  }
+
+  /* Only the fill is tinted. A tinted border was tried and dropped: the cell's
+     `border-border-muted` utility outranks this rule (Tailwind's utility layer
+     beats the components layer regardless of specificity), and the fill alone
+     is the more restrained treatment anyway. */
+  .pnl-tint[data-sign="positive"],
+  .pnl-tint[data-sign="negative"] {
+    background-color: color-mix(in oklab, var(--pnl-color) var(--pnl-strength), transparent);
+  }
+}
+
 /* Scroll reveal. The transition lives here so `components/marketing/reveal.tsx`
    only has to flip one attribute. */
 @layer components {
@@ -428,5 +556,50 @@ html[data-density="compact"] .workspace-main .density-workspace {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+  }
+}
+
+/* Calendar responds to available workspace width, including an open inspector. */
+.journal-calendar {
+  container-type: inline-size;
+}
+.journal-calendar-row {
+  grid-template-columns: minmax(0, 1fr);
+}
+.journal-week-column,
+.journal-pnl-full {
+  display: none;
+}
+.journal-pnl-compact {
+  display: inline;
+  font-size: 10px;
+}
+@container (min-width: 600px) {
+  .journal-pnl-full {
+    display: inline;
+  }
+  .journal-pnl-compact {
+    display: none;
+  }
+}
+@container (min-width: 800px) {
+  .journal-calendar-row {
+    grid-template-columns: minmax(0, 1fr) 9.5rem;
+  }
+  .journal-week-column {
+    display: flex;
+  }
+  .journal-week-strip {
+    display: none;
+  }
+}
+@media (min-width: 1024px) {
+  .journal-workspace[data-inspecting="true"] {
+    padding-right: 23rem;
+  }
+}
+@media (min-width: 1280px) {
+  .journal-workspace[data-inspecting="true"] {
+    padding-right: 27rem;
   }
 }

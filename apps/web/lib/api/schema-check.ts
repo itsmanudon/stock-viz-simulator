@@ -19,6 +19,7 @@
  * generated types agree, so the assertions hold without casts.
  */
 
+import type { JournalDay, JournalMonth, JournalWeek } from "./journal";
 import type { ReplayForensics, ReplayJournal, ReplaySessionList, ReplaySummary } from "./replay";
 import type { components } from "./schema";
 import type { Portfolio, PortfolioOption, TradeRow } from "./trading";
@@ -49,6 +50,9 @@ type Assignable<Client, Api> = Client extends Pick<Api, Extract<keyof Client, ke
   : false;
 
 // --- Money -----------------------------------------------------------------
+export type _JournalMonthMatches = Expect<Assignable<JournalMonth, Schemas["JournalMonthOut"]>>;
+export type _JournalDayMatches = Expect<Assignable<JournalDay, Schemas["JournalDayOut"]>>;
+export type _JournalWeekMatches = Expect<Assignable<JournalWeek, Schemas["JournalWeekOut"]>>;
 
 export type _PortfolioMatches = Expect<Assignable<Portfolio, Schemas["PortfolioOut"]>>;
 export type _PortfolioOptionMatches = Expect<

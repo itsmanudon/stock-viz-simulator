@@ -932,6 +932,70 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/portfolio/journal/months/{year}/{month}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Journal Month
+         * @description Realized P&L for one New York calendar month, by day and by week.
+         *
+         *     ``days`` omits sessions with no closing execution — an inactive month
+         *     returns an empty list rather than 30 zero rows. ``weeks`` always covers
+         *     the whole month so the calendar's summary column lines up with its rows.
+         */
+        get: operations["get_journal_month_v1_portfolio_journal_months__year___month__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/portfolio/journal/days/{day}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Journal Day
+         * @description Every closing execution attributed to one New York trading session.
+         *
+         *     Fetched only when a day is opened, which is what keeps the month response
+         *     independent of how many trades the account has.
+         */
+        get: operations["get_journal_day_v1_portfolio_journal_days__day__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/portfolio/journal/weeks/{start}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Journal Week */
+        get: operations["get_journal_week_v1_portfolio_journal_weeks__start__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1304,6 +1368,219 @@ export interface components {
             };
             /** Macd */
             macd?: components["schemas"]["MACDPointOut"][] | null;
+        };
+        /** JournalDayOut */
+        JournalDayOut: {
+            /** Date */
+            date: string;
+            /**
+             * Currency
+             * @default USD
+             */
+            currency: string;
+            stats: components["schemas"]["JournalStatsOut"];
+            /** Executions */
+            executions: components["schemas"]["JournalExecutionOut"][];
+            /**
+             * Offset
+             * @default 0
+             */
+            offset: number;
+            /**
+             * Has More
+             * @default false
+             */
+            has_more: boolean;
+            /**
+             * Unavailable Count
+             * @default 0
+             */
+            unavailable_count: number;
+        };
+        /** JournalDaySummaryOut */
+        JournalDaySummaryOut: {
+            /** Date */
+            date: string;
+            stats: components["schemas"]["JournalStatsOut"];
+        };
+        /**
+         * JournalExecutionOut
+         * @description One closing execution — the Journal's definition of a "trade".
+         *
+         *     Equity legs carry ``side``/``quantity``/``price``/``avg_cost``; option legs
+         *     carry the contract terms plus ``premium_paid``/``proceeds``. ``avg_cost``
+         *     is the native weighted-average basis captured before the sell. It is
+         *     ``None`` for legacy fills; rounded realized P&L cannot recover it exactly.
+         */
+        JournalExecutionOut: {
+            /** Kind */
+            kind: string;
+            /** Reference Id */
+            reference_id: number;
+            /** Ticker */
+            ticker: string;
+            /** Session Date */
+            session_date: string;
+            /**
+             * Executed At
+             * Format: date-time
+             */
+            executed_at: string;
+            /** Realized Pnl */
+            realized_pnl: string;
+            /**
+             * Currency
+             * @default USD
+             */
+            currency: string;
+            /** Side */
+            side?: string | null;
+            /** Quantity */
+            quantity?: string | null;
+            /** Price */
+            price?: string | null;
+            /** Avg Cost */
+            avg_cost?: string | null;
+            /** Option Type */
+            option_type?: string | null;
+            /** Strike */
+            strike?: string | null;
+            /** Expiry */
+            expiry?: string | null;
+            /** Contracts */
+            contracts?: number | null;
+            /** Premium Paid */
+            premium_paid?: string | null;
+            /** Proceeds */
+            proceeds?: string | null;
+            /** Option Status */
+            option_status?: string | null;
+            signal_at_entry?: components["schemas"]["JournalSignalOut"] | null;
+        };
+        /**
+         * JournalMonthOut
+         * @description A month of realized trading. Carries no trade list by design.
+         *
+         *     ``days`` holds only the sessions that had a closing execution, so the
+         *     payload stays O(days) however many trades the account has. Per-trade
+         *     detail is fetched lazily from the day endpoint.
+         *
+         *     ``return_pct`` is realized P&L as a percentage of NAV at the start of the
+         *     month, and is ``None`` when no snapshot predates it. It is not a
+         *     time-weighted return.
+         */
+        JournalMonthOut: {
+            period: components["schemas"]["JournalPeriodOut"];
+            /**
+             * Currency
+             * @default USD
+             */
+            currency: string;
+            summary: components["schemas"]["JournalStatsOut"];
+            /** Return Pct */
+            return_pct?: number | null;
+            /** Start Nav */
+            start_nav?: string | null;
+            /** Days */
+            days: components["schemas"]["JournalDaySummaryOut"][];
+            /** Weeks */
+            weeks: components["schemas"]["JournalWeekSummaryOut"][];
+            /**
+             * Unavailable Count
+             * @default 0
+             */
+            unavailable_count: number;
+        };
+        /** JournalPeriodOut */
+        JournalPeriodOut: {
+            /** Year */
+            year: number;
+            /** Month */
+            month: number;
+            /** First Day */
+            first_day: string;
+            /** Last Day */
+            last_day: string;
+        };
+        /**
+         * JournalSignalOut
+         * @description The rule-based score that stood when the trade was placed.
+         *
+         *     Reserved for persisted opening-decision provenance. Currently null: closing
+         *     fills do not identify their opening decisions in the average-cost book.
+         */
+        JournalSignalOut: {
+            /** Score */
+            score: number;
+            /** Max Score */
+            max_score: number;
+            /**
+             * Computed At
+             * Format: date-time
+             */
+            computed_at: string;
+        };
+        /**
+         * JournalStatsOut
+         * @description Realized-P&L roll-up for a day, a week, or a month.
+         *
+         *     ``trade_count`` counts every closing execution, so scratches (exactly zero
+         *     realized P&L) are included there but in neither ``winning_trades`` nor
+         *     ``losing_trades``. ``win_rate`` is ``None`` when nothing was decided, and
+         *     ``profit_factor`` is ``None`` when nothing was lost — a made-up number
+         *     would be worse than a hidden metric.
+         *
+         *     Money is USD, serialized as a decimal string (see docs/TRADING_JOURNAL.md
+         *     for why the Journal does not convert into the display currency).
+         */
+        JournalStatsOut: {
+            /** Realized Pnl */
+            realized_pnl: string;
+            /** Trade Count */
+            trade_count: number;
+            /** Winning Trades */
+            winning_trades: number;
+            /** Losing Trades */
+            losing_trades: number;
+            /** Gross Profit */
+            gross_profit: string;
+            /** Gross Loss */
+            gross_loss: string;
+            /** Win Rate */
+            win_rate?: number | null;
+            /** Profit Factor */
+            profit_factor?: number | null;
+        };
+        /** JournalWeekOut */
+        JournalWeekOut: {
+            /** Start */
+            start: string;
+            /** End */
+            end: string;
+            /**
+             * Currency
+             * @default USD
+             */
+            currency: string;
+            stats: components["schemas"]["JournalStatsOut"];
+            best_trade?: components["schemas"]["JournalExecutionOut"] | null;
+            worst_trade?: components["schemas"]["JournalExecutionOut"] | null;
+            /**
+             * Unavailable Count
+             * @default 0
+             */
+            unavailable_count: number;
+        };
+        /**
+         * JournalWeekSummaryOut
+         * @description One Monday-anchored week, clipped to the month being viewed.
+         */
+        JournalWeekSummaryOut: {
+            /** Start */
+            start: string;
+            /** End */
+            end: string;
+            stats: components["schemas"]["JournalStatsOut"];
         };
         /**
          * LeaderboardEntryOut
@@ -4419,6 +4696,109 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EarningsEventOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_journal_month_v1_portfolio_journal_months__year___month__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                year: number;
+                month: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JournalMonthOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_journal_day_v1_portfolio_journal_days__day__get: {
+        parameters: {
+            query?: {
+                offset?: number;
+                limit?: number;
+            };
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                day: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JournalDayOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_journal_week_v1_portfolio_journal_weeks__start__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                start: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JournalWeekOut"];
                 };
             };
             /** @description Validation Error */
