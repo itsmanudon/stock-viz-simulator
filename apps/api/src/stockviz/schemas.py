@@ -955,3 +955,138 @@ class SentimentSeriesOut(BaseModel):
     points: list[SentimentPointOut]
     rolling_7d: float | None = None
     rolling_7d_article_count: int = 0
+
+
+# ---------------------------------------------------------------------------
+# Trading Journal
+# ---------------------------------------------------------------------------
+
+
+class JournalStatsOut(BaseModel):
+    """Realized-P&L roll-up for a day, a week, or a month.
+
+    ``trade_count`` counts every closing execution, so scratches (exactly zero
+    realized P&L) are included there but in neither ``winning_trades`` nor
+    ``losing_trades``. ``win_rate`` is ``None`` when nothing was decided, and
+    ``profit_factor`` is ``None`` when nothing was lost — a made-up number
+    would be worse than a hidden metric.
+
+    Money is USD, serialized as a decimal string (see docs/TRADING_JOURNAL.md
+    for why the Journal does not convert into the display currency).
+    """
+
+    realized_pnl: Decimal
+    trade_count: int
+    winning_trades: int
+    losing_trades: int
+    gross_profit: Decimal
+    gross_loss: Decimal
+    win_rate: float | None = None
+    profit_factor: float | None = None
+
+
+class JournalDaySummaryOut(BaseModel):
+    date: str
+    stats: JournalStatsOut
+
+
+class JournalWeekSummaryOut(BaseModel):
+    """One Monday-anchored week, clipped to the month being viewed."""
+
+    start: str
+    end: str
+    stats: JournalStatsOut
+
+
+class JournalPeriodOut(BaseModel):
+    year: int
+    month: int
+    first_day: str
+    last_day: str
+
+
+class JournalMonthOut(BaseModel):
+    """A month of realized trading. Carries no trade list by design.
+
+    ``days`` holds only the sessions that had a closing execution, so the
+    payload stays O(days) however many trades the account has. Per-trade
+    detail is fetched lazily from the day endpoint.
+
+    ``return_pct`` is realized P&L as a percentage of NAV at the start of the
+    month, and is ``None`` when no snapshot predates it. It is not a
+    time-weighted return.
+    """
+
+    period: JournalPeriodOut
+    currency: str = "USD"
+    summary: JournalStatsOut
+    return_pct: float | None = None
+    start_nav: Decimal | None = None
+    days: list[JournalDaySummaryOut]
+    weeks: list[JournalWeekSummaryOut]
+    unavailable_count: int = 0
+
+
+class JournalSignalOut(BaseModel):
+    """The rule-based score that stood when the trade was placed.
+
+    Reserved for persisted opening-decision provenance. Currently null: closing
+    fills do not identify their opening decisions in the average-cost book.
+    """
+
+    score: int
+    max_score: int
+    computed_at: datetime
+
+
+class JournalExecutionOut(BaseModel):
+    """One closing execution — the Journal's definition of a "trade".
+
+    Equity legs carry ``side``/``quantity``/``price``/``avg_cost``; option legs
+    carry the contract terms plus ``premium_paid``/``proceeds``. ``avg_cost``
+    is the native weighted-average basis captured before the sell. It is
+    ``None`` for legacy fills; rounded realized P&L cannot recover it exactly.
+    """
+
+    kind: str
+    reference_id: int
+    ticker: str
+    session_date: str
+    executed_at: datetime
+    realized_pnl: Decimal
+    currency: str = "USD"
+
+    side: str | None = None
+    quantity: Decimal | None = None
+    price: Decimal | None = None
+    avg_cost: Decimal | None = None
+
+    option_type: str | None = None
+    strike: Decimal | None = None
+    expiry: str | None = None
+    contracts: int | None = None
+    premium_paid: Decimal | None = None
+    proceeds: Decimal | None = None
+    option_status: str | None = None
+
+    signal_at_entry: JournalSignalOut | None = None
+
+
+class JournalDayOut(BaseModel):
+    date: str
+    currency: str = "USD"
+    stats: JournalStatsOut
+    executions: list[JournalExecutionOut]
+    offset: int = 0
+    has_more: bool = False
+    unavailable_count: int = 0
+
+
+class JournalWeekOut(BaseModel):
+    start: str
+    end: str
+    currency: str = "USD"
+    stats: JournalStatsOut
+    best_trade: JournalExecutionOut | None = None
+    worst_trade: JournalExecutionOut | None = None
+    unavailable_count: int = 0
