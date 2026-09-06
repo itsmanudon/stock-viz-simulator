@@ -20,10 +20,11 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from datetime import UTC, datetime, time, timedelta
 from datetime import date as date_type
 from decimal import Decimal
 
-from sqlmodel import Session, select
+from sqlmodel import Session, col, select
 
 from stockviz._time import utcnow
 from stockviz.models import (
@@ -36,6 +37,7 @@ from stockviz.models import (
     Symbol,
 )
 from stockviz.models.option import CONTRACT_MULTIPLIER
+from stockviz.services.ingest.bar_semantics import new_york_session_date
 from stockviz.services.options.pricing import OptionPrice, black_scholes, historical_volatility
 from stockviz.services.trading.buying_power import (
     available_cash,
@@ -210,6 +212,8 @@ def close_option(session: Session, *, user_id: int, option_id: int) -> OptionTra
         raise OptionNotFound("Option position not found")
     if position.status != OptionStatus.OPEN:
         raise OptionTradeError(f"Option position is already {position.status.value}")
+    if position.expiry < new_york_session_date(utcnow().replace(tzinfo=UTC)):
+        raise OptionTradeError("This expired option is awaiting expiry settlement")
 
     price = value_option(session, position)
     proceeds = (Decimal(str(price.value)) * CONTRACT_MULTIPLIER * position.quantity).quantize(
@@ -351,17 +355,30 @@ def settle_expired_options(session: Session, *, settle_date: date_type) -> int:
     positions are touched, and each is flipped to a terminal status.
     """
 
+    completed_before = new_york_session_date(utcnow().replace(tzinfo=UTC))
     expired = list(
         session.exec(
             select(OptionsPosition).where(
                 OptionsPosition.status == OptionStatus.OPEN,
+                OptionsPosition.expiry < completed_before,
                 OptionsPosition.expiry <= settle_date,
             )
         )
     )
     settled = 0
     for position in expired:
-        spot = _spot(session, position.ticker)
+        # A delayed worker must not settle against a price observed after expiry.
+        bar = session.exec(
+            select(PriceBar)
+            .where(
+                PriceBar.ticker == position.ticker,
+                PriceBar.interval == "1d",
+                PriceBar.ts < datetime.combine(position.expiry + timedelta(days=1), time.min),
+            )
+            .order_by(col(PriceBar.ts).desc())
+            .limit(1)
+        ).first()
+        spot = bar.close if bar else None
         portfolio = session.get(Portfolio, position.portfolio_id)
         if spot is None or portfolio is None:
             # No closing price to settle against — leave it for a later run.
@@ -369,6 +386,9 @@ def settle_expired_options(session: Session, *, settle_date: date_type) -> int:
             continue
         assert portfolio.id is not None
         portfolio = lock_portfolio(session, portfolio.id)
+        session.refresh(position)
+        if position.status != OptionStatus.OPEN:
+            continue
 
         if position.option_type == OptionType.CALL:
             in_the_money = spot > position.strike

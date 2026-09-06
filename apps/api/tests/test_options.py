@@ -471,6 +471,25 @@ def test_settle_is_idempotent(session: Session) -> None:
     assert settle_expired_options(session, settle_date=TODAY) == 0
 
 
+def test_delayed_settlement_never_uses_a_post_expiry_price(session: Session) -> None:
+    _seed_bars(session, [80, 200])
+    user = _make_user(session, "delayed@stockviz.dev")
+    portfolio = ensure_default_portfolio(session, user)
+    assert portfolio.id is not None
+    pos = _open_raw_position(
+        session,
+        user_id=user,
+        portfolio_id=portfolio.id,
+        option_type=OptionType.CALL,
+        strike=Decimal("100"),
+        expiry=_EPOCH.date(),
+    )
+    settle_expired_options(session, settle_date=TODAY)
+    session.refresh(pos)
+    assert pos.status == OptionStatus.EXPIRED
+    assert pos.realized_pnl == -pos.premium_paid
+
+
 # ---------------------------------------------------------------------------
 # HTTP endpoints
 # ---------------------------------------------------------------------------
@@ -585,3 +604,71 @@ def test_non_usd_options_are_rejected_until_fx_accounting_is_supported(session: 
             expiry=TODAY + timedelta(days=30),
             quantity=1,
         )
+
+
+def test_settlement_rechecks_terminal_status_after_waiting_for_lock(
+    session: Session, monkeypatch
+) -> None:
+    from stockviz.services.options import trade as option_trade
+
+    _seed_bars(session, [200])
+    user = _make_user(session, "settlement-race@stockviz.dev")
+    portfolio = ensure_default_portfolio(session, user)
+    assert portfolio.id is not None
+    pos = _open_raw_position(
+        session,
+        user_id=user,
+        portfolio_id=portfolio.id,
+        option_type=OptionType.CALL,
+        strike=Decimal("100"),
+        expiry=TODAY - timedelta(days=1),
+    )
+    original_lock = option_trade.lock_portfolio
+
+    def close_while_waiting(current_session, portfolio_id):
+        locked = original_lock(current_session, portfolio_id)
+        pos.status = OptionStatus.CLOSED
+        current_session.add(pos)
+        current_session.commit()
+        return locked
+
+    monkeypatch.setattr(option_trade, "lock_portfolio", close_while_waiting)
+    assert settle_expired_options(session, settle_date=TODAY) == 0
+    session.refresh(portfolio)
+    assert portfolio.cash_balance == DEFAULT_STARTING_CASH
+
+
+def test_expiry_date_is_not_settled_before_the_session_is_complete(session: Session) -> None:
+    _seed_bars(session, [200])
+    user = _make_user(session, "expiry-clock@stockviz.dev")
+    portfolio = ensure_default_portfolio(session, user)
+    assert portfolio.id is not None
+    _open_raw_position(
+        session,
+        user_id=user,
+        portfolio_id=portfolio.id,
+        option_type=OptionType.CALL,
+        strike=Decimal("100"),
+        expiry=TODAY,
+    )
+    assert settle_expired_options(session, settle_date=TODAY) == 0
+
+
+def test_expired_contract_cannot_be_repriced_as_a_new_close(session: Session) -> None:
+    from stockviz.services.options import OptionTradeError
+
+    _seed_bars(session, [200])
+    user = _make_user(session, "expired-close@stockviz.dev")
+    portfolio = ensure_default_portfolio(session, user)
+    assert portfolio.id is not None
+    pos = _open_raw_position(
+        session,
+        user_id=user,
+        portfolio_id=portfolio.id,
+        option_type=OptionType.CALL,
+        strike=Decimal(100),
+        expiry=TODAY - timedelta(days=1),
+    )
+    assert pos.id is not None
+    with pytest.raises(OptionTradeError, match="settlement"):
+        close_option(session, user_id=user, option_id=pos.id)
