@@ -11,6 +11,14 @@ way they are, which indexes serve which query, and what breaks at scale.**
 
 ## The tables that carry the design
 
+### Trading Journal ledger reads
+
+`trades(portfolio_id, ts)` and `options_positions(user_id, settled_at)` composite
+indexes serve owned, half-open UTC range reads. New equity sells capture native
+`avg_cost_at_fill`; option terminal events persist USD `proceeds` and
+`realized_pnl`. Nullable legacy fields represent missing evidence, not zero.
+See [Trading Journal](../TRADING_JOURNAL.md) for migrations and exercise semantics.
+
 ### `price_bars` — the one that matters most
 
 ```python

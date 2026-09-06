@@ -35,6 +35,7 @@ New here? Read [Local setup](./SETUP.md), then
 | [apps/api/CLAUDE.md](../apps/api/CLAUDE.md) | API layout, scheduler jobs, trading domain rules, ingest contract |
 | [apps/web/CLAUDE.md](../apps/web/CLAUDE.md) | Web layout, server/client boundaries, auth |
 | [OPERATIONAL_TRADING.md](./OPERATIONAL_TRADING.md) | Trade, Orders, Watchlist, Alerts loop |
+| [TRADING_JOURNAL.md](./TRADING_JOURNAL.md) | Realized P&L calendar, accounting, reporting dates, APIs, migrations and limitations |
 | [RESEARCH.md](./RESEARCH.md) | Compare, Backtest, Signals workspace |
 | [SENTIMENT.md](./SENTIMENT.md) | Provider abstraction, wire contract, storage, aggregation |
 
