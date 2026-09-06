@@ -160,9 +160,7 @@ def test_basis_migration_lock_timeout_is_atomic_and_retryable(monkeypatch):
             reader.execute(text("SELECT * FROM trades")).all()
             with pytest.raises(DBAPIError) as blocked, engine.begin() as writer:
                 writer.execute(text("SET LOCAL lock_timeout='200ms'"))
-                monkeypatch.setattr(
-                    migration, "op", Operations(MigrationContext.configure(writer))
-                )
+                monkeypatch.setattr(migration, "op", Operations(MigrationContext.configure(writer)))
                 migration.upgrade()
             assert getattr(blocked.value.orig, "sqlstate", None) == "55P03"
             reader.rollback()

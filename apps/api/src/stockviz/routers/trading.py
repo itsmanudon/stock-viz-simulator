@@ -34,12 +34,9 @@ from stockviz.schemas import (
     ExecutionProvenanceOut,
     PortfolioAnalyticsOut,
     PortfolioHistoryPointOut,
-    PortfolioOptionOut,
     PortfolioOut,
-    PositionOut,
+    PortfolioOverviewOut,
     ProjectedDividendOut,
-    SectorAllocationOut,
-    TopMoverOut,
     TradeIn,
     TradeOut,
 )
@@ -50,18 +47,13 @@ from stockviz.services.trading import (
     NoMarketDataError,
     SymbolNotFound,
     TradeExecutionError,
-    compute_annualised_return_pct,
-    compute_max_drawdown_pct,
     compute_portfolio,
-    compute_sector_allocation,
-    compute_sharpe,
-    compute_top_movers,
-    compute_total_return_pct,
     ensure_default_portfolio,
     execute_trade,
 )
 from stockviz.services.trading.fx import latest_rate as fx_latest_rate
 from stockviz.services.trading.simulation_adapter import as_aware_utc
+from stockviz.services.trading.views import portfolio_analytics_response, portfolio_response
 
 router = APIRouter(prefix="/v1", tags=["trading"])
 
@@ -78,51 +70,7 @@ def get_portfolio(session: SessionDep, user_id: UserIdDep) -> PortfolioOut:
     portfolio = ensure_default_portfolio(session, user_id)
     display = _user_display_currency(session, user_id)
     snap = compute_portfolio(session, portfolio, display_currency=display)
-    return PortfolioOut(
-        portfolio_id=snap.portfolio_id,
-        display_currency=snap.display_currency,
-        cash_balance=snap.cash_balance,
-        reserved_cash=snap.reserved_cash,
-        available_cash=snap.available_cash,
-        market_value=snap.market_value,
-        options_market_value=snap.options_market_value,
-        total_value=snap.total_value,
-        total_cost_basis=snap.total_cost_basis,
-        unrealized_pl=snap.unrealized_pl,
-        positions=[
-            PositionOut(
-                ticker=p.ticker,
-                name=p.name,
-                quantity=p.quantity,
-                currency=p.currency,
-                avg_cost=p.avg_cost,
-                last_close=p.last_close,
-                market_value_native=p.market_value_native,
-                unrealized_pl_native=p.unrealized_pl_native,
-                market_value=p.market_value,
-                unrealized_pl=p.unrealized_pl,
-                reserved_quantity=p.reserved_quantity,
-                available_quantity=p.available_quantity,
-            )
-            for p in snap.positions
-        ],
-        option_positions=[
-            PortfolioOptionOut(
-                option_id=o.option_id,
-                ticker=o.ticker,
-                option_type=o.option_type,  # type: ignore[arg-type]
-                strike=o.strike,
-                expiry=o.expiry,
-                quantity=o.quantity,
-                currency=o.currency,
-                premium_paid=o.premium_paid,
-                market_value_native=o.market_value_native,
-                market_value=o.market_value,
-                unrealized_pl=o.unrealized_pl,
-            )
-            for o in snap.option_positions
-        ],
-    )
+    return portfolio_response(snap)
 
 
 @router.post("/trades", response_model=TradeOut, status_code=status.HTTP_201_CREATED)
@@ -185,66 +133,24 @@ def get_portfolio_analytics(
     display = _user_display_currency(session, user_id)
     valuation = compute_portfolio(session, portfolio, display_currency=display)
 
-    snapshots = list(
-        session.exec(
-            select(PortfolioSnapshot)
-            .where(PortfolioSnapshot.user_id == user_id)
-            .order_by(PortfolioSnapshot.date.asc())  # type: ignore[attr-defined]
-        )
-    )
-    navs = [s.nav for s in snapshots]
-    history_days = (snapshots[-1].date - snapshots[0].date).days or 1 if len(snapshots) >= 2 else 0
+    return portfolio_analytics_response(session, user_id, valuation, risk_free_rate=risk_free_rate)
 
-    position_tickers = [p.ticker for p in valuation.positions]
-    sectors_by_ticker: dict[str, str | None] = (
-        dict(
-            session.exec(
-                select(Symbol.ticker, Symbol.sector).where(
-                    Symbol.ticker.in_(position_tickers)  # type: ignore[attr-defined]
-                )
-            ).all()  # type: ignore[arg-type]
-        )
-        if position_tickers
-        else {}
-    )
 
-    allocation = compute_sector_allocation(valuation.positions, sectors_by_ticker=sectors_by_ticker)
-    gainers, losers = compute_top_movers(valuation.positions, sectors_by_ticker=sectors_by_ticker)
-
-    return PortfolioAnalyticsOut(
-        display_currency=display,
-        history_days=history_days,
-        total_return_pct=compute_total_return_pct(navs),
-        annualised_return_pct=(
-            compute_annualised_return_pct(navs, days=history_days) if history_days else None
+@router.get("/portfolio/overview", response_model=PortfolioOverviewOut)
+def get_portfolio_overview(
+    session: SessionDep,
+    user_id: UserIdDep,
+    risk_free_rate: Annotated[float, Query(ge=0, le=1)] = DEFAULT_RISK_FREE_RATE,
+) -> PortfolioOverviewOut:
+    """Build summary and analytics from one uncached valuation for this user."""
+    portfolio = ensure_default_portfolio(session, user_id)
+    display = _user_display_currency(session, user_id)
+    valuation = compute_portfolio(session, portfolio, display_currency=display)
+    return PortfolioOverviewOut(
+        portfolio=portfolio_response(valuation),
+        analytics=portfolio_analytics_response(
+            session, user_id, valuation, risk_free_rate=risk_free_rate
         ),
-        sharpe_ratio=compute_sharpe(navs, risk_free_rate=risk_free_rate),
-        max_drawdown_pct=compute_max_drawdown_pct(navs),
-        risk_free_rate=risk_free_rate,
-        sector_allocation=[
-            SectorAllocationOut(sector=a.sector, market_value=a.market_value, pct=a.pct)
-            for a in allocation
-        ],
-        top_gainers=[
-            TopMoverOut(
-                ticker=m.ticker,
-                name=m.name,
-                sector=m.sector,
-                unrealized_pl=m.unrealized_pl,
-                return_pct=m.return_pct,
-            )
-            for m in gainers
-        ],
-        top_losers=[
-            TopMoverOut(
-                ticker=m.ticker,
-                name=m.name,
-                sector=m.sector,
-                unrealized_pl=m.unrealized_pl,
-                return_pct=m.return_pct,
-            )
-            for m in losers
-        ],
     )
 
 

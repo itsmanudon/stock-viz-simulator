@@ -8,12 +8,11 @@ import {
   type PortfolioAnalytics,
   type PortfolioHistoryPoint,
   getDividends,
-  getPortfolio,
-  getPortfolioAnalytics,
   getPortfolioHistory,
   listOrders,
 } from "@/lib/api/trading";
 import { splitMonthKey } from "@/lib/journal-view-model";
+import { loadPortfolioOverview } from "@/lib/portfolio-overview";
 import { type PortfolioRange, portfolioRangeDays } from "@/lib/portfolio-view-model";
 
 export type PortfolioData = {
@@ -45,19 +44,18 @@ export async function loadPortfolioData(
       )
     : Promise.resolve(null);
 
-  const [portfolio, history, analytics, orders, dividends, journalMonth] = await Promise.all([
-    getPortfolio(),
+  const [overview, history, orders, dividends, journalMonth] = await Promise.all([
+    loadPortfolioOverview(),
     optional(getPortfolioHistory(portfolioRangeDays(range))),
-    optional(getPortfolioAnalytics()),
     optional(listOrders("pending")),
     optional(getDividends()),
     journalRequest,
   ]);
 
   return {
-    portfolio,
+    portfolio: overview.portfolio,
     history,
-    analytics,
+    analytics: overview.analytics,
     orders,
     dividends,
     journalMonth,

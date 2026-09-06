@@ -757,6 +757,13 @@ class PortfolioAnalyticsOut(BaseModel):
     top_losers: list[TopMoverOut]
 
 
+class PortfolioOverviewOut(BaseModel):
+    """Summary and analytics from the same request-local portfolio valuation."""
+
+    portfolio: PortfolioOut
+    analytics: PortfolioAnalyticsOut
+
+
 # ---------------------------------------------------------------------------
 # Options
 # ---------------------------------------------------------------------------

@@ -17,13 +17,13 @@ from decimal import Decimal
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, Request
-from sqlalchemy import func
 from sqlmodel import Session, select
 
 from stockviz.db import get_session
 from stockviz.limiter import limiter
-from stockviz.models import PriceBar, Symbol, SymbolMetrics
+from stockviz.models import Symbol, SymbolMetrics
 from stockviz.schemas import ScreenerResultOut
+from stockviz.services.recent_bars import recent_closes
 
 router = APIRouter(prefix="/v1/symbols", tags=["screener"])
 
@@ -39,47 +39,13 @@ MAX_MOMENTUM_DAYS = 252
 def _momentum_by_ticker(
     session: Session, tickers: list[str], *, days: int
 ) -> dict[str, float | None]:
-    """N-day return per ticker, from one windowed query over ``price_bars``.
-
-    Momentum needs exactly two closes — the latest and the one ``days`` bars
-    back — so there is no reason to scan a year of history per symbol. Keeping
-    it computed (rather than materialized like RSI) preserves the arbitrary
-    ``momentum_days`` the endpoint has always accepted.
-    """
-    if not tickers:
-        return {}
-
-    ranked = (
-        select(
-            PriceBar.ticker,
-            PriceBar.close,  # type: ignore[arg-type]
-            func.row_number()
-            .over(
-                partition_by=PriceBar.ticker,  # type: ignore[arg-type]
-                order_by=PriceBar.ts.desc(),  # type: ignore[attr-defined]
-            )
-            .label("rn"),
-        )
-        .where(
-            PriceBar.ticker.in_(tickers),  # type: ignore[attr-defined]
-            PriceBar.interval == "1d",
-        )
-        .subquery()
-    )
-    rows = session.exec(
-        select(ranked.c.ticker, ranked.c.rn, ranked.c.close).where(  # type: ignore[call-overload]
-            ranked.c.rn.in_([1, days + 1])
-        )
-    ).all()
-
-    latest: dict[str, Decimal] = {}
-    prior: dict[str, Decimal] = {}
-    for ticker, rn, close in rows:
-        (latest if rn == 1 else prior)[ticker] = close
-
+    """N-bar return from at most days + 1 daily closes per requested ticker."""
+    closes = recent_closes(session, tickers, limit_per_ticker=days + 1)
     out: dict[str, float | None] = {}
     for ticker in tickers:
-        now, then = latest.get(ticker), prior.get(ticker)
+        values = closes.get(ticker, [])
+        now = values[-1] if values else None
+        then = values[0] if len(values) == days + 1 else None
         out[ticker] = (
             float((now - then) / then * 100) if now is not None and then not in (None, 0) else None
         )

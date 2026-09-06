@@ -6,6 +6,7 @@ Use deployment-level lock_timeout; see docs/TRADING_JOURNAL.md for rollout.
 Downgrade drops captured basis values permanently; roll back application code
 first and normally retain this additive column when reverting a deployment.
 """
+
 from alembic import op
 import sqlalchemy as sa
 

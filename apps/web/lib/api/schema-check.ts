@@ -22,7 +22,7 @@
 import type { JournalDay, JournalMonth, JournalWeek } from "./journal";
 import type { ReplayForensics, ReplayJournal, ReplaySessionList, ReplaySummary } from "./replay";
 import type { components } from "./schema";
-import type { Portfolio, PortfolioOption, TradeRow } from "./trading";
+import type { Portfolio, PortfolioOption, PortfolioOverview, TradeRow } from "./trading";
 import type {
   BacktestSummary,
   EarningsEvent,
@@ -55,6 +55,9 @@ export type _JournalDayMatches = Expect<Assignable<JournalDay, Schemas["JournalD
 export type _JournalWeekMatches = Expect<Assignable<JournalWeek, Schemas["JournalWeekOut"]>>;
 
 export type _PortfolioMatches = Expect<Assignable<Portfolio, Schemas["PortfolioOut"]>>;
+export type _PortfolioOverviewMatches = Expect<
+  Assignable<PortfolioOverview, Schemas["PortfolioOverviewOut"]>
+>;
 export type _PortfolioOptionMatches = Expect<
   Assignable<PortfolioOption, Schemas["PortfolioOptionOut"]>
 >;

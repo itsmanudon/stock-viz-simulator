@@ -352,6 +352,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/portfolio/overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Portfolio Overview
+         * @description Build summary and analytics from one uncached valuation for this user.
+         */
+        get: operations["get_portfolio_overview_v1_portfolio_overview_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/portfolio/history": {
         parameters: {
             query?: never;
@@ -1973,6 +1993,14 @@ export interface components {
              */
             option_positions: components["schemas"]["PortfolioOptionOut"][];
         };
+        /**
+         * PortfolioOverviewOut
+         * @description Summary and analytics from the same request-local portfolio valuation.
+         */
+        PortfolioOverviewOut: {
+            portfolio: components["schemas"]["PortfolioOut"];
+            analytics: components["schemas"]["PortfolioAnalyticsOut"];
+        };
         /** PositionOut */
         PositionOut: {
             /** Ticker */
@@ -3452,6 +3480,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PortfolioAnalyticsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_portfolio_overview_v1_portfolio_overview_get: {
+        parameters: {
+            query?: {
+                risk_free_rate?: number;
+            };
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortfolioOverviewOut"];
                 };
             };
             /** @description Validation Error */

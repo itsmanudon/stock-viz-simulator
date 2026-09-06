@@ -1,0 +1,3357 @@
+{
+  "p1-final-cold": {
+    "records": [
+      {
+        "kind": "source",
+        "python": "3.12.14",
+        "files": {
+          "__init__.py": "91447944015cec709e8aa7655f7e9d64e1e4508e7023a57fe3746911c0fc6fed",
+          "_time.py": "1055a7a1a02e56f0ae55af4e81c30af55334af3a8e35e88a56bb73716306e558",
+          "auth.py": "e3cd3bd66c4e2197afbda0369349fba602d5265eed899614bc2a62f671734296",
+          "benchmarks/__init__.py": "69cb42c9f79507d1c913dc9e7271e61f4ba090d4fd4523d28420b98154b555db",
+          "benchmarks/kafka_scaling.py": "a440abd0b0f2d0909e5b5aaa46582e57dd485f41a418d5c9aa71f11812ceb5a2",
+          "benchmarks/report.py": "e7335c978c157a3e15654f4b1acd9af606c949bf2baa5aa1a16eb49d650ec1c1",
+          "benchmarks/topics.py": "c1b57348fae91966def215674601a43447c5eff379b1fbdee1c2eed8ee2f9f2d",
+          "cli.py": "7190de3efceb557784d8153f296046122154cbd06bfc4914cd82cf945b27dd33",
+          "db.py": "354acd6c7a8df2b9e0d75387a87ba5b3b5135470ca9b4fc92f90c7280ff2a103",
+          "events/__init__.py": "cd8b29787ad052d610251d1756b6fc4586b068ec3ec4c8082599001b7407f2d7",
+          "events/activity.py": "781030f3d8560c05c79dda227ed514d2001260e6b251f19f944742d500116a02",
+          "events/contracts/__init__.py": "7e7c66fffda01e7a63946a287d521ee5dede41a459483c7a0801172a47a4c38d",
+          "events/contracts/common.py": "56c6c53575a475c6ac2b918918af60bbdcfc72333a0d3ef567bf097af4ba7085",
+          "events/contracts/market.py": "bc6f5dc3df6b7c5e4afd36ca68386d77f53438372f9632aef2f7f48080f9b8fa",
+          "events/contracts/news.py": "f79712e8659d671172318611159e214193f8df9dc3b884960fbce9da74d9eb17",
+          "events/contracts/trades.py": "96f72743e048f80b1be5fb324e58390595374b6631fb981f1fb1e9d72311bfa1",
+          "events/dispatcher.py": "817687f161d572f128c3e46718d10346da766b3755f28404a8fd76ac8ce7f96b",
+          "events/handlers.py": "ae2c2a5cefb17fefaa4e870703adcebbc0f973ea45c13e786c124e00385188c7",
+          "events/inbox.py": "f6ab8e74f73f7cdf0588d8a470707eade04eaaa756b38ea03b2c42094b7081e9",
+          "events/outbox.py": "3a4f77ce79c60391e4e93be997b7874e7ce1f89c02bd9f60ce0184cc13252bda",
+          "events/producer.py": "17d4ad6bb28c0d677e686810ea6b0b02fb9b3ee7a221b5f66ece9e94c8b11703",
+          "limiter.py": "5b314c7874e7ead6019edb426eb38ee5201f51d33c39ccf3ac37d26c302a70af",
+          "main.py": "48b75f0da76b30ddb5c18b97341a9b09f985beebb32c1dc702892ac75189aed7",
+          "models/__init__.py": "ee65ea5be781abca9fd2e59d5e63f62f9b8f03832cea977ed1a79f8302998647",
+          "models/alert.py": "7e2757d96ee8ce443dd764c3d5afee1b127ade69b3a8f015175b5bbe66a28ed6",
+          "models/comment.py": "fb3df302be08e4cd1a16503b82451c9ed7a4451db264f16bf01c0f5b561c96ab",
+          "models/dividend.py": "0b2ad59f3bed3af745de61c5c0d1180a06f7c5f00b5a7f63c44132f1529a2f5f",
+          "models/earnings.py": "23c9785deb37d71c5bf9f8e12d8e1875783a18e37d22faf5df163904de6e0d91",
+          "models/events.py": "f481d4cac61776299cdbc6a1e4b75a31b8c672484a2f6e82b19235e3a385ccef",
+          "models/execution.py": "90587d66b9a9093172bccbd6d9280a3ccd6794434d3f7775efc89e8599beaa55",
+          "models/market.py": "8cde0ccecf8c32894df3bac4057af57806d811f3bc727b529126a8f286f25673",
+          "models/metrics.py": "6965e9e59cc8be90ddec205b5517e433a8ae80fbad0d8227f06e24b757b7f25d",
+          "models/option.py": "6a2f182e52830c4ab46cae345147e9012228256ec322bd814756fe39d8381b72",
+          "models/order.py": "8fdd88866ae6288863979edf11a10bd0be09a7b9177f8371919664198f67d94e",
+          "models/portfolio.py": "3998eea42bf0eada3ed9740f4cb933904dae4f0e23208f98f25e23c6673ed826",
+          "models/recommendation.py": "a27cb985815ff124e05c53d6ddbce631f1772d4895e2a0d76e62113b8a20a8dc",
+          "models/replay.py": "9109e69ba1819f45c517ca0f69d8e8f6295c8735c57e0775e1ac2f8ed1e18837",
+          "models/sentiment.py": "31ae384c40208ea38dd4f4af406546a786b315b3fb6222dea42e240d14c4d1f0",
+          "models/user.py": "a5b7dc3c91d703b77edda37f39c70403899e3160d92da370178e05fadbc78fe1",
+          "models/watchlist.py": "5d3e6dbacb58d2496409a995ffe8968af51cb7dea4007fe8ff171a46953493cf",
+          "observability.py": "5970f750682e4ac940f6f2f6593ec1780286e2218a98cf993fde66eb780e58a9",
+          "routers/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "routers/alerts.py": "ead3ca2d4d7bcddf7ca658fd810740a1320712273feffece0f5badb852f376d9",
+          "routers/backtest.py": "87865a128941942986b613e17ddc0bcdf2bfd8f0513da9934ec73570ed8a3b4a",
+          "routers/bars.py": "93adf459d5bd47fc5899be1b0d4cc68209caddfbda69a267770f8667b3aead67",
+          "routers/comments.py": "f41ea3ee1b08ed5adb4250f075582c5c96f7a490bb19080f43526e264fc4a219",
+          "routers/earnings.py": "a6f47dc50edb7e7d02ff8817c8714020886f20518491bb30d357e01ffcca17db",
+          "routers/health.py": "e7c99f2195dcc9cfd40ecfe94dd919f266287ce9fd13f5bb554348be13bf6c7f",
+          "routers/indicators.py": "fd50b5b90b2bec5b78c522fc7f7afb423a183d5ab8e667640cc4b1f6a7202eb1",
+          "routers/journal.py": "05f729acbcdf6a995534b7a3525d35be13c98f1c01ab7435b3a77524263b6170",
+          "routers/leaderboard.py": "1a2996155b82dd6c8767331c75f103a7727c6fcf5b7fc74a6c87124e3596ba01",
+          "routers/markets.py": "22fb0923f5fadbb85acb208d6a7d708e0696e7575481fa4b156ee1ec8a55fa53",
+          "routers/news.py": "00294b5545233862b35f42f22e3c9059bb4822c23bd2d980d8a0374cd49ed26c",
+          "routers/options.py": "23cd931c7a72bf1126ae2660b978837ab16496926e720b35ae6cd49c179546e4",
+          "routers/orders.py": "70374969a8394fe5bc8089e49705162ea60bb78f7174c06a4c375400765aedcf",
+          "routers/quotes.py": "ac8950756ef7d698151dd6543fc9d8ed621aded12a00223d108ba739ff888a4c",
+          "routers/recommendations.py": "2b4cba25a23f43c6b43fd7bc2d0806289416061663459c676137021642a864bd",
+          "routers/replay.py": "796257b18955f17eac3e9174879ebf506e9167471ce8c86c24937a60099afea7",
+          "routers/screener.py": "06cc5452a838aac99ba220cd4a259b19668de45c75d0e4fdcd779936d2ae67d0",
+          "routers/sentiment.py": "ed5abe8b91f12c7215199561666b9fc18dcafbc6d492ce044b067c57763485c0",
+          "routers/stream.py": "c186399152666f1f90d168d77b153c02d0ac5e9208972bfab4325fa8fe22d7e1",
+          "routers/symbols.py": "c17894932fb633963890a20fc2eae85f09441e25c091bad353b7a9679cc7bb35",
+          "routers/trading.py": "09306b1b1a634a1c87661f35eee09850f0bc3920ca2543f61e8c655a79de8f76",
+          "routers/watchlist.py": "a9ada33008952d5ff729d7b2249e9503b9f5c7517d78add9b9b1b5b572dd44df",
+          "scheduler.py": "e87b907a911a507ada94b407b6959b43a775a325e5750dd882a6b7f4099da04f",
+          "schemas.py": "d140de66c2096d6151253d7a8bbbc55d87ebe1c011d6f4a1217668a58e6a723b",
+          "services/__init__.py": "337921aa563126bd0a2d82b9e42fa048a169d0585c3fff4bf1db8d38959f9fd4",
+          "services/alerts.py": "31278dfea14b2a0597621f19578c38bbdb6fefcc225911e936ef9de683f8286b",
+          "services/backtest/__init__.py": "e8b11c9dcc637c27f5f1e5a46833f96f2087c40c128eef681b96501977386d0c",
+          "services/backtest/engine.py": "adb64e6b59c1fffb831a23c8c59c7d5b1562a2d31e62181e204bf16c2203f5b8",
+          "services/cache.py": "c0f42f000a6f8a9540207afcc6d1aeb4c8f886846dcbea3941c6108e35882046",
+          "services/indicator_view.py": "177cff069261c98cb0e86bbdfb5ddd2efe975052c0ec9fe354328212aad9b008",
+          "services/indicators/__init__.py": "4fd1fbae1ba7ec2faec50228ab0e6e06ccc3838aff7ad6e13b5b722f30599079",
+          "services/indicators/compute.py": "954b558c0d648a901eabe6c2d8c2c646f2261b40ad8d73999924654f873cc8d8",
+          "services/ingest/__init__.py": "f6279d119d7fe5a06be5b9acaeee9277e2fb4552dc7050e05fc757c09e833b2e",
+          "services/ingest/backfill.py": "9e85cb75d28cfa56ef15a5841fc7bf8470281526310c66c898b936b03355a1ec",
+          "services/ingest/bar_semantics.py": "6d0222bdf77fb9abc6da03cb37eafdd4933067a16dccb2dc28c63a8bb3fbd18b",
+          "services/ingest/dividends.py": "74941e206ad1ca5d9bc864136faf3614078c49e8d78a5e82f4ba71a4184df1d8",
+          "services/ingest/earnings.py": "35c0b1e35fb45b103101817b43e7090b84b07608670beacede6b46f3d1dae9a7",
+          "services/ingest/fx.py": "677614d5adefa71829495f9a601c0aeafcbe6119bab64f03fa937440e64e02c0",
+          "services/ingest/metadata.py": "785d9e786ed6e77622ee578d216fb18b452082d469d6a59f6b76c17ece963225",
+          "services/ingest/news.py": "2247a35d16c2f982155e1f652c2ea7672ca4fe16fb4638a929efeb0069e53834",
+          "services/ingest/prices.py": "46d84b5b8d3d9654c3e92cf5a1d20f6ac13cff551ff22fada6b6a27c1cfae41f",
+          "services/ingest/providers/__init__.py": "7bf9edfe8914a0844adda753735b7b91b4a9d9d0e36418f604e1229b1b6e5522",
+          "services/ingest/providers/massive.py": "cffd654f4bb6f05871c11204d54da0706a68a5579f732e45fe467cdd4b64679c",
+          "services/ingest/screening.py": "66b0a1456c0edbdf95abe1b7ed1fe894f673924d490b38d95c82347cd2b019ba",
+          "services/ingest/seed.py": "c86549ae4967c301b4bd968e00822d7cd165781f055e851be9bb3475cbbb8030",
+          "services/ingest/semantic_acceptance.py": "f53b04c506616bb94d9c6d5ba00830e9d79cf59d5ac32672b4be9eb096cbdce3",
+          "services/ingest/shadow.py": "f8c7bee6d5c76a84a1c7fc9162b435f4b7fb0707a902dd25585cf3ec679e6b39",
+          "services/ingest/shadow_report.py": "10527b49c032a5ff1d6d381fe0206af3f56b7b6ce5cd9747e7f82fc80ecbb86b",
+          "services/journal/__init__.py": "4f55183f080738832170af0ac63525f1701f0c6dcccc2e94c7f47fb015a4e34e",
+          "services/journal/aggregate.py": "d23c06b72c04cae8457fe339261c4fc1b3904942a91d3d20cd1d8efccc1657b7",
+          "services/journal/model.py": "ecdb2b19a0fe9db88ff3cdbc3965adb98e64cb1e6a0b2f6d44c70a02ceacfed6",
+          "services/journal/query.py": "92cc1ce2793d7807498649b7beaf015d763bff298156d653a89541c4bc3ba6cf",
+          "services/metrics.py": "ec5d384def6d2a9d0aff63cead1498ad7246578f194e335a56252a315d537d4b",
+          "services/options/__init__.py": "191f8fff17a7cc2fe4e56a90581991a9dd43a06ee5337c9f8e7db0e4f235e37c",
+          "services/options/pricing.py": "cc61e910484eaf196662e9dbb9e6d1b203b87da0df01c82af153a538c01b29eb",
+          "services/options/trade.py": "5211a31fa9238aa46296814aed81189669c1e9c2c9c6983f4a9a2de11f808197",
+          "services/recent_bars.py": "5f07318dc2d149b36ed4d1189640b29a11262512a29547aa64046841ae2608e9",
+          "services/recommend/__init__.py": "d1fe8b0d107ea22c6a0b53163dfc8435a6d31c9c0d003f238dbbf18c700ad637",
+          "services/recommend/engine.py": "e1b4b2ee47e50a0e6f8106d110e953a4c32cd0b3d34701acd1ad50266feaec06",
+          "services/replay/__init__.py": "d543b2d69157efdb687c3d3cc348870a636ea132d45ec4f7a35f2c6a78eb58fe",
+          "services/replay/errors.py": "8713834f3671d70512de852ad8f2dad2f3005d940eb1a7cdde7e9053ae6b7a99",
+          "services/replay/forensics.py": "705182e71e13f80e84a07914674d78182f237e91a5c04ae1a3dbb3cb5b41c67f",
+          "services/replay/journal.py": "72d77ec5ca512086de77ed1f6ea64cd76719a7dcb84505d6a2ebf12d14d0f602",
+          "services/replay/ledger.py": "90d6c4ad6bd32337482a252d320080f46ea55a72a57b72420e915c3156429550",
+          "services/replay/market.py": "f5386fa12c0d8ab534fbdf1e6e7f936315ac2fbfb9839ba362c1f14bde0741e3",
+          "services/replay/session.py": "3ac81b03cca6e293ff3c531f10a56d09e29569e2d3ad83aea96287908f94d9c1",
+          "services/replay/summary.py": "90ed3c7b0c06a7eb91182d0f36b8aa306a248ebbad7975c2db600752682a6886",
+          "services/replay/timeutil.py": "54ca88ed4de367f9bd1d9728de409e1cd412c657f2bcf38cbf5a447f03b38f6c",
+          "services/sentiment/__init__.py": "4220ba5c4f8c9f48e296d18db8fe838fb627dca4f57459a52c8e8aa757c4f8c5",
+          "services/sentiment/anthropic_provider.py": "766d62f9ec937e0e330c531ada76b9e96e39d297a7196d1a6d347f291a094fc2",
+          "services/sentiment/base.py": "c6d09aa927419b393d11c55219ab0546b2cd61361de284f5f96754088d11b0af",
+          "services/sentiment/http_provider.py": "0fa233b9fbe9d867fefd6880d2162cb46c29231e2901c7fe5d195666ff54a3df",
+          "services/sentiment/null_provider.py": "4f6d1bac4e8cd2b13a992f9a40f305b8ed7585788b4bbb4dce9e5ff8015f5ce0",
+          "services/sentiment/store.py": "b994a1bf050b18cd7eb13f50a546437ed1579712d2e67b7bac7f4270c3a47875",
+          "services/simulation/__init__.py": "bc02f0ed1653ab63761c89a2b54e6b118225f8798d4fd36b5db76e9a5f8e818c",
+          "services/simulation/clock.py": "c792a5dc13b1c9637149b876dd439a923db96128c45d818e0fbac93da8e2ab0d",
+          "services/simulation/contracts.py": "679b450c35e5f8b12f6f1fbbd9aa28a1ef4d986d4ef181e0a6f1b402c8c8643d",
+          "services/simulation/engine.py": "77eb83e88294fa0caa340cd9f36397da444b832874f8a6dda1802c58f4a85fec",
+          "services/simulation/profiles.py": "e50c3eb9876fbf7e67ade899e30fca24bce9624f6ac4da57aa7fcde831466b8d",
+          "services/simulation/registry.py": "0266779ab917fad1c578a5999a9f1c235b8603d59abef9ecb3d0ec561c104547",
+          "services/trading/__init__.py": "a0694220f03ed791aa4315d270f8b2d409a8c5fe920b5da13bae267c1fec25b5",
+          "services/trading/analytics.py": "7ca512d373f77256954848513d4aaf0c93f948764ad9ee7ac52a3fcc94d07436",
+          "services/trading/buying_power.py": "13dc881c8ef8f1b558039135430d83398be466dd8b639c471e66b593b67d44b1",
+          "services/trading/dividends.py": "4a226797f70db7cd5c033aa5f6558623ce97869f07794c875dcb9f56517ba3b1",
+          "services/trading/execute.py": "6fbcf2e8bb7f67e2f72f17f406d4813a39d32353f8c7e3790334e8f39365f4f3",
+          "services/trading/execution_provenance.py": "7400360149c8017e879aacee0cc6186ad599969c9149d8269b71e79f424d3ccd",
+          "services/trading/fx.py": "7d502115b3c94f6eb3656c6d8e4e905a2f3dc47b4b676b34195afbe4cbb0451d",
+          "services/trading/orders.py": "bedf5cbc98a41c4ad5e12c56c87ecb8d0232f5cb251f77b4d070fa5b44e07c79",
+          "services/trading/portfolio.py": "2785b2c74c001e2f9c94556182b0cf687269dce787c0fdcdfeecac63e243da24",
+          "services/trading/simulation_adapter.py": "d3f7e31e74062458fab226163b694ff82dd810f6dcb8d36cd06cb44b84c212d9",
+          "services/trading/snapshots.py": "31bcd09e3d320eaf139d036d6b73bad3a73cfff458c0afa3490917bfd7485644",
+          "services/trading/views.py": "f02e95b160bebaa50853652bc9f57f2ae6c0bb997c5645e08557a13796dac08e",
+          "settings.py": "93decf443dab60e6e4bb0796e00ff1630454e94a2df5eb8afc7cc2526b028c5f",
+          "workers/__init__.py": "83389e2fdf26c63bd7848dde3ca16f1890c9fe461c77466afd8784d76f9880ee",
+          "workers/market_analytics_consumer.py": "99a2208774f6409059eb2356324ae1fdb082b26b594db5de4f3ad943916f3615",
+          "workers/market_ingest_consumer.py": "2d5c26c32eafbf295f50d291c85e0b40ec63028cff5cc19d9e60a523db517f24",
+          "workers/news_ingest_consumer.py": "c1ee55da5cf8b3846dd2624bd9955ed30f3e86ca292011329ff2b5aba4815c18",
+          "workers/news_sentiment_consumer.py": "dd6a17c679eee83fb0269e4a520fe6cce3a2e52ed769b5ea868855a5d69ff55a",
+          "workers/outbox_publisher.py": "ce2a88448eae882ba362b992c0ff012247383420bc65ca6c2466929f5e491c3a",
+          "workers/scheduler.py": "5b4b5c08de4275109ca0cb132b0999788626932534690428d5f30a56db00b2b4",
+          "workers/sentiment_aggregate_consumer.py": "b6281eb25d95b56d3fe04abc88b2343336316d7c65858d71326be431e5d4dd9e",
+          "workers/trade_activity_consumer.py": "ae1e379ba8f618c9babe19f7d54587fff0af71e45df870cb11af80bc1e44b13d"
+        }
+      },
+      {
+        "kind": "inventory",
+        "utc": "2026-09-06 07:04:24.913411+00:00",
+        "counts": {
+          "symbols": 75,
+          "price_bars": 278484,
+          "positions": 12,
+          "portfolio_snapshots": 370,
+          "news_articles": 0,
+          "news_sentiment": 0,
+          "options_positions": 0
+        },
+        "read_only": "on"
+      },
+      {
+        "kind": "method",
+        "n": 300,
+        "warmups": 10,
+        "concurrency": 1,
+        "paths": {
+          "AAPL_indicators": [
+            "/v1/symbols/AAPL/indicators?names=sma_20,sma_50,rsi_14,macd&limit=252"
+          ],
+          "NVDA_indicators": [
+            "/v1/symbols/NVDA/indicators?names=sma_20,sma_50,rsi_14,macd&limit=252"
+          ]
+        },
+        "db_ms": "cursor wall time including DB network/driver, not PG CPU",
+        "endpoint_cpu_ms": "application endpoint worker thread CPU including ORM/driver; excludes dependency and response serialization CPU",
+        "application_cpu_ms": "endpoint CPU plus completed Redis worker CPU; timed-out background commands may finish after the request",
+        "non_db_wall_ms": "ASGI wall minus cursor wall; not pure compute",
+        "portfolio_pair": "sum of two serial API requests, not parallel browser wall time",
+        "first_use": "warm database, not cold disk",
+        "workload": "controlled repeated requests; NOT organic traffic hit rate",
+        "redis_cold": true
+      },
+      {
+        "kind": "first_use",
+        "name": "AAPL_indicators",
+        "measurement": {
+          "queries": 2,
+          "db_ms": 2.4361949999999997,
+          "endpoint_cpu_ms": 35.0508,
+          "server_ms": 58.095082,
+          "bytes": 60057,
+          "cache_hits": 0,
+          "cache_misses": 1,
+          "cache_errors": 0,
+          "cache_bypass": 0,
+          "cache_worker_cpu_ms": 0.358,
+          "application_cpu_ms": 35.4088,
+          "non_db_wall_ms": 55.658887
+        }
+      },
+      {
+        "kind": "first_use",
+        "name": "NVDA_indicators",
+        "measurement": {
+          "queries": 2,
+          "db_ms": 1.373936,
+          "endpoint_cpu_ms": 14.4502,
+          "server_ms": 17.870057,
+          "bytes": 59818,
+          "cache_hits": 0,
+          "cache_misses": 1,
+          "cache_errors": 0,
+          "cache_bypass": 0,
+          "cache_worker_cpu_ms": 0.3113,
+          "application_cpu_ms": 14.7615,
+          "non_db_wall_ms": 16.496121
+        }
+      },
+      {
+        "kind": "progress",
+        "rounds": 100
+      },
+      {
+        "kind": "progress",
+        "rounds": 200
+      },
+      {
+        "kind": "progress",
+        "rounds": 300
+      },
+      {
+        "kind": "summary",
+        "name": "AAPL_indicators",
+        "n": 300,
+        "metrics": {
+          "queries": {
+            "p50": 2,
+            "p95": 2,
+            "p99": null
+          },
+          "db_ms": {
+            "p50": 1.1122,
+            "p95": 1.7207,
+            "p99": null
+          },
+          "endpoint_cpu_ms": {
+            "p50": 14.753,
+            "p95": 19.2225,
+            "p99": null
+          },
+          "server_ms": {
+            "p50": 18.1183,
+            "p95": 23.0419,
+            "p99": null
+          },
+          "bytes": {
+            "p50": 60057,
+            "p95": 60057,
+            "p99": null
+          },
+          "cache_hits": {
+            "p50": 0,
+            "p95": 0,
+            "p99": null
+          },
+          "cache_misses": {
+            "p50": 1,
+            "p95": 1,
+            "p99": null
+          },
+          "cache_errors": {
+            "p50": 0,
+            "p95": 0,
+            "p99": null
+          },
+          "cache_bypass": {
+            "p50": 0,
+            "p95": 0,
+            "p99": null
+          },
+          "cache_worker_cpu_ms": {
+            "p50": 0.3335,
+            "p95": 0.5253,
+            "p99": null
+          },
+          "application_cpu_ms": {
+            "p50": 15.0891,
+            "p95": 19.6512,
+            "p99": null
+          },
+          "non_db_wall_ms": {
+            "p50": 16.9117,
+            "p95": 22.0319,
+            "p99": null
+          }
+        },
+        "query_counts": {
+          "2": 300
+        },
+        "hashes": [
+          "bcdd08ec17a154744d7ebe98db6844a1623a4a962d963cfbccd62ea3c998890e"
+        ]
+      },
+      {
+        "kind": "summary",
+        "name": "NVDA_indicators",
+        "n": 300,
+        "metrics": {
+          "queries": {
+            "p50": 2,
+            "p95": 2,
+            "p99": null
+          },
+          "db_ms": {
+            "p50": 1.1111,
+            "p95": 1.6009,
+            "p99": null
+          },
+          "endpoint_cpu_ms": {
+            "p50": 14.8501,
+            "p95": 21.0193,
+            "p99": null
+          },
+          "server_ms": {
+            "p50": 18.2149,
+            "p95": 26.4275,
+            "p99": null
+          },
+          "bytes": {
+            "p50": 59818,
+            "p95": 59818,
+            "p99": null
+          },
+          "cache_hits": {
+            "p50": 0,
+            "p95": 0,
+            "p99": null
+          },
+          "cache_misses": {
+            "p50": 1,
+            "p95": 1,
+            "p99": null
+          },
+          "cache_errors": {
+            "p50": 0,
+            "p95": 0,
+            "p99": null
+          },
+          "cache_bypass": {
+            "p50": 0,
+            "p95": 0,
+            "p99": null
+          },
+          "cache_worker_cpu_ms": {
+            "p50": 0.3283,
+            "p95": 0.4704,
+            "p99": null
+          },
+          "application_cpu_ms": {
+            "p50": 15.1898,
+            "p95": 21.3968,
+            "p99": null
+          },
+          "non_db_wall_ms": {
+            "p50": 17.0567,
+            "p95": 25.2379,
+            "p99": null
+          }
+        },
+        "query_counts": {
+          "2": 300
+        },
+        "hashes": [
+          "3b7ac7cf59145193c280c68619478e69d2e67cc8b2fecc8fa9b189e442e0b458"
+        ]
+      },
+      {
+        "kind": "cache_stats",
+        "enabled": true,
+        "namespace": "stockviz:pilot-cold:v1",
+        "stats": {
+          "hits": 0,
+          "misses": 622,
+          "sets": 622,
+          "errors": 0,
+          "invalid": 0,
+          "bypass": 0,
+          "commands": 1244,
+          "get_commands": 622,
+          "set_commands": 622,
+          "command_latency_ms": 531.5365738642868,
+          "backend_cpu_ms": 222.45080000000027,
+          "cache_hit_ratio": 0
+        }
+      },
+      {
+        "kind": "redis_memory",
+        "redis_version": "7.4.11",
+        "keys": 1,
+        "key_bytes": 82072,
+        "used_memory": 999368,
+        "used_memory_rss": 14204928,
+        "evicted_keys": 0,
+        "connected_clients": 1
+      }
+    ],
+    "sha256": "c77e17b1fd0a834a838fdbf33208b65add54ea736817e8260f39a2370134e592"
+  },
+  "p0-after": {
+    "records": [
+      {
+        "kind": "inventory",
+        "utc": "2026-09-06 06:23:41.677531+00:00",
+        "counts": {
+          "symbols": 75,
+          "price_bars": 278484,
+          "positions": 12,
+          "portfolio_snapshots": 370,
+          "news_articles": 0,
+          "news_sentiment": 0,
+          "options_positions": 0
+        },
+        "read_only": "on"
+      },
+      {
+        "kind": "method",
+        "n": 300,
+        "warmups": 10,
+        "concurrency": 1,
+        "paths": {
+          "markets": [
+            "/v1/markets/summary?sparkline_days=30"
+          ],
+          "momentum": [
+            "/v1/symbols/screen?momentum_days=30"
+          ],
+          "portfolio": [
+            "/v1/portfolio"
+          ],
+          "analytics": [
+            "/v1/portfolio/analytics"
+          ],
+          "portfolio_pair": [
+            "/v1/portfolio",
+            "/v1/portfolio/analytics"
+          ],
+          "AAPL_indicators": [
+            "/v1/symbols/AAPL/indicators?names=sma_20,sma_50,rsi_14,macd&limit=252"
+          ],
+          "NVDA_indicators": [
+            "/v1/symbols/NVDA/indicators?names=sma_20,sma_50,rsi_14,macd&limit=252"
+          ],
+          "screener": [
+            "/v1/symbols/screen"
+          ],
+          "recommendations": [
+            "/v1/recommendations?limit=100"
+          ],
+          "bars": [
+            "/v1/symbols/AAPL/bars?limit=252"
+          ],
+          "overview": [
+            "/v1/portfolio/overview"
+          ]
+        },
+        "db_ms": "cursor wall time including DB network/driver, not PG CPU",
+        "endpoint_cpu_ms": "application endpoint worker thread CPU including ORM/driver; excludes dependency and response serialization CPU",
+        "non_db_wall_ms": "ASGI wall minus cursor wall; not pure compute",
+        "portfolio_pair": "sum of two serial API requests, not parallel browser wall time",
+        "first_use": "warm database, not cold disk",
+        "workload": "controlled repeated requests; NOT organic traffic hit rate"
+      },
+      {
+        "kind": "first_use",
+        "name": "markets",
+        "measurement": {
+          "queries": 2,
+          "db_ms": 6.720662000000001,
+          "endpoint_cpu_ms": 72.4461,
+          "server_ms": 92.754193,
+          "bytes": 42352,
+          "non_db_wall_ms": 86.033531
+        }
+      },
+      {
+        "kind": "first_use",
+        "name": "momentum",
+        "measurement": {
+          "queries": 2,
+          "db_ms": 4.7982309999999995,
+          "endpoint_cpu_ms": 8.7588,
+          "server_ms": 15.04505,
+          "bytes": 18731,
+          "non_db_wall_ms": 10.246819
+        }
+      },
+      {
+        "kind": "first_use",
+        "name": "portfolio",
+        "measurement": {
+          "queries": 13,
+          "db_ms": 7.573093999999999,
+          "endpoint_cpu_ms": 14.1789,
+          "server_ms": 34.949329,
+          "bytes": 2450,
+          "non_db_wall_ms": 27.376235
+        }
+      },
+      {
+        "kind": "first_use",
+        "name": "analytics",
+        "measurement": {
+          "queries": 15,
+          "db_ms": 4.744992999999999,
+          "endpoint_cpu_ms": 10.2306,
+          "server_ms": 15.017877,
+          "bytes": 1460,
+          "non_db_wall_ms": 10.272884000000001
+        }
+      },
+      {
+        "kind": "first_use",
+        "name": "portfolio_pair",
+        "measurement": {
+          "queries": 28,
+          "db_ms": 9.285745999999996,
+          "endpoint_cpu_ms": 16.0074,
+          "server_ms": 24.736345,
+          "bytes": 3910,
+          "non_db_wall_ms": 15.450599000000004
+        }
+      },
+      {
+        "kind": "first_use",
+        "name": "AAPL_indicators",
+        "measurement": {
+          "queries": 2,
+          "db_ms": 1.2515399999999999,
+          "endpoint_cpu_ms": 15.6684,
+          "server_ms": 19.164431,
+          "bytes": 60057,
+          "non_db_wall_ms": 17.912891000000002
+        }
+      },
+      {
+        "kind": "first_use",
+        "name": "NVDA_indicators",
+        "measurement": {
+          "queries": 2,
+          "db_ms": 1.06303,
+          "endpoint_cpu_ms": 13.2218,
+          "server_ms": 18.009199,
+          "bytes": 59818,
+          "non_db_wall_ms": 16.946168999999998
+        }
+      },
+      {
+        "kind": "first_use",
+        "name": "screener",
+        "measurement": {
+          "queries": 1,
+          "db_ms": 0.792711,
+          "endpoint_cpu_ms": 2.1145,
+          "server_ms": 4.059107,
+          "bytes": 18161,
+          "non_db_wall_ms": 3.266396
+        }
+      },
+      {
+        "kind": "first_use",
+        "name": "recommendations",
+        "measurement": {
+          "queries": 1,
+          "db_ms": 3.218124,
+          "endpoint_cpu_ms": 8.8623,
+          "server_ms": 13.670878,
+          "bytes": 78645,
+          "non_db_wall_ms": 10.452754
+        }
+      },
+      {
+        "kind": "first_use",
+        "name": "bars",
+        "measurement": {
+          "queries": 2,
+          "db_ms": 1.146352,
+          "endpoint_cpu_ms": 3.0639,
+          "server_ms": 6.994207,
+          "bytes": 32017,
+          "non_db_wall_ms": 5.847855
+        }
+      },
+      {
+        "kind": "first_use",
+        "name": "overview",
+        "measurement": {
+          "queries": 15,
+          "db_ms": 4.777002,
+          "endpoint_cpu_ms": 8.6203,
+          "server_ms": 13.46966,
+          "bytes": 3937,
+          "non_db_wall_ms": 8.692657999999998
+        }
+      },
+      {
+        "kind": "progress",
+        "rounds": 100
+      },
+      {
+        "kind": "progress",
+        "rounds": 200
+      },
+      {
+        "kind": "progress",
+        "rounds": 300
+      },
+      {
+        "kind": "summary",
+        "name": "markets",
+        "n": 300,
+        "metrics": {
+          "queries": {
+            "p50": 2,
+            "p95": 2
+          },
+          "db_ms": {
+            "p50": 3.5037,
+            "p95": 4.2456
+          },
+          "endpoint_cpu_ms": {
+            "p50": 6.5418,
+            "p95": 9.0162
+          },
+          "server_ms": {
+            "p50": 10.8231,
+            "p95": 13.5646
+          },
+          "bytes": {
+            "p50": 42352,
+            "p95": 42352
+          },
+          "non_db_wall_ms": {
+            "p50": 7.2479,
+            "p95": 9.524
+          }
+        },
+        "query_counts": {
+          "2": 300
+        },
+        "hashes": [
+          "4728537cad07f9fa0f302d874fb42de46aaa1847e519e2296411846b8f61950e"
+        ]
+      },
+      {
+        "kind": "summary",
+        "name": "momentum",
+        "n": 300,
+        "metrics": {
+          "queries": {
+            "p50": 2,
+            "p95": 2
+          },
+          "db_ms": {
+            "p50": 3.8681,
+            "p95": 4.8847
+          },
+          "endpoint_cpu_ms": {
+            "p50": 7.3559,
+            "p95": 12.1362
+          },
+          "server_ms": {
+            "p50": 11.8535,
+            "p95": 18.4916
+          },
+          "bytes": {
+            "p50": 18731,
+            "p95": 18731
+          },
+          "non_db_wall_ms": {
+            "p50": 7.885,
+            "p95": 12.7209
+          }
+        },
+        "query_counts": {
+          "2": 300
+        },
+        "hashes": [
+          "17d0d0ae2d5d869acea834034da241de99a4b9b5bfeca5952d7afecd52883c28"
+        ]
+      },
+      {
+        "kind": "summary",
+        "name": "portfolio",
+        "n": 300,
+        "metrics": {
+          "queries": {
+            "p50": 13,
+            "p95": 13
+          },
+          "db_ms": {
+            "p50": 4.5313,
+            "p95": 6.4727
+          },
+          "endpoint_cpu_ms": {
+            "p50": 7.1216,
+            "p95": 9.147
+          },
+          "server_ms": {
+            "p50": 11.6978,
+            "p95": 14.8899
+          },
+          "bytes": {
+            "p50": 2450,
+            "p95": 2450
+          },
+          "non_db_wall_ms": {
+            "p50": 7.0136,
+            "p95": 9.2011
+          }
+        },
+        "query_counts": {
+          "13": 300
+        },
+        "hashes": [
+          "c90b1e1b4d72bd0528a5fb1ef00d48384655898230a72bf7059f3184a8f4c081"
+        ]
+      },
+      {
+        "kind": "summary",
+        "name": "analytics",
+        "n": 300,
+        "metrics": {
+          "queries": {
+            "p50": 15,
+            "p95": 15
+          },
+          "db_ms": {
+            "p50": 5.1924,
+            "p95": 6.7083
+          },
+          "endpoint_cpu_ms": {
+            "p50": 9.0223,
+            "p95": 11.7607
+          },
+          "server_ms": {
+            "p50": 14.1185,
+            "p95": 17.671
+          },
+          "bytes": {
+            "p50": 1460,
+            "p95": 1460
+          },
+          "non_db_wall_ms": {
+            "p50": 8.8183,
+            "p95": 11.4944
+          }
+        },
+        "query_counts": {
+          "15": 300
+        },
+        "hashes": [
+          "fec50d55d78fb77cd57315bfb29e5b42c2f097dd0ac7146e04bf0fda694da9eb"
+        ]
+      },
+      {
+        "kind": "summary",
+        "name": "portfolio_pair",
+        "n": 300,
+        "metrics": {
+          "queries": {
+            "p50": 28,
+            "p95": 28
+          },
+          "db_ms": {
+            "p50": 9.6076,
+            "p95": 12.1382
+          },
+          "endpoint_cpu_ms": {
+            "p50": 16.0085,
+            "p95": 19.9225
+          },
+          "server_ms": {
+            "p50": 25.3073,
+            "p95": 31.1716
+          },
+          "bytes": {
+            "p50": 3910,
+            "p95": 3910
+          },
+          "non_db_wall_ms": {
+            "p50": 15.6152,
+            "p95": 19.0434
+          }
+        },
+        "query_counts": {
+          "28": 300
+        },
+        "hashes": [
+          "c8661a9cfe324c5458c96bade00725bc37f02fa1f1dbce90f73b02b0db30f8e5"
+        ]
+      },
+      {
+        "kind": "summary",
+        "name": "AAPL_indicators",
+        "n": 300,
+        "metrics": {
+          "queries": {
+            "p50": 2,
+            "p95": 2
+          },
+          "db_ms": {
+            "p50": 1.0058,
+            "p95": 1.4145
+          },
+          "endpoint_cpu_ms": {
+            "p50": 13.3283,
+            "p95": 18.568
+          },
+          "server_ms": {
+            "p50": 15.8707,
+            "p95": 21.4784
+          },
+          "bytes": {
+            "p50": 60057,
+            "p95": 60057
+          },
+          "non_db_wall_ms": {
+            "p50": 14.842,
+            "p95": 20.2639
+          }
+        },
+        "query_counts": {
+          "2": 300
+        },
+        "hashes": [
+          "bcdd08ec17a154744d7ebe98db6844a1623a4a962d963cfbccd62ea3c998890e"
+        ]
+      },
+      {
+        "kind": "summary",
+        "name": "NVDA_indicators",
+        "n": 300,
+        "metrics": {
+          "queries": {
+            "p50": 2,
+            "p95": 2
+          },
+          "db_ms": {
+            "p50": 1.002,
+            "p95": 1.3669
+          },
+          "endpoint_cpu_ms": {
+            "p50": 13.3376,
+            "p95": 19.4336
+          },
+          "server_ms": {
+            "p50": 15.8414,
+            "p95": 22.8139
+          },
+          "bytes": {
+            "p50": 59818,
+            "p95": 59818
+          },
+          "non_db_wall_ms": {
+            "p50": 14.7903,
+            "p95": 21.6839
+          }
+        },
+        "query_counts": {
+          "2": 300
+        },
+        "hashes": [
+          "3b7ac7cf59145193c280c68619478e69d2e67cc8b2fecc8fa9b189e442e0b458"
+        ]
+      },
+      {
+        "kind": "summary",
+        "name": "screener",
+        "n": 300,
+        "metrics": {
+          "queries": {
+            "p50": 1,
+            "p95": 1
+          },
+          "db_ms": {
+            "p50": 0.7912,
+            "p95": 1.1578
+          },
+          "endpoint_cpu_ms": {
+            "p50": 2.2463,
+            "p95": 3.419
+          },
+          "server_ms": {
+            "p50": 4.1959,
+            "p95": 5.7676
+          },
+          "bytes": {
+            "p50": 18161,
+            "p95": 18161
+          },
+          "non_db_wall_ms": {
+            "p50": 3.402,
+            "p95": 4.8499
+          }
+        },
+        "query_counts": {
+          "1": 300
+        },
+        "hashes": [
+          "b64c1e95c34097ef5bb02ed685cd1f4d75955d13259ee632b54162d3de62b9d8"
+        ]
+      },
+      {
+        "kind": "summary",
+        "name": "recommendations",
+        "n": 300,
+        "metrics": {
+          "queries": {
+            "p50": 1,
+            "p95": 1
+          },
+          "db_ms": {
+            "p50": 1.9386,
+            "p95": 2.4326
+          },
+          "endpoint_cpu_ms": {
+            "p50": 5.3072,
+            "p95": 7.4399
+          },
+          "server_ms": {
+            "p50": 8.5451,
+            "p95": 11.1055
+          },
+          "bytes": {
+            "p50": 78645,
+            "p95": 78645
+          },
+          "non_db_wall_ms": {
+            "p50": 6.5696,
+            "p95": 8.8529
+          }
+        },
+        "query_counts": {
+          "1": 300
+        },
+        "hashes": [
+          "1fded9804d49ccb34c6da3da2dc4b48197829a86c810852b378d4c705e7d0c24"
+        ]
+      },
+      {
+        "kind": "summary",
+        "name": "bars",
+        "n": 300,
+        "metrics": {
+          "queries": {
+            "p50": 2,
+            "p95": 2
+          },
+          "db_ms": {
+            "p50": 0.9963,
+            "p95": 1.3672
+          },
+          "endpoint_cpu_ms": {
+            "p50": 2.9899,
+            "p95": 3.7664
+          },
+          "server_ms": {
+            "p50": 6.098,
+            "p95": 8.6036
+          },
+          "bytes": {
+            "p50": 32017,
+            "p95": 32017
+          },
+          "non_db_wall_ms": {
+            "p50": 5.0979,
+            "p95": 7.1067
+          }
+        },
+        "query_counts": {
+          "2": 300
+        },
+        "hashes": [
+          "821db5d80a0ebc319f13412e2751846a7a723c48931f9f69fd924bd6311a00a8"
+        ]
+      },
+      {
+        "kind": "summary",
+        "name": "overview",
+        "n": 300,
+        "metrics": {
+          "queries": {
+            "p50": 15,
+            "p95": 15
+          },
+          "db_ms": {
+            "p50": 5.1438,
+            "p95": 7.1616
+          },
+          "endpoint_cpu_ms": {
+            "p50": 9.0043,
+            "p95": 11.561
+          },
+          "server_ms": {
+            "p50": 14.0363,
+            "p95": 17.9568
+          },
+          "bytes": {
+            "p50": 3937,
+            "p95": 3937
+          },
+          "non_db_wall_ms": {
+            "p50": 8.7611,
+            "p95": 11.3137
+          }
+        },
+        "query_counts": {
+          "15": 300
+        },
+        "hashes": [
+          "1a2cf7f96270f89f7ab5432ddbfc44e02ed2cf39306bbec5caee83515303ec3e"
+        ]
+      },
+      {
+        "kind": "overview_equivalence",
+        "summary": true,
+        "analytics": true
+      }
+    ],
+    "sha256": "ee9d7c72cfd65de02ba2d56911853ab92b5eeea4384a89954c12324308102c73"
+  },
+  "p1-final-unavailable": {
+    "records": [
+      {
+        "kind": "source",
+        "python": "3.12.14",
+        "files": {
+          "__init__.py": "91447944015cec709e8aa7655f7e9d64e1e4508e7023a57fe3746911c0fc6fed",
+          "_time.py": "1055a7a1a02e56f0ae55af4e81c30af55334af3a8e35e88a56bb73716306e558",
+          "auth.py": "e3cd3bd66c4e2197afbda0369349fba602d5265eed899614bc2a62f671734296",
+          "benchmarks/__init__.py": "69cb42c9f79507d1c913dc9e7271e61f4ba090d4fd4523d28420b98154b555db",
+          "benchmarks/kafka_scaling.py": "a440abd0b0f2d0909e5b5aaa46582e57dd485f41a418d5c9aa71f11812ceb5a2",
+          "benchmarks/report.py": "e7335c978c157a3e15654f4b1acd9af606c949bf2baa5aa1a16eb49d650ec1c1",
+          "benchmarks/topics.py": "c1b57348fae91966def215674601a43447c5eff379b1fbdee1c2eed8ee2f9f2d",
+          "cli.py": "7190de3efceb557784d8153f296046122154cbd06bfc4914cd82cf945b27dd33",
+          "db.py": "354acd6c7a8df2b9e0d75387a87ba5b3b5135470ca9b4fc92f90c7280ff2a103",
+          "events/__init__.py": "cd8b29787ad052d610251d1756b6fc4586b068ec3ec4c8082599001b7407f2d7",
+          "events/activity.py": "781030f3d8560c05c79dda227ed514d2001260e6b251f19f944742d500116a02",
+          "events/contracts/__init__.py": "7e7c66fffda01e7a63946a287d521ee5dede41a459483c7a0801172a47a4c38d",
+          "events/contracts/common.py": "56c6c53575a475c6ac2b918918af60bbdcfc72333a0d3ef567bf097af4ba7085",
+          "events/contracts/market.py": "bc6f5dc3df6b7c5e4afd36ca68386d77f53438372f9632aef2f7f48080f9b8fa",
+          "events/contracts/news.py": "f79712e8659d671172318611159e214193f8df9dc3b884960fbce9da74d9eb17",
+          "events/contracts/trades.py": "96f72743e048f80b1be5fb324e58390595374b6631fb981f1fb1e9d72311bfa1",
+          "events/dispatcher.py": "817687f161d572f128c3e46718d10346da766b3755f28404a8fd76ac8ce7f96b",
+          "events/handlers.py": "ae2c2a5cefb17fefaa4e870703adcebbc0f973ea45c13e786c124e00385188c7",
+          "events/inbox.py": "f6ab8e74f73f7cdf0588d8a470707eade04eaaa756b38ea03b2c42094b7081e9",
+          "events/outbox.py": "3a4f77ce79c60391e4e93be997b7874e7ce1f89c02bd9f60ce0184cc13252bda",
+          "events/producer.py": "17d4ad6bb28c0d677e686810ea6b0b02fb9b3ee7a221b5f66ece9e94c8b11703",
+          "limiter.py": "5b314c7874e7ead6019edb426eb38ee5201f51d33c39ccf3ac37d26c302a70af",
+          "main.py": "48b75f0da76b30ddb5c18b97341a9b09f985beebb32c1dc702892ac75189aed7",
+          "models/__init__.py": "ee65ea5be781abca9fd2e59d5e63f62f9b8f03832cea977ed1a79f8302998647",
+          "models/alert.py": "7e2757d96ee8ce443dd764c3d5afee1b127ade69b3a8f015175b5bbe66a28ed6",
+          "models/comment.py": "fb3df302be08e4cd1a16503b82451c9ed7a4451db264f16bf01c0f5b561c96ab",
+          "models/dividend.py": "0b2ad59f3bed3af745de61c5c0d1180a06f7c5f00b5a7f63c44132f1529a2f5f",
+          "models/earnings.py": "23c9785deb37d71c5bf9f8e12d8e1875783a18e37d22faf5df163904de6e0d91",
+          "models/events.py": "f481d4cac61776299cdbc6a1e4b75a31b8c672484a2f6e82b19235e3a385ccef",
+          "models/execution.py": "90587d66b9a9093172bccbd6d9280a3ccd6794434d3f7775efc89e8599beaa55",
+          "models/market.py": "8cde0ccecf8c32894df3bac4057af57806d811f3bc727b529126a8f286f25673",
+          "models/metrics.py": "6965e9e59cc8be90ddec205b5517e433a8ae80fbad0d8227f06e24b757b7f25d",
+          "models/option.py": "6a2f182e52830c4ab46cae345147e9012228256ec322bd814756fe39d8381b72",
+          "models/order.py": "8fdd88866ae6288863979edf11a10bd0be09a7b9177f8371919664198f67d94e",
+          "models/portfolio.py": "3998eea42bf0eada3ed9740f4cb933904dae4f0e23208f98f25e23c6673ed826",
+          "models/recommendation.py": "a27cb985815ff124e05c53d6ddbce631f1772d4895e2a0d76e62113b8a20a8dc",
+          "models/replay.py": "9109e69ba1819f45c517ca0f69d8e8f6295c8735c57e0775e1ac2f8ed1e18837",
+          "models/sentiment.py": "31ae384c40208ea38dd4f4af406546a786b315b3fb6222dea42e240d14c4d1f0",
+          "models/user.py": "a5b7dc3c91d703b77edda37f39c70403899e3160d92da370178e05fadbc78fe1",
+          "models/watchlist.py": "5d3e6dbacb58d2496409a995ffe8968af51cb7dea4007fe8ff171a46953493cf",
+          "observability.py": "5970f750682e4ac940f6f2f6593ec1780286e2218a98cf993fde66eb780e58a9",
+          "routers/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "routers/alerts.py": "ead3ca2d4d7bcddf7ca658fd810740a1320712273feffece0f5badb852f376d9",
+          "routers/backtest.py": "87865a128941942986b613e17ddc0bcdf2bfd8f0513da9934ec73570ed8a3b4a",
+          "routers/bars.py": "93adf459d5bd47fc5899be1b0d4cc68209caddfbda69a267770f8667b3aead67",
+          "routers/comments.py": "f41ea3ee1b08ed5adb4250f075582c5c96f7a490bb19080f43526e264fc4a219",
+          "routers/earnings.py": "a6f47dc50edb7e7d02ff8817c8714020886f20518491bb30d357e01ffcca17db",
+          "routers/health.py": "e7c99f2195dcc9cfd40ecfe94dd919f266287ce9fd13f5bb554348be13bf6c7f",
+          "routers/indicators.py": "fd50b5b90b2bec5b78c522fc7f7afb423a183d5ab8e667640cc4b1f6a7202eb1",
+          "routers/journal.py": "05f729acbcdf6a995534b7a3525d35be13c98f1c01ab7435b3a77524263b6170",
+          "routers/leaderboard.py": "1a2996155b82dd6c8767331c75f103a7727c6fcf5b7fc74a6c87124e3596ba01",
+          "routers/markets.py": "22fb0923f5fadbb85acb208d6a7d708e0696e7575481fa4b156ee1ec8a55fa53",
+          "routers/news.py": "00294b5545233862b35f42f22e3c9059bb4822c23bd2d980d8a0374cd49ed26c",
+          "routers/options.py": "23cd931c7a72bf1126ae2660b978837ab16496926e720b35ae6cd49c179546e4",
+          "routers/orders.py": "70374969a8394fe5bc8089e49705162ea60bb78f7174c06a4c375400765aedcf",
+          "routers/quotes.py": "ac8950756ef7d698151dd6543fc9d8ed621aded12a00223d108ba739ff888a4c",
+          "routers/recommendations.py": "2b4cba25a23f43c6b43fd7bc2d0806289416061663459c676137021642a864bd",
+          "routers/replay.py": "796257b18955f17eac3e9174879ebf506e9167471ce8c86c24937a60099afea7",
+          "routers/screener.py": "06cc5452a838aac99ba220cd4a259b19668de45c75d0e4fdcd779936d2ae67d0",
+          "routers/sentiment.py": "ed5abe8b91f12c7215199561666b9fc18dcafbc6d492ce044b067c57763485c0",
+          "routers/stream.py": "c186399152666f1f90d168d77b153c02d0ac5e9208972bfab4325fa8fe22d7e1",
+          "routers/symbols.py": "c17894932fb633963890a20fc2eae85f09441e25c091bad353b7a9679cc7bb35",
+          "routers/trading.py": "09306b1b1a634a1c87661f35eee09850f0bc3920ca2543f61e8c655a79de8f76",
+          "routers/watchlist.py": "a9ada33008952d5ff729d7b2249e9503b9f5c7517d78add9b9b1b5b572dd44df",
+          "scheduler.py": "e87b907a911a507ada94b407b6959b43a775a325e5750dd882a6b7f4099da04f",
+          "schemas.py": "d140de66c2096d6151253d7a8bbbc55d87ebe1c011d6f4a1217668a58e6a723b",
+          "services/__init__.py": "337921aa563126bd0a2d82b9e42fa048a169d0585c3fff4bf1db8d38959f9fd4",
+          "services/alerts.py": "31278dfea14b2a0597621f19578c38bbdb6fefcc225911e936ef9de683f8286b",
+          "services/backtest/__init__.py": "e8b11c9dcc637c27f5f1e5a46833f96f2087c40c128eef681b96501977386d0c",
+          "services/backtest/engine.py": "adb64e6b59c1fffb831a23c8c59c7d5b1562a2d31e62181e204bf16c2203f5b8",
+          "services/cache.py": "c0f42f000a6f8a9540207afcc6d1aeb4c8f886846dcbea3941c6108e35882046",
+          "services/indicator_view.py": "177cff069261c98cb0e86bbdfb5ddd2efe975052c0ec9fe354328212aad9b008",
+          "services/indicators/__init__.py": "4fd1fbae1ba7ec2faec50228ab0e6e06ccc3838aff7ad6e13b5b722f30599079",
+          "services/indicators/compute.py": "954b558c0d648a901eabe6c2d8c2c646f2261b40ad8d73999924654f873cc8d8",
+          "services/ingest/__init__.py": "f6279d119d7fe5a06be5b9acaeee9277e2fb4552dc7050e05fc757c09e833b2e",
+          "services/ingest/backfill.py": "9e85cb75d28cfa56ef15a5841fc7bf8470281526310c66c898b936b03355a1ec",
+          "services/ingest/bar_semantics.py": "6d0222bdf77fb9abc6da03cb37eafdd4933067a16dccb2dc28c63a8bb3fbd18b",
+          "services/ingest/dividends.py": "74941e206ad1ca5d9bc864136faf3614078c49e8d78a5e82f4ba71a4184df1d8",
+          "services/ingest/earnings.py": "35c0b1e35fb45b103101817b43e7090b84b07608670beacede6b46f3d1dae9a7",
+          "services/ingest/fx.py": "677614d5adefa71829495f9a601c0aeafcbe6119bab64f03fa937440e64e02c0",
+          "services/ingest/metadata.py": "785d9e786ed6e77622ee578d216fb18b452082d469d6a59f6b76c17ece963225",
+          "services/ingest/news.py": "2247a35d16c2f982155e1f652c2ea7672ca4fe16fb4638a929efeb0069e53834",
+          "services/ingest/prices.py": "46d84b5b8d3d9654c3e92cf5a1d20f6ac13cff551ff22fada6b6a27c1cfae41f",
+          "services/ingest/providers/__init__.py": "7bf9edfe8914a0844adda753735b7b91b4a9d9d0e36418f604e1229b1b6e5522",
+          "services/ingest/providers/massive.py": "cffd654f4bb6f05871c11204d54da0706a68a5579f732e45fe467cdd4b64679c",
+          "services/ingest/screening.py": "66b0a1456c0edbdf95abe1b7ed1fe894f673924d490b38d95c82347cd2b019ba",
+          "services/ingest/seed.py": "c86549ae4967c301b4bd968e00822d7cd165781f055e851be9bb3475cbbb8030",
+          "services/ingest/semantic_acceptance.py": "f53b04c506616bb94d9c6d5ba00830e9d79cf59d5ac32672b4be9eb096cbdce3",
+          "services/ingest/shadow.py": "f8c7bee6d5c76a84a1c7fc9162b435f4b7fb0707a902dd25585cf3ec679e6b39",
+          "services/ingest/shadow_report.py": "10527b49c032a5ff1d6d381fe0206af3f56b7b6ce5cd9747e7f82fc80ecbb86b",
+          "services/journal/__init__.py": "4f55183f080738832170af0ac63525f1701f0c6dcccc2e94c7f47fb015a4e34e",
+          "services/journal/aggregate.py": "d23c06b72c04cae8457fe339261c4fc1b3904942a91d3d20cd1d8efccc1657b7",
+          "services/journal/model.py": "ecdb2b19a0fe9db88ff3cdbc3965adb98e64cb1e6a0b2f6d44c70a02ceacfed6",
+          "services/journal/query.py": "92cc1ce2793d7807498649b7beaf015d763bff298156d653a89541c4bc3ba6cf",
+          "services/metrics.py": "ec5d384def6d2a9d0aff63cead1498ad7246578f194e335a56252a315d537d4b",
+          "services/options/__init__.py": "191f8fff17a7cc2fe4e56a90581991a9dd43a06ee5337c9f8e7db0e4f235e37c",
+          "services/options/pricing.py": "cc61e910484eaf196662e9dbb9e6d1b203b87da0df01c82af153a538c01b29eb",
+          "services/options/trade.py": "5211a31fa9238aa46296814aed81189669c1e9c2c9c6983f4a9a2de11f808197",
+          "services/recent_bars.py": "5f07318dc2d149b36ed4d1189640b29a11262512a29547aa64046841ae2608e9",
+          "services/recommend/__init__.py": "d1fe8b0d107ea22c6a0b53163dfc8435a6d31c9c0d003f238dbbf18c700ad637",
+          "services/recommend/engine.py": "e1b4b2ee47e50a0e6f8106d110e953a4c32cd0b3d34701acd1ad50266feaec06",
+          "services/replay/__init__.py": "d543b2d69157efdb687c3d3cc348870a636ea132d45ec4f7a35f2c6a78eb58fe",
+          "services/replay/errors.py": "8713834f3671d70512de852ad8f2dad2f3005d940eb1a7cdde7e9053ae6b7a99",
+          "services/replay/forensics.py": "705182e71e13f80e84a07914674d78182f237e91a5c04ae1a3dbb3cb5b41c67f",
+          "services/replay/journal.py": "72d77ec5ca512086de77ed1f6ea64cd76719a7dcb84505d6a2ebf12d14d0f602",
+          "services/replay/ledger.py": "90d6c4ad6bd32337482a252d320080f46ea55a72a57b72420e915c3156429550",
+          "services/replay/market.py": "f5386fa12c0d8ab534fbdf1e6e7f936315ac2fbfb9839ba362c1f14bde0741e3",
+          "services/replay/session.py": "3ac81b03cca6e293ff3c531f10a56d09e29569e2d3ad83aea96287908f94d9c1",
+          "services/replay/summary.py": "90ed3c7b0c06a7eb91182d0f36b8aa306a248ebbad7975c2db600752682a6886",
+          "services/replay/timeutil.py": "54ca88ed4de367f9bd1d9728de409e1cd412c657f2bcf38cbf5a447f03b38f6c",
+          "services/sentiment/__init__.py": "4220ba5c4f8c9f48e296d18db8fe838fb627dca4f57459a52c8e8aa757c4f8c5",
+          "services/sentiment/anthropic_provider.py": "766d62f9ec937e0e330c531ada76b9e96e39d297a7196d1a6d347f291a094fc2",
+          "services/sentiment/base.py": "c6d09aa927419b393d11c55219ab0546b2cd61361de284f5f96754088d11b0af",
+          "services/sentiment/http_provider.py": "0fa233b9fbe9d867fefd6880d2162cb46c29231e2901c7fe5d195666ff54a3df",
+          "services/sentiment/null_provider.py": "4f6d1bac4e8cd2b13a992f9a40f305b8ed7585788b4bbb4dce9e5ff8015f5ce0",
+          "services/sentiment/store.py": "b994a1bf050b18cd7eb13f50a546437ed1579712d2e67b7bac7f4270c3a47875",
+          "services/simulation/__init__.py": "bc02f0ed1653ab63761c89a2b54e6b118225f8798d4fd36b5db76e9a5f8e818c",
+          "services/simulation/clock.py": "c792a5dc13b1c9637149b876dd439a923db96128c45d818e0fbac93da8e2ab0d",
+          "services/simulation/contracts.py": "679b450c35e5f8b12f6f1fbbd9aa28a1ef4d986d4ef181e0a6f1b402c8c8643d",
+          "services/simulation/engine.py": "77eb83e88294fa0caa340cd9f36397da444b832874f8a6dda1802c58f4a85fec",
+          "services/simulation/profiles.py": "e50c3eb9876fbf7e67ade899e30fca24bce9624f6ac4da57aa7fcde831466b8d",
+          "services/simulation/registry.py": "0266779ab917fad1c578a5999a9f1c235b8603d59abef9ecb3d0ec561c104547",
+          "services/trading/__init__.py": "a0694220f03ed791aa4315d270f8b2d409a8c5fe920b5da13bae267c1fec25b5",
+          "services/trading/analytics.py": "7ca512d373f77256954848513d4aaf0c93f948764ad9ee7ac52a3fcc94d07436",
+          "services/trading/buying_power.py": "13dc881c8ef8f1b558039135430d83398be466dd8b639c471e66b593b67d44b1",
+          "services/trading/dividends.py": "4a226797f70db7cd5c033aa5f6558623ce97869f07794c875dcb9f56517ba3b1",
+          "services/trading/execute.py": "6fbcf2e8bb7f67e2f72f17f406d4813a39d32353f8c7e3790334e8f39365f4f3",
+          "services/trading/execution_provenance.py": "7400360149c8017e879aacee0cc6186ad599969c9149d8269b71e79f424d3ccd",
+          "services/trading/fx.py": "7d502115b3c94f6eb3656c6d8e4e905a2f3dc47b4b676b34195afbe4cbb0451d",
+          "services/trading/orders.py": "bedf5cbc98a41c4ad5e12c56c87ecb8d0232f5cb251f77b4d070fa5b44e07c79",
+          "services/trading/portfolio.py": "2785b2c74c001e2f9c94556182b0cf687269dce787c0fdcdfeecac63e243da24",
+          "services/trading/simulation_adapter.py": "d3f7e31e74062458fab226163b694ff82dd810f6dcb8d36cd06cb44b84c212d9",
+          "services/trading/snapshots.py": "31bcd09e3d320eaf139d036d6b73bad3a73cfff458c0afa3490917bfd7485644",
+          "services/trading/views.py": "f02e95b160bebaa50853652bc9f57f2ae6c0bb997c5645e08557a13796dac08e",
+          "settings.py": "93decf443dab60e6e4bb0796e00ff1630454e94a2df5eb8afc7cc2526b028c5f",
+          "workers/__init__.py": "83389e2fdf26c63bd7848dde3ca16f1890c9fe461c77466afd8784d76f9880ee",
+          "workers/market_analytics_consumer.py": "99a2208774f6409059eb2356324ae1fdb082b26b594db5de4f3ad943916f3615",
+          "workers/market_ingest_consumer.py": "2d5c26c32eafbf295f50d291c85e0b40ec63028cff5cc19d9e60a523db517f24",
+          "workers/news_ingest_consumer.py": "c1ee55da5cf8b3846dd2624bd9955ed30f3e86ca292011329ff2b5aba4815c18",
+          "workers/news_sentiment_consumer.py": "dd6a17c679eee83fb0269e4a520fe6cce3a2e52ed769b5ea868855a5d69ff55a",
+          "workers/outbox_publisher.py": "ce2a88448eae882ba362b992c0ff012247383420bc65ca6c2466929f5e491c3a",
+          "workers/scheduler.py": "5b4b5c08de4275109ca0cb132b0999788626932534690428d5f30a56db00b2b4",
+          "workers/sentiment_aggregate_consumer.py": "b6281eb25d95b56d3fe04abc88b2343336316d7c65858d71326be431e5d4dd9e",
+          "workers/trade_activity_consumer.py": "ae1e379ba8f618c9babe19f7d54587fff0af71e45df870cb11af80bc1e44b13d"
+        }
+      },
+      {
+        "kind": "inventory",
+        "utc": "2026-09-06 07:05:32.804898+00:00",
+        "counts": {
+          "symbols": 75,
+          "price_bars": 278484,
+          "positions": 12,
+          "portfolio_snapshots": 370,
+          "news_articles": 0,
+          "news_sentiment": 0,
+          "options_positions": 0
+        },
+        "read_only": "on"
+      },
+      {
+        "kind": "method",
+        "n": 1000,
+        "warmups": 10,
+        "concurrency": 1,
+        "paths": {
+          "AAPL_indicators": [
+            "/v1/symbols/AAPL/indicators?names=sma_20,sma_50,rsi_14,macd&limit=252"
+          ],
+          "NVDA_indicators": [
+            "/v1/symbols/NVDA/indicators?names=sma_20,sma_50,rsi_14,macd&limit=252"
+          ]
+        },
+        "db_ms": "cursor wall time including DB network/driver, not PG CPU",
+        "endpoint_cpu_ms": "application endpoint worker thread CPU including ORM/driver; excludes dependency and response serialization CPU",
+        "application_cpu_ms": "endpoint CPU plus completed Redis worker CPU; timed-out background commands may finish after the request",
+        "non_db_wall_ms": "ASGI wall minus cursor wall; not pure compute",
+        "portfolio_pair": "sum of two serial API requests, not parallel browser wall time",
+        "first_use": "warm database, not cold disk",
+        "workload": "controlled repeated requests; NOT organic traffic hit rate",
+        "redis_cold": false
+      },
+      {
+        "kind": "first_use",
+        "name": "AAPL_indicators",
+        "measurement": {
+          "queries": 2,
+          "db_ms": 2.449248,
+          "endpoint_cpu_ms": 34.6223,
+          "server_ms": 100.684644,
+          "bytes": 60057,
+          "cache_hits": 0,
+          "cache_misses": 0,
+          "cache_errors": 1,
+          "cache_bypass": 1,
+          "cache_worker_cpu_ms": 0,
+          "application_cpu_ms": 34.6223,
+          "non_db_wall_ms": 98.23539600000001
+        }
+      },
+      {
+        "kind": "first_use",
+        "name": "NVDA_indicators",
+        "measurement": {
+          "queries": 2,
+          "db_ms": 1.271592,
+          "endpoint_cpu_ms": 15.2721,
+          "server_ms": 18.8726,
+          "bytes": 59818,
+          "cache_hits": 0,
+          "cache_misses": 0,
+          "cache_errors": 0,
+          "cache_bypass": 1,
+          "cache_worker_cpu_ms": 0,
+          "application_cpu_ms": 15.2721,
+          "non_db_wall_ms": 17.601008
+        }
+      },
+      {
+        "kind": "progress",
+        "rounds": 100
+      },
+      {
+        "kind": "progress",
+        "rounds": 200
+      },
+      {
+        "kind": "progress",
+        "rounds": 300
+      },
+      {
+        "kind": "progress",
+        "rounds": 400
+      },
+      {
+        "kind": "progress",
+        "rounds": 500
+      },
+      {
+        "kind": "progress",
+        "rounds": 600
+      },
+      {
+        "kind": "progress",
+        "rounds": 700
+      },
+      {
+        "kind": "progress",
+        "rounds": 800
+      },
+      {
+        "kind": "progress",
+        "rounds": 900
+      },
+      {
+        "kind": "progress",
+        "rounds": 1000
+      },
+      {
+        "kind": "summary",
+        "name": "AAPL_indicators",
+        "n": 1000,
+        "metrics": {
+          "queries": {
+            "p50": 2,
+            "p95": 2,
+            "p99": 2
+          },
+          "db_ms": {
+            "p50": 1.0777,
+            "p95": 1.4877,
+            "p99": 2.3859
+          },
+          "endpoint_cpu_ms": {
+            "p50": 13.7731,
+            "p95": 18.8668,
+            "p99": 66.8002
+          },
+          "server_ms": {
+            "p50": 16.3906,
+            "p95": 21.9574,
+            "p99": 69.3433
+          },
+          "bytes": {
+            "p50": 60057,
+            "p95": 60057,
+            "p99": 60057
+          },
+          "cache_hits": {
+            "p50": 0,
+            "p95": 0,
+            "p99": 0
+          },
+          "cache_misses": {
+            "p50": 0,
+            "p95": 0,
+            "p99": 0
+          },
+          "cache_errors": {
+            "p50": 0,
+            "p95": 0,
+            "p99": 0
+          },
+          "cache_bypass": {
+            "p50": 1,
+            "p95": 1,
+            "p99": 1
+          },
+          "cache_worker_cpu_ms": {
+            "p50": 0,
+            "p95": 0,
+            "p99": 0
+          },
+          "application_cpu_ms": {
+            "p50": 13.7731,
+            "p95": 18.8668,
+            "p99": 66.8002
+          },
+          "non_db_wall_ms": {
+            "p50": 15.2807,
+            "p95": 20.6142,
+            "p99": 68.2081
+          }
+        },
+        "query_counts": {
+          "2": 1000
+        },
+        "hashes": [
+          "bcdd08ec17a154744d7ebe98db6844a1623a4a962d963cfbccd62ea3c998890e"
+        ]
+      },
+      {
+        "kind": "summary",
+        "name": "NVDA_indicators",
+        "n": 1000,
+        "metrics": {
+          "queries": {
+            "p50": 2,
+            "p95": 2,
+            "p99": 2
+          },
+          "db_ms": {
+            "p50": 1.0822,
+            "p95": 1.5272,
+            "p99": 2.6675
+          },
+          "endpoint_cpu_ms": {
+            "p50": 13.7583,
+            "p95": 19.775,
+            "p99": 68.549
+          },
+          "server_ms": {
+            "p50": 16.3465,
+            "p95": 23.539,
+            "p99": 71.4188
+          },
+          "bytes": {
+            "p50": 59818,
+            "p95": 59818,
+            "p99": 59818
+          },
+          "cache_hits": {
+            "p50": 0,
+            "p95": 0,
+            "p99": 0
+          },
+          "cache_misses": {
+            "p50": 0,
+            "p95": 0,
+            "p99": 0
+          },
+          "cache_errors": {
+            "p50": 0,
+            "p95": 0,
+            "p99": 0
+          },
+          "cache_bypass": {
+            "p50": 1,
+            "p95": 1,
+            "p99": 1
+          },
+          "cache_worker_cpu_ms": {
+            "p50": 0,
+            "p95": 0,
+            "p99": 0
+          },
+          "application_cpu_ms": {
+            "p50": 13.7583,
+            "p95": 19.775,
+            "p99": 68.549
+          },
+          "non_db_wall_ms": {
+            "p50": 15.2469,
+            "p95": 22.2186,
+            "p99": 70.0337
+          }
+        },
+        "query_counts": {
+          "2": 1000
+        },
+        "hashes": [
+          "3b7ac7cf59145193c280c68619478e69d2e67cc8b2fecc8fa9b189e442e0b458"
+        ]
+      },
+      {
+        "kind": "cache_stats",
+        "enabled": true,
+        "namespace": "stockviz:pilot-benchmark:v1",
+        "stats": {
+          "hits": 0,
+          "misses": 0,
+          "sets": 0,
+          "errors": 2,
+          "invalid": 0,
+          "bypass": 2022,
+          "commands": 2,
+          "get_commands": 2,
+          "set_commands": 0,
+          "command_latency_ms": 80.63800900708884,
+          "backend_cpu_ms": 0.6853,
+          "cache_hit_ratio": 0
+        }
+      },
+      {
+        "kind": "redis_inspection_unavailable",
+        "error_type": "ConnectionError"
+      }
+    ],
+    "sha256": "0222ab76f683f286264555f3c70b7bc6d6ad8406ae588888caf9ffe0ac7835f7"
+  },
+  "p1-final-on": {
+    "records": [
+      {
+        "kind": "source",
+        "python": "3.12.14",
+        "files": {
+          "__init__.py": "91447944015cec709e8aa7655f7e9d64e1e4508e7023a57fe3746911c0fc6fed",
+          "_time.py": "1055a7a1a02e56f0ae55af4e81c30af55334af3a8e35e88a56bb73716306e558",
+          "auth.py": "e3cd3bd66c4e2197afbda0369349fba602d5265eed899614bc2a62f671734296",
+          "benchmarks/__init__.py": "69cb42c9f79507d1c913dc9e7271e61f4ba090d4fd4523d28420b98154b555db",
+          "benchmarks/kafka_scaling.py": "a440abd0b0f2d0909e5b5aaa46582e57dd485f41a418d5c9aa71f11812ceb5a2",
+          "benchmarks/report.py": "e7335c978c157a3e15654f4b1acd9af606c949bf2baa5aa1a16eb49d650ec1c1",
+          "benchmarks/topics.py": "c1b57348fae91966def215674601a43447c5eff379b1fbdee1c2eed8ee2f9f2d",
+          "cli.py": "7190de3efceb557784d8153f296046122154cbd06bfc4914cd82cf945b27dd33",
+          "db.py": "354acd6c7a8df2b9e0d75387a87ba5b3b5135470ca9b4fc92f90c7280ff2a103",
+          "events/__init__.py": "cd8b29787ad052d610251d1756b6fc4586b068ec3ec4c8082599001b7407f2d7",
+          "events/activity.py": "781030f3d8560c05c79dda227ed514d2001260e6b251f19f944742d500116a02",
+          "events/contracts/__init__.py": "7e7c66fffda01e7a63946a287d521ee5dede41a459483c7a0801172a47a4c38d",
+          "events/contracts/common.py": "56c6c53575a475c6ac2b918918af60bbdcfc72333a0d3ef567bf097af4ba7085",
+          "events/contracts/market.py": "bc6f5dc3df6b7c5e4afd36ca68386d77f53438372f9632aef2f7f48080f9b8fa",
+          "events/contracts/news.py": "f79712e8659d671172318611159e214193f8df9dc3b884960fbce9da74d9eb17",
+          "events/contracts/trades.py": "96f72743e048f80b1be5fb324e58390595374b6631fb981f1fb1e9d72311bfa1",
+          "events/dispatcher.py": "817687f161d572f128c3e46718d10346da766b3755f28404a8fd76ac8ce7f96b",
+          "events/handlers.py": "ae2c2a5cefb17fefaa4e870703adcebbc0f973ea45c13e786c124e00385188c7",
+          "events/inbox.py": "f6ab8e74f73f7cdf0588d8a470707eade04eaaa756b38ea03b2c42094b7081e9",
+          "events/outbox.py": "3a4f77ce79c60391e4e93be997b7874e7ce1f89c02bd9f60ce0184cc13252bda",
+          "events/producer.py": "17d4ad6bb28c0d677e686810ea6b0b02fb9b3ee7a221b5f66ece9e94c8b11703",
+          "limiter.py": "5b314c7874e7ead6019edb426eb38ee5201f51d33c39ccf3ac37d26c302a70af",
+          "main.py": "48b75f0da76b30ddb5c18b97341a9b09f985beebb32c1dc702892ac75189aed7",
+          "models/__init__.py": "ee65ea5be781abca9fd2e59d5e63f62f9b8f03832cea977ed1a79f8302998647",
+          "models/alert.py": "7e2757d96ee8ce443dd764c3d5afee1b127ade69b3a8f015175b5bbe66a28ed6",
+          "models/comment.py": "fb3df302be08e4cd1a16503b82451c9ed7a4451db264f16bf01c0f5b561c96ab",
+          "models/dividend.py": "0b2ad59f3bed3af745de61c5c0d1180a06f7c5f00b5a7f63c44132f1529a2f5f",
+          "models/earnings.py": "23c9785deb37d71c5bf9f8e12d8e1875783a18e37d22faf5df163904de6e0d91",
+          "models/events.py": "f481d4cac61776299cdbc6a1e4b75a31b8c672484a2f6e82b19235e3a385ccef",
+          "models/execution.py": "90587d66b9a9093172bccbd6d9280a3ccd6794434d3f7775efc89e8599beaa55",
+          "models/market.py": "8cde0ccecf8c32894df3bac4057af57806d811f3bc727b529126a8f286f25673",
+          "models/metrics.py": "6965e9e59cc8be90ddec205b5517e433a8ae80fbad0d8227f06e24b757b7f25d",
+          "models/option.py": "6a2f182e52830c4ab46cae345147e9012228256ec322bd814756fe39d8381b72",
+          "models/order.py": "8fdd88866ae6288863979edf11a10bd0be09a7b9177f8371919664198f67d94e",
+          "models/portfolio.py": "3998eea42bf0eada3ed9740f4cb933904dae4f0e23208f98f25e23c6673ed826",
+          "models/recommendation.py": "a27cb985815ff124e05c53d6ddbce631f1772d4895e2a0d76e62113b8a20a8dc",
+          "models/replay.py": "9109e69ba1819f45c517ca0f69d8e8f6295c8735c57e0775e1ac2f8ed1e18837",
+          "models/sentiment.py": "31ae384c40208ea38dd4f4af406546a786b315b3fb6222dea42e240d14c4d1f0",
+          "models/user.py": "a5b7dc3c91d703b77edda37f39c70403899e3160d92da370178e05fadbc78fe1",
+          "models/watchlist.py": "5d3e6dbacb58d2496409a995ffe8968af51cb7dea4007fe8ff171a46953493cf",
+          "observability.py": "5970f750682e4ac940f6f2f6593ec1780286e2218a98cf993fde66eb780e58a9",
+          "routers/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "routers/alerts.py": "ead3ca2d4d7bcddf7ca658fd810740a1320712273feffece0f5badb852f376d9",
+          "routers/backtest.py": "87865a128941942986b613e17ddc0bcdf2bfd8f0513da9934ec73570ed8a3b4a",
+          "routers/bars.py": "93adf459d5bd47fc5899be1b0d4cc68209caddfbda69a267770f8667b3aead67",
+          "routers/comments.py": "f41ea3ee1b08ed5adb4250f075582c5c96f7a490bb19080f43526e264fc4a219",
+          "routers/earnings.py": "a6f47dc50edb7e7d02ff8817c8714020886f20518491bb30d357e01ffcca17db",
+          "routers/health.py": "e7c99f2195dcc9cfd40ecfe94dd919f266287ce9fd13f5bb554348be13bf6c7f",
+          "routers/indicators.py": "fd50b5b90b2bec5b78c522fc7f7afb423a183d5ab8e667640cc4b1f6a7202eb1",
+          "routers/journal.py": "05f729acbcdf6a995534b7a3525d35be13c98f1c01ab7435b3a77524263b6170",
+          "routers/leaderboard.py": "1a2996155b82dd6c8767331c75f103a7727c6fcf5b7fc74a6c87124e3596ba01",
+          "routers/markets.py": "22fb0923f5fadbb85acb208d6a7d708e0696e7575481fa4b156ee1ec8a55fa53",
+          "routers/news.py": "00294b5545233862b35f42f22e3c9059bb4822c23bd2d980d8a0374cd49ed26c",
+          "routers/options.py": "23cd931c7a72bf1126ae2660b978837ab16496926e720b35ae6cd49c179546e4",
+          "routers/orders.py": "70374969a8394fe5bc8089e49705162ea60bb78f7174c06a4c375400765aedcf",
+          "routers/quotes.py": "ac8950756ef7d698151dd6543fc9d8ed621aded12a00223d108ba739ff888a4c",
+          "routers/recommendations.py": "2b4cba25a23f43c6b43fd7bc2d0806289416061663459c676137021642a864bd",
+          "routers/replay.py": "796257b18955f17eac3e9174879ebf506e9167471ce8c86c24937a60099afea7",
+          "routers/screener.py": "06cc5452a838aac99ba220cd4a259b19668de45c75d0e4fdcd779936d2ae67d0",
+          "routers/sentiment.py": "ed5abe8b91f12c7215199561666b9fc18dcafbc6d492ce044b067c57763485c0",
+          "routers/stream.py": "c186399152666f1f90d168d77b153c02d0ac5e9208972bfab4325fa8fe22d7e1",
+          "routers/symbols.py": "c17894932fb633963890a20fc2eae85f09441e25c091bad353b7a9679cc7bb35",
+          "routers/trading.py": "09306b1b1a634a1c87661f35eee09850f0bc3920ca2543f61e8c655a79de8f76",
+          "routers/watchlist.py": "a9ada33008952d5ff729d7b2249e9503b9f5c7517d78add9b9b1b5b572dd44df",
+          "scheduler.py": "e87b907a911a507ada94b407b6959b43a775a325e5750dd882a6b7f4099da04f",
+          "schemas.py": "d140de66c2096d6151253d7a8bbbc55d87ebe1c011d6f4a1217668a58e6a723b",
+          "services/__init__.py": "337921aa563126bd0a2d82b9e42fa048a169d0585c3fff4bf1db8d38959f9fd4",
+          "services/alerts.py": "31278dfea14b2a0597621f19578c38bbdb6fefcc225911e936ef9de683f8286b",
+          "services/backtest/__init__.py": "e8b11c9dcc637c27f5f1e5a46833f96f2087c40c128eef681b96501977386d0c",
+          "services/backtest/engine.py": "adb64e6b59c1fffb831a23c8c59c7d5b1562a2d31e62181e204bf16c2203f5b8",
+          "services/cache.py": "c0f42f000a6f8a9540207afcc6d1aeb4c8f886846dcbea3941c6108e35882046",
+          "services/indicator_view.py": "177cff069261c98cb0e86bbdfb5ddd2efe975052c0ec9fe354328212aad9b008",
+          "services/indicators/__init__.py": "4fd1fbae1ba7ec2faec50228ab0e6e06ccc3838aff7ad6e13b5b722f30599079",
+          "services/indicators/compute.py": "954b558c0d648a901eabe6c2d8c2c646f2261b40ad8d73999924654f873cc8d8",
+          "services/ingest/__init__.py": "f6279d119d7fe5a06be5b9acaeee9277e2fb4552dc7050e05fc757c09e833b2e",
+          "services/ingest/backfill.py": "9e85cb75d28cfa56ef15a5841fc7bf8470281526310c66c898b936b03355a1ec",
+          "services/ingest/bar_semantics.py": "6d0222bdf77fb9abc6da03cb37eafdd4933067a16dccb2dc28c63a8bb3fbd18b",
+          "services/ingest/dividends.py": "74941e206ad1ca5d9bc864136faf3614078c49e8d78a5e82f4ba71a4184df1d8",
+          "services/ingest/earnings.py": "35c0b1e35fb45b103101817b43e7090b84b07608670beacede6b46f3d1dae9a7",
+          "services/ingest/fx.py": "677614d5adefa71829495f9a601c0aeafcbe6119bab64f03fa937440e64e02c0",
+          "services/ingest/metadata.py": "785d9e786ed6e77622ee578d216fb18b452082d469d6a59f6b76c17ece963225",
+          "services/ingest/news.py": "2247a35d16c2f982155e1f652c2ea7672ca4fe16fb4638a929efeb0069e53834",
+          "services/ingest/prices.py": "46d84b5b8d3d9654c3e92cf5a1d20f6ac13cff551ff22fada6b6a27c1cfae41f",
+          "services/ingest/providers/__init__.py": "7bf9edfe8914a0844adda753735b7b91b4a9d9d0e36418f604e1229b1b6e5522",
+          "services/ingest/providers/massive.py": "cffd654f4bb6f05871c11204d54da0706a68a5579f732e45fe467cdd4b64679c",
+          "services/ingest/screening.py": "66b0a1456c0edbdf95abe1b7ed1fe894f673924d490b38d95c82347cd2b019ba",
+          "services/ingest/seed.py": "c86549ae4967c301b4bd968e00822d7cd165781f055e851be9bb3475cbbb8030",
+          "services/ingest/semantic_acceptance.py": "f53b04c506616bb94d9c6d5ba00830e9d79cf59d5ac32672b4be9eb096cbdce3",
+          "services/ingest/shadow.py": "f8c7bee6d5c76a84a1c7fc9162b435f4b7fb0707a902dd25585cf3ec679e6b39",
+          "services/ingest/shadow_report.py": "10527b49c032a5ff1d6d381fe0206af3f56b7b6ce5cd9747e7f82fc80ecbb86b",
+          "services/journal/__init__.py": "4f55183f080738832170af0ac63525f1701f0c6dcccc2e94c7f47fb015a4e34e",
+          "services/journal/aggregate.py": "d23c06b72c04cae8457fe339261c4fc1b3904942a91d3d20cd1d8efccc1657b7",
+          "services/journal/model.py": "ecdb2b19a0fe9db88ff3cdbc3965adb98e64cb1e6a0b2f6d44c70a02ceacfed6",
+          "services/journal/query.py": "92cc1ce2793d7807498649b7beaf015d763bff298156d653a89541c4bc3ba6cf",
+          "services/metrics.py": "ec5d384def6d2a9d0aff63cead1498ad7246578f194e335a56252a315d537d4b",
+          "services/options/__init__.py": "191f8fff17a7cc2fe4e56a90581991a9dd43a06ee5337c9f8e7db0e4f235e37c",
+          "services/options/pricing.py": "cc61e910484eaf196662e9dbb9e6d1b203b87da0df01c82af153a538c01b29eb",
+          "services/options/trade.py": "5211a31fa9238aa46296814aed81189669c1e9c2c9c6983f4a9a2de11f808197",
+          "services/recent_bars.py": "5f07318dc2d149b36ed4d1189640b29a11262512a29547aa64046841ae2608e9",
+          "services/recommend/__init__.py": "d1fe8b0d107ea22c6a0b53163dfc8435a6d31c9c0d003f238dbbf18c700ad637",
+          "services/recommend/engine.py": "e1b4b2ee47e50a0e6f8106d110e953a4c32cd0b3d34701acd1ad50266feaec06",
+          "services/replay/__init__.py": "d543b2d69157efdb687c3d3cc348870a636ea132d45ec4f7a35f2c6a78eb58fe",
+          "services/replay/errors.py": "8713834f3671d70512de852ad8f2dad2f3005d940eb1a7cdde7e9053ae6b7a99",
+          "services/replay/forensics.py": "705182e71e13f80e84a07914674d78182f237e91a5c04ae1a3dbb3cb5b41c67f",
+          "services/replay/journal.py": "72d77ec5ca512086de77ed1f6ea64cd76719a7dcb84505d6a2ebf12d14d0f602",
+          "services/replay/ledger.py": "90d6c4ad6bd32337482a252d320080f46ea55a72a57b72420e915c3156429550",
+          "services/replay/market.py": "f5386fa12c0d8ab534fbdf1e6e7f936315ac2fbfb9839ba362c1f14bde0741e3",
+          "services/replay/session.py": "3ac81b03cca6e293ff3c531f10a56d09e29569e2d3ad83aea96287908f94d9c1",
+          "services/replay/summary.py": "90ed3c7b0c06a7eb91182d0f36b8aa306a248ebbad7975c2db600752682a6886",
+          "services/replay/timeutil.py": "54ca88ed4de367f9bd1d9728de409e1cd412c657f2bcf38cbf5a447f03b38f6c",
+          "services/sentiment/__init__.py": "4220ba5c4f8c9f48e296d18db8fe838fb627dca4f57459a52c8e8aa757c4f8c5",
+          "services/sentiment/anthropic_provider.py": "766d62f9ec937e0e330c531ada76b9e96e39d297a7196d1a6d347f291a094fc2",
+          "services/sentiment/base.py": "c6d09aa927419b393d11c55219ab0546b2cd61361de284f5f96754088d11b0af",
+          "services/sentiment/http_provider.py": "0fa233b9fbe9d867fefd6880d2162cb46c29231e2901c7fe5d195666ff54a3df",
+          "services/sentiment/null_provider.py": "4f6d1bac4e8cd2b13a992f9a40f305b8ed7585788b4bbb4dce9e5ff8015f5ce0",
+          "services/sentiment/store.py": "b994a1bf050b18cd7eb13f50a546437ed1579712d2e67b7bac7f4270c3a47875",
+          "services/simulation/__init__.py": "bc02f0ed1653ab63761c89a2b54e6b118225f8798d4fd36b5db76e9a5f8e818c",
+          "services/simulation/clock.py": "c792a5dc13b1c9637149b876dd439a923db96128c45d818e0fbac93da8e2ab0d",
+          "services/simulation/contracts.py": "679b450c35e5f8b12f6f1fbbd9aa28a1ef4d986d4ef181e0a6f1b402c8c8643d",
+          "services/simulation/engine.py": "77eb83e88294fa0caa340cd9f36397da444b832874f8a6dda1802c58f4a85fec",
+          "services/simulation/profiles.py": "e50c3eb9876fbf7e67ade899e30fca24bce9624f6ac4da57aa7fcde831466b8d",
+          "services/simulation/registry.py": "0266779ab917fad1c578a5999a9f1c235b8603d59abef9ecb3d0ec561c104547",
+          "services/trading/__init__.py": "a0694220f03ed791aa4315d270f8b2d409a8c5fe920b5da13bae267c1fec25b5",
+          "services/trading/analytics.py": "7ca512d373f77256954848513d4aaf0c93f948764ad9ee7ac52a3fcc94d07436",
+          "services/trading/buying_power.py": "13dc881c8ef8f1b558039135430d83398be466dd8b639c471e66b593b67d44b1",
+          "services/trading/dividends.py": "4a226797f70db7cd5c033aa5f6558623ce97869f07794c875dcb9f56517ba3b1",
+          "services/trading/execute.py": "6fbcf2e8bb7f67e2f72f17f406d4813a39d32353f8c7e3790334e8f39365f4f3",
+          "services/trading/execution_provenance.py": "7400360149c8017e879aacee0cc6186ad599969c9149d8269b71e79f424d3ccd",
+          "services/trading/fx.py": "7d502115b3c94f6eb3656c6d8e4e905a2f3dc47b4b676b34195afbe4cbb0451d",
+          "services/trading/orders.py": "bedf5cbc98a41c4ad5e12c56c87ecb8d0232f5cb251f77b4d070fa5b44e07c79",
+          "services/trading/portfolio.py": "2785b2c74c001e2f9c94556182b0cf687269dce787c0fdcdfeecac63e243da24",
+          "services/trading/simulation_adapter.py": "d3f7e31e74062458fab226163b694ff82dd810f6dcb8d36cd06cb44b84c212d9",
+          "services/trading/snapshots.py": "31bcd09e3d320eaf139d036d6b73bad3a73cfff458c0afa3490917bfd7485644",
+          "services/trading/views.py": "f02e95b160bebaa50853652bc9f57f2ae6c0bb997c5645e08557a13796dac08e",
+          "settings.py": "93decf443dab60e6e4bb0796e00ff1630454e94a2df5eb8afc7cc2526b028c5f",
+          "workers/__init__.py": "83389e2fdf26c63bd7848dde3ca16f1890c9fe461c77466afd8784d76f9880ee",
+          "workers/market_analytics_consumer.py": "99a2208774f6409059eb2356324ae1fdb082b26b594db5de4f3ad943916f3615",
+          "workers/market_ingest_consumer.py": "2d5c26c32eafbf295f50d291c85e0b40ec63028cff5cc19d9e60a523db517f24",
+          "workers/news_ingest_consumer.py": "c1ee55da5cf8b3846dd2624bd9955ed30f3e86ca292011329ff2b5aba4815c18",
+          "workers/news_sentiment_consumer.py": "dd6a17c679eee83fb0269e4a520fe6cce3a2e52ed769b5ea868855a5d69ff55a",
+          "workers/outbox_publisher.py": "ce2a88448eae882ba362b992c0ff012247383420bc65ca6c2466929f5e491c3a",
+          "workers/scheduler.py": "5b4b5c08de4275109ca0cb132b0999788626932534690428d5f30a56db00b2b4",
+          "workers/sentiment_aggregate_consumer.py": "b6281eb25d95b56d3fe04abc88b2343336316d7c65858d71326be431e5d4dd9e",
+          "workers/trade_activity_consumer.py": "ae1e379ba8f618c9babe19f7d54587fff0af71e45df870cb11af80bc1e44b13d"
+        }
+      },
+      {
+        "kind": "inventory",
+        "utc": "2026-09-06 07:03:16.776127+00:00",
+        "counts": {
+          "symbols": 75,
+          "price_bars": 278484,
+          "positions": 12,
+          "portfolio_snapshots": 370,
+          "news_articles": 0,
+          "news_sentiment": 0,
+          "options_positions": 0
+        },
+        "read_only": "on"
+      },
+      {
+        "kind": "method",
+        "n": 1000,
+        "warmups": 10,
+        "concurrency": 1,
+        "paths": {
+          "AAPL_indicators": [
+            "/v1/symbols/AAPL/indicators?names=sma_20,sma_50,rsi_14,macd&limit=252"
+          ],
+          "NVDA_indicators": [
+            "/v1/symbols/NVDA/indicators?names=sma_20,sma_50,rsi_14,macd&limit=252"
+          ]
+        },
+        "db_ms": "cursor wall time including DB network/driver, not PG CPU",
+        "endpoint_cpu_ms": "application endpoint worker thread CPU including ORM/driver; excludes dependency and response serialization CPU",
+        "application_cpu_ms": "endpoint CPU plus completed Redis worker CPU; timed-out background commands may finish after the request",
+        "non_db_wall_ms": "ASGI wall minus cursor wall; not pure compute",
+        "portfolio_pair": "sum of two serial API requests, not parallel browser wall time",
+        "first_use": "warm database, not cold disk",
+        "workload": "controlled repeated requests; NOT organic traffic hit rate",
+        "redis_cold": false
+      },
+      {
+        "kind": "first_use",
+        "name": "AAPL_indicators",
+        "measurement": {
+          "queries": 2,
+          "db_ms": 2.786394,
+          "endpoint_cpu_ms": 39.9791,
+          "server_ms": 66.043942,
+          "bytes": 60057,
+          "cache_hits": 0,
+          "cache_misses": 1,
+          "cache_errors": 0,
+          "cache_bypass": 0,
+          "cache_worker_cpu_ms": 1.4385,
+          "application_cpu_ms": 41.4176,
+          "non_db_wall_ms": 63.257548
+        }
+      },
+      {
+        "kind": "first_use",
+        "name": "NVDA_indicators",
+        "measurement": {
+          "queries": 2,
+          "db_ms": 1.3752490000000002,
+          "endpoint_cpu_ms": 15.2047,
+          "server_ms": 19.344626,
+          "bytes": 59818,
+          "cache_hits": 0,
+          "cache_misses": 1,
+          "cache_errors": 0,
+          "cache_bypass": 0,
+          "cache_worker_cpu_ms": 0.6632000000000002,
+          "application_cpu_ms": 15.8679,
+          "non_db_wall_ms": 17.969377
+        }
+      },
+      {
+        "kind": "progress",
+        "rounds": 100
+      },
+      {
+        "kind": "progress",
+        "rounds": 200
+      },
+      {
+        "kind": "progress",
+        "rounds": 300
+      },
+      {
+        "kind": "progress",
+        "rounds": 400
+      },
+      {
+        "kind": "progress",
+        "rounds": 500
+      },
+      {
+        "kind": "progress",
+        "rounds": 600
+      },
+      {
+        "kind": "progress",
+        "rounds": 700
+      },
+      {
+        "kind": "progress",
+        "rounds": 800
+      },
+      {
+        "kind": "progress",
+        "rounds": 900
+      },
+      {
+        "kind": "progress",
+        "rounds": 1000
+      },
+      {
+        "kind": "summary",
+        "name": "AAPL_indicators",
+        "n": 1000,
+        "metrics": {
+          "queries": {
+            "p50": 2,
+            "p95": 2,
+            "p99": 2
+          },
+          "db_ms": {
+            "p50": 1.0428,
+            "p95": 1.5012,
+            "p99": 2.811
+          },
+          "endpoint_cpu_ms": {
+            "p50": 4.7971,
+            "p95": 6.2065,
+            "p99": 7.7647
+          },
+          "server_ms": {
+            "p50": 7.5628,
+            "p95": 10.0329,
+            "p99": 11.8683
+          },
+          "bytes": {
+            "p50": 60057,
+            "p95": 60057,
+            "p99": 60057
+          },
+          "cache_hits": {
+            "p50": 1,
+            "p95": 1,
+            "p99": 1
+          },
+          "cache_misses": {
+            "p50": 0,
+            "p95": 0,
+            "p99": 0
+          },
+          "cache_errors": {
+            "p50": 0,
+            "p95": 0,
+            "p99": 0
+          },
+          "cache_bypass": {
+            "p50": 0,
+            "p95": 0,
+            "p99": 0
+          },
+          "cache_worker_cpu_ms": {
+            "p50": 0.1737,
+            "p95": 0.2635,
+            "p99": 0.4542
+          },
+          "application_cpu_ms": {
+            "p50": 4.9801,
+            "p95": 6.531,
+            "p99": 8.0435
+          },
+          "non_db_wall_ms": {
+            "p50": 6.4901,
+            "p95": 8.3518,
+            "p99": 9.9905
+          }
+        },
+        "query_counts": {
+          "2": 1000
+        },
+        "hashes": [
+          "bcdd08ec17a154744d7ebe98db6844a1623a4a962d963cfbccd62ea3c998890e"
+        ]
+      },
+      {
+        "kind": "summary",
+        "name": "NVDA_indicators",
+        "n": 1000,
+        "metrics": {
+          "queries": {
+            "p50": 2,
+            "p95": 2,
+            "p99": 2
+          },
+          "db_ms": {
+            "p50": 1.0405,
+            "p95": 1.6231,
+            "p99": 2.6722
+          },
+          "endpoint_cpu_ms": {
+            "p50": 4.8031,
+            "p95": 6.0039,
+            "p99": 7.3657
+          },
+          "server_ms": {
+            "p50": 7.5639,
+            "p95": 9.6032,
+            "p99": 11.311
+          },
+          "bytes": {
+            "p50": 59818,
+            "p95": 59818,
+            "p99": 59818
+          },
+          "cache_hits": {
+            "p50": 1,
+            "p95": 1,
+            "p99": 1
+          },
+          "cache_misses": {
+            "p50": 0,
+            "p95": 0,
+            "p99": 0
+          },
+          "cache_errors": {
+            "p50": 0,
+            "p95": 0,
+            "p99": 0
+          },
+          "cache_bypass": {
+            "p50": 0,
+            "p95": 0,
+            "p99": 0
+          },
+          "cache_worker_cpu_ms": {
+            "p50": 0.1714,
+            "p95": 0.2548,
+            "p99": 0.3792
+          },
+          "application_cpu_ms": {
+            "p50": 4.9846,
+            "p95": 6.2491,
+            "p99": 7.7358
+          },
+          "non_db_wall_ms": {
+            "p50": 6.4998,
+            "p95": 8.2103,
+            "p99": 9.8663
+          }
+        },
+        "query_counts": {
+          "2": 1000
+        },
+        "hashes": [
+          "3b7ac7cf59145193c280c68619478e69d2e67cc8b2fecc8fa9b189e442e0b458"
+        ]
+      },
+      {
+        "kind": "cache_stats",
+        "enabled": true,
+        "namespace": "stockviz:pilot-benchmark:v1",
+        "stats": {
+          "hits": 2020,
+          "misses": 2,
+          "sets": 2,
+          "errors": 0,
+          "invalid": 0,
+          "bypass": 0,
+          "commands": 2024,
+          "get_commands": 2022,
+          "set_commands": 2,
+          "command_latency_ms": 913.6524906789418,
+          "backend_cpu_ms": 387.18669999999923,
+          "cache_hit_ratio": 0.9990108803165183
+        }
+      },
+      {
+        "kind": "redis_memory",
+        "redis_version": "7.4.11",
+        "keys": 2,
+        "key_bytes": 164144,
+        "used_memory": 846504,
+        "used_memory_rss": 13828096,
+        "evicted_keys": 0,
+        "connected_clients": 1
+      }
+    ],
+    "sha256": "e8ad1b4afe1dc6034139434f50568fc3bf65cc50ff818d44d50d4d215203b9e7"
+  },
+  "p0-before-cpu": {
+    "records": [
+      {
+        "kind": "inventory",
+        "utc": "2026-09-06 06:19:22.251526+00:00",
+        "counts": {
+          "symbols": 75,
+          "price_bars": 278484,
+          "positions": 12,
+          "portfolio_snapshots": 370,
+          "news_articles": 0,
+          "news_sentiment": 0,
+          "options_positions": 0
+        },
+        "read_only": "on"
+      },
+      {
+        "kind": "method",
+        "n": 300,
+        "warmups": 10,
+        "concurrency": 1,
+        "paths": {
+          "markets": [
+            "/v1/markets/summary?sparkline_days=30"
+          ],
+          "momentum": [
+            "/v1/symbols/screen?momentum_days=30"
+          ],
+          "portfolio": [
+            "/v1/portfolio"
+          ],
+          "analytics": [
+            "/v1/portfolio/analytics"
+          ],
+          "portfolio_pair": [
+            "/v1/portfolio",
+            "/v1/portfolio/analytics"
+          ],
+          "AAPL_indicators": [
+            "/v1/symbols/AAPL/indicators?names=sma_20,sma_50,rsi_14,macd&limit=252"
+          ],
+          "NVDA_indicators": [
+            "/v1/symbols/NVDA/indicators?names=sma_20,sma_50,rsi_14,macd&limit=252"
+          ],
+          "screener": [
+            "/v1/symbols/screen"
+          ],
+          "recommendations": [
+            "/v1/recommendations?limit=100"
+          ],
+          "bars": [
+            "/v1/symbols/AAPL/bars?limit=252"
+          ]
+        },
+        "db_ms": "cursor wall time including DB network/driver, not PG CPU",
+        "endpoint_cpu_ms": "application endpoint worker thread CPU including ORM/driver; excludes dependency and response serialization CPU",
+        "non_db_wall_ms": "ASGI wall minus cursor wall; not pure compute",
+        "portfolio_pair": "sum of two serial API requests, not parallel browser wall time",
+        "first_use": "warm database, not cold disk",
+        "workload": "controlled repeated requests; NOT organic traffic hit rate"
+      },
+      {
+        "kind": "first_use",
+        "name": "markets",
+        "measurement": {
+          "queries": 2,
+          "db_ms": 218.93242,
+          "endpoint_cpu_ms": 68.3768,
+          "server_ms": 300.658693,
+          "bytes": 42352,
+          "non_db_wall_ms": 81.72627300000002
+        }
+      },
+      {
+        "kind": "first_use",
+        "name": "momentum",
+        "measurement": {
+          "queries": 2,
+          "db_ms": 254.06047,
+          "endpoint_cpu_ms": 6.6062,
+          "server_ms": 262.245087,
+          "bytes": 18731,
+          "non_db_wall_ms": 8.184617000000003
+        }
+      },
+      {
+        "kind": "first_use",
+        "name": "portfolio",
+        "measurement": {
+          "queries": 13,
+          "db_ms": 28.264548999999995,
+          "endpoint_cpu_ms": 24.0719,
+          "server_ms": 68.761378,
+          "bytes": 2450,
+          "non_db_wall_ms": 40.496829
+        }
+      },
+      {
+        "kind": "first_use",
+        "name": "analytics",
+        "measurement": {
+          "queries": 15,
+          "db_ms": 24.876030999999998,
+          "endpoint_cpu_ms": 10.5158,
+          "server_ms": 35.588537,
+          "bytes": 1460,
+          "non_db_wall_ms": 10.712506000000005
+        }
+      },
+      {
+        "kind": "first_use",
+        "name": "portfolio_pair",
+        "measurement": {
+          "queries": 28,
+          "db_ms": 50.041011,
+          "endpoint_cpu_ms": 17.783,
+          "server_ms": 67.07686100000001,
+          "bytes": 3910,
+          "non_db_wall_ms": 17.03585000000001
+        }
+      },
+      {
+        "kind": "first_use",
+        "name": "AAPL_indicators",
+        "measurement": {
+          "queries": 2,
+          "db_ms": 1.104278,
+          "endpoint_cpu_ms": 15.7458,
+          "server_ms": 18.906749,
+          "bytes": 60057,
+          "non_db_wall_ms": 17.802471
+        }
+      },
+      {
+        "kind": "first_use",
+        "name": "NVDA_indicators",
+        "measurement": {
+          "queries": 2,
+          "db_ms": 1.0222120000000001,
+          "endpoint_cpu_ms": 12.9608,
+          "server_ms": 15.355124,
+          "bytes": 59818,
+          "non_db_wall_ms": 14.332912
+        }
+      },
+      {
+        "kind": "first_use",
+        "name": "screener",
+        "measurement": {
+          "queries": 1,
+          "db_ms": 0.800339,
+          "endpoint_cpu_ms": 2.2798,
+          "server_ms": 4.222952,
+          "bytes": 18161,
+          "non_db_wall_ms": 3.422613
+        }
+      },
+      {
+        "kind": "first_use",
+        "name": "recommendations",
+        "measurement": {
+          "queries": 1,
+          "db_ms": 3.169424,
+          "endpoint_cpu_ms": 7.1736,
+          "server_ms": 12.251222,
+          "bytes": 78645,
+          "non_db_wall_ms": 9.081798000000001
+        }
+      },
+      {
+        "kind": "first_use",
+        "name": "bars",
+        "measurement": {
+          "queries": 2,
+          "db_ms": 1.0808330000000002,
+          "endpoint_cpu_ms": 3.3838,
+          "server_ms": 7.336258,
+          "bytes": 32017,
+          "non_db_wall_ms": 6.255425
+        }
+      },
+      {
+        "kind": "progress",
+        "rounds": 100
+      },
+      {
+        "kind": "progress",
+        "rounds": 200
+      },
+      {
+        "kind": "progress",
+        "rounds": 300
+      },
+      {
+        "kind": "summary",
+        "name": "markets",
+        "n": 300,
+        "metrics": {
+          "queries": {
+            "p50": 2,
+            "p95": 2
+          },
+          "db_ms": {
+            "p50": 213.9234,
+            "p95": 228.6055
+          },
+          "endpoint_cpu_ms": {
+            "p50": 7.4292,
+            "p95": 10.6062
+          },
+          "server_ms": {
+            "p50": 221.7153,
+            "p95": 251.2372
+          },
+          "bytes": {
+            "p50": 42352,
+            "p95": 42352
+          },
+          "non_db_wall_ms": {
+            "p50": 7.7707,
+            "p95": 11.4131
+          }
+        },
+        "query_counts": {
+          "2": 300
+        },
+        "hashes": [
+          "4728537cad07f9fa0f302d874fb42de46aaa1847e519e2296411846b8f61950e"
+        ]
+      },
+      {
+        "kind": "summary",
+        "name": "momentum",
+        "n": 300,
+        "metrics": {
+          "queries": {
+            "p50": 2,
+            "p95": 2
+          },
+          "db_ms": {
+            "p50": 257.6863,
+            "p95": 276.0654
+          },
+          "endpoint_cpu_ms": {
+            "p50": 4.4652,
+            "p95": 5.7871
+          },
+          "server_ms": {
+            "p50": 263.2167,
+            "p95": 282.548
+          },
+          "bytes": {
+            "p50": 18731,
+            "p95": 18731
+          },
+          "non_db_wall_ms": {
+            "p50": 5.3337,
+            "p95": 7.0551
+          }
+        },
+        "query_counts": {
+          "2": 300
+        },
+        "hashes": [
+          "17d0d0ae2d5d869acea834034da241de99a4b9b5bfeca5952d7afecd52883c28"
+        ]
+      },
+      {
+        "kind": "summary",
+        "name": "portfolio",
+        "n": 300,
+        "metrics": {
+          "queries": {
+            "p50": 13,
+            "p95": 13
+          },
+          "db_ms": {
+            "p50": 25.5176,
+            "p95": 29.0304
+          },
+          "endpoint_cpu_ms": {
+            "p50": 8.084,
+            "p95": 10.5841
+          },
+          "server_ms": {
+            "p50": 33.5561,
+            "p95": 38.3777
+          },
+          "bytes": {
+            "p50": 2450,
+            "p95": 2450
+          },
+          "non_db_wall_ms": {
+            "p50": 7.8869,
+            "p95": 10.4452
+          }
+        },
+        "query_counts": {
+          "13": 300
+        },
+        "hashes": [
+          "c90b1e1b4d72bd0528a5fb1ef00d48384655898230a72bf7059f3184a8f4c081"
+        ]
+      },
+      {
+        "kind": "summary",
+        "name": "analytics",
+        "n": 300,
+        "metrics": {
+          "queries": {
+            "p50": 15,
+            "p95": 15
+          },
+          "db_ms": {
+            "p50": 26.3424,
+            "p95": 30.1534
+          },
+          "endpoint_cpu_ms": {
+            "p50": 10.2314,
+            "p95": 13.6023
+          },
+          "server_ms": {
+            "p50": 36.2653,
+            "p95": 41.7233
+          },
+          "bytes": {
+            "p50": 1460,
+            "p95": 1460
+          },
+          "non_db_wall_ms": {
+            "p50": 9.8365,
+            "p95": 13.0619
+          }
+        },
+        "query_counts": {
+          "15": 300
+        },
+        "hashes": [
+          "fec50d55d78fb77cd57315bfb29e5b42c2f097dd0ac7146e04bf0fda694da9eb"
+        ]
+      },
+      {
+        "kind": "summary",
+        "name": "portfolio_pair",
+        "n": 300,
+        "metrics": {
+          "queries": {
+            "p50": 28,
+            "p95": 28
+          },
+          "db_ms": {
+            "p50": 52.0172,
+            "p95": 59.1511
+          },
+          "endpoint_cpu_ms": {
+            "p50": 18.2299,
+            "p95": 23.3251
+          },
+          "server_ms": {
+            "p50": 69.8457,
+            "p95": 80.1977
+          },
+          "bytes": {
+            "p50": 3910,
+            "p95": 3910
+          },
+          "non_db_wall_ms": {
+            "p50": 17.6519,
+            "p95": 22.4956
+          }
+        },
+        "query_counts": {
+          "28": 300
+        },
+        "hashes": [
+          "c8661a9cfe324c5458c96bade00725bc37f02fa1f1dbce90f73b02b0db30f8e5"
+        ]
+      },
+      {
+        "kind": "summary",
+        "name": "AAPL_indicators",
+        "n": 300,
+        "metrics": {
+          "queries": {
+            "p50": 2,
+            "p95": 2
+          },
+          "db_ms": {
+            "p50": 1.0384,
+            "p95": 1.5303
+          },
+          "endpoint_cpu_ms": {
+            "p50": 13.5863,
+            "p95": 19.1493
+          },
+          "server_ms": {
+            "p50": 16.2528,
+            "p95": 22.6386
+          },
+          "bytes": {
+            "p50": 60057,
+            "p95": 60057
+          },
+          "non_db_wall_ms": {
+            "p50": 15.1802,
+            "p95": 20.8434
+          }
+        },
+        "query_counts": {
+          "2": 300
+        },
+        "hashes": [
+          "bcdd08ec17a154744d7ebe98db6844a1623a4a962d963cfbccd62ea3c998890e"
+        ]
+      },
+      {
+        "kind": "summary",
+        "name": "NVDA_indicators",
+        "n": 300,
+        "metrics": {
+          "queries": {
+            "p50": 2,
+            "p95": 2
+          },
+          "db_ms": {
+            "p50": 1.0465,
+            "p95": 1.7428
+          },
+          "endpoint_cpu_ms": {
+            "p50": 13.6935,
+            "p95": 19.8298
+          },
+          "server_ms": {
+            "p50": 16.342,
+            "p95": 23.5591
+          },
+          "bytes": {
+            "p50": 59818,
+            "p95": 59818
+          },
+          "non_db_wall_ms": {
+            "p50": 15.2924,
+            "p95": 21.4047
+          }
+        },
+        "query_counts": {
+          "2": 300
+        },
+        "hashes": [
+          "3b7ac7cf59145193c280c68619478e69d2e67cc8b2fecc8fa9b189e442e0b458"
+        ]
+      },
+      {
+        "kind": "summary",
+        "name": "screener",
+        "n": 300,
+        "metrics": {
+          "queries": {
+            "p50": 1,
+            "p95": 1
+          },
+          "db_ms": {
+            "p50": 0.8231,
+            "p95": 1.2494
+          },
+          "endpoint_cpu_ms": {
+            "p50": 2.3417,
+            "p95": 3.2274
+          },
+          "server_ms": {
+            "p50": 4.4449,
+            "p95": 6.0484
+          },
+          "bytes": {
+            "p50": 18161,
+            "p95": 18161
+          },
+          "non_db_wall_ms": {
+            "p50": 3.5858,
+            "p95": 5.1165
+          }
+        },
+        "query_counts": {
+          "1": 300
+        },
+        "hashes": [
+          "b64c1e95c34097ef5bb02ed685cd1f4d75955d13259ee632b54162d3de62b9d8"
+        ]
+      },
+      {
+        "kind": "summary",
+        "name": "recommendations",
+        "n": 300,
+        "metrics": {
+          "queries": {
+            "p50": 1,
+            "p95": 1
+          },
+          "db_ms": {
+            "p50": 1.9764,
+            "p95": 2.8497
+          },
+          "endpoint_cpu_ms": {
+            "p50": 5.4686,
+            "p95": 7.7911
+          },
+          "server_ms": {
+            "p50": 8.7849,
+            "p95": 11.9707
+          },
+          "bytes": {
+            "p50": 78645,
+            "p95": 78645
+          },
+          "non_db_wall_ms": {
+            "p50": 6.7505,
+            "p95": 9.1542
+          }
+        },
+        "query_counts": {
+          "1": 300
+        },
+        "hashes": [
+          "1fded9804d49ccb34c6da3da2dc4b48197829a86c810852b378d4c705e7d0c24"
+        ]
+      },
+      {
+        "kind": "summary",
+        "name": "bars",
+        "n": 300,
+        "metrics": {
+          "queries": {
+            "p50": 2,
+            "p95": 2
+          },
+          "db_ms": {
+            "p50": 1.0726,
+            "p95": 1.6259
+          },
+          "endpoint_cpu_ms": {
+            "p50": 3.2209,
+            "p95": 4.5962
+          },
+          "server_ms": {
+            "p50": 6.506,
+            "p95": 8.6622
+          },
+          "bytes": {
+            "p50": 32017,
+            "p95": 32017
+          },
+          "non_db_wall_ms": {
+            "p50": 5.3815,
+            "p95": 7.4692
+          }
+        },
+        "query_counts": {
+          "2": 300
+        },
+        "hashes": [
+          "821db5d80a0ebc319f13412e2751846a7a723c48931f9f69fd924bd6311a00a8"
+        ]
+      }
+    ],
+    "sha256": "156b989e0c5caef8ff6ec348e4740b833b419b59af80a2b3ace759193f9b3f1a"
+  },
+  "p1-final-restart": {
+    "records": [
+      {
+        "kind": "source",
+        "python": "3.12.14",
+        "files": {
+          "__init__.py": "91447944015cec709e8aa7655f7e9d64e1e4508e7023a57fe3746911c0fc6fed",
+          "_time.py": "1055a7a1a02e56f0ae55af4e81c30af55334af3a8e35e88a56bb73716306e558",
+          "auth.py": "e3cd3bd66c4e2197afbda0369349fba602d5265eed899614bc2a62f671734296",
+          "benchmarks/__init__.py": "69cb42c9f79507d1c913dc9e7271e61f4ba090d4fd4523d28420b98154b555db",
+          "benchmarks/kafka_scaling.py": "a440abd0b0f2d0909e5b5aaa46582e57dd485f41a418d5c9aa71f11812ceb5a2",
+          "benchmarks/report.py": "e7335c978c157a3e15654f4b1acd9af606c949bf2baa5aa1a16eb49d650ec1c1",
+          "benchmarks/topics.py": "c1b57348fae91966def215674601a43447c5eff379b1fbdee1c2eed8ee2f9f2d",
+          "cli.py": "7190de3efceb557784d8153f296046122154cbd06bfc4914cd82cf945b27dd33",
+          "db.py": "354acd6c7a8df2b9e0d75387a87ba5b3b5135470ca9b4fc92f90c7280ff2a103",
+          "events/__init__.py": "cd8b29787ad052d610251d1756b6fc4586b068ec3ec4c8082599001b7407f2d7",
+          "events/activity.py": "781030f3d8560c05c79dda227ed514d2001260e6b251f19f944742d500116a02",
+          "events/contracts/__init__.py": "7e7c66fffda01e7a63946a287d521ee5dede41a459483c7a0801172a47a4c38d",
+          "events/contracts/common.py": "56c6c53575a475c6ac2b918918af60bbdcfc72333a0d3ef567bf097af4ba7085",
+          "events/contracts/market.py": "bc6f5dc3df6b7c5e4afd36ca68386d77f53438372f9632aef2f7f48080f9b8fa",
+          "events/contracts/news.py": "f79712e8659d671172318611159e214193f8df9dc3b884960fbce9da74d9eb17",
+          "events/contracts/trades.py": "96f72743e048f80b1be5fb324e58390595374b6631fb981f1fb1e9d72311bfa1",
+          "events/dispatcher.py": "817687f161d572f128c3e46718d10346da766b3755f28404a8fd76ac8ce7f96b",
+          "events/handlers.py": "ae2c2a5cefb17fefaa4e870703adcebbc0f973ea45c13e786c124e00385188c7",
+          "events/inbox.py": "f6ab8e74f73f7cdf0588d8a470707eade04eaaa756b38ea03b2c42094b7081e9",
+          "events/outbox.py": "3a4f77ce79c60391e4e93be997b7874e7ce1f89c02bd9f60ce0184cc13252bda",
+          "events/producer.py": "17d4ad6bb28c0d677e686810ea6b0b02fb9b3ee7a221b5f66ece9e94c8b11703",
+          "limiter.py": "5b314c7874e7ead6019edb426eb38ee5201f51d33c39ccf3ac37d26c302a70af",
+          "main.py": "48b75f0da76b30ddb5c18b97341a9b09f985beebb32c1dc702892ac75189aed7",
+          "models/__init__.py": "ee65ea5be781abca9fd2e59d5e63f62f9b8f03832cea977ed1a79f8302998647",
+          "models/alert.py": "7e2757d96ee8ce443dd764c3d5afee1b127ade69b3a8f015175b5bbe66a28ed6",
+          "models/comment.py": "fb3df302be08e4cd1a16503b82451c9ed7a4451db264f16bf01c0f5b561c96ab",
+          "models/dividend.py": "0b2ad59f3bed3af745de61c5c0d1180a06f7c5f00b5a7f63c44132f1529a2f5f",
+          "models/earnings.py": "23c9785deb37d71c5bf9f8e12d8e1875783a18e37d22faf5df163904de6e0d91",
+          "models/events.py": "f481d4cac61776299cdbc6a1e4b75a31b8c672484a2f6e82b19235e3a385ccef",
+          "models/execution.py": "90587d66b9a9093172bccbd6d9280a3ccd6794434d3f7775efc89e8599beaa55",
+          "models/market.py": "8cde0ccecf8c32894df3bac4057af57806d811f3bc727b529126a8f286f25673",
+          "models/metrics.py": "6965e9e59cc8be90ddec205b5517e433a8ae80fbad0d8227f06e24b757b7f25d",
+          "models/option.py": "6a2f182e52830c4ab46cae345147e9012228256ec322bd814756fe39d8381b72",
+          "models/order.py": "8fdd88866ae6288863979edf11a10bd0be09a7b9177f8371919664198f67d94e",
+          "models/portfolio.py": "3998eea42bf0eada3ed9740f4cb933904dae4f0e23208f98f25e23c6673ed826",
+          "models/recommendation.py": "a27cb985815ff124e05c53d6ddbce631f1772d4895e2a0d76e62113b8a20a8dc",
+          "models/replay.py": "9109e69ba1819f45c517ca0f69d8e8f6295c8735c57e0775e1ac2f8ed1e18837",
+          "models/sentiment.py": "31ae384c40208ea38dd4f4af406546a786b315b3fb6222dea42e240d14c4d1f0",
+          "models/user.py": "a5b7dc3c91d703b77edda37f39c70403899e3160d92da370178e05fadbc78fe1",
+          "models/watchlist.py": "5d3e6dbacb58d2496409a995ffe8968af51cb7dea4007fe8ff171a46953493cf",
+          "observability.py": "5970f750682e4ac940f6f2f6593ec1780286e2218a98cf993fde66eb780e58a9",
+          "routers/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "routers/alerts.py": "ead3ca2d4d7bcddf7ca658fd810740a1320712273feffece0f5badb852f376d9",
+          "routers/backtest.py": "87865a128941942986b613e17ddc0bcdf2bfd8f0513da9934ec73570ed8a3b4a",
+          "routers/bars.py": "93adf459d5bd47fc5899be1b0d4cc68209caddfbda69a267770f8667b3aead67",
+          "routers/comments.py": "f41ea3ee1b08ed5adb4250f075582c5c96f7a490bb19080f43526e264fc4a219",
+          "routers/earnings.py": "a6f47dc50edb7e7d02ff8817c8714020886f20518491bb30d357e01ffcca17db",
+          "routers/health.py": "e7c99f2195dcc9cfd40ecfe94dd919f266287ce9fd13f5bb554348be13bf6c7f",
+          "routers/indicators.py": "fd50b5b90b2bec5b78c522fc7f7afb423a183d5ab8e667640cc4b1f6a7202eb1",
+          "routers/journal.py": "05f729acbcdf6a995534b7a3525d35be13c98f1c01ab7435b3a77524263b6170",
+          "routers/leaderboard.py": "1a2996155b82dd6c8767331c75f103a7727c6fcf5b7fc74a6c87124e3596ba01",
+          "routers/markets.py": "22fb0923f5fadbb85acb208d6a7d708e0696e7575481fa4b156ee1ec8a55fa53",
+          "routers/news.py": "00294b5545233862b35f42f22e3c9059bb4822c23bd2d980d8a0374cd49ed26c",
+          "routers/options.py": "23cd931c7a72bf1126ae2660b978837ab16496926e720b35ae6cd49c179546e4",
+          "routers/orders.py": "70374969a8394fe5bc8089e49705162ea60bb78f7174c06a4c375400765aedcf",
+          "routers/quotes.py": "ac8950756ef7d698151dd6543fc9d8ed621aded12a00223d108ba739ff888a4c",
+          "routers/recommendations.py": "2b4cba25a23f43c6b43fd7bc2d0806289416061663459c676137021642a864bd",
+          "routers/replay.py": "796257b18955f17eac3e9174879ebf506e9167471ce8c86c24937a60099afea7",
+          "routers/screener.py": "06cc5452a838aac99ba220cd4a259b19668de45c75d0e4fdcd779936d2ae67d0",
+          "routers/sentiment.py": "ed5abe8b91f12c7215199561666b9fc18dcafbc6d492ce044b067c57763485c0",
+          "routers/stream.py": "c186399152666f1f90d168d77b153c02d0ac5e9208972bfab4325fa8fe22d7e1",
+          "routers/symbols.py": "c17894932fb633963890a20fc2eae85f09441e25c091bad353b7a9679cc7bb35",
+          "routers/trading.py": "09306b1b1a634a1c87661f35eee09850f0bc3920ca2543f61e8c655a79de8f76",
+          "routers/watchlist.py": "a9ada33008952d5ff729d7b2249e9503b9f5c7517d78add9b9b1b5b572dd44df",
+          "scheduler.py": "e87b907a911a507ada94b407b6959b43a775a325e5750dd882a6b7f4099da04f",
+          "schemas.py": "d140de66c2096d6151253d7a8bbbc55d87ebe1c011d6f4a1217668a58e6a723b",
+          "services/__init__.py": "337921aa563126bd0a2d82b9e42fa048a169d0585c3fff4bf1db8d38959f9fd4",
+          "services/alerts.py": "31278dfea14b2a0597621f19578c38bbdb6fefcc225911e936ef9de683f8286b",
+          "services/backtest/__init__.py": "e8b11c9dcc637c27f5f1e5a46833f96f2087c40c128eef681b96501977386d0c",
+          "services/backtest/engine.py": "adb64e6b59c1fffb831a23c8c59c7d5b1562a2d31e62181e204bf16c2203f5b8",
+          "services/cache.py": "c0f42f000a6f8a9540207afcc6d1aeb4c8f886846dcbea3941c6108e35882046",
+          "services/indicator_view.py": "177cff069261c98cb0e86bbdfb5ddd2efe975052c0ec9fe354328212aad9b008",
+          "services/indicators/__init__.py": "4fd1fbae1ba7ec2faec50228ab0e6e06ccc3838aff7ad6e13b5b722f30599079",
+          "services/indicators/compute.py": "954b558c0d648a901eabe6c2d8c2c646f2261b40ad8d73999924654f873cc8d8",
+          "services/ingest/__init__.py": "f6279d119d7fe5a06be5b9acaeee9277e2fb4552dc7050e05fc757c09e833b2e",
+          "services/ingest/backfill.py": "9e85cb75d28cfa56ef15a5841fc7bf8470281526310c66c898b936b03355a1ec",
+          "services/ingest/bar_semantics.py": "6d0222bdf77fb9abc6da03cb37eafdd4933067a16dccb2dc28c63a8bb3fbd18b",
+          "services/ingest/dividends.py": "74941e206ad1ca5d9bc864136faf3614078c49e8d78a5e82f4ba71a4184df1d8",
+          "services/ingest/earnings.py": "35c0b1e35fb45b103101817b43e7090b84b07608670beacede6b46f3d1dae9a7",
+          "services/ingest/fx.py": "677614d5adefa71829495f9a601c0aeafcbe6119bab64f03fa937440e64e02c0",
+          "services/ingest/metadata.py": "785d9e786ed6e77622ee578d216fb18b452082d469d6a59f6b76c17ece963225",
+          "services/ingest/news.py": "2247a35d16c2f982155e1f652c2ea7672ca4fe16fb4638a929efeb0069e53834",
+          "services/ingest/prices.py": "46d84b5b8d3d9654c3e92cf5a1d20f6ac13cff551ff22fada6b6a27c1cfae41f",
+          "services/ingest/providers/__init__.py": "7bf9edfe8914a0844adda753735b7b91b4a9d9d0e36418f604e1229b1b6e5522",
+          "services/ingest/providers/massive.py": "cffd654f4bb6f05871c11204d54da0706a68a5579f732e45fe467cdd4b64679c",
+          "services/ingest/screening.py": "66b0a1456c0edbdf95abe1b7ed1fe894f673924d490b38d95c82347cd2b019ba",
+          "services/ingest/seed.py": "c86549ae4967c301b4bd968e00822d7cd165781f055e851be9bb3475cbbb8030",
+          "services/ingest/semantic_acceptance.py": "f53b04c506616bb94d9c6d5ba00830e9d79cf59d5ac32672b4be9eb096cbdce3",
+          "services/ingest/shadow.py": "f8c7bee6d5c76a84a1c7fc9162b435f4b7fb0707a902dd25585cf3ec679e6b39",
+          "services/ingest/shadow_report.py": "10527b49c032a5ff1d6d381fe0206af3f56b7b6ce5cd9747e7f82fc80ecbb86b",
+          "services/journal/__init__.py": "4f55183f080738832170af0ac63525f1701f0c6dcccc2e94c7f47fb015a4e34e",
+          "services/journal/aggregate.py": "d23c06b72c04cae8457fe339261c4fc1b3904942a91d3d20cd1d8efccc1657b7",
+          "services/journal/model.py": "ecdb2b19a0fe9db88ff3cdbc3965adb98e64cb1e6a0b2f6d44c70a02ceacfed6",
+          "services/journal/query.py": "92cc1ce2793d7807498649b7beaf015d763bff298156d653a89541c4bc3ba6cf",
+          "services/metrics.py": "ec5d384def6d2a9d0aff63cead1498ad7246578f194e335a56252a315d537d4b",
+          "services/options/__init__.py": "191f8fff17a7cc2fe4e56a90581991a9dd43a06ee5337c9f8e7db0e4f235e37c",
+          "services/options/pricing.py": "cc61e910484eaf196662e9dbb9e6d1b203b87da0df01c82af153a538c01b29eb",
+          "services/options/trade.py": "5211a31fa9238aa46296814aed81189669c1e9c2c9c6983f4a9a2de11f808197",
+          "services/recent_bars.py": "5f07318dc2d149b36ed4d1189640b29a11262512a29547aa64046841ae2608e9",
+          "services/recommend/__init__.py": "d1fe8b0d107ea22c6a0b53163dfc8435a6d31c9c0d003f238dbbf18c700ad637",
+          "services/recommend/engine.py": "e1b4b2ee47e50a0e6f8106d110e953a4c32cd0b3d34701acd1ad50266feaec06",
+          "services/replay/__init__.py": "d543b2d69157efdb687c3d3cc348870a636ea132d45ec4f7a35f2c6a78eb58fe",
+          "services/replay/errors.py": "8713834f3671d70512de852ad8f2dad2f3005d940eb1a7cdde7e9053ae6b7a99",
+          "services/replay/forensics.py": "705182e71e13f80e84a07914674d78182f237e91a5c04ae1a3dbb3cb5b41c67f",
+          "services/replay/journal.py": "72d77ec5ca512086de77ed1f6ea64cd76719a7dcb84505d6a2ebf12d14d0f602",
+          "services/replay/ledger.py": "90d6c4ad6bd32337482a252d320080f46ea55a72a57b72420e915c3156429550",
+          "services/replay/market.py": "f5386fa12c0d8ab534fbdf1e6e7f936315ac2fbfb9839ba362c1f14bde0741e3",
+          "services/replay/session.py": "3ac81b03cca6e293ff3c531f10a56d09e29569e2d3ad83aea96287908f94d9c1",
+          "services/replay/summary.py": "90ed3c7b0c06a7eb91182d0f36b8aa306a248ebbad7975c2db600752682a6886",
+          "services/replay/timeutil.py": "54ca88ed4de367f9bd1d9728de409e1cd412c657f2bcf38cbf5a447f03b38f6c",
+          "services/sentiment/__init__.py": "4220ba5c4f8c9f48e296d18db8fe838fb627dca4f57459a52c8e8aa757c4f8c5",
+          "services/sentiment/anthropic_provider.py": "766d62f9ec937e0e330c531ada76b9e96e39d297a7196d1a6d347f291a094fc2",
+          "services/sentiment/base.py": "c6d09aa927419b393d11c55219ab0546b2cd61361de284f5f96754088d11b0af",
+          "services/sentiment/http_provider.py": "0fa233b9fbe9d867fefd6880d2162cb46c29231e2901c7fe5d195666ff54a3df",
+          "services/sentiment/null_provider.py": "4f6d1bac4e8cd2b13a992f9a40f305b8ed7585788b4bbb4dce9e5ff8015f5ce0",
+          "services/sentiment/store.py": "b994a1bf050b18cd7eb13f50a546437ed1579712d2e67b7bac7f4270c3a47875",
+          "services/simulation/__init__.py": "bc02f0ed1653ab63761c89a2b54e6b118225f8798d4fd36b5db76e9a5f8e818c",
+          "services/simulation/clock.py": "c792a5dc13b1c9637149b876dd439a923db96128c45d818e0fbac93da8e2ab0d",
+          "services/simulation/contracts.py": "679b450c35e5f8b12f6f1fbbd9aa28a1ef4d986d4ef181e0a6f1b402c8c8643d",
+          "services/simulation/engine.py": "77eb83e88294fa0caa340cd9f36397da444b832874f8a6dda1802c58f4a85fec",
+          "services/simulation/profiles.py": "e50c3eb9876fbf7e67ade899e30fca24bce9624f6ac4da57aa7fcde831466b8d",
+          "services/simulation/registry.py": "0266779ab917fad1c578a5999a9f1c235b8603d59abef9ecb3d0ec561c104547",
+          "services/trading/__init__.py": "a0694220f03ed791aa4315d270f8b2d409a8c5fe920b5da13bae267c1fec25b5",
+          "services/trading/analytics.py": "7ca512d373f77256954848513d4aaf0c93f948764ad9ee7ac52a3fcc94d07436",
+          "services/trading/buying_power.py": "13dc881c8ef8f1b558039135430d83398be466dd8b639c471e66b593b67d44b1",
+          "services/trading/dividends.py": "4a226797f70db7cd5c033aa5f6558623ce97869f07794c875dcb9f56517ba3b1",
+          "services/trading/execute.py": "6fbcf2e8bb7f67e2f72f17f406d4813a39d32353f8c7e3790334e8f39365f4f3",
+          "services/trading/execution_provenance.py": "7400360149c8017e879aacee0cc6186ad599969c9149d8269b71e79f424d3ccd",
+          "services/trading/fx.py": "7d502115b3c94f6eb3656c6d8e4e905a2f3dc47b4b676b34195afbe4cbb0451d",
+          "services/trading/orders.py": "bedf5cbc98a41c4ad5e12c56c87ecb8d0232f5cb251f77b4d070fa5b44e07c79",
+          "services/trading/portfolio.py": "2785b2c74c001e2f9c94556182b0cf687269dce787c0fdcdfeecac63e243da24",
+          "services/trading/simulation_adapter.py": "d3f7e31e74062458fab226163b694ff82dd810f6dcb8d36cd06cb44b84c212d9",
+          "services/trading/snapshots.py": "31bcd09e3d320eaf139d036d6b73bad3a73cfff458c0afa3490917bfd7485644",
+          "services/trading/views.py": "f02e95b160bebaa50853652bc9f57f2ae6c0bb997c5645e08557a13796dac08e",
+          "settings.py": "93decf443dab60e6e4bb0796e00ff1630454e94a2df5eb8afc7cc2526b028c5f",
+          "workers/__init__.py": "83389e2fdf26c63bd7848dde3ca16f1890c9fe461c77466afd8784d76f9880ee",
+          "workers/market_analytics_consumer.py": "99a2208774f6409059eb2356324ae1fdb082b26b594db5de4f3ad943916f3615",
+          "workers/market_ingest_consumer.py": "2d5c26c32eafbf295f50d291c85e0b40ec63028cff5cc19d9e60a523db517f24",
+          "workers/news_ingest_consumer.py": "c1ee55da5cf8b3846dd2624bd9955ed30f3e86ca292011329ff2b5aba4815c18",
+          "workers/news_sentiment_consumer.py": "dd6a17c679eee83fb0269e4a520fe6cce3a2e52ed769b5ea868855a5d69ff55a",
+          "workers/outbox_publisher.py": "ce2a88448eae882ba362b992c0ff012247383420bc65ca6c2466929f5e491c3a",
+          "workers/scheduler.py": "5b4b5c08de4275109ca0cb132b0999788626932534690428d5f30a56db00b2b4",
+          "workers/sentiment_aggregate_consumer.py": "b6281eb25d95b56d3fe04abc88b2343336316d7c65858d71326be431e5d4dd9e",
+          "workers/trade_activity_consumer.py": "ae1e379ba8f618c9babe19f7d54587fff0af71e45df870cb11af80bc1e44b13d"
+        }
+      },
+      {
+        "kind": "inventory",
+        "utc": "2026-09-06 07:07:38.680078+00:00",
+        "counts": {
+          "symbols": 75,
+          "price_bars": 278484,
+          "positions": 12,
+          "portfolio_snapshots": 370,
+          "news_articles": 0,
+          "news_sentiment": 0,
+          "options_positions": 0
+        },
+        "read_only": "on"
+      },
+      {
+        "kind": "method",
+        "n": 1000,
+        "warmups": 10,
+        "concurrency": 1,
+        "paths": {
+          "AAPL_indicators": [
+            "/v1/symbols/AAPL/indicators?names=sma_20,sma_50,rsi_14,macd&limit=252"
+          ],
+          "NVDA_indicators": [
+            "/v1/symbols/NVDA/indicators?names=sma_20,sma_50,rsi_14,macd&limit=252"
+          ]
+        },
+        "db_ms": "cursor wall time including DB network/driver, not PG CPU",
+        "endpoint_cpu_ms": "application endpoint worker thread CPU including ORM/driver; excludes dependency and response serialization CPU",
+        "application_cpu_ms": "endpoint CPU plus completed Redis worker CPU; timed-out background commands may finish after the request",
+        "non_db_wall_ms": "ASGI wall minus cursor wall; not pure compute",
+        "portfolio_pair": "sum of two serial API requests, not parallel browser wall time",
+        "first_use": "warm database, not cold disk",
+        "workload": "controlled repeated requests; NOT organic traffic hit rate",
+        "redis_cold": false
+      },
+      {
+        "kind": "first_use",
+        "name": "AAPL_indicators",
+        "measurement": {
+          "queries": 2,
+          "db_ms": 2.612736,
+          "endpoint_cpu_ms": 34.037,
+          "server_ms": 56.508087,
+          "bytes": 60057,
+          "cache_hits": 0,
+          "cache_misses": 1,
+          "cache_errors": 0,
+          "cache_bypass": 0,
+          "cache_worker_cpu_ms": 0.9842000000000001,
+          "application_cpu_ms": 35.0212,
+          "non_db_wall_ms": 53.895351000000005
+        }
+      },
+      {
+        "kind": "first_use",
+        "name": "NVDA_indicators",
+        "measurement": {
+          "queries": 2,
+          "db_ms": 1.048878,
+          "endpoint_cpu_ms": 14.2071,
+          "server_ms": 17.405323,
+          "bytes": 59818,
+          "cache_hits": 0,
+          "cache_misses": 1,
+          "cache_errors": 0,
+          "cache_bypass": 0,
+          "cache_worker_cpu_ms": 0.35540000000000005,
+          "application_cpu_ms": 14.5625,
+          "non_db_wall_ms": 16.356445
+        }
+      },
+      {
+        "kind": "progress",
+        "rounds": 100
+      },
+      {
+        "kind": "progress",
+        "rounds": 200
+      },
+      {
+        "kind": "progress",
+        "rounds": 300
+      },
+      {
+        "kind": "progress",
+        "rounds": 400
+      },
+      {
+        "kind": "progress",
+        "rounds": 500
+      },
+      {
+        "kind": "progress",
+        "rounds": 600
+      },
+      {
+        "kind": "progress",
+        "rounds": 700
+      },
+      {
+        "kind": "progress",
+        "rounds": 800
+      },
+      {
+        "kind": "progress",
+        "rounds": 900
+      },
+      {
+        "kind": "progress",
+        "rounds": 1000
+      },
+      {
+        "kind": "summary",
+        "name": "AAPL_indicators",
+        "n": 1000,
+        "metrics": {
+          "queries": {
+            "p50": 2,
+            "p95": 2,
+            "p99": 2
+          },
+          "db_ms": {
+            "p50": 1.0222,
+            "p95": 1.5248,
+            "p99": 2.3034
+          },
+          "endpoint_cpu_ms": {
+            "p50": 4.7649,
+            "p95": 6.3655,
+            "p99": 7.4029
+          },
+          "server_ms": {
+            "p50": 7.5008,
+            "p95": 9.939,
+            "p99": 11.7246
+          },
+          "bytes": {
+            "p50": 60057,
+            "p95": 60057,
+            "p99": 60057
+          },
+          "cache_hits": {
+            "p50": 1,
+            "p95": 1,
+            "p99": 1
+          },
+          "cache_misses": {
+            "p50": 0,
+            "p95": 0,
+            "p99": 0
+          },
+          "cache_errors": {
+            "p50": 0,
+            "p95": 0,
+            "p99": 0
+          },
+          "cache_bypass": {
+            "p50": 0,
+            "p95": 0,
+            "p99": 0
+          },
+          "cache_worker_cpu_ms": {
+            "p50": 0.1736,
+            "p95": 0.276,
+            "p99": 0.3827
+          },
+          "application_cpu_ms": {
+            "p50": 4.9373,
+            "p95": 6.5713,
+            "p99": 7.74
+          },
+          "non_db_wall_ms": {
+            "p50": 6.4397,
+            "p95": 8.5809,
+            "p99": 10.2916
+          }
+        },
+        "query_counts": {
+          "2": 1000
+        },
+        "hashes": [
+          "bcdd08ec17a154744d7ebe98db6844a1623a4a962d963cfbccd62ea3c998890e"
+        ]
+      },
+      {
+        "kind": "summary",
+        "name": "NVDA_indicators",
+        "n": 1000,
+        "metrics": {
+          "queries": {
+            "p50": 2,
+            "p95": 2,
+            "p99": 2
+          },
+          "db_ms": {
+            "p50": 1.0291,
+            "p95": 1.4972,
+            "p99": 2.1879
+          },
+          "endpoint_cpu_ms": {
+            "p50": 4.7599,
+            "p95": 6.4043,
+            "p99": 7.803
+          },
+          "server_ms": {
+            "p50": 7.5078,
+            "p95": 10.067,
+            "p99": 11.6954
+          },
+          "bytes": {
+            "p50": 59818,
+            "p95": 59818,
+            "p99": 59818
+          },
+          "cache_hits": {
+            "p50": 1,
+            "p95": 1,
+            "p99": 1
+          },
+          "cache_misses": {
+            "p50": 0,
+            "p95": 0,
+            "p99": 0
+          },
+          "cache_errors": {
+            "p50": 0,
+            "p95": 0,
+            "p99": 0
+          },
+          "cache_bypass": {
+            "p50": 0,
+            "p95": 0,
+            "p99": 0
+          },
+          "cache_worker_cpu_ms": {
+            "p50": 0.1746,
+            "p95": 0.286,
+            "p99": 0.4635
+          },
+          "application_cpu_ms": {
+            "p50": 4.9427,
+            "p95": 6.6604,
+            "p99": 7.9859
+          },
+          "non_db_wall_ms": {
+            "p50": 6.4555,
+            "p95": 8.7619,
+            "p99": 10.2618
+          }
+        },
+        "query_counts": {
+          "2": 1000
+        },
+        "hashes": [
+          "3b7ac7cf59145193c280c68619478e69d2e67cc8b2fecc8fa9b189e442e0b458"
+        ]
+      },
+      {
+        "kind": "cache_stats",
+        "enabled": true,
+        "namespace": "stockviz:pilot-benchmark:v1",
+        "stats": {
+          "hits": 2020,
+          "misses": 2,
+          "sets": 2,
+          "errors": 0,
+          "invalid": 0,
+          "bypass": 0,
+          "commands": 2024,
+          "get_commands": 2022,
+          "set_commands": 2,
+          "command_latency_ms": 917.3763556173071,
+          "backend_cpu_ms": 389.23260000000016,
+          "cache_hit_ratio": 0.9990108803165183
+        }
+      },
+      {
+        "kind": "redis_memory",
+        "redis_version": "7.4.11",
+        "keys": 2,
+        "key_bytes": 164144,
+        "used_memory": 772568,
+        "used_memory_rss": 13606912,
+        "evicted_keys": 0,
+        "connected_clients": 1
+      }
+    ],
+    "sha256": "55c6629bf272b076419fb94210fd238dcc37293f537f873e2d6c05c058345ef0"
+  },
+  "p1-final-off": {
+    "records": [
+      {
+        "kind": "source",
+        "python": "3.12.14",
+        "files": {
+          "__init__.py": "91447944015cec709e8aa7655f7e9d64e1e4508e7023a57fe3746911c0fc6fed",
+          "_time.py": "1055a7a1a02e56f0ae55af4e81c30af55334af3a8e35e88a56bb73716306e558",
+          "auth.py": "e3cd3bd66c4e2197afbda0369349fba602d5265eed899614bc2a62f671734296",
+          "benchmarks/__init__.py": "69cb42c9f79507d1c913dc9e7271e61f4ba090d4fd4523d28420b98154b555db",
+          "benchmarks/kafka_scaling.py": "a440abd0b0f2d0909e5b5aaa46582e57dd485f41a418d5c9aa71f11812ceb5a2",
+          "benchmarks/report.py": "e7335c978c157a3e15654f4b1acd9af606c949bf2baa5aa1a16eb49d650ec1c1",
+          "benchmarks/topics.py": "c1b57348fae91966def215674601a43447c5eff379b1fbdee1c2eed8ee2f9f2d",
+          "cli.py": "7190de3efceb557784d8153f296046122154cbd06bfc4914cd82cf945b27dd33",
+          "db.py": "354acd6c7a8df2b9e0d75387a87ba5b3b5135470ca9b4fc92f90c7280ff2a103",
+          "events/__init__.py": "cd8b29787ad052d610251d1756b6fc4586b068ec3ec4c8082599001b7407f2d7",
+          "events/activity.py": "781030f3d8560c05c79dda227ed514d2001260e6b251f19f944742d500116a02",
+          "events/contracts/__init__.py": "7e7c66fffda01e7a63946a287d521ee5dede41a459483c7a0801172a47a4c38d",
+          "events/contracts/common.py": "56c6c53575a475c6ac2b918918af60bbdcfc72333a0d3ef567bf097af4ba7085",
+          "events/contracts/market.py": "bc6f5dc3df6b7c5e4afd36ca68386d77f53438372f9632aef2f7f48080f9b8fa",
+          "events/contracts/news.py": "f79712e8659d671172318611159e214193f8df9dc3b884960fbce9da74d9eb17",
+          "events/contracts/trades.py": "96f72743e048f80b1be5fb324e58390595374b6631fb981f1fb1e9d72311bfa1",
+          "events/dispatcher.py": "817687f161d572f128c3e46718d10346da766b3755f28404a8fd76ac8ce7f96b",
+          "events/handlers.py": "ae2c2a5cefb17fefaa4e870703adcebbc0f973ea45c13e786c124e00385188c7",
+          "events/inbox.py": "f6ab8e74f73f7cdf0588d8a470707eade04eaaa756b38ea03b2c42094b7081e9",
+          "events/outbox.py": "3a4f77ce79c60391e4e93be997b7874e7ce1f89c02bd9f60ce0184cc13252bda",
+          "events/producer.py": "17d4ad6bb28c0d677e686810ea6b0b02fb9b3ee7a221b5f66ece9e94c8b11703",
+          "limiter.py": "5b314c7874e7ead6019edb426eb38ee5201f51d33c39ccf3ac37d26c302a70af",
+          "main.py": "48b75f0da76b30ddb5c18b97341a9b09f985beebb32c1dc702892ac75189aed7",
+          "models/__init__.py": "ee65ea5be781abca9fd2e59d5e63f62f9b8f03832cea977ed1a79f8302998647",
+          "models/alert.py": "7e2757d96ee8ce443dd764c3d5afee1b127ade69b3a8f015175b5bbe66a28ed6",
+          "models/comment.py": "fb3df302be08e4cd1a16503b82451c9ed7a4451db264f16bf01c0f5b561c96ab",
+          "models/dividend.py": "0b2ad59f3bed3af745de61c5c0d1180a06f7c5f00b5a7f63c44132f1529a2f5f",
+          "models/earnings.py": "23c9785deb37d71c5bf9f8e12d8e1875783a18e37d22faf5df163904de6e0d91",
+          "models/events.py": "f481d4cac61776299cdbc6a1e4b75a31b8c672484a2f6e82b19235e3a385ccef",
+          "models/execution.py": "90587d66b9a9093172bccbd6d9280a3ccd6794434d3f7775efc89e8599beaa55",
+          "models/market.py": "8cde0ccecf8c32894df3bac4057af57806d811f3bc727b529126a8f286f25673",
+          "models/metrics.py": "6965e9e59cc8be90ddec205b5517e433a8ae80fbad0d8227f06e24b757b7f25d",
+          "models/option.py": "6a2f182e52830c4ab46cae345147e9012228256ec322bd814756fe39d8381b72",
+          "models/order.py": "8fdd88866ae6288863979edf11a10bd0be09a7b9177f8371919664198f67d94e",
+          "models/portfolio.py": "3998eea42bf0eada3ed9740f4cb933904dae4f0e23208f98f25e23c6673ed826",
+          "models/recommendation.py": "a27cb985815ff124e05c53d6ddbce631f1772d4895e2a0d76e62113b8a20a8dc",
+          "models/replay.py": "9109e69ba1819f45c517ca0f69d8e8f6295c8735c57e0775e1ac2f8ed1e18837",
+          "models/sentiment.py": "31ae384c40208ea38dd4f4af406546a786b315b3fb6222dea42e240d14c4d1f0",
+          "models/user.py": "a5b7dc3c91d703b77edda37f39c70403899e3160d92da370178e05fadbc78fe1",
+          "models/watchlist.py": "5d3e6dbacb58d2496409a995ffe8968af51cb7dea4007fe8ff171a46953493cf",
+          "observability.py": "5970f750682e4ac940f6f2f6593ec1780286e2218a98cf993fde66eb780e58a9",
+          "routers/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "routers/alerts.py": "ead3ca2d4d7bcddf7ca658fd810740a1320712273feffece0f5badb852f376d9",
+          "routers/backtest.py": "87865a128941942986b613e17ddc0bcdf2bfd8f0513da9934ec73570ed8a3b4a",
+          "routers/bars.py": "93adf459d5bd47fc5899be1b0d4cc68209caddfbda69a267770f8667b3aead67",
+          "routers/comments.py": "f41ea3ee1b08ed5adb4250f075582c5c96f7a490bb19080f43526e264fc4a219",
+          "routers/earnings.py": "a6f47dc50edb7e7d02ff8817c8714020886f20518491bb30d357e01ffcca17db",
+          "routers/health.py": "e7c99f2195dcc9cfd40ecfe94dd919f266287ce9fd13f5bb554348be13bf6c7f",
+          "routers/indicators.py": "fd50b5b90b2bec5b78c522fc7f7afb423a183d5ab8e667640cc4b1f6a7202eb1",
+          "routers/journal.py": "05f729acbcdf6a995534b7a3525d35be13c98f1c01ab7435b3a77524263b6170",
+          "routers/leaderboard.py": "1a2996155b82dd6c8767331c75f103a7727c6fcf5b7fc74a6c87124e3596ba01",
+          "routers/markets.py": "22fb0923f5fadbb85acb208d6a7d708e0696e7575481fa4b156ee1ec8a55fa53",
+          "routers/news.py": "00294b5545233862b35f42f22e3c9059bb4822c23bd2d980d8a0374cd49ed26c",
+          "routers/options.py": "23cd931c7a72bf1126ae2660b978837ab16496926e720b35ae6cd49c179546e4",
+          "routers/orders.py": "70374969a8394fe5bc8089e49705162ea60bb78f7174c06a4c375400765aedcf",
+          "routers/quotes.py": "ac8950756ef7d698151dd6543fc9d8ed621aded12a00223d108ba739ff888a4c",
+          "routers/recommendations.py": "2b4cba25a23f43c6b43fd7bc2d0806289416061663459c676137021642a864bd",
+          "routers/replay.py": "796257b18955f17eac3e9174879ebf506e9167471ce8c86c24937a60099afea7",
+          "routers/screener.py": "06cc5452a838aac99ba220cd4a259b19668de45c75d0e4fdcd779936d2ae67d0",
+          "routers/sentiment.py": "ed5abe8b91f12c7215199561666b9fc18dcafbc6d492ce044b067c57763485c0",
+          "routers/stream.py": "c186399152666f1f90d168d77b153c02d0ac5e9208972bfab4325fa8fe22d7e1",
+          "routers/symbols.py": "c17894932fb633963890a20fc2eae85f09441e25c091bad353b7a9679cc7bb35",
+          "routers/trading.py": "09306b1b1a634a1c87661f35eee09850f0bc3920ca2543f61e8c655a79de8f76",
+          "routers/watchlist.py": "a9ada33008952d5ff729d7b2249e9503b9f5c7517d78add9b9b1b5b572dd44df",
+          "scheduler.py": "e87b907a911a507ada94b407b6959b43a775a325e5750dd882a6b7f4099da04f",
+          "schemas.py": "d140de66c2096d6151253d7a8bbbc55d87ebe1c011d6f4a1217668a58e6a723b",
+          "services/__init__.py": "337921aa563126bd0a2d82b9e42fa048a169d0585c3fff4bf1db8d38959f9fd4",
+          "services/alerts.py": "31278dfea14b2a0597621f19578c38bbdb6fefcc225911e936ef9de683f8286b",
+          "services/backtest/__init__.py": "e8b11c9dcc637c27f5f1e5a46833f96f2087c40c128eef681b96501977386d0c",
+          "services/backtest/engine.py": "adb64e6b59c1fffb831a23c8c59c7d5b1562a2d31e62181e204bf16c2203f5b8",
+          "services/cache.py": "c0f42f000a6f8a9540207afcc6d1aeb4c8f886846dcbea3941c6108e35882046",
+          "services/indicator_view.py": "177cff069261c98cb0e86bbdfb5ddd2efe975052c0ec9fe354328212aad9b008",
+          "services/indicators/__init__.py": "4fd1fbae1ba7ec2faec50228ab0e6e06ccc3838aff7ad6e13b5b722f30599079",
+          "services/indicators/compute.py": "954b558c0d648a901eabe6c2d8c2c646f2261b40ad8d73999924654f873cc8d8",
+          "services/ingest/__init__.py": "f6279d119d7fe5a06be5b9acaeee9277e2fb4552dc7050e05fc757c09e833b2e",
+          "services/ingest/backfill.py": "9e85cb75d28cfa56ef15a5841fc7bf8470281526310c66c898b936b03355a1ec",
+          "services/ingest/bar_semantics.py": "6d0222bdf77fb9abc6da03cb37eafdd4933067a16dccb2dc28c63a8bb3fbd18b",
+          "services/ingest/dividends.py": "74941e206ad1ca5d9bc864136faf3614078c49e8d78a5e82f4ba71a4184df1d8",
+          "services/ingest/earnings.py": "35c0b1e35fb45b103101817b43e7090b84b07608670beacede6b46f3d1dae9a7",
+          "services/ingest/fx.py": "677614d5adefa71829495f9a601c0aeafcbe6119bab64f03fa937440e64e02c0",
+          "services/ingest/metadata.py": "785d9e786ed6e77622ee578d216fb18b452082d469d6a59f6b76c17ece963225",
+          "services/ingest/news.py": "2247a35d16c2f982155e1f652c2ea7672ca4fe16fb4638a929efeb0069e53834",
+          "services/ingest/prices.py": "46d84b5b8d3d9654c3e92cf5a1d20f6ac13cff551ff22fada6b6a27c1cfae41f",
+          "services/ingest/providers/__init__.py": "7bf9edfe8914a0844adda753735b7b91b4a9d9d0e36418f604e1229b1b6e5522",
+          "services/ingest/providers/massive.py": "cffd654f4bb6f05871c11204d54da0706a68a5579f732e45fe467cdd4b64679c",
+          "services/ingest/screening.py": "66b0a1456c0edbdf95abe1b7ed1fe894f673924d490b38d95c82347cd2b019ba",
+          "services/ingest/seed.py": "c86549ae4967c301b4bd968e00822d7cd165781f055e851be9bb3475cbbb8030",
+          "services/ingest/semantic_acceptance.py": "f53b04c506616bb94d9c6d5ba00830e9d79cf59d5ac32672b4be9eb096cbdce3",
+          "services/ingest/shadow.py": "f8c7bee6d5c76a84a1c7fc9162b435f4b7fb0707a902dd25585cf3ec679e6b39",
+          "services/ingest/shadow_report.py": "10527b49c032a5ff1d6d381fe0206af3f56b7b6ce5cd9747e7f82fc80ecbb86b",
+          "services/journal/__init__.py": "4f55183f080738832170af0ac63525f1701f0c6dcccc2e94c7f47fb015a4e34e",
+          "services/journal/aggregate.py": "d23c06b72c04cae8457fe339261c4fc1b3904942a91d3d20cd1d8efccc1657b7",
+          "services/journal/model.py": "ecdb2b19a0fe9db88ff3cdbc3965adb98e64cb1e6a0b2f6d44c70a02ceacfed6",
+          "services/journal/query.py": "92cc1ce2793d7807498649b7beaf015d763bff298156d653a89541c4bc3ba6cf",
+          "services/metrics.py": "ec5d384def6d2a9d0aff63cead1498ad7246578f194e335a56252a315d537d4b",
+          "services/options/__init__.py": "191f8fff17a7cc2fe4e56a90581991a9dd43a06ee5337c9f8e7db0e4f235e37c",
+          "services/options/pricing.py": "cc61e910484eaf196662e9dbb9e6d1b203b87da0df01c82af153a538c01b29eb",
+          "services/options/trade.py": "5211a31fa9238aa46296814aed81189669c1e9c2c9c6983f4a9a2de11f808197",
+          "services/recent_bars.py": "5f07318dc2d149b36ed4d1189640b29a11262512a29547aa64046841ae2608e9",
+          "services/recommend/__init__.py": "d1fe8b0d107ea22c6a0b53163dfc8435a6d31c9c0d003f238dbbf18c700ad637",
+          "services/recommend/engine.py": "e1b4b2ee47e50a0e6f8106d110e953a4c32cd0b3d34701acd1ad50266feaec06",
+          "services/replay/__init__.py": "d543b2d69157efdb687c3d3cc348870a636ea132d45ec4f7a35f2c6a78eb58fe",
+          "services/replay/errors.py": "8713834f3671d70512de852ad8f2dad2f3005d940eb1a7cdde7e9053ae6b7a99",
+          "services/replay/forensics.py": "705182e71e13f80e84a07914674d78182f237e91a5c04ae1a3dbb3cb5b41c67f",
+          "services/replay/journal.py": "72d77ec5ca512086de77ed1f6ea64cd76719a7dcb84505d6a2ebf12d14d0f602",
+          "services/replay/ledger.py": "90d6c4ad6bd32337482a252d320080f46ea55a72a57b72420e915c3156429550",
+          "services/replay/market.py": "f5386fa12c0d8ab534fbdf1e6e7f936315ac2fbfb9839ba362c1f14bde0741e3",
+          "services/replay/session.py": "3ac81b03cca6e293ff3c531f10a56d09e29569e2d3ad83aea96287908f94d9c1",
+          "services/replay/summary.py": "90ed3c7b0c06a7eb91182d0f36b8aa306a248ebbad7975c2db600752682a6886",
+          "services/replay/timeutil.py": "54ca88ed4de367f9bd1d9728de409e1cd412c657f2bcf38cbf5a447f03b38f6c",
+          "services/sentiment/__init__.py": "4220ba5c4f8c9f48e296d18db8fe838fb627dca4f57459a52c8e8aa757c4f8c5",
+          "services/sentiment/anthropic_provider.py": "766d62f9ec937e0e330c531ada76b9e96e39d297a7196d1a6d347f291a094fc2",
+          "services/sentiment/base.py": "c6d09aa927419b393d11c55219ab0546b2cd61361de284f5f96754088d11b0af",
+          "services/sentiment/http_provider.py": "0fa233b9fbe9d867fefd6880d2162cb46c29231e2901c7fe5d195666ff54a3df",
+          "services/sentiment/null_provider.py": "4f6d1bac4e8cd2b13a992f9a40f305b8ed7585788b4bbb4dce9e5ff8015f5ce0",
+          "services/sentiment/store.py": "b994a1bf050b18cd7eb13f50a546437ed1579712d2e67b7bac7f4270c3a47875",
+          "services/simulation/__init__.py": "bc02f0ed1653ab63761c89a2b54e6b118225f8798d4fd36b5db76e9a5f8e818c",
+          "services/simulation/clock.py": "c792a5dc13b1c9637149b876dd439a923db96128c45d818e0fbac93da8e2ab0d",
+          "services/simulation/contracts.py": "679b450c35e5f8b12f6f1fbbd9aa28a1ef4d986d4ef181e0a6f1b402c8c8643d",
+          "services/simulation/engine.py": "77eb83e88294fa0caa340cd9f36397da444b832874f8a6dda1802c58f4a85fec",
+          "services/simulation/profiles.py": "e50c3eb9876fbf7e67ade899e30fca24bce9624f6ac4da57aa7fcde831466b8d",
+          "services/simulation/registry.py": "0266779ab917fad1c578a5999a9f1c235b8603d59abef9ecb3d0ec561c104547",
+          "services/trading/__init__.py": "a0694220f03ed791aa4315d270f8b2d409a8c5fe920b5da13bae267c1fec25b5",
+          "services/trading/analytics.py": "7ca512d373f77256954848513d4aaf0c93f948764ad9ee7ac52a3fcc94d07436",
+          "services/trading/buying_power.py": "13dc881c8ef8f1b558039135430d83398be466dd8b639c471e66b593b67d44b1",
+          "services/trading/dividends.py": "4a226797f70db7cd5c033aa5f6558623ce97869f07794c875dcb9f56517ba3b1",
+          "services/trading/execute.py": "6fbcf2e8bb7f67e2f72f17f406d4813a39d32353f8c7e3790334e8f39365f4f3",
+          "services/trading/execution_provenance.py": "7400360149c8017e879aacee0cc6186ad599969c9149d8269b71e79f424d3ccd",
+          "services/trading/fx.py": "7d502115b3c94f6eb3656c6d8e4e905a2f3dc47b4b676b34195afbe4cbb0451d",
+          "services/trading/orders.py": "bedf5cbc98a41c4ad5e12c56c87ecb8d0232f5cb251f77b4d070fa5b44e07c79",
+          "services/trading/portfolio.py": "2785b2c74c001e2f9c94556182b0cf687269dce787c0fdcdfeecac63e243da24",
+          "services/trading/simulation_adapter.py": "d3f7e31e74062458fab226163b694ff82dd810f6dcb8d36cd06cb44b84c212d9",
+          "services/trading/snapshots.py": "31bcd09e3d320eaf139d036d6b73bad3a73cfff458c0afa3490917bfd7485644",
+          "services/trading/views.py": "f02e95b160bebaa50853652bc9f57f2ae6c0bb997c5645e08557a13796dac08e",
+          "settings.py": "93decf443dab60e6e4bb0796e00ff1630454e94a2df5eb8afc7cc2526b028c5f",
+          "workers/__init__.py": "83389e2fdf26c63bd7848dde3ca16f1890c9fe461c77466afd8784d76f9880ee",
+          "workers/market_analytics_consumer.py": "99a2208774f6409059eb2356324ae1fdb082b26b594db5de4f3ad943916f3615",
+          "workers/market_ingest_consumer.py": "2d5c26c32eafbf295f50d291c85e0b40ec63028cff5cc19d9e60a523db517f24",
+          "workers/news_ingest_consumer.py": "c1ee55da5cf8b3846dd2624bd9955ed30f3e86ca292011329ff2b5aba4815c18",
+          "workers/news_sentiment_consumer.py": "dd6a17c679eee83fb0269e4a520fe6cce3a2e52ed769b5ea868855a5d69ff55a",
+          "workers/outbox_publisher.py": "ce2a88448eae882ba362b992c0ff012247383420bc65ca6c2466929f5e491c3a",
+          "workers/scheduler.py": "5b4b5c08de4275109ca0cb132b0999788626932534690428d5f30a56db00b2b4",
+          "workers/sentiment_aggregate_consumer.py": "b6281eb25d95b56d3fe04abc88b2343336316d7c65858d71326be431e5d4dd9e",
+          "workers/trade_activity_consumer.py": "ae1e379ba8f618c9babe19f7d54587fff0af71e45df870cb11af80bc1e44b13d"
+        }
+      },
+      {
+        "kind": "inventory",
+        "utc": "2026-09-06 06:58:15.033114+00:00",
+        "counts": {
+          "symbols": 75,
+          "price_bars": 278484,
+          "positions": 12,
+          "portfolio_snapshots": 370,
+          "news_articles": 0,
+          "news_sentiment": 0,
+          "options_positions": 0
+        },
+        "read_only": "on"
+      },
+      {
+        "kind": "method",
+        "n": 1000,
+        "warmups": 10,
+        "concurrency": 1,
+        "paths": {
+          "AAPL_indicators": [
+            "/v1/symbols/AAPL/indicators?names=sma_20,sma_50,rsi_14,macd&limit=252"
+          ],
+          "NVDA_indicators": [
+            "/v1/symbols/NVDA/indicators?names=sma_20,sma_50,rsi_14,macd&limit=252"
+          ]
+        },
+        "db_ms": "cursor wall time including DB network/driver, not PG CPU",
+        "endpoint_cpu_ms": "application endpoint worker thread CPU including ORM/driver; excludes dependency and response serialization CPU",
+        "application_cpu_ms": "endpoint CPU plus completed Redis worker CPU; timed-out background commands may finish after the request",
+        "non_db_wall_ms": "ASGI wall minus cursor wall; not pure compute",
+        "portfolio_pair": "sum of two serial API requests, not parallel browser wall time",
+        "first_use": "warm database, not cold disk",
+        "workload": "controlled repeated requests; NOT organic traffic hit rate",
+        "redis_cold": false
+      },
+      {
+        "kind": "first_use",
+        "name": "AAPL_indicators",
+        "measurement": {
+          "queries": 2,
+          "db_ms": 2.365626,
+          "endpoint_cpu_ms": 32.0523,
+          "server_ms": 101.286155,
+          "bytes": 60057,
+          "cache_hits": 0,
+          "cache_misses": 0,
+          "cache_errors": 0,
+          "cache_bypass": 0,
+          "cache_worker_cpu_ms": 0,
+          "application_cpu_ms": 32.0523,
+          "non_db_wall_ms": 98.92052899999999
+        }
+      },
+      {
+        "kind": "first_use",
+        "name": "NVDA_indicators",
+        "measurement": {
+          "queries": 2,
+          "db_ms": 1.1987480000000001,
+          "endpoint_cpu_ms": 13.6044,
+          "server_ms": 16.268862,
+          "bytes": 59818,
+          "cache_hits": 0,
+          "cache_misses": 0,
+          "cache_errors": 0,
+          "cache_bypass": 0,
+          "cache_worker_cpu_ms": 0,
+          "application_cpu_ms": 13.6044,
+          "non_db_wall_ms": 15.070113999999998
+        }
+      },
+      {
+        "kind": "progress",
+        "rounds": 100
+      },
+      {
+        "kind": "progress",
+        "rounds": 200
+      },
+      {
+        "kind": "progress",
+        "rounds": 300
+      },
+      {
+        "kind": "progress",
+        "rounds": 400
+      },
+      {
+        "kind": "progress",
+        "rounds": 500
+      },
+      {
+        "kind": "progress",
+        "rounds": 600
+      },
+      {
+        "kind": "progress",
+        "rounds": 700
+      },
+      {
+        "kind": "progress",
+        "rounds": 800
+      },
+      {
+        "kind": "progress",
+        "rounds": 900
+      },
+      {
+        "kind": "progress",
+        "rounds": 1000
+      },
+      {
+        "kind": "summary",
+        "name": "AAPL_indicators",
+        "n": 1000,
+        "metrics": {
+          "queries": {
+            "p50": 2,
+            "p95": 2,
+            "p99": 2
+          },
+          "db_ms": {
+            "p50": 1.098,
+            "p95": 1.7042,
+            "p99": 2.5946
+          },
+          "endpoint_cpu_ms": {
+            "p50": 13.5855,
+            "p95": 19.3239,
+            "p99": 69.2965
+          },
+          "server_ms": {
+            "p50": 16.2465,
+            "p95": 22.4047,
+            "p99": 71.9853
+          },
+          "bytes": {
+            "p50": 60057,
+            "p95": 60057,
+            "p99": 60057
+          },
+          "cache_hits": {
+            "p50": 0,
+            "p95": 0,
+            "p99": 0
+          },
+          "cache_misses": {
+            "p50": 0,
+            "p95": 0,
+            "p99": 0
+          },
+          "cache_errors": {
+            "p50": 0,
+            "p95": 0,
+            "p99": 0
+          },
+          "cache_bypass": {
+            "p50": 0,
+            "p95": 0,
+            "p99": 0
+          },
+          "cache_worker_cpu_ms": {
+            "p50": 0,
+            "p95": 0,
+            "p99": 0
+          },
+          "application_cpu_ms": {
+            "p50": 13.5855,
+            "p95": 19.3239,
+            "p99": 69.2965
+          },
+          "non_db_wall_ms": {
+            "p50": 15.1162,
+            "p95": 21.1989,
+            "p99": 70.6732
+          }
+        },
+        "query_counts": {
+          "2": 1000
+        },
+        "hashes": [
+          "bcdd08ec17a154744d7ebe98db6844a1623a4a962d963cfbccd62ea3c998890e"
+        ]
+      },
+      {
+        "kind": "summary",
+        "name": "NVDA_indicators",
+        "n": 1000,
+        "metrics": {
+          "queries": {
+            "p50": 2,
+            "p95": 2,
+            "p99": 2
+          },
+          "db_ms": {
+            "p50": 1.0949,
+            "p95": 1.5867,
+            "p99": 2.328
+          },
+          "endpoint_cpu_ms": {
+            "p50": 13.5051,
+            "p95": 18.0424,
+            "p99": 67.6086
+          },
+          "server_ms": {
+            "p50": 16.1664,
+            "p95": 21.1136,
+            "p99": 70.2893
+          },
+          "bytes": {
+            "p50": 59818,
+            "p95": 59818,
+            "p99": 59818
+          },
+          "cache_hits": {
+            "p50": 0,
+            "p95": 0,
+            "p99": 0
+          },
+          "cache_misses": {
+            "p50": 0,
+            "p95": 0,
+            "p99": 0
+          },
+          "cache_errors": {
+            "p50": 0,
+            "p95": 0,
+            "p99": 0
+          },
+          "cache_bypass": {
+            "p50": 0,
+            "p95": 0,
+            "p99": 0
+          },
+          "cache_worker_cpu_ms": {
+            "p50": 0,
+            "p95": 0,
+            "p99": 0
+          },
+          "application_cpu_ms": {
+            "p50": 13.5051,
+            "p95": 18.0424,
+            "p99": 67.6086
+          },
+          "non_db_wall_ms": {
+            "p50": 15.0226,
+            "p95": 19.9007,
+            "p99": 69.2969
+          }
+        },
+        "query_counts": {
+          "2": 1000
+        },
+        "hashes": [
+          "3b7ac7cf59145193c280c68619478e69d2e67cc8b2fecc8fa9b189e442e0b458"
+        ]
+      },
+      {
+        "kind": "cache_stats",
+        "enabled": false,
+        "namespace": "stockviz:local:v1",
+        "stats": {
+          "hits": 0,
+          "misses": 0,
+          "sets": 0,
+          "errors": 0,
+          "invalid": 0,
+          "bypass": 0,
+          "commands": 0,
+          "get_commands": 0,
+          "set_commands": 0,
+          "command_latency_ms": 0,
+          "backend_cpu_ms": 0,
+          "cache_hit_ratio": 0
+        }
+      }
+    ],
+    "sha256": "dabaaef564e658515440f1a740ff8845f14df4e71ec68cd53774de27549596b3"
+  }
+}

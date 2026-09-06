@@ -199,3 +199,12 @@ export type PortfolioAnalytics = {
 export function getPortfolioAnalytics(): Promise<PortfolioAnalytics> {
   return authedGet<PortfolioAnalytics>("/v1/portfolio/analytics");
 }
+
+export type PortfolioOverview = {
+  portfolio: Portfolio;
+  analytics: PortfolioAnalytics;
+};
+
+export function getPortfolioOverview(): Promise<PortfolioOverview> {
+  return authedGet<PortfolioOverview>("/v1/portfolio/overview");
+}

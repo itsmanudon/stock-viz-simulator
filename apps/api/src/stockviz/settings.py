@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import json
+import re
 from functools import lru_cache
-from typing import Annotated
+from typing import Annotated, Literal
+from urllib.parse import urlsplit
 
-from pydantic import field_validator, model_validator
+from pydantic import SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 _PRODUCTION_ENVIRONMENTS = frozenset({"production", "prod"})
@@ -32,6 +34,21 @@ class Settings(BaseSettings):
     debug: bool = True
 
     database_url: str = "postgresql+psycopg://stockviz:stockviz_dev@127.0.0.1:5434/stockviz"
+
+    # Optional local pilot for pure public computations; no private data or locks.
+    cache_backend: Literal["none", "redis"] = "none"
+    redis_url: str = ""
+    redis_password: SecretStr = SecretStr("")
+    cache_namespace: str = "stockviz:local:v1"
+
+    @field_validator("cache_namespace")
+    @classmethod
+    def _safe_cache_namespace(cls, value: str) -> str:
+        if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9:_-]{0,127}", value):
+            raise ValueError(
+                "cache namespace must be 1-128 letters, digits, colons, underscores or hyphens"
+            )
+        return value
 
     @field_validator("database_url")
     @classmethod
@@ -144,6 +161,36 @@ class Settings(BaseSettings):
         set by hand after the first deploy — exactly the kind of step that gets
         missed. Failing loudly at startup beats failing open.
         """
+
+        if self.cache_backend == "redis":
+            if self.environment.strip().lower() in _PRODUCTION_ENVIRONMENTS:
+                raise ValueError("Redis pilot is prohibited in production/prod environments")
+            if not self.redis_url.strip() or not self.redis_password.get_secret_value().strip():
+                raise ValueError("CACHE_BACKEND=redis requires REDIS_URL and REDIS_PASSWORD")
+            try:
+                url = urlsplit(self.redis_url)
+                port = url.port
+            except ValueError:
+                raise ValueError("REDIS_URL must contain a valid host and port") from None
+            if (
+                url.scheme not in {"redis", "rediss"}
+                or not url.hostname
+                or url.username is not None
+                or url.password is not None
+                or url.query
+                or url.fragment
+            ):
+                raise ValueError(
+                    "REDIS_URL must be redis/rediss with no credentials, query or fragment"
+                )
+            if port == 0 or url.netloc.endswith(":"):
+                raise ValueError("REDIS_URL port must be between 1 and 65535")
+            if url.path not in {"", "/"} and (
+                re.fullmatch(r"/[0-9]+", url.path) is None
+                or len(url.path) > 3
+                or int(url.path[1:]) > 15
+            ):
+                raise ValueError("REDIS_URL database must be an unencoded integer from 0 to 15")
 
         if self.massive_shadow_enabled and not self.massive_api_key.strip():
             raise ValueError("MASSIVE_SHADOW_ENABLED requires MASSIVE_API_KEY")

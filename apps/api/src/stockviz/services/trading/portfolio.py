@@ -13,7 +13,6 @@ from dataclasses import dataclass, field
 from datetime import date as date_type
 from decimal import Decimal
 
-from sqlalchemy import func
 from sqlmodel import Session, select
 
 from stockviz.models import (
@@ -21,10 +20,10 @@ from stockviz.models import (
     OptionStatus,
     Portfolio,
     Position,
-    PriceBar,
     Symbol,
 )
 from stockviz.models.option import CONTRACT_MULTIPLIER
+from stockviz.services.recent_bars import recent_closes
 from stockviz.services.trading.buying_power import reserved_cash, reserved_shares
 from stockviz.services.trading.fx import convert as fx_convert
 from stockviz.services.trading.fx import latest_rate
@@ -91,35 +90,12 @@ class PortfolioValuation:
 
 
 def latest_close_map(session: Session, tickers: list[str]) -> dict[str, Decimal]:
-    """Per-ticker latest ``1d`` close, in the symbol's native currency.
-
-    One query for the whole set instead of one per ticker: rank each ticker's
-    bars by ``ts`` descending and keep the first. This is the hot path for
-    every portfolio read, so the N+1 version showed up directly in page
-    latency once a portfolio held more than a handful of names.
-    """
-    if not tickers:
-        return {}
-
-    ranked = (
-        select(
-            PriceBar.ticker,
-            PriceBar.close,  # type: ignore[arg-type]
-            func.row_number()
-            .over(
-                partition_by=PriceBar.ticker,  # type: ignore[arg-type]
-                order_by=PriceBar.ts.desc(),  # type: ignore[attr-defined]
-            )
-            .label("rn"),
-        )
-        .where(
-            PriceBar.ticker.in_(tickers),  # type: ignore[attr-defined]
-            PriceBar.interval == "1d",
-        )
-        .subquery()
-    )
-    rows = session.exec(select(ranked.c.ticker, ranked.c.close).where(ranked.c.rn == 1)).all()  # type: ignore[call-overload]
-    return dict(rows)
+    """Per-ticker latest daily close via bounded reads in the native currency."""
+    return {
+        ticker: closes[0]
+        for ticker, closes in recent_closes(session, tickers, limit_per_ticker=1).items()
+        if closes
+    }
 
 
 # Back-compat alias — the private name predates the public one.
