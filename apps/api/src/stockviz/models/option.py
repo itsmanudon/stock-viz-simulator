@@ -16,7 +16,7 @@ from datetime import date as date_type
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import Numeric
+from sqlalchemy import Index, Numeric
 from sqlmodel import Column, Field, SQLModel
 
 from stockviz._time import utcnow
@@ -39,6 +39,10 @@ class OptionStatus(enum.StrEnum):
 
 class OptionsPosition(SQLModel, table=True):
     __tablename__ = "options_positions"  # pyright: ignore[reportAssignmentType]
+    # The Trading Journal scans one user's settled contracts over a month.
+    # Composite so that range scan doesn't fall back to the user_id index and
+    # then filter every historical row by hand.
+    __table_args__ = (Index("ix_options_positions_user_settled", "user_id", "settled_at"),)
 
     id: int | None = Field(default=None, primary_key=True)
     user_id: int = Field(foreign_key="users.id", index=True)
@@ -54,3 +58,15 @@ class OptionsPosition(SQLModel, table=True):
     status: OptionStatus = Field(default=OptionStatus.OPEN, max_length=12, index=True)
     opened_at: datetime = Field(default_factory=utcnow, nullable=False)
     settled_at: datetime | None = Field(default=None, nullable=True)
+
+    # Terminal-event accounting, written once when the position leaves OPEN.
+    # ``proceeds`` is the cash actually credited by that event; ``realized_pnl``
+    # is the USD gain/loss over the contract's whole life. Both stay NULL on
+    # OPEN rows, and on CLOSED/EXERCISED rows written before these columns
+    # existed — their proceeds were never persisted and re-pricing them today
+    # would not be reproducible, so the Trading Journal excludes them rather
+    # than inventing a number. See docs/TRADING_JOURNAL.md.
+    proceeds: Decimal | None = Field(default=None, sa_column=Column(Numeric(20, 6), nullable=True))
+    realized_pnl: Decimal | None = Field(
+        default=None, sa_column=Column(Numeric(20, 6), nullable=True)
+    )

@@ -11,7 +11,7 @@ from datetime import date as date_type
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import Numeric, UniqueConstraint
+from sqlalchemy import Index, Numeric, UniqueConstraint
 from sqlmodel import Column, Field, SQLModel
 
 from stockviz._time import utcnow
@@ -54,6 +54,10 @@ class Position(SQLModel, table=True):
 
 class Trade(SQLModel, table=True):
     __tablename__ = "trades"  # pyright: ignore[reportAssignmentType]
+    # The Trading Journal scans one portfolio's fills over a month
+    # (portfolio_id = ? AND ts >= ? AND ts < ?). The separate portfolio_id and
+    # ts indexes each answer only half of that.
+    __table_args__ = (Index("ix_trades_portfolio_ts", "portfolio_id", "ts"),)
 
     id: int | None = Field(default=None, primary_key=True)
     portfolio_id: int = Field(foreign_key="portfolios.id", index=True)
@@ -73,6 +77,10 @@ class Trade(SQLModel, table=True):
     # Set on sells; NULL on buys (a buy realizes nothing).
     realized_pnl: Decimal | None = Field(
         default=None, sa_column=Column(Numeric(20, 6), nullable=True)
+    )
+    # Native weighted-average basis captured before a sell mutates holdings.
+    avg_cost_at_fill: Decimal | None = Field(
+        default=None, sa_column=Column(Numeric(18, 6), nullable=True)
     )
 
 

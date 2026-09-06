@@ -36,6 +36,13 @@ from stockviz.settings import get_settings
 
 SECRET = get_settings().internal_api_token
 _EPOCH = datetime(2024, 1, 1)
+TODAY = date(2026, 8, 24)
+
+
+@pytest.fixture(autouse=True)
+def option_clock(monkeypatch):
+    # Stable New York daytime; the test runner may be on either side of UTC midnight.
+    monkeypatch.setattr("stockviz.services.options.trade.utcnow", lambda: datetime(2026, 8, 24, 18))
 
 
 def _auth_headers(user_id: int) -> dict[str, str]:
@@ -170,7 +177,7 @@ def test_open_option_debits_premium_and_creates_position(session: Session) -> No
         ticker="AAPL",
         option_type=OptionType.CALL,
         strike=Decimal(100),
-        expiry=date.today() + timedelta(days=30),
+        expiry=TODAY + timedelta(days=30),
         quantity=2,
     )
 
@@ -189,7 +196,7 @@ def test_open_option_premium_equals_black_scholes(session: Session) -> None:
     _seed_bars(session, closes)
     user_id = _make_user(session)
 
-    expiry = date.today() + timedelta(days=60)
+    expiry = TODAY + timedelta(days=60)
     result = open_option(
         session,
         user_id=user_id,
@@ -205,7 +212,7 @@ def test_open_option_premium_equals_black_scholes(session: Session) -> None:
     expected = black_scholes(
         spot=spot,
         strike=100.0,
-        time_to_expiry_years=(expiry - date.today()).days / 365.0,
+        time_to_expiry_years=(expiry - TODAY).days / 365.0,
         volatility=vol,
         risk_free_rate=0.05,
         option_type="call",
@@ -223,7 +230,7 @@ def test_open_option_unknown_ticker_raises(session: Session) -> None:
             ticker="NOPE",
             option_type=OptionType.CALL,
             strike=Decimal(100),
-            expiry=date.today() + timedelta(days=30),
+            expiry=TODAY + timedelta(days=30),
             quantity=1,
         )
 
@@ -238,7 +245,7 @@ def test_open_option_past_expiry_raises(session: Session) -> None:
             ticker="AAPL",
             option_type=OptionType.CALL,
             strike=Decimal(100),
-            expiry=date.today() - timedelta(days=1),
+            expiry=TODAY - timedelta(days=1),
             quantity=1,
         )
 
@@ -254,7 +261,7 @@ def test_open_option_insufficient_cash_raises(session: Session) -> None:
             ticker="AAPL",
             option_type=OptionType.CALL,
             strike=Decimal(100),
-            expiry=date.today() + timedelta(days=30),
+            expiry=TODAY + timedelta(days=30),
             quantity=100_000,
         )
 
@@ -270,7 +277,7 @@ def test_close_option_credits_cash_and_marks_closed(session: Session) -> None:
         ticker="AAPL",
         option_type=OptionType.CALL,
         strike=Decimal(100),
-        expiry=date.today() + timedelta(days=30),
+        expiry=TODAY + timedelta(days=30),
         quantity=1,
     )
     session.refresh(portfolio)
@@ -282,6 +289,11 @@ def test_close_option_credits_cash_and_marks_closed(session: Session) -> None:
 
     session.refresh(portfolio)
     assert portfolio.cash_balance == cash_after_open + closed.cash_delta
+
+    # Sold to close: proceeds are persisted, so the Trading Journal can report
+    # this realization instead of re-pricing a historical contract.
+    assert closed.position.proceeds == closed.cash_delta
+    assert closed.position.realized_pnl == closed.cash_delta - opened.position.premium_paid
 
 
 # ---------------------------------------------------------------------------
@@ -327,10 +339,10 @@ def test_settle_itm_call_exercises_into_equity(session: Session) -> None:
         portfolio_id=portfolio.id,  # type: ignore[arg-type]
         option_type=OptionType.CALL,
         strike=Decimal(100),
-        expiry=date.today() - timedelta(days=1),
+        expiry=TODAY - timedelta(days=1),
     )
 
-    settled = settle_expired_options(session, settle_date=date.today())
+    settled = settle_expired_options(session, settle_date=TODAY)
     assert settled == 1
 
     session.refresh(pos)
@@ -346,6 +358,12 @@ def test_settle_itm_call_exercises_into_equity(session: Session) -> None:
     session.refresh(portfolio)
     assert portfolio.cash_balance == DEFAULT_STARTING_CASH - Decimal(10_000)
 
+    # No cash is credited by the exercise itself and the upside carries forward
+    # as a strike-priced cost basis, so the option leg realizes only the sunk
+    # premium. The rest is realized by the eventual equity sell.
+    assert pos.proceeds == Decimal(0)
+    assert pos.realized_pnl == Decimal("-500.00")
+
 
 def test_settle_otm_call_expires_worthless(session: Session) -> None:
     _seed_bars(session, [80.0])  # spot = 80, below strike 100
@@ -357,10 +375,10 @@ def test_settle_otm_call_expires_worthless(session: Session) -> None:
         portfolio_id=portfolio.id,  # type: ignore[arg-type]
         option_type=OptionType.CALL,
         strike=Decimal(100),
-        expiry=date.today() - timedelta(days=1),
+        expiry=TODAY - timedelta(days=1),
     )
 
-    settle_expired_options(session, settle_date=date.today())
+    settle_expired_options(session, settle_date=TODAY)
     session.refresh(pos)
     assert pos.status == OptionStatus.EXPIRED
 
@@ -369,6 +387,10 @@ def test_settle_otm_call_expires_worthless(session: Session) -> None:
     assert equity is None
     session.refresh(portfolio)
     assert portfolio.cash_balance == DEFAULT_STARTING_CASH
+
+    # Worthless at expiry: the premium is the whole loss.
+    assert pos.proceeds == Decimal(0)
+    assert pos.realized_pnl == Decimal("-500.00")
 
 
 def test_settle_itm_put_sells_held_shares(session: Session) -> None:
@@ -389,10 +411,10 @@ def test_settle_itm_put_sells_held_shares(session: Session) -> None:
         portfolio_id=portfolio.id,  # type: ignore[arg-type]
         option_type=OptionType.PUT,
         strike=Decimal(100),
-        expiry=date.today() - timedelta(days=1),
+        expiry=TODAY - timedelta(days=1),
     )
 
-    settle_expired_options(session, settle_date=date.today())
+    settle_expired_options(session, settle_date=TODAY)
     session.refresh(pos)
     assert pos.status == OptionStatus.EXERCISED
 
@@ -401,6 +423,11 @@ def test_settle_itm_put_sells_held_shares(session: Session) -> None:
     assert equity is None
     session.refresh(portfolio)
     assert portfolio.cash_balance == DEFAULT_STARTING_CASH + Decimal(10_000)
+
+    # This share sale writes no Trade row, so its equity realization is folded
+    # into the option leg: (100 strike - 90 basis) x 100 shares - 500 premium.
+    assert pos.proceeds == Decimal("10000.00")
+    assert pos.realized_pnl == Decimal("500.00")
 
 
 def test_settle_itm_put_cash_settles_without_shares(session: Session) -> None:
@@ -413,16 +440,18 @@ def test_settle_itm_put_cash_settles_without_shares(session: Session) -> None:
         portfolio_id=portfolio.id,  # type: ignore[arg-type]
         option_type=OptionType.PUT,
         strike=Decimal(100),
-        expiry=date.today() - timedelta(days=1),
+        expiry=TODAY - timedelta(days=1),
     )
 
-    settle_expired_options(session, settle_date=date.today())
+    settle_expired_options(session, settle_date=TODAY)
     session.refresh(pos)
     assert pos.status == OptionStatus.EXERCISED
 
     # No shares to deliver -> cash-settle intrinsic (100-80)*100 = $2,000.
     session.refresh(portfolio)
     assert portfolio.cash_balance == DEFAULT_STARTING_CASH + Decimal(2_000)
+    assert pos.proceeds == Decimal("2000.00")
+    assert pos.realized_pnl == Decimal("1500.00")  # 2,000 intrinsic - 500 premium
 
 
 def test_settle_is_idempotent(session: Session) -> None:
@@ -435,11 +464,11 @@ def test_settle_is_idempotent(session: Session) -> None:
         portfolio_id=portfolio.id,  # type: ignore[arg-type]
         option_type=OptionType.CALL,
         strike=Decimal(100),
-        expiry=date.today() - timedelta(days=1),
+        expiry=TODAY - timedelta(days=1),
     )
-    assert settle_expired_options(session, settle_date=date.today()) == 1
+    assert settle_expired_options(session, settle_date=TODAY) == 1
     # Second run finds nothing still OPEN.
-    assert settle_expired_options(session, settle_date=date.today()) == 0
+    assert settle_expired_options(session, settle_date=TODAY) == 0
 
 
 # ---------------------------------------------------------------------------
@@ -457,7 +486,7 @@ def test_trade_open_then_list_positions(session: Session, client: TestClient) ->
     user_id = _make_user(session)
     headers = _auth_headers(user_id)
 
-    expiry = (date.today() + timedelta(days=45)).isoformat()
+    expiry = (TODAY + timedelta(days=45)).isoformat()
     resp = client.post(
         "/v1/options/trade",
         headers=headers,
@@ -502,7 +531,7 @@ def test_trade_open_unknown_ticker_returns_404(session: Session, client: TestCli
             "ticker": "NOPE",
             "option_type": "put",
             "strike": "100",
-            "expiry": (date.today() + timedelta(days=30)).isoformat(),
+            "expiry": (TODAY + timedelta(days=30)).isoformat(),
             "quantity": 1,
         },
     )
@@ -522,7 +551,7 @@ def test_trade_close_round_trip(session: Session, client: TestClient) -> None:
             "ticker": "AAPL",
             "option_type": "call",
             "strike": "100",
-            "expiry": (date.today() + timedelta(days=45)).isoformat(),
+            "expiry": (TODAY + timedelta(days=45)).isoformat(),
             "quantity": 1,
         },
     ).json()
@@ -538,3 +567,21 @@ def test_trade_close_round_trip(session: Session, client: TestClient) -> None:
 
     # Closing removes it from the open-positions list.
     assert client.get("/v1/options/positions", headers=headers).json() == []
+
+
+def test_non_usd_options_are_rejected_until_fx_accounting_is_supported(session: Session) -> None:
+    from stockviz.services.options import OptionTradeError
+
+    session.add(Symbol(ticker="SAP.DE", name="SAP", currency="EUR"))
+    session.commit()
+    user = _make_user(session, "option-fx@stockviz.dev")
+    with pytest.raises(OptionTradeError, match="USD"):
+        open_option(
+            session,
+            user_id=user,
+            ticker="SAP.DE",
+            option_type=OptionType.CALL,
+            strike=Decimal("100"),
+            expiry=TODAY + timedelta(days=30),
+            quantity=1,
+        )

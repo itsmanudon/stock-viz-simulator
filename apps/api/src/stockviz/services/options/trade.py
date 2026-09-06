@@ -143,8 +143,11 @@ def open_option(
         raise OptionTradeError("strike must be positive")
 
     ticker = ticker.upper()
-    if session.get(Symbol, ticker) is None:
+    symbol = session.get(Symbol, ticker)
+    if symbol is None:
         raise OptionSymbolNotFound(f"Symbol {ticker!r} not found")
+    if symbol.currency != "USD":
+        raise OptionTradeError("Options paper trading currently supports USD underlyings only")
 
     today = utcnow().date()
     if expiry <= today:
@@ -224,11 +227,29 @@ def close_option(session: Session, *, user_id: int, option_id: int) -> OptionTra
     portfolio.cash_balance = (portfolio.cash_balance + proceeds).quantize(_MICROS)
     position.status = OptionStatus.CLOSED
     position.settled_at = utcnow()
+    _record_realization(position, proceeds=proceeds)
     session.add(portfolio)
     session.add(position)
     session.commit()
     session.refresh(position)
     return OptionTradeResult(position=position, cash_delta=proceeds)
+
+
+def _record_realization(
+    position: OptionsPosition, *, proceeds: Decimal, realized_pnl: Decimal | None = None
+) -> None:
+    """Stamp the terminal-event accounting on a position leaving ``OPEN``.
+
+    ``realized_pnl`` defaults to ``proceeds - premium_paid``, which is right
+    for every event that settles the contract in cash. Exercise into (or
+    against) the equity book overrides it — see ``docs/TRADING_JOURNAL.md``
+    for why those two cases differ.
+    """
+
+    position.proceeds = proceeds.quantize(_MICROS)
+    if realized_pnl is None:
+        realized_pnl = proceeds - position.premium_paid
+    position.realized_pnl = realized_pnl.quantize(_MICROS)
 
 
 def _exercise_call_into_equity(
@@ -250,6 +271,7 @@ def _exercise_call_into_equity(
     if spendable < strike_cost:
         intrinsic = ((spot - position.strike) * shares).quantize(_CENTS)
         portfolio.cash_balance = (portfolio.cash_balance + intrinsic).quantize(_MICROS)
+        _record_realization(position, proceeds=intrinsic)
         logger.info(
             "options_settle: call %s cash-settled (insufficient cash to exercise) +%s",
             position.id,
@@ -257,6 +279,11 @@ def _exercise_call_into_equity(
         )
         return
 
+    # Exercised into the equity book: no cash is credited and the contract's
+    # upside carries forward as a strike-priced cost basis, so the option leg
+    # realizes only the sunk premium. The rest is realized later by the equity
+    # sell — counting it here too would double count it.
+    _record_realization(position, proceeds=Decimal("0"), realized_pnl=-position.premium_paid)
     portfolio.cash_balance = (portfolio.cash_balance - strike_cost).quantize(_MICROS)
     equity = session.exec(
         select(Position).where(
@@ -296,6 +323,16 @@ def _exercise_put(
     if equity is not None and spendable >= shares:
         proceeds = (position.strike * shares).quantize(_MICROS)
         portfolio.cash_balance = (portfolio.cash_balance + proceeds).quantize(_MICROS)
+        # This share sale bypasses ``apply_fill``, so it writes no Trade row and
+        # its equity realization has nowhere else to live. Fold it into the
+        # option leg: strike proceeds over the shares' cost basis, less the
+        # premium that bought the right to sell them.
+        equity_realized = (position.strike - equity.avg_cost) * shares
+        _record_realization(
+            position,
+            proceeds=proceeds,
+            realized_pnl=equity_realized - position.premium_paid,
+        )
         equity.quantity = equity.quantity - shares
         if equity.quantity == 0:
             session.delete(equity)
@@ -304,6 +341,7 @@ def _exercise_put(
     else:
         intrinsic = ((position.strike - spot) * shares).quantize(_CENTS)
         portfolio.cash_balance = (portfolio.cash_balance + intrinsic).quantize(_MICROS)
+        _record_realization(position, proceeds=intrinsic)
 
 
 def settle_expired_options(session: Session, *, settle_date: date_type) -> int:
@@ -344,6 +382,8 @@ def settle_expired_options(session: Session, *, settle_date: date_type) -> int:
                 _exercise_put(session, portfolio, position, spot=spot)
             position.status = OptionStatus.EXERCISED
         else:
+            # Worthless at expiry: the premium is the whole loss.
+            _record_realization(position, proceeds=Decimal("0"))
             position.status = OptionStatus.EXPIRED
 
         position.settled_at = utcnow()
