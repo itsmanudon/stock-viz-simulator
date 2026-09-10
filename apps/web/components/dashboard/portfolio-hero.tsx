@@ -32,13 +32,13 @@ export function PortfolioHero({
   const breakdown = [
     { label: "Equities", value: portfolio.market_value },
     { label: "Options", value: portfolio.options_market_value },
-    { label: "Cash", value: portfolio.available_cash },
+    { label: "Available cash", value: portfolio.available_cash },
   ].filter((entry) => Number(entry.value) !== 0);
 
   return (
     <section
       aria-labelledby="dashboard-hero-heading"
-      className="flex min-w-0 flex-col overflow-hidden rounded-lg border border-border-muted bg-card"
+      className="flex h-full min-w-0 flex-col overflow-hidden rounded-md border border-border-muted bg-card"
     >
       <div className="flex flex-wrap items-start justify-between gap-4 p-4 sm:p-5">
         <div className="min-w-0">
@@ -46,7 +46,7 @@ export function PortfolioHero({
             Total portfolio value
           </h2>
           <p
-            className="mt-2 font-mono text-3xl font-bold tracking-tight sm:text-4xl"
+            className="mt-2 break-all font-mono text-3xl font-semibold tracking-tight sm:text-4xl"
             data-financial
           >
             {formatCurrency(portfolio.total_value, currency)}
@@ -87,14 +87,14 @@ export function PortfolioHero({
       ) : null}
 
       {breakdown.length > 0 ? (
-        <dl className="grid grid-cols-3 border-t border-border-muted">
+        <dl className="mt-auto grid grid-cols-1 border-t border-border-muted min-[400px]:auto-cols-fr min-[400px]:grid-flow-col min-[400px]:grid-cols-none">
           {breakdown.map((entry) => (
             <div
               key={entry.label}
-              className="min-w-0 border-l border-border-muted px-4 py-3 first:border-l-0 sm:px-5"
+              className="min-w-0 border-b border-border-muted px-4 py-3 last:border-b-0 min-[400px]:border-b-0 min-[400px]:border-l min-[400px]:first:border-l-0 sm:px-5"
             >
               <dt className="text-2xs font-medium text-text-tertiary">{entry.label}</dt>
-              <dd className="mt-0.5 truncate font-mono text-sm font-semibold" data-financial>
+              <dd className="mt-0.5 break-all font-mono text-sm font-semibold" data-financial>
                 {formatCurrency(entry.value, currency)}
               </dd>
             </div>

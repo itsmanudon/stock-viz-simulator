@@ -19,7 +19,8 @@ import { OptionTradeForm } from "@/components/option-trade-form";
 import { PendingOrderQuote } from "@/components/order-blotter-row";
 import { OrderTicket } from "@/components/order-ticket";
 import { PageFrame } from "@/components/page-frame";
-import { ApiError, getQuotes, listSymbols } from "@/lib/api";
+import { PriceChart } from "@/components/price-chart";
+import { ApiError, getBars, getQuotes, listSymbols } from "@/lib/api";
 import { getPortfolio, listOrders, listTrades } from "@/lib/api/trading";
 import { currencyByTicker, parseTradeTicker } from "@/lib/operational-trading";
 import { formatCurrency, formatQuantity } from "@/lib/portfolio-view-model";
@@ -60,12 +61,18 @@ export default async function TradePage({
   const ticker = requestedTicker && known.has(requestedTicker) ? requestedTicker : "";
   const activeTicker = ticker || options[0]?.ticker || "";
 
-  const quote = activeTicker
-    ? await getQuotes([activeTicker]).catch((err) => {
-        if (err instanceof ApiError) return [];
-        throw err;
-      })
-    : [];
+  const [quote, chartBars] = activeTicker
+    ? await Promise.all([
+        getQuotes([activeTicker]).catch((err) => {
+          if (err instanceof ApiError) return [];
+          throw err;
+        }),
+        getBars(activeTicker, { limit: 90 }).catch((err) => {
+          if (err instanceof ApiError) return [];
+          throw err;
+        }),
+      ])
+    : [[], []];
   const selectedQuote = quote[0] ?? null;
   const position = portfolio.positions.find((item) => item.ticker === activeTicker) ?? null;
   const tickerOrders = pendingOrders.filter((order) => order.ticker === activeTicker);
@@ -98,7 +105,36 @@ export default async function TradePage({
           </OperationalEmptyState>
         </div>
       ) : (
-        <div className="mt-5 grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(16rem,20rem)] lg:items-start">
+        <div className="mt-5 grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_22rem] xl:items-start">
+          <section
+            aria-label={`${activeTicker} price context`}
+            className="min-w-0 overflow-hidden rounded-md border border-border-muted bg-card"
+          >
+            <div className="flex items-center justify-between gap-3 border-b border-border-muted px-4 py-3.5">
+              <div>
+                <h2 className="text-sm font-semibold">Price context</h2>
+                <p className="mt-1 text-xs text-text-tertiary">
+                  {activeTicker} · last 90 stored end-of-day bars
+                </p>
+              </div>
+              <Link
+                href={`/stocks/${activeTicker}`}
+                className="text-xs font-medium text-brand hover:underline"
+              >
+                Open research
+              </Link>
+            </div>
+            <div className="p-2 sm:p-3">
+              {chartBars.length ? (
+                <PriceChart bars={chartBars} />
+              ) : (
+                <p className="py-20 text-center text-sm text-text-secondary">
+                  No stored price history is available for this symbol.
+                </p>
+              )}
+            </div>
+          </section>
+
           {/* Unkeyed: a fill revalidates this page and must not remount the ticket. */}
           <OrderTicket
             symbols={options.map((symbol) => ({
@@ -125,7 +161,7 @@ export default async function TradePage({
             displayCurrency={portfolio.display_currency || "USD"}
           />
 
-          <aside className="space-y-8">
+          <aside className="min-w-0 space-y-5 xl:col-start-1 xl:row-start-2">
             <section
               aria-labelledby="account-context-heading"
               className="overflow-hidden rounded-md border border-border-muted bg-card"

@@ -33,6 +33,11 @@ vi.mock("@/auth", () => ({
   auth: vi.fn().mockResolvedValue(null),
 }));
 
+// Async server data belongs to browser coverage, not the client renderer.
+vi.mock("@/components/marketing/market-status", () => ({
+  MarketStatus: () => <span>EOD data</span>,
+}));
+
 describe("AppSidebar", () => {
   it("groups product destinations and marks both the active domain and route", () => {
     render(<AppSidebar signedIn />);

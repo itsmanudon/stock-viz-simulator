@@ -51,7 +51,7 @@ components/
                    surface that fails is dropped, <2 tabs hides the section),
                    `by-the-numbers.tsx` (counts read live off the API; a stat
                    that can't be counted is omitted, never shown as 0),
-                   `closing-cta.tsx` (the gold-tinted full-bleed close),
+                   `closing-cta.tsx` (the monochrome full-bleed close),
                    `reveal.tsx` (scroll reveal: IntersectionObserver + the
                    `[data-reveal]` transition in globals.css — no motion library)
   data-table.tsx   DataTableFrame / NumericCell / SortableHead / TableToolbar
@@ -185,18 +185,15 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
 
 - shadcn components go in `components/ui/`. To add one: `pnpm dlx shadcn@latest add <name>`.
 - Use Tailwind utilities; the palette lives in `app/globals.css` as CSS
-  variables. The identity is **ATLAS**: warm paper canvas (`#f7f6f2`),
-  restrained gold brand, 10px radius (`--radius: 0.625rem`), Space Grotesk
-  display + JetBrains Mono numerals (both self-hosted via `next/font`, no
-  runtime request). Light is the base; `.dark` re-grounds the same hues on a
-  near-black canvas (`#0f1112`). **Gold is the brand, never the "up" colour** —
-  a gold gain sitting next to a gold button is unreadable, so positive is a
-  separate green (`--positive`) and negative a separate red. Gold is
-  unreadable as type on paper, so light mode darkens `--brand` to `#96702b`
-  for text while `--primary` (`#c6a35c`) keeps full chroma for fills with dark
-  ink on top; dark mode uses `#d5b36a` for both. `--*-soft` / `--*-soft-foreground`
-  pairs (positive/negative/warning/neutral) are the tinted fills behind delta
-  and status pills — use `DeltaPill` rather than re-rolling the chip.
+  variables. The identity is **ATLAS**: neutral canvas (`#f5f5f5`),
+  restrained blue identity accent with neutral action surfaces, 8px radius (`--radius: 0.5rem`), Inter
+  display + IBM Plex Mono numerals (both self-hosted via `next/font`, no
+  runtime request). Light is the base; `.dark` re-grounds the same system on a
+  near-black canvas (`#0b0b0b`). Blue is reserved for identity, focus, and
+  selected controls; positive is a separate green (`--positive`) and negative
+  a separate red. `--*-soft` / `--*-soft-foreground` pairs
+  (positive/negative/warning/neutral) are the tinted fills behind delta and
+  status pills — use `DeltaPill` rather than re-rolling the chip.
   `--surface-elevated` is one step *above* `--card` (overlays: sidebar,
   popovers, sheets); `--card` is for content tiles sitting on the page.
 - The type ramp adds `text-3xs` (10px) and `text-2xs` (11px) below Tailwind's

@@ -1,25 +1,25 @@
 import type { Metadata } from "next";
-import { JetBrains_Mono, Space_Grotesk } from "next/font/google";
+import { IBM_Plex_Mono, Inter } from "next/font/google";
 
 import { Providers } from "@/components/providers";
 import "./globals.css";
 
 /**
- * Space Grotesk carries the identity: a geometric sans with enough character
- * in its digits and capitals to look deliberate rather than defaulted.
- * JetBrains Mono handles every price, quantity, and delta — it has true
- * tabular figures and a slashed zero, which the previous system-mono stack
- * only had on some platforms.
+ * Inter carries all non-numeric interface, heading, and marketing copy with a
+ * familiar, highly legible system. IBM Plex Mono handles every ticker, price,
+ * quantity, table value, and delta — it has true tabular figures and a slashed
+ * zero, which the previous system-mono stack only had on some platforms.
  *
  * Both are self-hosted by next/font, so there is no runtime request to Google.
  */
-const display = Space_Grotesk({
+const display = Inter({
   subsets: ["latin"],
   display: "swap",
   variable: "--font-display",
 });
 
-const mono = JetBrains_Mono({
+const mono = IBM_Plex_Mono({
+  weight: ["400", "500", "600", "700"],
   subsets: ["latin"],
   display: "swap",
   variable: "--font-numeric",
