@@ -31,7 +31,12 @@ export function DataTableFrame({
   children,
 }: React.PropsWithChildren<{ className?: string }>) {
   return (
-    <div className={cn("overflow-x-auto rounded-md border border-border-muted bg-card", className)}>
+    <div
+      className={cn(
+        "min-w-0 overflow-x-auto rounded-md border border-border-muted bg-card [&_thead]:bg-surface-secondary/60",
+        className,
+      )}
+    >
       {children}
     </div>
   );
@@ -50,7 +55,7 @@ export function TableToolbar({
   return (
     <div className={cn("flex flex-wrap items-center justify-between gap-3 pb-3", className)}>
       <div className="flex min-w-0 flex-wrap items-center gap-2">{children}</div>
-      {actions ? <div className="flex shrink-0 items-center gap-2">{actions}</div> : null}
+      {actions ? <div className="flex min-w-0 flex-wrap items-center gap-2">{actions}</div> : null}
     </div>
   );
 }
@@ -138,7 +143,7 @@ export function SortableHead({
       <Link
         href={href}
         className={cn(
-          "group inline-flex items-center gap-1 transition-colors hover:text-foreground",
+          "group inline-flex min-h-9 items-center gap-1 rounded-sm transition-colors hover:text-foreground",
           align === "right" && "flex-row-reverse",
           direction ? "text-foreground" : "text-text-secondary",
         )}

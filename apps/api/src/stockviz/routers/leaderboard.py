@@ -1,8 +1,8 @@
 """`/v1/leaderboard` and `/v1/profile` — public rankings + opt-in visibility.
 
 GET /v1/leaderboard  — public; returns top 50 users by return % who have
-                       opted in. Result is cached in-process for one hour so
-                       the endpoint is cheap to hit from the web app.
+                       opted in. Rankings are cached in-process for one hour;
+                       visibility and names are read from the DB on every call.
 
 GET /v1/profile      — authed; returns the caller's public_profile flag.
 PATCH /v1/profile    — authed; sets public_profile true/false.
@@ -99,11 +99,12 @@ def _first_and_last_navs(
 def _build_leaderboard(session: Session) -> list[LeaderboardEntryOut]:
     public_users = list(session.exec(select(User).where(User.public_profile.is_(True))))  # type: ignore[union-attr]
     navs_by_user = _first_and_last_navs(session, [u.id for u in public_users if u.id is not None])
+    snapshot_counts = _snapshot_counts(session)
 
     entries: list[tuple[float, Decimal, int, User]] = []
     for user in public_users:
         initial_nav, current_nav = navs_by_user.get(user.id or -1, (_INITIAL_NAV, _INITIAL_NAV))
-        snapshot_count = _snapshot_counts(session).get(user.id or -1, 0)
+        snapshot_count = snapshot_counts.get(user.id or -1, 0)
 
         return_pct = (
             float((current_nav - initial_nav) / initial_nav * 100) if initial_nav > 0 else 0.0
@@ -125,7 +126,7 @@ def _build_leaderboard(session: Session) -> list[LeaderboardEntryOut]:
             days_tracked=snapshot_count,
             ranked=snapshot_count >= MIN_SNAPSHOTS_TO_RANK,
         )
-        for rank, (return_pct, nav, snapshot_count, user) in enumerate(entries[:50], start=1)
+        for rank, (return_pct, nav, snapshot_count, user) in enumerate(entries, start=1)
     ]
 
 
@@ -143,7 +144,25 @@ def get_leaderboard(session: SessionDep) -> list[LeaderboardEntryOut]:
     if _cache_ts is None or time.monotonic() - _cache_ts > _CACHE_TTL:
         _cache = _build_leaderboard(session)
         _cache_ts = time.monotonic()
-    return _cache
+    candidates = _cache
+
+    # The process cache cannot authorize disclosure: another replica can commit
+    # an opt-out, or a cache fill can finish after local invalidation. Query scalar
+    # columns after the fill so neither cached names nor stale ORM instances can
+    # bypass the authoritative database visibility check. DB errors fail closed.
+    public_names = {
+        user_id: name or email.split("@")[0]
+        for user_id, name, email in session.exec(
+            select(User.id, User.name, User.email).where(User.public_profile.is_(True))  # type: ignore[union-attr]
+        )
+    }
+    visible = [entry for entry in candidates if entry.user_id in public_names]
+    # Keep every candidate in the cache: filtering an already-truncated top 50
+    # would leave holes when users opt out. Copy to avoid mutating shared ranks.
+    return [
+        entry.model_copy(update={"rank": rank, "username": public_names[entry.user_id]})
+        for rank, entry in enumerate(visible[:50], start=1)
+    ]
 
 
 SUPPORTED_DISPLAY_CURRENCIES = frozenset({"USD", "EUR", "GBP", "JPY", "CAD", "INR"})
@@ -175,7 +194,6 @@ def patch_profile(
 
     if body.public_profile is not None:
         user.public_profile = body.public_profile
-        _cache_ts = None  # public_profile flips invalidate the cache
     if body.display_currency is not None:
         ccy = body.display_currency.upper()
         if ccy not in SUPPORTED_DISPLAY_CURRENCIES:
@@ -187,6 +205,8 @@ def patch_profile(
 
     session.add(user)
     session.commit()
+    if body.public_profile is not None:
+        _cache_ts = None  # Invalidate only after the visibility change is durable.
     return ProfileOut(
         user_id=user_id,
         public_profile=user.public_profile,

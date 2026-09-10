@@ -1,18 +1,29 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { getJournalMonth } from "@/lib/api/journal";
 import {
   getDividends,
   getPortfolio,
   getPortfolioAnalytics,
   getPortfolioHistory,
+  getPortfolioOverview,
   listOrders,
 } from "@/lib/api/trading";
+import { loadDashboardData } from "@/lib/dashboard-data";
 import { loadPortfolioData } from "@/lib/portfolio-data";
+
+vi.mock("@/lib/api/alerts", () => ({ listAlerts: vi.fn().mockResolvedValue([]) }));
+vi.mock("@/lib/api/watchlist", () => ({ listWatchlist: vi.fn().mockResolvedValue([]) }));
+
+vi.mock("@/lib/api/journal", () => ({
+  getJournalMonth: vi.fn(),
+}));
 
 vi.mock("@/lib/api/trading", () => ({
   getPortfolio: vi.fn(),
   getPortfolioHistory: vi.fn(),
   getPortfolioAnalytics: vi.fn(),
+  getPortfolioOverview: vi.fn(),
   getDividends: vi.fn(),
   listOrders: vi.fn(),
 }));
@@ -32,6 +43,26 @@ const portfolio = {
   option_positions: [],
 };
 
+const journalMonth = {
+  unavailable_count: 0,
+  period: { year: 2026, month: 8, first_day: "2026-08-01", last_day: "2026-08-31" },
+  currency: "USD",
+  summary: {
+    realized_pnl: "0",
+    trade_count: 0,
+    winning_trades: 0,
+    losing_trades: 0,
+    gross_profit: "0",
+    gross_loss: "0",
+    win_rate: null,
+    profit_factor: null,
+  },
+  return_pct: null,
+  start_nav: null,
+  days: [],
+  weeks: [],
+};
+
 describe("portfolio server orchestration", () => {
   beforeEach(() => {
     vi.mocked(getPortfolio).mockReset().mockResolvedValue(portfolio);
@@ -48,22 +79,42 @@ describe("portfolio server orchestration", () => {
       top_gainers: [],
       top_losers: [],
     });
+    vi.mocked(getPortfolioOverview)
+      .mockReset()
+      .mockResolvedValue({
+        portfolio,
+        analytics: {
+          display_currency: "USD",
+          history_days: 0,
+          total_return_pct: null,
+          annualised_return_pct: null,
+          sharpe_ratio: null,
+          max_drawdown_pct: null,
+          risk_free_rate: 0.05,
+          sector_allocation: [],
+          top_gainers: [],
+          top_losers: [],
+        },
+      });
     vi.mocked(getDividends)
       .mockReset()
       .mockResolvedValue({ ytd_income: "0", history: [], projected: [] });
     vi.mocked(listOrders).mockReset().mockResolvedValue([]);
+    vi.mocked(getJournalMonth).mockReset().mockResolvedValue(journalMonth);
   });
 
   it("fetches each Portfolio resource once and maps the selected range", async () => {
     const result = await loadPortfolioData("1y");
 
-    expect(getPortfolio).toHaveBeenCalledTimes(1);
+    expect(getPortfolioOverview).toHaveBeenCalledTimes(1);
+    expect(getPortfolio).not.toHaveBeenCalled();
     expect(getPortfolioHistory).toHaveBeenCalledWith(365);
-    expect(getPortfolioAnalytics).toHaveBeenCalledTimes(1);
+    expect(getPortfolioAnalytics).not.toHaveBeenCalled();
     expect(getDividends).toHaveBeenCalledTimes(1);
     expect(listOrders).toHaveBeenCalledWith("pending");
     expect(result.portfolio).toBe(portfolio);
     expect(result.portfolio.option_positions).toEqual([]);
+    expect(result.analytics?.risk_free_rate).toBe(0.05);
   });
 
   it("keeps optional upstream failures distinct from successful empty data", async () => {
@@ -78,9 +129,62 @@ describe("portfolio server orchestration", () => {
     expect(result.dividends).toEqual({ ytd_income: "0", history: [], projected: [] });
   });
 
+  it("skips the journal request unless the Journal tab is the one being rendered", async () => {
+    const result = await loadPortfolioData("3m");
+
+    expect(getJournalMonth).not.toHaveBeenCalled();
+    expect(result.journalMonth).toBeNull();
+    expect(result.journalFailed).toBe(false);
+  });
+
+  it("loads the requested journal month alongside the rest of the page", async () => {
+    const result = await loadPortfolioData("3m", "2026-08");
+
+    expect(getJournalMonth).toHaveBeenCalledWith(2026, 8);
+    expect(result.journalMonth).toBe(journalMonth);
+    expect(result.journalFailed).toBe(false);
+  });
+
+  it("reports a failed journal month without taking the rest of the page down", async () => {
+    vi.mocked(getJournalMonth).mockRejectedValue(new Error("journal unavailable"));
+
+    const result = await loadPortfolioData("3m", "2026-08");
+
+    expect(result.portfolio).toBe(portfolio);
+    expect(result.journalMonth).toBeNull();
+    expect(result.journalFailed).toBe(true);
+  });
+
   it("does not suppress failure of the required portfolio resource", async () => {
+    vi.mocked(getPortfolioOverview).mockRejectedValue(new Error("overview unavailable"));
     vi.mocked(getPortfolio).mockRejectedValue(new Error("portfolio unavailable"));
 
     await expect(loadPortfolioData("3m")).rejects.toThrow("portfolio unavailable");
+  });
+
+  it("retains the portfolio when combined analytics cannot be loaded", async () => {
+    vi.mocked(getPortfolioOverview).mockRejectedValue(new Error("analytics unavailable"));
+    const result = await loadPortfolioData("3m");
+    expect(result.portfolio).toBe(portfolio);
+    expect(result.analytics).toBeNull();
+    expect(getPortfolio).toHaveBeenCalledTimes(1);
+  });
+
+  it("loads dashboard summary and analytics with one combined request", async () => {
+    const result = await loadDashboardData();
+    expect(result.portfolio).toBe(portfolio);
+    expect(result.analytics?.risk_free_rate).toBe(0.05);
+    expect(result.alerts).toEqual([]);
+    expect(result.watchlist).toEqual([]);
+    expect(getPortfolioOverview).toHaveBeenCalledTimes(1);
+    expect(getPortfolio).not.toHaveBeenCalled();
+    expect(getPortfolioAnalytics).not.toHaveBeenCalled();
+  });
+
+  it("keeps the dashboard available when analytics fail", async () => {
+    vi.mocked(getPortfolioOverview).mockRejectedValue(new Error("analytics unavailable"));
+    const result = await loadDashboardData();
+    expect(result.portfolio).toBe(portfolio);
+    expect(result.analytics).toBeNull();
   });
 });

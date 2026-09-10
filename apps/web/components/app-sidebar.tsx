@@ -18,11 +18,12 @@ export function AppSidebar({ signedIn }: { signedIn: boolean }) {
           <span>StockViz</span>
         </Link>
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto px-3 py-6">
+      <div className="min-h-0 flex-1 overflow-y-auto px-3 py-5">
         <AppNavigation signedIn={signedIn} />
       </div>
       <div className="border-t border-border-muted px-5 py-4 text-2xs leading-relaxed text-text-tertiary">
-        End-of-day research workspace
+        <span className="font-mono tracking-[0.08em]">EOD · SIMULATED</span>
+        <span className="mt-1 block">Research and paper execution workspace</span>
       </div>
     </aside>
   );

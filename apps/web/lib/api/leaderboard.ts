@@ -23,14 +23,11 @@ export type ProfilePatch = {
 };
 
 /**
- * The API already caches this for an hour server-side; `revalidateSeconds`
- * additionally keeps the marketing page from re-requesting it per visitor.
+ * The API rechecks profile visibility on each request. Caching this response
+ * in Next would keep an opted-out user's identity visible until expiry.
  */
-export function getLeaderboard(revalidateSeconds?: number): Promise<LeaderboardEntry[]> {
-  return apiGet<LeaderboardEntry[]>(
-    "/v1/leaderboard",
-    revalidateSeconds === undefined ? undefined : { revalidateSeconds, tags: ["leaderboard"] },
-  );
+export function getLeaderboard(): Promise<LeaderboardEntry[]> {
+  return apiGet<LeaderboardEntry[]>("/v1/leaderboard", { cache: "no-store" });
 }
 
 export function getProfile(): Promise<UserProfile> {

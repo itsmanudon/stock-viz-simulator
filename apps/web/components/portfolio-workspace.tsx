@@ -1,3 +1,6 @@
+import { Suspense } from "react";
+
+import { JournalPanel } from "@/components/journal/journal-panel";
 import { PortfolioInsights } from "@/components/portfolio-analytics";
 import { PortfolioEmptyState } from "@/components/portfolio-empty-state";
 import { PortfolioIncome } from "@/components/portfolio-income";
@@ -7,6 +10,7 @@ import { PortfolioOrders } from "@/components/portfolio-orders";
 import { PortfolioPerformance } from "@/components/portfolio-performance";
 import { PortfolioPositions } from "@/components/portfolio-positions";
 import { PortfolioTabs } from "@/components/portfolio-tabs";
+import type { JournalMonth } from "@/lib/api/journal";
 import type {
   DividendSummary,
   PendingOrder,
@@ -24,6 +28,9 @@ type Props = {
   dividends: DividendSummary | null;
   range: PortfolioRange;
   tab: PortfolioTab;
+  journalMonth: JournalMonth | null;
+  journalFailed: boolean;
+  journalMonthKey: string;
 };
 
 export function PortfolioWorkspace({
@@ -34,6 +41,9 @@ export function PortfolioWorkspace({
   dividends,
   range,
   tab,
+  journalMonth,
+  journalFailed,
+  journalMonthKey,
 }: Props) {
   const displayCurrency = portfolio.display_currency || "USD";
   const hasEquityPositions = portfolio.positions.length > 0;
@@ -73,6 +83,19 @@ export function PortfolioWorkspace({
           }
           orders={<PortfolioOrders orders={orders} />}
           income={<PortfolioIncome dividends={dividends} positions={portfolio.positions} />}
+          journal={
+            /* JournalPanel reads Journal state with `useSearchParams()`, which
+               Next requires to sit under a Suspense boundary — without one the
+               whole tab subtree silently fails to hydrate and every calendar
+               cell becomes inert HTML. */
+            <Suspense fallback={<JournalPanelFallback />}>
+              <JournalPanel
+                initialMonthKey={journalMonthKey}
+                initialMonth={journalMonth}
+                initialError={journalFailed}
+              />
+            </Suspense>
+          }
           optionCount={portfolio.option_positions.length}
           orderCount={orders?.length ?? 0}
         />
@@ -81,4 +104,9 @@ export function PortfolioWorkspace({
       <PortfolioInsights analytics={analytics} hasEquityPositions={hasEquityPositions} />
     </div>
   );
+}
+
+/** Holds the Journal's vertical space while the client panel resolves. */
+function JournalPanelFallback() {
+  return <div className="min-h-[32rem]" aria-hidden />;
 }

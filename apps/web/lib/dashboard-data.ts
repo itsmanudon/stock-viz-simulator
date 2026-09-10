@@ -6,12 +6,11 @@ import {
   type Portfolio,
   type PortfolioAnalytics,
   type PortfolioHistoryPoint,
-  getPortfolio,
-  getPortfolioAnalytics,
   getPortfolioHistory,
   listOrders,
 } from "@/lib/api/trading";
 import { type WatchlistItem, listWatchlist } from "@/lib/api/watchlist";
+import { loadPortfolioOverview } from "@/lib/portfolio-overview";
 import { DASHBOARD_HISTORY_DAYS } from "@/lib/portfolio-view-model";
 
 /**
@@ -31,16 +30,15 @@ export type DashboardData = {
 };
 
 export async function loadDashboardData(): Promise<DashboardData> {
-  const [portfolio, history, analytics, orders, alerts, watchlist] = await Promise.all([
-    getPortfolio(),
+  const [overview, history, orders, alerts, watchlist] = await Promise.all([
+    loadPortfolioOverview(),
     optional(getPortfolioHistory(DASHBOARD_HISTORY_DAYS)),
-    optional(getPortfolioAnalytics()),
     optional(listOrders("pending")),
     optional(listAlerts()),
     optional(listWatchlist()),
   ]);
 
-  return { portfolio, history, analytics, orders, alerts, watchlist };
+  return { ...overview, history, orders, alerts, watchlist };
 }
 
 function optional<T>(request: Promise<T>): Promise<T | null> {

@@ -31,9 +31,10 @@ import type { BacktestResult, Recommendation, ScreenerResult } from "@/lib/api/t
 const BACKTEST_CANDIDATES = ["HDFCBANK.NS", "RELIANCE.NS", "TCS.NS", "NVDA", "AAPL", "MSFT"];
 
 /**
- * These panels are the same canned queries for every visitor and the data
+ * The market panels use the same canned queries for every visitor and the data
  * behind them moves once a day, so they go through the Next data cache rather
  * than hitting the API on every landing-page render.
+ * The leaderboard always reloads so profile opt-outs take effect immediately.
  *
  * The backtest itself is a POST, which Next does not cache — its 400-bar
  * `getBars` call is cached, but the simulation re-runs per render.
@@ -83,7 +84,7 @@ export async function ProductTour() {
     safe<ScreenerResult[]>(() => screenSymbols({ momentumDays: 30, revalidateSeconds: CACHE_S })),
     safe<Recommendation[]>(() => getRecommendations({ limit: 5, revalidateSeconds: CACHE_S })),
     loadBacktest(),
-    safe<LeaderboardEntry[]>(() => getLeaderboard(CACHE_S)),
+    safe<LeaderboardEntry[]>(() => getLeaderboard()),
   ]);
 
   // The first recommendation that actually carries a vote breakdown — the

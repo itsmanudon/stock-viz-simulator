@@ -25,16 +25,16 @@ export type ChartPalette = {
 };
 
 const FALLBACK: ChartPalette = {
-  positive: "#137558",
-  negative: "#b94343",
-  positiveFill: "rgba(19, 117, 88, 0.4)",
-  negativeFill: "rgba(185, 67, 67, 0.4)",
-  text: "#89857b",
-  grid: "rgba(229, 225, 216, 0.9)",
-  axis: "#e5e1d8",
-  /* Categorical ramp deliberately excludes gold and the P&L green/red so an
-     overlay is never mistaken for the brand or a gain. */
-  overlays: ["#7669c4", "#267d8a", "#a45f7a", "#b87935", "#4e779f"],
+  positive: "#147a56",
+  negative: "#c93c45",
+  positiveFill: "rgba(20, 122, 86, 0.4)",
+  negativeFill: "rgba(201, 60, 69, 0.4)",
+  text: "#808080",
+  grid: "rgba(222, 222, 222, 0.9)",
+  axis: "#dedede",
+  /* Categorical ramp deliberately excludes the blue brand and P&L colors so
+     an overlay is never mistaken for an action or a gain. */
+  overlays: ["#8277e8", "#4baebd", "#d36f9b", "#e59152", "#6287b9"],
 };
 
 function readToken(styles: CSSStyleDeclaration, name: string, fallback: string): string {

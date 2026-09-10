@@ -24,6 +24,7 @@ describe("portfolio tabs", () => {
         options={<p>Options panel</p>}
         orders={<p>Orders panel</p>}
         income={<p>Income panel</p>}
+        journal={<p>Journal panel</p>}
         optionCount={2}
         orderCount={1}
       />,
@@ -46,6 +47,7 @@ describe("portfolio tabs", () => {
         options={<p>Options panel</p>}
         orders={<p>Orders panel</p>}
         income={<p>Income panel</p>}
+        journal={<p>Journal panel</p>}
         optionCount={0}
         orderCount={3}
       />,
@@ -66,6 +68,7 @@ describe("portfolio tabs", () => {
         options={<p>Options panel</p>}
         orders={<p>Orders panel</p>}
         income={<p>Income panel</p>}
+        journal={<p>Journal panel</p>}
         optionCount={0}
         orderCount={0}
       />,

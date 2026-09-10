@@ -39,7 +39,7 @@ export function AllocationWidget({ analytics }: { analytics: PortfolioAnalytics 
                 )}`}
               >
                 <div
-                  className="h-full rounded-full bg-brand"
+                  className="h-full rounded-full bg-foreground/65"
                   style={{ width: `${Math.max((sector.pct / largest) * 100, 2)}%` }}
                 />
               </div>

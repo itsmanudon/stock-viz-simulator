@@ -4,10 +4,6 @@ import { describe, expect, it, vi } from "vitest";
 import HomePage from "@/app/(public)/page";
 import { SiteFooter } from "@/components/site-footer";
 
-vi.mock("@/components/top-movers", () => ({
-  TopMovers: () => <div>Top movers</div>,
-}));
-
 // The hero, ticker, tour, and stat band are async server components that fetch
 // live data from the API; each is covered on its own or in the Playwright
 // marketing spec. Stub them so HomePage renders synchronously and this suite

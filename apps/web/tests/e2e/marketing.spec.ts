@@ -89,6 +89,10 @@ test.describe("reduced motion", () => {
     // Reveal resolves immediately instead of waiting for an intersection.
     const pending = await page.locator('[data-reveal="pending"]').count();
     expect(pending).toBe(0);
+    for (const section of await page.locator("[data-reveal]").all()) {
+      await expect(section).toHaveCSS("transition-delay", "0s");
+      await expect(section).toHaveCSS("opacity", "1");
+    }
 
     // The tour must not advance on its own.
     const tabs = page.getByRole("tablist", { name: "Product tour" }).getByRole("tab");
@@ -102,12 +106,11 @@ test.describe("themes", () => {
   // next-themes runs with `defaultTheme="dark"` and `enableSystem={false}`, so
   // the theme comes from localStorage rather than a media query.
   //
-  // `.panel-inset` now follows the theme: a warm elevated card (`--card`) in
-  // light mode, the near-black `--marketing-panel` step-above-`--card` in dark
-  // mode. It used to stay dark in both.
+  // `.panel-inset` follows the monochrome theme: a white panel in light mode,
+  // and the near-black marketing panel in dark mode.
   const PANEL_BG = {
-    light: "rgb(255, 254, 250)",
-    dark: "rgb(27, 30, 32)",
+    light: "rgb(255, 255, 255)",
+    dark: "rgb(17, 17, 17)",
   } as const;
 
   for (const theme of ["light", "dark"] as const) {

@@ -25,7 +25,7 @@ export default async function DashboardPage() {
     <PageFrame width="workstation" className="py-6 lg:py-8">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="min-w-0">
-          <p className="text-xs font-medium tracking-[0.12em] text-brand uppercase">
+          <p className="text-xs font-medium tracking-[0.12em] text-text-secondary uppercase">
             StockViz workspace
           </p>
           <h1 className="mt-2 text-2xl font-bold tracking-tight sm:text-3xl">
@@ -39,7 +39,7 @@ export default async function DashboardPage() {
               <Link
                 key={shortcut.href}
                 href={shortcut.href}
-                className="group inline-flex items-center gap-2 rounded-full border border-border-muted bg-card px-3 py-1.5 text-xs font-medium transition-colors hover:bg-surface-hover"
+                className="group inline-flex min-h-9 items-center gap-2 rounded-md border border-border-muted bg-card px-3 py-1.5 text-xs font-medium transition-colors hover:bg-surface-hover"
               >
                 <Icon className="size-3.5 text-text-tertiary" aria-hidden />
                 {shortcut.label}
@@ -53,17 +53,16 @@ export default async function DashboardPage() {
         </nav>
       </div>
 
-      {/* Bento grid: hero spans two columns on wide screens, widgets fill in
-          around it — the mixed-span mosaic from the Financial Dashboard file. */}
-      <div className="mt-6 grid gap-4 lg:grid-cols-3 xl:grid-cols-4">
-        <div className="lg:col-span-2 xl:col-span-3">
+      {/* Account value and pending orders lead; monitoring follows below. */}
+      <div className="mt-6 grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
+        <div className="2xl:col-span-2">
           <PortfolioHero portfolio={portfolio} history={history} />
         </div>
+        <OrdersWidget orders={orders} displayCurrency={displayCurrency} />
+        <WatchlistWidget watchlist={watchlist} />
         <AlertsWidget alerts={alerts} />
         <MoversWidget analytics={analytics} />
-        <OrdersWidget orders={orders} displayCurrency={displayCurrency} />
         <AllocationWidget analytics={analytics} />
-        <WatchlistWidget watchlist={watchlist} />
       </div>
     </PageFrame>
   );

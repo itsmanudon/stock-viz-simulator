@@ -28,8 +28,10 @@ export function PageHeader({
   return (
     <header className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
       <div className="min-w-0 max-w-3xl">
-        <p className="text-2xs font-semibold tracking-[0.14em] text-brand uppercase">{eyebrow}</p>
-        <h1 className="mt-1.5 text-3xl font-semibold tracking-tight">{title}</h1>
+        <p className="text-2xs font-medium tracking-[0.12em] text-text-secondary uppercase">
+          {eyebrow}
+        </p>
+        <h1 className="mt-1.5 text-2xl font-semibold tracking-tight sm:text-3xl">{title}</h1>
         <p className="mt-1.5 max-w-2xl text-sm leading-6 text-text-secondary">{description}</p>
         {meta ? <div className="mt-1.5 text-xs text-text-tertiary">{meta}</div> : null}
       </div>
@@ -86,7 +88,7 @@ export function PageEmptyState({
   action?: React.ReactNode;
 }) {
   return (
-    <section className="border-y border-border-muted bg-surface-secondary/35 py-8 sm:border-x sm:px-6">
+    <section className="rounded-md border border-border-muted bg-card px-4 py-8 sm:px-6">
       <h2 className="text-base font-semibold">{title}</h2>
       <div className="mt-2 max-w-2xl text-sm leading-6 text-text-secondary">{children}</div>
       {action ? <div className="mt-5">{action}</div> : null}

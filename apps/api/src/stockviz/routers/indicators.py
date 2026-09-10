@@ -17,17 +17,8 @@ from sqlmodel import Session, select
 from stockviz.db import get_session
 from stockviz.limiter import limiter
 from stockviz.models import PriceBar, Symbol
-from stockviz.schemas import (
-    IndicatorPointOut,
-    IndicatorsOut,
-    MACDPointOut,
-)
-from stockviz.services.indicators import (
-    compute_ema,
-    compute_macd,
-    compute_rsi,
-    compute_sma,
-)
+from stockviz.schemas import IndicatorsOut
+from stockviz.services.indicator_view import compute_bundle
 
 router = APIRouter(prefix="/v1/symbols", tags=["indicators"])
 
@@ -94,26 +85,4 @@ def get_indicators(
 
     bars = [(r.ts, r.close) for r in rows]
 
-    series: dict[str, list[IndicatorPointOut]] = {}
-    macd_points: list[MACDPointOut] | None = None
-
-    for kind, period in parsed:
-        if kind == "macd":
-            macd_points = [
-                MACDPointOut(ts=p.ts, macd=p.macd, signal=p.signal, histogram=p.histogram)
-                for p in compute_macd(bars)
-            ]
-            continue
-        assert period is not None  # _parse_names guarantees this
-        if kind == "sma":
-            pts = compute_sma(bars, period=period)
-            key = f"sma_{period}"
-        elif kind == "ema":
-            pts = compute_ema(bars, period=period)
-            key = f"ema_{period}"
-        else:  # rsi
-            pts = compute_rsi(bars, period=period)
-            key = f"rsi_{period}"
-        series[key] = [IndicatorPointOut(ts=p.ts, value=p.value) for p in pts]
-
-    return IndicatorsOut(ticker=ticker, series=series, macd=macd_points)
+    return compute_bundle(ticker, interval, parsed, bars)

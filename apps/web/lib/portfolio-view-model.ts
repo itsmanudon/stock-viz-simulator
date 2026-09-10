@@ -10,7 +10,7 @@ export const PORTFOLIO_RANGES = [
 /** Days of NAV history behind the dashboard hero sparkline. */
 export const DASHBOARD_HISTORY_DAYS = 30;
 
-export const PORTFOLIO_TABS = ["positions", "options", "orders", "income"] as const;
+export const PORTFOLIO_TABS = ["positions", "options", "orders", "income", "journal"] as const;
 
 export type PortfolioRange = (typeof PORTFOLIO_RANGES)[number]["value"];
 export type PortfolioTab = (typeof PORTFOLIO_TABS)[number];
@@ -38,12 +38,16 @@ export function portfolioRangeDays(range: PortfolioRange): number | null {
 export function buildPortfolioHref({
   range,
   tab,
+  month,
 }: {
   range: PortfolioRange;
   tab: PortfolioTab;
+  /** Journal month (`YYYY-MM`). Ignored on the other tabs, which don't have one. */
+  month?: string;
 }): string {
   const params = new URLSearchParams({ range });
   if (tab !== "positions") params.set("tab", tab);
+  if (tab === "journal" && month) params.set("month", month);
   return `/portfolio?${params.toString()}`;
 }
 

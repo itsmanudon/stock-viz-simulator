@@ -1,9 +1,8 @@
 /**
  * Closing call to action.
  *
- * Full-bleed and gold-tinted — the one place on the page where the brand
- * colour fills a large area, which is what makes it read as the end of the
- * argument rather than another section.
+ * Full-bleed and neutral — the page's final call to action keeps blue as an
+ * accent rather than turning the canvas into a saturated brand block.
  *
  * The oversized hollow "$100,000" behind the heading is the ReadMe
  * oversized-wordmark trick applied to the number the copy is actually about.
@@ -18,10 +17,10 @@ import { Button } from "@/components/ui/button";
 
 export function ClosingCta() {
   return (
-    <section className="relative isolate overflow-hidden border-y border-border-muted bg-brand-muted">
+    <section className="relative isolate overflow-hidden border-y border-border-muted bg-surface-secondary">
       <span
         aria-hidden
-        className="text-outline pointer-events-none absolute inset-x-0 top-1/2 -z-10 -translate-y-1/2 text-center font-mono text-[clamp(5rem,22vw,18rem)] leading-none font-bold whitespace-nowrap select-none [--outline-color:var(--brand)]"
+        className="text-outline pointer-events-none absolute inset-x-0 top-1/2 -z-10 -translate-y-1/2 text-center font-mono text-[clamp(5rem,22vw,18rem)] leading-none font-bold whitespace-nowrap select-none [--outline-color:var(--border)] opacity-[0.18]"
       >
         $100,000
       </span>

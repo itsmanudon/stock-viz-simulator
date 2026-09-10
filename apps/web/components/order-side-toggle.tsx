@@ -8,8 +8,8 @@ import { cn } from "@/lib/utils";
  * Colour is load-bearing here, not decoration: on a trading ticket the side is
  * the one field where a mis-click costs money, so the active side is tinted
  * with the positive/negative tokens rather than the brand accent. The
- * standalone `/trade` ticket previously rendered both sides in identical gold,
- * which made buy and sell indistinguishable at a glance.
+ * standalone `/trade` ticket keeps action semantics distinct from identity,
+ * which makes buy and sell distinguishable at a glance.
  *
  * `aria-pressed` carries the state for assistive tech; the disabled state is
  * for protective orders, which are sell-only in this simulator.

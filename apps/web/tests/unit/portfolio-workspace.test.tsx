@@ -120,6 +120,9 @@ describe("portfolio workspace", () => {
         dividends={dividends}
         range="3m"
         tab="positions"
+        journalMonth={null}
+        journalFailed={false}
+        journalMonthKey="2026-09"
       />,
     );
 
@@ -158,6 +161,9 @@ describe("portfolio workspace", () => {
         dividends={{ ytd_income: "0", projected: [], history: [] }}
         range="3m"
         tab="positions"
+        journalMonth={null}
+        journalFailed={false}
+        journalMonthKey="2026-09"
       />,
     );
 

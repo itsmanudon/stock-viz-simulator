@@ -129,15 +129,14 @@ export function OrderTicket({
   return (
     <section
       aria-labelledby="order-ticket-heading"
-      className="overflow-hidden rounded-md border border-border-muted bg-card"
+      className="overflow-hidden rounded-md border border-border-muted bg-card xl:col-start-2 xl:row-span-2"
     >
       <div className="border-b border-border-muted px-5 py-4">
         <h2 id="order-ticket-heading" className="text-sm font-semibold">
           Order ticket
         </h2>
         <p className="mt-1 text-xs leading-5 text-text-tertiary">
-          Paper execution against stored end-of-day closes. The API remains authoritative for cash,
-          reservations, and fills.
+          Practice trading at stored end-of-day prices. Orders use simulated funds.
         </p>
       </div>
 
@@ -256,7 +255,7 @@ export function OrderTicket({
           </div>
         ) : null}
 
-        <p className="text-sm">
+        <p className="rounded-md border border-border-muted bg-surface-secondary/50 p-3 text-sm">
           <span className="block text-3xs font-semibold tracking-[0.12em] text-text-tertiary uppercase">
             {estimateLabel}
           </span>
@@ -265,11 +264,11 @@ export function OrderTicket({
           </span>
           {currency !== displayCurrency ? (
             <span className="mt-1 block text-xs text-text-tertiary">
-              Native {currency} estimate. USD cash impact is computed at fill time by the API.
+              Estimate in {currency}. Cash conversion is calculated when the order fills.
             </span>
           ) : (
             <span className="mt-1 block text-xs text-text-tertiary">
-              Display estimate only. Submission still goes through the ledger.
+              Estimate only. Final cost is confirmed when the order fills.
             </span>
           )}
         </p>

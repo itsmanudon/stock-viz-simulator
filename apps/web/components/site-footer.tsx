@@ -6,7 +6,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 /**
  * Website footer for the public pages.
  *
- * Sits on the dark `.panel-inset` ground (squared off, no side borders) so the
+ * Sits on the neutral `.panel-inset` ground (squared off, no side borders) so the
  * page ends on a hard stop instead of fading out on the same paper it started
  * on. The palette rebinding that class does means the link columns below can
  * use the ordinary `text-text-secondary` / `border-border-muted` vocabulary
