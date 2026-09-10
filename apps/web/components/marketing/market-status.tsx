@@ -14,7 +14,8 @@
 
 import { ApiError, getBars } from "@/lib/api";
 
-const CANDIDATES = ["AAPL", "MSFT", "NVDA"];
+// Liquid names first, so the badge reports the freshest bar the ingest holds.
+const CANDIDATES = ["RELIANCE.NS", "HDFCBANK.NS", "TCS.NS", "AAPL", "MSFT", "NVDA"];
 
 /** A Fri close read on Monday is still current; beyond this the ingest is late. */
 const FRESH_DAYS = 4;

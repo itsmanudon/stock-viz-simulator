@@ -8,10 +8,12 @@ from decimal import Decimal
 import pytest
 from fastapi.testclient import TestClient
 from jose import jwt as jose_jwt
-from sqlmodel import Session
+from sqlalchemy import event
+from sqlmodel import Session, select
 
 import stockviz.routers.leaderboard as lb_module
 from stockviz.models import PortfolioSnapshot, User
+from stockviz.schemas import ProfilePatchIn
 from stockviz.settings import get_settings
 
 SECRET = get_settings().internal_api_token
@@ -177,3 +179,157 @@ def test_patch_profile_invalidates_cache(session: Session, client: TestClient) -
     entries_after = client.get("/v1/leaderboard").json()
     assert len(entries_after) == 1
     assert entries_after[0]["username"] == "Cacheable"
+
+
+def test_cached_leaderboard_obeys_privacy_commit_on_another_replica(
+    session: Session, client: TestClient, engine
+) -> None:
+    hidden_id = _make_user(session, email="hidden@stockviz.dev", name="Hidden", public_profile=True)
+    visible_id = _make_user(
+        session, email="visible@stockviz.dev", name="Visible", public_profile=True
+    )
+    # Keep an old ORM instance resident: authorization must use fresh database values.
+    stale_user = session.get(User, hidden_id)
+    assert stale_user is not None
+    assert len(client.get("/v1/leaderboard").json()) == 2
+    with Session(engine) as other_replica:
+        hidden = other_replica.get(User, hidden_id)
+        assert hidden is not None
+        hidden.public_profile = False
+        other_replica.add(hidden)
+        other_replica.commit()
+    assert stale_user.public_profile is True
+
+    entries = client.get("/v1/leaderboard").json()
+    assert [entry["user_id"] for entry in entries] == [visible_id]
+    assert entries[0]["rank"] == 1
+
+
+def test_cached_leaderboard_filters_before_top_fifty(
+    session: Session, client: TestClient, engine
+) -> None:
+    session.add_all(
+        User(email=f"trader{i}@stockviz.dev", name=f"Trader {i}", public_profile=True)
+        for i in range(52)
+    )
+    session.commit()
+    first_page = client.get("/v1/leaderboard").json()
+    removed_ids = {entry["user_id"] for entry in first_page[:2]}
+    with Session(engine) as other_replica:
+        for user_id in removed_ids:
+            user = other_replica.get(User, user_id)
+            assert user is not None
+            user.public_profile = False
+            other_replica.add(user)
+        other_replica.commit()
+
+    entries = client.get("/v1/leaderboard").json()
+    assert len(entries) == 50
+    assert [entry["rank"] for entry in entries] == list(range(1, 51))
+    assert not removed_ids.intersection(entry["user_id"] for entry in entries)
+
+
+def test_cache_fill_rechecks_privacy_after_concurrent_commit(
+    session: Session, client: TestClient, engine, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    user_id = _make_user(session, public_profile=True)
+    real_build = lb_module._build_leaderboard
+
+    def build_with_concurrent_opt_out(build_session: Session):
+        candidates = real_build(build_session)
+        # The other replica commits after the fill read but before its publication.
+        with Session(engine) as other_replica:
+            lb_module.patch_profile(ProfilePatchIn(public_profile=False), other_replica, user_id)
+        return candidates
+
+    monkeypatch.setattr(lb_module, "_build_leaderboard", build_with_concurrent_opt_out)
+    assert client.get("/v1/leaderboard").json() == []
+    assert client.get("/v1/leaderboard").json() == []
+
+
+def test_cached_leaderboard_uses_current_public_username(
+    session: Session, client: TestClient, engine
+) -> None:
+    user_id = _make_user(session, name="Old identifying name", public_profile=True)
+    assert client.get("/v1/leaderboard").json()[0]["username"] == "Old identifying name"
+    with Session(engine) as other_replica:
+        user = other_replica.get(User, user_id)
+        assert user is not None
+        user.name = "New public name"
+        other_replica.add(user)
+        other_replica.commit()
+
+    assert client.get("/v1/leaderboard").json()[0]["username"] == "New public name"
+
+
+def test_profile_cache_invalidation_occurs_after_durable_commit(
+    session: Session, client: TestClient
+) -> None:
+    user_id = _make_user(session, public_profile=True)
+    client.get("/v1/leaderboard")
+    populated_at = lb_module._cache_ts
+    timestamps_during_commit = []
+
+    def observe_before_commit(commit_session):
+        timestamps_during_commit.append(lb_module._cache_ts)
+
+    event.listen(session, "before_commit", observe_before_commit)
+    try:
+        lb_module.patch_profile(ProfilePatchIn(public_profile=False), session, user_id)
+    finally:
+        event.remove(session, "before_commit", observe_before_commit)
+
+    assert timestamps_during_commit == [populated_at]
+    assert lb_module._cache_ts is None
+    assert session.exec(select(User.public_profile).where(User.id == user_id)).one() is False
+
+
+def test_failed_profile_commit_preserves_cache_and_durable_visibility(
+    session: Session, client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    user_id = _make_user(session, public_profile=True)
+    client.get("/v1/leaderboard")
+    populated_at = lb_module._cache_ts
+
+    def fail_commit():
+        raise RuntimeError("database commit failed")
+
+    monkeypatch.setattr(session, "commit", fail_commit)
+    with pytest.raises(RuntimeError, match="database commit failed"):
+        lb_module.patch_profile(ProfilePatchIn(public_profile=False), session, user_id)
+    session.rollback()
+
+    assert lb_module._cache_ts == populated_at
+    persisted_user = session.get(User, user_id)
+    assert persisted_user is not None
+    assert persisted_user.public_profile is True
+    assert [entry["user_id"] for entry in client.get("/v1/leaderboard").json()] == [user_id]
+
+
+def test_snapshot_count_query_runs_once_per_leaderboard_build(
+    session: Session, client: TestClient, engine
+) -> None:
+    for i in range(3):
+        user_id = _make_user(session, email=f"count{i}@stockviz.dev", public_profile=True)
+        _add_snapshot(session, user_id, date(2026, 1, 1), Decimal("100000"))
+    count_queries = []
+    statements = []
+
+    def observe_statement(connection, cursor, statement, parameters, context, executemany):
+        statements.append(statement)
+        if "count(" in statement.lower() and "portfolio_snapshots" in statement.lower():
+            count_queries.append(statement)
+
+    event.listen(engine, "before_cursor_execute", observe_statement)
+    try:
+        entries = client.get("/v1/leaderboard").json()
+        assert len(statements) == 4
+        statements.clear()
+        cached_entries = client.get("/v1/leaderboard").json()
+    finally:
+        event.remove(engine, "before_cursor_execute", observe_statement)
+
+    assert [entry["days_tracked"] for entry in entries] == [1, 1, 1]
+    assert cached_entries == entries
+    assert len(count_queries) == 1
+    assert len(statements) == 1

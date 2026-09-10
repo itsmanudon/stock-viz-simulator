@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 
-import { type MarketRow, compare, flipDir, fmtPct, fmtPrice, sortHref } from "@/lib/markets-table";
+import {
+  type MarketRow,
+  compare,
+  flipDir,
+  fmtMoney,
+  fmtPct,
+  fmtPrice,
+  sortHref,
+} from "@/lib/markets-table";
 
 function row(ticker: string, last: number | null, changePct: number | null): MarketRow {
   return {
@@ -8,6 +16,7 @@ function row(ticker: string, last: number | null, changePct: number | null): Mar
     name: `${ticker} Co`,
     sector: null,
     exchange: null,
+    currency: "USD",
     closes: [],
     last,
     changePct,
@@ -22,6 +31,24 @@ describe("fmtPrice", () => {
 
   it("renders an em dash for missing data", () => {
     expect(fmtPrice(null)).toBe("—");
+  });
+});
+
+describe("fmtMoney", () => {
+  it("uses the symbol's own trading currency", () => {
+    expect(fmtMoney(1234.5, "USD")).toBe("$1,234.50");
+    expect(fmtMoney(1234.5, "INR")).toBe("₹1,234.50");
+    expect(fmtMoney(1234, "JPY")).toBe("¥1,234");
+  });
+
+  it("falls back to a code prefix for a malformed currency", () => {
+    // Intl.NumberFormat throws on a non-3-letter code; the catch path uses a
+    // plain space, not Intl's non-breaking one.
+    expect(fmtMoney(1234.5, "ZZ")).toBe("ZZ 1,234.50");
+  });
+
+  it("renders an em dash for missing data", () => {
+    expect(fmtMoney(null, "INR")).toBe("—");
   });
 });
 

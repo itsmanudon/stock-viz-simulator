@@ -96,6 +96,12 @@ Publication and consumption are at least once:
 - provider failure before database commit: no result is recorded, the offset remains uncommitted, and the worker backs off;
 - duplicate scheduled requests have distinct event IDs, but bar upserts and article URL uniqueness keep persistence idempotent.
 
+When private Massive shadow mode is enabled, market ingest first completes its
+normal yfinance fetch and then performs a bounded in-memory comparison. Only
+yfinance bars reach the existing transaction, outbox, Kafka, analytics, or API
+paths. A Massive failure is logged and never substitutes candidate bars. See
+[market-data semantics](./MARKET_DATA.md).
+
 There is no retry topic or dead-letter queue. A poison record can stall one partition until corrected.
 
 ## Sentiment-disabled behavior

@@ -7,6 +7,12 @@ These are the current, code-verified boundaries of StockViz. They are not commit
 - **End-of-day data, not an exchange feed.** yfinance is the primary daily OHLCV source and Alpha Vantage is a fallback when configured. Quotes, charts, fills, backtests, and alerts use cached daily closes.
 - **Simulated live badge.** The ticker SSE endpoint emits a labeled Gaussian random walk from the latest close; it is not a tradable real-time quote.
 - **Provider quality and freshness.** yfinance and Newsdata.io can be delayed, unavailable, or rate-limited. Seed/backfill data is historical and does not prove a hosted feed is current.
+- **Massive is evaluation-only.** The adapter is a private, nonpersistent
+  shadow. Live semantic statistics and fractional-volume database precision
+  still require a local credentialed run. An Individual subscription is not
+  production/commercial display or redistribution permission; technical and
+  licensing approval are separate gates. Massive must not be the primary
+  provider yet. See [market-data semantics](./MARKET_DATA.md).
 - **Small seeded universe.** The demo data contains a few dozen symbols. Symbol-search API support exists, but the header does not expose typeahead.
 - **Rule-based recommendations.** Technical votes and optional article sentiment produce explainable scores; this is not a predictive model.
 
@@ -22,7 +28,7 @@ These are the current, code-verified boundaries of StockViz. They are not commit
 ## Kafka and failure handling
 
 - **At least once, not exactly once.** A publisher crash after broker acknowledgement but before `published_at` can duplicate an event; durable inbox keys make implemented consumers idempotent.
-- **No retry topics or dead-letter queue.** A poison record can stall its partition until the worker/code/data is corrected.
+- **No retry topics or dead-letter queue.** A failed record is rewound with `seek` so the same offset is retried, which means a genuinely poison record stalls its partition until the worker/code/data is corrected. That stall is the deliberate trade: without a DLQ, the alternative is silently dropping a market bar or news article. Retries are unbounded and unattended — there is no attempt counter, alert, or quarantine path.
 - **No Schema Registry.** Versioned JSON event contracts are application-managed.
 - **CPU-based consumer HPA.** The kind example demonstrates CPU autoscaling; Kafka lag would usually be a better production signal.
 - **Scheduled reconciliation remains.** Full-universe metric and sentiment aggregation jobs intentionally repair incremental-processing drift. Recommendations and financial settlement remain scheduled/synchronous by design.

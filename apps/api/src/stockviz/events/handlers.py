@@ -35,7 +35,13 @@ from stockviz.events.outbox import (
 from stockviz.models import NewsArticle, NewsSentiment
 from stockviz.services.alerts import evaluate_pending_alerts
 from stockviz.services.ingest.news import ArticleRecord, insert_new_articles
-from stockviz.services.ingest.prices import DAILY_INTERVAL, BarRecord, upsert_bars
+from stockviz.services.ingest.prices import (
+    DAILY_INTERVAL,
+    BarRecord,
+    record_quarantined_bars,
+    screen_bars,
+    write_accepted_bars,
+)
 from stockviz.services.metrics import refresh_symbol_metrics
 from stockviz.services.sentiment import get_provider
 from stockviz.services.sentiment.base import SentimentInput, SentimentProvider, SentimentScore
@@ -57,19 +63,33 @@ def persist_market_refresh(
     """Upsert bars (if any) + ``market.bars.refreshed`` + inbox. No commit."""
     if already_processed(session, event_id=event.event_id, consumer_name=consumer_name):
         return "duplicate"
-    if bars:
-        upsert_bars(session, bars)
-        latest = max(bars, key=lambda b: b.ts)
+    # Screen provider data before it reaches price_bars (F-011). Implausible
+    # bars are parked in price_bar_quarantine; the refreshed event must
+    # describe only what actually landed in price_bars.
+    accepted, quarantined = screen_bars(session, bars) if bars else ([], [])
+    if quarantined:
+        record_quarantined_bars(session, quarantined)
+    if accepted:
+        write_accepted_bars(session, accepted)
+        latest = max(accepted, key=lambda b: b.ts)
         enqueue_market_bars_refreshed(
             session,
             ticker=event.payload.ticker,
             interval=latest.interval or DAILY_INTERVAL,
             source=latest.source,
-            bar_count=len(bars),
+            bar_count=len(accepted),
             latest_bar_at=latest.ts,
             latest_close=latest.close,
             request_event_id=event.event_id,
             occurred_at=event.occurred_at,
+        )
+    elif quarantined:
+        logger.warning(
+            "market ingest: %s — all %d provider bars failed screening; "
+            "%d quarantined, request marked processed",
+            event.payload.ticker,
+            len(bars),
+            len(quarantined),
         )
     else:
         logger.info(

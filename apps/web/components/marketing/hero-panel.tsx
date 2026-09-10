@@ -21,8 +21,10 @@ import { ApiError, getBars, listSymbols } from "@/lib/api";
 import type { Bar } from "@/lib/api/types";
 
 // Tried in order; the first with enough stored history wins. A cold database
-// that has only backfilled part of the universe still gets a chart.
-const CANDIDATES = ["NVDA", "AAPL", "MSFT", "AMZN", "GOOGL"];
+// that has only backfilled part of the universe still gets a chart. Liquid
+// names with the deepest, freshest daily history lead so the hero never shows
+// a months-stale price.
+const CANDIDATES = ["RELIANCE.NS", "HDFCBANK.NS", "TCS.NS", "NVDA", "AAPL", "MSFT"];
 
 const RAIL_ICONS = [ChartCandlestick, ListFilter, Signal, BriefcaseBusiness];
 const RANGES = ["1M", "3M", "6M", "1Y"];
@@ -30,23 +32,25 @@ const RANGES = ["1M", "3M", "6M", "1Y"];
 type PanelData = {
   ticker: string;
   name: string;
+  currency: string;
   bars: Bar[];
 };
 
 async function loadPanel(): Promise<PanelData | null> {
-  let nameByTicker = new Map<string, string>();
+  const meta = new Map<string, { name: string; currency: string }>();
   try {
     const symbols = await listSymbols();
-    nameByTicker = new Map(symbols.map((s) => [s.ticker, s.name]));
+    for (const s of symbols) meta.set(s.ticker, { name: s.name, currency: s.currency });
   } catch {
-    // Names are cosmetic here — fall back to the ticker.
+    // Names/currency are cosmetic here — fall back to the ticker / USD.
   }
 
   for (const ticker of CANDIDATES) {
     try {
       const bars = await getBars(ticker, { limit: 60 });
       if (bars.length >= 2) {
-        return { ticker, name: nameByTicker.get(ticker) ?? ticker, bars };
+        const m = meta.get(ticker);
+        return { ticker, name: m?.name ?? ticker, currency: m?.currency ?? "USD", bars };
       }
     } catch (err) {
       if (!(err instanceof ApiError)) throw err;
@@ -56,8 +60,18 @@ async function loadPanel(): Promise<PanelData | null> {
   return null;
 }
 
-function fmtPrice(n: number): string {
-  return n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+function fmtMoney(n: number, currency: string): string {
+  const digits = currency === "JPY" ? 0 : 2;
+  try {
+    return n.toLocaleString("en-US", {
+      style: "currency",
+      currency,
+      minimumFractionDigits: digits,
+      maximumFractionDigits: digits,
+    });
+  } catch {
+    return `${currency} ${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  }
 }
 
 function fmtVolume(n: number): string {
@@ -117,7 +131,7 @@ export async function HeroPanel() {
         </div>
         <div className="shrink-0 text-right">
           <p className="font-mono text-lg leading-none font-semibold tabular-nums">
-            ${fmtPrice(close)}
+            {fmtMoney(close, data.currency)}
           </p>
           <p
             className={`mt-1 font-mono text-2xs tabular-nums ${up ? "text-positive" : "text-negative"}`}
@@ -154,9 +168,9 @@ export async function HeroPanel() {
 
       <dl className="grid grid-cols-4 border-t border-border-muted">
         {[
-          { label: "Open", value: `$${fmtPrice(Number(latest.open))}` },
-          { label: "High", value: `$${fmtPrice(Number(latest.high))}` },
-          { label: "Low", value: `$${fmtPrice(Number(latest.low))}` },
+          { label: "Open", value: fmtMoney(Number(latest.open), data.currency) },
+          { label: "High", value: fmtMoney(Number(latest.high), data.currency) },
+          { label: "Low", value: fmtMoney(Number(latest.low), data.currency) },
           { label: "Vol", value: fmtVolume(latest.volume) },
         ].map((stat) => (
           <div key={stat.label} className="px-4 py-3">

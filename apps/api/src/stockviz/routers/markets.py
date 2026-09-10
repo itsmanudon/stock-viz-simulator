@@ -7,8 +7,7 @@ for the inline sparkline — 34 backend requests for a 32-symbol universe, each
 rate limit at 60/minute that meant two page loads could exhaust the budget.
 
 This endpoint answers the whole page with two queries: one for the symbol rows,
-one window-function pass over `price_bars` for the recent closes of every
-symbol at once.
+one bounded indexed query for the recent closes of every symbol at once.
 """
 
 from __future__ import annotations
@@ -17,13 +16,13 @@ from decimal import Decimal
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, Request
-from sqlalchemy import func
 from sqlmodel import Session, select
 
 from stockviz.db import get_session
 from stockviz.limiter import limiter
-from stockviz.models import PriceBar, Symbol
+from stockviz.models import Symbol
 from stockviz.schemas import MarketsSummaryOut, MarketSummaryRowOut
+from stockviz.services.recent_bars import recent_closes
 
 router = APIRouter(prefix="/v1/markets", tags=["markets"])
 
@@ -35,43 +34,8 @@ MAX_SPARKLINE_DAYS = 120
 def _recent_closes(
     session: Session, tickers: list[str], *, limit_per_ticker: int
 ) -> dict[str, list[Decimal]]:
-    """Most recent ``limit_per_ticker`` closes per ticker, oldest first.
-
-    One query for the whole universe: rank each ticker's bars newest-first and
-    keep the top N. The per-ticker loop this replaces was the single biggest
-    contributor to /markets latency.
-    """
-    if not tickers:
-        return {}
-
-    ranked = (
-        select(
-            PriceBar.ticker,
-            PriceBar.ts,
-            PriceBar.close,  # type: ignore[arg-type]
-            func.row_number()
-            .over(
-                partition_by=PriceBar.ticker,  # type: ignore[arg-type]
-                order_by=PriceBar.ts.desc(),  # type: ignore[attr-defined]
-            )
-            .label("rn"),
-        )
-        .where(
-            PriceBar.ticker.in_(tickers),  # type: ignore[attr-defined]
-            PriceBar.interval == "1d",
-        )
-        .subquery()
-    )
-    rows = session.exec(
-        select(ranked.c.ticker, ranked.c.ts, ranked.c.close)  # type: ignore[call-overload]
-        .where(ranked.c.rn <= limit_per_ticker)
-        .order_by(ranked.c.ticker, ranked.c.ts)
-    ).all()
-
-    out: dict[str, list[Decimal]] = {}
-    for ticker, _ts, close in rows:
-        out.setdefault(ticker, []).append(close)
-    return out
+    """Most recent daily closes, oldest first; one bounded PostgreSQL query."""
+    return recent_closes(session, tickers, limit_per_ticker=limit_per_ticker)
 
 
 @router.get("/summary", response_model=MarketsSummaryOut)

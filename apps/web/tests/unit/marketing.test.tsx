@@ -1,17 +1,27 @@
 import { render, screen, within } from "@testing-library/react";
-import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import HomePage from "@/app/(public)/page";
 import { SiteFooter } from "@/components/site-footer";
 
-// Keep server data sections out of JSDOM; Playwright covers their real output.
-vi.mock("@/components/marketing/hero", () => ({ Hero: () => null }));
-vi.mock("@/components/marketing/market-ticker", () => ({ MarketTicker: () => null }));
-vi.mock("@/components/marketing/product-tour", () => ({ ProductTour: () => null }));
-vi.mock("@/components/marketing/by-the-numbers", () => ({ ByTheNumbers: () => null }));
-vi.mock("@/components/marketing/reveal", () => ({
-  Reveal: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+// The hero, ticker, tour, and stat band are async server components that fetch
+// live data from the API; each is covered on its own or in the Playwright
+// marketing spec. Stub them so HomePage renders synchronously and this suite
+// stays on what page.tsx itself owns — the workspace surface index. Stubbing
+// the tour also severs the `lib/api/leaderboard` → `@/auth` → next-auth import
+// chain, which Vitest cannot resolve.
+vi.mock("@/components/marketing/hero", () => ({ Hero: () => <div>Hero</div> }));
+vi.mock("@/components/marketing/market-ticker", () => ({
+  MarketTicker: () => <div>Market ticker</div>,
+}));
+vi.mock("@/components/marketing/product-tour", () => ({
+  ProductTour: () => <div>Product tour</div>,
+}));
+vi.mock("@/components/marketing/by-the-numbers", () => ({
+  ByTheNumbers: () => <div>By the numbers</div>,
+}));
+vi.mock("@/components/marketing/closing-cta", () => ({
+  ClosingCta: () => <div>Closing CTA</div>,
 }));
 
 describe("SiteFooter", () => {
@@ -31,16 +41,7 @@ describe("SiteFooter", () => {
 });
 
 describe("HomePage", () => {
-  it("offers a signup call to action", () => {
-    render(<HomePage />);
-
-    expect(screen.getAllByRole("link", { name: /Create free account/ })[0]).toHaveAttribute(
-      "href",
-      "/signup",
-    );
-  });
-
-  it("links every feature to the route it describes", () => {
+  it("links every workspace surface to the route it describes", () => {
     render(<HomePage />);
 
     for (const [name, href] of [
@@ -51,12 +52,7 @@ describe("HomePage", () => {
       ["Paper trading", "/trade"],
       ["Portfolio", "/portfolio"],
     ] as const) {
-      expect(screen.getByRole("link", { name: new RegExp(name) })).toHaveAttribute("href", href);
+      expect(screen.getByRole("link", { name })).toHaveAttribute("href", href);
     }
-  });
-
-  it("does not oversell the simulator as live trading", () => {
-    render(<HomePage />);
-    expect(screen.getByRole("heading", { name: /Start with.*100,000.*isn.t real/i })).toBeVisible();
   });
 });

@@ -1,0 +1,92 @@
+services:
+  postgres:
+    container_name: stockviz-pipeline-verify-postgres
+    ports: !override
+      - "15434:5432"
+    volumes: !override
+      - verify_postgres_data:/var/lib/postgresql/data
+
+  kafka:
+    container_name: stockviz-pipeline-verify-kafka
+    ports: !override
+      - "19092:9092"
+
+  kafka-init:
+    container_name: stockviz-pipeline-verify-kafka-init
+
+  api:
+    build:
+      target: runtime
+    image: stockviz-api:pipeline-verify
+    container_name: stockviz-pipeline-verify-api
+    restart: "no"
+    ports: !override
+      - "18000:8000"
+    environment: !override
+      DATABASE_URL: postgresql+psycopg://stockviz:stockviz_dev@postgres:5432/stockviz
+      INTERNAL_API_TOKEN: pipeline-verify-internal-token
+      PORT: "8000"
+      ENVIRONMENT: development
+      ENABLE_SCHEDULER: "false"
+      CORS_ORIGINS: '["http://localhost:13100"]'
+      NEWS_PROVIDER: none
+      SENTIMENT_PROVIDER: none
+
+  web:
+    build:
+      target: runtime
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:18000
+    image: stockviz-web:pipeline-verify
+    container_name: stockviz-pipeline-verify-web
+    restart: "no"
+    ports: !override
+      - "13100:3000"
+    environment: !override
+      API_URL: http://api:8000
+      DATABASE_URL: postgres://stockviz:stockviz_dev@postgres:5432/stockviz
+      INTERNAL_API_TOKEN: pipeline-verify-internal-token
+      AUTH_SECRET: pipeline-verify-auth-value-not-for-deployment
+      AUTH_TRUST_HOST: "true"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "node -e \"fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\"",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 24
+      start_period: 20s
+
+  api-tests:
+    build:
+      context: ../apps/api
+      dockerfile: Dockerfile
+      target: test
+    image: stockviz-api-tests:pipeline-verify
+    container_name: stockviz-pipeline-verify-api-tests
+    profiles: ["verify-tests"]
+    environment:
+      DATABASE_URL: postgresql+psycopg://stockviz:stockviz_dev@postgres:5432/stockviz
+      ENVIRONMENT: development
+      ENABLE_SCHEDULER: "false"
+      NEWS_PROVIDER: none
+      SENTIMENT_PROVIDER: none
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      STOCKVIZ_KAFKA_REQUIRED: "1"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+
+volumes:
+  verify_postgres_data:
+    name: stockviz_pipeline_verify_postgres_data
+
+networks:
+  default:
+    name: stockviz_pipeline_verify_network

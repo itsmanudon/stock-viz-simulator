@@ -3,6 +3,15 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* Keep the Indian rupee glyph in a local mono fallback. The scoped face only
+   supplies U+20B9, so all other financial text remains IBM Plex Mono. */
+@font-face {
+  font-family: "Currency Mono";
+  src: local("Consolas"), local("DejaVu Sans Mono"), local("Menlo");
+  unicode-range: U+20B9;
+  size-adjust: 112%;
+}
+
 :root {
   /* ATLAS — a neutral terminal canvas with a restrained blue identity accent.
      Positive and negative remain separate semantic hues so a price change
@@ -40,6 +49,11 @@
   --negative-foreground: #ffffff;
   --warning: #a16207;
   --warning-foreground: #ffffff;
+  /* Trading Journal P&L tints are semantic surface strengths, so the calendar
+     remains a readable part of the workspace rather than an opaque heatmap. */
+  --financial-tint-1: 5%;
+  --financial-tint-2: 9%;
+  --financial-tint-3: 14%;
   --positive-soft: #dff4eb;
   --positive-soft-foreground: #126343;
   --negative-soft: #fde4e6;
@@ -90,6 +104,9 @@
   --text-tertiary: #818181;
   --positive: #4fd19d;
   --positive-foreground: #06291e;
+  --financial-tint-1: 6%;
+  --financial-tint-2: 11%;
+  --financial-tint-3: 17%;
   --negative: #f0787d;
   --negative-foreground: #2d0c10;
   --warning: #f1bd5b;
@@ -154,7 +171,8 @@
   --color-marketing-panel-border: var(--marketing-panel-border);
   --color-grid-line: var(--grid-line);
   --font-sans: var(--font-display), Inter, "Segoe UI Variable", ui-sans-serif, system-ui, sans-serif;
-  --font-mono: var(--font-numeric), "IBM Plex Mono", "SFMono-Regular", Consolas, monospace;
+  --font-mono: "Currency Mono", var(--font-numeric), "IBM Plex Mono", "SFMono-Regular", Consolas,
+    monospace;
 
   /* Type ramp.
      `3xs`/`2xs` are the dense-UI steps below Tailwind's `xs` — table meta,
@@ -245,48 +263,25 @@ html[data-density="compact"] .workspace-main .density-workspace {
    silently keep its radius and side borders. In the components layer the
    utilities win, which is the expected way to vary one of these. */
 
-/* The signature object: a neutral dark panel that holds product UI on either
-   theme.
-   Rebinding the palette inside it means existing workspace components can be
-   dropped in unchanged and still resolve `text-text-secondary`,
-   `border-border-muted`, `text-positive`, and friends to their dark values. */
+/* The signature object follows the neutral theme: a white product panel in
+   light mode and a near-black panel in dark mode. */
 @layer components {
   .panel-inset {
-    --foreground: #f2f2f2;
-    --card: #141414;
-    --card-foreground: #f2f2f2;
-    --popover: #181818;
-    --popover-foreground: #f2f2f2;
-    --primary: #f2f2f2;
-    --primary-foreground: #111111;
-    --brand: #7ea6ff;
-    --brand-muted: #162544;
-    --secondary: #1c1c1c;
-    --secondary-foreground: #dedede;
-    --muted: #1c1c1c;
-    --accent: #252525;
-    --accent-foreground: #f2f2f2;
-    --border: #303030;
-    --border-muted: #252525;
-    --input: #3c3c3c;
-    --ring: #7ea6ff;
-    --surface-elevated: #1d1d1d;
-    --surface-secondary: #1c1c1c;
-    --surface-hover: #252525;
-    --text-secondary: #ababab;
-    --text-tertiary: #818181;
-    --positive: #4fd19d;
-    --negative: #f0787d;
-    --warning: #f1bd5b;
-
     position: relative;
     overflow: hidden;
-    border: 1px solid var(--marketing-panel-border);
+    border: 1px solid var(--border);
     border-radius: calc(var(--radius) + 0.375rem);
-    background-color: var(--marketing-panel);
+    background-color: var(--card);
     color: var(--foreground);
-    /* Form controls and scrollbars inside the panel need to know they're on a
-       dark ground even when the document theme is light. */
+    color-scheme: light;
+  }
+
+  .dark .panel-inset {
+    /* A shade above --card so nested tiles still separate from the panel. */
+    --surface-elevated: #1d1d1d;
+    --border-muted: #252525;
+    border-color: var(--marketing-panel-border);
+    background-color: var(--marketing-panel);
     color-scheme: dark;
   }
 
@@ -346,13 +341,19 @@ html[data-density="compact"] .workspace-main .density-workspace {
     animation-play-state: paused;
   }
 
-  /* Hollow display type — the oversized number behind the closing CTA and the
-     wordmark that closes the footer. The stroke can't be `currentColor`: the
-     fill has to be transparent, which would make the stroke transparent too.
-     Set `--outline-color` at the call site instead. */
+  /* Near-hollow display type — the oversized number behind the closing CTA and
+     the wordmark that closes the footer. A hairline outline on a 15rem glyph
+     reads as nothing, so this keeps a legible stroke plus a whisper of fill,
+     both mixed from `--outline-color` (set per call site) so the mark works on
+     either theme's ground. `opacity` then holds the whole thing back to a
+     watermark — present but not competing with the heading in front of it.
+     `currentColor` can't be used: the fill would take the stroke transparent
+     with it. */
   .text-outline {
-    color: transparent;
-    -webkit-text-stroke: 1px var(--outline-color, var(--border));
+    color: color-mix(in oklab, var(--outline-color, var(--border)) 14%, transparent);
+    -webkit-text-stroke: 2px
+      color-mix(in oklab, var(--outline-color, var(--border)) 55%, transparent);
+    opacity: 0.3;
   }
 }
 
@@ -373,6 +374,119 @@ html[data-density="compact"] .workspace-main .density-workspace {
 
   .marquee-track {
     animation: none;
+  }
+}
+
+/* Trading Journal inspector motion.
+   Hand-written keyframes rather than `animate-in` / `animate-out` utilities:
+   on this build those resolve to `animation-name: enter|exit` without ever
+   starting an animation, so no `animationend` fires — and Radix's Presence
+   waits for that event before unmounting. The result was a closed dialog left
+   in the DOM, still focusable. Keyframes declared here always run, so the
+   panel animates *and* unmounts. The global `prefers-reduced-motion` block
+   below collapses the duration to 0.01ms, which keeps `animationend` firing —
+   that is why it collapses duration instead of setting `animation: none`. */
+@keyframes journal-sheet-in {
+  from {
+    transform: translateY(100%);
+  }
+}
+
+@keyframes journal-sheet-out {
+  to {
+    transform: translateY(100%);
+  }
+}
+
+@keyframes journal-panel-in {
+  from {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes journal-panel-out {
+  to {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes journal-veil-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes journal-veil-out {
+  to {
+    opacity: 0;
+  }
+}
+
+@layer components {
+  /* Below `sm` the inspector is a bottom sheet; from `sm` up it is the
+     right-hand panel, so the direction it travels changes with it. */
+  .journal-inspector {
+    animation: journal-sheet-in 190ms cubic-bezier(0.32, 0.72, 0, 1);
+  }
+
+  .journal-inspector[data-state="closed"] {
+    animation: journal-sheet-out 160ms cubic-bezier(0.32, 0.72, 0, 1);
+  }
+
+  .journal-veil {
+    animation: journal-veil-in 190ms ease-out;
+  }
+
+  .journal-veil[data-state="closed"] {
+    animation: journal-veil-out 160ms ease-in;
+  }
+
+  @media (width >= 64rem) {
+    .journal-inspector {
+      animation-name: journal-panel-in;
+    }
+
+    .journal-inspector[data-state="closed"] {
+      animation-name: journal-panel-out;
+    }
+  }
+}
+
+/* --- Trading Journal ------------------------------------------------------
+   `data-sign` picks the semantic hue, `data-level` the strength. Doing the
+   mixing here means no component ever names a colour, and retuning the whole
+   calendar is four numbers in one place.
+
+   A cell with no realized P&L gets no tint at all: an inactive day should be
+   quiet, not neutral-grey-loud. */
+@layer components {
+  .pnl-tint[data-sign="positive"] {
+    --pnl-color: var(--positive);
+  }
+
+  .pnl-tint[data-sign="negative"] {
+    --pnl-color: var(--negative);
+  }
+
+  .pnl-tint[data-level="1"] {
+    --pnl-strength: var(--financial-tint-1);
+  }
+
+  .pnl-tint[data-level="2"] {
+    --pnl-strength: var(--financial-tint-2);
+  }
+
+  .pnl-tint[data-level="3"] {
+    --pnl-strength: var(--financial-tint-3);
+  }
+
+  /* Only the fill is tinted. A tinted border was tried and dropped: the cell's
+     `border-border-muted` utility outranks this rule (Tailwind's utility layer
+     beats the components layer regardless of specificity), and the fill alone
+     is the more restrained treatment anyway. */
+  .pnl-tint[data-sign="positive"],
+  .pnl-tint[data-sign="negative"] {
+    background-color: color-mix(in oklab, var(--pnl-color) var(--pnl-strength), transparent);
   }
 }
 
@@ -409,5 +523,50 @@ html[data-density="compact"] .workspace-main .density-workspace {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     transition-delay: 0ms !important;
+  }
+}
+
+/* Calendar responds to available workspace width, including an open inspector. */
+.journal-calendar {
+  container-type: inline-size;
+}
+.journal-calendar-row {
+  grid-template-columns: minmax(0, 1fr);
+}
+.journal-week-column,
+.journal-pnl-full {
+  display: none;
+}
+.journal-pnl-compact {
+  display: inline;
+  font-size: 10px;
+}
+@container (min-width: 600px) {
+  .journal-pnl-full {
+    display: inline;
+  }
+  .journal-pnl-compact {
+    display: none;
+  }
+}
+@container (min-width: 800px) {
+  .journal-calendar-row {
+    grid-template-columns: minmax(0, 1fr) 9.5rem;
+  }
+  .journal-week-column {
+    display: flex;
+  }
+  .journal-week-strip {
+    display: none;
+  }
+}
+@media (min-width: 1024px) {
+  .journal-workspace[data-inspecting="true"] {
+    padding-right: 23rem;
+  }
+}
+@media (min-width: 1280px) {
+  .journal-workspace[data-inspecting="true"] {
+    padding-right: 27rem;
   }
 }

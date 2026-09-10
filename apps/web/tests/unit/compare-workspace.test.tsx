@@ -73,9 +73,29 @@ describe("compare presentation", () => {
         timeframe="1Y"
         names={{ AAPL: "Apple Inc." }}
         search={async () => []}
+        list={async () => []}
       />,
     );
     expect(screen.getByRole("button", { name: "Remove AAPL" })).toBeVisible();
+  });
+
+  it("offers watchlist symbols as quick-add chips, skipping ones already picked", () => {
+    push.mockClear();
+    render(
+      <CompareSymbolPicker
+        tickers={["AAPL"]}
+        timeframe="1Y"
+        names={{ AAPL: "Apple Inc.", MSFT: "Microsoft" }}
+        watchlistTickers={["AAPL", "MSFT"]}
+        search={async () => []}
+        list={async () => []}
+      />,
+    );
+    // AAPL is already selected, so only MSFT is offered.
+    expect(screen.queryByRole("button", { name: "+ AAPL" })).toBeNull();
+    screen.getByRole("button", { name: "+ MSFT" }).click();
+    expect(push).toHaveBeenCalledWith(expect.stringContaining("AAPL"));
+    expect(push).toHaveBeenCalledWith(expect.stringContaining("MSFT"));
   });
 });
 

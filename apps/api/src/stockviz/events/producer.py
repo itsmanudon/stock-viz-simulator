@@ -19,6 +19,27 @@ class BrokerPublisher(Protocol):
         """Block until the broker acknowledges the record, then return."""
 
 
+class BrokerConsumer(Protocol):
+    """The consumer surface the dispatcher actually uses.
+
+    Mirrors :class:`BrokerPublisher`: a structural type so unit tests can
+    inject a fake without librdkafka, and so the dispatcher depends on
+    behaviour rather than on the confluent-kafka implementation.
+    """
+
+    def poll_json(self, timeout: float) -> tuple[object, dict[str, Any]] | None:
+        """Return the next record and its decoded payload, or None on timeout."""
+
+    def commit(self, msg: object) -> None:
+        """Commit ``msg``'s offset (i.e. offset + 1)."""
+
+    def seek(self, msg: object) -> None:
+        """Rewind this partition so ``msg`` is redelivered by the next poll."""
+
+    def close(self) -> None:
+        """Leave the consumer group and release resources."""
+
+
 class BrokerPublishError(RuntimeError):
     """Produce failed or flush did not complete."""
 
@@ -120,6 +141,22 @@ class ConfluentBrokerConsumer:
 
     def commit(self, msg: object) -> None:
         self._consumer.commit(message=msg, asynchronous=False)  # type: ignore[arg-type]
+
+    def seek(self, msg: object) -> None:
+        """Rewind this partition so ``msg`` is redelivered by the next poll.
+
+        ``poll()`` advances the consumer's in-memory position whether or not
+        the offset was committed, so a handler failure would otherwise skip
+        the record: the next poll returns the *following* message, and once
+        that one commits, the committed offset moves past the failed record
+        and it is never redelivered. Seeking back to ``msg.offset()`` keeps a
+        failed record at the head of its partition until it succeeds.
+        """
+        from confluent_kafka import TopicPartition
+
+        self._consumer.seek(
+            TopicPartition(msg.topic(), msg.partition(), msg.offset())  # type: ignore[attr-defined]
+        )
 
     def close(self) -> None:
         self._consumer.close()

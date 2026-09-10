@@ -16,6 +16,7 @@ apps/web/    Next.js 16 (App Router, React 19, TS, Tailwind v4, NextAuth v5) + P
 apps/api/    FastAPI + SQLModel + Alembic + APScheduler (Python 3.12, uv)
 infra/       docker-compose (local Postgres; Kafka via `--profile events`) + render.yaml
              k8s/ (Kustomize layers: bootstrap → migrate → app → scale; Strimzi)
+.railway/    railway.ts — Railway TypeScript IaC (lean 4-resource topology)
 scripts/k8s/ kind create / build / deploy / smoke / destroy
 .github/workflows/ci.yml   web, api, events-integration, security, docker, e2e
 .github/workflows/k8s-smoke.yml   kind + Strimzi + migrate Job + smoke + reduced Kafka benchmark
@@ -126,11 +127,19 @@ main ← dev ← feat/* | fix/* | chore/*
 `main` receives **only** merges of `dev` — never merge a feature/fix/chore
 branch, Cursor agent branch, or hotfix into `main` directly.
 
-- **`main`** — release branch. Intended production hosts are Vercel (web) and
-  Render (API + DB). `infra/render.yaml` has `autoDeploy: true`; whether a
-  dashboard currently deploys on push is owner-controlled and **not** recorded
-  in this repo. Promote with a `dev` → `main` merge (or PR). Do **not** open
-  PRs against `main` except that promotion.
+**Hard rule (agents):** never `git commit`, `git merge`, `git push`, or
+otherwise write to `main`. Do all work on `dev` (or a `feat/`|`fix/`|`chore/`
+branch off `dev`) and push that. `dev` → `main` promotion happens **only** as
+a PR that the repo owner explicitly approves — an agent does not open, merge,
+or fast-forward it, even when asked to "deploy" or "ship". If a task seems to
+need a `main` change, stop and ask.
+
+- **`main`** — release branch. Production hosts: Railway (whole stack via
+  `.railway/railway.ts`), plus Vercel (web) / Render (API + DB) blueprints.
+  `infra/render.yaml` has `autoDeploy: true`; whether a dashboard currently
+  deploys on push is owner-controlled and **not** recorded in this repo.
+  Promote with a **`dev` → `main` PR that the owner approves**. Agents do not
+  write to `main` at all (see the hard rule above).
 - **`dev`** — the integration branch. All feature/fix/chore PRs target `dev`.
   Kept green at all times; merged into `main` for each deployable release.
 - **`feat/<name>`**, **`fix/<name>`**, **`chore/<name>`** — short-lived
@@ -206,6 +215,12 @@ are not split-adjusted).
 
 ## Commits and PRs
 
+**Agents commit and push to `dev` only** (or a short-lived branch off `dev`).
+`main` is off-limits — no direct commits, merges, or pushes, and no
+opening/merging the `dev` → `main` PR. That promotion is the owner's, done
+with explicit approval. "Deploy" / "ship" means *land it on `dev`*, not touch
+`main`.
+
 **Keep these guides honest:** a PR that adds a router, page, model, scheduler
 job, or env var — or changes auth/trading semantics — must update the relevant
 `CLAUDE.md` (root, `apps/api/`, or `apps/web/`) in the same PR. These files
@@ -259,7 +274,10 @@ Full lists live in `apps/web/.env.example` and `apps/api/.env.example`
 | `DATABASE_URL`                                           | both                         | web wants plain `postgres://` (node-postgres); the API rewrites `postgres://`→`postgresql+psycopg://` in `settings.py`, don't fight it                                                                                       |
 | `ENABLE_SCHEDULER`                                       | api                          | off by default; Render sets `true` (in-process). Kubernetes API pods keep it `false` and run `python -m stockviz.workers.scheduler`                                                                                          |
 | `RATELIMIT_ENABLED=0`                                    | api                          | disables the slowapi rate limiter (handy for tests/load scripts)                                                                                                                                                             |
-| `ALPHA_VANTAGE_KEY`, `NEWSDATA_KEY`, `ANTHROPIC_API_KEY` | api                          | News (`NEWSDATA_KEY`) and sentiment (`ANTHROPIC_API_KEY`) **silently no-op** when blank. A blank `ALPHA_VANTAGE_KEY` only skips the Alpha Vantage **fallback**; the market-ingest worker still uses yfinance for daily OHLCV |
+| `ALPHA_VANTAGE_KEY`                                     | api                          | blank only skips the Alpha Vantage fallback; yfinance remains the persisted/default daily source |
+| `MASSIVE_SHADOW_ENABLED`, `MASSIVE_API_KEY`             | api                          | Massive is private/nonpersistent shadow only; explicit enablement without its key fails validation |
+| `NEWS_PROVIDER`, `NEWSDATA_KEY`                         | api                          | explicit `newsdata` requires its key; blank retains legacy key-based resolution, and `none` disables news |
+| `ANTHROPIC_API_KEY`                                     | api                          | explicit `SENTIMENT_PROVIDER=anthropic` requires its key; blank provider retains legacy key-based resolution |
 | `SENTIMENT_PROVIDER`                                     | api                          | `none` (default) \| `anthropic` \| `http`. Blank resolves to `anthropic` when `ANTHROPIC_API_KEY` is set. See [`docs/SENTIMENT.md`](./docs/SENTIMENT.md)                                                                     |
 | `SENTIMENT_SERVICE_URL`, `SENTIMENT_SERVICE_TOKEN`       | api                          | only read when `SENTIMENT_PROVIDER=http` — the standalone scoring service. `HttpProvider` posts to `{URL}/score`, so include any path prefix the service uses (e.g. `.../v1`) |
 | `KAFKA_BOOTSTRAP_SERVERS`                                | api workers                  | defaults to `localhost:9092`; workers run inside compose need `kafka:29092`. The API never produces to Kafka, so the compose `api` service does not set it |
@@ -276,6 +294,18 @@ work fine without one. Env vars live in `apps/web/.env.example` and
 
 - Web → Vercel (`apps/web/vercel.json`)
 - API + DB → Render (`infra/render.yaml`)
+- **Whole stack → Railway** (`.railway/railway.ts`, TypeScript IaC — Railway
+  deprecated `railway.json`/`.toml`). A lean 4-resource topology: managed
+  Postgres, the FastAPI `api` and Next.js `web` (both `sleepApplication:
+  true`), and one nightly `cron` service running the `stockviz.cli` job
+  twins (no Kafka — the site does not need the broker running to serve).
+  `railway config plan` / `apply` from the repo root; the `railway`
+  devDependency is the SDK the CLI evaluates. Secrets
+  (`INTERNAL_API_TOKEN` on api+web, `AUTH_SECRET` on web) are set with
+  `railway variable set` and kept out of source via `preserve()`.
+  `NEXT_PUBLIC_API_URL` bakes at web build time, so after the first apply:
+  `railway domain --service api && railway domain --service web`, then
+  `railway redeploy --service web`. See `docs/DEPLOYMENT.md`.
 - kind / CI lab → [`docs/KUBERNETES.md`](./docs/KUBERNETES.md) (Kustomize +
   Strimzi). Not a production control plane.
 

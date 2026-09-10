@@ -19,6 +19,7 @@ import {
 } from "@/components/research-page-header";
 import { ApiError, type Bar, getBars, getSymbol, listSymbols, screenSymbols } from "@/lib/api";
 import type { ScreenerResult } from "@/lib/api/types";
+import { listWatchlist } from "@/lib/api/watchlist";
 import {
   type CompareMetrics,
   SAMPLE_COMPARE_TICKERS,
@@ -68,14 +69,19 @@ export default async function ComparePage({
   const screenPromise = tickers.length
     ? screenSymbols().catch(() => [] as ScreenerResult[])
     : Promise.resolve([] as ScreenerResult[]);
+  // Guests have no session — the authed call throws and collapses to an empty
+  // list, which just hides the quick-add row.
+  const watchlistPromise = listWatchlist().catch(() => []);
 
-  const [universe, screenRows, seriesByTicker] = await Promise.all([
+  const [universe, screenRows, seriesByTicker, watchlist] = await Promise.all([
     universePromise,
     screenPromise,
     tickers.length
       ? Promise.all(tickers.map((ticker) => loadSeries(ticker, days)))
       : Promise.resolve([]),
+    watchlistPromise,
   ]);
+  const watchlistTickers = watchlist.map((item) => item.ticker);
 
   const screenByTicker = new Map(screenRows.map((row) => [row.ticker, row]));
   const names: Record<string, string> = {};
@@ -135,7 +141,12 @@ export default async function ComparePage({
       <ResearchSubnav current="/compare" />
 
       <div className="mt-5 space-y-7">
-        <CompareSymbolPicker tickers={tickers} timeframe={timeframe} names={names} />
+        <CompareSymbolPicker
+          tickers={tickers}
+          timeframe={timeframe}
+          names={names}
+          watchlistTickers={watchlistTickers}
+        />
 
         {tickers.length === 0 ? (
           <ResearchEmptyState

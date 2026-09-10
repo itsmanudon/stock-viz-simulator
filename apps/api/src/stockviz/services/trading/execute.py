@@ -280,6 +280,7 @@ def apply_fill(
     usd_cost = (native_cost * fx_rate).quantize(MICROS)
     position = get_position(session, portfolio_id=portfolio_id, ticker=ticker)
     realized_pnl: Decimal | None = None
+    avg_cost_at_fill: Decimal | None = None
 
     if side == TradeSide.BUY:
         try:
@@ -322,6 +323,7 @@ def apply_fill(
                 )
             raise InsufficientPosition(f"Held {held} {ticker}, cannot sell {quantity}")
         assert position is not None
+        avg_cost_at_fill = position.avg_cost
         portfolio.cash_balance = (portfolio.cash_balance + usd_cost).quantize(MICROS)
         # Realized P&L against the weighted-average cost basis, in USD.
         realized_pnl = ((price - position.avg_cost) * quantity * fx_rate).quantize(MICROS)
@@ -340,6 +342,7 @@ def apply_fill(
         price=price,
         fx_rate=fx_rate,
         realized_pnl=realized_pnl,
+        avg_cost_at_fill=avg_cost_at_fill,
     )
     session.add(trade)
     session.add(portfolio)

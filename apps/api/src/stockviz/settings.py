@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import json
+import re
 from functools import lru_cache
-from typing import Annotated
+from typing import Annotated, Literal
+from urllib.parse import urlsplit
 
-from pydantic import field_validator, model_validator
+from pydantic import SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 _PRODUCTION_ENVIRONMENTS = frozenset({"production", "prod"})
@@ -32,6 +34,21 @@ class Settings(BaseSettings):
     debug: bool = True
 
     database_url: str = "postgresql+psycopg://stockviz:stockviz_dev@127.0.0.1:5434/stockviz"
+
+    # Optional local pilot for pure public computations; no private data or locks.
+    cache_backend: Literal["none", "redis"] = "none"
+    redis_url: str = ""
+    redis_password: SecretStr = SecretStr("")
+    cache_namespace: str = "stockviz:local:v1"
+
+    @field_validator("cache_namespace")
+    @classmethod
+    def _safe_cache_namespace(cls, value: str) -> str:
+        if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9:_-]{0,127}", value):
+            raise ValueError(
+                "cache namespace must be 1-128 letters, digits, colons, underscores or hyphens"
+            )
+        return value
 
     @field_validator("database_url")
     @classmethod
@@ -69,6 +86,15 @@ class Settings(BaseSettings):
     nextauth_jwt_secret: str = "dev-secret-change-me"
 
     alpha_vantage_key: str = ""
+    # yfinance remains the persisted/default provider. Massive is an optional,
+    # private shadow comparison only and must never be exposed by an API path.
+    massive_shadow_enabled: bool = False
+    massive_api_key: str = ""
+    massive_shadow_lookback_days: int = 90
+
+    # Blank preserves the original key-based behavior. Explicit selection is
+    # validated so a requested live provider cannot silently become a no-op.
+    news_provider: str = ""
     newsdata_key: str = ""
     anthropic_api_key: str = ""
 
@@ -114,9 +140,16 @@ class Settings(BaseSettings):
     kafka_poll_timeout_seconds: float = 1.0
     kafka_retry_backoff_seconds: float = 2.0
 
+    @property
+    def resolved_news_provider(self) -> str:
+        value = self.news_provider.strip().lower()
+        if value:
+            return value
+        return "newsdata" if self.newsdata_key.strip() else "none"
+
     @model_validator(mode="after")
-    def _reject_dev_secrets_in_production(self) -> Settings:
-        """Refuse to boot in production while a secret is still its dev default.
+    def _validate_runtime_configuration(self) -> Settings:
+        """Fail closed for selected providers and unsafe production secrets.
 
         ``internal_api_token`` signs the web -> api bridge JWT, and
         ``auth.require_user_id`` trusts the ``sub`` claim as the user id. The
@@ -128,6 +161,55 @@ class Settings(BaseSettings):
         set by hand after the first deploy — exactly the kind of step that gets
         missed. Failing loudly at startup beats failing open.
         """
+
+        if self.cache_backend == "redis":
+            if self.environment.strip().lower() in _PRODUCTION_ENVIRONMENTS:
+                raise ValueError("Redis pilot is prohibited in production/prod environments")
+            if not self.redis_url.strip() or not self.redis_password.get_secret_value().strip():
+                raise ValueError("CACHE_BACKEND=redis requires REDIS_URL and REDIS_PASSWORD")
+            try:
+                url = urlsplit(self.redis_url)
+                port = url.port
+            except ValueError:
+                raise ValueError("REDIS_URL must contain a valid host and port") from None
+            if (
+                url.scheme not in {"redis", "rediss"}
+                or not url.hostname
+                or url.username is not None
+                or url.password is not None
+                or url.query
+                or url.fragment
+            ):
+                raise ValueError(
+                    "REDIS_URL must be redis/rediss with no credentials, query or fragment"
+                )
+            if port == 0 or url.netloc.endswith(":"):
+                raise ValueError("REDIS_URL port must be between 1 and 65535")
+            if url.path not in {"", "/"} and (
+                re.fullmatch(r"/[0-9]+", url.path) is None
+                or len(url.path) > 3
+                or int(url.path[1:]) > 15
+            ):
+                raise ValueError("REDIS_URL database must be an unencoded integer from 0 to 15")
+
+        if self.massive_shadow_enabled and not self.massive_api_key.strip():
+            raise ValueError("MASSIVE_SHADOW_ENABLED requires MASSIVE_API_KEY")
+        if self.massive_shadow_lookback_days <= 0:
+            raise ValueError("MASSIVE_SHADOW_LOOKBACK_DAYS must be > 0")
+
+        news_provider = self.resolved_news_provider
+        if news_provider not in {"none", "newsdata"}:
+            raise ValueError("NEWS_PROVIDER must be none or newsdata")
+        if self.news_provider.strip().lower() == "newsdata" and not self.newsdata_key.strip():
+            raise ValueError("NEWS_PROVIDER=newsdata requires NEWSDATA_KEY")
+
+        sentiment_provider = self.sentiment_provider.strip().lower()
+        if sentiment_provider not in {"", "none", "anthropic", "http"}:
+            raise ValueError("SENTIMENT_PROVIDER must be none, anthropic, or http")
+        if sentiment_provider == "anthropic" and not self.anthropic_api_key.strip():
+            raise ValueError("SENTIMENT_PROVIDER=anthropic requires ANTHROPIC_API_KEY")
+        if sentiment_provider == "http" and not self.sentiment_service_url.strip():
+            raise ValueError("SENTIMENT_PROVIDER=http requires SENTIMENT_SERVICE_URL")
 
         if self.environment.strip().lower() not in _PRODUCTION_ENVIRONMENTS:
             return self

@@ -9,7 +9,8 @@ from pathlib import Path
 from sqlmodel import Session, select
 
 from stockviz.models import PriceBar, Symbol
-from stockviz.services.ingest.backfill import backfill_price_bars_from_csvs
+from stockviz.services.ingest.backfill import _parse_csv, backfill_price_bars_from_csvs
+from stockviz.services.ingest.bar_semantics import AdjustmentSemantics, SessionScope
 from stockviz.services.ingest.seed import seed_symbols
 
 
@@ -50,6 +51,22 @@ def test_seed_symbols_is_idempotent(tmp_path: Path, session: Session) -> None:
 
 def test_seed_symbols_missing_file_returns_zero(tmp_path: Path, session: Session) -> None:
     assert seed_symbols(session, path=tmp_path / "nope.json") == 0
+
+
+def test_v1_csv_declares_canonical_semantics_and_preserves_decimal_volume(
+    tmp_path: Path,
+) -> None:
+    csv_path = tmp_path / "AAPL_processed.csv"
+    csv_path.write_text(
+        "Date,Open,High,Low,Close,Volume\n2024-01-02,100,101,99,100.5,1000.50\n",
+        encoding="utf-8",
+    )
+
+    bar = _parse_csv(csv_path, "AAPL")[0]
+
+    assert bar.volume == Decimal("1000.50")
+    assert bar.adjustment_semantics is AdjustmentSemantics.SPLIT_ADJUSTED
+    assert bar.session_scope is SessionScope.REGULAR
 
 
 def test_backfill_commits_so_a_new_session_sees_bars(tmp_path: Path, engine) -> None:

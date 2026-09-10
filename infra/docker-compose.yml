@@ -1,6 +1,29 @@
 name: stockviz-dev
 
 services:
+  # Optional LOCAL computation-cache pilot. Not a durable store or API
+  # dependency. A blank password fails this service, not ordinary DB reads.
+  redis:
+    image: redis:7.4.11-alpine
+    container_name: stockviz-cache-redis
+    profiles: ["cache"]
+    mem_limit: 256m
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+    ports:
+      - "127.0.0.1:16381:6379"
+    command:
+      - /bin/sh
+      - -c
+      - |
+        test -n "$$REDIS_PASSWORD" || { echo "REDIS_PASSWORD is required" >&2; exit 1; }
+        exec redis-server --save "" --appendonly no --maxmemory 128mb --maxmemory-policy allkeys-lru --maxclients 128 --requirepass "$$REDIS_PASSWORD"
+    healthcheck:
+      test: ["CMD-SHELL", "REDISCLI_AUTH=\"$$REDIS_PASSWORD\" redis-cli ping | grep -q PONG"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
   postgres:
     image: postgres:16-alpine
     container_name: stockviz-postgres
@@ -107,12 +130,19 @@ services:
       PORT: "8000"
       ENVIRONMENT: development
       ENABLE_SCHEDULER: "false"
+      CACHE_BACKEND: ${CACHE_BACKEND:-none}
+      CACHE_NAMESPACE: stockviz:local:v1
+      REDIS_URL: redis://redis:6379/0
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
       CORS_ORIGINS: '["http://localhost:3100"]'
-      # Provider credentials/config, all optional and all blank by default so
-      # the stack still boots with no infra/.env entries. Without these the
-      # news ingest and sentiment scoring silently no-op inside the container
-      # even when apps/api/.env has a key — that file is not read by compose.
+      # Provider credentials/config. Features remain disabled by default, but
+      # explicitly selected providers fail startup when their credential or
+      # endpoint is absent. Compose never reads apps/api/.env.
       ALPHA_VANTAGE_KEY: ${ALPHA_VANTAGE_KEY:-}
+      MASSIVE_SHADOW_ENABLED: ${MASSIVE_SHADOW_ENABLED:-false}
+      MASSIVE_API_KEY: ${MASSIVE_API_KEY:-}
+      MASSIVE_SHADOW_LOOKBACK_DAYS: ${MASSIVE_SHADOW_LOOKBACK_DAYS:-90}
+      NEWS_PROVIDER: ${NEWS_PROVIDER:-}
       NEWSDATA_KEY: ${NEWSDATA_KEY:-}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       SENTIMENT_PROVIDER: ${SENTIMENT_PROVIDER:-}

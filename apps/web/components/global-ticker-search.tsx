@@ -208,7 +208,12 @@ export function GlobalTickerSearch({
   }
 
   const hasQuery = query.trim().length > 0;
-  const expanded = open && (hasQuery ? status !== "idle" : true);
+  // Not gated on `open`: this list is a child of Radix Dialog.Content, which
+  // stays mounted through its ~150ms close animation. Gating on `open` would
+  // unmount the list the instant Escape is pressed, so it would vanish before
+  // the surrounding panel finished animating out. Left ungated, both leave
+  // together when Content unmounts.
+  const expanded = hasQuery ? status !== "idle" : true;
   const activeOptionId = activeIndex >= 0 ? `${listboxId}-${activeIndex}` : undefined;
   const statusMessage =
     status === "loading"
@@ -333,7 +338,10 @@ export function GlobalTickerSearch({
                       onMouseEnter={() => setActiveIndex(index)}
                       className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm hover:bg-accent aria-selected:bg-accent"
                     >
-                      <span className="w-16 shrink-0 font-mono font-semibold tabular-nums">
+                      <span
+                        className="min-w-[3.5rem] max-w-[9rem] shrink-0 truncate font-mono font-semibold tabular-nums"
+                        title={result.ticker}
+                      >
                         {result.ticker}
                       </span>
                       <span className="min-w-0 flex-1 truncate">{result.name}</span>
@@ -377,7 +385,10 @@ export function GlobalTickerSearch({
                       onMouseEnter={() => setActiveIndex(index)}
                       className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm hover:bg-accent aria-selected:bg-accent"
                     >
-                      <span className="w-16 shrink-0 font-mono font-semibold tabular-nums">
+                      <span
+                        className="min-w-[3.5rem] max-w-[9rem] shrink-0 truncate font-mono font-semibold tabular-nums"
+                        title={result.ticker}
+                      >
                         {result.ticker}
                       </span>
                       <span className="min-w-0 flex-1 truncate">{result.name}</span>

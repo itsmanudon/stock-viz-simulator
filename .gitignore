@@ -37,6 +37,9 @@ build/
 !.vscode/extensions.json
 .idea/
 
+# Agent-isolated feature worktrees
+.worktrees/
+
 # OS
 .DS_Store
 Thumbs.db
@@ -53,6 +56,9 @@ coverage/
 .coverage
 htmlcov/
 
+# Private provider-derived evidence (never publish or copy into images)
+artifacts/private/
+
 # Logs
 *.log
 logs/
@@ -68,3 +74,6 @@ apps/web/test-results/
 *.temp
 temp.json
 temp_*.json
+
+# Local bulk market-data drops for seeding (not shipped)
+/data/

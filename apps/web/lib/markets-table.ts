@@ -13,6 +13,7 @@ export type MarketRow = {
   name: string;
   sector: string | null;
   exchange: string | null;
+  currency: string;
   closes: number[];
   last: number | null;
   changePct: number | null;
@@ -21,6 +22,22 @@ export type MarketRow = {
 export function fmtPrice(n: number | null): string {
   if (n === null) return "—";
   return n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+/** Price in the symbol's own trading currency — an NSE row is ₹, not $. */
+export function fmtMoney(n: number | null, currency: string): string {
+  if (n === null) return "—";
+  const digits = currency === "JPY" ? 0 : 2;
+  try {
+    return n.toLocaleString("en-US", {
+      style: "currency",
+      currency,
+      minimumFractionDigits: digits,
+      maximumFractionDigits: digits,
+    });
+  } catch {
+    return `${currency} ${fmtPrice(n)}`;
+  }
 }
 
 export function fmtPct(n: number | null): string {

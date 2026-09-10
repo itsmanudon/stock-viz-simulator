@@ -58,6 +58,7 @@ from stockviz.models import (
     User,
 )
 from stockviz.models.events import ConsumerInbox
+from stockviz.services.ingest.bar_semantics import AdjustmentSemantics, SessionScope
 from stockviz.services.ingest.news import ArticleRecord
 from stockviz.services.ingest.prices import DAILY_INTERVAL, SOURCE_YFINANCE, BarRecord
 from stockviz.services.sentiment.base import SentimentScore
@@ -226,17 +227,23 @@ def test_market_event_pipeline_roundtrip() -> None:
 
             event = parse_market_refresh_requested(payload)
             close = Decimal("123.45")
+            # A gently rising close over 20 sessions. `high` has to track the
+            # close (and `low` the open) or F-011 plausibility screening in
+            # `upsert_bars` rejects the bar as structurally impossible and it
+            # never reaches `price_bars`.
             bars = [
                 BarRecord(
                     ticker=ticker,
                     ts=datetime(2024, 6, 3) + timedelta(days=i),
                     interval=DAILY_INTERVAL,
                     open=close,
-                    high=close,
+                    high=close + Decimal(i),
                     low=close,
                     close=close + Decimal(i),
-                    volume=1_000,
+                    volume=Decimal("1000"),
                     source=SOURCE_YFINANCE,
+                    adjustment_semantics=AdjustmentSemantics.SPLIT_ADJUSTED,
+                    session_scope=SessionScope.REGULAR,
                 )
                 for i in range(20)
             ]

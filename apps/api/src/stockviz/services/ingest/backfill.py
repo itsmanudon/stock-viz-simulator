@@ -17,6 +17,7 @@ from pathlib import Path
 from sqlmodel import Session, select
 
 from stockviz.models import Symbol
+from stockviz.services.ingest.bar_semantics import AdjustmentSemantics, SessionScope
 from stockviz.services.ingest.prices import (
     DAILY_INTERVAL,
     BarRecord,
@@ -44,8 +45,10 @@ def _parse_csv(path: Path, ticker: str) -> list[BarRecord]:
                         high=Decimal(row["High"]),
                         low=Decimal(row["Low"]),
                         close=Decimal(row["Close"]),
-                        volume=int(float(row["Volume"])),
+                        volume=Decimal(row["Volume"]),
                         source="v1_csv",
+                        adjustment_semantics=AdjustmentSemantics.SPLIT_ADJUSTED,
+                        session_scope=SessionScope.REGULAR,
                     )
                 )
             except (KeyError, ValueError) as exc:

@@ -145,7 +145,7 @@ export function SiteFooter() {
           Decorative only — the real wordmark is the link above. */}
       <p
         aria-hidden
-        className="text-outline mt-6 -mb-[0.18em] w-full text-center font-semibold tracking-tight select-none [--outline-color:var(--border)] text-[clamp(4rem,17vw,15rem)] leading-none"
+        className="text-outline mt-6 -mb-[0.18em] w-full text-center font-semibold tracking-tight select-none [--outline-color:var(--brand)] text-[clamp(4rem,17vw,15rem)] leading-none"
       >
         StockViz
       </p>

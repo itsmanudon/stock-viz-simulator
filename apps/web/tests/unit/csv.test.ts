@@ -35,11 +35,29 @@ describe("csvField", () => {
     expect(csvField("=A1,B1")).toBe('"\'=A1,B1"');
   });
 
-  it("leaves a negative number readable while still neutralising it", () => {
-    // Trade-off we accept: correctness beats prettiness for a leading '-'.
-    expect(csvField("-12.50")).toBe("'-12.50");
-    // Numbers pass through as numbers, so real negatives are unaffected.
-    expect(csvField(-12.5)).toBe("'-12.5");
+  it("keeps negative numbers numeric so a spreadsheet can sum them", () => {
+    // Realized P&L is routinely negative. Prefixing it would make every one a
+    // text cell, so the column could not be summed or charted.
+    expect(csvField("-12.50")).toBe("-12.50");
+    expect(csvField(-12.5)).toBe("-12.5");
+    expect(csvField("-0")).toBe("-0");
+    expect(csvField("-1e3")).toBe("-1e3");
+  });
+
+  it("still neutralises a leading '-' that is not purely a number", () => {
+    // The exemption is narrow: anything a spreadsheet would evaluate as an
+    // expression fails the numeric test and is still quoted.
+    expect(csvField("-1+1")).toBe("'-1+1");
+    expect(csvField("-A1")).toBe("'-A1");
+    expect(csvField("-12.50 USD")).toBe("'-12.50 USD");
+    expect(csvField('-HYPERLINK("http://evil")')).toBe('"\'-HYPERLINK(""http://evil"")"');
+  });
+
+  it("never exempts the other formula prefixes, even for numeric-looking values", () => {
+    expect(csvField("+1234")).toBe("'+1234");
+    expect(csvField("=1234")).toBe("'=1234");
+    expect(csvField("@1234")).toBe("'@1234");
+    expect(csvField("\t1234")).toBe("'\t1234");
   });
 });
 
