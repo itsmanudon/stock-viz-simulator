@@ -236,8 +236,8 @@ export function GlobalTickerSearch({
             className="pointer-events-none absolute left-3.5 top-1/2 z-10 size-4 -translate-y-1/2 text-muted-foreground"
             aria-hidden
           />
-          <span className="flex h-9 w-full items-center rounded-md border border-border-muted bg-surface-elevated py-1 pl-9 pr-16 text-sm text-text-tertiary transition-colors hover:border-ring/60 hover:text-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30">
-            Search ticker or company
+          <span className="flex h-9 w-full items-center rounded-md border border-border-muted bg-surface-elevated py-1 pl-9 pr-3 text-sm text-text-tertiary transition-colors hover:border-ring/60 hover:text-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 sm:pr-16">
+            <span className="truncate">Search ticker or company</span>
           </span>
           <kbd className="pointer-events-none absolute right-4 top-1/2 hidden -translate-y-1/2 items-center gap-1 rounded border bg-muted px-1.5 py-0.5 font-mono text-3xs text-muted-foreground sm:inline-flex">
             <Command className="size-3" aria-hidden /> K

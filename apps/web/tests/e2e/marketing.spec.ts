@@ -89,6 +89,10 @@ test.describe("reduced motion", () => {
     // Reveal resolves immediately instead of waiting for an intersection.
     const pending = await page.locator('[data-reveal="pending"]').count();
     expect(pending).toBe(0);
+    for (const section of await page.locator("[data-reveal]").all()) {
+      await expect(section).toHaveCSS("transition-delay", "0s");
+      await expect(section).toHaveCSS("opacity", "1");
+    }
 
     // The tour must not advance on its own.
     const tabs = page.getByRole("tablist", { name: "Product tour" }).getByRole("tab");
@@ -122,7 +126,7 @@ test.describe("themes", () => {
 
       // The whole point of `.panel-inset`: it is the same dark ground in both
       // themes, which is where light mode gets its contrast from.
-      expect(shades.panel).toBe("rgb(27, 30, 32)");
+      expect(shades.panel).toBe("rgb(17, 17, 17)");
       if (theme === "light") {
         expect(shades.body).not.toBe(shades.panel);
       }

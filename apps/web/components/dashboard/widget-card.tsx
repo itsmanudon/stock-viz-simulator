@@ -27,11 +27,11 @@ export function WidgetCard({
     <section
       aria-labelledby={titleId}
       className={cn(
-        "flex min-w-0 flex-col rounded-lg border border-border-muted bg-card p-4 sm:p-5",
+        "flex min-w-0 flex-col rounded-md border border-border-muted bg-card p-4 sm:p-5",
         className,
       )}
     >
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border-muted pb-3">
         <h2 id={titleId} className="text-sm font-semibold">
           {title}
         </h2>
