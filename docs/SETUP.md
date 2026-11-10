@@ -57,6 +57,17 @@ Copy-Item apps/web/.env.example apps/web/.env.local
 Copy-Item apps/api/.env.example apps/api/.env
 ```
 
+### Docker Compose secrets (required before `pnpm db:up`)
+
+Compose reads `infra/.env`, not the two files above. Copy
+`infra/.env.example` to `infra/.env` and fill in `AUTH_SECRET` and
+`INTERNAL_API_TOKEN`, each generated with `openssl rand -base64 32`.
+
+The compose file marks both as required for the `api` and `web` services, and
+Compose resolves them for every command. Without `infra/.env`, `pnpm db:up`
+stops with `required variable INTERNAL_API_TOKEN is missing a value` even
+though it only starts Postgres. `infra/.env` is gitignored.
+
 ### Values you may want to change
 
 - **`INTERNAL_API_TOKEN`** — must match between `apps/web/.env.local` and
@@ -189,7 +200,8 @@ pnpm verify:providers:live
 
 See [market-data semantics](./MARKET_DATA.md) before interpreting a result.
 
-These mirror what CI runs on every push/PR to `dev` and `main`:
+CI runs only for a pull request into `main`. Nothing runs on `dev` or on
+feature branches, so run these locally before merging into `dev`:
 
 ```bash
 pnpm lint                                  # biome (web) + ruff (api)
@@ -213,22 +225,33 @@ pnpm --filter @stockviz/web exec playwright install --with-deps chromium
 
 ### Running tests
 
-E2E tests run against a **production build** of the web app, so you need:
+Playwright starts the web app itself with `pnpm start`, a **production**
+server, so it needs a build, the API on `:8000`, and a migrated and seeded
+database.
 
-1. Both servers running (`pnpm api:dev` + `pnpm dev:web` → or let Playwright
-   handle Next.js automatically)
-2. The database seeded (`pnpm api:migrate` + CLI seed/backfill/recommend)
-
-With both servers already running on their default ports:
+The production server refuses the development secrets committed in
+`.env.example` (`apps/web/lib/env.ts`). With only the copied env files,
+`pnpm e2e` times out waiting for the server and logs `AUTH_SECRET is still set
+to the development default`. Export different values for the run. Environment
+variables override both env files, and the API must see the same
+`INTERNAL_API_TOKEN`:
 
 ```bash
+export INTERNAL_API_TOKEN=local-e2e-token AUTH_SECRET=local-e2e-secret
+export AUTH_TRUST_HOST=true
+pnpm db:up && pnpm api:migrate
+uv --directory apps/api run python -m stockviz.cli seed
+uv --directory apps/api run python -m stockviz.cli backfill
+uv --directory apps/api run python -m stockviz.cli recommend
+pnpm api:dev &             # same shell, so the API signs with the same token
+pnpm --filter @stockviz/web build
 pnpm e2e                   # all suites, Chromium, headless
 pnpm --filter @stockviz/web e2e:ui   # interactive Playwright UI
 ```
 
-If neither server is running, Playwright will start a production Next.js
-server automatically (`pnpm start`), but you still need the FastAPI process
-running separately.
+If a server is already listening on `:3000`, Playwright reuses it instead of
+starting `pnpm start`. A `pnpm dev:web` server accepts the development
+secrets, so in that case the exports are not needed.
 
 ### Test suites
 
