@@ -139,6 +139,8 @@ All four runs collected exactly 100,000 current-run records, counted zero foreig
 
 Prerequisites: Node/pnpm, Python 3.12+/uv, and Docker. Copy `apps/web/.env.example` to `apps/web/.env.local` and `apps/api/.env.example` to `apps/api/.env` first.
 
+Docker Compose needs a third file. Copy `infra/.env.example` to `infra/.env` and set `AUTH_SECRET` and `INTERNAL_API_TOKEN` (generate each with `openssl rand -base64 32`). Without it every compose command fails, including `pnpm db:up`, because the compose file requires both values even when only Postgres is started.
+
 ### 1. Simple development: PostgreSQL + API + web
 
 ```bash

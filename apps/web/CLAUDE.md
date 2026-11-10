@@ -157,19 +157,27 @@ Specs live in `tests/e2e/`. The Playwright `webServer` runs `pnpm start`
 migrated + seeded DB. Full local sequence from the repo root:
 
 ```powershell
+$env:INTERNAL_API_TOKEN = "local-e2e-token"   # not the committed dev default
+$env:AUTH_SECRET = "local-e2e-secret"         # not the committed dev default
+$env:AUTH_TRUST_HOST = "true"         # prod builds don't trust the host by default
 pnpm db:up && pnpm api:migrate
 uv --directory apps/api run python -m stockviz.cli seed
 uv --directory apps/api run python -m stockviz.cli backfill
 uv --directory apps/api run python -m stockviz.cli recommend
-pnpm api:dev                          # keep running in another terminal
-$env:AUTH_TRUST_HOST = "true"         # prod builds don't trust the host by default
+pnpm api:dev                          # another terminal, same INTERNAL_API_TOKEN
 pnpm --filter @stockviz/web build
 pnpm e2e
 ```
 
-`INTERNAL_API_TOKEN` and `AUTH_SECRET` must match what the API/.env uses (the
-committed dev defaults already do). CI runs the same sequence — see the `e2e`
-job in `.github/workflows/ci.yml`. Runs single-worker, chromium only.
+The committed dev defaults do **not** work here. `pnpm start` runs with
+`NODE_ENV=production`, and `lib/env.ts` refuses the published defaults for
+`INTERNAL_API_TOKEN` and `AUTH_SECRET`: the server never becomes ready and
+Playwright times out after 60 s. Set both to any other value in the
+environment (it overrides `.env.local`), and give the API the same
+`INTERNAL_API_TOKEN`. CI does this with its own values, see the `e2e` job in
+`.github/workflows/ci.yml`. If a `pnpm dev` server is already on :3000,
+Playwright reuses it and the dev defaults are accepted. Runs single-worker,
+chromium only.
 
 `pnpm start` (`next start`) warns under `output: standalone` and can duplicate
 the page tree. Scope product assertions to `#main` rather than matching the

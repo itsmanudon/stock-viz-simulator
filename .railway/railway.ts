@@ -20,7 +20,9 @@ import { defineRailway, github, group, postgres, preserve, project, service } fr
  * Secrets are NOT in source. After the first apply, set with `railway variable set`:
  *   - INTERNAL_API_TOKEN   on `api` AND `web` (identical; signs the web->api HS256 bridge)
  *   - AUTH_SECRET          on `web` (NextAuth session signing)
- *   - INTERNAL_API_TOKEN   on `cron` is not needed (it talks to the DB directly)
+ *   - `cron` needs no manual step: it reads `api`'s INTERNAL_API_TOKEN through a
+ *     Railway reference. It never signs anything, but `stockviz.settings` refuses
+ *     to load in production while the token still has its committed dev default.
  *   - optional: ALPHA_VANTAGE_KEY, NEWSDATA_KEY, ANTHROPIC_API_KEY,
  *     GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET, SENTRY_DSN, NEXT_PUBLIC_SENTRY_DSN
  *
@@ -40,28 +42,39 @@ const BRANCH = "main";
 const API_PRIVATE_URL = "http://${{api.RAILWAY_PRIVATE_DOMAIN}}:${{api.PORT}}";
 const API_PUBLIC_URL = "https://${{api.RAILWAY_PUBLIC_DOMAIN}}";
 const WEB_PUBLIC_URL = "https://${{web.RAILWAY_PUBLIC_DOMAIN}}";
+const API_INTERNAL_TOKEN = "${{api.INTERNAL_API_TOKEN}}";
 
 const API_WATCH = ["apps/api/**"];
 const WEB_WATCH = ["apps/web/**", "package.json", "pnpm-lock.yaml", "pnpm-workspace.yaml"];
 
 // Nightly end-of-day refresh. `_cmd_ingest` needs an explicit ticker list, so
 // enumerate active symbols the same way scheduler.daily_price_refresh does.
-// `|| true` keeps one skipped job (e.g. news with no NEWSDATA_KEY exits 2)
-// from aborting the rest.
+//
+// The run must FAIL when a step fails. Every step used to end in `|| true`,
+// which made Railway report SUCCESS on nights when nothing ran at all. Now:
+//   - migrations and the ticker lookup are prerequisites: a failure stops the run;
+//   - each job still runs even if an earlier one failed, but a failure is
+//     remembered and the run exits 1 at the end;
+//   - `news` exits 2 when NEWSDATA_KEY is unset. That is a deliberate skip, not
+//     a failure, so only that exit code is tolerated.
+// The command is wrapped in `sh -c '...'` below: no single quotes in here.
+const job = (command: string) => `${command} || rc=1`;
 const EOD_REFRESH = [
-  "alembic upgrade head",
-  'TICKERS=$(python -c "from stockviz.db import engine; from sqlmodel import Session, select; from stockviz.models import Symbol; print(\\" \\".join(Session(engine).exec(select(Symbol.ticker).where(Symbol.is_active)).all()))")',
-  "python -m stockviz.cli ingest $TICKERS || true",
-  "python -m stockviz.cli fx || true",
-  "python -m stockviz.cli news || true",
-  "python -m stockviz.cli score-sentiment || true",
-  "python -m stockviz.cli sentiment-aggregate || true",
-  "python -m stockviz.cli metrics || true",
-  "python -m stockviz.cli dividends || true",
-  "python -m stockviz.cli credit-dividends || true",
-  "python -m stockviz.cli settle-options || true",
-  "python -m stockviz.cli recommend || true",
-  "python -m stockviz.cli snapshot-portfolios || true",
+  "rc=0",
+  "alembic upgrade head || exit 1",
+  'TICKERS=$(python -c "from stockviz.db import engine; from sqlmodel import Session, select; from stockviz.models import Symbol; print(\\" \\".join(Session(engine).exec(select(Symbol.ticker).where(Symbol.is_active)).all()))") || exit 1',
+  job("python -m stockviz.cli ingest $TICKERS"),
+  job("python -m stockviz.cli fx"),
+  "python -m stockviz.cli news || [ $? -eq 2 ] || rc=1",
+  job("python -m stockviz.cli score-sentiment"),
+  job("python -m stockviz.cli sentiment-aggregate"),
+  job("python -m stockviz.cli metrics"),
+  job("python -m stockviz.cli dividends"),
+  job("python -m stockviz.cli credit-dividends"),
+  job("python -m stockviz.cli settle-options"),
+  job("python -m stockviz.cli recommend"),
+  job("python -m stockviz.cli snapshot-portfolios"),
+  "exit $rc",
 ].join("; ");
 
 export default defineRailway(() => {
@@ -132,7 +145,12 @@ export default defineRailway(() => {
   const cron = service("cron", {
     source: apiSource,
     build: apiBuild,
-    env: pyBase,
+    env: {
+      ...pyBase,
+      // Same value as api, by reference, so there is one secret to rotate.
+      // Without it every cron step dies in settings validation (see header).
+      INTERNAL_API_TOKEN: API_INTERNAL_TOKEN,
+    },
     deploy: {
       cronSchedule: "0 22 * * 1-5",
       startCommand: `sh -c '${EOD_REFRESH}'`,

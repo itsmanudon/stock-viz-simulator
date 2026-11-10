@@ -316,6 +316,13 @@ Browser ─▶ web (Next.js, sleeps on idle) ─▶ api (FastAPI, sleeps on idle
   `credit-dividends`, `settle-options`, `recommend`, `snapshot-portfolios`)
   **synchronously** — no Kafka broker. The full event-driven stack still
   lives in `docker-compose --profile events` and `infra/k8s/`.
+  The run **fails when a step fails**: a failed migration or ticker lookup
+  stops it, any other failed job is remembered and the run exits 1 after the
+  remaining jobs. The one tolerated code is `news` exiting 2 (no
+  `NEWSDATA_KEY`). A red cron run in Railway therefore means a job did not
+  run; check its logs. `cron` reads `INTERNAL_API_TOKEN` from `api` by
+  reference, because settings refuse to load in production with the dev
+  default.
 - `ENABLE_SCHEDULER=false` on `api` (the `cron` service owns the jobs).
 
 ### First deploy

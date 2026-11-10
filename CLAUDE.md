@@ -62,7 +62,7 @@ still commits the ledger in FastAPI. See
 ## Common commands
 
 ```bash
-pnpm db:up                                   # local Postgres on 127.0.0.1:5434
+pnpm db:up                                   # local Postgres on 127.0.0.1:5434 (needs infra/.env, see docs/SETUP.md)
 pnpm stack:up                                # full docker stack: db + api + web
 pnpm stack:seed                              # populate demo accounts and trades
 pnpm stack:logs                              # tail api + web containers
@@ -123,9 +123,17 @@ original (you probably won't), `git fetch upstream` first, then cherry-pick.
 main ← dev ← feat/* | fix/* | chore/*
 ```
 
-**Hard rule:** cut every branch from `dev`. Open every PR against `dev`.
-`main` receives **only** merges of `dev` — never merge a feature/fix/chore
-branch, Cursor agent branch, or hotfix into `main` directly.
+**Hard rule:** cut every branch from `dev`. When the work is complete, merge it
+into `dev` with a **merge commit** (`git merge --no-ff`) — no squash, rebase,
+or fast-forward. One large feature per branch, or two to four small ones
+together. `main` receives **only** merges of `dev` — never merge a
+feature/fix/chore branch, Cursor agent branch, or hotfix into `main` directly.
+
+**CI runs only for a pull request into `main`** (the `dev` → `main`
+promotion). Nothing runs on `dev` or on feature branches, so the quality gates
+below are a local step before every merge into `dev`. There is no `stage`
+branch or staging environment; if one is added, the path becomes
+`dev` → `stage` → `main` and CI moves to the `stage` → `main` pull request.
 
 **Hard rule (agents):** never `git commit`, `git merge`, `git push`, or
 otherwise write to `main`. Do all work on `dev` (or a `feat/`|`fix/`|`chore/`
@@ -140,11 +148,12 @@ need a `main` change, stop and ask.
   deploys on push is owner-controlled and **not** recorded in this repo.
   Promote with a **`dev` → `main` PR that the owner approves**. Agents do not
   write to `main` at all (see the hard rule above).
-- **`dev`** — the integration branch. All feature/fix/chore PRs target `dev`.
-  Kept green at all times; merged into `main` for each deployable release.
+- **`dev`** — the integration branch, and the one used for local testing.
+  All feature/fix/chore branches merge into `dev`. Kept green at all times;
+  merged into `main` for each deployable release.
 - **`feat/<name>`**, **`fix/<name>`**, **`chore/<name>`** — short-lived
-  branches cut from `dev`. Open a PR against `dev` when ready; delete after
-  merge. Use the prefix that best describes the work:
+  branches cut from `dev`. Merge into `dev` with a merge commit when complete.
+  Use the prefix that best describes the work:
   - `feat/` — new user-facing functionality
   - `fix/` — bug fixes
   - `chore/` — tooling, deps, docs, CI, refactors with no user impact
@@ -221,9 +230,9 @@ opening/merging the `dev` → `main` PR. That promotion is the owner's, done
 with explicit approval. "Deploy" / "ship" means *land it on `dev`*, not touch
 `main`.
 
-**Keep these guides honest:** a PR that adds a router, page, model, scheduler
+**Keep these guides honest:** a branch that adds a router, page, model, scheduler
 job, or env var — or changes auth/trading semantics — must update the relevant
-`CLAUDE.md` (root, `apps/api/`, or `apps/web/`) in the same PR. These files
+`CLAUDE.md` (root, `apps/api/`, or `apps/web/`) before it merges. These files
 have drifted badly before (a whole auth mechanism was documented long after it
 was replaced); the cheapest time to fix that is while the change is fresh.
 
@@ -232,22 +241,23 @@ When work closes a GitHub issue, reference it explicitly:
 - **Commit messages** — add `Closes #<n>` (or `Fixes #<n>`) in the commit body.
 - **PR descriptions** — list every closed issue in the body, e.g. `Closes #4, Closes #5`.
 
-**Important:** GitHub only auto-closes issues when a PR merges into the **default
-branch** (`main`). Because all our PRs target `dev`, `Closes #X` keywords in the
-PR body will **not** trigger auto-close. You must close issues manually as soon as
-the feature PR is opened:
+**Important:** GitHub only auto-closes issues when a change reaches the **default
+branch** (`main`). Feature work lands on `dev`, so `Closes #X` keywords will
+**not** trigger auto-close. Close issues manually once the branch is merged into
+`dev`:
 
 ```bash
-gh issue comment <n> --repo itsmanudon/stock-viz-simulator --body "Implemented in PR #<pr>. Closes #<n>."
+gh issue comment <n> --repo itsmanudon/stock-viz-simulator --body "Implemented in <merge commit> on dev. Closes #<n>."
 gh issue close <n> --repo itsmanudon/stock-viz-simulator
 ```
 
 ## Quality gates
 
-`pnpm lint && pnpm typecheck && pnpm build && uv --directory apps/api run pytest` — all
-of these run in CI on PRs, plus a full-stack **e2e job** (migrate + seed +
-backfill + recommend against a real Postgres, start the API, build the web app,
-run Playwright). Don't bypass with `--no-verify` etc.
+`pnpm lint && pnpm typecheck && pnpm build && uv --directory apps/api run pytest` — run
+these locally before merging into `dev`; nothing runs them for you there. CI
+runs them on the `dev` → `main` pull request, plus a full-stack **e2e job**
+(migrate + seed + backfill + recommend against a real Postgres, start the API,
+build the web app, run Playwright). Don't bypass with `--no-verify` etc.
 
 ## Auth bridge (web ↔ api)
 
