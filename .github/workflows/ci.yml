@@ -277,6 +277,13 @@ jobs:
       # ecdsa PYSEC-2026-1325 has no fixed release (upstream considers the
       # Minerva timing attack out of scope) and reaches us only through
       # python-jose's ES* algorithms, which the HS256 auth bridge never uses.
+      # python-jose PYSEC-2026-4298 (CVE-2026-85394) has no fixed release. It
+      # is an algorithm-confusion bug: a service that verifies with an
+      # asymmetric public key, without restricting algorithms, can be handed
+      # an HS256 token forged from that public key. Both decode calls here
+      # (auth.py, limiter.py) pass algorithms=["HS256"] and verify with the
+      # shared INTERNAL_API_TOKEN secret; there is no public key to misuse.
+      # Remove this ignore when python-jose ships a fix or is replaced.
       - name: Audit Python dependencies
         working-directory: apps/api
         run: |
@@ -285,7 +292,8 @@ jobs:
           uvx --python 3.12 pip-audit \
             --requirement requirements.txt \
             --no-deps --strict \
-            --ignore-vuln PYSEC-2026-1325
+            --ignore-vuln PYSEC-2026-1325 \
+            --ignore-vuln PYSEC-2026-4298
 
   docker:
     name: docker (api + web images)
