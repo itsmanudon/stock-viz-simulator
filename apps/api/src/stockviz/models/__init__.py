@@ -15,6 +15,7 @@ from stockviz.models.aegis import (
     AegisSyncState,
 )
 from stockviz.models.alert import Alert, AlertDirection
+from stockviz.models.auth_rate_limit import AuthRateLimit
 from stockviz.models.comment import Comment
 from stockviz.models.dividend import Dividend, PortfolioDividend
 from stockviz.models.earnings import EarningsEvent
@@ -54,6 +55,7 @@ __all__ = [
     "AegisSyncState",
     "Alert",
     "AlertDirection",
+    "AuthRateLimit",
     "Comment",
     "ConsumerInbox",
     "Dividend",

@@ -16,11 +16,12 @@ never sent either, and a publisher attached later would replay all of them.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import delete
 from sqlmodel import Session
 
+from stockviz.models.auth_rate_limit import AuthRateLimit
 from stockviz.models.events import ConsumerInbox, OutboxEvent
 
 DEFAULT_RETENTION_DAYS = 30
@@ -32,6 +33,7 @@ class PruneResult:
     published: int
     unpublished: int
     inbox: int
+    auth_counters: int = 0
 
 
 def prune_events(
@@ -63,4 +65,16 @@ def prune_events(
     inbox = session.exec(  # type: ignore[call-overload]
         delete(ConsumerInbox).where(ConsumerInbox.processed_at < cutoff)  # type: ignore[arg-type]
     ).rowcount
-    return PruneResult(published=published or 0, unpublished=unpublished or 0, inbox=inbox or 0)
+    # Sign-in counters whose window ended a day ago (audit OP-8); nothing reads them.
+    expired = now.replace(tzinfo=UTC) if now.tzinfo is None else now
+    auth_counters = session.exec(  # type: ignore[call-overload]
+        delete(AuthRateLimit).where(
+            AuthRateLimit.reset_at < expired - timedelta(days=1)  # type: ignore[arg-type]
+        )
+    ).rowcount
+    return PruneResult(
+        published=published or 0,
+        unpublished=unpublished or 0,
+        inbox=inbox or 0,
+        auth_counters=auth_counters or 0,
+    )

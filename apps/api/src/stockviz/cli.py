@@ -221,7 +221,8 @@ def _cmd_prune_events(args: argparse.Namespace) -> int:
         session.commit()
     print(
         f"pruned events older than {args.days} day(s): {result.published} published outbox, "
-        f"{result.unpublished} unpublished outbox, {result.inbox} inbox"
+        f"{result.unpublished} unpublished outbox, {result.inbox} inbox, "
+        f"{result.auth_counters} expired sign-in counters"
     )
     return 0
 
