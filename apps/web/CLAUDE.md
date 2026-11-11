@@ -41,7 +41,9 @@ components/
                    pill CTAs, chips; hands everything to `hero-stage.tsx`) +
                    `hero-stage.tsx` (client: the real-data panel with a phone
                    in front that rotates through `hero-phone-screens.tsx`; on
-                   `lg` with motion the hero pins and the paper card lifts out
+                   `lg` with motion the hero pins from the first scroll, rises
+                   into view inside the same timeline (a negative wrapper margin
+                   closes the gap the rise leaves), and the paper card lifts out
                    of the phone, then flips; elsewhere the same copy is a plain
                    section. Card start is measured from layout offsets because
                    ScrollTrigger re-measures mid-timeline) +
