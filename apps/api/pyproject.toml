@@ -23,6 +23,7 @@ dependencies = [
     "confluent-kafka>=2.15.0",
     "redis>=5.2,<7",
     "pyjwt[crypto]>=2.9",
+    "exchange-calendars>=4.13.2",
 ]
 
 [dependency-groups]

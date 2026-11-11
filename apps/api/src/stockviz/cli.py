@@ -487,15 +487,18 @@ def _cmd_ingest(args: argparse.Namespace) -> int:
     Row counts prove nothing (the full history is upserted every night), so
     success is judged by the newest stored bar. A ticker that raises is
     reported and the rest still run. The run fails if any ticker raised, or
-    if no ticker reached the newest complete session. One ticker short of it
-    is only reported: its market may have been closed that day. On a day every
-    market is closed (25 December) the run fails, which is the honest reading.
+    if no ticker reached its venue's newest complete session (Phase 4.1:
+    exchange calendars, so a market holiday expects the session before). One
+    ticker short of it is only reported: its provider may lag.
     """
     from stockviz._time import utcnow
     from stockviz.services.ingest.bar_semantics import latest_completed_session
+    from stockviz.services.markets.calendar import venue_for_ticker
 
     settings = get_settings()
-    expected = latest_completed_session(utcnow().replace(tzinfo=UTC))
+    now = utcnow().replace(tzinfo=UTC)
+    expected = latest_completed_session(now)
+    reached = False
     total = 0
     failed: list[str] = []
     behind: list[str] = []
@@ -515,19 +518,22 @@ def _cmd_ingest(args: argparse.Namespace) -> int:
         latest = _latest_daily_bar_date(ticker)
         print(f"  {ticker}: {written} (latest bar {latest})")
         total += written
-        if latest is None or latest < expected:
-            behind.append(ticker)
+        ticker_expected = latest_completed_session(now, venue_for_ticker(ticker))
+        if latest is None or latest < ticker_expected:
+            behind.append(f"{ticker} (expected {ticker_expected})")
+        else:
+            reached = True
         if latest is not None and (newest is None or latest > newest):
             newest = latest
-    print(f"ingested {total} bars total; expected session {expected}")
+    print(f"ingested {total} bars total; expected New York session {expected}")
     if behind:
-        print(f"ingest: behind {expected}: {', '.join(behind)}", file=sys.stderr)
+        print(f"ingest: behind: {', '.join(behind)}", file=sys.stderr)
     if failed:
         print(f"ingest: {len(failed)} ticker(s) failed: {', '.join(failed)}", file=sys.stderr)
         return 1
-    if args.tickers and (newest is None or newest < expected):
+    if args.tickers and not reached:
         print(
-            f"ingest: no ticker reached the {expected} session (newest {newest})",
+            f"ingest: no ticker reached its venue's latest session (newest {newest})",
             file=sys.stderr,
         )
         return 1

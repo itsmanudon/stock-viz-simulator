@@ -68,6 +68,7 @@ src/stockviz/
     backtest/       engine.py — historical strategy simulation
     alerts.py       price-alert evaluation
     metrics.py      precomputed per-symbol RSI / 52w range (screener reads these)
+    markets/        calendar.py — exchange calendars and completed sessions (Phase 4.1)
     aegis/          Aegis News read sync (Phase 2): contract.py (lenient
                     feed models), token.py (EdDSA feed:read token), client.py
                     (the one client: timeouts, bounded retries), sync.py
@@ -116,13 +117,19 @@ cron has no scheduler, so `settle-orders` and `evaluate-alerts` run in its
 chain after `fx` and before `snapshot-portfolios`, against
 `latest_completed_session()` (`services/ingest/bar_semantics.py`).
 
-**Which session is complete (audit MD-3).** A weekday's daily bar counts as
-complete once New York passes `SESSION_COMPLETE_AT` (16:45, after every
-exchange StockViz carries has closed). Before that, and at weekends, the
-newest complete session is the previous weekday. `completed_daily_bars` and
-settlement both use it, so the 22:00 UTC cron stores and settles the day's
-own session. (The old rule waited for New York midnight, so each night stored
-the session before.)
+**Which session is complete (audit MD-3, Phase 4.1).** Exchange calendars
+(`services/markets/calendar.py`, the only module importing
+`exchange_calendars`) decide it: a venue's session is complete 45 minutes
+after that venue's close, early closes included, and weekends and the venue's
+holidays are skipped. `latest_completed_session(now, venue)` defaults to New
+York (`XNYS`), which dates the nightly jobs, so the 22:00 UTC cron stores and
+settles the day's own session and, on a US holiday, the session before. Bars
+are filtered by their own venue (`venue_for_ticker`, from the Yahoo suffix
+until instruments carry a venue: `.L` XLON, `.DE` XETR, `.TO` XTSE, `.T` XTKS,
+`.NS`/`.BO` XBOM, which shares NSE's holidays). `ingest` judges each ticker
+against its venue's session. Option expiry uses the last New York session on
+or before expiry. Outside a calendar's range (XBOM ends 2026-12-31 in the
+pinned package) the weekday rule applies and a warning is logged.
 
 **Dividends (audit LG-12, #66).** `credit_due_dividends` credits every
 uncredited ex-date on or before the run date (a missed night or a missing FX
