@@ -6,18 +6,19 @@ import { cn } from "@/lib/utils";
  * It is decorative, so it is hidden from assistive technology; every figure it
  * hints at is stated in text beside it. It only carries facts the account
  * actually has (the account number and its currency), never a rank, limit or
- * balance it cannot back up. Styling lives in `.paper-card` in globals.css.
+ * balance it cannot back up. Without an account (the public landing page) it
+ * shows no number at all. Styling lives in `.paper-card` in globals.css.
  */
 export function PaperCard({
   accountId,
   currency,
   className,
 }: {
-  accountId: number;
+  accountId?: number;
   currency: string;
   className?: string;
 }) {
-  const number = String(accountId).padStart(4, "0").slice(-4);
+  const number = accountId === undefined ? null : String(accountId).padStart(4, "0").slice(-4);
 
   return (
     <div
@@ -31,9 +32,7 @@ export function PaperCard({
         </span>
       </div>
       <div className="flex items-end justify-between gap-3 font-mono text-2xs font-medium tracking-[0.06em]">
-        <span>
-          •••• {number} · {currency}
-        </span>
+        <span>{number ? `•••• ${number} · ${currency}` : `PAPER ACCOUNT · ${currency}`}</span>
         <span className="relative h-5 w-7 rounded-[5px] bg-linear-to-br from-[#e7ecf5] to-[#9aa6bb] shadow-[inset_0_0_0_1px_rgb(0_0_0/0.2)]" />
       </div>
     </div>

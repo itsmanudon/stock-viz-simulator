@@ -36,6 +36,10 @@
   --brand-gradient-from: #5b6cff;
   --brand-gradient-via: #38c8f0;
   --brand-gradient-to: #a6f0ff;
+  /* Stops for gradient display text. Kept dark enough in light mode that the
+     lightest stop still clears 3:1 for large text on the canvas. */
+  --brand-text-from: #2f4be0;
+  --brand-text-to: #5b6cff;
   --secondary: #e9edf3;
   --secondary-foreground: #172033;
   --muted: #e9edf3;
@@ -96,6 +100,8 @@
   --primary-foreground: #06080f;
   --brand: #38c8f0;
   --brand-muted: #0d2a3a;
+  --brand-text-from: #a6f0ff;
+  --brand-text-to: #5b8cff;
   --secondary: #111827;
   --secondary-foreground: #d5dce8;
   --muted: #111827;
@@ -450,6 +456,15 @@ html[data-density="compact"] .workspace-main .density-workspace {
     transform: translateX(-120%) rotate(18deg);
     background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.28), transparent);
     animation: paper-card-sheen 7s ease-in-out infinite;
+  }
+
+  /* Gradient display text for the landing headline. The text stays real
+     text, so it copies, wraps and reads to assistive technology as normal. */
+  .text-brand-gradient {
+    background-image: linear-gradient(90deg, var(--brand-text-from), var(--brand-text-to));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
   }
 
   /* Dims the cents so the whole-unit figure reads first (Revolut's balance
