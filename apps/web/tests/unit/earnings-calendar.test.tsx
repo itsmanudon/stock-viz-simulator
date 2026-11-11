@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { EarningsCalendar } from "@/components/earnings-calendar";
+import { EarningsCalendar, viewRange } from "@/components/earnings-calendar";
 import type { EarningsEvent } from "@/lib/api/types";
 
 const anchor = new Date("2026-08-05T12:00:00Z");
@@ -51,5 +51,46 @@ describe("EarningsCalendar", () => {
       "href",
       "/earnings?view=month&date=2026-08-05&scope=holdings",
     );
+  });
+});
+
+describe("EarningsCalendar month grid", () => {
+  it("starts weeks on Monday, rings today and dates each cell by its UTC day", () => {
+    const { container } = render(
+      <EarningsCalendar
+        events={[
+          event({
+            event_date: "2026-08-03",
+            eps_estimate: "1.00",
+            eps_actual: "0.90",
+            result: "miss",
+          }),
+        ]}
+        view="month"
+        scope="all"
+        anchor={anchor}
+        today="2026-08-05"
+      />,
+    );
+
+    const grid = container.querySelector(".grid-cols-7");
+    expect(grid?.textContent?.startsWith("MonTue")).toBe(true);
+    // August 2026 starts on a Saturday: the first row runs Mon 27 Jul to Sun 2 Aug.
+    const cells = container.querySelectorAll(".grid-cols-7 + .grid-cols-7 > div");
+    expect(cells[0]?.textContent).toContain("27");
+    expect(cells.length % 7).toBe(0);
+    expect(container.querySelector('[aria-current="date"]')?.textContent).toBe("5");
+    expect(screen.getAllByText("Miss").length).toBeGreaterThan(0);
+  });
+});
+
+describe("viewRange", () => {
+  it("runs a week from Monday to Sunday", () => {
+    // 5 Aug 2026 is a Wednesday.
+    expect(viewRange(anchor, "week")).toEqual({ from: "2026-08-03", to: "2026-08-09" });
+  });
+
+  it("covers the whole month", () => {
+    expect(viewRange(anchor, "month")).toEqual({ from: "2026-08-01", to: "2026-08-31" });
   });
 });

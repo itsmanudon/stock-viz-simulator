@@ -93,6 +93,9 @@ components/
                    plus CardSortBar (cards have no column headers to sort by)
   page-header.tsx  PageHeader / PageSubnav / PageEmptyState — the single
                    implementation behind the Operational* and Research* wrappers
+                   (+ MetaChip, the rounded date/zone chip for a header's meta row)
+  figure-strip.tsx FigureStrip: a row of headline figures in one bordered strip
+                   (Aurora board v3); /markets uses it for breadth
   status-badge.tsx one tone-mapped chip behind the order/alert badges
   order-side-toggle.tsx  buy/sell segmented control shared by both tickets
   ui/              shadcn-generated primitives — don't hand-edit
@@ -352,6 +355,11 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   `DataDateChip` (`components/marketing/market-status.tsx`), the newest stored
   bar's date. It is an async server component, so unit tests that render the
   shell mock that module.
+- `/earnings` weeks run Monday to Sunday, and the page fetches exactly
+  `viewRange()` from `earnings-calendar.tsx`, so the grid and the request
+  can't disagree. Calendar cells are UTC dates: read them with UTC getters.
+  `/markets` breadth (`marketBreadth()` in `lib/markets-table.ts`) counts only
+  rows with a `change_pct`, so a stalled symbol never enters it.
 - Watchlist rows carry `last_close_at` and `currency`, and alert rows carry
   `currency` (audit RS-13), so the dashboard no longer loads the symbol list
   to format them. `/alerts` still loads it for the create form.

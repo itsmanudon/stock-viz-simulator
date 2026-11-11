@@ -1,3 +1,4 @@
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import Link from "next/link";
 
 import type { EarningsEvent } from "@/lib/api/types";
@@ -11,6 +12,8 @@ type CalendarProps = {
   view: EarningsView;
   scope: EarningsScope;
   anchor: Date;
+  /** UTC calendar day to ring as today; defaults to now. */
+  today?: string;
 };
 
 function dateKey(date: Date): string {
@@ -40,7 +43,13 @@ function eventTone(result: EarningsEvent["result"]): string {
   return "border-border-muted bg-surface-secondary text-text-tertiary";
 }
 
-export function EarningsCalendar({ events, view, scope, anchor }: CalendarProps) {
+export function EarningsCalendar({
+  events,
+  view,
+  scope,
+  anchor,
+  today = dateKey(new Date()),
+}: CalendarProps) {
   const grouped = new Map<string, EarningsEvent[]>();
   for (const event of events) {
     const list = grouped.get(event.event_date) ?? [];
@@ -61,7 +70,7 @@ export function EarningsCalendar({ events, view, scope, anchor }: CalendarProps)
     <>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div
-          className="inline-flex rounded-lg border border-border-muted p-0.5"
+          className="inline-flex gap-0.5 rounded-full border border-border-muted p-0.5"
           aria-label="Calendar view"
         >
           {(["day", "week", "month"] as const).map((option) => (
@@ -70,9 +79,9 @@ export function EarningsCalendar({ events, view, scope, anchor }: CalendarProps)
               href={href({ view: option })}
               aria-current={view === option ? "page" : undefined}
               className={cn(
-                "rounded-md px-3 py-1.5 text-xs font-medium capitalize transition",
+                "rounded-full px-3 py-1.5 text-xs capitalize transition",
                 view === option
-                  ? "bg-primary text-primary-foreground"
+                  ? "bg-surface-secondary font-medium text-foreground"
                   : "text-text-tertiary hover:bg-surface-hover hover:text-foreground",
               )}
             >
@@ -81,7 +90,7 @@ export function EarningsCalendar({ events, view, scope, anchor }: CalendarProps)
           ))}
         </div>
         <div
-          className="inline-flex rounded-lg border border-border-muted p-0.5"
+          className="inline-flex gap-0.5 rounded-full border border-border-muted p-0.5"
           aria-label="Earnings scope"
         >
           {(["all", "holdings", "watchlist"] as const).map((option) => (
@@ -90,9 +99,9 @@ export function EarningsCalendar({ events, view, scope, anchor }: CalendarProps)
               href={href({ scope: option })}
               aria-current={scope === option ? "page" : undefined}
               className={cn(
-                "rounded-md px-2.5 py-1.5 text-xs capitalize transition",
+                "rounded-full px-3 py-1.5 text-xs capitalize transition",
                 scope === option
-                  ? "bg-surface-secondary text-foreground"
+                  ? "bg-surface-secondary font-medium text-foreground"
                   : "text-text-tertiary hover:bg-surface-hover hover:text-foreground",
               )}
             >
@@ -102,28 +111,32 @@ export function EarningsCalendar({ events, view, scope, anchor }: CalendarProps)
         </div>
       </div>
 
-      <div className="mt-4 flex items-center justify-between">
-        <Link
-          href={href({ date: dateKey(shiftAnchor(anchor, view, -1)) })}
-          className="rounded-md border border-border-muted px-2.5 py-1.5 text-xs text-text-secondary hover:bg-surface-hover"
-          aria-label="Previous period"
-        >
-          ←
-        </Link>
-        <h2 className="text-sm font-semibold">{periodTitle(anchor, view)}</h2>
-        <Link
-          href={href({ date: dateKey(shiftAnchor(anchor, view, 1)) })}
-          className="rounded-md border border-border-muted px-2.5 py-1.5 text-xs text-text-secondary hover:bg-surface-hover"
-          aria-label="Next period"
-        >
-          →
-        </Link>
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <Link
+            href={href({ date: dateKey(shiftAnchor(anchor, view, -1)) })}
+            className="inline-grid size-8 place-items-center rounded-full border border-border-muted text-text-secondary hover:bg-surface-hover hover:text-foreground"
+            aria-label="Previous period"
+          >
+            <ChevronLeft className="size-4" aria-hidden />
+          </Link>
+          <h2 className="min-w-36 text-center text-sm font-medium">{periodTitle(anchor, view)}</h2>
+          <Link
+            href={href({ date: dateKey(shiftAnchor(anchor, view, 1)) })}
+            className="inline-grid size-8 place-items-center rounded-full border border-border-muted text-text-secondary hover:bg-surface-hover hover:text-foreground"
+            aria-label="Next period"
+          >
+            <ChevronRight className="size-4" aria-hidden />
+          </Link>
+        </div>
+        {/* Explains the result colours, so it shows only when one is on screen. */}
+        {visibleEvents.some((event) => event.result !== "unknown") ? <ResultLegend /> : null}
       </div>
 
       {view === "month" ? (
         <>
           <div className="mt-4 hidden overflow-hidden rounded-xl border border-border-muted lg:block">
-            <div className="grid grid-cols-7 border-b border-border-muted bg-surface-secondary/55 text-2xs font-semibold tracking-[0.12em] text-text-tertiary uppercase">
+            <div className="grid grid-cols-7 border-b border-border-muted text-2xs text-text-tertiary">
               {DAY_NAMES.map((day) => (
                 <div key={day} className="px-3 py-2">
                   {day}
@@ -134,17 +147,31 @@ export function EarningsCalendar({ events, view, scope, anchor }: CalendarProps)
               {monthCells(anchor).map((day) => {
                 const key = dateKey(day);
                 const dayEvents = grouped.get(key) ?? [];
-                const inMonth = day.getMonth() === anchor.getMonth();
+                // UTC getters throughout: the cells are UTC dates, and local
+                // getters shift them a day on a server west of UTC.
+                const inMonth = day.getUTCMonth() === anchor.getUTCMonth();
+                const weekend = day.getUTCDay() === 0 || day.getUTCDay() === 6;
+                const isToday = key === today;
                 return (
                   <div
                     key={key}
                     className={cn(
-                      "min-h-32 border-b border-r border-border-muted p-2.5 last:border-r-0",
-                      !inMonth && "bg-surface-secondary/25 text-text-tertiary",
+                      "min-h-28 border-r border-b border-border-muted p-2.5 [&:nth-child(7n)]:border-r-0",
+                      !inMonth && "bg-surface-secondary/30 text-text-tertiary",
+                      inMonth && weekend && "bg-surface-secondary/15",
                     )}
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <span className="font-mono text-xs tabular-nums">{day.getDate()}</span>
+                      <span
+                        className={cn(
+                          "font-mono text-xs tabular-nums",
+                          !inMonth && "opacity-60",
+                          isToday && "rounded-full bg-primary px-1.5 text-primary-foreground",
+                        )}
+                        aria-current={isToday ? "date" : undefined}
+                      >
+                        {day.getUTCDate()}
+                      </span>
                       {dayEvents.length ? (
                         <span className="text-2xs text-text-tertiary">{dayEvents.length}</span>
                       ) : null}
@@ -212,6 +239,27 @@ function EventRow({ event, compact = false }: { event: EarningsEvent; compact?: 
   );
 }
 
+function ResultLegend() {
+  const items = [
+    ["Beat estimate", "bg-positive"],
+    ["Missed estimate", "bg-negative"],
+    ["In line or no result yet", "bg-text-tertiary"],
+  ] as const;
+  return (
+    <ul
+      aria-label="Result key"
+      className="flex flex-wrap gap-x-4 gap-y-1 text-2xs text-text-secondary"
+    >
+      {items.map(([label, tone]) => (
+        <li key={label} className="inline-flex items-center gap-1.5">
+          <span aria-hidden className={cn("h-0.5 w-3.5 rounded-full", tone)} />
+          {label}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 function EmptyCalendarMessage({ scope }: { scope: EarningsScope }) {
   return (
     <div className="rounded-xl border border-dashed border-border-muted bg-surface-secondary/30 px-4 py-8 text-center text-sm text-text-secondary">
@@ -223,27 +271,37 @@ function EmptyCalendarMessage({ scope }: { scope: EarningsScope }) {
   );
 }
 
-const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+/** Weeks start on Monday, so a trading week reads left to right. */
+const DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+/** Days since the Monday of `date`'s week (UTC). */
+function daysSinceMonday(date: Date): number {
+  return (date.getUTCDay() + 6) % 7;
+}
 
 function monthCells(anchor: Date): Date[] {
   const first = new Date(Date.UTC(anchor.getUTCFullYear(), anchor.getUTCMonth(), 1));
+  const last = new Date(Date.UTC(anchor.getUTCFullYear(), anchor.getUTCMonth() + 1, 0));
   const start = new Date(first);
-  start.setUTCDate(first.getUTCDate() - first.getUTCDay());
-  return Array.from({ length: 42 }, (_, index) => {
+  start.setUTCDate(first.getUTCDate() - daysSinceMonday(first));
+  // Five rows when the month fits, six when it spills.
+  const weeks = Math.ceil((daysSinceMonday(first) + last.getUTCDate()) / 7);
+  return Array.from({ length: weeks * 7 }, (_, index) => {
     const day = new Date(start);
     day.setUTCDate(start.getUTCDate() + index);
     return day;
   });
 }
 
-function viewRange(anchor: Date, view: EarningsView): { from: string; to: string } {
+/** The UTC date range a view covers; the page fetches exactly this range. */
+export function viewRange(anchor: Date, view: EarningsView): { from: string; to: string } {
   if (view === "month") {
     const first = new Date(Date.UTC(anchor.getUTCFullYear(), anchor.getUTCMonth(), 1));
     const last = new Date(Date.UTC(anchor.getUTCFullYear(), anchor.getUTCMonth() + 1, 0));
     return { from: dateKey(first), to: dateKey(last) };
   }
   const start = new Date(anchor);
-  if (view === "week") start.setUTCDate(start.getUTCDate() - start.getUTCDay());
+  if (view === "week") start.setUTCDate(start.getUTCDate() - daysSinceMonday(start));
   return {
     from: dateKey(start),
     to: dateKey(new Date(start.getTime() + (view === "week" ? 6 : 0) * 86400000)),

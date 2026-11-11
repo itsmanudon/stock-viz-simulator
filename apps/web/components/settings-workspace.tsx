@@ -1,7 +1,6 @@
 "use client";
 
-import { Keyboard, MonitorCog, X } from "lucide-react";
-import { Dialog } from "radix-ui";
+import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
 
 import {
@@ -9,21 +8,39 @@ import {
   type InterfaceDensity,
   applyInterfaceDensity,
 } from "@/components/interface-preferences";
+import { cn } from "@/lib/utils";
 
-export function SettingsWorkspace({
-  email,
-  name,
-}: {
-  email: string | null | undefined;
-  name: string | null | undefined;
-}) {
+/**
+ * The Settings page's client panels (Aurora board v3): interface preferences
+ * in the main column, and the account card and keyboard shortcuts in the
+ * aside. Everything here lives in this browser; account preferences that the
+ * API stores (currency, leaderboard) stay server actions on the page.
+ */
+
+const DENSITY_OPTIONS = [
+  { value: "comfortable", label: "Comfortable", hint: "More breathing room" },
+  { value: "compact", label: "Compact", hint: "More rows in view" },
+] as const;
+
+/** Light and dark only: the theme provider runs with `enableSystem={false}`. */
+const THEME_OPTIONS = [
+  { value: "dark", label: "Dark" },
+  { value: "light", label: "Light" },
+] as const;
+
+export function InterfacePanel() {
   const [density, setDensity] = useState<InterfaceDensity>("comfortable");
+  const { theme, setTheme } = useTheme();
+  // next-themes only knows the theme after mount; rendering a pressed state
+  // before that would mismatch the server HTML.
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     const next: InterfaceDensity =
       window.localStorage.getItem(DENSITY_STORAGE_KEY) === "compact" ? "compact" : "comfortable";
     setDensity(next);
     applyInterfaceDensity(next);
+    setMounted(true);
   }, []);
 
   function updateDensity(next: InterfaceDensity) {
@@ -33,131 +50,111 @@ export function SettingsWorkspace({
   }
 
   return (
-    <div className="space-y-4">
-      <section
-        className="rounded-xl border border-border-muted bg-surface-secondary/45 p-4"
-        aria-labelledby="account-heading"
-      >
-        <div className="flex items-start gap-3">
-          <div className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-brand/30 bg-brand/10 text-sm font-semibold text-brand">
-            {(name || email || "S").slice(0, 1).toUpperCase()}
-          </div>
-          <div className="min-w-0">
-            <h2 id="account-heading" className="text-sm font-semibold">
-              {name || "StockViz account"}
-            </h2>
-            <p className="mt-0.5 truncate text-xs text-text-tertiary">
-              {email || "Signed-in account"}
-            </p>
-          </div>
+    <div className="space-y-5">
+      <fieldset>
+        <legend className="mb-2 text-xs text-text-tertiary">Density</legend>
+        <div className="grid max-w-md grid-cols-2 gap-2">
+          {DENSITY_OPTIONS.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              aria-pressed={density === option.value}
+              onClick={() => updateDensity(option.value)}
+              className={cn(
+                "rounded-lg border px-3 py-2 text-left text-xs transition",
+                density === option.value
+                  ? "border-brand/60 bg-brand/10 text-foreground"
+                  : "border-border-muted text-text-secondary hover:bg-surface-hover",
+              )}
+            >
+              <span className="block font-medium">{option.label}</span>
+              <span className="mt-0.5 block text-2xs text-text-tertiary">{option.hint}</span>
+            </button>
+          ))}
         </div>
-        <p className="mt-3 text-xs leading-relaxed text-text-secondary">
-          Your account is used for paper-trading data, watchlists, alerts, and private preferences.
-          StockViz never routes orders to a live broker.
-        </p>
-      </section>
+      </fieldset>
 
-      <section
-        className="rounded-xl border border-border-muted bg-surface-secondary/45 p-4"
-        aria-labelledby="interface-heading"
-      >
-        <div className="flex items-start gap-3">
-          <MonitorCog className="mt-0.5 size-4 text-brand" aria-hidden />
-          <div className="min-w-0 flex-1">
-            <h2 id="interface-heading" className="text-sm font-semibold">
-              Interface
-            </h2>
-            <p className="mt-1 text-xs leading-relaxed text-text-tertiary">
-              Choose how dense data tables and workspace spacing feel on this device.
-            </p>
-            <fieldset className="mt-3 grid grid-cols-2 gap-2">
-              <legend className="sr-only">Interface density</legend>
-              {(["comfortable", "compact"] as const).map((option) => (
-                <button
-                  key={option}
-                  type="button"
-                  aria-pressed={density === option}
-                  onClick={() => updateDensity(option)}
-                  className={`rounded-lg border px-3 py-2 text-left text-xs transition ${
-                    density === option
-                      ? "border-brand/60 bg-brand/10 text-brand"
-                      : "border-border-muted text-text-secondary hover:bg-surface-hover"
-                  }`}
-                >
-                  <span className="block font-medium capitalize">{option}</span>
-                  <span className="mt-0.5 block text-2xs text-text-tertiary">
-                    {option === "compact" ? "More rows in view" : "More breathing room"}
-                  </span>
-                </button>
-              ))}
-            </fieldset>
-            <p className="mt-2 text-2xs text-text-tertiary">Saved locally in this browser.</p>
-          </div>
+      <fieldset>
+        <legend className="mb-2 text-xs text-text-tertiary">Theme</legend>
+        <div className="inline-flex gap-0.5 rounded-full border border-border-muted p-0.5">
+          {THEME_OPTIONS.map((option) => {
+            const pressed = mounted && theme === option.value;
+            return (
+              <button
+                key={option.value}
+                type="button"
+                aria-pressed={pressed}
+                onClick={() => setTheme(option.value)}
+                className={cn(
+                  "rounded-full px-3.5 py-1.5 text-xs transition",
+                  pressed
+                    ? "bg-surface-secondary font-medium text-foreground"
+                    : "text-text-tertiary hover:text-foreground",
+                )}
+              >
+                {option.label}
+              </button>
+            );
+          })}
         </div>
-      </section>
+      </fieldset>
 
-      <ShortcutsDialog />
+      <p className="text-2xs text-text-tertiary">
+        Density and theme are saved in this browser only.
+      </p>
     </div>
   );
 }
 
-function ShortcutsDialog() {
-  const shortcuts = [
-    ["⌘ K / Ctrl K", "Open symbol command palette"],
-    ["/", "Open the palette when you are not typing"],
-    ["↑ ↓", "Move through symbol results"],
-    ["Enter", "Open the selected symbol workspace"],
-    ["Esc", "Close the active surface"],
-  ];
-
+export function AccountDetails({
+  email,
+  name,
+}: {
+  email: string | null | undefined;
+  name: string | null | undefined;
+}) {
   return (
-    <Dialog.Root>
-      <Dialog.Trigger asChild>
-        <button
-          type="button"
-          className="inline-flex w-full items-center justify-between rounded-lg border border-border-muted px-3 py-2.5 text-left text-xs text-text-secondary transition hover:bg-surface-hover hover:text-foreground"
-        >
-          <span className="inline-flex items-center gap-2">
-            <Keyboard className="size-4 text-brand" aria-hidden /> Keyboard shortcuts
-          </span>
-          <span className="font-mono text-2xs text-text-tertiary">⌘ K</span>
-        </button>
-      </Dialog.Trigger>
-      <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-50 bg-black/60 backdrop-blur-[2px] data-[state=closed]:animate-out data-[state=open]:animate-in data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 z-50 w-[min(30rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 rounded-xl border border-border bg-surface-elevated p-5 shadow-2xl outline-none data-[state=closed]:animate-out data-[state=open]:animate-in data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <Dialog.Title className="text-base font-semibold">Keyboard shortcuts</Dialog.Title>
-              <Dialog.Description className="mt-1 text-xs text-text-tertiary">
-                Quick ways to move through StockViz.
-              </Dialog.Description>
-            </div>
-            <Dialog.Close asChild>
-              <button
-                type="button"
-                className="inline-flex size-8 items-center justify-center rounded-md text-text-tertiary hover:bg-surface-hover hover:text-foreground"
-                aria-label="Close shortcuts"
-              >
-                <X className="size-4" aria-hidden />
-              </button>
-            </Dialog.Close>
-          </div>
-          <div className="mt-5 divide-y divide-border-muted rounded-lg border border-border-muted">
-            {shortcuts.map(([key, description]) => (
-              <div
-                key={key}
-                className="flex items-center justify-between gap-4 px-3 py-2.5 text-xs"
-              >
-                <span className="text-text-secondary">{description}</span>
-                <kbd className="shrink-0 rounded border border-border-muted bg-surface-secondary px-2 py-1 font-mono text-2xs text-foreground">
-                  {key}
-                </kbd>
-              </div>
-            ))}
-          </div>
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
+    <div>
+      <dl className="divide-y divide-border-muted text-sm">
+        <div className="flex justify-between gap-3 py-2">
+          <dt className="text-text-tertiary">Name</dt>
+          <dd className="min-w-0 truncate text-right">{name || "StockViz account"}</dd>
+        </div>
+        <div className="flex justify-between gap-3 py-2">
+          <dt className="text-text-tertiary">Email</dt>
+          <dd className="min-w-0 truncate text-right">{email || "Signed-in account"}</dd>
+        </div>
+      </dl>
+      <p className="mt-3 text-xs leading-relaxed text-text-secondary">
+        Your account holds paper-trading data, watchlists, alerts and private preferences. StockViz
+        never routes orders to a live broker.
+      </p>
+    </div>
+  );
+}
+
+const SHORTCUTS = [
+  ["⌘ K / Ctrl K", "Open the symbol palette"],
+  ["/", "Open it when not typing"],
+  ["↑ ↓", "Move through results"],
+  ["Enter", "Open the selected symbol"],
+  ["Esc", "Close the active surface"],
+] as const;
+
+/** The shortcut list, shown inline rather than behind a dialog. */
+export function KeyboardShortcuts() {
+  return (
+    <dl className="divide-y divide-border-muted text-xs">
+      {SHORTCUTS.map(([key, description]) => (
+        <div key={key} className="flex items-center justify-between gap-4 py-2">
+          <dt className="text-text-secondary">{description}</dt>
+          <dd>
+            <kbd className="rounded border border-border-muted bg-surface-secondary px-2 py-0.5 font-mono text-2xs text-foreground">
+              {key}
+            </kbd>
+          </dd>
+        </div>
+      ))}
+    </dl>
   );
 }

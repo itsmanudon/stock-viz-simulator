@@ -1,18 +1,21 @@
 /**
- * /settings — user preferences.
+ * /settings — user preferences (Aurora board v3).
  *
- * Exposes the leaderboard opt-in toggle and the display-currency selector.
- * Both forms use server actions so the page stays a server component.
+ * Main column: display currency and leaderboard visibility (server actions,
+ * so both work without JavaScript), then interface preferences that live in
+ * this browser. Aside: the account's paper card and details, keyboard
+ * shortcuts, and the system context.
  */
 
 import type { Metadata } from "next";
 import { revalidatePath } from "next/cache";
 
 import { auth } from "@/auth";
+import { PageHeader } from "@/components/page-header";
 import { PaperCard } from "@/components/paper-card";
-import { SettingsWorkspace } from "@/components/settings-workspace";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { AccountDetails, InterfacePanel, KeyboardShortcuts } from "@/components/settings-workspace";
 import { getProfile, patchProfile } from "@/lib/api/leaderboard";
+import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Settings" };
 
@@ -37,42 +40,33 @@ async function setDisplayCurrency(formData: FormData) {
 
 export default async function SettingsPage() {
   const [profile, session] = await Promise.all([getProfile(), auth()]);
+  const visible = profile.public_profile;
 
   return (
-    <div className="density-workspace container mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:py-8">
-      <header className="mb-7 max-w-2xl">
-        <p className="text-2xs font-semibold tracking-[0.14em] text-brand uppercase">
-          Account / workspace
-        </p>
-        <h1 className="mt-1.5 text-3xl font-semibold tracking-tight">Settings</h1>
-        <p className="mt-2 text-sm leading-relaxed text-text-secondary">
-          Keep your paper-trading workspace useful and private. These controls change real account
-          preferences or this browser&apos;s interface only.
-        </p>
-      </header>
+    <div className="density-workspace mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 lg:py-7">
+      <PageHeader
+        eyebrow="Account"
+        title="Settings"
+        description="Account preferences are saved to your profile; interface preferences stay in this browser."
+      />
 
-      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_18rem] lg:items-start">
+      <div className="mt-6 grid gap-4 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start">
         <div className="space-y-4">
-          <Card>
-            <CardHeader>
-              <h2 data-slot="card-title" className="text-base leading-none font-semibold">
-                Display currency
-              </h2>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <p className="text-sm text-muted-foreground">
-                Portfolio totals convert to this currency. Cash remains stored in USD; trades stay
-                denominated in the symbol&apos;s native currency.
-              </p>
-              <form action={setDisplayCurrency} className="flex flex-wrap items-center gap-3">
-                <label htmlFor="display-currency" className="sr-only">
-                  Display currency
+          <SettingsPanel title="Display currency" id="currency-heading">
+            <form
+              action={setDisplayCurrency}
+              className="flex flex-wrap items-end gap-3"
+              aria-labelledby="currency-heading"
+            >
+              <div className="grid gap-1.5">
+                <label htmlFor="display-currency" className="text-xs text-text-tertiary">
+                  Show totals in
                 </label>
                 <select
                   id="display-currency"
                   name="display_currency"
                   defaultValue={profile.display_currency || "USD"}
-                  className="flex h-9 w-32 rounded-md border border-input bg-transparent px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  className="flex h-9 w-40 rounded-md border border-input bg-transparent px-3 py-2 font-mono text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                 >
                   {SUPPORTED_CURRENCIES.map((c) => (
                     <option key={c} value={c}>
@@ -80,85 +74,111 @@ export default async function SettingsPage() {
                     </option>
                   ))}
                 </select>
-                <button
-                  type="submit"
-                  className="rounded-full bg-primary px-5 py-2 text-sm font-medium text-primary-foreground transition hover:bg-primary/90"
-                >
-                  Save currency
-                </button>
-              </form>
-            </CardContent>
-          </Card>
+              </div>
+              <button
+                type="submit"
+                className="h-9 rounded-full bg-primary px-5 text-sm font-medium text-primary-foreground transition hover:bg-primary/90"
+              >
+                Save currency
+              </button>
+            </form>
+            <p className="mt-3 text-xs leading-relaxed text-text-tertiary">
+              Cash is held in USD. Each trade stays in its listing&apos;s own currency; only
+              portfolio totals are converted.
+            </p>
+          </SettingsPanel>
 
-          <Card>
-            <CardHeader>
-              <h2 data-slot="card-title" className="text-base leading-none font-semibold">
-                Leaderboard visibility
-              </h2>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <p className="text-sm text-muted-foreground">
-                When enabled, your username and portfolio return appear on the public leaderboard.
-                Holdings and cash are never shown.
-              </p>
-              <form action={setPublicProfile} className="flex flex-wrap items-center gap-4">
-                <input
-                  type="hidden"
-                  name="public_profile"
-                  value={profile.public_profile ? "false" : "true"}
+          <SettingsPanel title="Leaderboard" id="leaderboard-heading">
+            <form action={setPublicProfile} className="flex items-center justify-between gap-4">
+              <input type="hidden" name="public_profile" value={visible ? "false" : "true"} />
+              <div className="min-w-0">
+                <p id="leaderboard-label" className="text-sm font-medium">
+                  Show me on the public leaderboard
+                </p>
+                <p className="mt-0.5 text-xs leading-relaxed text-text-tertiary">
+                  Currently {visible ? "visible" : "hidden"}. Only your username and return are
+                  shown; holdings and cash never are.
+                </p>
+              </div>
+              {/* A submit button acting as a switch: one press saves the
+                  opposite state, and it works without JavaScript. */}
+              <button
+                type="submit"
+                role="switch"
+                aria-checked={visible}
+                aria-labelledby="leaderboard-label"
+                className={cn(
+                  "relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border transition",
+                  visible ? "border-brand bg-brand" : "border-border bg-surface-secondary",
+                )}
+              >
+                <span
+                  aria-hidden
+                  className={cn(
+                    "size-4 rounded-full bg-background shadow transition-transform",
+                    visible ? "translate-x-6" : "translate-x-1",
+                  )}
                 />
-                <button
-                  type="submit"
-                  className={`rounded-full border px-5 py-2 text-sm font-medium transition hover:bg-accent ${profile.public_profile ? "border-destructive text-destructive" : "border-brand text-brand"}`}
-                >
-                  {profile.public_profile ? "Remove me from leaderboard" : "Show me on leaderboard"}
-                </button>
-                <span className="text-sm text-muted-foreground">
-                  Currently:{" "}
-                  <span className={profile.public_profile ? "text-positive" : "text-text-tertiary"}>
-                    {profile.public_profile ? "visible" : "hidden"}
-                  </span>
-                </span>
-              </form>
-            </CardContent>
-          </Card>
+              </button>
+            </form>
+          </SettingsPanel>
+
+          <SettingsPanel title="Interface" id="interface-heading">
+            <InterfacePanel />
+          </SettingsPanel>
         </div>
 
         <aside className="space-y-4">
-          {/* The account's paper card, in its display currency: the one
-              brand moment on this page. */}
-          <div className="relative isolate hidden lg:block">
-            <div aria-hidden className="brand-glow -top-6 -left-6 -z-10 h-44 w-72 opacity-60" />
-            <PaperCard currency={profile.display_currency || "USD"} className="w-full" />
-          </div>
-          <SettingsWorkspace email={session?.user?.email} name={session?.user?.name} />
-          <section
-            className="rounded-xl border border-border-muted bg-surface-secondary/45 p-4"
-            aria-labelledby="status-heading"
-          >
-            <p className="text-2xs font-semibold tracking-[0.14em] text-text-tertiary uppercase">
-              System context
-            </p>
-            <h2 id="status-heading" className="mt-2 text-sm font-semibold">
-              StockViz paper workspace
-            </h2>
-            <dl className="mt-3 space-y-2 text-xs">
-              <div className="flex justify-between gap-3">
-                <dt className="text-text-tertiary">Pricing</dt>
-                <dd className="text-right text-text-secondary">End-of-day bars</dd>
-              </div>
-              <div className="flex justify-between gap-3">
-                <dt className="text-text-tertiary">Trading</dt>
-                <dd className="text-right text-text-secondary">Paper only</dd>
-              </div>
-              <div className="flex justify-between gap-3">
-                <dt className="text-text-tertiary">Data source</dt>
-                <dd className="text-right text-text-secondary">Configured providers</dd>
-              </div>
+          <SettingsPanel title="Account" id="account-heading">
+            {/* The account's paper card, in its display currency: the one
+                brand moment on this page. */}
+            <div className="relative isolate mb-4">
+              <div aria-hidden className="brand-glow -top-6 -left-6 -z-10 h-40 w-64 opacity-50" />
+              <PaperCard currency={profile.display_currency || "USD"} className="w-full" />
+            </div>
+            <AccountDetails email={session?.user?.email} name={session?.user?.name} />
+          </SettingsPanel>
+
+          <SettingsPanel title="Keyboard shortcuts" id="shortcuts-heading">
+            <KeyboardShortcuts />
+          </SettingsPanel>
+
+          <SettingsPanel title="System" id="status-heading">
+            <dl className="divide-y divide-border-muted text-xs">
+              {[
+                ["Pricing", "End-of-day bars"],
+                ["Trading", "Paper only"],
+                ["Data source", "Configured providers"],
+              ].map(([term, value]) => (
+                <div key={term} className="flex justify-between gap-3 py-2">
+                  <dt className="text-text-tertiary">{term}</dt>
+                  <dd className="text-right text-text-secondary">{value}</dd>
+                </div>
+              ))}
             </dl>
-          </section>
+          </SettingsPanel>
         </aside>
       </div>
     </div>
+  );
+}
+
+/** A titled settings card: header row with a hairline, then its content. */
+function SettingsPanel({
+  title,
+  id,
+  children,
+}: {
+  title: string;
+  id: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section aria-labelledby={id} className="rounded-xl border border-border-muted bg-card">
+      <h2 id={id} className="border-b border-border-muted px-5 py-3.5 text-sm font-medium">
+        {title}
+      </h2>
+      <div className="px-5 py-4">{children}</div>
+    </section>
   );
 }

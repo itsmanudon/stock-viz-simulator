@@ -7,6 +7,7 @@ import {
   fmtMoney,
   fmtPct,
   fmtPrice,
+  marketBreadth,
   sortHref,
 } from "@/lib/markets-table";
 
@@ -125,5 +126,36 @@ describe("sortHref", () => {
 
   it("url-encodes a sector containing a space", () => {
     expect(sortHref("ticker", { sector: "Consumer Staples" })).toContain("sector=Consumer+Staples");
+  });
+});
+
+describe("marketBreadth", () => {
+  const withSector = (ticker: string, changePct: number | null, sector: string | null) => ({
+    ...row(ticker, 100, changePct),
+    sector,
+  });
+
+  it("counts only rows with a 1d change and ranks sectors by their mean move", () => {
+    const breadth = marketBreadth([
+      withSector("AAPL", 1.5, "Technology"),
+      withSector("MSFT", -0.5, "Technology"),
+      withSector("JPM", 2, "Financials"),
+      withSector("XOM", -1, "Energy"),
+      withSector("KO", 0, null),
+      withSector("STALE", null, "Energy"),
+    ]);
+
+    expect(breadth).toMatchObject({ counted: 5, advancing: 2, declining: 2, unchanged: 1 });
+    expect(breadth.sectors.map((s) => [s.sector, s.changePct, s.count])).toEqual([
+      ["Financials", 2, 1],
+      ["Technology", 0.5, 2],
+      ["Energy", -1, 1],
+    ]);
+  });
+
+  it("returns empty sectors without classification metadata", () => {
+    const breadth = marketBreadth([withSector("AAPL", 1, null), withSector("MSFT", null, null)]);
+    expect(breadth.counted).toBe(1);
+    expect(breadth.sectors).toEqual([]);
   });
 });
