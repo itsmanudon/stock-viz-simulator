@@ -34,6 +34,7 @@ from stockviz.services.ingest.screening import (
     Disposition,
     screen_bar,
 )
+from stockviz.services.markets.calendar import venue_for_ticker
 
 logger = logging.getLogger(__name__)
 
@@ -505,7 +506,7 @@ def fetch_daily_bars(
         bars = fetch_alpha_vantage_daily(ticker, **av_kwargs)  # type: ignore[arg-type]
     if not bars:
         logger.warning("ingest_ticker: %s — no bars from any source", ticker)
-    return completed_daily_bars(bars, now=now)
+    return completed_daily_bars(bars, now=now, venue=venue_for_ticker(ticker))
 
 
 def ingest_ticker(

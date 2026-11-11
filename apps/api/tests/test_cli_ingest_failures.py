@@ -73,15 +73,15 @@ def test_a_run_where_nothing_reached_the_session_fails(cli_env, monkeypatch, cap
     monkeypatch.setattr(cli, "ingest_ticker", _fake_ingest({"AAPL": MONDAY, "MSFT": MONDAY}))
 
     assert cli.main(["ingest", "AAPL", "MSFT"]) == 1
-    assert "no ticker reached the 2025-04-08 session" in capsys.readouterr().err
+    assert "no ticker reached its venue's latest session" in capsys.readouterr().err
 
 
 def test_one_ticker_behind_is_reported_not_failed(cli_env, monkeypatch, capsys) -> None:
-    """Its market may have been closed: Toronto on a Canadian holiday."""
+    """One provider lagging is reported against that venue's own session."""
     monkeypatch.setattr(cli, "ingest_ticker", _fake_ingest({"AAPL": TUESDAY, "SHOP.TO": MONDAY}))
 
     assert cli.main(["ingest", "AAPL", "SHOP.TO"]) == 0
-    assert "behind 2025-04-08: SHOP.TO" in capsys.readouterr().err
+    assert "behind: SHOP.TO (expected 2025-04-08)" in capsys.readouterr().err
 
 
 def test_fx_without_rates_fails(cli_env, monkeypatch, capsys) -> None:

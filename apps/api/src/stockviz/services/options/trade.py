@@ -41,6 +41,7 @@ from stockviz.services.ingest.bar_semantics import (
     latest_completed_session,
     new_york_session_date,
 )
+from stockviz.services.markets.calendar import NEW_YORK_VENUE, session_on_or_before
 from stockviz.services.options.pricing import OptionPrice, black_scholes, historical_volatility
 from stockviz.services.trading.buying_power import (
     available_cash,
@@ -458,9 +459,12 @@ def _exercise_put(
 
 
 def _last_weekday_on_or_before(day: date_type) -> date_type:
-    while day.weekday() >= 5:
-        day -= timedelta(days=1)
-    return day
+    """The expiry session: the last New York session on or before ``day``.
+
+    Holidays come from the exchange calendar since Phase 4.1 (options are USD
+    underlyings only); the name predates that, when only weekends counted.
+    """
+    return session_on_or_before(day, NEW_YORK_VENUE)
 
 
 def _expiry_close(session: Session, position: OptionsPosition) -> PriceBar | None:
