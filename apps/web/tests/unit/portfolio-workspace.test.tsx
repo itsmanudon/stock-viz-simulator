@@ -29,6 +29,7 @@ vi.mock("lightweight-charts", () => ({
 
 vi.mock("@/app/(product)/(authed)/trade/options-actions", () => ({
   closeOptionAction: vi.fn(),
+  closeOptionFormAction: vi.fn(),
 }));
 
 vi.mock("@/app/(product)/(authed)/orders/actions", () => ({

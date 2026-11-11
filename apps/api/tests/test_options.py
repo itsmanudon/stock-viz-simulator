@@ -36,7 +36,10 @@ from stockviz.settings import get_settings
 
 SECRET = get_settings().internal_api_token
 _EPOCH = datetime(2024, 1, 1)
-TODAY = date(2026, 8, 24)
+TODAY = date(2026, 8, 24)  # a Monday
+# Options in the settlement tests expire TODAY - 1, a Sunday; their expiry
+# session is the Friday before, whose close settles them (LG-3).
+EXPIRY_SESSION = date(2026, 8, 21)
 
 
 @pytest.fixture(autouse=True)
@@ -65,15 +68,26 @@ def _seed_symbol(session: Session, ticker: str = "AAPL") -> None:
         session.commit()
 
 
-def _seed_bars(session: Session, prices: Sequence[float], ticker: str = "AAPL") -> None:
-    """Seed daily bars; the last price becomes the spot."""
+def _seed_bars(
+    session: Session, prices: Sequence[float], ticker: str = "AAPL", *, end: date | None = None
+) -> None:
+    """Seed daily bars; the last price becomes the spot.
+
+    ``end`` dates the last bar (settlement needs the expiry session's close,
+    LG-3); without it the bars start at ``_EPOCH``.
+    """
     _seed_symbol(session, ticker)
+    start = (
+        datetime.combine(end, datetime.min.time()) - timedelta(days=len(prices) - 1)
+        if end is not None
+        else _EPOCH
+    )
     for i, p in enumerate(prices):
         price = Decimal(str(p))
         session.add(
             PriceBar(
                 ticker=ticker,
-                ts=_EPOCH + timedelta(days=i),
+                ts=start + timedelta(days=i),
                 interval="1d",
                 open=price,
                 high=price,
@@ -330,7 +344,7 @@ def _open_raw_position(
 
 
 def test_settle_itm_call_exercises_into_equity(session: Session) -> None:
-    _seed_bars(session, [150.0])  # spot = 150
+    _seed_bars(session, [150.0], end=EXPIRY_SESSION)  # spot = 150
     user_id = _make_user(session)
     portfolio = ensure_default_portfolio(session, user_id)
     pos = _open_raw_position(
@@ -366,7 +380,7 @@ def test_settle_itm_call_exercises_into_equity(session: Session) -> None:
 
 
 def test_settle_otm_call_expires_worthless(session: Session) -> None:
-    _seed_bars(session, [80.0])  # spot = 80, below strike 100
+    _seed_bars(session, [80.0], end=EXPIRY_SESSION)  # spot = 80, below strike 100
     user_id = _make_user(session)
     portfolio = ensure_default_portfolio(session, user_id)
     pos = _open_raw_position(
@@ -394,7 +408,7 @@ def test_settle_otm_call_expires_worthless(session: Session) -> None:
 
 
 def test_settle_itm_put_sells_held_shares(session: Session) -> None:
-    _seed_bars(session, [80.0])  # spot = 80, below strike 100 -> put ITM
+    _seed_bars(session, [80.0], end=EXPIRY_SESSION)  # spot = 80, below strike 100 -> put ITM
     user_id = _make_user(session)
     portfolio = ensure_default_portfolio(session, user_id)
     # The portfolio already holds 100 shares.
@@ -424,14 +438,21 @@ def test_settle_itm_put_sells_held_shares(session: Session) -> None:
     session.refresh(portfolio)
     assert portfolio.cash_balance == DEFAULT_STARTING_CASH + Decimal(10_000)
 
-    # This share sale writes no Trade row, so its equity realization is folded
-    # into the option leg: (100 strike - 90 basis) x 100 shares - 500 premium.
-    assert pos.proceeds == Decimal("10000.00")
-    assert pos.realized_pnl == Decimal("500.00")
+    # #62: the sale goes through apply_fill, so it is a Trade with its own
+    # realized P&L, (100 strike - 90 basis) x 100 shares, and the option leg
+    # realizes only the 500 premium.
+    from stockviz.models import Trade
+    from stockviz.models.portfolio import TradeSide
+
+    (trade,) = session.exec(select(Trade).where(Trade.portfolio_id == portfolio.id)).all()
+    assert (trade.side, trade.quantity, trade.price) == (TradeSide.SELL, Decimal(100), Decimal(100))
+    assert trade.realized_pnl == Decimal("1000.000000")
+    assert pos.proceeds == Decimal(0)
+    assert pos.realized_pnl == Decimal("-500.00")
 
 
 def test_settle_itm_put_cash_settles_without_shares(session: Session) -> None:
-    _seed_bars(session, [80.0])  # spot = 80, strike 100 -> intrinsic 20/share
+    _seed_bars(session, [80.0], end=EXPIRY_SESSION)  # spot = 80, strike 100 -> intrinsic 20/share
     user_id = _make_user(session)
     portfolio = ensure_default_portfolio(session, user_id)
     pos = _open_raw_position(
@@ -455,7 +476,7 @@ def test_settle_itm_put_cash_settles_without_shares(session: Session) -> None:
 
 
 def test_settle_is_idempotent(session: Session) -> None:
-    _seed_bars(session, [150.0])
+    _seed_bars(session, [150.0], end=EXPIRY_SESSION)
     user_id = _make_user(session)
     portfolio = ensure_default_portfolio(session, user_id)
     _open_raw_position(
@@ -672,3 +693,60 @@ def test_expired_contract_cannot_be_repriced_as_a_new_close(session: Session) ->
     assert pos.id is not None
     with pytest.raises(OptionTradeError, match="settlement"):
         close_option(session, user_id=user, option_id=pos.id)
+
+
+# ---------------------------------------------------------------------------
+# LG-3: settle only on the expiry session's close; #62: exercise is a Trade
+# ---------------------------------------------------------------------------
+
+
+def _open_call(session: Session, *, expiry: date) -> tuple[int, OptionsPosition]:
+    user_id = _make_user(session)
+    portfolio = ensure_default_portfolio(session, user_id)
+    assert portfolio.id is not None
+    pos = _open_raw_position(
+        session,
+        user_id=user_id,
+        portfolio_id=portfolio.id,
+        option_type=OptionType.CALL,
+        strike=Decimal(100),
+        expiry=expiry,
+    )
+    return portfolio.id, pos
+
+
+def test_an_option_waits_while_the_expiry_close_is_missing(session: Session) -> None:
+    """LG-3: Thursday's bar is not Friday's close; settling on it cannot be undone."""
+    _seed_bars(session, [150.0], end=EXPIRY_SESSION - timedelta(days=1))
+    _portfolio_id, pos = _open_call(session, expiry=EXPIRY_SESSION)
+
+    assert settle_expired_options(session, settle_date=TODAY) == 0
+    session.refresh(pos)
+    assert pos.status == OptionStatus.OPEN
+
+
+def test_a_holiday_expiry_settles_on_the_last_close_once_the_market_moved_on(
+    session: Session,
+) -> None:
+    """No bar on the expiry Friday (a holiday), but Monday's exists: Thursday settles it."""
+    _seed_bars(session, [150.0], end=EXPIRY_SESSION - timedelta(days=1))
+    _seed_bars(session, [10.0], end=EXPIRY_SESSION + timedelta(days=3))
+    _portfolio_id, pos = _open_call(session, expiry=EXPIRY_SESSION)
+
+    assert settle_expired_options(session, settle_date=TODAY) == 1
+    session.refresh(pos)
+    # Settled on Thursday's 150, not Monday's 10: in the money.
+    assert pos.status == OptionStatus.EXERCISED
+
+
+def test_a_call_exercise_is_a_buy_trade(session: Session) -> None:
+    """#62: exercise went around apply_fill and left no trade."""
+    from stockviz.models import Trade
+    from stockviz.models.portfolio import TradeSide
+
+    _seed_bars(session, [150.0], end=EXPIRY_SESSION)
+    portfolio_id, _pos = _open_call(session, expiry=EXPIRY_SESSION)
+
+    assert settle_expired_options(session, settle_date=TODAY) == 1
+    (trade,) = session.exec(select(Trade).where(Trade.portfolio_id == portfolio_id)).all()
+    assert (trade.side, trade.quantity, trade.price) == (TradeSide.BUY, Decimal(100), Decimal(100))

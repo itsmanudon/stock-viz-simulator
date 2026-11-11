@@ -396,7 +396,13 @@ intraday fills anywhere in the app:
   expiry (17:30 job): ITM calls exercise into the equity book if *available*
   cash covers the strike, otherwise cash-settle intrinsic value; ITM puts
   sell *available* held shares at the strike, otherwise cash-settle; OTM
-  expires worthless.
+  expires worthless. Exercise goes through `apply_fill` (#62), so it writes a
+  `Trade` with the equity P&L and the option leg realizes only the premium.
+  A contract settles only on its **expiry session's** close: the bar dated the
+  last weekday on or before expiry, or an older one once a later bar shows
+  the market moved past a holiday expiry (LG-3); otherwise it stays open for
+  a later run. Options remain USD-underlying only (`open_option` refuses
+  others), which is why #62's FX legs are not needed yet.
 
 ## Auth bridge
 
