@@ -16,17 +16,25 @@ import { PageFrame } from "@/components/page-frame";
 import { Sparkline } from "@/components/sparkline";
 import { AddWatchlistForm, WatchlistRowActions } from "@/components/watchlist-controls";
 import { getBars, listSymbols } from "@/lib/api";
+import { parseApiTimestamp } from "@/lib/api-time";
 import { listWatchlist } from "@/lib/api/watchlist";
-import { currencyByTicker, dayMovePct, formatNativePrice } from "@/lib/operational-trading";
-import { formatSignedPercent } from "@/lib/portfolio-view-model";
+import { dayMovePct } from "@/lib/operational-trading";
+import { formatCurrency, formatSignedPercent } from "@/lib/portfolio-view-model";
+import { formatCloseDate } from "@/lib/stock-workspace";
 import { cn } from "@/lib/utils";
 
 function fmtDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-US", {
+  return parseApiTimestamp(iso).toLocaleDateString("en-US", {
     year: "numeric",
     month: "short",
     day: "numeric",
   });
+}
+
+/** The close's own date (audit RS-13): symbols end on different days. */
+function closeLabel(close: string | null, at: string | null | undefined): string {
+  if (close === null) return "No stored close";
+  return formatCloseDate(at) ?? "Date unknown";
 }
 
 export default async function WatchlistPage() {
@@ -44,8 +52,6 @@ export default async function WatchlistPage() {
         .catch(() => [] as number[]),
     ),
   );
-
-  const currencies = currencyByTicker(universe);
 
   return (
     <PageFrame width="workstation" className="py-5 sm:py-7">
@@ -104,7 +110,10 @@ export default async function WatchlistPage() {
                     </div>
                     <div className="text-right">
                       <p className="font-mono text-sm" data-financial>
-                        {formatNativePrice(item.last_close, item.ticker, currencies)}
+                        {formatCurrency(item.last_close, item.currency ?? "USD")}
+                      </p>
+                      <p className="text-2xs text-text-tertiary">
+                        {closeLabel(item.last_close, item.last_close_at)}
                       </p>
                       <p
                         className={cn(
@@ -176,7 +185,10 @@ export default async function WatchlistPage() {
                         {item.sector ?? "—"}
                       </td>
                       <td className="px-3 py-3 text-right font-mono">
-                        {formatNativePrice(item.last_close, item.ticker, currencies)}
+                        {formatCurrency(item.last_close, item.currency ?? "USD")}
+                        <span className="block font-sans text-2xs text-text-tertiary">
+                          {closeLabel(item.last_close, item.last_close_at)}
+                        </span>
                       </td>
                       <td
                         className={cn(

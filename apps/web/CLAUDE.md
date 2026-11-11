@@ -93,6 +93,15 @@ components/
                    plus CardSortBar (cards have no column headers to sort by)
   page-header.tsx  PageHeader / PageSubnav / PageEmptyState — the single
                    implementation behind the Operational* and Research* wrappers
+                   (+ MetaChip, the rounded date/zone chip for a header's meta row)
+  figure-strip.tsx FigureStrip: a row of headline figures in one bordered strip
+                   (Aurora board v3); /markets breadth and /backtest results use it
+  range-bar.tsx    RangeBar + rangePositionPct: a price's place in a range as a
+                   marker on a monochrome track (screener 52-week, compare)
+  strength-dots.tsx StrengthDots: one dot per signal vote plus the count
+                   (`dotsFrom="md"` keeps phone rows wide enough for names)
+  count-badge.tsx  CountBadge: the rounded count beside a tab label (Portfolio
+                   tabs; reuse for any tab that counts its rows)
   status-badge.tsx one tone-mapped chip behind the order/alert badges
   order-side-toggle.tsx  buy/sell segmented control shared by both tickets
   ui/              shadcn-generated primitives — don't hand-edit
@@ -315,7 +324,11 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
 - A `"use server"` file may export only async functions (and types). Put
   constants and helpers that actions share in `lib/`, or Next refuses the module.
 - Every displayed price names its close: `/v1/markets/summary` rows carry
-  `last_close_at` and screener rows carry `as_of` (UI audit T1). Symbols end
+  `last_close_at`, screener rows `as_of` and watchlist rows `last_close_at`
+  (UI audit T1, audit RS-13). The summary's `change_pct` is null when the last
+  two bars are more than five days apart or the row's close trails the newest
+  close on the page by more than five days, so a stalled symbol never shows an
+  old move as today's. Symbols end
   on different days, so date each row, not the page. In `next dev`, responses
   fetched with `revalidateSeconds` live in `.next/dev/cache/fetch-cache` (not
   `.next/cache`) and survive restarts; clear that folder after an API schema
@@ -333,6 +346,45 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
 - Format stored bar timestamps with `formatCloseDate()` (`lib/stock-workspace.ts`):
   it reads the calendar date from the string, so it never shifts a day with the
   timezone, and always includes the year.
+- Never parse an API timestamp with `new Date(iso)`. The API sends UTC with no
+  zone ("2025-04-04T00:00:00"), which `new Date()` reads as local time, so east
+  of UTC chart bars landed a day early and "UTC" fill times were off by the
+  offset (audit RS-2). Use `parseApiTimestamp()` / `barTimeToUtcSeconds()` from
+  `lib/api-time.ts`; chart wrappers already do. Test date code under
+  `TZ=Asia/Tokyo` as well as UTC.
+- The product sidebar follows the Aurora board v3 (`lib/app-navigation.ts`):
+  Home, Markets and Earnings, then labelled sections (Research, Trade,
+  Portfolio, Community) whose headings are not links but light up while one
+  of their routes is open, including `/stocks/*` for Research. Settings sits
+  apart at the bottom and only for signed-in users (proxy.ts guards it). The
+  wordmark carries the `EOD · SIMULATED` tag, and the top bar shows
+  `DataDateChip` (`components/marketing/market-status.tsx`), the newest stored
+  bar's date. It is an async server component, so unit tests that render the
+  shell mock that module.
+- `/dashboard` (Aurora board v3): the hero takes the full width, then
+  orders, watchlist and alerts, then movers and allocation. The hero adds the
+  last session's move beside the period change once there are three
+  snapshots (with two it would repeat the period). The orders widget prices
+  triggers in the symbol's currency, from the positions and watchlist the page
+  already loads, falling back to USD as `/orders` does.
+- Compare series differ by line style as well as colour: `seriesDash()` in
+  `lib/compare-workspace.ts` cycles solid, dashed, dotted, and both the chart
+  and its legend read it. Buy and sell labels stay neutral (an arrow and the
+  word), because the side of a trade is not a gain or a loss.
+- `/earnings` weeks run Monday to Sunday, and the page fetches exactly
+  `viewRange()` from `earnings-calendar.tsx`, so the grid and the request
+  can't disagree. Calendar cells are UTC dates: read them with UTC getters.
+  `/markets` breadth (`marketBreadth()` in `lib/markets-table.ts`) counts only
+  rows with a `change_pct`, so a stalled symbol never enters it.
+- News comes from Aegis since Phase 2: `NewsArticle` has a string `id`,
+  `tickers`, `available_at`, an optional `url` and `published_at`, and no
+  summary or image. Date a headline with `newsDateLabel()`
+  (`components/news-list.tsx`): the publisher's date, else "Collected <date>"
+  (GDELT sends none, audit AG-12). Signals print `row.maxScore`, not a fixed
+  7: the sentiment vote is unavailable without scored news (audit SR-9).
+- Watchlist rows carry `last_close_at` and `currency`, and alert rows carry
+  `currency` (audit RS-13), so the dashboard no longer loads the symbol list
+  to format them. `/alerts` still loads it for the create form.
 
 <!-- BEGIN:nextjs-agent-rules -->
 

@@ -139,7 +139,23 @@ function DesktopPositionRow({
         <span className="mt-0.5 block text-2xs">{formatSignedPercent(values.returnPct)}</span>
       </TableCell>
       <TableCell className="text-right font-mono text-sm" data-financial>
-        {weight === null ? "—" : `${weight.toFixed(2)}%`}
+        {weight === null ? (
+          "—"
+        ) : (
+          <span className="inline-flex items-center justify-end gap-2">
+            {/* Share of the account as a bar; neutral, as weight is not a gain. */}
+            <span
+              aria-hidden
+              className="h-1 w-12 overflow-hidden rounded-full bg-surface-secondary"
+            >
+              <span
+                className="block h-full rounded-full bg-text-secondary"
+                style={{ width: `${Math.min(100, Math.max(0, weight))}%` }}
+              />
+            </span>
+            {weight.toFixed(2)}%
+          </span>
+        )}
       </TableCell>
       <TableCell className="text-right">
         <Link

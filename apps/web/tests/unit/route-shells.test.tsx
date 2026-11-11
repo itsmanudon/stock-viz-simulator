@@ -26,6 +26,12 @@ vi.mock("@/components/theme-toggle", () => ({
   ThemeToggle: () => <button type="button">Theme</button>,
 }));
 
+// Async server component (it awaits a bars fetch), which the client renderer
+// can't resolve. Its content is covered in app-shell.test.tsx.
+vi.mock("@/components/marketing/market-status", () => ({
+  DataDateChip: () => <span>EOD data</span>,
+}));
+
 vi.mock("@/components/public-header", () => ({
   PublicHeader: () => <header>Public header</header>,
 }));

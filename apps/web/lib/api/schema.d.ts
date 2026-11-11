@@ -83,11 +83,10 @@ export interface paths {
         };
         /**
          * Get Symbol Sentiment
-         * @description Daily mean sentiment for ``ticker`` over the trailing ``days``.
+         * @description Daily mean Aegis sentiment for ``ticker`` over the trailing ``days``.
          *
-         *     Days with no scored articles are simply absent from the series rather than
-         *     emitted as zero — a gap and a genuinely neutral day are different readings,
-         *     and a chart should not draw them the same way.
+         *     Days with no scored documents are absent rather than emitted as zero — a
+         *     gap and a genuinely neutral day are different readings.
          */
         get: operations["get_symbol_sentiment_v1_symbols__ticker__sentiment_get"];
         put?: never;
@@ -1060,6 +1059,11 @@ export interface components {
             triggered_at: string | null;
             /** Dismissed At */
             dismissed_at: string | null;
+            /**
+             * Currency
+             * @default USD
+             */
+            currency: string;
         };
         /**
          * BacktestIn
@@ -1699,29 +1703,41 @@ export interface components {
             /** Sectors */
             sectors: string[];
         };
-        /** NewsArticleOut */
+        /**
+         * NewsArticleOut
+         * @description One Aegis News document linked to StockViz symbols (Phase 2).
+         *
+         *     Read from the copied ``aegis_*`` tables, never from Aegis live. No article
+         *     text, summary or image: the feed never sends them. ``available_at`` is
+         *     when Aegis made the document available, the time every point-in-time read
+         *     uses; ``published_at`` is the publisher's claim and is often empty (audit
+         *     AG-12). ``sentiment`` is the raw Aegis label, ``mixed`` included (AG-4),
+         *     and ``sentiment_model`` names the model and version behind it.
+         */
         NewsArticleOut: {
             /** Id */
-            id: number;
-            /** Ticker */
-            ticker: string | null;
+            id: string;
+            /** Tickers */
+            tickers: string[];
             /** Title */
             title: string;
             /** Url */
-            url: string;
+            url?: string | null;
             /** Source */
-            source: string | null;
+            source: string;
+            /** Published At */
+            published_at?: string | null;
             /**
-             * Published At
+             * Available At
              * Format: date-time
              */
-            published_at: string;
-            /** Summary */
-            summary: string | null;
-            /** Image Url */
-            image_url: string | null;
+            available_at: string;
             /** Sentiment */
-            sentiment?: ("positive" | "neutral" | "negative") | null;
+            sentiment?: ("positive" | "neutral" | "negative" | "mixed") | null;
+            /** Sentiment Model */
+            sentiment_model?: string | null;
+            /** Topic */
+            topic?: string | null;
         };
         /**
          * OptionGreeksOut
@@ -2105,6 +2121,11 @@ export interface components {
             sector?: string | null;
             /** Score */
             score: number;
+            /**
+             * Max Score
+             * @default 7
+             */
+            max_score: number;
             /** Rationale */
             rationale: string[];
             /** Votes */
@@ -2130,6 +2151,11 @@ export interface components {
             passed: boolean;
             /** Detail */
             detail: string;
+            /**
+             * Available
+             * @default true
+             */
+            available: boolean;
         };
         /** ReplayAvailabilityOut */
         ReplayAvailabilityOut: {
@@ -2910,6 +2936,13 @@ export interface components {
             added_at: string;
             /** Last Close */
             last_close: string | null;
+            /** Last Close At */
+            last_close_at?: string | null;
+            /**
+             * Currency
+             * @default USD
+             */
+            currency: string;
         };
     };
     responses: never;
@@ -3005,7 +3038,6 @@ export interface operations {
         parameters: {
             query?: {
                 days?: number;
-                model?: string | null;
             };
             header?: never;
             path: {

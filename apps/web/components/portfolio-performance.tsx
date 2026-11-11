@@ -43,7 +43,10 @@ export function PortfolioPerformance({ portfolio, history, range, tab }: Props) 
           <p className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
             Paper portfolio
           </p>
-          <h1 id="portfolio-heading" className="mt-1 text-2xl font-semibold tracking-tight">
+          <h1
+            id="portfolio-heading"
+            className="mt-1 text-2xl font-medium tracking-tight sm:text-3xl"
+          >
             Portfolio
           </h1>
         </div>

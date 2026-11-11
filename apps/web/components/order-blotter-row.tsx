@@ -7,6 +7,7 @@ import {
   OrderStatusBadge,
   OrderTypeBadge,
 } from "@/components/operational-page-header";
+import { parseApiTimestamp } from "@/lib/api-time";
 import type { PendingOrder } from "@/lib/api/trading";
 import { buildTradeHref, formatNativePrice, userCancelReason } from "@/lib/operational-trading";
 import { formatQuantity } from "@/lib/portfolio-view-model";
@@ -14,7 +15,7 @@ import { formatQuantity } from "@/lib/portfolio-view-model";
 /** Order times are stored in UTC; show them in UTC and say so (audit T4). */
 function fmtWhen(iso: string | null): string {
   if (!iso) return "—";
-  return new Date(iso).toLocaleString("en-US", {
+  return parseApiTimestamp(iso).toLocaleString("en-US", {
     year: "numeric",
     month: "short",
     day: "numeric",

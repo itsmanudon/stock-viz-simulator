@@ -42,17 +42,26 @@ class QuoteOut(BaseModel):
 
 
 class NewsArticleOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
+    """One Aegis News document linked to StockViz symbols (Phase 2).
 
-    id: int
-    ticker: str | None
+    Read from the copied ``aegis_*`` tables, never from Aegis live. No article
+    text, summary or image: the feed never sends them. ``available_at`` is
+    when Aegis made the document available, the time every point-in-time read
+    uses; ``published_at`` is the publisher's claim and is often empty (audit
+    AG-12). ``sentiment`` is the raw Aegis label, ``mixed`` included (AG-4),
+    and ``sentiment_model`` names the model and version behind it.
+    """
+
+    id: str
+    tickers: list[str]
     title: str
-    url: str
-    source: str | None
-    published_at: datetime
-    summary: str | None
-    image_url: str | None
-    sentiment: Literal["positive", "neutral", "negative"] | None = None
+    url: str | None = None
+    source: str
+    published_at: datetime | None = None
+    available_at: datetime
+    sentiment: Literal["positive", "neutral", "negative", "mixed"] | None = None
+    sentiment_model: str | None = None
+    topic: str | None = None
 
 
 class SymbolDetailOut(BaseModel):
@@ -118,6 +127,8 @@ class RecommendationVoteOut(BaseModel):
     label: str
     passed: bool
     detail: str
+    # False when the vote's input is missing, e.g. no scored news this week.
+    available: bool = True
 
 
 class RecommendationOut(BaseModel):
@@ -134,6 +145,9 @@ class RecommendationOut(BaseModel):
     name: str
     sector: str | None = None
     score: int
+    # Votes that could have passed: 7, or 6 when the symbol has no scored
+    # Aegis news in the trailing week (audit SR-9). The threshold stays 4.
+    max_score: int = 7
     rationale: list[str]
     votes: list[RecommendationVoteOut] = Field(default_factory=list)
     sentiment_7d: float | None = None
@@ -613,6 +627,9 @@ class AlertOut(BaseModel):
     created_at: datetime
     triggered_at: datetime | None
     dismissed_at: datetime | None
+    # The symbol's trading currency, so the target formats without a second
+    # lookup. The target is in this currency, like every stored price.
+    currency: str = "USD"
 
 
 # ---------------------------------------------------------------------------
@@ -628,6 +645,10 @@ class WatchlistItemOut(BaseModel):
     sector: str | None
     added_at: datetime
     last_close: Decimal | None
+    # Timestamp of the stored bar behind last_close (audit RS-13), so the page
+    # can date the price. None when the symbol has no stored bars.
+    last_close_at: datetime | None = None
+    currency: str = "USD"
 
 
 # ---------------------------------------------------------------------------

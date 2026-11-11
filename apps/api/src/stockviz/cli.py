@@ -67,7 +67,7 @@ from stockviz.services.ingest.shadow import (
 from stockviz.services.ingest.shadow_report import ShadowRun, write_shadow_report
 from stockviz.services.metrics import refresh_symbol_metrics
 from stockviz.services.recommend import MAX_SCORE, score_universe
-from stockviz.services.sentiment.store import backfill_unscored, refresh_symbol_sentiment
+from stockviz.services.sentiment.store import backfill_unscored
 from stockviz.services.trading import credit_due_dividends, snapshot_user_navs
 from stockviz.settings import get_settings
 
@@ -118,9 +118,13 @@ def _cmd_score_sentiment(args: argparse.Namespace) -> int:
 
 
 def _cmd_sentiment_aggregate(_args: argparse.Namespace) -> int:
+    from stockviz._time import utcnow
+    from stockviz.services.aegis.read import refresh_aegis_sentiment
+
+    # Aegis is the sentiment source since Phase 2 (audit AG-14).
     with Session(engine) as session:
-        updated = refresh_symbol_sentiment(session)
-    print(f"refreshed rolling sentiment for {updated} symbols")
+        updated = refresh_aegis_sentiment(session, now=utcnow())
+    print(f"refreshed rolling Aegis sentiment for {updated} symbols")
     return 0
 
 
@@ -192,6 +196,80 @@ def _cmd_settle_options(_args: argparse.Namespace) -> int:
     with Session(engine) as session:
         n = settle_expired_options(session, settle_date=today)
     print(f"settled {n} expired option position(s) as of {today}")
+    return 0
+
+
+def _cmd_prune_events(args: argparse.Namespace) -> int:
+    from stockviz._time import utcnow
+    from stockviz.events.prune import prune_events
+
+    with Session(engine) as session:
+        result = prune_events(
+            session,
+            now=utcnow(),
+            retention_days=args.days,
+            include_unpublished=args.include_unpublished,
+        )
+        session.commit()
+    print(
+        f"pruned events older than {args.days} day(s): {result.published} published outbox, "
+        f"{result.unpublished} unpublished outbox, {result.inbox} inbox"
+    )
+    return 0
+
+
+def _refresh_aegis_sentiment() -> None:
+    """Roll held Aegis sentiment into sentiment_7d, which the signals vote and
+    the screener filter read (audit AG-14). Runs after a failed sync too, so
+    the trailing window keeps moving on what is already held."""
+    from stockviz._time import utcnow
+    from stockviz.services.aegis.read import refresh_aegis_sentiment
+
+    with Session(engine) as session:
+        refresh_aegis_sentiment(session, now=utcnow())
+
+
+def _cmd_aegis_sync(args: argparse.Namespace) -> int:
+    from stockviz.services.aegis import AegisClient, AegisError, run_sync
+    from stockviz.services.aegis.token import load_signing_key, mint_feed_token
+
+    settings = get_settings()
+    if not settings.aegis_configured:
+        print(
+            "aegis-sync: AEGIS_BASE_URL, AEGIS_SERVICE_TOKEN_KEY, AEGIS_ISSUER and "
+            "AEGIS_AUDIENCE must all be set. Skipping.",
+            file=sys.stderr,
+        )
+        return 2
+
+    key = load_signing_key(settings.aegis_service_token_key)
+
+    def token() -> str:
+        return mint_feed_token(
+            key,
+            key_id=settings.aegis_key_id,
+            issuer=settings.aegis_issuer,
+            audience=settings.aegis_audience,
+            client_id=settings.aegis_client_id,
+        )
+
+    with AegisClient(
+        settings.aegis_base_url, token=token, timeout=settings.aegis_timeout_seconds
+    ) as client:
+        try:
+            result = run_sync(
+                engine, client, page_limit=settings.aegis_page_limit, max_pages=args.max_pages
+            )
+        except AegisError as exc:
+            print(f"aegis-sync: failed: {exc}", file=sys.stderr)
+            _refresh_aegis_sentiment()
+            return 1
+    _refresh_aegis_sentiment()
+    print(
+        f"aegis-sync: run {result.run_id}: {result.pages} page(s), "
+        f"{result.upserted} document(s) upserted, {result.withdrawn} withdrawn, "
+        f"{result.mappings} mapping(s)"
+    )
     return 0
 
 
@@ -866,6 +944,32 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser(
         "settle-options", help="Settle every option position that has reached expiry"
     ).set_defaults(fn=_cmd_settle_options)
+
+    p_prune = sub.add_parser(
+        "prune-events",
+        help="Delete outbox and inbox rows past their retention (published rows only by default)",
+    )
+    p_prune.add_argument(
+        "--days",
+        type=int,
+        default=30,
+        help="Keep rows newer than this many days (default 30)",
+    )
+    p_prune.add_argument(
+        "--include-unpublished",
+        action="store_true",
+        help="Also delete old unpublished outbox rows. Only where no publisher runs, like the Railway cron",
+    )
+    p_prune.set_defaults(fn=_cmd_prune_events)
+
+    p_aegis = sub.add_parser(
+        "aegis-sync",
+        help="Copy new Aegis News documents and the mapping list into the read tables",
+    )
+    p_aegis.add_argument(
+        "--max-pages", type=int, default=None, help="Stop after this many feed pages"
+    )
+    p_aegis.set_defaults(fn=_cmd_aegis_sync)
 
     sub.add_parser(
         "run-scheduler",

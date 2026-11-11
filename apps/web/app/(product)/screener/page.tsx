@@ -13,6 +13,7 @@ import Link from "next/link";
 
 import { ClickableRow } from "@/components/clickable-row";
 import { DataTableFrame, NumericCell, SortableHead } from "@/components/data-table";
+import { RangeBar, rangePositionPct } from "@/components/range-bar";
 import { ResearchPageHeader } from "@/components/research-page-header";
 import { CardSortBar, type SymbolCardData, SymbolCardList } from "@/components/symbol-card-list";
 import { Button } from "@/components/ui/button";
@@ -27,6 +28,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ApiError, listSymbols, screenSymbols } from "@/lib/api";
+import { buildCompareHref } from "@/lib/compare-workspace";
 import { formatCurrency } from "@/lib/portfolio-view-model";
 import {
   type ScreenerParams,
@@ -101,6 +103,15 @@ export default async function ScreenerPage({
   results = sortScreenerRows(results, sort, dir);
   // A sector column of dashes says nothing (UI audit S3).
   const hasSector = results.some((row) => row.sector);
+
+  // A short result list can go straight to Compare, which takes up to six.
+  const compareHref =
+    results.length >= 2 && results.length <= 6
+      ? buildCompareHref(
+          results.map((row) => row.ticker),
+          "1Y",
+        )
+      : null;
 
   const sortOptions: { key: ScreenerSortKey; label: string }[] = [
     { key: "ticker", label: "Ticker" },
@@ -272,9 +283,17 @@ export default async function ScreenerPage({
                   ? `Error: ${errorMessage}`
                   : `${results.length} match${results.length === 1 ? "" : "es"}`}
               </span>
-              {activeFilterCount ? null : (
-                <span className="text-xs text-text-tertiary">All symbols</span>
-              )}
+              <span className="flex items-center gap-3 text-xs">
+                {activeFilterCount ? null : <span className="text-text-tertiary">All symbols</span>}
+                {compareHref ? (
+                  <Link
+                    href={compareHref}
+                    className="inline-flex min-h-8 items-center rounded-full border border-border-muted px-3 text-foreground transition-colors hover:bg-surface-hover"
+                  >
+                    Compare these {results.length}
+                  </Link>
+                ) : null}
+              </span>
             </div>
             {chips.length ? (
               <div className="flex flex-wrap items-center gap-1.5">
@@ -388,8 +407,7 @@ export default async function ScreenerPage({
                           align="right"
                         />
                       ) : null}
-                      <TableHead className="hidden text-right 2xl:table-cell">52w Low</TableHead>
-                      <TableHead className="hidden text-right 2xl:table-cell">52w High</TableHead>
+                      <TableHead className="hidden xl:table-cell">52-week range</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -416,12 +434,9 @@ export default async function ScreenerPage({
                             {row.momentum_pct === null ? null : fmtPct(row.momentum_pct)}
                           </NumericCell>
                         ) : null}
-                        <NumericCell muted className="hidden 2xl:table-cell">
-                          {formatCurrency(row.low_52w, row.currency)}
-                        </NumericCell>
-                        <NumericCell muted className="hidden 2xl:table-cell">
-                          {formatCurrency(row.high_52w, row.currency)}
-                        </NumericCell>
+                        <TableCell className="hidden xl:table-cell">
+                          <ScreenerRange row={row} />
+                        </TableCell>
                       </ClickableRow>
                     ))}
                   </TableBody>
@@ -432,5 +447,33 @@ export default async function ScreenerPage({
         </section>
       </div>
     </div>
+  );
+}
+
+/** The 52-week low and high as one bar with the last close marked on it. */
+function ScreenerRange({
+  row,
+}: {
+  row: Awaited<ReturnType<typeof screenSymbols>>[number];
+}) {
+  // rangePositionPct returns null for a malformed figure (NaN) or a flat range.
+  const position = rangePositionPct(
+    Number(row.last_close),
+    Number(row.low_52w),
+    Number(row.high_52w),
+  );
+  const lowLabel = formatCurrency(row.low_52w, row.currency);
+  const highLabel = formatCurrency(row.high_52w, row.currency);
+  return (
+    <RangeBar
+      positionPct={position}
+      low={lowLabel}
+      high={highLabel}
+      label={
+        position === null
+          ? "52-week range unavailable"
+          : `52-week range ${lowLabel} to ${highLabel}; last close ${position.toFixed(0)}% of the way up`
+      }
+    />
   );
 }

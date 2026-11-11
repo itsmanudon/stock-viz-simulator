@@ -15,7 +15,8 @@ import Link from "next/link";
 
 import { ClickableRow } from "@/components/clickable-row";
 import { DataTableFrame, NumericCell, SortableHead, TableToolbar } from "@/components/data-table";
-import { PageHeader } from "@/components/page-header";
+import { type Figure, FigureStrip } from "@/components/figure-strip";
+import { MetaChip, PageHeader } from "@/components/page-header";
 import { Sparkline } from "@/components/sparkline";
 import { CardSortBar, type SymbolCardData, SymbolCardList } from "@/components/symbol-card-list";
 import {
@@ -34,6 +35,7 @@ import {
   compare,
   fmtMoney,
   fmtPct,
+  marketBreadth,
   sortHref,
 } from "@/lib/markets-table";
 import { formatCloseDate } from "@/lib/stock-workspace";
@@ -79,6 +81,42 @@ export default async function MarketsPage({
 
   const sortDirection = (col: SortKey) => (sort === col ? dir : null);
 
+  // Breadth over the rows on screen (the sector filter narrows it too). The
+  // sector ranking only means something across sectors, so it drops out when
+  // one sector is selected or fewer than two have a move.
+  const breadth = marketBreadth(rows);
+  const best = breadth.sectors[0];
+  const worst = breadth.sectors[breadth.sectors.length - 1];
+  const breadthFigures: Figure[] =
+    breadth.counted === 0
+      ? []
+      : [
+          {
+            label: "Advancing",
+            value: `${breadth.advancing} of ${breadth.counted}`,
+            note: "1d close",
+          },
+          {
+            label: "Declining",
+            value: `${breadth.declining} of ${breadth.counted}`,
+            note: "1d close",
+          },
+          ...(!params.sector && breadth.sectors.length >= 2 && best && worst
+            ? [
+                {
+                  label: "Best sector",
+                  value: <SectorMoveValue sector={best.sector} changePct={best.changePct} />,
+                  note: `mean of ${best.count}`,
+                },
+                {
+                  label: "Weakest sector",
+                  value: <SectorMoveValue sector={worst.sector} changePct={worst.changePct} />,
+                  note: `mean of ${worst.count}`,
+                },
+              ]
+            : []),
+        ];
+
   const cardRows: SymbolCardData[] = sorted.map((row) => ({
     ticker: row.ticker,
     name: row.name,
@@ -115,13 +153,19 @@ export default async function MarketsPage({
         title="Markets"
         description="Stored end-of-day closes across the tracked universe, not live quotes. Sort any column or filter by sector; the view is captured in the URL."
         meta={
-          <>
-            {sorted.length} symbol{sorted.length === 1 ? "" : "s"}
-            {params.sector ? ` in ${params.sector}` : ""}
-            {latestLabel ? ` · latest close ${latestLabel}` : ""}
-          </>
+          <span className="flex flex-wrap items-center gap-2">
+            {latestLabel ? <MetaChip>latest close {latestLabel}</MetaChip> : null}
+            <span>
+              {sorted.length} symbol{sorted.length === 1 ? "" : "s"}
+              {params.sector ? ` in ${params.sector}` : ""}
+            </span>
+          </span>
         }
       />
+
+      {breadthFigures.length ? (
+        <FigureStrip label="Market breadth" figures={breadthFigures} className="mt-5" />
+      ) : null}
 
       <div className="mt-5">
         <TableToolbar>
@@ -206,8 +250,14 @@ export default async function MarketsPage({
                     </TableCell>
                   ) : null}
                   {hasExchange ? (
-                    <TableCell className="hidden text-text-tertiary xl:table-cell">
-                      {row.exchange ?? "—"}
+                    <TableCell className="hidden xl:table-cell">
+                      {row.exchange ? (
+                        <span className="rounded-md border border-border-muted bg-surface-secondary px-1.5 py-0.5 font-mono text-2xs text-text-secondary">
+                          {row.exchange}
+                        </span>
+                      ) : (
+                        <span className="text-text-tertiary">—</span>
+                      )}
                     </TableCell>
                   ) : null}
                   <NumericCell>
@@ -242,13 +292,25 @@ function SectorChip({ href, label, active }: { href: string; label: string; acti
       href={href}
       aria-current={active ? "true" : undefined}
       className={cn(
-        "rounded-md border px-2.5 py-1 text-xs transition-colors",
+        "rounded-full border px-3 py-1 text-xs transition-colors",
         active
-          ? "border-primary bg-primary font-semibold text-primary-foreground"
+          ? "border-primary bg-primary font-medium text-primary-foreground"
           : "border-border-muted text-text-secondary hover:bg-surface-hover hover:text-foreground",
       )}
     >
       {label}
     </Link>
+  );
+}
+
+/** "Financials ▲ +0.98%": the sector name, then its mean move with sign and colour. */
+function SectorMoveValue({ sector, changePct }: { sector: string; changePct: number }) {
+  return (
+    <span className="flex min-w-0 items-baseline gap-2">
+      <span className="truncate font-sans">{sector}</span>
+      <span className={changePct >= 0 ? "text-positive" : "text-negative"}>
+        {changePct >= 0 ? "▲" : "▼"} {fmtPct(changePct)}
+      </span>
+    </span>
   );
 }

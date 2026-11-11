@@ -42,7 +42,6 @@ from stockviz.services.ingest.seed import DEFAULT_COMPANIES_PATH
 from stockviz.services.metrics import refresh_symbol_metrics
 from stockviz.services.options import settle_expired_options
 from stockviz.services.recommend import score_universe
-from stockviz.services.sentiment.store import refresh_symbol_sentiment
 from stockviz.services.trading import (
     credit_due_dividends,
     settle_pending_orders,
@@ -242,14 +241,16 @@ def fx_refresh() -> None:
 
 @single_instance("sentiment_aggregate_refresh")
 def sentiment_aggregate_refresh() -> None:
-    """Roll per-article sentiment into the per-symbol trailing average.
+    """Roll Aegis News sentiment into the per-symbol trailing average.
 
-    Feeds the screener's sentiment filter, the recommendation engine's
-    sentiment vote, and ``GET /v1/symbols/{ticker}/sentiment``. The ticker
-    page does not yet overlay that series on the price chart.
+    Feeds the screener's sentiment filter and the recommendation engine's
+    sentiment vote. Aegis is the source since Phase 2 (audit AG-14); the
+    copy itself is ``stockviz.cli aegis-sync``.
     """
+    from stockviz.services.aegis.read import refresh_aegis_sentiment
+
     with _session_scope() as session:
-        updated = refresh_symbol_sentiment(session)
+        updated = refresh_aegis_sentiment(session, now=utcnow())
     logger.info("sentiment_aggregate_refresh: updated %d symbols", updated)
 
 

@@ -8,12 +8,15 @@ const STYLES: Record<Sentiment, string> = {
   positive: "border-positive/40 bg-positive-soft text-positive-soft-foreground",
   neutral: "border-border bg-neutral-soft text-neutral-soft-foreground",
   negative: "border-negative/40 bg-negative-soft text-negative-soft-foreground",
+  // Warning tone, not neutral: the article cuts both ways, it is not flat.
+  mixed: "border-warning/40 bg-warning-soft text-warning-soft-foreground",
 };
 
 const LABELS: Record<Sentiment, string> = {
   positive: "Positive",
   neutral: "Neutral",
   negative: "Negative",
+  mixed: "Mixed",
 };
 
 export function SentimentBadge({ sentiment }: Props) {

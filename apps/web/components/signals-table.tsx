@@ -5,8 +5,9 @@ import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { StrengthDots } from "@/components/strength-dots";
 import type { SignalRow, SignalSortDir, SignalSortKey } from "@/lib/signals-workspace";
-import { SIGNAL_MAX_SCORE, formatSignalDate, formatSignalDateTime } from "@/lib/signals-workspace";
+import { formatSignalDate, formatSignalDateTime } from "@/lib/signals-workspace";
 import { cn } from "@/lib/utils";
 
 function ariaSort(active: boolean, dir: SignalSortDir): "ascending" | "descending" | "none" {
@@ -423,7 +424,7 @@ function SignalRowButton({
     <button
       type="button"
       data-signal-ticker={row.ticker}
-      aria-label={`${row.ticker}, ${row.name}, ${row.signal}, strength ${row.score} of ${SIGNAL_MAX_SCORE}`}
+      aria-label={`${row.ticker}, ${row.name}, ${row.signal}, strength ${row.score} of ${row.maxScore}`}
       aria-pressed={selected}
       onClick={() => onSelect(row)}
       className={cn(
@@ -457,11 +458,11 @@ function SignalRowButton({
           <span className="px-3 py-3">
             <SignalBadge signal={row.signal} />
           </span>
-          <span className="px-3 py-3 font-mono tabular-nums">
-            {row.score}/{SIGNAL_MAX_SCORE}
+          <span className="px-3 py-3">
+            <StrengthDots score={row.score} max={row.maxScore} dotsFrom="md" />
           </span>
           <span className="hidden px-3 py-3 font-mono text-xs tabular-nums md:block">
-            {row.supportingVotes} / {SIGNAL_MAX_SCORE}
+            {row.supportingVotes} / {row.maxScore}
           </span>
           <span className="hidden px-3 py-3 font-mono text-xs tabular-nums lg:block">
             {row.sentiment7d === null
@@ -476,7 +477,7 @@ function SignalRowButton({
       {collapsed ? (
         <span className="text-right">
           <span className="block font-mono text-base font-semibold tabular-nums">
-            {row.score}/{SIGNAL_MAX_SCORE}
+            {row.score}/{row.maxScore}
           </span>
           <span className="mt-0.5 block text-2xs text-text-tertiary">strength</span>
         </span>
@@ -552,7 +553,7 @@ function SignalDetail({ row, onClose }: { row: SignalRow; onClose: () => void })
               Strength
             </dt>
             <dd className="mt-1 font-mono text-xl font-semibold tabular-nums">
-              {row.score}/{SIGNAL_MAX_SCORE}
+              {row.score}/{row.maxScore}
             </dd>
           </div>
           <div className="border-t border-border-muted py-3 pl-3 sm:border-t-0 sm:px-5">
@@ -560,7 +561,7 @@ function SignalDetail({ row, onClose }: { row: SignalRow; onClose: () => void })
               Supporting votes
             </dt>
             <dd className="mt-1 font-mono text-xl font-semibold tabular-nums">
-              {row.supportingVotes}/{SIGNAL_MAX_SCORE}
+              {row.supportingVotes}/{row.maxScore}
             </dd>
           </div>
           <div className="col-span-2 border-t border-border-muted py-3 sm:col-span-1 sm:border-t-0 sm:pl-5">

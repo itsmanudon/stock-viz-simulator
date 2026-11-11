@@ -1,3 +1,4 @@
+import { parseApiTimestamp } from "@/lib/api-time";
 import type { Bar } from "@/lib/api/types";
 
 export const REPLAY_PROFILE_LABEL = "legacy_close v1";
@@ -13,7 +14,7 @@ export function toReplayTimestamp(date: string): string {
 }
 
 export function formatReplayDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-US", {
+  return parseApiTimestamp(iso).toLocaleDateString("en-US", {
     weekday: "long",
     month: "long",
     day: "numeric",
@@ -23,7 +24,7 @@ export function formatReplayDate(iso: string): string {
 }
 
 export function formatReplayShortDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-US", {
+  return parseApiTimestamp(iso).toLocaleDateString("en-US", {
     weekday: "short",
     month: "short",
     day: "numeric",
@@ -33,7 +34,7 @@ export function formatReplayShortDate(iso: string): string {
 }
 
 export function formatReplayDay(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-US", {
+  return parseApiTimestamp(iso).toLocaleDateString("en-US", {
     weekday: "short",
     month: "short",
     day: "numeric",

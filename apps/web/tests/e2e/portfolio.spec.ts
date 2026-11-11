@@ -32,7 +32,7 @@ test("authenticated user can move from a paper trade into the Portfolio workspac
   const main = page.locator("#main");
   await expect(main.getByRole("heading", { level: 1, name: "Portfolio" })).toBeVisible();
   await expect(main.getByText("Latest EOD valuation", { exact: false })).toBeVisible();
-  await expect(page.getByRole("tab", { name: "Positions" })).toHaveAttribute(
+  await expect(page.getByRole("tab", { name: /^Positions/ })).toHaveAttribute(
     "aria-selected",
     "true",
   );

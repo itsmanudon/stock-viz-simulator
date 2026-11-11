@@ -70,9 +70,24 @@ class Vote:
     label: str
     passed: bool
     detail: str
+    # False when the vote's input does not exist (no scored Aegis news in the
+    # week), so it could not have passed. The page's maximum counts only
+    # available votes (audit SR-9). Older rows carry no flag: available.
+    available: bool = True
 
     def as_dict(self) -> dict[str, Any]:
-        return {"id": self.id, "label": self.label, "passed": self.passed, "detail": self.detail}
+        return {
+            "id": self.id,
+            "label": self.label,
+            "passed": self.passed,
+            "detail": self.detail,
+            "available": self.available,
+        }
+
+
+def max_score(votes: list[Vote]) -> int:
+    """The most votes that could have passed: the available ones (audit SR-9)."""
+    return sum(1 for vote in votes if vote.available)
 
 
 @dataclass(frozen=True, slots=True)
@@ -170,7 +185,13 @@ def _vote_positive_sentiment(mean_score: float | None, article_count: int) -> Vo
     """
     label = "Positive news sentiment"
     if mean_score is None or article_count == 0:
-        return Vote("positive_sentiment", label, False, "No scored headlines in the trailing week")
+        return Vote(
+            "positive_sentiment",
+            label,
+            False,
+            "No scored headlines in the trailing week",
+            available=False,
+        )
     if mean_score <= SENTIMENT_VOTE_THRESHOLD:
         return Vote(
             "positive_sentiment",
@@ -249,6 +270,7 @@ def votes_from_payload(payload: list[Any] | None, rationale: list[str]) -> list[
                     label=str(item["label"]),
                     passed=bool(item["passed"]),
                     detail=str(item["detail"]),
+                    available=bool(item.get("available", True)),
                 )
             )
         except KeyError:

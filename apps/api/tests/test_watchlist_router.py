@@ -132,3 +132,22 @@ def test_watchlists_are_isolated_per_user(session: Session, client: TestClient) 
     bob_items = client.get("/v1/watchlist", headers=_auth_headers(bob)).json()
     assert [i["ticker"] for i in alice_items] == ["AAPL"]
     assert [i["ticker"] for i in bob_items] == ["MSFT"]
+
+
+def test_rows_carry_the_close_date_and_currency(session: Session, client: TestClient) -> None:
+    """Each row dates its price and names its currency (audit RS-13)."""
+    _seed_symbol(session)
+    session.add(Symbol(ticker="RELIANCE.NS", name="Reliance", currency="INR"))
+    session.commit()
+    user_id = _make_user(session)
+    headers = _auth_headers(user_id)
+    client.post("/v1/watchlist/AAPL", headers=headers)
+    added = client.post("/v1/watchlist/RELIANCE.NS", headers=headers).json()
+    assert added["currency"] == "INR"
+    assert added["last_close"] is None
+    assert added["last_close_at"] is None
+
+    rows = {r["ticker"]: r for r in client.get("/v1/watchlist", headers=headers).json()}
+    assert rows["AAPL"]["last_close_at"].startswith("2025-04-10")
+    assert rows["AAPL"]["currency"] == "USD"
+    assert rows["RELIANCE.NS"]["currency"] == "INR"

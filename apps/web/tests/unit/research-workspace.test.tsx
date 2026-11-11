@@ -148,7 +148,7 @@ describe("BacktestForm", () => {
     expect(screen.getByText("$25.50")).toBeVisible();
     expect(screen.getByText(/Commission 0 bps/)).toBeVisible();
     expect(screen.getByText(/slippage 0 bps/)).toBeVisible();
-    expect(screen.getByText("buy")).toBeVisible();
+    expect(screen.getByText("Buy")).toBeVisible();
     expect(runBacktest).toHaveBeenCalledWith(
       expect.objectContaining({
         ticker: "AAPL",
@@ -221,6 +221,7 @@ describe("SignalsTable", () => {
       name: "Apple Inc.",
       sector: "Technology",
       score: 5,
+      max_score: 7,
       rationale: [],
       votes: [
         {
@@ -228,12 +229,14 @@ describe("SignalsTable", () => {
           label: "Below historical mean",
           passed: true,
           detail: "Below historical mean ($70.00 < $88.00)",
+          available: true,
         },
         {
           id: "positive_sentiment",
           label: "Positive news sentiment",
           passed: false,
           detail: "No scored headlines in the trailing week",
+          available: true,
         },
       ],
       sentiment_7d: 0.22,
@@ -244,6 +247,7 @@ describe("SignalsTable", () => {
       name: "Microsoft",
       sector: "Technology",
       score: 2,
+      max_score: 6,
       rationale: [],
       votes: [],
       sentiment_7d: null,

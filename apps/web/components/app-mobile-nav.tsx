@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Dialog } from "radix-ui";
 import { useState } from "react";
 
-import { AppNavigation } from "@/components/app-navigation";
+import { AppNavigation, SimulatedDataTag } from "@/components/app-navigation";
 import { homeHref } from "@/lib/app-navigation";
 
 export function AppMobileNav({ signedIn }: { signedIn: boolean }) {
@@ -30,7 +30,7 @@ export function AppMobileNav({ signedIn }: { signedIn: boolean }) {
             Navigate StockViz research, trading, portfolio, and community tools.
           </Dialog.Description>
 
-          <div className="flex h-14 items-center justify-between border-b border-border-muted px-5">
+          <div className="flex h-14 items-center gap-2.5 border-b border-border-muted px-5">
             <Link
               href={homeHref(signedIn)}
               onClick={() => setOpen(false)}
@@ -41,10 +41,11 @@ export function AppMobileNav({ signedIn }: { signedIn: boolean }) {
               </span>
               <span>StockViz</span>
             </Link>
+            <SimulatedDataTag />
             <Dialog.Close asChild>
               <button
                 type="button"
-                className="inline-flex size-10 items-center justify-center rounded-sm text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+                className="ml-auto inline-flex size-10 items-center justify-center rounded-sm text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
                 aria-label="Close navigation"
               >
                 <X className="size-5" aria-hidden />
@@ -52,7 +53,7 @@ export function AppMobileNav({ signedIn }: { signedIn: boolean }) {
             </Dialog.Close>
           </div>
 
-          <div className="min-h-0 flex-1 overflow-y-auto px-3 py-6">
+          <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-3 pt-3 pb-6">
             <AppNavigation signedIn={signedIn} onNavigate={() => setOpen(false)} />
           </div>
         </Dialog.Content>

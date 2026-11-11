@@ -200,3 +200,33 @@ def test_evaluator_only_runs_against_pending(session: Session) -> None:
 
     triggered = evaluate_pending_alerts(session)
     assert triggered == 0
+
+
+def test_alert_rows_carry_the_symbol_currency(session: Session, client: TestClient) -> None:
+    """Targets are in the symbol's currency, so every response names it."""
+    _seed_symbol(session, "AAPL", close=Decimal("200"))
+    session.add(Symbol(ticker="RELIANCE.NS", name="Reliance", currency="INR"))
+    session.commit()
+    user_id = _make_user(session)
+    headers = _auth_headers(user_id)
+
+    created = client.post(
+        "/v1/alerts",
+        headers=headers,
+        json={"ticker": "RELIANCE.NS", "direction": "above", "target_price": "1500"},
+    )
+    assert created.status_code == 201
+    assert created.json()["currency"] == "INR"
+    usd_id = client.post(
+        "/v1/alerts",
+        headers=headers,
+        json={"ticker": "AAPL", "direction": "above", "target_price": "160"},
+    ).json()["id"]
+
+    listed = {a["ticker"]: a for a in client.get("/v1/alerts", headers=headers).json()}
+    assert listed["RELIANCE.NS"]["currency"] == "INR"
+    assert listed["AAPL"]["currency"] == "USD"
+
+    evaluate_pending_alerts(session)
+    dismissed = client.post(f"/v1/alerts/{usd_id}/dismiss", headers=headers)
+    assert dismissed.json()["currency"] == "USD"

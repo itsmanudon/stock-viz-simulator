@@ -1,12 +1,13 @@
-import { CalendarDays } from "lucide-react";
 import type { Metadata } from "next";
 
 import {
   EarningsCalendar,
   type EarningsScope,
   type EarningsView,
+  viewRange,
 } from "@/components/earnings-calendar";
 import { PageFrame } from "@/components/page-frame";
+import { MetaChip, PageHeader } from "@/components/page-header";
 import { getEarningsCalendar } from "@/lib/api/earnings";
 
 export const metadata: Metadata = { title: "Earnings" };
@@ -20,24 +21,6 @@ function parseDate(value: string | undefined): Date {
   return new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()));
 }
 
-function rangeFor(anchor: Date, view: EarningsView): { from: string; to: string } {
-  if (view === "month") {
-    return {
-      from: new Date(Date.UTC(anchor.getUTCFullYear(), anchor.getUTCMonth(), 1))
-        .toISOString()
-        .slice(0, 10),
-      to: new Date(Date.UTC(anchor.getUTCFullYear(), anchor.getUTCMonth() + 1, 0))
-        .toISOString()
-        .slice(0, 10),
-    };
-  }
-  const start = new Date(anchor);
-  if (view === "week") start.setUTCDate(start.getUTCDate() - start.getUTCDay());
-  const end = new Date(start);
-  if (view === "week") end.setUTCDate(end.getUTCDate() + 6);
-  return { from: start.toISOString().slice(0, 10), to: end.toISOString().slice(0, 10) };
-}
-
 export default async function EarningsPage({
   searchParams,
 }: {
@@ -49,28 +32,24 @@ export default async function EarningsPage({
     params.view === "day" || params.view === "week" ? params.view : "month";
   const scope: EarningsScope =
     params.scope === "holdings" || params.scope === "watchlist" ? params.scope : "all";
-  const range = rangeFor(anchor, view);
+  const range = viewRange(anchor, view);
   const events = await getEarningsCalendar({ ...range, scope }).catch(() => []);
 
   return (
     <PageFrame width="workstation" className="py-5 sm:py-7">
-      <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="text-2xs font-semibold tracking-[0.14em] text-brand uppercase">
-            Research / calendar
-          </p>
-          <h1 className="mt-1.5 flex items-center gap-2 text-3xl font-semibold tracking-tight">
-            <CalendarDays className="size-7 text-brand" aria-hidden /> Earnings
-          </h1>
-          <p className="mt-1.5 max-w-2xl text-sm leading-6 text-text-secondary">
-            Scheduled and reported earnings from the stored provider feed. Results are shown only
-            when both reported and estimated EPS are available.
-          </p>
-        </div>
-        <p className="text-xs text-text-tertiary">
-          {events.length} event{events.length === 1 ? "" : "s"} in view
-        </p>
-      </header>
+      <PageHeader
+        eyebrow="Research · calendar"
+        title="Earnings"
+        description="Scheduled and reported earnings from the stored provider feed. A result shows only when both reported and estimated EPS exist."
+        meta={
+          <span className="flex flex-wrap items-center gap-2">
+            <span>
+              {events.length} report{events.length === 1 ? "" : "s"} in view
+            </span>
+            <MetaChip>Dates in UTC</MetaChip>
+          </span>
+        }
+      />
 
       <section
         className="mt-6 rounded-xl border border-border-muted bg-card p-3 sm:p-4"

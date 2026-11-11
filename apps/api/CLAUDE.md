@@ -28,7 +28,7 @@ src/stockviz/
                     events — outbox, consumer inbox, derived trade activity,
                     execution — SimulatedExecution provenance,
                     replay — ReplaySession / ReplayPosition / ReplayFill /
-                    ReplayJournal)
+                    ReplayJournal, aegis — read-only Aegis News copies)
   events/           versioned contracts (trades/market/news), outbox/inbox,
                     dispatcher, domain handlers, Kafka producer wrappers
                     (not imported by FastAPI startup)
@@ -68,6 +68,10 @@ src/stockviz/
     backtest/       engine.py — historical strategy simulation
     alerts.py       price-alert evaluation
     metrics.py      precomputed per-symbol RSI / 52w range (screener reads these)
+    aegis/          Aegis News read sync (Phase 2): contract.py (lenient
+                    feed models), token.py (EdDSA feed:read token), client.py
+                    (the one client: timeouts, bounded retries), sync.py
+                    (run_sync), read.py (documents_for_ticker)
     sentiment/      provider abstraction + store
       base.py         SentimentProvider protocol, SentimentScore/Input
       anthropic_provider.py, http_provider.py, null_provider.py
@@ -100,10 +104,61 @@ CLI subcommands (`python -m stockviz.cli <cmd>`): `seed`, `backfill`,
 `news [tickers]`, `fx`, `metrics`,
 `score-sentiment`, `sentiment-aggregate`, `recommend`, `snapshot-portfolios`,
 `dividends`, `credit-dividends`, `settle-options`, `run-scheduler`,
+`prune-events [--days N] [--include-unpublished]`, `aegis-sync [--max-pages N]`,
 `publish-outbox [--once]`,
 `consume-trade-activity [--once]`, `consume-market-ingest [--once]`,
 `consume-market-analytics [--once]`, `consume-news-ingest [--once]`,
 `consume-news-sentiment [--once]`, `consume-sentiment-aggregate [--once]`.
+
+**Event table retention (audit OP-11).** Nothing else deletes from
+`outbox_events` or `consumer_inbox`. `prune-events` deletes published outbox
+rows and inbox receipts older than 30 days; `--include-unpublished` also
+deletes old unsent rows, for hosts where no publisher runs. The Railway cron
+runs it with that flag and sets `EVENTS_OUTBOX_ENABLED=false`, which makes the
+news ingest skip its `news.article.ingested` fan-out (nothing would publish it).
+
+**Aegis News sync (Phase 2).** `aegis-sync` copies the Aegis feed
+(`GET /api/v1/feed/documents`) and the whole mapping list
+(`GET /api/v1/assets/mappings`) into the `aegis_*` tables. Pages read those
+tables and never call Aegis. Contract: `docs/contracts/aegis-read-v1.md` in
+the workspace repository and `aegis-news/docs/feed.md`. Rules:
+
+- StockViz mints its own 10-minute `feed:read` service token per run
+  (`AEGIS_SERVICE_TOKEN_KEY`, an Ed25519 PEM; claims as Aegis's
+  `mint_service_token`). Without URL, key, issuer and audience the command
+  exits 2, and the cron chain skips it. Hosted, Aegis has no public domain:
+  the cron reaches `http://aegis-api.railway.internal:8000`, and only the key
+  is set out of band (Doppler `stock-viz-simulator/prd`, key id
+  `stockviz-sync-2026-11`).
+- Each feed page commits with the cursor after it (`aegis_sync_state`), so a
+  run that dies resumes there and a rerun changes nothing. Every run leaves a
+  row in `aegis_sync_runs` (`running`, `succeeded` or `failed` with the error).
+- A bundle replaces the document's analyses, entities and events (it is the
+  latest signed run). A tombstone (`withdrawal`) deletes the document.
+- No article text is stored. Order and filter by `available_at`, never
+  `published_at` (empty for GDELT; audit AG-12). Analyses keep provider,
+  model name, version and the raw label, `mixed` included (AG-4).
+- Tickers join locally: document -> `aegis_document_entities` ->
+  `aegis_mappings` with `scheme='provider_id'` and
+  `identifier='stockviz:<TICKER>'` (`services/aegis/read.py`), so a mapping
+  seeded later links documents already held (AG-2).
+- Tests use recorded responses in `tests/fixtures/aegis/`, validated against
+  Aegis's own models; see the README there before changing them.
+- **Readers (Phase 2 task 5).** `/v1/news`, `/v1/symbols/{ticker}/news` and
+  `/v1/symbols/{ticker}/sentiment` read the `aegis_*` tables, not
+  `news_articles`. `/v1/news` lists only documents linked to a StockViz
+  symbol. `symbol_metrics.sentiment_7d` (the 7th signals vote and the
+  screener's sentiment filter) is written by `refresh_aegis_sentiment`, run at
+  the end of every `aegis-sync` (also after a failed sync) and by the
+  `sentiment-aggregate` CLI and scheduler job (audit AG-14). The legacy
+  `news`, `score-sentiment` and `sentiment-aggregate` steps are off the
+  Railway cron; the legacy tables stay until the Aegis path is verified. The
+  Kafka sentiment-aggregate consumer (events lab only) still writes the
+  legacy aggregate: retiring the news workers is Phase 2 task 7.
+- **Signals maximum (audit SR-9).** Each stored vote carries `available`; the
+  sentiment vote is unavailable when no scored Aegis news falls in the week.
+  `RecommendationOut.max_score` counts available votes (7, or 6). The pass
+  threshold stays 4.
 
 Kafka workers (same image, different command; broker optional for the API):
 
@@ -366,14 +421,18 @@ or `http` (a standalone service). Blank resolves to `anthropic` when
 `ANTHROPIC_API_KEY` is set, else `none`.
 
 Results land in `news_sentiment`, one row per `(article_id, model)`, carrying
-label + continuous score + optional confidence. `news_articles.sentiment` stays
+label + continuous score + optional confidence. Labels are `positive`,
+`neutral`, `negative`, or `mixed` (strong signals both ways, emitted by Aegis
+News; audit AG-4). `mixed` is stored as sent; StockViz's own providers and
+`label_from_score` never produce it. `news_articles.sentiment` stays
 as the denormalized "current best" label the badge reads. A provider never
 raises for one document: unscorable inputs come back `None` and are stored as
 NULL so `stockviz.cli score-sentiment` can retry them.
 
-`refresh_symbol_sentiment` rolls scores into `symbol_metrics.sentiment_7d`,
-which the screener filters on, the recommendation engine votes with
-(`_vote_positive_sentiment`, the 7th of 7 votes), and
-`GET /v1/symbols/{ticker}/sentiment` serves.
+The legacy `refresh_symbol_sentiment` no longer feeds the hosted app: since
+Phase 2, `symbol_metrics.sentiment_7d` comes from Aegis
+(`services/aegis/read.py::refresh_aegis_sentiment`; see "Aegis News sync"
+above). This section describes the legacy scoring pipeline, kept until it is
+retired.
 
 Full wire contract for the `http` provider: [`docs/SENTIMENT.md`](../../docs/SENTIMENT.md).

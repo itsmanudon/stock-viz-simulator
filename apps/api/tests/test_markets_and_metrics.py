@@ -76,6 +76,65 @@ def test_summary_dates_each_last_close_by_its_own_bar(session: Session, client: 
     assert rows["BBB"]["last_close_at"].startswith("2025-01-01")
 
 
+def _seed_dated(session: Session, ticker: str, bars: list[tuple[datetime, Decimal]]) -> None:
+    session.add(Symbol(ticker=ticker, name=f"{ticker} Co", sector="Technology"))
+    for ts, close in bars:
+        session.add(
+            PriceBar(
+                ticker=ticker,
+                ts=ts,
+                interval="1d",
+                open=close,
+                high=close,
+                low=close,
+                close=close,
+                volume=1_000,
+                source="test",
+            )
+        )
+    session.commit()
+
+
+def test_summary_keeps_a_change_across_a_long_weekend(session: Session, client: TestClient) -> None:
+    """Friday to Tuesday is four days: still one session apart (audit RS-13)."""
+    _seed_dated(
+        session, "AAA", [(datetime(2025, 4, 4), Decimal(10)), (datetime(2025, 4, 8), Decimal(11))]
+    )
+
+    row = client.get("/v1/markets/summary").json()["rows"][0]
+    assert abs(row["change_pct"] - 10.0) < 0.001
+
+
+def test_summary_blanks_a_change_across_missing_bars(session: Session, client: TestClient) -> None:
+    """Bars three weeks apart are not a one-day move (audit RS-13)."""
+    _seed_dated(
+        session, "AAA", [(datetime(2025, 3, 14), Decimal(10)), (datetime(2025, 4, 4), Decimal(20))]
+    )
+
+    row = client.get("/v1/markets/summary").json()["rows"][0]
+    assert row["change_pct"] is None
+    # The close and its date are still shown; only the misleading move goes.
+    assert Decimal(row["last_close"]) == Decimal(20)
+    assert Decimal(row["prev_close"]) == Decimal(10)
+
+
+def test_summary_blanks_the_change_of_a_symbol_that_stopped_updating(
+    session: Session, client: TestClient
+) -> None:
+    """A symbol whose last close trails the page's newest by weeks shows no change."""
+    _seed_dated(
+        session, "OLD", [(datetime(2025, 3, 13), Decimal(10)), (datetime(2025, 3, 14), Decimal(12))]
+    )
+    _seed_dated(
+        session, "NEW", [(datetime(2025, 4, 3), Decimal(10)), (datetime(2025, 4, 4), Decimal(11))]
+    )
+
+    rows = {r["ticker"]: r for r in client.get("/v1/markets/summary").json()["rows"]}
+    assert rows["OLD"]["change_pct"] is None
+    assert rows["OLD"]["last_close_at"].startswith("2025-03-14")
+    assert rows["NEW"]["change_pct"] is not None
+
+
 def test_summary_sector_filter_keeps_the_full_sector_list(
     session: Session, client: TestClient
 ) -> None:

@@ -31,7 +31,7 @@ export function PageHeader({
         <p className="text-2xs font-medium tracking-[0.12em] text-text-secondary uppercase">
           {eyebrow}
         </p>
-        <h1 className="mt-1.5 text-2xl font-semibold tracking-tight sm:text-3xl">{title}</h1>
+        <h1 className="mt-1.5 text-2xl font-medium tracking-tight sm:text-3xl">{title}</h1>
         <p className="mt-1.5 max-w-2xl text-sm leading-6 text-text-secondary">{description}</p>
         {meta ? <div className="mt-1.5 text-xs text-text-tertiary">{meta}</div> : null}
       </div>
@@ -93,5 +93,42 @@ export function PageEmptyState({
       <div className="mt-2 max-w-2xl text-sm leading-6 text-text-secondary">{children}</div>
       {action ? <div className="mt-5">{action}</div> : null}
     </section>
+  );
+}
+
+/**
+ * A rounded chip for a page header's meta row (Aurora board v3): the date a
+ * page's data is from, the zone its times use, or a count. The dot reads
+ * freshness or status, never direction; the default is neutral.
+ */
+export function MetaChip({
+  children,
+  tone = "neutral",
+  className,
+}: {
+  children: React.ReactNode;
+  tone?: "neutral" | "positive" | "warning";
+  className?: string;
+}) {
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded-full border border-border-muted px-2.5 py-0.5 text-2xs text-text-secondary",
+        className,
+      )}
+    >
+      <span
+        aria-hidden
+        className={cn(
+          "size-1.5 shrink-0 rounded-full",
+          tone === "positive"
+            ? "bg-positive"
+            : tone === "warning"
+              ? "bg-warning"
+              : "bg-text-tertiary",
+        )}
+      />
+      {children}
+    </span>
   );
 }

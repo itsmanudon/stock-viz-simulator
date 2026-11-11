@@ -17,17 +17,18 @@ import {
 } from "@/components/operational-page-header";
 import { PageFrame } from "@/components/page-frame";
 import { getQuotes, listSymbols } from "@/lib/api";
+import { parseApiTimestamp } from "@/lib/api-time";
 import { type Alert, listAlerts } from "@/lib/api/alerts";
 import {
   type AlertView,
   alertDirectionLabel,
   buildAlertsHref,
   currencyByTicker,
-  formatNativePrice,
   parseAlertTicker,
   parseAlertView,
   tickerCurrency,
 } from "@/lib/operational-trading";
+import { formatCurrency } from "@/lib/portfolio-view-model";
 import { cn } from "@/lib/utils";
 import { deleteAlertAction, dismissAlertAction } from "./actions";
 
@@ -42,7 +43,7 @@ const VIEWS: { value: AlertView; label: string }[] = [
 /** Trigger times are stored in UTC; show them in UTC and say so (audit T4). */
 function fmtWhen(iso: string | null): string {
   if (!iso) return "—";
-  return new Date(iso).toLocaleString("en-US", {
+  return parseApiTimestamp(iso).toLocaleString("en-US", {
     year: "numeric",
     month: "short",
     day: "numeric",
@@ -78,6 +79,14 @@ function matchesView(alert: Alert, view: AlertView): boolean {
   if (view === "all") return true;
   if (view === "triggered") return Boolean(alert.triggered_at);
   return !alert.triggered_at;
+}
+
+/** The target in the alert's own currency; the symbol list covers older responses. */
+function formatTarget(alert: Alert, currencies: Record<string, string>): string {
+  return formatCurrency(
+    alert.target_price,
+    alert.currency ?? tickerCurrency(alert.ticker, currencies),
+  );
 }
 
 export default async function AlertsPage({
@@ -189,7 +198,7 @@ export default async function AlertsPage({
                     <p className="text-xs text-text-secondary">
                       {alertDirectionLabel(alert.direction)}{" "}
                       <span className="font-mono" data-financial>
-                        {formatNativePrice(alert.target_price, alert.ticker, currencies)}
+                        {formatTarget(alert, currencies)}
                       </span>
                     </p>
                   </div>
@@ -246,7 +255,7 @@ export default async function AlertsPage({
                       {alertDirectionLabel(alert.direction)}
                     </td>
                     <td className="px-3 py-3 text-right font-mono">
-                      {formatNativePrice(alert.target_price, alert.ticker, currencies)}
+                      {formatTarget(alert, currencies)}
                     </td>
                     <td className="px-3 py-3">
                       <AlertStatusBadge

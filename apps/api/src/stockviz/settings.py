@@ -139,6 +139,38 @@ class Settings(BaseSettings):
     # constants on the event contracts, not env vars.
     kafka_poll_timeout_seconds: float = 1.0
     kafka_retry_backoff_seconds: float = 2.0
+    # False where no outbox publisher runs (the Railway cron). The news ingest
+    # then skips its ``news.article.ingested`` fan-out, which nothing would
+    # ever publish or prune, and which a publisher attached later would replay
+    # in full (audit OP-11). On by default so compose and Kubernetes keep the
+    # event-driven path.
+    events_outbox_enabled: bool = True
+
+    # Aegis News read sync (`stockviz.cli aegis-sync`, Phase 2). The sync is
+    # off until URL, key, issuer and audience are set; the command then exits 2.
+    # StockViz mints its own short-lived `feed:read` service token each run,
+    # signed with the Ed25519 key whose public half Aegis trusts under
+    # AEGIS_KEY_ID. Issuer and audience must equal Aegis's AEGIS_OIDC_ISSUER
+    # and AEGIS_OIDC_AUDIENCE. Hosted values are in .railway/railway.ts; the
+    # key is the one secret, kept in Doppler `stock-viz-simulator/prd`.
+    aegis_base_url: str = ""
+    # PEM private key. "\n" escapes are accepted, for one-line env values.
+    aegis_service_token_key: str = ""
+    aegis_key_id: str = "stockviz-sync-2026-11"
+    aegis_issuer: str = ""
+    aegis_audience: str = ""
+    aegis_client_id: str = "stockviz-sync"
+    aegis_page_limit: int = 100
+    aegis_timeout_seconds: float = 20.0
+
+    @property
+    def aegis_configured(self) -> bool:
+        return bool(
+            self.aegis_base_url.strip()
+            and self.aegis_service_token_key.strip()
+            and self.aegis_issuer.strip()
+            and self.aegis_audience.strip()
+        )
 
     @property
     def resolved_news_provider(self) -> str:

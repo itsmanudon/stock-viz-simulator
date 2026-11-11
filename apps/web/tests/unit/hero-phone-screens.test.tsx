@@ -55,15 +55,16 @@ describe("loadPhoneScreens", () => {
     loadPanel.mockResolvedValue(panel);
     getNewsForTicker.mockResolvedValue([
       {
-        id: 1,
-        ticker: "NVDA",
+        id: "doc_1",
+        tickers: ["NVDA"],
         title: "Chip maker reports record quarter",
         url: "https://example.com/a",
         source: "Reuters",
-        published_at: "2025-04-03T21:00:00Z",
-        summary: null,
-        image_url: null,
+        published_at: null,
+        available_at: "2025-04-04T02:00:00",
         sentiment: null,
+        sentiment_model: null,
+        topic: null,
       },
     ]);
     const screens = await loadPhoneScreens();
@@ -71,6 +72,8 @@ describe("loadPhoneScreens", () => {
     expect(screens.at(-1)?.key).toBe("news");
     render(<div>{screens.at(-1)?.node}</div>);
     expect(screen.getByText("Reuters")).toBeVisible();
+    // No publisher time (GDELT): dated by when Aegis had it (audit AG-12).
+    expect(screen.getByText("Apr 4, 2025")).toBeVisible();
     expect(screen.queryByText(/verified/i)).not.toBeInTheDocument();
   });
 });

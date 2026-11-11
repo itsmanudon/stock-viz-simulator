@@ -278,9 +278,11 @@ function NewsScreen({ ticker, articles }: { ticker: string; articles: NewsArticl
       {articles.map((article) => (
         <div key={article.id} className="glass grid gap-1.5 rounded-2xl p-3">
           <span className="flex flex-wrap gap-1.5 text-3xs text-text-tertiary">
-            {article.source ? <span>{article.source}</span> : null}
-            {article.source ? <span aria-hidden>·</span> : null}
-            <span className="font-mono">{formatCloseDate(article.published_at)}</span>
+            <span>{article.source}</span>
+            <span aria-hidden>·</span>
+            <span className="font-mono">
+              {formatCloseDate(article.published_at ?? article.available_at)}
+            </span>
           </span>
           <span className="line-clamp-3 text-xs leading-4">{article.title}</span>
         </div>

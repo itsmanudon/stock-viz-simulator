@@ -1,20 +1,44 @@
-"""`/v1/symbols/{ticker}/news` and `/v1/news`."""
+"""`/v1/symbols/{ticker}/news` and `/v1/news`, read from the Aegis copies.
+
+Since Phase 2 news comes from Aegis News through the nightly
+``stockviz.cli aegis-sync``. These routes read the copied tables and never
+call Aegis. Newest first by ``available_at``, never ``published_at``.
+"""
 
 from __future__ import annotations
 
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from sqlmodel import Session, select
+from sqlmodel import Session
 
 from stockviz.db import get_session
 from stockviz.limiter import limiter
-from stockviz.models import NewsArticle, Symbol
+from stockviz.models import Symbol
 from stockviz.schemas import NewsArticleOut
+from stockviz.services.aegis.read import NewsItem, news_items
 
 router = APIRouter(prefix="/v1", tags=["news"])
 
 SessionDep = Annotated[Session, Depends(get_session)]
+
+
+def _out(item: NewsItem) -> NewsArticleOut:
+    doc = item.document
+    return NewsArticleOut(
+        id=doc.document_id,
+        tickers=list(item.tickers),
+        title=doc.title,
+        url=doc.url,
+        source=doc.source_name,
+        published_at=doc.published_at,
+        available_at=doc.available_at,
+        sentiment=item.sentiment
+        if item.sentiment in ("positive", "neutral", "negative", "mixed")
+        else None,
+        sentiment_model=item.sentiment_model,
+        topic=item.topic,
+    )
 
 
 @router.get("/symbols/{ticker}/news", response_model=list[NewsArticleOut])
@@ -24,18 +48,11 @@ def news_for_ticker(
     ticker: str,
     session: SessionDep,
     limit: Annotated[int, Query(ge=1, le=100)] = 20,
-) -> list[NewsArticle]:
+) -> list[NewsArticleOut]:
     ticker = ticker.upper()
     if session.get(Symbol, ticker) is None:
         raise HTTPException(status_code=404, detail=f"Symbol {ticker!r} not found")
-
-    stmt = (
-        select(NewsArticle)
-        .where(NewsArticle.ticker == ticker)
-        .order_by(NewsArticle.published_at.desc())  # type: ignore[attr-defined]
-        .limit(limit)
-    )
-    return list(session.exec(stmt).all())
+    return [_out(item) for item in news_items(session, ticker=ticker, limit=limit)]
 
 
 @router.get("/news", response_model=list[NewsArticleOut])
@@ -44,10 +61,5 @@ def latest_news(
     request: Request,
     session: SessionDep,
     limit: Annotated[int, Query(ge=1, le=100)] = 50,
-) -> list[NewsArticle]:
-    stmt = (
-        select(NewsArticle)
-        .order_by(NewsArticle.published_at.desc())  # type: ignore[attr-defined]
-        .limit(limit)
-    )
-    return list(session.exec(stmt).all())
+) -> list[NewsArticleOut]:
+    return [_out(item) for item in news_items(session, limit=limit)]
