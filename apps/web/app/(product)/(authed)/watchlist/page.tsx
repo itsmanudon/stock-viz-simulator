@@ -14,6 +14,7 @@ import {
   OperationalPageHeader,
 } from "@/components/operational-page-header";
 import { PageFrame } from "@/components/page-frame";
+import { MetaChip } from "@/components/page-header";
 import { Sparkline } from "@/components/sparkline";
 import { AddWatchlistForm, WatchlistRowActions } from "@/components/watchlist-controls";
 import { getBars, getNewsForTickers, listSymbols } from "@/lib/api";
@@ -67,7 +68,14 @@ export default async function WatchlistPage() {
         eyebrow="Portfolio"
         title="Watchlist"
         description="Securities you are monitoring. Last close is the latest stored daily bar, not a live quote."
-        meta={`${items.length} symbol${items.length === 1 ? "" : "s"}`}
+        meta={
+          <span className="flex flex-wrap items-center gap-2">
+            <span>
+              {items.length} symbol{items.length === 1 ? "" : "s"}
+            </span>
+            <MetaChip>Stored daily closes, not live quotes</MetaChip>
+          </span>
+        }
       />
       <MonitoringSubnav current="/watchlist" />
 
@@ -131,6 +139,9 @@ export default async function WatchlistPage() {
                         )}
                         data-financial
                       >
+                        {move !== null && move !== 0 ? (
+                          <span aria-hidden>{move > 0 ? "▲ " : "▼ "}</span>
+                        ) : null}
                         {formatSignedPercent(move)} · 30 days
                       </p>
                     </div>
@@ -205,6 +216,9 @@ export default async function WatchlistPage() {
                           move !== null && move < 0 && "text-negative",
                         )}
                       >
+                        {move !== null && move !== 0 ? (
+                          <span aria-hidden>{move > 0 ? "▲ " : "▼ "}</span>
+                        ) : null}
                         {formatSignedPercent(move)}
                       </td>
                       <td className="hidden px-3 py-3 lg:table-cell">

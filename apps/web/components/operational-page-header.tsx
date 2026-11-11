@@ -77,5 +77,6 @@ export function AlertStatusBadge({
 }) {
   if (dismissed) return <StatusBadge label="Dismissed" tone="neutral" />;
   if (triggered) return <StatusBadge label="Triggered" tone="positive" />;
-  return <StatusBadge label="Active" tone="brand" />;
+  // Armed and waiting: neutral, as the brand is kept for identity.
+  return <StatusBadge label="Active" tone="neutral" />;
 }

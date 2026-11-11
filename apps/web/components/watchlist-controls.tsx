@@ -1,6 +1,6 @@
 "use client";
 
-import { MoreHorizontal } from "lucide-react";
+import { ArrowLeftRight, Bell, LineChart, X } from "lucide-react";
 import Link from "next/link";
 import { useActionState } from "react";
 
@@ -9,13 +9,6 @@ import {
   toggleWatchlistAction,
 } from "@/app/(product)/(authed)/watchlist/actions";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { buildAlertsHref, buildTradeHref } from "@/lib/operational-trading";
 
 export function AddWatchlistForm({
@@ -69,6 +62,14 @@ export function AddWatchlistForm({
   );
 }
 
+const ROW_ACTION =
+  "inline-grid size-8 place-items-center rounded-full border border-border-muted text-text-secondary transition-colors hover:bg-surface-hover hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring";
+
+/**
+ * A watched symbol's actions as four small round buttons (Aurora board v3),
+ * in place of a "more" menu: research, trade, create an alert, remove. Each
+ * has a spoken name and a tooltip, since the icon alone is not a label.
+ */
 export function WatchlistRowActions({ ticker }: { ticker: string }) {
   const [, action, pending] = useActionState<WatchlistActionState, FormData>(
     toggleWatchlistAction,
@@ -76,39 +77,44 @@ export function WatchlistRowActions({ ticker }: { ticker: string }) {
   );
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          className="rounded-sm"
-          aria-label={`Actions for ${ticker}`}
+    <div className="inline-flex items-center gap-1.5">
+      <Link
+        href={`/stocks/${ticker}`}
+        className={ROW_ACTION}
+        aria-label={`Open ${ticker} research`}
+        title="Open research"
+      >
+        <LineChart className="size-3.5" aria-hidden />
+      </Link>
+      <Link
+        href={buildTradeHref(ticker)}
+        className={ROW_ACTION}
+        aria-label={`Trade ${ticker}`}
+        title="Trade"
+      >
+        <ArrowLeftRight className="size-3.5" aria-hidden />
+      </Link>
+      <Link
+        href={buildAlertsHref({ ticker })}
+        className={ROW_ACTION}
+        aria-label={`Create an alert for ${ticker}`}
+        title="Create alert"
+      >
+        <Bell className="size-3.5" aria-hidden />
+      </Link>
+      <form action={action}>
+        <input type="hidden" name="ticker" value={ticker} />
+        <input type="hidden" name="intent" value="remove" />
+        <button
+          type="submit"
+          disabled={pending}
+          className={`${ROW_ACTION} hover:border-negative/40 hover:text-negative disabled:opacity-50`}
+          aria-label={pending ? `Removing ${ticker}` : `Remove ${ticker} from watchlist`}
+          title="Remove from watchlist"
         >
-          <MoreHorizontal className="h-4 w-4" aria-hidden />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        <DropdownMenuItem asChild>
-          <Link href={`/stocks/${ticker}`}>Open research</Link>
-        </DropdownMenuItem>
-        <DropdownMenuItem asChild>
-          <Link href={buildTradeHref(ticker)}>Trade</Link>
-        </DropdownMenuItem>
-        <DropdownMenuItem asChild>
-          <Link href={buildAlertsHref({ ticker })}>Create alert</Link>
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem asChild variant="destructive">
-          <form action={action}>
-            <input type="hidden" name="ticker" value={ticker} />
-            <input type="hidden" name="intent" value="remove" />
-            <button type="submit" className="w-full text-left" disabled={pending}>
-              {pending ? "Removing…" : "Remove from watchlist"}
-            </button>
-          </form>
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+          <X className="size-3.5" aria-hidden />
+        </button>
+      </form>
+    </div>
   );
 }
