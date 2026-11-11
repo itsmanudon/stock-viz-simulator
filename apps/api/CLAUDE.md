@@ -144,6 +144,21 @@ the workspace repository and `aegis-news/docs/feed.md`. Rules:
   seeded later links documents already held (AG-2).
 - Tests use recorded responses in `tests/fixtures/aegis/`, validated against
   Aegis's own models; see the README there before changing them.
+- **Readers (Phase 2 task 5).** `/v1/news`, `/v1/symbols/{ticker}/news` and
+  `/v1/symbols/{ticker}/sentiment` read the `aegis_*` tables, not
+  `news_articles`. `/v1/news` lists only documents linked to a StockViz
+  symbol. `symbol_metrics.sentiment_7d` (the 7th signals vote and the
+  screener's sentiment filter) is written by `refresh_aegis_sentiment`, run at
+  the end of every `aegis-sync` (also after a failed sync) and by the
+  `sentiment-aggregate` CLI and scheduler job (audit AG-14). The legacy
+  `news`, `score-sentiment` and `sentiment-aggregate` steps are off the
+  Railway cron; the legacy tables stay until the Aegis path is verified. The
+  Kafka sentiment-aggregate consumer (events lab only) still writes the
+  legacy aggregate: retiring the news workers is Phase 2 task 7.
+- **Signals maximum (audit SR-9).** Each stored vote carries `available`; the
+  sentiment vote is unavailable when no scored Aegis news falls in the week.
+  `RecommendationOut.max_score` counts available votes (7, or 6). The pass
+  threshold stays 4.
 
 Kafka workers (same image, different command; broker optional for the API):
 
@@ -414,9 +429,10 @@ as the denormalized "current best" label the badge reads. A provider never
 raises for one document: unscorable inputs come back `None` and are stored as
 NULL so `stockviz.cli score-sentiment` can retry them.
 
-`refresh_symbol_sentiment` rolls scores into `symbol_metrics.sentiment_7d`,
-which the screener filters on, the recommendation engine votes with
-(`_vote_positive_sentiment`, the 7th of 7 votes), and
-`GET /v1/symbols/{ticker}/sentiment` serves.
+The legacy `refresh_symbol_sentiment` no longer feeds the hosted app: since
+Phase 2, `symbol_metrics.sentiment_7d` comes from Aegis
+(`services/aegis/read.py::refresh_aegis_sentiment`; see "Aegis News sync"
+above). This section describes the legacy scoring pipeline, kept until it is
+retired.
 
 Full wire contract for the `http` provider: [`docs/SENTIMENT.md`](../../docs/SENTIMENT.md).

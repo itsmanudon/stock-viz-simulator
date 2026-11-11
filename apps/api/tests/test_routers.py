@@ -12,7 +12,7 @@ from decimal import Decimal
 from fastapi.testclient import TestClient
 from sqlmodel import Session
 
-from stockviz.models import NewsArticle, PriceBar, Symbol
+from stockviz.models import PriceBar, Symbol
 
 
 def _seed_symbol(session: Session, ticker: str = "AAPL", **kw) -> Symbol:
@@ -157,31 +157,7 @@ def test_bars_404_when_symbol_missing(client: TestClient) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_news_for_ticker(session: Session, client: TestClient) -> None:
-    _seed_symbol(session, "AAPL", name="Apple")
-    session.add_all(
-        [
-            NewsArticle(
-                ticker="AAPL",
-                title="Older",
-                url="https://example.com/old",
-                published_at=datetime(2025, 4, 10, 9, 0),
-            ),
-            NewsArticle(
-                ticker="AAPL",
-                title="Newer",
-                url="https://example.com/new",
-                published_at=datetime(2025, 4, 11, 9, 0),
-            ),
-        ]
-    )
-    session.commit()
-
-    response = client.get("/v1/symbols/AAPL/news")
-    assert response.status_code == 200
-    titles = [a["title"] for a in response.json()]
-    assert titles == ["Newer", "Older"]
-
+# test_news_for_ticker moved to test_aegis_news.py: news and sentiment read Aegis since Phase 2.
 
 # ---------------------------------------------------------------------------
 # /v1/quotes
