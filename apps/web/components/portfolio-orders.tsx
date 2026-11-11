@@ -67,7 +67,7 @@ export function PortfolioOrders({ orders }: { orders: PendingOrder[] | null }) {
                 <TableCell>
                   <Link
                     href={`/stocks/${order.ticker}`}
-                    className="font-mono font-semibold hover:text-brand focus-visible:text-brand focus-visible:underline"
+                    className="ticker font-semibold hover:text-brand focus-visible:text-brand focus-visible:underline"
                   >
                     {order.ticker}
                   </Link>
@@ -106,7 +106,7 @@ export function PortfolioOrders({ orders }: { orders: PendingOrder[] | null }) {
             className="grid grid-cols-[minmax(0,1fr)_auto] gap-4 py-5"
           >
             <div>
-              <Link href={`/stocks/${order.ticker}`} className="font-mono font-semibold">
+              <Link href={`/stocks/${order.ticker}`} className="ticker font-semibold">
                 {order.ticker}
               </Link>
               <div className="mt-1 flex items-center gap-2 text-xs">

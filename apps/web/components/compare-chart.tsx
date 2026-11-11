@@ -132,7 +132,7 @@ export function CompareChart({
                 }}
                 aria-hidden
               />
-              <span className="font-mono">{item.ticker}</span>
+              <span className="ticker">{item.ticker}</span>
               {item.bars.length === 0 ? (
                 <span className="text-text-tertiary">no history</span>
               ) : change === null ? null : (

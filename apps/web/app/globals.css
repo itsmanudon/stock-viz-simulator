@@ -3,15 +3,6 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/* Keep the Indian rupee glyph in a local mono fallback. The scoped face only
-   supplies U+20B9, so all other financial text remains IBM Plex Mono. */
-@font-face {
-  font-family: "Currency Mono";
-  src: local("Consolas"), local("DejaVu Sans Mono"), local("Menlo");
-  unicode-range: U+20B9;
-  size-adjust: 112%;
-}
-
 :root {
   /* AURORA — navy-biased neutrals from the "Fintech Dark" base (#0A0F1E,
      #8892A4) with an aqua → electric-blue brand. The brand gradient is for
@@ -193,8 +184,10 @@
   --color-marketing-panel-border: var(--marketing-panel-border);
   --color-grid-line: var(--grid-line);
   --font-sans: var(--font-display), Inter, "Segoe UI Variable", ui-sans-serif, system-ui, sans-serif;
-  --font-mono: "Currency Mono", var(--font-numeric), "IBM Plex Mono", "SFMono-Regular", Consolas,
-    monospace;
+  /* Geist Mono draws its own ₹ (U+20B9). The "Currency Mono" face that
+     borrowed one from Consolas or Menlo was for JetBrains Mono, which has
+     none; with Geist Mono it only made the rupee look older. */
+  --font-mono: var(--font-numeric), "IBM Plex Mono", "SFMono-Regular", Consolas, monospace;
 
   /* Type ramp.
      `3xs`/`2xs` are the dense-UI steps below Tailwind's `xs` — table meta,
@@ -769,4 +762,14 @@ html[data-density="compact"] .workspace-main .density-workspace {
   .journal-workspace[data-inspecting="true"] {
     padding-right: 27rem;
   }
+}
+
+/* A ticker symbol (Aurora type pass, 12 Nov 2026): Geist, the font of the
+   name beside it, not the mono used for figures. Prices and quantities stay
+   in Geist Mono so columns line up; a ticker is a name, so it reads as text.
+   Pair it with a weight (`font-semibold`) where it is set. */
+@utility ticker {
+  font-family: var(--font-sans);
+  letter-spacing: 0.01em;
+  font-variant-numeric: normal;
 }

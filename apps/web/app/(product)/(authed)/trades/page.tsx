@@ -150,7 +150,7 @@ export default async function TradesPage() {
                     <TableCell className="hidden text-text-tertiary sm:table-cell">
                       {formatUtcDateTime(trade.ts)}
                     </TableCell>
-                    <TableCell className="font-mono font-semibold">
+                    <TableCell className="ticker font-semibold">
                       <Link href={`/stocks/${trade.ticker}`} className="hover:underline">
                         {trade.ticker}
                       </Link>

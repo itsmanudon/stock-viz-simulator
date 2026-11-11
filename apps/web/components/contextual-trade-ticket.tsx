@@ -487,7 +487,7 @@ function TicketHeading({ id, ticker }: { id: string; ticker: string }) {
           Paper trade
         </h2>
       </div>
-      <span className="rounded-sm bg-surface-secondary px-2 py-1 font-mono text-xs font-semibold tabular-nums">
+      <span className="rounded-sm bg-surface-secondary px-2 py-1 ticker text-xs font-semibold tabular-nums">
         {ticker}
       </span>
     </div>

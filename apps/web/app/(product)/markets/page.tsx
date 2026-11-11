@@ -235,7 +235,7 @@ export default async function MarketsPage({
             <TableBody>
               {sorted.map((row) => (
                 <ClickableRow key={row.ticker} href={`/stocks/${row.ticker}`}>
-                  <TableCell className="font-mono font-semibold">{row.ticker}</TableCell>
+                  <TableCell className="ticker font-semibold">{row.ticker}</TableCell>
                   <TableCell className="truncate">
                     {row.name}
                     {row.last === null ? (

@@ -77,7 +77,7 @@ function TickerItem({ row }: { row: Row }) {
       href={`/stocks/${row.ticker}`}
       className="flex shrink-0 items-baseline gap-2.5 px-5 py-3 transition-colors hover:bg-surface-hover"
     >
-      <span className="font-mono text-xs font-semibold tracking-wide">{row.ticker}</span>
+      <span className="ticker text-xs font-semibold">{row.ticker}</span>
       <span className="font-mono text-xs text-text-secondary tabular-nums">
         {fmtPrice(row.close)}
       </span>

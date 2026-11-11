@@ -210,7 +210,7 @@ export default async function ComparePage({
                 <li key={ticker} className="flex gap-1">
                   <Link
                     href={`/stocks/${ticker}`}
-                    className="inline-flex min-h-8 items-center px-1 font-mono hover:underline"
+                    className="inline-flex min-h-8 items-center px-1 ticker hover:underline"
                   >
                     {ticker}
                   </Link>

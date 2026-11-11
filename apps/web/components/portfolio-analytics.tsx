@@ -160,7 +160,7 @@ function MoverList({
               <div className="min-w-0">
                 <Link
                   href={`/stocks/${mover.ticker}`}
-                  className="font-mono text-sm font-semibold hover:text-brand focus-visible:text-brand focus-visible:underline"
+                  className="ticker text-sm font-semibold hover:text-brand focus-visible:text-brand focus-visible:underline"
                 >
                   {mover.ticker}
                 </Link>

@@ -150,7 +150,7 @@ async function ReplayArt() {
       className="dark grid w-full max-w-sm gap-3 rounded-3xl border border-border bg-card p-4 text-foreground shadow-2xl shadow-black/30"
     >
       <div className="flex justify-between gap-3 text-xs">
-        <span className="font-mono">{data.ticker} · Replay</span>
+        <span className="ticker">{data.ticker} · Replay</span>
         <span className="font-mono text-text-tertiary">
           Bar {step} of {bars.length} · {formatCloseDate(bars[step - 1]?.ts)}
         </span>

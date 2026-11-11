@@ -60,7 +60,7 @@ export function NewsList({
                 <SentimentBadge sentiment={article.sentiment} />
                 <span>{article.source}</span>
                 {variant === "cards" && article.tickers.length > 0 ? (
-                  <span className="font-mono">{article.tickers.join(" · ")}</span>
+                  <span className="ticker">{article.tickers.join(" · ")}</span>
                 ) : null}
               </div>
             </div>

@@ -122,7 +122,7 @@ export function CompareMetricsTable({ rows }: { rows: CompareMetrics[] }) {
                       style={{ backgroundColor: row.color }}
                       aria-hidden
                     />
-                    <span className="font-mono">{row.ticker}</span>
+                    <span className="ticker">{row.ticker}</span>
                   </span>
                   <div className="mt-0.5 truncate pl-4 text-xs font-normal text-text-tertiary">
                     {row.name}

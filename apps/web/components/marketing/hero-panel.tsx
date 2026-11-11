@@ -127,7 +127,7 @@ export async function HeroPanel() {
     <PanelFrame>
       <div className="flex items-start justify-between gap-4 border-b border-border-muted px-4 py-3.5">
         <div className="min-w-0">
-          <p className="font-mono text-sm font-semibold tracking-wide">{data.ticker}</p>
+          <p className="ticker text-sm font-semibold">{data.ticker}</p>
           <p className="truncate text-2xs text-text-tertiary">{data.name}</p>
         </div>
         <div className="shrink-0 text-right">

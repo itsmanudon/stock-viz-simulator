@@ -63,7 +63,7 @@ export function PortfolioOptions({
                   <TableCell>
                     <Link
                       href={`/stocks/${position.ticker}`}
-                      className="font-mono font-semibold hover:text-brand focus-visible:text-brand focus-visible:underline"
+                      className="ticker font-semibold hover:text-brand focus-visible:text-brand focus-visible:underline"
                     >
                       {position.ticker}
                     </Link>
@@ -117,7 +117,7 @@ export function PortfolioOptions({
               className="grid grid-cols-[minmax(0,1fr)_auto] gap-4 py-5"
             >
               <div>
-                <Link href={`/stocks/${position.ticker}`} className="font-mono font-semibold">
+                <Link href={`/stocks/${position.ticker}`} className="ticker font-semibold">
                   {position.ticker}
                 </Link>
                 <p className="mt-1 text-xs capitalize text-muted-foreground">

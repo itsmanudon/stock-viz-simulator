@@ -195,7 +195,7 @@ export function CompareSymbolPicker({
                   }}
                   className="flex w-full items-baseline gap-2 px-3 py-2 text-left text-sm hover:bg-surface-hover"
                 >
-                  <span className="min-w-[3.5rem] max-w-[9rem] shrink-0 truncate font-mono text-xs">
+                  <span className="min-w-[3.5rem] max-w-[9rem] shrink-0 truncate ticker text-xs">
                     {row.ticker}
                   </span>
                   <span className="truncate text-text-secondary">{row.name}</span>
