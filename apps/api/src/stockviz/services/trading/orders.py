@@ -20,6 +20,7 @@ and realized-P&L capture identically.
 from __future__ import annotations
 
 import logging
+from datetime import UTC, datetime
 from datetime import date as date_type
 from decimal import Decimal
 
@@ -28,6 +29,7 @@ from sqlmodel import Session, select
 from stockviz._time import utcnow
 from stockviz.models import PendingOrder, Portfolio, Symbol, TradeSide
 from stockviz.models.order import OrderStatus, OrderType
+from stockviz.services.ingest.bar_semantics import latest_completed_session
 from stockviz.services.simulation import (
     LIVE_PAPER_EXECUTION_PROFILE,
     FillDecision,
@@ -170,67 +172,109 @@ def _cancel(session: Session, order: PendingOrder, reason: str) -> None:
     logger.warning("order %s cancelled: %s", order.id, reason)
 
 
+ORDER_MAX_AGE_DAYS = 30
+"""A pending order expires this many days after it was placed (audit LG-6).
+
+Orders never expired, so a reservation lasted until the user cancelled it.
+"""
+
+
+def _expire(session: Session, order: PendingOrder) -> None:
+    order.status = OrderStatus.EXPIRED
+    order.cancel_reason = f"Expired after {ORDER_MAX_AGE_DAYS} days without filling"
+    session.add(order)
+    logger.info("order %s expired", order.id)
+
+
+def _known_at_placement(order: PendingOrder) -> date_type:
+    """The newest session whose close the user could see when placing the order."""
+    return latest_completed_session(order.created_at.replace(tzinfo=UTC))
+
+
 def settle_pending_orders(session: Session, *, session_date: date_type | None = None) -> int:
-    """Check all pending orders against the latest close; fill or cancel as triggered.
+    """Check all pending orders against the latest close; fill, cancel or expire them.
 
     ``session_date`` guards against filling at a stale price: an order is only
-    considered when the symbol's latest ``1d`` bar is dated on or after it.
-    The scheduler passes today's date, so a failed or slow price refresh
-    leaves orders **pending** for the next run rather than filling them
-    against yesterday's close. Pass ``None`` to skip the freshness check.
+    considered when the symbol's latest ``1d`` bar is dated on or after it, so
+    a failed price refresh leaves orders **pending** for the next run. Pass
+    ``None`` to skip that check.
+
+    An order also fills only on a session that closed after it was placed
+    (audit LG-5): a close the user could already see when placing it is not a
+    trigger. Orders older than :data:`ORDER_MAX_AGE_DAYS` expire (LG-6).
+
+    Each order commits on its own (audit LG-4): one unexpected error rolls
+    back that order only, and no portfolio stays locked for the whole run.
 
     Trigger and fill price come from ``evaluate_order(..., LIVE_PAPER_EXECUTION_PROFILE)``.
     Account failures still cancel the order. Kernel ``INELIGIBLE`` (adapter
-    inconsistency) is logged and the order is left pending so one bad row
-    cannot abort the batch.
+    inconsistency) is logged and the order is left pending.
 
     Returns the number of orders filled.
     """
     pending = list(
         session.exec(select(PendingOrder).where(PendingOrder.status == OrderStatus.PENDING)).all()
     )
+    now = utcnow()
     filled = 0
     for order in pending:
         try:
-            priced = resolve_priced_symbol(session, order.ticker)
-        except NoMarketDataError:
-            continue
-        except (SymbolNotFound, NoFxRateError) as exc:
-            _cancel(session, order, str(exc))
-            continue
-
-        if session_date is not None and priced.bar.ts.date() < session_date:
-            logger.info(
-                "order %s: latest %s bar is %s, older than session %s — leaving pending",
-                order.id,
-                order.ticker,
-                priced.bar.ts.date(),
-                session_date,
-            )
-            continue
-
-        provenance = _evaluate_pending(order, priced)
-        if provenance is None or provenance.decision.status is FillStatus.NOT_TRIGGERED:
-            continue
-        if provenance.decision.status is FillStatus.INELIGIBLE:
-            logger.error(
-                "pending order %s ineligible for kernel evaluation: ticker=%s type=%s side=%s reason=%s",
-                order.id,
-                order.ticker,
-                order.order_type,
-                order.side,
-                provenance.decision.trace.reason,
-            )
-            continue
-        fill_price = _require_full_pending_fill(order, provenance.decision)
-        if fill_price is None:
-            continue
-
-        if _fill(session, order, priced, fill_price=fill_price, provenance=provenance):
-            filled += 1
-
-    session.commit()
+            if _settle_one(session, order, session_date=session_date, now=now):
+                filled += 1
+            session.commit()
+        except Exception:
+            session.rollback()
+            logger.exception("order %s: settlement failed; left pending", order.id)
     return filled
+
+
+def _settle_one(
+    session: Session, order: PendingOrder, *, session_date: date_type | None, now: datetime
+) -> bool:
+    """Settle one pending order. Returns True when it filled. Does not commit."""
+    if (now - order.created_at).days >= ORDER_MAX_AGE_DAYS:
+        _expire(session, order)
+        return False
+    try:
+        priced = resolve_priced_symbol(session, order.ticker)
+    except NoMarketDataError:
+        return False
+    except (SymbolNotFound, NoFxRateError) as exc:
+        _cancel(session, order, str(exc))
+        return False
+
+    if session_date is not None and priced.bar.ts.date() < session_date:
+        logger.info(
+            "order %s: latest %s bar is %s, older than session %s — leaving pending",
+            order.id,
+            order.ticker,
+            priced.bar.ts.date(),
+            session_date,
+        )
+        return False
+
+    if priced.bar.ts.date() <= _known_at_placement(order):
+        # LG-5: this close was already known when the order was placed.
+        return False
+
+    provenance = _evaluate_pending(order, priced)
+    if provenance is None or provenance.decision.status is FillStatus.NOT_TRIGGERED:
+        return False
+    if provenance.decision.status is FillStatus.INELIGIBLE:
+        logger.error(
+            "pending order %s ineligible for kernel evaluation: ticker=%s type=%s side=%s reason=%s",
+            order.id,
+            order.ticker,
+            order.order_type,
+            order.side,
+            provenance.decision.trace.reason,
+        )
+        return False
+    fill_price = _require_full_pending_fill(order, provenance.decision)
+    if fill_price is None:
+        return False
+
+    return _fill(session, order, priced, fill_price=fill_price, provenance=provenance)
 
 
 def _evaluate_pending(order: PendingOrder, priced: PricedSymbol) -> FillProvenance | None:

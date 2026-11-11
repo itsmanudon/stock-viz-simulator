@@ -75,3 +75,6 @@ reportMissingTypeStubs = false
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+markers = [
+    "placement_guard: run LG-5's check that an order fills only on a session closed after it was placed",
+]

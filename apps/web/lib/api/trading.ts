@@ -128,7 +128,8 @@ export function getDividends(): Promise<DividendSummary> {
 // ---------------------------------------------------------------------------
 
 export type OrderType = "limit" | "stop_loss" | "take_profit";
-export type OrderStatus = "pending" | "filled" | "cancelled";
+/** "expired": unfilled 30 days after it was placed (audit LG-6). */
+export type OrderStatus = "pending" | "filled" | "cancelled" | "expired";
 
 export type PendingOrder = {
   id: number;

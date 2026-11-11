@@ -62,3 +62,21 @@ def client(session: Session) -> Iterator[TestClient]:
             yield c
     finally:
         app.dependency_overrides.clear()
+
+
+@pytest.fixture(autouse=True)
+def _orders_placed_before_seeded_bars(request, monkeypatch):
+    """Let settlement tests fill orders placed "now" against seeded 2025 bars.
+
+    LG-5 fills an order only on a session that closed after it was placed.
+    Most settlement tests seed bars dated 2025 and place orders at the wall
+    clock, and they test other things (kernel parity, reservations, FX), so
+    the placement check is off for them. Tests of the rule itself carry
+    ``@pytest.mark.placement_guard`` and run it for real.
+    """
+    if request.node.get_closest_marker("placement_guard") is None:
+        from datetime import date
+
+        monkeypatch.setattr(
+            "stockviz.services.trading.orders._known_at_placement", lambda _order: date.min
+        )

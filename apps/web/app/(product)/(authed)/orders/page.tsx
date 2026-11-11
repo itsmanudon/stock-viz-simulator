@@ -33,6 +33,7 @@ const FILTERS: { value: OrderStatusFilter; label: string }[] = [
   { value: "pending", label: "Pending" },
   { value: "filled", label: "Filled" },
   { value: "cancelled", label: "Cancelled" },
+  { value: "expired", label: "Expired" },
   { value: "all", label: "All" },
 ];
 
@@ -52,6 +53,11 @@ function emptyCopy(status: OrderStatusFilter): { title: string; body: string } {
       return {
         title: "No cancelled orders",
         body: "User cancels and settlement failures (insufficient cash or shares) land in this list with a reason when the API provides one.",
+      };
+    case "expired":
+      return {
+        title: "No expired orders",
+        body: "A pending order that has not filled 30 days after it was placed expires, and its reserved cash or shares are released.",
       };
     default:
       return {
@@ -75,6 +81,7 @@ export default async function OrdersPage({
     pending: allOrders.filter((order) => order.status === "pending").length,
     filled: allOrders.filter((order) => order.status === "filled").length,
     cancelled: allOrders.filter((order) => order.status === "cancelled").length,
+    expired: allOrders.filter((order) => order.status === "expired").length,
     all: allOrders.length,
   };
   const orders =

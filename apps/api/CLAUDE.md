@@ -348,7 +348,14 @@ intraday fills anywhere in the app:
   Orders that trigger but fail validation (insufficient available cash/shares)
   are **cancelled** with a `cancel_reason`, never retried. Settlement takes a
   `session_date` and leaves orders pending when the latest bar predates it, so
-  a failed price refresh can't fill against a stale close.
+  a failed price refresh can't fill against a stale close. An order fills only
+  on a session that closed **after** it was placed (LG-5; tests that seed old
+  bars turn this off through a `conftest.py` fixture, and LG-5's own tests opt
+  back in with `@pytest.mark.placement_guard`). Each order commits on its own
+  (LG-4). An order unfilled `ORDER_MAX_AGE_DAYS` (30) after placement becomes
+  `expired` and releases its reservation (LG-6). Order inputs go through
+  `services/trading/bounds.py::check_amount`: finite, positive, at most 6
+  decimals, capped (LG-9).
 - **One fill path.** Both market orders and pending-order settlement go through
   `execute.apply_fill`, which owns the cash/position mutation. Keep it that
   way: when the two had separate copies, only one of them converted native
