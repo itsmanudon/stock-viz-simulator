@@ -221,13 +221,13 @@ def _cmd_aegis_sync(args: argparse.Namespace) -> int:
     settings = get_settings()
     if not settings.aegis_configured:
         print(
-            "aegis-sync: AEGIS_BASE_URL, AEGIS_SIGNING_KEY, AEGIS_ISSUER and "
+            "aegis-sync: AEGIS_BASE_URL, AEGIS_SERVICE_TOKEN_KEY, AEGIS_ISSUER and "
             "AEGIS_AUDIENCE must all be set. Skipping.",
             file=sys.stderr,
         )
         return 2
 
-    key = load_signing_key(settings.aegis_signing_key)
+    key = load_signing_key(settings.aegis_service_token_key)
 
     def token() -> str:
         return mint_feed_token(

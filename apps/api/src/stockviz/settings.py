@@ -147,15 +147,16 @@ class Settings(BaseSettings):
     events_outbox_enabled: bool = True
 
     # Aegis News read sync (`stockviz.cli aegis-sync`, Phase 2). The sync is
-    # off until the base URL and signing key are set; the command then exits 2.
+    # off until URL, key, issuer and audience are set; the command then exits 2.
     # StockViz mints its own short-lived `feed:read` service token each run,
-    # signed with an Ed25519 key whose public half Aegis lists in
-    # AEGIS_OIDC_PUBLIC_KEYS. Issuer and audience must equal Aegis's
-    # AEGIS_OIDC_ISSUER and AEGIS_OIDC_AUDIENCE.
+    # signed with the Ed25519 key whose public half Aegis trusts under
+    # AEGIS_KEY_ID. Issuer and audience must equal Aegis's AEGIS_OIDC_ISSUER
+    # and AEGIS_OIDC_AUDIENCE. Hosted values are in .railway/railway.ts; the
+    # key is the one secret, kept in Doppler `stock-viz-simulator/prd`.
     aegis_base_url: str = ""
     # PEM private key. "\n" escapes are accepted, for one-line env values.
-    aegis_signing_key: str = ""
-    aegis_key_id: str = "stockviz-2026"
+    aegis_service_token_key: str = ""
+    aegis_key_id: str = "stockviz-sync-2026-11"
     aegis_issuer: str = ""
     aegis_audience: str = ""
     aegis_client_id: str = "stockviz-sync"
@@ -166,7 +167,7 @@ class Settings(BaseSettings):
     def aegis_configured(self) -> bool:
         return bool(
             self.aegis_base_url.strip()
-            and self.aegis_signing_key.strip()
+            and self.aegis_service_token_key.strip()
             and self.aegis_issuer.strip()
             and self.aegis_audience.strip()
         )

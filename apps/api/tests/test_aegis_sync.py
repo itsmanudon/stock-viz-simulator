@@ -234,8 +234,8 @@ def test_cli_runs_the_sync_with_a_minted_token(engine, monkeypatch, capsys) -> N
     )
     settings = SimpleNamespace(
         aegis_configured=True,
-        aegis_signing_key=pem,
-        aegis_key_id="stockviz-2026",
+        aegis_service_token_key=pem,
+        aegis_key_id="stockviz-sync-2026-11",
         aegis_issuer="https://aegis.example.test",
         aegis_audience="aegisnews",
         aegis_client_id="stockviz-sync",

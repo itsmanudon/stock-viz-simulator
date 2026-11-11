@@ -26,7 +26,7 @@ def load_signing_key(pem: str) -> Ed25519PrivateKey:
     text = pem.strip().replace("\\n", "\n")
     key = load_pem_private_key(text.encode(), password=None)
     if not isinstance(key, Ed25519PrivateKey):
-        raise ValueError("AEGIS_SIGNING_KEY must be an Ed25519 private key")
+        raise ValueError("AEGIS_SERVICE_TOKEN_KEY must be an Ed25519 private key")
     return key
 
 

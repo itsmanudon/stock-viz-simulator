@@ -158,16 +158,17 @@ export default defineRailway(() => {
       // No outbox publisher runs on Railway, so the news step skips its
       // article fan-out rather than fill a table nothing reads (audit OP-11).
       EVENTS_OUTBOX_ENABLED: "false",
-      // Aegis News sync (Phase 2). All set out of band with `railway variable
-      // set --service cron`; preserve() stops a re-apply from deleting them.
-      // Until all four of URL, key, issuer and audience are set, aegis-sync
-      // exits 2 and the chain skips it. AEGIS_SIGNING_KEY is the Ed25519
-      // private key whose public half Aegis lists in AEGIS_OIDC_PUBLIC_KEYS.
-      AEGIS_BASE_URL: preserve(),
-      AEGIS_SIGNING_KEY: preserve(),
-      AEGIS_KEY_ID: preserve(),
-      AEGIS_ISSUER: preserve(),
-      AEGIS_AUDIENCE: preserve(),
+      // Aegis News sync (Phase 2). Aegis has no public domain: the cron reaches
+      // it over the private network. Issuer, audience and key id are the
+      // values aegis-api trusts (not secret). The private key is the one
+      // secret: Doppler `stock-viz-simulator/prd` AEGIS_SERVICE_TOKEN_KEY,
+      // set on this service out of band; preserve() stops a re-apply from
+      // deleting it. Without it aegis-sync exits 2 and the chain skips it.
+      AEGIS_BASE_URL: "http://aegis-api.railway.internal:8000",
+      AEGIS_ISSUER: "https://stockviz-sync.issuer",
+      AEGIS_AUDIENCE: "aegis-news",
+      AEGIS_KEY_ID: "stockviz-sync-2026-11",
+      AEGIS_SERVICE_TOKEN_KEY: preserve(),
     },
     deploy: {
       cronSchedule: "0 22 * * 1-5",
