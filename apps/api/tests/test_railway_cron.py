@@ -56,9 +56,14 @@ def test_aegis_sync_runs_after_the_price_refresh_with_its_settings() -> None:
     assert steps.index("stockviz.cli ingest") < steps.index("stockviz.cli aegis-sync")
     cron = re.search(r'service\("cron", \{(.*?)\n  \}\);', code, re.DOTALL)
     assert cron, "cron service block not found"
-    for name in ("AEGIS_BASE_URL", "AEGIS_SIGNING_KEY", "AEGIS_ISSUER", "AEGIS_AUDIENCE"):
-        # preserve(): set out of band, never in source, kept across re-applies.
-        assert f"{name}: preserve()" in cron.group(1)
+    block = cron.group(1)
+    # The private key is set out of band and never in source.
+    assert "AEGIS_SERVICE_TOKEN_KEY: preserve()" in block
+    # The rest are the non-secret values aegis-api trusts.
+    assert 'AEGIS_BASE_URL: "http://aegis-api.railway.internal:8000"' in block
+    assert 'AEGIS_ISSUER: "https://stockviz-sync.issuer"' in block
+    assert 'AEGIS_AUDIENCE: "aegis-news"' in block
+    assert 'AEGIS_KEY_ID: "stockviz-sync-2026-11"' in block
 
 
 def test_cron_receives_the_internal_api_token() -> None:

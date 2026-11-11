@@ -124,9 +124,12 @@ tables and never call Aegis. Contract: `docs/contracts/aegis-read-v1.md` in
 the workspace repository and `aegis-news/docs/feed.md`. Rules:
 
 - StockViz mints its own 10-minute `feed:read` service token per run
-  (`AEGIS_SIGNING_KEY`, an Ed25519 PEM; claims as Aegis's
+  (`AEGIS_SERVICE_TOKEN_KEY`, an Ed25519 PEM; claims as Aegis's
   `mint_service_token`). Without URL, key, issuer and audience the command
-  exits 2, and the cron chain skips it.
+  exits 2, and the cron chain skips it. Hosted, Aegis has no public domain:
+  the cron reaches `http://aegis-api.railway.internal:8000`, and only the key
+  is set out of band (Doppler `stock-viz-simulator/prd`, key id
+  `stockviz-sync-2026-11`).
 - Each feed page commits with the cursor after it (`aegis_sync_state`), so a
   run that dies resumes there and a rerun changes nothing. Every run leaves a
   row in `aegis_sync_runs` (`running`, `succeeded` or `failed` with the error).

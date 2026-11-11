@@ -50,7 +50,7 @@ def test_token_carries_the_claims_aegis_validates() -> None:
     now = datetime(2026, 11, 11, 22, 0, tzinfo=UTC)
     token = mint_feed_token(
         key,
-        key_id="stockviz-2026",
+        key_id="stockviz-sync-2026-11",
         issuer="https://aegis.example.test",
         audience="aegisnews",
         client_id="stockviz-sync",
@@ -58,7 +58,7 @@ def test_token_carries_the_claims_aegis_validates() -> None:
     )
 
     header = jwt.get_unverified_header(token)
-    assert header == {"alg": "EdDSA", "kid": "stockviz-2026", "typ": "at+jwt"}
+    assert header == {"alg": "EdDSA", "kid": "stockviz-sync-2026-11", "typ": "at+jwt"}
     claims = jwt.decode(
         token,
         key.public_key(),
