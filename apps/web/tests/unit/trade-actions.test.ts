@@ -13,7 +13,7 @@ vi.mock("@/lib/api/trading", () => ({
   createOrder: (...args: unknown[]) => createOrder(...args),
 }));
 
-import { REVIEW_REQUIRED_ERROR } from "@/lib/order-review";
+import { REVIEW_REQUIRED_ERROR, newClientOrderId } from "@/lib/order-review";
 
 const { placeOrderAction, placeTradeAction } = await import(
   "@/app/(product)/(authed)/trade/actions"
@@ -75,5 +75,50 @@ describe("trade actions review guard", () => {
     await placeTradeAction({}, form(trade));
 
     expect(postTrade).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("client order keys (#67)", () => {
+  beforeEach(() => {
+    postTrade.mockReset().mockResolvedValue({
+      ticker: "AAPL",
+      side: "buy",
+      quantity: "1",
+      price: "25",
+      currency: "USD",
+      total_native: "25",
+      total_usd: "25",
+    });
+    createOrder.mockReset().mockResolvedValue({
+      order_type: "limit",
+      side: "buy",
+      quantity: "1",
+      ticker: "AAPL",
+      limit_price: "20",
+    });
+  });
+
+  it("passes the review's key to the API for market and pending orders", async () => {
+    await placeTradeAction({}, form({ ...trade, client_order_id: "key-1" }));
+    await placeOrderAction(
+      {},
+      form({ ...trade, order_type: "limit", limit_price: "20", client_order_id: "key-2" }),
+    );
+
+    expect(postTrade.mock.calls[0]?.[0]).toMatchObject({ client_order_id: "key-1" });
+    expect(createOrder.mock.calls[0]?.[0]).toMatchObject({ client_order_id: "key-2" });
+  });
+
+  it("drops a key the API would refuse rather than failing the order", async () => {
+    await placeTradeAction({}, form({ ...trade, client_order_id: "has spaces" }));
+
+    expect(postTrade.mock.calls[0]?.[0]).toMatchObject({ client_order_id: undefined });
+  });
+
+  it("makes keys the API accepts, different every time", () => {
+    const keys = new Set(Array.from({ length: 20 }, () => newClientOrderId()));
+
+    expect(keys.size).toBe(20);
+    for (const key of keys) expect(key).toMatch(/^[A-Za-z0-9_-]{1,64}$/);
   });
 });

@@ -247,12 +247,21 @@ class PortfolioOut(BaseModel):
     option_positions: list[PortfolioOptionOut] = []
 
 
+ClientOrderId = Annotated[
+    str | None,
+    Field(default=None, min_length=1, max_length=64, pattern=r"^[A-Za-z0-9_-]+$"),
+]
+"""A client-generated key (a UUID, say) that makes a submission safe to repeat:
+the same key returns the first order instead of placing a second (#67, LG-10)."""
+
+
 class TradeIn(BaseModel):
     """Request body for POST /v1/trades."""
 
     ticker: str
     side: Literal["buy", "sell"]
     quantity: Decimal
+    client_order_id: ClientOrderId = None
 
     @field_validator("quantity")
     @classmethod
@@ -670,6 +679,7 @@ class PendingOrderIn(BaseModel):
     order_type: str
     quantity: str
     limit_price: str
+    client_order_id: ClientOrderId = None
 
 
 class PendingOrderOut(BaseModel):

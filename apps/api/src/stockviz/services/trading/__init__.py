@@ -21,10 +21,12 @@ from stockviz.services.trading.buying_power import (
 from stockviz.services.trading.dividends import credit_due_dividends
 from stockviz.services.trading.execute import (
     DEFAULT_STARTING_CASH,
+    ClientOrderIdConflict,
     InsufficientCash,
     InsufficientPosition,
     NoFxRateError,
     NoMarketDataError,
+    StaleMarketData,
     SymbolNotFound,
     TradeExecution,
     TradeExecutionError,
@@ -53,6 +55,7 @@ from stockviz.services.trading.snapshots import (
 __all__ = [
     "DEFAULT_STARTING_CASH",
     "AnalyticsResult",
+    "ClientOrderIdConflict",
     "InsufficientCash",
     "InsufficientPosition",
     "NoFxRateError",
@@ -62,6 +65,7 @@ __all__ = [
     "PortfolioPosition",
     "PortfolioValuation",
     "SectorAllocation",
+    "StaleMarketData",
     "SymbolNotFound",
     "TopMover",
     "TradeExecution",

@@ -189,3 +189,48 @@ def test_second_session_sees_committed_cash_after_for_update() -> None:
             assert row is not None
             assert row.cash_balance == Decimal("30000").quantize(MICROS)
             assert available_cash(check, row) == Decimal("30000").quantize(MICROS)
+
+
+def test_two_sessions_with_one_client_order_id_fill_once() -> None:
+    """Two concurrent repeats of one market order: one fill, one cash debit (#67)."""
+    with scratch_postgres_engine() as engine:
+        with Session(engine) as setup:
+            user_id = _user(setup, "key")
+            _usd_symbol(setup, "AAPL", close=Decimal("100"))
+            portfolio = ensure_default_portfolio(setup, user_id)
+            assert portfolio.id is not None
+            portfolio_id = portfolio.id
+
+        barrier = threading.Barrier(2, timeout=15)
+        trade_ids: list[object] = []
+        lock = threading.Lock()
+
+        def worker() -> None:
+            with Session(engine) as session:
+                barrier.wait()
+                try:
+                    result: object = execute_trade(
+                        session,
+                        user_id=user_id,
+                        ticker="AAPL",
+                        side=TradeSide.BUY,
+                        quantity=Decimal("10"),
+                        client_order_id="same-ticket",
+                    ).trade.id
+                except Exception as exc:
+                    result = f"error:{type(exc).__name__}:{exc}"
+                with lock:
+                    trade_ids.append(result)
+
+        threads = [threading.Thread(target=worker) for _ in range(2)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join(timeout=20)
+            assert not thread.is_alive()
+
+        assert len(trade_ids) == 2 and trade_ids[0] == trade_ids[1], trade_ids
+        with Session(engine) as check:
+            row = check.get(Portfolio, portfolio_id)
+            assert row is not None
+            assert row.cash_balance == (DEFAULT_STARTING_CASH - Decimal("1000")).quantize(MICROS)

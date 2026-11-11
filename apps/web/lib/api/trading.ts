@@ -76,6 +76,8 @@ export type TradeInput = {
   ticker: string;
   side: "buy" | "sell";
   quantity: string;
+  /** Repeats with the same key return the first fill (#67). */
+  client_order_id?: string;
 };
 
 export function getPortfolio(): Promise<Portfolio> {
@@ -151,6 +153,8 @@ export type PendingOrderInput = {
   order_type: OrderType;
   quantity: string;
   limit_price: string;
+  /** Repeats with the same key return the first order (#67). */
+  client_order_id?: string;
 };
 
 export function listOrders(status?: OrderStatus): Promise<PendingOrder[]> {

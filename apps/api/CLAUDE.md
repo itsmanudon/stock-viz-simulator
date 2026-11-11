@@ -324,6 +324,18 @@ intraday fills anywhere in the app:
 - **Market orders** fill immediately at the latest close. Buys recompute the
   position's weighted-average `avg_cost`; sells never touch `avg_cost`, and a
   position sold to zero is **deleted**, not kept at qty 0.
+  A market order is refused (409, `StaleMarketData`) when the symbol's newest
+  close is from an earlier day than the newest close of any active symbol in
+  its currency (#67): one ticker whose refresh failed cannot trade at a stale
+  price, while weekends and holidays move every peer together. A refresh that
+  failed for a whole market is not caught until exchange calendars (Phase 4).
+- **Client order keys (#67, LG-10).** `POST /v1/trades` and `POST /v1/orders`
+  take an optional `client_order_id` (1-64 of `A-Z a-z 0-9 _ -`), unique per
+  portfolio. A repeat with the same order returns the first trade or order
+  (201, same body); the same key for a different order is a 409
+  (`ClientOrderIdConflict`). The lookup runs under the portfolio lock. The web
+  review (`components/order-review.tsx`) makes one key each time it opens.
+  Option trades have no key yet.
 - **Cash is always USD.** Trade rows store price/quantity in the symbol's
   native currency; the cash debit/credit converts at the latest FX rate
   (`services/trading/fx.py` — rates are USD-per-unit, forward-filled over

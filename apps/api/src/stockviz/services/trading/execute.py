@@ -18,8 +18,10 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from datetime import datetime
 from decimal import Decimal
 
+from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
@@ -81,6 +83,52 @@ class InsufficientCash(TradeExecutionError):
 
 class InsufficientPosition(TradeExecutionError):
     pass
+
+
+class StaleMarketData(TradeExecutionError):
+    """The symbol's latest close trails its market's newest close (#67)."""
+
+
+class ClientOrderIdConflict(TradeExecutionError):
+    """A client_order_id already names a different order in this portfolio (LG-10)."""
+
+
+def newest_close_for_currency(session: Session, currency: str) -> datetime | None:
+    """Newest ``1d`` bar among active symbols quoted in ``currency``.
+
+    The market's current session without a holiday calendar: when a whole
+    market is closed none of its symbols moves, so this stays put.
+    """
+    return session.exec(
+        select(func.max(PriceBar.ts))
+        .join(Symbol, Symbol.ticker == PriceBar.ticker)  # type: ignore[arg-type]
+        .where(
+            PriceBar.interval == "1d",
+            Symbol.currency == currency,
+            Symbol.is_active == True,  # noqa: E712
+        )
+    ).one()
+
+
+def require_current_close(session: Session, priced: PricedSymbol) -> None:
+    """Refuse a market fill at a close older than the symbol's market has (#67).
+
+    The rule: a market order fills only when the symbol's newest close is from
+    the same day as the newest close of any active symbol in its currency.
+    A failed refresh for one ticker leaves it behind its peers, so it cannot be
+    bought or sold at a days-old price. Weekends and market holidays move every
+    peer together, so trading at Friday's close stays allowed. A refresh that
+    failed for the whole market is not caught here; exchange calendars
+    (Phase 4) give the absolute rule.
+    """
+    newest = newest_close_for_currency(session, priced.currency)
+    bar_day = priced.bar.ts.date()
+    if newest is not None and bar_day < newest.date():
+        raise StaleMarketData(
+            f"{priced.symbol.ticker}'s latest close is from {bar_day.isoformat()}, "
+            f"but {priced.currency} markets have closes from {newest.date().isoformat()}. "
+            "Its price refresh is behind, so market orders wait until it catches up."
+        )
 
 
 def latest_bar(session: Session, ticker: str) -> PriceBar | None:
@@ -242,6 +290,8 @@ class TradeExecution:
     native_cost: Decimal
     usd_cost: Decimal
     realized_pnl: Decimal | None
+    # True when a repeated client_order_id returned an earlier fill (LG-10).
+    replayed: bool = False
 
 
 def apply_fill(
@@ -255,6 +305,7 @@ def apply_fill(
     currency: str,
     fx_rate: Decimal,
     exclude_order_id: int | None = None,
+    client_order_id: str | None = None,
 ) -> TradeExecution:
     """Mutate cash + position and stage the Trade row for ``portfolio``.
 
@@ -348,6 +399,7 @@ def apply_fill(
         fx_rate=fx_rate,
         realized_pnl=realized_pnl,
         avg_cost_at_fill=avg_cost_at_fill,
+        client_order_id=client_order_id,
     )
     session.add(trade)
     session.add(portfolio)
@@ -380,6 +432,7 @@ def execute_trade(
     ticker: str,
     side: TradeSide,
     quantity: Decimal,
+    client_order_id: str | None = None,
 ) -> TradeExecution:
     """Execute a market order. Raises a ``TradeExecutionError`` subclass on validation failure.
 
@@ -390,18 +443,37 @@ def execute_trade(
     Fill price comes from the SIM-01 kernel (``LIVE_PAPER_EXECUTION_PROFILE``,
     currently ``LEGACY_CLOSE``). Account validity, FX, and persistence stay in
     :func:`apply_fill`. Provenance is recorded from the same ``FillDecision``.
+
+    With a ``client_order_id`` the order runs at most once per portfolio: a
+    repeat with the same ticker, side and quantity returns the first fill
+    (``replayed``), and a repeat naming a different order raises
+    :class:`ClientOrderIdConflict` (#67, audit LG-10). The lookup runs under
+    the portfolio lock, so two concurrent repeats cannot both fill.
     """
 
     if quantity <= 0:
         raise TradeExecutionError("quantity must be positive")
 
     ticker = ticker.upper()
+    portfolio = ensure_default_portfolio(session, user_id)
+    assert portfolio.id is not None
+    if client_order_id is not None:
+        lock_portfolio(session, portfolio.id)
+        earlier = session.exec(
+            select(Trade).where(
+                Trade.portfolio_id == portfolio.id,
+                Trade.client_order_id == client_order_id,
+            )
+        ).first()
+        if earlier is not None:
+            return _replay_trade(session, earlier, ticker=ticker, side=side, quantity=quantity)
+
     priced = resolve_priced_symbol(session, ticker)
+    require_current_close(session, priced)
     provenance = _market_fill_provenance(bar=priced.bar, side=side, quantity=quantity)
     fill_price = provenance.decision.fill_price
     assert fill_price is not None
 
-    portfolio = ensure_default_portfolio(session, user_id)
     result = apply_fill(
         session,
         portfolio=portfolio,
@@ -411,11 +483,37 @@ def execute_trade(
         price=fill_price,
         currency=priced.currency,
         fx_rate=priced.fx_rate,
+        client_order_id=client_order_id,
     )
     record_execution_provenance(session, trade=result.trade, provenance=provenance)
     session.commit()
     session.refresh(result.trade)
     return result
+
+
+def _replay_trade(
+    session: Session, trade: Trade, *, ticker: str, side: TradeSide, quantity: Decimal
+) -> TradeExecution:
+    """The earlier fill for a repeated client_order_id, priced as it was filled."""
+    if trade.ticker != ticker or trade.side != side or trade.quantity != quantity:
+        raise ClientOrderIdConflict(
+            "This client_order_id was already used for a different order "
+            f"({trade.side.value} {trade.quantity} {trade.ticker})."
+        )
+    session.rollback()  # release the portfolio lock; nothing was written
+    symbol = session.get(Symbol, trade.ticker)
+    currency = (symbol.currency if symbol else None) or "USD"
+    fx_rate = trade.fx_rate if trade.fx_rate is not None else Decimal(1)
+    native_cost = (trade.price * trade.quantity).quantize(MICROS)
+    return TradeExecution(
+        trade=trade,
+        currency=currency,
+        fx_rate=fx_rate,
+        native_cost=native_cost,
+        usd_cost=(native_cost * fx_rate).quantize(MICROS),
+        realized_pnl=trade.realized_pnl,
+        replayed=True,
+    )
 
 
 def _market_fill_provenance(*, bar: PriceBar, side: TradeSide, quantity: Decimal) -> FillProvenance:
