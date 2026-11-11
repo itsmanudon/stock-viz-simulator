@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { ClickableRow } from "@/components/clickable-row";
+import { RangeBar } from "@/components/range-bar";
 import type { CompareInsight, CompareMetrics } from "@/lib/compare-workspace";
 import { formatSignedNumber, formatSignedPct } from "@/lib/compare-workspace";
 import { cn } from "@/lib/utils";
@@ -101,7 +102,7 @@ export function CompareMetricsTable({ rows }: { rows: CompareMetrics[] }) {
                 RSI 14
               </th>
               <th scope="col" className="px-3 py-2.5 text-right">
-                52w pos.
+                52-week position
               </th>
               <th scope="col" className="px-3 py-2.5 text-right">
                 Sentiment
@@ -142,10 +143,16 @@ export function CompareMetricsTable({ rows }: { rows: CompareMetrics[] }) {
                 <td className="px-3 py-3 text-right">
                   {cell(row.rsi14 === null ? "—" : row.rsi14.toFixed(1))}
                 </td>
-                <td className="px-3 py-3 text-right">
-                  {cell(
-                    row.week52PositionPct === null ? "—" : `${row.week52PositionPct.toFixed(0)}%`,
-                  )}
+                <td className="px-3 py-3">
+                  <RangeBar
+                    positionPct={row.week52PositionPct}
+                    className="ml-auto w-28"
+                    label={
+                      row.week52PositionPct === null
+                        ? "52-week position unavailable"
+                        : `${row.week52PositionPct.toFixed(0)}% of the way from the 52-week low to the high`
+                    }
+                  />
                 </td>
                 <td className={cn("px-3 py-3 text-right", signedClass(row.sentiment7d))}>
                   {cell(row.sentiment7d === null ? "—" : formatSignedNumber(row.sentiment7d))}

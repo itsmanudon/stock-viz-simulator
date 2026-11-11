@@ -7,14 +7,26 @@
  * are comparable regardless of absolute price level.
  */
 
-import { type IChartApi, LineSeries, type UTCTimestamp, createChart } from "lightweight-charts";
+import {
+  type IChartApi,
+  LineSeries,
+  LineStyle,
+  type UTCTimestamp,
+  createChart,
+} from "lightweight-charts";
 import { useEffect, useId, useRef } from "react";
 
 import type { Bar } from "@/lib/api";
 import { barTimeToUtcSeconds } from "@/lib/api-time";
 import { fitWithLabelRoom } from "@/lib/chart-range";
 import { useChartPalette } from "@/lib/chart-theme";
-import { seriesColor } from "@/lib/compare-workspace";
+import { type SeriesDash, seriesColor, seriesDash } from "@/lib/compare-workspace";
+
+const LINE_STYLES: Record<SeriesDash, LineStyle> = {
+  solid: LineStyle.Solid,
+  dashed: LineStyle.Dashed,
+  dotted: LineStyle.Dotted,
+};
 
 type Series = { ticker: string; bars: Bar[]; color?: string };
 
@@ -71,6 +83,7 @@ export function CompareChart({
       const line = chart.addSeries(LineSeries, {
         color: item.color ?? seriesColor(index),
         lineWidth: 2,
+        lineStyle: LINE_STYLES[seriesDash(index)],
         title: item.ticker,
         priceFormat: { type: "price", precision: 2, minMove: 0.01 },
         lastValueVisible: true,
@@ -105,17 +118,34 @@ export function CompareChart({
           .join(" ")}
       </p>
       <ul className="mt-4 flex flex-wrap gap-x-4 gap-y-2 text-xs" aria-label="Series legend">
-        {series.map((item, index) => (
-          <li key={item.ticker} className="inline-flex items-center gap-2">
-            <span
-              className="size-2.5 rounded-full"
-              style={{ backgroundColor: item.color ?? seriesColor(index) }}
-              aria-hidden
-            />
-            <span className="font-mono">{item.ticker}</span>
-            {item.bars.length === 0 ? <span className="text-text-tertiary">no history</span> : null}
-          </li>
-        ))}
+        {series.map((item, index) => {
+          const last = summaries[index]?.last ?? null;
+          const change = last === null ? null : last - 100;
+          return (
+            <li key={item.ticker} className="inline-flex items-center gap-2">
+              {/* A short stroke in the series' own colour and dash. */}
+              <span
+                className="w-4 border-t-2"
+                style={{
+                  borderColor: item.color ?? seriesColor(index),
+                  borderTopStyle: seriesDash(index),
+                }}
+                aria-hidden
+              />
+              <span className="font-mono">{item.ticker}</span>
+              {item.bars.length === 0 ? (
+                <span className="text-text-tertiary">no history</span>
+              ) : change === null ? null : (
+                <span
+                  className={`font-mono tabular-nums ${change >= 0 ? "text-positive" : "text-negative"}`}
+                >
+                  {change >= 0 ? "▲ +" : "▼ "}
+                  {change.toFixed(2)}%
+                </span>
+              )}
+            </li>
+          );
+        })}
       </ul>
     </div>
   );
