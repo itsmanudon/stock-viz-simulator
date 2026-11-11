@@ -138,4 +138,23 @@ test("operational trading loop from ticket to orders, watchlist, alerts, and rep
   await expect(main.getByRole("table", { name: "Replay episodes" })).toBeVisible();
   await expect(main.getByRole("heading", { name: "Decision journal" })).toBeVisible();
   expect(leaked).toEqual([]);
+
+  // On a phone, Orders, Watchlist and Alerts lay out as cards instead of a
+  // table that scrolls the page sideways (UI audit P1). This account has a
+  // watched symbol and an alert; its market buy filled at once, so Orders
+  // (conditional orders only) shows its empty state, which must fit too. The
+  // order card itself is covered in tests/unit/order-card.test.tsx.
+  await page.setViewportSize({ width: 390, height: 844 });
+  for (const [path, list] of [
+    ["/orders?status=all", null],
+    ["/watchlist", "Watched securities"],
+    ["/alerts?view=all", "Price alerts"],
+  ] as const) {
+    await page.goto(path);
+    if (list) await expect(main.getByRole("list", { name: list })).toContainText("AAPL");
+    const overflows = await page.evaluate(
+      () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
+    );
+    expect(overflows, `${path} scrolls sideways at 390px`).toBe(false);
+  }
 });

@@ -12,7 +12,7 @@ import {
   OperationalPageHeader,
   OperationalSubnav,
 } from "@/components/operational-page-header";
-import { OrderBlotterRow } from "@/components/order-blotter-row";
+import { OrderBlotterRow, OrderCard } from "@/components/order-blotter-row";
 import { PageFrame } from "@/components/page-frame";
 import { listSymbols } from "@/lib/api";
 import { listOrders } from "@/lib/api/trading";
@@ -121,52 +121,60 @@ export default async function OrdersPage({
           </OperationalEmptyState>
         </div>
       ) : (
-        <div className="mt-5 overflow-x-auto rounded-md border border-border-muted bg-card">
-          <table className="w-full min-w-[52rem] text-sm">
-            <caption className="sr-only">
-              {status === "all" ? "All paper orders" : `${status} paper orders`}
-            </caption>
-            <thead>
-              <tr className="border-b border-border-muted text-left text-3xs font-semibold tracking-[0.12em] text-text-tertiary uppercase">
-                <th scope="col" className="px-3 py-2.5">
-                  Ticker
-                </th>
-                <th scope="col" className="px-3 py-2.5">
-                  Side
-                </th>
-                <th scope="col" className="px-3 py-2.5">
-                  Type
-                </th>
-                <th scope="col" className="px-3 py-2.5 text-right">
-                  Qty
-                </th>
-                <th scope="col" className="px-3 py-2.5 text-right">
-                  Trigger
-                </th>
-                <th scope="col" className="px-3 py-2.5">
-                  Status
-                </th>
-                <th scope="col" className="hidden px-3 py-2.5 md:table-cell">
-                  Created
-                </th>
-                <th scope="col" className="hidden px-3 py-2.5 lg:table-cell">
-                  Filled / cancelled
-                </th>
-                <th scope="col" className="px-3 py-2.5 text-right">
-                  Fill
-                </th>
-                <th scope="col" className="px-3 py-2.5">
-                  <span className="sr-only">Actions</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {orders.map((order) => (
-                <OrderBlotterRow key={order.id} order={order} currencies={currencies} />
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <>
+          {/* Cards under md, where the table scrolled sideways (audit P1). */}
+          <ul aria-label="Paper orders" className="mt-5 grid gap-3 md:hidden">
+            {orders.map((order) => (
+              <OrderCard key={order.id} order={order} currencies={currencies} />
+            ))}
+          </ul>
+          <div className="mt-5 hidden overflow-x-auto rounded-md border border-border-muted bg-card md:block">
+            <table className="w-full min-w-[52rem] text-sm">
+              <caption className="sr-only">
+                {status === "all" ? "All paper orders" : `${status} paper orders`}
+              </caption>
+              <thead>
+                <tr className="border-b border-border-muted text-left text-3xs font-semibold tracking-[0.12em] text-text-tertiary uppercase">
+                  <th scope="col" className="px-3 py-2.5">
+                    Ticker
+                  </th>
+                  <th scope="col" className="px-3 py-2.5">
+                    Side
+                  </th>
+                  <th scope="col" className="px-3 py-2.5">
+                    Type
+                  </th>
+                  <th scope="col" className="px-3 py-2.5 text-right">
+                    Qty
+                  </th>
+                  <th scope="col" className="px-3 py-2.5 text-right">
+                    Trigger
+                  </th>
+                  <th scope="col" className="px-3 py-2.5">
+                    Status
+                  </th>
+                  <th scope="col" className="hidden px-3 py-2.5 md:table-cell">
+                    Created
+                  </th>
+                  <th scope="col" className="hidden px-3 py-2.5 lg:table-cell">
+                    Filled / cancelled
+                  </th>
+                  <th scope="col" className="px-3 py-2.5 text-right">
+                    Fill
+                  </th>
+                  <th scope="col" className="px-3 py-2.5">
+                    <span className="sr-only">Actions</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {orders.map((order) => (
+                  <OrderBlotterRow key={order.id} order={order} currencies={currencies} />
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
     </PageFrame>
   );
