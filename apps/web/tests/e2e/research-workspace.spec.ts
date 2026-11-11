@@ -29,8 +29,10 @@ test("research navigation keeps compare, backtest, and signals as one domain", a
   );
 
   await page.setViewportSize({ width: 390, height: 844 });
-  await expect(page.getByRole("heading", { name: "Compare", exact: true })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Select symbols to compare" })).toBeVisible();
+  // Scoped to #main for the same reason as the backtest test below.
+  const main = page.locator("#main");
+  await expect(main.getByRole("heading", { name: "Compare", exact: true })).toBeVisible();
+  await expect(main.getByRole("heading", { name: "Select symbols to compare" })).toBeVisible();
 });
 
 test("compare query params drive the workspace", async ({ page }) => {
@@ -118,8 +120,11 @@ test.describe("research pages on a phone", () => {
 
   test("backtest's default run produces a result (audit F1)", async ({ page }) => {
     await page.goto("/backtest");
-    await expect(page.getByText(/Stored closes for \S+ end/)).toBeVisible();
-    await page.getByRole("button", { name: "Run backtest" }).click();
-    await expect(page.getByRole("heading", { name: "Equity curve" })).toBeVisible();
+    // Scoped to #main: `next start` can briefly keep a second copy of the
+    // page tree, and an unscoped match then fails strict mode (PR #94).
+    const main = page.locator("#main");
+    await expect(main.getByText(/Stored closes for \S+ end/)).toBeVisible();
+    await main.getByRole("button", { name: "Run backtest" }).click();
+    await expect(main.getByRole("heading", { name: "Equity curve" })).toBeVisible();
   });
 });
