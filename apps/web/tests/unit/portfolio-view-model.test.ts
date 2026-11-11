@@ -13,6 +13,7 @@ import {
   parsePortfolioRange,
   parsePortfolioTab,
   portfolioRangeDays,
+  splitMinorUnits,
 } from "@/lib/portfolio-view-model";
 
 const positions: Position[] = [
@@ -100,5 +101,17 @@ describe("portfolio view model", () => {
     expect(formatSignedPercent(12.5)).toBe("+12.50%");
     expect(formatSignedPercent(-8.725)).toBe("-8.73%");
     expect(formatSignedPercent(null)).toBe("—");
+  });
+});
+
+describe("splitMinorUnits", () => {
+  it("separates the cents from the whole units", () => {
+    expect(splitMinorUnits("$20,000.00")).toEqual(["$20,000", ".00"]);
+    expect(splitMinorUnits("-₹1,486.20")).toEqual(["-₹1,486", ".20"]);
+  });
+
+  it("leaves currencies without minor units whole", () => {
+    expect(splitMinorUnits("¥15,000")).toEqual(["¥15,000", null]);
+    expect(splitMinorUnits("—")).toEqual(["—", null]);
   });
 });

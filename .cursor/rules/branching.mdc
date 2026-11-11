@@ -10,6 +10,7 @@ main ← dev ← feat/* | fix/* | chore/*
 ```
 
 - Cut every new branch from **`dev`**, never from `main`.
-- Open every PR against **`dev`**. Never target `main` with a feature, fix, chore, or Cursor agent PR.
+- Merge every finished branch into **`dev`** with a merge commit (`git merge --no-ff`). Never target `main` with a feature, fix, chore, or Cursor agent branch.
+- CI runs only for a pull request into `main`. Run the quality gates locally before merging into `dev`.
 - **`main` only receives merges from `dev`.** No direct merges of any other branch into `main`.
 - After work lands on `dev`, promote to production with a `dev` → `main` merge (or PR).

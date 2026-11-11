@@ -246,7 +246,7 @@ export function OrderTicket({
               id="limit_price"
               name="limit_price"
               type="number"
-              min="0.000001"
+              min="0.01"
               step="0.01"
               value={limitPrice}
               onChange={(event) => setLimitPrice(event.target.value)}

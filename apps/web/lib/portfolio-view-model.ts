@@ -104,6 +104,16 @@ export function formatCurrency(raw: string | number | null, currency = "USD"): s
   }
 }
 
+/**
+ * Splits a formatted amount into its whole units and its minor units
+ * ("$20,000.00" → ["$20,000", ".00"]) so a headline figure can dim the cents.
+ * Currencies formatted without decimals return `null` for the minor part.
+ */
+export function splitMinorUnits(formatted: string): [major: string, minor: string | null] {
+  const match = /^(.*?)(\.\d+)$/.exec(formatted);
+  return match ? [match[1], match[2]] : [formatted, null];
+}
+
 export function formatQuantity(raw: string | number): string {
   const value = Number(raw);
   if (!Number.isFinite(value)) return "—";

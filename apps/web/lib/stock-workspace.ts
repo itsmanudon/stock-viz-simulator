@@ -95,6 +95,34 @@ export function getSellShortcutQuantity({
   return quantityString(availableQuantity * fraction);
 }
 
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/**
+ * "Apr 4, 2025" for a stored bar timestamp. Reads the calendar date straight
+ * from the string, so the label never shifts a day with the server's or the
+ * browser's timezone (UI audit T2), and always carries the year (T3).
+ */
+export function formatCloseDate(iso: string | null | undefined): string | null {
+  const match = iso ? /^(\d{4})-(\d{2})-(\d{2})/.exec(iso) : null;
+  if (!match) return null;
+  const month = MONTHS[Number(match[2]) - 1];
+  return month ? `${month} ${Number(match[3])}, ${match[1]}` : null;
+}
+
+export type TicketOrderMode = "market" | "limit" | "stop_loss" | "take_profit";
+
+/**
+ * How the simulator fills each order type, in the words the order review
+ * shows. Mirrors docs/OPERATIONAL_TRADING.md: market orders fill at once at
+ * the latest stored daily close; pending orders are checked against the daily
+ * close by the weekday 16:45 ET job and fill at that close, not at the trigger.
+ */
+export function describeFillRule(mode: TicketOrderMode): string {
+  if (mode === "market") return "Fills now at the latest stored daily close";
+  const trigger = mode === "limit" ? "your limit" : "your trigger";
+  return `Checked after each weekday close (16:45 ET). Fills at that close once it reaches ${trigger}, not at ${trigger} itself`;
+}
+
 export function estimateNotional(quantity: number, price: number): number | null {
   if (!isPositiveFinite(quantity) || !isPositiveFinite(price)) return null;
   return quantity * price;

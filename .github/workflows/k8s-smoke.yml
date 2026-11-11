@@ -1,10 +1,11 @@
 name: Kubernetes smoke
 
+# Runs only for a pull request into main (the dev -> main promotion). Feature
+# branches and dev do not trigger it: run the quality gates locally before
+# merging into dev. See CLAUDE.md, "Branching workflow".
 on:
-  push:
-    branches: [main, dev]
   pull_request:
-    branches: [main, dev]
+    branches: [main]
 
 concurrency:
   group: k8s-smoke-${{ github.workflow }}-${{ github.ref }}

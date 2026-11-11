@@ -43,6 +43,7 @@ import {
   calculatePeriodReturnPct,
   calculatePositionReturnPct,
   deriveTrailingBarMetrics,
+  formatCloseDate,
   parseStockIndicators,
 } from "@/lib/stock-workspace";
 
@@ -164,6 +165,7 @@ export default async function StockPage({
     name: symbol.name,
     currency: symbol.currency,
     latestClose,
+    closeDate: symbol.latest?.ts ?? null,
     signedIn,
     account,
     callbackUrl: activeStockUrl,
@@ -171,7 +173,9 @@ export default async function StockPage({
   };
 
   return (
-    <div className="px-4 py-5 sm:px-6 sm:py-6 lg:px-8 lg:py-7">
+    // Bottom padding on narrow screens keeps the pinned Buy/Sell bar from
+    // covering the last section.
+    <div className="px-4 pt-5 pb-32 sm:px-6 sm:pt-6 lg:px-8 lg:pt-7 xl:pb-7">
       <SecurityHeader
         symbol={symbol}
         latestClose={latestClose}
@@ -183,9 +187,7 @@ export default async function StockPage({
         callbackUrl={activeStockUrl}
       />
 
-      <div className="mt-4 xl:hidden">
-        <MobileTradeSheet {...ticketProps} />
-      </div>
+      <MobileTradeSheet {...ticketProps} />
 
       <div className="mt-5 grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_19.5rem] xl:items-start xl:gap-6">
         <div className="min-w-0 space-y-4">
@@ -316,8 +318,10 @@ function Overview({
           around this security. Market orders use the latest cached close as their simulation basis.
         </p>
         <p className="mt-3 text-xs leading-5 text-text-tertiary">
-          End-of-day data{latestTimestamp ? ` through ${latestTimestamp}` : ""}. The indicative
-          price is simulated from the cached close and is not a realtime market quote.
+          End-of-day data
+          {latestTimestamp ? ` through ${formatCloseDate(latestTimestamp) ?? latestTimestamp}` : ""}
+          . The indicative price is simulated from the cached close and is not a realtime market
+          quote.
         </p>
         <nav aria-label="Research this security" className="mt-4 flex flex-wrap gap-3 text-sm">
           <Link href={`/compare?tickers=${symbol.ticker}`} className="hover:underline">

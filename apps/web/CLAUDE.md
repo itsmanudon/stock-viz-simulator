@@ -37,7 +37,11 @@ proxy.ts           NextAuth middleware
 components/
   dashboard/       signed-in home widgets (hero, movers, orders, alerts,
                    watchlist, allocation) + the shared WidgetCard/DeltaPill
-  marketing/       public-page-only pieces. `hero.tsx` + `hero-panel.tsx` (the
+  marketing/       public-page-only pieces. `hero.tsx` (Aurora: centred copy,
+                   pill CTAs, then a stage over a `.brand-glow` with the
+                   panel, the account-less `PaperCard` and glass fact pills
+                   from `md`/`lg` up; the stage is aria-hidden, so every fact
+                   on it must also appear as text) + `hero-panel.tsx` (the
                    `.panel-inset` product replica, real bars only, aria-hidden),
                    `market-ticker.tsx` (the `.marquee` price strip — halves are
                    `min-w-[100vw]`, never `min-w-full`, see the file header),
@@ -157,19 +161,27 @@ Specs live in `tests/e2e/`. The Playwright `webServer` runs `pnpm start`
 migrated + seeded DB. Full local sequence from the repo root:
 
 ```powershell
+$env:INTERNAL_API_TOKEN = "local-e2e-token"   # not the committed dev default
+$env:AUTH_SECRET = "local-e2e-secret"         # not the committed dev default
+$env:AUTH_TRUST_HOST = "true"         # prod builds don't trust the host by default
 pnpm db:up && pnpm api:migrate
 uv --directory apps/api run python -m stockviz.cli seed
 uv --directory apps/api run python -m stockviz.cli backfill
 uv --directory apps/api run python -m stockviz.cli recommend
-pnpm api:dev                          # keep running in another terminal
-$env:AUTH_TRUST_HOST = "true"         # prod builds don't trust the host by default
+pnpm api:dev                          # another terminal, same INTERNAL_API_TOKEN
 pnpm --filter @stockviz/web build
 pnpm e2e
 ```
 
-`INTERNAL_API_TOKEN` and `AUTH_SECRET` must match what the API/.env uses (the
-committed dev defaults already do). CI runs the same sequence — see the `e2e`
-job in `.github/workflows/ci.yml`. Runs single-worker, chromium only.
+The committed dev defaults do **not** work here. `pnpm start` runs with
+`NODE_ENV=production`, and `lib/env.ts` refuses the published defaults for
+`INTERNAL_API_TOKEN` and `AUTH_SECRET`: the server never becomes ready and
+Playwright times out after 60 s. Set both to any other value in the
+environment (it overrides `.env.local`), and give the API the same
+`INTERNAL_API_TOKEN`. CI does this with its own values, see the `e2e` job in
+`.github/workflows/ci.yml`. If a `pnpm dev` server is already on :3000,
+Playwright reuses it and the dev defaults are accepted. Runs single-worker,
+chromium only.
 
 `pnpm start` (`next start`) warns under `output: standalone` and can duplicate
 the page tree. Scope product assertions to `#main` rather than matching the
@@ -185,12 +197,19 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
 
 - shadcn components go in `components/ui/`. To add one: `pnpm dlx shadcn@latest add <name>`.
 - Use Tailwind utilities; the palette lives in `app/globals.css` as CSS
-  variables. The identity is **ATLAS**: neutral canvas (`#f5f5f5`),
-  restrained blue identity accent with neutral action surfaces, 8px radius (`--radius: 0.5rem`), Inter
-  display + IBM Plex Mono numerals (both self-hosted via `next/font`, no
-  runtime request). Light is the base; `.dark` re-grounds the same system on a
-  near-black canvas (`#0b0b0b`). Blue is reserved for identity, focus, and
-  selected controls; positive is a separate green (`--positive`) and negative
+  variables. The identity is **Aurora** (design board in the workspace repo at
+  `docs/design/2026-11-11-aurora-direction/`): navy-biased neutrals, a cool
+  light canvas (`#f4f6fa`) and a navy-black dark canvas (`#06080f`, the
+  default theme), 10px radius (`--radius: 0.625rem`), Geist display + Geist
+  Mono numerals (both self-hosted via `next/font`, no runtime request).
+  `--brand` is aqua in dark and blue in light (aqua fails contrast on white)
+  and is reserved for identity, focus, and selected controls. The
+  `--brand-gradient-from/via/to` stops and `--marketing-glow` feed the brand
+  primitives in globals.css — `.paper-card` (`components/paper-card.tsx`),
+  `.brand-glow`, `.glass` — which belong to brand moments only (the dashboard
+  hero, public pages, onboarding), never behind a chart, table, ticket or a
+  gain/loss figure. `.figure-minor` dims the cents of a headline amount; split
+  it with `splitMinorUnits()`. Positive is a separate green (`--positive`) and negative
   a separate red. `--*-soft` / `--*-soft-foreground` pairs
   (positive/negative/warning/neutral) are the tinted fills behind delta and
   status pills — use `DeltaPill` rather than re-rolling the chip.
@@ -234,6 +253,21 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   [`docs/OPERATIONAL_TRADING.md`](../../docs/OPERATIONAL_TRADING.md).
   `/trade?ticker=` prefills the ticket. `/orders?status=` is URL-backed.
   Do not describe EOD fills or alert evaluation as live exchange execution.
+- The stock page's `ContextualTradeTicket` is two-step (UI audit UX-4): "Review
+  order" opens a Revolut-style summary (amount, reference close with its date,
+  fees, fill rule from `describeFillRule()`, buying power after) and only the
+  review's button submits; a confirmation replaces the form after success.
+  Server actions post without JavaScript, so the ticket sends
+  `review_step=draft|confirmed` and `placeTradeAction`/`placeOrderAction`
+  refuse a `draft` post (`lib/order-review.ts`); the review button also stays
+  disabled until hydration. Tickets that omit the field (`/trade`) are
+  unaffected. Below `xl`, `MobileTradeSheet` pins a Buy/Sell bar to the bottom
+  of the viewport; the page adds `pb-32` so it never covers content.
+- A `"use server"` file may export only async functions (and types). Put
+  constants and helpers that actions share in `lib/`, or Next refuses the module.
+- Format stored bar timestamps with `formatCloseDate()` (`lib/stock-workspace.ts`):
+  it reads the calendar date from the string, so it never shifts a day with the
+  timezone, and always includes the year.
 
 <!-- BEGIN:nextjs-agent-rules -->
 

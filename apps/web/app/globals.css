@@ -13,36 +13,50 @@
 }
 
 :root {
-  /* ATLAS — a neutral terminal canvas with a restrained blue identity accent.
+  /* AURORA — navy-biased neutrals from the "Fintech Dark" base (#0A0F1E,
+     #8892A4) with an aqua → electric-blue brand. The brand gradient is for
+     brand moments only (the paper card, the hero glow, onboarding); the
+     trading workspace stays monochrome and uses colour only for meaning.
      Positive and negative remain separate semantic hues so a price change
-     never reads like a button state. */
-  --background: #f5f5f5;
-  --foreground: #151515;
+     never reads like a button state, and the brand never marks gain or loss.
+     Design board: stockviz-platform docs/design/2026-11-11-aurora-direction. */
+  --background: #f4f6fa;
+  --foreground: #0b1220;
   --card: #ffffff;
-  --card-foreground: #151515;
+  --card-foreground: #0b1220;
   --popover: #ffffff;
-  --popover-foreground: #151515;
-  --primary: #171717;
+  --popover-foreground: #0b1220;
+  --primary: #0b1220;
   --primary-foreground: #ffffff;
-  --brand: #1d4ed8;
-  --brand-muted: #e4ecff;
-  --secondary: #ededed;
-  --secondary-foreground: #202020;
-  --muted: #ededed;
+  /* Aqua fails contrast on white, so light mode carries the blue end of the
+     brand for text, focus and selection. The gradient stops stay the same in
+     both themes because the paper card always sits on its own dark ground. */
+  --brand: #2f4be0;
+  --brand-muted: #e3e9ff;
+  --brand-gradient-from: #5b6cff;
+  --brand-gradient-via: #38c8f0;
+  --brand-gradient-to: #a6f0ff;
+  /* Stops for gradient display text. Kept dark enough in light mode that the
+     lightest stop still clears 3:1 for large text on the canvas. */
+  --brand-text-from: #2f4be0;
+  --brand-text-to: #5b6cff;
+  --secondary: #e9edf3;
+  --secondary-foreground: #172033;
+  --muted: #e9edf3;
   --muted-foreground: var(--text-secondary);
-  --accent: #e5e5e5;
-  --accent-foreground: #151515;
+  --accent: #e1e6ee;
+  --accent-foreground: #0b1220;
   --destructive: #c93c45;
   --destructive-foreground: #ffffff;
-  --border: #d0d0d0;
-  --input: #bdbdbd;
-  --ring: #2563eb;
+  --border: #cdd4df;
+  --input: #b7c0ce;
+  --ring: #2f4be0;
   --surface-elevated: #ffffff;
-  --surface-secondary: #ededed;
-  --surface-hover: #e7e7e7;
-  --border-muted: #dedede;
-  --text-secondary: #5e5e5e;
-  --text-tertiary: #707070;
+  --surface-secondary: #e9edf3;
+  --surface-hover: #e1e6ee;
+  --border-muted: #dde2ea;
+  --text-secondary: #4e5868;
+  --text-tertiary: #636d7d;
   --positive: #147a56;
   --positive-foreground: #ffffff;
   --negative: #c93c45;
@@ -60,69 +74,74 @@
   --negative-soft-foreground: #a82f38;
   --warning-soft: #fff0d0;
   --warning-soft-foreground: #825006;
-  --neutral-soft: #ededed;
-  --neutral-soft-foreground: #5e5e5e;
-  --radius: 0.5rem;
+  --neutral-soft: #e9edf3;
+  --neutral-soft-foreground: #4e5868;
+  --radius: 0.625rem;
 
   /* Marketing surfaces.
      The public pages use one recurring neutral inset panel that holds product
      UI and makes the product identity legible in either theme. */
-  --marketing-panel: #111111;
-  --marketing-panel-border: #303030;
-  --marketing-glow: transparent;
-  --grid-line: #dedede;
+  --marketing-panel: #0b101b;
+  --marketing-panel-border: #1e2738;
+  /* The soft bloom behind brand objects (paper card, hero). Lighter in light
+     mode so it tints rather than stains the page. */
+  --marketing-glow: color-mix(in oklab, var(--brand-gradient-from) 22%, transparent);
+  --grid-line: #dde2ea;
 }
 
 .dark {
-  --background: #0b0b0b;
-  --foreground: #f2f2f2;
-  --card: #141414;
-  --card-foreground: #f2f2f2;
-  --popover: #181818;
-  --popover-foreground: #f2f2f2;
-  --primary: #f2f2f2;
-  --primary-foreground: #111111;
-  --brand: #7ea6ff;
-  --brand-muted: #162544;
-  --secondary: #1c1c1c;
-  --secondary-foreground: #dedede;
-  --muted: #1c1c1c;
+  --background: #06080f;
+  --foreground: #eef2f8;
+  --card: #0b101b;
+  --card-foreground: #eef2f8;
+  --popover: #111827;
+  --popover-foreground: #eef2f8;
+  --primary: #eef2f8;
+  --primary-foreground: #06080f;
+  --brand: #38c8f0;
+  --brand-muted: #0d2a3a;
+  --brand-text-from: #a6f0ff;
+  --brand-text-to: #5b8cff;
+  --secondary: #111827;
+  --secondary-foreground: #d5dce8;
+  --muted: #111827;
   --muted-foreground: var(--text-secondary);
-  --accent: #252525;
-  --accent-foreground: #f2f2f2;
-  --destructive: #f0787d;
+  --accent: #1a2233;
+  --accent-foreground: #eef2f8;
+  --destructive: #ff6b78;
   --destructive-foreground: #2d0c10;
-  --border: #303030;
-  --input: #3c3c3c;
-  --ring: #7ea6ff;
+  --border: #222c3e;
+  --input: #2e3a50;
+  --ring: #38c8f0;
   /* One step above --card so overlays separate from the tiles they sit on. */
-  --surface-elevated: #181818;
-  --surface-secondary: #1c1c1c;
-  --surface-hover: #252525;
-  --border-muted: #252525;
-  --text-secondary: #ababab;
-  --text-tertiary: #818181;
-  --positive: #4fd19d;
-  --positive-foreground: #06291e;
+  --surface-elevated: #111827;
+  --surface-secondary: #111827;
+  --surface-hover: #1a2233;
+  --border-muted: #182030;
+  --text-secondary: #a9b3c4;
+  --text-tertiary: #8892a4;
+  --positive: #3dd68c;
+  --positive-foreground: #052a19;
   --financial-tint-1: 6%;
   --financial-tint-2: 11%;
   --financial-tint-3: 17%;
-  --negative: #f0787d;
+  --negative: #ff6b78;
   --negative-foreground: #2d0c10;
-  --warning: #f1bd5b;
+  --warning: #f5b94a;
   --warning-foreground: #271b05;
-  --positive-soft: #103a2d;
-  --positive-soft-foreground: #7ce0b7;
-  --negative-soft: #421d23;
-  --negative-soft-foreground: #ff9da1;
-  --warning-soft: #3c2d12;
+  --positive-soft: #0f2e22;
+  --positive-soft-foreground: #7ee6b3;
+  --negative-soft: #3a161d;
+  --negative-soft-foreground: #ff9da5;
+  --warning-soft: #33270f;
   --warning-soft-foreground: #f4cd7b;
-  --neutral-soft: #252525;
-  --neutral-soft-foreground: #ababab;
+  --neutral-soft: #1a2233;
+  --neutral-soft-foreground: #a9b3c4;
 
-  --marketing-panel-border: #303030;
-  --marketing-glow: transparent;
-  --grid-line: #252525;
+  --marketing-panel: #0b101b;
+  --marketing-panel-border: #222c3e;
+  --marketing-glow: color-mix(in oklab, var(--brand-gradient-from) 55%, transparent);
+  --grid-line: #141b28;
 }
 
 @theme inline {
@@ -136,6 +155,9 @@
   --color-primary-foreground: var(--primary-foreground);
   --color-brand: var(--brand);
   --color-brand-muted: var(--brand-muted);
+  --color-brand-gradient-from: var(--brand-gradient-from);
+  --color-brand-gradient-via: var(--brand-gradient-via);
+  --color-brand-gradient-to: var(--brand-gradient-to);
   --color-secondary: var(--secondary);
   --color-secondary-foreground: var(--secondary-foreground);
   --color-muted: var(--muted);
@@ -278,8 +300,8 @@ html[data-density="compact"] .workspace-main .density-workspace {
 
   .dark .panel-inset {
     /* A shade above --card so nested tiles still separate from the panel. */
-    --surface-elevated: #1d1d1d;
-    --border-muted: #252525;
+    --surface-elevated: #141b29;
+    --border-muted: #1a2232;
     border-color: var(--marketing-panel-border);
     background-color: var(--marketing-panel);
     color-scheme: dark;
@@ -354,6 +376,120 @@ html[data-density="compact"] .workspace-main .density-workspace {
     -webkit-text-stroke: 2px
       color-mix(in oklab, var(--outline-color, var(--border)) 55%, transparent);
     opacity: 0.3;
+  }
+}
+
+/* --- Aurora brand primitives ----------------------------------------------
+   For brand moments only: the paper account card, the portfolio hero and
+   (later) the public hero. Never behind a chart, a table, a ticket, or any
+   figure that marks gain or loss — the workspace stays monochrome. */
+@layer components {
+  /* A soft bloom. Place it inside a `relative` parent and size it with
+     utilities; it never takes pointer events or affects layout. */
+  .brand-glow {
+    position: absolute;
+    pointer-events: none;
+    border-radius: 9999px;
+    background: radial-gradient(
+      closest-side,
+      var(--marketing-glow),
+      color-mix(in oklab, var(--brand-gradient-via) 18%, transparent) 55%,
+      transparent
+    );
+    filter: blur(48px);
+  }
+
+  /* Translucent panel over a glow. Falls back to the card fill where
+     backdrop blur is unsupported. */
+  .glass {
+    border: 1px solid var(--border-muted);
+    background-color: color-mix(in oklab, var(--card) 72%, transparent);
+    backdrop-filter: blur(18px);
+  }
+
+  /* The paper account card. It always sits on its own dark-to-bright brand
+     ground with white text, so it reads the same in either theme. Noise and a
+     slow sheen give it the plastic-card finish from the design board. */
+  .paper-card {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+    aspect-ratio: 1.586;
+    border-radius: 1rem;
+    color: #ffffff;
+    background: radial-gradient(
+        120% 90% at 85% 110%,
+        color-mix(in oklab, var(--brand-gradient-to) 85%, white) 0%,
+        transparent 45%
+      ),
+      radial-gradient(
+        90% 120% at 10% 0%,
+        color-mix(in oklab, var(--brand-gradient-from) 90%, black) 0%,
+        transparent 60%
+      ),
+      linear-gradient(
+        120deg,
+        var(--brand-gradient-from),
+        var(--brand-gradient-via) 60%,
+        var(--brand-gradient-to)
+      );
+    box-shadow: 0 18px 40px -14px color-mix(in oklab, var(--brand-gradient-from) 60%, transparent),
+      inset 0 0 0 1px rgb(255 255 255 / 0.25);
+  }
+
+  .paper-card::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    opacity: 0.22;
+    mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  }
+
+  .paper-card::after {
+    content: "";
+    position: absolute;
+    inset: -40% -10% auto 30%;
+    z-index: -1;
+    height: 140%;
+    transform: translateX(-120%) rotate(18deg);
+    background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.28), transparent);
+    animation: paper-card-sheen 7s ease-in-out infinite;
+  }
+
+  /* Gradient display text for the landing headline. The text stays real
+     text, so it copies, wraps and reads to assistive technology as normal. */
+  .text-brand-gradient {
+    background-image: linear-gradient(90deg, var(--brand-text-from), var(--brand-text-to));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  /* Dims the cents so the whole-unit figure reads first (Revolut's balance
+     treatment). The full value stays in the text, so copy and screen readers
+     get the exact amount. */
+  .figure-minor {
+    color: var(--text-tertiary);
+  }
+}
+
+@keyframes paper-card-sheen {
+  0%,
+  60% {
+    transform: translateX(-120%) rotate(18deg);
+  }
+  100% {
+    transform: translateX(120%) rotate(18deg);
+  }
+}
+
+/* The global reduced-motion block only shortens the sheen; park it instead. */
+@media (prefers-reduced-motion: reduce) {
+  .paper-card::after {
+    animation: none;
+    opacity: 0;
   }
 }
 

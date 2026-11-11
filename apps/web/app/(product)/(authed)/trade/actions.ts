@@ -5,6 +5,7 @@ import { z } from "zod";
 
 import { AuthedApiError, UnauthenticatedError } from "@/lib/api/server";
 import { createOrder, postTrade } from "@/lib/api/trading";
+import { REVIEW_REQUIRED_ERROR, skippedReview } from "@/lib/order-review";
 
 const TradeSchema = z.object({
   ticker: z
@@ -59,6 +60,7 @@ export async function placeTradeAction(
   _prev: TradeFormState,
   formData: FormData,
 ): Promise<TradeFormState> {
+  if (skippedReview(formData)) return { error: REVIEW_REQUIRED_ERROR };
   const parsed = TradeSchema.safeParse({
     ticker: formData.get("ticker"),
     side: formData.get("side"),
@@ -112,6 +114,7 @@ export async function placeOrderAction(
   _prev: OrderFormState,
   formData: FormData,
 ): Promise<OrderFormState> {
+  if (skippedReview(formData)) return { error: REVIEW_REQUIRED_ERROR };
   const parsed = OrderSchema.safeParse({
     ticker: formData.get("ticker"),
     side: formData.get("side"),
