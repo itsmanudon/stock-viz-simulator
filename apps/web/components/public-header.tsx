@@ -9,10 +9,12 @@ import { MobileNav } from "@/components/mobile-nav";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 
+// The three product pages, as SolCard's header lists its products. Markets
+// stays one click away from the hero's "Explore markets" and the footer.
 const PUBLIC_LINKS = [
-  { href: "/markets", label: "Markets" },
-  { href: "/compare", label: "Research" },
-  { href: "/backtest", label: "Backtest" },
+  { href: "/product/paper-trading", label: "Paper trading" },
+  { href: "/product/research", label: "Research" },
+  { href: "/product/replay", label: "Replay" },
 ];
 
 export async function PublicHeader() {

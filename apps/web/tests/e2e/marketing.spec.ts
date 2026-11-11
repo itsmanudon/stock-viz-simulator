@@ -174,3 +174,37 @@ test.describe("responsive", () => {
     });
   }
 });
+
+test.describe("product pages", () => {
+  for (const [slug, name, heading] of [
+    ["paper-trading", "Paper trading", /Trade the market/],
+    ["research", "Research", /Find it, test it/],
+    ["replay", "Replay", /Trade a past stretch/],
+  ] as const) {
+    test(`${name} has its own title and fits a phone and a desktop`, async ({ page }) => {
+      for (const width of [320, 1440]) {
+        await page.setViewportSize({ width, height: 900 });
+        await page.goto(`/product/${slug}`);
+        await expect(page).toHaveTitle(`${name} | StockViz`);
+        await expect(page.getByRole("heading", { level: 1 })).toContainText(heading);
+        const overflows = await page.evaluate(
+          () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
+        );
+        expect(overflows).toBe(false);
+      }
+    });
+  }
+
+  test("the header links the product pages", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto("/");
+    const nav = page.getByRole("navigation", { name: "Public" });
+    await nav.getByRole("link", { name: "Replay" }).click();
+    await expect(page).toHaveURL(/\/product\/replay$/);
+  });
+
+  test("news has no product page until the Aegis feed lands", async ({ page }) => {
+    const response = await page.goto("/product/news");
+    expect(response?.status()).toBe(404);
+  });
+});
