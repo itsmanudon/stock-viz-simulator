@@ -20,6 +20,7 @@ from stockviz.models.dividend import Dividend, PortfolioDividend
 from stockviz.models.earnings import EarningsEvent
 from stockviz.models.events import ConsumerInbox, OutboxEvent, PortfolioTradeActivity
 from stockviz.models.execution import SimulatedExecution
+from stockviz.models.job_run import JobRun
 from stockviz.models.market import (
     FxRate,
     NewsArticle,
@@ -58,6 +59,7 @@ __all__ = [
     "Dividend",
     "EarningsEvent",
     "FxRate",
+    "JobRun",
     "NewsArticle",
     "NewsSentiment",
     "OptionStatus",

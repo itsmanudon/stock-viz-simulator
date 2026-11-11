@@ -43,9 +43,20 @@ def test_every_cli_job_records_its_failure() -> None:
     jobs = re.findall(r"python -m stockviz\.cli ([a-z-]+)", steps)
     assert len(jobs) >= 10
     wrapped = set(re.findall(r'job\("python -m stockviz\.cli ([a-z-]+)', steps))
-    # One job tolerates exit code 2: `aegis-sync` (Aegis not configured yet).
-    assert set(jobs) - wrapped == {"aegis-sync"}
+    # Not wrapped in job(): `aegis-sync` tolerates exit code 2 (Aegis not
+    # configured), and `metadata` runs on Mondays only. Both still record rc.
+    assert set(jobs) - wrapped == {"aegis-sync", "metadata"}
     assert "stockviz.cli aegis-sync || [ $? -eq 2 ] || rc=1" in steps
+    assert 'if [ "$(date -u +%u)" = 1 ]; then python -m stockviz.cli metadata || rc=1; fi' in steps
+
+
+def test_earnings_and_metadata_are_refreshed() -> None:
+    """OP-3: nothing refreshed the earnings calendar or symbol metadata."""
+    steps = _eod_refresh(_code(_source()))
+    assert 'job("python -m stockviz.cli earnings")' in steps
+    # Both feed metrics and signals, so they run before them.
+    assert steps.index("stockviz.cli earnings") < steps.index("stockviz.cli metrics")
+    assert steps.index("stockviz.cli metadata") < steps.index("stockviz.cli metrics")
 
 
 def test_the_legacy_news_pipeline_is_off_the_cron() -> None:

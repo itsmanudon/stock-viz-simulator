@@ -1361,6 +1361,15 @@ export interface components {
              * @enum {string}
              */
             database: "up" | "down";
+            /** Newest Bar */
+            newest_bar?: string | null;
+            /** Last Job Success At */
+            last_job_success_at?: string | null;
+            /**
+             * Failing Jobs
+             * @default []
+             */
+            failing_jobs: string[];
         };
         /** IndicatorPointOut */
         IndicatorPointOut: {

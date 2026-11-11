@@ -124,6 +124,19 @@ settlement both use it, so the 22:00 UTC cron stores and settles the day's
 own session. (The old rule waited for New York midnight, so each night stored
 the session before.)
 
+**A night leaves a record (audits OP-5, OP-3, OP-15).** `cli.main` writes a
+`job_runs` row (`models/job_run.py`) for each command in `RECORDED_JOBS`:
+`running`, then `succeeded`, `failed` (any other exit code, or an exception,
+whose text is kept) or `skipped` (exit 2). Recording never changes a job's
+result. `/health` adds `newest_bar`, `last_job_success_at` and `failing_jobs`
+(jobs whose latest run failed); its status still depends on the database
+only. The CLI starts Sentry when `SENTRY_DSN` is set. The cron refreshes the
+earnings calendar nightly and symbol metadata on Mondays (both yfinance).
+`tests/test_cron_chain.py` runs the real chain from `railway.ts` through the
+CLI at a frozen 22:00 UTC (SQLite, and scratch PostgreSQL when
+`DATABASE_URL` is one); `tests/test_migration_round_trip.py` runs the
+Alembic chain up, down past this week's migrations, and up.
+
 **Snapshots and returns (audits LG-1, LG-2, SR-4, SR-5).** Snapshots are
 dated by the session their prices come from (`latest_completed_session`), not
 the run date. `portfolios.opening_nav` holds the starting value for good:
