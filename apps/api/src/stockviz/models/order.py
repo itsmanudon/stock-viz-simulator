@@ -11,7 +11,7 @@ import enum
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import Numeric, UniqueConstraint
+from sqlalchemy import CheckConstraint, Numeric, UniqueConstraint
 from sqlmodel import Column, Field, SQLModel
 
 from stockviz._time import utcnow
@@ -39,6 +39,9 @@ class PendingOrder(SQLModel, table=True):
     __table_args__ = (
         UniqueConstraint(
             "portfolio_id", "client_order_id", name="uq_pending_orders_portfolio_client_order_id"
+        ),
+        CheckConstraint(
+            "quantity > 0 AND limit_price > 0", name="ck_pending_orders_amounts_positive"
         ),
     )
 

@@ -825,6 +825,8 @@ class OptionTradeIn(BaseModel):
     expiry: date | None = None
     quantity: int | None = Field(default=None, ge=1, le=1_000)
     option_id: int | None = None
+    # Opens only: a repeat with the same key returns the first contract (LG-10).
+    client_order_id: ClientOrderId = None
 
     @field_validator("strike")
     @classmethod

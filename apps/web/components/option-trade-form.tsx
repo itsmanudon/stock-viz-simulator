@@ -5,7 +5,7 @@
  * openOptionAction server action. Closing positions happens from /portfolio.
  */
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
 
 import {
   type OptionTradeState,
@@ -14,6 +14,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { newClientOrderId } from "@/lib/order-review";
 
 type SymbolOption = { ticker: string; name: string };
 
@@ -26,6 +27,16 @@ function defaultExpiry(): string {
 export function OptionTradeForm({ options }: { options: SymbolOption[] }) {
   const [state, action, pending] = useActionState<OptionTradeState, FormData>(openOptionAction, {});
   const [optionType, setOptionType] = useState<"call" | "put">("call");
+  // One key per buy (audit LG-10): a repeat of the same submit opens one
+  // contract. Made in the browser after hydration, so the server HTML has no
+  // field to disagree with, and replaced after each successful buy. A form
+  // posted before hydration simply carries no key.
+  const [orderKey, setOrderKey] = useState<string | null>(null);
+  useEffect(() => {
+    // New on mount and after a success; kept after an error, so a retry of
+    // the same buy reuses it.
+    setOrderKey((key) => (key === null || state.success ? newClientOrderId() : key));
+  }, [state.success]);
 
   return (
     <div className="overflow-hidden rounded-md border border-border-muted bg-card">
@@ -46,6 +57,7 @@ export function OptionTradeForm({ options }: { options: SymbolOption[] }) {
             Put
           </Button>
           <input type="hidden" name="option_type" value={optionType} />
+          {orderKey ? <input type="hidden" name="client_order_id" value={orderKey} /> : null}
         </div>
 
         <div className="space-y-2">

@@ -11,7 +11,7 @@ from datetime import date as date_type
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import Index, Numeric, UniqueConstraint
+from sqlalchemy import CheckConstraint, Index, Numeric, UniqueConstraint
 from sqlmodel import Column, Field, SQLModel
 
 from stockviz._time import utcnow
@@ -24,6 +24,9 @@ class TradeSide(enum.StrEnum):
 
 class Portfolio(SQLModel, table=True):
     __tablename__ = "portfolios"  # pyright: ignore[reportAssignmentType]
+    # Backstop for the portfolio lock (audit LG-11): every writer checks
+    # available cash first, so a negative balance means a lost race.
+    __table_args__ = (CheckConstraint("cash_balance >= 0", name="ck_portfolios_cash_nonnegative"),)
 
     id: int | None = Field(default=None, primary_key=True)
     # One default paper book per user — concurrent first-use INSERTs collide
@@ -50,6 +53,13 @@ class Position(SQLModel, table=True):
     """
 
     __tablename__ = "positions"  # pyright: ignore[reportAssignmentType]
+    # One row per holding, never empty (audit LG-11). apply_fill deletes a
+    # position sold to zero, and two racing first buys must not both insert.
+    __table_args__ = (
+        UniqueConstraint("portfolio_id", "ticker", name="uq_positions_portfolio_ticker"),
+        CheckConstraint("quantity > 0", name="ck_positions_quantity_positive"),
+        CheckConstraint("avg_cost >= 0", name="ck_positions_avg_cost_nonnegative"),
+    )
 
     id: int | None = Field(default=None, primary_key=True)
     portfolio_id: int = Field(foreign_key="portfolios.id", index=True)
@@ -71,6 +81,7 @@ class Trade(SQLModel, table=True):
         UniqueConstraint(
             "portfolio_id", "client_order_id", name="uq_trades_portfolio_client_order_id"
         ),
+        CheckConstraint("quantity > 0 AND price > 0", name="ck_trades_quantity_price_positive"),
     )
 
     id: int | None = Field(default=None, primary_key=True)

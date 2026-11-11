@@ -209,3 +209,55 @@ def test_pending_order_key_naming_a_different_order_is_a_conflict(
 
     assert response.status_code == 409
     assert len(session.exec(select(PendingOrder)).all()) == 1
+
+
+def _priced_aapl(session: Session) -> None:
+    from datetime import timedelta
+
+    for day in range(40):
+        session.add(_bar("AAPL", datetime(2026, 9, 1) + timedelta(days=day), str(100 + day % 5)))
+    session.commit()
+
+
+def _open(client: TestClient, user_id: int, **extra: object):
+    from datetime import timedelta
+
+    from stockviz._time import utcnow
+
+    body = {
+        "action": "open",
+        "ticker": "AAPL",
+        "option_type": "call",
+        "strike": "100",
+        "expiry": (utcnow().date() + timedelta(days=60)).isoformat(),
+        "quantity": 1,
+        **extra,
+    }
+    return client.post("/v1/options/trade", json=body, headers=_headers(user_id))
+
+
+def test_repeated_option_open_charges_once(session: Session, client: TestClient) -> None:
+    from stockviz.models.option import OptionsPosition
+
+    user_id = _seed(session, aapl_day=FRIDAY)
+    _priced_aapl(session)
+
+    first = _open(client, user_id, client_order_id="option-1")
+    second = _open(client, user_id, client_order_id="option-1")
+
+    assert first.status_code == 201, first.text
+    assert second.status_code == 201
+    assert second.json()["position"]["id"] == first.json()["position"]["id"]
+    assert len(session.exec(select(OptionsPosition)).all()) == 1
+    premium = Decimal(first.json()["position"]["premium_paid"])
+    assert _cash(session, user_id) == Decimal("100000") - premium
+
+
+def test_option_key_naming_a_different_contract_is_a_conflict(
+    session: Session, client: TestClient
+) -> None:
+    user_id = _seed(session, aapl_day=FRIDAY)
+    _priced_aapl(session)
+    assert _open(client, user_id, client_order_id="option-1").status_code == 201
+
+    assert _open(client, user_id, client_order_id="option-1", strike="105").status_code == 409
