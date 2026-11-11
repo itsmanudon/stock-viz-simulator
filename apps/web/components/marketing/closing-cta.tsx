@@ -1,8 +1,8 @@
 /**
  * Closing call to action.
  *
- * Full-bleed and neutral — the page's final call to action keeps blue as an
- * accent rather than turning the canvas into a saturated brand block.
+ * Full-bleed and neutral, with one soft brand glow behind the heading (an
+ * Aurora brand moment) rather than a saturated brand block.
  *
  * The oversized hollow "$100,000" behind the heading is the ReadMe
  * oversized-wordmark trick applied to the number the copy is actually about.
@@ -20,6 +20,10 @@ export function ClosingCta() {
     <section className="relative isolate overflow-hidden border-y border-border-muted bg-surface-secondary">
       <span
         aria-hidden
+        className="brand-glow top-1/2 left-1/2 -z-10 h-80 w-[48rem] -translate-x-1/2 -translate-y-1/2 opacity-70"
+      />
+      <span
+        aria-hidden
         className="text-outline pointer-events-none absolute inset-x-0 top-1/2 -z-10 -translate-y-1/2 text-center font-mono text-[clamp(5rem,22vw,18rem)] leading-none font-bold whitespace-nowrap select-none [--outline-color:var(--border)] opacity-[0.18]"
       >
         $100,000
@@ -35,13 +39,13 @@ export function ClosingCta() {
             to your account.
           </p>
           <div className="mt-9 flex flex-wrap items-center justify-center gap-3">
-            <Button asChild size="lg">
+            <Button asChild size="lg" className="rounded-full px-6">
               <Link href="/signup" className="gap-2">
                 Create free account
                 <ArrowRight className="size-4" aria-hidden />
               </Link>
             </Button>
-            <Button asChild size="lg" variant="outline">
+            <Button asChild size="lg" variant="outline" className="glass rounded-full px-6">
               <Link href="/leaderboard">See the leaderboard</Link>
             </Button>
           </div>

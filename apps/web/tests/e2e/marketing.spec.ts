@@ -106,11 +106,11 @@ test.describe("themes", () => {
   // next-themes runs with `defaultTheme="dark"` and `enableSystem={false}`, so
   // the theme comes from localStorage rather than a media query.
   //
-  // `.panel-inset` follows the monochrome theme: a white panel in light mode,
-  // and the near-black marketing panel in dark mode.
+  // `.panel-inset` follows the theme: a white panel in light mode, and the
+  // Aurora navy marketing panel (`--marketing-panel: #0b101b`) in dark mode.
   const PANEL_BG = {
     light: "rgb(255, 255, 255)",
-    dark: "rgb(17, 17, 17)",
+    dark: "rgb(11, 16, 27)",
   } as const;
 
   for (const theme of ["light", "dark"] as const) {

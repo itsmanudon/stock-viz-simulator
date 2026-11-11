@@ -37,7 +37,11 @@ proxy.ts           NextAuth middleware
 components/
   dashboard/       signed-in home widgets (hero, movers, orders, alerts,
                    watchlist, allocation) + the shared WidgetCard/DeltaPill
-  marketing/       public-page-only pieces. `hero.tsx` + `hero-panel.tsx` (the
+  marketing/       public-page-only pieces. `hero.tsx` (Aurora: centred copy,
+                   pill CTAs, then a stage over a `.brand-glow` with the
+                   panel, the account-less `PaperCard` and glass fact pills
+                   from `md`/`lg` up; the stage is aria-hidden, so every fact
+                   on it must also appear as text) + `hero-panel.tsx` (the
                    `.panel-inset` product replica, real bars only, aria-hidden),
                    `market-ticker.tsx` (the `.marquee` price strip — halves are
                    `min-w-[100vw]`, never `min-w-full`, see the file header),
