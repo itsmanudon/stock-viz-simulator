@@ -93,13 +93,14 @@ test("operational trading loop from ticket to orders, watchlist, alerts, and rep
   await expect(main.getByText("legacy_close v1", { exact: true })).toBeVisible();
   await main.getByLabel("Symbol").selectOption("AAPL");
   await expect(main.getByText(/Stored daily bars for AAPL/i)).toBeVisible({ timeout: 10_000 });
-  await main.getByLabel("Start date").fill("2020-01-04");
-  await main.getByLabel("End date").fill("2020-01-19");
+  await main.getByLabel("Start date").fill("2020-01-06");
+  await main.getByLabel("End date").fill("2020-01-17");
   await main.getByRole("button", { name: "Start replay" }).click();
   await expect(page).toHaveURL(/\/replay\/\d+/, { timeout: 15_000 });
   await expect(main.getByRole("heading", { name: "AAPL", exact: true })).toBeVisible();
-  await expect(main.getByText(/stored daily bars 2020-01-04 → 2020-01-19/)).toBeVisible();
-  await expect(main.getByText(/Saturday, January 4, 2020/)).toBeVisible();
+  await expect(main.getByText(/stored daily bars 2020-01-06 → 2020-01-17/)).toBeVisible();
+  // A real session: the old seed data put bars on weekends (UI audit T6).
+  await expect(main.getByText(/Monday, January 6, 2020/)).toBeVisible();
   await expect(main.getByRole("region", { name: /replay price chart/i })).toBeVisible();
   await expect(
     main.getByRole("region", { name: /replay price chart/i }).getByText("Replay close"),

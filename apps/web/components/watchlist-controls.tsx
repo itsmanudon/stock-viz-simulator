@@ -43,8 +43,13 @@ export function AddWatchlistForm({
           name="ticker"
           required
           className="flex h-10 w-full rounded-sm border border-input bg-transparent px-3 text-sm"
-          defaultValue={symbols[0]?.ticker}
+          // No preselected symbol: the first alphabetically (7203.T) had no
+          // stored history and was added by a stray click (UI audit F2).
+          defaultValue=""
         >
+          <option value="" disabled>
+            Choose a symbol
+          </option>
           {symbols.map((symbol) => (
             <option key={symbol.ticker} value={symbol.ticker}>
               {symbol.ticker} — {symbol.name}
