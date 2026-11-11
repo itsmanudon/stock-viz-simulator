@@ -52,7 +52,9 @@ class NewsArticleOut(BaseModel):
     published_at: datetime
     summary: str | None
     image_url: str | None
-    sentiment: Literal["positive", "neutral", "negative"] | None = None
+    # "mixed" comes from Aegis (audit AG-4); StockViz's own providers emit the
+    # other three.
+    sentiment: Literal["positive", "neutral", "negative", "mixed"] | None = None
 
 
 class SymbolDetailOut(BaseModel):
@@ -613,6 +615,9 @@ class AlertOut(BaseModel):
     created_at: datetime
     triggered_at: datetime | None
     dismissed_at: datetime | None
+    # The symbol's trading currency, so the target formats without a second
+    # lookup. The target is in this currency, like every stored price.
+    currency: str = "USD"
 
 
 # ---------------------------------------------------------------------------
@@ -628,6 +633,10 @@ class WatchlistItemOut(BaseModel):
     sector: str | None
     added_at: datetime
     last_close: Decimal | None
+    # Timestamp of the stored bar behind last_close (audit RS-13), so the page
+    # can date the price. None when the symbol has no stored bars.
+    last_close_at: datetime | None = None
+    currency: str = "USD"
 
 
 # ---------------------------------------------------------------------------

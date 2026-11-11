@@ -8,6 +8,10 @@ export type WatchlistItem = {
   sector: string | null;
   added_at: string;
   last_close: string | null;
+  /** Timestamp of the bar behind last_close (audit RS-13). Optional: cached responses may predate it. */
+  last_close_at?: string | null;
+  /** The symbol's trading currency; last_close is in it. */
+  currency?: string;
 };
 
 export function listWatchlist(): Promise<WatchlistItem[]> {

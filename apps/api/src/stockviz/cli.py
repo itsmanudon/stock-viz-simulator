@@ -195,6 +195,25 @@ def _cmd_settle_options(_args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_prune_events(args: argparse.Namespace) -> int:
+    from stockviz._time import utcnow
+    from stockviz.events.prune import prune_events
+
+    with Session(engine) as session:
+        result = prune_events(
+            session,
+            now=utcnow(),
+            retention_days=args.days,
+            include_unpublished=args.include_unpublished,
+        )
+        session.commit()
+    print(
+        f"pruned events older than {args.days} day(s): {result.published} published outbox, "
+        f"{result.unpublished} unpublished outbox, {result.inbox} inbox"
+    )
+    return 0
+
+
 def _cmd_run_scheduler(_args: argparse.Namespace) -> int:
     from stockviz.workers.scheduler import main as scheduler_main
 
@@ -866,6 +885,23 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser(
         "settle-options", help="Settle every option position that has reached expiry"
     ).set_defaults(fn=_cmd_settle_options)
+
+    p_prune = sub.add_parser(
+        "prune-events",
+        help="Delete outbox and inbox rows past their retention (published rows only by default)",
+    )
+    p_prune.add_argument(
+        "--days",
+        type=int,
+        default=30,
+        help="Keep rows newer than this many days (default 30)",
+    )
+    p_prune.add_argument(
+        "--include-unpublished",
+        action="store_true",
+        help="Also delete old unpublished outbox rows. Only where no publisher runs, like the Railway cron",
+    )
+    p_prune.set_defaults(fn=_cmd_prune_events)
 
     sub.add_parser(
         "run-scheduler",

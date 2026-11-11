@@ -37,22 +37,36 @@ the user clears them by dismissing.
 """
 
 
+def _alert_out(alert: Alert, currency: str | None) -> AlertOut:
+    """An alert row with its symbol's currency, so the target formats correctly."""
+    return AlertOut.model_validate(alert).model_copy(update={"currency": currency or "USD"})
+
+
+def _currency_of(session: Session, ticker: str) -> str | None:
+    symbol = session.get(Symbol, ticker)
+    return symbol.currency if symbol else None
+
+
 @router.get("", response_model=list[AlertOut])
-def list_alerts(session: SessionDep, user_id: UserIdDep) -> list[Alert]:
+def list_alerts(session: SessionDep, user_id: UserIdDep) -> list[AlertOut]:
     """Return every alert the user owns, newest first."""
 
     stmt = (
-        select(Alert).where(Alert.user_id == user_id).order_by(Alert.created_at.desc())  # type: ignore[attr-defined]
+        select(Alert, Symbol.currency)
+        .join(Symbol, Symbol.ticker == Alert.ticker, isouter=True)  # type: ignore[arg-type]
+        .where(Alert.user_id == user_id)
+        .order_by(Alert.created_at.desc())  # type: ignore[attr-defined]
     )
-    return list(session.exec(stmt).all())
+    return [_alert_out(alert, currency) for alert, currency in session.exec(stmt).all()]
 
 
 @router.post("", response_model=AlertOut, status_code=status.HTTP_201_CREATED)
-def create_alert(body: AlertIn, session: SessionDep, user_id: UserIdDep) -> Alert:
+def create_alert(body: AlertIn, session: SessionDep, user_id: UserIdDep) -> AlertOut:
     if body.target_price <= 0:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "target_price must be positive")
     ticker = body.ticker.upper()
-    if session.get(Symbol, ticker) is None:
+    symbol = session.get(Symbol, ticker)
+    if symbol is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, f"Symbol {ticker!r} not found")
 
     active = (
@@ -79,7 +93,7 @@ def create_alert(body: AlertIn, session: SessionDep, user_id: UserIdDep) -> Aler
     session.add(alert)
     session.commit()
     session.refresh(alert)
-    return alert
+    return _alert_out(alert, symbol.currency)
 
 
 @router.delete("/{alert_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -92,7 +106,7 @@ def delete_alert(alert_id: int, session: SessionDep, user_id: UserIdDep) -> None
 
 
 @router.post("/{alert_id}/dismiss", response_model=AlertOut)
-def dismiss_alert(alert_id: int, session: SessionDep, user_id: UserIdDep) -> Alert:
+def dismiss_alert(alert_id: int, session: SessionDep, user_id: UserIdDep) -> AlertOut:
     """Mark a triggered alert as read.
 
     Only triggered alerts can be dismissed — dismissing an un-triggered alert
@@ -108,4 +122,4 @@ def dismiss_alert(alert_id: int, session: SessionDep, user_id: UserIdDep) -> Ale
     session.add(alert)
     session.commit()
     session.refresh(alert)
-    return alert
+    return _alert_out(alert, _currency_of(session, alert.ticker))

@@ -11,6 +11,7 @@ import { type IChartApi, LineSeries, type UTCTimestamp, createChart } from "ligh
 import { useEffect, useId, useRef } from "react";
 
 import type { Bar } from "@/lib/api";
+import { barTimeToUtcSeconds } from "@/lib/api-time";
 import { fitWithLabelRoom } from "@/lib/chart-range";
 import { useChartPalette } from "@/lib/chart-theme";
 import { seriesColor } from "@/lib/compare-workspace";
@@ -18,7 +19,7 @@ import { seriesColor } from "@/lib/compare-workspace";
 type Series = { ticker: string; bars: Bar[]; color?: string };
 
 function toUtcSeconds(iso: string): UTCTimestamp {
-  return Math.floor(new Date(iso).getTime() / 1000) as UTCTimestamp;
+  return barTimeToUtcSeconds(iso) as UTCTimestamp;
 }
 
 export function CompareChart({

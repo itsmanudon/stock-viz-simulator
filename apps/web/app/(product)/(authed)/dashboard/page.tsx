@@ -21,8 +21,7 @@ const SHORTCUTS = [
 ] as const;
 
 export default async function DashboardPage() {
-  const { portfolio, history, analytics, orders, alerts, watchlist, currencies } =
-    await loadDashboardData();
+  const { portfolio, history, analytics, orders, alerts, watchlist } = await loadDashboardData();
   const displayCurrency = portfolio.display_currency || "USD";
 
   return (
@@ -63,8 +62,8 @@ export default async function DashboardPage() {
           <PortfolioHero portfolio={portfolio} history={history} />
         </div>
         <OrdersWidget orders={orders} displayCurrency={displayCurrency} />
-        <WatchlistWidget watchlist={watchlist} currencies={currencies} />
-        <AlertsWidget alerts={alerts} currencies={currencies} />
+        <WatchlistWidget watchlist={watchlist} />
+        <AlertsWidget alerts={alerts} />
         <MoversWidget analytics={analytics} />
         <AllocationWidget analytics={analytics} />
       </div>

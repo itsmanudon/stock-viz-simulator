@@ -211,6 +211,23 @@ def test_http_derives_a_label_when_the_service_omits_one() -> None:
     assert out[0] is not None and out[0].label == "negative"
 
 
+def test_score_accepts_the_mixed_label_aegis_emits() -> None:
+    """Aegis's offline profile labels documents ``mixed`` (audit AG-4)."""
+    assert SentimentScore(label="mixed", score=0.05, model="aegis-offline").label == "mixed"
+
+
+def test_http_keeps_a_mixed_label_as_sent() -> None:
+    """It used to be replaced by a label derived from the score."""
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200, json={"model": "m", "results": [{"label": "mixed", "score": 0.4}]}
+        )
+
+    out = _http_provider(handler).score(_inputs("a"))
+    assert out[0] is not None and out[0].label == "mixed"
+
+
 def test_http_preserves_nulls_for_unscorable_documents() -> None:
     """A null result means "retry later", not "neutral"."""
 

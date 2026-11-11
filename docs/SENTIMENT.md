@@ -65,7 +65,7 @@ Authorization: Bearer {SENTIMENT_SERVICE_TOKEN}    # omitted when unset
 | `model` | string | Recorded against every score. Change it when the model changes — that's what makes re-scoring and A/B comparison possible. |
 | `results` | array | **Must** be the same length as `documents`, in the same order. |
 | `results[].score` | number | Required. `[-1, 1]`; values outside are clamped. |
-| `results[].label` | string | Optional. `positive` \| `neutral` \| `negative`. Derived from `score` when absent or unrecognised. |
+| `results[].label` | string | Optional. `positive` \| `neutral` \| `negative` \| `mixed`. Stored as sent; derived from `score` when absent or unrecognised. `mixed` means strong signals both ways: Aegis News emits it, and the badge shows it as Mixed. |
 | `results[].confidence` | number | Optional. `[0, 1]`. Omit rather than guessing — NULL means "unknown", not "zero". |
 | `results[].model` | string | Optional per-result override of the top-level `model`. |
 
@@ -87,7 +87,7 @@ is stored as NULL and retried by the backfill.
 ```
 id, article_id -> news_articles.id
 model          # "claude-haiku-4-5-20251001" | "finbert-v2" | ...
-label          # positive | neutral | negative
+label          # positive | neutral | negative | mixed (Aegis)
 score          # Numeric(6,4), -1.0000 .. 1.0000
 confidence     # Numeric(5,4), nullable
 scored_at

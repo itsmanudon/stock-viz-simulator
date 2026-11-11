@@ -2,20 +2,16 @@ import Link from "next/link";
 
 import { WidgetCard, WidgetEmpty } from "@/components/dashboard/widget-card";
 import type { WatchlistItem } from "@/lib/api/watchlist";
-import { formatNativePrice } from "@/lib/operational-trading";
+import { formatCurrency } from "@/lib/portfolio-view-model";
+import { formatCloseDate } from "@/lib/stock-workspace";
 
 /**
  * Compact read-only view of the watchlist; editing stays on /watchlist.
  * Prices in each symbol's own currency, as on /watchlist (UI audit T7: the
- * raw stored string "312.320000" showed here).
+ * raw stored string "312.320000" showed here), each dated by its own close
+ * (audit RS-13). Rows carry their currency, so no symbol lookup is needed.
  */
-export function WatchlistWidget({
-  watchlist,
-  currencies = {},
-}: {
-  watchlist: WatchlistItem[] | null;
-  currencies?: Record<string, string>;
-}) {
+export function WatchlistWidget({ watchlist }: { watchlist: WatchlistItem[] | null }) {
   const items = watchlist ?? [];
 
   return (
@@ -48,8 +44,15 @@ export function WatchlistWidget({
                     {item.name}
                   </span>
                 </span>
-                <span className="shrink-0 font-mono text-sm" data-financial>
-                  {formatNativePrice(item.last_close, item.ticker, currencies)}
+                <span className="shrink-0 text-right">
+                  <span className="block font-mono text-sm" data-financial>
+                    {formatCurrency(item.last_close, item.currency ?? "USD")}
+                  </span>
+                  {item.last_close !== null && formatCloseDate(item.last_close_at) ? (
+                    <span className="mt-0.5 block text-2xs text-text-tertiary">
+                      {formatCloseDate(item.last_close_at)}
+                    </span>
+                  ) : null}
                 </span>
               </Link>
             </li>
