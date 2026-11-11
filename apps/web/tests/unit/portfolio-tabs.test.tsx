@@ -25,13 +25,17 @@ describe("portfolio tabs", () => {
         orders={<p>Orders panel</p>}
         income={<p>Income panel</p>}
         journal={<p>Journal panel</p>}
+        positionCount={0}
         optionCount={2}
         orderCount={1}
       />,
     );
 
     expect(screen.getByRole("tablist", { name: "Portfolio sections" })).toBeVisible();
-    expect(screen.getByRole("tab", { name: "Positions" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: /^Positions/ })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
     expect(screen.getByRole("tab", { name: "Options 2" })).toBeVisible();
     expect(screen.getByRole("tab", { name: "Orders 1" })).toBeVisible();
     expect(screen.getByText("Positions panel")).toBeVisible();
@@ -48,6 +52,7 @@ describe("portfolio tabs", () => {
         orders={<p>Orders panel</p>}
         income={<p>Income panel</p>}
         journal={<p>Journal panel</p>}
+        positionCount={0}
         optionCount={0}
         orderCount={3}
       />,
@@ -69,12 +74,13 @@ describe("portfolio tabs", () => {
         orders={<p>Orders panel</p>}
         income={<p>Income panel</p>}
         journal={<p>Journal panel</p>}
+        positionCount={0}
         optionCount={0}
         orderCount={0}
       />,
     );
 
-    const positionsTab = screen.getByRole("tab", { name: "Positions" });
+    const positionsTab = screen.getByRole("tab", { name: /^Positions/ });
     positionsTab.focus();
     await user.keyboard("{ArrowRight}");
 

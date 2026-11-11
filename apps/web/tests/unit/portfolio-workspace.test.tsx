@@ -135,7 +135,10 @@ describe("portfolio workspace", () => {
         (_, element) => element?.tagName === "P" && element.textContent === "$128,420.00",
       ),
     ).toBeVisible();
-    expect(screen.getByRole("tab", { name: "Positions" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: /^Positions/ })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
     expect(screen.getByRole("tab", { name: "Orders 1" })).toBeVisible();
     expect(screen.getByRole("table", { name: "Stock positions" })).toBeVisible();
     expect(heading.compareDocumentPosition(tabs) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();

@@ -1,3 +1,4 @@
+import { FigureStrip } from "@/components/figure-strip";
 import type { Portfolio, PortfolioAnalytics } from "@/lib/api/trading";
 import { formatCurrency, formatSignedPercent } from "@/lib/portfolio-view-model";
 
@@ -63,37 +64,36 @@ export function PortfolioMetrics({ portfolio, analytics }: Props) {
   }
 
   return (
-    <section aria-labelledby="portfolio-metrics-heading" className="border-b border-border-muted">
+    <section aria-labelledby="portfolio-metrics-heading" className="mt-5">
       <h2 id="portfolio-metrics-heading" className="sr-only">
         Portfolio metrics
       </h2>
-      <dl className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-        {metrics.map((metric) => (
-          <div
-            key={metric.label}
-            className="min-w-0 border-b border-border-muted px-3 py-4 even:border-l sm:px-4 lg:border-b-0 lg:border-l lg:first:border-l-0"
-          >
-            <dt className="text-2xs font-medium text-muted-foreground">{metric.label}</dt>
-            <dd
-              className={`mt-1 font-mono text-base font-semibold ${
+      <FigureStrip
+        label="Portfolio metrics"
+        figures={metrics.map((metric) => ({
+          label: metric.label,
+          note: metric.detail,
+          value: (
+            <span
+              className={
                 metric.tone === "positive"
                   ? "text-positive"
                   : metric.tone === "negative"
                     ? "text-negative"
-                    : "text-foreground"
-              }`}
-              data-financial
+                    : undefined
+              }
             >
-              {metric.value}
-            </dd>
-            {metric.detail ? (
-              <dd className="mt-0.5 text-2xs text-muted-foreground">{metric.detail}</dd>
-            ) : null}
-          </div>
-        ))}
-      </dl>
+              {/* The arrow carries the sign as well as the colour. */}
+              {metric.tone ? (
+                <span aria-hidden>{metric.tone === "positive" ? "▲ " : "▼ "}</span>
+              ) : null}
+              <span>{metric.value}</span>
+            </span>
+          ),
+        }))}
+      />
       {hasInvestments && analytics?.history_days ? (
-        <p className="border-t border-border-muted px-4 py-2 text-2xs text-muted-foreground">
+        <p className="mt-2 text-2xs text-muted-foreground">
           All-history risk metrics · Based on {analytics.history_days} daily snapshots
         </p>
       ) : null}
