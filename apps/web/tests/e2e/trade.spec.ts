@@ -32,7 +32,7 @@ test("operational trading loop from ticket to orders, watchlist, alerts, and rep
       .getByText(/Submits immediately at the latest stored daily close/i),
   ).toBeVisible();
   await expect(
-    main.getByRole("region", { name: "Account context" }).getByText("Buying power"),
+    main.getByRole("region", { name: "Account" }).getByText("Buying power"),
   ).toBeVisible();
 
   await main.getByLabel("Quantity").fill("1");
@@ -47,7 +47,7 @@ test("operational trading loop from ticket to orders, watchlist, alerts, and rep
 
   await page.goto("/trades");
   await expect(main.getByRole("heading", { name: "Trade history" })).toBeVisible();
-  await expect(main.locator("tbody tr").first()).toContainText("BUY");
+  await expect(main.locator("tbody tr").first()).toContainText(/buy/i);
 
   await page.goto("/orders");
   await expect(main.getByRole("heading", { name: "Orders", exact: true })).toBeVisible();

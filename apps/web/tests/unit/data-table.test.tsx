@@ -139,7 +139,7 @@ describe("StatusBadge", () => {
 });
 
 describe("order and alert badges", () => {
-  it("keeps the buy/sell and alert-state tone mapping after consolidation", async () => {
+  it("keeps sides neutral and maps order and alert states to tones", async () => {
     const { OrderSideBadge, OrderStatusBadge, AlertStatusBadge } = await import(
       "@/components/operational-page-header"
     );
@@ -157,11 +157,12 @@ describe("order and alert badges", () => {
     );
 
     const scope = within(container);
-    expect(scope.getByText("buy")).toHaveClass("text-positive");
-    expect(scope.getByText("sell")).toHaveClass("text-negative");
+    // The side of an order is not a gain or a loss (Aurora board v3).
+    expect(scope.getByText("buy").parentElement).toHaveClass("text-text-secondary");
+    expect(scope.getByText("sell").parentElement).not.toHaveClass("text-negative");
     expect(scope.getByText("filled")).toHaveClass("text-positive");
-    expect(scope.getByText("pending")).toHaveClass("text-brand");
-    expect(scope.getByText("Active")).toHaveClass("text-brand");
+    expect(scope.getByText("pending")).toHaveClass("text-warning");
+    expect(scope.getByText("Active")).toHaveClass("text-text-secondary");
     expect(scope.getByText("Triggered")).toHaveClass("text-positive");
     expect(scope.getByText("Dismissed")).toHaveClass("text-text-secondary");
   });

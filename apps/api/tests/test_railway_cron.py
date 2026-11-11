@@ -77,3 +77,13 @@ def test_cron_receives_the_internal_api_token() -> None:
     # settings.py refuses to load in production with the dev default token,
     # and every CLI command imports settings.
     assert "INTERNAL_API_TOKEN" in cron.group(1)
+
+
+def test_orders_and_alerts_run_between_fx_and_the_snapshot() -> None:
+    """P0-1 and P0-2: hosted runners, after fresh FX and before tonight's NAV."""
+    steps = _eod_refresh(_code(_source()))
+    order = [
+        steps.index(f"stockviz.cli {name}")
+        for name in ("fx", "settle-orders", "evaluate-alerts", "snapshot-portfolios")
+    ]
+    assert order == sorted(order)

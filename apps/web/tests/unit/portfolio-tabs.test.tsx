@@ -24,6 +24,7 @@ describe("portfolio tabs", () => {
         options={<p>Options panel</p>}
         orders={<p>Orders panel</p>}
         income={<p>Income panel</p>}
+        news={<p>News panel</p>}
         journal={<p>Journal panel</p>}
         positionCount={0}
         optionCount={2}
@@ -51,6 +52,7 @@ describe("portfolio tabs", () => {
         options={<p>Options panel</p>}
         orders={<p>Orders panel</p>}
         income={<p>Income panel</p>}
+        news={<p>News panel</p>}
         journal={<p>Journal panel</p>}
         positionCount={0}
         optionCount={0}
@@ -73,6 +75,7 @@ describe("portfolio tabs", () => {
         options={<p>Options panel</p>}
         orders={<p>Orders panel</p>}
         income={<p>Income panel</p>}
+        news={<p>News panel</p>}
         journal={<p>Journal panel</p>}
         positionCount={0}
         optionCount={0}
@@ -85,5 +88,29 @@ describe("portfolio tabs", () => {
     await user.keyboard("{ArrowRight}");
 
     expect(push).toHaveBeenCalledWith("/portfolio?range=3m&tab=options", { scroll: false });
+  });
+
+  it("offers a News tab for the holdings, between Income and Journal (Phase 2)", async () => {
+    const user = userEvent.setup();
+    render(
+      <PortfolioTabs
+        activeTab="positions"
+        range="3m"
+        positions={<p>Positions panel</p>}
+        options={<p>Options panel</p>}
+        orders={<p>Orders panel</p>}
+        income={<p>Income panel</p>}
+        news={<p>News panel</p>}
+        journal={<p>Journal panel</p>}
+        positionCount={1}
+        optionCount={0}
+        orderCount={0}
+      />,
+    );
+
+    const names = screen.getAllByRole("tab").map((tab) => tab.textContent);
+    expect(names.indexOf("News")).toBe(names.indexOf("Income") + 1);
+    await user.click(screen.getByRole("tab", { name: "News" }));
+    expect(push).toHaveBeenCalledWith("/portfolio?range=3m&tab=news", { scroll: false });
   });
 });

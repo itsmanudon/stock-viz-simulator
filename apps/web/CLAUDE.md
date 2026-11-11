@@ -367,6 +367,22 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   snapshots (with two it would repeat the period). The orders widget prices
   triggers in the symbol's currency, from the positions and watchlist the page
   already loads, falling back to USD as `/orders` does.
+- Trading pages (Aurora board v3): `OrderSideBadge` is neutral (an arrow and
+  the word), `StatusBadge` carries a leading dot and a `warning` tone, and
+  pending orders use it (brand stays for identity and selected controls).
+  `/orders` fetches every order once so each status tab shows a
+  `CountBadge`. `/trades` prices each row in the trade's own currency
+  (`total_native`), times it in UTC with `formatUtcDateTime()`
+  (`lib/api-time.ts`), and totals only realized P&L, which the API reports in
+  USD. `/trade` keeps chart and recent fills on the left and the ticket and
+  account on the right; below `xl` the column wrappers are `contents` and
+  `order-*` sets chart, ticket, account, fills.
+- Monitoring and Replay (Aurora board v3): watchlist rows act through four
+  round icon buttons (research, trade, alert, remove), each with a spoken name
+  and a title; `/alerts` view tabs count with the same `matchesView()` rule
+  as the list, and an armed alert's badge is neutral. A replay session states
+  the blind rule in a banner above everything, dates itself with a
+  `MetaChip`, and puts a completed run's summary on `FigureStrip`.
 - Compare series differ by line style as well as colour: `seriesDash()` in
   `lib/compare-workspace.ts` cycles solid, dashed, dotted, and both the chart
   and its legend read it. Buy and sell labels stay neutral (an arrow and the
@@ -382,6 +398,9 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   (`components/news-list.tsx`): the publisher's date, else "Collected <date>"
   (GDELT sends none, audit AG-12). Signals print `row.maxScore`, not a fixed
   7: the sentiment vote is unavailable without scored news (audit SR-9).
+  News for a set of symbols is one call, `getNewsForTickers()` (`/v1/news?tickers=`):
+  `/watchlist` lists it under the table, and `/portfolio?tab=news` loads it
+  for the holdings only while that tab is open, as Journal does.
 - Watchlist rows carry `last_close_at` and `currency`, and alert rows carry
   `currency` (audit RS-13), so the dashboard no longer loads the symbol list
   to format them. `/alerts` still loads it for the create form.

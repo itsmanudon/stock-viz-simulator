@@ -5,11 +5,14 @@
  * quotes, SSE, news, comments, or generic bar history.
  */
 
+import { Lock } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { FigureStrip } from "@/components/figure-strip";
 import { PageFrame } from "@/components/page-frame";
+import { MetaChip } from "@/components/page-header";
 import { PriceChart } from "@/components/price-chart";
 import { ReplayAdvanceControls } from "@/components/replay-controls";
 import { ReplayFillTable } from "@/components/replay-fills";
@@ -77,18 +80,20 @@ export default async function ReplaySessionPage({
       <PageFrame width="workstation" className="py-6 sm:py-8">
         <header className="flex flex-col gap-3 border-b border-border-muted pb-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="text-[11px] font-semibold tracking-[0.14em] text-brand uppercase">
+            <p className="text-2xs font-medium tracking-[0.12em] text-text-secondary uppercase">
               {session.status === "completed" ? "Replay Review" : "Replay"} · Historical session ·
               Daily data
             </p>
-            <h1 className="mt-2 text-3xl font-semibold tracking-tight">{session.ticker}</h1>
-            <p className="mt-1 text-lg text-text-secondary">
-              {formatReplayDate(session.current_at)}
-            </p>
-            <p className="mt-1 text-xs text-text-tertiary">
-              {replayStatusLabel(session.status)} · stored daily bars{" "}
-              {session.start_at.slice(0, 10)} → {session.end_at.slice(0, 10)}
-            </p>
+            <h1 className="mt-1.5 text-3xl font-medium tracking-tight">{session.ticker}</h1>
+            <div className="mt-2.5 flex flex-wrap items-center gap-2 text-xs text-text-tertiary">
+              <MetaChip tone={session.status === "active" ? "warning" : "neutral"}>
+                Replay date · {formatReplayDate(session.current_at)}
+              </MetaChip>
+              <span>
+                {replayStatusLabel(session.status)} · stored daily bars{" "}
+                {session.start_at.slice(0, 10)} → {session.end_at.slice(0, 10)}
+              </span>
+            </div>
           </div>
           <Link
             href="/replay"
@@ -97,6 +102,16 @@ export default async function ReplaySessionPage({
             All replays
           </Link>
         </header>
+
+        {/* The blind rule leads the page (Aurora board v3): it shapes every
+            figure below, so it is stated before any of them. */}
+        <p className="mt-4 flex items-start gap-2.5 rounded-xl border border-border-muted bg-card px-4 py-3 text-sm text-text-secondary">
+          <Lock className="mt-0.5 size-4 shrink-0 text-text-tertiary" aria-hidden />
+          <span>
+            Blind session: you see bars up to the replay date only, with no news or comments. Fills
+            use that day&apos;s stored close, with no spread and no slippage.
+          </span>
+        </p>
 
         {startChanged || endChanged ? (
           <p className="mt-4 border-y border-border-muted py-3 text-sm text-text-secondary sm:border-x sm:px-4">
@@ -136,38 +151,39 @@ export default async function ReplaySessionPage({
                 — replay versus buy-and-hold, MAE/MFE, episodes, and journal.
               </p>
             )}
-            <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
-              <div>
-                <dt className="text-xs text-text-tertiary">Starting equity</dt>
-                <dd className="font-mono tabular-nums">{formatCurrency(summary.starting_cash)}</dd>
-              </div>
-              <div>
-                <dt className="text-xs text-text-tertiary">Final equity</dt>
-                <dd className="font-mono tabular-nums">{formatCurrency(summary.equity)}</dd>
-              </div>
-              <div>
-                <dt className="text-xs text-text-tertiary">Total return</dt>
-                <dd className={cn("font-mono tabular-nums", signedClass(summary.return_pct))}>
-                  {Number(summary.return_pct).toFixed(2)}%
-                </dd>
-              </div>
-              <div>
-                <dt className="text-xs text-text-tertiary">Fills</dt>
-                <dd className="font-mono tabular-nums">{summary.fills_count}</dd>
-              </div>
-              <div>
-                <dt className="text-xs text-text-tertiary">Realized P&amp;L</dt>
-                <dd className={cn("font-mono tabular-nums", signedClass(summary.realized_pnl))}>
-                  {formatSignedCurrency(summary.realized_pnl)}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-xs text-text-tertiary">Unrealized P&amp;L</dt>
-                <dd className={cn("font-mono tabular-nums", signedClass(summary.unrealized_pnl))}>
-                  {formatSignedCurrency(summary.unrealized_pnl)}
-                </dd>
-              </div>
-            </dl>
+            <FigureStrip
+              label="Replay summary"
+              className="mt-4"
+              figures={[
+                { label: "Starting equity", value: formatCurrency(summary.starting_cash) },
+                { label: "Final equity", value: formatCurrency(summary.equity) },
+                {
+                  label: "Total return",
+                  value: (
+                    <Signed raw={summary.return_pct}>
+                      {Number(summary.return_pct).toFixed(2)}%
+                    </Signed>
+                  ),
+                },
+                { label: "Fills", value: String(summary.fills_count) },
+                {
+                  label: "Realized P&L",
+                  value: (
+                    <Signed raw={summary.realized_pnl}>
+                      {formatSignedCurrency(summary.realized_pnl)}
+                    </Signed>
+                  ),
+                },
+                {
+                  label: "Unrealized P&L",
+                  value: (
+                    <Signed raw={summary.unrealized_pnl}>
+                      {formatSignedCurrency(summary.unrealized_pnl)}
+                    </Signed>
+                  ),
+                },
+              ]}
+            />
             {view === "replay" ? (
               <div className="mt-5">
                 <ReplayScorecard forensics={forensics} />
@@ -324,6 +340,17 @@ export default async function ReplaySessionPage({
     if (error instanceof AuthedApiError && error.status === 404) notFound();
     throw error;
   }
+}
+
+/** A signed figure: the sign's colour, plus an arrow so it never relies on colour. */
+function Signed({ raw, children }: { raw: string; children: React.ReactNode }) {
+  const value = Number(raw);
+  return (
+    <span className={signedClass(raw)}>
+      {value > 0 ? <span aria-hidden>▲ </span> : value < 0 ? <span aria-hidden>▼ </span> : null}
+      {children}
+    </span>
+  );
 }
 
 function signedClass(raw: string): string {

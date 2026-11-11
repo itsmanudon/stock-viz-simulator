@@ -3268,6 +3268,8 @@ export interface operations {
         parameters: {
             query?: {
                 limit?: number;
+                /** @description Comma-separated symbols, e.g. a watchlist or a portfolio's holdings */
+                tickers?: string | null;
             };
             header?: never;
             path?: never;

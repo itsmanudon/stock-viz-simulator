@@ -7,15 +7,17 @@
 
 import Link from "next/link";
 
+import { NewsList } from "@/components/news-list";
 import {
   MonitoringSubnav,
   OperationalEmptyState,
   OperationalPageHeader,
 } from "@/components/operational-page-header";
 import { PageFrame } from "@/components/page-frame";
+import { MetaChip } from "@/components/page-header";
 import { Sparkline } from "@/components/sparkline";
 import { AddWatchlistForm, WatchlistRowActions } from "@/components/watchlist-controls";
-import { getBars, listSymbols } from "@/lib/api";
+import { getBars, getNewsForTickers, listSymbols } from "@/lib/api";
 import { parseApiTimestamp } from "@/lib/api-time";
 import { listWatchlist } from "@/lib/api/watchlist";
 import { dayMovePct } from "@/lib/operational-trading";
@@ -45,13 +47,20 @@ export default async function WatchlistPage() {
     .sort((a, b) => a.ticker.localeCompare(b.ticker))
     .map((symbol) => ({ ticker: symbol.ticker, name: symbol.name }));
 
-  const sparklines = await Promise.all(
-    items.map((item) =>
-      getBars(item.ticker, { limit: 30 })
-        .then((bars) => bars.map((bar) => Number(bar.close)))
-        .catch(() => [] as number[]),
+  const [sparklines, news] = await Promise.all([
+    Promise.all(
+      items.map((item) =>
+        getBars(item.ticker, { limit: 30 })
+          .then((bars) => bars.map((bar) => Number(bar.close)))
+          .catch(() => [] as number[]),
+      ),
     ),
-  );
+    // Aegis news for the watched symbols (Phase 2). null when it failed.
+    getNewsForTickers(
+      items.map((item) => item.ticker),
+      10,
+    ).catch(() => null),
+  ]);
 
   return (
     <PageFrame width="workstation" className="py-5 sm:py-7">
@@ -59,7 +68,14 @@ export default async function WatchlistPage() {
         eyebrow="Portfolio"
         title="Watchlist"
         description="Securities you are monitoring. Last close is the latest stored daily bar, not a live quote."
-        meta={`${items.length} symbol${items.length === 1 ? "" : "s"}`}
+        meta={
+          <span className="flex flex-wrap items-center gap-2">
+            <span>
+              {items.length} symbol{items.length === 1 ? "" : "s"}
+            </span>
+            <MetaChip>Stored daily closes, not live quotes</MetaChip>
+          </span>
+        }
       />
       <MonitoringSubnav current="/watchlist" />
 
@@ -123,6 +139,9 @@ export default async function WatchlistPage() {
                         )}
                         data-financial
                       >
+                        {move !== null && move !== 0 ? (
+                          <span aria-hidden>{move > 0 ? "▲ " : "▼ "}</span>
+                        ) : null}
                         {formatSignedPercent(move)} · 30 days
                       </p>
                     </div>
@@ -197,6 +216,9 @@ export default async function WatchlistPage() {
                           move !== null && move < 0 && "text-negative",
                         )}
                       >
+                        {move !== null && move !== 0 ? (
+                          <span aria-hidden>{move > 0 ? "▲ " : "▼ "}</span>
+                        ) : null}
                         {formatSignedPercent(move)}
                       </td>
                       <td className="hidden px-3 py-3 lg:table-cell">
@@ -214,6 +236,24 @@ export default async function WatchlistPage() {
               </tbody>
             </table>
           </div>
+
+          <section aria-labelledby="watchlist-news-heading" className="mt-8">
+            <h2 id="watchlist-news-heading" className="text-sm font-semibold">
+              News for this list
+            </h2>
+            <p className="mt-1 text-xs text-text-tertiary">
+              Headlines linked to the symbols above, newest first. Collected once a day.
+            </p>
+            <div className="mt-4">
+              {news === null ? (
+                <p className="text-sm text-muted-foreground">
+                  News is unavailable right now. Try again shortly.
+                </p>
+              ) : (
+                <NewsList articles={news} />
+              )}
+            </div>
+          </section>
         </>
       )}
     </PageFrame>

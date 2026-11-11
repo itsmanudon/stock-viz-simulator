@@ -146,13 +146,18 @@ def _cmd_recommend(_args: argparse.Namespace) -> int:
 
 
 def _cmd_dividends(args: argparse.Namespace) -> int:
+    failures: list[str] = []
     with Session(engine) as session:
-        results = ingest_dividends_for_all(session, only=args.tickers or None)
+        results = ingest_dividends_for_all(session, only=args.tickers or None, failures=failures)
     total = sum(results.values())
     print(f"ingested {total} dividend rows across {len(results)} tickers")
     for ticker, n in sorted(results.items()):
         if n:
             print(f"  {ticker}: {n}")
+    if failures:
+        # A missed fetch can mean a missed payout (audits MD-4, LG-12).
+        print(f"dividends: fetch failed for {', '.join(failures)}", file=sys.stderr)
+        return 1
     return 0
 
 
@@ -273,6 +278,33 @@ def _cmd_aegis_sync(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_settle_orders(args: argparse.Namespace) -> int:
+    """Fill or cancel triggered limit, stop-loss and take-profit orders (audit P0-1)."""
+    from stockviz._time import utcnow
+    from stockviz.services.ingest.bar_semantics import latest_completed_session
+    from stockviz.services.trading.orders import settle_pending_orders
+
+    session_date = (
+        date.fromisoformat(args.session_date)
+        if args.session_date
+        else latest_completed_session(utcnow().replace(tzinfo=UTC))
+    )
+    with Session(engine) as session:
+        filled = settle_pending_orders(session, session_date=session_date)
+    print(f"settle-orders: filled {filled} pending order(s) against the {session_date} session")
+    return 0
+
+
+def _cmd_evaluate_alerts(_args: argparse.Namespace) -> int:
+    """Trigger price alerts whose target the latest stored close has crossed (audit P0-2)."""
+    from stockviz.services.alerts import evaluate_pending_alerts
+
+    with Session(engine) as session:
+        triggered = evaluate_pending_alerts(session)
+    print(f"evaluate-alerts: triggered {triggered} alert(s)")
+    return 0
+
+
 def _cmd_run_scheduler(_args: argparse.Namespace) -> int:
     from stockviz.workers.scheduler import main as scheduler_main
 
@@ -326,12 +358,26 @@ def _cmd_fx(args: argparse.Namespace) -> int:
         [c.upper() for c in args.currencies] if args.currencies else _default_fx_currencies()
     )
     total = 0
+    failed: list[str] = []
     for ccy in currencies:
-        with Session(engine) as session:
-            written = ingest_fx(session, ccy)
+        try:
+            with Session(engine) as session:
+                written = ingest_fx(session, ccy)
+        except Exception as exc:
+            logger.exception("fx: %s failed", ccy)
+            print(f"  {ccy}: FAILED ({exc.__class__.__name__}: {exc})", file=sys.stderr)
+            failed.append(ccy)
+            continue
         print(f"  {ccy}: {written}")
         total += written
+        # ingest_fx returns 0 only for USD (a no-op) or when no rates came back.
+        if written == 0 and ccy != "USD":
+            failed.append(ccy)
     print(f"ingested {total} FX rates total")
+    if failed:
+        # Fills in these currencies would convert at an old rate (audit MD-4).
+        print(f"fx: no rates for {', '.join(failed)}", file=sys.stderr)
+        return 1
     return 0
 
 
@@ -416,17 +462,71 @@ def _news_article_count(ticker: str) -> int:
         )
 
 
-def _cmd_ingest(args: argparse.Namespace) -> int:
-    settings = get_settings()
-    total = 0
-    for ticker in args.tickers:
-        with Session(engine) as session:
-            written = ingest_ticker(
-                session, ticker.upper(), alpha_vantage_key=settings.alpha_vantage_key
+def _latest_daily_bar_date(ticker: str) -> date | None:
+    from sqlalchemy import func
+    from sqlmodel import select
+
+    from stockviz.models import PriceBar
+
+    with Session(engine) as session:
+        latest = session.exec(
+            select(func.max(PriceBar.ts)).where(  # type: ignore[call-overload]
+                PriceBar.ticker == ticker, PriceBar.interval == "1d"
             )
-        print(f"  {ticker}: {written}")
+        ).one()
+    return latest.date() if latest is not None else None
+
+
+def _cmd_ingest(args: argparse.Namespace) -> int:
+    """Refresh daily bars; exit 1 when the refresh did not work (audit MD-4).
+
+    Row counts prove nothing (the full history is upserted every night), so
+    success is judged by the newest stored bar. A ticker that raises is
+    reported and the rest still run. The run fails if any ticker raised, or
+    if no ticker reached the newest complete session. One ticker short of it
+    is only reported: its market may have been closed that day. On a day every
+    market is closed (25 December) the run fails, which is the honest reading.
+    """
+    from stockviz._time import utcnow
+    from stockviz.services.ingest.bar_semantics import latest_completed_session
+
+    settings = get_settings()
+    expected = latest_completed_session(utcnow().replace(tzinfo=UTC))
+    total = 0
+    failed: list[str] = []
+    behind: list[str] = []
+    newest: date | None = None
+    for raw in args.tickers:
+        ticker = raw.upper()
+        try:
+            with Session(engine) as session:
+                written = ingest_ticker(
+                    session, ticker, alpha_vantage_key=settings.alpha_vantage_key
+                )
+        except Exception as exc:
+            logger.exception("ingest: %s failed", ticker)
+            print(f"  {ticker}: FAILED ({exc.__class__.__name__}: {exc})", file=sys.stderr)
+            failed.append(ticker)
+            continue
+        latest = _latest_daily_bar_date(ticker)
+        print(f"  {ticker}: {written} (latest bar {latest})")
         total += written
-    print(f"ingested {total} bars total")
+        if latest is None or latest < expected:
+            behind.append(ticker)
+        if latest is not None and (newest is None or latest > newest):
+            newest = latest
+    print(f"ingested {total} bars total; expected session {expected}")
+    if behind:
+        print(f"ingest: behind {expected}: {', '.join(behind)}", file=sys.stderr)
+    if failed:
+        print(f"ingest: {len(failed)} ticker(s) failed: {', '.join(failed)}", file=sys.stderr)
+        return 1
+    if args.tickers and (newest is None or newest < expected):
+        print(
+            f"ingest: no ticker reached the {expected} session (newest {newest})",
+            file=sys.stderr,
+        )
+        return 1
     return 0
 
 
@@ -970,6 +1070,21 @@ def main(argv: list[str] | None = None) -> int:
         "--max-pages", type=int, default=None, help="Stop after this many feed pages"
     )
     p_aegis.set_defaults(fn=_cmd_aegis_sync)
+
+    p_settle = sub.add_parser(
+        "settle-orders",
+        help="Fill or cancel triggered pending orders against the latest completed session",
+    )
+    p_settle.add_argument(
+        "--session-date",
+        default=None,
+        help="YYYY-MM-DD; default: the newest weekday before today's New York date",
+    )
+    p_settle.set_defaults(fn=_cmd_settle_orders)
+
+    sub.add_parser(
+        "evaluate-alerts", help="Trigger price alerts the latest stored close has crossed"
+    ).set_defaults(fn=_cmd_evaluate_alerts)
 
     sub.add_parser(
         "run-scheduler",

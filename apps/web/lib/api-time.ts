@@ -41,3 +41,21 @@ export function parseApiTimestamp(iso: string): Date {
 export function barTimeToUtcSeconds(iso: string): number {
   return Math.floor(apiTimestampMs(iso) / 1000);
 }
+
+/**
+ * An API timestamp as a UTC date and time with the zone named
+ * ("Nov 7, 2026, 09:05 PM UTC"). Operational times are stored in UTC and
+ * shown in UTC, never the reader's zone (audits T4 and RS-2).
+ */
+export function formatUtcDateTime(iso: string | null): string {
+  if (!iso) return "—";
+  return parseApiTimestamp(iso).toLocaleString("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "UTC",
+    timeZoneName: "short",
+  });
+}

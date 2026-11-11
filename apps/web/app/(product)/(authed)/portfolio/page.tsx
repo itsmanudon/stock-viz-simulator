@@ -17,7 +17,9 @@ export default async function PortfolioPage({
   // The Journal's month is server-rendered so the calendar arrives with data.
   // Later month changes are client-side; see components/journal/journal-panel.
   const monthKey = parseMonthKey(params.month, currentMonthKey());
-  const data = await loadPortfolioData(range, tab === "journal" ? monthKey : undefined);
+  const data = await loadPortfolioData(range, tab === "journal" ? monthKey : undefined, {
+    news: tab === "news",
+  });
 
   return <PortfolioWorkspace {...data} range={range} tab={tab} journalMonthKey={monthKey} />;
 }

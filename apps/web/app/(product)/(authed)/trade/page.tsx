@@ -85,6 +85,75 @@ export default async function TradePage({
   const tickerOrders = pendingOrders.filter((order) => order.ticker === activeTicker);
   const currencies = currencyByTicker(options);
 
+  const recentExecution = (
+    <section
+      aria-labelledby="recent-activity-heading"
+      className="order-4 min-w-0 rounded-md border border-border-muted bg-card px-4 py-3.5"
+    >
+      <h2 id="recent-activity-heading" className="text-sm font-semibold">
+        Recent execution
+      </h2>
+      <p className="mt-1 text-xs text-text-tertiary">
+        Latest fills from the trade ledger. Full history lives on{" "}
+        <Link href="/trades" className="hover:underline">
+          Trade history
+        </Link>
+        .
+      </p>
+      {recentTrades.length === 0 ? (
+        <p className="mt-3 border-t border-border-muted pt-4 text-sm text-text-secondary">
+          No fills yet. Submit a market order to see it here and in Portfolio.
+        </p>
+      ) : (
+        <div className="-mx-4 mt-3 overflow-x-auto border-t border-border-muted">
+          <table className="w-full min-w-[36rem] text-sm">
+            <caption className="sr-only">Recent paper fills</caption>
+            <thead>
+              <tr className="border-b border-border-muted text-left text-3xs font-semibold tracking-[0.12em] text-text-tertiary uppercase">
+                <th scope="col" className="px-3 py-2.5">
+                  When (UTC)
+                </th>
+                <th scope="col" className="px-3 py-2.5">
+                  Ticker
+                </th>
+                <th scope="col" className="px-3 py-2.5">
+                  Side
+                </th>
+                <th scope="col" className="px-3 py-2.5 text-right">
+                  Qty
+                </th>
+                <th scope="col" className="px-3 py-2.5 text-right">
+                  Fill
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {recentTrades.map((trade) => (
+                <tr key={trade.id} className="border-b border-border-muted last:border-0">
+                  <td className="px-3 py-2.5 text-text-tertiary">{fmtWhen(trade.ts)}</td>
+                  <td className="px-3 py-2.5 font-mono">
+                    <Link href={`/stocks/${trade.ticker}`} className="hover:underline">
+                      {trade.ticker}
+                    </Link>
+                  </td>
+                  <td className="px-3 py-2.5">
+                    <OrderSideBadge side={trade.side} />
+                  </td>
+                  <td className="px-3 py-2.5 text-right font-mono">
+                    {formatQuantity(trade.quantity)}
+                  </td>
+                  <td className="px-3 py-2.5 text-right font-mono">
+                    {formatCurrency(trade.price, trade.currency)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  );
+
   return (
     <PageFrame width="workstation" className="py-5 sm:py-7">
       <OperationalPageHeader
@@ -112,214 +181,162 @@ export default async function TradePage({
           </OperationalEmptyState>
         </div>
       ) : (
+        // Aurora board v3: chart and recent fills on the left, the ticket and
+        // its account on the right. Below xl the column wrappers dissolve
+        // (`contents`) and `order-*` keeps chart, ticket, account, fills.
         <div className="mt-5 grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_22rem] xl:items-start">
-          <section
-            aria-label={`${activeTicker} price context`}
-            className="min-w-0 overflow-hidden rounded-md border border-border-muted bg-card"
-          >
-            <div className="flex items-center justify-between gap-3 border-b border-border-muted px-4 py-3.5">
-              <div>
-                <h2 className="text-sm font-semibold">Price context</h2>
-                <p className="mt-1 text-xs text-text-tertiary">
-                  {activeTicker} · last 90 stored end-of-day bars
-                </p>
-              </div>
-              <Link
-                href={`/stocks/${activeTicker}`}
-                className="text-xs font-medium text-brand hover:underline"
-              >
-                Open research
-              </Link>
-            </div>
-            <div className="p-2 sm:p-3">
-              {chartBars.length ? (
-                <PriceChart bars={chartBars} />
-              ) : (
-                <p className="py-20 text-center text-sm text-text-secondary">
-                  No stored price history is available for this symbol.
-                </p>
-              )}
-            </div>
-          </section>
-
-          {/* Unkeyed: a fill revalidates this page and must not remount the ticket. */}
-          <OrderTicket
-            symbols={options.map((symbol) => ({
-              ticker: symbol.ticker,
-              name: symbol.name,
-              currency: symbol.currency || "USD",
-            }))}
-            initialTicker={activeTicker}
-            quoteClose={selectedQuote?.close ?? position?.last_close ?? null}
-            quoteAt={selectedQuote?.ts ?? null}
-            position={
-              position
-                ? {
-                    quantity: position.quantity,
-                    availableQuantity: position.available_quantity,
-                    reservedQuantity: position.reserved_quantity,
-                    averageCost: position.avg_cost,
-                    lastClose: position.last_close,
-                    currency: position.currency,
-                  }
-                : null
-            }
-            availableCash={portfolio.available_cash}
-            displayCurrency={portfolio.display_currency || "USD"}
-          />
-
-          <aside className="min-w-0 space-y-5 xl:col-start-1 xl:row-start-2">
+          <div className="contents xl:flex xl:min-w-0 xl:flex-col xl:gap-5">
             <section
-              aria-labelledby="account-context-heading"
-              className="overflow-hidden rounded-md border border-border-muted bg-card"
+              aria-label={`${activeTicker} price context`}
+              className="order-1 min-w-0 overflow-hidden rounded-md border border-border-muted bg-card"
             >
-              <div className="border-b border-border-muted px-4 py-3.5">
-                <h2 id="account-context-heading" className="text-sm font-semibold">
-                  Account context
-                </h2>
-                <p className="mt-1 text-xs leading-5 text-text-tertiary">
-                  Cash and shares after pending reservations. Source: current portfolio snapshot.
-                </p>
-              </div>
-              <dl className="grid grid-cols-2 gap-px bg-border-muted">
-                <div className="bg-background px-4 py-3">
-                  <dt className="text-3xs font-semibold tracking-[0.12em] text-text-tertiary uppercase">
-                    Buying power
-                  </dt>
-                  <dd className="mt-1 font-mono text-lg tabular-nums">
-                    {formatCurrency(portfolio.available_cash, portfolio.display_currency)}
-                  </dd>
-                </div>
-                <div className="bg-background px-4 py-3">
-                  <dt className="text-3xs font-semibold tracking-[0.12em] text-text-tertiary uppercase">
-                    Cash
-                  </dt>
-                  <dd className="mt-1 font-mono text-lg tabular-nums">
-                    {formatCurrency(portfolio.cash_balance, portfolio.display_currency)}
-                  </dd>
-                </div>
-                <div className="bg-background px-4 py-3">
-                  <dt className="text-3xs font-semibold tracking-[0.12em] text-text-tertiary uppercase">
-                    Reserved
-                  </dt>
-                  <dd className="mt-1 font-mono text-lg tabular-nums">
-                    {formatCurrency(portfolio.reserved_cash, portfolio.display_currency)}
-                  </dd>
-                </div>
-                <div className="bg-background px-4 py-3">
-                  <dt className="text-3xs font-semibold tracking-[0.12em] text-text-tertiary uppercase">
-                    Total value
-                  </dt>
-                  <dd className="mt-1 font-mono text-lg tabular-nums">
-                    {formatCurrency(portfolio.total_value, portfolio.display_currency)}
-                  </dd>
-                </div>
-              </dl>
-              {position ? (
-                <div className="border-t border-border-muted px-4 py-3 text-sm">
-                  <p className="font-medium">{activeTicker} position</p>
-                  <p className="mt-1 text-xs leading-5 text-text-tertiary">
-                    {formatQuantity(position.quantity)} owned ·{" "}
-                    {formatQuantity(position.available_quantity)} available · avg{" "}
-                    {formatCurrency(position.avg_cost, position.currency)}
+              <div className="flex items-center justify-between gap-3 border-b border-border-muted px-4 py-3.5">
+                <div>
+                  <h2 className="text-sm font-semibold">Price context</h2>
+                  <p className="mt-1 text-xs text-text-tertiary">
+                    {activeTicker} · last 90 stored end-of-day bars
                   </p>
                 </div>
-              ) : (
-                <p className="border-t border-border-muted px-4 py-3 text-xs text-text-tertiary">
-                  No open stock position in {activeTicker || "this symbol"}.
-                </p>
-              )}
-              {tickerOrders.length > 0 ? (
-                <ul className="border-t border-border-muted divide-y divide-border-muted">
-                  {tickerOrders.map((order) => (
-                    <li
-                      key={order.id}
-                      className="flex items-center justify-between gap-2 px-4 py-2 text-xs"
-                    >
-                      <span className="flex items-center gap-2">
-                        <OrderSideBadge side={order.side} />
-                        <OrderTypeBadge type={order.order_type} />
-                        <PendingOrderQuote order={order} currencies={currencies} />
-                      </span>
-                      <Link href="/orders" className="hover:underline">
-                        Manage
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="border-t border-border-muted px-4 py-3 text-xs text-text-tertiary">
-                  No pending orders for {activeTicker || "this symbol"}.
-                </p>
-              )}
+                <Link
+                  href={`/stocks/${activeTicker}`}
+                  className="text-xs font-medium text-brand hover:underline"
+                >
+                  Open research
+                </Link>
+              </div>
+              <div className="p-2 sm:p-3">
+                {chartBars.length ? (
+                  <PriceChart bars={chartBars} />
+                ) : (
+                  <p className="py-20 text-center text-sm text-text-secondary">
+                    No stored price history is available for this symbol.
+                  </p>
+                )}
+              </div>
             </section>
-          </aside>
+            {recentExecution}
+          </div>
+
+          <div className="contents xl:flex xl:min-w-0 xl:flex-col xl:gap-5">
+            {/* Unkeyed: a fill revalidates this page and must not remount the ticket. */}
+            <div className="order-2 min-w-0">
+              <OrderTicket
+                symbols={options.map((symbol) => ({
+                  ticker: symbol.ticker,
+                  name: symbol.name,
+                  currency: symbol.currency || "USD",
+                }))}
+                initialTicker={activeTicker}
+                quoteClose={selectedQuote?.close ?? position?.last_close ?? null}
+                quoteAt={selectedQuote?.ts ?? null}
+                position={
+                  position
+                    ? {
+                        quantity: position.quantity,
+                        availableQuantity: position.available_quantity,
+                        reservedQuantity: position.reserved_quantity,
+                        averageCost: position.avg_cost,
+                        lastClose: position.last_close,
+                        currency: position.currency,
+                      }
+                    : null
+                }
+                availableCash={portfolio.available_cash}
+                displayCurrency={portfolio.display_currency || "USD"}
+              />
+            </div>
+
+            <aside className="order-3 min-w-0 space-y-5">
+              <section
+                aria-labelledby="account-context-heading"
+                className="overflow-hidden rounded-md border border-border-muted bg-card"
+              >
+                <div className="border-b border-border-muted px-4 py-3.5">
+                  <h2 id="account-context-heading" className="text-sm font-semibold">
+                    Account
+                  </h2>
+                  <p className="mt-1 text-xs leading-5 text-text-tertiary">
+                    Cash and shares after pending reservations. Source: current portfolio snapshot.
+                  </p>
+                </div>
+                <dl className="grid grid-cols-2 gap-px bg-border-muted">
+                  <div className="bg-background px-4 py-3">
+                    <dt className="text-3xs font-semibold tracking-[0.12em] text-text-tertiary uppercase">
+                      Buying power
+                    </dt>
+                    <dd className="mt-1 font-mono text-lg tabular-nums">
+                      {formatCurrency(portfolio.available_cash, portfolio.display_currency)}
+                    </dd>
+                  </div>
+                  <div className="bg-background px-4 py-3">
+                    <dt className="text-3xs font-semibold tracking-[0.12em] text-text-tertiary uppercase">
+                      Cash
+                    </dt>
+                    <dd className="mt-1 font-mono text-lg tabular-nums">
+                      {formatCurrency(portfolio.cash_balance, portfolio.display_currency)}
+                    </dd>
+                  </div>
+                  <div className="bg-background px-4 py-3">
+                    <dt className="text-3xs font-semibold tracking-[0.12em] text-text-tertiary uppercase">
+                      Reserved by orders
+                    </dt>
+                    <dd className="mt-1 font-mono text-lg tabular-nums">
+                      {formatCurrency(portfolio.reserved_cash, portfolio.display_currency)}
+                    </dd>
+                  </div>
+                  <div className="bg-background px-4 py-3">
+                    <dt className="text-3xs font-semibold tracking-[0.12em] text-text-tertiary uppercase">
+                      Total value
+                    </dt>
+                    <dd className="mt-1 font-mono text-lg tabular-nums">
+                      {formatCurrency(portfolio.total_value, portfolio.display_currency)}
+                    </dd>
+                  </div>
+                </dl>
+                {position ? (
+                  <div className="border-t border-border-muted px-4 py-3 text-sm">
+                    <p className="font-medium">{activeTicker} position</p>
+                    <p className="mt-1 text-xs leading-5 text-text-tertiary">
+                      {formatQuantity(position.quantity)} owned ·{" "}
+                      {formatQuantity(position.available_quantity)} available · avg{" "}
+                      {formatCurrency(position.avg_cost, position.currency)}
+                    </p>
+                  </div>
+                ) : (
+                  <p className="border-t border-border-muted px-4 py-3 text-xs text-text-tertiary">
+                    No open stock position in {activeTicker || "this symbol"}.
+                  </p>
+                )}
+                {tickerOrders.length > 0 ? (
+                  <ul className="border-t border-border-muted divide-y divide-border-muted">
+                    {tickerOrders.map((order) => (
+                      <li
+                        key={order.id}
+                        className="flex items-center justify-between gap-2 px-4 py-2 text-xs"
+                      >
+                        <span className="flex items-center gap-2">
+                          <OrderSideBadge side={order.side} />
+                          <OrderTypeBadge type={order.order_type} />
+                          <PendingOrderQuote order={order} currencies={currencies} />
+                        </span>
+                        <Link href="/orders" className="hover:underline">
+                          Manage
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="border-t border-border-muted px-4 py-3 text-xs text-text-tertiary">
+                    No pending orders for {activeTicker || "this symbol"}.
+                  </p>
+                )}
+              </section>
+            </aside>
+          </div>
         </div>
       )}
 
-      <section aria-labelledby="recent-activity-heading" className="mt-8">
-        <h2 id="recent-activity-heading" className="text-sm font-semibold">
-          Recent execution
-        </h2>
-        <p className="mt-1 text-xs text-text-tertiary">
-          Latest fills from the trade ledger. Full history lives on{" "}
-          <Link href="/trades" className="hover:underline">
-            Trade history
-          </Link>
-          .
-        </p>
-        {recentTrades.length === 0 ? (
-          <p className="mt-4 border-y border-border-muted py-6 text-sm text-text-secondary">
-            No fills yet. Submit a market order to see it here and in Portfolio.
-          </p>
-        ) : (
-          <div className="mt-4 overflow-x-auto border-y border-border-muted">
-            <table className="w-full min-w-[36rem] text-sm">
-              <caption className="sr-only">Recent paper fills</caption>
-              <thead>
-                <tr className="border-b border-border-muted text-left text-3xs font-semibold tracking-[0.12em] text-text-tertiary uppercase">
-                  <th scope="col" className="px-3 py-2.5">
-                    When
-                  </th>
-                  <th scope="col" className="px-3 py-2.5">
-                    Ticker
-                  </th>
-                  <th scope="col" className="px-3 py-2.5">
-                    Side
-                  </th>
-                  <th scope="col" className="px-3 py-2.5 text-right">
-                    Qty
-                  </th>
-                  <th scope="col" className="px-3 py-2.5 text-right">
-                    Fill
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {recentTrades.map((trade) => (
-                  <tr key={trade.id} className="border-b border-border-muted last:border-0">
-                    <td className="px-3 py-2.5 text-text-tertiary">{fmtWhen(trade.ts)}</td>
-                    <td className="px-3 py-2.5 font-mono">
-                      <Link href={`/stocks/${trade.ticker}`} className="hover:underline">
-                        {trade.ticker}
-                      </Link>
-                    </td>
-                    <td className="px-3 py-2.5">
-                      <OrderSideBadge side={trade.side} />
-                    </td>
-                    <td className="px-3 py-2.5 text-right font-mono">
-                      {formatQuantity(trade.quantity)}
-                    </td>
-                    <td className="px-3 py-2.5 text-right font-mono">
-                      {formatCurrency(trade.price, trade.currency)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
+      {options.length === 0 ? recentExecution : null}
 
       <section aria-labelledby="options-ticket-heading" className="mt-8">
         <h2 id="options-ticket-heading" className="text-sm font-semibold">
