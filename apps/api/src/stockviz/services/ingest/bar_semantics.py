@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from datetime import UTC, date, datetime, time
+from datetime import UTC, date, datetime, time, timedelta
 from enum import StrEnum
 from typing import Protocol
 from zoneinfo import ZoneInfo
@@ -47,6 +47,22 @@ def new_york_session_date(value: datetime) -> date:
     if value.tzinfo is None or value.utcoffset() is None:
         raise ValueError("timestamp must be timezone-aware")
     return value.astimezone(NEW_YORK).date()
+
+
+def latest_completed_session(now: datetime) -> date:
+    """The newest weekday session the nightly ingest can have stored by ``now``.
+
+    :func:`completed_daily_bars` keeps a daily bar only once New York has moved
+    past its date, so at the 22:00 UTC cron the newest stored session is the
+    previous weekday, never today (audit MD-3). Settlement must ask for that
+    session: asking for "today" would leave every pending order waiting
+    forever. After a market holiday the newest bar predates this date, and
+    orders wait one more night rather than fill against an older close.
+    """
+    day = new_york_session_date(now) - timedelta(days=1)
+    while day.weekday() >= 5:  # Saturday, Sunday
+        day -= timedelta(days=1)
+    return day
 
 
 def completed_daily_bars[TBar: DailyBarLike](

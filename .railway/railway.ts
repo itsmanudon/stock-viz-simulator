@@ -65,6 +65,11 @@ const EOD_REFRESH = [
   'TICKERS=$(python -c "from stockviz.db import engine; from sqlmodel import Session, select; from stockviz.models import Symbol; print(\\" \\".join(Session(engine).exec(select(Symbol.ticker).where(Symbol.is_active)).all()))") || exit 1',
   job("python -m stockviz.cli ingest $TICKERS"),
   job("python -m stockviz.cli fx"),
+  // Pending orders and price alerts had no hosted runner (audits P0-1, P0-2).
+  // After fx so fills convert at a fresh rate, before the snapshot so tonight's
+  // NAV includes them.
+  job("python -m stockviz.cli settle-orders"),
+  job("python -m stockviz.cli evaluate-alerts"),
   // Aegis News copy (Phase 2). Exit 2 means it is not configured yet: skip.
   // It also refreshes the rolling sentiment the signals and screener read,
   // which replaced the legacy news, score-sentiment and sentiment-aggregate
