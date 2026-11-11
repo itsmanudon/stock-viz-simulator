@@ -181,7 +181,7 @@ describe("OrdersWidget", () => {
 });
 
 describe("AlertsWidget", () => {
-  it("surfaces triggered alerts and summarises the armed ones", () => {
+  it("puts fired alerts first, then lists armed ones linked to their symbol (audit F3)", () => {
     const alerts: Alert[] = [
       {
         id: 1,
@@ -206,7 +206,28 @@ describe("AlertsWidget", () => {
     render(<AlertsWidget alerts={alerts} />);
 
     expect(screen.getByRole("link", { name: /NVDA crossed above/ })).toBeVisible();
-    expect(screen.getByText("1 alert armed and waiting.")).toBeVisible();
+    const armed = screen.getByRole("list", { name: "Armed alerts" });
+    expect(within(armed).getByRole("link", { name: /TSLA.*Below.*200\.00/ })).toHaveAttribute(
+      "href",
+      "/stocks/TSLA",
+    );
+  });
+
+  it("shows four alerts at most and links the rest", () => {
+    const alerts: Alert[] = ["A", "B", "C", "D", "E", "F"].map((ticker, index) => ({
+      id: index + 10,
+      ticker,
+      direction: "above",
+      target_price: "10",
+      created_at: "2026-08-21T10:00:00Z",
+      triggered_at: null,
+      dismissed_at: null,
+    }));
+    render(<AlertsWidget alerts={alerts} />);
+    expect(
+      within(screen.getByRole("list", { name: "Armed alerts" })).getAllByRole("listitem"),
+    ).toHaveLength(4);
+    expect(screen.getByRole("link", { name: "2 more" })).toHaveAttribute("href", "/alerts");
   });
 
   it("ignores alerts the user already dismissed", () => {
@@ -263,5 +284,44 @@ describe("AllocationWidget", () => {
     expect(screen.getByRole("img", { name: /Energy: 15.0 percent/ }).firstChild).toHaveStyle({
       width: "25%",
     });
+  });
+  function analyticsWith(
+    sector_allocation: PortfolioAnalytics["sector_allocation"],
+  ): PortfolioAnalytics {
+    return {
+      display_currency: "USD",
+      history_days: 30,
+      total_return_pct: null,
+      annualised_return_pct: null,
+      sharpe_ratio: null,
+      max_drawdown_pct: null,
+      risk_free_rate: 0,
+      sector_allocation,
+      top_gainers: [],
+      top_losers: [],
+    };
+  }
+
+  it("explains a book with no sector data instead of drawing Unknown 100% (audit D3)", () => {
+    render(
+      <AllocationWidget
+        analytics={analyticsWith([{ sector: "Unknown", market_value: "5000", pct: 100 }])}
+      />,
+    );
+    expect(screen.getByText(/Sector data has not been recorded/)).toBeVisible();
+    expect(screen.queryByText("Unknown")).not.toBeInTheDocument();
+    expect(screen.queryByRole("img")).not.toBeInTheDocument();
+  });
+
+  it("names a partly unclassified bucket plainly", () => {
+    render(
+      <AllocationWidget
+        analytics={analyticsWith([
+          { sector: "Technology", market_value: "4000", pct: 80 },
+          { sector: "Unknown", market_value: "1000", pct: 20 },
+        ])}
+      />,
+    );
+    expect(screen.getByText("Sector not recorded")).toBeVisible();
   });
 });
