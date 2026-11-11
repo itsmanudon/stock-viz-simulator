@@ -96,6 +96,7 @@ export function PortfolioWorkspace({
               />
             </Suspense>
           }
+          positionCount={portfolio.positions.length}
           optionCount={portfolio.option_positions.length}
           orderCount={orders?.length ?? 0}
         />

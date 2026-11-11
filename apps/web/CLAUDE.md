@@ -100,6 +100,8 @@ components/
                    marker on a monochrome track (screener 52-week, compare)
   strength-dots.tsx StrengthDots: one dot per signal vote plus the count
                    (`dotsFrom="md"` keeps phone rows wide enough for names)
+  count-badge.tsx  CountBadge: the rounded count beside a tab label (Portfolio
+                   tabs; reuse for any tab that counts its rows)
   status-badge.tsx one tone-mapped chip behind the order/alert badges
   order-side-toggle.tsx  buy/sell segmented control shared by both tickets
   ui/              shadcn-generated primitives — don't hand-edit
@@ -359,6 +361,12 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   `DataDateChip` (`components/marketing/market-status.tsx`), the newest stored
   bar's date. It is an async server component, so unit tests that render the
   shell mock that module.
+- `/dashboard` (Aurora board v3): the hero takes the full width, then
+  orders, watchlist and alerts, then movers and allocation. The hero adds the
+  last session's move beside the period change once there are three
+  snapshots (with two it would repeat the period). The orders widget prices
+  triggers in the symbol's currency, from the positions and watchlist the page
+  already loads, falling back to USD as `/orders` does.
 - Compare series differ by line style as well as colour: `seriesDash()` in
   `lib/compare-workspace.ts` cycles solid, dashed, dotted, and both the chart
   and its legend read it. Buy and sell labels stay neutral (an arrow and the

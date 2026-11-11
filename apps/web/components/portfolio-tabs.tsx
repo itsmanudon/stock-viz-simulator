@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { Tabs } from "radix-ui";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 
+import { CountBadge } from "@/components/count-badge";
 import {
   type PortfolioRange,
   type PortfolioTab,
@@ -18,6 +19,7 @@ type Props = {
   orders: ReactNode;
   income: ReactNode;
   journal: ReactNode;
+  positionCount: number;
   optionCount: number;
   orderCount: number;
 };
@@ -30,6 +32,7 @@ export function PortfolioTabs({
   orders,
   income,
   journal,
+  positionCount,
   optionCount,
   orderCount,
 }: Props) {
@@ -82,7 +85,9 @@ export function PortfolioTabs({
         className="overflow-x-auto border-b border-border-muted [scrollbar-width:none] data-[more-end]:[mask-image:linear-gradient(to_right,black_calc(100%-2.5rem),transparent)] data-[more-start]:[mask-image:linear-gradient(to_left,black_calc(100%-2.5rem),transparent)] data-[more-start]:data-[more-end]:[mask-image:linear-gradient(to_right,transparent,black_2.5rem,black_calc(100%-2.5rem),transparent)] [&::-webkit-scrollbar]:hidden"
       >
         <Tabs.List aria-label="Portfolio sections" className="flex min-w-max gap-3 px-0.5 sm:gap-8">
-          <Tab value="positions">Positions</Tab>
+          <Tab value="positions" count={positionCount}>
+            Positions
+          </Tab>
           <Tab value="options" count={optionCount}>
             Options
           </Tab>
@@ -121,7 +126,7 @@ function Tab({
       {count ? (
         <>
           {" "}
-          <span className="ml-1.5 font-mono text-xs">{count}</span>
+          <CountBadge count={count} />
         </>
       ) : null}
     </Tabs.Trigger>

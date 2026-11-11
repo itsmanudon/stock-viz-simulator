@@ -71,6 +71,21 @@ describe("PortfolioHero", () => {
     expect(screen.queryByRole("img")).not.toBeInTheDocument();
   });
 
+  it("adds the last session's move once there are three snapshots", () => {
+    render(
+      <PortfolioHero
+        portfolio={portfolio}
+        history={[
+          { date: "2026-08-01", nav: "18000" },
+          { date: "2026-08-27", nav: "19000" },
+          { date: "2026-08-28", nav: "20000" },
+        ]}
+      />,
+    );
+    expect(screen.getByText("last session")).toBeVisible();
+    expect(screen.getByText("+$1,000.00")).toBeVisible();
+  });
+
   it("labels the value as simulated and dates it by the latest snapshot", () => {
     render(
       <PortfolioHero
@@ -163,7 +178,7 @@ describe("OrdersWidget", () => {
       },
     ];
 
-    render(<OrdersWidget orders={orders} displayCurrency="USD" />);
+    render(<OrdersWidget orders={orders} />);
     const list = screen.getByRole("list");
 
     expect(within(list).getByText("MSFT")).toBeVisible();
@@ -172,11 +187,30 @@ describe("OrdersWidget", () => {
     expect(within(list).getByText("$410.50")).toBeVisible();
   });
 
+  it("prices an order in its symbol's currency, not the display currency", () => {
+    const order: PendingOrder = {
+      id: 8,
+      ticker: "TCS.NS",
+      side: "buy",
+      order_type: "limit",
+      quantity: "50",
+      limit_price: "2980.00",
+      status: "pending",
+      created_at: "2026-08-27T10:00:00Z",
+      filled_at: null,
+      fill_price: null,
+      cancel_reason: null,
+    };
+    render(<OrdersWidget orders={[order]} currencies={{ "TCS.NS": "INR" }} />);
+    expect(screen.getByText("₹2,980.00")).toBeVisible();
+    expect(screen.getByText(/Checked after each weekday close/)).toBeVisible();
+  });
+
   it("distinguishes an unavailable fetch from a genuinely empty blotter", () => {
-    const { rerender } = render(<OrdersWidget orders={null} displayCurrency="USD" />);
+    const { rerender } = render(<OrdersWidget orders={null} />);
     expect(screen.getByText(/unavailable/i)).toBeVisible();
 
-    rerender(<OrdersWidget orders={[]} displayCurrency="USD" />);
+    rerender(<OrdersWidget orders={[]} />);
     expect(screen.getByText(/No working orders/i)).toBeVisible();
   });
 });

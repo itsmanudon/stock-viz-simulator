@@ -41,6 +41,10 @@ export function PortfolioHero({
 }) {
   const currency = portfolio.display_currency || "USD";
   const change = history ? calculateNavChange(history) : null;
+  // The latest session's move: the last two snapshots (Aurora board v3 shows
+  // it beside the period change). With only two snapshots it would repeat the
+  // period change, so it needs at least three.
+  const dayChange = history && history.length >= 3 ? calculateNavChange(history.slice(-2)) : null;
   const values = history?.map((point) => Number(point.nav)).filter(Number.isFinite) ?? [];
   const rising = change === null || change.absolute >= 0;
   const lastSnapshot = history && history.length > 0 ? history[history.length - 1].date : null;
@@ -105,6 +109,18 @@ export function PortfolioHero({
                 {formatSignedCurrency(change.absolute, currency)}
               </span>
               <span className="text-xs text-text-tertiary">last {DASHBOARD_HISTORY_DAYS} days</span>
+              {dayChange ? (
+                <>
+                  <span aria-hidden className="text-text-tertiary">
+                    ·
+                  </span>
+                  <DeltaPill value={formatSignedPercent(dayChange.percent)} />
+                  <span className="font-mono text-sm text-text-secondary" data-financial>
+                    {formatSignedCurrency(dayChange.absolute, currency)}
+                  </span>
+                  <span className="text-xs text-text-tertiary">last session</span>
+                </>
+              ) : null}
             </div>
           ) : (
             <p className="text-xs text-text-tertiary">
