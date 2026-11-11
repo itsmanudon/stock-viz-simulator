@@ -38,12 +38,28 @@ export function OrderTypeBadge({ type }: { type: string }) {
   return <StatusBadge label={type.replaceAll("_", " ")} />;
 }
 
+/**
+ * Buy or sell, as a neutral label with a direction arrow: the side of an
+ * order is not a gain or a loss, so it never takes those colours.
+ */
 export function OrderSideBadge({ side }: { side: "buy" | "sell" }) {
-  return <StatusBadge label={side} tone={side === "buy" ? "positive" : "negative"} />;
+  return (
+    <span className="inline-flex items-center gap-1.5 text-2xs font-semibold tracking-wide text-text-secondary uppercase">
+      <span
+        aria-hidden
+        className="inline-grid size-5 place-items-center rounded-md border border-border-muted bg-surface-secondary text-2xs"
+      >
+        {side === "buy" ? "↗" : "↘"}
+      </span>
+      <span>{side}</span>
+    </span>
+  );
 }
 
+// Pending is waiting on the next close: the warning tone, not the brand,
+// which is kept for identity and selected controls.
 const ORDER_STATUS_TONES: Record<string, BadgeTone> = {
-  pending: "brand",
+  pending: "warning",
   filled: "positive",
   cancelled: "neutral",
 };

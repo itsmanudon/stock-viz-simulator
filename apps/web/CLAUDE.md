@@ -367,6 +367,16 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   snapshots (with two it would repeat the period). The orders widget prices
   triggers in the symbol's currency, from the positions and watchlist the page
   already loads, falling back to USD as `/orders` does.
+- Trading pages (Aurora board v3): `OrderSideBadge` is neutral (an arrow and
+  the word), `StatusBadge` carries a leading dot and a `warning` tone, and
+  pending orders use it (brand stays for identity and selected controls).
+  `/orders` fetches every order once so each status tab shows a
+  `CountBadge`. `/trades` prices each row in the trade's own currency
+  (`total_native`), times it in UTC with `formatUtcDateTime()`
+  (`lib/api-time.ts`), and totals only realized P&L, which the API reports in
+  USD. `/trade` keeps chart and recent fills on the left and the ticket and
+  account on the right; below `xl` the column wrappers are `contents` and
+  `order-*` sets chart, ticket, account, fills.
 - Compare series differ by line style as well as colour: `seriesDash()` in
   `lib/compare-workspace.ts` cycles solid, dashed, dotted, and both the chart
   and its legend read it. Buy and sell labels stay neutral (an arrow and the
