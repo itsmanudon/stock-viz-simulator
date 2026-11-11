@@ -124,6 +124,13 @@ settlement both use it, so the 22:00 UTC cron stores and settles the day's
 own session. (The old rule waited for New York midnight, so each night stored
 the session before.)
 
+**Dividends (audit LG-12, #66).** `credit_due_dividends` credits every
+uncredited ex-date on or before the run date (a missed night or a missing FX
+rate is paid by the next run), only for ex-dates after the portfolio opened,
+from the holding at the close before the ex-date: the current position with
+trades dated (New York) on or after the ex-date undone. FX is the rate on or
+before the ex-date. `portfolio_dividends` uniqueness stops double payment.
+
 **A night leaves a record (audits OP-5, OP-3, OP-15).** `cli.main` writes a
 `job_runs` row (`models/job_run.py`) for each command in `RECORDED_JOBS`:
 `running`, then `succeeded`, `failed` (any other exit code, or an exception,
