@@ -467,6 +467,15 @@ html[data-density="compact"] .workspace-main .density-workspace {
     color: transparent;
   }
 
+  /* SplitText wraps each word in an inline-block, which would lose the
+     parent's clipped gradient; each word carries the gradient itself. */
+  .text-brand-gradient .split-word {
+    background-image: inherit;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
   /* Dims the cents so the whole-unit figure reads first (Revolut's balance
      treatment). The full value stays in the text, so copy and screen readers
      get the exact amount. */

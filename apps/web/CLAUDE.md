@@ -37,11 +37,18 @@ proxy.ts           NextAuth middleware
 components/
   dashboard/       signed-in home widgets (hero, movers, orders, alerts,
                    watchlist, allocation) + the shared WidgetCard/DeltaPill
-  marketing/       public-page-only pieces. `hero.tsx` (Aurora: centred copy,
-                   pill CTAs, then a stage over a `.brand-glow` with the
-                   panel, the account-less `PaperCard` and glass fact pills
-                   from `md`/`lg` up; the stage is aria-hidden, so every fact
-                   on it must also appear as text) + `hero-panel.tsx` (the
+  marketing/       public-page-only pieces. `hero.tsx` (server: centred copy,
+                   pill CTAs, chips; hands everything to `hero-stage.tsx`) +
+                   `hero-stage.tsx` (client: the real-data panel with a phone
+                   in front that rotates through `hero-phone-screens.tsx`; on
+                   `lg` with motion the hero pins and the paper card lifts out
+                   of the phone, then flips; elsewhere the same copy is a plain
+                   section. Card start is measured from layout offsets because
+                   ScrollTrigger re-measures mid-timeline) +
+                   `hero-phone-screens.tsx` (portfolio is a labelled example;
+                   stock/review use the real stored close and date; news shows
+                   source and date only and is skipped when empty) +
+                   `hero-panel.tsx` (the
                    `.panel-inset` product replica, real bars only, aria-hidden),
                    `market-ticker.tsx` (the `.marquee` price strip — halves are
                    `min-w-[100vw]`, never `min-w-full`, see the file header),
@@ -57,7 +64,12 @@ components/
                    that can't be counted is omitted, never shown as 0),
                    `closing-cta.tsx` (the monochrome full-bleed close),
                    `reveal.tsx` (scroll reveal: IntersectionObserver + the
-                   `[data-reveal]` transition in globals.css — no motion library)
+                   `[data-reveal]` transition in globals.css). GSAP (+
+                   ScrollTrigger, SplitText, `@gsap/react`) is allowed on
+                   marketing pages only, never in the product app. Wrap every
+                   animation in `gsap.matchMedia("(prefers-reduced-motion:
+                   no-preference)")`, never hide content before GSAP runs, and
+                   pin a section only inside a React-owned wrapper
   data-table.tsx   DataTableFrame / NumericCell / SortableHead / TableToolbar
   symbol-card-list.tsx  card layout the symbol tables switch to under `md`,
                    plus CardSortBar (cards have no column headers to sort by)
