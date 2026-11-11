@@ -52,7 +52,13 @@ describe("PortfolioHero", () => {
       />,
     );
 
-    expect(screen.getByText("$20,000.00")).toBeVisible();
+    // The headline figure dims its cents in a nested span, so match the whole
+    // paragraph's text rather than a single text node.
+    expect(
+      screen.getByText(
+        (_, element) => element?.tagName === "P" && element.textContent === "$20,000.00",
+      ),
+    ).toBeVisible();
     expect(screen.getByText("+11.11%")).toBeVisible();
     expect(screen.getByText("+$2,000.00")).toBeVisible();
   });
@@ -62,6 +68,35 @@ describe("PortfolioHero", () => {
 
     expect(screen.getByText(/two days of history/i)).toBeVisible();
     expect(screen.queryByRole("img")).not.toBeInTheDocument();
+  });
+
+  it("labels the value as simulated and dates it by the latest snapshot", () => {
+    render(
+      <PortfolioHero
+        portfolio={portfolio}
+        history={[
+          { date: "2026-08-01", nav: "18000" },
+          { date: "2026-08-28", nav: "20000" },
+        ]}
+      />,
+    );
+
+    expect(screen.getByText("Simulated")).toBeVisible();
+    expect(screen.getByText(/snapshot of Aug 28, 2026/)).toBeVisible();
+    // The cents are dimmed in their own span but the figure reads as one value.
+    expect(screen.getByText(".00")).toHaveClass("figure-minor");
+  });
+
+  it("offers the four account actions as links", () => {
+    render(<PortfolioHero portfolio={portfolio} history={[]} />);
+
+    const actions = within(screen.getByRole("navigation", { name: "Portfolio actions" }));
+    expect(actions.getAllByRole("link").map((link) => link.getAttribute("href"))).toEqual([
+      "/trade",
+      "/orders",
+      "/backtest",
+      "/alerts",
+    ]);
   });
 });
 

@@ -1,24 +1,24 @@
 import type { Metadata } from "next";
-import { IBM_Plex_Mono, Inter } from "next/font/google";
+import { Geist, Geist_Mono } from "next/font/google";
 
 import { Providers } from "@/components/providers";
 import "./globals.css";
 
 /**
- * Inter carries all non-numeric interface, heading, and marketing copy with a
- * familiar, highly legible system. IBM Plex Mono handles every ticker, price,
- * quantity, table value, and delta — it has true tabular figures and a slashed
- * zero, which the previous system-mono stack only had on some platforms.
+ * Geist carries all non-numeric interface, heading, and marketing copy; the
+ * Aurora direction sets headings at weight 500 with tight tracking. Geist Mono
+ * handles every ticker, price, quantity, table value, and delta — it has
+ * tabular figures, and globals.css turns on the slashed zero.
  *
  * Both are self-hosted by next/font, so there is no runtime request to Google.
  */
-const display = Inter({
+const display = Geist({
   subsets: ["latin"],
   display: "swap",
   variable: "--font-display",
 });
 
-const mono = IBM_Plex_Mono({
+const mono = Geist_Mono({
   weight: ["400", "500", "600", "700"],
   subsets: ["latin"],
   display: "swap",

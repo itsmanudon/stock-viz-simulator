@@ -193,12 +193,19 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
 
 - shadcn components go in `components/ui/`. To add one: `pnpm dlx shadcn@latest add <name>`.
 - Use Tailwind utilities; the palette lives in `app/globals.css` as CSS
-  variables. The identity is **ATLAS**: neutral canvas (`#f5f5f5`),
-  restrained blue identity accent with neutral action surfaces, 8px radius (`--radius: 0.5rem`), Inter
-  display + IBM Plex Mono numerals (both self-hosted via `next/font`, no
-  runtime request). Light is the base; `.dark` re-grounds the same system on a
-  near-black canvas (`#0b0b0b`). Blue is reserved for identity, focus, and
-  selected controls; positive is a separate green (`--positive`) and negative
+  variables. The identity is **Aurora** (design board in the workspace repo at
+  `docs/design/2026-11-11-aurora-direction/`): navy-biased neutrals, a cool
+  light canvas (`#f4f6fa`) and a navy-black dark canvas (`#06080f`, the
+  default theme), 10px radius (`--radius: 0.625rem`), Geist display + Geist
+  Mono numerals (both self-hosted via `next/font`, no runtime request).
+  `--brand` is aqua in dark and blue in light (aqua fails contrast on white)
+  and is reserved for identity, focus, and selected controls. The
+  `--brand-gradient-from/via/to` stops and `--marketing-glow` feed the brand
+  primitives in globals.css — `.paper-card` (`components/paper-card.tsx`),
+  `.brand-glow`, `.glass` — which belong to brand moments only (the dashboard
+  hero, public pages, onboarding), never behind a chart, table, ticket or a
+  gain/loss figure. `.figure-minor` dims the cents of a headline amount; split
+  it with `splitMinorUnits()`. Positive is a separate green (`--positive`) and negative
   a separate red. `--*-soft` / `--*-soft-foreground` pairs
   (positive/negative/warning/neutral) are the tinted fills behind delta and
   status pills — use `DeltaPill` rather than re-rolling the chip.
