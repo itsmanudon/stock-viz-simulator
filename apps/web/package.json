@@ -17,10 +17,12 @@
     "gen:api-types": "node ../../scripts/gen-api-types.mjs"
   },
   "dependencies": {
+    "@gsap/react": "2.1.2",
     "@sentry/nextjs": "^10.78.0",
     "bcryptjs": "^3.0.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "gsap": "3.13.0",
     "jose": "^6.2.9",
     "lightweight-charts": "^5.2.1",
     "lucide-react": "^0.469.0",
