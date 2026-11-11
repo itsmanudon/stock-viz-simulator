@@ -113,12 +113,24 @@ CLI subcommands (`python -m stockviz.cli <cmd>`): `seed`, `backfill`,
 
 **Pending orders and alerts when hosted (audits P0-1, P0-2).** The Railway
 cron has no scheduler, so `settle-orders` and `evaluate-alerts` run in its
-chain after `fx` and before `snapshot-portfolios`. Settlement asks for
-`latest_completed_session()` (`services/ingest/bar_semantics.py`): ingest
-stores a session only after New York passes its date (audit MD-3), so at
-22:00 UTC the newest stored session is the previous weekday. The scheduler's
-`pending_orders_settlement` uses the same helper; it used "today", which
-never had a bar, so nothing ever filled.
+chain after `fx` and before `snapshot-portfolios`, against
+`latest_completed_session()` (`services/ingest/bar_semantics.py`).
+
+**Which session is complete (audit MD-3).** A weekday's daily bar counts as
+complete once New York passes `SESSION_COMPLETE_AT` (16:45, after every
+exchange StockViz carries has closed). Before that, and at weekends, the
+newest complete session is the previous weekday. `completed_daily_bars` and
+settlement both use it, so the 22:00 UTC cron stores and settles the day's
+own session. (The old rule waited for New York midnight, so each night stored
+the session before.)
+
+**Refresh failures are failures (audit MD-4).** `ingest` judges success by
+each ticker's newest stored bar, not row counts (the full history is upserted
+nightly): it exits 1 if a ticker raised (the rest still run) or if no ticker
+reached the expected session, and only reports single tickers that are
+behind (their market may have been closed). `fx` exits 1 when a currency gets
+no rates; `dividends` exits 1 when a fetch failed. In the cron each failure
+sets the exit code without stopping later steps.
 
 **Event table retention (audit OP-11).** Nothing else deletes from
 `outbox_events` or `consumer_inbox`. `prune-events` deletes published outbox

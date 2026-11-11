@@ -47,8 +47,13 @@ def ingest_dividends_for_ticker(
     ticker: str,
     *,
     fetch_fn: DividendFetchFn = _default_dividend_fetch,
+    failures: list[str] | None = None,
 ) -> int:
-    """Upsert all historical dividends for ``ticker``. Returns rows written."""
+    """Upsert all historical dividends for ``ticker``. Returns rows written.
+
+    A failed fetch still returns 0, so one ticker cannot stop the others, but
+    the ticker is appended to ``failures`` when given (audit MD-4).
+    """
     ticker = ticker.upper()
     if session.get(Symbol, ticker) is None:
         logger.warning("ingest_dividends: unknown ticker %s, skipping", ticker)
@@ -58,6 +63,8 @@ def ingest_dividends_for_ticker(
         rows = fetch_fn(ticker)
     except Exception as exc:
         logger.warning("ingest_dividends: %s yfinance.dividends failed: %s", ticker, exc)
+        if failures is not None:
+            failures.append(ticker)
         return 0
 
     written = 0
@@ -81,8 +88,12 @@ def ingest_dividends_for_all(
     *,
     fetch_fn: DividendFetchFn = _default_dividend_fetch,
     only: list[str] | None = None,
+    failures: list[str] | None = None,
 ) -> dict[str, int]:
-    """Run ``ingest_dividends_for_ticker`` for every active symbol (or ``only``)."""
+    """Run ``ingest_dividends_for_ticker`` for every active symbol (or ``only``).
+
+    Tickers whose fetch failed are appended to ``failures`` when given.
+    """
     stmt = select(Symbol.ticker).where(Symbol.is_active)  # type: ignore[arg-type]
     if only:
         stmt = stmt.where(Symbol.ticker.in_(only))  # type: ignore[attr-defined]
@@ -90,5 +101,7 @@ def ingest_dividends_for_all(
 
     results: dict[str, int] = {}
     for ticker in tickers:
-        results[ticker] = ingest_dividends_for_ticker(session, ticker, fetch_fn=fetch_fn)
+        results[ticker] = ingest_dividends_for_ticker(
+            session, ticker, fetch_fn=fetch_fn, failures=failures
+        )
     return results

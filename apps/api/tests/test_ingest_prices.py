@@ -115,7 +115,8 @@ def test_new_york_session_date_rejects_naive_timestamp() -> None:
         new_york_session_date(datetime(2025, 1, 2))
 
 
-def test_completed_daily_bars_excludes_same_new_york_date() -> None:
+def test_completed_daily_bars_keeps_the_session_once_new_york_has_closed() -> None:
+    """At the 22:00 UTC cron (18:00 in New York) today's session is stored (MD-3)."""
     bars = [
         BarRecord(
             ticker="AAPL",
@@ -133,13 +134,22 @@ def test_completed_daily_bars_excludes_same_new_york_date() -> None:
         for day in (1, 2)
     ]
 
-    completed = completed_daily_bars(bars, now=datetime(2025, 7, 2, 22, tzinfo=UTC))
+    evening = completed_daily_bars(bars, now=datetime(2025, 7, 2, 22, tzinfo=UTC))
+    assert [bar.ts.date() for bar in evening] == [date(2025, 7, 1), date(2025, 7, 2)]
 
-    assert [bar.ts.date() for bar in completed] == [date(2025, 7, 1)]
+    # 16:00 New York (20:00 UTC): the day's bar may still change.
+    at_close = completed_daily_bars(bars, now=datetime(2025, 7, 2, 20, tzinfo=UTC))
+    assert [bar.ts.date() for bar in at_close] == [date(2025, 7, 1)]
+
+    # 16:45 New York is the line (EDT: 20:45 UTC).
+    at_line = completed_daily_bars(bars, now=datetime(2025, 7, 2, 20, 45, tzinfo=UTC))
+    assert [bar.ts.date() for bar in at_line] == [date(2025, 7, 1), date(2025, 7, 2)]
 
 
 def test_fetch_daily_bars_excludes_incomplete_same_day_bar() -> None:
-    ny_today = datetime.now(ZoneInfo("America/New_York")).date()
+    # A Wednesday at 11:00 New York: the day's bar is still forming.
+    morning = datetime(2025, 7, 2, 11, tzinfo=ZoneInfo("America/New_York"))
+    ny_today = morning.date()
     prior_date = ny_today - timedelta(days=1)
     frame = pd.DataFrame(
         {
@@ -157,9 +167,12 @@ def test_fetch_daily_bars_excludes_incomplete_same_day_bar() -> None:
         ),
     )
 
-    bars = fetch_daily_bars("AAPL", history_fn=lambda _ticker, _start: frame)
-
+    bars = fetch_daily_bars("AAPL", history_fn=lambda _ticker, _start: frame, now=morning)
     assert [bar.ts.date() for bar in bars] == [prior_date]
+
+    evening = morning.replace(hour=18)
+    bars = fetch_daily_bars("AAPL", history_fn=lambda _ticker, _start: frame, now=evening)
+    assert [bar.ts.date() for bar in bars] == [prior_date, ny_today]
 
 
 # ---------------------------------------------------------------------------
