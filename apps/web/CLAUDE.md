@@ -249,6 +249,21 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   [`docs/OPERATIONAL_TRADING.md`](../../docs/OPERATIONAL_TRADING.md).
   `/trade?ticker=` prefills the ticket. `/orders?status=` is URL-backed.
   Do not describe EOD fills or alert evaluation as live exchange execution.
+- The stock page's `ContextualTradeTicket` is two-step (UI audit UX-4): "Review
+  order" opens a Revolut-style summary (amount, reference close with its date,
+  fees, fill rule from `describeFillRule()`, buying power after) and only the
+  review's button submits; a confirmation replaces the form after success.
+  Server actions post without JavaScript, so the ticket sends
+  `review_step=draft|confirmed` and `placeTradeAction`/`placeOrderAction`
+  refuse a `draft` post (`lib/order-review.ts`); the review button also stays
+  disabled until hydration. Tickets that omit the field (`/trade`) are
+  unaffected. Below `xl`, `MobileTradeSheet` pins a Buy/Sell bar to the bottom
+  of the viewport; the page adds `pb-32` so it never covers content.
+- A `"use server"` file may export only async functions (and types). Put
+  constants and helpers that actions share in `lib/`, or Next refuses the module.
+- Format stored bar timestamps with `formatCloseDate()` (`lib/stock-workspace.ts`):
+  it reads the calendar date from the string, so it never shifts a day with the
+  timezone, and always includes the year.
 
 <!-- BEGIN:nextjs-agent-rules -->
 

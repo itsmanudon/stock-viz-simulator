@@ -6,6 +6,8 @@ import { DeltaPill } from "@/components/dashboard/delta-pill";
 import { LivePriceBadge } from "@/components/live-price-badge";
 import { WatchlistToggle } from "@/components/watchlist-toggle";
 import type { SymbolDetail } from "@/lib/api";
+import { splitMinorUnits } from "@/lib/portfolio-view-model";
+import { formatCloseDate } from "@/lib/stock-workspace";
 
 function money(value: number | null, currency: string): string {
   if (value === null) return "—";
@@ -19,11 +21,6 @@ function money(value: number | null, currency: string): string {
   } catch {
     return `${currency} ${value.toFixed(2)}`;
   }
-}
-
-function latestDate(iso: string | undefined): string | null {
-  if (!iso) return null;
-  return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
 export function SecurityHeader({
@@ -46,7 +43,8 @@ export function SecurityHeader({
   callbackUrl: string;
 }) {
   const positive = periodReturnPct !== null && periodReturnPct >= 0;
-  const quoteDate = latestDate(symbol.latest?.ts);
+  const quoteDate = formatCloseDate(symbol.latest?.ts);
+  const [major, minor] = splitMinorUnits(money(latestClose, symbol.currency));
 
   return (
     <header className="border-b border-border-muted pb-4">
@@ -88,8 +86,12 @@ export function SecurityHeader({
               Latest close{quoteDate ? ` · ${quoteDate}` : ""}
             </p>
             <div className="mt-1 flex flex-wrap items-baseline gap-x-3 sm:justify-end">
-              <span className="font-mono text-3xl font-semibold tracking-[-0.04em] tabular-nums sm:text-4xl">
-                {money(latestClose, symbol.currency)}
+              <span
+                className="font-mono text-3xl font-medium tracking-[-0.04em] tabular-nums sm:text-4xl"
+                data-financial
+              >
+                {major}
+                {minor ? <span className="figure-minor">{minor}</span> : null}
               </span>
               {periodReturnPct === null ? (
                 <span className="font-mono text-sm text-text-tertiary">{timeframe} —</span>

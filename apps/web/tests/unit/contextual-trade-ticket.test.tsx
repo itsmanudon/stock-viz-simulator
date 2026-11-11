@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
+import { placeTradeAction } from "@/app/(product)/(authed)/trade/actions";
 import { ContextualTradeTicket } from "@/components/contextual-trade-ticket";
 
 vi.mock("@/app/(product)/(authed)/trade/actions", () => ({
@@ -93,5 +94,76 @@ describe("ContextualTradeTicket", () => {
     fireEvent.click(screen.getByRole("button", { name: "Sell" }));
     fireEvent.click(screen.getByRole("button", { name: "Use maximum available shares" }));
     expect(screen.getByLabelText("Quantity")).toHaveValue(5);
+  });
+
+  it("reviews a market order before it can be placed", () => {
+    render(
+      <ContextualTradeTicket
+        {...baseProps}
+        closeDate="2025-04-04T00:00:00"
+        signedIn
+        account={account}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText("Quantity"), { target: { value: "3" } });
+    fireEvent.click(screen.getByRole("button", { name: "Review order" }));
+
+    expect(screen.getByText("Review order")).toBeVisible();
+    expect(screen.getByText("Market buy 3 AAPL")).toBeVisible();
+    expect(screen.getByText("$25.00 · close of Apr 4, 2025")).toBeVisible();
+    expect(screen.getByText("None in the simulator")).toBeVisible();
+    expect(screen.getByText("$75.00", { selector: "dd" })).toBeVisible();
+    expect(screen.getByText(/Fills now at the latest stored daily close/)).toBeVisible();
+    expect(placeTradeAction).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }));
+    expect(screen.getByLabelText("Quantity")).toHaveValue(3);
+  });
+
+  it("warns in the review when a buy exceeds buying power", () => {
+    render(<ContextualTradeTicket {...baseProps} signedIn account={account} />);
+
+    fireEvent.change(screen.getByLabelText("Quantity"), { target: { value: "10" } });
+    fireEvent.click(screen.getByRole("button", { name: "Review order" }));
+
+    expect(screen.getByText("-$150.00")).toHaveClass("text-warning");
+    expect(screen.getByText(/more than your buying power/)).toBeVisible();
+  });
+
+  it("explains that a limit order fills at the close, not the limit", () => {
+    render(<ContextualTradeTicket {...baseProps} signedIn account={account} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Limit" }));
+    fireEvent.change(screen.getByLabelText("Limit price"), { target: { value: "20" } });
+    fireEvent.click(screen.getByRole("button", { name: "Review order" }));
+
+    expect(screen.getByText("Cash reserved until filled")).toBeVisible();
+    expect(screen.getByText(/not at your limit itself/)).toBeVisible();
+  });
+
+  it("submits from the review and confirms the fill", async () => {
+    vi.mocked(placeTradeAction).mockResolvedValueOnce({
+      success: {
+        ticker: "AAPL",
+        side: "buy",
+        quantity: "1",
+        price: "25",
+        currency: "USD",
+        total_native: "25",
+        total_usd: "25",
+      },
+    });
+    render(<ContextualTradeTicket {...baseProps} signedIn account={account} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Review order" }));
+    fireEvent.click(screen.getByRole("button", { name: "Place buy order" }));
+
+    expect(await screen.findByText("Your order was filled")).toBeVisible();
+    expect(screen.getByText("Filled BUY 1 AAPL at $25.00")).toBeVisible();
+    expect(placeTradeAction).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByRole("button", { name: "New order" }));
+    expect(screen.getByRole("button", { name: "Review order" })).toBeVisible();
   });
 });

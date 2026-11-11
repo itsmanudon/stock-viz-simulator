@@ -8,7 +8,9 @@ import {
   calculatePositionReturnPct,
   deriveBarMetrics,
   deriveTrailingBarMetrics,
+  describeFillRule,
   estimateNotional,
+  formatCloseDate,
   formatQuantity,
   getBuyShortcutQuantity,
   getSellShortcutQuantity,
@@ -149,5 +151,28 @@ describe("stock workspace financial calculations", () => {
     expect(parseStockIndicators("")).toEqual([]);
     expect(parseStockIndicators("sma_20,unknown,rsi_14")).toEqual(["sma_20", "rsi_14"]);
     expect(buildStockChartHref("AAPL", "1Y", [])).toBe("/stocks/AAPL?tf=1Y&indicators=");
+  });
+});
+
+describe("formatCloseDate", () => {
+  it("keeps the stored calendar day and adds the year", () => {
+    expect(formatCloseDate("2025-04-04T00:00:00")).toBe("Apr 4, 2025");
+    expect(formatCloseDate("2026-11-07T21:00:00Z")).toBe("Nov 7, 2026");
+  });
+
+  it("returns null when there is no usable date", () => {
+    expect(formatCloseDate(null)).toBeNull();
+    expect(formatCloseDate("not a date")).toBeNull();
+  });
+});
+
+describe("describeFillRule", () => {
+  it("states the immediate close fill for market orders", () => {
+    expect(describeFillRule("market")).toMatch(/now at the latest stored daily close/);
+  });
+
+  it("states that pending orders fill at the close, not the trigger", () => {
+    expect(describeFillRule("limit")).toMatch(/not at your limit itself/);
+    expect(describeFillRule("stop_loss")).toMatch(/not at your trigger itself/);
   });
 });
