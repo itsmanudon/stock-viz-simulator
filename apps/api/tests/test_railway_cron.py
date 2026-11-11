@@ -43,11 +43,15 @@ def test_every_cli_job_records_its_failure() -> None:
     jobs = re.findall(r"python -m stockviz\.cli ([a-z-]+)", steps)
     assert len(jobs) >= 10
     wrapped = set(re.findall(r'job\("python -m stockviz\.cli ([a-z-]+)', steps))
-    # Two jobs tolerate exit code 2: `news` (no provider key) and
-    # `aegis-sync` (Aegis not configured yet).
-    assert set(jobs) - wrapped == {"news", "aegis-sync"}
-    assert "stockviz.cli news || [ $? -eq 2 ] || rc=1" in steps
+    # One job tolerates exit code 2: `aegis-sync` (Aegis not configured yet).
+    assert set(jobs) - wrapped == {"aegis-sync"}
     assert "stockviz.cli aegis-sync || [ $? -eq 2 ] || rc=1" in steps
+
+
+def test_the_legacy_news_pipeline_is_off_the_cron() -> None:
+    """Aegis replaced it; aegis-sync refreshes the rolling sentiment (AG-14)."""
+    jobs = set(re.findall(r"python -m stockviz\.cli ([a-z-]+)", _eod_refresh(_code(_source()))))
+    assert not jobs & {"news", "score-sentiment", "sentiment-aggregate"}
 
 
 def test_aegis_sync_runs_after_the_price_refresh_with_its_settings() -> None:

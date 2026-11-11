@@ -302,20 +302,7 @@ def test_no_scored_news_means_no_vote_not_a_penalty() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_sentiment_endpoint_returns_a_daily_series(session: Session, client: TestClient) -> None:
-    _symbol(session, "AAPL")
-    day = datetime(2026, 3, 2, 12, 0)
-    a = _article(session, ticker="AAPL", title="A", url="http://a/1", published_at=day)
-    b = _article(session, ticker="AAPL", title="B", url="http://a/2", published_at=day)
-    score_articles(session, [a, b], provider=StubProvider(score=0.5), settings=_SETTINGS)
-
-    response = client.get("/v1/symbols/AAPL/sentiment?days=365")
-    assert response.status_code == 200
-    body = response.json()
-    assert body["ticker"] == "AAPL"
-    assert len(body["points"]) == 1
-    assert body["points"][0]["article_count"] == 2
-    assert body["points"][0]["mean_score"] == 0.5
+# test_sentiment_endpoint_returns_a_daily_series moved to test_aegis_news.py: news and sentiment read Aegis since Phase 2.
 
 
 def test_sentiment_endpoint_404s_for_unknown_ticker(session: Session, client: TestClient) -> None:

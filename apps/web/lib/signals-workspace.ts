@@ -34,6 +34,8 @@ export type SignalRow = {
   name: string;
   sector: string | null;
   score: number;
+  /** Votes that could have passed: 6 when there is no scored news (audit SR-9). */
+  maxScore: number;
   signal: SignalClass;
   votes: RecommendationVote[];
   supportingVotes: number;
@@ -75,6 +77,8 @@ export function recommendationToSignal(rec: Recommendation): SignalRow {
     name: rec.name,
     sector: rec.sector,
     score: rec.score,
+    // A response cached from before the field existed has none.
+    maxScore: rec.max_score ?? SIGNAL_MAX_SCORE,
     signal: classifySignal(rec.score),
     votes,
     supportingVotes: votes.filter((vote) => vote.passed).length,
@@ -107,6 +111,7 @@ function completeSignalVotes(votes: RecommendationVote[]): RecommendationVote[] 
         label,
         passed: false,
         detail: `${label} did not contribute to this score`,
+        available: true,
       },
   );
 }
@@ -117,13 +122,14 @@ export function votesFromRationale(rationale: string[]): RecommendationVote[] {
     const match = remaining.find((item) => item.toLowerCase().includes(needle.toLowerCase()));
     if (match) {
       remaining.splice(remaining.indexOf(match), 1);
-      return { id, label, passed: true, detail: match };
+      return { id, label, passed: true, detail: match, available: true };
     }
     return {
       id,
       label,
       passed: false,
       detail: `${label} did not contribute to this score`,
+      available: true,
     };
   });
 }

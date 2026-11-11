@@ -18,7 +18,7 @@ from stockviz.db import get_session
 from stockviz.limiter import limiter
 from stockviz.models import Recommendation, Symbol, SymbolMetrics
 from stockviz.schemas import RecommendationOut, RecommendationVoteOut
-from stockviz.services.recommend import votes_from_payload
+from stockviz.services.recommend.engine import max_score, votes_from_payload
 
 router = APIRouter(prefix="/v1", tags=["recommendations"])
 
@@ -70,6 +70,7 @@ def list_recommendations(
                 name=symbol.name,
                 sector=symbol.sector,
                 score=int(rec.score),
+                max_score=max_score(votes),
                 rationale=rationale,
                 votes=[
                     RecommendationVoteOut(
@@ -77,6 +78,7 @@ def list_recommendations(
                         label=vote.label,
                         passed=vote.passed,
                         detail=vote.detail,
+                        available=vote.available,
                     )
                     for vote in votes
                 ],

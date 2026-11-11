@@ -368,6 +368,12 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   can't disagree. Calendar cells are UTC dates: read them with UTC getters.
   `/markets` breadth (`marketBreadth()` in `lib/markets-table.ts`) counts only
   rows with a `change_pct`, so a stalled symbol never enters it.
+- News comes from Aegis since Phase 2: `NewsArticle` has a string `id`,
+  `tickers`, `available_at`, an optional `url` and `published_at`, and no
+  summary or image. Date a headline with `newsDateLabel()`
+  (`components/news-list.tsx`): the publisher's date, else "Collected <date>"
+  (GDELT sends none, audit AG-12). Signals print `row.maxScore`, not a fixed
+  7: the sentiment vote is unavailable without scored news (audit SR-9).
 - Watchlist rows carry `last_close_at` and `currency`, and alert rows carry
   `currency` (audit RS-13), so the dashboard no longer loads the symbol list
   to format them. `/alerts` still loads it for the create form.

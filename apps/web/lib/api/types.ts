@@ -64,16 +64,22 @@ export type Bar = {
 /** "mixed" (strong signals both ways) comes from Aegis News (audit AG-4). */
 export type Sentiment = "positive" | "neutral" | "negative" | "mixed";
 
+/**
+ * One Aegis News document linked to StockViz symbols (Phase 2). No article
+ * text or image. `available_at` is when Aegis had it; `published_at` is the
+ * publisher's claim and is often missing (audit AG-12).
+ */
 export type NewsArticle = {
-  id: number;
-  ticker: string | null;
+  id: string;
+  tickers: string[];
   title: string;
-  url: string;
-  source: string | null;
-  published_at: string;
-  summary: string | null;
-  image_url: string | null;
+  url: string | null;
+  source: string;
+  published_at: string | null;
+  available_at: string;
   sentiment: Sentiment | null;
+  sentiment_model: string | null;
+  topic: string | null;
 };
 
 export type IndicatorPoint = {
@@ -99,6 +105,8 @@ export type RecommendationVote = {
   label: string;
   passed: boolean;
   detail: string;
+  /** False when the vote's input is missing (no scored news this week). */
+  available: boolean;
 };
 
 export type Recommendation = {
@@ -106,6 +114,8 @@ export type Recommendation = {
   name: string;
   sector: string | null;
   score: number;
+  /** Votes that could have passed: 7, or 6 without scored news (audit SR-9). */
+  max_score: number;
   rationale: string[];
   votes: RecommendationVote[];
   sentiment_7d: number | null;

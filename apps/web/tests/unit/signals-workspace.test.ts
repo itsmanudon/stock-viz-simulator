@@ -17,6 +17,7 @@ const rec = (overrides: Partial<Recommendation> = {}): Recommendation => ({
   name: "Apple Inc.",
   sector: "Technology",
   score: 5,
+  max_score: 7,
   rationale: ["Below historical mean ($70.00 < $88.00)"],
   votes: [],
   sentiment_7d: 0.3,
@@ -51,12 +52,19 @@ describe("recommendationToSignal", () => {
     const withVotes = recommendationToSignal(
       rec({
         votes: [
-          { id: "below_mean", label: "Below historical mean", passed: true, detail: "pass" },
+          {
+            id: "below_mean",
+            label: "Below historical mean",
+            passed: true,
+            detail: "pass",
+            available: true,
+          },
           {
             id: "positive_sentiment",
             label: "Positive news sentiment",
             passed: false,
             detail: "none",
+            available: true,
           },
         ],
       }),
@@ -133,5 +141,16 @@ describe("signal dates", () => {
     // 23:30 UTC is the next day east of UTC; the date must not move.
     expect(formatSignalDate("2025-04-04T23:30:00Z")).toBe("Apr 4, 2025");
     expect(formatSignalDateTime("2025-04-04T23:30:00Z")).toBe("Apr 4, 2025, 11:30 PM UTC");
+  });
+});
+
+describe("the maximum follows the votes available (audit SR-9)", () => {
+  it("reads six when the symbol has no scored news", () => {
+    expect(recommendationToSignal(rec({ max_score: 6 })).maxScore).toBe(6);
+  });
+
+  it("falls back to seven for a response cached before the field existed", () => {
+    const { max_score: _dropped, ...old } = rec();
+    expect(recommendationToSignal(old as Recommendation).maxScore).toBe(7);
   });
 });

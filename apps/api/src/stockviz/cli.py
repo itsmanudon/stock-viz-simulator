@@ -67,7 +67,7 @@ from stockviz.services.ingest.shadow import (
 from stockviz.services.ingest.shadow_report import ShadowRun, write_shadow_report
 from stockviz.services.metrics import refresh_symbol_metrics
 from stockviz.services.recommend import MAX_SCORE, score_universe
-from stockviz.services.sentiment.store import backfill_unscored, refresh_symbol_sentiment
+from stockviz.services.sentiment.store import backfill_unscored
 from stockviz.services.trading import credit_due_dividends, snapshot_user_navs
 from stockviz.settings import get_settings
 
@@ -118,9 +118,13 @@ def _cmd_score_sentiment(args: argparse.Namespace) -> int:
 
 
 def _cmd_sentiment_aggregate(_args: argparse.Namespace) -> int:
+    from stockviz._time import utcnow
+    from stockviz.services.aegis.read import refresh_aegis_sentiment
+
+    # Aegis is the sentiment source since Phase 2 (audit AG-14).
     with Session(engine) as session:
-        updated = refresh_symbol_sentiment(session)
-    print(f"refreshed rolling sentiment for {updated} symbols")
+        updated = refresh_aegis_sentiment(session, now=utcnow())
+    print(f"refreshed rolling Aegis sentiment for {updated} symbols")
     return 0
 
 
@@ -214,6 +218,17 @@ def _cmd_prune_events(args: argparse.Namespace) -> int:
     return 0
 
 
+def _refresh_aegis_sentiment() -> None:
+    """Roll held Aegis sentiment into sentiment_7d, which the signals vote and
+    the screener filter read (audit AG-14). Runs after a failed sync too, so
+    the trailing window keeps moving on what is already held."""
+    from stockviz._time import utcnow
+    from stockviz.services.aegis.read import refresh_aegis_sentiment
+
+    with Session(engine) as session:
+        refresh_aegis_sentiment(session, now=utcnow())
+
+
 def _cmd_aegis_sync(args: argparse.Namespace) -> int:
     from stockviz.services.aegis import AegisClient, AegisError, run_sync
     from stockviz.services.aegis.token import load_signing_key, mint_feed_token
@@ -247,7 +262,9 @@ def _cmd_aegis_sync(args: argparse.Namespace) -> int:
             )
         except AegisError as exc:
             print(f"aegis-sync: failed: {exc}", file=sys.stderr)
+            _refresh_aegis_sentiment()
             return 1
+    _refresh_aegis_sentiment()
     print(
         f"aegis-sync: run {result.run_id}: {result.pages} page(s), "
         f"{result.upserted} document(s) upserted, {result.withdrawn} withdrawn, "

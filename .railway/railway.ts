@@ -66,10 +66,10 @@ const EOD_REFRESH = [
   job("python -m stockviz.cli ingest $TICKERS"),
   job("python -m stockviz.cli fx"),
   // Aegis News copy (Phase 2). Exit 2 means it is not configured yet: skip.
+  // It also refreshes the rolling sentiment the signals and screener read,
+  // which replaced the legacy news, score-sentiment and sentiment-aggregate
+  // steps (audit AG-14).
   "python -m stockviz.cli aegis-sync || [ $? -eq 2 ] || rc=1",
-  "python -m stockviz.cli news || [ $? -eq 2 ] || rc=1",
-  job("python -m stockviz.cli score-sentiment"),
-  job("python -m stockviz.cli sentiment-aggregate"),
   job("python -m stockviz.cli metrics"),
   job("python -m stockviz.cli dividends"),
   job("python -m stockviz.cli credit-dividends"),
