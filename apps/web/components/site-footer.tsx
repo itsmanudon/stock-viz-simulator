@@ -1,8 +1,6 @@
 import { LineChart } from "lucide-react";
 import Link from "next/link";
 
-import { ThemeToggle } from "@/components/theme-toggle";
-
 /**
  * Website footer for the public pages.
  *
@@ -144,7 +142,6 @@ export function SiteFooter() {
           <p className="font-mono text-2xs text-text-tertiary">
             © {new Date().getFullYear()} StockViz · v2.0.0-alpha
           </p>
-          <ThemeToggle />
         </div>
       </div>
 

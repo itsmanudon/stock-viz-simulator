@@ -3,7 +3,6 @@ import { AlertsBell } from "@/components/alerts-bell";
 import { AppMobileNav } from "@/components/app-mobile-nav";
 import { GlobalTickerSearch } from "@/components/global-ticker-search";
 import { DataDateChip } from "@/components/marketing/market-status";
-import { ThemeToggle } from "@/components/theme-toggle";
 
 export function TopUtilityBar({ signedIn }: { signedIn: boolean }) {
   return (
@@ -17,7 +16,6 @@ export function TopUtilityBar({ signedIn }: { signedIn: boolean }) {
           <DataDateChip />
         </span>
         <AlertsBell enabled={signedIn} />
-        <ThemeToggle />
         <AccountMenu />
       </div>
     </header>
