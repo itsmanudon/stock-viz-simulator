@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
 
@@ -90,3 +91,40 @@ def test_backfill_commits_so_a_new_session_sees_bars(tmp_path: Path, engine) -> 
         bars = session.exec(select(PriceBar).where(PriceBar.ticker == "AAPL")).all()
         assert len(bars) == 1
         assert bars[0].close == Decimal("100.5")
+
+
+def test_backfill_replace_drops_old_seed_bars_but_keeps_live_ones(tmp_path: Path, engine) -> None:
+    """MD-1: the old CSVs had weekend rows. A plain upsert never removes them,
+    so ``replace`` deletes a ticker's ``v1_csv`` bars first. Live bars stay."""
+    csv_path = tmp_path / "AAPL_processed.csv"
+    csv_path.write_text(
+        "Date,Open,High,Low,Close,Volume\n2024-01-02,100,101,99,100.5,1000\n",
+        encoding="utf-8",
+    )
+
+    def bar(day: str, source: str) -> PriceBar:
+        return PriceBar(
+            ticker="AAPL",
+            ts=datetime.strptime(day, "%Y-%m-%d"),
+            interval="1d",
+            open=Decimal(1),
+            high=Decimal(1),
+            low=Decimal(1),
+            close=Decimal(1),
+            volume=1,
+            source=source,
+        )
+
+    with Session(engine) as session:
+        session.add(Symbol(ticker="AAPL", name="Apple Inc."))
+        session.add(bar("2023-12-30", "v1_csv"))  # a Saturday from the old file
+        session.add(bar("2024-01-03", "yfinance"))
+        session.commit()
+        backfill_price_bars_from_csvs(session, csv_dir=tmp_path, replace=True)
+
+    with Session(engine) as session:
+        days = sorted(
+            (b.ts.date().isoformat(), b.source)
+            for b in session.exec(select(PriceBar).where(PriceBar.ticker == "AAPL")).all()
+        )
+    assert days == [("2024-01-02", "v1_csv"), ("2024-01-03", "yfinance")]

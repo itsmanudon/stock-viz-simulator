@@ -85,10 +85,10 @@ def _cmd_seed(_args: argparse.Namespace) -> int:
     return 0
 
 
-def _cmd_backfill(_args: argparse.Namespace) -> int:
+def _cmd_backfill(args: argparse.Namespace) -> int:
     with Session(engine) as session:
         ensure_symbols_for_backfill(session)
-        written = backfill_price_bars_from_csvs(session)
+        written = backfill_price_bars_from_csvs(session, replace=args.replace)
         session.commit()
     total = sum(written.values())
     print(f"backfilled {total} bars across {len(written)} tickers")
@@ -748,9 +748,16 @@ def main(argv: list[str] | None = None) -> int:
     sub = parser.add_subparsers(dest="cmd", required=True)
 
     sub.add_parser("seed", help="Seed symbols from companies.json").set_defaults(fn=_cmd_seed)
-    sub.add_parser(
-        "backfill", help="Load v1 CSVs into price_bars (run once after seed)"
-    ).set_defaults(fn=_cmd_backfill)
+    p_backfill = sub.add_parser(
+        "backfill", help="Load the seed CSVs into price_bars (run once after seed)"
+    )
+    p_backfill.add_argument(
+        "--replace",
+        action="store_true",
+        help="first delete each ticker's v1_csv daily bars (fixes a database loaded "
+        "from the old, misdated CSVs); live-ingested bars are kept",
+    )
+    p_backfill.set_defaults(fn=_cmd_backfill)
 
     p_meta = sub.add_parser(
         "metadata", help="Backfill sector/exchange on existing symbols (yfinance)"
