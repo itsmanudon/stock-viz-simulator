@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { EquityCurve } from "@/components/equity-curve";
+import { PaperCard } from "@/components/paper-card";
 import type { Portfolio, PortfolioHistoryPoint } from "@/lib/api/trading";
 import {
   PORTFOLIO_RANGES,
@@ -10,6 +11,7 @@ import {
   calculateNavChange,
   formatCurrency,
   formatSignedPercent,
+  splitMinorUnits,
 } from "@/lib/portfolio-view-model";
 
 type Props = {
@@ -25,6 +27,8 @@ export function PortfolioPerformance({ portfolio, history, range, tab }: Props) 
   const rangeLabel = PORTFOLIO_RANGES.find((item) => item.value === range)?.label ?? "3M";
   const latestDate = history?.at(-1)?.date ?? null;
   const direction = change && change.percent < 0 ? "Loss" : "Gain";
+  const currency = portfolio.display_currency || "USD";
+  const [major, minor] = splitMinorUnits(formatCurrency(portfolio.total_value, currency));
   const tone =
     change && change.percent > 0
       ? "text-positive"
@@ -45,22 +49,35 @@ export function PortfolioPerformance({ portfolio, history, range, tab }: Props) 
         </div>
         <Link
           href="/trade"
-          className="inline-flex h-9 items-center rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground outline-none transition-colors hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+          className="inline-flex h-10 items-center rounded-full bg-primary px-5 text-sm font-semibold text-primary-foreground outline-none transition-colors hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
         >
           Trade
         </Link>
       </div>
 
-      <div className="mt-5 grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+      {/* Aurora brand moment: the paper card over a soft glow beside the
+          value. The chart and tables below stay calm, with no glow. */}
+      <div className="mt-6 grid gap-6 md:grid-cols-[13rem_minmax(0,1fr)] md:items-center lg:grid-cols-[13rem_minmax(0,1fr)_auto] lg:items-end">
+        <div className="relative isolate hidden md:block">
+          <div aria-hidden className="brand-glow -top-10 -left-10 -z-10 h-56 w-80 opacity-70" />
+          <PaperCard accountId={portfolio.portfolio_id} currency={currency} className="w-full" />
+        </div>
         <div className="min-w-0">
+          <p className="mb-1 flex items-center gap-2 text-xs text-muted-foreground">
+            Portfolio value
+            <span className="rounded-full border border-border-muted px-2 py-0.5 text-2xs">
+              Simulated
+            </span>
+          </p>
           <p
-            className="font-mono text-4xl font-semibold tracking-[-0.04em] sm:text-5xl"
+            className="font-mono text-4xl font-medium tracking-[-0.04em] sm:text-5xl"
             data-financial
           >
-            {formatCurrency(portfolio.total_value, portfolio.display_currency || "USD")}
+            {major}
+            {minor ? <span className="figure-minor">{minor}</span> : null}
           </p>
           <p className="mt-2 text-xs text-muted-foreground">
-            Latest EOD valuation · Display currency {portfolio.display_currency || "USD"}
+            Latest EOD valuation · Display currency {currency}
           </p>
         </div>
 

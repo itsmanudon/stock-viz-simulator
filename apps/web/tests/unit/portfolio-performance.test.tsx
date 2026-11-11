@@ -77,7 +77,12 @@ describe("portfolio performance hierarchy", () => {
     );
 
     expect(screen.getByRole("heading", { level: 1, name: "Portfolio" })).toBeVisible();
-    expect(screen.getByText("€128,420.38")).toBeVisible();
+    // The cents are dimmed in a nested span, so match the paragraph's text.
+    expect(
+      screen.getByText(
+        (_, element) => element?.tagName === "P" && element.textContent === "€128,420.38",
+      ),
+    ).toBeVisible();
     expect(screen.getByText("3M USD NAV change")).toBeVisible();
     expect(screen.getByText("+$2,184.20")).toBeVisible();
     expect(screen.getByText("+1.73%")).toBeVisible();

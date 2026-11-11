@@ -4,7 +4,8 @@
  * row of three facts, then sections reused from the landing page.
  *
  * Every fact here was checked against the product as it is, not as planned:
- * the order review is on stock pages (not the /trade ticket), screens cannot
+ * both tickets review an order before placing it (the Replay ticket does
+ * not), screens cannot
  * be saved yet, and news has no verification until the Aegis feed lands, so
  * there is no News page yet.
  */
@@ -48,14 +49,14 @@ export const PRODUCT_PAGES: ProductPageSpec[] = [
     title: "Trade the market",
     soft: "with money that isn’t real.",
     summary:
-      "Market, limit, stop-loss and take-profit orders on stored end-of-day prices. Order from a stock page and a review shows the price, its date, the cost and the fill rule before anything goes through.",
+      "Market, limit, stop-loss and take-profit orders on stored end-of-day prices. Every order opens a review that shows the price, its date, the cost and the fill rule before anything goes through.",
     primary: { href: "/signup", label: "Open a paper account" },
     secondary: { href: "/markets", label: "Explore markets" },
     art: { kind: "phone", screen: "review" },
     facts: [
       [
         "Review before you place",
-        "On every stock page, the price, its date, the cost and the fill rule come first.",
+        "On the stock page and the trade ticket alike, the price, its date, the cost and the fill rule come first.",
       ],
       [
         "Stops and targets",

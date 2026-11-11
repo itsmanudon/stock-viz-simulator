@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
+import { placeTradeAction } from "@/app/(product)/(authed)/trade/actions";
 import { OrderTicket } from "@/components/order-ticket";
 
 const replace = vi.fn();
@@ -74,7 +75,7 @@ describe("OrderTicket", () => {
       />,
     );
     expect(screen.getByLabelText("Symbol")).toHaveValue("AAPL");
-    expect(screen.getByRole("button", { name: /Submit market buy/i })).toBeVisible();
+    expect(screen.getByRole("button", { name: /Review market buy/i })).toBeVisible();
   });
 
   it("shows buying-power context for buys and estimated notional from the stored close", () => {
@@ -120,7 +121,7 @@ describe("OrderTicket", () => {
     expect(screen.getByText(/orders are sell-only in this simulator/i)).toBeVisible();
     expect(screen.getByLabelText("Trigger price")).toBeVisible();
     expect(screen.getByText(/5 shares available after pending sells/)).toBeVisible();
-    expect(screen.getByRole("button", { name: /Submit stop-loss sell/i })).toBeVisible();
+    expect(screen.getByRole("button", { name: /Review stop-loss sell/i })).toBeVisible();
   });
 
   it("estimates notional in the symbol-native currency", () => {
@@ -139,5 +140,41 @@ describe("OrderTicket", () => {
     fireEvent.change(screen.getByLabelText("Quantity"), { target: { value: "2" } });
     expect(screen.getByText("¥5,600")).toBeVisible();
     expect(screen.getByText(/Available cash \$100,000\.00/)).toBeVisible();
+  });
+
+  it("reviews the order before placing it, then confirms the fill", async () => {
+    vi.mocked(placeTradeAction).mockResolvedValueOnce({
+      success: {
+        ticker: "AAPL",
+        side: "buy",
+        quantity: "2",
+        price: "188.38",
+        currency: "USD",
+        total_native: "376.76",
+        total_usd: "376.76",
+      },
+    });
+    render(
+      <OrderTicket
+        symbols={symbols}
+        initialTicker="AAPL"
+        quoteClose="188.38"
+        quoteAt="2025-04-04T00:00:00"
+        position={null}
+        availableCash="1000"
+        displayCurrency="USD"
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText("Quantity"), { target: { value: "2" } });
+    fireEvent.click(screen.getByRole("button", { name: /Review market buy/i }));
+
+    expect(screen.getByText("Market buy 2 AAPL")).toBeVisible();
+    expect(screen.getByText("$188.38 · close of Apr 4, 2025")).toBeVisible();
+    expect(placeTradeAction).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: /Place market buy/i }));
+    expect(await screen.findByText("Your order was filled")).toBeVisible();
+    expect(screen.getByText("Filled BUY 2 AAPL @ $188.38")).toBeVisible();
   });
 });
