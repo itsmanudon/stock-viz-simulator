@@ -31,7 +31,7 @@ export function PageHeader({
         <p className="text-2xs font-medium tracking-[0.12em] text-text-secondary uppercase">
           {eyebrow}
         </p>
-        <h1 className="mt-1.5 text-2xl font-semibold tracking-tight sm:text-3xl">{title}</h1>
+        <h1 className="mt-1.5 text-2xl font-medium tracking-tight sm:text-3xl">{title}</h1>
         <p className="mt-1.5 max-w-2xl text-sm leading-6 text-text-secondary">{description}</p>
         {meta ? <div className="mt-1.5 text-xs text-text-tertiary">{meta}</div> : null}
       </div>

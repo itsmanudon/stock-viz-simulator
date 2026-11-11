@@ -27,6 +27,7 @@ vi.mock("@/components/alerts-bell", () => ({
 // navigation assertions here.
 vi.mock("@/components/marketing/market-status", () => ({
   MarketStatus: () => <span>EOD</span>,
+  DataDateChip: () => <span>EOD data · latest close Nov 7, 2026</span>,
 }));
 
 vi.mock("@/auth", () => ({
@@ -36,22 +37,45 @@ vi.mock("@/auth", () => ({
 // Async server data belongs to browser coverage, not the client renderer.
 vi.mock("@/components/marketing/market-status", () => ({
   MarketStatus: () => <span>EOD data</span>,
+  DataDateChip: () => <span>EOD data · latest close Nov 7, 2026</span>,
 }));
 
 describe("AppSidebar", () => {
-  it("groups product destinations and marks both the active domain and route", () => {
+  beforeEach(() => {
+    pathname = "/compare";
+  });
+
+  it("names each section and marks both the active section and route", () => {
     render(<AppSidebar signedIn />);
     const nav = screen.getByRole("navigation", { name: "Product" });
 
-    expect(within(nav).getByRole("link", { name: "Research" })).toHaveAttribute(
-      "data-active",
-      "true",
-    );
-    expect(within(nav).getByRole("link", { name: "Compare" })).toHaveAttribute(
+    const research = within(nav).getByRole("group", { name: "Research" });
+    expect(within(nav).getByText("Research")).toHaveAttribute("data-active", "true");
+    expect(within(research).getByRole("link", { name: "Compare" })).toHaveAttribute(
       "aria-current",
       "page",
     );
-    expect(within(nav).getByText("EOD data")).toBeVisible();
+    expect(within(nav).getByText("Trade")).not.toHaveAttribute("data-active");
+    expect(screen.getByText("EOD · SIMULATED")).toBeVisible();
+  });
+
+  it("lights the Research section on a stock page without marking an item", () => {
+    pathname = "/stocks/AAPL";
+    render(<AppSidebar signedIn />);
+    const nav = screen.getByRole("navigation", { name: "Product" });
+
+    expect(within(nav).getByText("Research")).toHaveAttribute("data-active", "true");
+    expect(within(nav).queryAllByRole("link", { current: "page" })).toHaveLength(0);
+  });
+
+  it("shows Settings to signed-in users only", () => {
+    pathname = "/settings";
+    const { unmount } = render(<AppSidebar signedIn />);
+    expect(screen.getByRole("link", { name: "Settings" })).toHaveAttribute("aria-current", "page");
+    unmount();
+
+    render(<AppSidebar signedIn={false} />);
+    expect(screen.queryByRole("link", { name: "Settings" })).not.toBeInTheDocument();
   });
 });
 
@@ -109,6 +133,7 @@ describe("AppShell", () => {
     expect(screen.getByRole("main")).toHaveAttribute("id", "main");
     expect(screen.getByRole("combobox", { name: "Search tickers and companies" })).toBeVisible();
     expect(screen.getByRole("button", { name: "Alerts" })).toBeVisible();
+    expect(screen.getByText("EOD data · latest close Nov 7, 2026")).toBeInTheDocument();
     expect(screen.queryByRole("contentinfo")).not.toBeInTheDocument();
   });
 });

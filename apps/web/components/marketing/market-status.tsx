@@ -13,6 +13,7 @@
  */
 
 import { ApiError, getBars } from "@/lib/api";
+import { formatCloseDate } from "@/lib/stock-workspace";
 
 // Liquid names first, so the badge reports the freshest bar the ingest holds.
 const CANDIDATES = ["RELIANCE.NS", "HDFCBANK.NS", "TCS.NS", "AAPL", "MSFT", "NVDA"];
@@ -73,6 +74,38 @@ export async function MarketStatus() {
         className={`size-1.5 rounded-full ${fresh ? "bg-positive" : "bg-warning"}`}
       />
       EOD · {label}
+    </span>
+  );
+}
+
+/**
+ * The product top bar's data-date label: "EOD data · latest close Nov 7, 2026".
+ *
+ * The same honest claim as `MarketStatus`, worded for the workspace and with
+ * the year, as every product date carries one. It names the newest stored
+ * bar only; symbols end on different days, so pages still date each row.
+ * Hidden below `sm`, where the search box needs the width. Renders nothing
+ * when no bar can be read.
+ */
+export async function DataDateChip() {
+  const day = await latestStoredCloseDate();
+  const label = formatCloseDate(day);
+  if (!day || !label) return null;
+
+  const [year, month, dayOfMonth] = day.split("-").map(Number);
+  const ageDays = (Date.now() - Date.UTC(year, month - 1, dayOfMonth)) / MS_PER_DAY;
+  const fresh = ageDays <= FRESH_DAYS;
+
+  return (
+    <span
+      className="hidden items-center gap-2 rounded-full border border-border-muted px-2.5 py-1 font-mono text-2xs whitespace-nowrap text-text-secondary sm:inline-flex"
+      title={`Most recent stored end-of-day bar: ${day}. Prices are not live quotes.`}
+    >
+      <span
+        aria-hidden
+        className={`size-1.5 rounded-full ${fresh ? "bg-positive" : "bg-warning"}`}
+      />
+      EOD data · latest close {label}
     </span>
   );
 }
