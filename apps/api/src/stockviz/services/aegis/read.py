@@ -100,11 +100,19 @@ def _latest_analyses(
     return {row.document_id: row for row in rows}
 
 
-def news_items(session: Session, *, ticker: str | None = None, limit: int = 50) -> list[NewsItem]:
-    """Newest-available first: for one ticker, or every linked document.
+def news_items(
+    session: Session,
+    *,
+    ticker: str | None = None,
+    tickers: list[str] | None = None,
+    limit: int = 50,
+) -> list[NewsItem]:
+    """Newest-available first: for one ticker, a set of tickers (a watchlist or
+    a portfolio), or every linked document.
 
     ``/v1/news`` lists only documents linked to a StockViz symbol, so the page
-    never shows news about companies StockViz does not cover.
+    never shows news about companies StockViz does not cover. A document
+    linked to several of the tickers appears once.
     """
     if ticker is not None:
         documents = documents_for_ticker(session, ticker, limit=limit)
@@ -114,6 +122,10 @@ def news_items(session: Session, *, ticker: str | None = None, limit: int = 50) 
             .join(AegisMapping, col(AegisMapping.entity_id) == col(AegisDocumentEntity.entity_id))
             .where(AegisMapping.scheme == STOCKVIZ_SCHEME)
         )
+        if tickers is not None:
+            linked = linked.where(
+                col(AegisMapping.identifier).in_([stockviz_identifier(t) for t in tickers])
+            )
         documents = list(
             session.exec(
                 select(AegisDocument)
@@ -123,7 +135,7 @@ def news_items(session: Session, *, ticker: str | None = None, limit: int = 50) 
             ).all()
         )
     ids = [d.document_id for d in documents]
-    tickers = _tickers_by_document(session, ids)
+    linked_tickers = _tickers_by_document(session, ids)
     sentiments = _latest_analyses(session, ids, "sentiment")
     topics = _latest_analyses(session, ids, "topic")
     items = []
@@ -133,7 +145,7 @@ def news_items(session: Session, *, ticker: str | None = None, limit: int = 50) 
         items.append(
             NewsItem(
                 document=document,
-                tickers=tuple(tickers.get(document.document_id, [])),
+                tickers=tuple(linked_tickers.get(document.document_id, [])),
                 sentiment=sentiment.label if sentiment else None,
                 sentiment_model=(
                     f"{sentiment.model_name}@{sentiment.model_version}" if sentiment else None

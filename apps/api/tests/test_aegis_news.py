@@ -299,3 +299,20 @@ def test_cli_sentiment_aggregate_uses_aegis(engine, monkeypatch, capsys) -> None
     with Session(engine) as session:
         metrics = session.get(SymbolMetrics, "AAPL")
         assert metrics is not None and metrics.sentiment_article_count == 1
+
+
+def test_latest_news_filters_to_a_set_of_tickers(session: Session, client: TestClient) -> None:
+    """The watchlist and portfolio pages ask for their own symbols (Phase 2)."""
+    _symbols(session)
+    now = utcnow()
+    _document(session, "doc_aapl", tickers=["AAPL"], available_at=now - timedelta(hours=2))
+    _document(session, "doc_both", tickers=["AAPL", "MSFT"], available_at=now - timedelta(hours=1))
+    _document(session, "doc_msft", tickers=["MSFT"], available_at=now)
+
+    ids = lambda q: [a["id"] for a in client.get(f"/v1/news?{q}").json()]  # noqa: E731
+    assert ids("tickers=aapl") == ["doc_both", "doc_aapl"]
+    # A document linked to two requested symbols appears once.
+    assert ids("tickers=AAPL,%20msft") == ["doc_msft", "doc_both", "doc_aapl"]
+    assert ids("tickers=TSLA") == []
+    assert ids("tickers=,") == []
+    assert ids("tickers=AAPL&limit=1") == ["doc_both"]

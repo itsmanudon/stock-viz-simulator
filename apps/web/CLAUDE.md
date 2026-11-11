@@ -382,6 +382,9 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   (`components/news-list.tsx`): the publisher's date, else "Collected <date>"
   (GDELT sends none, audit AG-12). Signals print `row.maxScore`, not a fixed
   7: the sentiment vote is unavailable without scored news (audit SR-9).
+  News for a set of symbols is one call, `getNewsForTickers()` (`/v1/news?tickers=`):
+  `/watchlist` lists it under the table, and `/portfolio?tab=news` loads it
+  for the holdings only while that tab is open, as Journal does.
 - Watchlist rows carry `last_close_at` and `currency`, and alert rows carry
   `currency` (audit RS-13), so the dashboard no longer loads the symbol list
   to format them. `/alerts` still loads it for the create form.

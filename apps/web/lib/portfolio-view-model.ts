@@ -10,7 +10,14 @@ export const PORTFOLIO_RANGES = [
 /** Days of NAV history behind the dashboard hero sparkline. */
 export const DASHBOARD_HISTORY_DAYS = 30;
 
-export const PORTFOLIO_TABS = ["positions", "options", "orders", "income", "journal"] as const;
+export const PORTFOLIO_TABS = [
+  "positions",
+  "options",
+  "orders",
+  "income",
+  "news",
+  "journal",
+] as const;
 
 export type PortfolioRange = (typeof PORTFOLIO_RANGES)[number]["value"];
 export type PortfolioTab = (typeof PORTFOLIO_TABS)[number];

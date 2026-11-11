@@ -22,6 +22,9 @@ router = APIRouter(prefix="/v1", tags=["news"])
 
 SessionDep = Annotated[Session, Depends(get_session)]
 
+MAX_TICKERS = 100
+"""More symbols than any watchlist or portfolio holds; bounds the IN list."""
+
 
 def _out(item: NewsItem) -> NewsArticleOut:
     doc = item.document
@@ -61,5 +64,17 @@ def latest_news(
     request: Request,
     session: SessionDep,
     limit: Annotated[int, Query(ge=1, le=100)] = 50,
+    tickers: Annotated[
+        str | None,
+        Query(
+            max_length=1000,
+            description="Comma-separated symbols, e.g. a watchlist or a portfolio's holdings",
+        ),
+    ] = None,
 ) -> list[NewsArticleOut]:
-    return [_out(item) for item in news_items(session, limit=limit)]
+    wanted: list[str] | None = None
+    if tickers is not None:
+        wanted = sorted({t.strip().upper() for t in tickers.split(",") if t.strip()})[:MAX_TICKERS]
+        if not wanted:
+            return []
+    return [_out(item) for item in news_items(session, tickers=wanted, limit=limit)]
