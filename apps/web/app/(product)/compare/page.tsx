@@ -126,7 +126,7 @@ export default async function ComparePage({
               <Link
                 key={value}
                 href={buildCompareHref(tickers, value)}
-                className={`rounded-sm border px-2.5 py-1 text-xs transition-colors hover:bg-surface-hover ${
+                className={`inline-flex min-h-8 items-center rounded-sm border px-2.5 text-xs transition-colors hover:bg-surface-hover ${
                   timeframe === value
                     ? "border-brand text-foreground"
                     : "border-border-muted text-text-tertiary"
@@ -200,13 +200,16 @@ export default async function ComparePage({
             </p>
             <ul className="flex flex-wrap gap-3 text-xs">
               {tickers.map((ticker) => (
-                <li key={ticker} className="flex gap-2">
-                  <Link href={`/stocks/${ticker}`} className="font-mono hover:underline">
+                <li key={ticker} className="flex gap-1">
+                  <Link
+                    href={`/stocks/${ticker}`}
+                    className="inline-flex min-h-8 items-center px-1 font-mono hover:underline"
+                  >
                     {ticker}
                   </Link>
                   <Link
                     href={`/backtest?ticker=${ticker}`}
-                    className="text-text-tertiary hover:underline"
+                    className="inline-flex min-h-8 items-center px-1 text-text-tertiary hover:underline"
                   >
                     Backtest
                   </Link>

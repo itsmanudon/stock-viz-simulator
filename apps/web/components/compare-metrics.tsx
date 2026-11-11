@@ -26,7 +26,7 @@ export function CompareMetricsTable({ rows }: { rows: CompareMetrics[] }) {
               <div className="min-w-0">
                 <Link
                   href={`/stocks/${row.ticker}`}
-                  className="inline-flex items-center gap-2 font-mono text-sm font-semibold hover:text-brand"
+                  className="inline-flex min-h-8 items-center gap-2 font-mono text-sm font-semibold hover:text-brand"
                 >
                   <span
                     className="size-2 rounded-full"

@@ -8,7 +8,7 @@
 import { BacktestForm } from "@/components/backtest-form";
 import { PageFrame } from "@/components/page-frame";
 import { ResearchPageHeader, ResearchSubnav } from "@/components/research-page-header";
-import { listSymbols } from "@/lib/api";
+import { getMarketsSummary, listSymbols } from "@/lib/api";
 
 export default async function BacktestPage({
   searchParams,
@@ -16,10 +16,22 @@ export default async function BacktestPage({
   searchParams: Promise<{ ticker?: string }>;
 }) {
   const { ticker: rawTicker } = await searchParams;
-  const symbols = await listSymbols();
+  const [symbols, summary] = await Promise.all([
+    listSymbols(),
+    // Only used to start on a symbol with history (UI audit F1); the page
+    // still works without it.
+    getMarketsSummary().catch(() => null),
+  ]);
+  const lastClose = new Map(
+    summary?.rows.map((row) => [row.ticker, row.last_close_at?.slice(0, 10) ?? null]) ?? [],
+  );
   const options = [...symbols]
     .sort((a, b) => a.ticker.localeCompare(b.ticker))
-    .map((symbol) => ({ ticker: symbol.ticker, name: symbol.name }));
+    .map((symbol) => ({
+      ticker: symbol.ticker,
+      name: symbol.name,
+      lastClose: summary ? (lastClose.get(symbol.ticker) ?? null) : undefined,
+    }));
   const initialTicker = rawTicker?.trim().toUpperCase();
 
   return (
