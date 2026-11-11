@@ -304,9 +304,11 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   on different days, so date each row, not the page. In `next dev`, responses
   fetched with `revalidateSeconds` live in `.next/dev/cache/fetch-cache` (not
   `.next/cache`) and survive restarts; clear that folder after an API schema
-  change or the page keeps the old shape. Production keeps them up to the
-  revalidate window, so new fields can be missing for up to an hour after a
-  deploy — render them optionally.
+  change or the page keeps the old shape. The production image copies only
+  `.next/standalone`, `static` and `public`, so each deploy starts with an
+  empty data cache; the cache then holds a response for up to its revalidate
+  window (an hour for market data), so a page can trail the nightly ingest by
+  that long. Still render new fields optionally.
 - `/screener` keeps filters and sort in the URL (`lib/screener-view.ts`, UI
   audit UX-1). Each applied filter shows as a removable chip; RSI bounds share
   a chip, and the momentum bounds belong to the window's chip because the API
