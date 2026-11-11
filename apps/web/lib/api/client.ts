@@ -30,8 +30,12 @@ function baseUrl(): string {
   return typeof window === "undefined" ? SERVER_BASE : BROWSER_BASE;
 }
 
-/** Statuses worth retrying: the origin is starting up or briefly overloaded. */
-const RETRYABLE_STATUSES = new Set([408, 425, 429, 500, 502, 503, 504]);
+/**
+ * Statuses worth retrying: the origin is starting up or briefly overloaded.
+ * Not 429 (audit RS-6): a rate limit answers for a whole window, so a retry
+ * only spends more of the bucket every server-rendered page shares.
+ */
+const RETRYABLE_STATUSES = new Set([408, 425, 500, 502, 503, 504]);
 
 const MAX_ATTEMPTS = 3;
 const BASE_DELAY_MS = 400;
