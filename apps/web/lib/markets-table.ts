@@ -97,3 +97,47 @@ export function sortHref(
   if (params.sector) next.set("sector", params.sector);
   return `/markets?${next.toString()}`;
 }
+
+export type SectorMove = { sector: string; changePct: number; count: number };
+
+export type MarketBreadth = {
+  /** Rows with a 1d change to count; stalled or unpriced rows are left out. */
+  counted: number;
+  advancing: number;
+  declining: number;
+  unchanged: number;
+  /** Mean 1d change per sector, best first. Empty without sector metadata. */
+  sectors: SectorMove[];
+};
+
+/**
+ * Advancers, decliners and the mean move per sector, from the rows on screen.
+ *
+ * Only rows with a `changePct` count: the summary blanks it for a symbol
+ * whose last two bars are far apart or whose close trails the page, so a
+ * stale move never enters the breadth (audit RS-13). A sector needs at least
+ * one counted row to be ranked.
+ */
+export function marketBreadth(rows: readonly MarketRow[]): MarketBreadth {
+  const moving = rows.filter((row) => row.changePct !== null) as (MarketRow & {
+    changePct: number;
+  })[];
+  const bySector = new Map<string, { sum: number; count: number }>();
+  for (const row of moving) {
+    if (!row.sector) continue;
+    const entry = bySector.get(row.sector) ?? { sum: 0, count: 0 };
+    entry.sum += row.changePct;
+    entry.count += 1;
+    bySector.set(row.sector, entry);
+  }
+  const sectors = [...bySector.entries()]
+    .map(([sector, { sum, count }]) => ({ sector, changePct: sum / count, count }))
+    .sort((a, b) => b.changePct - a.changePct || a.sector.localeCompare(b.sector));
+  return {
+    counted: moving.length,
+    advancing: moving.filter((row) => row.changePct > 0).length,
+    declining: moving.filter((row) => row.changePct < 0).length,
+    unchanged: moving.filter((row) => row.changePct === 0).length,
+    sectors,
+  };
+}

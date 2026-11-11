@@ -84,7 +84,7 @@ export default async function LeaderboardPage() {
                     <TableHead>Trader</TableHead>
                     <TableHead className="text-right">Return</TableHead>
                     <TableHead className="hidden text-right sm:table-cell">
-                      Portfolio value
+                      Portfolio value · USD
                     </TableHead>
                   </TableRow>
                 </TableHeader>
@@ -132,7 +132,10 @@ function RankChip({ rank }: { rank: number }) {
 function Podium({ top }: { top: LeaderboardEntry[] }) {
   const order = [top[1], top[0], top[2]];
   return (
-    <ol aria-label="Top three traders" className="mb-6 grid grid-cols-3 items-end gap-3">
+    <ol
+      aria-label="Top three traders"
+      className="mb-5 grid grid-cols-3 items-end gap-3 rounded-2xl border border-border-muted bg-card p-3 sm:p-4"
+    >
       {order.map((entry) => {
         const first = entry.rank === 1;
         const up = entry.return_pct >= 0;
@@ -140,7 +143,7 @@ function Podium({ top }: { top: LeaderboardEntry[] }) {
           <li
             key={entry.user_id}
             className={cn(
-              "relative isolate grid justify-items-center gap-1.5 overflow-hidden rounded-2xl border border-border-muted bg-card px-3 text-center",
+              "relative isolate grid justify-items-center gap-1.5 overflow-hidden rounded-xl border border-border-muted bg-surface-secondary/60 px-3 text-center",
               first ? "pt-7 pb-6" : "pt-5 pb-4",
             )}
           >
@@ -159,6 +162,9 @@ function Podium({ top }: { top: LeaderboardEntry[] }) {
             >
               {up ? "▲ " : "▼ "}
               {fmtPct(entry.return_pct)}
+            </span>
+            <span className="font-mono text-2xs text-text-tertiary tabular-nums" data-financial>
+              {fmtCurrency(entry.portfolio_value)}
             </span>
           </li>
         );

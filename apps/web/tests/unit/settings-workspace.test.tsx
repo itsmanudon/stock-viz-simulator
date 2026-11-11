@@ -2,9 +2,9 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { DENSITY_STORAGE_KEY } from "@/components/interface-preferences";
-import { SettingsWorkspace } from "@/components/settings-workspace";
+import { InterfacePanel, KeyboardShortcuts } from "@/components/settings-workspace";
 
-describe("SettingsWorkspace interface density", () => {
+describe("InterfacePanel density", () => {
   beforeEach(() => {
     window.localStorage.clear();
     delete document.documentElement.dataset.density;
@@ -18,7 +18,7 @@ describe("SettingsWorkspace interface density", () => {
   it("restores compact density and applies it to the document", async () => {
     window.localStorage.setItem(DENSITY_STORAGE_KEY, "compact");
 
-    render(<SettingsWorkspace email="investor@example.com" name="Investor" />);
+    render(<InterfacePanel />);
 
     await waitFor(() => {
       expect(document.documentElement).toHaveAttribute("data-density", "compact");
@@ -30,7 +30,7 @@ describe("SettingsWorkspace interface density", () => {
   });
 
   it("updates the document and local preference when density changes", () => {
-    render(<SettingsWorkspace email="investor@example.com" name="Investor" />);
+    render(<InterfacePanel />);
 
     fireEvent.click(screen.getByRole("button", { name: /compact/i }));
     expect(document.documentElement).toHaveAttribute("data-density", "compact");
@@ -39,5 +39,13 @@ describe("SettingsWorkspace interface density", () => {
     fireEvent.click(screen.getByRole("button", { name: /comfortable/i }));
     expect(document.documentElement).toHaveAttribute("data-density", "comfortable");
     expect(window.localStorage.getItem(DENSITY_STORAGE_KEY)).toBe("comfortable");
+  });
+});
+
+describe("KeyboardShortcuts", () => {
+  it("lists the palette shortcuts inline", () => {
+    render(<KeyboardShortcuts />);
+    expect(screen.getByText("⌘ K / Ctrl K")).toBeVisible();
+    expect(screen.getByText("Open the selected symbol")).toBeVisible();
   });
 });
