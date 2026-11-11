@@ -271,7 +271,7 @@ function NewsScreen({ ticker, articles }: { ticker: string; articles: NewsArticl
     <>
       <div className="flex items-center justify-between">
         <span className="text-lg font-medium tracking-tight">News</span>
-        <span className="rounded-full border border-border-muted px-2 py-0.5 font-mono text-3xs">
+        <span className="rounded-full border border-border-muted px-2 py-0.5 ticker text-3xs">
           {ticker}
         </span>
       </div>

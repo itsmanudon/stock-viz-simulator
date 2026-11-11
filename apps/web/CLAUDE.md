@@ -254,6 +254,13 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   status pills — use `DeltaPill` rather than re-rolling the chip.
   `--surface-elevated` is one step *above* `--card` (overlays: sidebar,
   popovers, sheets); `--card` is for content tiles sitting on the page.
+- **Type** (owner's pick, 12 Nov 2026): Geist for all text, including every
+  ticker symbol (the `ticker` utility in globals.css, paired with
+  `font-semibold`); Geist Mono only for figures (prices, quantities, deltas)
+  so columns line up. Product page titles are Geist 600 with
+  `tracking-[-0.025em]`, like the stock page's company name; marketing
+  headlines stay 500. Geist Mono draws its own ₹ (its `latin-ext` subset is
+  loaded), so there is no ₹ fallback face any more.
 - **Dark only for now** (owner, 12 Nov 2026): `components/providers.tsx`
   sets `forcedTheme="dark"`, and the theme toggles are gone from the top bar,
   the public header, the footer and Settings. The light tokens stay in

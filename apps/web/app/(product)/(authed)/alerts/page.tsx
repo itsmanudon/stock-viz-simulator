@@ -207,7 +207,7 @@ export default async function AlertsPage({
                   <div>
                     <Link
                       href={`/stocks/${alert.ticker}`}
-                      className="font-mono text-base font-medium hover:underline"
+                      className="ticker text-base font-medium hover:underline"
                     >
                       {alert.ticker}
                     </Link>
@@ -262,7 +262,7 @@ export default async function AlertsPage({
               <tbody>
                 {visible.map((alert) => (
                   <tr key={alert.id} className="border-b border-border-muted last:border-0">
-                    <td className="px-3 py-3 font-mono">
+                    <td className="ticker px-3 py-3 font-semibold">
                       <Link href={`/stocks/${alert.ticker}`} className="hover:underline">
                         {alert.ticker}
                       </Link>

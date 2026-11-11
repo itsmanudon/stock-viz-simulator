@@ -60,7 +60,7 @@ export function SecurityHeader({
             <span className="text-xs text-text-tertiary">Paper trading available</span>
           </div>
           <h1 className="mt-1 flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1 text-2xl font-semibold tracking-[-0.025em] sm:text-3xl">
-            <span className="font-mono text-xl font-medium tracking-[0.04em] text-brand sm:text-2xl">
+            <span className="ticker text-xl font-semibold text-text-tertiary sm:text-2xl">
               {symbol.ticker}
             </span>
             <span className="min-w-0 truncate">{symbol.name}</span>

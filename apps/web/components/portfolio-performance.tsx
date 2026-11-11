@@ -45,7 +45,7 @@ export function PortfolioPerformance({ portfolio, history, range, tab }: Props) 
           </p>
           <h1
             id="portfolio-heading"
-            className="mt-1 text-2xl font-medium tracking-tight sm:text-3xl"
+            className="mt-1 text-2xl font-semibold tracking-[-0.025em] sm:text-3xl"
           >
             Portfolio
           </h1>

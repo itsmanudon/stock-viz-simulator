@@ -131,7 +131,7 @@ export default async function TradePage({
               {recentTrades.map((trade) => (
                 <tr key={trade.id} className="border-b border-border-muted last:border-0">
                   <td className="px-3 py-2.5 text-text-tertiary">{fmtWhen(trade.ts)}</td>
-                  <td className="px-3 py-2.5 font-mono">
+                  <td className="ticker px-3 py-2.5 font-semibold">
                     <Link href={`/stocks/${trade.ticker}`} className="hover:underline">
                       {trade.ticker}
                     </Link>

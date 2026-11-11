@@ -413,7 +413,7 @@ export default async function ScreenerPage({
                   <TableBody>
                     {results.map((row) => (
                       <ClickableRow key={row.ticker} href={`/stocks/${row.ticker}`}>
-                        <TableCell className="font-mono font-semibold">{row.ticker}</TableCell>
+                        <TableCell className="ticker font-semibold">{row.ticker}</TableCell>
                         <TableCell className="truncate">{row.name}</TableCell>
                         {hasSector ? (
                           <TableCell className="hidden text-text-tertiary 2xl:table-cell">

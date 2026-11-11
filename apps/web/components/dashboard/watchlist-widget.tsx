@@ -39,7 +39,7 @@ export function WatchlistWidget({ watchlist }: { watchlist: WatchlistItem[] | nu
                 className="-mx-2 flex items-center justify-between gap-3 rounded-sm px-2 py-2 transition-colors hover:bg-surface-hover"
               >
                 <span className="min-w-0">
-                  <span className="block font-mono text-sm font-semibold">{item.ticker}</span>
+                  <span className="block ticker text-sm font-semibold">{item.ticker}</span>
                   <span className="mt-0.5 block truncate text-xs text-text-tertiary">
                     {item.name}
                   </span>

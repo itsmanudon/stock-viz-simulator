@@ -86,7 +86,7 @@ export function ScreenPanel({ rows }: { rows: ScreenerResult[] }) {
             {rows.map((row) => (
               <tr key={row.ticker} className="border-b border-border-muted/60 last:border-0">
                 <td className="py-2.5">
-                  <span className="font-mono text-xs font-semibold">{row.ticker}</span>
+                  <span className="ticker text-xs font-semibold">{row.ticker}</span>
                   <span className="ml-2 hidden text-2xs text-text-tertiary sm:inline">
                     {row.name}
                   </span>
@@ -142,7 +142,7 @@ export function ResearchPanel({ rec }: { rec: Recommendation }) {
       />
 
       <div className="mb-3 flex items-baseline gap-3">
-        <span className="font-mono text-sm font-semibold">{rec.ticker}</span>
+        <span className="ticker text-sm font-semibold">{rec.ticker}</span>
         <span className="font-mono text-2xs text-text-tertiary">
           {passed}/{votes.length} votes passed · score {rec.score}
         </span>
@@ -223,7 +223,7 @@ export function SimulatePanel({ result }: { result: BacktestResult }) {
       />
 
       <div className="flex items-baseline justify-between">
-        <span className="font-mono text-sm font-semibold">{result.ticker}</span>
+        <span className="ticker text-sm font-semibold">{result.ticker}</span>
         <span className="font-mono text-2xs text-text-tertiary">
           {result.trades.length} trades · {navs.length} sessions
         </span>

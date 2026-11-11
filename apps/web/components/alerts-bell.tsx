@@ -106,7 +106,7 @@ export function AlertsBell({ enabled }: { enabled: boolean }) {
                   className="flex items-center justify-between gap-2 px-2 py-2 text-sm hover:bg-accent"
                 >
                   <div>
-                    <div className="font-mono font-semibold">{alert.ticker}</div>
+                    <div className="ticker font-semibold">{alert.ticker}</div>
                     <div className="text-xs text-muted-foreground">
                       {alert.direction === "above" ? "≥" : "≤"} {fmtPrice(alert.target_price)}
                     </div>

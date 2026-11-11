@@ -43,7 +43,7 @@ function MoverRow({ mover, currency }: { mover: TopMover; currency: string }) {
         className="-mx-2 flex items-center justify-between gap-3 rounded-sm px-2 py-2.5 transition-colors hover:bg-surface-hover"
       >
         <span className="min-w-0">
-          <span className="block font-mono text-sm font-semibold">{mover.ticker}</span>
+          <span className="block ticker text-sm font-semibold">{mover.ticker}</span>
           <span className="mt-0.5 block truncate text-xs text-text-tertiary">{mover.name}</span>
         </span>
         <span className="flex shrink-0 flex-col items-end gap-1">

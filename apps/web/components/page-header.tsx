@@ -9,7 +9,8 @@ import { cn } from "@/lib/utils";
  * the domain-specific modules re-export thin wrappers that supply their own
  * eyebrow and subnav items.
  *
- * Anatomy is the "Dashboard Flaws" page head: small uppercase eyebrow, large
+ * Titles are Geist 600 with -0.025em tracking, matching the stock page's
+ * company name (owner's pick, 12 Nov 2026). Anatomy is the "Dashboard Flaws" page head: small uppercase eyebrow, large
  * title, one-line description, optional meta and actions.
  */
 export function PageHeader({
@@ -31,7 +32,7 @@ export function PageHeader({
         <p className="text-2xs font-medium tracking-[0.12em] text-text-secondary uppercase">
           {eyebrow}
         </p>
-        <h1 className="mt-1.5 text-2xl font-medium tracking-tight sm:text-3xl">{title}</h1>
+        <h1 className="mt-1.5 text-2xl font-semibold tracking-[-0.025em] sm:text-3xl">{title}</h1>
         <p className="mt-1.5 max-w-2xl text-sm leading-6 text-text-secondary">{description}</p>
         {meta ? <div className="mt-1.5 text-xs text-text-tertiary">{meta}</div> : null}
       </div>
