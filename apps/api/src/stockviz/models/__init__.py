@@ -5,6 +5,15 @@ Alembic runs autogenerate. Keep this module side-effect-free apart from the
 imports themselves.
 """
 
+from stockviz.models.aegis import (
+    AegisAnalysis,
+    AegisDocument,
+    AegisDocumentEntity,
+    AegisEvent,
+    AegisMapping,
+    AegisSyncRun,
+    AegisSyncState,
+)
 from stockviz.models.alert import Alert, AlertDirection
 from stockviz.models.comment import Comment
 from stockviz.models.dividend import Dividend, PortfolioDividend
@@ -35,6 +44,13 @@ from stockviz.models.user import User
 from stockviz.models.watchlist import Watchlist, WatchlistItem
 
 __all__ = [
+    "AegisAnalysis",
+    "AegisDocument",
+    "AegisDocumentEntity",
+    "AegisEvent",
+    "AegisMapping",
+    "AegisSyncRun",
+    "AegisSyncState",
     "Alert",
     "AlertDirection",
     "Comment",

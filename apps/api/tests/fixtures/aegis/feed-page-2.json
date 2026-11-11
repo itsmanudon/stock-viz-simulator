@@ -1,0 +1,180 @@
+{
+  "as_of": "2026-11-11T09:10:00Z",
+  "data": [
+    {
+      "analyses": [],
+      "document": {
+        "available_at": "2026-11-10T15:43:19.856450Z",
+        "created_at": "2026-11-10T15:43:19.200378Z",
+        "document_id": "doc_be5b211b-9d29-4823-aec8-936290eb3a90",
+        "first_seen_at": "2026-11-10T15:43:19.039892Z",
+        "ingested_at": "2026-11-10T15:43:19.146479Z",
+        "ingestion_id": "ing_a1e10224-056f-44f8-860e-498ff5f49b9b",
+        "language": "en",
+        "last_signed_at": "2026-11-11T09:00:00Z",
+        "published_at": null,
+        "revision": 1,
+        "source_id": "src_b76e3c15-8b22-4058-a5b0-b6323fa3c4ec",
+        "title": "Apple widens supplier review",
+        "url": "https://example.test/mapping-check/1794325399/0"
+      },
+      "entities": [],
+      "events": [],
+      "instruments": [],
+      "manifests": [
+        {
+          "key_id": "local",
+          "manifest_hash": "11a50e9717612cb8bfe019a4b7ce50cca0700d35d7decef9774d08cf5f9708c8",
+          "signed_at": "2026-11-10T15:43:19.856450Z"
+        }
+      ],
+      "source": {
+        "created_at": "2026-11-10T08:30:45.692593Z",
+        "kind": "upload",
+        "name": "CC0 presentation demo v1",
+        "schema_version": "1",
+        "source_id": "src_b76e3c15-8b22-4058-a5b0-b6323fa3c4ec",
+        "url": null
+      },
+      "withdrawal": {
+        "reason": "publisher takedown",
+        "withdrawn_at": "2026-11-11T09:00:00Z"
+      }
+    },
+    {
+      "analyses": [
+        {
+          "analysis_id": "ana_72bf166f-f517-573e-b10f-dae74a1e59b1",
+          "analysis_type": "topic",
+          "available_at": "2026-11-10T15:43:19.400000Z",
+          "configuration_hash": "89b0663bbafa916efc8891f325f9c44d187228a6e8faa326c1e9b6830f248d26",
+          "created_at": "2026-11-10T15:43:19.399384Z",
+          "document_id": "doc_888684b4-310b-496a-8cd5-1ae5feb0ddd8",
+          "model_name": "keyword-topics",
+          "model_version": "1",
+          "outputs": [
+            {
+              "confidence": 0.65,
+              "label": "business.earnings",
+              "result_type": "topic",
+              "schema_version": "1"
+            }
+          ],
+          "provider": "local-baseline",
+          "schema_version": "1"
+        },
+        {
+          "analysis_id": "ana_00000000-0000-5000-8000-000000000002",
+          "analysis_type": "sentiment",
+          "available_at": "2026-11-11T09:05:00Z",
+          "configuration_hash": "431ce46de96b6060ce60897088dafe20eff9085770fa8986ca6f8365ab2f9c3b",
+          "created_at": "2026-11-10T15:43:19.501372Z",
+          "document_id": "doc_888684b4-310b-496a-8cd5-1ae5feb0ddd8",
+          "model_name": "lexicon-sentiment",
+          "model_version": "1",
+          "outputs": [
+            {
+              "confidence": 0.6,
+              "entity_id": null,
+              "label": "negative",
+              "result_type": "sentiment",
+              "schema_version": "1",
+              "score": -0.42
+            }
+          ],
+          "provider": "local-baseline",
+          "schema_version": "1"
+        },
+        {
+          "analysis_id": "ana_975c43f2-7062-5498-8bef-6f9c632ffe53",
+          "analysis_type": "entity_resolution",
+          "available_at": "2026-11-10T15:43:19.696933Z",
+          "configuration_hash": "31be9ac7493c19963655a8b7498d6e6f853763b38f150c9d98e528f1824bc25c",
+          "created_at": "2026-11-10T15:43:19.696517Z",
+          "document_id": "doc_888684b4-310b-496a-8cd5-1ae5feb0ddd8",
+          "model_name": "candidate-resolver",
+          "model_version": "2",
+          "outputs": [
+            {
+              "confidence": 1.0,
+              "entity_id": "ent_69f6485d-c7f8-588a-a035-7e8f334cdc7f",
+              "mention_id": "mention_8223c86a-4e4b-57e9-a7dc-af34a094aa4b",
+              "result_type": "entity_resolution",
+              "schema_version": "1"
+            }
+          ],
+          "provider": "local-baseline",
+          "schema_version": "1"
+        }
+      ],
+      "document": {
+        "available_at": "2026-11-10T15:43:19.909161Z",
+        "created_at": "2026-11-10T15:43:19.205471Z",
+        "document_id": "doc_888684b4-310b-496a-8cd5-1ae5feb0ddd8",
+        "first_seen_at": "2026-11-10T15:43:19.064988Z",
+        "ingested_at": "2026-11-10T15:43:19.167284Z",
+        "ingestion_id": "ing_971683d4-f795-4abe-940c-6ae08743a655",
+        "language": "en",
+        "last_signed_at": "2026-11-11T09:05:00Z",
+        "published_at": "2026-11-10T13:00:00Z",
+        "revision": 1,
+        "source_id": "src_b76e3c15-8b22-4058-a5b0-b6323fa3c4ec",
+        "title": "Reliance expands retail footprint",
+        "url": "https://example.test/mapping-check/1794325399/1"
+      },
+      "entities": [
+        {
+          "canonical_name": "Reliance Industries Limited",
+          "confidence": 1.0,
+          "entity_id": "ent_69f6485d-c7f8-588a-a035-7e8f334cdc7f",
+          "kind": "organization",
+          "resolution_analysis_id": "ana_975c43f2-7062-5498-8bef-6f9c632ffe53"
+        }
+      ],
+      "events": [],
+      "instruments": [
+        {
+          "canonical_name": "Reliance Industries Limited",
+          "confidence": 1.0,
+          "entity_id": "ent_69f6485d-c7f8-588a-a035-7e8f334cdc7f",
+          "identifier": "HFSX",
+          "kind": "organization",
+          "mapping_id": "map_2458279a-6d94-5ec6-a120-2964ff46c107",
+          "resolution_analysis_id": "ana_975c43f2-7062-5498-8bef-6f9c632ffe53",
+          "scheme": "exchange_symbol",
+          "venue": "XNYS"
+        }
+      ],
+      "manifests": [
+        {
+          "key_id": "local",
+          "manifest_hash": "99025cf7069000a6186897acb3629589014075b241751f7e420135d1984e2eb5",
+          "signed_at": "2026-11-10T15:43:19.909161Z"
+        },
+        {
+          "key_id": "local",
+          "manifest_hash": "2222222222222222222222222222222222222222222222222222222222222222",
+          "signed_at": "2026-11-11T09:05:00Z"
+        }
+      ],
+      "source": {
+        "created_at": "2026-11-10T08:30:45.692593Z",
+        "kind": "upload",
+        "name": "CC0 presentation demo v1",
+        "schema_version": "1",
+        "source_id": "src_b76e3c15-8b22-4058-a5b0-b6323fa3c4ec",
+        "url": null
+      },
+      "withdrawal": null
+    }
+  ],
+  "meta": {
+    "api_version": "v1",
+    "request_id": "1479226a-4be7-4547-b077-5a3178f5f7e7"
+  },
+  "pagination": {
+    "has_more": false,
+    "next_cursor": null
+  },
+  "resume_cursor": "eyJ2IjogMiwgImtpbmQiOiAiZmVlZCIsICJmaWx0ZXJzIjogIm5vbmUiLCAia2V5IjogWzIsICJkb2NfMiJdfQ"
+}

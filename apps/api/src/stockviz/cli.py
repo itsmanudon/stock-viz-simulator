@@ -214,6 +214,48 @@ def _cmd_prune_events(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_aegis_sync(args: argparse.Namespace) -> int:
+    from stockviz.services.aegis import AegisClient, AegisError, run_sync
+    from stockviz.services.aegis.token import load_signing_key, mint_feed_token
+
+    settings = get_settings()
+    if not settings.aegis_configured:
+        print(
+            "aegis-sync: AEGIS_BASE_URL, AEGIS_SIGNING_KEY, AEGIS_ISSUER and "
+            "AEGIS_AUDIENCE must all be set. Skipping.",
+            file=sys.stderr,
+        )
+        return 2
+
+    key = load_signing_key(settings.aegis_signing_key)
+
+    def token() -> str:
+        return mint_feed_token(
+            key,
+            key_id=settings.aegis_key_id,
+            issuer=settings.aegis_issuer,
+            audience=settings.aegis_audience,
+            client_id=settings.aegis_client_id,
+        )
+
+    with AegisClient(
+        settings.aegis_base_url, token=token, timeout=settings.aegis_timeout_seconds
+    ) as client:
+        try:
+            result = run_sync(
+                engine, client, page_limit=settings.aegis_page_limit, max_pages=args.max_pages
+            )
+        except AegisError as exc:
+            print(f"aegis-sync: failed: {exc}", file=sys.stderr)
+            return 1
+    print(
+        f"aegis-sync: run {result.run_id}: {result.pages} page(s), "
+        f"{result.upserted} document(s) upserted, {result.withdrawn} withdrawn, "
+        f"{result.mappings} mapping(s)"
+    )
+    return 0
+
+
 def _cmd_run_scheduler(_args: argparse.Namespace) -> int:
     from stockviz.workers.scheduler import main as scheduler_main
 
@@ -902,6 +944,15 @@ def main(argv: list[str] | None = None) -> int:
         help="Also delete old unpublished outbox rows. Only where no publisher runs, like the Railway cron",
     )
     p_prune.set_defaults(fn=_cmd_prune_events)
+
+    p_aegis = sub.add_parser(
+        "aegis-sync",
+        help="Copy new Aegis News documents and the mapping list into the read tables",
+    )
+    p_aegis.add_argument(
+        "--max-pages", type=int, default=None, help="Stop after this many feed pages"
+    )
+    p_aegis.set_defaults(fn=_cmd_aegis_sync)
 
     sub.add_parser(
         "run-scheduler",

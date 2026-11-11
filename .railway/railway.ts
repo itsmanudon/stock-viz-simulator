@@ -65,6 +65,8 @@ const EOD_REFRESH = [
   'TICKERS=$(python -c "from stockviz.db import engine; from sqlmodel import Session, select; from stockviz.models import Symbol; print(\\" \\".join(Session(engine).exec(select(Symbol.ticker).where(Symbol.is_active)).all()))") || exit 1',
   job("python -m stockviz.cli ingest $TICKERS"),
   job("python -m stockviz.cli fx"),
+  // Aegis News copy (Phase 2). Exit 2 means it is not configured yet: skip.
+  "python -m stockviz.cli aegis-sync || [ $? -eq 2 ] || rc=1",
   "python -m stockviz.cli news || [ $? -eq 2 ] || rc=1",
   job("python -m stockviz.cli score-sentiment"),
   job("python -m stockviz.cli sentiment-aggregate"),
@@ -156,6 +158,16 @@ export default defineRailway(() => {
       // No outbox publisher runs on Railway, so the news step skips its
       // article fan-out rather than fill a table nothing reads (audit OP-11).
       EVENTS_OUTBOX_ENABLED: "false",
+      // Aegis News sync (Phase 2). All set out of band with `railway variable
+      // set --service cron`; preserve() stops a re-apply from deleting them.
+      // Until all four of URL, key, issuer and audience are set, aegis-sync
+      // exits 2 and the chain skips it. AEGIS_SIGNING_KEY is the Ed25519
+      // private key whose public half Aegis lists in AEGIS_OIDC_PUBLIC_KEYS.
+      AEGIS_BASE_URL: preserve(),
+      AEGIS_SIGNING_KEY: preserve(),
+      AEGIS_KEY_ID: preserve(),
+      AEGIS_ISSUER: preserve(),
+      AEGIS_AUDIENCE: preserve(),
     },
     deploy: {
       cronSchedule: "0 22 * * 1-5",

@@ -28,7 +28,7 @@ src/stockviz/
                     events — outbox, consumer inbox, derived trade activity,
                     execution — SimulatedExecution provenance,
                     replay — ReplaySession / ReplayPosition / ReplayFill /
-                    ReplayJournal)
+                    ReplayJournal, aegis — read-only Aegis News copies)
   events/           versioned contracts (trades/market/news), outbox/inbox,
                     dispatcher, domain handlers, Kafka producer wrappers
                     (not imported by FastAPI startup)
@@ -68,6 +68,10 @@ src/stockviz/
     backtest/       engine.py — historical strategy simulation
     alerts.py       price-alert evaluation
     metrics.py      precomputed per-symbol RSI / 52w range (screener reads these)
+    aegis/          Aegis News read sync (Phase 2): contract.py (lenient
+                    feed models), token.py (EdDSA feed:read token), client.py
+                    (the one client: timeouts, bounded retries), sync.py
+                    (run_sync), read.py (documents_for_ticker)
     sentiment/      provider abstraction + store
       base.py         SentimentProvider protocol, SentimentScore/Input
       anthropic_provider.py, http_provider.py, null_provider.py
@@ -100,7 +104,8 @@ CLI subcommands (`python -m stockviz.cli <cmd>`): `seed`, `backfill`,
 `news [tickers]`, `fx`, `metrics`,
 `score-sentiment`, `sentiment-aggregate`, `recommend`, `snapshot-portfolios`,
 `dividends`, `credit-dividends`, `settle-options`, `run-scheduler`,
-`prune-events [--days N] [--include-unpublished]`, `publish-outbox [--once]`,
+`prune-events [--days N] [--include-unpublished]`, `aegis-sync [--max-pages N]`,
+`publish-outbox [--once]`,
 `consume-trade-activity [--once]`, `consume-market-ingest [--once]`,
 `consume-market-analytics [--once]`, `consume-news-ingest [--once]`,
 `consume-news-sentiment [--once]`, `consume-sentiment-aggregate [--once]`.
@@ -111,6 +116,31 @@ rows and inbox receipts older than 30 days; `--include-unpublished` also
 deletes old unsent rows, for hosts where no publisher runs. The Railway cron
 runs it with that flag and sets `EVENTS_OUTBOX_ENABLED=false`, which makes the
 news ingest skip its `news.article.ingested` fan-out (nothing would publish it).
+
+**Aegis News sync (Phase 2).** `aegis-sync` copies the Aegis feed
+(`GET /api/v1/feed/documents`) and the whole mapping list
+(`GET /api/v1/assets/mappings`) into the `aegis_*` tables. Pages read those
+tables and never call Aegis. Contract: `docs/contracts/aegis-read-v1.md` in
+the workspace repository and `aegis-news/docs/feed.md`. Rules:
+
+- StockViz mints its own 10-minute `feed:read` service token per run
+  (`AEGIS_SIGNING_KEY`, an Ed25519 PEM; claims as Aegis's
+  `mint_service_token`). Without URL, key, issuer and audience the command
+  exits 2, and the cron chain skips it.
+- Each feed page commits with the cursor after it (`aegis_sync_state`), so a
+  run that dies resumes there and a rerun changes nothing. Every run leaves a
+  row in `aegis_sync_runs` (`running`, `succeeded` or `failed` with the error).
+- A bundle replaces the document's analyses, entities and events (it is the
+  latest signed run). A tombstone (`withdrawal`) deletes the document.
+- No article text is stored. Order and filter by `available_at`, never
+  `published_at` (empty for GDELT; audit AG-12). Analyses keep provider,
+  model name, version and the raw label, `mixed` included (AG-4).
+- Tickers join locally: document -> `aegis_document_entities` ->
+  `aegis_mappings` with `scheme='provider_id'` and
+  `identifier='stockviz:<TICKER>'` (`services/aegis/read.py`), so a mapping
+  seeded later links documents already held (AG-2).
+- Tests use recorded responses in `tests/fixtures/aegis/`, validated against
+  Aegis's own models; see the README there before changing them.
 
 Kafka workers (same image, different command; broker optional for the API):
 
