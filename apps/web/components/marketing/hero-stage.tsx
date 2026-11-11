@@ -5,9 +5,12 @@
  *
  * - The phone rotates through its screens every few seconds. Dots switch
  *   screens; hover pauses it; with reduced motion it never auto-advances.
- * - On wide screens with motion, the hero pins while you scroll: the phone
- *   stops on Portfolio, the paper card lifts out of it, grows with a tilt,
- *   settles beside the "paper trading" copy, and flips to show its back.
+ * - On wide screens with motion, the hero pins from the first scroll: the
+ *   phone stops on Portfolio, the paper card lifts out of it, grows with a
+ *   tilt, settles beside the "paper trading" copy, and flips to show its back.
+ *   The hero is taller than the screen, so it rises into view as part of the
+ *   same scrubbed timeline instead of scrolling up before the pin starts (the
+ *   owner saw that as the phone "snapping" to the bottom of the screen).
  * - Everywhere else (phones, reduced motion, no JS) nothing pins, and the same
  *   copy is a plain section under the hero. Only one of the two copies is ever
  *   shown, so assistive technology reads it once.
@@ -114,14 +117,16 @@ export function HeroStage({
             ease: "power3.out",
           });
         }
-        gsap.from(deskRef.current, {
+        // The entrance moves the inner elements, so the pinned timeline below
+        // can own the outer ones from the start without the two fighting.
+        gsap.from(deskRef.current?.firstElementChild ?? null, {
           y: 30,
           opacity: 0,
           duration: 1,
           ease: "power3.out",
           delay: 0.1,
         });
-        gsap.from(phoneRef.current, {
+        gsap.from(phoneRef.current?.firstElementChild ?? null, {
           y: 60,
           opacity: 0,
           duration: 1,
@@ -164,12 +169,27 @@ export function HeroStage({
           };
         };
 
+        const section = sectionRef.current;
+        const wrap = wrapRef.current;
+        if (!section || !wrap) return;
+        // How far the hero has to rise for its foot, where the card lands, to
+        // reach the bottom of the screen. Offsets ignore the rise itself.
+        const rise = () => Math.max(0, section.offsetHeight - window.innerHeight);
+        // The rise leaves that much empty section at the bottom once the pin
+        // releases; pulling the next section up by the same amount means it
+        // arrives at the bottom of the screen exactly as the pin ends.
+        const closeGap = () => {
+          gsap.set(wrap, { marginBottom: -rise() });
+        };
+
         const build = () => {
+          closeGap();
+          ScrollTrigger.addEventListener("refreshInit", closeGap);
           const tl = gsap.timeline({
             defaults: { ease: "none" },
             scrollTrigger: {
-              trigger: sectionRef.current,
-              start: "bottom bottom",
+              trigger: section,
+              start: "top top",
               end: () => `+=${Math.round(window.innerHeight * PIN_LENGTH)}`,
               pin: true,
               // Measured before every other trigger on the page: the space
@@ -181,7 +201,12 @@ export function HeroStage({
               onUpdate: (self) => setOut(self.progress > 0.004),
             },
           });
-          tl.to(pillsRef.current, { autoAlpha: 0, duration: 0.12 }, 0)
+          tl.to(
+            Array.from(section.children),
+            { y: () => -rise(), duration: 0.42, ease: "power1.inOut" },
+            0,
+          )
+            .to(pillsRef.current, { autoAlpha: 0, duration: 0.12 }, 0)
             .to(dotsRef.current, { autoAlpha: 0, duration: 0.12 }, 0)
             // The phone and panel sink out of view so nothing shows through
             // the copy that takes their place.
@@ -226,10 +251,13 @@ export function HeroStage({
           ScrollTrigger.refresh();
         };
 
-        // Measure after the entrance animation has finished moving the phone.
-        const call = gsap.delayedCall(1.4, build);
+        // Build almost at once: the pin starts on the first scroll, so a late
+        // build would let the hero scroll freely and then jump into the pin.
+        // The short wait lets React un-hide the card's landing spot first.
+        const call = gsap.delayedCall(0.1, build);
         return () => {
           call.kill();
+          ScrollTrigger.removeEventListener("refreshInit", closeGap);
           setOut(false);
           setPinned(false);
         };
