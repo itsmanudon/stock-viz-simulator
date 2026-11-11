@@ -5,6 +5,7 @@
  * remains a compact triggered indicator; this page is the system of record.
  */
 
+import type { Metadata } from "next";
 import Link from "next/link";
 
 import { AlertForm } from "@/components/alert-form";
@@ -29,6 +30,8 @@ import {
 } from "@/lib/operational-trading";
 import { cn } from "@/lib/utils";
 import { deleteAlertAction, dismissAlertAction } from "./actions";
+
+export const metadata: Metadata = { title: "Price alerts" };
 
 const VIEWS: { value: AlertView; label: string }[] = [
   { value: "active", label: "Active" },

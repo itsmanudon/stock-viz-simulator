@@ -6,10 +6,13 @@
  * without a separate count query.
  */
 
+import type { Metadata } from "next";
 import Link from "next/link";
 
 import { NewsList } from "@/components/news-list";
 import { getLatestNews } from "@/lib/api";
+
+export const metadata: Metadata = { title: "News" };
 
 const PAGE_SIZE = 25;
 

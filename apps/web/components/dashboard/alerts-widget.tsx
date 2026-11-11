@@ -3,23 +3,25 @@ import Link from "next/link";
 
 import { WidgetCard, WidgetEmpty } from "@/components/dashboard/widget-card";
 import type { Alert } from "@/lib/api/alerts";
+import { formatNativePrice } from "@/lib/operational-trading";
 
 /** Shown rows in all: fired alerts first, then armed ones (UI audit F3). */
 const MAX_ROWS = 4;
-
-function fmtTarget(raw: string): string {
-  const value = Number(raw);
-  return Number.isFinite(value)
-    ? value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-    : raw;
-}
 
 /**
  * Price alerts. Fired, undismissed alerts are the one time-sensitive thing on
  * the dashboard, so they come first; armed alerts follow as rows linked to
  * their symbol, rather than a count in an otherwise empty card.
  */
-export function AlertsWidget({ alerts }: { alerts: Alert[] | null }) {
+export function AlertsWidget({
+  alerts,
+  currencies = {},
+}: {
+  alerts: Alert[] | null;
+  currencies?: Record<string, string>;
+}) {
+  const fmtTarget = (alert: Alert) =>
+    formatNativePrice(alert.target_price, alert.ticker, currencies);
   const all = alerts ?? [];
   const triggered = all.filter((alert) => alert.triggered_at && !alert.dismissed_at);
   const armed = all.filter((alert) => !alert.triggered_at && !alert.dismissed_at);
@@ -57,7 +59,7 @@ export function AlertsWidget({ alerts }: { alerts: Alert[] | null }) {
               />
               <span className="min-w-0 text-xs leading-5 text-warning-soft-foreground">
                 <span className="font-mono font-semibold">{alert.ticker}</span> crossed{" "}
-                {alert.direction} <span className="font-mono">{fmtTarget(alert.target_price)}</span>
+                {alert.direction} <span className="font-mono">{fmtTarget(alert)}</span>
               </span>
             </Link>
           ))}
@@ -74,7 +76,7 @@ export function AlertsWidget({ alerts }: { alerts: Alert[] | null }) {
                     <span className="ml-auto text-text-secondary">
                       {alert.direction === "above" ? "Above" : "Below"}{" "}
                       <span className="font-mono" data-financial>
-                        {fmtTarget(alert.target_price)}
+                        {fmtTarget(alert)}
                       </span>
                     </span>
                   </Link>

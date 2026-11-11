@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
@@ -76,6 +77,15 @@ function ticketPosition(position: Position, portfolio: Portfolio): TicketPositio
       Number(portfolio.total_value),
     ),
   };
+}
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ ticker: string }>;
+}): Promise<Metadata> {
+  // The ticker alone: the company name would cost an API call per render.
+  return { title: decodeURIComponent((await params).ticker).toUpperCase() };
 }
 
 export default async function StockPage({

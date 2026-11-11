@@ -25,6 +25,7 @@ import { useEffect, useMemo, useRef } from "react";
 import type { Bar, IndicatorPoint, MACDPoint } from "@/lib/api";
 import { fitWithLabelRoom } from "@/lib/chart-range";
 import { useChartPalette } from "@/lib/chart-theme";
+import { formatCloseDate } from "@/lib/stock-workspace";
 
 export type PriceChartMarker = {
   time: string;
@@ -207,8 +208,8 @@ export function PriceChart({ bars, overlays, macd, markers }: Props) {
       : "";
     return (
       `Candlestick price chart covering ${bars.length} bars from ` +
-      `${new Date(first.ts).toLocaleDateString("en-US")} to ` +
-      `${new Date(last.ts).toLocaleDateString("en-US")}. ` +
+      `${formatCloseDate(first.ts) ?? first.ts} to ` +
+      `${formatCloseDate(last.ts) ?? last.ts}. ` +
       `Closed at ${close.toFixed(2)}, ${direction} ${Math.abs(changePct).toFixed(2)} percent ` +
       `over the period.${withOverlays}${markerText}`
     );

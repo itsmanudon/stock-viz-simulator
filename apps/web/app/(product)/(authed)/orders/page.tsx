@@ -5,6 +5,7 @@
  * Market fills are recorded on /trades; this page is conditional paper orders.
  */
 
+import type { Metadata } from "next";
 import Link from "next/link";
 
 import {
@@ -23,6 +24,8 @@ import {
   parseOrdersStatus,
 } from "@/lib/operational-trading";
 import { cn } from "@/lib/utils";
+
+export const metadata: Metadata = { title: "Orders" };
 
 const FILTERS: { value: OrderStatusFilter; label: string }[] = [
   { value: "pending", label: "Pending" },

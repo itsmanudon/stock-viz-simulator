@@ -1,4 +1,5 @@
 import { ArrowLeftRight, ArrowUpRight, ChartCandlestick, SearchCode, Users } from "lucide-react";
+import type { Metadata } from "next";
 import Link from "next/link";
 
 import { AlertsWidget } from "@/components/dashboard/alerts-widget";
@@ -10,6 +11,8 @@ import { WatchlistWidget } from "@/components/dashboard/watchlist-widget";
 import { PageFrame } from "@/components/page-frame";
 import { loadDashboardData } from "@/lib/dashboard-data";
 
+export const metadata: Metadata = { title: "Dashboard" };
+
 const SHORTCUTS = [
   { label: "Markets", href: "/markets", icon: ChartCandlestick },
   { label: "Research", href: "/compare", icon: SearchCode },
@@ -18,7 +21,8 @@ const SHORTCUTS = [
 ] as const;
 
 export default async function DashboardPage() {
-  const { portfolio, history, analytics, orders, alerts, watchlist } = await loadDashboardData();
+  const { portfolio, history, analytics, orders, alerts, watchlist, currencies } =
+    await loadDashboardData();
   const displayCurrency = portfolio.display_currency || "USD";
 
   return (
@@ -59,8 +63,8 @@ export default async function DashboardPage() {
           <PortfolioHero portfolio={portfolio} history={history} />
         </div>
         <OrdersWidget orders={orders} displayCurrency={displayCurrency} />
-        <WatchlistWidget watchlist={watchlist} />
-        <AlertsWidget alerts={alerts} />
+        <WatchlistWidget watchlist={watchlist} currencies={currencies} />
+        <AlertsWidget alerts={alerts} currencies={currencies} />
         <MoversWidget analytics={analytics} />
         <AllocationWidget analytics={analytics} />
       </div>

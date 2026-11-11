@@ -88,7 +88,10 @@ test("the statistics strip shows every label and price in full (audit D1)", asyn
   for (const width of [390, 1024, 1280, 1366, 1440, 1920]) {
     await page.setViewportSize({ width, height: 900 });
     await page.goto("/stocks/AAPL");
-    const strip = page.locator('section[aria-label="Market and technical metrics"]');
+    // Visible only: next dev can briefly keep a hidden copy of the route's
+    // tree while it re-renders. Two visible strips would still fail here.
+    const strip = page.locator('section[aria-label="Market and technical metrics"]:visible');
+    await expect(strip).toHaveCount(1);
     await expect(strip).toBeVisible();
     const cut = await strip
       .locator("dt, dd, dd span")

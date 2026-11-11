@@ -31,3 +31,17 @@ test("mobile product navigation exposes the same hierarchy", async ({ page }) =>
   await expect(drawer).toBeVisible();
   await expect(drawer.getByRole("link", { name: "Compare" })).toBeVisible();
 });
+
+test("each page names itself in the browser tab (audit A1)", async ({ page }) => {
+  for (const [path, title] of [
+    ["/", "StockViz | Market Visualization Platform"],
+    ["/markets", "Markets | StockViz"],
+    ["/screener", "Screener | StockViz"],
+    ["/recommendations", "Signals | StockViz"],
+    ["/stocks/aapl", "AAPL | StockViz"],
+    ["/login", "Sign in | StockViz"],
+  ] as const) {
+    await page.goto(path);
+    await expect(page).toHaveTitle(title);
+  }
+});

@@ -6,6 +6,7 @@
  * ticket is a client island. `/trade?ticker=` is the shareable symbol.
  */
 
+import type { Metadata } from "next";
 import Link from "next/link";
 
 import {
@@ -24,6 +25,8 @@ import { ApiError, getBars, getQuotes, listSymbols } from "@/lib/api";
 import { getPortfolio, listOrders, listTrades } from "@/lib/api/trading";
 import { currencyByTicker, parseTradeTicker } from "@/lib/operational-trading";
 import { formatCurrency, formatQuantity } from "@/lib/portfolio-view-model";
+
+export const metadata: Metadata = { title: "Trade" };
 
 /** Fill times are stored in UTC; show them in UTC and say so (audit T4). */
 function fmtWhen(iso: string | null): string {

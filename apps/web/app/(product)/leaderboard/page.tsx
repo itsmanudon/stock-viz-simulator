@@ -9,6 +9,7 @@
  * brand glow behind first place. Ranks are numbers in chips, not emoji.
  */
 
+import type { Metadata } from "next";
 import Link from "next/link";
 
 import { DataTableFrame, NumericCell } from "@/components/data-table";
@@ -25,6 +26,8 @@ import {
 } from "@/components/ui/table";
 import { type LeaderboardEntry, getLeaderboard } from "@/lib/api/leaderboard";
 import { cn } from "@/lib/utils";
+
+export const metadata: Metadata = { title: "Leaderboard" };
 
 function fmtCurrency(raw: string): string {
   return Number(raw).toLocaleString("en-US", {

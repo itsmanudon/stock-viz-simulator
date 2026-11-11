@@ -1,5 +1,6 @@
 import "server-only";
 
+import { listSymbols } from "@/lib/api";
 import { type Alert, listAlerts } from "@/lib/api/alerts";
 import {
   type PendingOrder,
@@ -10,6 +11,7 @@ import {
   listOrders,
 } from "@/lib/api/trading";
 import { type WatchlistItem, listWatchlist } from "@/lib/api/watchlist";
+import { currencyByTicker } from "@/lib/operational-trading";
 import { loadPortfolioOverview } from "@/lib/portfolio-overview";
 import { DASHBOARD_HISTORY_DAYS } from "@/lib/portfolio-view-model";
 
@@ -27,18 +29,23 @@ export type DashboardData = {
   orders: PendingOrder[] | null;
   alerts: Alert[] | null;
   watchlist: WatchlistItem[] | null;
+  /** Trading currency per ticker; watchlist and alert rows carry none. */
+  currencies: Record<string, string>;
 };
 
 export async function loadDashboardData(): Promise<DashboardData> {
-  const [overview, history, orders, alerts, watchlist] = await Promise.all([
+  const [overview, history, orders, alerts, watchlist, symbols] = await Promise.all([
     loadPortfolioOverview(),
     optional(getPortfolioHistory(DASHBOARD_HISTORY_DAYS)),
     optional(listOrders("pending")),
     optional(listAlerts()),
     optional(listWatchlist()),
+    // Without it prices still show, as USD, the same fallback /watchlist uses.
+    optional(listSymbols()),
   ]);
 
-  return { ...overview, history, orders, alerts, watchlist };
+  const currencies = currencyByTicker(symbols ?? []);
+  return { ...overview, history, orders, alerts, watchlist, currencies };
 }
 
 function optional<T>(request: Promise<T>): Promise<T | null> {

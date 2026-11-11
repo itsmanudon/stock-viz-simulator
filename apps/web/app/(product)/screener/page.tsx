@@ -8,6 +8,7 @@
  */
 
 import { X } from "lucide-react";
+import type { Metadata } from "next";
 import Link from "next/link";
 
 import { ClickableRow } from "@/components/clickable-row";
@@ -37,6 +38,8 @@ import {
   sortScreenerRows,
 } from "@/lib/screener-view";
 import { formatCloseDate } from "@/lib/stock-workspace";
+
+export const metadata: Metadata = { title: "Screener" };
 
 function num(s: string | undefined): number | undefined {
   if (s === undefined || s === "") return undefined;

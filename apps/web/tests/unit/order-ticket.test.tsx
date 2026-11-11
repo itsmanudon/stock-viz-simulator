@@ -42,6 +42,24 @@ describe("OrderTicket", () => {
     expect(replace).toHaveBeenCalledWith("/trade?ticker=AAPL", { scroll: false });
   });
 
+  it("dates the stored close by its calendar day in every time zone (audit T2)", () => {
+    // No zone on the timestamp: read as local time it became 2025-04-03 east
+    // of UTC, while the stock page said Apr 4.
+    render(
+      <OrderTicket
+        symbols={symbols}
+        initialTicker="MSFT"
+        quoteClose="400.00"
+        quoteAt="2025-04-04T00:00:00"
+        position={null}
+        availableCash="100000"
+        displayCurrency="USD"
+      />,
+    );
+    expect(screen.getByText(/Last stored close .* · Apr 4, 2025/)).toBeVisible();
+    expect(screen.queryByText(/2025-04-03/)).not.toBeInTheDocument();
+  });
+
   it("keeps the fill announcement after the parent passes a new quote", () => {
     const { rerender } = render(
       <OrderTicket

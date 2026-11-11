@@ -2,9 +2,20 @@ import Link from "next/link";
 
 import { WidgetCard, WidgetEmpty } from "@/components/dashboard/widget-card";
 import type { WatchlistItem } from "@/lib/api/watchlist";
+import { formatNativePrice } from "@/lib/operational-trading";
 
-/** Compact read-only view of the watchlist; editing stays on /watchlist. */
-export function WatchlistWidget({ watchlist }: { watchlist: WatchlistItem[] | null }) {
+/**
+ * Compact read-only view of the watchlist; editing stays on /watchlist.
+ * Prices in each symbol's own currency, as on /watchlist (UI audit T7: the
+ * raw stored string "312.320000" showed here).
+ */
+export function WatchlistWidget({
+  watchlist,
+  currencies = {},
+}: {
+  watchlist: WatchlistItem[] | null;
+  currencies?: Record<string, string>;
+}) {
   const items = watchlist ?? [];
 
   return (
@@ -38,7 +49,7 @@ export function WatchlistWidget({ watchlist }: { watchlist: WatchlistItem[] | nu
                   </span>
                 </span>
                 <span className="shrink-0 font-mono text-sm" data-financial>
-                  {item.last_close ?? "—"}
+                  {formatNativePrice(item.last_close, item.ticker, currencies)}
                 </span>
               </Link>
             </li>
