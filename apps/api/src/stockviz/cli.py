@@ -273,6 +273,33 @@ def _cmd_aegis_sync(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_settle_orders(args: argparse.Namespace) -> int:
+    """Fill or cancel triggered limit, stop-loss and take-profit orders (audit P0-1)."""
+    from stockviz._time import utcnow
+    from stockviz.services.ingest.bar_semantics import latest_completed_session
+    from stockviz.services.trading.orders import settle_pending_orders
+
+    session_date = (
+        date.fromisoformat(args.session_date)
+        if args.session_date
+        else latest_completed_session(utcnow().replace(tzinfo=UTC))
+    )
+    with Session(engine) as session:
+        filled = settle_pending_orders(session, session_date=session_date)
+    print(f"settle-orders: filled {filled} pending order(s) against the {session_date} session")
+    return 0
+
+
+def _cmd_evaluate_alerts(_args: argparse.Namespace) -> int:
+    """Trigger price alerts whose target the latest stored close has crossed (audit P0-2)."""
+    from stockviz.services.alerts import evaluate_pending_alerts
+
+    with Session(engine) as session:
+        triggered = evaluate_pending_alerts(session)
+    print(f"evaluate-alerts: triggered {triggered} alert(s)")
+    return 0
+
+
 def _cmd_run_scheduler(_args: argparse.Namespace) -> int:
     from stockviz.workers.scheduler import main as scheduler_main
 
@@ -970,6 +997,21 @@ def main(argv: list[str] | None = None) -> int:
         "--max-pages", type=int, default=None, help="Stop after this many feed pages"
     )
     p_aegis.set_defaults(fn=_cmd_aegis_sync)
+
+    p_settle = sub.add_parser(
+        "settle-orders",
+        help="Fill or cancel triggered pending orders against the latest completed session",
+    )
+    p_settle.add_argument(
+        "--session-date",
+        default=None,
+        help="YYYY-MM-DD; default: the newest weekday before today's New York date",
+    )
+    p_settle.set_defaults(fn=_cmd_settle_orders)
+
+    sub.add_parser(
+        "evaluate-alerts", help="Trigger price alerts the latest stored close has crossed"
+    ).set_defaults(fn=_cmd_evaluate_alerts)
 
     sub.add_parser(
         "run-scheduler",

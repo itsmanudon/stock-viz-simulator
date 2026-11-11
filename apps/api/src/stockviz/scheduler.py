@@ -23,6 +23,7 @@ import json
 import logging
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
+from datetime import UTC
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -281,15 +282,18 @@ def portfolio_snapshots_refresh() -> None:
 
 @single_instance("pending_orders_settlement")
 def pending_orders_settlement() -> None:
-    """Settle any pending orders triggered by today's EOD close.
+    """Settle pending orders against the newest session ingest can have stored.
 
-    ``session_date`` is today, so an order is only filled when the symbol's
-    latest bar is actually today's. If the 16:30 price refresh failed or ran
-    long, orders stay pending rather than filling against yesterday's close.
+    Ingest stores a session only after New York has moved past its date
+    (audit MD-3), so "today" never had a bar and nothing ever filled.
+    ``latest_completed_session`` asks for the previous weekday instead; if the
+    price refresh failed, its bar is missing and orders stay pending.
     """
-    today = utcnow().date()
+    from stockviz.services.ingest.bar_semantics import latest_completed_session
+
+    session_date = latest_completed_session(utcnow().replace(tzinfo=UTC))
     with _session_scope() as session:
-        filled = settle_pending_orders(session, session_date=today)
+        filled = settle_pending_orders(session, session_date=session_date)
     logger.info("pending_orders_settlement: filled %d order(s)", filled)
 
 

@@ -105,10 +105,20 @@ CLI subcommands (`python -m stockviz.cli <cmd>`): `seed`, `backfill`,
 `score-sentiment`, `sentiment-aggregate`, `recommend`, `snapshot-portfolios`,
 `dividends`, `credit-dividends`, `settle-options`, `run-scheduler`,
 `prune-events [--days N] [--include-unpublished]`, `aegis-sync [--max-pages N]`,
+`settle-orders [--session-date YYYY-MM-DD]`, `evaluate-alerts`,
 `publish-outbox [--once]`,
 `consume-trade-activity [--once]`, `consume-market-ingest [--once]`,
 `consume-market-analytics [--once]`, `consume-news-ingest [--once]`,
 `consume-news-sentiment [--once]`, `consume-sentiment-aggregate [--once]`.
+
+**Pending orders and alerts when hosted (audits P0-1, P0-2).** The Railway
+cron has no scheduler, so `settle-orders` and `evaluate-alerts` run in its
+chain after `fx` and before `snapshot-portfolios`. Settlement asks for
+`latest_completed_session()` (`services/ingest/bar_semantics.py`): ingest
+stores a session only after New York passes its date (audit MD-3), so at
+22:00 UTC the newest stored session is the previous weekday. The scheduler's
+`pending_orders_settlement` uses the same helper; it used "today", which
+never had a bar, so nothing ever filled.
 
 **Event table retention (audit OP-11).** Nothing else deletes from
 `outbox_events` or `consumer_inbox`. `prune-events` deletes published outbox
