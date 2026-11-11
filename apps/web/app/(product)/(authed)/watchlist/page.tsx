@@ -78,79 +78,131 @@ export default async function WatchlistPage() {
           </OperationalEmptyState>
         </div>
       ) : (
-        <div className="mt-5 overflow-x-auto rounded-md border border-border-muted bg-card">
-          <table className="w-full min-w-[44rem] text-sm">
-            <caption className="sr-only">Watched securities</caption>
-            <thead>
-              <tr className="border-b border-border-muted text-left text-3xs font-semibold tracking-[0.12em] text-text-tertiary uppercase">
-                <th scope="col" className="px-3 py-2.5">
-                  Ticker
-                </th>
-                <th scope="col" className="px-3 py-2.5">
-                  Name
-                </th>
-                <th scope="col" className="hidden px-3 py-2.5 md:table-cell">
-                  Sector
-                </th>
-                <th scope="col" className="px-3 py-2.5 text-right">
-                  Last close
-                </th>
-                <th scope="col" className="px-3 py-2.5 text-right">
-                  Window
-                </th>
-                <th scope="col" className="hidden w-[7.5rem] px-3 py-2.5 lg:table-cell">
-                  30-day
-                </th>
-                <th scope="col" className="hidden px-3 py-2.5 sm:table-cell">
-                  Added
-                </th>
-                <th scope="col" className="px-3 py-2.5 text-right">
-                  <span className="sr-only">Actions</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((item, index) => {
-                const closes = sparklines[index] ?? [];
-                const move = dayMovePct(closes[0], closes[closes.length - 1]);
-                return (
-                  <tr key={item.ticker} className="border-b border-border-muted last:border-0">
-                    <td className="px-3 py-3 font-mono font-medium">
-                      <Link href={`/stocks/${item.ticker}`} className="hover:underline">
+        <>
+          {/* Cards under md, where the table scrolled sideways (audit P1). */}
+          <ul aria-label="Watched securities" className="mt-5 grid gap-3 md:hidden">
+            {items.map((item, index) => {
+              const closes = sparklines[index] ?? [];
+              const move = dayMovePct(closes[0], closes[closes.length - 1]);
+              return (
+                <li
+                  key={item.ticker}
+                  className="grid gap-3 rounded-2xl border border-border-muted bg-card p-4"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <Link
+                        href={`/stocks/${item.ticker}`}
+                        className="font-mono text-base font-medium hover:underline"
+                      >
                         {item.ticker}
                       </Link>
-                    </td>
-                    <td className="truncate px-3 py-3 text-text-secondary">{item.name}</td>
-                    <td className="hidden px-3 py-3 text-text-tertiary md:table-cell">
-                      {item.sector ?? "—"}
-                    </td>
-                    <td className="px-3 py-3 text-right font-mono">
-                      {formatNativePrice(item.last_close, item.ticker, currencies)}
-                    </td>
-                    <td
-                      className={cn(
-                        "px-3 py-3 text-right font-mono",
-                        move !== null && move > 0 && "text-positive",
-                        move !== null && move < 0 && "text-negative",
-                      )}
-                    >
-                      {formatSignedPercent(move)}
-                    </td>
-                    <td className="hidden px-3 py-3 lg:table-cell">
-                      <Sparkline closes={closes} />
-                    </td>
-                    <td className="hidden px-3 py-3 text-xs text-text-tertiary sm:table-cell">
-                      {fmtDate(item.added_at)}
-                    </td>
-                    <td className="px-3 py-3 text-right">
-                      <WatchlistRowActions ticker={item.ticker} />
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                      <p className="truncate text-xs text-text-tertiary">
+                        {item.name}
+                        {item.sector ? ` · ${item.sector}` : ""}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-mono text-sm" data-financial>
+                        {formatNativePrice(item.last_close, item.ticker, currencies)}
+                      </p>
+                      <p
+                        className={cn(
+                          "font-mono text-xs",
+                          move !== null && move > 0 && "text-positive",
+                          move !== null && move < 0 && "text-negative",
+                        )}
+                        data-financial
+                      >
+                        {formatSignedPercent(move)} · 30 days
+                      </p>
+                    </div>
+                  </div>
+                  <Sparkline closes={closes} className="h-10 w-full" />
+                  <div className="flex items-center justify-between gap-3 border-t border-border-muted pt-3">
+                    <span className="text-xs text-text-tertiary">
+                      Added {fmtDate(item.added_at)}
+                    </span>
+                    <WatchlistRowActions ticker={item.ticker} />
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+          <div className="mt-5 hidden overflow-x-auto rounded-md border border-border-muted bg-card md:block">
+            <table className="w-full min-w-[44rem] text-sm">
+              <caption className="sr-only">Watched securities</caption>
+              <thead>
+                <tr className="border-b border-border-muted text-left text-3xs font-semibold tracking-[0.12em] text-text-tertiary uppercase">
+                  <th scope="col" className="px-3 py-2.5">
+                    Ticker
+                  </th>
+                  <th scope="col" className="px-3 py-2.5">
+                    Name
+                  </th>
+                  <th scope="col" className="hidden px-3 py-2.5 md:table-cell">
+                    Sector
+                  </th>
+                  <th scope="col" className="px-3 py-2.5 text-right">
+                    Last close
+                  </th>
+                  <th scope="col" className="px-3 py-2.5 text-right">
+                    30-day change
+                  </th>
+                  <th scope="col" className="hidden w-[7.5rem] px-3 py-2.5 lg:table-cell">
+                    30-day
+                  </th>
+                  <th scope="col" className="hidden px-3 py-2.5 sm:table-cell">
+                    Added
+                  </th>
+                  <th scope="col" className="px-3 py-2.5 text-right">
+                    <span className="sr-only">Actions</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((item, index) => {
+                  const closes = sparklines[index] ?? [];
+                  const move = dayMovePct(closes[0], closes[closes.length - 1]);
+                  return (
+                    <tr key={item.ticker} className="border-b border-border-muted last:border-0">
+                      <td className="px-3 py-3 font-mono font-medium">
+                        <Link href={`/stocks/${item.ticker}`} className="hover:underline">
+                          {item.ticker}
+                        </Link>
+                      </td>
+                      <td className="truncate px-3 py-3 text-text-secondary">{item.name}</td>
+                      <td className="hidden px-3 py-3 text-text-tertiary md:table-cell">
+                        {item.sector ?? "—"}
+                      </td>
+                      <td className="px-3 py-3 text-right font-mono">
+                        {formatNativePrice(item.last_close, item.ticker, currencies)}
+                      </td>
+                      <td
+                        className={cn(
+                          "px-3 py-3 text-right font-mono",
+                          move !== null && move > 0 && "text-positive",
+                          move !== null && move < 0 && "text-negative",
+                        )}
+                      >
+                        {formatSignedPercent(move)}
+                      </td>
+                      <td className="hidden px-3 py-3 lg:table-cell">
+                        <Sparkline closes={closes} />
+                      </td>
+                      <td className="hidden px-3 py-3 text-xs text-text-tertiary sm:table-cell">
+                        {fmtDate(item.added_at)}
+                      </td>
+                      <td className="px-3 py-3 text-right">
+                        <WatchlistRowActions ticker={item.ticker} />
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
     </PageFrame>
   );

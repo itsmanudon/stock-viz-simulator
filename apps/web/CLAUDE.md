@@ -253,7 +253,10 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
 - Symbol tables are ~500px+ wide at their narrowest, so `/markets` and
   `/screener` render `SymbolCardList` under `md` and the table above it. Both
   branches carry the same figures — mobile re-lays them out rather than
-  dropping columns. Any new symbol table should do the same.
+  dropping columns. Any new symbol table should do the same. `/orders`,
+  `/watchlist` and `/alerts` follow it too (cards under `md`, table above;
+  `OrderCard` lives beside `OrderBlotterRow`), and operational times render
+  in UTC with the zone named.
 - Tables: use `DataTableFrame` + `NumericCell` rather than hand-rolling the
   bordered wrapper and the right-aligned tinted number. `NumericCell` owns the
   sign→token mapping and the em-dash fallback — never write `text-green-500`

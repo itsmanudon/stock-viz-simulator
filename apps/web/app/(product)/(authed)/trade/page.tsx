@@ -25,6 +25,7 @@ import { getPortfolio, listOrders, listTrades } from "@/lib/api/trading";
 import { currencyByTicker, parseTradeTicker } from "@/lib/operational-trading";
 import { formatCurrency, formatQuantity } from "@/lib/portfolio-view-model";
 
+/** Fill times are stored in UTC; show them in UTC and say so (audit T4). */
 function fmtWhen(iso: string | null): string {
   if (!iso) return "—";
   return new Date(iso).toLocaleString("en-US", {
@@ -32,6 +33,8 @@ function fmtWhen(iso: string | null): string {
     day: "numeric",
     hour: "2-digit",
     minute: "2-digit",
+    timeZone: "UTC",
+    timeZoneName: "short",
   });
 }
 
