@@ -1831,6 +1831,8 @@ export interface components {
             quantity?: number | null;
             /** Option Id */
             option_id?: number | null;
+            /** Client Order Id */
+            client_order_id?: string | null;
         };
         /**
          * OptionTradeOut

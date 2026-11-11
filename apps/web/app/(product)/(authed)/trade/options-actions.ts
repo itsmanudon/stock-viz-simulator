@@ -5,6 +5,7 @@ import { z } from "zod";
 
 import { tradeOption } from "@/lib/api/options";
 import { AuthedApiError, UnauthenticatedError } from "@/lib/api/server";
+import { clientOrderIdFrom } from "@/lib/order-review";
 
 const OpenSchema = z.object({
   ticker: z
@@ -71,6 +72,7 @@ export async function openOptionAction(
       strike: parsed.data.strike,
       expiry: parsed.data.expiry,
       quantity: Number(parsed.data.quantity),
+      client_order_id: clientOrderIdFrom(formData),
     });
     revalidatePath("/portfolio");
     revalidatePath("/trade");

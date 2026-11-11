@@ -35,6 +35,8 @@ export type OpenOptionInput = {
   strike: string;
   expiry: string;
   quantity: number;
+  /** A repeat with the same key returns the first contract (audit LG-10). */
+  client_order_id?: string;
 };
 
 export type CloseOptionInput = {

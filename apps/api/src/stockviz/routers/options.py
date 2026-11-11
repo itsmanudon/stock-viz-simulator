@@ -28,6 +28,7 @@ from stockviz.services.options import (
     InvalidExpiry,
     NoOptionMarketData,
     OptionNotFound,
+    OptionOrderConflict,
     OptionSymbolNotFound,
     OptionTradeError,
     close_option,
@@ -107,7 +108,10 @@ def post_options_trade(
                 strike=body.strike,  # type: ignore[arg-type]
                 expiry=body.expiry,  # type: ignore[arg-type]
                 quantity=body.quantity,  # type: ignore[arg-type]
+                client_order_id=body.client_order_id,
             )
+        except OptionOrderConflict as exc:
+            raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
         except OptionSymbolNotFound as exc:
             raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
         except (InsufficientCashForOption, NoOptionMarketData, NoFxRateError) as exc:

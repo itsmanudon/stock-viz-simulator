@@ -83,6 +83,10 @@ class InsufficientCashForOption(OptionTradeError):
     pass
 
 
+class OptionOrderConflict(OptionTradeError):
+    """A client_order_id already names a different option open (audit LG-10)."""
+
+
 class OptionNotFound(OptionTradeError):
     pass
 
@@ -144,8 +148,15 @@ def open_option(
     strike: Decimal,
     expiry: date_type,
     quantity: int,
+    client_order_id: str | None = None,
 ) -> OptionTradeResult:
-    """Buy ``quantity`` contracts to open. Premium is debited from portfolio cash."""
+    """Buy ``quantity`` contracts to open. Premium is debited from portfolio cash.
+
+    With a ``client_order_id`` a repeat of the same open returns the first
+    contract without charging again, and a repeat naming a different contract
+    raises :class:`OptionOrderConflict` (audit LG-10). The lookup runs under
+    the portfolio lock.
+    """
 
     if quantity <= 0:
         raise OptionTradeError("quantity must be a positive number of contracts")
@@ -153,6 +164,26 @@ def open_option(
         raise OptionTradeError("strike must be positive")
 
     ticker = ticker.upper()
+    if client_order_id is not None:
+        earlier = _earlier_open(session, user_id=user_id, client_order_id=client_order_id)
+        if earlier is not None:
+            same = (
+                earlier.ticker == ticker
+                and earlier.option_type == option_type
+                and earlier.strike == strike
+                and earlier.expiry == expiry
+                and earlier.quantity == quantity
+            )
+            if not same:
+                raise OptionOrderConflict(
+                    "This client_order_id was already used for a different option "
+                    f"({earlier.quantity} {earlier.ticker} {earlier.option_type.value} "
+                    f"{earlier.strike} {earlier.expiry.isoformat()})."
+                )
+            session.rollback()  # release the lock; nothing was written
+            session.refresh(earlier)
+            return OptionTradeResult(position=earlier, cash_delta=-earlier.premium_paid)
+
     symbol = session.get(Symbol, ticker)
     if symbol is None:
         raise OptionSymbolNotFound(f"Symbol {ticker!r} not found")
@@ -204,12 +235,28 @@ def open_option(
         quantity=quantity,
         premium_paid=premium,
         status=OptionStatus.OPEN,
+        client_order_id=client_order_id,
     )
     session.add(portfolio)
     session.add(position)
     session.commit()
     session.refresh(position)
     return OptionTradeResult(position=position, cash_delta=-premium)
+
+
+def _earlier_open(
+    session: Session, *, user_id: int, client_order_id: str
+) -> OptionsPosition | None:
+    """The open this key already placed, read under the portfolio lock."""
+    portfolio = ensure_default_portfolio(session, user_id)
+    assert portfolio.id is not None
+    lock_portfolio(session, portfolio.id)
+    return session.exec(
+        select(OptionsPosition).where(
+            OptionsPosition.portfolio_id == portfolio.id,
+            OptionsPosition.client_order_id == client_order_id,
+        )
+    ).first()
 
 
 def close_option(session: Session, *, user_id: int, option_id: int) -> OptionTradeResult:

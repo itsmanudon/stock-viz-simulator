@@ -335,7 +335,18 @@ intraday fills anywhere in the app:
   (201, same body); the same key for a different order is a 409
   (`ClientOrderIdConflict`). The lookup runs under the portfolio lock. The web
   review (`components/order-review.tsx`) makes one key each time it opens.
-  Option trades have no key yet.
+  Option opens take the same key (`POST /v1/options/trade`, `action: open`;
+  `OptionOrderConflict`); the option ticket makes one after hydration and a
+  new one after each buy. A close is safe to repeat without one: the second
+  finds the contract closed.
+- **Database backstops (audit LG-11).** Correctness rests on the portfolio
+  lock, but the database also refuses what no writer should produce: one
+  `positions` row per (portfolio, ticker), position quantity > 0 and
+  `avg_cost` >= 0, `cash_balance` >= 0, trade, pending-order and option
+  amounts positive (migration `5d1b8e2c4a77`). `tests/test_pg_concurrency.py`
+  races each writer pair on PostgreSQL: buy reservations, sells, an option
+  closed twice, cancel against settle, dividend credit twice, and one client
+  key sent twice.
 - **Cash is always USD.** Trade rows store price/quantity in the symbol's
   native currency; the cash debit/credit converts at the latest FX rate
   (`services/trading/fx.py` — rates are USD-per-unit, forward-filled over

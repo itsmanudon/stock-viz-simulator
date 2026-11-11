@@ -16,7 +16,7 @@ from datetime import date as date_type
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import Index, Numeric
+from sqlalchemy import CheckConstraint, Index, Numeric, UniqueConstraint
 from sqlmodel import Column, Field, SQLModel
 
 from stockviz._time import utcnow
@@ -42,7 +42,20 @@ class OptionsPosition(SQLModel, table=True):
     # The Trading Journal scans one user's settled contracts over a month.
     # Composite so that range scan doesn't fall back to the user_id index and
     # then filter every historical row by hand.
-    __table_args__ = (Index("ix_options_positions_user_settled", "user_id", "settled_at"),)
+    __table_args__ = (
+        Index("ix_options_positions_user_settled", "user_id", "settled_at"),
+        CheckConstraint(
+            "quantity > 0 AND strike > 0 AND premium_paid >= 0",
+            name="ck_options_positions_amounts_valid",
+        ),
+        # A repeated open with the same client key returns the first contract
+        # (audit LG-10). NULLs never clash.
+        UniqueConstraint(
+            "portfolio_id",
+            "client_order_id",
+            name="uq_options_positions_portfolio_client_order_id",
+        ),
+    )
 
     id: int | None = Field(default=None, primary_key=True)
     user_id: int = Field(foreign_key="users.id", index=True)
@@ -54,6 +67,7 @@ class OptionsPosition(SQLModel, table=True):
     expiry: date_type = Field(nullable=False, index=True)
     quantity: int = Field(nullable=False)  # number of contracts
     premium_paid: Decimal = Field(sa_column=Column(Numeric(20, 6), nullable=False))
+    client_order_id: str | None = Field(default=None, max_length=64, nullable=True)
 
     status: OptionStatus = Field(default=OptionStatus.OPEN, max_length=12, index=True)
     opened_at: datetime = Field(default_factory=utcnow, nullable=False)

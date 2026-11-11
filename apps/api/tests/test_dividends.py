@@ -158,10 +158,10 @@ def test_credit_is_idempotent(session: Session) -> None:
     assert portfolio.cash_balance == Decimal("100002.5")  # credited exactly once
 
 
-def test_credit_skips_zero_position(session: Session) -> None:
+def test_credit_skips_a_holding_already_sold(session: Session) -> None:
+    # A position sold to zero is deleted (positions.quantity > 0, audit LG-11).
     _seed_symbol(session, "AAPL")
-    _user_id, portfolio_id = _make_portfolio(session)
-    _add_position(session, portfolio_id, "AAPL", Decimal("0"))
+    _make_portfolio(session)
     _add_dividend(session, "AAPL", date(2026, 3, 7), Decimal("0.25"))
 
     credited = credit_due_dividends(session, credit_date=date(2026, 3, 7))
