@@ -23,6 +23,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ApiError, listSymbols, screenSymbols } from "@/lib/api";
+import { formatCurrency } from "@/lib/portfolio-view-model";
+import { formatCloseDate } from "@/lib/stock-workspace";
 
 type SearchParams = {
   sector?: string;
@@ -39,16 +41,6 @@ function num(s: string | undefined): number | undefined {
   if (s === undefined || s === "") return undefined;
   const n = Number(s);
   return Number.isFinite(n) ? n : undefined;
-}
-
-function fmt(n: string | number | null | undefined, digits = 2): string {
-  if (n === null || n === undefined || n === "") return "—";
-  const v = typeof n === "string" ? Number(n) : n;
-  if (!Number.isFinite(v)) return "—";
-  return v.toLocaleString("en-US", {
-    minimumFractionDigits: digits,
-    maximumFractionDigits: digits,
-  });
 }
 
 function fmtPct(n: number | null): string {
@@ -290,16 +282,24 @@ export default async function ScreenerPage({
                   (row): SymbolCardData => ({
                     ticker: row.ticker,
                     name: row.name,
-                    price: `$${fmt(row.last_close)}`,
-                    changePct: row.momentum_pct,
-                    changeLabel: row.momentum_pct === null ? null : fmtPct(row.momentum_pct),
+                    // In the symbol's own currency, not a hard-coded "$".
+                    price: formatCurrency(row.last_close, row.currency),
+                    changePct: momentumDays ? row.momentum_pct : null,
+                    changeLabel:
+                      momentumDays && row.momentum_pct !== null
+                        ? `${fmtPct(row.momentum_pct)} · ${momentumDays}d`
+                        : null,
                     metrics: [
+                      {
+                        label: "Close",
+                        value: formatCloseDate(row.as_of) ?? "Date unknown",
+                      },
                       {
                         label: "RSI 14",
                         value: row.rsi_14 === null ? "—" : row.rsi_14.toFixed(1),
                       },
-                      { label: "52w Low", value: `$${fmt(row.low_52w)}` },
-                      { label: "52w High", value: `$${fmt(row.high_52w)}` },
+                      { label: "52w Low", value: formatCurrency(row.low_52w, row.currency) },
+                      { label: "52w High", value: formatCurrency(row.high_52w, row.currency) },
                     ],
                   }),
                 )}
@@ -314,9 +314,11 @@ export default async function ScreenerPage({
                       <TableHead className="hidden 2xl:table-cell">Sector</TableHead>
                       <TableHead className="text-right">Price</TableHead>
                       <TableHead className="text-right">RSI(14)</TableHead>
-                      <TableHead className="text-right">
-                        {momentumDays ? `${momentumDays}d %` : "Momentum"}
-                      </TableHead>
+                      {/* Momentum exists only for a chosen window; without one
+                          the column was a dash on every row (UI audit UX-1). */}
+                      {momentumDays ? (
+                        <TableHead className="text-right">{momentumDays}d %</TableHead>
+                      ) : null}
                       <TableHead className="hidden text-right 2xl:table-cell">52w Low</TableHead>
                       <TableHead className="hidden text-right 2xl:table-cell">52w High</TableHead>
                     </TableRow>
@@ -329,18 +331,25 @@ export default async function ScreenerPage({
                         <TableCell className="hidden text-text-tertiary 2xl:table-cell">
                           {row.sector ?? "—"}
                         </TableCell>
-                        <NumericCell>${fmt(row.last_close)}</NumericCell>
+                        <NumericCell>
+                          {formatCurrency(row.last_close, row.currency)}
+                          <span className="block text-2xs text-text-tertiary">
+                            {formatCloseDate(row.as_of)}
+                          </span>
+                        </NumericCell>
                         <NumericCell>
                           {row.rsi_14 === null ? null : row.rsi_14.toFixed(1)}
                         </NumericCell>
-                        <NumericCell signedBy={row.momentum_pct}>
-                          {row.momentum_pct === null ? null : fmtPct(row.momentum_pct)}
+                        {momentumDays ? (
+                          <NumericCell signedBy={row.momentum_pct}>
+                            {row.momentum_pct === null ? null : fmtPct(row.momentum_pct)}
+                          </NumericCell>
+                        ) : null}
+                        <NumericCell muted className="hidden 2xl:table-cell">
+                          {formatCurrency(row.low_52w, row.currency)}
                         </NumericCell>
                         <NumericCell muted className="hidden 2xl:table-cell">
-                          ${fmt(row.low_52w)}
-                        </NumericCell>
-                        <NumericCell muted className="hidden 2xl:table-cell">
-                          ${fmt(row.high_52w)}
+                          {formatCurrency(row.high_52w, row.currency)}
                         </NumericCell>
                       </ClickableRow>
                     ))}

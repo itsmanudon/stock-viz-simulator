@@ -12,6 +12,7 @@ one bounded indexed query for the recent closes of every symbol at once.
 
 from __future__ import annotations
 
+from datetime import datetime
 from decimal import Decimal
 from typing import Annotated
 
@@ -22,7 +23,7 @@ from stockviz.db import get_session
 from stockviz.limiter import limiter
 from stockviz.models import Symbol
 from stockviz.schemas import MarketsSummaryOut, MarketSummaryRowOut
-from stockviz.services.recent_bars import recent_closes
+from stockviz.services.recent_bars import recent_bars
 
 router = APIRouter(prefix="/v1/markets", tags=["markets"])
 
@@ -31,11 +32,11 @@ SessionDep = Annotated[Session, Depends(get_session)]
 MAX_SPARKLINE_DAYS = 120
 
 
-def _recent_closes(
+def _recent_bars(
     session: Session, tickers: list[str], *, limit_per_ticker: int
-) -> dict[str, list[Decimal]]:
-    """Most recent daily closes, oldest first; one bounded PostgreSQL query."""
-    return recent_closes(session, tickers, limit_per_ticker=limit_per_ticker)
+) -> dict[str, list[tuple[datetime, Decimal]]]:
+    """Most recent daily (ts, close) pairs, oldest first; one bounded PostgreSQL query."""
+    return recent_bars(session, tickers, limit_per_ticker=limit_per_ticker)
 
 
 @router.get("/summary", response_model=MarketsSummaryOut)
@@ -55,13 +56,14 @@ def markets_summary(
     sectors = sorted({s.sector for s in all_active if s.sector})
 
     symbols = [s for s in all_active if sector is None or s.sector == sector]
-    closes_by_ticker = _recent_closes(
+    bars_by_ticker = _recent_bars(
         session, [s.ticker for s in symbols], limit_per_ticker=sparkline_days
     )
 
     rows: list[MarketSummaryRowOut] = []
     for symbol in symbols:
-        closes = closes_by_ticker.get(symbol.ticker, [])
+        bars = bars_by_ticker.get(symbol.ticker, [])
+        closes = [close for _ts, close in bars]
         last = closes[-1] if closes else None
         prev = closes[-2] if len(closes) > 1 else None
         change_pct = (
@@ -77,6 +79,7 @@ def markets_summary(
                 exchange=symbol.exchange,
                 currency=symbol.currency or "USD",
                 last_close=last,
+                last_close_at=bars[-1][0] if bars else None,
                 prev_close=prev,
                 change_pct=change_pct,
                 closes=closes,

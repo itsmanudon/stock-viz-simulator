@@ -38,33 +38,39 @@ export default async function NewsPage({
         <p className="text-2xs font-semibold tracking-[0.14em] text-brand uppercase">Research</p>
         <h1 className="mt-1.5 text-3xl font-semibold tracking-tight">News</h1>
         <p className="mt-1.5 text-sm text-muted-foreground">
-          Latest market news ingested from newsdata.io.
+          Latest stored headlines, newest first, each with its source.
         </p>
       </header>
 
       <NewsList articles={slice} />
 
-      <nav className="mt-6 flex items-center justify-between text-sm text-muted-foreground">
-        <span>Page {page}</span>
-        <div className="flex gap-3">
-          {page > 1 ? (
-            <Link
-              href={`/news?page=${page - 1}`}
-              className="rounded-md border px-3 py-1.5 hover:bg-accent hover:text-foreground"
-            >
-              ← Previous
-            </Link>
-          ) : null}
-          {hasNext ? (
-            <Link
-              href={`/news?page=${page + 1}`}
-              className="rounded-md border px-3 py-1.5 hover:bg-accent hover:text-foreground"
-            >
-              Next →
-            </Link>
-          ) : null}
-        </div>
-      </nav>
+      {/* No pager under an empty list or a single page (UI audit S1). */}
+      {page > 1 || hasNext ? (
+        <nav
+          aria-label="News pages"
+          className="mt-6 flex items-center justify-between text-sm text-muted-foreground"
+        >
+          <span>Page {page}</span>
+          <div className="flex gap-3">
+            {page > 1 ? (
+              <Link
+                href={`/news?page=${page - 1}`}
+                className="rounded-md border px-3 py-1.5 hover:bg-accent hover:text-foreground"
+              >
+                ← Previous
+              </Link>
+            ) : null}
+            {hasNext ? (
+              <Link
+                href={`/news?page=${page + 1}`}
+                className="rounded-md border px-3 py-1.5 hover:bg-accent hover:text-foreground"
+              >
+                Next →
+              </Link>
+            ) : null}
+          </div>
+        </nav>
+      ) : null}
     </div>
   );
 }

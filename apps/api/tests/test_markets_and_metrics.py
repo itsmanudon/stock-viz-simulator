@@ -66,6 +66,16 @@ def test_summary_returns_rows_sparklines_and_sectors(session: Session, client: T
     assert rows["BBB"]["change_pct"] < 0
 
 
+def test_summary_dates_each_last_close_by_its_own_bar(session: Session, client: TestClient) -> None:
+    """Symbols can end on different days, so each row carries its own date."""
+    _seed(session, "AAA", [Decimal(10), Decimal(11), Decimal(12)])
+    _seed(session, "BBB", [Decimal(50)])
+
+    rows = {r["ticker"]: r for r in client.get("/v1/markets/summary").json()["rows"]}
+    assert rows["AAA"]["last_close_at"].startswith("2025-01-03")
+    assert rows["BBB"]["last_close_at"].startswith("2025-01-01")
+
+
 def test_summary_sector_filter_keeps_the_full_sector_list(
     session: Session, client: TestClient
 ) -> None:
@@ -85,6 +95,7 @@ def test_summary_handles_a_symbol_with_no_bars(session: Session, client: TestCli
     body = client.get("/v1/markets/summary").json()
     row = next(r for r in body["rows"] if r["ticker"] == "NEW")
     assert row["last_close"] is None
+    assert row["last_close_at"] is None
     assert row["change_pct"] is None
     assert row["closes"] == []
 

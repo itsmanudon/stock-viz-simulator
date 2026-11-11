@@ -70,6 +70,13 @@ def test_screen_no_filters_returns_all(session: Session, client: TestClient) -> 
     assert tickers == ["DOWN", "FLAT", "UPUP"]
 
 
+def test_screen_rows_carry_the_date_of_their_close(session: Session, client: TestClient) -> None:
+    """60 daily bars from 2025-01-01 end on 2025-03-01; the row says so."""
+    _seed_universe(session)
+    rows = {r["ticker"]: r for r in client.get("/v1/symbols/screen").json()}
+    assert rows["UPUP"]["as_of"] == "2025-03-01"
+
+
 def test_screen_sector_filter(session: Session, client: TestClient) -> None:
     _seed_universe(session)
     response = client.get("/v1/symbols/screen", params={"sector": "Utilities"})

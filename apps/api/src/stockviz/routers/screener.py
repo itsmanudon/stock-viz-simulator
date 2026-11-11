@@ -128,6 +128,7 @@ def screen_symbols(
                 exchange=symbol.exchange,
                 currency=symbol.currency,
                 last_close=metrics.last_close or Decimal(0),
+                as_of=metrics.as_of,
                 rsi_14=metrics.rsi_14,
                 momentum_pct=momentum_pct,
                 momentum_days=momentum_days,

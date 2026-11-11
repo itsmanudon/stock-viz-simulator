@@ -16,6 +16,8 @@ export type MarketRow = {
   currency: string;
   closes: number[];
   last: number | null;
+  /** Timestamp of the stored bar behind `last`. */
+  lastAt: string | null;
   changePct: number | null;
 };
 
