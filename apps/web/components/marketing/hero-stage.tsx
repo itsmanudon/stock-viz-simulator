@@ -172,6 +172,9 @@ export function HeroStage({
               start: "bottom bottom",
               end: () => `+=${Math.round(window.innerHeight * PIN_LENGTH)}`,
               pin: true,
+              // Measured before every other trigger on the page: the space
+              // this pin adds moves everything below it.
+              refreshPriority: 1,
               scrub: 0.6,
               anticipatePin: 1,
               invalidateOnRefresh: true,
@@ -212,6 +215,15 @@ export function HeroStage({
             )
             .to(flyInner, { rotateY: 180, duration: 0.22, ease: "power2.inOut" }, 0.66)
             .to({}, { duration: 0.12 });
+
+          // The pin adds 1.5 viewport heights of scroll above every section
+          // below the hero, but their triggers were measured at mount, before
+          // this pin existed. Re-measure all of them, or scrubbed sections
+          // further down (the "fill shows its work" step bar) run early and
+          // look finished by the time they are on screen. Triggers refresh in
+          // creation order, so the pin also gets refreshPriority and a sort.
+          ScrollTrigger.sort();
+          ScrollTrigger.refresh();
         };
 
         // Measure after the entrance animation has finished moving the phone.
