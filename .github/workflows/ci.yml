@@ -412,7 +412,16 @@ jobs:
 
       - name: Install Playwright browsers
         working-directory: apps/web
-        run: pnpm exec playwright install --with-deps chromium
+        # The browser comes from Playwright's CDN. Its system libraries are
+        # already on the runner image (it ships Google Chrome), so apt is used
+        # only if a launch shows one missing. `--with-deps` always ran apt, and
+        # failed when the runner could not resolve archive.ubuntu.com (PR #94).
+        run: |
+          pnpm exec playwright install chromium
+          if ! node -e "require('@playwright/test').chromium.launch().then((b) => b.close())"; then
+            echo "Chromium could not launch; installing its system libraries with apt"
+            pnpm exec playwright install-deps chromium
+          fi
 
       - name: Run E2E tests
         working-directory: apps/web
