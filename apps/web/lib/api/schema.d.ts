@@ -1854,6 +1854,8 @@ export interface components {
             quantity: string;
             /** Limit Price */
             limit_price: string;
+            /** Client Order Id */
+            client_order_id?: string | null;
         };
         /** PendingOrderOut */
         PendingOrderOut: {
@@ -2862,6 +2864,8 @@ export interface components {
             side: "buy" | "sell";
             /** Quantity */
             quantity: number | string;
+            /** Client Order Id */
+            client_order_id?: string | null;
         };
         /**
          * TradeOut

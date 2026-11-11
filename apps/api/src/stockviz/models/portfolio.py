@@ -64,7 +64,14 @@ class Trade(SQLModel, table=True):
     # The Trading Journal scans one portfolio's fills over a month
     # (portfolio_id = ? AND ts >= ? AND ts < ?). The separate portfolio_id and
     # ts indexes each answer only half of that.
-    __table_args__ = (Index("ix_trades_portfolio_ts", "portfolio_id", "ts"),)
+    __table_args__ = (
+        Index("ix_trades_portfolio_ts", "portfolio_id", "ts"),
+        # A repeated market order with the same client key returns the first
+        # fill instead of filling twice (#67, audit LG-10). NULLs never clash.
+        UniqueConstraint(
+            "portfolio_id", "client_order_id", name="uq_trades_portfolio_client_order_id"
+        ),
+    )
 
     id: int | None = Field(default=None, primary_key=True)
     portfolio_id: int = Field(foreign_key="portfolios.id", index=True)
@@ -89,6 +96,9 @@ class Trade(SQLModel, table=True):
     avg_cost_at_fill: Decimal | None = Field(
         default=None, sa_column=Column(Numeric(18, 6), nullable=True)
     )
+    # Client-generated key for a market order (POST /v1/trades). NULL on fills
+    # from pending orders, option exercise and rows written before it existed.
+    client_order_id: str | None = Field(default=None, max_length=64, nullable=True)
 
 
 class PortfolioSnapshot(SQLModel, table=True):

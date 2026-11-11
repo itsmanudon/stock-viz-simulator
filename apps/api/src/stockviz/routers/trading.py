@@ -41,10 +41,12 @@ from stockviz.schemas import (
     TradeOut,
 )
 from stockviz.services.trading import (
+    ClientOrderIdConflict,
     InsufficientCash,
     InsufficientPosition,
     NoFxRateError,
     NoMarketDataError,
+    StaleMarketData,
     SymbolNotFound,
     TradeExecutionError,
     compute_portfolio,
@@ -87,9 +89,13 @@ def post_trade(body: TradeIn, session: SessionDep, user_id: UserIdDep) -> TradeO
             ticker=body.ticker,
             side=side,
             quantity=body.quantity,
+            client_order_id=body.client_order_id,
         )
     except SymbolNotFound as exc:
         raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+    except (StaleMarketData, ClientOrderIdConflict) as exc:
+        # 409: the market or an earlier order conflicts with this one (#67).
+        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
     except (InsufficientCash, InsufficientPosition, NoMarketDataError, NoFxRateError) as exc:
         # 422: request was well-formed but couldn't be honored against the
         # current portfolio / market / FX state.

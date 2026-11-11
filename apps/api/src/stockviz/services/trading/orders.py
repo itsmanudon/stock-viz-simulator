@@ -44,6 +44,7 @@ from stockviz.services.trading.buying_power import (
     reserved_shares,
 )
 from stockviz.services.trading.execute import (
+    ClientOrderIdConflict,
     InsufficientCash,
     InsufficientPosition,
     NoFxRateError,
@@ -85,8 +86,15 @@ def create_pending_order(
     order_type: OrderType,
     quantity: Decimal,
     limit_price: Decimal,
+    client_order_id: str | None = None,
 ) -> PendingOrder:
-    """Validate and persist a new pending order."""
+    """Validate and persist a new pending order.
+
+    With a ``client_order_id`` a repeat of the same order returns the first
+    one, and a repeat naming a different order raises
+    :class:`ClientOrderIdConflict` (#67, audit LG-10). The lookup runs under
+    the portfolio lock.
+    """
     if quantity <= 0:
         raise OrderError("quantity must be positive")
     if limit_price <= 0:
@@ -103,6 +111,31 @@ def create_pending_order(
     assert portfolio.id is not None
     portfolio_id = portfolio.id
     portfolio = lock_portfolio(session, portfolio_id)
+
+    if client_order_id is not None:
+        earlier = session.exec(
+            select(PendingOrder).where(
+                PendingOrder.portfolio_id == portfolio_id,
+                PendingOrder.client_order_id == client_order_id,
+            )
+        ).first()
+        if earlier is not None:
+            same = (
+                earlier.ticker == ticker
+                and earlier.side == side
+                and earlier.order_type == order_type
+                and earlier.quantity == quantity
+                and earlier.limit_price == limit_price
+            )
+            if not same:
+                raise ClientOrderIdConflict(
+                    "This client_order_id was already used for a different order "
+                    f"({earlier.side.value} {earlier.quantity} {earlier.ticker} "
+                    f"{earlier.order_type.value} at {earlier.limit_price})."
+                )
+            session.rollback()  # release the lock; nothing was written
+            session.refresh(earlier)
+            return earlier
 
     if side == TradeSide.BUY:
         try:
@@ -132,6 +165,7 @@ def create_pending_order(
         order_type=order_type,
         quantity=quantity,
         limit_price=limit_price,
+        client_order_id=client_order_id,
     )
     session.add(order)
     session.commit()

@@ -19,6 +19,7 @@ from stockviz.models import TradeSide
 from stockviz.models.order import OrderStatus, OrderType, PendingOrder
 from stockviz.schemas import PendingOrderIn, PendingOrderOut
 from stockviz.services.trading import (
+    ClientOrderIdConflict,
     OrderError,
     OrderNotFound,
     SymbolNotFound,
@@ -72,7 +73,10 @@ def create_order(body: PendingOrderIn, session: SessionDep, user_id: UserIdDep) 
             order_type=order_type,
             quantity=quantity,
             limit_price=limit_price,
+            client_order_id=body.client_order_id,
         )
+    except ClientOrderIdConflict as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, detail=str(exc)) from exc
     except SymbolNotFound as exc:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     except (OrderError, TradeExecutionError) as exc:

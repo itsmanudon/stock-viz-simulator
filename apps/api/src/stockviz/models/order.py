@@ -11,7 +11,7 @@ import enum
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import Numeric
+from sqlalchemy import Numeric, UniqueConstraint
 from sqlmodel import Column, Field, SQLModel
 
 from stockviz._time import utcnow
@@ -34,6 +34,13 @@ class OrderStatus(enum.StrEnum):
 
 class PendingOrder(SQLModel, table=True):
     __tablename__ = "pending_orders"  # pyright: ignore[reportAssignmentType]
+    # A repeated submission with the same client key returns the first order
+    # (#67, audit LG-10). NULLs never clash.
+    __table_args__ = (
+        UniqueConstraint(
+            "portfolio_id", "client_order_id", name="uq_pending_orders_portfolio_client_order_id"
+        ),
+    )
 
     id: int | None = Field(default=None, primary_key=True)
     portfolio_id: int = Field(foreign_key="portfolios.id", index=True)
@@ -53,3 +60,4 @@ class PendingOrder(SQLModel, table=True):
     fill_price: Decimal | None = Field(
         default=None, sa_column=Column(Numeric(18, 6), nullable=True)
     )
+    client_order_id: str | None = Field(default=None, max_length=64, nullable=True)
