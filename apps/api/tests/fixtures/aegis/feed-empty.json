@@ -1,0 +1,13 @@
+{
+  "as_of": "2026-11-11T09:10:00Z",
+  "data": [],
+  "meta": {
+    "api_version": "v1",
+    "request_id": "1479226a-4be7-4547-b077-5a3178f5f7e7"
+  },
+  "pagination": {
+    "has_more": false,
+    "next_cursor": null
+  },
+  "resume_cursor": "eyJ2IjogMiwgImtpbmQiOiAiZmVlZCIsICJmaWx0ZXJzIjogIm5vbmUiLCAia2V5IjogWzIsICJkb2NfMiJdfQ"
+}

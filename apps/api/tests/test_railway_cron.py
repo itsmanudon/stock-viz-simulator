@@ -43,9 +43,22 @@ def test_every_cli_job_records_its_failure() -> None:
     jobs = re.findall(r"python -m stockviz\.cli ([a-z-]+)", steps)
     assert len(jobs) >= 10
     wrapped = set(re.findall(r'job\("python -m stockviz\.cli ([a-z-]+)', steps))
-    # `news` is the one job with a tolerated exit code (2 = no provider key).
-    assert set(jobs) - wrapped == {"news"}
+    # Two jobs tolerate exit code 2: `news` (no provider key) and
+    # `aegis-sync` (Aegis not configured yet).
+    assert set(jobs) - wrapped == {"news", "aegis-sync"}
     assert "stockviz.cli news || [ $? -eq 2 ] || rc=1" in steps
+    assert "stockviz.cli aegis-sync || [ $? -eq 2 ] || rc=1" in steps
+
+
+def test_aegis_sync_runs_after_the_price_refresh_with_its_settings() -> None:
+    code = _code(_source())
+    steps = _eod_refresh(code)
+    assert steps.index("stockviz.cli ingest") < steps.index("stockviz.cli aegis-sync")
+    cron = re.search(r'service\("cron", \{(.*?)\n  \}\);', code, re.DOTALL)
+    assert cron, "cron service block not found"
+    for name in ("AEGIS_BASE_URL", "AEGIS_SIGNING_KEY", "AEGIS_ISSUER", "AEGIS_AUDIENCE"):
+        # preserve(): set out of band, never in source, kept across re-applies.
+        assert f"{name}: preserve()" in cron.group(1)
 
 
 def test_cron_receives_the_internal_api_token() -> None:
