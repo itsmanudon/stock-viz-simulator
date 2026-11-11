@@ -377,6 +377,12 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   USD. `/trade` keeps chart and recent fills on the left and the ticket and
   account on the right; below `xl` the column wrappers are `contents` and
   `order-*` sets chart, ticket, account, fills.
+- Monitoring and Replay (Aurora board v3): watchlist rows act through four
+  round icon buttons (research, trade, alert, remove), each with a spoken name
+  and a title; `/alerts` view tabs count with the same `matchesView()` rule
+  as the list, and an armed alert's badge is neutral. A replay session states
+  the blind rule in a banner above everything, dates itself with a
+  `MetaChip`, and puts a completed run's summary on `FigureStrip`.
 - Compare series differ by line style as well as colour: `seriesDash()` in
   `lib/compare-workspace.ts` cycles solid, dashed, dotted, and both the chart
   and its legend read it. Buy and sell labels stay neutral (an arrow and the

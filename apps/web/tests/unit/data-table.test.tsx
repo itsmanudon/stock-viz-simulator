@@ -162,7 +162,7 @@ describe("order and alert badges", () => {
     expect(scope.getByText("sell").parentElement).not.toHaveClass("text-negative");
     expect(scope.getByText("filled")).toHaveClass("text-positive");
     expect(scope.getByText("pending")).toHaveClass("text-warning");
-    expect(scope.getByText("Active")).toHaveClass("text-brand");
+    expect(scope.getByText("Active")).toHaveClass("text-text-secondary");
     expect(scope.getByText("Triggered")).toHaveClass("text-positive");
     expect(scope.getByText("Dismissed")).toHaveClass("text-text-secondary");
   });

@@ -9,6 +9,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { AlertForm } from "@/components/alert-form";
+import { CountBadge } from "@/components/count-badge";
 import {
   AlertStatusBadge,
   MonitoringSubnav,
@@ -16,6 +17,7 @@ import {
   OperationalPageHeader,
 } from "@/components/operational-page-header";
 import { PageFrame } from "@/components/page-frame";
+import { MetaChip } from "@/components/page-header";
 import { getQuotes, listSymbols } from "@/lib/api";
 import { parseApiTimestamp } from "@/lib/api-time";
 import { type Alert, listAlerts } from "@/lib/api/alerts";
@@ -100,6 +102,14 @@ export default async function AlertsPage({
   const [alerts, symbols] = await Promise.all([listAlerts(), listSymbols().catch(() => [])]);
   const currencies = currencyByTicker(symbols);
   const visible = alerts.filter((alert) => matchesView(alert, view));
+  // Tab counts use the same rule as the list, so a tab never claims rows it
+  // would not show.
+  const counts = Object.fromEntries(
+    VIEWS.map((item) => [
+      item.value,
+      alerts.filter((alert) => matchesView(alert, item.value)).length,
+    ]),
+  ) as Record<AlertView, number>;
   const quote = createTicker ? await getQuotes([createTicker]).catch(() => []) : [];
 
   return (
@@ -108,7 +118,12 @@ export default async function AlertsPage({
         eyebrow="Portfolio"
         title="Alerts"
         description="In-app notifications when a stored daily close crosses a target. This is not email, push, or real-time exchange monitoring."
-        meta={`${alerts.filter((alert) => !alert.triggered_at).length} active`}
+        meta={
+          <span className="flex flex-wrap items-center gap-2">
+            <span>{counts.active} active</span>
+            <MetaChip>Checked after each weekday close</MetaChip>
+          </span>
+        }
       />
       <MonitoringSubnav current="/alerts" />
 
@@ -150,6 +165,7 @@ export default async function AlertsPage({
               )}
             >
               {item.label}
+              <CountBadge count={counts[item.value]} />
             </Link>
           );
         })}
