@@ -19,7 +19,9 @@ test("authenticated user can move from a paper trade into the Portfolio workspac
 
   await page.goto("/trade?ticker=AAPL");
   await expect(page.getByLabel("Symbol")).toHaveValue("AAPL");
-  await page.getByRole("button", { name: /Submit market buy/i }).click();
+  // The ticket reviews before it places (UX-4): open the review, then place.
+  await page.getByRole("button", { name: /Review market buy/i }).click();
+  await page.getByRole("button", { name: /Place market buy/i }).click();
   await expect(page.getByRole("region", { name: "Order ticket" }).locator("output")).toContainText(
     "Filled BUY",
     { timeout: 10_000 },

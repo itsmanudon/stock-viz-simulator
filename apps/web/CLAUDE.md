@@ -281,15 +281,18 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   [`docs/OPERATIONAL_TRADING.md`](../../docs/OPERATIONAL_TRADING.md).
   `/trade?ticker=` prefills the ticket. `/orders?status=` is URL-backed.
   Do not describe EOD fills or alert evaluation as live exchange execution.
-- The stock page's `ContextualTradeTicket` is two-step (UI audit UX-4): "Review
-  order" opens a Revolut-style summary (amount, reference close with its date,
-  fees, fill rule from `describeFillRule()`, buying power after) and only the
-  review's button submits; a confirmation replaces the form after success.
+- Both paper tickets are two-step (UI audit UX-4): the stock page's
+  `ContextualTradeTicket` and the `/trade` `OrderTicket` ("Review market buy"
+  then "Place market buy") open the shared `OrderReview` from
+  `components/order-review.tsx` (amount, reference close with its date, fees,
+  fill rule from `describeFillRule()`, buying power after) and only the
+  review's button submits; the shared `OrderConfirmation` replaces the form
+  after success. The Replay ticket is separate and still single-step.
   Server actions post without JavaScript, so the ticket sends
   `review_step=draft|confirmed` and `placeTradeAction`/`placeOrderAction`
   refuse a `draft` post (`lib/order-review.ts`); the review button also stays
-  disabled until hydration. Tickets that omit the field (`/trade`) are
-  unaffected. Below `xl`, `MobileTradeSheet` pins a Buy/Sell bar to the bottom
+  disabled until hydration (`useHydrated()`). Tickets that omit the field
+  (Replay) are unaffected. Below `xl`, `MobileTradeSheet` pins a Buy/Sell bar to the bottom
   of the viewport; the page adds `pb-32` so it never covers content.
 - A `"use server"` file may export only async functions (and types). Put
   constants and helpers that actions share in `lib/`, or Next refuses the module.

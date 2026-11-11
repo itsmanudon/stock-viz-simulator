@@ -36,7 +36,9 @@ test("operational trading loop from ticket to orders, watchlist, alerts, and rep
   ).toBeVisible();
 
   await main.getByLabel("Quantity").fill("1");
-  await main.getByRole("button", { name: /Submit market buy/i }).click();
+  // The ticket reviews before it places (UX-4): open the review, then place.
+  await main.getByRole("button", { name: /Review market buy/i }).click();
+  await main.getByRole("button", { name: /Place market buy/i }).click();
   await expect(main.getByRole("region", { name: "Order ticket" }).locator("output")).toContainText(
     "Filled BUY",
     { timeout: 10_000 },
