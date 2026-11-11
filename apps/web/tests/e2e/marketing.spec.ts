@@ -26,6 +26,12 @@ test.describe("marketing home", () => {
   });
 
   test("hero phone screens can be switched with the dots", async ({ page }) => {
+    // With motion, scrolling the dots into view starts the pinned hero, whose
+    // panel covers the phone mid-animation by design; on a slow runner the
+    // click raced it and timed out (PR #94). The dots are the same control
+    // without motion, so check them where the hero does not pin.
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await page.reload();
     const dots = page.getByRole("button", { name: /^Show the .* screen$/ });
     if ((await dots.count()) < 2) test.skip(true, "Only one phone screen without stored bars");
     await dots.nth(1).click();
