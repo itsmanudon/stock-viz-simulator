@@ -107,3 +107,34 @@ export async function closeOptionAction(formData: FormData): Promise<void> {
   revalidatePath("/portfolio");
   revalidatePath("/trade");
 }
+
+export type CloseOptionState = { error: string | null; closed: boolean };
+
+/**
+ * Close from the portfolio table (audit LG-8). A refused close, such as an
+ * expired contract awaiting settlement (400), comes back as a message for the
+ * form instead of throwing to the app error page.
+ */
+export async function closeOptionFormAction(
+  _prev: CloseOptionState,
+  formData: FormData,
+): Promise<CloseOptionState> {
+  const idRaw = formData.get("option_id");
+  const optionId = typeof idRaw === "string" ? Number(idRaw) : Number.NaN;
+  if (!Number.isFinite(optionId)) return { error: "Unknown option position", closed: false };
+  try {
+    await tradeOption({ action: "close", option_id: optionId });
+  } catch (err) {
+    if (err instanceof UnauthenticatedError)
+      return { error: "Sign in to close options", closed: false };
+    if (err instanceof AuthedApiError) {
+      if (err.status !== 404) return { error: apiErrorMessage(err), closed: false };
+      // Already gone: treat as closed.
+    } else {
+      throw err;
+    }
+  }
+  revalidatePath("/portfolio");
+  revalidatePath("/trade");
+  return { error: null, closed: true };
+}
