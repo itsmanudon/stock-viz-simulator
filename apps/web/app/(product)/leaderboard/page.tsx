@@ -1,10 +1,15 @@
 /**
  * /leaderboard — top 50 users ranked by portfolio return %.
  *
- * Public page (no auth required). Data is cached server-side for 1 hour by
- * the FastAPI leaderboard endpoint. Users must opt in via /settings to appear.
+ * Public page (no auth required). Fetched fresh on every request
+ * (`getLeaderboard` uses `cache: "no-store"`), so an opt-out in /settings
+ * takes effect at once. Users must opt in via /settings to appear.
+ *
+ * Aurora: the top three stand on a podium above the full table, with the one
+ * brand glow behind first place. Ranks are numbers in chips, not emoji.
  */
 
+import type { Metadata } from "next";
 import Link from "next/link";
 
 import { DataTableFrame, NumericCell } from "@/components/data-table";
@@ -19,7 +24,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { getLeaderboard } from "@/lib/api/leaderboard";
+import { type LeaderboardEntry, getLeaderboard } from "@/lib/api/leaderboard";
+import { cn } from "@/lib/utils";
+
+export const metadata: Metadata = { title: "Leaderboard" };
 
 function fmtCurrency(raw: string): string {
   return Number(raw).toLocaleString("en-US", {
@@ -66,34 +74,95 @@ export default async function LeaderboardPage() {
             </CardContent>
           </Card>
         ) : (
-          <DataTableFrame>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-14 text-center">Rank</TableHead>
-                  <TableHead>Trader</TableHead>
-                  <TableHead className="text-right">Return</TableHead>
-                  <TableHead className="hidden text-right sm:table-cell">Portfolio value</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {entries.map((e) => (
-                  <TableRow key={e.user_id}>
-                    <TableCell className="text-center font-mono text-text-tertiary">
-                      {e.rank === 1 ? "🥇" : e.rank === 2 ? "🥈" : e.rank === 3 ? "🥉" : e.rank}
-                    </TableCell>
-                    <TableCell className="font-medium">{e.username}</TableCell>
-                    <NumericCell signedBy={e.return_pct}>{fmtPct(e.return_pct)}</NumericCell>
-                    <NumericCell className="hidden sm:table-cell">
-                      {fmtCurrency(e.portfolio_value)}
-                    </NumericCell>
+          <>
+            {entries.length >= 3 ? <Podium top={entries.slice(0, 3)} /> : null}
+            <DataTableFrame>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-14 text-center">Rank</TableHead>
+                    <TableHead>Trader</TableHead>
+                    <TableHead className="text-right">Return</TableHead>
+                    <TableHead className="hidden text-right sm:table-cell">
+                      Portfolio value
+                    </TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </DataTableFrame>
+                </TableHeader>
+                <TableBody>
+                  {entries.map((e) => (
+                    <TableRow key={e.user_id}>
+                      <TableCell className="text-center">
+                        <RankChip rank={e.rank} />
+                      </TableCell>
+                      <TableCell className="font-medium">{e.username}</TableCell>
+                      <NumericCell signedBy={e.return_pct}>{fmtPct(e.return_pct)}</NumericCell>
+                      <NumericCell className="hidden sm:table-cell">
+                        {fmtCurrency(e.portfolio_value)}
+                      </NumericCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </DataTableFrame>
+          </>
         )}
       </div>
     </div>
+  );
+}
+
+function RankChip({ rank }: { rank: number }) {
+  return (
+    <span
+      className={cn(
+        "inline-grid size-7 place-items-center rounded-full font-mono text-xs",
+        rank === 1
+          ? "bg-primary text-primary-foreground"
+          : rank <= 3
+            ? "border border-border text-foreground"
+            : "text-text-tertiary",
+      )}
+    >
+      {rank}
+    </span>
+  );
+}
+
+/** First place in the middle and raised, second on the left, third on the right. */
+function Podium({ top }: { top: LeaderboardEntry[] }) {
+  const order = [top[1], top[0], top[2]];
+  return (
+    <ol aria-label="Top three traders" className="mb-6 grid grid-cols-3 items-end gap-3">
+      {order.map((entry) => {
+        const first = entry.rank === 1;
+        const up = entry.return_pct >= 0;
+        return (
+          <li
+            key={entry.user_id}
+            className={cn(
+              "relative isolate grid justify-items-center gap-1.5 overflow-hidden rounded-2xl border border-border-muted bg-card px-3 text-center",
+              first ? "pt-7 pb-6" : "pt-5 pb-4",
+            )}
+          >
+            {first ? (
+              <div aria-hidden className="brand-glow -bottom-16 -z-10 h-32 w-48 opacity-70" />
+            ) : null}
+            <RankChip rank={entry.rank} />
+            <span className="max-w-full truncate text-sm font-medium">{entry.username}</span>
+            <span
+              className={cn(
+                "font-mono",
+                first ? "text-2xl" : "text-lg",
+                up ? "text-positive" : "text-negative",
+              )}
+              data-financial
+            >
+              {up ? "▲ " : "▼ "}
+              {fmtPct(entry.return_pct)}
+            </span>
+          </li>
+        );
+      })}
+    </ol>
   );
 }

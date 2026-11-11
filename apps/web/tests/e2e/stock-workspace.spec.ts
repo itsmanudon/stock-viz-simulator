@@ -83,3 +83,21 @@ test("authenticated stock workspace exposes account-aware actions", async ({ pag
   await page.getByRole("button", { name: "Alert", exact: true }).click();
   await expect(page.getByLabel("Set a price alert for AAPL")).toBeVisible();
 });
+
+test("the statistics strip shows every label and price in full (audit D1)", async ({ page }) => {
+  for (const width of [390, 1024, 1280, 1366, 1440, 1920]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto("/stocks/AAPL");
+    // Visible only: next dev can briefly keep a hidden copy of the route's
+    // tree while it re-renders. Two visible strips would still fail here.
+    const strip = page.locator('section[aria-label="Market and technical metrics"]:visible');
+    await expect(strip).toHaveCount(1);
+    await expect(strip).toBeVisible();
+    const cut = await strip
+      .locator("dt, dd, dd span")
+      .evaluateAll((els) =>
+        els.filter((e) => e.scrollWidth > e.clientWidth + 1).map((e) => e.textContent?.trim()),
+      );
+    expect(cut, `cut off at ${width}px`).toEqual([]);
+  }
+});

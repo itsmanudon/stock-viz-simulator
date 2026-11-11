@@ -5,6 +5,7 @@
  * remains a compact triggered indicator; this page is the system of record.
  */
 
+import type { Metadata } from "next";
 import Link from "next/link";
 
 import { AlertForm } from "@/components/alert-form";
@@ -30,20 +31,47 @@ import {
 import { cn } from "@/lib/utils";
 import { deleteAlertAction, dismissAlertAction } from "./actions";
 
+export const metadata: Metadata = { title: "Price alerts" };
+
 const VIEWS: { value: AlertView; label: string }[] = [
   { value: "active", label: "Active" },
   { value: "triggered", label: "Triggered" },
   { value: "all", label: "All" },
 ];
 
+/** Trigger times are stored in UTC; show them in UTC and say so (audit T4). */
 function fmtWhen(iso: string | null): string {
   if (!iso) return "—";
   return new Date(iso).toLocaleString("en-US", {
+    year: "numeric",
     month: "short",
     day: "numeric",
     hour: "2-digit",
     minute: "2-digit",
+    timeZone: "UTC",
+    timeZoneName: "short",
   });
+}
+
+function AlertActions({ alert }: { alert: Alert }) {
+  return (
+    <div className="flex justify-end gap-3">
+      {alert.triggered_at && !alert.dismissed_at ? (
+        <form action={dismissAlertAction}>
+          <input type="hidden" name="id" value={alert.id} />
+          <button type="submit" className="text-xs hover:underline">
+            Dismiss
+          </button>
+        </form>
+      ) : null}
+      <form action={deleteAlertAction}>
+        <input type="hidden" name="id" value={alert.id} />
+        <button type="submit" className="text-xs text-text-tertiary hover:underline">
+          Delete
+        </button>
+      </form>
+    </div>
+  );
 }
 
 function matchesView(alert: Alert, view: AlertView): boolean {
@@ -142,80 +170,102 @@ export default async function AlertsPage({
           </OperationalEmptyState>
         </div>
       ) : (
-        <div className="mt-5 overflow-x-auto rounded-md border border-border-muted bg-card">
-          <table className="w-full min-w-[40rem] text-sm">
-            <caption className="sr-only">Price alerts</caption>
-            <thead>
-              <tr className="border-b border-border-muted text-left text-3xs font-semibold tracking-[0.12em] text-text-tertiary uppercase">
-                <th scope="col" className="px-3 py-2.5">
-                  Symbol
-                </th>
-                <th scope="col" className="px-3 py-2.5">
-                  Condition
-                </th>
-                <th scope="col" className="px-3 py-2.5 text-right">
-                  Target
-                </th>
-                <th scope="col" className="px-3 py-2.5">
-                  Status
-                </th>
-                <th scope="col" className="hidden px-3 py-2.5 sm:table-cell">
-                  Triggered
-                </th>
-                <th scope="col" className="px-3 py-2.5 text-right">
-                  <span className="sr-only">Actions</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {visible.map((alert) => (
-                <tr key={alert.id} className="border-b border-border-muted last:border-0">
-                  <td className="px-3 py-3 font-mono">
-                    <Link href={`/stocks/${alert.ticker}`} className="hover:underline">
+        <>
+          {/* Cards under md, where the table scrolled sideways (audit P1). */}
+          <ul aria-label="Price alerts" className="mt-5 grid gap-3 md:hidden">
+            {visible.map((alert) => (
+              <li
+                key={alert.id}
+                className="grid gap-3 rounded-2xl border border-border-muted bg-card p-4"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <Link
+                      href={`/stocks/${alert.ticker}`}
+                      className="font-mono text-base font-medium hover:underline"
+                    >
                       {alert.ticker}
                     </Link>
-                  </td>
-                  <td className="px-3 py-3 text-text-secondary">
-                    {alertDirectionLabel(alert.direction)}
-                  </td>
-                  <td className="px-3 py-3 text-right font-mono">
-                    {formatNativePrice(alert.target_price, alert.ticker, currencies)}
-                  </td>
-                  <td className="px-3 py-3">
-                    <AlertStatusBadge
-                      triggered={Boolean(alert.triggered_at)}
-                      dismissed={Boolean(alert.dismissed_at)}
-                    />
-                  </td>
-                  <td className="hidden px-3 py-3 text-text-tertiary sm:table-cell">
-                    {fmtWhen(alert.triggered_at)}
-                  </td>
-                  <td className="px-3 py-3 text-right">
-                    <div className="flex justify-end gap-2">
-                      {alert.triggered_at && !alert.dismissed_at ? (
-                        <form action={dismissAlertAction}>
-                          <input type="hidden" name="id" value={alert.id} />
-                          <button type="submit" className="text-xs hover:underline">
-                            Dismiss
-                          </button>
-                        </form>
-                      ) : null}
-                      <form action={deleteAlertAction}>
-                        <input type="hidden" name="id" value={alert.id} />
-                        <button
-                          type="submit"
-                          className="text-xs text-text-tertiary hover:underline"
-                        >
-                          Delete
-                        </button>
-                      </form>
-                    </div>
-                  </td>
+                    <p className="text-xs text-text-secondary">
+                      {alertDirectionLabel(alert.direction)}{" "}
+                      <span className="font-mono" data-financial>
+                        {formatNativePrice(alert.target_price, alert.ticker, currencies)}
+                      </span>
+                    </p>
+                  </div>
+                  <AlertStatusBadge
+                    triggered={Boolean(alert.triggered_at)}
+                    dismissed={Boolean(alert.dismissed_at)}
+                  />
+                </div>
+                <div className="flex items-center justify-between gap-3 border-t border-border-muted pt-3">
+                  <span className="text-xs text-text-tertiary">
+                    {alert.triggered_at
+                      ? `Triggered ${fmtWhen(alert.triggered_at)}`
+                      : "Not triggered"}
+                  </span>
+                  <AlertActions alert={alert} />
+                </div>
+              </li>
+            ))}
+          </ul>
+          <div className="mt-5 hidden overflow-x-auto rounded-md border border-border-muted bg-card md:block">
+            <table className="w-full min-w-[40rem] text-sm">
+              <caption className="sr-only">Price alerts</caption>
+              <thead>
+                <tr className="border-b border-border-muted text-left text-3xs font-semibold tracking-[0.12em] text-text-tertiary uppercase">
+                  <th scope="col" className="px-3 py-2.5">
+                    Symbol
+                  </th>
+                  <th scope="col" className="px-3 py-2.5">
+                    Condition
+                  </th>
+                  <th scope="col" className="px-3 py-2.5 text-right">
+                    Target
+                  </th>
+                  <th scope="col" className="px-3 py-2.5">
+                    Status
+                  </th>
+                  <th scope="col" className="hidden px-3 py-2.5 sm:table-cell">
+                    Triggered
+                  </th>
+                  <th scope="col" className="px-3 py-2.5 text-right">
+                    <span className="sr-only">Actions</span>
+                  </th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {visible.map((alert) => (
+                  <tr key={alert.id} className="border-b border-border-muted last:border-0">
+                    <td className="px-3 py-3 font-mono">
+                      <Link href={`/stocks/${alert.ticker}`} className="hover:underline">
+                        {alert.ticker}
+                      </Link>
+                    </td>
+                    <td className="px-3 py-3 text-text-secondary">
+                      {alertDirectionLabel(alert.direction)}
+                    </td>
+                    <td className="px-3 py-3 text-right font-mono">
+                      {formatNativePrice(alert.target_price, alert.ticker, currencies)}
+                    </td>
+                    <td className="px-3 py-3">
+                      <AlertStatusBadge
+                        triggered={Boolean(alert.triggered_at)}
+                        dismissed={Boolean(alert.dismissed_at)}
+                      />
+                    </td>
+                    <td className="hidden px-3 py-3 text-text-tertiary sm:table-cell">
+                      {fmtWhen(alert.triggered_at)}
+                    </td>
+                    <td className="px-3 py-3 text-right">
+                      <AlertActions alert={alert} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
     </PageFrame>
   );

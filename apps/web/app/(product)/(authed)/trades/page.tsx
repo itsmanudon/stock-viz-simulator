@@ -6,6 +6,7 @@
  * cursor on the API.
  */
 
+import type { Metadata } from "next";
 import Link from "next/link";
 
 import { DataTableFrame, NumericCell } from "@/components/data-table";
@@ -21,6 +22,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { listTrades } from "@/lib/api/trading";
+
+export const metadata: Metadata = { title: "Trade history" };
 
 function fmtCurrency(raw: string): string {
   return Number(raw).toLocaleString("en-US", {

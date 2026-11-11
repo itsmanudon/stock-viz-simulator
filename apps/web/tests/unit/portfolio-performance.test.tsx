@@ -14,7 +14,7 @@ vi.mock("lightweight-charts", () => ({
   AreaSeries: "AreaSeries",
   createChart: () => ({
     addSeries: () => ({ setData: vi.fn() }),
-    timeScale: () => ({ fitContent: vi.fn() }),
+    timeScale: () => ({ fitContent: vi.fn(), width: () => 0, setVisibleLogicalRange: vi.fn() }),
     remove: vi.fn(),
   }),
 }));
@@ -77,11 +77,21 @@ describe("portfolio performance hierarchy", () => {
     );
 
     expect(screen.getByRole("heading", { level: 1, name: "Portfolio" })).toBeVisible();
-    expect(screen.getByText("€128,420.38")).toBeVisible();
+    // The cents are dimmed in a nested span, so match the paragraph's text.
+    expect(
+      screen.getByText(
+        (_, element) => element?.tagName === "P" && element.textContent === "€128,420.38",
+      ),
+    ).toBeVisible();
     expect(screen.getByText("3M USD NAV change")).toBeVisible();
     expect(screen.getByText("+$2,184.20")).toBeVisible();
     expect(screen.getByText("+1.73%")).toBeVisible();
     expect(screen.getByText(/Latest EOD valuation/)).toBeVisible();
+    // The snapshot date says what it dates, so it doesn't contradict an older
+    // close beside it (audit T8).
+    expect(
+      screen.getByText(/Snapshot recorded .*2026, valuing each holding at its latest stored close/),
+    ).toBeVisible();
     expect(screen.getByRole("link", { name: "Trade" })).toHaveAttribute("href", "/trade");
     expect(screen.getByRole("link", { name: "3M" })).toHaveAttribute("aria-current", "true");
     expect(screen.getByRole("link", { name: "1Y" })).toHaveAttribute("href", "/portfolio?range=1y");

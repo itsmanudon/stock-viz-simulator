@@ -6,6 +6,7 @@
  * an AI buy list.
  */
 
+import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
 
@@ -30,6 +31,8 @@ import {
   recommendationToSignal,
   sortSignals,
 } from "@/lib/signals-workspace";
+
+export const metadata: Metadata = { title: "Signals" };
 
 export default async function RecommendationsPage({
   searchParams,

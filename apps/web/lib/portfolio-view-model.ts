@@ -137,3 +137,22 @@ export function formatSignedPercent(value: number | null, digits = 2): string {
   });
   return `${sign}${formatted}%`;
 }
+
+/**
+ * The API files holdings without sector metadata under "Unknown" (sector and
+ * exchange come from `stockviz.cli metadata`, which needs network). Name that
+ * bucket plainly, and say when it is the whole book: a single "Unknown 100%"
+ * bar looks like a fact about the portfolio, not missing data (UI audit D3).
+ */
+export const UNCLASSIFIED_SECTOR = "Unknown";
+
+export function sectorLabel(sector: string): string {
+  return sector === UNCLASSIFIED_SECTOR ? "Sector not recorded" : sector;
+}
+
+export function allocationIsUnclassified(slices: { sector: string }[]): boolean {
+  return slices.length > 0 && slices.every((slice) => slice.sector === UNCLASSIFIED_SECTOR);
+}
+
+export const UNCLASSIFIED_ALLOCATION_NOTE =
+  "Sector data has not been recorded for these holdings yet, so the allocation cannot be split by sector.";

@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
@@ -76,6 +77,15 @@ function ticketPosition(position: Position, portfolio: Portfolio): TicketPositio
       Number(portfolio.total_value),
     ),
   };
+}
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ ticker: string }>;
+}): Promise<Metadata> {
+  // The ticker alone: the company name would cost an API call per render.
+  return { title: decodeURIComponent((await params).ticker).toUpperCase() };
 }
 
 export default async function StockPage({
@@ -301,8 +311,10 @@ function Overview({
 }) {
   const items = [
     ["Ticker", symbol.ticker],
-    ["Exchange", symbol.exchange ?? "—"],
-    ["Sector", symbol.sector ?? "—"],
+    // "Not recorded" rather than a dash: the value exists, we just have not
+    // loaded it (`stockviz.cli metadata`; UI audit S3).
+    ["Exchange", symbol.exchange ?? "Not recorded"],
+    ["Sector", symbol.sector ?? "Not recorded"],
     ["Trading currency", symbol.currency],
   ];
 

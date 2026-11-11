@@ -674,6 +674,8 @@ class ScreenerResultOut(BaseModel):
     exchange: str | None = None
     currency: str = "USD"
     last_close: Decimal
+    # Date of the bar the metrics (and last_close) come from (web UI audit T1).
+    as_of: date | None = None
     rsi_14: float | None = None
     momentum_pct: float | None = None
     momentum_days: int | None = None
@@ -921,6 +923,9 @@ class MarketSummaryRowOut(BaseModel):
     exchange: str | None = None
     currency: str = "USD"
     last_close: Decimal | None = None
+    # Timestamp of the stored bar behind last_close, so the page can date the
+    # price (web UI audit T1). None when the symbol has no stored bars.
+    last_close_at: datetime | None = None
     prev_close: Decimal | None = None
     change_pct: float | None = None
     # Oldest-first closes for the inline sparkline.

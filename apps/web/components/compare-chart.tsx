@@ -11,6 +11,7 @@ import { type IChartApi, LineSeries, type UTCTimestamp, createChart } from "ligh
 import { useEffect, useId, useRef } from "react";
 
 import type { Bar } from "@/lib/api";
+import { fitWithLabelRoom } from "@/lib/chart-range";
 import { useChartPalette } from "@/lib/chart-theme";
 import { seriesColor } from "@/lib/compare-workspace";
 
@@ -76,7 +77,11 @@ export function CompareChart({
       line.setData(points);
     });
 
-    chart.timeScale().fitContent();
+    fitWithLabelRoom(
+      chart,
+      Math.max(0, ...series.map((item) => item.bars.length)),
+      (containerRef.current?.clientWidth ?? 0) - 64,
+    );
     return () => chart.remove();
   }, [palette, series]);
 

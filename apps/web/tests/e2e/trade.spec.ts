@@ -36,7 +36,9 @@ test("operational trading loop from ticket to orders, watchlist, alerts, and rep
   ).toBeVisible();
 
   await main.getByLabel("Quantity").fill("1");
-  await main.getByRole("button", { name: /Submit market buy/i }).click();
+  // The ticket reviews before it places (UX-4): open the review, then place.
+  await main.getByRole("button", { name: /Review market buy/i }).click();
+  await main.getByRole("button", { name: /Place market buy/i }).click();
   await expect(main.getByRole("region", { name: "Order ticket" }).locator("output")).toContainText(
     "Filled BUY",
     { timeout: 10_000 },
@@ -91,13 +93,14 @@ test("operational trading loop from ticket to orders, watchlist, alerts, and rep
   await expect(main.getByText("legacy_close v1", { exact: true })).toBeVisible();
   await main.getByLabel("Symbol").selectOption("AAPL");
   await expect(main.getByText(/Stored daily bars for AAPL/i)).toBeVisible({ timeout: 10_000 });
-  await main.getByLabel("Start date").fill("2020-01-04");
-  await main.getByLabel("End date").fill("2020-01-19");
+  await main.getByLabel("Start date").fill("2020-01-06");
+  await main.getByLabel("End date").fill("2020-01-17");
   await main.getByRole("button", { name: "Start replay" }).click();
   await expect(page).toHaveURL(/\/replay\/\d+/, { timeout: 15_000 });
   await expect(main.getByRole("heading", { name: "AAPL", exact: true })).toBeVisible();
-  await expect(main.getByText(/stored daily bars 2020-01-04 → 2020-01-19/)).toBeVisible();
-  await expect(main.getByText(/Saturday, January 4, 2020/)).toBeVisible();
+  await expect(main.getByText(/stored daily bars 2020-01-06 → 2020-01-17/)).toBeVisible();
+  // A real session: the old seed data put bars on weekends (UI audit T6).
+  await expect(main.getByText(/Monday, January 6, 2020/)).toBeVisible();
   await expect(main.getByRole("region", { name: /replay price chart/i })).toBeVisible();
   await expect(
     main.getByRole("region", { name: /replay price chart/i }).getByText("Replay close"),
@@ -136,4 +139,23 @@ test("operational trading loop from ticket to orders, watchlist, alerts, and rep
   await expect(main.getByRole("table", { name: "Replay episodes" })).toBeVisible();
   await expect(main.getByRole("heading", { name: "Decision journal" })).toBeVisible();
   expect(leaked).toEqual([]);
+
+  // On a phone, Orders, Watchlist and Alerts lay out as cards instead of a
+  // table that scrolls the page sideways (UI audit P1). This account has a
+  // watched symbol and an alert; its market buy filled at once, so Orders
+  // (conditional orders only) shows its empty state, which must fit too. The
+  // order card itself is covered in tests/unit/order-card.test.tsx.
+  await page.setViewportSize({ width: 390, height: 844 });
+  for (const [path, list] of [
+    ["/orders?status=all", null],
+    ["/watchlist", "Watched securities"],
+    ["/alerts?view=all", "Price alerts"],
+  ] as const) {
+    await page.goto(path);
+    if (list) await expect(main.getByRole("list", { name: list })).toContainText("AAPL");
+    const overflows = await page.evaluate(
+      () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
+    );
+    expect(overflows, `${path} scrolls sideways at 390px`).toBe(false);
+  }
 });

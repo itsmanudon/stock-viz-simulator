@@ -29,14 +29,15 @@ const CANDIDATES = ["RELIANCE.NS", "HDFCBANK.NS", "TCS.NS", "NVDA", "AAPL", "MSF
 const RAIL_ICONS = [ChartCandlestick, ListFilter, Signal, BriefcaseBusiness];
 const RANGES = ["1M", "3M", "6M", "1Y"];
 
-type PanelData = {
+export type PanelData = {
   ticker: string;
   name: string;
   currency: string;
   bars: Bar[];
 };
 
-async function loadPanel(): Promise<PanelData | null> {
+/** Shared with the hero phone, so the panel and the phone show the same symbol. */
+export async function loadPanel(): Promise<PanelData | null> {
   const meta = new Map<string, { name: string; currency: string }>();
   try {
     const symbols = await listSymbols();

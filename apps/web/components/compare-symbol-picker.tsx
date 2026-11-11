@@ -122,10 +122,10 @@ export function CompareSymbolPicker({
             <button
               type="button"
               onClick={() => removeTicker(ticker)}
-              className="rounded-sm p-1 text-text-tertiary hover:bg-surface-hover hover:text-foreground"
+              className="grid size-7 place-items-center rounded-sm text-text-tertiary hover:bg-surface-hover hover:text-foreground sm:size-6"
               aria-label={`Remove ${ticker}`}
             >
-              <X className="size-3" aria-hidden />
+              <X className="size-3.5" aria-hidden />
             </button>
           </span>
         ))}
@@ -139,7 +139,7 @@ export function CompareSymbolPicker({
               key={ticker}
               type="button"
               onClick={() => addTicker(ticker)}
-              className="rounded-sm border border-border-muted px-1.5 py-0.5 font-mono hover:bg-surface-hover"
+              className="inline-flex min-h-8 items-center rounded-sm border border-border-muted px-2.5 font-mono hover:bg-surface-hover sm:min-h-7"
               title={names[ticker] ?? ticker}
             >
               + {ticker}

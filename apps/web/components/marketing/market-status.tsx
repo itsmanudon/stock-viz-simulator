@@ -22,14 +22,20 @@ const FRESH_DAYS = 4;
 
 const MS_PER_DAY = 86_400_000;
 
-async function latestBarDate(): Promise<Date | null> {
+/**
+ * Calendar date (`YYYY-MM-DD`) of the most recent stored end-of-day bar.
+ *
+ * Read straight from the stored timestamp. Parsing it with `new Date()` read
+ * the zone-less value as local time, so on a server east of UTC the badge
+ * showed the day before the close (UI audit T2). Also used by the landing
+ * page to date its movers.
+ */
+export async function latestStoredCloseDate(): Promise<string | null> {
   for (const ticker of CANDIDATES) {
     try {
       const bars = await getBars(ticker, { limit: 1 });
-      if (bars.length > 0) {
-        const parsed = new Date(bars[0].ts);
-        if (!Number.isNaN(parsed.getTime())) return parsed;
-      }
+      const day = bars[0]?.ts.slice(0, 10);
+      if (day && /^\d{4}-\d{2}-\d{2}$/.test(day)) return day;
     } catch (err) {
       if (!(err instanceof ApiError)) throw err;
       // Try the next candidate.
@@ -39,11 +45,13 @@ async function latestBarDate(): Promise<Date | null> {
 }
 
 export async function MarketStatus() {
-  const date = await latestBarDate();
-  if (!date) return null;
+  const day = await latestStoredCloseDate();
+  if (!day) return null;
 
-  // Fixed to UTC so the server render is deterministic and the label can't
-  // disagree with itself between regions.
+  // Built from the calendar date at UTC midnight, so the label is the stored
+  // day in every region.
+  const [year, month, dayOfMonth] = day.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, dayOfMonth));
   const label = new Intl.DateTimeFormat("en-US", {
     day: "2-digit",
     month: "short",
@@ -58,7 +66,7 @@ export async function MarketStatus() {
   return (
     <span
       className="hidden items-center gap-2 rounded-full border border-border-muted px-2.5 py-1 font-mono text-2xs text-text-tertiary lg:inline-flex"
-      title={`Most recent stored end-of-day bar: ${date.toISOString().slice(0, 10)}`}
+      title={`Most recent stored end-of-day bar: ${day}`}
     >
       <span
         aria-hidden

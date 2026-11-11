@@ -19,6 +19,7 @@ function row(ticker: string, last: number | null, changePct: number | null): Mar
     currency: "USD",
     closes: [],
     last,
+    lastAt: null,
     changePct,
   };
 }

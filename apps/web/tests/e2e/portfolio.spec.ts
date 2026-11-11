@@ -19,7 +19,9 @@ test("authenticated user can move from a paper trade into the Portfolio workspac
 
   await page.goto("/trade?ticker=AAPL");
   await expect(page.getByLabel("Symbol")).toHaveValue("AAPL");
-  await page.getByRole("button", { name: /Submit market buy/i }).click();
+  // The ticket reviews before it places (UX-4): open the review, then place.
+  await page.getByRole("button", { name: /Review market buy/i }).click();
+  await page.getByRole("button", { name: /Place market buy/i }).click();
   await expect(page.getByRole("region", { name: "Order ticket" }).locator("output")).toContainText(
     "Filled BUY",
     { timeout: 10_000 },
@@ -72,4 +74,19 @@ test("new mobile portfolio keeps value, tabs, and starting actions readable", as
   await page.getByRole("tab", { name: "Options" }).click();
   await expect(page).toHaveURL(/tab=options/);
   await expect(page.getByText("No option positions are currently open.")).toBeVisible();
+
+  // Audit P3, in this test rather than its own: the suite's sign-ups must
+  // stay within the web app's limit of 5 an hour, or the last spec's sign-up
+  // is refused. On the narrowest phone the active tab is scrolled into view
+  // and the edge with more tabs fades.
+  await page.setViewportSize({ width: 320, height: 700 });
+  await page.goto("/portfolio?tab=journal");
+  const row = page.getByRole("tablist", { name: "Portfolio sections" }).locator("..");
+  await expect(page.getByRole("tab", { name: "Journal" })).toBeInViewport();
+  await expect(row).toHaveAttribute("data-more-start", "true");
+
+  // With room to spare every tab fits, so nothing fades.
+  await page.setViewportSize({ width: 430, height: 700 });
+  await expect(row).not.toHaveAttribute("data-more-start", "true");
+  await expect(row).not.toHaveAttribute("data-more-end", "true");
 });

@@ -467,11 +467,75 @@ html[data-density="compact"] .workspace-main .density-workspace {
     color: transparent;
   }
 
+  /* SplitText wraps each word in an inline-block, which would lose the
+     parent's clipped gradient; each word carries the gradient itself. */
+  .text-brand-gradient .split-word {
+    background-image: inherit;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
   /* Dims the cents so the whole-unit figure reads first (Revolut's balance
      treatment). The full value stays in the text, so copy and screen readers
      get the exact amount. */
   .figure-minor {
     color: var(--text-tertiary);
+  }
+}
+
+/* Landing "How a session works" tile loops. Illustrations only; they carry no
+   figures. Stopped outright with reduced motion. */
+@media (prefers-reduced-motion: no-preference) {
+  .landing-filter-out {
+    animation: landing-filter-out 4.5s ease-in-out infinite;
+  }
+
+  .landing-slide-up {
+    animation: landing-slide-up 4.5s cubic-bezier(0.2, 0.8, 0.2, 1) infinite;
+  }
+
+  .landing-draw {
+    stroke-dasharray: 520;
+    animation: landing-draw 4.5s ease-in-out infinite;
+  }
+}
+
+@keyframes landing-filter-out {
+  0%,
+  30%,
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+  45%,
+  85% {
+    opacity: 0;
+    transform: translateX(14px);
+  }
+}
+
+@keyframes landing-slide-up {
+  0%,
+  100% {
+    opacity: 0;
+    transform: translateY(70%);
+  }
+  20%,
+  80% {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes landing-draw {
+  0%,
+  100% {
+    stroke-dashoffset: 520;
+  }
+  55%,
+  85% {
+    stroke-dashoffset: 0;
   }
 }
 

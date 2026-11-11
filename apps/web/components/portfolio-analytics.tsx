@@ -2,9 +2,12 @@ import Link from "next/link";
 
 import type { PortfolioAnalytics, TopMover } from "@/lib/api/trading";
 import {
+  UNCLASSIFIED_ALLOCATION_NOTE,
+  allocationIsUnclassified,
   formatCurrency,
   formatSignedCurrency,
   formatSignedPercent,
+  sectorLabel,
 } from "@/lib/portfolio-view-model";
 
 const SECTOR_COLORS = [
@@ -38,7 +41,7 @@ export function PortfolioInsights({
   }
 
   const allocationLabel = `Equity sector allocation: ${analytics.sector_allocation
-    .map((slice) => `${slice.sector} ${slice.pct.toFixed(1)}%`)
+    .map((slice) => `${sectorLabel(slice.sector)} ${slice.pct.toFixed(1)}%`)
     .join(", ")}`;
 
   return (
@@ -51,43 +54,51 @@ export function PortfolioInsights({
           <p className="text-2xs text-muted-foreground">Cash and options excluded</p>
         </div>
 
-        <div
-          role="img"
-          aria-label={allocationLabel}
-          className="mt-5 flex h-2.5 overflow-hidden rounded-sm bg-surface-secondary"
-        >
-          {analytics.sector_allocation.map((slice, index) => (
-            <span
-              key={slice.sector}
-              aria-hidden="true"
-              className={SECTOR_COLORS[index % SECTOR_COLORS.length]}
-              style={{ width: `${Math.max(0, slice.pct)}%` }}
-            />
-          ))}
-        </div>
-
-        <dl className="mt-5 divide-y divide-border-muted border-y border-border-muted">
-          {analytics.sector_allocation.map((slice, index) => (
+        {allocationIsUnclassified(analytics.sector_allocation) ? (
+          <p className="mt-5 text-sm leading-6 text-text-secondary">
+            {UNCLASSIFIED_ALLOCATION_NOTE}
+          </p>
+        ) : (
+          <>
             <div
-              key={slice.sector}
-              className="grid grid-cols-[1fr_auto_auto] items-center gap-4 py-2.5"
+              role="img"
+              aria-label={allocationLabel}
+              className="mt-5 flex h-2.5 overflow-hidden rounded-sm bg-surface-secondary"
             >
-              <dt className="flex min-w-0 items-center gap-2 text-sm">
+              {analytics.sector_allocation.map((slice, index) => (
                 <span
+                  key={slice.sector}
                   aria-hidden="true"
-                  className={`size-2 shrink-0 rounded-[2px] ${SECTOR_COLORS[index % SECTOR_COLORS.length]}`}
+                  className={SECTOR_COLORS[index % SECTOR_COLORS.length]}
+                  style={{ width: `${Math.max(0, slice.pct)}%` }}
                 />
-                <span className="truncate">{slice.sector}</span>
-              </dt>
-              <dd className="font-mono text-xs text-muted-foreground" data-financial>
-                {formatCurrency(slice.market_value, analytics.display_currency)}
-              </dd>
-              <dd className="w-14 text-right font-mono text-sm font-medium" data-financial>
-                {slice.pct.toFixed(1)}%
-              </dd>
+              ))}
             </div>
-          ))}
-        </dl>
+
+            <dl className="mt-5 divide-y divide-border-muted border-y border-border-muted">
+              {analytics.sector_allocation.map((slice, index) => (
+                <div
+                  key={slice.sector}
+                  className="grid grid-cols-[1fr_auto_auto] items-center gap-4 py-2.5"
+                >
+                  <dt className="flex min-w-0 items-center gap-2 text-sm">
+                    <span
+                      aria-hidden="true"
+                      className={`size-2 shrink-0 rounded-[2px] ${SECTOR_COLORS[index % SECTOR_COLORS.length]}`}
+                    />
+                    <span className="truncate">{sectorLabel(slice.sector)}</span>
+                  </dt>
+                  <dd className="font-mono text-xs text-muted-foreground" data-financial>
+                    {formatCurrency(slice.market_value, analytics.display_currency)}
+                  </dd>
+                  <dd className="w-14 text-right font-mono text-sm font-medium" data-financial>
+                    {slice.pct.toFixed(1)}%
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          </>
+        )}
       </div>
 
       <section aria-labelledby="movers-heading">

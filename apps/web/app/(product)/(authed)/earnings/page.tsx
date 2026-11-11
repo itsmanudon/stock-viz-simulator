@@ -1,4 +1,5 @@
 import { CalendarDays } from "lucide-react";
+import type { Metadata } from "next";
 
 import {
   EarningsCalendar,
@@ -7,6 +8,8 @@ import {
 } from "@/components/earnings-calendar";
 import { PageFrame } from "@/components/page-frame";
 import { getEarningsCalendar } from "@/lib/api/earnings";
+
+export const metadata: Metadata = { title: "Earnings" };
 
 function parseDate(value: string | undefined): Date {
   if (value && /^\d{4}-\d{2}-\d{2}$/.test(value)) {

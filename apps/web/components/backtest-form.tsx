@@ -25,18 +25,17 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ApiError, type BacktestRequest, type BacktestResult, runBacktest } from "@/lib/api";
+import {
+  type BacktestSymbol,
+  defaultBacktestRange,
+  pickBacktestTicker,
+} from "@/lib/backtest-defaults";
+import { formatCloseDate } from "@/lib/stock-workspace";
 import { cn } from "@/lib/utils";
 
-type SymbolOption = { ticker: string; name: string };
 type StrategyType = "rsi_threshold" | "sma_crossover";
 
 const RISK_FREE_RATE = 0.05;
-
-function isoDaysAgo(days: number): string {
-  const date = new Date();
-  date.setUTCDate(date.getUTCDate() - days);
-  return date.toISOString().slice(0, 10);
-}
 
 function fmtCurrency(raw: string): string {
   return Number(raw).toLocaleString("en-US", {
@@ -73,19 +72,25 @@ export function BacktestForm({
   symbols,
   initialTicker,
 }: {
-  symbols: SymbolOption[];
+  symbols: BacktestSymbol[];
   initialTicker?: string;
 }) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const known = useMemo(() => new Set(symbols.map((item) => item.ticker)), [symbols]);
-  const startingTicker =
-    initialTicker && known.has(initialTicker) ? initialTicker : (symbols[0]?.ticker ?? "");
+  const lastCloseOf = useMemo(
+    () => new Map(symbols.map((item) => [item.ticker, item.lastClose])),
+    [symbols],
+  );
+  const startingTicker = pickBacktestTicker(symbols, initialTicker);
+  const startingRange = defaultBacktestRange(lastCloseOf.get(startingTicker));
 
   const [ticker, setTicker] = useState(startingTicker);
-  const [from, setFrom] = useState(isoDaysAgo(365));
-  const [to, setTo] = useState(isoDaysAgo(0));
+  const [from, setFrom] = useState(startingRange.from);
+  const [to, setTo] = useState(startingRange.to);
+  // Until the dates are edited by hand, they follow the chosen symbol.
+  const [datesEdited, setDatesEdited] = useState(false);
+  const lastClose = lastCloseOf.get(ticker);
   const [initialCash, setInitialCash] = useState("100000");
   const [strategyType, setStrategyType] = useState<StrategyType>("rsi_threshold");
   const [buyBelow, setBuyBelow] = useState("30");
@@ -104,6 +109,11 @@ export function BacktestForm({
 
   function syncTicker(next: string) {
     setTicker(next);
+    if (!datesEdited) {
+      const range = defaultBacktestRange(lastCloseOf.get(next));
+      setFrom(range.from);
+      setTo(range.to);
+    }
     const params = new URLSearchParams(searchParams.toString());
     params.set("ticker", next);
     router.replace(`${pathname}?${params.toString()}`, { scroll: false });
@@ -185,6 +195,7 @@ export function BacktestForm({
               {symbols.map((symbol) => (
                 <option key={symbol.ticker} value={symbol.ticker}>
                   {symbol.ticker} — {symbol.name}
+                  {symbol.lastClose === null ? " (no stored history)" : ""}
                 </option>
               ))}
             </select>
@@ -204,7 +215,10 @@ export function BacktestForm({
                 id="bt-from"
                 type="date"
                 value={from}
-                onChange={(event) => setFrom(event.target.value)}
+                onChange={(event) => {
+                  setFrom(event.target.value);
+                  setDatesEdited(true);
+                }}
                 required
               />
             </div>
@@ -214,10 +228,20 @@ export function BacktestForm({
                 id="bt-to"
                 type="date"
                 value={to}
-                onChange={(event) => setTo(event.target.value)}
+                onChange={(event) => {
+                  setTo(event.target.value);
+                  setDatesEdited(true);
+                }}
                 required
               />
             </div>
+            {lastClose !== undefined ? (
+              <p className="col-span-2 text-xs text-text-tertiary">
+                {lastClose
+                  ? `Stored closes for ${ticker} end ${formatCloseDate(lastClose)}.`
+                  : `${ticker} has no stored closes yet, so a run returns nothing.`}
+              </p>
+            ) : null}
           </div>
 
           <div className="space-y-2">

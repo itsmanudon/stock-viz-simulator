@@ -11,6 +11,7 @@
 import { AreaSeries, type IChartApi, type UTCTimestamp, createChart } from "lightweight-charts";
 import { useEffect, useMemo, useRef } from "react";
 
+import { fitWithLabelRoom } from "@/lib/chart-range";
 import { useChartPalette } from "@/lib/chart-theme";
 
 type Point = { date: string; nav: string };
@@ -65,7 +66,7 @@ export function EquityCurve({
       priceLineVisible: false,
     });
     series.setData(data);
-    chart.timeScale().fitContent();
+    fitWithLabelRoom(chart, data.length, (containerRef.current?.clientWidth ?? 0) - 64);
 
     return () => {
       chart.remove();

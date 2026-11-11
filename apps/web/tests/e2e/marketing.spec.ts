@@ -3,10 +3,9 @@ import { expect, test } from "@playwright/test";
 /**
  * Marketing home coverage.
  *
- * The public page is now driven by live API data (hero panel, ticker strip,
- * product tour, numbers band), so these specs assert on structure and
- * behaviour rather than on any particular price — a reseeded database must not
- * turn the suite red.
+ * The public page is driven by live API data (hero panel and phone, movers,
+ * rankings), so these specs assert on structure and behaviour rather than on
+ * any particular price — a reseeded database must not turn the suite red.
  */
 
 test.describe("marketing home", () => {
@@ -26,33 +25,24 @@ test.describe("marketing home", () => {
     await expect(page.getByText("No card required")).toBeVisible();
   });
 
-  test("ticker strip renders symbols as links", async ({ page }) => {
-    const strip = page.locator(".marquee");
-    await expect(strip).toBeVisible();
-    // Two halves are rendered for a seamless wrap; the duplicate is aria-hidden
-    // so only one set is exposed to assistive tech.
-    await expect(strip.locator("a").first()).toHaveAttribute("href", /\/stocks\//);
+  test("hero phone screens can be switched with the dots", async ({ page }) => {
+    const dots = page.getByRole("button", { name: /^Show the .* screen$/ });
+    if ((await dots.count()) < 2) test.skip(true, "Only one phone screen without stored bars");
+    await dots.nth(1).click();
+    await expect(dots.nth(1)).toHaveAttribute("aria-pressed", "true");
   });
 
-  test("product tour switches panels by click and arrow key", async ({ page }) => {
-    const tablist = page.getByRole("tablist", { name: "Product tour" });
-    await expect(tablist).toBeVisible();
+  test("movers link each card to its stock page", async ({ page }) => {
+    const research = page.getByRole("link", { name: /^Research / });
+    await expect(research.first()).toHaveAttribute("href", /\/stocks\//);
+  });
 
-    const tabs = tablist.getByRole("tab");
-    await expect(tabs.first()).toBeVisible();
-
-    // Clicking a tab selects it and reveals exactly one panel.
-    await tabs.first().click();
-    await expect(tabs.first()).toHaveAttribute("aria-selected", "true");
-    await expect(page.getByRole("tabpanel")).toHaveCount(1);
-
-    // Roving focus: arrow keys move selection and focus together.
-    const count = await tabs.count();
-    if (count > 1) {
-      await tabs.first().press("ArrowRight");
-      await expect(tabs.nth(1)).toHaveAttribute("aria-selected", "true");
-      await expect(tabs.nth(1)).toBeFocused();
-    }
+  test("FAQ answers open and close", async ({ page }) => {
+    const question = page.getByText("Where do the prices come from?");
+    const details = page.locator("details", { has: question });
+    await expect(details).not.toHaveAttribute("open", "");
+    await question.click();
+    await expect(details).toHaveAttribute("open", "");
   });
 
   test("footer states the disclosures as numbered notes", async ({ page }) => {
@@ -66,39 +56,57 @@ test.describe("marketing home", () => {
   });
 });
 
+test("on a phone the paper-trading copy is one plain section", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/");
+  // The pinned version lives in the hero on wide screens; here it must appear
+  // once, as a section, and nothing pins.
+  const heading = page.getByRole("heading", { name: /A broker is real money/ });
+  await expect(heading).toHaveCount(1);
+  await expect(heading).toBeVisible();
+  expect(await page.locator(".pin-spacer").count()).toBe(0);
+});
+
 test.describe("reduced motion", () => {
   test("no animation runs and no content is gated behind scrolling", async ({ page }) => {
     // `emulateMedia` rather than the `reducedMotion` fixture: the fixture did
     // not reach the page here (`matchMedia(...).matches` stayed false), which
     // silently turns this into a test of the default state.
     await page.emulateMedia({ reducedMotion: "reduce" });
+    await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto("/");
 
     expect(
       await page.evaluate(() => window.matchMedia("(prefers-reduced-motion: reduce)").matches),
     ).toBe(true);
 
-    // The ticker must not animate — the stylesheet drops it by name rather than
-    // collapsing its duration, which would snap the track to its wrapped
-    // position and leave the aria-hidden duplicate on screen.
-    const animation = await page
-      .locator(".marquee-track")
-      .evaluate((el) => getComputedStyle(el).animationName);
-    expect(animation).toBe("none");
+    // Nothing pins, and the paper-trading copy is a plain visible section.
+    expect(await page.locator(".pin-spacer").count()).toBe(0);
+    await expect(page.getByRole("heading", { name: /A broker is real money/ })).toBeVisible();
 
-    // Reveal resolves immediately instead of waiting for an intersection.
-    const pending = await page.locator('[data-reveal="pending"]').count();
-    expect(pending).toBe(0);
+    // Reveal resolves as soon as it hydrates instead of waiting for an
+    // intersection. Auto-waiting: the server HTML is "pending" until then, and
+    // a one-shot count raced hydration once the page got lighter.
+    await expect(page.locator('[data-reveal="pending"]')).toHaveCount(0);
     for (const section of await page.locator("[data-reveal]").all()) {
       await expect(section).toHaveCSS("transition-delay", "0s");
       await expect(section).toHaveCSS("opacity", "1");
     }
 
-    // The tour must not advance on its own.
-    const tabs = page.getByRole("tablist", { name: "Product tour" }).getByRole("tab");
-    const selectedBefore = await tabs.first().getAttribute("aria-selected");
-    await page.waitForTimeout(7000);
-    expect(await tabs.first().getAttribute("aria-selected")).toBe(selectedBefore);
+    // Every "fill shows its work" step is lit, and every movers card and
+    // heading is at full strength without scrolling.
+    for (const step of await page.locator("[data-step]").all()) {
+      await expect(step).toHaveAttribute("data-on", "true");
+    }
+    for (const item of await page.locator("[data-motion-item]").all()) {
+      await expect(item).toHaveCSS("opacity", "1");
+    }
+
+    // The hero phone must not change screen on its own.
+    const label = page.locator("[aria-live=polite]").first();
+    const before = await label.textContent();
+    await page.waitForTimeout(6000);
+    expect(await label.textContent()).toBe(before);
   });
 });
 
@@ -165,4 +173,71 @@ test.describe("responsive", () => {
       await expect(page.getByRole("contentinfo")).toBeVisible();
     });
   }
+});
+
+test.describe("product pages", () => {
+  for (const [slug, name, heading] of [
+    ["paper-trading", "Paper trading", /Trade the market/],
+    ["research", "Research", /Find it, test it/],
+    ["replay", "Replay", /Trade a past stretch/],
+  ] as const) {
+    test(`${name} has its own title and fits a phone and a desktop`, async ({ page }) => {
+      for (const width of [320, 1440]) {
+        await page.setViewportSize({ width, height: 900 });
+        await page.goto(`/product/${slug}`);
+        await expect(page).toHaveTitle(`${name} | StockViz`);
+        await expect(page.getByRole("heading", { level: 1 })).toContainText(heading);
+        const overflows = await page.evaluate(
+          () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
+        );
+        expect(overflows).toBe(false);
+      }
+    });
+  }
+
+  test("the header links the product pages", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto("/");
+    const nav = page.getByRole("navigation", { name: "Public" });
+    await nav.getByRole("link", { name: "Replay" }).click();
+    await expect(page).toHaveURL(/\/product\/replay$/);
+  });
+
+  test("news has no product page until the Aegis feed lands", async ({ page }) => {
+    const response = await page.goto("/product/news");
+    expect(response?.status()).toBe(404);
+  });
+});
+
+test.describe("sign-in pages and leaderboard", () => {
+  for (const [path, heading] of [
+    ["/login", "Sign in"],
+    ["/signup", "Create your account"],
+    ["/sign-in-required", "Sign in required"],
+  ] as const) {
+    test(`${path} has one top-level heading (audit A2)`, async ({ page }) => {
+      await page.goto(path);
+      await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
+      await expect(page.getByRole("heading", { level: 1 })).toHaveText(heading);
+    });
+  }
+
+  test("on a phone the sign-in form comes before the pitch (audit P2)", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/login");
+    const email = await page.getByLabel("Email").boundingBox();
+    const pitch = await page
+      .getByRole("heading", { name: "A trading workspace where mistakes are free" })
+      .boundingBox();
+    expect(email && pitch && email.y < pitch.y).toBe(true);
+    // The field is on the first screen, not half a screen down.
+    expect(email && email.y < 844).toBe(true);
+  });
+
+  test("the leaderboard puts its top three on a podium", async ({ page }) => {
+    await page.goto("/leaderboard");
+    const podium = page.getByRole("list", { name: "Top three traders" });
+    if ((await podium.count()) === 0) test.skip(true, "Fewer than three public profiles");
+    await expect(podium.getByRole("listitem")).toHaveCount(3);
+  });
 });

@@ -1,5 +1,6 @@
 """Bounded daily close inputs, oldest first, without loading complete history."""
 
+from datetime import datetime
 from decimal import Decimal
 
 from sqlalchemy import func, true
@@ -49,9 +50,14 @@ def recent_closes_statement(tickers: list[str], limit: int, *, dialect: str):
     )
 
 
-def recent_closes(
+def recent_bars(
     session: Session, tickers: list[str], *, limit_per_ticker: int
-) -> dict[str, list[Decimal]]:
+) -> dict[str, list[tuple[datetime, Decimal]]]:
+    """Most recent ``(ts, close)`` pairs per ticker, oldest first.
+
+    Callers that show a price also need the bar it came from, so a page can
+    say which close it is (web UI audit T1).
+    """
     if not tickers:
         return {}
     if limit_per_ticker < 1:
@@ -59,7 +65,16 @@ def recent_closes(
     rows = session.exec(
         recent_closes_statement(tickers, limit_per_ticker, dialect=session.get_bind().dialect.name)
     ).all()
-    out: dict[str, list[Decimal]] = {}
-    for ticker, _ts, close in rows:
-        out.setdefault(ticker, []).append(close)
+    out: dict[str, list[tuple[datetime, Decimal]]] = {}
+    for ticker, ts, close in rows:
+        out.setdefault(ticker, []).append((ts, close))
     return out
+
+
+def recent_closes(
+    session: Session, tickers: list[str], *, limit_per_ticker: int
+) -> dict[str, list[Decimal]]:
+    return {
+        ticker: [close for _ts, close in bars]
+        for ticker, bars in recent_bars(session, tickers, limit_per_ticker=limit_per_ticker).items()
+    }

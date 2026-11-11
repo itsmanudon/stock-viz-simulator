@@ -5,6 +5,8 @@ import {
   buildSignalsHref,
   classifySignal,
   filterSignals,
+  formatSignalDate,
+  formatSignalDateTime,
   recommendationToSignal,
   sortSignals,
   votesFromRationale,
@@ -123,5 +125,13 @@ describe("buildSignalsHref", () => {
         selected: "AAPL",
       }),
     ).toBe("/recommendations?min=4&signal=bullish&sort=ticker&dir=asc&selected=AAPL");
+  });
+});
+
+describe("signal dates", () => {
+  it("shows the computed time in UTC and names the zone", () => {
+    // 23:30 UTC is the next day east of UTC; the date must not move.
+    expect(formatSignalDate("2025-04-04T23:30:00Z")).toBe("Apr 4, 2025");
+    expect(formatSignalDateTime("2025-04-04T23:30:00Z")).toBe("Apr 4, 2025, 11:30 PM UTC");
   });
 });

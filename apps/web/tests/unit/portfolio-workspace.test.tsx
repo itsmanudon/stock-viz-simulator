@@ -22,7 +22,7 @@ vi.mock("lightweight-charts", () => ({
   AreaSeries: "AreaSeries",
   createChart: () => ({
     addSeries: () => ({ setData: vi.fn() }),
-    timeScale: () => ({ fitContent: vi.fn() }),
+    timeScale: () => ({ fitContent: vi.fn(), width: () => 0, setVisibleLogicalRange: vi.fn() }),
     remove: vi.fn(),
   }),
 }));
@@ -130,7 +130,11 @@ describe("portfolio workspace", () => {
     const tabs = screen.getByRole("tablist", { name: "Portfolio sections" });
     const allocation = screen.getByRole("heading", { name: "Equity sector allocation" });
 
-    expect(screen.getByText("$128,420.00")).toBeVisible();
+    expect(
+      screen.getByText(
+        (_, element) => element?.tagName === "P" && element.textContent === "$128,420.00",
+      ),
+    ).toBeVisible();
     expect(screen.getByRole("tab", { name: "Positions" })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByRole("tab", { name: "Orders 1" })).toBeVisible();
     expect(screen.getByRole("table", { name: "Stock positions" })).toBeVisible();

@@ -10,6 +10,7 @@
  * 32-symbol universe, all `no-store`, against a 60/minute rate limit.
  */
 
+import type { Metadata } from "next";
 import Link from "next/link";
 
 import { ClickableRow } from "@/components/clickable-row";
@@ -35,7 +36,10 @@ import {
   fmtPct,
   sortHref,
 } from "@/lib/markets-table";
+import { formatCloseDate } from "@/lib/stock-workspace";
 import { cn } from "@/lib/utils";
+
+export const metadata: Metadata = { title: "Markets" };
 
 export default async function MarketsPage({
   searchParams,
@@ -57,9 +61,21 @@ export default async function MarketsPage({
     currency: r.currency,
     closes: r.closes.map(Number),
     last: r.last_close === null ? null : Number(r.last_close),
+    lastAt: r.last_close_at,
     changePct: r.change_pct,
   }));
+  // Every price is a stored close; say which (UI audit T1). Symbols can end on
+  // different days, so each row carries its own date and the header names the
+  // most recent one.
+  const latestAt = rows
+    .map((row) => row.lastAt?.slice(0, 10) ?? "")
+    .reduce((a, b) => (b > a ? b : a), "");
+  const latestLabel = formatCloseDate(latestAt);
   const sorted = compare(rows, sort, dir);
+  // Sector and exchange come from `stockviz.cli metadata`. Without it every
+  // cell was a dash (UI audit S3), so a column with no values is left out.
+  const hasSector = rows.some((row) => row.sector);
+  const hasExchange = rows.some((row) => row.exchange);
 
   const sortDirection = (col: SortKey) => (sort === col ? dir : null);
 
@@ -72,6 +88,11 @@ export default async function MarketsPage({
     // Only surface classification the symbol actually has; a row of em
     // dashes costs vertical space on a phone and says nothing.
     metrics: [
+      // A symbol without stored bars says so instead of showing bare dashes
+      // (UI audit S2).
+      row.last === null
+        ? { label: "Price", value: "No stored history" }
+        : { label: "Close", value: formatCloseDate(row.lastAt) ?? "Date unknown" },
       ...(row.sector ? [{ label: "Sector", value: row.sector }] : []),
       ...(row.exchange ? [{ label: "Exchange", value: row.exchange }] : []),
     ],
@@ -92,11 +113,12 @@ export default async function MarketsPage({
       <PageHeader
         eyebrow="Markets"
         title="Markets"
-        description="End-of-day prices across the tracked universe. Sort any column or filter by sector; the view is captured in the URL."
+        description="Stored end-of-day closes across the tracked universe, not live quotes. Sort any column or filter by sector; the view is captured in the URL."
         meta={
           <>
             {sorted.length} symbol{sorted.length === 1 ? "" : "s"}
             {params.sector ? ` in ${params.sector}` : ""}
+            {latestLabel ? ` · latest close ${latestLabel}` : ""}
           </>
         }
       />
@@ -147,8 +169,10 @@ export default async function MarketsPage({
                   className="w-[120px]"
                 />
                 <TableHead>Name</TableHead>
-                <TableHead className="hidden xl:table-cell">Sector</TableHead>
-                <TableHead className="hidden xl:table-cell">Exchange</TableHead>
+                {hasSector ? <TableHead className="hidden xl:table-cell">Sector</TableHead> : null}
+                {hasExchange ? (
+                  <TableHead className="hidden xl:table-cell">Exchange</TableHead>
+                ) : null}
                 <SortableHead
                   href={sortHref("price", params)}
                   label="Price"
@@ -168,14 +192,34 @@ export default async function MarketsPage({
               {sorted.map((row) => (
                 <ClickableRow key={row.ticker} href={`/stocks/${row.ticker}`}>
                   <TableCell className="font-mono font-semibold">{row.ticker}</TableCell>
-                  <TableCell className="truncate">{row.name}</TableCell>
-                  <TableCell className="hidden text-text-tertiary xl:table-cell">
-                    {row.sector ?? "—"}
+                  <TableCell className="truncate">
+                    {row.name}
+                    {row.last === null ? (
+                      <span className="ml-2 rounded-full border border-border-muted px-2 py-0.5 text-2xs text-text-tertiary">
+                        No stored history
+                      </span>
+                    ) : null}
                   </TableCell>
-                  <TableCell className="hidden text-text-tertiary xl:table-cell">
-                    {row.exchange ?? "—"}
-                  </TableCell>
-                  <NumericCell>{fmtMoney(row.last, row.currency)}</NumericCell>
+                  {hasSector ? (
+                    <TableCell className="hidden text-text-tertiary xl:table-cell">
+                      {row.sector ?? "—"}
+                    </TableCell>
+                  ) : null}
+                  {hasExchange ? (
+                    <TableCell className="hidden text-text-tertiary xl:table-cell">
+                      {row.exchange ?? "—"}
+                    </TableCell>
+                  ) : null}
+                  <NumericCell>
+                    {row.last === null ? null : (
+                      <>
+                        {fmtMoney(row.last, row.currency)}
+                        <span className="block text-2xs text-text-tertiary">
+                          {formatCloseDate(row.lastAt)}
+                        </span>
+                      </>
+                    )}
+                  </NumericCell>
                   <NumericCell signedBy={row.changePct}>
                     {row.changePct === null ? null : fmtPct(row.changePct)}
                   </NumericCell>

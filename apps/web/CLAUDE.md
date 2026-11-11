@@ -6,7 +6,7 @@ Next.js 16 App Router, React 19, TypeScript, Tailwind v4, shadcn/ui, NextAuth v5
 
 ```
 app/
-  (public)/        marketing home, login, signup, sign-in-required; owns the
+  (public)/        marketing home, /product/[slug], login, signup, sign-in-required; owns the
                    concise public header and traditional website footer
   (product)/       guest-capable research routes plus the workstation shell
     (authed)/      dashboard, portfolio, trade, trades, orders, watchlist,
@@ -37,12 +37,35 @@ proxy.ts           NextAuth middleware
 components/
   dashboard/       signed-in home widgets (hero, movers, orders, alerts,
                    watchlist, allocation) + the shared WidgetCard/DeltaPill
-  marketing/       public-page-only pieces. `hero.tsx` (Aurora: centred copy,
-                   pill CTAs, then a stage over a `.brand-glow` with the
-                   panel, the account-less `PaperCard` and glass fact pills
-                   from `md`/`lg` up; the stage is aria-hidden, so every fact
-                   on it must also appear as text) + `hero-panel.tsx` (the
+  marketing/       public-page-only pieces. `hero.tsx` (server: centred copy,
+                   pill CTAs, chips; hands everything to `hero-stage.tsx`) +
+                   `hero-stage.tsx` (client: the real-data panel with a phone
+                   in front that rotates through `hero-phone-screens.tsx`; on
+                   `lg` with motion the hero pins and the paper card lifts out
+                   of the phone, then flips; elsewhere the same copy is a plain
+                   section. Card start is measured from layout offsets because
+                   ScrollTrigger re-measures mid-timeline) +
+                   `hero-phone-screens.tsx` (portfolio is a labelled example;
+                   stock/review use the real stored close and date; news shows
+                   source and date only and is skipped when empty) +
+                   `hero-panel.tsx` (the
                    `.panel-inset` product replica, real bars only, aria-hidden),
+                   `phone-frame.tsx` (the shared phone bezel; screens never
+                   shrink), `landing-sections.tsx` (server sections below the
+                   hero: movers dated per card, session tiles, scroll story
+                   wrapper, fill steps, statement band, public-only rankings,
+                   FAQ; each drops out when its data is missing),
+                   `scroll-story.tsx` (client: sticky phone follows the step in
+                   view; `overflow-x-clip`, never `hidden`, or sticky breaks),
+                   `landing-motion.tsx` (client: one GSAP pass over
+                   `data-motion` markers — words, rise, draw, count, steps,
+                   glow), `product-page.tsx` (`PRODUCT_PAGES`: the specs
+                   behind `/product/[slug]` — paper-trading, research,
+                   replay; facts are checked against shipped behaviour, and
+                   there is no news page until Aegis lands; the public header
+                   links these three). `market-ticker`, `product-tour`/`tour-*` and
+                   `by-the-numbers` are no longer on the home page (kept for
+                   now, unused),
                    `market-ticker.tsx` (the `.marquee` price strip — halves are
                    `min-w-[100vw]`, never `min-w-full`, see the file header),
                    `floating-header.tsx` (the public header's sticky pill; the
@@ -57,7 +80,12 @@ components/
                    that can't be counted is omitted, never shown as 0),
                    `closing-cta.tsx` (the monochrome full-bleed close),
                    `reveal.tsx` (scroll reveal: IntersectionObserver + the
-                   `[data-reveal]` transition in globals.css — no motion library)
+                   `[data-reveal]` transition in globals.css). GSAP (+
+                   ScrollTrigger, SplitText, `@gsap/react`) is allowed on
+                   marketing pages only, never in the product app. Wrap every
+                   animation in `gsap.matchMedia("(prefers-reduced-motion:
+                   no-preference)")`, never hide content before GSAP runs, and
+                   pin a section only inside a React-owned wrapper
   data-table.tsx   DataTableFrame / NumericCell / SortableHead / TableToolbar
   symbol-card-list.tsx  card layout the symbol tables switch to under `md`,
                    plus CardSortBar (cards have no column headers to sort by)
@@ -225,7 +253,13 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
 - Symbol tables are ~500px+ wide at their narrowest, so `/markets` and
   `/screener` render `SymbolCardList` under `md` and the table above it. Both
   branches carry the same figures — mobile re-lays them out rather than
-  dropping columns. Any new symbol table should do the same.
+  dropping columns. Any new symbol table should do the same. `/orders`,
+  `/watchlist` and `/alerts` follow it too (cards under `md`, table above;
+  `OrderCard` lives beside `OrderBlotterRow`), and operational times render
+  in UTC with the zone named. Sector and exchange come from `stockviz.cli
+  metadata`, which needs network: a table leaves out a Sector or Exchange
+  column that no row has a value for, and the stock page says "Not recorded"
+  (UI audit S3).
 - Tables: use `DataTableFrame` + `NumericCell` rather than hand-rolling the
   bordered wrapper and the right-aligned tinted number. `NumericCell` owns the
   sign→token mapping and the em-dash fallback — never write `text-green-500`
@@ -238,7 +272,11 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   document and re-reads on theme change — never hard-code chart colours. The
   hook keeps its object identity stable while colours are unchanged because
   callers pass it to `useEffect`, and a new identity forces a full chart
-  rebuild.
+  rebuild. Fit the time axis with `fitWithLabelRoom()` (`lib/chart-range.ts`),
+  not `timeScale().fitContent()`: it leaves room for the outermost date label,
+  which lightweight-charts otherwise clips ("ug", "25"; UI audit P4). A volume
+  series on the price pane sets `lastValueVisible: false` and
+  `priceLineVisible: false`, or its tag sits on the price labels.
 - Server components by default — only mark `"use client"` when you need state,
   effects, or interactivity.
 - Research (`/compare`, `/backtest`, `/recommendations`, `/replay`) is one
@@ -248,23 +286,48 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   future-blind historical simulation; never fetch live bars, SSE quotes, or
   news into `/replay/[id]`. Forensics (`?view=forensics`) may call session
   `/forensics`, `/journal`, `/history`, `/summary`, and `/fills` only.
+- `/backtest` starts on the first symbol with stored closes and ends its
+  range at that symbol's latest close (`lib/backtest-defaults.ts`, UI audit
+  F1), using `last_close_at` from the markets summary. The range follows the
+  chosen symbol until the dates are edited by hand. The run is a browser
+  call to the API, so a dev server on a port other than 3000 needs that
+  origin in the API's `CORS_ORIGINS`, or the run fails with "Failed to fetch".
 - Operational trading (`/trade`, `/orders`, `/watchlist`, `/alerts`) is the
   authenticated execution/monitoring loop. See
   [`docs/OPERATIONAL_TRADING.md`](../../docs/OPERATIONAL_TRADING.md).
   `/trade?ticker=` prefills the ticket. `/orders?status=` is URL-backed.
   Do not describe EOD fills or alert evaluation as live exchange execution.
-- The stock page's `ContextualTradeTicket` is two-step (UI audit UX-4): "Review
-  order" opens a Revolut-style summary (amount, reference close with its date,
-  fees, fill rule from `describeFillRule()`, buying power after) and only the
-  review's button submits; a confirmation replaces the form after success.
+- Both paper tickets are two-step (UI audit UX-4): the stock page's
+  `ContextualTradeTicket` and the `/trade` `OrderTicket` ("Review market buy"
+  then "Place market buy") open the shared `OrderReview` from
+  `components/order-review.tsx` (amount, reference close with its date, fees,
+  fill rule from `describeFillRule()`, buying power after) and only the
+  review's button submits; the shared `OrderConfirmation` replaces the form
+  after success. The Replay ticket is separate and still single-step.
   Server actions post without JavaScript, so the ticket sends
   `review_step=draft|confirmed` and `placeTradeAction`/`placeOrderAction`
   refuse a `draft` post (`lib/order-review.ts`); the review button also stays
-  disabled until hydration. Tickets that omit the field (`/trade`) are
-  unaffected. Below `xl`, `MobileTradeSheet` pins a Buy/Sell bar to the bottom
+  disabled until hydration (`useHydrated()`). Tickets that omit the field
+  (Replay) are unaffected. Below `xl`, `MobileTradeSheet` pins a Buy/Sell bar to the bottom
   of the viewport; the page adds `pb-32` so it never covers content.
 - A `"use server"` file may export only async functions (and types). Put
   constants and helpers that actions share in `lib/`, or Next refuses the module.
+- Every displayed price names its close: `/v1/markets/summary` rows carry
+  `last_close_at` and screener rows carry `as_of` (UI audit T1). Symbols end
+  on different days, so date each row, not the page. In `next dev`, responses
+  fetched with `revalidateSeconds` live in `.next/dev/cache/fetch-cache` (not
+  `.next/cache`) and survive restarts; clear that folder after an API schema
+  change or the page keeps the old shape. The production image copies only
+  `.next/standalone`, `static` and `public`, so each deploy starts with an
+  empty data cache; the cache then holds a response for up to its revalidate
+  window (an hour for market data), so a page can trail the nightly ingest by
+  that long. Still render new fields optionally.
+- `/screener` keeps filters and sort in the URL (`lib/screener-view.ts`, UI
+  audit UX-1). Each applied filter shows as a removable chip; RSI bounds share
+  a chip, and the momentum bounds belong to the window's chip because the API
+  ignores them without one. Removing a chip keeps the sort, sorting keeps the
+  filters, and the form carries `sort`/`dir` as hidden fields. A momentum sort
+  is only valid while a window is set.
 - Format stored bar timestamps with `formatCloseDate()` (`lib/stock-workspace.ts`):
   it reads the calendar date from the string, so it never shifts a day with the
   timezone, and always includes the year.

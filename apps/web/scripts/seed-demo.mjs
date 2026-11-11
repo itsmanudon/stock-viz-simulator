@@ -207,10 +207,11 @@ async function upsertUser(client, account) {
  *   unrealized P&L     becomes market_value - cost_basis, i.e. real
  *
  * The entry price is derived from today's close times a random factor rather
- * than read from history on purpose. The bundled CSVs are not split-adjusted —
- * NVDA trades near $97 today and near $1,200 before its 10:1 split — so a real
- * historical close can price a position at ten times its market value and
- * drive cash negative. The factor band is centred slightly below 1 so a demo
+ * than read from history. This began because the old bundled CSVs were not
+ * split-adjusted, so a historical close could price a position at ten times
+ * its market value and drive cash negative. The CSVs are split-adjusted now
+ * (11 Nov 2026), and the factor is kept because it bounds the demo P&L. The
+ * factor band is centred slightly below 1 so a demo
  * book shows a mix of winners and losers that nets out modestly positive.
  *
  * Buy-side trade rows are re-priced to match so the trade history agrees with
