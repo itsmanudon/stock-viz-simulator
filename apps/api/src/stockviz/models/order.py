@@ -28,6 +28,8 @@ class OrderStatus(enum.StrEnum):
     PENDING = "pending"
     FILLED = "filled"
     CANCELLED = "cancelled"
+    # Unfilled after ORDER_MAX_AGE_DAYS; releases its reservation (audit LG-6).
+    EXPIRED = "expired"
 
 
 class PendingOrder(SQLModel, table=True):

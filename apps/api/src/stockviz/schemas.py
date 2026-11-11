@@ -10,7 +10,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class SymbolOut(BaseModel):
@@ -253,6 +253,14 @@ class TradeIn(BaseModel):
     ticker: str
     side: Literal["buy", "sell"]
     quantity: Decimal
+
+    @field_validator("quantity")
+    @classmethod
+    def _bounded_quantity(cls, value: Decimal) -> Decimal:
+        # LG-9: "NaN" used to pass here and fail later with a 500.
+        from stockviz.services.trading.bounds import MAX_QUANTITY, check_amount
+
+        return check_amount(value, name="quantity", maximum=MAX_QUANTITY)
 
 
 class TradeOut(BaseModel):
@@ -805,8 +813,26 @@ class OptionTradeIn(BaseModel):
     option_type: Literal["call", "put"] | None = None
     strike: Decimal | None = None
     expiry: date | None = None
-    quantity: int | None = None
+    quantity: int | None = Field(default=None, ge=1, le=1_000)
     option_id: int | None = None
+
+    @field_validator("strike")
+    @classmethod
+    def _bounded_strike(cls, value: Decimal | None) -> Decimal | None:
+        from stockviz.services.trading.bounds import MAX_PRICE, check_amount
+
+        return None if value is None else check_amount(value, name="strike", maximum=MAX_PRICE)
+
+    @field_validator("expiry")
+    @classmethod
+    def _bounded_expiry(cls, value: date | None) -> date | None:
+        from stockviz._time import utcnow
+        from stockviz.services.trading.bounds import MAX_OPTION_YEARS
+
+        horizon = utcnow().date().replace(year=utcnow().year + MAX_OPTION_YEARS)
+        if value is not None and value > horizon:
+            raise ValueError(f"expiry must be within {MAX_OPTION_YEARS} years")
+        return value
 
 
 class OptionGreeksOut(BaseModel):
