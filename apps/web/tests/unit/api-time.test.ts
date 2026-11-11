@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { apiTimestampMs, barTimeToUtcSeconds, parseApiTimestamp } from "@/lib/api-time";
+import {
+  apiTimestampMs,
+  barTimeToUtcSeconds,
+  formatUtcDateTime,
+  parseApiTimestamp,
+} from "@/lib/api-time";
 import { formatReplayDate } from "@/lib/replay";
 import { formatSignalDateTime } from "@/lib/signals-workspace";
 
@@ -34,5 +39,16 @@ describe("API timestamps (audit RS-2)", () => {
 
   it("dates a replay bar by its stored day", () => {
     expect(formatReplayDate("2025-04-04T00:00:00")).toBe("Friday, April 4, 2025");
+  });
+});
+
+describe("formatUtcDateTime", () => {
+  it("shows a zone-less API time as UTC, whatever the reader's zone", () => {
+    // 21:05 UTC stays 21:05 and says UTC, under Tokyo or Los Angeles too.
+    expect(formatUtcDateTime("2026-11-07T21:05:00")).toBe("Nov 7, 2026, 09:05 PM UTC");
+  });
+
+  it("prints a dash without a time", () => {
+    expect(formatUtcDateTime(null)).toBe("—");
   });
 });

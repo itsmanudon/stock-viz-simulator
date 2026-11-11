@@ -8,6 +8,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import { CountBadge } from "@/components/count-badge";
 import {
   OperationalEmptyState,
   OperationalPageHeader,
@@ -15,6 +16,7 @@ import {
 } from "@/components/operational-page-header";
 import { OrderBlotterRow, OrderCard } from "@/components/order-blotter-row";
 import { PageFrame } from "@/components/page-frame";
+import { MetaChip } from "@/components/page-header";
 import { listSymbols } from "@/lib/api";
 import { listOrders } from "@/lib/api/trading";
 import {
@@ -66,10 +68,17 @@ export default async function OrdersPage({
 }) {
   const { status: rawStatus } = await searchParams;
   const status = parseOrdersStatus(rawStatus);
-  const [orders, symbols] = await Promise.all([
-    status === "all" ? listOrders() : listOrders(status),
-    listSymbols().catch(() => []),
-  ]);
+  // One request for every order, so each status tab can show its count
+  // (Aurora board v3); the active tab filters the same list.
+  const [allOrders, symbols] = await Promise.all([listOrders(), listSymbols().catch(() => [])]);
+  const counts: Record<OrderStatusFilter, number> = {
+    pending: allOrders.filter((order) => order.status === "pending").length,
+    filled: allOrders.filter((order) => order.status === "filled").length,
+    cancelled: allOrders.filter((order) => order.status === "cancelled").length,
+    all: allOrders.length,
+  };
+  const orders =
+    status === "all" ? allOrders : allOrders.filter((order) => order.status === status);
   const currencies = currencyByTicker(symbols);
 
   return (
@@ -78,6 +87,7 @@ export default async function OrdersPage({
         eyebrow="Trade"
         title="Orders"
         description="Manage conditional paper orders. Pending buys reserve cash; pending sells reserve shares. Settlement uses the stored daily close, not an intraday trigger."
+        meta={<MetaChip>Times in UTC</MetaChip>}
         actions={
           <Link href="/trade" className="text-sm hover:underline">
             Open trade ticket
@@ -105,6 +115,7 @@ export default async function OrdersPage({
               )}
             >
               {filter.label}
+              <CountBadge count={counts[filter.value]} />
             </Link>
           );
         })}
