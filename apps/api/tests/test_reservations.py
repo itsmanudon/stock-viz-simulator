@@ -526,7 +526,9 @@ def test_fill_revalidates_when_fx_moves_against_reservation(session: Session) ->
 
     # FX jumps; A's fill would cost 600 * 100 * 1.50 = $90,000.
     # Spendable for A = 100k - B's current reservation (300*100*1.50=$45k) = $55k.
-    today = date.today()
+    # The UTC date, as the FX lookup uses: date.today() is the machine's local
+    # date and ran a day ahead east of UTC, so the rate looked like tomorrow's.
+    today = datetime.now(UTC).date()
     session.add(FxRate(currency="EUR", date=today, usd_rate=Decimal("1.50")))
     session.commit()
 

@@ -486,8 +486,13 @@ def fetch_daily_bars(
     alpha_vantage_key: str = "",
     history_fn: YFinanceHistoryFn | None = None,
     fetch_fn: AlphaVantageFetchFn | None = None,
+    now: datetime | None = None,
 ) -> list[BarRecord]:
-    """Provider I/O only. Does not open a database transaction."""
+    """Provider I/O only. Does not open a database transaction.
+
+    ``now`` decides which sessions are complete (``completed_daily_bars``);
+    tests pass it, production uses the clock.
+    """
     kwargs: dict[str, object] = {"start": since}
     if history_fn is not None:
         kwargs["history_fn"] = history_fn
@@ -500,7 +505,7 @@ def fetch_daily_bars(
         bars = fetch_alpha_vantage_daily(ticker, **av_kwargs)  # type: ignore[arg-type]
     if not bars:
         logger.warning("ingest_ticker: %s — no bars from any source", ticker)
-    return completed_daily_bars(bars)
+    return completed_daily_bars(bars, now=now)
 
 
 def ingest_ticker(
