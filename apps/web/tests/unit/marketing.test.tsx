@@ -1,24 +1,29 @@
 import { render, screen, within } from "@testing-library/react";
+import type React from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import HomePage from "@/app/(public)/page";
 import { SiteFooter } from "@/components/site-footer";
 
-// The hero, ticker, tour, and stat band are async server components that fetch
+// The hero and the landing sections are async server components that fetch
 // live data from the API; each is covered on its own or in the Playwright
 // marketing spec. Stub them so HomePage renders synchronously and this suite
 // stays on what page.tsx itself owns — the workspace surface index. Stubbing
-// the tour also severs the `lib/api/leaderboard` → `@/auth` → next-auth import
-// chain, which Vitest cannot resolve.
+// the sections also severs the `lib/api/leaderboard` → `@/auth` → next-auth
+// import chain, which Vitest cannot resolve. LandingMotion is stubbed because
+// GSAP's matchMedia needs `window.matchMedia`, which jsdom does not provide.
 vi.mock("@/components/marketing/hero", () => ({ Hero: () => <div>Hero</div> }));
-vi.mock("@/components/marketing/market-ticker", () => ({
-  MarketTicker: () => <div>Market ticker</div>,
+vi.mock("@/components/marketing/landing-motion", () => ({
+  LandingMotion: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
-vi.mock("@/components/marketing/product-tour", () => ({
-  ProductTour: () => <div>Product tour</div>,
-}));
-vi.mock("@/components/marketing/by-the-numbers", () => ({
-  ByTheNumbers: () => <div>By the numbers</div>,
+vi.mock("@/components/marketing/landing-sections", () => ({
+  MovingToday: () => <div>Moving today</div>,
+  SessionTiles: () => <div>Session tiles</div>,
+  StorySection: () => <div>Scroll story</div>,
+  FillSteps: () => <div>Fill steps</div>,
+  StatementBand: () => <div>Statement band</div>,
+  Rankings: () => <div>Rankings</div>,
+  LandingFaq: () => <div>FAQ</div>,
 }));
 vi.mock("@/components/marketing/closing-cta", () => ({
   ClosingCta: () => <div>Closing CTA</div>,
