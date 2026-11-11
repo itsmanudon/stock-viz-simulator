@@ -16,6 +16,7 @@ import signal
 import sys
 import threading
 
+from stockviz.logging_setup import configure_logging
 from stockviz.scheduler import build_scheduler
 
 logger = logging.getLogger(__name__)
@@ -23,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 def main(argv: list[str] | None = None) -> int:
     del argv  # argparse-free; this process only runs the in-process scheduler.
-    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
+    configure_logging()
     scheduler = build_scheduler()
     stop = threading.Event()
 

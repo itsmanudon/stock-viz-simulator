@@ -491,6 +491,14 @@ Anthropic/HTTP sentiment provider similarly requires its credential/endpoint.
 Blank selections retain legacy key-based resolution. `stockviz.cli news` also
 exits 2 rather than silently ingesting nothing.
 
+**Keys stay out of logs.** Alpha Vantage and NewsData.io take the key as
+`apikey=` in the query string. Every process entry point (CLI, workers,
+scheduler) calls `logging_setup.configure_logging()`, which keeps httpx and
+httpcore at WARNING (their INFO lines are request URLs) and puts
+`RedactSecrets` on the root handlers. `job_runs.error` goes through `redact`
+too, since httpx error messages carry the URL. Never call
+`logging.basicConfig` directly in a new entry point.
+
 `upsert_bars` writes in chunks of `UPSERT_CHUNK_ROWS` (1000). `price_bars`
 binds 11 parameters per row, including provider provenance plus generic
 adjustment/session semantics, and a full-history yfinance fetch is ~11k bars —

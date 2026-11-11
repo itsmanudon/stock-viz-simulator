@@ -24,6 +24,7 @@ from zoneinfo import ZoneInfo
 from sqlmodel import Session
 
 from stockviz.db import engine
+from stockviz.logging_setup import configure_logging, redact
 from stockviz.services.ingest.backfill import (
     backfill_price_bars_from_csvs,
     ensure_symbols_for_backfill,
@@ -995,7 +996,8 @@ def _record_job_end(run_id: int | None, code: int, error: str | None) -> None:
             row.finished_at = utcnow()
             row.exit_code = code
             row.status = {0: "succeeded", 2: "skipped"}.get(code, "failed")
-            row.error = error[:4000] if error else None
+            # An httpx error message holds the request URL, key included.
+            row.error = redact(error)[:4000] if error else None
             session.add(row)
             session.commit()
     except Exception:
@@ -1019,7 +1021,7 @@ def _run_recorded(job: str, run: Callable[[], int]) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
-    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
+    configure_logging()
 
     parser = argparse.ArgumentParser(prog="stockviz", description="StockViz API operator commands.")
     sub = parser.add_subparsers(dest="cmd", required=True)

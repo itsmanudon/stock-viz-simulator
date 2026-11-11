@@ -18,6 +18,7 @@ from stockviz.events.activity import apply_trade_executed
 from stockviz.events.contracts import TRADE_ACTIVITY_CONSUMER, TRADES_TOPIC
 from stockviz.events.outbox import SchemaIncompatibleError, parse_trade_executed
 from stockviz.events.producer import ConfluentBrokerConsumer
+from stockviz.logging_setup import configure_logging
 from stockviz.settings import get_settings
 
 logger = logging.getLogger(__name__)
@@ -66,7 +67,7 @@ def consume_once(*, timeout: float = 10.0, consumer: ConfluentBrokerConsumer | N
 
 
 def main(argv: list[str] | None = None) -> int:
-    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
+    configure_logging()
     parser = argparse.ArgumentParser(
         description="Consume stockviz.trades.v1 into derived activity."
     )

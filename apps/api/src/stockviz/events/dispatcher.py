@@ -18,6 +18,7 @@ from sqlmodel import Session
 from stockviz.db import engine
 from stockviz.events.outbox import SchemaIncompatibleError
 from stockviz.events.producer import BrokerConsumer, ConfluentBrokerConsumer
+from stockviz.logging_setup import configure_logging
 from stockviz.settings import get_settings
 
 logger = logging.getLogger(__name__)
@@ -185,7 +186,7 @@ def worker_main(
     process: ProcessFn | None = None,
 ) -> int:
     """Argparse + settings bootstrap shared by Kafka workers."""
-    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
+    configure_logging()
     parser = argparse.ArgumentParser(description=description)
     parser.add_argument("--once", action="store_true", help="Handle at most one message and exit.")
     args = parser.parse_args(argv)
