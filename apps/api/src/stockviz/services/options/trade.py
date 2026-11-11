@@ -139,6 +139,93 @@ class OptionTradeResult:
     cash_delta: Decimal  # negative when premium paid, positive when proceeds received
 
 
+@dataclass(frozen=True, slots=True)
+class OptionQuote:
+    """What opening a contract costs now, priced as :func:`open_option` charges it.
+
+    ``per_share`` is the Black-Scholes value; ``premium`` is the charge for
+    ``quantity`` contracts (x ``CONTRACT_MULTIPLIER``), rounded to cents.
+    ``spot`` is the latest stored close, dated ``spot_at``; ``volatility`` is
+    the annualised 30-day historical volatility used as the IV proxy.
+    ``strike`` is the one priced: the caller's, or the spot rounded to cents.
+    """
+
+    ticker: str
+    strike: Decimal
+    spot: Decimal
+    spot_at: datetime
+    volatility: float
+    per_share: Decimal
+    premium: Decimal
+    price: OptionPrice
+
+
+def quote_option(
+    session: Session,
+    *,
+    ticker: str,
+    option_type: OptionType,
+    strike: Decimal | None,
+    expiry: date_type,
+    quantity: int = 1,
+) -> OptionQuote:
+    """Price an open without placing it (audit LG-7). Raises the open's errors.
+
+    Without a ``strike`` the contract is priced at the money: the latest close
+    rounded to cents.
+    """
+    if quantity <= 0:
+        raise OptionTradeError("quantity must be a positive number of contracts")
+    if strike is not None and strike <= 0:
+        raise OptionTradeError("strike must be positive")
+
+    ticker = ticker.upper()
+    symbol = session.get(Symbol, ticker)
+    if symbol is None:
+        raise OptionSymbolNotFound(f"Symbol {ticker!r} not found")
+    if symbol.currency != "USD":
+        raise OptionTradeError("Options paper trading currently supports USD underlyings only")
+
+    today = utcnow().date()
+    if expiry <= today:
+        raise InvalidExpiry("expiry must be a future date")
+
+    newest = session.exec(
+        select(PriceBar)
+        .where(PriceBar.ticker == ticker, PriceBar.interval == "1d")
+        .order_by(PriceBar.ts.desc())  # type: ignore[attr-defined]
+        .limit(1)
+    ).first()
+    if newest is None:
+        raise NoOptionMarketData(f"No market data for {ticker!r}; cannot price option")
+    if strike is None:
+        strike = newest.close.quantize(_CENTS)
+
+    vol = historical_volatility(_bar_closes(session, ticker))
+    price = black_scholes(
+        spot=float(newest.close),
+        strike=float(strike),
+        time_to_expiry_years=_years_to_expiry(expiry, asof=today),
+        volatility=vol,
+        risk_free_rate=RISK_FREE_RATE,
+        option_type=option_type.value,
+    )
+    per_share = Decimal(str(price.value))
+    premium = (per_share * CONTRACT_MULTIPLIER * quantity).quantize(_CENTS)
+    if premium < 0:
+        premium = Decimal("0.00")
+    return OptionQuote(
+        ticker=ticker,
+        strike=strike,
+        spot=newest.close,
+        spot_at=newest.ts,
+        volatility=vol,
+        per_share=per_share,
+        premium=premium,
+        price=price,
+    )
+
+
 def open_option(
     session: Session,
     *,
@@ -184,32 +271,15 @@ def open_option(
             session.refresh(earlier)
             return OptionTradeResult(position=earlier, cash_delta=-earlier.premium_paid)
 
-    symbol = session.get(Symbol, ticker)
-    if symbol is None:
-        raise OptionSymbolNotFound(f"Symbol {ticker!r} not found")
-    if symbol.currency != "USD":
-        raise OptionTradeError("Options paper trading currently supports USD underlyings only")
-
-    today = utcnow().date()
-    if expiry <= today:
-        raise InvalidExpiry("expiry must be a future date")
-
-    spot = _spot(session, ticker)
-    if spot is None:
-        raise NoOptionMarketData(f"No market data for {ticker!r}; cannot price option")
-
-    vol = historical_volatility(_bar_closes(session, ticker))
-    price = black_scholes(
-        spot=float(spot),
-        strike=float(strike),
-        time_to_expiry_years=_years_to_expiry(expiry, asof=today),
-        volatility=vol,
-        risk_free_rate=RISK_FREE_RATE,
-        option_type=option_type.value,
+    quote = quote_option(
+        session,
+        ticker=ticker,
+        option_type=option_type,
+        strike=strike,
+        expiry=expiry,
+        quantity=quantity,
     )
-    premium = (Decimal(str(price.value)) * CONTRACT_MULTIPLIER * quantity).quantize(_CENTS)
-    if premium < 0:
-        premium = Decimal("0.00")
+    premium = quote.premium
 
     portfolio = ensure_default_portfolio(session, user_id)
     assert portfolio.id is not None

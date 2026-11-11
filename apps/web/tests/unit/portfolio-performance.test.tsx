@@ -47,6 +47,7 @@ const portfolio: Portfolio = {
     },
   ],
   option_positions: [],
+  valuation_warnings: [],
 };
 
 const analytics: PortfolioAnalytics = {

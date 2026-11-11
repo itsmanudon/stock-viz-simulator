@@ -20,6 +20,7 @@
  */
 
 import type { JournalDay, JournalMonth, JournalWeek } from "./journal";
+import type { OptionQuote } from "./option-quote";
 import type { ReplayForensics, ReplayJournal, ReplaySessionList, ReplaySummary } from "./replay";
 import type { components } from "./schema";
 import type { Portfolio, PortfolioOption, PortfolioOverview, TradeRow } from "./trading";
@@ -62,6 +63,7 @@ export type _PortfolioOptionMatches = Expect<
   Assignable<PortfolioOption, Schemas["PortfolioOptionOut"]>
 >;
 export type _TradeMatches = Expect<Assignable<TradeRow, Schemas["TradeOut"]>>;
+export type _OptionQuoteMatches = Expect<Assignable<OptionQuote, Schemas["OptionQuoteOut"]>>;
 
 // --- Market data -----------------------------------------------------------
 

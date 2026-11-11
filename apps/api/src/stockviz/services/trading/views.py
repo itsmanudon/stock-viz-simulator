@@ -15,6 +15,7 @@ from stockviz.schemas import (
     PositionOut,
     SectorAllocationOut,
     TopMoverOut,
+    ValuationWarningOut,
 )
 from stockviz.services.trading.analytics import (
     compute_annualised_return_pct,
@@ -71,6 +72,10 @@ def portfolio_response(snap: PortfolioValuation) -> PortfolioOut:
                 unrealized_pl=o.unrealized_pl,
             )
             for o in snap.option_positions
+        ],
+        valuation_warnings=[
+            ValuationWarningOut(code=w.code, subject=w.subject, message=w.message)  # type: ignore[arg-type]
+            for w in snap.warnings
         ],
     )
 

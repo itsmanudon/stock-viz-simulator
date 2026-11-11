@@ -19,6 +19,10 @@ from stockviz.services.trading.portfolio import compute_portfolio
 logger = logging.getLogger(__name__)
 
 
+class IncompleteValuation(ValueError):
+    """The valuation left something out, so its NAV is not stored (LG-13)."""
+
+
 def upsert_user_snapshot(
     session: Session, *, user_id: int, snapshot_date: date_type
 ) -> PortfolioSnapshot:
@@ -36,6 +40,10 @@ def upsert_user_snapshot(
         raise ValueError(f"User {user_id} has no portfolio yet")
 
     snap = compute_portfolio(session, portfolio)
+    if not snap.complete:
+        # A NAV with a holding at 0 would enter the equity curve, the returns
+        # and the leaderboard as a real loss. Keep the last good snapshot.
+        raise IncompleteValuation("; ".join(w.message for w in snap.warnings))
     nav = Decimal(snap.total_value).quantize(Decimal("0.000001"))
 
     existing = session.exec(
@@ -74,6 +82,10 @@ def snapshot_user_navs(session: Session, *, snapshot_date: date_type) -> int:
         try:
             upsert_user_snapshot(session, user_id=user_id, snapshot_date=snapshot_date)
             written += 1
+        except IncompleteValuation as exc:
+            logger.warning(
+                "snapshot_user_navs: skipped user %s, valuation incomplete: %s", user_id, exc
+            )
         except Exception:
             logger.exception("snapshot_user_navs: failed for user %s", user_id)
     return written

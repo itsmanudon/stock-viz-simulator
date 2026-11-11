@@ -36,6 +36,16 @@ export type Portfolio = {
   options_market_value: string;
   positions: Position[];
   option_positions: PortfolioOption[];
+  /** What total_value leaves out; empty when complete (audit LG-13). */
+  valuation_warnings: ValuationWarning[];
+};
+
+export type ValuationWarning = {
+  /** no_close / no_option_price: valued at 0. no_fx_rate: added unconverted. */
+  code: "no_close" | "no_option_price" | "no_fx_rate";
+  /** The ticker, or the currency for no_fx_rate. */
+  subject: string;
+  message: string;
 };
 
 export type PortfolioOption = {

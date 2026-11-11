@@ -64,6 +64,7 @@ const portfolio: Portfolio = {
     },
   ],
   option_positions: [],
+  valuation_warnings: [],
 };
 
 const history: PortfolioHistoryPoint[] = [

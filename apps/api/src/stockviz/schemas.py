@@ -220,6 +220,18 @@ class PortfolioOptionOut(BaseModel):
     unrealized_pl: Decimal
 
 
+class ValuationWarningOut(BaseModel):
+    """A figure the valuation could not price (audit LG-13).
+
+    ``code``: ``no_close`` and ``no_option_price`` (valued at 0) or
+    ``no_fx_rate`` (added unconverted). ``subject`` is a ticker or currency.
+    """
+
+    code: Literal["no_close", "no_option_price", "no_fx_rate"]
+    subject: str
+    message: str
+
+
 class PortfolioOut(BaseModel):
     """Snapshot of the user's default portfolio used by /portfolio.
 
@@ -245,6 +257,8 @@ class PortfolioOut(BaseModel):
     unrealized_pl: Decimal
     positions: list[PositionOut]
     option_positions: list[PortfolioOptionOut] = []
+    # Empty when the total is complete; otherwise what it leaves out (LG-13).
+    valuation_warnings: list[ValuationWarningOut] = []
 
 
 ClientOrderId = Annotated[
@@ -855,6 +869,30 @@ class OptionGreeksOut(BaseModel):
     gamma: float
     theta: float
     vega: float
+
+
+class OptionQuoteOut(BaseModel):
+    """GET /v1/options/quote: what an open would cost now (audit LG-7).
+
+    Priced by the same function the open charges with. ``spot`` is the latest
+    stored close (``spot_at``), ``volatility`` the 30-day historical volatility
+    used as the IV proxy, ``per_share`` the Black-Scholes value and
+    ``premium`` the charge for ``quantity`` contracts of ``contract_size``.
+    """
+
+    ticker: str
+    option_type: Literal["call", "put"]
+    strike: Decimal
+    expiry: date
+    quantity: int
+    spot: Decimal
+    spot_at: datetime
+    volatility: float
+    risk_free_rate: float
+    per_share: Decimal
+    premium: Decimal
+    contract_size: int
+    greeks: OptionGreeksOut
 
 
 class OptionPositionOut(BaseModel):
