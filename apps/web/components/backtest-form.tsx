@@ -12,6 +12,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
 
 import { EquityCurve } from "@/components/equity-curve";
+import { FigureStrip } from "@/components/figure-strip";
 import { ResearchEmptyState, ResearchSectionHeader } from "@/components/research-page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -407,22 +408,13 @@ export function BacktestForm({
   );
 }
 
-function Metric({
-  label,
-  value,
-  className,
-}: {
-  label: string;
-  value: string;
-  className?: string;
-}) {
+/** "▲ +12.84%": a signed figure with its arrow, coloured by sign. */
+function Signed({ value, text }: { value: number; text: string }) {
   return (
-    <div className="min-w-0 px-3 py-3">
-      <dt className="text-3xs font-semibold tracking-[0.12em] text-text-tertiary uppercase">
-        {label}
-      </dt>
-      <dd className={cn("mt-1 font-mono text-lg tabular-nums", className)}>{value}</dd>
-    </div>
+    <span className={signedClass(value)}>
+      {value > 0 ? "▲ " : value < 0 ? "▼ " : ""}
+      {text}
+    </span>
   );
 }
 
@@ -453,38 +445,60 @@ function BacktestResults({
 
       <section aria-labelledby="primary-metrics-heading">
         <ResearchSectionHeader id="primary-metrics-heading" title="Performance" />
-        <dl className="grid grid-cols-2 border-y border-border-muted sm:grid-cols-4">
-          <Metric
-            label="Strategy return"
-            value={fmtPct(result.summary.total_return)}
-            className={signedClass(result.summary.total_return)}
-          />
-          <Metric
-            label="Benchmark return"
-            value={fmtPct(result.summary.benchmark_return)}
-            className={signedClass(result.summary.benchmark_return)}
-          />
-          <Metric
-            label="Excess return"
-            value={`${result.summary.excess_return >= 0 ? "+" : ""}${result.summary.excess_return.toFixed(2)} pts`}
-            className={signedClass(result.summary.excess_return)}
-          />
-          <Metric label="Final NAV" value={fmtCurrency(result.summary.final_nav)} />
-        </dl>
+        <FigureStrip
+          label="Performance"
+          figures={[
+            {
+              label: "Strategy return",
+              value: (
+                <Signed
+                  value={result.summary.total_return}
+                  text={fmtPct(result.summary.total_return)}
+                />
+              ),
+            },
+            {
+              label: "Benchmark return",
+              value: (
+                <Signed
+                  value={result.summary.benchmark_return}
+                  text={fmtPct(result.summary.benchmark_return)}
+                />
+              ),
+            },
+            {
+              label: "Excess return",
+              value: (
+                <Signed
+                  value={result.summary.excess_return}
+                  text={`${result.summary.excess_return >= 0 ? "+" : ""}${result.summary.excess_return.toFixed(2)} pts`}
+                />
+              ),
+              note: "strategy minus buy-and-hold",
+            },
+            { label: "Final NAV", value: fmtCurrency(result.summary.final_nav) },
+          ]}
+        />
       </section>
 
       <section aria-labelledby="risk-metrics-heading">
         <ResearchSectionHeader id="risk-metrics-heading" title="Risk and costs" />
-        <dl className="grid grid-cols-2 border-y border-border-muted sm:grid-cols-4">
-          <Metric label="Sharpe" value={result.summary.sharpe.toFixed(2)} />
-          <Metric
-            label="Max drawdown"
-            value={`-${(result.summary.max_drawdown * 100).toFixed(2)}%`}
-            className="text-negative"
-          />
-          <Metric label="Total costs" value={fmtCurrency(result.summary.total_costs)} />
-          <Metric label="Trades" value={String(result.trades.length)} />
-        </dl>
+        <FigureStrip
+          label="Risk and costs"
+          figures={[
+            { label: "Sharpe", value: result.summary.sharpe.toFixed(2) },
+            {
+              label: "Max drawdown",
+              value: (
+                <span className="text-negative">
+                  ▼ -{(result.summary.max_drawdown * 100).toFixed(2)}%
+                </span>
+              ),
+            },
+            { label: "Total costs", value: fmtCurrency(result.summary.total_costs) },
+            { label: "Trades", value: String(result.trades.length) },
+          ]}
+        />
         <p className="mt-3 text-xs leading-5 text-text-tertiary">
           Commission {commissionBps} bps · slippage {slippageBps} bps · Sharpe uses a{" "}
           {(RISK_FREE_RATE * 100).toFixed(0)}% annual risk-free rate. Fills use the next bar&apos;s
@@ -517,13 +531,17 @@ function BacktestResults({
                 {result.trades.map((trade, index) => (
                   <TableRow key={`${trade.date}-${trade.side}-${index}`}>
                     <TableCell className="text-muted-foreground">{trade.date}</TableCell>
-                    <TableCell
-                      className={cn(
-                        "font-medium uppercase",
-                        trade.side === "buy" ? "text-positive" : "text-negative",
-                      )}
-                    >
-                      {trade.side}
+                    {/* Neutral: a buy or a sell is not a gain or a loss. */}
+                    <TableCell className="font-medium">
+                      <span className="inline-flex items-center gap-1.5">
+                        <span
+                          aria-hidden
+                          className="inline-grid size-5 place-items-center rounded-md border border-border-muted bg-surface-secondary text-2xs"
+                        >
+                          {trade.side === "buy" ? "↗" : "↘"}
+                        </span>
+                        {trade.side === "buy" ? "Buy" : "Sell"}
+                      </span>
                     </TableCell>
                     <TableCell className="text-right font-mono">
                       {fmtCurrency(trade.price)}

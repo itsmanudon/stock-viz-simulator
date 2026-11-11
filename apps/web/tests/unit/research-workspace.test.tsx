@@ -148,7 +148,7 @@ describe("BacktestForm", () => {
     expect(screen.getByText("$25.50")).toBeVisible();
     expect(screen.getByText(/Commission 0 bps/)).toBeVisible();
     expect(screen.getByText(/slippage 0 bps/)).toBeVisible();
-    expect(screen.getByText("buy")).toBeVisible();
+    expect(screen.getByText("Buy")).toBeVisible();
     expect(runBacktest).toHaveBeenCalledWith(
       expect.objectContaining({
         ticker: "AAPL",

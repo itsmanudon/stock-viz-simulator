@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { StrengthDots } from "@/components/strength-dots";
 import type { SignalRow, SignalSortDir, SignalSortKey } from "@/lib/signals-workspace";
 import { SIGNAL_MAX_SCORE, formatSignalDate, formatSignalDateTime } from "@/lib/signals-workspace";
 import { cn } from "@/lib/utils";
@@ -457,8 +458,8 @@ function SignalRowButton({
           <span className="px-3 py-3">
             <SignalBadge signal={row.signal} />
           </span>
-          <span className="px-3 py-3 font-mono tabular-nums">
-            {row.score}/{SIGNAL_MAX_SCORE}
+          <span className="px-3 py-3">
+            <StrengthDots score={row.score} max={SIGNAL_MAX_SCORE} dotsFrom="md" />
           </span>
           <span className="hidden px-3 py-3 font-mono text-xs tabular-nums md:block">
             {row.supportingVotes} / {SIGNAL_MAX_SCORE}

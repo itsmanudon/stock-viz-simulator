@@ -93,6 +93,17 @@ export function seriesColor(index: number): string {
   return COMPARE_SERIES_COLORS[index % COMPARE_SERIES_COLORS.length];
 }
 
+export type SeriesDash = "solid" | "dashed" | "dotted";
+
+/**
+ * A line style per series, cycling solid, dashed, dotted, so neighbouring
+ * lines differ by more than colour (Aurora board v3; colour alone fails for
+ * colour-blind readers and in print). The chart and its legend share it.
+ */
+export function seriesDash(index: number): SeriesDash {
+  return (["solid", "dashed", "dotted"] as const)[index % 3];
+}
+
 export function closesFromBars(bars: Bar[]): number[] {
   return bars.map((bar) => Number(bar.close)).filter((value) => Number.isFinite(value));
 }

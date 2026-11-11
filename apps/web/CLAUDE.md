@@ -95,7 +95,11 @@ components/
                    implementation behind the Operational* and Research* wrappers
                    (+ MetaChip, the rounded date/zone chip for a header's meta row)
   figure-strip.tsx FigureStrip: a row of headline figures in one bordered strip
-                   (Aurora board v3); /markets uses it for breadth
+                   (Aurora board v3); /markets breadth and /backtest results use it
+  range-bar.tsx    RangeBar + rangePositionPct: a price's place in a range as a
+                   marker on a monochrome track (screener 52-week, compare)
+  strength-dots.tsx StrengthDots: one dot per signal vote plus the count
+                   (`dotsFrom="md"` keeps phone rows wide enough for names)
   status-badge.tsx one tone-mapped chip behind the order/alert badges
   order-side-toggle.tsx  buy/sell segmented control shared by both tickets
   ui/              shadcn-generated primitives — don't hand-edit
@@ -355,6 +359,10 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   `DataDateChip` (`components/marketing/market-status.tsx`), the newest stored
   bar's date. It is an async server component, so unit tests that render the
   shell mock that module.
+- Compare series differ by line style as well as colour: `seriesDash()` in
+  `lib/compare-workspace.ts` cycles solid, dashed, dotted, and both the chart
+  and its legend read it. Buy and sell labels stay neutral (an arrow and the
+  word), because the side of a trade is not a gain or a loss.
 - `/earnings` weeks run Monday to Sunday, and the page fetches exactly
   `viewRange()` from `earnings-calendar.tsx`, so the grid and the request
   can't disagree. Calendar cells are UTC dates: read them with UTC getters.

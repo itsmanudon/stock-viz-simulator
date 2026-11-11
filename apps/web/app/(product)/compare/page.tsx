@@ -124,15 +124,19 @@ export default async function ComparePage({
         title="Compare"
         description="How do these assets compare over the selected period? Series are rebased to 100 at the first stored close in the window."
         actions={
-          <nav aria-label="Comparison window" className="flex gap-1">
+          <nav
+            aria-label="Comparison window"
+            className="inline-flex gap-0.5 rounded-full border border-border-muted p-0.5"
+          >
             {(["1M", "3M", "6M", "1Y", "5Y"] as const).map((value) => (
               <Link
                 key={value}
                 href={buildCompareHref(tickers, value)}
-                className={`inline-flex min-h-8 items-center rounded-sm border px-2.5 text-xs transition-colors hover:bg-surface-hover ${
+                aria-current={timeframe === value ? "page" : undefined}
+                className={`inline-flex min-h-8 items-center rounded-full px-3 font-mono text-xs transition-colors ${
                   timeframe === value
-                    ? "border-brand text-foreground"
-                    : "border-border-muted text-text-tertiary"
+                    ? "bg-surface-secondary text-foreground"
+                    : "text-text-tertiary hover:text-foreground"
                 }`}
               >
                 {value}
