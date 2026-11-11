@@ -81,7 +81,7 @@ export function PortfolioTabs({
         data-more-end={more.end || undefined}
         className="overflow-x-auto border-b border-border-muted [scrollbar-width:none] data-[more-end]:[mask-image:linear-gradient(to_right,black_calc(100%-2.5rem),transparent)] data-[more-start]:[mask-image:linear-gradient(to_left,black_calc(100%-2.5rem),transparent)] data-[more-start]:data-[more-end]:[mask-image:linear-gradient(to_right,transparent,black_2.5rem,black_calc(100%-2.5rem),transparent)] [&::-webkit-scrollbar]:hidden"
       >
-        <Tabs.List aria-label="Portfolio sections" className="flex min-w-max gap-4 px-0.5 sm:gap-8">
+        <Tabs.List aria-label="Portfolio sections" className="flex min-w-max gap-3 px-0.5 sm:gap-8">
           <Tab value="positions">Positions</Tab>
           <Tab value="options" count={optionCount}>
             Options

@@ -63,6 +63,10 @@ test("screener filters show as chips and columns sort (audit UX-1)", async ({ pa
   ).toHaveCount(1);
 
   // Sorting keeps the filter, and the first click on a number is biggest first.
+  // The sortable table exists only with rows, which need `stockviz.cli metrics`.
+  if ((await main.getByText(/No symbols match/).count()) > 0) {
+    test.skip(true, "No screener rows: symbol metrics have not been computed");
+  }
   await main.getByRole("link", { name: "RSI(14)" }).click();
   await expect(page).toHaveURL(/sort=rsi&dir=desc/);
   await expect(page).toHaveURL(/rsi_min=0/);
