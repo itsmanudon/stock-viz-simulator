@@ -15,6 +15,7 @@ import argparse
 import logging
 import sys
 from collections import Counter
+from collections.abc import Callable
 from datetime import UTC, date, datetime
 from pathlib import Path
 from urllib.parse import quote
@@ -921,6 +922,95 @@ def _cmd_ingest_quarantine(args: argparse.Namespace) -> int:
         return 0
 
 
+RECORDED_JOBS = frozenset(
+    {
+        "ingest",
+        "fx",
+        "settle-orders",
+        "evaluate-alerts",
+        "aegis-sync",
+        "metrics",
+        "dividends",
+        "credit-dividends",
+        "settle-options",
+        "recommend",
+        "snapshot-portfolios",
+        "prune-events",
+        "earnings",
+        "metadata",
+        "news",
+        "score-sentiment",
+        "sentiment-aggregate",
+    }
+)
+"""The nightly job commands whose runs are written to ``job_runs`` (OP-5).
+
+Long-running workers and one-off maintenance commands are not recorded.
+"""
+
+
+def _start_sentry() -> None:
+    """The CLI never started Sentry, so a failed night reported nowhere (OP-5)."""
+    try:
+        from stockviz.observability import init_sentry
+
+        init_sentry(get_settings())
+    except Exception:
+        logger.exception("sentry init failed; continuing without it")
+
+
+def _record_job_start(job: str) -> int | None:
+    from stockviz.models import JobRun
+
+    try:
+        with Session(engine) as session:
+            row = JobRun(job=job)
+            session.add(row)
+            session.commit()
+            session.refresh(row)
+            return row.id
+    except Exception:
+        logger.exception("job_runs: could not record the start of %s", job)
+        return None
+
+
+def _record_job_end(run_id: int | None, code: int, error: str | None) -> None:
+    from stockviz._time import utcnow
+    from stockviz.models import JobRun
+
+    if run_id is None:
+        return
+    try:
+        with Session(engine) as session:
+            row = session.get(JobRun, run_id)
+            if row is None:
+                return
+            row.finished_at = utcnow()
+            row.exit_code = code
+            row.status = {0: "succeeded", 2: "skipped"}.get(code, "failed")
+            row.error = error[:4000] if error else None
+            session.add(row)
+            session.commit()
+    except Exception:
+        logger.exception("job_runs: could not record the end of run %s", run_id)
+
+
+def _run_recorded(job: str, run: Callable[[], int]) -> int:
+    """Run a job command and write its outcome to ``job_runs``.
+
+    Recording never changes the job's result: if the table cannot be written,
+    the job still runs and returns its own exit code.
+    """
+    run_id = _record_job_start(job)
+    try:
+        code = run()
+    except Exception as exc:
+        _record_job_end(run_id, 1, f"{exc.__class__.__name__}: {exc}")
+        raise
+    _record_job_end(run_id, code, None)
+    return code
+
+
 def main(argv: list[str] | None = None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 
@@ -1139,7 +1229,10 @@ def main(argv: list[str] | None = None) -> int:
         p.set_defaults(fn=fn)
 
     args = parser.parse_args(argv)
-    return args.fn(args)
+    _start_sentry()
+    if args.cmd not in RECORDED_JOBS:
+        return args.fn(args)
+    return _run_recorded(args.cmd, lambda: args.fn(args))
 
 
 if __name__ == "__main__":

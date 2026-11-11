@@ -75,6 +75,11 @@ const EOD_REFRESH = [
   // which replaced the legacy news, score-sentiment and sentiment-aggregate
   // steps (audit AG-14).
   "python -m stockviz.cli aegis-sync || [ $? -eq 2 ] || rc=1",
+  // The earnings calendar and symbol metadata were never refreshed (audit
+  // OP-3). Both call yfinance: earnings nightly, metadata (sector, exchange)
+  // on Mondays only. No single quotes: the chain is wrapped in sh -c below.
+  job("python -m stockviz.cli earnings"),
+  'if [ "$(date -u +%u)" = 1 ]; then python -m stockviz.cli metadata || rc=1; fi',
   job("python -m stockviz.cli metrics"),
   job("python -m stockviz.cli dividends"),
   job("python -m stockviz.cli credit-dividends"),
