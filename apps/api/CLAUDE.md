@@ -87,7 +87,7 @@ alembic.ini         prepend_sys_path=src so alembic can import stockviz.*
 uv --directory apps/api sync                          # install deps from uv.lock
 uv --directory apps/api run alembic upgrade head      # apply migrations
 uv --directory apps/api run python -m stockviz.cli seed
-uv --directory apps/api run python -m stockviz.cli backfill   # one-time, CSV → DB
+uv --directory apps/api run python -m stockviz.cli backfill   # one-time, CSV → DB (--replace reloads)
 pnpm api:dev                                          # uvicorn --reload on :8000
 ```
 

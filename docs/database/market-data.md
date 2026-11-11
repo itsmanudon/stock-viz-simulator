@@ -43,17 +43,25 @@ again: they are evaluation and settlement wall-clock time, **not**
 kwargs = {"interval": "1d", "auto_adjust": False, "actions": False}
 ```
 
-**Bars are stored unadjusted.** `auto_adjust=False` is explicit in
-`_default_yfinance_history`. Consequences:
+**Bars are split-adjusted, not dividend-adjusted.** `_default_yfinance_history`
+passes `auto_adjust=False`, which only turns off dividend adjustment: yfinance
+still back-adjusts OHLC and volume for splits. Checked on 11 Nov 2026 with that
+exact call, NVDA closes 120.89 on 2024-06-07 and 121.79 on 2024-06-10 across its
+10-for-1 split. Consequences:
 
-- A stock split produces a discontinuity in the stored series. Nothing in
-  ingest detects or back-adjusts for it.
+- Every full-history fetch rewrites past bars at the current split basis, so a
+  split rescales the whole stored series on the next ingest.
 - Historical `avg_cost` on a position held across a split will not line up
-  with post-split prices.
-- The seed CSVs are likewise not split-adjusted, which is why
-  `apps/web/scripts/seed-demo.mjs` derives demo cost basis from *today's*
-  close rather than reading it from history — the script header explains this.
-- Backtests over a period containing a split will show a spurious jump.
+  with the rescaled prices. Nothing adjusts positions for splits.
+- Dividends are not in the price series (see below), so returns exclude them.
+
+The seed CSVs follow the same basis. They are rebuilt from yfinance by
+`apps/api/scripts/regenerate_seed_csvs.py` (real trading dates, 2007-10-01 to
+2025-04-07; `--check` validates them offline). The v1 files they replaced put
+trading days on consecutive calendar days and left splits in (feature audit
+MD-1). A database loaded from those still holds the wrong rows, because upsert
+never deletes: run `python -m stockviz.cli backfill --replace`, then `metrics`
+and `recommend`.
 
 `dividends` are modelled separately as declared payouts per symbol and
 credited to portfolios by a scheduled job; they are **not** folded into

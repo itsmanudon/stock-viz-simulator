@@ -1,9 +1,15 @@
-"""One-time backfill of ``price_bars`` from the v1 CSVs.
+"""Backfill of ``price_bars`` from the bundled seed CSVs.
 
-The CSVs in ``apps/api/seed-data/stock-data-csv-files/`` were produced by
-the legacy v1 processor and have the canonical OHLCV shape
-(``Date,Open,High,Low,Close,Volume``). We re-use them so the new DB starts
-with ~18 years of history per symbol without burning Alpha Vantage quota.
+The CSVs in ``apps/api/seed-data/stock-data-csv-files/`` hold daily,
+split-adjusted bars on real trading dates (``Date,Open,High,Low,Close,Volume``),
+rebuilt from yfinance by ``scripts/regenerate_seed_csvs.py``. They let a new
+database, and CI, start with ~17 years of history per symbol offline.
+
+The v1 files they replaced put trading days on consecutive calendar days and
+left splits in (feature audit MD-1). A database loaded from those keeps the
+wrong rows after a plain re-run, because upsert never deletes: use
+``replace=True`` (``stockviz.cli backfill --replace``) to drop a ticker's
+``v1_csv`` bars before loading its file.
 """
 
 from __future__ import annotations
@@ -14,9 +20,9 @@ from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
 
-from sqlmodel import Session, select
+from sqlmodel import Session, col, delete, select
 
-from stockviz.models import Symbol
+from stockviz.models import PriceBar, Symbol
 from stockviz.services.ingest.bar_semantics import AdjustmentSemantics, SessionScope
 from stockviz.services.ingest.prices import (
     DAILY_INTERVAL,
@@ -60,11 +66,14 @@ def backfill_price_bars_from_csvs(
     session: Session,
     *,
     csv_dir: Path | None = None,
+    replace: bool = False,
 ) -> dict[str, int]:
     """Read every ``<TICKER>_processed.csv`` and upsert into ``price_bars``.
 
     Skips tickers that aren't in the ``symbols`` table (must seed first).
-    Returns ``{ticker: rows_written}``.
+    With ``replace``, first deletes that ticker's daily bars whose source is
+    ``v1_csv``; bars from live ingest are never touched. Returns
+    ``{ticker: rows_written}``.
     """
 
     src = csv_dir or DEFAULT_CSV_DIR
@@ -83,6 +92,14 @@ def backfill_price_bars_from_csvs(
         bars = _parse_csv(path, ticker)
         if not bars:
             continue
+        if replace:
+            session.exec(
+                delete(PriceBar).where(
+                    col(PriceBar.ticker) == ticker,
+                    col(PriceBar.interval) == DAILY_INTERVAL,
+                    col(PriceBar.source) == "v1_csv",
+                )
+            )  # type: ignore[call-overload]
         written[ticker] = upsert_bars(session, bars)
         logger.info("backfill: %s — %d bars from %s", ticker, written[ticker], path.name)
     # upsert_bars stages rows only. This is the high-level CLI/e2e path, so

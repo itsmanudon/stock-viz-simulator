@@ -208,8 +208,12 @@ days of NAV snapshots. Trades go through the **real API** so cash, average
 cost, and realized P&L stay consistent with the trading engine; only
 `portfolio_snapshots` are written directly, because they are a derived daily
 cache that no endpoint can backdate. See the script header for why cost basis
-is derived from today's close rather than read from history (the bundled CSVs
-are not split-adjusted).
+is derived from today's close rather than read from history.
+
+The bundled seed CSVs hold split-adjusted daily bars on real trading dates,
+rebuilt from yfinance by `apps/api/scripts/regenerate_seed_csvs.py`. A database
+loaded before 11 Nov 2026 has the old misdated rows: reload it with
+`python -m stockviz.cli backfill --replace`, then run `metrics` and `recommend`.
 
 ## Common gotchas (Windows dev)
 
