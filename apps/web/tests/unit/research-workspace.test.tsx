@@ -106,6 +106,31 @@ describe("BacktestForm", () => {
     expect(replace).toHaveBeenCalledWith("/backtest?ticker=AAPL", { scroll: false });
   });
 
+  it("moves the date range to the chosen symbol's history until dates are edited", () => {
+    render(
+      <BacktestForm
+        symbols={[
+          { ticker: "AAPL", name: "Apple Inc.", lastClose: "2025-04-04" },
+          { ticker: "MSFT", name: "Microsoft", lastClose: "2025-03-01" },
+          { ticker: "ZZZ", name: "No bars", lastClose: null },
+        ]}
+        initialTicker="AAPL"
+      />,
+    );
+
+    expect(screen.getByLabelText("To")).toHaveValue("2025-04-04");
+    expect(screen.getByText("Stored closes for AAPL end Apr 4, 2025.")).toBeVisible();
+    expect(screen.getByRole("option", { name: /ZZZ .*no stored history/ })).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Symbol"), { target: { value: "MSFT" } });
+    expect(screen.getByLabelText("From")).toHaveValue("2024-03-01");
+    expect(screen.getByLabelText("To")).toHaveValue("2025-03-01");
+
+    fireEvent.change(screen.getByLabelText("From"), { target: { value: "2024-06-01" } });
+    fireEvent.change(screen.getByLabelText("Symbol"), { target: { value: "AAPL" } });
+    expect(screen.getByLabelText("From")).toHaveValue("2024-06-01");
+  });
+
   it("renders grouped results including benchmark, excess return, and costs", async () => {
     runBacktest.mockResolvedValue(success);
     render(

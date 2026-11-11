@@ -279,6 +279,12 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   future-blind historical simulation; never fetch live bars, SSE quotes, or
   news into `/replay/[id]`. Forensics (`?view=forensics`) may call session
   `/forensics`, `/journal`, `/history`, `/summary`, and `/fills` only.
+- `/backtest` starts on the first symbol with stored closes and ends its
+  range at that symbol's latest close (`lib/backtest-defaults.ts`, UI audit
+  F1), using `last_close_at` from the markets summary. The range follows the
+  chosen symbol until the dates are edited by hand. The run is a browser
+  call to the API, so a dev server on a port other than 3000 needs that
+  origin in the API's `CORS_ORIGINS`, or the run fails with "Failed to fetch".
 - Operational trading (`/trade`, `/orders`, `/watchlist`, `/alerts`) is the
   authenticated execution/monitoring loop. See
   [`docs/OPERATIONAL_TRADING.md`](../../docs/OPERATIONAL_TRADING.md).

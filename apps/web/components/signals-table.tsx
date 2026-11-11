@@ -431,7 +431,7 @@ function SignalRowButton({
         selected && "bg-brand-muted/50",
         collapsed
           ? "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-3 py-3"
-          : "grid grid-cols-[minmax(4.5rem,0.7fr)_minmax(0,1fr)_minmax(4.5rem,0.7fr)] items-center md:grid-cols-[minmax(5rem,0.7fr)_minmax(0,1.5fr)_minmax(5.5rem,0.7fr)_minmax(4.5rem,0.6fr)_minmax(6rem,0.7fr)_minmax(5.5rem,0.65fr)_minmax(7rem,0.8fr)]",
+          : "grid grid-cols-[minmax(0,1fr)_auto_auto] items-center sm:grid-cols-[minmax(0,1fr)_auto_auto_auto] md:grid-cols-[minmax(5rem,0.7fr)_minmax(0,1.5fr)_minmax(5.5rem,0.7fr)_minmax(4.5rem,0.6fr)_minmax(6rem,0.7fr)_minmax(5.5rem,0.65fr)_minmax(7rem,0.8fr)]",
       )}
     >
       {collapsed ? (
