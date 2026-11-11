@@ -87,6 +87,11 @@ describe("portfolio performance hierarchy", () => {
     expect(screen.getByText("+$2,184.20")).toBeVisible();
     expect(screen.getByText("+1.73%")).toBeVisible();
     expect(screen.getByText(/Latest EOD valuation/)).toBeVisible();
+    // The snapshot date says what it dates, so it doesn't contradict an older
+    // close beside it (audit T8).
+    expect(
+      screen.getByText(/Snapshot recorded .*2026, valuing each holding at its latest stored close/),
+    ).toBeVisible();
     expect(screen.getByRole("link", { name: "Trade" })).toHaveAttribute("href", "/trade");
     expect(screen.getByRole("link", { name: "3M" })).toHaveAttribute("aria-current", "true");
     expect(screen.getByRole("link", { name: "1Y" })).toHaveAttribute("href", "/portfolio?range=1y");
