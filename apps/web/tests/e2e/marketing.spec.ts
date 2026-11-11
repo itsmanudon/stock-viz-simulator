@@ -116,40 +116,30 @@ test.describe("reduced motion", () => {
   });
 });
 
-test.describe("themes", () => {
-  // next-themes runs with `defaultTheme="dark"` and `enableSystem={false}`, so
-  // the theme comes from localStorage rather than a media query.
-  //
-  // `.panel-inset` follows the theme: a white panel in light mode, and the
-  // Aurora navy marketing panel (`--marketing-panel: #0b101b`) in dark mode.
-  const PANEL_BG = {
-    light: "rgb(255, 255, 255)",
-    dark: "rgb(11, 16, 27)",
-  } as const;
-
-  for (const theme of ["light", "dark"] as const) {
-    test(`${theme} mode grounds the product panel in the theme palette`, async ({ page }) => {
-      await page.addInitScript((value) => {
-        window.localStorage.setItem("theme", value);
-      }, theme);
-      await page.goto("/");
-
-      await expect(page.locator("html")).toHaveClass(
-        new RegExp(theme === "dark" ? "dark" : "^(?!.*\\bdark\\b).*$"),
-      );
-
-      const panel = await page.evaluate(() => {
-        const el = document.querySelector(".panel-inset") as HTMLElement;
-        return getComputedStyle(el).backgroundColor;
-      });
-      expect(panel).toBe(PANEL_BG[theme]);
-
-      const overflows = await page.evaluate(
-        () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
-      );
-      expect(overflows).toBe(false);
+test.describe("theme", () => {
+  // Dark only for now (`forcedTheme="dark"` in components/providers.tsx): a
+  // "light" choice saved before the lock must still render dark, with the
+  // Aurora navy marketing panel (`--marketing-panel: #0b101b`).
+  test("a saved light choice still renders the dark theme", async ({ page }) => {
+    await page.addInitScript(() => {
+      window.localStorage.setItem("theme", "light");
     });
-  }
+    await page.goto("/");
+
+    await expect(page.locator("html")).toHaveClass(/\bdark\b/);
+    await expect(page.getByRole("button", { name: "Toggle color theme" })).toHaveCount(0);
+
+    const panel = await page.evaluate(() => {
+      const el = document.querySelector(".panel-inset") as HTMLElement;
+      return getComputedStyle(el).backgroundColor;
+    });
+    expect(panel).toBe("rgb(11, 16, 27)");
+
+    const overflows = await page.evaluate(
+      () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
+    );
+    expect(overflows).toBe(false);
+  });
 });
 
 test.describe("responsive", () => {

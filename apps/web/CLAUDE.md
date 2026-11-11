@@ -254,6 +254,11 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   status pills — use `DeltaPill` rather than re-rolling the chip.
   `--surface-elevated` is one step *above* `--card` (overlays: sidebar,
   popovers, sheets); `--card` is for content tiles sitting on the page.
+- **Dark only for now** (owner, 12 Nov 2026): `components/providers.tsx`
+  sets `forcedTheme="dark"`, and the theme toggles are gone from the top bar,
+  the public header, the footer and Settings. The light tokens stay in
+  `globals.css` and `theme-toggle.tsx` stays in the tree, so the light theme
+  can return after its own design pass. Don't design new screens light-first.
 - The type ramp adds `text-3xs` (10px) and `text-2xs` (11px) below Tailwind's
   `text-xs` for dense table meta and column labels. Use them instead of
   arbitrary `text-[10px]` / `text-[11px]`, which bypass the scale.

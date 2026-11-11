@@ -6,7 +6,6 @@ import { AccountMenu } from "@/components/account-menu";
 import { FloatingHeader } from "@/components/marketing/floating-header";
 import { MarketStatus } from "@/components/marketing/market-status";
 import { MobileNav } from "@/components/mobile-nav";
-import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 
 // The three product pages, as SolCard's header lists its products. Markets
@@ -55,7 +54,6 @@ export async function PublicHeader() {
             {signedIn ? "Open workspace" : "Create account"}
           </Link>
         </Button>
-        <ThemeToggle />
         <AccountMenu />
       </div>
     </FloatingHeader>
