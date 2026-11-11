@@ -1,5 +1,7 @@
 import { ShieldCheck, TrendingUp, Wallet } from "lucide-react";
 
+import { PaperCard } from "@/components/paper-card";
+
 /**
  * Shared frame for sign-in and sign-up.
  *
@@ -35,8 +37,14 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         </div>
 
         {/* Secondary on mobile — the form is what the visitor came for, so the
-            pitch drops below the fold rather than pushing the fields down. */}
-        <aside className="order-first max-w-md lg:order-last">
+            pitch drops below it rather than pushing the fields down (UI audit
+            P2: it used to be ordered first). The paper card is the one brand
+            moment here. */}
+        <aside className="max-w-md">
+          <div className="relative isolate mb-8 hidden sm:block">
+            <div aria-hidden className="brand-glow -top-8 -left-8 -z-10 h-56 w-80 opacity-70" />
+            <PaperCard currency="USD" className="w-full max-w-xs -rotate-3" />
+          </div>
           <h2 className="text-2xl font-bold tracking-tight text-balance sm:text-3xl">
             A trading workspace where mistakes are free
           </h2>

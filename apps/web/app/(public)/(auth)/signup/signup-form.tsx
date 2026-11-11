@@ -5,14 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { useActionState } from "react";
 
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { signInWithGoogleAction, signupAction } from "../actions";
@@ -53,9 +46,11 @@ export function SignupForm() {
     callbackUrl === "/" ? "/login" : `/login?callbackUrl=${encodeURIComponent(callbackUrl)}`;
 
   return (
-    <Card className="w-full">
+    <Card className="w-full rounded-2xl">
       <CardHeader>
-        <CardTitle>Create your account</CardTitle>
+        <h1 data-slot="card-title" className="text-xl leading-none font-medium tracking-tight">
+          Create your account
+        </h1>
         <CardDescription>Paper-trade and track your portfolio. Free forever.</CardDescription>
       </CardHeader>
       <form action={action}>
@@ -88,7 +83,7 @@ export function SignupForm() {
           ) : null}
         </CardContent>
         <CardFooter className="flex flex-col gap-3">
-          <Button type="submit" disabled={pending} className="w-full">
+          <Button type="submit" disabled={pending} className="h-11 w-full rounded-full">
             {pending ? "Creating account…" : "Sign up"}
           </Button>
           <div className="relative w-full">
@@ -103,7 +98,7 @@ export function SignupForm() {
             type="submit"
             formAction={signInWithGoogleAction}
             variant="outline"
-            className="w-full gap-2"
+            className="h-11 w-full gap-2 rounded-full"
           >
             <GoogleIcon />
             Continue with Google

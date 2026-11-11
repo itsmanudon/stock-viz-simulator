@@ -208,3 +208,36 @@ test.describe("product pages", () => {
     expect(response?.status()).toBe(404);
   });
 });
+
+test.describe("sign-in pages and leaderboard", () => {
+  for (const [path, heading] of [
+    ["/login", "Sign in"],
+    ["/signup", "Create your account"],
+    ["/sign-in-required", "Sign in required"],
+  ] as const) {
+    test(`${path} has one top-level heading (audit A2)`, async ({ page }) => {
+      await page.goto(path);
+      await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
+      await expect(page.getByRole("heading", { level: 1 })).toHaveText(heading);
+    });
+  }
+
+  test("on a phone the sign-in form comes before the pitch (audit P2)", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/login");
+    const email = await page.getByLabel("Email").boundingBox();
+    const pitch = await page
+      .getByRole("heading", { name: "A trading workspace where mistakes are free" })
+      .boundingBox();
+    expect(email && pitch && email.y < pitch.y).toBe(true);
+    // The field is on the first screen, not half a screen down.
+    expect(email && email.y < 844).toBe(true);
+  });
+
+  test("the leaderboard puts its top three on a podium", async ({ page }) => {
+    await page.goto("/leaderboard");
+    const podium = page.getByRole("list", { name: "Top three traders" });
+    if ((await podium.count()) === 0) test.skip(true, "Fewer than three public profiles");
+    await expect(podium.getByRole("listitem")).toHaveCount(3);
+  });
+});
