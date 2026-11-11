@@ -311,8 +311,10 @@ function Overview({
 }) {
   const items = [
     ["Ticker", symbol.ticker],
-    ["Exchange", symbol.exchange ?? "—"],
-    ["Sector", symbol.sector ?? "—"],
+    // "Not recorded" rather than a dash: the value exists, we just have not
+    // loaded it (`stockviz.cli metadata`; UI audit S3).
+    ["Exchange", symbol.exchange ?? "Not recorded"],
+    ["Sector", symbol.sector ?? "Not recorded"],
     ["Trading currency", symbol.currency],
   ];
 

@@ -72,6 +72,10 @@ export default async function MarketsPage({
     .reduce((a, b) => (b > a ? b : a), "");
   const latestLabel = formatCloseDate(latestAt);
   const sorted = compare(rows, sort, dir);
+  // Sector and exchange come from `stockviz.cli metadata`. Without it every
+  // cell was a dash (UI audit S3), so a column with no values is left out.
+  const hasSector = rows.some((row) => row.sector);
+  const hasExchange = rows.some((row) => row.exchange);
 
   const sortDirection = (col: SortKey) => (sort === col ? dir : null);
 
@@ -165,8 +169,10 @@ export default async function MarketsPage({
                   className="w-[120px]"
                 />
                 <TableHead>Name</TableHead>
-                <TableHead className="hidden xl:table-cell">Sector</TableHead>
-                <TableHead className="hidden xl:table-cell">Exchange</TableHead>
+                {hasSector ? <TableHead className="hidden xl:table-cell">Sector</TableHead> : null}
+                {hasExchange ? (
+                  <TableHead className="hidden xl:table-cell">Exchange</TableHead>
+                ) : null}
                 <SortableHead
                   href={sortHref("price", params)}
                   label="Price"
@@ -194,12 +200,16 @@ export default async function MarketsPage({
                       </span>
                     ) : null}
                   </TableCell>
-                  <TableCell className="hidden text-text-tertiary xl:table-cell">
-                    {row.sector ?? "—"}
-                  </TableCell>
-                  <TableCell className="hidden text-text-tertiary xl:table-cell">
-                    {row.exchange ?? "—"}
-                  </TableCell>
+                  {hasSector ? (
+                    <TableCell className="hidden text-text-tertiary xl:table-cell">
+                      {row.sector ?? "—"}
+                    </TableCell>
+                  ) : null}
+                  {hasExchange ? (
+                    <TableCell className="hidden text-text-tertiary xl:table-cell">
+                      {row.exchange ?? "—"}
+                    </TableCell>
+                  ) : null}
                   <NumericCell>
                     {row.last === null ? null : (
                       <>

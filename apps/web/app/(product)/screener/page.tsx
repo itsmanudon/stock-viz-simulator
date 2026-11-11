@@ -99,6 +99,8 @@ export default async function ScreenerPage({
     }
   }
   results = sortScreenerRows(results, sort, dir);
+  // A sector column of dashes says nothing (UI audit S3).
+  const hasSector = results.some((row) => row.sector);
 
   const sortOptions: { key: ScreenerSortKey; label: string }[] = [
     { key: "ticker", label: "Ticker" },
@@ -361,7 +363,9 @@ export default async function ScreenerPage({
                         className="w-[110px]"
                       />
                       <TableHead>Name</TableHead>
-                      <TableHead className="hidden 2xl:table-cell">Sector</TableHead>
+                      {hasSector ? (
+                        <TableHead className="hidden 2xl:table-cell">Sector</TableHead>
+                      ) : null}
                       <SortableHead
                         href={screenerSortHref("price", params)}
                         label="Price"
@@ -393,9 +397,11 @@ export default async function ScreenerPage({
                       <ClickableRow key={row.ticker} href={`/stocks/${row.ticker}`}>
                         <TableCell className="font-mono font-semibold">{row.ticker}</TableCell>
                         <TableCell className="truncate">{row.name}</TableCell>
-                        <TableCell className="hidden text-text-tertiary 2xl:table-cell">
-                          {row.sector ?? "—"}
-                        </TableCell>
+                        {hasSector ? (
+                          <TableCell className="hidden text-text-tertiary 2xl:table-cell">
+                            {row.sector ?? "—"}
+                          </TableCell>
+                        ) : null}
                         <NumericCell>
                           {formatCurrency(row.last_close, row.currency)}
                           <span className="block text-2xs text-text-tertiary">

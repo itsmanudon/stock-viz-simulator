@@ -99,8 +99,13 @@ export function PortfolioPerformance({ portfolio, history, range, tab }: Props) 
               <p className="mt-1 font-mono text-lg text-muted-foreground">—</p>
             )}
             {latestDate ? (
-              <p className="mt-1 text-xs text-muted-foreground">
-                Snapshot through {formatDate(latestDate)}
+              // The snapshot date is when the value was recorded; the value
+              // itself uses each holding's latest stored close, which can be
+              // much older. Side by side with "Last EOD" the two dates read as
+              // a contradiction unless this says so (UI audit T8).
+              <p className="mt-1 max-w-xs text-xs leading-5 text-muted-foreground lg:ml-auto">
+                Snapshot recorded {formatDate(latestDate)}, valuing each holding at its latest
+                stored close.
               </p>
             ) : null}
           </div>

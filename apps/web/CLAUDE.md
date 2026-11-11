@@ -256,7 +256,10 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   dropping columns. Any new symbol table should do the same. `/orders`,
   `/watchlist` and `/alerts` follow it too (cards under `md`, table above;
   `OrderCard` lives beside `OrderBlotterRow`), and operational times render
-  in UTC with the zone named.
+  in UTC with the zone named. Sector and exchange come from `stockviz.cli
+  metadata`, which needs network: a table leaves out a Sector or Exchange
+  column that no row has a value for, and the stock page says "Not recorded"
+  (UI audit S3).
 - Tables: use `DataTableFrame` + `NumericCell` rather than hand-rolling the
   bordered wrapper and the right-aligned tinted number. `NumericCell` owns the
   sign→token mapping and the em-dash fallback — never write `text-green-500`
