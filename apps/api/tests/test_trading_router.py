@@ -150,7 +150,13 @@ def test_portfolio_overview_is_private_and_fresh(session: Session, client: TestC
             )
         )
     session.commit()
-    for user_id, expected, return_pct in [(first_id, "123", 10), (other.id, "456", 100)]:
+    # LG-1: the return runs from the 100k opening value to the live value, so it
+    # follows each user's own cash; what matters here is that neither user sees
+    # the other's figures.
+    for user_id, expected, return_pct in [
+        (first_id, "123", (123 / 100_000 - 1) * 100),
+        (other.id, "456", (456 / 100_000 - 1) * 100),
+    ]:
         response = client.get("/v1/portfolio/overview", headers=_auth_headers(user_id))
         assert response.status_code == 200
         assert Decimal(response.json()["portfolio"]["cash_balance"]) == Decimal(expected)

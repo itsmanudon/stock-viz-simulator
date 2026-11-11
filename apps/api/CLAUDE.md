@@ -124,6 +124,16 @@ settlement both use it, so the 22:00 UTC cron stores and settles the day's
 own session. (The old rule waited for New York midnight, so each night stored
 the session before.)
 
+**Snapshots and returns (audits LG-1, LG-2, SR-4, SR-5).** Snapshots are
+dated by the session their prices come from (`latest_completed_session`), not
+the run date. `portfolios.opening_nav` holds the starting value for good:
+analytics measure the total return from it to the **live** valuation (none
+before two snapshots), drawdown runs opening → snapshots → live, and the
+leaderboard measures from it. The first snapshot is not the opening: the
+nightly job overwrites it if the user traded that day. The annualised return
+uses calendar days over 365. Sharpe uses only returns between snapshots one
+session apart (`MAX_SESSION_GAP_DAYS`) and needs `MIN_SHARPE_RETURNS` (20).
+
 **Refresh failures are failures (audit MD-4).** `ingest` judges success by
 each ticker's newest stored bar, not row counts (the full history is upserted
 nightly): it exits 1 if a ticker raised (the rest still run) or if no ticker

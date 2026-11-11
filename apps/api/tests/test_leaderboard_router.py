@@ -323,7 +323,9 @@ def test_snapshot_count_query_runs_once_per_leaderboard_build(
     event.listen(engine, "before_cursor_execute", observe_statement)
     try:
         entries = client.get("/v1/leaderboard").json()
-        assert len(statements) == 4
+        # Users, first/last NAVs, snapshot counts, opening values (LG-1) and
+        # the public-profile read.
+        assert len(statements) == 5
         statements.clear()
         cached_entries = client.get("/v1/leaderboard").json()
     finally:
@@ -333,3 +335,20 @@ def test_snapshot_count_query_runs_once_per_leaderboard_build(
     assert cached_entries == entries
     assert len(count_queries) == 1
     assert len(statements) == 1
+
+
+def test_leaderboard_measures_from_the_opening_value(session: Session, client: TestClient) -> None:
+    """LG-1: the first snapshot holds day one's close once the user has traded."""
+    from stockviz.services.trading import ensure_default_portfolio
+
+    user_id = _make_user(session, public_profile=True)
+    ensure_default_portfolio(session, user_id)
+    for row in session.exec(select(PortfolioSnapshot)).all():
+        session.delete(row)
+    session.commit()
+    _add_snapshot(session, user_id, date(2025, 1, 6), Decimal(102_000))  # overwritten day one
+    _add_snapshot(session, user_id, date(2025, 1, 7), Decimal(110_000))
+
+    entry = client.get("/v1/leaderboard").json()[0]
+    # 100k opening -> 110k; measuring from the first snapshot gave 7.84%.
+    assert abs(entry["return_pct"] - 10.0) < 1e-4

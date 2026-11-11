@@ -128,7 +128,12 @@ def ensure_default_portfolio(session: Session, user_id: int) -> Portfolio:
     if existing is not None:
         return existing
 
-    portfolio = Portfolio(user_id=user_id, name="Default", cash_balance=DEFAULT_STARTING_CASH)
+    portfolio = Portfolio(
+        user_id=user_id,
+        name="Default",
+        cash_balance=DEFAULT_STARTING_CASH,
+        opening_nav=DEFAULT_STARTING_CASH,
+    )
     session.add(portfolio)
     try:
         session.commit()

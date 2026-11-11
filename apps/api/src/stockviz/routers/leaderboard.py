@@ -20,7 +20,7 @@ from sqlmodel import Session, select
 
 from stockviz.auth import UserIdDep
 from stockviz.db import get_session
-from stockviz.models import PortfolioSnapshot
+from stockviz.models import Portfolio, PortfolioSnapshot
 from stockviz.models.user import User
 from stockviz.schemas import LeaderboardEntryOut, ProfileOut, ProfilePatchIn
 
@@ -98,12 +98,26 @@ def _first_and_last_navs(
 
 def _build_leaderboard(session: Session) -> list[LeaderboardEntryOut]:
     public_users = list(session.exec(select(User).where(User.public_profile.is_(True))))  # type: ignore[union-attr]
-    navs_by_user = _first_and_last_navs(session, [u.id for u in public_users if u.id is not None])
+    user_ids = [u.id for u in public_users if u.id is not None]
+    navs_by_user = _first_and_last_navs(session, user_ids)
     snapshot_counts = _snapshot_counts(session)
+    # LG-1: measure from the fixed opening value, not the first snapshot, which
+    # the nightly job overwrites when the user trades on the opening day.
+    opening_by_user: dict[int, Decimal] = (
+        {
+            p.user_id: p.opening_nav
+            for p in session.exec(
+                select(Portfolio).where(Portfolio.user_id.in_(user_ids))  # type: ignore[attr-defined]
+            )
+        }
+        if user_ids
+        else {}
+    )
 
     entries: list[tuple[float, Decimal, int, User]] = []
     for user in public_users:
-        initial_nav, current_nav = navs_by_user.get(user.id or -1, (_INITIAL_NAV, _INITIAL_NAV))
+        first_nav, current_nav = navs_by_user.get(user.id or -1, (_INITIAL_NAV, _INITIAL_NAV))
+        initial_nav = opening_by_user.get(user.id or -1, first_nav)
         snapshot_count = snapshot_counts.get(user.id or -1, 0)
 
         return_pct = (
