@@ -4,7 +4,8 @@ test("research navigation keeps compare, backtest, and signals as one domain", a
   await page.goto("/compare");
 
   const product = page.getByRole("navigation", { name: "Product" });
-  await expect(product.getByRole("link", { name: "Research" })).toHaveAttribute(
+  // Section headings are labels, not links (Aurora app shell, UI batch A).
+  await expect(product.getByText("Research", { exact: true })).toHaveAttribute(
     "data-active",
     "true",
   );
