@@ -23,25 +23,17 @@ import { useGSAP } from "@gsap/react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { SplitText } from "gsap/SplitText";
-import { BriefcaseBusiness, ChartCandlestick, House, Newspaper, UserRound } from "lucide-react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 
 import type { PhoneScreen } from "@/components/marketing/hero-phone-screens";
+import { PhoneFrame } from "@/components/marketing/phone-frame";
 import { PaperCard } from "@/components/paper-card";
-import { cn } from "@/lib/utils";
 
 gsap.registerPlugin(useGSAP, ScrollTrigger, SplitText);
 
 const ROTATE_MS = 4500;
 /** Scroll distance the pinned sequence takes, in viewport heights. */
 const PIN_LENGTH = 1.5;
-const TABS = [
-  { label: "Home", icon: House },
-  { label: "Markets", icon: ChartCandlestick },
-  { label: "News", icon: Newspaper },
-  { label: "Portfolio", icon: BriefcaseBusiness },
-  { label: "Account", icon: UserRound },
-] as const;
 
 /** Layout offset of `el` inside `ancestor`, ignoring every CSS transform. */
 function offsetWithin(el: HTMLElement, ancestor: HTMLElement): { x: number; y: number } {
@@ -272,42 +264,7 @@ export function HeroStage({
               aria-hidden
               className="dark absolute top-0 left-1/2 z-10 w-72 -translate-x-1/2 text-foreground lg:left-[61%] lg:translate-x-0 [&[data-card-out]_[data-phone-card]]:invisible"
             >
-              <div className="h-[37rem] rounded-[2.9rem] bg-linear-to-b from-[#2a3142] via-[#0d1119] to-[#20283a] p-[7px] shadow-[0_30px_80px_-20px_rgb(0_0_0/0.7),inset_0_0_0_1px_rgb(255_255_255/0.06)]">
-                <div className="flex h-full flex-col overflow-hidden rounded-[2.5rem] bg-background">
-                  <div className="relative flex items-center justify-between px-6 pt-3.5 pb-1.5 text-xs font-semibold">
-                    <span className="font-mono">9:41</span>
-                    <span className="absolute top-2.5 left-1/2 h-6 w-24 -translate-x-1/2 rounded-full bg-black" />
-                    <span className="h-2.5 w-5 rounded-[3px] border border-foreground p-px">
-                      <span className="block h-full w-3/4 rounded-[1px] bg-foreground" />
-                    </span>
-                  </div>
-                  <div className="relative min-h-0 flex-1">
-                    {screens.map((screen, index) => (
-                      <div
-                        key={screen.key}
-                        data-active={index === active}
-                        className="absolute inset-0 flex flex-col gap-3.5 overflow-hidden px-3.5 pt-1.5 transition-opacity duration-500 data-[active=false]:pointer-events-none data-[active=false]:opacity-0 [&>*]:shrink-0"
-                      >
-                        {screen.node}
-                      </div>
-                    ))}
-                  </div>
-                  <div className="flex justify-around border-t border-border-muted px-2 pt-2 pb-5">
-                    {TABS.map(({ label, icon: Icon }) => (
-                      <span
-                        key={label}
-                        className={cn(
-                          "grid justify-items-center gap-0.5 text-[0.6rem]",
-                          current?.tab === label ? "text-foreground" : "text-text-tertiary",
-                        )}
-                      >
-                        <Icon className="size-[1.1rem]" />
-                        {label}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              </div>
+              <PhoneFrame screens={screens} active={active} />
             </div>
 
             {/* Landing spot for the card in the pinned sequence. */}

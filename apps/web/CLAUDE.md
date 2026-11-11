@@ -50,6 +50,18 @@ components/
                    source and date only and is skipped when empty) +
                    `hero-panel.tsx` (the
                    `.panel-inset` product replica, real bars only, aria-hidden),
+                   `phone-frame.tsx` (the shared phone bezel; screens never
+                   shrink), `landing-sections.tsx` (server sections below the
+                   hero: movers dated per card, session tiles, scroll story
+                   wrapper, fill steps, statement band, public-only rankings,
+                   FAQ; each drops out when its data is missing),
+                   `scroll-story.tsx` (client: sticky phone follows the step in
+                   view; `overflow-x-clip`, never `hidden`, or sticky breaks),
+                   `landing-motion.tsx` (client: one GSAP pass over
+                   `data-motion` markers — words, rise, draw, count, steps,
+                   glow). `market-ticker`, `product-tour`/`tour-*` and
+                   `by-the-numbers` are no longer on the home page (kept for
+                   now, unused),
                    `market-ticker.tsx` (the `.marquee` price strip — halves are
                    `min-w-[100vw]`, never `min-w-full`, see the file header),
                    `floating-header.tsx` (the public header's sticky pill; the
