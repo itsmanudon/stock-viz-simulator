@@ -307,6 +307,12 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   change or the page keeps the old shape. Production keeps them up to the
   revalidate window, so new fields can be missing for up to an hour after a
   deploy — render them optionally.
+- `/screener` keeps filters and sort in the URL (`lib/screener-view.ts`, UI
+  audit UX-1). Each applied filter shows as a removable chip; RSI bounds share
+  a chip, and the momentum bounds belong to the window's chip because the API
+  ignores them without one. Removing a chip keeps the sort, sorting keeps the
+  filters, and the form carries `sort`/`dir` as hidden fields. A momentum sort
+  is only valid while a window is set.
 - Format stored bar timestamps with `formatCloseDate()` (`lib/stock-workspace.ts`):
   it reads the calendar date from the string, so it never shifts a day with the
   timezone, and always includes the year.

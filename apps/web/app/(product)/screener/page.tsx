@@ -7,10 +7,13 @@
  * recomputes results. No client state needed.
  */
 
+import { X } from "lucide-react";
+import Link from "next/link";
+
 import { ClickableRow } from "@/components/clickable-row";
-import { DataTableFrame, NumericCell } from "@/components/data-table";
+import { DataTableFrame, NumericCell, SortableHead } from "@/components/data-table";
 import { ResearchPageHeader } from "@/components/research-page-header";
-import { type SymbolCardData, SymbolCardList } from "@/components/symbol-card-list";
+import { CardSortBar, type SymbolCardData, SymbolCardList } from "@/components/symbol-card-list";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -24,18 +27,16 @@ import {
 } from "@/components/ui/table";
 import { ApiError, listSymbols, screenSymbols } from "@/lib/api";
 import { formatCurrency } from "@/lib/portfolio-view-model";
+import {
+  type ScreenerParams,
+  type ScreenerSortKey,
+  activeFilterChips,
+  clearFiltersHref,
+  parseScreenerSort,
+  screenerSortHref,
+  sortScreenerRows,
+} from "@/lib/screener-view";
 import { formatCloseDate } from "@/lib/stock-workspace";
-
-type SearchParams = {
-  sector?: string;
-  rsi_min?: string;
-  rsi_max?: string;
-  momentum_days?: string;
-  momentum_min?: string;
-  momentum_max?: string;
-  near_52w_high?: string;
-  near_52w_low?: string;
-};
 
 function num(s: string | undefined): number | undefined {
   if (s === undefined || s === "") return undefined;
@@ -52,7 +53,7 @@ function fmtPct(n: number | null): string {
 export default async function ScreenerPage({
   searchParams,
 }: {
-  searchParams: Promise<SearchParams>;
+  searchParams: Promise<ScreenerParams>;
 }) {
   const params = await searchParams;
 
@@ -64,16 +65,10 @@ export default async function ScreenerPage({
   const momentumMax = num(params.momentum_max);
   const near52wHigh = params.near_52w_high === "true";
   const near52wLow = params.near_52w_low === "true";
-  const activeFilterCount = [
-    sector,
-    rsiMin,
-    rsiMax,
-    momentumDays,
-    momentumMin,
-    momentumMax,
-    near52wHigh ? true : undefined,
-    near52wLow ? true : undefined,
-  ].filter((value) => value !== undefined).length;
+  const chips = activeFilterChips(params);
+  const activeFilterCount = chips.length;
+  const { sort, dir } = parseScreenerSort(params);
+  const direction = (key: ScreenerSortKey) => (sort === key ? dir : null);
 
   const allSymbols = await listSymbols();
   const sectors = Array.from(
@@ -100,6 +95,14 @@ export default async function ScreenerPage({
       throw err;
     }
   }
+  results = sortScreenerRows(results, sort, dir);
+
+  const sortOptions: { key: ScreenerSortKey; label: string }[] = [
+    { key: "ticker", label: "Ticker" },
+    { key: "price", label: "Price" },
+    { key: "rsi", label: "RSI" },
+    ...(momentumDays ? [{ key: "momentum" as const, label: `${momentumDays}d %` }] : []),
+  ];
 
   return (
     <div className="w-full px-4 py-6 sm:px-6 lg:py-7 xl:px-8">
@@ -114,6 +117,9 @@ export default async function ScreenerPage({
           action="/screener"
           className="space-y-4 rounded-md border border-border-muted bg-card p-4 text-sm"
         >
+          {/* Applying filters keeps the chosen sort. */}
+          {params.sort ? <input type="hidden" name="sort" value={sort} /> : null}
+          {params.sort ? <input type="hidden" name="dir" value={dir} /> : null}
           <div className="flex items-start justify-between gap-3 border-b border-border-muted pb-3">
             <div>
               <p className="text-2xs font-semibold tracking-[0.12em] text-text-tertiary uppercase">
@@ -254,17 +260,43 @@ export default async function ScreenerPage({
         </form>
 
         <section>
-          <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2 text-sm">
-            <span className="text-text-secondary">
-              {errorMessage
-                ? `Error: ${errorMessage}`
-                : `${results.length} match${results.length === 1 ? "" : "es"}`}
-            </span>
-            <span className="text-xs text-text-tertiary">
-              {activeFilterCount
-                ? `${activeFilterCount} active filter${activeFilterCount === 1 ? "" : "s"}`
-                : "All symbols"}
-            </span>
+          <div className="mb-3 grid gap-3">
+            <div className="flex flex-wrap items-baseline justify-between gap-2 text-sm">
+              <span className="text-text-secondary">
+                {errorMessage
+                  ? `Error: ${errorMessage}`
+                  : `${results.length} match${results.length === 1 ? "" : "es"}`}
+              </span>
+              {activeFilterCount ? null : (
+                <span className="text-xs text-text-tertiary">All symbols</span>
+              )}
+            </div>
+            {chips.length ? (
+              <div className="flex flex-wrap items-center gap-1.5">
+                <ul aria-label="Active filters" className="flex flex-wrap gap-1.5">
+                  {chips.map((chip) => (
+                    <li key={chip.id}>
+                      <Link
+                        href={chip.removeHref}
+                        aria-label={`Remove filter: ${chip.label}`}
+                        className="inline-flex min-h-8 items-center gap-1.5 rounded-full border border-border-muted bg-surface-secondary py-1 pr-2 pl-3 text-xs text-foreground transition-colors hover:border-border hover:bg-surface-hover"
+                      >
+                        {chip.label}
+                        <X className="size-3.5 text-text-tertiary" aria-hidden />
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+                {chips.length > 1 ? (
+                  <Link
+                    href={clearFiltersHref(params)}
+                    className="px-2 text-xs text-text-secondary hover:text-foreground hover:underline"
+                  >
+                    Clear all
+                  </Link>
+                ) : null}
+              </div>
+            ) : null}
           </div>
 
           {results.length === 0 && !errorMessage ? (
@@ -276,6 +308,16 @@ export default async function ScreenerPage({
             <>
               {/* Cards below lg, table above — see the markets page for why
                   the switch is lg rather than md. */}
+              <div className="mb-3 lg:hidden">
+                <CardSortBar
+                  options={sortOptions.map((option) => ({
+                    ...option,
+                    href: screenerSortHref(option.key, params),
+                  }))}
+                  activeKey={sort}
+                  direction={dir}
+                />
+              </div>
               <SymbolCardList
                 className="lg:hidden"
                 rows={results.map(
@@ -309,15 +351,35 @@ export default async function ScreenerPage({
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="w-[110px]">Ticker</TableHead>
+                      <SortableHead
+                        href={screenerSortHref("ticker", params)}
+                        label="Ticker"
+                        direction={direction("ticker")}
+                        className="w-[110px]"
+                      />
                       <TableHead>Name</TableHead>
                       <TableHead className="hidden 2xl:table-cell">Sector</TableHead>
-                      <TableHead className="text-right">Price</TableHead>
-                      <TableHead className="text-right">RSI(14)</TableHead>
+                      <SortableHead
+                        href={screenerSortHref("price", params)}
+                        label="Price"
+                        direction={direction("price")}
+                        align="right"
+                      />
+                      <SortableHead
+                        href={screenerSortHref("rsi", params)}
+                        label="RSI(14)"
+                        direction={direction("rsi")}
+                        align="right"
+                      />
                       {/* Momentum exists only for a chosen window; without one
                           the column was a dash on every row (UI audit UX-1). */}
                       {momentumDays ? (
-                        <TableHead className="text-right">{momentumDays}d %</TableHead>
+                        <SortableHead
+                          href={screenerSortHref("momentum", params)}
+                          label={`${momentumDays}d %`}
+                          direction={direction("momentum")}
+                          align="right"
+                        />
                       ) : null}
                       <TableHead className="hidden text-right 2xl:table-cell">52w Low</TableHead>
                       <TableHead className="hidden text-right 2xl:table-cell">52w High</TableHead>

@@ -17,7 +17,9 @@ test("public pages keep concise website chrome", async ({ page }) => {
 
   await expect(page.getByRole("navigation", { name: "Public" })).toBeVisible();
   await expect(page.getByRole("contentinfo")).toBeVisible();
-  await expect(page.getByRole("navigation", { name: "Product" })).toHaveCount(0);
+  // No product sidebar. The footer has its own "Product" column of links to
+  // the product pages, so look outside the footer.
+  await expect(page.locator('nav[aria-label="Product"]:not(footer nav)')).toHaveCount(0);
 });
 
 test("mobile product navigation exposes the same hierarchy", async ({ page }) => {
