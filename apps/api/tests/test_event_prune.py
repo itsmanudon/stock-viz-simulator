@@ -91,3 +91,26 @@ def test_cli_prune_events(engine, monkeypatch, capsys) -> None:
     assert "1 published outbox, 1 unpublished outbox, 1 inbox" in out
     with Session(engine) as session:
         assert len(session.exec(select(OutboxEvent)).all()) == 2
+
+
+def test_prune_clears_sign_in_counters_a_day_after_their_window(session: Session) -> None:
+    from datetime import UTC
+
+    from stockviz.models.auth_rate_limit import AuthRateLimit
+
+    aware = NOW.replace(tzinfo=UTC)
+    session.add_all(
+        [
+            AuthRateLimit(key="login:ip:old", count=3, reset_at=aware - timedelta(days=2)),
+            AuthRateLimit(key="login:ip:recent", count=3, reset_at=aware - timedelta(hours=2)),
+            AuthRateLimit(key="login:ip:open", count=3, reset_at=aware + timedelta(minutes=5)),
+        ]
+    )
+    session.commit()
+
+    result = prune_events(session, now=NOW)
+    session.commit()
+
+    assert result.auth_counters == 1
+    keys = {row.key for row in session.exec(select(AuthRateLimit)).all()}
+    assert keys == {"login:ip:recent", "login:ip:open"}

@@ -49,3 +49,36 @@ def test_upgrade_downgrade_upgrade(monkeypatch) -> None:
         finally:
             engine.dispose()
             get_settings.cache_clear()
+
+
+def test_two_upgrades_at_once_both_succeed() -> None:
+    """The API start and the cron can migrate together (audit OP-10).
+
+    Two real ``alembic upgrade head`` processes on one empty database: the
+    advisory lock in ``migrations/env.py`` makes the second wait and then find
+    nothing to do. Without it they both create the first tables and one fails.
+    """
+    import os
+    import subprocess
+    import sys
+
+    with scratch_alembic_engine() as engine:
+        env = {**os.environ, "DATABASE_URL": engine.url.render_as_string(hide_password=False)}
+        command_line = [sys.executable, "-m", "alembic", "upgrade", "head"]
+        runs = [
+            subprocess.Popen(
+                command_line,
+                cwd=API_ROOT,
+                env=env,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+            )
+            for _ in range(2)
+        ]
+        outputs = [run.communicate(timeout=120)[0] for run in runs]
+        try:
+            assert [run.returncode for run in runs] == [0, 0], outputs
+            assert {"aegis_documents", "job_runs"} <= set(inspect(engine).get_table_names())
+        finally:
+            engine.dispose()

@@ -59,7 +59,7 @@ export async function signupAction(
   }
 
   const ip = await clientIp();
-  const gate = hit(`signup:${ip}`, SIGNUP_LIMIT, SIGNUP_WINDOW_MS);
+  const gate = await hit(`signup:${ip}`, SIGNUP_LIMIT, SIGNUP_WINDOW_MS);
   if (!gate.allowed) return throttled(gate.retryAfterSeconds);
 
   const existing = await findUserByEmail(parsed.data.email);
@@ -121,7 +121,7 @@ export async function loginAction(
     [emailKey, LOGIN_LIMIT],
     [ipKey, LOGIN_LIMIT * 3],
   ] as const) {
-    const gate = hit(key, limit, LOGIN_WINDOW_MS);
+    const gate = await hit(key, limit, LOGIN_WINDOW_MS);
     if (!gate.allowed) return throttled(gate.retryAfterSeconds);
   }
 
@@ -135,10 +135,11 @@ export async function loginAction(
     if (err instanceof AuthError) {
       return { error: "Invalid email or password" };
     }
-    // signIn throws a redirect sentinel on success — clear the counters so a
-    // couple of typos before a correct password don't leave the user throttled.
-    reset(emailKey);
-    reset(ipKey);
+    // signIn throws a redirect sentinel on success — clear this email's
+    // counter so a couple of typos don't leave the user throttled. Never the
+    // address counter: anyone with an account of their own could sign in to
+    // reset it and keep guessing other accounts' passwords (audit OP-8).
+    await reset(emailKey);
     // ``redirect`` throws a sentinel error inside server actions; let it bubble.
     throw err;
   }

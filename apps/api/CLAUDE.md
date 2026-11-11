@@ -167,7 +167,9 @@ sets the exit code without stopping later steps.
 rows and inbox receipts older than 30 days; `--include-unpublished` also
 deletes old unsent rows, for hosts where no publisher runs. The Railway cron
 runs it with that flag and sets `EVENTS_OUTBOX_ENABLED=false`, which makes the
-news ingest skip its `news.article.ingested` fan-out (nothing would publish it).
+news ingest skip its `news.article.ingested` fan-out (nothing would publish it). It also deletes
+sign-in counters (`auth_rate_limits`, written by the web server's
+`lib/rate-limit.ts`; audit OP-8) whose window ended more than a day ago.
 
 **Aegis News sync (Phase 2).** `aegis-sync` copies the Aegis feed
 (`GET /api/v1/feed/documents`) and the whole mapping list
@@ -462,6 +464,13 @@ Apply with `alembic upgrade head`. The post-write hook runs `ruff format` on
 new revisions (configured in `alembic.ini`). If parallel branches each added a
 revision you'll get **multiple heads** — resolve with
 `alembic merge heads -m "merge heads"` (it has happened before).
+
+`migrations/env.py` holds a Postgres advisory lock (`MIGRATION_LOCK_KEY`) for
+the whole upgrade (audit OP-10): the API start and the cron both run
+`alembic upgrade head`, and without it two runners meeting one pending
+migration both applied it and one failed. The lock is a session lock because a
+migration may commit part-way. `tests/test_migration_round_trip.py` starts two
+real upgrades at once.
 
 ## Ingestion contract
 

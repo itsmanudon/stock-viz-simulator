@@ -150,6 +150,15 @@ a server action or a route handler — never through the browser.
   components and `authedFetch`.
 - Providers: **Credentials** (email + password, bcrypt) and **Google OAuth**
   (needs `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`; see `.env.example`).
+- Google signs in only to an account Google created, for an address Google
+  verified (`signIn` callback in `auth.ts`, rule in `lib/oauth-linking.ts`;
+  audit OP-4). Sign-up does not verify email, so an account with a password
+  never gets Google attached: its holder signs in with the password, and
+  `/login?error=` explains the refusal.
+- Credential sign-in and sign-up are throttled by fixed windows in Postgres
+  (`lib/rate-limit.ts`, table `auth_rate_limits` owned by the API's Alembic
+  chain; audit OP-8), so counters survive the web service sleeping. A
+  successful sign-in clears the email's counter only, never the address's.
 - Sessions are JWT (default). The user.id is persisted via the `jwt` callback
   and surfaced via the `session` callback (see `auth.ts`).
 - `proxy.ts` runs as Edge middleware. Keep node-only imports out of the files
