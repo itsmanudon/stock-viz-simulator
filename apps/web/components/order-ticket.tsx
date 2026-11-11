@@ -31,6 +31,7 @@ import { Label } from "@/components/ui/label";
 import { compareDecimalStrings, multiplyDecimalStrings } from "@/lib/decimal-math";
 import { type TradeOrderMode, orderTypeLabel } from "@/lib/operational-trading";
 import { formatCurrency, formatQuantity } from "@/lib/portfolio-view-model";
+import { formatCloseDate } from "@/lib/stock-workspace";
 
 export type OrderTicketSymbol = { ticker: string; name: string; currency: string };
 
@@ -230,7 +231,10 @@ export function OrderTicket({
                       <>
                         {" "}
                         · Last stored close {formatCurrency(quoteClose, currency)}
-                        {quoteAt ? ` as of ${new Date(quoteAt).toISOString().slice(0, 10)}` : ""}
+                        {/* The calendar date from the stored string: reading it
+                            as local time moved Apr 4 to 2025-04-03 east of UTC
+                            (UI audit T2). */}
+                        {quoteAt ? ` · ${formatCloseDate(quoteAt) ?? quoteAt}` : ""}
                       </>
                     ) : (
                       " · No stored close for this symbol"

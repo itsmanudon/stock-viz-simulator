@@ -5,6 +5,7 @@
  * and derives window statistics. Symbol picking and the chart are client islands.
  */
 
+import type { Metadata } from "next";
 import Link from "next/link";
 
 import { CompareChart } from "@/components/compare-chart";
@@ -34,6 +35,8 @@ import {
   seriesColor,
   week52PositionPct,
 } from "@/lib/compare-workspace";
+
+export const metadata: Metadata = { title: "Compare" };
 
 async function loadSeries(
   ticker: string,

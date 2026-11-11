@@ -2,6 +2,9 @@ import { PortfolioWorkspace } from "@/components/portfolio-workspace";
 import { currentMonthKey, parseMonthKey } from "@/lib/journal-view-model";
 import { loadPortfolioData } from "@/lib/portfolio-data";
 import { parsePortfolioRange, parsePortfolioTab } from "@/lib/portfolio-view-model";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = { title: "Portfolio" };
 
 export default async function PortfolioPage({
   searchParams,

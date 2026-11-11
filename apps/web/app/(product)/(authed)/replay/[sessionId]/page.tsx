@@ -5,6 +5,7 @@
  * quotes, SSE, news, comments, or generic bar history.
  */
 
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
@@ -37,6 +38,8 @@ import {
   replayStatusLabel,
 } from "@/lib/replay";
 import { cn } from "@/lib/utils";
+
+export const metadata: Metadata = { title: "Replay session" };
 
 export default async function ReplaySessionPage({
   params,

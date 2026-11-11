@@ -26,7 +26,11 @@ const mono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "StockViz | Market Visualization Platform",
+  // Each page names itself (UI audit A1); the home page keeps the full name.
+  title: {
+    default: "StockViz | Market Visualization Platform",
+    template: "%s | StockViz",
+  },
   description:
     "End-of-day market analytics, strategy backtesting, and paper trading for equities and options.",
 };

@@ -7,6 +7,7 @@ import { DeltaPill } from "@/components/dashboard/delta-pill";
 import { MoversWidget } from "@/components/dashboard/movers-widget";
 import { OrdersWidget } from "@/components/dashboard/orders-widget";
 import { PortfolioHero } from "@/components/dashboard/portfolio-hero";
+import { WatchlistWidget } from "@/components/dashboard/watchlist-widget";
 import type { Alert } from "@/lib/api/alerts";
 import type { PendingOrder, Portfolio, PortfolioAnalytics } from "@/lib/api/trading";
 
@@ -323,5 +324,34 @@ describe("AllocationWidget", () => {
       />,
     );
     expect(screen.getByText("Sector not recorded")).toBeVisible();
+  });
+});
+
+describe("WatchlistWidget", () => {
+  it("shows each price in its symbol's currency, not the raw stored string (audit T7)", () => {
+    render(
+      <WatchlistWidget
+        watchlist={[
+          {
+            ticker: "AAPL",
+            name: "Apple Inc.",
+            sector: null,
+            added_at: "2026-08-01T00:00:00Z",
+            last_close: "312.320000",
+          },
+          {
+            ticker: "RELIANCE.NS",
+            name: "Reliance Industries",
+            sector: null,
+            added_at: "2026-08-01T00:00:00Z",
+            last_close: "1250.5",
+          },
+        ]}
+        currencies={{ AAPL: "USD", "RELIANCE.NS": "INR" }}
+      />,
+    );
+    expect(screen.getByText("$312.32")).toBeVisible();
+    expect(screen.getByText("₹1,250.50")).toBeVisible();
+    expect(screen.queryByText("312.320000")).not.toBeInTheDocument();
   });
 });

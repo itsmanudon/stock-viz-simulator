@@ -22,7 +22,7 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const spec = findProductPage((await params).slug);
   if (!spec) return {};
   return {
-    title: `${spec.name} | StockViz`,
+    title: spec.name,
     description: spec.summary,
   };
 }

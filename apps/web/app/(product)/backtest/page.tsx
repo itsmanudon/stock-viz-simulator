@@ -9,6 +9,9 @@ import { BacktestForm } from "@/components/backtest-form";
 import { PageFrame } from "@/components/page-frame";
 import { ResearchPageHeader, ResearchSubnav } from "@/components/research-page-header";
 import { getMarketsSummary, listSymbols } from "@/lib/api";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = { title: "Backtest" };
 
 export default async function BacktestPage({
   searchParams,

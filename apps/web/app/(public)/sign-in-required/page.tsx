@@ -1,9 +1,12 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader } from "@/components/ui/card";
 
 import { BackButton } from "./back-button";
+
+export const metadata: Metadata = { title: "Sign in required" };
 
 type SearchParams = Promise<{ callbackUrl?: string }>;
 

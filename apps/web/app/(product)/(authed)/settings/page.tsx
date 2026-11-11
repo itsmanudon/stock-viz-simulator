@@ -5,6 +5,7 @@
  * Both forms use server actions so the page stays a server component.
  */
 
+import type { Metadata } from "next";
 import { revalidatePath } from "next/cache";
 
 import { auth } from "@/auth";
@@ -12,6 +13,8 @@ import { PaperCard } from "@/components/paper-card";
 import { SettingsWorkspace } from "@/components/settings-workspace";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { getProfile, patchProfile } from "@/lib/api/leaderboard";
+
+export const metadata: Metadata = { title: "Settings" };
 
 const SUPPORTED_CURRENCIES = ["USD", "EUR", "GBP", "JPY", "CAD", "INR"] as const;
 

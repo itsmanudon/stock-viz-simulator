@@ -10,6 +10,7 @@
  * 32-symbol universe, all `no-store`, against a 60/minute rate limit.
  */
 
+import type { Metadata } from "next";
 import Link from "next/link";
 
 import { ClickableRow } from "@/components/clickable-row";
@@ -37,6 +38,8 @@ import {
 } from "@/lib/markets-table";
 import { formatCloseDate } from "@/lib/stock-workspace";
 import { cn } from "@/lib/utils";
+
+export const metadata: Metadata = { title: "Markets" };
 
 export default async function MarketsPage({
   searchParams,

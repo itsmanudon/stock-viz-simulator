@@ -11,6 +11,9 @@ import { ReplaySessionTable } from "@/components/replay-session-list";
 import { ResearchPageHeader, ResearchSubnav } from "@/components/research-page-header";
 import { listSymbols } from "@/lib/api";
 import { listReplaySessions } from "@/lib/api/replay";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = { title: "Replay" };
 
 export default async function ReplayPage({
   searchParams,
