@@ -118,6 +118,8 @@ export type ScreenerResult = {
   exchange: string | null;
   currency: string;
   last_close: string;
+  /** Date (`YYYY-MM-DD`) of the bar behind last_close and the metrics. */
+  as_of: string | null;
   rsi_14: number | null;
   momentum_pct: number | null;
   momentum_days: number | null;
@@ -180,6 +182,8 @@ export type MarketSummaryRow = {
   exchange: string | null;
   currency: string;
   last_close: string | null;
+  /** Timestamp of the stored bar behind last_close; null without stored bars. */
+  last_close_at: string | null;
   prev_close: string | null;
   change_pct: number | null;
   /** Oldest-first closes for the inline sparkline. */

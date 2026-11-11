@@ -299,6 +299,14 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   of the viewport; the page adds `pb-32` so it never covers content.
 - A `"use server"` file may export only async functions (and types). Put
   constants and helpers that actions share in `lib/`, or Next refuses the module.
+- Every displayed price names its close: `/v1/markets/summary` rows carry
+  `last_close_at` and screener rows carry `as_of` (UI audit T1). Symbols end
+  on different days, so date each row, not the page. In `next dev`, responses
+  fetched with `revalidateSeconds` live in `.next/dev/cache/fetch-cache` (not
+  `.next/cache`) and survive restarts; clear that folder after an API schema
+  change or the page keeps the old shape. Production keeps them up to the
+  revalidate window, so new fields can be missing for up to an hour after a
+  deploy — render them optionally.
 - Format stored bar timestamps with `formatCloseDate()` (`lib/stock-workspace.ts`):
   it reads the calendar date from the string, so it never shifts a day with the
   timezone, and always includes the year.

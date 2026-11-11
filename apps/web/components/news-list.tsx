@@ -22,7 +22,11 @@ export function NewsList({
             : "rounded-md border border-border-muted bg-card p-5 text-sm text-muted-foreground"
         }
       >
-        No recent news. The news ingest runs every 4 hours when a NEWSDATA_KEY is configured.
+        {/* Written for readers: the old copy named an environment variable
+            (UI audit S1). */}
+        {variant === "workspace"
+          ? "No stored headlines for this symbol yet. News is collected a few times a day."
+          : "No stored headlines yet. News is collected a few times a day; check back later."}
       </p>
     );
   }
