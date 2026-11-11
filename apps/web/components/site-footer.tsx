@@ -16,6 +16,14 @@ import { ThemeToggle } from "@/components/theme-toggle";
 const COLUMNS: { heading: string; links: { href: string; label: string; external?: boolean }[] }[] =
   [
     {
+      heading: "Product",
+      links: [
+        { href: "/product/paper-trading", label: "Paper trading" },
+        { href: "/product/research", label: "Research" },
+        { href: "/product/replay", label: "Replay" },
+      ],
+    },
+    {
       heading: "Research",
       links: [
         { href: "/markets", label: "Markets" },
@@ -85,7 +93,7 @@ export function SiteFooter() {
             </p>
           </div>
 
-          <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-8 sm:grid-cols-3 lg:grid-cols-5">
             {COLUMNS.map((column) => (
               <nav key={column.heading} aria-label={column.heading}>
                 <h2 className="font-mono text-2xs font-semibold tracking-[0.12em] text-text-tertiary uppercase">

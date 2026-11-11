@@ -6,7 +6,7 @@ Next.js 16 App Router, React 19, TypeScript, Tailwind v4, shadcn/ui, NextAuth v5
 
 ```
 app/
-  (public)/        marketing home, login, signup, sign-in-required; owns the
+  (public)/        marketing home, /product/[slug], login, signup, sign-in-required; owns the
                    concise public header and traditional website footer
   (product)/       guest-capable research routes plus the workstation shell
     (authed)/      dashboard, portfolio, trade, trades, orders, watchlist,
@@ -59,7 +59,11 @@ components/
                    view; `overflow-x-clip`, never `hidden`, or sticky breaks),
                    `landing-motion.tsx` (client: one GSAP pass over
                    `data-motion` markers — words, rise, draw, count, steps,
-                   glow). `market-ticker`, `product-tour`/`tour-*` and
+                   glow), `product-page.tsx` (`PRODUCT_PAGES`: the specs
+                   behind `/product/[slug]` — paper-trading, research,
+                   replay; facts are checked against shipped behaviour, and
+                   there is no news page until Aegis lands; the public header
+                   links these three). `market-ticker`, `product-tour`/`tour-*` and
                    `by-the-numbers` are no longer on the home page (kept for
                    now, unused),
                    `market-ticker.tsx` (the `.marquee` price strip — halves are
