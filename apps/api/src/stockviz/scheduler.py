@@ -273,11 +273,13 @@ def recommendations_refresh() -> None:
 
 @single_instance("portfolio_snapshots_refresh")
 def portfolio_snapshots_refresh() -> None:
-    """Upsert today's NAV snapshot for every user who owns a portfolio."""
-    today = utcnow().date()
+    """Upsert each user's NAV, dated by the session its prices come from (LG-2)."""
+    from stockviz.services.ingest.bar_semantics import latest_completed_session
+
+    session_date = latest_completed_session(utcnow().replace(tzinfo=UTC))
     with _session_scope() as session:
-        written = snapshot_user_navs(session, snapshot_date=today)
-    logger.info("portfolio_snapshots_refresh: wrote %d snapshots for %s", written, today)
+        written = snapshot_user_navs(session, snapshot_date=session_date)
+    logger.info("portfolio_snapshots_refresh: wrote %d snapshots for %s", written, session_date)
 
 
 @single_instance("pending_orders_settlement")

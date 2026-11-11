@@ -31,6 +31,13 @@ class Portfolio(SQLModel, table=True):
     user_id: int = Field(foreign_key="users.id", unique=True, index=True)
     name: str = Field(default="Default", max_length=128)
     cash_balance: Decimal = Field(sa_column=Column(Numeric(20, 6), nullable=False))
+    # The value the book started with, fixed for good (audit LG-1). Returns and
+    # the leaderboard measure from it: the first snapshot can be overwritten by
+    # the nightly job once the user trades on the opening day.
+    opening_nav: Decimal = Field(
+        default=Decimal(100_000),
+        sa_column=Column(Numeric(20, 6), nullable=False, server_default="100000"),
+    )
     created_at: datetime = Field(default_factory=utcnow, nullable=False)
 
 

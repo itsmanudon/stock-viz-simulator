@@ -144,3 +144,23 @@ def test_evaluate_alerts_triggers_crossed_targets(engine, monkeypatch, capsys) -
 
     assert cli.main(["evaluate-alerts"]) == 0
     assert "triggered 1 alert(s)" in capsys.readouterr().out
+
+
+def test_snapshots_are_dated_by_the_session_their_prices_come_from(
+    engine, monkeypatch, capsys
+) -> None:
+    """LG-2: a Saturday run prices at Friday's close, so the row is Friday's."""
+    from stockviz.models import PortfolioSnapshot
+
+    monkeypatch.setattr(cli, "engine", engine)
+    monkeypatch.setattr("stockviz._time.utcnow", lambda: datetime(2025, 4, 5, 15, 0))
+    with Session(engine) as session:
+        _setup(session, bar_ts=FRIDAY)
+        for row in session.exec(select(PortfolioSnapshot)).all():
+            session.delete(row)
+        session.commit()
+
+    assert cli.main(["snapshot-portfolios"]) == 0
+    assert "for the 2025-04-04 session" in capsys.readouterr().out
+    with Session(engine) as session:
+        assert [s.date for s in session.exec(select(PortfolioSnapshot)).all()] == [FRIDAY.date()]

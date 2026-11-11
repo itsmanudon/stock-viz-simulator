@@ -184,12 +184,14 @@ def _cmd_credit_dividends(_args: argparse.Namespace) -> int:
 
 
 def _cmd_snapshot(_args: argparse.Namespace) -> int:
+    """Write each user's NAV dated by the session its prices come from (LG-2)."""
     from stockviz._time import utcnow
+    from stockviz.services.ingest.bar_semantics import latest_completed_session
 
-    today = utcnow().date()
+    session_date = latest_completed_session(utcnow().replace(tzinfo=UTC))
     with Session(engine) as session:
-        n = snapshot_user_navs(session, snapshot_date=today)
-    print(f"wrote {n} portfolio snapshots for {today}")
+        n = snapshot_user_navs(session, snapshot_date=session_date)
+    print(f"wrote {n} portfolio snapshots for the {session_date} session")
     return 0
 
 
