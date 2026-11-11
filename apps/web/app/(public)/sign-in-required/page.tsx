@@ -1,14 +1,7 @@
 import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader } from "@/components/ui/card";
 
 import { BackButton } from "./back-button";
 
@@ -35,7 +28,9 @@ export default async function SignInRequiredPage({
     <div className="container mx-auto flex min-h-[calc(100vh-8rem)] items-center justify-center px-6 py-12">
       <Card className="w-full max-w-md">
         <CardHeader>
-          <CardTitle>Sign in required</CardTitle>
+          <h1 data-slot="card-title" className="text-xl leading-none font-medium tracking-tight">
+            Sign in required
+          </h1>
           <CardDescription>
             You need to be signed in to view this page. Sign in to continue, or head back to where
             you came from.
