@@ -5,7 +5,7 @@ export { listSymbols, getSymbol, searchSymbols } from "./symbols";
 export { getQuotes } from "./quotes";
 export { getBars } from "./bars";
 export { getMarketsSummary } from "./markets";
-export { getLatestNews, getNewsForTicker } from "./news";
+export { getLatestNews, getNewsForTicker, getNewsForTickers } from "./news";
 export { getIndicators } from "./indicators";
 export { getRecommendations } from "./recommendations";
 export { screenSymbols } from "./screener";

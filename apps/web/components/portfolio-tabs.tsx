@@ -18,6 +18,7 @@ type Props = {
   options: ReactNode;
   orders: ReactNode;
   income: ReactNode;
+  news: ReactNode;
   journal: ReactNode;
   positionCount: number;
   optionCount: number;
@@ -31,6 +32,7 @@ export function PortfolioTabs({
   options,
   orders,
   income,
+  news,
   journal,
   positionCount,
   optionCount,
@@ -95,6 +97,7 @@ export function PortfolioTabs({
             Orders
           </Tab>
           <Tab value="income">Income</Tab>
+          <Tab value="news">News</Tab>
           <Tab value="journal">Journal</Tab>
         </Tabs.List>
       </div>
@@ -103,6 +106,7 @@ export function PortfolioTabs({
       <TabPanel value="options">{options}</TabPanel>
       <TabPanel value="orders">{orders}</TabPanel>
       <TabPanel value="income">{income}</TabPanel>
+      <TabPanel value="news">{news}</TabPanel>
       <TabPanel value="journal">{journal}</TabPanel>
     </Tabs.Root>
   );

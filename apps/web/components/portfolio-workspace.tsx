@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 
 import { JournalPanel } from "@/components/journal/journal-panel";
+import { NewsList } from "@/components/news-list";
 import { PortfolioInsights } from "@/components/portfolio-analytics";
 import { PortfolioEmptyState } from "@/components/portfolio-empty-state";
 import { PortfolioIncome } from "@/components/portfolio-income";
@@ -18,6 +19,7 @@ import type {
   PortfolioAnalytics,
   PortfolioHistoryPoint,
 } from "@/lib/api/trading";
+import type { NewsArticle } from "@/lib/api/types";
 import type { PortfolioRange, PortfolioTab } from "@/lib/portfolio-view-model";
 
 type Props = {
@@ -31,6 +33,8 @@ type Props = {
   journalMonth: JournalMonth | null;
   journalFailed: boolean;
   journalMonthKey: string;
+  /** Aegis news for the holdings; only loaded while the News tab is open. */
+  news?: NewsArticle[] | null;
 };
 
 export function PortfolioWorkspace({
@@ -44,6 +48,7 @@ export function PortfolioWorkspace({
   journalMonth,
   journalFailed,
   journalMonthKey,
+  news = null,
 }: Props) {
   const displayCurrency = portfolio.display_currency || "USD";
   const hasEquityPositions = portfolio.positions.length > 0;
@@ -83,6 +88,19 @@ export function PortfolioWorkspace({
           }
           orders={<PortfolioOrders orders={orders} />}
           income={<PortfolioIncome dividends={dividends} positions={portfolio.positions} />}
+          news={
+            tab !== "news" ? null : !hasEquityPositions ? (
+              <p className="py-6 text-sm text-muted-foreground">
+                News about your holdings appears here once you hold a stock.
+              </p>
+            ) : news === null ? (
+              <p className="py-6 text-sm text-muted-foreground">
+                News is unavailable right now. Try again shortly.
+              </p>
+            ) : (
+              <NewsList articles={news} />
+            )
+          }
           journal={
             /* JournalPanel reads Journal state with `useSearchParams()`, which
                Next requires to sit under a Suspense boundary — without one the

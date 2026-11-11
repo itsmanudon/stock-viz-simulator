@@ -1,5 +1,6 @@
 import "server-only";
 
+import { getNewsForTickers } from "@/lib/api";
 import { type JournalMonth, getJournalMonth } from "@/lib/api/journal";
 import {
   type DividendSummary,
@@ -11,6 +12,7 @@ import {
   getPortfolioHistory,
   listOrders,
 } from "@/lib/api/trading";
+import type { NewsArticle } from "@/lib/api/types";
 import { splitMonthKey } from "@/lib/journal-view-model";
 import { loadPortfolioOverview } from "@/lib/portfolio-overview";
 import { type PortfolioRange, portfolioRangeDays } from "@/lib/portfolio-view-model";
@@ -25,6 +27,11 @@ export type PortfolioData = {
   journalMonth: JournalMonth | null;
   /** True when the Journal tab was open and its request failed. */
   journalFailed: boolean;
+  /**
+   * Aegis news for the held symbols. Only fetched when the News tab is open;
+   * null on the other tabs or when the request failed (Phase 2).
+   */
+  news: NewsArticle[] | null;
 };
 
 /**
@@ -37,6 +44,7 @@ export type PortfolioData = {
 export async function loadPortfolioData(
   range: PortfolioRange,
   journalMonthKey?: string,
+  { news: wantNews = false }: { news?: boolean } = {},
 ): Promise<PortfolioData> {
   const journalRequest = journalMonthKey
     ? optional(
@@ -52,6 +60,13 @@ export async function loadPortfolioData(
     journalRequest,
   ]);
 
+  // Needs the holdings, so it follows the overview rather than joining it.
+  const news = wantNews
+    ? await optional(
+        getNewsForTickers(overview.portfolio.positions.map((position) => position.ticker)),
+      )
+    : null;
+
   return {
     portfolio: overview.portfolio,
     history,
@@ -60,6 +75,7 @@ export async function loadPortfolioData(
     dividends,
     journalMonth,
     journalFailed: Boolean(journalMonthKey) && journalMonth === null,
+    news,
   };
 }
 
