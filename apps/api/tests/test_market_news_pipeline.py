@@ -357,6 +357,36 @@ def test_news_ingest_emits_one_event_per_new_url(session: Session) -> None:
     assert len(_outbox(session, EVENT_TYPE_NEWS_ARTICLE_INGESTED)) == 2
 
 
+def test_news_ingest_skips_the_fan_out_when_the_outbox_is_off(
+    session: Session, monkeypatch
+) -> None:
+    """Where no publisher runs, articles land but no event is staged (audit OP-11)."""
+    monkeypatch.setattr(
+        "stockviz.events.handlers.get_settings",
+        lambda: SimpleNamespace(events_outbox_enabled=False),
+    )
+    _symbol(session, "AAPL")
+    req = enqueue_news_refresh_requested(
+        session, ticker="AAPL", company_name="Apple Inc.", reason="manual"
+    )
+    session.commit()
+    article = ArticleRecord(
+        ticker="AAPL",
+        title="One",
+        url="https://example.test/aapl-off",
+        source="reuters",
+        published_at=BAR_START,
+        summary="hello",
+        image_url=None,
+    )
+    result = persist_news_refresh(session, parse_news_refresh_requested(req.payload), [article])
+    session.commit()
+
+    assert result == "applied"
+    assert len(session.exec(select(NewsArticle)).all()) == 1
+    assert _outbox(session, EVENT_TYPE_NEWS_ARTICLE_INGESTED) == []
+
+
 def test_duplicate_url_does_not_emit_second_article_event(session: Session) -> None:
     _symbol(session, "AAPL")
     first = enqueue_news_refresh_requested(

@@ -74,6 +74,9 @@ const EOD_REFRESH = [
   job("python -m stockviz.cli settle-options"),
   job("python -m stockviz.cli recommend"),
   job("python -m stockviz.cli snapshot-portfolios"),
+  // No publisher runs here, so unpublished outbox rows are never sent: clear
+  // them after 30 days with the old inbox receipts (audit OP-11).
+  job("python -m stockviz.cli prune-events --include-unpublished"),
   "exit $rc",
 ].join("; ");
 
@@ -150,6 +153,9 @@ export default defineRailway(() => {
       // Same value as api, by reference, so there is one secret to rotate.
       // Without it every cron step dies in settings validation (see header).
       INTERNAL_API_TOKEN: API_INTERNAL_TOKEN,
+      // No outbox publisher runs on Railway, so the news step skips its
+      // article fan-out rather than fill a table nothing reads (audit OP-11).
+      EVENTS_OUTBOX_ENABLED: "false",
     },
     deploy: {
       cronSchedule: "0 22 * * 1-5",

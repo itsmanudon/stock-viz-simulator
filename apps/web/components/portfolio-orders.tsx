@@ -10,6 +10,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { parseApiTimestamp } from "@/lib/api-time";
 import type { PendingOrder } from "@/lib/api/trading";
 import { formatQuantity } from "@/lib/portfolio-view-model";
 
@@ -179,7 +180,7 @@ function formatNativeQuote(raw: string): string {
 }
 
 function formatTimestamp(raw: string): string {
-  return new Date(raw).toLocaleDateString("en-US", {
+  return parseApiTimestamp(raw).toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
     year: "numeric",

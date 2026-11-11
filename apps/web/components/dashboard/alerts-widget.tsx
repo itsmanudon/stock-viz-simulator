@@ -3,7 +3,7 @@ import Link from "next/link";
 
 import { WidgetCard, WidgetEmpty } from "@/components/dashboard/widget-card";
 import type { Alert } from "@/lib/api/alerts";
-import { formatNativePrice } from "@/lib/operational-trading";
+import { formatCurrency } from "@/lib/portfolio-view-model";
 
 /** Shown rows in all: fired alerts first, then armed ones (UI audit F3). */
 const MAX_ROWS = 4;
@@ -11,17 +11,11 @@ const MAX_ROWS = 4;
 /**
  * Price alerts. Fired, undismissed alerts are the one time-sensitive thing on
  * the dashboard, so they come first; armed alerts follow as rows linked to
- * their symbol, rather than a count in an otherwise empty card.
+ * their symbol, rather than a count in an otherwise empty card. Targets format
+ * in the currency each alert row carries.
  */
-export function AlertsWidget({
-  alerts,
-  currencies = {},
-}: {
-  alerts: Alert[] | null;
-  currencies?: Record<string, string>;
-}) {
-  const fmtTarget = (alert: Alert) =>
-    formatNativePrice(alert.target_price, alert.ticker, currencies);
+export function AlertsWidget({ alerts }: { alerts: Alert[] | null }) {
+  const fmtTarget = (alert: Alert) => formatCurrency(alert.target_price, alert.currency ?? "USD");
   const all = alerts ?? [];
   const triggered = all.filter((alert) => alert.triggered_at && !alert.dismissed_at);
   const armed = all.filter((alert) => !alert.triggered_at && !alert.dismissed_at);

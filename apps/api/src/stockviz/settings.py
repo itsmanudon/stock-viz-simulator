@@ -139,6 +139,12 @@ class Settings(BaseSettings):
     # constants on the event contracts, not env vars.
     kafka_poll_timeout_seconds: float = 1.0
     kafka_retry_backoff_seconds: float = 2.0
+    # False where no outbox publisher runs (the Railway cron). The news ingest
+    # then skips its ``news.article.ingested`` fan-out, which nothing would
+    # ever publish or prune, and which a publisher attached later would replay
+    # in full (audit OP-11). On by default so compose and Kubernetes keep the
+    # event-driven path.
+    events_outbox_enabled: bool = True
 
     @property
     def resolved_news_provider(self) -> str:

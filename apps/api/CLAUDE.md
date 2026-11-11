@@ -100,10 +100,17 @@ CLI subcommands (`python -m stockviz.cli <cmd>`): `seed`, `backfill`,
 `news [tickers]`, `fx`, `metrics`,
 `score-sentiment`, `sentiment-aggregate`, `recommend`, `snapshot-portfolios`,
 `dividends`, `credit-dividends`, `settle-options`, `run-scheduler`,
-`publish-outbox [--once]`,
+`prune-events [--days N] [--include-unpublished]`, `publish-outbox [--once]`,
 `consume-trade-activity [--once]`, `consume-market-ingest [--once]`,
 `consume-market-analytics [--once]`, `consume-news-ingest [--once]`,
 `consume-news-sentiment [--once]`, `consume-sentiment-aggregate [--once]`.
+
+**Event table retention (audit OP-11).** Nothing else deletes from
+`outbox_events` or `consumer_inbox`. `prune-events` deletes published outbox
+rows and inbox receipts older than 30 days; `--include-unpublished` also
+deletes old unsent rows, for hosts where no publisher runs. The Railway cron
+runs it with that flag and sets `EVENTS_OUTBOX_ENABLED=false`, which makes the
+news ingest skip its `news.article.ingested` fan-out (nothing would publish it).
 
 Kafka workers (same image, different command; broker optional for the API):
 
@@ -366,7 +373,10 @@ or `http` (a standalone service). Blank resolves to `anthropic` when
 `ANTHROPIC_API_KEY` is set, else `none`.
 
 Results land in `news_sentiment`, one row per `(article_id, model)`, carrying
-label + continuous score + optional confidence. `news_articles.sentiment` stays
+label + continuous score + optional confidence. Labels are `positive`,
+`neutral`, `negative`, or `mixed` (strong signals both ways, emitted by Aegis
+News; audit AG-4). `mixed` is stored as sent; StockViz's own providers and
+`label_from_score` never produce it. `news_articles.sentiment` stays
 as the denormalized "current best" label the badge reads. A provider never
 raises for one document: unscorable inputs come back `None` and are stored as
 NULL so `stockviz.cli score-sentiment` can retry them.

@@ -31,6 +31,28 @@ SessionDep = Annotated[Session, Depends(get_session)]
 
 MAX_SPARKLINE_DAYS = 120
 
+STALE_GAP_DAYS = 5
+"""Most calendar days a one-day change may span (audit RS-13).
+
+The change compares the last two stored bars, whatever their dates. Across a
+weekend plus a holiday the gap is at most four days, so a wider gap means bars
+are missing and the "day" change is really a move over weeks. The same limit
+applies to how far a symbol's last close trails the newest close on the page:
+a symbol that stopped updating would otherwise show an old move as today's.
+"""
+
+
+def _day_change(bars: list[tuple[datetime, Decimal]], newest: datetime | None) -> float | None:
+    """Percent change over the last two bars, or None when it would mislead."""
+    if len(bars) < 2 or newest is None:
+        return None
+    (prev_ts, prev), (last_ts, last) = bars[-2], bars[-1]
+    if prev == 0:
+        return None
+    if (last_ts - prev_ts).days > STALE_GAP_DAYS or (newest - last_ts).days > STALE_GAP_DAYS:
+        return None
+    return float((last - prev) / prev * 100)
+
 
 def _recent_bars(
     session: Session, tickers: list[str], *, limit_per_ticker: int
@@ -60,17 +82,15 @@ def markets_summary(
         session, [s.ticker for s in symbols], limit_per_ticker=sparkline_days
     )
 
+    newest = max((bars[-1][0] for bars in bars_by_ticker.values() if bars), default=None)
+
     rows: list[MarketSummaryRowOut] = []
     for symbol in symbols:
         bars = bars_by_ticker.get(symbol.ticker, [])
         closes = [close for _ts, close in bars]
         last = closes[-1] if closes else None
         prev = closes[-2] if len(closes) > 1 else None
-        change_pct = (
-            float((last - prev) / prev * 100)
-            if last is not None and prev not in (None, 0)
-            else None
-        )
+        change_pct = _day_change(bars, newest)
         rows.append(
             MarketSummaryRowOut(
                 ticker=symbol.ticker,

@@ -1,4 +1,5 @@
 import type { Recommendation, RecommendationVote } from "@/lib/api";
+import { parseApiTimestamp } from "@/lib/api-time";
 
 export const SIGNAL_MAX_SCORE = 7;
 export const SIGNAL_BULLISH_THRESHOLD = 4;
@@ -205,7 +206,7 @@ export function buildSignalsHref(params: {
 // Signals are computed on the server in UTC. Show them in UTC and name the
 // zone, so the date never moves with the reader's time zone (audit T1, T4).
 export function formatSignalDate(iso: string): string {
-  const date = new Date(iso);
+  const date = parseApiTimestamp(iso);
   if (Number.isNaN(date.getTime())) return "—";
   return date.toLocaleDateString("en-US", {
     year: "numeric",
@@ -216,7 +217,7 @@ export function formatSignalDate(iso: string): string {
 }
 
 export function formatSignalDateTime(iso: string): string {
-  const date = new Date(iso);
+  const date = parseApiTimestamp(iso);
   if (Number.isNaN(date.getTime())) return "—";
   return date.toLocaleString("en-US", {
     year: "numeric",

@@ -61,7 +61,8 @@ export type Bar = {
   volume: number;
 };
 
-export type Sentiment = "positive" | "neutral" | "negative";
+/** "mixed" (strong signals both ways) comes from Aegis News (audit AG-4). */
+export type Sentiment = "positive" | "neutral" | "negative" | "mixed";
 
 export type NewsArticle = {
   id: number;

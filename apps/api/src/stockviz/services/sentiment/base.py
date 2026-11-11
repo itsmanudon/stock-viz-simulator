@@ -23,9 +23,16 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal, Protocol, runtime_checkable
 
-Label = Literal["positive", "neutral", "negative"]
+Label = Literal["positive", "neutral", "negative", "mixed"]
 
-VALID_LABELS: frozenset[str] = frozenset({"positive", "neutral", "negative"})
+VALID_LABELS: frozenset[str] = frozenset({"positive", "neutral", "negative", "mixed"})
+"""Every label StockViz stores.
+
+``mixed`` (strong signals both ways) is emitted by Aegis News, whose offline
+profile produces it (audit AG-4). It is stored as received, not folded into
+``neutral``, so a later model comparison still sees what the model said.
+StockViz's own providers and :func:`label_from_score` emit only the first three.
+"""
 
 
 @dataclass(frozen=True, slots=True)

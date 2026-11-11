@@ -38,14 +38,23 @@ def _ensure_default_watchlist(session: Session, user_id: int) -> Watchlist:
     return wl
 
 
-def _latest_close(session: Session, ticker: str):
+def _item_out(session: Session, item: WatchlistItem, symbol: Symbol) -> WatchlistItemOut:
+    """One row, with the latest 1d close and the date of the bar it came from."""
     bar = session.exec(
         select(PriceBar)
-        .where(PriceBar.ticker == ticker, PriceBar.interval == "1d")
+        .where(PriceBar.ticker == item.ticker, PriceBar.interval == "1d")
         .order_by(PriceBar.ts.desc())  # type: ignore[attr-defined]
         .limit(1)
     ).first()
-    return bar.close if bar else None
+    return WatchlistItemOut(
+        ticker=item.ticker,
+        name=symbol.name,
+        sector=symbol.sector,
+        added_at=item.added_at,
+        last_close=bar.close if bar else None,
+        last_close_at=bar.ts if bar else None,
+        currency=symbol.currency or "USD",
+    )
 
 
 @router.get("", response_model=list[WatchlistItemOut])
@@ -59,16 +68,7 @@ def list_watchlist(session: SessionDep, user_id: UserIdDep) -> list[WatchlistIte
             .order_by(WatchlistItem.added_at.desc())  # type: ignore[attr-defined]
         )
     )
-    return [
-        WatchlistItemOut(
-            ticker=item.ticker,
-            name=sym.name,
-            sector=sym.sector,
-            added_at=item.added_at,
-            last_close=_latest_close(session, item.ticker),
-        )
-        for item, sym in rows
-    ]
+    return [_item_out(session, item, sym) for item, sym in rows]
 
 
 @router.post("/{ticker}", response_model=WatchlistItemOut, status_code=status.HTTP_201_CREATED)
@@ -85,13 +85,7 @@ def add_watchlist_item(ticker: str, session: SessionDep, user_id: UserIdDep) -> 
         session.add(existing)
         session.commit()
         session.refresh(existing)
-    return WatchlistItemOut(
-        ticker=existing.ticker,
-        name=symbol.name,
-        sector=symbol.sector,
-        added_at=existing.added_at,
-        last_close=_latest_close(session, existing.ticker),
-    )
+    return _item_out(session, existing, symbol)
 
 
 @router.delete("/{ticker}", status_code=status.HTTP_204_NO_CONTENT)

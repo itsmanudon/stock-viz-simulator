@@ -1060,6 +1060,11 @@ export interface components {
             triggered_at: string | null;
             /** Dismissed At */
             dismissed_at: string | null;
+            /**
+             * Currency
+             * @default USD
+             */
+            currency: string;
         };
         /**
          * BacktestIn
@@ -1721,7 +1726,7 @@ export interface components {
             /** Image Url */
             image_url: string | null;
             /** Sentiment */
-            sentiment?: ("positive" | "neutral" | "negative") | null;
+            sentiment?: ("positive" | "neutral" | "negative" | "mixed") | null;
         };
         /**
          * OptionGreeksOut
@@ -2910,6 +2915,13 @@ export interface components {
             added_at: string;
             /** Last Close */
             last_close: string | null;
+            /** Last Close At */
+            last_close_at?: string | null;
+            /**
+             * Currency
+             * @default USD
+             */
+            currency: string;
         };
     };
     responses: never;

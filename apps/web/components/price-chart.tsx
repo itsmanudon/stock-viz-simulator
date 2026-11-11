@@ -23,6 +23,7 @@ import {
 import { useEffect, useMemo, useRef } from "react";
 
 import type { Bar, IndicatorPoint, MACDPoint } from "@/lib/api";
+import { barTimeToUtcSeconds } from "@/lib/api-time";
 import { fitWithLabelRoom } from "@/lib/chart-range";
 import { useChartPalette } from "@/lib/chart-theme";
 import { formatCloseDate } from "@/lib/stock-workspace";
@@ -43,7 +44,7 @@ type Props = {
 };
 
 function toUtcSeconds(iso: string): UTCTimestamp {
-  return Math.floor(new Date(iso).getTime() / 1000) as UTCTimestamp;
+  return barTimeToUtcSeconds(iso) as UTCTimestamp;
 }
 
 export function PriceChart({ bars, overlays, macd, markers }: Props) {
@@ -204,7 +205,7 @@ export function PriceChart({ bars, overlays, macd, markers }: Props) {
     const overlayNames = Object.keys(overlays ?? {});
     const withOverlays = overlayNames.length ? ` Overlays: ${overlayNames.join(", ")}.` : "";
     const markerText = markers?.length
-      ? ` Trade markers: ${markers.map((marker) => `${marker.text} on ${new Date(marker.time).toLocaleDateString("en-US")}`).join("; ")}.`
+      ? ` Trade markers: ${markers.map((marker) => `${marker.text} on ${formatCloseDate(marker.time) ?? marker.time}`).join("; ")}.`
       : "";
     return (
       `Candlestick price chart covering ${bars.length} bars from ` +

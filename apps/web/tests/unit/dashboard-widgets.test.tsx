@@ -328,7 +328,7 @@ describe("AllocationWidget", () => {
 });
 
 describe("WatchlistWidget", () => {
-  it("shows each price in its symbol's currency, not the raw stored string (audit T7)", () => {
+  it("shows each price in its row's currency, not the raw stored string (audit T7)", () => {
     render(
       <WatchlistWidget
         watchlist={[
@@ -338,6 +338,8 @@ describe("WatchlistWidget", () => {
             sector: null,
             added_at: "2026-08-01T00:00:00Z",
             last_close: "312.320000",
+            last_close_at: "2025-04-04T00:00:00",
+            currency: "USD",
           },
           {
             ticker: "RELIANCE.NS",
@@ -345,13 +347,65 @@ describe("WatchlistWidget", () => {
             sector: null,
             added_at: "2026-08-01T00:00:00Z",
             last_close: "1250.5",
+            last_close_at: "2025-04-07T00:00:00",
+            currency: "INR",
           },
         ]}
-        currencies={{ AAPL: "USD", "RELIANCE.NS": "INR" }}
       />,
     );
     expect(screen.getByText("$312.32")).toBeVisible();
     expect(screen.getByText("₹1,250.50")).toBeVisible();
     expect(screen.queryByText("312.320000")).not.toBeInTheDocument();
+  });
+
+  it("dates each price by its own close (audit RS-13)", () => {
+    render(
+      <WatchlistWidget
+        watchlist={[
+          {
+            ticker: "AAPL",
+            name: "Apple Inc.",
+            sector: null,
+            added_at: "2026-08-01T00:00:00Z",
+            last_close: "188.38",
+            last_close_at: "2025-04-04T00:00:00",
+            currency: "USD",
+          },
+          {
+            ticker: "NEW",
+            name: "No bars yet",
+            sector: null,
+            added_at: "2026-08-01T00:00:00Z",
+            last_close: null,
+            last_close_at: null,
+            currency: "USD",
+          },
+        ]}
+      />,
+    );
+    expect(screen.getByText("Apr 4, 2025")).toBeVisible();
+    expect(screen.getAllByText(/\d{4}$/)).toHaveLength(1);
+  });
+});
+
+describe("AlertsWidget currency", () => {
+  it("formats each target in the currency its row carries", () => {
+    render(
+      <AlertsWidget
+        alerts={[
+          {
+            id: 1,
+            ticker: "RELIANCE.NS",
+            direction: "above",
+            target_price: "1500",
+            created_at: "2026-08-01T00:00:00",
+            triggered_at: null,
+            dismissed_at: null,
+            currency: "INR",
+          },
+        ]}
+      />,
+    );
+    expect(screen.getByText(/₹1,500\.00/)).toBeVisible();
   });
 });

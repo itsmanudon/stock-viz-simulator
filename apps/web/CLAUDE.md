@@ -315,7 +315,11 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
 - A `"use server"` file may export only async functions (and types). Put
   constants and helpers that actions share in `lib/`, or Next refuses the module.
 - Every displayed price names its close: `/v1/markets/summary` rows carry
-  `last_close_at` and screener rows carry `as_of` (UI audit T1). Symbols end
+  `last_close_at`, screener rows `as_of` and watchlist rows `last_close_at`
+  (UI audit T1, audit RS-13). The summary's `change_pct` is null when the last
+  two bars are more than five days apart or the row's close trails the newest
+  close on the page by more than five days, so a stalled symbol never shows an
+  old move as today's. Symbols end
   on different days, so date each row, not the page. In `next dev`, responses
   fetched with `revalidateSeconds` live in `.next/dev/cache/fetch-cache` (not
   `.next/cache`) and survive restarts; clear that folder after an API schema
@@ -333,6 +337,15 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
 - Format stored bar timestamps with `formatCloseDate()` (`lib/stock-workspace.ts`):
   it reads the calendar date from the string, so it never shifts a day with the
   timezone, and always includes the year.
+- Never parse an API timestamp with `new Date(iso)`. The API sends UTC with no
+  zone ("2025-04-04T00:00:00"), which `new Date()` reads as local time, so east
+  of UTC chart bars landed a day early and "UTC" fill times were off by the
+  offset (audit RS-2). Use `parseApiTimestamp()` / `barTimeToUtcSeconds()` from
+  `lib/api-time.ts`; chart wrappers already do. Test date code under
+  `TZ=Asia/Tokyo` as well as UTC.
+- Watchlist rows carry `last_close_at` and `currency`, and alert rows carry
+  `currency` (audit RS-13), so the dashboard no longer loads the symbol list
+  to format them. `/alerts` still loads it for the create form.
 
 <!-- BEGIN:nextjs-agent-rules -->
 

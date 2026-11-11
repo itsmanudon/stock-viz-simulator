@@ -22,6 +22,7 @@ import { OrderTicket } from "@/components/order-ticket";
 import { PageFrame } from "@/components/page-frame";
 import { PriceChart } from "@/components/price-chart";
 import { ApiError, getBars, getQuotes, listSymbols } from "@/lib/api";
+import { parseApiTimestamp } from "@/lib/api-time";
 import { getPortfolio, listOrders, listTrades } from "@/lib/api/trading";
 import { currencyByTicker, parseTradeTicker } from "@/lib/operational-trading";
 import { formatCurrency, formatQuantity } from "@/lib/portfolio-view-model";
@@ -31,7 +32,7 @@ export const metadata: Metadata = { title: "Trade" };
 /** Fill times are stored in UTC; show them in UTC and say so (audit T4). */
 function fmtWhen(iso: string | null): string {
   if (!iso) return "—";
-  return new Date(iso).toLocaleString("en-US", {
+  return parseApiTimestamp(iso).toLocaleString("en-US", {
     month: "short",
     day: "numeric",
     hour: "2-digit",

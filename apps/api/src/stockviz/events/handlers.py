@@ -46,6 +46,7 @@ from stockviz.services.metrics import refresh_symbol_metrics
 from stockviz.services.sentiment import get_provider
 from stockviz.services.sentiment.base import SentimentInput, SentimentProvider, SentimentScore
 from stockviz.services.sentiment.store import refresh_symbol_sentiment, score_articles
+from stockviz.settings import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -125,12 +126,17 @@ def persist_news_refresh(
     *,
     consumer_name: str = NEWS_INGEST_CONSUMER,
 ) -> str:
-    """Insert new articles + ``news.article.ingested`` per insert + inbox. No commit."""
+    """Insert new articles + ``news.article.ingested`` per insert + inbox. No commit.
+
+    The fan-out is skipped when ``EVENTS_OUTBOX_ENABLED`` is false.
+    """
     if already_processed(session, event_id=event.event_id, consumer_name=consumer_name):
         return "duplicate"
     inserted = insert_new_articles(session, articles)
+    # No publisher reads the outbox where it is switched off (audit OP-11).
+    fan_out = get_settings().events_outbox_enabled
     for article in inserted:
-        if article.id is None or not article.ticker:
+        if not fan_out or article.id is None or not article.ticker:
             continue
         enqueue_news_article_ingested(
             session,

@@ -10,6 +10,8 @@ export type Alert = {
   created_at: string;
   triggered_at: string | null;
   dismissed_at: string | null;
+  /** The symbol's trading currency; target_price is in it. */
+  currency?: string;
 };
 
 export type AlertInput = {
