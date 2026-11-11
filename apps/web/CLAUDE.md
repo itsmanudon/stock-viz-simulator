@@ -315,6 +315,13 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   chosen symbol until the dates are edited by hand. The run is a browser
   call to the API, so a dev server on a port other than 3000 needs that
   origin in the API's `CORS_ORIGINS`, or the run fails with "Failed to fetch".
+- The `/trade` option ticket (`components/option-trade-form.tsx`) quotes
+  before it buys (audit LG-7): `getOptionQuote()` (`lib/api/option-quote.ts`,
+  a browser call to the public `/v1/options/quote`) shows spot with its close
+  date, volatility, value per share and premium, and the buy button names the
+  premium. The strike starts at the money and follows the symbol until edited.
+  Only USD symbols are offered. The portfolio header and the dashboard hero
+  show `ValuationNotice` when `valuation_warnings` is not empty (audit LG-13).
 - Operational trading (`/trade`, `/orders`, `/watchlist`, `/alerts`) is the
   authenticated execution/monitoring loop. See
   [`docs/OPERATIONAL_TRADING.md`](../../docs/OPERATIONAL_TRADING.md).

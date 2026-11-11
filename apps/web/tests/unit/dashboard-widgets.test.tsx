@@ -24,6 +24,7 @@ const portfolio: Portfolio = {
   options_market_value: "0",
   positions: [],
   option_positions: [],
+  valuation_warnings: [],
 };
 
 describe("DeltaPill", () => {

@@ -7,23 +7,27 @@ Both endpoints mutate per-user data so they depend on ``UserIdDep``.
 
 from __future__ import annotations
 
+from datetime import date
 from decimal import Decimal
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlmodel import Session, select
 
 from stockviz.auth import UserIdDep
 from stockviz.db import get_session
+from stockviz.limiter import limiter
 from stockviz.models import OptionsPosition, OptionStatus, OptionType
 from stockviz.models.option import CONTRACT_MULTIPLIER
 from stockviz.schemas import (
     OptionGreeksOut,
     OptionPositionOut,
+    OptionQuoteOut,
     OptionTradeIn,
     OptionTradeOut,
 )
 from stockviz.services.options import (
+    RISK_FREE_RATE,
     InsufficientCashForOption,
     InvalidExpiry,
     NoOptionMarketData,
@@ -33,6 +37,7 @@ from stockviz.services.options import (
     OptionTradeError,
     close_option,
     open_option,
+    quote_option,
     value_option,
 )
 from stockviz.services.trading.execute import NoFxRateError
@@ -75,6 +80,62 @@ def _to_out(session: Session, position: OptionsPosition) -> OptionPositionOut:
         opened_at=position.opened_at,
         current_value=current_value,
         greeks=greeks,
+    )
+
+
+@router.get("/quote", response_model=OptionQuoteOut)
+@limiter.limit("60/minute")
+def get_option_quote(
+    request: Request,
+    session: SessionDep,
+    ticker: Annotated[str, Query(min_length=1, max_length=16)],
+    option_type: Annotated[OptionType, Query()],
+    expiry: Annotated[date, Query()],
+    strike: Annotated[Decimal | None, Query(gt=0, le=1_000_000_000)] = None,
+    quantity: Annotated[int, Query(ge=1, le=1_000)] = 1,
+) -> OptionQuoteOut:
+    """Price an open without placing it, the way ``POST /trade`` would charge it.
+
+    Public like the other price reads: it uses stored closes only. The ticket
+    shows it before the buy (audit LG-7). Without ``strike`` it prices at the
+    money and returns the strike it used.
+    """
+    del request  # slowapi reads it
+    try:
+        quote = quote_option(
+            session,
+            ticker=ticker,
+            option_type=option_type,
+            strike=strike,
+            expiry=expiry,
+            quantity=quantity,
+        )
+    except OptionSymbolNotFound as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+    except NoOptionMarketData as exc:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from exc
+    except (InvalidExpiry, OptionTradeError) as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
+    price = quote.price
+    return OptionQuoteOut(
+        ticker=quote.ticker,
+        option_type=option_type.value,  # type: ignore[arg-type]
+        strike=quote.strike,
+        expiry=expiry,
+        quantity=quantity,
+        spot=quote.spot,
+        spot_at=quote.spot_at,
+        volatility=round(quote.volatility, 6),
+        risk_free_rate=RISK_FREE_RATE,
+        per_share=quote.per_share.quantize(Decimal("0.000001")),
+        premium=quote.premium,
+        contract_size=int(CONTRACT_MULTIPLIER),
+        greeks=OptionGreeksOut(
+            delta=round(price.delta, 6),
+            gamma=round(price.gamma, 6),
+            theta=round(price.theta, 6),
+            vega=round(price.vega, 6),
+        ),
     )
 
 

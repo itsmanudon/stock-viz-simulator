@@ -659,6 +659,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/options/quote": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Option Quote
+         * @description Price an open without placing it, the way ``POST /trade`` would charge it.
+         *
+         *     Public like the other price reads: it uses stored closes only. The ticket
+         *     shows it before the buy (audit LG-7). Without ``strike`` it prices at the
+         *     money and returns the strike it used.
+         */
+        get: operations["get_option_quote_v1_options_quote_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/options/trade": {
         parameters: {
             query?: never;
@@ -1806,6 +1830,51 @@ export interface components {
             greeks: components["schemas"]["OptionGreeksOut"];
         };
         /**
+         * OptionQuoteOut
+         * @description GET /v1/options/quote: what an open would cost now (audit LG-7).
+         *
+         *     Priced by the same function the open charges with. ``spot`` is the latest
+         *     stored close (``spot_at``), ``volatility`` the 30-day historical volatility
+         *     used as the IV proxy, ``per_share`` the Black-Scholes value and
+         *     ``premium`` the charge for ``quantity`` contracts of ``contract_size``.
+         */
+        OptionQuoteOut: {
+            /** Ticker */
+            ticker: string;
+            /**
+             * Option Type
+             * @enum {string}
+             */
+            option_type: "call" | "put";
+            /** Strike */
+            strike: string;
+            /**
+             * Expiry
+             * Format: date
+             */
+            expiry: string;
+            /** Quantity */
+            quantity: number;
+            /** Spot */
+            spot: string;
+            /**
+             * Spot At
+             * Format: date-time
+             */
+            spot_at: string;
+            /** Volatility */
+            volatility: number;
+            /** Risk Free Rate */
+            risk_free_rate: number;
+            /** Per Share */
+            per_share: string;
+            /** Premium */
+            premium: string;
+            /** Contract Size */
+            contract_size: number;
+            greeks: components["schemas"]["OptionGreeksOut"];
+        };
+        /**
          * OptionTradeIn
          * @description Request body for POST /v1/options/trade.
          *
@@ -1844,6 +1913,11 @@ export interface components {
             /** Cash Delta */
             cash_delta: string;
         };
+        /**
+         * OptionType
+         * @enum {string}
+         */
+        OptionType: "call" | "put";
         /** PendingOrderIn */
         PendingOrderIn: {
             /** Ticker */
@@ -2023,6 +2097,11 @@ export interface components {
              * @default []
              */
             option_positions: components["schemas"]["PortfolioOptionOut"][];
+            /**
+             * Valuation Warnings
+             * @default []
+             */
+            valuation_warnings: components["schemas"]["ValuationWarningOut"][];
         };
         /**
          * PortfolioOverviewOut
@@ -2932,6 +3011,24 @@ export interface components {
             input?: unknown;
             /** Context */
             ctx?: Record<string, never>;
+        };
+        /**
+         * ValuationWarningOut
+         * @description A figure the valuation could not price (audit LG-13).
+         *
+         *     ``code``: ``no_close`` and ``no_option_price`` (valued at 0) or
+         *     ``no_fx_rate`` (added unconverted). ``subject`` is a ticker or currency.
+         */
+        ValuationWarningOut: {
+            /**
+             * Code
+             * @enum {string}
+             */
+            code: "no_close" | "no_option_price" | "no_fx_rate";
+            /** Subject */
+            subject: string;
+            /** Message */
+            message: string;
         };
         /**
          * WatchlistItemOut
@@ -4207,6 +4304,41 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_option_quote_v1_options_quote_get: {
+        parameters: {
+            query: {
+                ticker: string;
+                option_type: components["schemas"]["OptionType"];
+                expiry: string;
+                strike?: number | string | null;
+                quantity?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OptionQuoteOut"];
+                };
             };
             /** @description Validation Error */
             422: {

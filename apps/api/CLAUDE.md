@@ -418,6 +418,19 @@ intraday fills anywhere in the app:
 - **Options count toward NAV.** `compute_portfolio` marks open contracts to
   their Black-Scholes value (`options_market_value`). Without it, buying an
   option debited cash and recorded no offsetting asset.
+- **Incomplete valuations say so (audit LG-13).** `compute_portfolio` still
+  values a holding without a close and an unpriceable option at 0, and adds an
+  amount without an FX rate unconverted, but each shortcut becomes a
+  `ValuationWarning` (`no_close`, `no_option_price`, `no_fx_rate`), returned
+  as `PortfolioOut.valuation_warnings`. The nightly snapshot refuses an
+  incomplete valuation (`IncompleteValuation`, logged, not a job failure) and
+  keeps the last good NAV, so a missing price never enters the equity curve,
+  returns or leaderboard as a loss.
+- **Option quotes (audit LG-7).** `GET /v1/options/quote` (public, 60/min)
+  prices an open without placing it through `quote_option`, the function
+  `open_option` charges with: spot and its date, 30-day volatility, value per
+  share, premium for the contracts. Without `strike` it prices at the money
+  (the latest close rounded to cents) and returns that strike.
 - **Options** (`services/options/`): long-only book. Black-Scholes pricing
   with 30-day historical volatility as the IV proxy and a 5% risk-free rate;
   contracts are ×100 (`CONTRACT_MULTIPLIER`). Premiums debit the USD cash
