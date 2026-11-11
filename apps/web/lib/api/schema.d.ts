@@ -1674,6 +1674,8 @@ export interface components {
             currency: string;
             /** Last Close */
             last_close?: string | null;
+            /** Last Close At */
+            last_close_at?: string | null;
             /** Prev Close */
             prev_close?: string | null;
             /** Change Pct */
@@ -2687,6 +2689,8 @@ export interface components {
             currency: string;
             /** Last Close */
             last_close: string;
+            /** As Of */
+            as_of?: string | null;
             /** Rsi 14 */
             rsi_14?: number | null;
             /** Momentum Pct */

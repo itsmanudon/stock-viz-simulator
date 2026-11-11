@@ -382,7 +382,7 @@ jobs:
         working-directory: apps/api
         run: uv sync --frozen
 
-      - name: Migrate + seed + backfill + recommend
+      - name: Migrate + seed + backfill + metrics + recommend
         working-directory: apps/api
         env:
           DATABASE_URL: postgresql+psycopg://stockviz:stockviz_dev@localhost:5432/stockviz
@@ -390,6 +390,8 @@ jobs:
           uv run alembic upgrade head
           uv run python -m stockviz.cli seed
           uv run python -m stockviz.cli backfill
+          # The screener reads RSI and the 52-week range from symbol_metrics.
+          uv run python -m stockviz.cli metrics
           uv run python -m stockviz.cli recommend
 
       - name: Start API
