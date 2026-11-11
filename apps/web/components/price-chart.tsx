@@ -23,6 +23,7 @@ import {
 import { useEffect, useMemo, useRef } from "react";
 
 import type { Bar, IndicatorPoint, MACDPoint } from "@/lib/api";
+import { fitWithLabelRoom } from "@/lib/chart-range";
 import { useChartPalette } from "@/lib/chart-theme";
 
 export type PriceChartMarker = {
@@ -115,6 +116,10 @@ export function PriceChart({ bars, overlays, macd, markers }: Props) {
     const volumeSeries = chart.addSeries(HistogramSeries, {
       priceFormat: { type: "volume" },
       priceScaleId: "volume",
+      // Volume shares the right axis with price; its tag and line sat on top
+      // of the price labels (UI audit P4). The bars carry the information.
+      lastValueVisible: false,
+      priceLineVisible: false,
     });
     volumeSeries.setData(volumes);
     chart.priceScale("volume").applyOptions({
@@ -176,8 +181,9 @@ export function PriceChart({ bars, overlays, macd, markers }: Props) {
       );
     }
 
-    chart.timeScale().fitContent();
-    macdChart?.timeScale().fitContent();
+    const fallbackWidth = (containerRef.current?.clientWidth ?? 0) - 64;
+    fitWithLabelRoom(chart, candles.length, fallbackWidth);
+    if (macdChart && macd) fitWithLabelRoom(macdChart, macd.length, fallbackWidth);
 
     return () => {
       macdChart?.remove();

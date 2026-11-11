@@ -269,7 +269,11 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   document and re-reads on theme change — never hard-code chart colours. The
   hook keeps its object identity stable while colours are unchanged because
   callers pass it to `useEffect`, and a new identity forces a full chart
-  rebuild.
+  rebuild. Fit the time axis with `fitWithLabelRoom()` (`lib/chart-range.ts`),
+  not `timeScale().fitContent()`: it leaves room for the outermost date label,
+  which lightweight-charts otherwise clips ("ug", "25"; UI audit P4). A volume
+  series on the price pane sets `lastValueVisible: false` and
+  `priceLineVisible: false`, or its tag sits on the price labels.
 - Server components by default — only mark `"use client"` when you need state,
   effects, or interactivity.
 - Research (`/compare`, `/backtest`, `/recommendations`, `/replay`) is one

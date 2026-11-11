@@ -14,7 +14,7 @@ vi.mock("lightweight-charts", () => ({
   AreaSeries: "AreaSeries",
   createChart: () => ({
     addSeries: () => ({ setData: vi.fn() }),
-    timeScale: () => ({ fitContent: vi.fn() }),
+    timeScale: () => ({ fitContent: vi.fn(), width: () => 0, setVisibleLogicalRange: vi.fn() }),
     remove: vi.fn(),
   }),
 }));
