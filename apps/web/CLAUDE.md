@@ -343,6 +343,15 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   offset (audit RS-2). Use `parseApiTimestamp()` / `barTimeToUtcSeconds()` from
   `lib/api-time.ts`; chart wrappers already do. Test date code under
   `TZ=Asia/Tokyo` as well as UTC.
+- The product sidebar follows the Aurora board v3 (`lib/app-navigation.ts`):
+  Home, Markets and Earnings, then labelled sections (Research, Trade,
+  Portfolio, Community) whose headings are not links but light up while one
+  of their routes is open, including `/stocks/*` for Research. Settings sits
+  apart at the bottom and only for signed-in users (proxy.ts guards it). The
+  wordmark carries the `EOD · SIMULATED` tag, and the top bar shows
+  `DataDateChip` (`components/marketing/market-status.tsx`), the newest stored
+  bar's date. It is an async server component, so unit tests that render the
+  shell mock that module.
 - Watchlist rows carry `last_close_at` and `currency`, and alert rows carry
   `currency` (audit RS-13), so the dashboard no longer loads the symbol list
   to format them. `/alerts` still loads it for the create form.
