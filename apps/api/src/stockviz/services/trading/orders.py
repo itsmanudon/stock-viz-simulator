@@ -269,8 +269,9 @@ def _settle_one(
     if (now - order.created_at).days >= ORDER_MAX_AGE_DAYS:
         _expire(session, order)
         return False
+    # The FX rate's age is judged against the session being settled (MD-7).
     try:
-        priced = resolve_priced_symbol(session, order.ticker)
+        priced = resolve_priced_symbol(session, order.ticker, settled_session=session_date)
     except NoMarketDataError:
         return False
     except (SymbolNotFound, NoFxRateError) as exc:

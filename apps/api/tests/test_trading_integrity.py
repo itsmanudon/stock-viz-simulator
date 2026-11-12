@@ -18,6 +18,7 @@ from decimal import Decimal
 
 from sqlmodel import Session, select
 
+from stockviz._time import utcnow
 from stockviz.models import (
     Dividend,
     FxRate,
@@ -131,6 +132,9 @@ def test_pending_order_fill_matches_market_order_cash_effect(session: Session) -
     limit_user = _user(session, "limit@stockviz.dev")
     _symbol(session, "SAP.DE", currency="EUR", close=Decimal("80"))
     _fx(session, "EUR", "1.10")
+    # A market order converts at a rate no older than the session before the
+    # latest (MD-7); settlement judges against its own session.
+    _fx(session, "EUR", "1.10", on=utcnow().date())
 
     execute_trade(
         session, user_id=market_user, ticker="SAP.DE", side=TradeSide.BUY, quantity=Decimal(5)

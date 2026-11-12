@@ -517,6 +517,18 @@ migration both applied it and one failed. The lock is a session lock because a
 migration may commit part-way. `tests/test_migration_round_trip.py` starts two
 real upgrades at once.
 
+**Pence and FX age (Phase 4.5a, audits MD-2, MD-7).** yfinance quotes London
+shares and dividends in pence (`GBp`) while the symbol is GBP. `upsert_bars`
+divides provider bars (`yfinance`, `alpha_vantage`) by the instrument's
+`quote_unit` scale (`MINOR_UNIT_SCALE`, GBX = 100), and dividend ingest does
+the same; stored and seed rows are never scaled. The nightly full-history
+upsert rewrites existing London rows on its first run. FX: the ingest drops a
+NaN, zero or negative rate, `fx_rates` refuses one by check constraint, and a
+fill converts only at a rate no older than the session before its own
+(`rate_for_fill`, `fill_rate_floor`): the latest completed session for a
+market order, the settled session for pending-order settlement. A stale rate
+raises `NoFxRateError`, which cancels a pending order with the reason.
+
 **Instrument identity (Phase 4.3 expand, 4.4 reads).** `instruments` (venue
 MIC, currency, `quote_unit`, asset type) and `instrument_identifiers` (`yahoo`
 = the ticker, `aegis` = `stockviz:<ticker>`) sit beside `symbols`

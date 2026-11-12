@@ -158,6 +158,10 @@ class FxRate(SQLModel, table=True):
     """
 
     __tablename__ = "fx_rates"  # pyright: ignore[reportAssignmentType]
+    # Audit MD-7. 'NaN' sorts above every number in Postgres, so it needs its own test.
+    __table_args__ = (
+        CheckConstraint("usd_rate > 0 AND usd_rate <> 'NaN'", name="ck_fx_rates_usd_rate_positive"),
+    )
 
     currency: str = Field(primary_key=True, max_length=3)
     date: date_type = Field(primary_key=True, index=True)

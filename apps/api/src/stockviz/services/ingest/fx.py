@@ -76,15 +76,20 @@ def fetch_yfinance_fx(
         if hasattr(ts, "tzinfo") and ts.tzinfo is not None:
             ts = ts.replace(tzinfo=None)
         try:
+            rate = Decimal(str(row["Close"]))
+            # A NaN, zero or negative rate would convert every fill wrongly
+            # (audit MD-7); fx_rates also refuses one by check constraint.
+            if not rate.is_finite() or rate <= 0:
+                raise ValueError(f"rate {rate} is not a positive finite number")
             records.append(
                 FxRecord(
                     currency=currency,
                     date=ts.date() if hasattr(ts, "date") else ts,
-                    usd_rate=Decimal(str(row["Close"])),
+                    usd_rate=rate,
                     source=SOURCE_YFINANCE,
                 )
             )
-        except (KeyError, ValueError, TypeError) as exc:
+        except (KeyError, ValueError, TypeError, ArithmeticError) as exc:
             logger.warning("yfinance_fx: skipping bad row for %s at %s: %s", currency, ts, exc)
     return records
 
