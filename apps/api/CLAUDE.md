@@ -131,6 +131,16 @@ against its venue's session. Option expiry uses the last New York session on
 or before expiry. Outside a calendar's range (XBOM ends 2026-12-31 in the
 pinned package) the weekday rule applies and a warning is logged.
 
+**A daily bar's date is its venue's date (Phase 4.1b).** yfinance labels a
+daily bar with midnight in the venue's time zone, and `fetch_yfinance_daily`
+takes that date as it is. Do not convert it to New York: before 12 Nov 2026 it
+did, and every bar east of New York was stored a day early (Monday's session
+under Sunday). `stockviz.cli redate-bars` (dry run; `--apply` to act) repairs
+stored history: per affected ticker it fetches yfinance again and, in one
+transaction, swaps the `yfinance` daily rows and their quarantine rows. Other
+sources (`bulk_*`, `v1_csv`) are kept; a ticker yfinance returns nothing for is
+skipped. Run it once after the fix is deployed (`services/ingest/redate.py`).
+
 **Dividends (audit LG-12, #66).** `credit_due_dividends` credits every
 uncredited ex-date on or before the run date (a missed night or a missing FX
 rate is paid by the next run), only for ex-dates after the portfolio opened,
