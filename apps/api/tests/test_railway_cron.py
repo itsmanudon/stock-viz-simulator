@@ -44,10 +44,14 @@ def test_every_cli_job_records_its_failure() -> None:
     assert len(jobs) >= 10
     wrapped = set(re.findall(r'job\("python -m stockviz\.cli ([a-z-]+)', steps))
     # Not wrapped in job(): `aegis-sync` tolerates exit code 2 (Aegis not
-    # configured), and `metadata` runs on Mondays only. Both still record rc.
-    assert set(jobs) - wrapped == {"aegis-sync", "metadata"}
+    # configured), `metadata` runs on Mondays only and `fundamentals` (Phase
+    # 6.3) on Fridays only. All still record rc.
+    assert set(jobs) - wrapped == {"aegis-sync", "metadata", "fundamentals"}
     assert "stockviz.cli aegis-sync || [ $? -eq 2 ] || rc=1" in steps
     assert 'if [ "$(date -u +%u)" = 1 ]; then python -m stockviz.cli metadata || rc=1; fi' in steps
+    assert (
+        'if [ "$(date -u +%u)" = 5 ]; then python -m stockviz.cli fundamentals || rc=1; fi' in steps
+    )
 
 
 def test_earnings_and_metadata_are_refreshed() -> None:

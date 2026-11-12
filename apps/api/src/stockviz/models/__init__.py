@@ -23,6 +23,7 @@ from stockviz.models.earnings import EarningsEvent
 from stockviz.models.events import ConsumerInbox, OutboxEvent, PortfolioTradeActivity
 from stockviz.models.execution import SimulatedExecution
 from stockviz.models.experiment import Experiment, ExperimentRun
+from stockviz.models.fundamentals import FundamentalFact
 from stockviz.models.instrument import Instrument, InstrumentIdentifier
 from stockviz.models.job_run import JobRun
 from stockviz.models.market import (
@@ -77,6 +78,7 @@ __all__ = [
     "EarningsEvent",
     "Experiment",
     "ExperimentRun",
+    "FundamentalFact",
     "FxConversion",
     "FxRate",
     "Instrument",
