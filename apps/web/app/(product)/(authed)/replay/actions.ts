@@ -115,7 +115,7 @@ export async function advanceReplayAction(
     return { error: "Invalid replay session." };
   }
   try {
-    const session = await advanceReplaySession(sessionId);
+    const session = await advanceReplaySession(sessionId, from || undefined);
     revalidatePath("/replay");
     revalidatePath(`/replay/${sessionId}`);
     return { from, to: session.current_at, status: session.status };

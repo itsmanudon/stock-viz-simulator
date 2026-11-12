@@ -142,6 +142,9 @@ def test_advance_to_end_then_409(session: Session, client: TestClient) -> None:
     assert first.status_code == 200
     last = client.post(f"/v1/replay/sessions/{session_id}/advance", headers=headers)
     assert last.status_code == 200
+    assert last.json()["status"] == "active"  # the last bar can be traded (SR-10)
+    assert last.json()["has_next"] is False
+    last = client.post(f"/v1/replay/sessions/{session_id}/advance", headers=headers)
     assert last.json()["status"] == "completed"
     again = client.post(f"/v1/replay/sessions/{session_id}/advance", headers=headers)
     assert again.status_code == 409
@@ -286,6 +289,7 @@ def test_summary_and_orders_on_terminal_sessions(session: Session, client: TestC
     _seed(session)
     headers = _auth_headers(_make_user(session))
     session_id = _create(client, headers).json()["id"]
+    client.post(f"/v1/replay/sessions/{session_id}/advance", headers=headers)
     client.post(f"/v1/replay/sessions/{session_id}/advance", headers=headers)
     completed = client.post(f"/v1/replay/sessions/{session_id}/advance", headers=headers)
     assert completed.json()["status"] == "completed"

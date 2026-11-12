@@ -213,8 +213,18 @@ export function createReplaySession(body: ReplayCreateInput): Promise<ReplaySess
   return authedPost("/v1/replay/sessions", body);
 }
 
-export function advanceReplaySession(sessionId: number): Promise<ReplaySession> {
-  return authedPost(`/v1/replay/sessions/${sessionId}/advance`);
+/**
+ * Advance from the bar on screen. A repeat after the session has moved on
+ * changes nothing (audit SR-10). From the last bar, this completes the session.
+ */
+export function advanceReplaySession(
+  sessionId: number,
+  expectedCurrentAt?: string,
+): Promise<ReplaySession> {
+  const qs = expectedCurrentAt
+    ? `?expected_current_at=${encodeURIComponent(expectedCurrentAt)}`
+    : "";
+  return authedPost(`/v1/replay/sessions/${sessionId}/advance${qs}`);
 }
 
 export function cancelReplaySession(sessionId: number): Promise<ReplaySession> {

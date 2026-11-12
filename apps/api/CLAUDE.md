@@ -448,17 +448,29 @@ intraday fills anywhere in the app:
 - **Replay sessions** (`services/replay/`, `/v1/replay/...`): isolated
   cash/positions over a frozen ticker/`start_at`/`end_at` 1d range.
   `current_at` is the currently observable stored bar. `POST .../advance`
-  moves to the next stored bar under `SELECT … FOR UPDATE`. Market and
+  moves to the next stored bar under `SELECT … FOR UPDATE`; with
+  `?expected_current_at=` (the web sends it) a repeated request after the
+  session moved on changes nothing (audit SR-10). Market and
   history never return bars after `current_at`. `GET .../summary` marks
   positions at the current replay close. `GET .../availability` returns the
   stored 1d range for the launcher. List rows omit positions (no N+1).
   Orders take intent only; fill price is the current bar close. USD
-  symbols only. Cancel is manual; exhausting `end_at` marks `completed`.
+  symbols only. Cancel is manual. Reaching the last bar keeps the session
+  active, so that bar can be traded; advancing from it marks `completed`
+  (the web's "Finish replay"). Cash and positions go through the shared
+  `services/simulation/ledger.py::SimLedger` (Phase 5.1), whose arithmetic
+  `tests/test_sim_ledger.py` holds equal to `apply_fill`; the backtester
+  moves onto it in 5.2. `stockviz.cli benchmark-kernel` measures kernel +
+  ledger throughput (about 140k fills/s locally; `test_kernel_benchmark.py`
+  keeps a 10k floor).
   No delete endpoint; child rows cascade if a session row is removed.
   Replay Lab UI is `/replay` (SIM-06). MARKET-only in the UI.
   `GET .../forensics` is derived (episodes, MAE/MFE vs active weighted
   entry using stored daily high/low, same-symbol buy-and-hold excess,
-  one-ticker concentration). Horizon is `current_at` (cancelled the
+  one-ticker concentration). MAE/MFE count a bar's range only for shares
+  held before its fills (fills are at the close), and measure from the
+  ledger's average cost, as does the episode entry (audits SR-2, SR-6).
+  Horizon is `current_at` (cancelled the
   same; completed through frozen `end_at`). `GET`/`PUT .../journal`
   stores thesis/invalidation/expected bars/confidence; those fields
   lock after the first fill (`409`); reflection stays editable.

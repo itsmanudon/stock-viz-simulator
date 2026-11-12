@@ -150,6 +150,7 @@ def test_summary_completed_and_cancelled_still_mark_current_bar(session: Session
         session, user_id=user_id, ticker="AAPL", start_at=DAY1, end_at=DAY2
     )
     completed = advance_replay_session(session, replay=completed)
+    completed = advance_replay_session(session, replay=completed)
     assert completed.status == "completed"
     summary = compute_replay_summary(session, completed)
     assert summary.current_close == Decimal("110")

@@ -364,6 +364,18 @@ def _cmd_instrument_check(_args: argparse.Namespace) -> int:
     return 1 if bad else 0
 
 
+def _cmd_benchmark_kernel(args: argparse.Namespace) -> int:
+    """Kernel + SimLedger throughput on a seeded walk (Phase 5.1). No database."""
+    from stockviz.benchmarks.kernel import run
+
+    result = run(bars=args.bars)
+    print(
+        f"{result.bars} bars in {result.seconds:.3f}s: "
+        f"{result.fills_per_second:,.0f} fills/s (kernel evaluate + SimLedger apply)"
+    )
+    return 0
+
+
 def _cmd_kite_login_url(_args: argparse.Namespace) -> int:
     """Print Zerodha's login page for the Kite app (Phase 4.7). Exit 2 without a key."""
     from stockviz.services.ingest.providers.kite import login_url
@@ -1428,6 +1440,12 @@ def main(argv: list[str] | None = None) -> int:
         "instrument-check",
         help="Read-only: rows whose instrument_id the identity triggers missed (Phase 4.3)",
     ).set_defaults(fn=_cmd_instrument_check)
+
+    p_bench = sub.add_parser(
+        "benchmark-kernel", help="Kernel + SimLedger throughput, no database (Phase 5.1)"
+    )
+    p_bench.add_argument("--bars", type=int, default=20_000)
+    p_bench.set_defaults(fn=_cmd_benchmark_kernel)
 
     sub.add_parser(
         "kite-login-url", help="Print Zerodha's login page for the Kite app (Phase 4.7)"
