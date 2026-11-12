@@ -25,6 +25,23 @@ test.describe("marketing home", () => {
     await expect(page.getByText("No card required")).toBeVisible();
   });
 
+  test("watch it work states every animated figure in text", async ({ page }) => {
+    // Each row's animation is decoration; the figures it draws are written
+    // beside it, so the page reads the same without the canvas.
+    const section = page.locator("section", { hasText: "Watch it work." });
+    await expect(section).toHaveCount(1);
+    const rows = section.locator("li[data-motion-item]");
+    expect(await rows.count()).toBeGreaterThan(0);
+    for (const row of await rows.all()) {
+      await expect(row.locator("h3")).toBeVisible();
+      await expect(row.locator("p.font-mono")).not.toBeEmpty();
+      await expect(row.getByRole("link")).toBeVisible();
+      for (const art of await row.locator("canvas").all()) {
+        expect(await art.evaluate((el) => el.closest("[aria-hidden]") !== null)).toBe(true);
+      }
+    }
+  });
+
   test("hero phone screens can be switched with the dots", async ({ page }) => {
     // With motion, scrolling the dots into view starts the pinned hero, whose
     // panel covers the phone mid-animation by design; on a slow runner the
