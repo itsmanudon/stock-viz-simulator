@@ -1562,3 +1562,53 @@ class NotificationOut(BaseModel):
 
 class UnreadCountOut(BaseModel):
     unread: int
+
+
+# ---------------------------------------------------------------------------
+# News event studies (Phase 7.4)
+# ---------------------------------------------------------------------------
+
+
+class EventStudyWindowOut(BaseModel):
+    start: int
+    end: int
+    mean_car_pct: float | None
+    std_error_pct: float | None
+    t_stat: float | None
+
+
+class EventStudyPointOut(BaseModel):
+    offset: int
+    mean_car_pct: float | None
+    std_error_pct: float | None
+
+
+class EventStudyEventOut(BaseModel):
+    ticker: str
+    document_id: str
+    title: str
+    available_at: datetime
+    event_date: date
+    car_pct: float
+
+
+class EventStudyOut(BaseModel):
+    """Abnormal returns around news of a kind. Association, not cause."""
+
+    tickers: list[str]
+    sentiment: str | None
+    event_type: str | None
+    pre: int
+    post: int
+    model: str = "market-adjusted: stock log return minus its market index's"
+    benchmarks: dict[str, str]
+    no_benchmark: list[str]
+    min_events: int
+    enough: bool
+    events_found: int
+    events_used: int
+    events_incomplete: int
+    overlapping: int
+    windows: list[EventStudyWindowOut]
+    path: list[EventStudyPointOut]
+    events: list[EventStudyEventOut]

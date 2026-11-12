@@ -30,6 +30,7 @@ from stockviz.routers import (
     quotes,
     recommendations,
     replay,
+    research,
     screener,
     screens,
     sentiment,
@@ -118,6 +119,7 @@ def create_app() -> FastAPI:
     app.include_router(earnings.router)
     app.include_router(journal.router)
     app.include_router(notifications.router)
+    app.include_router(research.router)
 
     return app
 

@@ -9,6 +9,7 @@ import {
   type TicketPosition,
   type TradeTicketAccount,
 } from "@/components/contextual-trade-ticket";
+import { NewsReactions } from "@/components/event-study-view";
 import { FundamentalsPanel } from "@/components/fundamentals-panel";
 import { MobileTradeSheet } from "@/components/mobile-trade-sheet";
 import { NewsList } from "@/components/news-list";
@@ -30,6 +31,7 @@ import {
 } from "@/lib/api";
 import { listComments } from "@/lib/api/comments";
 import { getFundamentals, getValuation, getValuationHistory } from "@/lib/api/fundamentals";
+import { getEventStudy } from "@/lib/api/research";
 import {
   type PendingOrder,
   type Portfolio,
@@ -133,6 +135,8 @@ export default async function StockPage({
     fundamentalsQuarterly,
     valuationNow,
     peHistory,
+    negativeReactions,
+    positiveReactions,
   ] = await Promise.all([
     barsPromise,
     rangeBarsPromise,
@@ -145,6 +149,9 @@ export default async function StockPage({
     getFundamentals(ticker, "quarter").catch(() => null),
     getValuation(ticker).catch(() => null),
     getValuationHistory(ticker, "pe").catch(() => null),
+    // Phase 7.4: how this stock moved around its negative and positive news.
+    getEventStudy({ tickers: [ticker], sentiment: "negative" }).catch(() => null),
+    getEventStudy({ tickers: [ticker], sentiment: "positive" }).catch(() => null),
   ]);
 
   const signedIn = Boolean(session?.user?.id);
@@ -288,7 +295,16 @@ export default async function StockPage({
               peHistory={peHistory}
             />
           }
-          news={<NewsList articles={news} variant="workspace" />}
+          news={
+            <div className="space-y-8">
+              <NewsList articles={news} variant="workspace" />
+              <NewsReactions
+                ticker={ticker}
+                negative={negativeReactions}
+                positive={positiveReactions}
+              />
+            </div>
+          }
           positionOrders={
             signedIn ? (
               <div className="space-y-8">

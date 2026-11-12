@@ -47,9 +47,18 @@ _LOOKBACK_DAYS = 14
 _warned: set[str] = set()
 
 
+INDEX_VENUES: dict[str, str] = {
+    "^GSPC": "XNYS",  # S&P 500 (Phase 7.4 benchmark)
+    "^NSEI": "XBOM",  # NIFTY 50: NSE hours and holidays
+}
+"""Benchmarks have no suffix; they are dated by their market's sessions."""
+
+
 def venue_for_ticker(ticker: str) -> str:
     """The MIC a Yahoo-style ticker trades on; US listings have no suffix."""
     upper = ticker.upper()
+    if upper in INDEX_VENUES:
+        return INDEX_VENUES[upper]
     for suffix, venue in VENUE_BY_SUFFIX.items():
         if upper.endswith(suffix):
             return venue

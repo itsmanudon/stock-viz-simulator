@@ -364,7 +364,12 @@ def score_universe(
     too, daily.
     """
 
-    tickers = list(session.exec(select(Symbol.ticker).where(Symbol.is_active)).all())
+    # Indices (Phase 7.4) are benchmarks, not signals.
+    tickers = [
+        t
+        for t in session.exec(select(Symbol.ticker).where(Symbol.is_active)).all()
+        if not t.startswith("^")
+    ]
 
     # One lookup for the whole universe's sentiment, rather than per ticker.
     sentiment_by_ticker = {

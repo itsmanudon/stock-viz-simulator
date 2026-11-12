@@ -110,3 +110,13 @@ def instrument_ids(session, tickers) -> dict[str, int]:
         .order_by(col(InstrumentIdentifier.valid_from))
     ).all()
     return dict(rows)
+
+
+def is_index_ticker(ticker: str) -> bool:
+    """Benchmarks (Phase 7.4): Yahoo index tickers start with ``^``.
+
+    Indices are instruments of asset type ``index``: bars are stored and
+    studied, but they are never traded and stay out of the screener, the
+    markets table and the signals.
+    """
+    return ticker.startswith("^")

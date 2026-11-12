@@ -277,6 +277,22 @@ expiry. `/v1/notifications` (list with `category`, `unread`, `before_id`),
 notifications over 180 days old. In-app only (owner, Phase 7). Migration
 `4d4accec26be`.
 
+**Index benchmarks and news event studies (Phase 7.4).** `^GSPC` (S&P 500,
+USD) and `^NSEI` (NIFTY 50, INR) are seeded index instruments (a `^` ticker
+is asset type `index` in both identity rules; migration `4ec3f175fd60`;
+`calendar.INDEX_VENUES` dates them by XNYS and XBOM). The nightly ingest
+stores their bars; `is_index_ticker` keeps them out of trading
+(`NotTradable`, 400), options, the screener, the markets table and signals.
+`services/event_study.py::run_event_study`: for each Aegis document linked
+to a stock and matching a sentiment label and/or event type, the event day
+is the first stored bar whose session closed after `available_at`; abnormal
+return = stock log return minus its index's on the dates both traded; CAR
+from `-pre` to `+post`; mean, standard error and t across events for the
+windows (0,1), (0,5), (-5,-1), (0,20). Events lacking the full window are
+counted, not used; overlapping windows are counted; under `MIN_EVENTS` (10)
+no averages. `GET /v1/research/event-study?tickers=&sentiment=&event_type=&pre=&post=`
+(public, 20/min, up to 20 tickers).
+
 **Web cache after the night (audit RS-9, Phase 6.6).** The cron's last step
 is `revalidate-web`: it posts to `WEB_REVALIDATE_URL` with header
 `X-StockViz-Revalidate`, an HMAC-SHA256 of `stockviz-revalidate-v1` under

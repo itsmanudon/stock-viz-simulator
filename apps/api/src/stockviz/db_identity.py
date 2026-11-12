@@ -86,7 +86,7 @@ CREATE OR REPLACE FUNCTION stockviz_asset_type(p_ticker text, p_exchange text) R
 LANGUAGE sql IMMUTABLE AS $$
   SELECT CASE
     WHEN upper(coalesce(p_exchange, '')) = 'COMMODITY' THEN 'commodity'
-    WHEN p_ticker ~* '^(NIFTY|BANKNIFTY|MIDCAP|SMALLCAP)' THEN 'index'
+    WHEN p_ticker ~* '^(NIFTY|BANKNIFTY|MIDCAP|SMALLCAP)' OR left(p_ticker, 1) = '^' THEN 'index'
     ELSE 'equity'
   END
 $$;
@@ -211,7 +211,8 @@ _SQLITE_COUNTRY_OF_MIC = """CASE {mic}
 _SQLITE_ASSET_TYPE = f"""CASE
     WHEN {_EXCHANGE} = 'COMMODITY' THEN 'commodity'
     WHEN upper(NEW.ticker) LIKE 'NIFTY%' OR upper(NEW.ticker) LIKE 'BANKNIFTY%'
-      OR upper(NEW.ticker) LIKE 'MIDCAP%' OR upper(NEW.ticker) LIKE 'SMALLCAP%' THEN 'index'
+      OR upper(NEW.ticker) LIKE 'MIDCAP%' OR upper(NEW.ticker) LIKE 'SMALLCAP%'
+      OR substr(NEW.ticker, 1, 1) = '^' THEN 'index'
     ELSE 'equity'
   END"""
 
