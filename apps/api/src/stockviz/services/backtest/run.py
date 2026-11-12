@@ -74,18 +74,10 @@ def fingerprint(bars: list[PriceBar], dividends: dict) -> str:
     return digest.hexdigest()
 
 
-def execute_backtest(session: Session, body: BacktestIn) -> BacktestRun:
-    """Raises ``UnknownSymbol``, ``BadRange`` or ``BacktestError``."""
-    ticker = body.ticker.upper()
-    symbol = session.get(Symbol, ticker)
-    if symbol is None:
-        raise UnknownSymbol(f"Symbol {ticker!r} not found")
-    if body.from_ > body.to:
-        raise BadRange("'from' must be on or before 'to'")
-
-    # Inclusive date range; bars are stored at day granularity (interval 1d).
-    start = datetime.combine(body.from_, time.min)
-    end = datetime.combine(body.to, time.max)
+def load_bars(
+    session: Session, ticker: str, start: datetime, end: datetime, warmup: int
+) -> tuple[list[PriceBar], list[PriceBar]]:
+    """Daily bars in [start, end], and up to ``warmup`` bars before start (SR-3)."""
     rows = list(
         session.exec(
             select(PriceBar)
@@ -98,11 +90,7 @@ def execute_backtest(session: Session, body: BacktestIn) -> BacktestRun:
             .order_by(PriceBar.ts.asc())  # type: ignore[attr-defined]
         ).all()
     )
-    strategy_type, params = strategy_of(body)
-
-    # Warm-up (audit SR-3): the bars before ``from`` the strategy needs, read
-    # but not traded, so its first signal inside the window is a real one.
-    warmup = list(
+    before = list(
         reversed(
             session.exec(
                 select(PriceBar)
@@ -112,26 +100,51 @@ def execute_backtest(session: Session, body: BacktestIn) -> BacktestRun:
                     PriceBar.ts < start,
                 )
                 .order_by(PriceBar.ts.desc())  # type: ignore[attr-defined]
-                .limit(warmup_bars_for(strategy_type, params))
+                .limit(warmup)
             ).all()
         )
     )
-    used = warmup + rows
-    bases = {r.adjustment_semantics for r in used}
-    price_basis = None if not bases else bases.pop() if len(bases) == 1 else "mixed"
+    return rows, before
 
-    dividends: dict = {}
-    if body.return_mode == "total":
-        dividends = {
-            d.ex_date: d.amount
-            for d in session.exec(
-                select(Dividend).where(
-                    Dividend.instrument_id == instrument_of(ticker),
-                    Dividend.ex_date >= body.from_,
-                    Dividend.ex_date <= body.to,
-                )
-            ).all()
-        }
+
+def load_dividends(session: Session, ticker: str, start, end) -> dict:
+    return {
+        d.ex_date: d.amount
+        for d in session.exec(
+            select(Dividend).where(
+                Dividend.instrument_id == instrument_of(ticker),
+                Dividend.ex_date >= start,
+                Dividend.ex_date <= end,
+            )
+        ).all()
+    }
+
+
+def price_basis_of(bars: list[PriceBar]) -> str | None:
+    bases = {str(r.adjustment_semantics) for r in bars}
+    return None if not bases else bases.pop() if len(bases) == 1 else "mixed"
+
+
+def execute_backtest(session: Session, body: BacktestIn) -> BacktestRun:
+    """Raises ``UnknownSymbol``, ``BadRange`` or ``BacktestError``."""
+    ticker = body.ticker.upper()
+    symbol = session.get(Symbol, ticker)
+    if symbol is None:
+        raise UnknownSymbol(f"Symbol {ticker!r} not found")
+    if body.from_ > body.to:
+        raise BadRange("'from' must be on or before 'to'")
+
+    # Inclusive date range; bars are stored at day granularity (interval 1d).
+    start = datetime.combine(body.from_, time.min)
+    end = datetime.combine(body.to, time.max)
+    strategy_type, params = strategy_of(body)
+    rows, warmup = load_bars(session, ticker, start, end, warmup_bars_for(strategy_type, params))
+    used = warmup + rows
+    price_basis = price_basis_of(used)
+
+    dividends: dict = (
+        load_dividends(session, ticker, body.from_, body.to) if body.return_mode == "total" else {}
+    )
 
     result = run_backtest(
         [(r.ts, r.close) for r in used],
@@ -151,7 +164,7 @@ def execute_backtest(session: Session, body: BacktestIn) -> BacktestRun:
     out = BacktestOut(
         ticker=ticker,
         currency=symbol.currency or "USD",
-        price_basis=str(price_basis) if price_basis is not None else None,
+        price_basis=price_basis,
         return_mode=body.return_mode,
         warmup_bars=len(warmup),
         execution_profile=f"{profile.name}/{profile.model_version}",
@@ -188,4 +201,12 @@ def execute_backtest(session: Session, body: BacktestIn) -> BacktestRun:
     )
 
 
-__all__ = ["BacktestRun", "BadRange", "UnknownSymbol", "execute_backtest"]
+__all__ = [
+    "BacktestRun",
+    "BadRange",
+    "UnknownSymbol",
+    "execute_backtest",
+    "load_bars",
+    "load_dividends",
+    "price_basis_of",
+]

@@ -16,16 +16,17 @@ from stockviz.auth import UserIdDep
 from stockviz.db import get_session
 from stockviz.models import Experiment, ExperimentRun
 from stockviz.schemas import (
-    BacktestOut,
     BacktestSummaryOut,
     ExperimentIn,
     ExperimentOut,
     ExperimentRerunOut,
     ExperimentRunIn,
     ExperimentRunOut,
+    SweepIn,
+    WalkForwardIn,
 )
 from stockviz.services.backtest import BacktestError
-from stockviz.services.backtest.registry import RunLimitReached, rerun, save_run
+from stockviz.services.backtest.registry import RunLimitReached, rerun, save_run, save_study
 from stockviz.services.backtest.run import BadRange, UnknownSymbol
 
 router = APIRouter(prefix="/v1/experiments", tags=["experiments"])
@@ -51,7 +52,7 @@ def _run_out(row: ExperimentRun, *, full: bool) -> ExperimentRunOut:
         last_bar_at=row.last_bar_at,
         created_at=row.created_at,
         summary=BacktestSummaryOut.model_validate(row.result["summary"]),
-        result=BacktestOut.model_validate(row.result) if full else None,
+        result=row.result if full else None,
     )
 
 
@@ -115,6 +116,40 @@ def post_run(body: ExperimentRunIn, session: SessionDep, user_id: UserIdDep) -> 
     except RunLimitReached as exc:
         raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
     return _run_out(row, full=True)
+
+
+def _study(
+    session: Session, user_id: int, kind: str, request: dict, experiment_id: int | None
+) -> ExperimentRunOut:
+    try:
+        row = save_study(
+            session, user_id=user_id, kind=kind, request=request, experiment_id=experiment_id
+        )
+    except UnknownSymbol as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+    except LookupError as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+    except (BadRange, BacktestError) as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
+    except RunLimitReached as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
+    return _run_out(row, full=True)
+
+
+@router.post("/walk-forward", response_model=ExperimentRunOut, status_code=status.HTTP_201_CREATED)
+def post_walk_forward(
+    body: WalkForwardIn, session: SessionDep, user_id: UserIdDep
+) -> ExperimentRunOut:
+    """Phase 5.5: choose on each in-sample period, score on the next; stored."""
+    request = body.model_dump(mode="json", by_alias=True, exclude={"experiment_id"})
+    return _study(session, user_id, "walk_forward", request, body.experiment_id)
+
+
+@router.post("/sweep", response_model=ExperimentRunOut, status_code=status.HTTP_201_CREATED)
+def post_sweep(body: SweepIn, session: SessionDep, user_id: UserIdDep) -> ExperimentRunOut:
+    """Phase 5.5: every setting over the whole range, ranked; stored."""
+    request = body.model_dump(mode="json", by_alias=True, exclude={"experiment_id"})
+    return _study(session, user_id, "sweep", request, body.experiment_id)
 
 
 @router.get("/runs", response_model=list[ExperimentRunOut])

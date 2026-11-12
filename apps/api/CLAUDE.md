@@ -226,6 +226,16 @@ fields are listed) or `data_changed` (the fingerprint moved, nothing
 compared). Runs are private, capped at 500 a user. `experiments` group runs
 under a name and hypothesis. `tests/test_experiment_registry.py` pins the
 acceptance: a saved run reruns identically and equals the public endpoint.
+Phase 5.5 adds `POST /walk-forward` and `POST /sweep`
+(`services/backtest/walkforward.py`): rolling windows (default 3-year
+in-sample, 1-year out-of-sample, yearly steps); each in-sample period picks
+the best grid setting by Sharpe or return, the next period scores it with the
+capital carried over, and the stitched out-of-sample curve is the result. A
+sweep ranks every setting over the range and records how many were tried.
+Grids are capped at 50 (default: 15 SMA or 16 RSI settings). Bars load once
+and runs are in memory: 50 settings over ten years took 1.9 s locally, so
+these run in the request. Both are stored as runs (`kind` `walk_forward` /
+`sweep`) and rerun like single runs.
 
 **Event table retention (audit OP-11).** Nothing else deletes from
 `outbox_events` or `consumer_inbox`. `prune-events` deletes published outbox

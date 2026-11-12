@@ -201,7 +201,7 @@ describe("BacktestForm", () => {
     const save = await screen.findByRole("button", { name: "Save run" });
     fireEvent.click(save);
     await waitFor(() => expect(saveRun).toHaveBeenCalled());
-    expect(await screen.findByText(/Saved as run 7/)).toBeVisible();
+    expect(await screen.findByText(/Stored as run 7/)).toBeVisible();
   });
 
   it("keeps the form and shows a validation error when the API rejects the run", async () => {

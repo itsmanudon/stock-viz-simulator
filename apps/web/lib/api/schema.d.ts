@@ -773,6 +773,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/experiments/walk-forward": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Post Walk Forward
+         * @description Phase 5.5: choose on each in-sample period, score on the next; stored.
+         */
+        post: operations["post_walk_forward_v1_experiments_walk_forward_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/experiments/sweep": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Post Sweep
+         * @description Phase 5.5: every setting over the whole range, ranked; stored.
+         */
+        post: operations["post_sweep_v1_experiments_sweep_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/experiments/runs/{run_id}": {
         parameters: {
             query?: never;
@@ -1614,7 +1654,10 @@ export interface components {
              */
             created_at: string;
             summary: components["schemas"]["BacktestSummaryOut"];
-            result?: components["schemas"]["BacktestOut"] | null;
+            /** Result */
+            result?: {
+                [key: string]: unknown;
+            } | null;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -3133,6 +3176,20 @@ export interface components {
             /** Long Window */
             long_window: number;
         };
+        /** SweepIn */
+        SweepIn: {
+            backtest: components["schemas"]["BacktestIn"];
+            /** Grid */
+            grid?: (components["schemas"]["RsiThresholdStrategy"] | components["schemas"]["SmaCrossoverStrategy"])[] | null;
+            /**
+             * Score
+             * @default sharpe
+             * @enum {string}
+             */
+            score: "sharpe" | "total_return";
+            /** Experiment Id */
+            experiment_id?: number | null;
+        };
         /**
          * SymbolDetailOut
          * @description Symbol metadata + most recent close, used on the ticker detail page.
@@ -3284,6 +3341,39 @@ export interface components {
             subject: string;
             /** Message */
             message: string;
+        };
+        /**
+         * WalkForwardIn
+         * @description Phase 5.5. ``backtest`` sets the symbol, range, cash, costs and fees;
+         *     its strategy type picks the default grid when ``grid`` is empty.
+         */
+        WalkForwardIn: {
+            backtest: components["schemas"]["BacktestIn"];
+            /** Grid */
+            grid?: (components["schemas"]["RsiThresholdStrategy"] | components["schemas"]["SmaCrossoverStrategy"])[] | null;
+            /**
+             * In Sample Years
+             * @default 3
+             */
+            in_sample_years: number;
+            /**
+             * Out Of Sample Years
+             * @default 1
+             */
+            out_of_sample_years: number;
+            /**
+             * Step Years
+             * @default 1
+             */
+            step_years: number;
+            /**
+             * Score
+             * @default sharpe
+             * @enum {string}
+             */
+            score: "sharpe" | "total_return";
+            /** Experiment Id */
+            experiment_id?: number | null;
         };
         /**
          * WatchlistItemOut
@@ -4816,6 +4906,76 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["ExperimentRunIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExperimentRunOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    post_walk_forward_v1_experiments_walk_forward_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WalkForwardIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExperimentRunOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    post_sweep_v1_experiments_sweep_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SweepIn"];
             };
         };
         responses: {

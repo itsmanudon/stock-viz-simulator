@@ -24,6 +24,7 @@ from sqlmodel import Session, col, func, select
 from stockviz.models import Experiment, ExperimentRun
 from stockviz.schemas import BacktestIn
 from stockviz.services.backtest.run import BacktestRun, execute_backtest
+from stockviz.services.backtest.walkforward import Computed, sweep, walk_forward
 
 MAX_RUNS_PER_USER = 500
 """A run stores its whole equity curve; this bounds one user's storage."""
@@ -52,15 +53,7 @@ def save_run(
     kind: str = "single",
 ) -> ExperimentRun:
     """Run ``body`` and store it. Commits. Raises ``RunLimitReached``."""
-    count = session.exec(
-        select(func.count()).select_from(ExperimentRun).where(col(ExperimentRun.user_id) == user_id)
-    ).one()
-    if count >= MAX_RUNS_PER_USER:
-        raise RunLimitReached(f"At most {MAX_RUNS_PER_USER} saved runs; delete some first")
-    if experiment_id is not None:
-        experiment = session.get(Experiment, experiment_id)
-        if experiment is None or experiment.user_id != user_id:
-            raise LookupError(f"Experiment {experiment_id} not found")
+    _check_room(session, user_id, experiment_id)
     run = execute_backtest(session, body)
     row = ExperimentRun(
         user_id=user_id,
@@ -84,6 +77,70 @@ def save_run(
     return row
 
 
+def _check_room(session: Session, user_id: int, experiment_id: int | None) -> None:
+    count = session.exec(
+        select(func.count()).select_from(ExperimentRun).where(col(ExperimentRun.user_id) == user_id)
+    ).one()
+    if count >= MAX_RUNS_PER_USER:
+        raise RunLimitReached(f"At most {MAX_RUNS_PER_USER} saved runs; delete some first")
+    if experiment_id is not None:
+        experiment = session.get(Experiment, experiment_id)
+        if experiment is None or experiment.user_id != user_id:
+            raise LookupError(f"Experiment {experiment_id} not found")
+
+
+def _compute(session: Session, kind: str, request: dict[str, Any]) -> Computed:
+    body = BacktestIn.model_validate(request["backtest"])
+    grid = request.get("grid")
+    if kind == "walk_forward":
+        return walk_forward(
+            session,
+            body,
+            grid=grid,
+            in_sample_years=request["in_sample_years"],
+            out_of_sample_years=request["out_of_sample_years"],
+            step_years=request["step_years"],
+            score=request["score"],
+        )
+    return sweep(session, body, grid=grid, score=request["score"])
+
+
+def save_study(
+    session: Session,
+    *,
+    user_id: int,
+    kind: str,
+    request: dict[str, Any],
+    experiment_id: int | None = None,
+) -> ExperimentRun:
+    """Run and store a walk-forward or sweep (Phase 5.5). Commits."""
+    _check_room(session, user_id, experiment_id)
+    computed = _compute(session, kind, request)
+    body = BacktestIn.model_validate(request["backtest"])
+    from stockviz.services.backtest.engine import FILL_RULES
+
+    profile = FILL_RULES[body.fill_rule]
+    row = ExperimentRun(
+        user_id=user_id,
+        experiment_id=experiment_id,
+        kind=kind,
+        ticker=body.ticker.upper(),
+        request=request,
+        execution_profile=f"{profile.name}/{profile.model_version}",
+        fee_schedule=body.fee_schedule,
+        code_version=code_version(),
+        dataset_fingerprint=computed.fingerprint,
+        bar_count=computed.bar_count,
+        first_bar_at=computed.first_bar_at,
+        last_bar_at=computed.last_bar_at,
+        result=computed.result,
+    )
+    session.add(row)
+    session.commit()
+    session.refresh(row)
+    return row
+
+
 @dataclass
 class RerunReport:
     status: str  # identical | different | data_changed
@@ -93,17 +150,21 @@ class RerunReport:
 
 
 def rerun(session: Session, row: ExperimentRun) -> RerunReport:
-    body = BacktestIn.model_validate(row.request)
-    run = execute_backtest(session, body)
-    if run.fingerprint != row.dataset_fingerprint:
-        return RerunReport("data_changed", row.dataset_fingerprint, run.fingerprint)
-    fresh = _result(run)
+    if row.kind in ("walk_forward", "sweep"):
+        computed = _compute(session, row.kind, row.request)
+        current_fp, fresh = computed.fingerprint, computed.result
+    else:
+        run = execute_backtest(session, BacktestIn.model_validate(row.request))
+        current_fp, fresh = run.fingerprint, _result(run)
+    if current_fp != row.dataset_fingerprint:
+        return RerunReport("data_changed", row.dataset_fingerprint, current_fp)
+    run_fp = current_fp
     differences = sorted(
         k for k in set(fresh) | set(row.result) if fresh.get(k) != row.result.get(k)
     )
     return RerunReport(
         "identical" if not differences else "different",
         row.dataset_fingerprint,
-        run.fingerprint,
+        run_fp,
         differences,
     )
