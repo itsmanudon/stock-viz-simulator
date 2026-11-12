@@ -250,6 +250,17 @@ contact before release, so until then fundamentals are yfinance only.
 `GET /v1/symbols/{t}/fundamentals?period=annual|quarter&as_of=` returns a
 statement table with `sources` and `point_in_time`.
 
+**Valuation (Phase 6.4).** `services/fundamentals/valuation.py::valuation`
+computes multiples and metrics as known on a date: point-in-time facts plus
+that day's close, the price converted into the reporting currency at that
+day's FX when they differ (INFY.NS reports in USD, trades in INR). TTM is
+four consecutive quarters, else the latest year (`basis`). A metric with
+missing or meaningless inputs is null with a `reason` ("loss", "no shares
+outstanding"); ROIC is pre-tax and labelled so; no forward P/E (no estimate
+source). `GET /v1/symbols/{t}/valuation?as_of=` and
+`/valuation/history?metric=pe&years=5` (month-end values, each as known
+then, with the latest's percentile).
+
 **Experiment registry (Phase 5.4).** `/v1/experiments` (authed):
 `POST /runs` takes the same body as `POST /v1/backtest` (under `backtest`),
 runs it through `services/backtest/run.py::execute_backtest` (the code the

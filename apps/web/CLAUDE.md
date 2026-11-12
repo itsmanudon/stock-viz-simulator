@@ -337,6 +337,12 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   beside MACD; indicator values come warmed up from the API (Phase 6.1), so
   they do not change with the timeframe. The change pill is labelled
   "<tf> return since <first bar>" (UX-10).
+- The stock page's Financials tab (`components/fundamentals-panel.tsx`,
+  Phase 6.4) shows key multiples as of today with their reasons when null,
+  the P/E percentile over five years of month-ends, and annual/quarterly
+  statements labelled by period end and unit. It says when figures are not
+  point-in-time (yfinance) and when the reporting currency differs from the
+  trading currency. A failed financials call hides the panel, not the page.
 - Charts use `lightweight-charts` v5. The wrapper lives in
   `components/price-chart.tsx`; reuse it rather than instantiating a chart inline.
   Compare and backtest charts live in `compare-chart.tsx` and `equity-curve.tsx`.

@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 
 export function StockResearchTabs({
   overview,
+  financials,
   news,
   positionOrders,
   discussion,
@@ -12,6 +13,8 @@ export function StockResearchTabs({
   orderCount = 0,
 }: {
   overview: ReactNode;
+  /** Phase 6.4: statements and key metrics. */
+  financials?: ReactNode;
   news: ReactNode;
   positionOrders: ReactNode;
   discussion: ReactNode;
@@ -25,11 +28,13 @@ export function StockResearchTabs({
         className="flex gap-5 overflow-x-auto border-b border-border-muted sm:gap-7"
       >
         <Tab value="overview">Overview</Tab>
+        {financials ? <Tab value="financials">Financials</Tab> : null}
         <Tab value="news">News{newsCount ? ` ${newsCount}` : ""}</Tab>
         <Tab value="position-orders">Position &amp; orders{orderCount ? ` ${orderCount}` : ""}</Tab>
         <Tab value="discussion">Discussion</Tab>
       </Tabs.List>
       <TabPanel value="overview">{overview}</TabPanel>
+      {financials ? <TabPanel value="financials">{financials}</TabPanel> : null}
       <TabPanel value="news">{news}</TabPanel>
       <TabPanel value="position-orders">{positionOrders}</TabPanel>
       <TabPanel value="discussion">{discussion}</TabPanel>

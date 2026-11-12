@@ -346,6 +346,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/symbols/{ticker}/valuation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Valuation
+         * @description Multiples and quality metrics as known on ``as_of`` (Phase 6.4).
+         */
+        get: operations["get_valuation_v1_symbols__ticker__valuation_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/symbols/{ticker}/valuation/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Valuation History
+         * @description Month-end values of one multiple, each computed as known on that day.
+         */
+        get: operations["get_valuation_history_v1_symbols__ticker__valuation_history_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/indicators/catalog": {
         parameters: {
             query?: never;
@@ -3619,6 +3659,75 @@ export interface components {
             /** Context */
             ctx?: Record<string, never>;
         };
+        /** ValuationHistoryOut */
+        ValuationHistoryOut: {
+            /** Ticker */
+            ticker: string;
+            /** Metric */
+            metric: string;
+            /** Points */
+            points: components["schemas"]["ValuationPointOut"][];
+            /** Percentile */
+            percentile?: number | null;
+        };
+        /** ValuationMetricOut */
+        ValuationMetricOut: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /** Value */
+            value: number | null;
+            /** Unit */
+            unit: string;
+            /** Reason */
+            reason?: string | null;
+        };
+        /**
+         * ValuationOut
+         * @description Valuation and metrics as known on ``as_of`` (Phase 6.4).
+         *
+         *     ``fx_rate`` converts the trading currency's price into the reporting
+         *     currency (INFY.NS trades in INR and reports in USD). ``basis`` is
+         *     ``ttm`` (four quarters) or ``annual`` (the latest year).
+         */
+        ValuationOut: {
+            /** Ticker */
+            ticker: string;
+            /**
+             * As Of
+             * Format: date
+             */
+            as_of: string;
+            /** Price */
+            price?: string | null;
+            /** Price Date */
+            price_date?: string | null;
+            /** Trading Currency */
+            trading_currency: string;
+            /** Reporting Currency */
+            reporting_currency?: string | null;
+            /** Fx Rate */
+            fx_rate?: string | null;
+            /** Basis */
+            basis?: ("ttm" | "annual") | null;
+            /** Point In Time */
+            point_in_time: boolean;
+            /** Sources */
+            sources: string[];
+            /** Metrics */
+            metrics: components["schemas"]["ValuationMetricOut"][];
+        };
+        /** ValuationPointOut */
+        ValuationPointOut: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Value */
+            value: number;
+        };
         /**
          * ValuationWarningOut
          * @description A figure the valuation could not price (audit LG-13).
@@ -4294,6 +4403,73 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["FundamentalsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_valuation_v1_symbols__ticker__valuation_get: {
+        parameters: {
+            query?: {
+                as_of?: string | null;
+            };
+            header?: never;
+            path: {
+                ticker: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ValuationOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_valuation_history_v1_symbols__ticker__valuation_history_get: {
+        parameters: {
+            query?: {
+                metric?: string;
+                years?: number;
+            };
+            header?: never;
+            path: {
+                ticker: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ValuationHistoryOut"];
                 };
             };
             /** @description Validation Error */

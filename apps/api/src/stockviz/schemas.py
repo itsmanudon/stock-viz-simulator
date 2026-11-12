@@ -809,6 +809,48 @@ class FundamentalsOut(BaseModel):
     latest_available_at: date | None = None
 
 
+class ValuationMetricOut(BaseModel):
+    key: str
+    label: str
+    value: float | None
+    unit: str  # "x", "%", or a currency
+    reason: str | None = None  # why value is null
+
+
+class ValuationOut(BaseModel):
+    """Valuation and metrics as known on ``as_of`` (Phase 6.4).
+
+    ``fx_rate`` converts the trading currency's price into the reporting
+    currency (INFY.NS trades in INR and reports in USD). ``basis`` is
+    ``ttm`` (four quarters) or ``annual`` (the latest year).
+    """
+
+    ticker: str
+    as_of: date
+    price: Decimal | None = None
+    price_date: date | None = None
+    trading_currency: str
+    reporting_currency: str | None = None
+    fx_rate: Decimal | None = None
+    basis: Literal["ttm", "annual"] | None = None
+    point_in_time: bool
+    sources: list[str]
+    metrics: list[ValuationMetricOut]
+
+
+class ValuationPointOut(BaseModel):
+    date: date
+    value: float
+
+
+class ValuationHistoryOut(BaseModel):
+    ticker: str
+    metric: str
+    points: list[ValuationPointOut]
+    # Share of the history at or below the latest value, 0-100.
+    percentile: float | None = None
+
+
 class ScreenerRowOut(BaseModel):
     """One row of /v1/screener (Phase 6.2). Unknown values are null, never 0."""
 

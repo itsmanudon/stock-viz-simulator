@@ -19,9 +19,17 @@ from stockviz._time import utcnow
 from stockviz.db import get_session
 from stockviz.limiter import limiter
 from stockviz.models import Symbol
-from stockviz.schemas import FundamentalRowOut, FundamentalsOut
+from stockviz.schemas import (
+    FundamentalRowOut,
+    FundamentalsOut,
+    ValuationHistoryOut,
+    ValuationMetricOut,
+    ValuationOut,
+    ValuationPointOut,
+)
 from stockviz.services.fundamentals.concepts import CONCEPTS
 from stockviz.services.fundamentals.store import facts_as_of
+from stockviz.services.fundamentals.valuation import history, valuation
 from stockviz.services.instruments import instrument_ids
 
 router = APIRouter(prefix="/v1/symbols", tags=["fundamentals"])
@@ -75,4 +83,62 @@ def get_fundamentals(
         sources=sorted({f.source for f in used}),
         point_in_time=bool(used) and all(f.point_in_time for f in used),
         latest_available_at=max((f.available_at for f in used), default=None),
+    )
+
+
+HISTORY_METRICS = ("pe", "pb", "ps", "ev_ebitda", "ev_revenue", "p_fcf", "dividend_yield")
+
+
+@router.get("/{ticker}/valuation", response_model=ValuationOut)
+@limiter.limit("60/minute")
+def get_valuation(
+    request: Request,
+    ticker: str,
+    session: SessionDep,
+    as_of: Annotated[date | None, Query()] = None,
+) -> ValuationOut:
+    """Multiples and quality metrics as known on ``as_of`` (Phase 6.4)."""
+    ticker = ticker.upper()
+    if session.get(Symbol, ticker) is None:
+        raise HTTPException(status_code=404, detail=f"Symbol {ticker!r} not found")
+    v = valuation(session, ticker, as_of or utcnow().date())
+    return ValuationOut(
+        ticker=v.ticker,
+        as_of=v.as_of,
+        price=v.price,
+        price_date=v.price_date,
+        trading_currency=v.trading_currency,
+        reporting_currency=v.reporting_currency,
+        fx_rate=v.fx_rate,
+        basis=v.basis,  # type: ignore[arg-type]
+        point_in_time=v.point_in_time,
+        sources=v.sources,
+        metrics=[
+            ValuationMetricOut(
+                key=m.key, label=m.label, value=m.value, unit=m.unit, reason=m.reason
+            )
+            for m in v.metrics
+        ],
+    )
+
+
+@router.get("/{ticker}/valuation/history", response_model=ValuationHistoryOut)
+@limiter.limit("20/minute")
+def get_valuation_history(
+    request: Request,
+    ticker: str,
+    session: SessionDep,
+    metric: Annotated[str, Query(pattern="^(" + "|".join(HISTORY_METRICS) + ")$")] = "pe",
+    years: Annotated[int, Query(ge=1, le=10)] = 5,
+) -> ValuationHistoryOut:
+    """Month-end values of one multiple, each computed as known on that day."""
+    ticker = ticker.upper()
+    if session.get(Symbol, ticker) is None:
+        raise HTTPException(status_code=404, detail=f"Symbol {ticker!r} not found")
+    points, percentile = history(session, ticker, metric, end=utcnow().date(), years=years)
+    return ValuationHistoryOut(
+        ticker=ticker,
+        metric=metric,
+        points=[ValuationPointOut(date=d, value=v) for d, v in points],
+        percentile=percentile,
     )
