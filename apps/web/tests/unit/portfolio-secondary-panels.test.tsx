@@ -71,6 +71,8 @@ const dividends: DividendSummary = {
       ticker: "AAPL",
       ex_date: "2026-08-10",
       amount_credited: "55.25",
+      currency: "USD",
+      base_value: "55.25",
       credited_at: "2026-08-10T12:00:00Z",
     },
   ],
@@ -137,7 +139,26 @@ describe("portfolio operational panels", () => {
     expect(screen.getByText("Native projection")).toBeVisible();
     expect(screen.getByText("25.00 · Currency unavailable")).toBeVisible();
     expect(screen.getByText("+$55.25")).toBeVisible();
-    expect(screen.getByText("Credited in USD")).toBeVisible();
+    expect(screen.getByText("Credited in each dividend's own currency")).toBeVisible();
+  });
+
+  it("shows a non-USD credit in its own currency (Phase 4.5c)", () => {
+    const eur: DividendSummary = {
+      ...dividends,
+      history: [
+        {
+          ticker: "SAP.DE",
+          ex_date: "2026-05-04",
+          amount_credited: "22.00",
+          currency: "EUR",
+          base_value: "23.76",
+          credited_at: "2026-05-04T12:00:00Z",
+        },
+      ],
+    };
+    render(<PortfolioIncome dividends={eur} positions={positions} />);
+
+    expect(screen.getByText("+€22.00")).toBeVisible();
   });
 
   it("distinguishes unavailable dividend data from a successful no-income state", () => {

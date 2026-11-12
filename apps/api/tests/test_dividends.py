@@ -218,6 +218,7 @@ def test_dividends_endpoint_shows_credits_and_projected(
             ticker="AAPL",
             ex_date=date(2026, 3, 7),
             amount_credited=Decimal("2.5"),
+            base_value=Decimal("2.5"),
             credited_at=datetime(2026, 3, 7, 9, 30),
         )
     )
@@ -237,6 +238,39 @@ def test_dividends_endpoint_shows_credits_and_projected(
     assert proj["ticker"] == "AAPL"
     assert proj["projected_ex_date"] is not None
     assert Decimal(proj["projected_amount"]) == Decimal("2.5")  # 10 shares * 0.25
+
+
+def test_dividends_endpoint_reports_each_credit_in_its_currency(
+    session: Session, client: TestClient
+) -> None:
+    """Phase 4.5c: a EUR credit shows in EUR; YTD income sums base values."""
+    _seed_symbol(session, "AAPL")
+    session.add(Symbol(ticker="SAP.DE", name="SAP", currency="EUR"))
+    session.commit()
+    user_id, portfolio_id = _make_portfolio(session, email="eur@stockviz.dev")
+    for ticker, amount, currency, base in (
+        ("AAPL", "2.5", "USD", "2.5"),
+        ("SAP.DE", "10", "EUR", "11"),
+    ):
+        session.add(
+            PortfolioDividend(
+                portfolio_id=portfolio_id,
+                ticker=ticker,
+                ex_date=date(2026, 3, 7),
+                amount_credited=Decimal(amount),
+                currency=currency,
+                base_value=Decimal(base),
+            )
+        )
+    session.commit()
+
+    body = client.get("/v1/portfolio/dividends", headers=_auth_headers(user_id)).json()
+
+    assert Decimal(body["ytd_income"]) == Decimal("13.5")
+    by_ticker = {h["ticker"]: h for h in body["history"]}
+    assert by_ticker["SAP.DE"]["currency"] == "EUR"
+    assert Decimal(by_ticker["SAP.DE"]["amount_credited"]) == Decimal("10")
+    assert Decimal(by_ticker["SAP.DE"]["base_value"]) == Decimal("11")
 
 
 # ---------------------------------------------------------------------------
@@ -302,7 +336,14 @@ def test_missing_fx_is_paid_by_a_later_run_once_a_rate_exists(session: Session) 
     session.add(FxRate(currency="GBP", date=date(2026, 3, 5), usd_rate=Decimal("1.25")))
     session.commit()
     assert credit_due_dividends(session, credit_date=date(2026, 3, 9)) == 1
-    assert _cash(session, portfolio_id) == Decimal("100012.5")  # 10 GBP at 1.25
+    # Paid in GBP (Phase 4.5c); valued at 1.25 for income totals.
+    assert _cash(session, portfolio_id) == Decimal("100000")
+    credit = session.exec(select(PortfolioDividend)).one()
+    assert (credit.amount_credited, credit.currency, credit.base_value) == (
+        Decimal("10"),
+        "GBP",
+        Decimal("12.5"),
+    )
 
 
 def test_a_buyer_on_the_ex_date_is_not_paid(session: Session) -> None:

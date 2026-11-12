@@ -15,10 +15,12 @@ the run date and that a portfolio has not been paid yet (audit LG-12, #66):
 ``portfolio_dividends`` is unique on ``(portfolio, ticker, ex_date)``, so a
 second run, or two runs at once, never pays twice.
 
-Dividends are declared in the symbol's **native** currency, but cash is always
-USD — so the credit converts at the FX rate for the ex-date, exactly like a
-trade fill does. A symbol whose currency has no rate is skipped, and paid by a
-later run once a rate exists, rather than credited at 1:1.
+Dividends are declared in the symbol's **native** currency and are paid into
+that currency's cash (Phase 4.5c, design option B), as a sale is: a SAP.DE
+dividend credits EUR, nothing converts. Each credit row keeps its currency and
+``base_value``, the credit in the portfolio's base currency at the ex-date
+rate, so income totals stay in one unit. A symbol whose currency has no rate
+is skipped, and paid by a later run once a rate exists.
 """
 
 from __future__ import annotations
@@ -37,6 +39,7 @@ from stockviz.models.portfolio import TradeSide
 from stockviz.services.ingest.bar_semantics import NEW_YORK
 from stockviz.services.instruments import instrument_of, instruments_of
 from stockviz.services.trading.buying_power import lock_portfolio
+from stockviz.services.trading.cash import base_currency, credit
 from stockviz.services.trading.fx import latest_rate
 
 logger = logging.getLogger(__name__)
@@ -146,15 +149,29 @@ def credit_due_dividends(session: Session, *, credit_date: date_type) -> int:
                 session.commit()
                 continue
 
-            credit_amount = (quantity * div.amount * fx_rate).quantize(_MICROS)
-            portfolio.cash_balance = (portfolio.cash_balance + credit_amount).quantize(_MICROS)
-            session.add(portfolio)
+            base = base_currency(portfolio)
+            try:
+                base_rate = latest_rate(session, base, on_or_before=div.ex_date)
+            except LookupError:
+                logger.warning(
+                    "dividend_credit: no %s FX rate on-or-before %s, skipping portfolio %s",
+                    base,
+                    div.ex_date,
+                    portfolio_id,
+                )
+                session.commit()
+                continue
+            credit_amount = (quantity * div.amount).quantize(_MICROS)
+            base_value = (credit_amount * fx_rate / base_rate).quantize(_MICROS)
+            credit(session, portfolio, currency, credit_amount)
             session.add(
                 PortfolioDividend(
                     portfolio_id=portfolio_id,
                     ticker=ticker,
                     ex_date=div.ex_date,
                     amount_credited=credit_amount,
+                    currency=currency,
+                    base_value=base_value,
                 )
             )
             try:
@@ -165,14 +182,15 @@ def credit_due_dividends(session: Session, *, credit_date: date_type) -> int:
             written += 1
             paid.add((portfolio_id, ticker, div.ex_date))
             logger.info(
-                "dividend_credit: portfolio %s +%s USD from %s (ex %s, %s shares, %s @ %s)",
+                "dividend_credit: portfolio %s +%s %s from %s (ex %s, %s shares, %s %s)",
                 portfolio_id,
                 credit_amount,
+                currency,
                 ticker,
                 div.ex_date,
                 quantity,
-                currency,
-                fx_rate,
+                base_value,
+                base,
             )
 
     return written
