@@ -8,6 +8,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { StrengthDots } from "@/components/strength-dots";
 import type { SignalRow, SignalSortDir, SignalSortKey } from "@/lib/signals-workspace";
 import { formatSignalDate, formatSignalDateTime } from "@/lib/signals-workspace";
+import { formatCloseDate } from "@/lib/stock-workspace";
 import { cn } from "@/lib/utils";
 
 function ariaSort(active: boolean, dir: SignalSortDir): "ascending" | "descending" | "none" {
@@ -470,7 +471,16 @@ function SignalRowButton({
               : `${row.sentiment7d > 0 ? "+" : ""}${row.sentiment7d.toFixed(2)}`}
           </span>
           <span className="hidden px-3 py-3 text-xs text-text-tertiary sm:block">
-            {formatSignalDate(row.computedAt)}
+            {/* SR-8: date the signal by its bar, not by the run. */}
+            {row.barDate ? formatCloseDate(row.barDate) : formatSignalDate(row.computedAt)}
+            {row.stale ? (
+              <span
+                className="ml-1 text-warning-soft-foreground"
+                title="Its bars trail its market's newest close by more than five days"
+              >
+                stale
+              </span>
+            ) : null}
           </span>
         </>
       )}
@@ -584,9 +594,11 @@ function SignalDetail({ row, onClose }: { row: SignalRow; onClose: () => void })
               opinion.
             </p>
           </div>
-          <time dateTime={row.computedAt} className="text-2xs text-text-tertiary">
-            Computed {formatSignalDateTime(row.computedAt)}
-          </time>
+          <p className="text-2xs text-text-tertiary">
+            {row.barDate ? `On the ${formatCloseDate(row.barDate)} close · ` : ""}
+            <time dateTime={row.computedAt}>Computed {formatSignalDateTime(row.computedAt)}</time>
+            {row.stale ? " · stale: its bars trail its market's newest close" : ""}
+          </p>
         </div>
 
         <ol className="mt-3 divide-y divide-border-muted border-y border-border-muted">

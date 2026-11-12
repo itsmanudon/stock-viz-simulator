@@ -9,7 +9,9 @@ from slowapi.middleware import SlowAPIMiddleware
 
 from stockviz import __version__
 from stockviz.limiter import limiter
+from stockviz.logging_setup import configure_logging
 from stockviz.observability import init_sentry
+from stockviz.request_id import request_id_middleware
 from stockviz.routers import (
     alerts,
     backtest,
@@ -70,6 +72,9 @@ async def lifespan(app: FastAPI):
 def create_app() -> FastAPI:
     settings = get_settings()
     init_sentry(settings)
+    # OP-9: the API process sets up logging like the CLI and workers, with the
+    # request id in every line.
+    configure_logging()
 
     app = FastAPI(
         title="StockViz API",
@@ -81,12 +86,14 @@ def create_app() -> FastAPI:
     app.state.limiter = limiter
     app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # type: ignore[arg-type]
     app.add_middleware(SlowAPIMiddleware)
+    app.middleware("http")(request_id_middleware)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
+        expose_headers=["X-Request-ID"],
     )
 
     app.include_router(health.router)

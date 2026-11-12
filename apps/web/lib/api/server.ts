@@ -13,6 +13,8 @@
 
 import "server-only";
 
+import { requestId } from "./client";
+
 import { SignJWT } from "jose";
 
 import { auth } from "@/auth";
@@ -60,6 +62,7 @@ async function authedFetch(path: string, init: RequestInit = {}): Promise<Respon
   const token = await mintToken(session.user.id);
   const headers = new Headers(init.headers);
   headers.set("Authorization", `Bearer ${token}`);
+  headers.set("X-Request-ID", requestId());
   if (init.body && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
   }

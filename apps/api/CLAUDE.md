@@ -293,6 +293,22 @@ counted, not used; overlapping windows are counted; under `MIN_EVENTS` (10)
 no averages. `GET /v1/research/event-study?tickers=&sentiment=&event_type=&pre=&post=`
 (public, 20/min, up to 20 tickers).
 
+**Phase 7.5 fixes.** RS-10: `ingest_earnings_for_ticker` first moves an
+unreported upcoming row the provider no longer lists to the nearest newly
+listed date within 45 days (`previous_date` keeps the old one); rows left
+by earlier moves are listed by `stockviz.cli earnings-duplicates`
+(read-only; removing them is the owner's call). SR-8: `recommendations.bar_date`
+is the newest bar behind the votes; `/v1/recommendations` adds `bar_date`
+and `stale` (more than five days behind the newest signal bar in the same
+currency). OP-9: the API calls `configure_logging()`; every log line carries
+`[request id]` (`logging_setup.REQUEST_ID`, `RequestIdFilter`);
+`request_id.py` middleware takes a valid `X-Request-ID` (the web sends one
+per call) or makes one, tags Sentry and returns it. OP-12: a failed outbox
+event holds back later events of its topic and key in the batch; after
+`MAX_PUBLISH_ATTEMPTS` (10) it gets `dead_at`, is no longer claimed, and
+shows in `stockviz.cli outbox-dead` and `/health`'s `dead_outbox_events`.
+Migration `d55cf5f51697`.
+
 **Web cache after the night (audit RS-9, Phase 6.6).** The cron's last step
 is `revalidate-web`: it posts to `WEB_REVALIDATE_URL` with header
 `X-StockViz-Revalidate`, an HMAC-SHA256 of `stockviz-revalidate-v1` under

@@ -188,7 +188,10 @@ def claim_unpublished(session: Session, *, limit: int) -> list[OutboxEvent]:
     """
     stmt = (
         select(OutboxEvent)
-        .where(OutboxEvent.published_at.is_(None))  # type: ignore[union-attr]
+        .where(
+            OutboxEvent.published_at.is_(None),  # type: ignore[union-attr]
+            OutboxEvent.dead_at.is_(None),  # type: ignore[union-attr]
+        )
         .order_by(OutboxEvent.created_at)  # type: ignore[arg-type]
         .limit(limit)
     )
@@ -203,9 +206,27 @@ def mark_published(event: OutboxEvent) -> None:
     event.last_error = None
 
 
+MAX_PUBLISH_ATTEMPTS = 10
+"""OP-12: after this many failed attempts an event is dead, not retried forever."""
+
+
 def mark_publish_failure(event: OutboxEvent, error: str) -> None:
     event.publish_attempts += 1
     event.last_error = error[:2000]
+    if event.publish_attempts >= MAX_PUBLISH_ATTEMPTS:
+        event.dead_at = utcnow()
+
+
+def dead_events(session: Session, *, limit: int = 100) -> list[OutboxEvent]:
+    """Events that will not be retried, oldest first (OP-12)."""
+    return list(
+        session.exec(
+            select(OutboxEvent)
+            .where(OutboxEvent.dead_at.is_not(None))  # type: ignore[union-attr]
+            .order_by(OutboxEvent.created_at)  # type: ignore[arg-type]
+            .limit(limit)
+        ).all()
+    )
 
 
 def _require_v1(payload: dict, event_type: str) -> None:
@@ -418,11 +439,23 @@ def publish_batch(
     *,
     limit: int,
 ) -> int:
-    """Claim, produce, and mark one batch. Commits the session."""
+    """Claim, produce, and mark one batch. Commits the session.
+
+    OP-12: events of one key reach the broker in order. When an event fails,
+    later events with the same topic and key in the batch are held back
+    (left unpublished, no attempt counted) until it succeeds or dies.
+    """
     claimed = claim_unpublished(session, limit=limit)
     logger.info("outbox publisher claimed batch_size=%s", len(claimed))
     published = 0
+    blocked: set[tuple[str, str]] = set()
     for event in claimed:
+        key = (event.topic, event.partition_key)
+        if key in blocked:
+            logger.info(
+                "outbox held back event_id=%s behind a failed partition=%s", event.id, key[1]
+            )
+            continue
         try:
             publisher.publish(
                 topic=event.topic,
@@ -440,6 +473,8 @@ def publish_batch(
             )
         except Exception as exc:
             mark_publish_failure(event, f"{type(exc).__name__}: {exc}")
+            if event.dead_at is None:
+                blocked.add(key)
             logger.exception(
                 "outbox publish failed event_id=%s attempts=%s",
                 event.id,

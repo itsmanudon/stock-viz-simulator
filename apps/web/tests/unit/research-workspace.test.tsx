@@ -287,6 +287,8 @@ describe("SignalsTable", () => {
       ],
       sentiment_7d: 0.22,
       computed_at: "2026-08-26T00:00:00Z",
+      bar_date: "2026-08-25",
+      stale: false,
     });
     const neutral = recommendationToSignal({
       ticker: "MSFT",
@@ -298,6 +300,8 @@ describe("SignalsTable", () => {
       votes: [],
       sentiment_7d: null,
       computed_at: "2026-08-26T00:00:00Z",
+      bar_date: "2026-08-25",
+      stale: false,
     });
 
     pathname = "/recommendations";

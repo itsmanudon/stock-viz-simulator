@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Any
 
@@ -350,6 +350,16 @@ def _load_recent_bars(
     return [(r.close, r.volume) for r in rows]
 
 
+def _newest_bar_date(session: Session, ticker: str) -> date | None:
+    ts = session.exec(
+        select(PriceBar.ts)
+        .where(PriceBar.instrument_id == instrument_of(ticker), PriceBar.interval == "1d")
+        .order_by(PriceBar.ts.desc())  # type: ignore[attr-defined]
+        .limit(1)
+    ).first()
+    return ts.date() if ts is not None else None
+
+
 def score_universe(
     session: Session,
     *,
@@ -399,6 +409,7 @@ def score_universe(
                     rationale="; ".join(result.rationale) or None,
                     votes=[vote.as_dict() for vote in result.votes],
                     computed_at=result.computed_at,
+                    bar_date=_newest_bar_date(session, result.ticker),
                 )
             )
     if persist:

@@ -49,6 +49,9 @@ class OutboxEvent(SQLModel, table=True):
     created_at: datetime = Field(default_factory=utcnow, nullable=False)
     published_at: datetime | None = Field(default=None, index=True)
     publish_attempts: int = Field(default=0, nullable=False)
+    # OP-12 (Phase 7.5): set after MAX_PUBLISH_ATTEMPTS failures; a dead row
+    # is no longer claimed and is listed by `stockviz.cli outbox-dead`.
+    dead_at: datetime | None = Field(default=None, nullable=True)
     last_error: str | None = Field(default=None, sa_column=Column(Text, nullable=True))
 
 

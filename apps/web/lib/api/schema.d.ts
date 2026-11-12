@@ -2242,6 +2242,11 @@ export interface components {
              * @default []
              */
             failing_jobs: string[];
+            /**
+             * Dead Outbox Events
+             * @default 0
+             */
+            dead_outbox_events: number;
         };
         /** IndicatorCatalogItemOut */
         IndicatorCatalogItemOut: {
@@ -3182,6 +3187,13 @@ export interface components {
              * Format: date-time
              */
             computed_at: string;
+            /** Bar Date */
+            bar_date?: string | null;
+            /**
+             * Stale
+             * @default false
+             */
+            stale: boolean;
         };
         /**
          * RecommendationVoteOut
