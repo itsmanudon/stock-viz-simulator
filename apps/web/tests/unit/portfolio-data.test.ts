@@ -42,6 +42,7 @@ const portfolio = {
   positions: [],
   option_positions: [],
   valuation_warnings: [],
+  cash_by_currency: [],
 };
 
 const journalMonth = {

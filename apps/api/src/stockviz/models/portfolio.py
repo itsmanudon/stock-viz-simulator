@@ -11,7 +11,7 @@ from datetime import date as date_type
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import CheckConstraint, Index, Numeric, UniqueConstraint
+from sqlalchemy import CheckConstraint, Index, Numeric, String, UniqueConstraint
 from sqlmodel import Column, Field, SQLModel
 
 from stockviz._time import utcnow
@@ -34,7 +34,13 @@ class Portfolio(SQLModel, table=True):
     # on this unique index and retry as a read of the winner's row.
     user_id: int = Field(foreign_key="users.id", unique=True, index=True)
     name: str = Field(default="Default", max_length=128)
+    # Cash in ``base_currency``. Other currencies live in ``cash_balances``
+    # (Phase 4.5b): a sale of SAP.DE credits EUR, and a buy spends EUR first.
     cash_balance: Decimal = Field(sa_column=Column(Numeric(20, 6), nullable=False))
+    # Only USD today; the column exists so an INR-based book can follow.
+    base_currency: str = Field(
+        default="USD", sa_column=Column(String(3), nullable=False, server_default="USD")
+    )
     # The value the book started with, fixed for good (audit LG-1). Returns and
     # the leaderboard measure from it: the first snapshot can be overwritten by
     # the nightly job once the user trades on the opening day.
@@ -42,6 +48,52 @@ class Portfolio(SQLModel, table=True):
         default=Decimal(100_000),
         sa_column=Column(Numeric(20, 6), nullable=False, server_default="100000"),
     )
+    created_at: datetime = Field(default_factory=utcnow, nullable=False)
+
+
+class CashBalance(SQLModel, table=True):
+    """A portfolio's cash in one non-base currency (Phase 4.5b, option B).
+
+    Written only by ``services/trading/cash.py``, under the portfolio row lock.
+    """
+
+    __tablename__ = "cash_balances"  # pyright: ignore[reportAssignmentType]
+    __table_args__ = (
+        UniqueConstraint("portfolio_id", "currency", name="uq_cash_balances_portfolio_currency"),
+        CheckConstraint("amount >= 0", name="ck_cash_balances_nonnegative"),
+    )
+
+    id: int | None = Field(default=None, primary_key=True)
+    portfolio_id: int = Field(foreign_key="portfolios.id", index=True)
+    currency: str = Field(max_length=3)
+    amount: Decimal = Field(sa_column=Column(Numeric(20, 6), nullable=False))
+
+
+class FxConversion(SQLModel, table=True):
+    """Cash moved between currencies, at the rate used (Phase 4.5b).
+
+    A buy whose currency balance is short converts the shortfall from the base
+    currency and records it here, so every conversion is on the ledger.
+    """
+
+    __tablename__ = "fx_conversions"  # pyright: ignore[reportAssignmentType]
+    __table_args__ = (
+        CheckConstraint(
+            "from_amount > 0 AND to_amount > 0 AND rate > 0", name="ck_fx_conversions_positive"
+        ),
+    )
+
+    id: int | None = Field(default=None, primary_key=True)
+    portfolio_id: int = Field(foreign_key="portfolios.id", index=True)
+    trade_id: int | None = Field(default=None, foreign_key="trades.id", index=True)
+    from_currency: str = Field(max_length=3)
+    to_currency: str = Field(max_length=3)
+    from_amount: Decimal = Field(sa_column=Column(Numeric(20, 6), nullable=False))
+    to_amount: Decimal = Field(sa_column=Column(Numeric(20, 6), nullable=False))
+    # Units of ``from_currency`` per one unit of ``to_currency`` (USD per EUR).
+    rate: Decimal = Field(sa_column=Column(Numeric(18, 8), nullable=False))
+    rate_date: date_type | None = None
+    reason: str = Field(max_length=32)
     created_at: datetime = Field(default_factory=utcnow, nullable=False)
 
 

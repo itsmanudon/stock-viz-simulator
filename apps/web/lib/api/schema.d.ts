@@ -1252,6 +1252,18 @@ export interface components {
              */
             replies: components["schemas"]["CommentOut"][];
         };
+        /**
+         * CurrencyCashOut
+         * @description Cash held in one currency: ``amount`` native, ``value`` in display currency.
+         */
+        CurrencyCashOut: {
+            /** Currency */
+            currency: string;
+            /** Amount */
+            amount: string;
+            /** Value */
+            value: string;
+        };
         /** DividendCreditOut */
         DividendCreditOut: {
             /** Ticker */
@@ -2102,6 +2114,11 @@ export interface components {
              * @default []
              */
             valuation_warnings: components["schemas"]["ValuationWarningOut"][];
+            /**
+             * Cash By Currency
+             * @default []
+             */
+            cash_by_currency: components["schemas"]["CurrencyCashOut"][];
         };
         /**
          * PortfolioOverviewOut

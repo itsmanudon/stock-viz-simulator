@@ -21,6 +21,18 @@ export function PortfolioMetrics({ portfolio, analytics }: Props) {
     },
   ];
 
+  // Cash a sale left in another currency (Phase 4.5b). The base currency's
+  // cash is the "Available cash" figure above.
+  const otherCash = (portfolio.cash_by_currency ?? []).slice(1).filter((c) => Number(c.amount) > 0);
+  if (otherCash.length > 0) {
+    const total = otherCash.reduce((sum, c) => sum + Number(c.value), 0);
+    metrics.push({
+      label: "Other cash",
+      value: formatCurrency(total, currency),
+      detail: otherCash.map((c) => formatCurrency(c.amount, c.currency)).join(" · "),
+    });
+  }
+
   if (portfolio.positions.length > 0 || Number(portfolio.market_value) !== 0) {
     metrics.push({
       label: "Invested equities",

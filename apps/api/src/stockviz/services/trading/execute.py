@@ -25,7 +25,7 @@ from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, col, select
 
-from stockviz.models import Portfolio, Position, PriceBar, Symbol, Trade, TradeSide
+from stockviz.models import FxConversion, Portfolio, Position, PriceBar, Symbol, Trade, TradeSide
 from stockviz.services.instruments import instrument_of
 from stockviz.services.simulation import (
     LIVE_PAPER_EXECUTION_PROFILE,
@@ -42,6 +42,8 @@ from stockviz.services.trading.buying_power import (
     lock_user,
     reserved_shares,
 )
+from stockviz.services.trading.cash import credit as credit_cash
+from stockviz.services.trading.cash import pay_for_buy, plan_buy
 from stockviz.services.trading.execution_provenance import (
     FillProvenance,
     record_execution_provenance,
@@ -354,6 +356,7 @@ def apply_fill(
 
     native_cost = (price * quantity).quantize(MICROS)
     usd_cost = (native_cost * fx_rate).quantize(MICROS)
+    conversion: FxConversion | None = None
     position = get_position(session, portfolio_id=portfolio_id, ticker=ticker)
     realized_pnl: Decimal | None = None
     avg_cost_at_fill: Decimal | None = None
@@ -363,11 +366,15 @@ def apply_fill(
             spendable = available_cash(session, portfolio, exclude_order_id=exclude_order_id)
         except LookupError as exc:
             raise NoFxRateError(str(exc)) from exc
-        if spendable < usd_cost:
+        # Phase 4.5b: a non-base buy spends that currency's cash first and
+        # converts only the shortfall from the base balance.
+        funding = plan_buy(session, portfolio, currency, native_cost, fx_rate)
+        if spendable < funding.base_debit:
             raise InsufficientCash(
-                f"Available buying power ${spendable:.2f}; order requires ${usd_cost:.2f}."
+                f"Available buying power ${spendable:.2f}; order requires "
+                f"${funding.base_debit:.2f}."
             )
-        portfolio.cash_balance = (portfolio.cash_balance - usd_cost).quantize(MICROS)
+        conversion = pay_for_buy(session, portfolio, currency, funding, fx_rate)
 
         if position is None:
             position = Position(
@@ -400,7 +407,8 @@ def apply_fill(
             raise InsufficientPosition(f"Held {held} {ticker}, cannot sell {quantity}")
         assert position is not None
         avg_cost_at_fill = position.avg_cost
-        portfolio.cash_balance = (portfolio.cash_balance + usd_cost).quantize(MICROS)
+        # The proceeds stay in the symbol's currency (Phase 4.5b).
+        credit_cash(session, portfolio, currency, native_cost)
         # Realized P&L against the weighted-average cost basis, in USD.
         realized_pnl = ((price - position.avg_cost) * quantity * fx_rate).quantize(MICROS)
         position.quantity = position.quantity - quantity
@@ -426,6 +434,9 @@ def apply_fill(
     # Assign trade.id without committing so the outbox row can reference it
     # in this same transaction. Kafka is not involved here.
     session.flush()
+    if conversion is not None:
+        conversion.trade_id = trade.id
+        session.add(conversion)
     from stockviz.events.outbox import enqueue_trade_executed
 
     enqueue_trade_executed(

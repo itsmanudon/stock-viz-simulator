@@ -2,7 +2,8 @@
 
 ``compute_portfolio`` snapshots a user's default portfolio: positions priced
 at the latest close in their native currency, then converted into a chosen
-display currency. Cash is held in USD; ``cash_balance`` on the returned
+display currency. Cash is held per currency (base USD plus any other
+currency a sale credited, Phase 4.5b); ``cash_balance`` on the returned
 valuation is already in the display currency.
 """
 
@@ -24,6 +25,8 @@ from stockviz.models import (
 )
 from stockviz.services.recent_bars import recent_closes
 from stockviz.services.trading.buying_power import reserved_cash, reserved_shares
+from stockviz.services.trading.cash import balances as cash_balances
+from stockviz.services.trading.cash import base_currency as cash_base_currency
 from stockviz.services.trading.fx import convert as fx_convert
 from stockviz.services.trading.fx import latest_rate
 
@@ -85,6 +88,15 @@ class ValuationWarning:
 
 
 @dataclass(frozen=True, slots=True)
+class CurrencyCash:
+    """Cash held in one currency (Phase 4.5b): native and display amounts."""
+
+    currency: str
+    amount: Decimal
+    value: Decimal
+
+
+@dataclass(frozen=True, slots=True)
 class PortfolioValuation:
     portfolio_id: int
     # Currency every aggregate (cash, market_value, totals) is denominated in.
@@ -103,6 +115,9 @@ class PortfolioValuation:
     unrealized_pl: Decimal = Decimal(0)
     # Empty when every figure was priced; otherwise the total is incomplete.
     warnings: list[ValuationWarning] = field(default_factory=list)
+    # Cash per currency, base first. ``cash_balance`` is their display total;
+    # ``available_cash`` is the base currency's buying power only.
+    cash_by_currency: list[CurrencyCash] = field(default_factory=list)
 
     @property
     def complete(self) -> bool:
@@ -264,6 +279,16 @@ def compute_portfolio(
             available_display = available_usd
             _missing_rate(display_currency)
 
+    # Cash in other currencies (Phase 4.5b): converted into the display total.
+    base_ccy = cash_base_currency(portfolio)
+    cash_by_currency = [CurrencyCash(base_ccy, portfolio.cash_balance, cash_display)]
+    for ccy, amount in cash_balances(session, portfolio).items():
+        if ccy == base_ccy:
+            continue
+        value = _to_display(amount, ccy)
+        cash_by_currency.append(CurrencyCash(ccy, amount, value))
+        cash_display += value
+
     option_positions, options_value_display = _value_open_options(
         session, portfolio_id=portfolio.id, to_display=_to_display, warnings=warnings
     )
@@ -283,6 +308,7 @@ def compute_portfolio(
         total_cost_basis=cost_basis_display,
         unrealized_pl=market_value_display - cost_basis_display,
         warnings=warnings,
+        cash_by_currency=cash_by_currency,
     )
 
 
