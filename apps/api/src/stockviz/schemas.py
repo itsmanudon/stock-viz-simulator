@@ -694,28 +694,73 @@ class ProfilePatchIn(BaseModel):
 
 
 class AlertIn(BaseModel):
-    """Request body for POST /v1/alerts."""
+    """Request body for POST /v1/alerts (Phase 7.1: rules of several kinds).
 
-    ticker: str
-    direction: Literal["above", "below"]
-    target_price: Decimal
+    A price-level alert keeps the original shape: ``ticker``, ``direction``,
+    ``target_price``. Other rules name a ``kind`` and its ``params`` (see
+    ``services/alerts/rules.py``).
+    """
+
+    ticker: str | None = None
+    kind: Literal["price", "technical", "news", "portfolio"] = "price"
+    direction: Literal["above", "below"] | None = None
+    target_price: Decimal | None = None
+    params: dict[str, Any] | None = None
+    repeat: Literal["once", "every_cross"] = "once"
+    cooldown_sessions: int = Field(default=1, ge=1, le=250)
+
+
+class AlertPatch(BaseModel):
+    """``PATCH /v1/alerts/{id}``: pause or resume a rule."""
+
+    paused: bool
 
 
 class AlertOut(BaseModel):
-    """One alert row in API responses."""
+    """One alert rule in API responses."""
 
     model_config = ConfigDict(from_attributes=True)
 
     id: int
-    ticker: str
-    direction: Literal["above", "below"]
-    target_price: Decimal
+    ticker: str | None
+    kind: str = "price"
+    direction: Literal["above", "below"] | None
+    target_price: Decimal | None
+    params: dict[str, Any] | None = None
+    repeat: str = "once"
+    cooldown_sessions: int = 1
+    paused: bool = False
     created_at: datetime
+    armed_at: datetime | None = None
     triggered_at: datetime | None
     dismissed_at: datetime | None
+    # Evaluation state: the condition at the last judged bar (RS-8).
+    last_state: bool | None = None
+    last_bar_date: date | None = None
+    last_fired_bar_date: date | None = None
+    # The rule in words, for lists and notifications.
+    description: str = ""
     # The symbol's trading currency, so the target formats without a second
     # lookup. The target is in this currency, like every stored price.
     currency: str = "USD"
+
+
+class AlertEventOut(BaseModel):
+    """One firing of a rule: what was seen, against what, on which bar."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    alert_id: int
+    kind: str
+    ticker: str | None
+    session_date: date
+    bar_date: date | None
+    observed: Decimal | None
+    threshold: Decimal | None
+    message: str
+    source: str
+    created_at: datetime
 
 
 # ---------------------------------------------------------------------------

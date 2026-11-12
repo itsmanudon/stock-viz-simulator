@@ -609,12 +609,52 @@ export interface paths {
         };
         /**
          * List Alerts
-         * @description Return every alert the user owns, newest first.
+         * @description Return every rule the user owns, newest first.
          */
         get: operations["list_alerts_v1_alerts_get"];
         put?: never;
         /** Create Alert */
         post: operations["create_alert_v1_alerts_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/alerts/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Events
+         * @description Every firing of the user's rules, newest first (the alert history).
+         */
+        get: operations["list_events_v1_alerts_events_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/alerts/{alert_id}/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Rule Events
+         * @description One rule's firings, newest first.
+         */
+        get: operations["list_rule_events_v1_alerts__alert_id__events_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -635,6 +675,30 @@ export interface paths {
         delete: operations["delete_alert_v1_alerts__alert_id__delete"];
         options?: never;
         head?: never;
+        /**
+         * Patch Alert
+         * @description Pause or resume a rule. Resuming re-arms it from the current state.
+         */
+        patch: operations["patch_alert_v1_alerts__alert_id__patch"];
+        trace?: never;
+    };
+    "/v1/alerts/{alert_id}/rearm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Rearm Alert
+         * @description Restart a rule that fired (audit RS-8: alerts could not be re-armed).
+         */
+        post: operations["rearm_alert_v1_alerts__alert_id__rearm_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
         patch?: never;
         trace?: never;
     };
@@ -649,10 +713,10 @@ export interface paths {
         put?: never;
         /**
          * Dismiss Alert
-         * @description Mark a triggered alert as read.
+         * @description Mark a rule's last firing as read.
          *
-         *     Only triggered alerts can be dismissed — dismissing an un-triggered alert
-         *     is a no-op that returns 422 so the UI can surface the mistake.
+         *     Only a rule that fired can be dismissed — dismissing one that has not is
+         *     a no-op that returns 422 so the UI can surface the mistake.
          */
         post: operations["dismiss_alert_v1_alerts__alert_id__dismiss_post"];
         delete?: never;
@@ -1320,50 +1384,148 @@ export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
         /**
-         * AlertIn
-         * @description Request body for POST /v1/alerts.
+         * AlertEventOut
+         * @description One firing of a rule: what was seen, against what, on which bar.
          */
-        AlertIn: {
-            /** Ticker */
-            ticker: string;
-            /**
-             * Direction
-             * @enum {string}
-             */
-            direction: "above" | "below";
-            /** Target Price */
-            target_price: number | string;
-        };
-        /**
-         * AlertOut
-         * @description One alert row in API responses.
-         */
-        AlertOut: {
+        AlertEventOut: {
             /** Id */
             id: number;
+            /** Alert Id */
+            alert_id: number;
+            /** Kind */
+            kind: string;
             /** Ticker */
-            ticker: string;
+            ticker: string | null;
             /**
-             * Direction
-             * @enum {string}
+             * Session Date
+             * Format: date
              */
-            direction: "above" | "below";
-            /** Target Price */
-            target_price: string;
+            session_date: string;
+            /** Bar Date */
+            bar_date: string | null;
+            /** Observed */
+            observed: string | null;
+            /** Threshold */
+            threshold: string | null;
+            /** Message */
+            message: string;
+            /** Source */
+            source: string;
             /**
              * Created At
              * Format: date-time
              */
             created_at: string;
+        };
+        /**
+         * AlertIn
+         * @description Request body for POST /v1/alerts (Phase 7.1: rules of several kinds).
+         *
+         *     A price-level alert keeps the original shape: ``ticker``, ``direction``,
+         *     ``target_price``. Other rules name a ``kind`` and its ``params`` (see
+         *     ``services/alerts/rules.py``).
+         */
+        AlertIn: {
+            /** Ticker */
+            ticker?: string | null;
+            /**
+             * Kind
+             * @default price
+             * @enum {string}
+             */
+            kind: "price" | "technical" | "news" | "portfolio";
+            /** Direction */
+            direction?: ("above" | "below") | null;
+            /** Target Price */
+            target_price?: number | string | null;
+            /** Params */
+            params?: {
+                [key: string]: unknown;
+            } | null;
+            /**
+             * Repeat
+             * @default once
+             * @enum {string}
+             */
+            repeat: "once" | "every_cross";
+            /**
+             * Cooldown Sessions
+             * @default 1
+             */
+            cooldown_sessions: number;
+        };
+        /**
+         * AlertOut
+         * @description One alert rule in API responses.
+         */
+        AlertOut: {
+            /** Id */
+            id: number;
+            /** Ticker */
+            ticker: string | null;
+            /**
+             * Kind
+             * @default price
+             */
+            kind: string;
+            /** Direction */
+            direction: ("above" | "below") | null;
+            /** Target Price */
+            target_price: string | null;
+            /** Params */
+            params?: {
+                [key: string]: unknown;
+            } | null;
+            /**
+             * Repeat
+             * @default once
+             */
+            repeat: string;
+            /**
+             * Cooldown Sessions
+             * @default 1
+             */
+            cooldown_sessions: number;
+            /**
+             * Paused
+             * @default false
+             */
+            paused: boolean;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Armed At */
+            armed_at?: string | null;
             /** Triggered At */
             triggered_at: string | null;
             /** Dismissed At */
             dismissed_at: string | null;
+            /** Last State */
+            last_state?: boolean | null;
+            /** Last Bar Date */
+            last_bar_date?: string | null;
+            /** Last Fired Bar Date */
+            last_fired_bar_date?: string | null;
+            /**
+             * Description
+             * @default
+             */
+            description: string;
             /**
              * Currency
              * @default USD
              */
             currency: string;
+        };
+        /**
+         * AlertPatch
+         * @description ``PATCH /v1/alerts/{id}``: pause or resume a rule.
+         */
+        AlertPatch: {
+            /** Paused */
+            paused: boolean;
         };
         /** BacktestFeeOut */
         BacktestFeeOut: {
@@ -4999,6 +5161,72 @@ export interface operations {
             };
         };
     };
+    list_events_v1_alerts_events_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AlertEventOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_rule_events_v1_alerts__alert_id__events_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                alert_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AlertEventOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     delete_alert_v1_alerts__alert_id__delete: {
         parameters: {
             query?: never;
@@ -5018,6 +5246,76 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    patch_alert_v1_alerts__alert_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                alert_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AlertPatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AlertOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    rearm_alert_v1_alerts__alert_id__rearm_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                alert_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AlertOut"];
+                };
             };
             /** @description Validation Error */
             422: {

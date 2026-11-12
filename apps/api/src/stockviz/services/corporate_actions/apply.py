@@ -240,9 +240,12 @@ def rebase_user(session: Session, action: CorporateAction, user_id: int) -> Reba
             col(Alert.triggered_at).is_(None),
             col(Alert.dismissed_at).is_(None),
             col(Alert.created_at) < before,
+            # Phase 7.1: only price levels are in the split's units.
+            col(Alert.target_price).is_not(None),
         )
     ).all()
     for alert in alerts:
+        assert alert.target_price is not None
         alert.target_price = (alert.target_price / ratio).quantize(_PRICE)
         session.add(alert)
     summary.alerts = len(alerts)

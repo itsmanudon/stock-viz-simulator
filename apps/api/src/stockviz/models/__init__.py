@@ -14,7 +14,7 @@ from stockviz.models.aegis import (
     AegisSyncRun,
     AegisSyncState,
 )
-from stockviz.models.alert import Alert, AlertDirection
+from stockviz.models.alert import Alert, AlertDirection, AlertEvent, AlertKind, AlertRepeat
 from stockviz.models.auth_rate_limit import AuthRateLimit
 from stockviz.models.comment import Comment
 from stockviz.models.corporate_action import CorporateAction, CorporateActionApplication
@@ -68,6 +68,9 @@ __all__ = [
     "AegisSyncState",
     "Alert",
     "AlertDirection",
+    "AlertEvent",
+    "AlertKind",
+    "AlertRepeat",
     "AuthRateLimit",
     "CashBalance",
     "Comment",
