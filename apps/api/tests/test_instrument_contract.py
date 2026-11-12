@@ -124,7 +124,8 @@ def test_postgres_refuses_a_row_without_an_instrument() -> None:
             .scalars()
             .all()
         )
-        assert nullable == ["news_articles"]
+        # Phase 7.1: portfolio alert rules watch the account, not a ticker.
+        assert nullable == ["alerts", "news_articles"]
 
 
 def test_required_columns_cover_every_ticker_table_but_news() -> None:
@@ -133,7 +134,7 @@ def test_required_columns_cover_every_ticker_table_but_news() -> None:
     required = {
         t for t in TICKER_TABLES if SQLModel.metadata.tables[t].c.instrument_id.nullable is False
     }
-    assert required == set(TICKER_TABLES) - {"news_articles"}
+    assert required == set(TICKER_TABLES) - {"news_articles", "alerts"}
 
 
 # --- Phase 4.6b: writers set instrument_id; keys are the instrument --------------

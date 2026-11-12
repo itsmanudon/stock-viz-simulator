@@ -240,6 +240,26 @@ behind (their market may have been closed). `fx` exits 1 when a currency gets
 no rates; `dividends` exits 1 when a fetch failed. In the cron each failure
 sets the exit code without stopping later steps.
 
+**Alert rules (Phase 7.1, audit RS-8).** `alerts` rows are rules with a
+`kind`: `price` (close above/below `target_price`, or `params.move_pct`, a
+session move either way) and `technical` (`params`: a registry `indicator`,
+`op` above/below, and `value` or `compare_to`, e.g. `close` vs `sma_200`;
+`.output` names one of several outputs). `services/alerts/rules.py`
+validates and words them; `services/alerts/engine.py::evaluate_pending_alerts`
+judges each active rule once per new daily bar (the cron's `evaluate-alerts`
+and the analytics worker both call it). A rule fires when its condition goes
+from false to true; never judged before, it takes its starting state from the
+newest bar known at `armed_at` (`known_at_arming`, the LG-5 rule; tests that
+seed old bars turn it off in `conftest.py`, `@pytest.mark.placement_guard`
+turns it back on). Session-move rules fire on each qualifying bar. `once`
+rules stop after firing; `every_cross` rules wait `cooldown_sessions` bars.
+Each firing is an `alert_events` row (bar date, observed value, threshold,
+message) with a unique `dedupe_key` (`<rule>:<bar date>`), so a rerun writes
+nothing twice. API: `GET /v1/alerts/events`, `GET /v1/alerts/{id}/events`,
+`POST /v1/alerts/{id}/rearm`, `PATCH /v1/alerts/{id}` (pause). Split rebasing
+scales price levels only. Migration `8ced30212d40`; existing alerts are
+armed from their creation time.
+
 **Web cache after the night (audit RS-9, Phase 6.6).** The cron's last step
 is `revalidate-web`: it posts to `WEB_REVALIDATE_URL` with header
 `X-StockViz-Revalidate`, an HMAC-SHA256 of `stockviz-revalidate-v1` under

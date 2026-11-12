@@ -140,11 +140,13 @@ def ledger_tickers(session: Session) -> list[str]:
         ).all()
     )
     tickers.update(
-        session.exec(
+        t
+        for t in session.exec(
             select(Alert.ticker).where(
                 col(Alert.triggered_at).is_(None), col(Alert.dismissed_at).is_(None)
             )
         ).all()
+        if t is not None
     )
     tickers.update(
         session.exec(
