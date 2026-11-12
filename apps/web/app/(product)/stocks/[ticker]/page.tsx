@@ -18,6 +18,7 @@ import { StockChartToolbar } from "@/components/stock-chart-toolbar";
 import { StockMetricsStrip } from "@/components/stock-metrics-strip";
 import { StockResearchTabs } from "@/components/stock-research-tabs";
 import { TickerOrders } from "@/components/ticker-orders";
+import { VisitorLimitNotice } from "@/components/visitor-limit-notice";
 import {
   ApiError,
   type SymbolDetail,
@@ -47,6 +48,7 @@ import {
   formatCloseDate,
   parseStockIndicators,
 } from "@/lib/stock-workspace";
+import { checkVisitorLimit } from "@/lib/visitor-limit";
 
 const TIMEFRAME_DAYS: Record<StockTimeframe, number> = {
   "1M": 22,
@@ -96,6 +98,10 @@ export default async function StockPage({
   searchParams: Promise<{ tf?: string; indicators?: string }>;
 }) {
   const [{ ticker: rawTicker }, query] = await Promise.all([params, searchParams]);
+  const visitorLimit = await checkVisitorLimit("stock");
+  if (!visitorLimit.allowed) {
+    return <VisitorLimitNotice retryAfterSeconds={visitorLimit.retryAfterSeconds} />;
+  }
   const ticker = rawTicker.toUpperCase();
   const timeframe = parseTimeframe(query.tf);
   const selectedIndicators = parseStockIndicators(query.indicators);

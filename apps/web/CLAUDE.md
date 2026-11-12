@@ -159,6 +159,13 @@ a server action or a route handler — never through the browser.
   (`lib/rate-limit.ts`, table `auth_rate_limits` owned by the API's Alembic
   chain; audit OP-8), so counters survive the web service sleeping. A
   successful sign-in clears the email's counter only, never the address's.
+- The API does not rate-limit the web server's own calls (audit RS-6):
+  `lib/api/client.ts` adds `X-StockViz-Web` on the server, from the key
+  `instrumentation.ts` registers (`lib/web-server-key.ts`; never in the
+  browser bundle). Instead `/screener`, `/compare` and `/stocks/[ticker]`
+  call `checkVisitorLimit()` (`lib/visitor-limit.ts`) first: 30, 30 and 60
+  views a minute per visitor address, in the same `auth_rate_limits`
+  counters, failing open. A new query-driven public page should do the same.
 - Sessions are JWT (default). The user.id is persisted via the `jwt` callback
   and surfaced via the `session` callback (see `auth.ts`).
 - `proxy.ts` runs as Edge middleware. Keep node-only imports out of the files
