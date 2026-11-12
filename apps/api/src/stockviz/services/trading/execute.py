@@ -233,7 +233,9 @@ def get_position(session: Session, *, portfolio_id: int, ticker: str) -> Positio
 
     return session.exec(
         select(Position)
-        .where(Position.portfolio_id == portfolio_id, Position.ticker == ticker)
+        .where(
+            Position.portfolio_id == portfolio_id, Position.instrument_id == instrument_of(ticker)
+        )
         .limit(1)
     ).first()
 

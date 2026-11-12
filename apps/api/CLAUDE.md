@@ -533,7 +533,13 @@ Reads go by instrument: filter `X.instrument_id == instrument_of(ticker)` (or
 `X.ticker == ticker`. `instrument_of` takes a string or a ticker column and
 correlates through LATERAL joins; `resolve_symbol()` turns a public symbol
 into an `Instrument`. 4.4a moved every `price_bars` read (index
-`ix_price_bars_instrument_interval_ts`); 4.4b moves the rest. Making
+`ix_price_bars_instrument_interval_ts`); 4.4b moved the ledger, alerts,
+dividends, comments, earnings, news and recommendations reads. Still on
+`ticker`, on purpose: the ingest dedupe lookups for dividends, earnings and
+splits (they mirror unique keys that stay on `ticker` until 4.6),
+`redate-bars` (scoped by source), `replay_positions` (no foreign key, so no
+`instrument_id`), joins to `symbols` (keyed by ticker until 4.6), and plain
+Python comparisons. Making
 `instrument_id` NOT NULL and dropping the ticker keys is 4.6 and needs the
 owner's approval. A new table with a `ticker` column must add
 `instrument_id_column()`, the trigger in a migration, and an entry in

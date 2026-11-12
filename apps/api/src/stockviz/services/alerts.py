@@ -44,7 +44,7 @@ def evaluate_pending_alerts(
 
     stmt = select(Alert).where(Alert.triggered_at.is_(None))  # type: ignore[attr-defined]
     if ticker is not None:
-        stmt = stmt.where(Alert.ticker == ticker)
+        stmt = stmt.where(Alert.instrument_id == instrument_of(ticker))
     pending = list(session.exec(stmt).all())
     if not pending:
         return 0

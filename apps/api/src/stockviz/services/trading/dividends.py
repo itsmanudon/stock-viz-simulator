@@ -35,6 +35,7 @@ from stockviz.models import Portfolio, Position, Symbol, Trade
 from stockviz.models.dividend import Dividend, PortfolioDividend
 from stockviz.models.portfolio import TradeSide
 from stockviz.services.ingest.bar_semantics import NEW_YORK
+from stockviz.services.instruments import instrument_of, instruments_of
 from stockviz.services.trading.buying_power import lock_portfolio
 from stockviz.services.trading.fx import latest_rate
 
@@ -86,7 +87,7 @@ def credit_due_dividends(session: Session, *, credit_date: date_type) -> int:
         session.exec(
             select(Dividend)
             .where(
-                col(Dividend.ticker).in_(tickers),
+                col(Dividend.instrument_id).in_(instruments_of(tickers)),
                 Dividend.ex_date <= credit_date,
                 Dividend.ex_date > earliest,
             )
@@ -98,7 +99,9 @@ def credit_due_dividends(session: Session, *, credit_date: date_type) -> int:
     paid = {
         (row.portfolio_id, row.ticker, row.ex_date)
         for row in session.exec(
-            select(PortfolioDividend).where(col(PortfolioDividend.ticker).in_(tickers))
+            select(PortfolioDividend).where(
+                col(PortfolioDividend.instrument_id).in_(instruments_of(tickers))
+            )
         )
     }
 
@@ -135,7 +138,7 @@ def credit_due_dividends(session: Session, *, credit_date: date_type) -> int:
             already = session.exec(
                 select(PortfolioDividend.id).where(
                     PortfolioDividend.portfolio_id == portfolio_id,
-                    PortfolioDividend.ticker == ticker,
+                    PortfolioDividend.instrument_id == instrument_of(ticker),
                     PortfolioDividend.ex_date == div.ex_date,
                 )
             ).first()
