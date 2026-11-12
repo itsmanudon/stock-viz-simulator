@@ -24,7 +24,7 @@ class Dividend(SQLModel, table=True):
 
     id: int | None = Field(default=None, primary_key=True)
     ticker: str = Field(foreign_key="symbols.ticker", index=True, max_length=16)
-    instrument_id: int | None = Field(default=None, sa_column=instrument_id_column())
+    instrument_id: int | None = Field(default=None, sa_column=instrument_id_column(required=True))
     ex_date: date_type = Field(nullable=False, index=True)
     amount: Decimal = Field(sa_column=Column(Numeric(18, 6), nullable=False))
 
@@ -40,7 +40,7 @@ class PortfolioDividend(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     portfolio_id: int = Field(foreign_key="portfolios.id", index=True)
     ticker: str = Field(foreign_key="symbols.ticker", index=True, max_length=16)
-    instrument_id: int | None = Field(default=None, sa_column=instrument_id_column())
+    instrument_id: int | None = Field(default=None, sa_column=instrument_id_column(required=True))
     ex_date: date_type = Field(nullable=False, index=True)
     amount_credited: Decimal = Field(sa_column=Column(Numeric(20, 6), nullable=False))
     credited_at: datetime = Field(default_factory=utcnow, nullable=False)

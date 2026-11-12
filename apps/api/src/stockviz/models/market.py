@@ -64,7 +64,7 @@ class PriceBar(SQLModel, table=True):
     )
 
     ticker: str = Field(foreign_key="symbols.ticker", primary_key=True, max_length=16)
-    instrument_id: int | None = Field(default=None, sa_column=instrument_id_column())
+    instrument_id: int | None = Field(default=None, sa_column=instrument_id_column(required=True))
     ts: datetime = Field(primary_key=True, index=True)
     interval: str = Field(primary_key=True, max_length=8)
 
@@ -98,7 +98,7 @@ class QuarantinedPriceBar(SQLModel, table=True):
 
     id: int | None = Field(default=None, primary_key=True)
     ticker: str = Field(foreign_key="symbols.ticker", max_length=16)
-    instrument_id: int | None = Field(default=None, sa_column=instrument_id_column())
+    instrument_id: int | None = Field(default=None, sa_column=instrument_id_column(required=True))
     ts: datetime
     interval: str = Field(max_length=8)
 

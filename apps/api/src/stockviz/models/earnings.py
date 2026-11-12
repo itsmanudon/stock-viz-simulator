@@ -29,7 +29,7 @@ class EarningsEvent(SQLModel, table=True):
 
     id: int | None = Field(default=None, primary_key=True)
     ticker: str = Field(foreign_key="symbols.ticker", index=True, max_length=16)
-    instrument_id: int | None = Field(default=None, sa_column=instrument_id_column())
+    instrument_id: int | None = Field(default=None, sa_column=instrument_id_column(required=True))
     event_date: date_type = Field(index=True, nullable=False)
     # Provider values are intentionally unopinionated strings. yfinance uses
     # BMO, AMC, and sometimes an explicit local-time label.
