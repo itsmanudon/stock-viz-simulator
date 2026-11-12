@@ -91,7 +91,7 @@ function PortfolioScreen() {
       </div>
       {/* `data-phone-card` is what the pinned hero measures and lifts out. */}
       <div data-phone-card>
-        <PaperCard currency="USD" className="w-full" />
+        <PaperCard currency="USD" fluid className="w-full" />
       </div>
       <div className="grid justify-items-center gap-0.5 text-center">
         <span className="flex items-center gap-1.5 text-2xs text-text-tertiary">
