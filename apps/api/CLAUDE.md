@@ -321,6 +321,17 @@ left-most `X-Forwarded-For` hop, then the socket address; endpoints opt in with
 forwarded chain to be populated — the Dockerfile passes it. `get_remote_address`
 alone saw only Render's proxy, making one global bucket.)
 
+**The web server is exempt (audit RS-6, option 1, owner's pick 12 Nov
+2026).** Its server-side calls come over Railway's private network with no
+forwarded address, so they all shared one bucket. They now carry
+`X-StockViz-Web: <HMAC-SHA256 of a fixed label under INTERNAL_API_TOKEN>`
+(`web_server_key()`), and `limiter.py` skips every limit for a request that
+carries the right value. The web limits each visitor by address instead
+(`apps/web/lib/visitor-limit.ts`). Browser calls (option quotes, backtest
+runs) reach the API without the header and stay limited here. The exemption
+overrides slowapi's private `_check_request_limit`, because its request
+filters receive no request; `tests/test_rate_limit_web_server.py` pins it.
+
 Current budget: **60/min** on the public reads
 (symbols, bars, quotes, news, indicators, recommendations), **30/min**
 screener, **20/min** backtest. Authenticated routers are deliberately *not*
