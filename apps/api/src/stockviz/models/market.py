@@ -51,6 +51,8 @@ class PriceBar(SQLModel, table=True):
     # on this column order covers it.
     __table_args__ = (
         Index("ix_price_bars_ticker_interval_ts", "ticker", "interval", "ts"),
+        # Phase 4.4: reads go by instrument; same shape as the ticker index.
+        Index("ix_price_bars_instrument_interval_ts", "instrument_id", "interval", "ts"),
         CheckConstraint(
             "adjustment_semantics IN ('unadjusted', 'split_adjusted', 'split_dividend_adjusted')",
             name="ck_price_bars_adjustment_semantics",

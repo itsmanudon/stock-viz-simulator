@@ -11,12 +11,13 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import and_, func
-from sqlmodel import Session, select
+from sqlmodel import Session, col, select
 
 from stockviz.db import get_session
 from stockviz.limiter import limiter
 from stockviz.models import PriceBar
 from stockviz.schemas import QuoteOut
+from stockviz.services.instruments import instruments_of
 
 router = APIRouter(prefix="/v1", tags=["quotes"])
 
@@ -41,21 +42,23 @@ def batch_quotes(
             detail=f"At most {MAX_TICKERS_PER_REQUEST} tickers per request",
         )
 
-    # Per-ticker latest timestamp, joined back to grab the close.
+    # Per-instrument latest timestamp, joined back to grab the close (Phase
+    # 4.4: bars are read by instrument; the ticker on the row is display).
     latest_ts = (
-        select(PriceBar.ticker, func.max(PriceBar.ts).label("ts"))
-        .where(PriceBar.ticker.in_(requested), PriceBar.interval == "1d")  # type: ignore[attr-defined]
-        .group_by(PriceBar.ticker)
+        select(PriceBar.instrument_id, func.max(PriceBar.ts).label("ts"))
+        .where(
+            col(PriceBar.instrument_id).in_(instruments_of(requested)),
+            PriceBar.interval == "1d",
+        )
+        .group_by(col(PriceBar.instrument_id))
         .subquery()
     )
-    # pyright sees ``PriceBar.ticker == ...`` as ``str.__eq__`` (returning bool)
-    # because the SQLModel field is typed as ``str``; at runtime it's a Column
-    # and ``==`` produces the ColumnElement we want. Ignore the false positive.
     stmt = select(PriceBar).join(
         latest_ts,
         and_(
-            PriceBar.ticker == latest_ts.c.ticker,  # pyright: ignore[reportArgumentType]
-            PriceBar.ts == latest_ts.c.ts,  # pyright: ignore[reportArgumentType]
+            col(PriceBar.instrument_id) == latest_ts.c.instrument_id,
+            col(PriceBar.ts) == latest_ts.c.ts,
+            col(PriceBar.interval) == "1d",
         ),
     )
 

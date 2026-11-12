@@ -34,6 +34,7 @@ from stockviz.services.ingest.screening import (
     Disposition,
     screen_bar,
 )
+from stockviz.services.instruments import instrument_of
 from stockviz.services.markets.calendar import venue_for_ticker
 
 logger = logging.getLogger(__name__)
@@ -254,7 +255,7 @@ def _latest_stored_close(
         stmt = (
             select(PriceBar)
             .where(
-                PriceBar.ticker == ticker,
+                PriceBar.instrument_id == instrument_of(ticker),
                 PriceBar.interval == interval,
                 PriceBar.ts < before,
             )
@@ -470,7 +471,8 @@ def _without_unadjusted_overlap(session: Session, bars: list[BarRecord]) -> list
     for ticker in {b.ticker for b in fallback}:
         newest[ticker] = session.exec(
             select(func.max(PriceBar.ts)).where(
-                col(PriceBar.ticker) == ticker, col(PriceBar.interval) == DAILY_INTERVAL
+                col(PriceBar.instrument_id) == instrument_of(ticker),
+                col(PriceBar.interval) == DAILY_INTERVAL,
             )
         ).one()
     kept: list[BarRecord] = []

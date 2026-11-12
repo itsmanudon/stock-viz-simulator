@@ -17,6 +17,7 @@ from sqlmodel import Session, select
 from stockviz._time import utcnow
 from stockviz.models import PriceBar, Symbol, SymbolMetrics
 from stockviz.services.indicators import compute_rsi
+from stockviz.services.instruments import instrument_of
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +36,7 @@ def compute_for_ticker(session: Session, ticker: str) -> SymbolMetrics | None:
     bars = list(
         session.exec(
             select(PriceBar)
-            .where(PriceBar.ticker == ticker, PriceBar.interval == "1d")
+            .where(PriceBar.instrument_id == instrument_of(ticker), PriceBar.interval == "1d")
             .order_by(PriceBar.ts.desc())  # type: ignore[attr-defined]
             .limit(LOOKBACK_BARS)
         ).all()

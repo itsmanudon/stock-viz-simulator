@@ -17,6 +17,7 @@ from stockviz.db import get_session
 from stockviz.limiter import limiter
 from stockviz.models import PriceBar, Symbol
 from stockviz.schemas import QuoteOut, SymbolDetailOut, SymbolOut
+from stockviz.services.instruments import instrument_of
 
 router = APIRouter(prefix="/v1/symbols", tags=["symbols"])
 
@@ -95,7 +96,7 @@ def get_symbol(request: Request, ticker: str, session: SessionDep) -> SymbolDeta
 
     latest_bar = session.exec(
         select(PriceBar)
-        .where(PriceBar.ticker == symbol.ticker, PriceBar.interval == "1d")
+        .where(PriceBar.instrument_id == instrument_of(symbol.ticker), PriceBar.interval == "1d")
         .order_by(PriceBar.ts.desc())  # type: ignore[attr-defined]
         .limit(1)
     ).first()

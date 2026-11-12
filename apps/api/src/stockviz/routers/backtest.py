@@ -28,6 +28,7 @@ from stockviz.schemas import (
     SmaCrossoverStrategy,
 )
 from stockviz.services.backtest import BacktestError, run_backtest
+from stockviz.services.instruments import instrument_of
 
 router = APIRouter(prefix="/v1", tags=["backtest"])
 
@@ -49,7 +50,7 @@ def post_backtest(request: Request, body: BacktestIn, session: SessionDep) -> Ba
     stmt = (
         select(PriceBar)
         .where(
-            PriceBar.ticker == ticker,
+            PriceBar.instrument_id == instrument_of(ticker),
             PriceBar.interval == "1d",
             PriceBar.ts >= start,
             PriceBar.ts <= end,

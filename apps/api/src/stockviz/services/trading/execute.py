@@ -23,9 +23,10 @@ from decimal import Decimal
 
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
-from sqlmodel import Session, select
+from sqlmodel import Session, col, select
 
 from stockviz.models import Portfolio, Position, PriceBar, Symbol, Trade, TradeSide
+from stockviz.services.instruments import instrument_of
 from stockviz.services.simulation import (
     LIVE_PAPER_EXECUTION_PROFILE,
     FillDecision,
@@ -101,7 +102,7 @@ def newest_close_for_currency(session: Session, currency: str) -> datetime | Non
     """
     return session.exec(
         select(func.max(PriceBar.ts))
-        .join(Symbol, Symbol.ticker == PriceBar.ticker)  # type: ignore[arg-type]
+        .join(Symbol, col(PriceBar.instrument_id) == instrument_of(Symbol.ticker))
         .where(
             PriceBar.interval == "1d",
             Symbol.currency == currency,
@@ -135,7 +136,7 @@ def latest_bar(session: Session, ticker: str) -> PriceBar | None:
     """Most recent ``1d`` bar for ``ticker``, or None when there is no history."""
     return session.exec(
         select(PriceBar)
-        .where(PriceBar.ticker == ticker, PriceBar.interval == "1d")
+        .where(PriceBar.instrument_id == instrument_of(ticker), PriceBar.interval == "1d")
         .order_by(PriceBar.ts.desc())  # type: ignore[attr-defined]
         .limit(1)
     ).first()
