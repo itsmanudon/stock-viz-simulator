@@ -40,7 +40,9 @@ def upgrade() -> None:
         ),
         sa.ForeignKeyConstraint(["ticker"], ["symbols.ticker"]),
         sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint("ticker", "kind", "ex_date", name="uq_corporate_actions_ticker_kind_ex"),
+        sa.UniqueConstraint(
+            "ticker", "kind", "ex_date", name="uq_corporate_actions_ticker_kind_ex"
+        ),
     )
     op.create_index("ix_corporate_actions_ticker", "corporate_actions", ["ticker"])
     op.create_index("ix_corporate_actions_ex_date", "corporate_actions", ["ex_date"])
