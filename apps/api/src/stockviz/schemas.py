@@ -165,6 +165,10 @@ class DividendCreditOut(BaseModel):
     ticker: str
     ex_date: date
     amount_credited: Decimal
+    # The currency ``amount_credited`` is in; ``base_value`` is the same credit
+    # in the portfolio's base currency (Phase 4.5c). ``ytd_income`` sums those.
+    currency: str
+    base_value: Decimal
     credited_at: datetime
 
 

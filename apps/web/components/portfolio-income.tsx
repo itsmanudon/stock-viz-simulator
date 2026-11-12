@@ -112,7 +112,9 @@ export function PortfolioIncome({
             <h3 id="income-history-heading" className="text-sm font-semibold">
               History
             </h3>
-            <p className="text-xs text-muted-foreground">Credited in USD</p>
+            <p className="text-xs text-muted-foreground">
+              Credited in each dividend's own currency
+            </p>
           </div>
           <div className="overflow-hidden border-y border-border-muted">
             <Table aria-label="Dividend income history">
@@ -141,7 +143,7 @@ export function PortfolioIncome({
                       {formatDate(credit.ex_date)}
                     </TableCell>
                     <TableCell className="text-right font-mono text-positive" data-financial>
-                      {formatSignedCurrency(credit.amount_credited, "USD")}
+                      {formatSignedCurrency(credit.amount_credited, credit.currency ?? "USD")}
                     </TableCell>
                   </TableRow>
                 ))}

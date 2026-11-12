@@ -8,8 +8,9 @@ equity fill in a currency other than the base:
   from the base at the fill's rate and recorded in ``fx_conversions``;
 - **sell**: credits that currency's balance. Nothing converts back on its own.
 
-Option premiums and dividends stay in the base currency for now (options are
-USD-only until Phase 9; dividends convert at the ex-date rate as before).
+Dividends are paid into their own currency the same way (Phase 4.5c).
+Option premiums stay in the base currency (options are USD-only until
+Phase 9).
 Every function stages changes and does not commit; callers hold the portfolio
 row lock (``apply_fill``), so balances cannot race.
 """

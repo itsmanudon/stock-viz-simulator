@@ -1275,6 +1275,10 @@ export interface components {
             ex_date: string;
             /** Amount Credited */
             amount_credited: string;
+            /** Currency */
+            currency: string;
+            /** Base Value */
+            base_value: string;
             /**
              * Credited At
              * Format: date-time

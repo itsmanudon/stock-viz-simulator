@@ -299,7 +299,7 @@ def get_portfolio_dividends(session: SessionDep, user_id: UserIdDep) -> Dividend
     today = utcnow().date()
     ytd_cutoff = date_type(today.year, 1, 1)
     ytd_income = sum(
-        (c.amount_credited for c in credits if c.ex_date >= ytd_cutoff),
+        (c.base_value for c in credits if c.ex_date >= ytd_cutoff),
         start=Decimal(0),
     )
 

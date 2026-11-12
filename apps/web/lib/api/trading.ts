@@ -130,6 +130,9 @@ export type DividendCredit = {
   ticker: string;
   ex_date: string;
   amount_credited: string;
+  /** The currency amount_credited is in (Phase 4.5c); base_value is the same credit in USD. */
+  currency: string;
+  base_value: string;
   credited_at: string;
 };
 

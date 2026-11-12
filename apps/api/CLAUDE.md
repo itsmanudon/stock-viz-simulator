@@ -539,7 +539,10 @@ amounts, trade). The buying-power check is against that base shortfall.
 Valuation adds foreign cash at the latest rate into `cash_balance` and
 `total_value` (so snapshots and the leaderboard include it) and returns
 `cash_by_currency`; `available_cash` stays the base's buying power. Dividends
-and option premiums stay in the base currency for now; replay is USD only.
+(4.5c, migration `d61f0a3b8c27`) are paid into their own currency through
+`cash.credit`; each `portfolio_dividends` row keeps `currency` and
+`base_value` (the credit at the ex-date rate), and `ytd_income` sums
+`base_value`. Option premiums stay in the base currency; replay is USD only.
 
 **Instrument identity (Phase 4.3 expand, 4.4 reads).** `instruments` (venue
 MIC, currency, `quote_unit`, asset type) and `instrument_identifiers` (`yahoo`
