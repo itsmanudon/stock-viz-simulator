@@ -92,6 +92,9 @@ class Settings(BaseSettings):
     # SEC EDGAR asks automated clients for a User-Agent with a contact. The
     # owner sets it before release (Phase 6.3); blank keeps EDGAR off.
     sec_user_agent: str = ""
+    # RS-9 (Phase 6.6): the web's revalidation route, called at the end of the
+    # nightly cron. Blank: `revalidate-web` exits 2 and the cron skips it.
+    web_revalidate_url: str = ""
     kite_api_key: str = ""
     kite_api_secret: str = ""
     # yfinance remains the persisted/default provider. Massive is an optional,

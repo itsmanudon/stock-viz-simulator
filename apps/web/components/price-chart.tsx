@@ -27,7 +27,7 @@ import type { Bar, IndicatorPoint, MACDPoint } from "@/lib/api";
 import { barTimeToUtcSeconds } from "@/lib/api-time";
 import { fitWithLabelRoom } from "@/lib/chart-range";
 import { useChartPalette } from "@/lib/chart-theme";
-import { formatCloseDate } from "@/lib/stock-workspace";
+import { type ChartPane, formatCloseDate } from "@/lib/stock-workspace";
 
 export type PriceChartMarker = {
   time: string;
@@ -43,6 +43,8 @@ type Props = {
   macd?: MACDPoint[] | null;
   /** RSI(14) values; drawn in its own pane with 70/30 guides. */
   rsi?: IndicatorPoint[] | null;
+  /** Phase 6.6: other separate-pane indicators, one small chart each. */
+  panes?: ChartPane[];
   markers?: PriceChartMarker[];
 };
 
@@ -50,7 +52,7 @@ function toUtcSeconds(iso: string): UTCTimestamp {
   return barTimeToUtcSeconds(iso) as UTCTimestamp;
 }
 
-export function PriceChart({ bars, overlays, macd, rsi, markers }: Props) {
+export function PriceChart({ bars, overlays, macd, rsi, panes, markers }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const macdRef = useRef<HTMLDivElement | null>(null);
   const rsiRef = useRef<HTMLDivElement | null>(null);
@@ -270,6 +272,44 @@ export function PriceChart({ bars, overlays, macd, rsi, markers }: Props) {
       {rsi?.length ? (
         <div ref={rsiRef} className="h-[120px] w-full" data-testid="rsi-pane" />
       ) : null}
+      {(panes ?? []).map((pane) => (
+        <IndicatorPane key={pane.name} pane={pane} />
+      ))}
+    </div>
+  );
+}
+
+/** One separate-pane indicator (Phase 6.6): its outputs as lines. */
+function IndicatorPane({ pane }: { pane: ChartPane }) {
+  const ref = useRef<HTMLDivElement | null>(null);
+  const palette = useChartPalette();
+  useEffect(() => {
+    if (!ref.current) return;
+    const chart = createChart(ref.current, {
+      autoSize: true,
+      layout: { background: { color: "transparent" }, textColor: palette.text },
+      grid: { vertLines: { color: palette.grid }, horzLines: { color: palette.grid } },
+      timeScale: { borderColor: palette.axis, timeVisible: false },
+      rightPriceScale: { borderColor: palette.axis },
+    });
+    let longest = 0;
+    Object.entries(pane.lines).forEach(([key, points], index) => {
+      const line = chart.addSeries(LineSeries, {
+        color: palette.overlays[index % palette.overlays.length],
+        lineWidth: 2,
+        priceLineVisible: false,
+        title: key.includes(".") ? key.split(".")[1] : pane.label,
+      });
+      line.setData(points.map((p) => ({ time: toUtcSeconds(p.ts), value: p.value })));
+      longest = Math.max(longest, points.length);
+    });
+    fitWithLabelRoom(chart, longest, (ref.current.clientWidth ?? 0) - 64);
+    return () => chart.remove();
+  }, [pane, palette]);
+  return (
+    <div>
+      <p className="px-1 pt-2 text-2xs text-text-tertiary">{pane.label}</p>
+      <div ref={ref} className="h-[110px] w-full" data-testid={`pane-${pane.name}`} />
     </div>
   );
 }

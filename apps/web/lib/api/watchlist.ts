@@ -12,6 +12,8 @@ export type WatchlistItem = {
   last_close_at?: string | null;
   /** The symbol's trading currency; last_close is in it. */
   currency?: string;
+  /** Phase 6.6 (RS-12): the last 30 closes, oldest first, for the sparkline. */
+  closes?: string[];
 };
 
 export function listWatchlist(): Promise<WatchlistItem[]> {

@@ -10,6 +10,8 @@ Like the other ``/v1`` mutating routes, every endpoint depends on
 
 from __future__ import annotations
 
+from datetime import datetime
+from decimal import Decimal
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -17,9 +19,10 @@ from sqlmodel import Session, col, select
 
 from stockviz.auth import UserIdDep
 from stockviz.db import get_session
-from stockviz.models import PriceBar, Symbol, Watchlist, WatchlistItem
+from stockviz.models import Symbol, Watchlist, WatchlistItem
 from stockviz.schemas import WatchlistItemOut
 from stockviz.services.instruments import instrument_of
+from stockviz.services.recent_bars import recent_bars
 
 router = APIRouter(prefix="/v1/watchlist", tags=["watchlist"])
 
@@ -39,23 +42,34 @@ def _ensure_default_watchlist(session: Session, user_id: int) -> Watchlist:
     return wl
 
 
-def _item_out(session: Session, item: WatchlistItem, symbol: Symbol) -> WatchlistItemOut:
-    """One row, with the latest 1d close and the date of the bar it came from."""
-    bar = session.exec(
-        select(PriceBar)
-        .where(PriceBar.instrument_id == instrument_of(item.ticker), PriceBar.interval == "1d")
-        .order_by(PriceBar.ts.desc())  # type: ignore[attr-defined]
-        .limit(1)
-    ).first()
+SPARKLINE_BARS = 30
+
+
+def _item_out(
+    item: WatchlistItem, symbol: Symbol, bars: list[tuple[datetime, Decimal]]
+) -> WatchlistItemOut:
+    """One row: the latest close, its date, and the last 30 closes (RS-12)."""
+    last = bars[-1] if bars else None
     return WatchlistItemOut(
         ticker=item.ticker,
         name=symbol.name,
         sector=symbol.sector,
         added_at=item.added_at,
-        last_close=bar.close if bar else None,
-        last_close_at=bar.ts if bar else None,
+        last_close=last[1] if last else None,
+        last_close_at=last[0] if last else None,
         currency=symbol.currency or "USD",
+        closes=[close for _ts, close in bars],
     )
+
+
+def _items_out(
+    session: Session, rows: list[tuple[WatchlistItem, Symbol]]
+) -> list[WatchlistItemOut]:
+    """Every row from one batched bars query (audit RS-12: it was one per item)."""
+    bars = recent_bars(
+        session, [item.ticker for item, _sym in rows], limit_per_ticker=SPARKLINE_BARS
+    )
+    return [_item_out(item, sym, bars.get(item.ticker, [])) for item, sym in rows]
 
 
 @router.get("", response_model=list[WatchlistItemOut])
@@ -69,7 +83,7 @@ def list_watchlist(session: SessionDep, user_id: UserIdDep) -> list[WatchlistIte
             .order_by(WatchlistItem.added_at.desc())  # type: ignore[attr-defined]
         )
     )
-    return [_item_out(session, item, sym) for item, sym in rows]
+    return _items_out(session, rows)
 
 
 def _item(session: Session, watchlist_id: int | None, ticker: str) -> WatchlistItem | None:
@@ -96,7 +110,7 @@ def add_watchlist_item(ticker: str, session: SessionDep, user_id: UserIdDep) -> 
         session.add(existing)
         session.commit()
         session.refresh(existing)
-    return _item_out(session, existing, symbol)
+    return _items_out(session, [(existing, symbol)])[0]
 
 
 @router.delete("/{ticker}", status_code=status.HTTP_204_NO_CONTENT)

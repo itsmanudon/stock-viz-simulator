@@ -46,6 +46,7 @@ import {
   calculateAllocationPct,
   calculatePeriodReturnPct,
   calculatePositionReturnPct,
+  chartLayers,
   deriveTrailingBarMetrics,
   formatCloseDate,
   parseStockIndicators,
@@ -186,10 +187,10 @@ export default async function StockPage({
   const metrics = deriveTrailingBarMetrics(rangeBars);
   const rsiSeries = indicatorBundle.series.rsi_14;
   const latestRsi = rsiSeries?.at(-1)?.value ?? null;
-  const overlaySeries = Object.fromEntries(
-    Object.entries(indicatorBundle.series).filter(
-      ([name]) => name !== "rsi_14" && selectedIndicators.includes(name as StockIndicator),
-    ),
+  // Phase 6.6: overlays and panes by each indicator's registry pane.
+  const { overlays: overlaySeries, panes: indicatorPanes } = chartLayers(
+    indicatorBundle,
+    selectedIndicators,
   );
   const showMacd = selectedIndicators.includes("macd");
   const validCurrentUserId = Number.isFinite(currentUserId) ? currentUserId : null;
@@ -242,6 +243,7 @@ export default async function StockPage({
                   overlays={overlaySeries}
                   macd={showMacd ? indicatorBundle.macd : null}
                   rsi={selectedIndicators.includes("rsi_14") ? (rsiSeries ?? null) : null}
+                  panes={indicatorPanes}
                 />
               ) : (
                 <p className="py-24 text-center text-sm text-muted-foreground">

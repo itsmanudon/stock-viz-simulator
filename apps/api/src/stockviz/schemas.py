@@ -725,6 +725,9 @@ class WatchlistItemOut(BaseModel):
     # can date the price. None when the symbol has no stored bars.
     last_close_at: datetime | None = None
     currency: str = "USD"
+    # The last 30 daily closes, oldest first, for the row's sparkline (RS-12:
+    # the page used to fetch bars once per item).
+    closes: list[Decimal] = []
 
 
 # ---------------------------------------------------------------------------

@@ -94,10 +94,24 @@ export type MACDPoint = {
   histogram: number;
 };
 
+export type IndicatorMeta = {
+  label: string;
+  pane: "price" | "separate";
+  outputs: string[];
+  params: Record<string, number>;
+  lookback: number;
+  group: string;
+  anchored?: "none" | "start";
+};
+
 export type Indicators = {
   ticker: string;
+  /** "rsi_14" for one output; "bb_20_2.upper" for an indicator with several. */
   series: Record<string, IndicatorPoint[]>;
   macd: MACDPoint[] | null;
+  /** Phase 6.1: per requested name, where it draws and what it outputs. */
+  meta?: Record<string, IndicatorMeta>;
+  warmup_bars?: number;
 };
 
 export type RecommendationVote = {

@@ -58,7 +58,8 @@ test("operational trading loop from ticket to orders, watchlist, alerts, and rep
 
   await page.goto("/watchlist");
   await expect(main.getByRole("heading", { name: "Watchlist", exact: true })).toBeVisible();
-  await main.getByLabel("Add symbol").selectOption("AAPL");
+  // UX-7 (Phase 6.6): a search box with suggestions, not a select.
+  await main.getByLabel("Add symbol").fill("AAPL");
   await main.getByRole("button", { name: "Add to watchlist" }).click();
   await expect(main.getByRole("link", { name: "AAPL" }).first()).toHaveAttribute(
     "href",

@@ -399,6 +399,53 @@ def _cmd_fundamentals(args: argparse.Namespace) -> int:
     return 1 if report.failed else 0
 
 
+REVALIDATE_HEADER = "X-StockViz-Revalidate"
+REVALIDATE_LABEL = b"stockviz-revalidate-v1"
+
+
+def revalidate_key(secret: str) -> str:
+    """HMAC-SHA256 of a fixed label under INTERNAL_API_TOKEN (web checks the same)."""
+    import hashlib
+    import hmac
+
+    return hmac.new(secret.encode(), REVALIDATE_LABEL, hashlib.sha256).hexdigest()
+
+
+def _cmd_revalidate_web(_args: argparse.Namespace) -> int:
+    """Ask the web server to drop cached market data (audit RS-9, Phase 6.6).
+
+    Exit 2 when ``WEB_REVALIDATE_URL`` is unset; 1 when the web rejects the
+    key (a configuration error); 0 otherwise, including when the web cannot
+    be reached: a sleeping web holds no cache, it starts empty on wake.
+    """
+    import httpx
+
+    settings = get_settings()
+    url = settings.web_revalidate_url.strip()
+    if not url:
+        print("WEB_REVALIDATE_URL is not set: skipping web revalidation")
+        return 2
+    try:
+        response = httpx.post(
+            url,
+            headers={REVALIDATE_HEADER: revalidate_key(settings.internal_api_token)},
+            timeout=30.0,
+        )
+    except httpx.HTTPError as exc:
+        print(
+            f"web revalidation not delivered ({type(exc).__name__}); its cache refreshes on its own"
+        )
+        return 0
+    if response.status_code in (401, 403):
+        print(f"web rejected the revalidation key ({response.status_code})")
+        return 1
+    if response.status_code >= 400:
+        print(f"web revalidation answered {response.status_code}; its cache refreshes on its own")
+        return 0
+    print(f"web revalidated: {response.text[:200]}")
+    return 0
+
+
 def _cmd_benchmark_kernel(args: argparse.Namespace) -> int:
     """Kernel + SimLedger throughput on a seeded walk (Phase 5.1). No database."""
     from stockviz.benchmarks.kernel import run
@@ -1222,6 +1269,7 @@ RECORDED_JOBS = frozenset(
     {
         "ingest",
         "fundamentals",
+        "revalidate-web",
         "corporate-actions",
         "fx",
         "settle-orders",
@@ -1483,6 +1531,10 @@ def main(argv: list[str] | None = None) -> int:
     p_fund.add_argument("--source", choices=["yfinance", "edgar"], default="yfinance")
     p_fund.add_argument("tickers", nargs="*", help="Default: every active equity")
     p_fund.set_defaults(fn=_cmd_fundamentals)
+
+    sub.add_parser(
+        "revalidate-web", help="Tell the web to drop cached market data (RS-9)"
+    ).set_defaults(fn=_cmd_revalidate_web)
 
     p_bench = sub.add_parser(
         "benchmark-kernel", help="Kernel + SimLedger throughput, no database (Phase 5.1)"

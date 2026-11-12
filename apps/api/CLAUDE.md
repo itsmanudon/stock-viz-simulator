@@ -150,7 +150,7 @@ CLI subcommands (`python -m stockviz.cli <cmd>`): `seed`, `backfill`,
 `score-sentiment`, `sentiment-aggregate`, `recommend`, `snapshot-portfolios`,
 `dividends`, `credit-dividends`, `settle-options`, `run-scheduler`,
 `prune-events [--days N] [--include-unpublished]`, `aegis-sync [--max-pages N]`,
-`settle-orders [--session-date YYYY-MM-DD]`, `evaluate-alerts`,
+`settle-orders [--session-date YYYY-MM-DD]`, `evaluate-alerts`, `revalidate-web`,
 `publish-outbox [--once]`,
 `consume-trade-activity [--once]`, `consume-market-ingest [--once]`,
 `consume-market-analytics [--once]`, `consume-news-ingest [--once]`,
@@ -239,6 +239,18 @@ reached the expected session, and only reports single tickers that are
 behind (their market may have been closed). `fx` exits 1 when a currency gets
 no rates; `dividends` exits 1 when a fetch failed. In the cron each failure
 sets the exit code without stopping later steps.
+
+**Web cache after the night (audit RS-9, Phase 6.6).** The cron's last step
+is `revalidate-web`: it posts to `WEB_REVALIDATE_URL` with header
+`X-StockViz-Revalidate`, an HMAC-SHA256 of `stockviz-revalidate-v1` under
+`INTERNAL_API_TOKEN` (`cli.revalidate_key`; the web checks the same in
+`lib/revalidate-key.ts`). Exit 2 when the URL is unset, 1 when the web
+answers 401/403, 0 otherwise: an unreachable or sleeping web holds no cache.
+
+**Watchlist rows carry their sparkline (audit RS-12, Phase 6.6).**
+`WatchlistItemOut.closes` holds the last 30 daily closes, oldest first, read
+for every row in one `recent_bars` query; the list and add endpoints both
+use `_items_out`.
 
 **Fundamentals, point in time (Phase 6.3).** `fundamental_facts` holds one
 row per reported figure (`models/fundamentals.py`), append-only: a changed or

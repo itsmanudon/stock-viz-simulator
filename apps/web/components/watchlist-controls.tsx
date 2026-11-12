@@ -32,23 +32,22 @@ export function AddWatchlistForm({
       <input type="hidden" name="intent" value="add" />
       <label className="min-w-[12rem] flex-1 text-xs">
         <span className="mb-1 block font-medium text-text-secondary">Add symbol</span>
-        <select
+        {/* UX-7 (Phase 6.6): type to search by ticker or name instead of
+            scrolling a select of the whole universe. Nothing is preselected
+            (UI audit F2); the server action refuses an unknown ticker. */}
+        <input
           name="ticker"
           required
-          className="flex h-10 w-full rounded-sm border border-input bg-transparent px-3 text-sm"
-          // No preselected symbol: the first alphabetically (7203.T) had no
-          // stored history and was added by a stray click (UI audit F2).
-          defaultValue=""
-        >
-          <option value="" disabled>
-            Choose a symbol
-          </option>
+          list="watchlist-symbols"
+          autoComplete="off"
+          placeholder="Search ticker or company"
+          className="flex h-10 w-full rounded-sm border border-input bg-transparent px-3 text-sm uppercase placeholder:normal-case"
+        />
+        <datalist id="watchlist-symbols">
           {symbols.map((symbol) => (
-            <option key={symbol.ticker} value={symbol.ticker}>
-              {symbol.ticker} — {symbol.name}
-            </option>
+            <option key={symbol.ticker} value={symbol.ticker} label={symbol.name} />
           ))}
-        </select>
+        </datalist>
       </label>
       <Button type="submit" size="sm" className="rounded-sm" disabled={pending}>
         {pending ? "Adding…" : "Add to watchlist"}
