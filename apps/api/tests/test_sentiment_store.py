@@ -9,8 +9,9 @@ from fastapi.testclient import TestClient
 from sqlmodel import Session, select
 
 from stockviz._time import utcnow
-from stockviz.models import NewsArticle, Symbol, SymbolMetrics
+from stockviz.models import NewsArticle, Symbol
 from stockviz.models.sentiment import NewsSentiment
+from stockviz.services.metrics import metrics_for
 from stockviz.services.recommend.engine import score_ticker
 from stockviz.services.sentiment.base import SentimentInput, SentimentScore
 from stockviz.services.sentiment.store import (
@@ -231,7 +232,7 @@ def test_refresh_writes_the_rolling_mean(session: Session) -> None:
     score_articles(session, [b], provider=StubProvider(score=0.0), settings=_SETTINGS)
 
     refresh_symbol_sentiment(session)
-    metrics = session.get(SymbolMetrics, "AAPL")
+    metrics = metrics_for(session, "AAPL")
     assert metrics is not None
     assert metrics.sentiment_7d == 0.5
     assert metrics.sentiment_article_count == 2
@@ -243,7 +244,7 @@ def test_symbol_without_scored_news_gets_null_not_zero(session: Session) -> None
     _symbol(session, "QUIET")
     refresh_symbol_sentiment(session)
 
-    metrics = session.get(SymbolMetrics, "QUIET")
+    metrics = metrics_for(session, "QUIET")
     assert metrics is not None
     assert metrics.sentiment_7d is None
     assert metrics.sentiment_article_count == 0
@@ -261,7 +262,7 @@ def test_articles_outside_the_window_are_excluded(session: Session) -> None:
     score_articles(session, [stale], provider=StubProvider(score=1.0), settings=_SETTINGS)
 
     refresh_symbol_sentiment(session, window_days=7)
-    metrics = session.get(SymbolMetrics, "AAPL")
+    metrics = metrics_for(session, "AAPL")
     assert metrics is not None
     assert metrics.sentiment_7d is None
 

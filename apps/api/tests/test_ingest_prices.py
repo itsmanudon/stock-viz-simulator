@@ -36,6 +36,12 @@ from stockviz.services.ingest.prices import (
     fetch_yfinance_daily,
     upsert_bars,
 )
+from tests.symbols import seed_symbols
+
+
+@pytest.fixture(autouse=True)
+def _symbols(session) -> None:
+    seed_symbols(session, "AAPL")
 
 
 def _yf_fixture_df() -> pd.DataFrame:
@@ -353,7 +359,7 @@ def test_upsert_bars_persists_provider_neutral_financial_semantics(session):
     assert upsert_bars(session, [bar]) == 1
     session.commit()
 
-    persisted = session.get(PriceBar, (bar.ticker, bar.ts, bar.interval))
+    persisted = session.exec(select(PriceBar).where(PriceBar.ticker == bar.ticker)).one()
     assert persisted is not None
     assert persisted.source == SOURCE_ALPHA_VANTAGE
     assert persisted.adjustment_semantics == AdjustmentSemantics.UNADJUSTED

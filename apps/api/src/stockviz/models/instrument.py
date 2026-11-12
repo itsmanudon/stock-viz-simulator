@@ -76,17 +76,19 @@ class InstrumentIdentifier(SQLModel, table=True):
     valid_to: date_type | None = None
 
 
-def instrument_id_column(*, required: bool = False) -> Column:
+def instrument_id_column(*, required: bool = False, primary_key: bool = False) -> Column:
     """The ``instrument_id`` beside each ``ticker`` column.
 
     ``required`` (Phase 4.6a) makes it NOT NULL wherever the ticker is NOT
     NULL; only ``news_articles`` (ticker optional) stays nullable. The value
     is still written by the identity trigger, not by the application: the
-    Python attribute stays ``None`` until a row is read back. On SQLite the
-    trigger runs after the insert, so ``db_identity`` leaves the column
-    nullable there (tests only).
+    Since 4.6b the ORM sets it before every insert (``db_identity``), and bulk
+    upserts set it from ``services.instruments.instrument_ids``.
     """
-    column = Column(ID_TYPE, ForeignKey("instruments.id"), nullable=not required, index=True)
-    if required:
-        column.info["instrument_id_required"] = True
-    return column
+    if primary_key:
+        # Phase 4.6b: part of the primary key (price_bars, symbol_metrics,
+        # watchlist_items). Writers set it, so the ORM knows it at insert.
+        return Column(
+            ID_TYPE, ForeignKey("instruments.id"), primary_key=True, autoincrement=False, index=True
+        )
+    return Column(ID_TYPE, ForeignKey("instruments.id"), nullable=not required, index=True)

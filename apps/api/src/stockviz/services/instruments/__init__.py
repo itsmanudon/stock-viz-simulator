@@ -85,3 +85,28 @@ def resolve_symbol(session, symbol: str):
         )
         .order_by(col(InstrumentIdentifier.valid_from).desc())
     ).first()
+
+
+def instrument_ids(session, tickers) -> dict[str, int]:
+    """Ticker -> current instrument id, for bulk writes that skip the ORM (Phase 4.6b).
+
+    A ticker with no instrument (no symbol) is absent from the result; the
+    write then fails on the NOT NULL ``instrument_id``, as it should.
+    """
+    from sqlmodel import col, select
+
+    from stockviz.models.instrument import SCHEME_YAHOO, InstrumentIdentifier
+
+    wanted = sorted(set(tickers))
+    if not wanted:
+        return {}
+    rows = session.exec(
+        select(InstrumentIdentifier.value, InstrumentIdentifier.instrument_id)
+        .where(
+            col(InstrumentIdentifier.scheme) == SCHEME_YAHOO,
+            col(InstrumentIdentifier.value).in_(wanted),
+            col(InstrumentIdentifier.valid_to).is_(None),
+        )
+        .order_by(col(InstrumentIdentifier.valid_from))
+    ).all()
+    return dict(rows)

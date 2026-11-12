@@ -396,9 +396,13 @@ def write_accepted_bars(session: Session, bars: list[BarRecord]) -> int:
     if not bars:
         return 0
 
+    from stockviz.services.instruments import instrument_ids
+
+    ids = instrument_ids(session, {b.ticker for b in bars})
     rows = [
         {
             "ticker": b.ticker,
+            "instrument_id": ids.get(b.ticker),
             "ts": b.ts,
             "interval": b.interval,
             "open": b.open,
@@ -420,7 +424,7 @@ def write_accepted_bars(session: Session, bars: list[BarRecord]) -> int:
             chunk = rows[start : start + UPSERT_CHUNK_ROWS]
             stmt = pg_insert(PriceBar).values(chunk)
             stmt = stmt.on_conflict_do_update(
-                index_elements=["ticker", "ts", "interval"],
+                index_elements=["instrument_id", "ts", "interval"],
                 set_={
                     "open": stmt.excluded.open,
                     "high": stmt.excluded.high,
@@ -436,7 +440,7 @@ def write_accepted_bars(session: Session, bars: list[BarRecord]) -> int:
         return len(rows)
 
     for row in rows:
-        existing = session.get(PriceBar, (row["ticker"], row["ts"], row["interval"]))
+        existing = session.get(PriceBar, (row["instrument_id"], row["ts"], row["interval"]))
         if existing is None:
             session.add(PriceBar(**row))
             continue

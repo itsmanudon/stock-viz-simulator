@@ -29,10 +29,17 @@ from stockviz.services.ingest.redate import (
     redate_ticker,
     was_misdated,
 )
+from tests.symbols import seed_symbols
 
 FRIDAY = date(2026, 11, 6)
 MONDAY = date(2026, 11, 9)
 NOW = datetime(2026, 11, 11, 22, tzinfo=UTC)
+
+
+@pytest.fixture(autouse=True)
+def _symbols(session) -> None:
+    seed_symbols(session, "AAPL")
+    seed_symbols(session, "RELIANCE.NS", currency="INR")
 
 
 def _frame(days: list[date], zone: str, close: float = 100.0) -> pd.DataFrame:

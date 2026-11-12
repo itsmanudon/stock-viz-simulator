@@ -22,7 +22,7 @@ class EarningsEvent(SQLModel, table=True):
     __tablename__ = "earnings_events"  # pyright: ignore[reportAssignmentType]
     __table_args__ = (
         UniqueConstraint(
-            "ticker", "event_date", "fiscal_period", name="uq_earnings_events_identity"
+            "instrument_id", "event_date", "fiscal_period", name="uq_earnings_events_identity"
         ),
         Index("ix_earnings_events_date_ticker", "event_date", "ticker"),
     )
