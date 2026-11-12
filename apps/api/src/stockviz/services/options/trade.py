@@ -578,6 +578,24 @@ def settle_expired_options(session: Session, *, settle_date: date_type) -> int:
         position.settled_at = utcnow()
         session.add(portfolio)
         session.add(position)
+        from stockviz.models import NotificationCategory
+        from stockviz.services.notifications import notify
+
+        notify(
+            session,
+            user_id=portfolio.user_id,
+            category=NotificationCategory.OPTION,
+            title=(
+                f"{position.ticker} {position.strike:,.2f} {position.option_type.value} "
+                f"{position.status.value}"
+            ),
+            body=(
+                f"Settled on the {position.expiry.isoformat()} expiry at a {spot:,.2f} close; "
+                f"realized {position.realized_pnl or 0:,.2f} USD."
+            ),
+            link="/portfolio?tab=options",
+            source_key=f"option:{position.id}:settled",
+        )
         session.commit()
         settled += 1
         logger.info("options_settle: option %s -> %s", position.id, position.status.value)

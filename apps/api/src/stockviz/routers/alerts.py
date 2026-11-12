@@ -38,7 +38,7 @@ evaluation pass — which walks every active rule — became the slowest thing t
 nightly run does. Rules that fired once are history and don't count.
 """
 
-SUPPORTED_KINDS = frozenset({AlertKind.PRICE, AlertKind.TECHNICAL})
+SUPPORTED_KINDS = frozenset(AlertKind)
 
 
 def _alert_out(alert: Alert, currency: str | None) -> AlertOut:

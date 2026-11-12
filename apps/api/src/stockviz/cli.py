@@ -257,10 +257,14 @@ def _cmd_prune_events(args: argparse.Namespace) -> int:
             include_unpublished=args.include_unpublished,
         )
         session.commit()
+        from stockviz.services.notifications import prune_read
+
+        notices = prune_read(session)
     print(
         f"pruned events older than {args.days} day(s): {result.published} published outbox, "
         f"{result.unpublished} unpublished outbox, {result.inbox} inbox, "
-        f"{result.auth_counters} expired sign-in counters"
+        f"{result.auth_counters} expired sign-in counters, "
+        f"{notices} read notifications over 180 days old"
     )
     return 0
 

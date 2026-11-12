@@ -34,6 +34,7 @@ from stockviz.models.market import (
     Symbol,
 )
 from stockviz.models.metrics import SymbolMetrics
+from stockviz.models.notification import Notification, NotificationCategory
 from stockviz.models.option import OptionsPosition, OptionStatus, OptionType
 from stockviz.models.order import OrderStatus, OrderType, PendingOrder
 from stockviz.models.portfolio import (
@@ -89,6 +90,8 @@ __all__ = [
     "JobRun",
     "NewsArticle",
     "NewsSentiment",
+    "Notification",
+    "NotificationCategory",
     "OptionStatus",
     "OptionType",
     "OptionsPosition",

@@ -210,6 +210,7 @@ def _cancel(session: Session, order: PendingOrder, reason: str) -> None:
     order.status = OrderStatus.CANCELLED
     order.cancel_reason = reason[:200]
     session.add(order)
+    _notify_order(session, order, "cancelled", f"Cancelled: {reason[:200]}")
     logger.warning("order %s cancelled: %s", order.id, reason)
 
 
@@ -224,7 +225,29 @@ def _expire(session: Session, order: PendingOrder) -> None:
     order.status = OrderStatus.EXPIRED
     order.cancel_reason = f"Expired after {ORDER_MAX_AGE_DAYS} days without filling"
     session.add(order)
+    _notify_order(session, order, "expired", order.cancel_reason)
     logger.info("order %s expired", order.id)
+
+
+def _notify_order(session: Session, order: PendingOrder, what: str, body: str) -> None:
+    """Tell the owner what the nightly settlement did to their order (Phase 7.2)."""
+    if order.id is None:
+        return
+    from stockviz.models import NotificationCategory
+    from stockviz.services.notifications import notify_portfolio
+
+    notify_portfolio(
+        session,
+        order.portfolio_id,
+        category=NotificationCategory.ORDER,
+        title=(
+            f"{order.order_type.value.replace('_', ' ').title()} {order.side.value} "
+            f"{order.quantity.normalize():f} {order.ticker} {what}"
+        ),
+        body=body,
+        link=f"/orders?status={what}",
+        source_key=f"order:{order.id}:{what}",
+    )
 
 
 def _known_at_placement(order: PendingOrder) -> date_type:
@@ -408,6 +431,13 @@ def _fill(
     record_execution_provenance(session, trade=result.trade, provenance=provenance)
 
     order.status = OrderStatus.FILLED
+    _notify_order(
+        session,
+        order,
+        "filled",
+        f"Filled at {fill_price:,.2f} {priced.currency} on the "
+        f"{priced.bar.ts.date().isoformat()} close.",
+    )
     order.filled_at = utcnow()
     order.fill_price = fill_price
     session.add(order)

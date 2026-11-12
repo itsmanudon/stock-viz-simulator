@@ -260,6 +260,23 @@ nothing twice. API: `GET /v1/alerts/events`, `GET /v1/alerts/{id}/events`,
 scales price levels only. Migration `8ced30212d40`; existing alerts are
 armed from their creation time.
 
+**News and portfolio rules, notifications (Phase 7.2).** `news` rules
+(`params.sentiment`, `params.event_type`) fire once per Aegis document linked
+to the ticker whose `available_at` is after `armed_at` and that matches; the
+key is `<rule>:doc:<document id>`, so rescanning the newest 200 is harmless
+and a late-synced document is still caught. `portfolio` rules (no ticker:
+`drawdown_pct` from the peak of opening, snapshots and live NAV,
+`position_weight_pct`, `day_change_pct`) are judged once per session in the
+base currency; the first judgement only records state; an incomplete
+valuation is skipped. `notifications` (`models/notification.py`,
+`services/notifications.py::notify`, unique `source_key`, staged in the
+writer's transaction): alert firings (`on_alert_fired`), settlement fills,
+cancellations and expiries, dividend credits, split rebasing and option
+expiry. `/v1/notifications` (list with `category`, `unread`, `before_id`),
+`/unread-count`, `/{id}/read`, `/read-all`. `prune-events` deletes read
+notifications over 180 days old. In-app only (owner, Phase 7). Migration
+`4d4accec26be`.
+
 **Web cache after the night (audit RS-9, Phase 6.6).** The cron's last step
 is `revalidate-web`: it posts to `WEB_REVALIDATE_URL` with header
 `X-StockViz-Revalidate`, an HMAC-SHA256 of `stockviz-revalidate-v1` under

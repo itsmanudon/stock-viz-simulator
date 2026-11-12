@@ -12,7 +12,20 @@ from stockviz.models import Alert, AlertEvent
 
 
 def on_alert_fired(session: Session, alert: Alert, event: AlertEvent) -> None:
-    """Hook run in the firing's transaction (notifications attach here, 7.2)."""
+    """Every firing becomes a notification, in the firing's transaction (7.2)."""
+    from stockviz.models import NotificationCategory
+    from stockviz.services.alerts.rules import describe
+    from stockviz.services.notifications import notify
+
+    notify(
+        session,
+        user_id=alert.user_id,
+        category=NotificationCategory.ALERT,
+        title=describe(alert),
+        body=event.message,
+        link=f"/alerts?rule={alert.id}",
+        source_key=f"alert_event:{event.dedupe_key}",
+    )
 
 
 from stockviz.services.alerts.engine import evaluate_pending_alerts  # noqa: E402
