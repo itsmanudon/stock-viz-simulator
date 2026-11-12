@@ -1,55 +1,110 @@
-"""`/v1/symbols/screen` — filter the symbol universe by technical criteria.
+"""Screening the universe (Phase 6.2).
 
-Filters read the precomputed ``symbol_metrics`` table rather than rescanning
-``price_bars``. The previous version pulled ~260 bars per symbol and recomputed
-RSI for the whole universe on every request — around 8,300 rows scanned per
-call, uncached and uncapped. Metrics are refreshed once a day by the scheduler
-(``services/metrics.py``), right after prices land, so a screen is now a single
-indexed query.
+- ``GET /v1/screener``: the unified screener. Market (country), exchange
+  (MIC) and currency filters for both markets, technical filters from the
+  nightly snapshot, server-side sort and offset paging with a total.
+- ``GET /v1/symbols/screen``: the original list endpoint, kept for its
+  callers (screener-era pages, the landing page's proofs). Same query path,
+  so momentum is now applied before the limit too (audit RS-5).
 
-All filters are AND'd. A symbol whose metric is NULL (not enough history, or
-the refresh hasn't run for it yet) does not match a filter on that metric.
+Filters read the precomputed ``symbol_metrics`` snapshot rather than
+rescanning ``price_bars``; see ``services/screener.py``.
 """
 
 from __future__ import annotations
 
-from decimal import Decimal
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, Request
-from sqlmodel import Session, select
+from sqlmodel import Session
 
 from stockviz.db import get_session
 from stockviz.limiter import limiter
-from stockviz.models import Symbol, SymbolMetrics
-from stockviz.schemas import ScreenerResultOut
-from stockviz.services.recent_bars import recent_closes
+from stockviz.schemas import ScreenerPageOut, ScreenerResultOut, ScreenerRowOut
+from stockviz.services.screener import (
+    MAX_MOMENTUM_DAYS,
+    NEAR_52W_THRESHOLD,  # noqa: F401  (re-exported for older imports)
+    SORT_KEYS,
+    ScreenQuery,
+    run_screen,
+)
 
 router = APIRouter(prefix="/v1/symbols", tags=["screener"])
+page_router = APIRouter(prefix="/v1", tags=["screener"])
 
 SessionDep = Annotated[Session, Depends(get_session)]
 
-NEAR_52W_THRESHOLD = Decimal("0.05")
-"""How close to the 52-week extreme we count as ``near``. 5% by default."""
-
 MAX_RESULTS = 200
-MAX_MOMENTUM_DAYS = 252
+MAX_PAGE = 100
 
 
-def _momentum_by_ticker(
-    session: Session, tickers: list[str], *, days: int
-) -> dict[str, float | None]:
-    """N-bar return from at most days + 1 daily closes per requested ticker."""
-    closes = recent_closes(session, tickers, limit_per_ticker=days + 1)
-    out: dict[str, float | None] = {}
-    for ticker in tickers:
-        values = closes.get(ticker, [])
-        now = values[-1] if values else None
-        then = values[0] if len(values) == days + 1 else None
-        out[ticker] = (
-            float((now - then) / then * 100) if now is not None and then not in (None, 0) else None
-        )
-    return out
+def _csv(raw: str | None) -> list[str]:
+    return [p.strip() for p in (raw or "").split(",") if p.strip()]
+
+
+@page_router.get("/screener", response_model=ScreenerPageOut)
+@limiter.limit("30/minute")
+def screener(
+    request: Request,
+    session: SessionDep,
+    market: Annotated[str | None, Query(description="Countries, e.g. US,IN")] = None,
+    exchange: Annotated[str | None, Query(description="MICs, e.g. XNAS,XNSE")] = None,
+    currency: Annotated[str | None, Query(description="e.g. USD,INR")] = None,
+    sector: Annotated[str | None, Query()] = None,
+    rsi_min: Annotated[float | None, Query(ge=0, le=100)] = None,
+    rsi_max: Annotated[float | None, Query(ge=0, le=100)] = None,
+    momentum_days: Annotated[int | None, Query(ge=1, le=MAX_MOMENTUM_DAYS)] = None,
+    momentum_min: Annotated[float | None, Query()] = None,
+    momentum_max: Annotated[float | None, Query()] = None,
+    near_52w_high: Annotated[bool, Query()] = False,
+    near_52w_low: Annotated[bool, Query()] = False,
+    above_sma_50: Annotated[bool | None, Query()] = None,
+    above_sma_200: Annotated[bool | None, Query()] = None,
+    hv_min: Annotated[float | None, Query(ge=0)] = None,
+    hv_max: Annotated[float | None, Query(ge=0)] = None,
+    atr_pct_min: Annotated[float | None, Query(ge=0)] = None,
+    atr_pct_max: Annotated[float | None, Query(ge=0)] = None,
+    sentiment_min: Annotated[float | None, Query(ge=-1, le=1)] = None,
+    sentiment_max: Annotated[float | None, Query(ge=-1, le=1)] = None,
+    sort: Annotated[str, Query(pattern="^(" + "|".join(SORT_KEYS) + ")$")] = "ticker",
+    dir: Annotated[str, Query(pattern="^(asc|desc)$")] = "asc",
+    offset: Annotated[int, Query(ge=0)] = 0,
+    limit: Annotated[int, Query(ge=1, le=MAX_PAGE)] = 50,
+) -> ScreenerPageOut:
+    rows, total = run_screen(
+        session,
+        ScreenQuery(
+            markets=_csv(market),
+            exchanges=_csv(exchange),
+            currencies=_csv(currency),
+            sector=sector,
+            rsi_min=rsi_min,
+            rsi_max=rsi_max,
+            momentum_days=momentum_days,
+            momentum_min=momentum_min,
+            momentum_max=momentum_max,
+            near_52w_high=near_52w_high,
+            near_52w_low=near_52w_low,
+            above_sma_50=above_sma_50,
+            above_sma_200=above_sma_200,
+            hv_min=hv_min,
+            hv_max=hv_max,
+            atr_pct_min=atr_pct_min,
+            atr_pct_max=atr_pct_max,
+            sentiment_min=sentiment_min,
+            sentiment_max=sentiment_max,
+            sort=sort,
+            descending=dir == "desc",
+            offset=offset,
+            limit=limit,
+        ),
+    )
+    return ScreenerPageOut(
+        rows=[ScreenerRowOut.model_validate(r, from_attributes=True) for r in rows],
+        total=total,
+        offset=offset,
+        limit=limit,
+    )
 
 
 @router.get("/screen", response_model=list[ScreenerResultOut])
@@ -69,72 +124,41 @@ def screen_symbols(
     sentiment_max: Annotated[float | None, Query(ge=-1, le=1)] = None,
     limit: Annotated[int, Query(ge=1, le=MAX_RESULTS)] = MAX_RESULTS,
 ) -> list[ScreenerResultOut]:
-    """Screen the universe against the precomputed metrics."""
-    stmt = (
-        select(SymbolMetrics, Symbol)
-        .join(Symbol, Symbol.ticker == SymbolMetrics.ticker)  # type: ignore[arg-type]
-        .where(Symbol.is_active)
+    """The original list screen, on the unified query path (RS-5 fixed)."""
+    rows, _total = run_screen(
+        session,
+        ScreenQuery(
+            sector=sector,
+            rsi_min=rsi_min,
+            rsi_max=rsi_max,
+            momentum_days=momentum_days,
+            momentum_min=momentum_min,
+            momentum_max=momentum_max,
+            near_52w_high=near_52w_high,
+            near_52w_low=near_52w_low,
+            sentiment_min=sentiment_min,
+            sentiment_max=sentiment_max,
+            limit=limit,
+        ),
     )
-
-    if sector is not None:
-        stmt = stmt.where(Symbol.sector == sector)
-    if rsi_min is not None:
-        stmt = stmt.where(SymbolMetrics.rsi_14 >= rsi_min)  # type: ignore[arg-type]
-    if rsi_max is not None:
-        stmt = stmt.where(SymbolMetrics.rsi_14 <= rsi_max)  # type: ignore[arg-type]
-
-    if near_52w_high:
-        stmt = stmt.where(
-            SymbolMetrics.high_52w.is_not(None),  # type: ignore[union-attr]
-            SymbolMetrics.last_close >= SymbolMetrics.high_52w * (Decimal(1) - NEAR_52W_THRESHOLD),  # type: ignore[operator]
+    return [
+        ScreenerResultOut(
+            ticker=r.ticker,
+            name=r.name,
+            sector=r.sector,
+            exchange=r.exchange,
+            currency=r.currency,
+            last_close=r.last_close,
+            as_of=r.as_of,
+            rsi_14=r.rsi_14,
+            momentum_pct=r.momentum_pct,
+            momentum_days=r.momentum_days,
+            high_52w=r.high_52w,
+            low_52w=r.low_52w,
+            sentiment_7d=r.sentiment_7d,
         )
-    if near_52w_low:
-        stmt = stmt.where(
-            SymbolMetrics.low_52w.is_not(None),  # type: ignore[union-attr]
-            SymbolMetrics.last_close <= SymbolMetrics.low_52w * (Decimal(1) + NEAR_52W_THRESHOLD),  # type: ignore[operator]
-        )
-
-    if sentiment_min is not None:
-        stmt = stmt.where(SymbolMetrics.sentiment_7d >= sentiment_min)  # type: ignore[arg-type]
-    if sentiment_max is not None:
-        stmt = stmt.where(SymbolMetrics.sentiment_7d <= sentiment_max)  # type: ignore[arg-type]
-
-    stmt = stmt.order_by(SymbolMetrics.ticker).limit(limit)  # type: ignore[arg-type]
-    candidates = list(session.exec(stmt).all())
-
-    # Momentum is applied after the indexed filters, over the surviving set
-    # only, so the extra query stays small.
-    momentum_by_ticker: dict[str, float | None] = {}
-    if momentum_days is not None:
-        momentum_by_ticker = _momentum_by_ticker(
-            session, [s.ticker for _m, s in candidates], days=momentum_days
-        )
-
-    results: list[ScreenerResultOut] = []
-    for metrics, symbol in candidates:
-        momentum_pct = momentum_by_ticker.get(symbol.ticker) if momentum_days else None
-        if momentum_days is not None:
-            if momentum_pct is None:
-                continue
-            if momentum_min is not None and momentum_pct < momentum_min:
-                continue
-            if momentum_max is not None and momentum_pct > momentum_max:
-                continue
-        results.append(
-            ScreenerResultOut(
-                ticker=symbol.ticker,
-                name=symbol.name,
-                sector=symbol.sector,
-                exchange=symbol.exchange,
-                currency=symbol.currency,
-                last_close=metrics.last_close or Decimal(0),
-                as_of=metrics.as_of,
-                rsi_14=metrics.rsi_14,
-                momentum_pct=momentum_pct,
-                momentum_days=momentum_days,
-                high_52w=metrics.high_52w or Decimal(0),
-                low_52w=metrics.low_52w or Decimal(0),
-                sentiment_7d=metrics.sentiment_7d,
-            )
-        )
-    return results
+        for r in rows
+        # A metrics row always has these (it is written from at least one
+        # bar); a row without them is skipped, never shown as 0 (RS-4).
+        if r.last_close is not None and r.high_52w is not None and r.low_52w is not None
+    ]

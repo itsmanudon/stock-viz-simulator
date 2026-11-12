@@ -784,6 +784,55 @@ class ScreenerResultOut(BaseModel):
     sentiment_7d: float | None = None
 
 
+class ScreenerRowOut(BaseModel):
+    """One row of /v1/screener (Phase 6.2). Unknown values are null, never 0."""
+
+    ticker: str
+    name: str
+    sector: str | None = None
+    exchange: str | None = None
+    market: str | None = None  # ISO country of the listing (US, IN, GB, ...)
+    mic: str | None = None  # the venue, e.g. XNAS, XNSE
+    currency: str = "USD"
+    last_close: Decimal | None = None
+    as_of: date | None = None
+    rsi_14: float | None = None
+    momentum_pct: float | None = None
+    momentum_days: int | None = None
+    high_52w: Decimal | None = None
+    low_52w: Decimal | None = None
+    pct_from_52w_high: float | None = None
+    sma_50: float | None = None
+    sma_200: float | None = None
+    sma_50_gap_pct: float | None = None
+    sma_200_gap_pct: float | None = None
+    atr_pct_14: float | None = None
+    hv_20: float | None = None
+    avg_volume_20: float | None = None
+    sentiment_7d: float | None = None
+
+
+class ScreenerPageOut(BaseModel):
+    rows: list[ScreenerRowOut]
+    total: int  # every match, before paging (audit RS-5)
+    offset: int
+    limit: int
+
+
+class SavedScreenIn(BaseModel):
+    name: str = Field(min_length=1, max_length=80)
+    # The screener URL's query string, e.g. "market=IN&rsi_max=30&sort=rsi_14".
+    query: str = Field(max_length=2000)
+
+
+class SavedScreenOut(BaseModel):
+    id: int
+    name: str
+    query: str
+    created_at: datetime
+    updated_at: datetime
+
+
 # ---------------------------------------------------------------------------
 # Comments
 # ---------------------------------------------------------------------------

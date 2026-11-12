@@ -52,6 +52,7 @@ from stockviz.models.replay import (
     ReplaySession,
     ReplaySessionStatus,
 )
+from stockviz.models.screen import SavedScreen
 from stockviz.models.sentiment import NewsSentiment
 from stockviz.models.user import User
 from stockviz.models.watchlist import Watchlist, WatchlistItem
@@ -103,6 +104,7 @@ __all__ = [
     "ReplayPosition",
     "ReplaySession",
     "ReplaySessionStatus",
+    "SavedScreen",
     "SimulatedExecution",
     "Symbol",
     "SymbolMetrics",
