@@ -22,7 +22,6 @@ from stockviz.models import (
     Position,
     Symbol,
 )
-from stockviz.models.option import CONTRACT_MULTIPLIER
 from stockviz.services.recent_bars import recent_closes
 from stockviz.services.trading.buying_power import reserved_cash, reserved_shares
 from stockviz.services.trading.fx import convert as fx_convert
@@ -71,6 +70,21 @@ class PortfolioOptionPosition:
 
 
 @dataclass(frozen=True, slots=True)
+class ValuationWarning:
+    """A figure the valuation could not price, so the total leaves it out (LG-13).
+
+    ``code`` is ``no_close`` (a holding without a stored close: valued at 0),
+    ``no_option_price`` (an open contract that could not be priced: valued
+    at 0) or ``no_fx_rate`` (an amount whose currency has no rate: added
+    unconverted). ``subject`` is the ticker, or the currency for FX.
+    """
+
+    code: str
+    subject: str
+    message: str
+
+
+@dataclass(frozen=True, slots=True)
 class PortfolioValuation:
     portfolio_id: int
     # Currency every aggregate (cash, market_value, totals) is denominated in.
@@ -87,6 +101,12 @@ class PortfolioValuation:
     total_value: Decimal = Decimal(0)
     total_cost_basis: Decimal = Decimal(0)
     unrealized_pl: Decimal = Decimal(0)
+    # Empty when every figure was priced; otherwise the total is incomplete.
+    warnings: list[ValuationWarning] = field(default_factory=list)
+
+    @property
+    def complete(self) -> bool:
+        return not self.warnings
 
 
 def latest_close_map(session: Session, tickers: list[str]) -> dict[str, Decimal]:
@@ -116,7 +136,10 @@ def compute_portfolio(
 
     Missing FX rates are treated as "skip conversion" for that one position
     (the native amount is used as-is) — a defensive choice so the page still
-    renders if the FX refresh is briefly behind.
+    renders if the FX refresh is briefly behind. Every such shortcut, and every
+    holding or contract valued at 0 because it has no price, is reported in
+    ``warnings`` (audit LG-13), so callers can say the total is incomplete and
+    the snapshot job can refuse to store it.
     """
 
     assert portfolio.id is not None
@@ -130,6 +153,20 @@ def compute_portfolio(
     )
     tickers = [pos.ticker for pos, _ in rows]
     close_by_ticker = latest_close_map(session, tickers)
+    warnings: list[ValuationWarning] = []
+    missing_rates: set[str] = set()
+
+    def _missing_rate(currency: str) -> None:
+        if currency not in missing_rates:
+            missing_rates.add(currency)
+            warnings.append(
+                ValuationWarning(
+                    code="no_fx_rate",
+                    subject=currency,
+                    message=f"No {currency} exchange rate is stored, so {currency} "
+                    f"amounts are added to the {display_currency} total unconverted.",
+                )
+            )
 
     def _to_display(amount: Decimal, from_ccy: str) -> Decimal:
         if from_ccy == display_currency:
@@ -137,6 +174,15 @@ def compute_portfolio(
         try:
             return fx_convert(session, amount, from_currency=from_ccy, to_currency=display_currency)
         except LookupError:
+            # Name the side that has no rate: the holding's currency or the
+            # display currency (USD needs none).
+            for currency in (from_ccy, display_currency):
+                if currency == "USD":
+                    continue
+                try:
+                    latest_rate(session, currency)
+                except LookupError:
+                    _missing_rate(currency)
             return amount
 
     positions: list[PortfolioPosition] = []
@@ -146,6 +192,14 @@ def compute_portfolio(
         native_ccy = sym.currency or "USD"
         last = close_by_ticker.get(pos.ticker)
         mv_native = (last * pos.quantity) if last is not None else Decimal(0)
+        if last is None:
+            warnings.append(
+                ValuationWarning(
+                    code="no_close",
+                    subject=pos.ticker,
+                    message=f"{pos.ticker} has no stored close, so the holding is valued at 0.",
+                )
+            )
         cost_native = pos.avg_cost * pos.quantity
         pl_native = mv_native - cost_native
 
@@ -175,9 +229,16 @@ def compute_portfolio(
 
     try:
         reserved_usd = reserved_cash(session, portfolio.id)
-    except LookupError:
+    except LookupError as exc:
         # Cannot price a pending BUY — fail closed for display.
         reserved_usd = portfolio.cash_balance
+        warnings.append(
+            ValuationWarning(
+                code="no_fx_rate",
+                subject="reservations",
+                message=f"A pending buy cannot be priced ({exc}), so all cash shows as reserved.",
+            )
+        )
     available_usd = portfolio.cash_balance - reserved_usd
 
     # Cash is USD-base — convert it (and reservation figures) to display currency.
@@ -196,13 +257,15 @@ def compute_portfolio(
                 cash_display = portfolio.cash_balance
                 reserved_display = reserved_usd
                 available_display = available_usd
+                _missing_rate(display_currency)
         except LookupError:
             cash_display = portfolio.cash_balance
             reserved_display = reserved_usd
             available_display = available_usd
+            _missing_rate(display_currency)
 
     option_positions, options_value_display = _value_open_options(
-        session, portfolio_id=portfolio.id, to_display=_to_display
+        session, portfolio_id=portfolio.id, to_display=_to_display, warnings=warnings
     )
 
     total_value = market_value_display + options_value_display + cash_display
@@ -219,6 +282,7 @@ def compute_portfolio(
         total_value=total_value,
         total_cost_basis=cost_basis_display,
         unrealized_pl=market_value_display - cost_basis_display,
+        warnings=warnings,
     )
 
 
@@ -227,6 +291,7 @@ def _value_open_options(
     *,
     portfolio_id: int,
     to_display: Callable[[Decimal, str], Decimal],
+    warnings: list[ValuationWarning],
 ) -> tuple[list[PortfolioOptionPosition], Decimal]:
     """Mark every open option contract to its Black-Scholes value.
 
@@ -257,8 +322,18 @@ def _value_open_options(
             per_share = Decimal(str(priced.value))
         except NoOptionMarketData:
             per_share = Decimal(0)
+            warnings.append(
+                ValuationWarning(
+                    code="no_option_price",
+                    subject=opt.ticker,
+                    message=f"A {opt.ticker} {opt.option_type.value} cannot be priced "
+                    "(no stored closes), so it is valued at 0.",
+                )
+            )
 
-        mv_native = (per_share * CONTRACT_MULTIPLIER * opt.quantity).quantize(Decimal("0.000001"))
+        mv_native = (per_share * opt.shares_per_contract * opt.quantity).quantize(
+            Decimal("0.000001")
+        )
         if mv_native < 0:
             mv_native = Decimal(0)
         mv_display = to_display(mv_native, native_ccy)

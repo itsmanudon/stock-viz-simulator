@@ -438,7 +438,7 @@ function SignalRowButton({
       {collapsed ? (
         <span className="min-w-0">
           <span className="flex min-w-0 items-center gap-2">
-            <span className="font-mono text-sm font-semibold">{row.ticker}</span>
+            <span className="ticker text-sm font-semibold">{row.ticker}</span>
             <SignalBadge signal={row.signal} />
           </span>
           <span className="mt-1 block truncate text-xs text-text-secondary">{row.name}</span>
@@ -448,7 +448,7 @@ function SignalRowButton({
         </span>
       ) : (
         <>
-          <span className="min-w-0 px-3 py-3 font-mono font-medium">
+          <span className="min-w-0 px-3 py-3 ticker font-medium">
             {row.ticker}
             <span className="mt-0.5 block truncate text-xs text-text-secondary md:hidden">
               {row.name}
@@ -531,7 +531,7 @@ function SignalDetail({ row, onClose }: { row: SignalRow; onClose: () => void })
       <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6 sm:py-6 lg:max-h-none">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="min-w-0">
-            <p className="font-mono text-sm font-semibold tracking-wide text-brand">{row.ticker}</p>
+            <p className="ticker text-sm font-semibold text-text-tertiary">{row.ticker}</p>
             <h2
               id={detailId}
               ref={headingRef}

@@ -36,7 +36,7 @@ export default async function DashboardPage() {
           <p className="text-xs font-medium tracking-[0.12em] text-text-secondary uppercase">
             StockViz workspace
           </p>
-          <h1 className="mt-1.5 text-2xl font-medium tracking-tight sm:text-3xl">
+          <h1 className="mt-1.5 text-2xl font-semibold tracking-[-0.025em] sm:text-3xl">
             Today&rsquo;s position
           </h1>
         </div>

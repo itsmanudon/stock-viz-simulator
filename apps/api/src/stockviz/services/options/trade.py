@@ -32,19 +32,28 @@ from stockviz.models import (
     OptionStatus,
     OptionType,
     Portfolio,
-    Position,
     PriceBar,
     Symbol,
+    TradeSide,
 )
 from stockviz.models.option import CONTRACT_MULTIPLIER
-from stockviz.services.ingest.bar_semantics import new_york_session_date
+from stockviz.services.ingest.bar_semantics import (
+    latest_completed_session,
+    new_york_session_date,
+)
+from stockviz.services.markets.calendar import NEW_YORK_VENUE, session_on_or_before
 from stockviz.services.options.pricing import OptionPrice, black_scholes, historical_volatility
 from stockviz.services.trading.buying_power import (
     available_cash,
-    available_shares,
     lock_portfolio,
 )
-from stockviz.services.trading.execute import NoFxRateError, ensure_default_portfolio
+from stockviz.services.trading.execute import (
+    InsufficientCash,
+    InsufficientPosition,
+    NoFxRateError,
+    apply_fill,
+    ensure_default_portfolio,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -73,6 +82,10 @@ class InvalidExpiry(OptionTradeError):
 
 class InsufficientCashForOption(OptionTradeError):
     pass
+
+
+class OptionOrderConflict(OptionTradeError):
+    """A client_order_id already names a different option open (audit LG-10)."""
 
 
 class OptionNotFound(OptionTradeError):
@@ -127,21 +140,44 @@ class OptionTradeResult:
     cash_delta: Decimal  # negative when premium paid, positive when proceeds received
 
 
-def open_option(
+@dataclass(frozen=True, slots=True)
+class OptionQuote:
+    """What opening a contract costs now, priced as :func:`open_option` charges it.
+
+    ``per_share`` is the Black-Scholes value; ``premium`` is the charge for
+    ``quantity`` contracts (x ``CONTRACT_MULTIPLIER``), rounded to cents.
+    ``spot`` is the latest stored close, dated ``spot_at``; ``volatility`` is
+    the annualised 30-day historical volatility used as the IV proxy.
+    ``strike`` is the one priced: the caller's, or the spot rounded to cents.
+    """
+
+    ticker: str
+    strike: Decimal
+    spot: Decimal
+    spot_at: datetime
+    volatility: float
+    per_share: Decimal
+    premium: Decimal
+    price: OptionPrice
+
+
+def quote_option(
     session: Session,
     *,
-    user_id: int,
     ticker: str,
     option_type: OptionType,
-    strike: Decimal,
+    strike: Decimal | None,
     expiry: date_type,
-    quantity: int,
-) -> OptionTradeResult:
-    """Buy ``quantity`` contracts to open. Premium is debited from portfolio cash."""
+    quantity: int = 1,
+) -> OptionQuote:
+    """Price an open without placing it (audit LG-7). Raises the open's errors.
 
+    Without a ``strike`` the contract is priced at the money: the latest close
+    rounded to cents.
+    """
     if quantity <= 0:
         raise OptionTradeError("quantity must be a positive number of contracts")
-    if strike <= 0:
+    if strike is not None and strike <= 0:
         raise OptionTradeError("strike must be positive")
 
     ticker = ticker.upper()
@@ -155,22 +191,96 @@ def open_option(
     if expiry <= today:
         raise InvalidExpiry("expiry must be a future date")
 
-    spot = _spot(session, ticker)
-    if spot is None:
+    newest = session.exec(
+        select(PriceBar)
+        .where(PriceBar.ticker == ticker, PriceBar.interval == "1d")
+        .order_by(PriceBar.ts.desc())  # type: ignore[attr-defined]
+        .limit(1)
+    ).first()
+    if newest is None:
         raise NoOptionMarketData(f"No market data for {ticker!r}; cannot price option")
+    if strike is None:
+        strike = newest.close.quantize(_CENTS)
 
     vol = historical_volatility(_bar_closes(session, ticker))
     price = black_scholes(
-        spot=float(spot),
+        spot=float(newest.close),
         strike=float(strike),
         time_to_expiry_years=_years_to_expiry(expiry, asof=today),
         volatility=vol,
         risk_free_rate=RISK_FREE_RATE,
         option_type=option_type.value,
     )
-    premium = (Decimal(str(price.value)) * CONTRACT_MULTIPLIER * quantity).quantize(_CENTS)
+    per_share = Decimal(str(price.value))
+    premium = (per_share * CONTRACT_MULTIPLIER * quantity).quantize(_CENTS)
     if premium < 0:
         premium = Decimal("0.00")
+    return OptionQuote(
+        ticker=ticker,
+        strike=strike,
+        spot=newest.close,
+        spot_at=newest.ts,
+        volatility=vol,
+        per_share=per_share,
+        premium=premium,
+        price=price,
+    )
+
+
+def open_option(
+    session: Session,
+    *,
+    user_id: int,
+    ticker: str,
+    option_type: OptionType,
+    strike: Decimal,
+    expiry: date_type,
+    quantity: int,
+    client_order_id: str | None = None,
+) -> OptionTradeResult:
+    """Buy ``quantity`` contracts to open. Premium is debited from portfolio cash.
+
+    With a ``client_order_id`` a repeat of the same open returns the first
+    contract without charging again, and a repeat naming a different contract
+    raises :class:`OptionOrderConflict` (audit LG-10). The lookup runs under
+    the portfolio lock.
+    """
+
+    if quantity <= 0:
+        raise OptionTradeError("quantity must be a positive number of contracts")
+    if strike <= 0:
+        raise OptionTradeError("strike must be positive")
+
+    ticker = ticker.upper()
+    if client_order_id is not None:
+        earlier = _earlier_open(session, user_id=user_id, client_order_id=client_order_id)
+        if earlier is not None:
+            same = (
+                earlier.ticker == ticker
+                and earlier.option_type == option_type
+                and earlier.strike == strike
+                and earlier.expiry == expiry
+                and earlier.quantity == quantity
+            )
+            if not same:
+                raise OptionOrderConflict(
+                    "This client_order_id was already used for a different option "
+                    f"({earlier.quantity} {earlier.ticker} {earlier.option_type.value} "
+                    f"{earlier.strike} {earlier.expiry.isoformat()})."
+                )
+            session.rollback()  # release the lock; nothing was written
+            session.refresh(earlier)
+            return OptionTradeResult(position=earlier, cash_delta=-earlier.premium_paid)
+
+    quote = quote_option(
+        session,
+        ticker=ticker,
+        option_type=option_type,
+        strike=strike,
+        expiry=expiry,
+        quantity=quantity,
+    )
+    premium = quote.premium
 
     portfolio = ensure_default_portfolio(session, user_id)
     assert portfolio.id is not None
@@ -196,12 +306,28 @@ def open_option(
         quantity=quantity,
         premium_paid=premium,
         status=OptionStatus.OPEN,
+        client_order_id=client_order_id,
     )
     session.add(portfolio)
     session.add(position)
     session.commit()
     session.refresh(position)
     return OptionTradeResult(position=position, cash_delta=-premium)
+
+
+def _earlier_open(
+    session: Session, *, user_id: int, client_order_id: str
+) -> OptionsPosition | None:
+    """The open this key already placed, read under the portfolio lock."""
+    portfolio = ensure_default_portfolio(session, user_id)
+    assert portfolio.id is not None
+    lock_portfolio(session, portfolio.id)
+    return session.exec(
+        select(OptionsPosition).where(
+            OptionsPosition.portfolio_id == portfolio.id,
+            OptionsPosition.client_order_id == client_order_id,
+        )
+    ).first()
 
 
 def close_option(session: Session, *, user_id: int, option_id: int) -> OptionTradeResult:
@@ -216,9 +342,9 @@ def close_option(session: Session, *, user_id: int, option_id: int) -> OptionTra
         raise OptionTradeError("This expired option is awaiting expiry settlement")
 
     price = value_option(session, position)
-    proceeds = (Decimal(str(price.value)) * CONTRACT_MULTIPLIER * position.quantity).quantize(
-        _CENTS
-    )
+    proceeds = (
+        Decimal(str(price.value)) * position.shares_per_contract * position.quantity
+    ).quantize(_CENTS)
     if proceeds < 0:
         proceeds = Decimal("0.00")
 
@@ -256,96 +382,124 @@ def _record_realization(
     position.realized_pnl = realized_pnl.quantize(_MICROS)
 
 
+def _cash_settle(
+    portfolio: Portfolio, position: OptionsPosition, *, intrinsic: Decimal, why: str
+) -> None:
+    portfolio.cash_balance = (portfolio.cash_balance + intrinsic).quantize(_MICROS)
+    _record_realization(position, proceeds=intrinsic)
+    logger.info(
+        "options_settle: %s %s cash-settled (%s) +%s",
+        position.option_type.value,
+        position.id,
+        why,
+        intrinsic,
+    )
+
+
 def _exercise_call_into_equity(
     session: Session, portfolio: Portfolio, position: OptionsPosition, *, spot: Decimal
 ) -> None:
-    """ITM call: buy qty*100 shares at the strike, adding to the equity book.
+    """ITM call: buy qty*100 shares at the strike through the equity fill path.
 
-    Falls back to cash-settling the intrinsic value if the portfolio can't
-    afford the strike cost.
+    ``apply_fill`` moves cash and shares, sets the average cost and writes the
+    ``Trade`` row, as a market buy at the strike would (issue #62: exercise
+    used to change positions directly and leave no trade). If available cash
+    cannot cover the strike, ``apply_fill`` raises before changing anything
+    and the intrinsic value is cash-settled instead.
     """
-    shares = Decimal(position.quantity * CONTRACT_MULTIPLIER)
-    strike_cost = (position.strike * shares).quantize(_MICROS)
-
+    shares = position.quantity * position.shares_per_contract
     try:
-        spendable = available_cash(session, portfolio)
-    except LookupError:
-        spendable = Decimal(0)
-
-    if spendable < strike_cost:
+        apply_fill(
+            session,
+            portfolio=portfolio,
+            ticker=position.ticker,
+            side=TradeSide.BUY,
+            quantity=shares,
+            price=position.strike,
+            currency="USD",  # options are USD underlyings only (open_option)
+            fx_rate=Decimal(1),
+        )
+    except InsufficientCash:
         intrinsic = ((spot - position.strike) * shares).quantize(_CENTS)
-        portfolio.cash_balance = (portfolio.cash_balance + intrinsic).quantize(_MICROS)
-        _record_realization(position, proceeds=intrinsic)
-        logger.info(
-            "options_settle: call %s cash-settled (insufficient cash to exercise) +%s",
-            position.id,
-            intrinsic,
-        )
+        _cash_settle(portfolio, position, intrinsic=intrinsic, why="insufficient cash to exercise")
         return
-
-    # Exercised into the equity book: no cash is credited and the contract's
-    # upside carries forward as a strike-priced cost basis, so the option leg
-    # realizes only the sunk premium. The rest is realized later by the equity
-    # sell — counting it here too would double count it.
+    # Exercised into the equity book: the upside carries forward as a
+    # strike-priced cost basis and is realized by a later sell, so the option
+    # leg realizes only the sunk premium.
     _record_realization(position, proceeds=Decimal("0"), realized_pnl=-position.premium_paid)
-    portfolio.cash_balance = (portfolio.cash_balance - strike_cost).quantize(_MICROS)
-    equity = session.exec(
-        select(Position).where(
-            Position.portfolio_id == portfolio.id, Position.ticker == position.ticker
-        )
-    ).first()
-    if equity is None:
-        session.add(
-            Position(
-                portfolio_id=portfolio.id,  # type: ignore[arg-type]
-                ticker=position.ticker,
-                quantity=shares,
-                avg_cost=position.strike,
-            )
-        )
-    else:
-        total_cost = equity.avg_cost * equity.quantity + strike_cost
-        equity.quantity = equity.quantity + shares
-        equity.avg_cost = (total_cost / equity.quantity).quantize(_MICROS)
-        session.add(equity)
 
 
 def _exercise_put(
     session: Session, portfolio: Portfolio, position: OptionsPosition, *, spot: Decimal
 ) -> None:
-    """ITM put: sell qty*100 held shares at the strike if the portfolio owns
-    enough; otherwise cash-settle the intrinsic value."""
-    shares = Decimal(position.quantity * CONTRACT_MULTIPLIER)
-    assert portfolio.id is not None
-    spendable = available_shares(session, portfolio.id, position.ticker)
-    equity = session.exec(
-        select(Position).where(
-            Position.portfolio_id == portfolio.id, Position.ticker == position.ticker
-        )
-    ).first()
+    """ITM put: sell qty*100 held shares at the strike through the equity fill path.
 
-    if equity is not None and spendable >= shares:
-        proceeds = (position.strike * shares).quantize(_MICROS)
-        portfolio.cash_balance = (portfolio.cash_balance + proceeds).quantize(_MICROS)
-        # This share sale bypasses ``apply_fill``, so it writes no Trade row and
-        # its equity realization has nowhere else to live. Fold it into the
-        # option leg: strike proceeds over the shares' cost basis, less the
-        # premium that bought the right to sell them.
-        equity_realized = (position.strike - equity.avg_cost) * shares
-        _record_realization(
-            position,
-            proceeds=proceeds,
-            realized_pnl=equity_realized - position.premium_paid,
+    The sale writes a ``Trade`` with its own realized P&L, as a market sell at
+    the strike would (#62), so the option leg realizes only the premium. If
+    the portfolio does not hold enough available shares, ``apply_fill``
+    raises before changing anything and the intrinsic value is cash-settled.
+    """
+    shares = position.quantity * position.shares_per_contract
+    try:
+        apply_fill(
+            session,
+            portfolio=portfolio,
+            ticker=position.ticker,
+            side=TradeSide.SELL,
+            quantity=shares,
+            price=position.strike,
+            currency="USD",
+            fx_rate=Decimal(1),
         )
-        equity.quantity = equity.quantity - shares
-        if equity.quantity == 0:
-            session.delete(equity)
-        else:
-            session.add(equity)
-    else:
+    except InsufficientPosition:
         intrinsic = ((position.strike - spot) * shares).quantize(_CENTS)
-        portfolio.cash_balance = (portfolio.cash_balance + intrinsic).quantize(_MICROS)
-        _record_realization(position, proceeds=intrinsic)
+        _cash_settle(portfolio, position, intrinsic=intrinsic, why="not enough shares to deliver")
+        return
+    _record_realization(position, proceeds=Decimal("0"), realized_pnl=-position.premium_paid)
+
+
+def _last_weekday_on_or_before(day: date_type) -> date_type:
+    """The expiry session: the last New York session on or before ``day``.
+
+    Holidays come from the exchange calendar since Phase 4.1 (options are USD
+    underlyings only); the name predates that, when only weekends counted.
+    """
+    return session_on_or_before(day, NEW_YORK_VENUE)
+
+
+def _expiry_close(session: Session, position: OptionsPosition) -> PriceBar | None:
+    """The expiry session's closing bar, or None while it is not known (LG-3).
+
+    The newest bar on or before expiry counts only if it is the expiry
+    session: dated the last weekday on or before expiry, or older when a bar
+    after expiry proves the market had moved on (a holiday on expiry day).
+    Otherwise ingest has not stored the expiry session yet, and settling now
+    would use an older close and could not be undone.
+    """
+    bar = session.exec(
+        select(PriceBar)
+        .where(
+            PriceBar.ticker == position.ticker,
+            PriceBar.interval == "1d",
+            PriceBar.ts < datetime.combine(position.expiry + timedelta(days=1), time.min),
+        )
+        .order_by(col(PriceBar.ts).desc())
+        .limit(1)
+    ).first()
+    if bar is None:
+        return None
+    if bar.ts.date() == _last_weekday_on_or_before(position.expiry):
+        return bar
+    later = session.exec(
+        select(PriceBar.ts)
+        .where(
+            PriceBar.ticker == position.ticker,
+            PriceBar.interval == "1d",
+            PriceBar.ts >= datetime.combine(position.expiry + timedelta(days=1), time.min),
+        )
+        .limit(1)
+    ).first()
+    return bar if later is not None else None
 
 
 def settle_expired_options(session: Session, *, settle_date: date_type) -> int:
@@ -355,34 +509,29 @@ def settle_expired_options(session: Session, *, settle_date: date_type) -> int:
     positions are touched, and each is flipped to a terminal status.
     """
 
-    completed_before = new_york_session_date(utcnow().replace(tzinfo=UTC))
-    expired = list(
-        session.exec(
+    newest_complete = latest_completed_session(utcnow().replace(tzinfo=UTC))
+    # A weekend expiry's session is the Friday before, so compare sessions.
+    expired = [
+        position
+        for position in session.exec(
             select(OptionsPosition).where(
                 OptionsPosition.status == OptionStatus.OPEN,
-                OptionsPosition.expiry < completed_before,
                 OptionsPosition.expiry <= settle_date,
             )
         )
-    )
+        if _last_weekday_on_or_before(position.expiry) <= newest_complete
+    ]
     settled = 0
     for position in expired:
-        # A delayed worker must not settle against a price observed after expiry.
-        bar = session.exec(
-            select(PriceBar)
-            .where(
-                PriceBar.ticker == position.ticker,
-                PriceBar.interval == "1d",
-                PriceBar.ts < datetime.combine(position.expiry + timedelta(days=1), time.min),
-            )
-            .order_by(col(PriceBar.ts).desc())
-            .limit(1)
-        ).first()
+        # Only the expiry session's close may settle a contract (LG-3).
+        bar = _expiry_close(session, position)
         spot = bar.close if bar else None
         portfolio = session.get(Portfolio, position.portfolio_id)
         if spot is None or portfolio is None:
-            # No closing price to settle against — leave it for a later run.
-            logger.warning("options_settle: skipping option %s (no spot/portfolio)", position.id)
+            # The expiry session's close is not stored yet: leave it for a later run.
+            logger.warning(
+                "options_settle: option %s waits for the %s close", position.id, position.expiry
+            )
             continue
         assert portfolio.id is not None
         portfolio = lock_portfolio(session, portfolio.id)

@@ -30,8 +30,29 @@ function baseUrl(): string {
   return typeof window === "undefined" ? SERVER_BASE : BROWSER_BASE;
 }
 
-/** Statuses worth retrying: the origin is starting up or briefly overloaded. */
-const RETRYABLE_STATUSES = new Set([408, 425, 429, 500, 502, 503, 504]);
+/**
+ * The web server's own calls carry `X-StockViz-Web` so the API skips its
+ * shared limiter for them (audit RS-6). `instrumentation.ts` registers the key
+ * on the server (`lib/web-server-key.ts`); in the browser it is never set, so
+ * browser calls stay limited by the visitor's address.
+ */
+const WEB_SERVER_KEY_SLOT = Symbol.for("stockviz.webServerKey");
+
+function withWebServerKey(init: RequestInit): RequestInit {
+  if (typeof window !== "undefined") return init;
+  const key = (globalThis as Record<symbol, unknown>)[WEB_SERVER_KEY_SLOT];
+  if (typeof key !== "string") return init;
+  const headers = new Headers(init.headers);
+  headers.set("X-StockViz-Web", key);
+  return { ...init, headers };
+}
+
+/**
+ * Statuses worth retrying: the origin is starting up or briefly overloaded.
+ * Not 429 (audit RS-6): a rate limit answers for a whole window, so a retry
+ * only spends more of the bucket every server-rendered page shares.
+ */
+const RETRYABLE_STATUSES = new Set([408, 425, 500, 502, 503, 504]);
 
 const MAX_ATTEMPTS = 3;
 const BASE_DELAY_MS = 400;
@@ -76,7 +97,7 @@ async function request<T>(path: string, init: RequestInit, opts: FetchOpts): Pro
   for (let attempt = 1; attempt <= attempts; attempt++) {
     let res: Response;
     try {
-      res = await fetch(url, { ...init, ...nextOptions(opts) });
+      res = await fetch(url, { ...withWebServerKey(init), ...nextOptions(opts) });
     } catch (err) {
       // Network-level failure (connection refused, DNS, reset) — the shape a
       // cold-starting origin produces most often.

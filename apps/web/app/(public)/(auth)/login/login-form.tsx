@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { SIGN_IN_ERRORS } from "@/lib/oauth-linking";
+
 import { loginAction, signInWithGoogleAction } from "../actions";
 
 function GoogleIcon() {
@@ -41,7 +43,14 @@ function GoogleIcon() {
 
 export function LoginForm() {
   const [state, action, pending] = useActionState(loginAction, {});
-  const callbackUrl = useSearchParams().get("callbackUrl") ?? "/";
+  const searchParams = useSearchParams();
+  const callbackUrl = searchParams.get("callbackUrl") ?? "/";
+  // A refused Google sign-in comes back with ?error= (audit OP-4).
+  const errorCode = searchParams.get("error");
+  const redirectError = errorCode
+    ? (SIGN_IN_ERRORS[errorCode] ?? "Sign-in did not complete. Try again.")
+    : null;
+  const error = state.error ?? redirectError;
   const signupHref =
     callbackUrl === "/" ? "/signup" : `/signup?callbackUrl=${encodeURIComponent(callbackUrl)}`;
 
@@ -70,9 +79,9 @@ export function LoginForm() {
               required
             />
           </div>
-          {state.error ? (
+          {error ? (
             <p className="text-sm text-negative" role="alert">
-              {state.error}
+              {error}
             </p>
           ) : null}
         </CardContent>

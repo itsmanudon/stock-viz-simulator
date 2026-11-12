@@ -13,6 +13,7 @@ from sqlalchemy import BigInteger, CheckConstraint, Index, Numeric
 from sqlmodel import Column, Field, SQLModel
 
 from stockviz._time import utcnow
+from stockviz.models.instrument import instrument_id_column
 
 
 class Symbol(SQLModel, table=True):
@@ -61,6 +62,7 @@ class PriceBar(SQLModel, table=True):
     )
 
     ticker: str = Field(foreign_key="symbols.ticker", primary_key=True, max_length=16)
+    instrument_id: int | None = Field(default=None, sa_column=instrument_id_column())
     ts: datetime = Field(primary_key=True, index=True)
     interval: str = Field(primary_key=True, max_length=8)
 
@@ -94,6 +96,7 @@ class QuarantinedPriceBar(SQLModel, table=True):
 
     id: int | None = Field(default=None, primary_key=True)
     ticker: str = Field(foreign_key="symbols.ticker", max_length=16)
+    instrument_id: int | None = Field(default=None, sa_column=instrument_id_column())
     ts: datetime
     interval: str = Field(max_length=8)
 
@@ -127,6 +130,7 @@ class NewsArticle(SQLModel, table=True):
     ticker: str | None = Field(
         default=None, foreign_key="symbols.ticker", index=True, max_length=16
     )
+    instrument_id: int | None = Field(default=None, sa_column=instrument_id_column())
 
     title: str
     url: str = Field(unique=True, max_length=1024)

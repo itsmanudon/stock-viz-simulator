@@ -11,10 +11,11 @@ import enum
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import Numeric
+from sqlalchemy import CheckConstraint, Numeric, UniqueConstraint
 from sqlmodel import Column, Field, SQLModel
 
 from stockviz._time import utcnow
+from stockviz.models.instrument import instrument_id_column
 from stockviz.models.portfolio import TradeSide
 
 
@@ -28,14 +29,27 @@ class OrderStatus(enum.StrEnum):
     PENDING = "pending"
     FILLED = "filled"
     CANCELLED = "cancelled"
+    # Unfilled after ORDER_MAX_AGE_DAYS; releases its reservation (audit LG-6).
+    EXPIRED = "expired"
 
 
 class PendingOrder(SQLModel, table=True):
     __tablename__ = "pending_orders"  # pyright: ignore[reportAssignmentType]
+    # A repeated submission with the same client key returns the first order
+    # (#67, audit LG-10). NULLs never clash.
+    __table_args__ = (
+        UniqueConstraint(
+            "portfolio_id", "client_order_id", name="uq_pending_orders_portfolio_client_order_id"
+        ),
+        CheckConstraint(
+            "quantity > 0 AND limit_price > 0", name="ck_pending_orders_amounts_positive"
+        ),
+    )
 
     id: int | None = Field(default=None, primary_key=True)
     portfolio_id: int = Field(foreign_key="portfolios.id", index=True)
     ticker: str = Field(foreign_key="symbols.ticker", index=True, max_length=16)
+    instrument_id: int | None = Field(default=None, sa_column=instrument_id_column())
 
     side: TradeSide = Field(max_length=8)
     order_type: OrderType = Field(max_length=16)
@@ -51,3 +65,4 @@ class PendingOrder(SQLModel, table=True):
     fill_price: Decimal | None = Field(
         default=None, sa_column=Column(Numeric(18, 6), nullable=True)
     )
+    client_order_id: str | None = Field(default=None, max_length=64, nullable=True)

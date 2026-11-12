@@ -36,6 +36,16 @@ export type Portfolio = {
   options_market_value: string;
   positions: Position[];
   option_positions: PortfolioOption[];
+  /** What total_value leaves out; empty when complete (audit LG-13). */
+  valuation_warnings: ValuationWarning[];
+};
+
+export type ValuationWarning = {
+  /** no_close / no_option_price: valued at 0. no_fx_rate: added unconverted. */
+  code: "no_close" | "no_option_price" | "no_fx_rate";
+  /** The ticker, or the currency for no_fx_rate. */
+  subject: string;
+  message: string;
 };
 
 export type PortfolioOption = {
@@ -76,6 +86,8 @@ export type TradeInput = {
   ticker: string;
   side: "buy" | "sell";
   quantity: string;
+  /** Repeats with the same key return the first fill (#67). */
+  client_order_id?: string;
 };
 
 export function getPortfolio(): Promise<Portfolio> {
@@ -128,7 +140,8 @@ export function getDividends(): Promise<DividendSummary> {
 // ---------------------------------------------------------------------------
 
 export type OrderType = "limit" | "stop_loss" | "take_profit";
-export type OrderStatus = "pending" | "filled" | "cancelled";
+/** "expired": unfilled 30 days after it was placed (audit LG-6). */
+export type OrderStatus = "pending" | "filled" | "cancelled" | "expired";
 
 export type PendingOrder = {
   id: number;
@@ -150,6 +163,8 @@ export type PendingOrderInput = {
   order_type: OrderType;
   quantity: string;
   limit_price: string;
+  /** Repeats with the same key return the first order (#67). */
+  client_order_id?: string;
 };
 
 export function listOrders(status?: OrderStatus): Promise<PendingOrder[]> {

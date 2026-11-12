@@ -79,7 +79,7 @@ export function PortfolioIncome({
                   <div>
                     <Link
                       href={`/stocks/${projection.ticker}`}
-                      className="font-mono text-sm font-semibold hover:text-brand"
+                      className="ticker text-sm font-semibold hover:text-brand"
                     >
                       {projection.ticker}
                     </Link>
@@ -132,7 +132,7 @@ export function PortfolioIncome({
                     <TableCell>
                       <Link
                         href={`/stocks/${credit.ticker}`}
-                        className="font-mono font-semibold hover:text-brand"
+                        className="ticker font-semibold hover:text-brand"
                       >
                         {credit.ticker}
                       </Link>

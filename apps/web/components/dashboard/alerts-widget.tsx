@@ -52,7 +52,7 @@ export function AlertsWidget({ alerts }: { alerts: Alert[] | null }) {
                 aria-hidden
               />
               <span className="min-w-0 text-xs leading-5 text-warning-soft-foreground">
-                <span className="font-mono font-semibold">{alert.ticker}</span> crossed{" "}
+                <span className="ticker font-semibold">{alert.ticker}</span> crossed{" "}
                 {alert.direction} <span className="font-mono">{fmtTarget(alert)}</span>
               </span>
             </Link>
@@ -66,7 +66,7 @@ export function AlertsWidget({ alerts }: { alerts: Alert[] | null }) {
                     className="flex min-h-10 items-center gap-2.5 py-2 text-xs transition-colors hover:text-foreground"
                   >
                     <Bell className="size-3.5 shrink-0 text-text-tertiary" aria-hidden />
-                    <span className="font-mono font-semibold">{alert.ticker}</span>
+                    <span className="ticker font-semibold">{alert.ticker}</span>
                     <span className="ml-auto text-text-secondary">
                       {alert.direction === "above" ? "Above" : "Below"}{" "}
                       <span className="font-mono" data-financial>

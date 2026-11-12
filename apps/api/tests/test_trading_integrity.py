@@ -225,6 +225,7 @@ def test_dividend_credit_converts_to_usd(session: Session) -> None:
 
     portfolio = ensure_default_portfolio(session, user_id)
     assert portfolio.id is not None
+    portfolio.created_at = BAR_DATE - timedelta(days=30)  # opened before the ex-date
     session.add(
         Position(
             portfolio_id=portfolio.id,

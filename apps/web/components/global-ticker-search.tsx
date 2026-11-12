@@ -339,7 +339,7 @@ export function GlobalTickerSearch({
                       className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm hover:bg-accent aria-selected:bg-accent"
                     >
                       <span
-                        className="min-w-[3.5rem] max-w-[9rem] shrink-0 truncate font-mono font-semibold tabular-nums"
+                        className="min-w-[3.5rem] max-w-[9rem] shrink-0 truncate ticker font-semibold tabular-nums"
                         title={result.ticker}
                       >
                         {result.ticker}
@@ -386,7 +386,7 @@ export function GlobalTickerSearch({
                       className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm hover:bg-accent aria-selected:bg-accent"
                     >
                       <span
-                        className="min-w-[3.5rem] max-w-[9rem] shrink-0 truncate font-mono font-semibold tabular-nums"
+                        className="min-w-[3.5rem] max-w-[9rem] shrink-0 truncate ticker font-semibold tabular-nums"
                         title={result.ticker}
                       >
                         {result.ticker}

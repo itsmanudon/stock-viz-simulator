@@ -24,6 +24,7 @@ import {
   StatementBand,
 } from "@/components/marketing/landing-sections";
 import { PhoneFrame } from "@/components/marketing/phone-frame";
+import { ProofSection } from "@/components/marketing/proofs/proof-section";
 import { Button } from "@/components/ui/button";
 import { formatCloseDate } from "@/lib/stock-workspace";
 
@@ -69,6 +70,7 @@ export const PRODUCT_PAGES: ProductPageSpec[] = [
     ],
     sections: (
       <>
+        <ProofSection only={["fill", "portfolio"]} />
         <FillSteps />
         <LandingFaq />
       </>
@@ -91,6 +93,7 @@ export const PRODUCT_PAGES: ProductPageSpec[] = [
     ],
     sections: (
       <>
+        <ProofSection only={["backtest", "screener", "compare", "signals"]} />
         <MovingToday />
         <SessionTiles />
       </>
@@ -114,7 +117,12 @@ export const PRODUCT_PAGES: ProductPageSpec[] = [
       ],
       ["Journal", "Notes lock at the first fill, so hindsight cannot rewrite them."],
     ],
-    sections: <StatementBand />,
+    sections: (
+      <>
+        <ProofSection only={["replay"]} />
+        <StatementBand />
+      </>
+    ),
   },
 ];
 
@@ -150,7 +158,7 @@ async function ReplayArt() {
       className="dark grid w-full max-w-sm gap-3 rounded-3xl border border-border bg-card p-4 text-foreground shadow-2xl shadow-black/30"
     >
       <div className="flex justify-between gap-3 text-xs">
-        <span className="font-mono">{data.ticker} · Replay</span>
+        <span className="ticker">{data.ticker} · Replay</span>
         <span className="font-mono text-text-tertiary">
           Bar {step} of {bars.length} · {formatCloseDate(bars[step - 1]?.ts)}
         </span>

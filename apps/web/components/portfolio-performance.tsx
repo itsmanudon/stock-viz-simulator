@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { EquityCurve } from "@/components/equity-curve";
 import { PaperCard } from "@/components/paper-card";
+import { ValuationNotice } from "@/components/valuation-notice";
 import type { Portfolio, PortfolioHistoryPoint } from "@/lib/api/trading";
 import {
   PORTFOLIO_RANGES,
@@ -45,7 +46,7 @@ export function PortfolioPerformance({ portfolio, history, range, tab }: Props) 
           </p>
           <h1
             id="portfolio-heading"
-            className="mt-1 text-2xl font-medium tracking-tight sm:text-3xl"
+            className="mt-1 text-2xl font-semibold tracking-[-0.025em] sm:text-3xl"
           >
             Portfolio
           </h1>
@@ -82,6 +83,7 @@ export function PortfolioPerformance({ portfolio, history, range, tab }: Props) 
           <p className="mt-2 text-xs text-muted-foreground">
             Latest EOD valuation · Display currency {currency}
           </p>
+          <ValuationNotice warnings={portfolio.valuation_warnings} className="mt-3 max-w-xl" />
         </div>
 
         {hasInvestments ? (

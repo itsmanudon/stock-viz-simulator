@@ -20,6 +20,7 @@ import { z } from "zod";
 
 import { authConfig } from "@/auth.config";
 import { requireSecret } from "@/lib/env";
+import { googleSignInRefusal } from "@/lib/oauth-linking";
 import { findOrCreateOAuthUser, findUserByEmail } from "@/lib/users";
 
 // Fail at module load rather than issuing sessions signed with the dev secret
@@ -62,6 +63,20 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   ],
   callbacks: {
     ...authConfig.callbacks,
+    // Google may only open an account it created, for an address it verified
+    // (audit OP-4, lib/oauth-linking.ts). A refusal returns to /login with the
+    // reason in ?error=.
+    async signIn({ account, profile, user }) {
+      if (account?.provider !== "google") return true;
+      const email = user?.email ?? profile?.email;
+      if (!email) return "/login?error=GoogleEmailUnverified";
+      const refusal = googleSignInRefusal({
+        emailVerified:
+          (profile as { email_verified?: unknown } | undefined)?.email_verified === true,
+        existing: await findUserByEmail(email),
+      });
+      return refusal ? `/login?error=${refusal}` : true;
+    },
     async jwt({ token, user, account }) {
       // Credentials: authorize() already set user.id to our DB id
       if (account?.provider === "credentials") {

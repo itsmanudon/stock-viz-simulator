@@ -91,7 +91,7 @@ function PortfolioScreen() {
       </div>
       {/* `data-phone-card` is what the pinned hero measures and lifts out. */}
       <div data-phone-card>
-        <PaperCard currency="USD" className="w-full" />
+        <PaperCard currency="USD" fluid className="w-full" />
       </div>
       <div className="grid justify-items-center gap-0.5 text-center">
         <span className="flex items-center gap-1.5 text-2xs text-text-tertiary">
@@ -271,7 +271,7 @@ function NewsScreen({ ticker, articles }: { ticker: string; articles: NewsArticl
     <>
       <div className="flex items-center justify-between">
         <span className="text-lg font-medium tracking-tight">News</span>
-        <span className="rounded-full border border-border-muted px-2 py-0.5 font-mono text-3xs">
+        <span className="rounded-full border border-border-muted px-2 py-0.5 ticker text-3xs">
           {ticker}
         </span>
       </div>

@@ -1,7 +1,7 @@
 from logging.config import fileConfig
 
 from alembic import context
-from sqlalchemy import engine_from_config, pool
+from sqlalchemy import engine_from_config, pool, text
 from sqlmodel import SQLModel
 
 from stockviz import models  # noqa: F401  -- ensure models are imported for autogenerate
@@ -15,6 +15,15 @@ if config.config_file_name is not None:
 config.set_main_option("sqlalchemy.url", get_settings().database_url)
 
 target_metadata = SQLModel.metadata
+
+MIGRATION_LOCK_KEY = 0x53_56_4D_49_47  # "SVMIG"; scheduler job keys are hashes
+"""Postgres advisory lock held for a whole upgrade (audit OP-10).
+
+The API container and the nightly cron both run ``alembic upgrade head`` on
+start. Without a lock, two runners meeting one pending migration both apply it
+and one fails, which for the cron skips the night. With it the second waits,
+then finds nothing to do. It is a session lock, not a transaction lock,
+because a migration may commit part-way (``ALTER TYPE ... ADD VALUE``)."""
 
 
 def run_migrations_offline() -> None:
@@ -38,10 +47,21 @@ def run_migrations_online() -> None:
     )
 
     with connectable.connect() as connection:
-        context.configure(connection=connection, target_metadata=target_metadata)
+        postgres = connection.dialect.name == "postgresql"
+        if postgres:
+            connection.execute(text("SELECT pg_advisory_lock(:key)"), {"key": MIGRATION_LOCK_KEY})
+            connection.commit()
+        try:
+            context.configure(connection=connection, target_metadata=target_metadata)
 
-        with context.begin_transaction():
-            context.run_migrations()
+            with context.begin_transaction():
+                context.run_migrations()
+        finally:
+            if postgres:
+                connection.execute(
+                    text("SELECT pg_advisory_unlock(:key)"), {"key": MIGRATION_LOCK_KEY}
+                )
+                connection.commit()
 
 
 if context.is_offline_mode():

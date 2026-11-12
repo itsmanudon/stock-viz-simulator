@@ -1,6 +1,5 @@
 "use client";
 
-import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
 
 import {
@@ -22,25 +21,14 @@ const DENSITY_OPTIONS = [
   { value: "compact", label: "Compact", hint: "More rows in view" },
 ] as const;
 
-/** Light and dark only: the theme provider runs with `enableSystem={false}`. */
-const THEME_OPTIONS = [
-  { value: "dark", label: "Dark" },
-  { value: "light", label: "Light" },
-] as const;
-
 export function InterfacePanel() {
   const [density, setDensity] = useState<InterfaceDensity>("comfortable");
-  const { theme, setTheme } = useTheme();
-  // next-themes only knows the theme after mount; rendering a pressed state
-  // before that would mismatch the server HTML.
-  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     const next: InterfaceDensity =
       window.localStorage.getItem(DENSITY_STORAGE_KEY) === "compact" ? "compact" : "comfortable";
     setDensity(next);
     applyInterfaceDensity(next);
-    setMounted(true);
   }, []);
 
   function updateDensity(next: InterfaceDensity) {
@@ -74,33 +62,8 @@ export function InterfacePanel() {
         </div>
       </fieldset>
 
-      <fieldset>
-        <legend className="mb-2 text-xs text-text-tertiary">Theme</legend>
-        <div className="inline-flex gap-0.5 rounded-full border border-border-muted p-0.5">
-          {THEME_OPTIONS.map((option) => {
-            const pressed = mounted && theme === option.value;
-            return (
-              <button
-                key={option.value}
-                type="button"
-                aria-pressed={pressed}
-                onClick={() => setTheme(option.value)}
-                className={cn(
-                  "rounded-full px-3.5 py-1.5 text-xs transition",
-                  pressed
-                    ? "bg-surface-secondary font-medium text-foreground"
-                    : "text-text-tertiary hover:text-foreground",
-                )}
-              >
-                {option.label}
-              </button>
-            );
-          })}
-        </div>
-      </fieldset>
-
       <p className="text-2xs text-text-tertiary">
-        Density and theme are saved in this browser only.
+        Density is saved in this browser only. StockViz is dark only for now.
       </p>
     </div>
   );

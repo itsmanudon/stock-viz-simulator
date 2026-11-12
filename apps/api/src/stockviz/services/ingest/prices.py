@@ -18,15 +18,15 @@ from decimal import Decimal
 from typing import Any
 
 import httpx
+from sqlalchemy import func
 from sqlalchemy.dialects.postgresql import insert as pg_insert
-from sqlmodel import Session, select
+from sqlmodel import Session, col, select
 
 from stockviz.models import PriceBar, QuarantinedPriceBar
 from stockviz.services.ingest.bar_semantics import (
     AdjustmentSemantics,
     SessionScope,
     completed_daily_bars,
-    new_york_session_date,
     session_label,
 )
 from stockviz.services.ingest.screening import (
@@ -34,6 +34,7 @@ from stockviz.services.ingest.screening import (
     Disposition,
     screen_bar,
 )
+from stockviz.services.markets.calendar import venue_for_ticker
 
 logger = logging.getLogger(__name__)
 
@@ -125,10 +126,11 @@ def fetch_yfinance_daily(
         if not isinstance(ts, datetime):
             logger.warning("yfinance: skipping row with non-datetime index for %s: %r", ticker, ts)
             continue
-        if ts.tzinfo is not None and ts.utcoffset() is not None:
-            ts = session_label(new_york_session_date(ts))
-        else:
-            ts = session_label(ts.date())
+        # yfinance labels a daily bar with midnight in the venue's own time
+        # zone, so the session date is the date in that zone. Converting it to
+        # New York first dated every London, Tokyo, Mumbai or UTC bar a day
+        # early (found in the 11 Nov 2026 cron run).
+        ts = session_label(ts.date())
         try:
             open_ = Decimal(str(row["Open"]))
             high = Decimal(str(row["High"]))
@@ -448,6 +450,47 @@ def write_accepted_bars(session: Session, bars: list[BarRecord]) -> int:
     return len(rows)
 
 
+def _without_unadjusted_overlap(session: Session, bars: list[BarRecord]) -> list[BarRecord]:
+    """Drop Alpha Vantage daily bars on or before the newest stored daily bar.
+
+    Alpha Vantage's free daily series is unadjusted, while stored history is
+    yfinance's split-adjusted series (audit MD-5). When yfinance came back
+    empty, the fallback used to upsert its full history over the adjusted
+    rows, putting every bar before the last split on a different scale. It
+    may now only add days newer than what is stored (Phase 4.2). A ticker
+    with no stored bars takes the whole series, as before.
+    """
+
+    fallback = [
+        b for b in bars if b.source == SOURCE_ALPHA_VANTAGE and b.interval == DAILY_INTERVAL
+    ]
+    if not fallback:
+        return bars
+    newest: dict[str, datetime | None] = {}
+    for ticker in {b.ticker for b in fallback}:
+        newest[ticker] = session.exec(
+            select(func.max(PriceBar.ts)).where(
+                col(PriceBar.ticker) == ticker, col(PriceBar.interval) == DAILY_INTERVAL
+            )
+        ).one()
+    kept: list[BarRecord] = []
+    dropped = 0
+    for bar in bars:
+        stored = newest.get(bar.ticker)
+        if (
+            bar.source == SOURCE_ALPHA_VANTAGE
+            and bar.interval == DAILY_INTERVAL
+            and stored is not None
+            and bar.ts <= stored
+        ):
+            dropped += 1
+            continue
+        kept.append(bar)
+    if dropped:
+        logger.info("upsert_bars: kept stored adjusted history, skipped %d fallback bars", dropped)
+    return kept
+
+
 def upsert_bars(session: Session, bars: list[BarRecord]) -> int:
     """Screen ``bars`` (F-011), then upsert the survivors into ``price_bars``.
 
@@ -458,6 +501,7 @@ def upsert_bars(session: Session, bars: list[BarRecord]) -> int:
     Does not commit.
     """
 
+    bars = _without_unadjusted_overlap(session, bars)
     if not bars:
         return 0
 
@@ -505,7 +549,7 @@ def fetch_daily_bars(
         bars = fetch_alpha_vantage_daily(ticker, **av_kwargs)  # type: ignore[arg-type]
     if not bars:
         logger.warning("ingest_ticker: %s — no bars from any source", ticker)
-    return completed_daily_bars(bars, now=now)
+    return completed_daily_bars(bars, now=now, venue=venue_for_ticker(ticker))
 
 
 def ingest_ticker(

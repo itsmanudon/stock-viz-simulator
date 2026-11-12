@@ -10,7 +10,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class SymbolOut(BaseModel):
@@ -220,6 +220,18 @@ class PortfolioOptionOut(BaseModel):
     unrealized_pl: Decimal
 
 
+class ValuationWarningOut(BaseModel):
+    """A figure the valuation could not price (audit LG-13).
+
+    ``code``: ``no_close`` and ``no_option_price`` (valued at 0) or
+    ``no_fx_rate`` (added unconverted). ``subject`` is a ticker or currency.
+    """
+
+    code: Literal["no_close", "no_option_price", "no_fx_rate"]
+    subject: str
+    message: str
+
+
 class PortfolioOut(BaseModel):
     """Snapshot of the user's default portfolio used by /portfolio.
 
@@ -245,6 +257,16 @@ class PortfolioOut(BaseModel):
     unrealized_pl: Decimal
     positions: list[PositionOut]
     option_positions: list[PortfolioOptionOut] = []
+    # Empty when the total is complete; otherwise what it leaves out (LG-13).
+    valuation_warnings: list[ValuationWarningOut] = []
+
+
+ClientOrderId = Annotated[
+    str | None,
+    Field(default=None, min_length=1, max_length=64, pattern=r"^[A-Za-z0-9_-]+$"),
+]
+"""A client-generated key (a UUID, say) that makes a submission safe to repeat:
+the same key returns the first order instead of placing a second (#67, LG-10)."""
 
 
 class TradeIn(BaseModel):
@@ -253,6 +275,15 @@ class TradeIn(BaseModel):
     ticker: str
     side: Literal["buy", "sell"]
     quantity: Decimal
+    client_order_id: ClientOrderId = None
+
+    @field_validator("quantity")
+    @classmethod
+    def _bounded_quantity(cls, value: Decimal) -> Decimal:
+        # LG-9: "NaN" used to pass here and fail later with a 500.
+        from stockviz.services.trading.bounds import MAX_QUANTITY, check_amount
+
+        return check_amount(value, name="quantity", maximum=MAX_QUANTITY)
 
 
 class TradeOut(BaseModel):
@@ -662,6 +693,7 @@ class PendingOrderIn(BaseModel):
     order_type: str
     quantity: str
     limit_price: str
+    client_order_id: ClientOrderId = None
 
 
 class PendingOrderOut(BaseModel):
@@ -805,8 +837,28 @@ class OptionTradeIn(BaseModel):
     option_type: Literal["call", "put"] | None = None
     strike: Decimal | None = None
     expiry: date | None = None
-    quantity: int | None = None
+    quantity: int | None = Field(default=None, ge=1, le=1_000)
     option_id: int | None = None
+    # Opens only: a repeat with the same key returns the first contract (LG-10).
+    client_order_id: ClientOrderId = None
+
+    @field_validator("strike")
+    @classmethod
+    def _bounded_strike(cls, value: Decimal | None) -> Decimal | None:
+        from stockviz.services.trading.bounds import MAX_PRICE, check_amount
+
+        return None if value is None else check_amount(value, name="strike", maximum=MAX_PRICE)
+
+    @field_validator("expiry")
+    @classmethod
+    def _bounded_expiry(cls, value: date | None) -> date | None:
+        from stockviz._time import utcnow
+        from stockviz.services.trading.bounds import MAX_OPTION_YEARS
+
+        horizon = utcnow().date().replace(year=utcnow().year + MAX_OPTION_YEARS)
+        if value is not None and value > horizon:
+            raise ValueError(f"expiry must be within {MAX_OPTION_YEARS} years")
+        return value
 
 
 class OptionGreeksOut(BaseModel):
@@ -817,6 +869,30 @@ class OptionGreeksOut(BaseModel):
     gamma: float
     theta: float
     vega: float
+
+
+class OptionQuoteOut(BaseModel):
+    """GET /v1/options/quote: what an open would cost now (audit LG-7).
+
+    Priced by the same function the open charges with. ``spot`` is the latest
+    stored close (``spot_at``), ``volatility`` the 30-day historical volatility
+    used as the IV proxy, ``per_share`` the Black-Scholes value and
+    ``premium`` the charge for ``quantity`` contracts of ``contract_size``.
+    """
+
+    ticker: str
+    option_type: Literal["call", "put"]
+    strike: Decimal
+    expiry: date
+    quantity: int
+    spot: Decimal
+    spot_at: datetime
+    volatility: float
+    risk_free_rate: float
+    per_share: Decimal
+    premium: Decimal
+    contract_size: int
+    greeks: OptionGreeksOut
 
 
 class OptionPositionOut(BaseModel):

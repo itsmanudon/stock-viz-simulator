@@ -1,5 +1,8 @@
 "use client";
 
+// Unused while the app is dark only (see components/providers.tsx). Kept so
+// the light theme can come back without rebuilding the control.
+
 import { Moon, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
 

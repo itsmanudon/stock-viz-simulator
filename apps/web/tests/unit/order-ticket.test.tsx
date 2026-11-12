@@ -190,6 +190,9 @@ describe("OrderTicket", () => {
     expect(screen.getByText("Market buy 2 AAPL")).toBeVisible();
     expect(screen.getByText("$188.38 · close of Apr 4, 2025")).toBeVisible();
     expect(placeTradeAction).not.toHaveBeenCalled();
+    // The confirmation carries a key, so a repeated post fills once (#67).
+    const key = document.querySelector<HTMLInputElement>('input[name="client_order_id"]');
+    expect(key?.value).toMatch(/^[A-Za-z0-9_-]{1,64}$/);
 
     fireEvent.click(screen.getByRole("button", { name: /Place market buy/i }));
     expect(await screen.findByText("Your order was filled")).toBeVisible();

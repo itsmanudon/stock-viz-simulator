@@ -34,6 +34,7 @@ from stockviz.benchmarks.topics import (
     BENCHMARK_TOPIC,
 )
 from stockviz.events.producer import ensure_topic
+from stockviz.logging_setup import configure_logging
 from stockviz.settings import get_settings
 
 logger = logging.getLogger(__name__)
@@ -492,7 +493,7 @@ def collect(
 
 
 def main(argv: list[str] | None = None) -> int:
-    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
+    configure_logging()
     signal.signal(signal.SIGTERM, _request_stop)
     signal.signal(signal.SIGINT, _request_stop)
     parser = argparse.ArgumentParser(description="Kafka consumer-group scaling experiment")

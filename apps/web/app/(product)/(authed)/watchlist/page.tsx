@@ -115,7 +115,7 @@ export default async function WatchlistPage() {
                     <div className="min-w-0">
                       <Link
                         href={`/stocks/${item.ticker}`}
-                        className="font-mono text-base font-medium hover:underline"
+                        className="ticker text-base font-medium hover:underline"
                       >
                         {item.ticker}
                       </Link>
@@ -194,7 +194,7 @@ export default async function WatchlistPage() {
                   const move = dayMovePct(closes[0], closes[closes.length - 1]);
                   return (
                     <tr key={item.ticker} className="border-b border-border-muted last:border-0">
-                      <td className="px-3 py-3 font-mono font-medium">
+                      <td className="ticker px-3 py-3 font-semibold">
                         <Link href={`/stocks/${item.ticker}`} className="hover:underline">
                           {item.ticker}
                         </Link>

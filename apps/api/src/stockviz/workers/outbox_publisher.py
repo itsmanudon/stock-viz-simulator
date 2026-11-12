@@ -22,6 +22,7 @@ from sqlmodel import Session
 from stockviz.db import engine
 from stockviz.events.outbox import publish_batch
 from stockviz.events.producer import ConfluentBrokerPublisher, ensure_event_topics
+from stockviz.logging_setup import configure_logging
 from stockviz.settings import get_settings
 
 logger = logging.getLogger(__name__)
@@ -46,7 +47,7 @@ def run_once(*, publisher: ConfluentBrokerPublisher | None = None) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
-    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
+    configure_logging()
     parser = argparse.ArgumentParser(description="Publish unpublished outbox events to Kafka.")
     parser.add_argument(
         "--once",

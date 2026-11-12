@@ -64,6 +64,10 @@ const EOD_REFRESH = [
   "alembic upgrade head || exit 1",
   'TICKERS=$(python -c "from stockviz.db import engine; from sqlmodel import Session, select; from stockviz.models import Symbol; print(\\" \\".join(Session(engine).exec(select(Symbol.ticker).where(Symbol.is_active)).all()))") || exit 1',
   job("python -m stockviz.cli ingest $TICKERS"),
+  // Splits (Phase 4.2, #65): ingest has just rewritten the split-adjusted
+  // closes, so rebase positions, orders, alerts and options before anything
+  // fills or values against them.
+  job("python -m stockviz.cli corporate-actions"),
   job("python -m stockviz.cli fx"),
   // Pending orders and price alerts had no hosted runner (audits P0-1, P0-2).
   // After fx so fills convert at a fresh rate, before the snapshot so tonight's
@@ -75,6 +79,11 @@ const EOD_REFRESH = [
   // which replaced the legacy news, score-sentiment and sentiment-aggregate
   // steps (audit AG-14).
   "python -m stockviz.cli aegis-sync || [ $? -eq 2 ] || rc=1",
+  // The earnings calendar and symbol metadata were never refreshed (audit
+  // OP-3). Both call yfinance: earnings nightly, metadata (sector, exchange)
+  // on Mondays only. No single quotes: the chain is wrapped in sh -c below.
+  job("python -m stockviz.cli earnings"),
+  'if [ "$(date -u +%u)" = 1 ]; then python -m stockviz.cli metadata || rc=1; fi',
   job("python -m stockviz.cli metrics"),
   job("python -m stockviz.cli dividends"),
   job("python -m stockviz.cli credit-dividends"),

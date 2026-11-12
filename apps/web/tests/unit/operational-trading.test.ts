@@ -49,3 +49,11 @@ describe("userCancelReason", () => {
     expect(userCancelReason("  ")).toBe("Cancelled by user");
   });
 });
+
+describe("expired orders (audit LG-6)", () => {
+  it("labels and filters them", async () => {
+    const { ORDER_STATUS_FILTERS, orderStatusLabel } = await import("@/lib/operational-trading");
+    expect(orderStatusLabel("expired")).toBe("Expired");
+    expect(ORDER_STATUS_FILTERS).toContain("expired");
+  });
+});

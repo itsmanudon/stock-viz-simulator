@@ -29,7 +29,7 @@ export function JournalExecutionRow({ execution }: { execution: JournalExecution
         <div className="min-w-0">
           <Link
             href={`/stocks/${execution.ticker}`}
-            className="font-mono text-sm font-semibold hover:underline"
+            className="ticker text-sm font-semibold hover:underline"
           >
             {execution.ticker}
           </Link>

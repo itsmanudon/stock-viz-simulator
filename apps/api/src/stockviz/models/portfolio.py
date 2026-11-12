@@ -11,10 +11,11 @@ from datetime import date as date_type
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import Index, Numeric, UniqueConstraint
+from sqlalchemy import CheckConstraint, Index, Numeric, UniqueConstraint
 from sqlmodel import Column, Field, SQLModel
 
 from stockviz._time import utcnow
+from stockviz.models.instrument import instrument_id_column
 
 
 class TradeSide(enum.StrEnum):
@@ -24,6 +25,9 @@ class TradeSide(enum.StrEnum):
 
 class Portfolio(SQLModel, table=True):
     __tablename__ = "portfolios"  # pyright: ignore[reportAssignmentType]
+    # Backstop for the portfolio lock (audit LG-11): every writer checks
+    # available cash first, so a negative balance means a lost race.
+    __table_args__ = (CheckConstraint("cash_balance >= 0", name="ck_portfolios_cash_nonnegative"),)
 
     id: int | None = Field(default=None, primary_key=True)
     # One default paper book per user — concurrent first-use INSERTs collide
@@ -31,6 +35,13 @@ class Portfolio(SQLModel, table=True):
     user_id: int = Field(foreign_key="users.id", unique=True, index=True)
     name: str = Field(default="Default", max_length=128)
     cash_balance: Decimal = Field(sa_column=Column(Numeric(20, 6), nullable=False))
+    # The value the book started with, fixed for good (audit LG-1). Returns and
+    # the leaderboard measure from it: the first snapshot can be overwritten by
+    # the nightly job once the user trades on the opening day.
+    opening_nav: Decimal = Field(
+        default=Decimal(100_000),
+        sa_column=Column(Numeric(20, 6), nullable=False, server_default="100000"),
+    )
     created_at: datetime = Field(default_factory=utcnow, nullable=False)
 
 
@@ -43,10 +54,18 @@ class Position(SQLModel, table=True):
     """
 
     __tablename__ = "positions"  # pyright: ignore[reportAssignmentType]
+    # One row per holding, never empty (audit LG-11). apply_fill deletes a
+    # position sold to zero, and two racing first buys must not both insert.
+    __table_args__ = (
+        UniqueConstraint("portfolio_id", "ticker", name="uq_positions_portfolio_ticker"),
+        CheckConstraint("quantity > 0", name="ck_positions_quantity_positive"),
+        CheckConstraint("avg_cost >= 0", name="ck_positions_avg_cost_nonnegative"),
+    )
 
     id: int | None = Field(default=None, primary_key=True)
     portfolio_id: int = Field(foreign_key="portfolios.id", index=True)
     ticker: str = Field(foreign_key="symbols.ticker", index=True, max_length=16)
+    instrument_id: int | None = Field(default=None, sa_column=instrument_id_column())
 
     quantity: Decimal = Field(sa_column=Column(Numeric(20, 6), nullable=False))
     avg_cost: Decimal = Field(sa_column=Column(Numeric(18, 6), nullable=False))
@@ -57,11 +76,20 @@ class Trade(SQLModel, table=True):
     # The Trading Journal scans one portfolio's fills over a month
     # (portfolio_id = ? AND ts >= ? AND ts < ?). The separate portfolio_id and
     # ts indexes each answer only half of that.
-    __table_args__ = (Index("ix_trades_portfolio_ts", "portfolio_id", "ts"),)
+    __table_args__ = (
+        Index("ix_trades_portfolio_ts", "portfolio_id", "ts"),
+        # A repeated market order with the same client key returns the first
+        # fill instead of filling twice (#67, audit LG-10). NULLs never clash.
+        UniqueConstraint(
+            "portfolio_id", "client_order_id", name="uq_trades_portfolio_client_order_id"
+        ),
+        CheckConstraint("quantity > 0 AND price > 0", name="ck_trades_quantity_price_positive"),
+    )
 
     id: int | None = Field(default=None, primary_key=True)
     portfolio_id: int = Field(foreign_key="portfolios.id", index=True)
     ticker: str = Field(foreign_key="symbols.ticker", index=True, max_length=16)
+    instrument_id: int | None = Field(default=None, sa_column=instrument_id_column())
 
     side: TradeSide = Field(max_length=8)
     quantity: Decimal = Field(sa_column=Column(Numeric(20, 6), nullable=False))
@@ -82,6 +110,9 @@ class Trade(SQLModel, table=True):
     avg_cost_at_fill: Decimal | None = Field(
         default=None, sa_column=Column(Numeric(18, 6), nullable=True)
     )
+    # Client-generated key for a market order (POST /v1/trades). NULL on fills
+    # from pending orders, option exercise and rows written before it existed.
+    client_order_id: str | None = Field(default=None, max_length=64, nullable=True)
 
 
 class PortfolioSnapshot(SQLModel, table=True):

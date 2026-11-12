@@ -58,7 +58,7 @@ export function OrderBlotterRow({
   const native = (amount: string | null) => formatNativePrice(amount, order.ticker, currencies);
   return (
     <tr className="border-b border-border-muted last:border-0 align-top">
-      <td className="px-3 py-3 font-mono">
+      <td className="ticker px-3 py-3 font-semibold">
         <Link href={`/stocks/${order.ticker}`} className="hover:underline">
           {order.ticker}
         </Link>
@@ -114,7 +114,7 @@ export function OrderCard({
         <div className="grid gap-1.5">
           <Link
             href={`/stocks/${order.ticker}`}
-            className="font-mono text-base font-medium hover:underline"
+            className="ticker text-base font-medium hover:underline"
           >
             {order.ticker}
           </Link>

@@ -13,13 +13,24 @@ from __future__ import annotations
 import math
 from collections.abc import Mapping
 from dataclasses import dataclass
+from datetime import date
 from decimal import Decimal
 from itertools import pairwise
 
 from stockviz.services.trading.portfolio import PortfolioPosition
 
 TRADING_DAYS_PER_YEAR = 252
-"""Standard annualisation factor used by Sharpe and annualised-return math."""
+"""Sessions per year: annualises Sharpe, whose returns are one session each."""
+
+CALENDAR_DAYS_PER_YEAR = 365
+"""Annualises the return, whose period is measured in calendar days (SR-4)."""
+
+MAX_SESSION_GAP_DAYS = 4
+"""Widest calendar gap between two snapshots that is still one session apart:
+Friday to Tuesday over a holiday weekend. Wider gaps are missed nights (SR-5)."""
+
+MIN_SHARPE_RETURNS = 20
+"""About a month of session returns before a Sharpe ratio means anything (SR-5)."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -52,15 +63,6 @@ class AnalyticsResult:
     top_losers: list[TopMover]
 
 
-def _daily_returns(navs: list[float]) -> list[float]:
-    out: list[float] = []
-    for prev, curr in pairwise(navs):
-        if prev == 0:
-            continue
-        out.append((curr - prev) / prev)
-    return out
-
-
 def _mean(values: list[float]) -> float:
     return sum(values) / len(values)
 
@@ -84,11 +86,11 @@ def compute_total_return_pct(navs: list[Decimal]) -> float | None:
 
 
 def compute_annualised_return_pct(navs: list[Decimal], *, days: int) -> float | None:
-    """Annualise the period return assuming ``days`` of elapsed wall time.
+    """Annualise the period return over ``days`` calendar days.
 
-    Uses ``(1 + total_return) ** (252 / days) - 1`` — the standard
-    trading-day annualisation, not calendar-day, because Sharpe also uses
-    252 and we want the two metrics to be comparable.
+    ``(1 + total_return) ** (365 / days) - 1``. ``days`` is calendar time, so
+    the exponent uses calendar days too: it used 252, raising growth to a
+    trading-day power over calendar days and overstating the rate (SR-4).
     """
     if days <= 0:
         return None
@@ -98,20 +100,32 @@ def compute_annualised_return_pct(navs: list[Decimal], *, days: int) -> float | 
     growth = 1 + total / 100
     if growth <= 0:
         return None
-    return (growth ** (TRADING_DAYS_PER_YEAR / days) - 1) * 100
+    return (growth ** (CALENDAR_DAYS_PER_YEAR / days) - 1) * 100
 
 
-def compute_sharpe(navs: list[Decimal], *, risk_free_rate: float) -> float | None:
-    """Annualised Sharpe from daily NAV returns.
+def session_returns(points: list[tuple[date, Decimal]]) -> list[float]:
+    """Returns between snapshots one session apart, from a date-ordered series.
 
-    Needs at least three NAV points to get two daily returns and a non-zero
-    stdev. ``risk_free_rate`` is the annual figure (e.g. 0.05 for 5%);
-    converted to per-day before subtracting from the daily-return mean.
+    A pair further apart than :data:`MAX_SESSION_GAP_DAYS` spans missed nights,
+    so it is not one session's return and is left out (SR-5).
     """
-    if len(navs) < 3:
-        return None
-    daily = _daily_returns([float(n) for n in navs])
-    if len(daily) < 2:
+    out: list[float] = []
+    for (prev_day, prev), (day, curr) in pairwise(points):
+        if prev == 0 or (day - prev_day).days > MAX_SESSION_GAP_DAYS:
+            continue
+        out.append(float((curr - prev) / prev))
+    return out
+
+
+def compute_sharpe(points: list[tuple[date, Decimal]], *, risk_free_rate: float) -> float | None:
+    """Annualised Sharpe from dated end-of-day snapshots.
+
+    Uses only returns between adjacent sessions and needs
+    :data:`MIN_SHARPE_RETURNS` of them; three snapshots used to be enough
+    (SR-5). ``risk_free_rate`` is annual, converted to per-session.
+    """
+    daily = session_returns(points)
+    if len(daily) < MIN_SHARPE_RETURNS:
         return None
     daily_rf = risk_free_rate / TRADING_DAYS_PER_YEAR
     excess = [r - daily_rf for r in daily]

@@ -15,6 +15,7 @@ import argparse
 import logging
 import sys
 from collections import Counter
+from collections.abc import Callable
 from datetime import UTC, date, datetime
 from pathlib import Path
 from urllib.parse import quote
@@ -23,6 +24,7 @@ from zoneinfo import ZoneInfo
 from sqlmodel import Session
 
 from stockviz.db import engine
+from stockviz.logging_setup import configure_logging, redact
 from stockviz.services.ingest.backfill import (
     backfill_price_bars_from_csvs,
     ensure_symbols_for_backfill,
@@ -173,6 +175,42 @@ def _cmd_earnings(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_corporate_actions(args: argparse.Namespace) -> int:
+    """Record splits for ledger tickers, then rebase the ledger for due ones (#65).
+
+    Runs after ``ingest`` (which rewrites the split-adjusted closes) and before
+    ``settle-orders``, so orders settle on the new scale. Exit 1 if any fetch
+    failed: a missed split leaves positions on the old scale.
+    """
+    from stockviz._time import utcnow
+    from stockviz.services.corporate_actions.apply import apply_due_splits
+    from stockviz.services.corporate_actions.splits import ledger_tickers, record_splits
+
+    failed: list[str] = []
+    recorded = 0
+    with Session(engine) as session:
+        tickers = [t.upper() for t in args.tickers] if args.tickers else ledger_tickers(session)
+        for ticker in tickers:
+            try:
+                recorded += record_splits(session, ticker)
+                session.commit()
+            except Exception as exc:
+                session.rollback()
+                logger.warning("corporate-actions: %s split fetch failed: %s", ticker, exc)
+                failed.append(ticker)
+        result = apply_due_splits(session, now=utcnow().replace(tzinfo=UTC))
+    print(
+        f"corporate actions: {len(tickers)} ticker(s) checked, {recorded} split row(s) "
+        f"recorded, {result.actions_due} due, {result.users_rebased} user(s) rebased"
+    )
+    for line in result.summaries:
+        print(f"  {line}")
+    if failed:
+        print(f"corporate-actions: fetch failed for {', '.join(failed)}", file=sys.stderr)
+        return 1
+    return 0
+
+
 def _cmd_credit_dividends(_args: argparse.Namespace) -> int:
     from stockviz._time import utcnow
 
@@ -184,12 +222,14 @@ def _cmd_credit_dividends(_args: argparse.Namespace) -> int:
 
 
 def _cmd_snapshot(_args: argparse.Namespace) -> int:
+    """Write each user's NAV dated by the session its prices come from (LG-2)."""
     from stockviz._time import utcnow
+    from stockviz.services.ingest.bar_semantics import latest_completed_session
 
-    today = utcnow().date()
+    session_date = latest_completed_session(utcnow().replace(tzinfo=UTC))
     with Session(engine) as session:
-        n = snapshot_user_navs(session, snapshot_date=today)
-    print(f"wrote {n} portfolio snapshots for {today}")
+        n = snapshot_user_navs(session, snapshot_date=session_date)
+    print(f"wrote {n} portfolio snapshots for the {session_date} session")
     return 0
 
 
@@ -218,9 +258,109 @@ def _cmd_prune_events(args: argparse.Namespace) -> int:
         session.commit()
     print(
         f"pruned events older than {args.days} day(s): {result.published} published outbox, "
-        f"{result.unpublished} unpublished outbox, {result.inbox} inbox"
+        f"{result.unpublished} unpublished outbox, {result.inbox} inbox, "
+        f"{result.auth_counters} expired sign-in counters"
     )
     return 0
+
+
+def _cmd_redate_bars(args: argparse.Namespace) -> int:
+    """Replace the yfinance daily bars stored a day early (batch 4.1b).
+
+    Dry run unless ``--apply``: lists each affected ticker and the rows it
+    would replace. With ``--apply`` each ticker is fetched again from
+    yfinance and swapped in its own transaction; see
+    ``services/ingest/redate.py``. Exit 1 if any ticker raised.
+    """
+    from stockviz.services.ingest.redate import (
+        count_stored,
+        misdated_tickers,
+        redate_ticker,
+        was_misdated,
+    )
+
+    with Session(engine) as session:
+        tickers = (
+            [t.upper() for t in args.tickers if was_misdated(t.upper())]
+            if args.tickers
+            else misdated_tickers(session)
+        )
+        if not args.apply:
+            total_bars = total_quarantine = 0
+            for ticker in tickers:
+                bars, quarantine = count_stored(session, ticker)
+                total_bars += bars
+                total_quarantine += quarantine
+                print(f"  {ticker}: {bars} bars, {quarantine} quarantine rows")
+            print(
+                f"dry run: {len(tickers)} ticker(s), {total_bars} bars and "
+                f"{total_quarantine} quarantine rows would be replaced; pass --apply"
+            )
+            return 0
+
+    failed: list[str] = []
+    replaced = written = 0
+    for ticker in tickers:
+        try:
+            with Session(engine) as session:
+                result = redate_ticker(session, ticker)
+        except Exception as exc:
+            logger.exception("redate-bars: %s failed", ticker)
+            print(f"  {ticker}: FAILED ({exc.__class__.__name__}: {exc})", file=sys.stderr)
+            failed.append(ticker)
+            continue
+        if result.skipped:
+            print(f"  {ticker}: skipped, yfinance returned nothing; stored rows kept")
+            continue
+        replaced += result.deleted_bars
+        written += result.written
+        print(
+            f"  {ticker}: deleted {result.deleted_bars} bars and "
+            f"{result.deleted_quarantine} quarantine rows, wrote {result.written}"
+        )
+    print(f"redated {len(tickers) - len(failed)} ticker(s): {replaced} bars out, {written} in")
+    return 1 if failed else 0
+
+
+def _cmd_instrument_check(_args: argparse.Namespace) -> int:
+    """Report rows whose ``instrument_id`` the dual-write triggers missed (Phase 4.3).
+
+    Read-only. For every table with a ``ticker`` column: rows with a ticker
+    but no ``instrument_id``, and rows whose ``instrument_id`` disagrees with
+    the ticker's current ``yahoo`` identifier. Exit 1 if any table has either.
+    """
+    from sqlalchemy import text
+
+    from stockviz.services.instruments import TICKER_TABLES
+
+    bad = False
+    with Session(engine) as session:
+        instruments = session.execute(text("SELECT count(*) FROM instruments")).scalar_one()
+        symbols = session.execute(text("SELECT count(*) FROM symbols")).scalar_one()
+        unmapped = session.execute(
+            text(
+                "SELECT count(*) FROM symbols s WHERE NOT EXISTS (SELECT 1 FROM "
+                "instrument_identifiers i WHERE i.scheme = 'yahoo' AND i.value = s.ticker "
+                "AND i.valid_to IS NULL)"
+            )
+        ).scalar_one()
+        print(f"instruments: {instruments} for {symbols} symbol(s), {unmapped} symbol(s) unmapped")
+        bad = bad or unmapped > 0
+        for table in TICKER_TABLES:
+            rows, missing, wrong = session.execute(
+                text(
+                    f"SELECT count(*), "
+                    f"count(*) FILTER (WHERE t.ticker IS NOT NULL AND t.instrument_id IS NULL), "
+                    f"count(*) FILTER (WHERE t.instrument_id IS DISTINCT FROM i.instrument_id "
+                    f"AND t.ticker IS NOT NULL) "
+                    f"FROM {table} t LEFT JOIN instrument_identifiers i ON i.scheme = 'yahoo' "
+                    f"AND i.value = t.ticker AND i.valid_to IS NULL"
+                )
+            ).one()
+            flag = "" if missing == 0 and wrong == 0 else "  <- check"
+            print(f"  {table}: {rows} rows, {missing} missing, {wrong} mismatched{flag}")
+            bad = bad or missing > 0 or wrong > 0
+    return 1 if bad else 0
 
 
 def _refresh_aegis_sentiment() -> None:
@@ -483,15 +623,18 @@ def _cmd_ingest(args: argparse.Namespace) -> int:
     Row counts prove nothing (the full history is upserted every night), so
     success is judged by the newest stored bar. A ticker that raises is
     reported and the rest still run. The run fails if any ticker raised, or
-    if no ticker reached the newest complete session. One ticker short of it
-    is only reported: its market may have been closed that day. On a day every
-    market is closed (25 December) the run fails, which is the honest reading.
+    if no ticker reached its venue's newest complete session (Phase 4.1:
+    exchange calendars, so a market holiday expects the session before). One
+    ticker short of it is only reported: its provider may lag.
     """
     from stockviz._time import utcnow
     from stockviz.services.ingest.bar_semantics import latest_completed_session
+    from stockviz.services.markets.calendar import venue_for_ticker
 
     settings = get_settings()
-    expected = latest_completed_session(utcnow().replace(tzinfo=UTC))
+    now = utcnow().replace(tzinfo=UTC)
+    expected = latest_completed_session(now)
+    reached = False
     total = 0
     failed: list[str] = []
     behind: list[str] = []
@@ -511,19 +654,22 @@ def _cmd_ingest(args: argparse.Namespace) -> int:
         latest = _latest_daily_bar_date(ticker)
         print(f"  {ticker}: {written} (latest bar {latest})")
         total += written
-        if latest is None or latest < expected:
-            behind.append(ticker)
+        ticker_expected = latest_completed_session(now, venue_for_ticker(ticker))
+        if latest is None or latest < ticker_expected:
+            behind.append(f"{ticker} (expected {ticker_expected})")
+        else:
+            reached = True
         if latest is not None and (newest is None or latest > newest):
             newest = latest
-    print(f"ingested {total} bars total; expected session {expected}")
+    print(f"ingested {total} bars total; expected New York session {expected}")
     if behind:
-        print(f"ingest: behind {expected}: {', '.join(behind)}", file=sys.stderr)
+        print(f"ingest: behind: {', '.join(behind)}", file=sys.stderr)
     if failed:
         print(f"ingest: {len(failed)} ticker(s) failed: {', '.join(failed)}", file=sys.stderr)
         return 1
-    if args.tickers and (newest is None or newest < expected):
+    if args.tickers and not reached:
         print(
-            f"ingest: no ticker reached the {expected} session (newest {newest})",
+            f"ingest: no ticker reached its venue's latest session (newest {newest})",
             file=sys.stderr,
         )
         return 1
@@ -919,8 +1065,99 @@ def _cmd_ingest_quarantine(args: argparse.Namespace) -> int:
         return 0
 
 
+RECORDED_JOBS = frozenset(
+    {
+        "ingest",
+        "corporate-actions",
+        "fx",
+        "settle-orders",
+        "evaluate-alerts",
+        "aegis-sync",
+        "metrics",
+        "dividends",
+        "credit-dividends",
+        "settle-options",
+        "recommend",
+        "snapshot-portfolios",
+        "prune-events",
+        "earnings",
+        "metadata",
+        "news",
+        "score-sentiment",
+        "sentiment-aggregate",
+    }
+)
+"""The nightly job commands whose runs are written to ``job_runs`` (OP-5).
+
+Long-running workers and one-off maintenance commands are not recorded.
+"""
+
+
+def _start_sentry() -> None:
+    """The CLI never started Sentry, so a failed night reported nowhere (OP-5)."""
+    try:
+        from stockviz.observability import init_sentry
+
+        init_sentry(get_settings())
+    except Exception:
+        logger.exception("sentry init failed; continuing without it")
+
+
+def _record_job_start(job: str) -> int | None:
+    from stockviz.models import JobRun
+
+    try:
+        with Session(engine) as session:
+            row = JobRun(job=job)
+            session.add(row)
+            session.commit()
+            session.refresh(row)
+            return row.id
+    except Exception:
+        logger.exception("job_runs: could not record the start of %s", job)
+        return None
+
+
+def _record_job_end(run_id: int | None, code: int, error: str | None) -> None:
+    from stockviz._time import utcnow
+    from stockviz.models import JobRun
+
+    if run_id is None:
+        return
+    try:
+        with Session(engine) as session:
+            row = session.get(JobRun, run_id)
+            if row is None:
+                return
+            row.finished_at = utcnow()
+            row.exit_code = code
+            row.status = {0: "succeeded", 2: "skipped"}.get(code, "failed")
+            # An httpx error message holds the request URL, key included.
+            row.error = redact(error)[:4000] if error else None
+            session.add(row)
+            session.commit()
+    except Exception:
+        logger.exception("job_runs: could not record the end of run %s", run_id)
+
+
+def _run_recorded(job: str, run: Callable[[], int]) -> int:
+    """Run a job command and write its outcome to ``job_runs``.
+
+    Recording never changes the job's result: if the table cannot be written,
+    the job still runs and returns its own exit code.
+    """
+    run_id = _record_job_start(job)
+    try:
+        code = run()
+    except Exception as exc:
+        _record_job_end(run_id, 1, f"{exc.__class__.__name__}: {exc}")
+        raise
+    _record_job_end(run_id, code, None)
+    return code
+
+
 def main(argv: list[str] | None = None) -> int:
-    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
+    configure_logging()
 
     parser = argparse.ArgumentParser(prog="stockviz", description="StockViz API operator commands.")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -1062,6 +1299,30 @@ def main(argv: list[str] | None = None) -> int:
     )
     p_prune.set_defaults(fn=_cmd_prune_events)
 
+    p_redate = sub.add_parser(
+        "redate-bars",
+        help="Replace yfinance daily bars stored a day early on non-US venues (dry run by default)",
+    )
+    p_redate.add_argument(
+        "tickers", nargs="*", help="Limit to these tickers (default: all affected)"
+    )
+    p_redate.add_argument(
+        "--apply", action="store_true", help="Fetch again and replace the rows (default: dry run)"
+    )
+    p_redate.set_defaults(fn=_cmd_redate_bars)
+
+    p_ca = sub.add_parser(
+        "corporate-actions",
+        help="Record splits for ledger tickers and rebase positions, orders, alerts, options",
+    )
+    p_ca.add_argument("tickers", nargs="*", help="Limit the split fetch to these tickers")
+    p_ca.set_defaults(fn=_cmd_corporate_actions)
+
+    sub.add_parser(
+        "instrument-check",
+        help="Read-only: rows whose instrument_id the identity triggers missed (Phase 4.3)",
+    ).set_defaults(fn=_cmd_instrument_check)
+
     p_aegis = sub.add_parser(
         "aegis-sync",
         help="Copy new Aegis News documents and the mapping list into the read tables",
@@ -1137,7 +1398,10 @@ def main(argv: list[str] | None = None) -> int:
         p.set_defaults(fn=fn)
 
     args = parser.parse_args(argv)
-    return args.fn(args)
+    _start_sentry()
+    if args.cmd not in RECORDED_JOBS:
+        return args.fn(args)
+    return _run_recorded(args.cmd, lambda: args.fn(args))
 
 
 if __name__ == "__main__":

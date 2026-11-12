@@ -273,11 +273,13 @@ def recommendations_refresh() -> None:
 
 @single_instance("portfolio_snapshots_refresh")
 def portfolio_snapshots_refresh() -> None:
-    """Upsert today's NAV snapshot for every user who owns a portfolio."""
-    today = utcnow().date()
+    """Upsert each user's NAV, dated by the session its prices come from (LG-2)."""
+    from stockviz.services.ingest.bar_semantics import latest_completed_session
+
+    session_date = latest_completed_session(utcnow().replace(tzinfo=UTC))
     with _session_scope() as session:
-        written = snapshot_user_navs(session, snapshot_date=today)
-    logger.info("portfolio_snapshots_refresh: wrote %d snapshots for %s", written, today)
+        written = snapshot_user_navs(session, snapshot_date=session_date)
+    logger.info("portfolio_snapshots_refresh: wrote %d snapshots for %s", written, session_date)
 
 
 @single_instance("pending_orders_settlement")
@@ -295,6 +297,28 @@ def pending_orders_settlement() -> None:
     with _session_scope() as session:
         filled = settle_pending_orders(session, session_date=session_date)
     logger.info("pending_orders_settlement: filled %d order(s)", filled)
+
+
+@single_instance("corporate_actions_refresh")
+def corporate_actions_refresh() -> None:
+    """Record splits for ledger tickers and rebase the ledger for due ones (#65)."""
+    from stockviz.services.corporate_actions.apply import apply_due_splits
+    from stockviz.services.corporate_actions.splits import ledger_tickers, record_splits
+
+    with _session_scope() as session:
+        for ticker in ledger_tickers(session):
+            try:
+                record_splits(session, ticker)
+                session.commit()
+            except Exception:
+                session.rollback()
+                logger.exception("corporate_actions_refresh: %s split fetch failed", ticker)
+        result = apply_due_splits(session, now=utcnow().replace(tzinfo=UTC))
+    logger.info(
+        "corporate_actions_refresh: %d due split(s), %d user(s) rebased",
+        result.actions_due,
+        result.users_rebased,
+    )
 
 
 @single_instance("dividend_credit_refresh")
@@ -394,6 +418,17 @@ def build_scheduler() -> BackgroundScheduler:
         dividend_credit_refresh,
         trigger=CronTrigger(day_of_week="mon-fri", hour=9, minute=30),
         id="dividend_credit_refresh",
+        replace_existing=True,
+    )
+
+    # 4:40pm ET on weekdays — after the price refresh rewrote the adjusted
+    # closes, before settlement. A US split becomes due once its ex-date bar is
+    # complete (4:45pm), so in-process it is applied the next weekday at 4:40;
+    # the Railway cron (22:00 UTC) applies it the same night.
+    scheduler.add_job(
+        corporate_actions_refresh,
+        trigger=CronTrigger(day_of_week="mon-fri", hour=16, minute=40),
+        id="corporate_actions_refresh",
         replace_existing=True,
     )
 

@@ -18,6 +18,7 @@ import {
   ResearchSectionHeader,
   ResearchSubnav,
 } from "@/components/research-page-header";
+import { VisitorLimitNotice } from "@/components/visitor-limit-notice";
 import { ApiError, type Bar, getBars, getSymbol, listSymbols, screenSymbols } from "@/lib/api";
 import type { ScreenerResult } from "@/lib/api/types";
 import { listWatchlist } from "@/lib/api/watchlist";
@@ -35,6 +36,7 @@ import {
   seriesColor,
   week52PositionPct,
 } from "@/lib/compare-workspace";
+import { checkVisitorLimit } from "@/lib/visitor-limit";
 
 export const metadata: Metadata = { title: "Compare" };
 
@@ -64,6 +66,10 @@ export default async function ComparePage({
   searchParams: Promise<{ tickers?: string; symbols?: string; tf?: string }>;
 }) {
   const params = await searchParams;
+  const visitorLimit = await checkVisitorLimit("compare");
+  if (!visitorLimit.allowed) {
+    return <VisitorLimitNotice retryAfterSeconds={visitorLimit.retryAfterSeconds} />;
+  }
   const { tickers, timeframe } = parseCompareSearchParams(params);
   const days = compareTimeframeDays(timeframe);
   const sampleHref = buildCompareHref([...SAMPLE_COMPARE_TICKERS], timeframe);
@@ -210,7 +216,7 @@ export default async function ComparePage({
                 <li key={ticker} className="flex gap-1">
                   <Link
                     href={`/stocks/${ticker}`}
-                    className="inline-flex min-h-8 items-center px-1 font-mono hover:underline"
+                    className="inline-flex min-h-8 items-center px-1 ticker hover:underline"
                   >
                     {ticker}
                   </Link>

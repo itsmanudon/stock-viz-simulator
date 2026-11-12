@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 
 from fastapi.testclient import TestClient
@@ -92,11 +92,17 @@ def _reset_snapshots(session: Session, user_id: int) -> None:
     session.commit()
 
 
-def test_analytics_computes_return_from_snapshots(session: Session, client: TestClient) -> None:
+def test_analytics_computes_return_from_the_opening_value_to_live(
+    session: Session, client: TestClient
+) -> None:
+    """LG-1: from the fixed opening value to the live valuation, not between snapshots."""
     user_id = _make_user(session)
-    ensure_default_portfolio(session, user_id)
+    portfolio = ensure_default_portfolio(session, user_id)
     _reset_snapshots(session, user_id)
     base_date = date(2025, 1, 1)
+    portfolio.created_at = datetime(2025, 1, 1)
+    portfolio.cash_balance = Decimal(110_000)  # the live value
+    session.add(portfolio)
     # 100k -> 110k = +10% total return over the window.
     session.add_all(
         [
@@ -113,8 +119,33 @@ def test_analytics_computes_return_from_snapshots(session: Session, client: Test
     body = response.json()
     assert body["total_return_pct"] is not None
     assert abs(body["total_return_pct"] - 10.0) < 1e-6
-    assert body["history_days"] == 30
+    # Calendar days since the book opened.
+    assert body["history_days"] == (datetime.now(UTC).date() - base_date).days
     assert body["max_drawdown_pct"] == 0
+
+
+def test_return_survives_the_nightly_overwrite_of_the_opening_snapshot(
+    session: Session, client: TestClient
+) -> None:
+    """LG-1: trading on day one replaced the 100k opening row with the EOD value."""
+    user_id = _make_user(session)
+    portfolio = ensure_default_portfolio(session, user_id)
+    _reset_snapshots(session, user_id)
+    portfolio.cash_balance = Decimal(105_000)
+    session.add(portfolio)
+    day = date(2025, 1, 6)
+    session.add_all(
+        [
+            # The opening day's row now holds the EOD value, not 100k.
+            PortfolioSnapshot(user_id=user_id, date=day, nav=Decimal(102_000)),
+            PortfolioSnapshot(user_id=user_id, date=day + timedelta(days=1), nav=Decimal(104_000)),
+        ]
+    )
+    session.commit()
+
+    body = client.get("/v1/portfolio/analytics", headers=_auth_headers(user_id)).json()
+    # 100k opening -> 105k live; the first-snapshot rule said 104/102 - 1 = 1.96%.
+    assert abs(body["total_return_pct"] - 5.0) < 1e-6
 
 
 def test_analytics_sector_allocation_and_top_movers(session: Session, client: TestClient) -> None:

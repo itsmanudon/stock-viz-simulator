@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { closeOptionAction } from "@/app/(product)/(authed)/trade/options-actions";
+import { CloseOptionButton } from "@/components/close-option-button";
 import {
   Table,
   TableBody,
@@ -63,7 +63,7 @@ export function PortfolioOptions({
                   <TableCell>
                     <Link
                       href={`/stocks/${position.ticker}`}
-                      className="font-mono font-semibold hover:text-brand focus-visible:text-brand focus-visible:underline"
+                      className="ticker font-semibold hover:text-brand focus-visible:text-brand focus-visible:underline"
                     >
                       {position.ticker}
                     </Link>
@@ -95,7 +95,7 @@ export function PortfolioOptions({
                     {direction} {formatSignedCurrency(position.unrealized_pl, displayCurrency)}
                   </TableCell>
                   <TableCell className="text-right">
-                    <CloseOptionButton position={position} />
+                    <CloseOption position={position} displayCurrency={displayCurrency} />
                   </TableCell>
                 </TableRow>
               );
@@ -117,7 +117,7 @@ export function PortfolioOptions({
               className="grid grid-cols-[minmax(0,1fr)_auto] gap-4 py-5"
             >
               <div>
-                <Link href={`/stocks/${position.ticker}`} className="font-mono font-semibold">
+                <Link href={`/stocks/${position.ticker}`} className="ticker font-semibold">
                   {position.ticker}
                 </Link>
                 <p className="mt-1 text-xs capitalize text-muted-foreground">
@@ -143,7 +143,7 @@ export function PortfolioOptions({
                   {formatSignedCurrency(position.unrealized_pl, displayCurrency)}
                 </p>
                 <div className="mt-3">
-                  <CloseOptionButton position={position} />
+                  <CloseOption position={position} displayCurrency={displayCurrency} />
                 </div>
               </div>
             </li>
@@ -154,19 +154,29 @@ export function PortfolioOptions({
   );
 }
 
-function CloseOptionButton({ position }: { position: PortfolioOption }) {
+function CloseOption({
+  position,
+  displayCurrency,
+}: {
+  position: PortfolioOption;
+  displayCurrency: string;
+}) {
+  // Past expiry the API refuses a close until the nightly settlement (LG-8).
+  if (position.expiry < newYorkToday()) {
+    return <span className="text-2xs text-muted-foreground">Awaiting settlement</span>;
+  }
   return (
-    <form action={closeOptionAction}>
-      <input type="hidden" name="option_id" value={position.option_id} />
-      <button
-        type="submit"
-        aria-label={`Close ${position.ticker} ${position.option_type} position`}
-        className="rounded-md border border-border px-2.5 py-1 text-xs font-medium text-muted-foreground outline-none transition-colors hover:bg-surface-hover hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
-      >
-        Close
-      </button>
-    </form>
+    <CloseOptionButton
+      optionId={position.option_id}
+      label={`${position.ticker} ${position.option_type} position`}
+      valueText={formatCurrency(position.market_value, displayCurrency)}
+    />
   );
+}
+
+/** Today's date in New York, as YYYY-MM-DD, the date the API compares expiry with. */
+function newYorkToday(): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York" }).format(new Date());
 }
 
 function PanelState({ title, description }: { title: string; description: string }) {

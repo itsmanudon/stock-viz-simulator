@@ -23,6 +23,7 @@ dependencies = [
     "confluent-kafka>=2.15.0",
     "redis>=5.2,<7",
     "pyjwt[crypto]>=2.9",
+    "exchange-calendars>=4.13.2",
 ]
 
 [dependency-groups]
@@ -75,3 +76,6 @@ reportMissingTypeStubs = false
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+markers = [
+    "placement_guard: run LG-5's check that an order fills only on a session closed after it was placed",
+]

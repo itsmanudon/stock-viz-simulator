@@ -10,13 +10,16 @@
  * exactly what is shown; callers must unmount their editable inputs while it
  * is open. Callers also send `review_step` ("draft" until the review is open)
  * so the server actions can refuse a post that skipped it (lib/order-review).
+ * Each opened review also posts a fresh `client_order_id`, which makes its
+ * confirmation safe to repeat (#67).
  */
 
 import { CircleCheck, Clock3 } from "lucide-react";
 import Link from "next/link";
-import { useSyncExternalStore } from "react";
+import { useState, useSyncExternalStore } from "react";
 
 import { Button } from "@/components/ui/button";
+import { newClientOrderId } from "@/lib/order-review";
 import { splitMinorUnits } from "@/lib/portfolio-view-model";
 import {
   type TicketOrderMode,
@@ -108,6 +111,8 @@ export function OrderReview({
   const closeLabel = formatCloseDate(closeDate);
   const sameCurrency = account?.displayCurrency === currency;
   const qty = Number(quantity);
+  // One key per opened review: repeats of this confirmation place it once.
+  const [clientOrderId] = useState(newClientOrderId);
 
   const rows: { label: string; value: string; tone?: "warning" }[] = [
     { label: "Quantity", value: `${formatQuantity(qty)} ${ticker}` },
@@ -160,6 +165,7 @@ export function OrderReview({
   return (
     <div className="space-y-4" aria-live="polite">
       <input type="hidden" name="quantity" value={quantity} />
+      <input type="hidden" name="client_order_id" value={clientOrderId} />
       {mode !== "market" ? <input type="hidden" name="limit_price" value={triggerPrice} /> : null}
 
       <div>

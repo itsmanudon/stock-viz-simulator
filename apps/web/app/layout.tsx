@@ -5,10 +5,11 @@ import { Providers } from "@/components/providers";
 import "./globals.css";
 
 /**
- * Geist carries all non-numeric interface, heading, and marketing copy; the
- * Aurora direction sets headings at weight 500 with tight tracking. Geist Mono
- * handles every ticker, price, quantity, table value, and delta — it has
- * tabular figures, and globals.css turns on the slashed zero.
+ * Geist carries all interface, heading, and marketing copy, and every ticker
+ * symbol (the `ticker` utility in globals.css). Product titles are weight 600
+ * with tight tracking; marketing headlines stay at 500. Geist Mono handles
+ * prices, quantities, table values and deltas: it has tabular figures and its
+ * own ₹, and globals.css turns on the slashed zero.
  *
  * Both are self-hosted by next/font, so there is no runtime request to Google.
  */
@@ -20,7 +21,7 @@ const display = Geist({
 
 const mono = Geist_Mono({
   weight: ["400", "500", "600", "700"],
-  subsets: ["latin"],
+  subsets: ["latin", "latin-ext"],
   display: "swap",
   variable: "--font-numeric",
 });

@@ -56,7 +56,7 @@ export function OrdersWidget({
                     <span aria-hidden>{order.side === "buy" ? "↗" : "↘"}</span>
                     <span>{order.side}</span>
                   </span>
-                  <span className="font-mono text-sm font-semibold">{order.ticker}</span>
+                  <span className="ticker text-sm font-semibold">{order.ticker}</span>
                 </span>
                 <span className="mt-0.5 block text-xs text-text-tertiary">
                   {ORDER_TYPE_LABELS[order.order_type]} · {formatQuantity(order.quantity)} sh

@@ -68,6 +68,7 @@ src/stockviz/
     backtest/       engine.py — historical strategy simulation
     alerts.py       price-alert evaluation
     metrics.py      precomputed per-symbol RSI / 52w range (screener reads these)
+    markets/        calendar.py — exchange calendars and completed sessions (Phase 4.1)
     aegis/          Aegis News read sync (Phase 2): contract.py (lenient
                     feed models), token.py (EdDSA feed:read token), client.py
                     (the one client: timeouts, bounded retries), sync.py
@@ -116,13 +117,76 @@ cron has no scheduler, so `settle-orders` and `evaluate-alerts` run in its
 chain after `fx` and before `snapshot-portfolios`, against
 `latest_completed_session()` (`services/ingest/bar_semantics.py`).
 
-**Which session is complete (audit MD-3).** A weekday's daily bar counts as
-complete once New York passes `SESSION_COMPLETE_AT` (16:45, after every
-exchange StockViz carries has closed). Before that, and at weekends, the
-newest complete session is the previous weekday. `completed_daily_bars` and
-settlement both use it, so the 22:00 UTC cron stores and settles the day's
-own session. (The old rule waited for New York midnight, so each night stored
-the session before.)
+**Which session is complete (audit MD-3, Phase 4.1).** Exchange calendars
+(`services/markets/calendar.py`, the only module importing
+`exchange_calendars`) decide it: a venue's session is complete 45 minutes
+after that venue's close, early closes included, and weekends and the venue's
+holidays are skipped. `latest_completed_session(now, venue)` defaults to New
+York (`XNYS`), which dates the nightly jobs, so the 22:00 UTC cron stores and
+settles the day's own session and, on a US holiday, the session before. Bars
+are filtered by their own venue (`venue_for_ticker`, from the Yahoo suffix
+until instruments carry a venue: `.L` XLON, `.DE` XETR, `.TO` XTSE, `.T` XTKS,
+`.NS`/`.BO` XBOM, which shares NSE's holidays). `ingest` judges each ticker
+against its venue's session. Option expiry uses the last New York session on
+or before expiry. Outside a calendar's range (XBOM ends 2026-12-31 in the
+pinned package) the weekday rule applies and a warning is logged.
+
+**A daily bar's date is its venue's date (Phase 4.1b).** yfinance labels a
+daily bar with midnight in the venue's time zone, and `fetch_yfinance_daily`
+takes that date as it is. Do not convert it to New York: before 12 Nov 2026 it
+did, and every bar east of New York was stored a day early (Monday's session
+under Sunday). `stockviz.cli redate-bars` (dry run; `--apply` to act) repairs
+stored history: per affected ticker it fetches yfinance again and, in one
+transaction, swaps the `yfinance` daily rows and their quarantine rows. Other
+sources (`bulk_*`, `v1_csv`) are kept; a ticker yfinance returns nothing for is
+skipped. Run it once after the fix is deployed (`services/ingest/redate.py`).
+
+**Dividends (audit LG-12, #66).** `credit_due_dividends` credits every
+uncredited ex-date on or before the run date (a missed night or a missing FX
+rate is paid by the next run), only for ex-dates after the portfolio opened,
+from the holding at the close before the ex-date: the current position with
+trades dated (New York) on or after the ex-date undone. FX is the rate on or
+before the ex-date. `portfolio_dividends` uniqueness stops double payment.
+
+**Splits rebase the ledger once (Phase 4.2, #65).** Stored closes are
+yfinance's split-adjusted series, rewritten every night, so a split divides
+every old close by its ratio. `stockviz.cli corporate-actions` (after
+`ingest`, before `fx` and `settle-orders` in the cron) records splits for the
+tickers the ledger touches (`corporate_actions`, from `yfinance.splits`) and,
+once the ex-date bar is complete on the venue, rebases each user in one
+transaction (`services/corporate_actions/apply.py`): shares bought before the
+cut-off and still held times r with the total cost kept; pending orders, live
+alerts and open options made before the cut-off scaled likewise (options
+carry `shares_per_contract`, 100 until a split changes it; value and
+exercise read it, never `CONTRACT_MULTIPLIER`). Trade rows stay as filled.
+`corporate_action_applications` (unique per action and user) makes it run
+once. Old splits change nothing because no ledger row predates them. The
+Alpha Vantage fallback is unadjusted, so `upsert_bars` lets it add only days
+newer than the newest stored daily bar (audit MD-5). Replay sessions read
+the same rescaled bars and are not rebased.
+
+**A night leaves a record (audits OP-5, OP-3, OP-15).** `cli.main` writes a
+`job_runs` row (`models/job_run.py`) for each command in `RECORDED_JOBS`:
+`running`, then `succeeded`, `failed` (any other exit code, or an exception,
+whose text is kept) or `skipped` (exit 2). Recording never changes a job's
+result. `/health` adds `newest_bar`, `last_job_success_at` and `failing_jobs`
+(jobs whose latest run failed); its status still depends on the database
+only. The CLI starts Sentry when `SENTRY_DSN` is set. The cron refreshes the
+earnings calendar nightly and symbol metadata on Mondays (both yfinance).
+`tests/test_cron_chain.py` runs the real chain from `railway.ts` through the
+CLI at a frozen 22:00 UTC (SQLite, and scratch PostgreSQL when
+`DATABASE_URL` is one); `tests/test_migration_round_trip.py` runs the
+Alembic chain up, down past this week's migrations, and up.
+
+**Snapshots and returns (audits LG-1, LG-2, SR-4, SR-5).** Snapshots are
+dated by the session their prices come from (`latest_completed_session`), not
+the run date. `portfolios.opening_nav` holds the starting value for good:
+analytics measure the total return from it to the **live** valuation (none
+before two snapshots), drawdown runs opening → snapshots → live, and the
+leaderboard measures from it. The first snapshot is not the opening: the
+nightly job overwrites it if the user traded that day. The annualised return
+uses calendar days over 365. Sharpe uses only returns between snapshots one
+session apart (`MAX_SESSION_GAP_DAYS`) and needs `MIN_SHARPE_RETURNS` (20).
 
 **Refresh failures are failures (audit MD-4).** `ingest` judges success by
 each ticker's newest stored bar, not row counts (the full history is upserted
@@ -137,7 +201,9 @@ sets the exit code without stopping later steps.
 rows and inbox receipts older than 30 days; `--include-unpublished` also
 deletes old unsent rows, for hosts where no publisher runs. The Railway cron
 runs it with that flag and sets `EVENTS_OUTBOX_ENABLED=false`, which makes the
-news ingest skip its `news.article.ingested` fan-out (nothing would publish it).
+news ingest skip its `news.article.ingested` fan-out (nothing would publish it). It also deletes
+sign-in counters (`auth_rate_limits`, written by the web server's
+`lib/rate-limit.ts`; audit OP-8) whose window ended more than a day ago.
 
 **Aegis News sync (Phase 2).** `aegis-sync` copies the Aegis feed
 (`GET /api/v1/feed/documents`) and the whole mapping list
@@ -272,6 +338,17 @@ left-most `X-Forwarded-For` hop, then the socket address; endpoints opt in with
 forwarded chain to be populated — the Dockerfile passes it. `get_remote_address`
 alone saw only Render's proxy, making one global bucket.)
 
+**The web server is exempt (audit RS-6, option 1, owner's pick 12 Nov
+2026).** Its server-side calls come over Railway's private network with no
+forwarded address, so they all shared one bucket. They now carry
+`X-StockViz-Web: <HMAC-SHA256 of a fixed label under INTERNAL_API_TOKEN>`
+(`web_server_key()`), and `limiter.py` skips every limit for a request that
+carries the right value. The web limits each visitor by address instead
+(`apps/web/lib/visitor-limit.ts`). Browser calls (option quotes, backtest
+runs) reach the API without the header and stay limited here. The exemption
+overrides slowapi's private `_check_request_limit`, because its request
+filters receive no request; `tests/test_rate_limit_web_server.py` pins it.
+
 Current budget: **60/min** on the public reads
 (symbols, bars, quotes, news, indicators, recommendations), **30/min**
 screener, **20/min** backtest. Authenticated routers are deliberately *not*
@@ -294,6 +371,29 @@ intraday fills anywhere in the app:
 - **Market orders** fill immediately at the latest close. Buys recompute the
   position's weighted-average `avg_cost`; sells never touch `avg_cost`, and a
   position sold to zero is **deleted**, not kept at qty 0.
+  A market order is refused (409, `StaleMarketData`) when the symbol's newest
+  close is from an earlier day than the newest close of any active symbol in
+  its currency (#67): one ticker whose refresh failed cannot trade at a stale
+  price, while weekends and holidays move every peer together. A refresh that
+  failed for a whole market is not caught until exchange calendars (Phase 4).
+- **Client order keys (#67, LG-10).** `POST /v1/trades` and `POST /v1/orders`
+  take an optional `client_order_id` (1-64 of `A-Z a-z 0-9 _ -`), unique per
+  portfolio. A repeat with the same order returns the first trade or order
+  (201, same body); the same key for a different order is a 409
+  (`ClientOrderIdConflict`). The lookup runs under the portfolio lock. The web
+  review (`components/order-review.tsx`) makes one key each time it opens.
+  Option opens take the same key (`POST /v1/options/trade`, `action: open`;
+  `OptionOrderConflict`); the option ticket makes one after hydration and a
+  new one after each buy. A close is safe to repeat without one: the second
+  finds the contract closed.
+- **Database backstops (audit LG-11).** Correctness rests on the portfolio
+  lock, but the database also refuses what no writer should produce: one
+  `positions` row per (portfolio, ticker), position quantity > 0 and
+  `avg_cost` >= 0, `cash_balance` >= 0, trade, pending-order and option
+  amounts positive (migration `5d1b8e2c4a77`). `tests/test_pg_concurrency.py`
+  races each writer pair on PostgreSQL: buy reservations, sells, an option
+  closed twice, cancel against settle, dividend credit twice, and one client
+  key sent twice.
 - **Cash is always USD.** Trade rows store price/quantity in the symbol's
   native currency; the cash debit/credit converts at the latest FX rate
   (`services/trading/fx.py` — rates are USD-per-unit, forward-filled over
@@ -318,7 +418,14 @@ intraday fills anywhere in the app:
   Orders that trigger but fail validation (insufficient available cash/shares)
   are **cancelled** with a `cancel_reason`, never retried. Settlement takes a
   `session_date` and leaves orders pending when the latest bar predates it, so
-  a failed price refresh can't fill against a stale close.
+  a failed price refresh can't fill against a stale close. An order fills only
+  on a session that closed **after** it was placed (LG-5; tests that seed old
+  bars turn this off through a `conftest.py` fixture, and LG-5's own tests opt
+  back in with `@pytest.mark.placement_guard`). Each order commits on its own
+  (LG-4). An order unfilled `ORDER_MAX_AGE_DAYS` (30) after placement becomes
+  `expired` and releases its reservation (LG-6). Order inputs go through
+  `services/trading/bounds.py::check_amount`: finite, positive, at most 6
+  decimals, capped (LG-9).
 - **One fill path.** Both market orders and pending-order settlement go through
   `execute.apply_fill`, which owns the cash/position mutation. Keep it that
   way: when the two had separate copies, only one of them converted native
@@ -358,6 +465,19 @@ intraday fills anywhere in the app:
 - **Options count toward NAV.** `compute_portfolio` marks open contracts to
   their Black-Scholes value (`options_market_value`). Without it, buying an
   option debited cash and recorded no offsetting asset.
+- **Incomplete valuations say so (audit LG-13).** `compute_portfolio` still
+  values a holding without a close and an unpriceable option at 0, and adds an
+  amount without an FX rate unconverted, but each shortcut becomes a
+  `ValuationWarning` (`no_close`, `no_option_price`, `no_fx_rate`), returned
+  as `PortfolioOut.valuation_warnings`. The nightly snapshot refuses an
+  incomplete valuation (`IncompleteValuation`, logged, not a job failure) and
+  keeps the last good NAV, so a missing price never enters the equity curve,
+  returns or leaderboard as a loss.
+- **Option quotes (audit LG-7).** `GET /v1/options/quote` (public, 60/min)
+  prices an open without placing it through `quote_option`, the function
+  `open_option` charges with: spot and its date, 30-day volatility, value per
+  share, premium for the contracts. Without `strike` it prices at the money
+  (the latest close rounded to cents) and returns that strike.
 - **Options** (`services/options/`): long-only book. Black-Scholes pricing
   with 30-day historical volatility as the IV proxy and a 5% risk-free rate;
   contracts are ×100 (`CONTRACT_MULTIPLIER`). Premiums debit the USD cash
@@ -366,7 +486,13 @@ intraday fills anywhere in the app:
   expiry (17:30 job): ITM calls exercise into the equity book if *available*
   cash covers the strike, otherwise cash-settle intrinsic value; ITM puts
   sell *available* held shares at the strike, otherwise cash-settle; OTM
-  expires worthless.
+  expires worthless. Exercise goes through `apply_fill` (#62), so it writes a
+  `Trade` with the equity P&L and the option leg realizes only the premium.
+  A contract settles only on its **expiry session's** close: the bar dated the
+  last weekday on or before expiry, or an older one once a later bar shows
+  the market moved past a holiday expiry (LG-3); otherwise it stays open for
+  a later run. Options remain USD-underlying only (`open_option` refuses
+  others), which is why #62's FX legs are not needed yet.
 
 ## Auth bridge
 
@@ -384,6 +510,28 @@ new revisions (configured in `alembic.ini`). If parallel branches each added a
 revision you'll get **multiple heads** — resolve with
 `alembic merge heads -m "merge heads"` (it has happened before).
 
+`migrations/env.py` holds a Postgres advisory lock (`MIGRATION_LOCK_KEY`) for
+the whole upgrade (audit OP-10): the API start and the cron both run
+`alembic upgrade head`, and without it two runners meeting one pending
+migration both applied it and one failed. The lock is a session lock because a
+migration may commit part-way. `tests/test_migration_round_trip.py` starts two
+real upgrades at once.
+
+**Instrument identity, expand step (Phase 4.3).** `instruments` (venue MIC,
+currency, `quote_unit`, asset type) and `instrument_identifiers` (`yahoo` =
+the ticker, `aegis` = `stockviz:<ticker>`) sit beside `symbols`
+(`models/instrument.py`). Every table with a `ticker` foreign key has a
+nullable `instrument_id`, kept filled by Postgres triggers
+(`stockviz_fill_instrument_id`, migration `686dcf74171b`), so application
+code does not set it; a new symbol gets its instrument from a trigger on
+`symbols`, and `metadata` filling an empty exchange fills its venue. Nothing
+reads `instrument_id` yet (4.4 switches reads; making it NOT NULL and
+dropping the ticker keys is 4.6 and needs the owner's approval). A new table
+with a `ticker` column must add `instrument_id_column()`, the trigger, and an
+entry in `services/instruments.TICKER_TABLES`. `stockviz.cli instrument-check`
+is a read-only report of rows the triggers missed. SQLite tests have no
+triggers, so `instrument_id` stays NULL there.
+
 ## Ingestion contract
 
 Each ingest service writes straight to Postgres — no CSV intermediate.
@@ -395,6 +543,14 @@ An explicit `NEWS_PROVIDER=newsdata` requires `NEWSDATA_KEY`; an explicit
 Anthropic/HTTP sentiment provider similarly requires its credential/endpoint.
 Blank selections retain legacy key-based resolution. `stockviz.cli news` also
 exits 2 rather than silently ingesting nothing.
+
+**Keys stay out of logs.** Alpha Vantage and NewsData.io take the key as
+`apikey=` in the query string. Every process entry point (CLI, workers,
+scheduler) calls `logging_setup.configure_logging()`, which keeps httpx and
+httpcore at WARNING (their INFO lines are request URLs) and puts
+`RedactSecrets` on the root handlers. `job_runs.error` goes through `redact`
+too, since httpx error messages carry the URL. Never call
+`logging.basicConfig` directly in a new entry point.
 
 `upsert_bars` writes in chunks of `UPSERT_CHUNK_ROWS` (1000). `price_bars`
 binds 11 parameters per row, including provider provenance plus generic

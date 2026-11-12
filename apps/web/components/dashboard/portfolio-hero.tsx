@@ -4,6 +4,7 @@ import Link from "next/link";
 import { DeltaPill } from "@/components/dashboard/delta-pill";
 import { NavSparkline } from "@/components/dashboard/nav-sparkline";
 import { PaperCard } from "@/components/paper-card";
+import { ValuationNotice } from "@/components/valuation-notice";
 import type { Portfolio, PortfolioHistoryPoint } from "@/lib/api/trading";
 import { formatDateLabel } from "@/lib/journal-view-model";
 import {
@@ -101,6 +102,8 @@ export function PortfolioHero({
               <ArrowUpRight className="size-3.5 transition-transform group-hover:-translate-y-px" />
             </Link>
           </div>
+
+          <ValuationNotice warnings={portfolio.valuation_warnings} />
 
           {change ? (
             <div className="flex flex-wrap items-center gap-2">

@@ -84,7 +84,7 @@ export default async function ReplaySessionPage({
               {session.status === "completed" ? "Replay Review" : "Replay"} · Historical session ·
               Daily data
             </p>
-            <h1 className="mt-1.5 text-3xl font-medium tracking-tight">{session.ticker}</h1>
+            <h1 className="mt-1.5 text-3xl font-semibold tracking-[-0.025em]">{session.ticker}</h1>
             <div className="mt-2.5 flex flex-wrap items-center gap-2 text-xs text-text-tertiary">
               <MetaChip tone={session.status === "active" ? "warning" : "neutral"}>
                 Replay date · {formatReplayDate(session.current_at)}

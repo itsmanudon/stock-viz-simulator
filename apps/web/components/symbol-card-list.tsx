@@ -54,7 +54,7 @@ export function SymbolCard({ row }: { row: SymbolCardData }) {
       >
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <span className="block font-mono text-sm font-semibold">{row.ticker}</span>
+            <span className="block ticker text-sm font-semibold">{row.ticker}</span>
             <span className="mt-0.5 block truncate text-xs text-text-secondary">{row.name}</span>
           </div>
           <div className="flex shrink-0 flex-col items-end gap-1">

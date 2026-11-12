@@ -217,7 +217,7 @@ function EventRow({ event, compact = false }: { event: EarningsEvent; compact?: 
       )}
     >
       <div className="flex items-start justify-between gap-2">
-        <span className="font-mono text-xs font-semibold">{event.ticker}</span>
+        <span className="ticker text-xs font-semibold">{event.ticker}</span>
         {event.result !== "unknown" ? (
           <span
             className={cn(

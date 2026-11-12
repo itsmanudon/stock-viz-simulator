@@ -104,7 +104,7 @@ function DesktopPositionRow({
       <TableCell className="max-w-56">
         <Link
           href={`/stocks/${position.ticker}`}
-          className="font-mono text-sm font-semibold outline-none hover:text-brand focus-visible:text-brand focus-visible:underline"
+          className="ticker text-sm font-semibold outline-none hover:text-brand focus-visible:text-brand focus-visible:underline"
         >
           {position.ticker}
         </Link>
@@ -189,10 +189,7 @@ function MobilePositionRow({
       className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-3 py-5"
     >
       <div className="min-w-0">
-        <Link
-          href={`/stocks/${position.ticker}`}
-          className="font-mono font-semibold hover:text-brand"
-        >
+        <Link href={`/stocks/${position.ticker}`} className="ticker font-semibold hover:text-brand">
           {position.ticker}
         </Link>
         <p className="truncate text-xs text-muted-foreground">{position.name}</p>

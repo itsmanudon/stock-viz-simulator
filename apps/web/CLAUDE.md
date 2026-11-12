@@ -80,6 +80,28 @@ components/
                    surface that fails is dropped, <2 tabs hides the section),
                    `by-the-numbers.tsx` (counts read live off the API; a stat
                    that can't be counted is omitted, never shown as 0),
+                   `proofs/` ("Watch it work", motion batch 1: `proof-section.tsx`
+                   loads real data server-side and renders one row per feature,
+                   each with its own client animation: `ghost-runs.tsx`
+                   (backtest curve among 36 bootstrap reshuffles of its own
+                   daily returns), `sieve.tsx` (screener chips through
+                   cumulative real screener queries), `fog-replay.tsx` (stored
+                   closes, future under fog), `print-stamp.tsx` (example order
+                   priced at a real stored close). All run on `useFrameLoop`
+                   in `canvas-loop.ts`: draw is a pure function of time, runs
+                   only on screen, paints the final frame under reduced motion.
+                   Canvases are aria-hidden; each row states its figures in
+                   text. The landing shows all four; /product pages pick theirs
+                   with `only`. No GSAP inside them. Batch 2 adds
+                   `rebase-snap.tsx` (compare: two symbols spring onto one
+                   index; a US/India pair, else a same-currency fallback, and
+                   the copy says which), `sonar-sweep.tsx` (signals: distance
+                   from the centre is the vote share) and
+                   `liquid-allocation.tsx` (an example account's split at two
+                   real closes, SVG goo), on /product/research and
+                   /product/paper-trading; and `departure-board.tsx`, the
+                   split-flap board in the landing Rankings section, which
+                   keeps an sr-only list of the same rows),
                    `closing-cta.tsx` (the monochrome full-bleed close),
                    `reveal.tsx` (scroll reveal: IntersectionObserver + the
                    `[data-reveal]` transition in globals.css). GSAP (+
@@ -150,6 +172,22 @@ a server action or a route handler — never through the browser.
   components and `authedFetch`.
 - Providers: **Credentials** (email + password, bcrypt) and **Google OAuth**
   (needs `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`; see `.env.example`).
+- Google signs in only to an account Google created, for an address Google
+  verified (`signIn` callback in `auth.ts`, rule in `lib/oauth-linking.ts`;
+  audit OP-4). Sign-up does not verify email, so an account with a password
+  never gets Google attached: its holder signs in with the password, and
+  `/login?error=` explains the refusal.
+- Credential sign-in and sign-up are throttled by fixed windows in Postgres
+  (`lib/rate-limit.ts`, table `auth_rate_limits` owned by the API's Alembic
+  chain; audit OP-8), so counters survive the web service sleeping. A
+  successful sign-in clears the email's counter only, never the address's.
+- The API does not rate-limit the web server's own calls (audit RS-6):
+  `lib/api/client.ts` adds `X-StockViz-Web` on the server, from the key
+  `instrumentation.ts` registers (`lib/web-server-key.ts`; never in the
+  browser bundle). Instead `/screener`, `/compare` and `/stocks/[ticker]`
+  call `checkVisitorLimit()` (`lib/visitor-limit.ts`) first: 30, 30 and 60
+  views a minute per visitor address, in the same `auth_rate_limits`
+  counters, failing open. A new query-driven public page should do the same.
 - Sessions are JWT (default). The user.id is persisted via the `jwt` callback
   and surfaced via the `session` callback (see `auth.ts`).
 - `proxy.ts` runs as Edge middleware. Keep node-only imports out of the files
@@ -254,6 +292,18 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   status pills — use `DeltaPill` rather than re-rolling the chip.
   `--surface-elevated` is one step *above* `--card` (overlays: sidebar,
   popovers, sheets); `--card` is for content tiles sitting on the page.
+- **Type** (owner's pick, 12 Nov 2026): Geist for all text, including every
+  ticker symbol (the `ticker` utility in globals.css, paired with
+  `font-semibold`); Geist Mono only for figures (prices, quantities, deltas)
+  so columns line up. Product page titles are Geist 600 with
+  `tracking-[-0.025em]`, like the stock page's company name; marketing
+  headlines stay 500. Geist Mono draws its own ₹ (its `latin-ext` subset is
+  loaded), so there is no ₹ fallback face any more.
+- **Dark only for now** (owner, 12 Nov 2026): `components/providers.tsx`
+  sets `forcedTheme="dark"`, and the theme toggles are gone from the top bar,
+  the public header, the footer and Settings. The light tokens stay in
+  `globals.css` and `theme-toggle.tsx` stays in the tree, so the light theme
+  can return after its own design pass. Don't design new screens light-first.
 - The type ramp adds `text-3xs` (10px) and `text-2xs` (11px) below Tailwind's
   `text-xs` for dense table meta and column labels. Use them instead of
   arbitrary `text-[10px]` / `text-[11px]`, which bypass the scale.
@@ -303,6 +353,13 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   chosen symbol until the dates are edited by hand. The run is a browser
   call to the API, so a dev server on a port other than 3000 needs that
   origin in the API's `CORS_ORIGINS`, or the run fails with "Failed to fetch".
+- The `/trade` option ticket (`components/option-trade-form.tsx`) quotes
+  before it buys (audit LG-7): `getOptionQuote()` (`lib/api/option-quote.ts`,
+  a browser call to the public `/v1/options/quote`) shows spot with its close
+  date, volatility, value per share and premium, and the buy button names the
+  premium. The strike starts at the money and follows the symbol until edited.
+  Only USD symbols are offered. The portfolio header and the dashboard hero
+  show `ValuationNotice` when `valuation_warnings` is not empty (audit LG-13).
 - Operational trading (`/trade`, `/orders`, `/watchlist`, `/alerts`) is the
   authenticated execution/monitoring loop. See
   [`docs/OPERATIONAL_TRADING.md`](../../docs/OPERATIONAL_TRADING.md).

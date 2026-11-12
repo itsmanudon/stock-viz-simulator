@@ -19,6 +19,7 @@ from stockviz.models import TradeSide
 from stockviz.models.order import OrderStatus, OrderType, PendingOrder
 from stockviz.schemas import PendingOrderIn, PendingOrderOut
 from stockviz.services.trading import (
+    ClientOrderIdConflict,
     OrderError,
     OrderNotFound,
     SymbolNotFound,
@@ -27,6 +28,7 @@ from stockviz.services.trading import (
     create_pending_order,
     ensure_default_portfolio,
 )
+from stockviz.services.trading.bounds import MAX_PRICE, MAX_QUANTITY, check_amount
 
 router = APIRouter(prefix="/v1", tags=["orders"])
 
@@ -55,6 +57,12 @@ def create_order(body: PendingOrderIn, session: SessionDep, user_id: UserIdDep) 
             status.HTTP_400_BAD_REQUEST,
             detail="quantity and limit_price must be valid numbers",
         ) from None
+    try:
+        # LG-9: finite, positive, storable (6 decimals), capped.
+        check_amount(quantity, name="quantity", maximum=MAX_QUANTITY)
+        check_amount(limit_price, name="limit_price", maximum=MAX_PRICE)
+    except ValueError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc)) from None
 
     try:
         return create_pending_order(
@@ -65,7 +73,10 @@ def create_order(body: PendingOrderIn, session: SessionDep, user_id: UserIdDep) 
             order_type=order_type,
             quantity=quantity,
             limit_price=limit_price,
+            client_order_id=body.client_order_id,
         )
+    except ClientOrderIdConflict as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, detail=str(exc)) from exc
     except SymbolNotFound as exc:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     except (OrderError, TradeExecutionError) as exc:

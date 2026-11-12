@@ -1,8 +1,8 @@
 import { formatCurrency } from "@/lib/portfolio-view-model";
 
 export const ORDER_TYPES = ["limit", "stop_loss", "take_profit"] as const;
-export const ORDER_STATUSES = ["pending", "filled", "cancelled"] as const;
-export const ORDER_STATUS_FILTERS = ["pending", "filled", "cancelled", "all"] as const;
+export const ORDER_STATUSES = ["pending", "filled", "cancelled", "expired"] as const;
+export const ORDER_STATUS_FILTERS = ["pending", "filled", "cancelled", "expired", "all"] as const;
 export const TRADE_ORDER_MODES = ["market", "limit", "stop_loss", "take_profit"] as const;
 export const ALERT_VIEWS = ["active", "triggered", "all"] as const;
 
@@ -89,6 +89,8 @@ export function orderStatusLabel(status: string): string {
       return "Filled";
     case "cancelled":
       return "Cancelled";
+    case "expired":
+      return "Expired";
     default:
       return status;
   }
