@@ -93,7 +93,7 @@ export const PRODUCT_PAGES: ProductPageSpec[] = [
     ],
     sections: (
       <>
-        <ProofSection only={["backtest", "screener", "compare", "signals"]} />
+        <ProofSection only={["backtest", "screener", "compare", "signals", "chart"]} />
         <MovingToday />
         <SessionTiles />
       </>

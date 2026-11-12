@@ -25,6 +25,7 @@ import type { ReactNode } from "react";
 import { FogReplay } from "@/components/marketing/proofs/fog-replay";
 import { GhostRuns } from "@/components/marketing/proofs/ghost-runs";
 import { type Drop, LiquidAllocation } from "@/components/marketing/proofs/liquid-allocation";
+import { LoupeChart } from "@/components/marketing/proofs/loupe-chart";
 import { PrintStamp } from "@/components/marketing/proofs/print-stamp";
 import { type RebaseSeries, RebaseSnap } from "@/components/marketing/proofs/rebase-snap";
 import { Sieve, type SieveChip } from "@/components/marketing/proofs/sieve";
@@ -49,7 +50,8 @@ export type ProofKey =
   | "fill"
   | "compare"
   | "signals"
-  | "portfolio";
+  | "portfolio"
+  | "chart";
 
 const CACHE_S = 3600;
 /** Liquid, long-history symbols first; the first with enough stored bars wins. */
@@ -369,7 +371,7 @@ export async function ProofSection({
   const [backtest, screener, bars, compare, signals, portfolio] = await Promise.all([
     want.has("backtest") ? loadBacktest().catch(() => null) : null,
     want.has("screener") ? loadScreener() : null,
-    want.has("replay") || want.has("fill") ? loadBars() : null,
+    want.has("replay") || want.has("fill") || want.has("chart") ? loadBars() : null,
     want.has("compare") ? loadCompare() : null,
     want.has("signals") ? loadSignals() : null,
     want.has("portfolio") ? loadPortfolio() : null,
@@ -420,6 +422,38 @@ export async function ProofSection({
         >
           Every tracked symbol drops through the filters. The ones that fail a filter fall out; the
           ones left are worth a closer look.
+        </Row>,
+      );
+    }
+    if (key === "chart" && bars) {
+      const candles = bars.bars.slice(-90).map((bar) => ({
+        date: formatCloseDate(bar.ts) ?? "",
+        open: Number(bar.open),
+        high: Number(bar.high),
+        low: Number(bar.low),
+        close: Number(bar.close),
+      }));
+      const last = candles[candles.length - 1];
+      const f = (v: number) => formatCurrency(v, bars.currency);
+      rows.push(
+        <Row
+          key={key}
+          flip={flip}
+          eyebrow="Stock page"
+          title="Put any day under the glass."
+          facts={
+            <>
+              {bars.ticker}, {candles.length} stored daily bars, {candles[0].date} to {last.date}.
+              Latest: open {f(last.open)}, high {f(last.high)}, low {f(last.low)}, close{" "}
+              {f(last.close)}.
+            </>
+          }
+          href={`/stocks/${encodeURIComponent(bars.ticker)}`}
+          cta={`Open ${bars.ticker}`}
+          stage={<LoupeChart bars={candles} />}
+        >
+          Every candle is one stored trading day. Point at the chart to read that day&rsquo;s open,
+          high, low and close.
         </Row>,
       );
     }
