@@ -102,6 +102,9 @@ def test_the_nightly_chain_leaves_the_night_it_should(chain_engine, monkeypatch)
     monkeypatch.setattr(cli, "ingest_dividends_for_all", lambda _s, **_kw: {})
     monkeypatch.setattr(cli, "ingest_earnings_for_all", lambda _s, **_kw: {})
     monkeypatch.setattr(cli, "backfill_symbol_metadata", lambda _s, **_kw: {})
+    monkeypatch.setattr(
+        "stockviz.services.corporate_actions.splits._default_split_fetch", lambda _t: []
+    )
 
     with Session(engine) as session:
         session.add(Symbol(ticker="AAPL", name="Apple"))

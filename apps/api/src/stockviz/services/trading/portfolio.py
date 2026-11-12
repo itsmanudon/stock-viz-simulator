@@ -22,7 +22,6 @@ from stockviz.models import (
     Position,
     Symbol,
 )
-from stockviz.models.option import CONTRACT_MULTIPLIER
 from stockviz.services.recent_bars import recent_closes
 from stockviz.services.trading.buying_power import reserved_cash, reserved_shares
 from stockviz.services.trading.fx import convert as fx_convert
@@ -332,7 +331,9 @@ def _value_open_options(
                 )
             )
 
-        mv_native = (per_share * CONTRACT_MULTIPLIER * opt.quantity).quantize(Decimal("0.000001"))
+        mv_native = (per_share * opt.shares_per_contract * opt.quantity).quantize(
+            Decimal("0.000001")
+        )
         if mv_native < 0:
             mv_native = Decimal(0)
         mv_display = to_display(mv_native, native_ccy)

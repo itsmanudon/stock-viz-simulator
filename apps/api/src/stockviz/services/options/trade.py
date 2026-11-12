@@ -342,9 +342,9 @@ def close_option(session: Session, *, user_id: int, option_id: int) -> OptionTra
         raise OptionTradeError("This expired option is awaiting expiry settlement")
 
     price = value_option(session, position)
-    proceeds = (Decimal(str(price.value)) * CONTRACT_MULTIPLIER * position.quantity).quantize(
-        _CENTS
-    )
+    proceeds = (
+        Decimal(str(price.value)) * position.shares_per_contract * position.quantity
+    ).quantize(_CENTS)
     if proceeds < 0:
         proceeds = Decimal("0.00")
 
@@ -407,7 +407,7 @@ def _exercise_call_into_equity(
     cannot cover the strike, ``apply_fill`` raises before changing anything
     and the intrinsic value is cash-settled instead.
     """
-    shares = Decimal(position.quantity * CONTRACT_MULTIPLIER)
+    shares = position.quantity * position.shares_per_contract
     try:
         apply_fill(
             session,
@@ -439,7 +439,7 @@ def _exercise_put(
     the portfolio does not hold enough available shares, ``apply_fill``
     raises before changing anything and the intrinsic value is cash-settled.
     """
-    shares = Decimal(position.quantity * CONTRACT_MULTIPLIER)
+    shares = position.quantity * position.shares_per_contract
     try:
         apply_fill(
             session,
