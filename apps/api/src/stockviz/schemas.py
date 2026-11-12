@@ -784,6 +784,31 @@ class ScreenerResultOut(BaseModel):
     sentiment_7d: float | None = None
 
 
+class FundamentalRowOut(BaseModel):
+    concept: str
+    label: str
+    unit: str  # a currency, "shares" or "<currency>/share"
+    values: list[Decimal | None]  # aligned with FundamentalsOut.periods
+
+
+class FundamentalsOut(BaseModel):
+    """Statement figures as known on ``as_of`` (Phase 6.3).
+
+    ``point_in_time`` is false when any figure came from a source without
+    filing dates (yfinance), whose values are dated by when they were fetched.
+    """
+
+    ticker: str
+    period: Literal["annual", "quarter"]
+    as_of: date
+    currency: str | None = None
+    periods: list[date]
+    rows: list[FundamentalRowOut]
+    sources: list[str]
+    point_in_time: bool
+    latest_available_at: date | None = None
+
+
 class ScreenerRowOut(BaseModel):
     """One row of /v1/screener (Phase 6.2). Unknown values are null, never 0."""
 

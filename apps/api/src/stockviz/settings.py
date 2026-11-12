@@ -89,6 +89,9 @@ class Settings(BaseSettings):
     # Kite Connect (Zerodha), optional (Phase 4.7). Blank: every Kite command
     # exits 2 and nothing else changes. Used only by the on-demand history
     # snapshot (`stockviz.cli ingest-history --provider kite`), never nightly.
+    # SEC EDGAR asks automated clients for a User-Agent with a contact. The
+    # owner sets it before release (Phase 6.3); blank keeps EDGAR off.
+    sec_user_agent: str = ""
     kite_api_key: str = ""
     kite_api_secret: str = ""
     # yfinance remains the persisted/default provider. Massive is an optional,

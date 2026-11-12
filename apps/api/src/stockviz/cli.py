@@ -364,6 +364,41 @@ def _cmd_instrument_check(_args: argparse.Namespace) -> int:
     return 1 if bad else 0
 
 
+def _cmd_fundamentals(args: argparse.Namespace) -> int:
+    """Fetch company fundamentals and append them point-in-time (Phase 6.3).
+
+    ``--source yfinance`` (default): every active equity, not point-in-time.
+    ``--source edgar``: US equities, point-in-time; exit 2 without
+    ``SEC_USER_AGENT``. Exit 1 if any symbol failed.
+    """
+    from stockviz._time import utcnow
+    from stockviz.services.fundamentals import ingest as fi
+
+    settings = get_settings()
+    with Session(engine) as session:
+        if args.source == "edgar":
+            if not settings.sec_user_agent.strip():
+                print("SEC_USER_AGENT is not set: EDGAR is off")
+                return 2
+            tickers = [t.upper() for t in args.tickers] or fi.equity_tickers(session, country="US")
+            report = fi.ingest(session, tickers, fi.edgar_fetcher(settings.sec_user_agent))
+        else:
+            tickers = [t.upper() for t in args.tickers] or fi.equity_tickers(session)
+            report = fi.ingest(
+                session,
+                tickers,
+                fi.yfinance_fetcher(utcnow().date()),
+                pause=fi.YFINANCE_GAP_SECONDS,
+            )
+    print(
+        f"fundamentals ({args.source}): {len(report.written)} symbols, "
+        f"{sum(report.written.values())} facts written, {len(report.failed)} failed"
+    )
+    for ticker, reason in report.failed.items():
+        print(f"  {ticker}: {reason}")
+    return 1 if report.failed else 0
+
+
 def _cmd_benchmark_kernel(args: argparse.Namespace) -> int:
     """Kernel + SimLedger throughput on a seeded walk (Phase 5.1). No database."""
     from stockviz.benchmarks.kernel import run
@@ -1186,6 +1221,7 @@ def _cmd_ingest_quarantine(args: argparse.Namespace) -> int:
 RECORDED_JOBS = frozenset(
     {
         "ingest",
+        "fundamentals",
         "corporate-actions",
         "fx",
         "settle-orders",
@@ -1440,6 +1476,13 @@ def main(argv: list[str] | None = None) -> int:
         "instrument-check",
         help="Read-only: rows whose instrument_id the identity triggers missed (Phase 4.3)",
     ).set_defaults(fn=_cmd_instrument_check)
+
+    p_fund = sub.add_parser(
+        "fundamentals", help="Append company fundamentals point-in-time (Phase 6.3)"
+    )
+    p_fund.add_argument("--source", choices=["yfinance", "edgar"], default="yfinance")
+    p_fund.add_argument("tickers", nargs="*", help="Default: every active equity")
+    p_fund.set_defaults(fn=_cmd_fundamentals)
 
     p_bench = sub.add_parser(
         "benchmark-kernel", help="Kernel + SimLedger throughput, no database (Phase 5.1)"

@@ -329,6 +329,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/symbols/{ticker}/fundamentals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Fundamentals */
+        get: operations["get_fundamentals_v1_symbols__ticker__fundamentals_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/indicators/catalog": {
         parameters: {
             query?: never;
@@ -1740,6 +1757,50 @@ export interface components {
             result?: {
                 [key: string]: unknown;
             } | null;
+        };
+        /** FundamentalRowOut */
+        FundamentalRowOut: {
+            /** Concept */
+            concept: string;
+            /** Label */
+            label: string;
+            /** Unit */
+            unit: string;
+            /** Values */
+            values: (string | null)[];
+        };
+        /**
+         * FundamentalsOut
+         * @description Statement figures as known on ``as_of`` (Phase 6.3).
+         *
+         *     ``point_in_time`` is false when any figure came from a source without
+         *     filing dates (yfinance), whose values are dated by when they were fetched.
+         */
+        FundamentalsOut: {
+            /** Ticker */
+            ticker: string;
+            /**
+             * Period
+             * @enum {string}
+             */
+            period: "annual" | "quarter";
+            /**
+             * As Of
+             * Format: date
+             */
+            as_of: string;
+            /** Currency */
+            currency?: string | null;
+            /** Periods */
+            periods: string[];
+            /** Rows */
+            rows: components["schemas"]["FundamentalRowOut"][];
+            /** Sources */
+            sources: string[];
+            /** Point In Time */
+            point_in_time: boolean;
+            /** Latest Available At */
+            latest_available_at?: string | null;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -4198,6 +4259,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["IndicatorsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_fundamentals_v1_symbols__ticker__fundamentals_get: {
+        parameters: {
+            query?: {
+                period?: string;
+                as_of?: string | null;
+                periods?: number;
+            };
+            header?: never;
+            path: {
+                ticker: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FundamentalsOut"];
                 };
             };
             /** @description Validation Error */

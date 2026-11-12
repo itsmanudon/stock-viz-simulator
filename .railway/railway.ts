@@ -84,6 +84,9 @@ const EOD_REFRESH = [
   // on Mondays only. No single quotes: the chain is wrapped in sh -c below.
   job("python -m stockviz.cli earnings"),
   'if [ "$(date -u +%u)" = 1 ]; then python -m stockviz.cli metadata || rc=1; fi',
+  // Company fundamentals (Phase 6.3) change quarterly: Fridays, from yfinance
+  // (not point-in-time). EDGAR joins when SEC_USER_AGENT is set (exit 2 = off).
+  'if [ "$(date -u +%u)" = 5 ]; then python -m stockviz.cli fundamentals || rc=1; fi',
   job("python -m stockviz.cli metrics"),
   job("python -m stockviz.cli dividends"),
   job("python -m stockviz.cli credit-dividends"),

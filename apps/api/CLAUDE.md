@@ -142,7 +142,7 @@ separately; Render still uses `/health` as `healthCheckPath`.
 
 CLI subcommands (`python -m stockviz.cli <cmd>`): `seed`, `backfill`,
 `metadata`, `ingest <tickers>`, `ingest-quarantine [--ticker T] [--release ID ...]`,
-`news [tickers]`, `fx`, `metrics`,
+`news [tickers]`, `fx`, `metrics`, `fundamentals [--source yfinance|edgar]`,
 `score-sentiment`, `sentiment-aggregate`, `recommend`, `snapshot-portfolios`,
 `dividends`, `credit-dividends`, `settle-options`, `run-scheduler`,
 `prune-events [--days N] [--include-unpublished]`, `aegis-sync [--max-pages N]`,
@@ -235,6 +235,20 @@ reached the expected session, and only reports single tickers that are
 behind (their market may have been closed). `fx` exits 1 when a currency gets
 no rates; `dividends` exits 1 when a fetch failed. In the cron each failure
 sets the exit code without stopping later steps.
+
+**Fundamentals, point in time (Phase 6.3).** `fundamental_facts` holds one
+row per reported figure (`models/fundamentals.py`), append-only: a changed or
+restated value is a new row with a later `available_at`, and
+`services/fundamentals/store.py::facts_as_of` returns the version known on a
+date, preferring EDGAR over yfinance for the same period. Concepts are
+normalised (`concepts.py`, `MAPPING_VERSION`), outflows stored positive.
+`stockviz.cli fundamentals [--source yfinance|edgar] [tickers]` (recorded
+job; Fridays in the cron): yfinance for every active equity, dated by fetch
+day and `point_in_time = false`; EDGAR (US equities, filing-date
+`available_at`) only with `SEC_USER_AGENT`, else exit 2. The owner sets that
+contact before release, so until then fundamentals are yfinance only.
+`GET /v1/symbols/{t}/fundamentals?period=annual|quarter&as_of=` returns a
+statement table with `sources` and `point_in_time`.
 
 **Experiment registry (Phase 5.4).** `/v1/experiments` (authed):
 `POST /runs` takes the same body as `POST /v1/backtest` (under `backtest`),
