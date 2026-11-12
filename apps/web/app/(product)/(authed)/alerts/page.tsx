@@ -1,14 +1,18 @@
 /**
- * /alerts — in-app price alert management.
+ * /alerts — alert rules and their history (Phase 7.3, audit UX-3).
  *
- * Evaluated against stored daily closes when bars refresh. The header bell
- * remains a compact triggered indicator; this page is the system of record.
+ * Rules are judged on stored daily closes after each nightly run and fire
+ * when their condition newly becomes true. Each row shows the rule in words,
+ * the current close with its date, the distance to a price target, when it
+ * last fired, and its actions (dismiss, re-arm, pause, delete). The history
+ * below lists every firing with its bar date, value and threshold;
+ * `?rule=<id>` narrows it to one rule. The header bell is the compact view.
  */
 
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import { AlertForm } from "@/components/alert-form";
+import { AlertForm, type AlertSymbol } from "@/components/alert-form";
 import { CountBadge } from "@/components/count-badge";
 import {
   AlertStatusBadge,
@@ -18,23 +22,28 @@ import {
 } from "@/components/operational-page-header";
 import { PageFrame } from "@/components/page-frame";
 import { MetaChip } from "@/components/page-header";
-import { getQuotes, listSymbols } from "@/lib/api";
-import { parseApiTimestamp } from "@/lib/api-time";
-import { type Alert, listAlerts } from "@/lib/api/alerts";
+import { StatusBadge } from "@/components/status-badge";
+import { distanceToTargetPct, matchesAlertView } from "@/lib/alert-rules";
+import { getMarketsSummary } from "@/lib/api";
+import { formatUtcDateTime } from "@/lib/api-time";
+import { type Alert, type AlertEvent, listAlertEvents, listAlerts } from "@/lib/api/alerts";
 import {
   type AlertView,
-  alertDirectionLabel,
   buildAlertsHref,
-  currencyByTicker,
   parseAlertTicker,
   parseAlertView,
-  tickerCurrency,
 } from "@/lib/operational-trading";
 import { formatCurrency } from "@/lib/portfolio-view-model";
+import { formatCloseDate } from "@/lib/stock-workspace";
 import { cn } from "@/lib/utils";
-import { deleteAlertAction, dismissAlertAction } from "./actions";
+import {
+  deleteAlertAction,
+  dismissAlertAction,
+  rearmAlertAction,
+  toggleAlertPausedAction,
+} from "./actions";
 
-export const metadata: Metadata = { title: "Price alerts" };
+export const metadata: Metadata = { title: "Alerts" };
 
 const VIEWS: { value: AlertView; label: string }[] = [
   { value: "active", label: "Active" },
@@ -42,82 +51,115 @@ const VIEWS: { value: AlertView; label: string }[] = [
   { value: "all", label: "All" },
 ];
 
-/** Trigger times are stored in UTC; show them in UTC and say so (audit T4). */
-function fmtWhen(iso: string | null): string {
-  if (!iso) return "—";
-  return parseApiTimestamp(iso).toLocaleString("en-US", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    timeZone: "UTC",
-    timeZoneName: "short",
-  });
+function Action({
+  action,
+  id,
+  label,
+  extra,
+  muted,
+}: {
+  action: (formData: FormData) => Promise<void>;
+  id: number;
+  label: string;
+  extra?: Record<string, string>;
+  muted?: boolean;
+}) {
+  return (
+    <form action={action}>
+      <input type="hidden" name="id" value={id} />
+      {Object.entries(extra ?? {}).map(([k, v]) => (
+        <input key={k} type="hidden" name={k} value={v} />
+      ))}
+      <button
+        type="submit"
+        className={cn("text-xs hover:underline", muted && "text-text-tertiary")}
+      >
+        {label}
+      </button>
+    </form>
+  );
 }
 
 function AlertActions({ alert }: { alert: Alert }) {
+  const fired = Boolean(alert.triggered_at);
   return (
-    <div className="flex justify-end gap-3">
-      {alert.triggered_at && !alert.dismissed_at ? (
-        <form action={dismissAlertAction}>
-          <input type="hidden" name="id" value={alert.id} />
-          <button type="submit" className="text-xs hover:underline">
-            Dismiss
-          </button>
-        </form>
+    <div className="flex flex-wrap justify-end gap-3">
+      {fired && !alert.dismissed_at ? (
+        <Action action={dismissAlertAction} id={alert.id} label="Dismiss" />
       ) : null}
-      <form action={deleteAlertAction}>
-        <input type="hidden" name="id" value={alert.id} />
-        <button type="submit" className="text-xs text-text-tertiary hover:underline">
-          Delete
-        </button>
-      </form>
+      {fired && alert.repeat !== "every_cross" ? (
+        <Action action={rearmAlertAction} id={alert.id} label="Re-arm" />
+      ) : null}
+      <Action
+        action={toggleAlertPausedAction}
+        id={alert.id}
+        label={alert.paused ? "Resume" : "Pause"}
+        extra={{ paused: alert.paused ? "false" : "true" }}
+      />
+      <Link href={`/alerts?rule=${alert.id}#history`} className="text-xs hover:underline">
+        History
+      </Link>
+      <Action action={deleteAlertAction} id={alert.id} label="Delete" muted />
     </div>
   );
 }
 
-function matchesView(alert: Alert, view: AlertView): boolean {
-  if (view === "all") return true;
-  if (view === "triggered") return Boolean(alert.triggered_at);
-  return !alert.triggered_at;
+function RuleStatus({ alert }: { alert: Alert }) {
+  if (alert.paused) return <StatusBadge label="Paused" tone="neutral" />;
+  return (
+    <AlertStatusBadge
+      triggered={Boolean(alert.triggered_at)}
+      dismissed={Boolean(alert.dismissed_at)}
+    />
+  );
 }
 
-/** The target in the alert's own currency; the symbol list covers older responses. */
-function formatTarget(alert: Alert, currencies: Record<string, string>): string {
-  return formatCurrency(
-    alert.target_price,
-    alert.currency ?? tickerCurrency(alert.ticker, currencies),
-  );
+function describe(alert: Alert): string {
+  if (alert.description) return alert.description;
+  return `${alert.ticker} closes ${alert.direction ?? "above"} ${alert.target_price ?? ""}`;
 }
 
 export default async function AlertsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ ticker?: string; view?: string }>;
+  searchParams: Promise<{ ticker?: string; view?: string; rule?: string }>;
 }) {
   const params = await searchParams;
   const view = parseAlertView(params.view);
   const createTicker = parseAlertTicker(params.ticker);
-  const [alerts, symbols] = await Promise.all([listAlerts(), listSymbols().catch(() => [])]);
-  const currencies = currencyByTicker(symbols);
-  const visible = alerts.filter((alert) => matchesView(alert, view));
+  const ruleId = Number(params.rule);
+  const [alerts, summary, events] = await Promise.all([
+    listAlerts(),
+    getMarketsSummary().catch(() => ({ rows: [], sectors: [] })),
+    listAlertEvents(100).catch(() => [] as AlertEvent[]),
+  ]);
+  const rows = new Map(summary.rows.map((r) => [r.ticker, r]));
+  const symbols: AlertSymbol[] = summary.rows.map((r) => ({
+    ticker: r.ticker,
+    name: r.name,
+    currency: r.currency,
+    last_close: r.last_close,
+    last_close_at: r.last_close_at,
+  }));
+  const visible = alerts.filter((alert) => matchesAlertView(alert, view));
   // Tab counts use the same rule as the list, so a tab never claims rows it
   // would not show.
   const counts = Object.fromEntries(
     VIEWS.map((item) => [
       item.value,
-      alerts.filter((alert) => matchesView(alert, item.value)).length,
+      alerts.filter((alert) => matchesAlertView(alert, item.value)).length,
     ]),
   ) as Record<AlertView, number>;
-  const quote = createTicker ? await getQuotes([createTicker]).catch(() => []) : [];
+  const rule = Number.isInteger(ruleId) ? alerts.find((a) => a.id === ruleId) : undefined;
+  const history = rule ? events.filter((e) => e.alert_id === rule.id) : events;
+  const created = createTicker ? rows.get(createTicker) : undefined;
 
   return (
     <PageFrame width="workstation" className="py-5 sm:py-7">
       <OperationalPageHeader
         eyebrow="Portfolio"
         title="Alerts"
-        description="In-app notifications when a stored daily close crosses a target. This is not email, push, or real-time exchange monitoring."
+        description="Rules on prices, indicators, Aegis news and your portfolio, judged on stored daily closes after each nightly run. In-app notifications, not real-time monitoring."
         meta={
           <span className="flex flex-wrap items-center gap-2">
             <span>{counts.active} active</span>
@@ -139,8 +181,10 @@ export default async function AlertsPage({
         <div className="max-w-md p-4">
           <AlertForm
             ticker={createTicker}
-            lastClose={quote[0]?.close ?? null}
-            currency={createTicker ? tickerCurrency(createTicker, currencies) : undefined}
+            lastClose={created?.last_close ?? null}
+            lastCloseAt={created?.last_close_at ?? null}
+            currency={created?.currency}
+            symbols={symbols}
             variant="inline"
           />
         </div>
@@ -189,109 +233,117 @@ export default async function AlertsPage({
           >
             <p>
               {view === "triggered"
-                ? "When a stored close crosses a target, the row moves here until you dismiss or delete it."
-                : "Create a condition above, from a stock workspace, or from a watchlist row."}
+                ? "When a rule fires, it shows here until you dismiss or delete it."
+                : "Create a rule above, from a stock workspace, or from a watchlist row."}
             </p>
           </OperationalEmptyState>
         </div>
       ) : (
-        <>
-          {/* Cards under md, where the table scrolled sideways (audit P1). */}
-          <ul aria-label="Price alerts" className="mt-5 grid gap-3 md:hidden">
-            {visible.map((alert) => (
+        <ul aria-label="Alert rules" className="mt-5 grid gap-3">
+          {visible.map((alert) => {
+            const row = alert.ticker ? rows.get(alert.ticker) : undefined;
+            const currency = alert.currency ?? row?.currency ?? "USD";
+            const distance =
+              alert.target_price !== null
+                ? distanceToTargetPct(row?.last_close, alert.target_price)
+                : null;
+            return (
               <li
                 key={alert.id}
-                className="grid gap-3 rounded-2xl border border-border-muted bg-card p-4"
+                className={cn(
+                  "grid gap-3 rounded-md border border-border-muted bg-card p-4 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_auto] md:items-center",
+                  rule?.id === alert.id && "border-brand",
+                )}
               >
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <Link
-                      href={`/stocks/${alert.ticker}`}
-                      className="ticker text-base font-medium hover:underline"
-                    >
-                      {alert.ticker}
-                    </Link>
-                    <p className="text-xs text-text-secondary">
-                      {alertDirectionLabel(alert.direction)}{" "}
-                      <span className="font-mono" data-financial>
-                        {formatTarget(alert, currencies)}
-                      </span>
-                    </p>
-                  </div>
-                  <AlertStatusBadge
-                    triggered={Boolean(alert.triggered_at)}
-                    dismissed={Boolean(alert.dismissed_at)}
-                  />
-                </div>
-                <div className="flex items-center justify-between gap-3 border-t border-border-muted pt-3">
-                  <span className="text-xs text-text-tertiary">
-                    {alert.triggered_at
-                      ? `Triggered ${fmtWhen(alert.triggered_at)}`
-                      : "Not triggered"}
-                  </span>
-                  <AlertActions alert={alert} />
-                </div>
-              </li>
-            ))}
-          </ul>
-          <div className="mt-5 hidden overflow-x-auto rounded-md border border-border-muted bg-card md:block">
-            <table className="w-full min-w-[40rem] text-sm">
-              <caption className="sr-only">Price alerts</caption>
-              <thead>
-                <tr className="border-b border-border-muted text-left text-3xs font-semibold tracking-[0.12em] text-text-tertiary uppercase">
-                  <th scope="col" className="px-3 py-2.5">
-                    Symbol
-                  </th>
-                  <th scope="col" className="px-3 py-2.5">
-                    Condition
-                  </th>
-                  <th scope="col" className="px-3 py-2.5 text-right">
-                    Target
-                  </th>
-                  <th scope="col" className="px-3 py-2.5">
-                    Status
-                  </th>
-                  <th scope="col" className="hidden px-3 py-2.5 sm:table-cell">
-                    Triggered
-                  </th>
-                  <th scope="col" className="px-3 py-2.5 text-right">
-                    <span className="sr-only">Actions</span>
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {visible.map((alert) => (
-                  <tr key={alert.id} className="border-b border-border-muted last:border-0">
-                    <td className="ticker px-3 py-3 font-semibold">
-                      <Link href={`/stocks/${alert.ticker}`} className="hover:underline">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium">
+                    {alert.ticker ? (
+                      <Link
+                        href={`/stocks/${alert.ticker}`}
+                        className="ticker mr-2 font-semibold hover:underline"
+                      >
                         {alert.ticker}
                       </Link>
-                    </td>
-                    <td className="px-3 py-3 text-text-secondary">
-                      {alertDirectionLabel(alert.direction)}
-                    </td>
-                    <td className="px-3 py-3 text-right font-mono">
-                      {formatTarget(alert, currencies)}
-                    </td>
-                    <td className="px-3 py-3">
-                      <AlertStatusBadge
-                        triggered={Boolean(alert.triggered_at)}
-                        dismissed={Boolean(alert.dismissed_at)}
-                      />
-                    </td>
-                    <td className="hidden px-3 py-3 text-text-tertiary sm:table-cell">
-                      {fmtWhen(alert.triggered_at)}
-                    </td>
-                    <td className="px-3 py-3 text-right">
-                      <AlertActions alert={alert} />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </>
+                    ) : null}
+                    <span className="text-text-secondary">{describe(alert)}</span>
+                  </p>
+                  <p className="mt-0.5 text-2xs text-text-tertiary">
+                    {alert.kind ?? "price"} ·{" "}
+                    {alert.repeat === "every_cross" ? "every cross" : "once"}
+                    {alert.last_bar_date
+                      ? ` · judged on ${alert.last_bar_date}`
+                      : " · not judged yet"}
+                  </p>
+                </div>
+                <div className="text-xs">
+                  {row?.last_close ? (
+                    <>
+                      <span className="font-mono" data-financial>
+                        {formatCurrency(row.last_close, currency)}
+                      </span>
+                      {row.last_close_at ? (
+                        <span className="text-text-tertiary">
+                          {" "}
+                          on {formatCloseDate(row.last_close_at)}
+                        </span>
+                      ) : null}
+                      {distance !== null ? (
+                        <span className="block text-text-tertiary">
+                          Target {Math.abs(distance).toFixed(2)}%{" "}
+                          {distance >= 0 ? "above" : "below"}
+                        </span>
+                      ) : null}
+                    </>
+                  ) : (
+                    <span className="text-text-tertiary">
+                      {alert.ticker ? "No stored close" : "Whole account"}
+                    </span>
+                  )}
+                </div>
+                <div className="flex flex-col items-start gap-1 text-xs">
+                  <RuleStatus alert={alert} />
+                  <span className="text-text-tertiary">
+                    {alert.last_fired_bar_date
+                      ? `Last fired on the ${alert.last_fired_bar_date} close`
+                      : alert.triggered_at
+                        ? `Fired ${formatUtcDateTime(alert.triggered_at)}`
+                        : "Not fired"}
+                  </span>
+                </div>
+                <AlertActions alert={alert} />
+              </li>
+            );
+          })}
+        </ul>
       )}
+
+      <section id="history" aria-labelledby="history-heading" className="mt-8">
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <h2 id="history-heading" className="text-sm font-semibold">
+            {rule ? `History: ${describe(rule)}` : "Recent firings"}
+          </h2>
+          {rule ? (
+            <Link href="/alerts#history" className="text-xs hover:underline">
+              All rules
+            </Link>
+          ) : null}
+        </div>
+        {history.length === 0 ? (
+          <p className="mt-2 text-sm text-text-tertiary">Nothing has fired yet.</p>
+        ) : (
+          <ol className="mt-3 divide-y divide-border-muted rounded-md border border-border-muted bg-card">
+            {history.map((e) => (
+              <li key={e.id} className="px-4 py-3 text-sm">
+                <p>{e.message}</p>
+                <p className="mt-0.5 text-2xs text-text-tertiary">
+                  {e.bar_date ? `Bar ${e.bar_date} · ` : ""}session {e.session_date} · recorded{" "}
+                  {formatUtcDateTime(e.created_at)}
+                </p>
+              </li>
+            ))}
+          </ol>
+        )}
+      </section>
     </PageFrame>
   );
 }

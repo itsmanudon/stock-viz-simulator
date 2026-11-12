@@ -126,6 +126,7 @@ export function SecurityHeader({
                 <AlertForm
                   ticker={symbol.ticker}
                   lastClose={symbol.latest?.close ?? null}
+                  lastCloseAt={symbol.latest?.ts ?? null}
                   currency={symbol.currency}
                 />
               </>

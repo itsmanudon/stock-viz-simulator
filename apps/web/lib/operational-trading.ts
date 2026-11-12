@@ -20,6 +20,7 @@ export const OPERATIONAL_SUBNAV = [
 export const MONITORING_SUBNAV = [
   { href: "/watchlist", label: "Watchlist" },
   { href: "/alerts", label: "Alerts" },
+  { href: "/notifications", label: "Notifications" },
 ] as const;
 
 export function parseTradeTicker(raw: string | undefined): string {
