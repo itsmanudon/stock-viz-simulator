@@ -17,7 +17,7 @@ from sqlmodel import Session, select
 
 from stockviz.db import get_session
 from stockviz.limiter import limiter
-from stockviz.models import PriceBar, Symbol
+from stockviz.models import Dividend, PriceBar, Symbol
 from stockviz.schemas import (
     BacktestIn,
     BacktestOut,
@@ -27,7 +27,7 @@ from stockviz.schemas import (
     RsiThresholdStrategy,
     SmaCrossoverStrategy,
 )
-from stockviz.services.backtest import BacktestError, run_backtest
+from stockviz.services.backtest import BacktestError, run_backtest, warmup_bars_for
 from stockviz.services.instruments import instrument_of
 
 router = APIRouter(prefix="/v1", tags=["backtest"])
@@ -39,7 +39,8 @@ SessionDep = Annotated[Session, Depends(get_session)]
 @limiter.limit("20/minute")
 def post_backtest(request: Request, body: BacktestIn, session: SessionDep) -> BacktestOut:
     ticker = body.ticker.upper()
-    if session.get(Symbol, ticker) is None:
+    symbol = session.get(Symbol, ticker)
+    if symbol is None:
         raise HTTPException(status_code=404, detail=f"Symbol {ticker!r} not found")
     if body.from_ > body.to:
         raise HTTPException(status_code=400, detail="'from' must be on or before 'to'")
@@ -58,7 +59,6 @@ def post_backtest(request: Request, body: BacktestIn, session: SessionDep) -> Ba
         .order_by(PriceBar.ts.asc())  # type: ignore[attr-defined]
     )
     rows = list(session.exec(stmt).all())
-    bars = [(r.ts, r.close) for r in rows]
 
     if isinstance(body.strategy, RsiThresholdStrategy):
         strategy_type = "rsi_threshold"
@@ -75,6 +75,40 @@ def post_backtest(request: Request, body: BacktestIn, session: SessionDep) -> Ba
     else:  # pragma: no cover - discriminated union guarantees one of the above
         raise HTTPException(status_code=400, detail="Unsupported strategy type")
 
+    # Warm-up (audit SR-3): the bars before ``from`` the strategy needs, read
+    # but not traded, so its first signal inside the window is a real one.
+    warmup = list(
+        reversed(
+            session.exec(
+                select(PriceBar)
+                .where(
+                    PriceBar.instrument_id == instrument_of(ticker),
+                    PriceBar.interval == "1d",
+                    PriceBar.ts < start,
+                )
+                .order_by(PriceBar.ts.desc())  # type: ignore[attr-defined]
+                .limit(warmup_bars_for(strategy_type, params))
+            ).all()
+        )
+    )
+    used = warmup + rows
+    bars = [(r.ts, r.close) for r in used]
+    bases = {r.adjustment_semantics for r in used}
+    price_basis = None if not bases else bases.pop() if len(bases) == 1 else "mixed"
+
+    dividends = None
+    if body.return_mode == "total":
+        dividends = {
+            d.ex_date: d.amount
+            for d in session.exec(
+                select(Dividend).where(
+                    Dividend.instrument_id == instrument_of(ticker),
+                    Dividend.ex_date >= body.from_,
+                    Dividend.ex_date <= body.to,
+                )
+            ).all()
+        }
+
     try:
         result = run_backtest(
             bars,
@@ -83,12 +117,18 @@ def post_backtest(request: Request, body: BacktestIn, session: SessionDep) -> Ba
             params=params,
             commission_bps=body.commission_bps,
             slippage_bps=body.slippage_bps,
+            trade_from=start,
+            dividends=dividends,
         )
     except BacktestError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     return BacktestOut(
         ticker=ticker,
+        currency=symbol.currency or "USD",
+        price_basis=str(price_basis) if price_basis is not None else None,
+        return_mode=body.return_mode,
+        warmup_bars=len(warmup),
         trades=[
             BacktestTradeOut(date=t.date, side=t.side, price=t.price, shares=t.shares)  # type: ignore[arg-type]
             for t in result.trades

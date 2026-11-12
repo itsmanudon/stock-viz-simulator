@@ -981,6 +981,9 @@ class BacktestIn(BaseModel):
     strategy: StrategySpec
     commission_bps: float = Field(default=0.0, ge=0, le=1000)
     slippage_bps: float = Field(default=0.0, ge=0, le=1000)
+    # Phase 5.2 (audit SR-7): "price" (default) ignores dividends and says so;
+    # "total" credits each dividend to shares held into its ex-date.
+    return_mode: Literal["price", "total"] = "price"
 
     model_config = ConfigDict(populate_by_name=True)
 
@@ -1016,6 +1019,13 @@ class BacktestSummaryOut(BaseModel):
 
 class BacktestOut(BaseModel):
     ticker: str
+    # Phase 5.2: every amount is in the symbol's currency (audit SR-11).
+    currency: str = "USD"
+    # The stored bars' basis ("split_adjusted", ...), or "mixed" (audit SR-7).
+    price_basis: str | None = None
+    return_mode: Literal["price", "total"] = "price"
+    # Bars before ``from`` the strategy saw but did not trade on (audit SR-3).
+    warmup_bars: int = 0
     trades: list[BacktestTradeOut]
     equity_curve: list[EquityPointOut]
     summary: BacktestSummaryOut

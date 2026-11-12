@@ -158,6 +158,31 @@ describe("BacktestForm", () => {
     );
   });
 
+  it("states the run's currency, return mode, basis and warm-up (Phase 5.2)", async () => {
+    runBacktest.mockResolvedValue({
+      ...success,
+      ticker: "SAP.DE",
+      currency: "EUR",
+      price_basis: "mixed",
+      return_mode: "total",
+      warmup_bars: 250,
+    } satisfies BacktestResult);
+    render(<BacktestForm symbols={[{ ticker: "SAP.DE", name: "SAP" }]} initialTicker="SAP.DE" />);
+    fireEvent.change(screen.getByLabelText("Returns"), { target: { value: "total" } });
+    fireEvent.click(screen.getByRole("button", { name: "Run backtest" }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("backtest-basis")).toBeVisible();
+    });
+    const note = screen.getByTestId("backtest-basis").textContent ?? "";
+    expect(note).toContain("Amounts in EUR.");
+    expect(note).toContain("dividends are credited");
+    expect(note).toContain("mixed");
+    expect(note).toContain("250 bars before the start");
+    expect(screen.getByText("€25.50")).toBeVisible();
+    expect(runBacktest).toHaveBeenCalledWith(expect.objectContaining({ return_mode: "total" }));
+  });
+
   it("keeps the form and shows a validation error when the API rejects the run", async () => {
     const { ApiError } = await import("@/lib/api");
     runBacktest.mockRejectedValue(

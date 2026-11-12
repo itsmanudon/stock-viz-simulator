@@ -38,10 +38,10 @@ type StrategyType = "rsi_threshold" | "sma_crossover";
 
 const RISK_FREE_RATE = 0.05;
 
-function fmtCurrency(raw: string): string {
+function fmtCurrency(raw: string, currency = "USD"): string {
   return Number(raw).toLocaleString("en-US", {
     style: "currency",
-    currency: "USD",
+    currency,
     minimumFractionDigits: 2,
   });
 }
@@ -99,6 +99,7 @@ export function BacktestForm({
   const [shortWindow, setShortWindow] = useState("20");
   const [longWindow, setLongWindow] = useState("50");
   const [commissionBps, setCommissionBps] = useState("0");
+  const [returnMode, setReturnMode] = useState<"price" | "total">("price");
   const [slippageBps, setSlippageBps] = useState("0");
 
   const [pending, setPending] = useState(false);
@@ -150,6 +151,7 @@ export function BacktestForm({
         strategy,
         commission_bps: commission,
         slippage_bps: slippage,
+        return_mode: returnMode,
       });
       setLastCosts({ commissionBps: commission, slippageBps: slippage });
       setResult(res);
@@ -297,6 +299,19 @@ export function BacktestForm({
           </fieldset>
 
           <div className="space-y-2">
+            <Label htmlFor="bt-returns">Returns</Label>
+            <select
+              id="bt-returns"
+              value={returnMode}
+              onChange={(event) => setReturnMode(event.target.value as "price" | "total")}
+              className="flex h-10 w-full rounded-sm border border-input bg-transparent px-3 py-2 text-sm"
+            >
+              <option value="price">Price only (dividends not included)</option>
+              <option value="total">Total return (dividends credited)</option>
+            </select>
+          </div>
+
+          <div className="space-y-2">
             <Label htmlFor="bt-strategy">Strategy</Label>
             <select
               id="bt-strategy"
@@ -427,6 +442,8 @@ function BacktestResults({
   commissionBps: number;
   slippageBps: number;
 }) {
+  const currency = result.currency ?? "USD";
+  const totalReturn = (result.return_mode ?? "price") === "total";
   return (
     <div className="space-y-8">
       <section aria-labelledby="equity-heading">
@@ -476,7 +493,7 @@ function BacktestResults({
               ),
               note: "strategy minus buy-and-hold",
             },
-            { label: "Final NAV", value: fmtCurrency(result.summary.final_nav) },
+            { label: "Final NAV", value: fmtCurrency(result.summary.final_nav, currency) },
           ]}
         />
       </section>
@@ -495,7 +512,7 @@ function BacktestResults({
                 </span>
               ),
             },
-            { label: "Total costs", value: fmtCurrency(result.summary.total_costs) },
+            { label: "Total costs", value: fmtCurrency(result.summary.total_costs, currency) },
             { label: "Trades", value: String(result.trades.length) },
           ]}
         />
@@ -503,6 +520,18 @@ function BacktestResults({
           Commission {commissionBps} bps · slippage {slippageBps} bps · Sharpe uses a{" "}
           {(RISK_FREE_RATE * 100).toFixed(0)}% annual risk-free rate. Fills use the next bar&apos;s
           close after a completed-bar signal.
+        </p>
+        <p className="mt-1 text-xs leading-5 text-text-tertiary" data-testid="backtest-basis">
+          Amounts in {currency}.{" "}
+          {totalReturn
+            ? "Total return: dividends are credited to shares held into each ex-date."
+            : "Price return: dividends are not included."}
+          {result.price_basis
+            ? ` Price basis: ${result.price_basis === "mixed" ? "mixed (some bars use a different adjustment)" : result.price_basis.replaceAll("_", " ")}.`
+            : ""}
+          {(result.warmup_bars ?? 0) > 0
+            ? ` The strategy warmed up on ${result.warmup_bars} bars before the start; trading and the benchmark begin on the start date.`
+            : ""}
         </p>
       </section>
 
@@ -544,7 +573,7 @@ function BacktestResults({
                       </span>
                     </TableCell>
                     <TableCell className="text-right font-mono">
-                      {fmtCurrency(trade.price)}
+                      {fmtCurrency(trade.price, currency)}
                     </TableCell>
                     <TableCell className="hidden text-right font-mono sm:table-cell">
                       {Number(trade.shares).toLocaleString("en-US", {
