@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, date, datetime
 from decimal import Decimal
 
 from sqlalchemy import func
@@ -46,7 +46,7 @@ from stockviz.services.trading.execution_provenance import (
     FillProvenance,
     record_execution_provenance,
 )
-from stockviz.services.trading.fx import latest_rate
+from stockviz.services.trading.fx import StaleFxRate, rate_for_fill
 from stockviz.services.trading.simulation_adapter import (
     evaluation_clock,
     market_snapshot_from_bar,
@@ -251,8 +251,14 @@ class PricedSymbol:
     bar: PriceBar
 
 
-def resolve_priced_symbol(session: Session, ticker: str) -> PricedSymbol:
+def resolve_priced_symbol(
+    session: Session, ticker: str, *, settled_session: date | None = None
+) -> PricedSymbol:
     """Look up the symbol, its latest close, and the FX rate to convert to USD.
+
+    The rate is the newest stored one, refused when older than the session
+    before the fill's own (MD-7): the latest completed session for a market
+    order, ``settled_session`` for pending-order settlement.
 
     Raises the matching ``TradeExecutionError`` subclass when any leg is
     missing, so callers get one consistent failure vocabulary.
@@ -267,8 +273,19 @@ def resolve_priced_symbol(session: Session, ticker: str) -> PricedSymbol:
         raise NoMarketDataError(f"No market data for {ticker!r}; cannot fill order")
 
     currency = symbol.currency or "USD"
+    from stockviz._time import utcnow
+    from stockviz.services.markets.calendar import venue_for_ticker
+
     try:
-        fx_rate = latest_rate(session, currency)
+        fx_rate = rate_for_fill(
+            session,
+            currency,
+            now=utcnow().replace(tzinfo=UTC),
+            venue=venue_for_ticker(ticker),
+            settled_session=settled_session,
+        )
+    except StaleFxRate as exc:
+        raise NoFxRateError(f"{exc}; cannot price {ticker!r} trade in USD") from exc
     except LookupError as exc:
         raise NoFxRateError(
             f"No FX rate for {currency!r}; cannot price {ticker!r} trade in USD"

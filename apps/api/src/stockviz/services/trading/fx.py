@@ -14,6 +14,7 @@ show a stale weekend quote.
 from __future__ import annotations
 
 from datetime import date as date_type
+from datetime import datetime
 from decimal import Decimal
 
 from sqlmodel import Session, select
@@ -43,6 +44,58 @@ def latest_rate(
     if row is None:
         raise LookupError(f"No FX rate for {currency!r} on-or-before {cutoff}")
     return row.usd_rate
+
+
+def fill_rate_floor(
+    now: datetime, venue: str, *, settled_session: date_type | None = None
+) -> date_type:
+    """Oldest rate date a fill may convert at (audit MD-7, Phase 4.5).
+
+    The session before the one the fill belongs to: the latest completed
+    session of the instrument's venue for a market order, or the session being
+    settled for a pending order. The nightly job stores each day's rate after
+    the close, so one missed night is tolerated and two (an FX outage) refuse
+    the fill instead of converting at a rate weeks old.
+    """
+    from stockviz.services.markets.calendar import latest_completed_session, previous_session
+
+    anchor = settled_session or latest_completed_session(now, venue)
+    return previous_session(anchor, venue)
+
+
+def rate_for_fill(
+    session: Session,
+    currency: str,
+    *,
+    now: datetime,
+    venue: str,
+    settled_session: date_type | None = None,
+) -> Decimal:
+    """The newest rate on or before ``now``, refused if older than ``fill_rate_floor``.
+
+    Raises ``LookupError`` when no rate exists and ``StaleFxRate`` when the
+    newest one is too old.
+    """
+    if currency == "USD":
+        return Decimal(1)
+    row = session.exec(
+        select(FxRate)
+        .where(FxRate.currency == currency, FxRate.date <= now.date())
+        .order_by(FxRate.date.desc())  # type: ignore[attr-defined]
+        .limit(1)
+    ).first()
+    if row is None:
+        raise LookupError(f"No FX rate for {currency!r} on-or-before {now.date()}")
+    floor = fill_rate_floor(now, venue, settled_session=settled_session)
+    if row.date < floor:
+        raise StaleFxRate(
+            f"The newest {currency} rate is from {row.date}; fills need one from {floor} or later"
+        )
+    return row.usd_rate
+
+
+class StaleFxRate(LookupError):
+    """The newest stored rate is older than a fill may use (MD-7)."""
 
 
 def convert(

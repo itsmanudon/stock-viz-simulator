@@ -283,6 +283,9 @@ class _FakePostgresSession:
     def exec(self, statement):
         if statement.__class__.__name__ == "Insert":
             self.statements.append(statement)
+            return None
+        # A SELECT (screening's prior close, the instrument's quote unit) finds nothing.
+        return SimpleNamespace(first=lambda: None, one=lambda: None, all=lambda: [])
 
 
 def test_upsert_bars_chunks_large_batches_under_the_parameter_ceiling():
