@@ -597,6 +597,25 @@ missed; `instrument-verify` compares per-portfolio and per-symbol totals
 read through each key, and exits 1 on any difference. Seed a `Symbol` before reading
 a ticker's bars in a test: no symbol, no instrument.
 
+**Several providers, paid ones as snapshots (Phase 4.7).** Each stored bar
+keeps its `source`, and `prices.SOURCE_RANK` decides which wins for the same
+instrument, day and interval: `kite` and `truedata` (3) over `yfinance` (2)
+over `alpha_vantage` (1); unlisted sources (`v1_csv`, `bulk_*`) rank 0 and
+are replaced as before. The Postgres upsert's `ON CONFLICT ... WHERE` and the
+SQLite path both apply it, so the nightly yfinance refresh adds newer days
+and never overwrites a paid snapshot. Kite (`services/ingest/providers/kite.py`)
+is optional (`KITE_API_KEY`, `KITE_API_SECRET`; blank exits 2) and never
+nightly: `stockviz.cli kite-login-url` prints Zerodha's login page; the owner
+logs in by hand (daily tokens, an exchange rule: never automate the login)
+and passes the redirect's `request_token` to `ingest-history --provider kite
+[--apply] [tickers]`, which swaps it for the day's access token in memory
+(never stored) and pulls every daily candle since 2000 in 2000-day requests.
+Without `--apply` it only reports, per ticker, bars fetched, new days,
+overlap and the largest close difference against stored bars. Applying also
+records the `kite` identifier (instrument token). TrueData has no adapter
+until its trial. Check a provider's redistribution terms before its bars are
+shown publicly.
+
 ## Ingestion contract
 
 Each ingest service writes straight to Postgres — no CSV intermediate.

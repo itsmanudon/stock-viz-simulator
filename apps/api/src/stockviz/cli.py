@@ -364,6 +364,88 @@ def _cmd_instrument_check(_args: argparse.Namespace) -> int:
     return 1 if bad else 0
 
 
+def _cmd_kite_login_url(_args: argparse.Namespace) -> int:
+    """Print Zerodha's login page for the Kite app (Phase 4.7). Exit 2 without a key."""
+    from stockviz.services.ingest.providers.kite import login_url
+
+    settings = get_settings()
+    if not settings.kite_api_key:
+        print("KITE_API_KEY is not set: Kite is off")
+        return 2
+    print(login_url(settings.kite_api_key))
+    print(
+        "Log in there. Zerodha redirects to the app's redirect address with "
+        "?request_token=...; pass it to `ingest-history --provider kite --request-token`."
+    )
+    return 0
+
+
+def _cmd_ingest_history(args: argparse.Namespace) -> int:
+    """One-off full-history pull from an optional provider (Phase 4.7).
+
+    Dry run unless ``--apply``: per ticker, bars fetched, new days, overlap
+    with stored bars and the largest close difference there. Exit 2 when the
+    provider is not configured, 1 if any ticker failed.
+    """
+    from datetime import date as date_type
+
+    from stockviz.services.ingest.history import indian_tickers, snapshot
+
+    if args.provider != "kite":
+        print(f"provider {args.provider!r}: no adapter yet (TrueData comes with its trial)")
+        return 2
+    from stockviz.services.ingest.providers.kite import KiteError, kite_symbol, open_session
+
+    settings = get_settings()
+    if not (settings.kite_api_key and settings.kite_api_secret):
+        print("KITE_API_KEY and KITE_API_SECRET are not set: Kite is off")
+        return 2
+    if not args.request_token:
+        print("--request-token is required; get one with `stockviz.cli kite-login-url`")
+        return 2
+    try:
+        client = open_session(settings.kite_api_key, settings.kite_api_secret, args.request_token)
+    except KiteError as exc:
+        print(f"Kite login failed: {exc}")
+        return 1
+
+    tokens: dict[str, dict[str, int]] = {}
+    end = date_type.today()
+
+    def fetch(ticker: str):
+        venue = kite_symbol(ticker)
+        if venue is None:
+            raise ValueError("not an NSE or BSE ticker")
+        exchange, symbol = venue
+        if exchange not in tokens:
+            tokens[exchange] = client.instrument_tokens(exchange)
+        token = tokens[exchange].get(symbol)
+        if token is None:
+            raise ValueError(f"{exchange}:{symbol} not in Kite's instrument list")
+        return client.daily_bars(ticker, token, end=end), str(token)
+
+    with Session(engine) as session:
+        tickers = [t.upper() for t in args.tickers] or indian_tickers(session)
+        reports = snapshot(session, tickers, fetch, scheme="kite", apply=args.apply)
+    failed = False
+    for r in reports:
+        if r.error:
+            failed = True
+            print(f"  {r.ticker}: FAILED {r.error}")
+            continue
+        print(
+            f"  {r.ticker}: {r.fetched} bars, {r.new_days} new days, {r.overlap} overlap, "
+            f"max close diff {r.max_close_diff_pct}%"
+            + (f", {r.written} written" if args.apply else "")
+        )
+    if not args.apply:
+        print(
+            "dry run: nothing written. Check the overlap differences and the provider's "
+            "data terms (redistribution) before --apply."
+        )
+    return 1 if failed else 0
+
+
 def _cmd_instrument_verify(_args: argparse.Namespace) -> int:
     """Compare totals read through the ticker and through the instrument (Phase 4.6a).
 
@@ -1346,6 +1428,20 @@ def main(argv: list[str] | None = None) -> int:
         "instrument-check",
         help="Read-only: rows whose instrument_id the identity triggers missed (Phase 4.3)",
     ).set_defaults(fn=_cmd_instrument_check)
+
+    sub.add_parser(
+        "kite-login-url", help="Print Zerodha's login page for the Kite app (Phase 4.7)"
+    ).set_defaults(fn=_cmd_kite_login_url)
+
+    p_hist = sub.add_parser(
+        "ingest-history",
+        help="One-off full-history pull from an optional provider; dry run unless --apply",
+    )
+    p_hist.add_argument("--provider", choices=["kite", "truedata"], required=True)
+    p_hist.add_argument("--request-token", default=None, help="Kite: from the login redirect")
+    p_hist.add_argument("--apply", action="store_true", help="Write the bars (default: report)")
+    p_hist.add_argument("tickers", nargs="*", help="Default: every active NSE/BSE symbol")
+    p_hist.set_defaults(fn=_cmd_ingest_history)
 
     sub.add_parser(
         "instrument-verify",
