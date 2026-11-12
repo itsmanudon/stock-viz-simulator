@@ -12,12 +12,12 @@ import logging
 from datetime import date as date_type
 
 from sqlalchemy.dialects.postgresql import insert as pg_insert
-from sqlmodel import Session, select
+from sqlmodel import Session, col, select
 
 from stockviz._time import utcnow
 from stockviz.models import PriceBar, Symbol, SymbolMetrics
 from stockviz.services.indicators import compute_rsi
-from stockviz.services.instruments import instrument_of
+from stockviz.services.instruments import instrument_ids, instrument_of
 
 logger = logging.getLogger(__name__)
 
@@ -89,8 +89,10 @@ def refresh_symbol_metrics(
 
 def _upsert(session: Session, row: SymbolMetrics) -> None:
     """Insert-or-update one metrics row, preserving the sentiment columns."""
+    instrument_id = instrument_ids(session, [row.ticker]).get(row.ticker)
     values = {
         "ticker": row.ticker,
+        "instrument_id": instrument_id,
         "as_of": row.as_of,
         "last_close": row.last_close,
         "rsi_14": row.rsi_14,
@@ -102,18 +104,25 @@ def _upsert(session: Session, row: SymbolMetrics) -> None:
     if session.bind is not None and session.bind.dialect.name == "postgresql":
         stmt = pg_insert(SymbolMetrics).values(**values)
         session.exec(  # type: ignore[call-overload]
-            stmt.on_conflict_do_update(index_elements=["ticker"], set_=values)
+            stmt.on_conflict_do_update(index_elements=["instrument_id"], set_=values)
         )
         return
 
     # SQLite (tests): read-modify-write keeps the same semantics.
-    existing = session.get(SymbolMetrics, row.ticker)
+    existing = session.get(SymbolMetrics, instrument_id) if instrument_id else None
     if existing is None:
         session.add(row)
         return
     for key, value in values.items():
         setattr(existing, key, value)
     session.add(existing)
+
+
+def metrics_for(session: Session, ticker: str) -> SymbolMetrics | None:
+    """The metrics row for a public ticker (keyed by instrument since 4.6b)."""
+    return session.exec(
+        select(SymbolMetrics).where(col(SymbolMetrics.instrument_id) == instrument_of(ticker))
+    ).first()
 
 
 def set_sentiment(
@@ -129,7 +138,7 @@ def set_sentiment(
     Creates the row if the metrics refresh hasn't run yet, so sentiment for a
     newly added symbol isn't lost.
     """
-    existing = session.get(SymbolMetrics, ticker)
+    existing = metrics_for(session, ticker)
     if existing is None:
         existing = SymbolMetrics(ticker=ticker, as_of=as_of)
         session.add(existing)

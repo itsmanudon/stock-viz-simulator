@@ -109,7 +109,7 @@ class Position(SQLModel, table=True):
     # One row per holding, never empty (audit LG-11). apply_fill deletes a
     # position sold to zero, and two racing first buys must not both insert.
     __table_args__ = (
-        UniqueConstraint("portfolio_id", "ticker", name="uq_positions_portfolio_ticker"),
+        UniqueConstraint("portfolio_id", "instrument_id", name="uq_positions_portfolio_instrument"),
         CheckConstraint("quantity > 0", name="ck_positions_quantity_positive"),
         CheckConstraint("avg_cost >= 0", name="ck_positions_avg_cost_nonnegative"),
     )

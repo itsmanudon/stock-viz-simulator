@@ -22,7 +22,7 @@ from datetime import date as date_type
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import Numeric
+from sqlalchemy import Numeric, UniqueConstraint
 from sqlmodel import Column, Field, SQLModel
 
 from stockviz._time import utcnow
@@ -39,8 +39,13 @@ class SymbolMetrics(SQLModel, table=True):
 
     __tablename__ = "symbol_metrics"  # pyright: ignore[reportAssignmentType]
 
-    ticker: str = Field(foreign_key="symbols.ticker", primary_key=True, max_length=16)
-    instrument_id: int | None = Field(default=None, sa_column=instrument_id_column(required=True))
+    __table_args__ = (UniqueConstraint("ticker", name="uq_symbol_metrics_ticker"),)
+
+    ticker: str = Field(foreign_key="symbols.ticker", max_length=16)
+    # Phase 4.6b: keyed by instrument.
+    instrument_id: int | None = Field(
+        default=None, sa_column=instrument_id_column(primary_key=True)
+    )
 
     # Date of the bar these metrics were computed from — lets a caller tell
     # stale rows from fresh ones without joining back to price_bars.

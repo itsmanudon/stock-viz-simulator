@@ -17,10 +17,9 @@ same instrument as the Postgres function for the same symbols.
 
 from __future__ import annotations
 
-from sqlalchemy import event
+from sqlalchemy import Table, event, inspect, text
 from sqlalchemy.engine import Connection
-from sqlalchemy.ext.compiler import compiles
-from sqlalchemy.schema import CreateColumn
+from sqlalchemy.orm import Mapper
 from sqlmodel import SQLModel
 
 from stockviz.services.instruments import TICKER_TABLES
@@ -305,16 +304,76 @@ def _after_create(_target, connection: Connection, **_kw) -> None:
     install(connection)
 
 
-@compiles(CreateColumn, "sqlite")
-def _sqlite_instrument_id_nullable(element: CreateColumn, compiler, **kw) -> str:
-    """Leave a required ``instrument_id`` nullable in SQLite DDL (Phase 4.6a).
+_CURRENT_YAHOO_ID = text(
+    "SELECT instrument_id FROM instrument_identifiers WHERE scheme = 'yahoo' "
+    "AND value = :ticker AND valid_to IS NULL ORDER BY valid_from DESC LIMIT 1"
+)
 
-    SQLite triggers cannot change ``NEW``, so the AFTER triggers above fill
-    ``instrument_id`` once the row exists, and a NOT NULL column would refuse
-    the insert first. Postgres fills it in a BEFORE trigger and keeps the
-    constraint; ``tests/test_instrument_contract.py`` checks it there.
+
+def instrument_id_for(connection: Connection, ticker: str) -> int | None:
+    """The instrument a ticker names today, read on the writer's connection."""
+    return connection.execute(_CURRENT_YAHOO_ID, {"ticker": ticker}).scalar()
+
+
+def _set_instrument_id(_mapper, connection: Connection, target) -> None:
+    """Writers set ``instrument_id`` themselves (Phase 4.6b).
+
+    Every ORM insert into a ticker table resolves the ticker to its current
+    instrument here, before the INSERT, so the ORM knows the value (and the
+    primary key where ``instrument_id`` is part of it). Bulk upserts that skip
+    the ORM resolve it with ``services.instruments.instrument_ids``. The
+    database triggers stay as a backstop and write the same value.
+
+    A symbol added in the same flush must be inserted first, so its trigger
+    has made the instrument: ``_order_after_symbols`` sees to that.
     """
-    text = compiler.visit_create_column(element, **kw)
-    if element.element.info.get("instrument_id_required"):
-        text = text.replace(" NOT NULL", "")
-    return text
+    if _mapper.local_table.name not in _TICKER_TABLE_SET:
+        return
+    ticker = getattr(target, "ticker", None)
+    if ticker is None:
+        target.instrument_id = None
+        return
+    history = inspect(target).attrs.ticker.history
+    if target.instrument_id is None or history.has_changes():
+        target.instrument_id = instrument_id_for(connection, ticker)
+
+
+_TICKER_TABLE_SET = frozenset(TICKER_TABLES)
+
+
+def _order_after_symbols() -> None:
+    """Make the unit of work insert ``symbols`` rows before ticker-table rows.
+
+    A foreign key alone does not order a flush; a relationship does. Each
+    ticker model gets a private, never-loaded relationship to ``Symbol``
+    (``lazy="noload"``, ``passive_deletes="all"``: deleting a symbol never
+    touches its rows), so ``session.add(Symbol(...)); session.add(PriceBar(...))``
+    inserts the symbol, then its bars.
+    """
+    from sqlalchemy.orm import relationship
+
+    from stockviz.models.market import Symbol
+
+    registry = SQLModel._sa_registry  # pyright: ignore[reportAttributeAccessIssue]
+    for mapper in registry.mappers:
+        table = mapper.local_table
+        assert isinstance(table, Table)
+        if table.name not in _TICKER_TABLE_SET or mapper.has_property("_symbol_order"):
+            continue
+        mapper.add_property(
+            "_symbol_order",
+            relationship(
+                Symbol,
+                primaryjoin=table.c.ticker == Symbol.__table__.c.ticker,  # pyright: ignore[reportAttributeAccessIssue]
+                foreign_keys=[table.c.ticker],
+                lazy="noload",
+                passive_deletes="all",
+            ),
+        )
+
+
+_order_after_symbols()
+# On every mapper: a listener on the SQLModel base does not reach classes
+# mapped before this module is imported.
+event.listen(Mapper, "before_insert", _set_instrument_id)
+event.listen(Mapper, "before_update", _set_instrument_id)

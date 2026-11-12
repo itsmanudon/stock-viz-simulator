@@ -570,13 +570,28 @@ Python comparisons.
 
 4.6a (migration `b4e2c7d9a610`) made `instrument_id` NOT NULL wherever the
 ticker is (all but `news_articles`); the upgrade stops if any row is still
-NULL. SQLite DDL leaves it nullable (`db_identity` compile hook), because
-SQLite's triggers fill it after the insert. The ticker keys stay for now:
-`price_bars`' primary key, the unique keys and the `symbols.ticker` foreign
-keys. Moving them needs writers to set `instrument_id` themselves first (the
-ORM needs a primary key it knows at insert time). A new table with a
-`ticker` column must add `instrument_id_column(required=True)`, the trigger
-in a migration, and an entry in `services/instruments.TICKER_TABLES`.
+NULL.
+
+4.6b (migration `e7a3c5d1f942`): **writers set `instrument_id`
+themselves.** `db_identity` registers a `before_insert`/`before_update`
+hook on every mapper that resolves the ticker to its current instrument on
+the flush's connection, and gives each ticker model a private `noload`
+relationship to `Symbol` so a symbol added in the same flush is inserted
+first (a foreign key alone does not order a flush). Bulk upserts that skip
+the ORM (`write_accepted_bars`, metrics `_upsert`) take ids from
+`services.instruments.instrument_ids`. The Postgres triggers stay as a
+backstop and write the same value. The keys are now the instrument:
+`price_bars` `(instrument_id, ts, interval)`, `symbol_metrics`
+`(instrument_id)` (ticker still unique), `watchlist_items`
+`(watchlist_id, instrument_id)`, and the unique keys of positions,
+dividends, portfolio dividends, corporate actions and earnings. Look rows up
+with `metrics_for(session, ticker)` or a filter on `instrument_of(ticker)`,
+never `session.get(..., ticker)`. The ticker columns, their indexes and the
+`symbols.ticker` foreign keys stay. Tests seed symbols with
+`tests/symbols.py::seed_symbols`: a bar for an unknown ticker is refused on
+SQLite now, as Postgres always did. A new table with a `ticker` column
+needs `instrument_id_column(required=True)` (or `primary_key=True`), the
+trigger in a migration, and an entry in `services/instruments.TICKER_TABLES`.
 `stockviz.cli instrument-check` is a read-only report of rows the triggers
 missed; `instrument-verify` compares per-portfolio and per-symbol totals
 read through each key, and exits 1 on any difference. Seed a `Symbol` before reading

@@ -20,7 +20,9 @@ from stockviz.models.instrument import instrument_id_column
 
 class Dividend(SQLModel, table=True):
     __tablename__ = "dividends"  # pyright: ignore[reportAssignmentType]
-    __table_args__ = (UniqueConstraint("ticker", "ex_date", name="uq_dividends_ticker_ex_date"),)
+    __table_args__ = (
+        UniqueConstraint("instrument_id", "ex_date", name="uq_dividends_instrument_ex_date"),
+    )
 
     id: int | None = Field(default=None, primary_key=True)
     ticker: str = Field(foreign_key="symbols.ticker", index=True, max_length=16)
@@ -33,7 +35,10 @@ class PortfolioDividend(SQLModel, table=True):
     __tablename__ = "portfolio_dividends"  # pyright: ignore[reportAssignmentType]
     __table_args__ = (
         UniqueConstraint(
-            "portfolio_id", "ticker", "ex_date", name="uq_portfolio_dividends_portfolio_ticker_date"
+            "portfolio_id",
+            "instrument_id",
+            "ex_date",
+            name="uq_portfolio_dividends_portfolio_instrument_date",
         ),
     )
 

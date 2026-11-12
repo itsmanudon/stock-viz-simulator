@@ -22,9 +22,11 @@ from sqlmodel import Session
 
 from stockviz.models import PriceBar
 from stockviz.routers.stream import initial_close, stream_quotes
+from tests.symbols import seed_symbols
 
 
 def _add_bar(session: Session, ticker: str, close: Decimal) -> None:
+    seed_symbols(session, ticker)
     session.add(
         PriceBar(
             ticker=ticker,

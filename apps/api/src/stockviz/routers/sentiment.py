@@ -18,9 +18,10 @@ from sqlmodel import Session
 from stockviz._time import utcnow
 from stockviz.db import get_session
 from stockviz.limiter import limiter
-from stockviz.models import Symbol, SymbolMetrics
+from stockviz.models import Symbol
 from stockviz.schemas import SentimentPointOut, SentimentSeriesOut
 from stockviz.services.aegis.read import daily_sentiment
+from stockviz.services.metrics import metrics_for
 
 router = APIRouter(prefix="/v1/symbols", tags=["sentiment"])
 
@@ -53,7 +54,7 @@ def get_symbol_sentiment(
             session, ticker, since=now - timedelta(days=days), until=now
         )
     ]
-    metrics = session.get(SymbolMetrics, ticker)
+    metrics = metrics_for(session, ticker)
     return SentimentSeriesOut(
         ticker=ticker,
         points=points,

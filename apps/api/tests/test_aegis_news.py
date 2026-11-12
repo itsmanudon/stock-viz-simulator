@@ -18,9 +18,9 @@ from stockviz.models import (
     NewsArticle,
     Recommendation,
     Symbol,
-    SymbolMetrics,
 )
 from stockviz.services.aegis.read import refresh_aegis_sentiment
+from stockviz.services.metrics import metrics_for
 from stockviz.services.recommend.engine import max_score, score_ticker
 
 ENTITY = {"AAPL": "ent_apple", "MSFT": "ent_msft"}
@@ -231,9 +231,9 @@ def test_rolling_sentiment_comes_from_aegis_inside_the_week(session: Session) ->
 
     assert refresh_aegis_sentiment(session, now=now) == 3
 
-    aapl = session.get(SymbolMetrics, "AAPL")
-    msft = session.get(SymbolMetrics, "MSFT")
-    tsla = session.get(SymbolMetrics, "TSLA")
+    aapl = metrics_for(session, "AAPL")
+    msft = metrics_for(session, "MSFT")
+    tsla = metrics_for(session, "TSLA")
     assert aapl is not None and msft is not None and tsla is not None
     assert aapl.sentiment_article_count == 3
     assert abs((aapl.sentiment_7d or 0) - 0.3) < 1e-9
@@ -297,7 +297,7 @@ def test_cli_sentiment_aggregate_uses_aegis(engine, monkeypatch, capsys) -> None
     assert cli.main(["sentiment-aggregate"]) == 0
     assert "Aegis" in capsys.readouterr().out
     with Session(engine) as session:
-        metrics = session.get(SymbolMetrics, "AAPL")
+        metrics = metrics_for(session, "AAPL")
         assert metrics is not None and metrics.sentiment_article_count == 1
 
 

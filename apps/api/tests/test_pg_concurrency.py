@@ -462,7 +462,7 @@ def test_the_database_refuses_a_second_row_for_one_holding() -> None:
                 portfolio_id=portfolio_id, ticker="AAPL", quantity=Decimal(1), avg_cost=Decimal(1)
             )
         )
-        with pytest.raises(IntegrityError, match="uq_positions_portfolio_ticker"):
+        with pytest.raises(IntegrityError, match="uq_positions_portfolio_instrument"):
             session.commit()
         session.rollback()
         row = session.get(Portfolio, portfolio_id)

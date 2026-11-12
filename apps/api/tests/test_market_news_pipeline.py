@@ -42,7 +42,6 @@ from stockviz.models import (
     OutboxEvent,
     PriceBar,
     Symbol,
-    SymbolMetrics,
     User,
 )
 from stockviz.scheduler import (
@@ -54,6 +53,7 @@ from stockviz.scheduler import (
 from stockviz.services.ingest.bar_semantics import AdjustmentSemantics, SessionScope
 from stockviz.services.ingest.news import ArticleRecord, ingest_news_for_ticker
 from stockviz.services.ingest.prices import DAILY_INTERVAL, SOURCE_YFINANCE, BarRecord
+from stockviz.services.metrics import metrics_for
 from stockviz.services.sentiment.base import SentimentScore
 from stockviz.services.sentiment.null_provider import NullProvider
 from stockviz.workers.market_ingest_consumer import process_payload as market_ingest_process
@@ -301,8 +301,8 @@ def test_market_analytics_is_ticker_scoped_and_evaluates_alerts(session: Session
     )
     apply_market_bars_refreshed(session, refreshed)
     session.commit()
-    aapl = session.get(SymbolMetrics, "AAPL")
-    msft = session.get(SymbolMetrics, "MSFT")
+    aapl = metrics_for(session, "AAPL")
+    msft = metrics_for(session, "MSFT")
     assert aapl is not None
     assert aapl.last_close == Decimal("169")
     assert msft is None
@@ -591,8 +591,8 @@ def test_sentiment_aggregate_is_ticker_scoped(session: Session) -> None:
     )
     apply_news_sentiment_scored(session, scored)
     session.commit()
-    aapl = session.get(SymbolMetrics, "AAPL")
-    msft = session.get(SymbolMetrics, "MSFT")
+    aapl = metrics_for(session, "AAPL")
+    msft = metrics_for(session, "MSFT")
     assert aapl is not None
     assert aapl.sentiment_7d is not None
     assert msft is None or msft.sentiment_7d is None

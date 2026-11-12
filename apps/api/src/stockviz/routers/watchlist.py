@@ -13,7 +13,7 @@ from __future__ import annotations
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlmodel import Session, select
+from sqlmodel import Session, col, select
 
 from stockviz.auth import UserIdDep
 from stockviz.db import get_session
@@ -72,6 +72,16 @@ def list_watchlist(session: SessionDep, user_id: UserIdDep) -> list[WatchlistIte
     return [_item_out(session, item, sym) for item, sym in rows]
 
 
+def _item(session: Session, watchlist_id: int | None, ticker: str) -> WatchlistItem | None:
+    """A watchlist row by public ticker (keyed by instrument since Phase 4.6b)."""
+    return session.exec(
+        select(WatchlistItem).where(
+            col(WatchlistItem.watchlist_id) == watchlist_id,
+            col(WatchlistItem.instrument_id) == instrument_of(ticker),
+        )
+    ).first()
+
+
 @router.post("/{ticker}", response_model=WatchlistItemOut, status_code=status.HTTP_201_CREATED)
 def add_watchlist_item(ticker: str, session: SessionDep, user_id: UserIdDep) -> WatchlistItemOut:
     ticker = ticker.upper()
@@ -80,7 +90,7 @@ def add_watchlist_item(ticker: str, session: SessionDep, user_id: UserIdDep) -> 
         raise HTTPException(status.HTTP_404_NOT_FOUND, f"Symbol {ticker!r} not found")
 
     wl = _ensure_default_watchlist(session, user_id)
-    existing = session.get(WatchlistItem, (wl.id, ticker))
+    existing = _item(session, wl.id, ticker)
     if existing is None:
         existing = WatchlistItem(watchlist_id=wl.id, ticker=ticker)  # type: ignore[arg-type]
         session.add(existing)
@@ -93,7 +103,7 @@ def add_watchlist_item(ticker: str, session: SessionDep, user_id: UserIdDep) -> 
 def remove_watchlist_item(ticker: str, session: SessionDep, user_id: UserIdDep) -> None:
     ticker = ticker.upper()
     wl = _ensure_default_watchlist(session, user_id)
-    item = session.get(WatchlistItem, (wl.id, ticker))
+    item = _item(session, wl.id, ticker)
     if item is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, f"{ticker!r} is not on the watchlist")
     session.delete(item)
