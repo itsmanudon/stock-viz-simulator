@@ -118,17 +118,19 @@ def test_screen_positive_momentum(session: Session, client: TestClient) -> None:
     assert body[0]["momentum_pct"] > 20
 
 
-def test_candidate_limit_still_precedes_momentum_filter(
-    session: Session, client: TestClient
-) -> None:
+def test_momentum_filter_applies_before_the_limit(session: Session, client: TestClient) -> None:
+    """Audit RS-5, fixed in Phase 6.2.
+
+    The limit used to come first: alphabetical LIMIT 1 picked DOWN, the
+    positive-momentum filter then rejected it, and the screen came back
+    empty although UPUP matched. The filter now sees every candidate.
+    """
     _seed_universe(session)
-    # Alphabetical LIMIT 1 selects DOWN, then the positive filter rejects it.
-    # Pushing the filter/limit into a different SQL stage would return UPUP.
     response = client.get(
         "/v1/symbols/screen", params={"limit": 1, "momentum_days": 30, "momentum_min": 1}
     )
     assert response.status_code == 200
-    assert response.json() == []
+    assert [r["ticker"] for r in response.json()] == ["UPUP"]
 
 
 def test_screen_near_52w_high(session: Session, client: TestClient) -> None:

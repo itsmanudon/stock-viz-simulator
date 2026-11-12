@@ -1,5 +1,14 @@
 import { apiGet } from "./client";
+import type { components } from "./schema";
 import type { ScreenerResult } from "./types";
+
+export type ScreenerRow = components["schemas"]["ScreenerRowOut"];
+export type ScreenerPage = components["schemas"]["ScreenerPageOut"];
+
+/** Phase 6.2: the paged, server-sorted screener over both markets. Uncached. */
+export function getScreenerPage(query: URLSearchParams): Promise<ScreenerPage> {
+  return apiGet<ScreenerPage>(`/v1/screener?${query.toString()}`);
+}
 
 export type ScreenParams = {
   sector?: string;

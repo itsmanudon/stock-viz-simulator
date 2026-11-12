@@ -10,6 +10,13 @@
 import type { ScreenerResult } from "@/lib/api/types";
 
 export type ScreenerParams = {
+  /** Phase 6.2: listing country ("US", "IN", ...), currency, trend, volatility, page. */
+  market?: string;
+  currency?: string;
+  above_sma_50?: string;
+  above_sma_200?: string;
+  hv_max?: string;
+  page?: string;
   sector?: string;
   rsi_min?: string;
   rsi_max?: string;
@@ -23,6 +30,11 @@ export type ScreenerParams = {
 };
 
 const PARAM_KEYS = [
+  "market",
+  "currency",
+  "above_sma_50",
+  "above_sma_200",
+  "hv_max",
   "sector",
   "rsi_min",
   "rsi_max",
@@ -33,9 +45,29 @@ const PARAM_KEYS = [
   "near_52w_low",
   "sort",
   "dir",
+  "page",
 ] as const satisfies readonly (keyof ScreenerParams)[];
 
-export type ScreenerSortKey = "ticker" | "price" | "rsi" | "momentum";
+export type ScreenerSortKey = "ticker" | "price" | "rsi" | "momentum" | "trend" | "volatility";
+
+/** The API's sort column for each sortable column (Phase 6.2, sorted server-side). */
+export const API_SORT: Record<ScreenerSortKey, string> = {
+  ticker: "ticker",
+  price: "last_close",
+  rsi: "rsi_14",
+  momentum: "momentum_pct",
+  trend: "sma_200_gap_pct",
+  volatility: "hv_20",
+};
+
+export const MARKET_LABEL: Record<string, string> = {
+  US: "United States",
+  IN: "India",
+  GB: "United Kingdom",
+  DE: "Germany",
+  JP: "Japan",
+  CA: "Canada",
+};
 export type SortDir = "asc" | "desc";
 
 export type FilterChip = { id: string; label: string; removeHref: string };
@@ -46,9 +78,11 @@ function present(value: string | undefined): value is string {
 
 function href(params: ScreenerParams, drop: readonly (keyof ScreenerParams)[] = []): string {
   const next = new URLSearchParams();
+  // Any change to filters or sort starts again from the first page.
+  const dropping = [...drop, ...(drop.includes("page") ? [] : (["page"] as const))];
   for (const key of PARAM_KEYS) {
     const value = params[key];
-    if (value && !drop.includes(key)) next.set(key, value);
+    if (value && !dropping.includes(key)) next.set(key, value);
   }
   const qs = next.toString();
   return qs ? `/screener?${qs}` : "/screener";
@@ -70,6 +104,42 @@ function range(min: string | undefined, max: string | undefined, unit = ""): str
  */
 export function activeFilterChips(params: ScreenerParams): FilterChip[] {
   const chips: FilterChip[] = [];
+  if (params.market) {
+    chips.push({
+      id: "market",
+      label: `Market: ${params.market
+        .split(",")
+        .map((m) => MARKET_LABEL[m] ?? m)
+        .join(", ")}`,
+      removeHref: href(params, ["market"]),
+    });
+  }
+  if (params.currency) {
+    chips.push({
+      id: "currency",
+      label: `Currency: ${params.currency}`,
+      removeHref: href(params, ["currency"]),
+    });
+  }
+  for (const [key, label] of [
+    ["above_sma_50", "50-day average"],
+    ["above_sma_200", "200-day average"],
+  ] as const) {
+    if (params[key] === "true" || params[key] === "false") {
+      chips.push({
+        id: key,
+        label: `${params[key] === "true" ? "Above" : "Below"} ${label}`,
+        removeHref: href(params, [key]),
+      });
+    }
+  }
+  if (present(params.hv_max)) {
+    chips.push({
+      id: "hv_max",
+      label: `Volatility at most ${params.hv_max}%`,
+      removeHref: href(params, ["hv_max"]),
+    });
+  }
   if (params.sector) {
     chips.push({
       id: "sector",
@@ -123,7 +193,7 @@ export function parseScreenerSort(params: ScreenerParams): {
   sort: ScreenerSortKey;
   dir: SortDir;
 } {
-  const keys: ScreenerSortKey[] = ["ticker", "price", "rsi"];
+  const keys: ScreenerSortKey[] = ["ticker", "price", "rsi", "trend", "volatility"];
   if (present(params.momentum_days)) keys.push("momentum");
   const sort = keys.find((key) => key === params.sort) ?? "ticker";
   const dir: SortDir =
@@ -172,4 +242,60 @@ export function sortScreenerRows(
     if (bv === null) return -1;
     return (av - bv) * factor || a.ticker.localeCompare(b.ticker);
   });
+}
+
+/** The 1-based page the URL asks for. */
+export function parseScreenerPage(params: ScreenerParams): number {
+  const page = Number(params.page);
+  return Number.isInteger(page) && page >= 1 ? page : 1;
+}
+
+/** A link to another page of the same screen. */
+export function screenerPageHref(params: ScreenerParams, page: number): string {
+  const next = new URLSearchParams();
+  for (const key of PARAM_KEYS) {
+    const value = params[key];
+    if (value && key !== "page") next.set(key, value);
+  }
+  if (page > 1) next.set("page", String(page));
+  const qs = next.toString();
+  return qs ? `/screener?${qs}` : "/screener";
+}
+
+/** The current screen as the API query for /v1/screener (Phase 6.2). */
+export function screenerApiQuery(params: ScreenerParams, pageSize: number): URLSearchParams {
+  const q = new URLSearchParams();
+  for (const key of [
+    "market",
+    "currency",
+    "sector",
+    "rsi_min",
+    "rsi_max",
+    "momentum_days",
+    "momentum_min",
+    "momentum_max",
+    "near_52w_high",
+    "near_52w_low",
+    "above_sma_50",
+    "above_sma_200",
+    "hv_max",
+  ] as const) {
+    const value = params[key];
+    if (value) q.set(key, value);
+  }
+  if (!present(params.momentum_days)) {
+    q.delete("momentum_min");
+    q.delete("momentum_max");
+  }
+  const { sort, dir } = parseScreenerSort(params);
+  q.set("sort", API_SORT[sort]);
+  q.set("dir", dir);
+  q.set("limit", String(pageSize));
+  q.set("offset", String((parseScreenerPage(params) - 1) * pageSize));
+  return q;
+}
+
+/** The saved-screen query: the filters and sort, never the page. */
+export function savedScreenQuery(params: ScreenerParams): string {
+  return screenerPageHref(params, 1).replace(/^\/screener\??/, "");
 }

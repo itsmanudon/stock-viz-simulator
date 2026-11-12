@@ -63,12 +63,67 @@ export interface paths {
         };
         /**
          * Screen Symbols
-         * @description Screen the universe against the precomputed metrics.
+         * @description The original list screen, on the unified query path (RS-5 fixed).
          */
         get: operations["screen_symbols_v1_symbols_screen_get"];
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/screener": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Screener */
+        get: operations["screener_v1_screener_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/screens": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Screens */
+        get: operations["list_screens_v1_screens_get"];
+        put?: never;
+        /**
+         * Save Screen
+         * @description Create a screen, or replace the query of the one with this name.
+         */
+        post: operations["save_screen_v1_screens_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/screens/{screen_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Screen */
+        delete: operations["delete_screen_v1_screens__screen_id__delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -3172,6 +3227,43 @@ export interface components {
             /** Sell Above */
             sell_above: number;
         };
+        /** SavedScreenIn */
+        SavedScreenIn: {
+            /** Name */
+            name: string;
+            /** Query */
+            query: string;
+        };
+        /** SavedScreenOut */
+        SavedScreenOut: {
+            /** Id */
+            id: number;
+            /** Name */
+            name: string;
+            /** Query */
+            query: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** ScreenerPageOut */
+        ScreenerPageOut: {
+            /** Rows */
+            rows: components["schemas"]["ScreenerRowOut"][];
+            /** Total */
+            total: number;
+            /** Offset */
+            offset: number;
+            /** Limit */
+            limit: number;
+        };
         /**
          * ScreenerResultOut
          * @description One symbol that passed every active filter on /v1/symbols/screen.
@@ -3204,6 +3296,61 @@ export interface components {
             high_52w: string;
             /** Low 52W */
             low_52w: string;
+            /** Sentiment 7D */
+            sentiment_7d?: number | null;
+        };
+        /**
+         * ScreenerRowOut
+         * @description One row of /v1/screener (Phase 6.2). Unknown values are null, never 0.
+         */
+        ScreenerRowOut: {
+            /** Ticker */
+            ticker: string;
+            /** Name */
+            name: string;
+            /** Sector */
+            sector?: string | null;
+            /** Exchange */
+            exchange?: string | null;
+            /** Market */
+            market?: string | null;
+            /** Mic */
+            mic?: string | null;
+            /**
+             * Currency
+             * @default USD
+             */
+            currency: string;
+            /** Last Close */
+            last_close?: string | null;
+            /** As Of */
+            as_of?: string | null;
+            /** Rsi 14 */
+            rsi_14?: number | null;
+            /** Momentum Pct */
+            momentum_pct?: number | null;
+            /** Momentum Days */
+            momentum_days?: number | null;
+            /** High 52W */
+            high_52w?: string | null;
+            /** Low 52W */
+            low_52w?: string | null;
+            /** Pct From 52W High */
+            pct_from_52w_high?: number | null;
+            /** Sma 50 */
+            sma_50?: number | null;
+            /** Sma 200 */
+            sma_200?: number | null;
+            /** Sma 50 Gap Pct */
+            sma_50_gap_pct?: number | null;
+            /** Sma 200 Gap Pct */
+            sma_200_gap_pct?: number | null;
+            /** Atr Pct 14 */
+            atr_pct_14?: number | null;
+            /** Hv 20 */
+            hv_20?: number | null;
+            /** Avg Volume 20 */
+            avg_volume_20?: number | null;
             /** Sentiment 7D */
             sentiment_7d?: number | null;
         };
@@ -3566,6 +3713,159 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ScreenerResultOut"][];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    screener_v1_screener_get: {
+        parameters: {
+            query?: {
+                /** @description Countries, e.g. US,IN */
+                market?: string | null;
+                /** @description MICs, e.g. XNAS,XNSE */
+                exchange?: string | null;
+                /** @description e.g. USD,INR */
+                currency?: string | null;
+                sector?: string | null;
+                rsi_min?: number | null;
+                rsi_max?: number | null;
+                momentum_days?: number | null;
+                momentum_min?: number | null;
+                momentum_max?: number | null;
+                near_52w_high?: boolean;
+                near_52w_low?: boolean;
+                above_sma_50?: boolean | null;
+                above_sma_200?: boolean | null;
+                hv_min?: number | null;
+                hv_max?: number | null;
+                atr_pct_min?: number | null;
+                atr_pct_max?: number | null;
+                sentiment_min?: number | null;
+                sentiment_max?: number | null;
+                sort?: string;
+                dir?: string;
+                offset?: number;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScreenerPageOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_screens_v1_screens_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SavedScreenOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    save_screen_v1_screens_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SavedScreenIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SavedScreenOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_screen_v1_screens__screen_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                screen_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

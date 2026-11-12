@@ -98,7 +98,16 @@ src/stockviz/
                     `return_mode: "total"` credits dividends to shares held
                     into each ex-date, strategy and benchmark alike (SR-7)
     alerts.py       price-alert evaluation
-    metrics.py      precomputed per-symbol RSI / 52w range (screener reads these)
+    metrics.py      precomputed per-symbol snapshot the screener reads: RSI,
+                    52-week range, and (Phase 6.2) SMA 50/200, ATR %,
+                    20-day volatility, 20-day average volume
+    screener.py     Phase 6.2 `run_screen`: SQL filters on the snapshot joined
+                    to symbol and instrument (market = country, exchange =
+                    MIC, currency), momentum for every candidate BEFORE the
+                    limit (audit RS-5), sort with missing values last, page.
+                    Serves `GET /v1/screener` (paged, total) and the old
+                    `GET /v1/symbols/screen` list. `/v1/screens` (authed)
+                    saves named screens as the screener URL's query string
     markets/        calendar.py — exchange calendars and completed sessions (Phase 4.1)
     aegis/          Aegis News read sync (Phase 2): contract.py (lenient
                     feed models), token.py (EdDSA feed:read token), client.py

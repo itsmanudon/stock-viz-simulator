@@ -4,7 +4,11 @@ import type { ScreenerResult } from "@/lib/api/types";
 import {
   activeFilterChips,
   clearFiltersHref,
+  parseScreenerPage,
   parseScreenerSort,
+  savedScreenQuery,
+  screenerApiQuery,
+  screenerPageHref,
   screenerSortHref,
   sortScreenerRows,
 } from "@/lib/screener-view";
@@ -95,5 +99,55 @@ describe("screener sort", () => {
   it("sorts price by the number, not the string", () => {
     const rows = [row("A", { last_close: "9.5" }), row("B", { last_close: "100" })];
     expect(sortScreenerRows(rows, "price", "desc").map((r) => r.ticker)).toEqual(["B", "A"]);
+  });
+});
+
+describe("Phase 6.2: markets, trend, paging and the API query", () => {
+  it("names market, currency and trend filters", () => {
+    const chips = activeFilterChips({
+      market: "IN",
+      currency: "INR",
+      above_sma_200: "true",
+      above_sma_50: "false",
+      hv_max: "40",
+    });
+    expect(chips.map((c) => c.label)).toEqual([
+      "Market: India",
+      "Currency: INR",
+      "Below 50-day average",
+      "Above 200-day average",
+      "Volatility at most 40%",
+    ]);
+  });
+
+  it("starts again from page 1 when a filter is removed or the sort changes", () => {
+    const params = { market: "IN", rsi_max: "30", page: "3" };
+    const [marketChip] = activeFilterChips(params);
+    expect(marketChip.removeHref).toBe("/screener?rsi_max=30");
+    expect(screenerSortHref("trend", params)).toBe(
+      "/screener?market=IN&rsi_max=30&sort=trend&dir=desc",
+    );
+    expect(screenerPageHref(params, 4)).toBe("/screener?market=IN&rsi_max=30&page=4");
+    expect(screenerPageHref(params, 1)).toBe("/screener?market=IN&rsi_max=30");
+  });
+
+  it("maps the screen to the API, sorted and paged on the server", () => {
+    const q = screenerApiQuery(
+      { market: "US,IN", sort: "trend", dir: "asc", page: "2", momentum_min: "5" },
+      50,
+    );
+    expect(q.get("market")).toBe("US,IN");
+    expect(q.get("sort")).toBe("sma_200_gap_pct");
+    expect(q.get("dir")).toBe("asc");
+    expect(q.get("offset")).toBe("50");
+    expect(q.has("momentum_min")).toBe(false); // no window, so no bounds
+    expect(parseScreenerPage({ page: "x" })).toBe(1);
+  });
+
+  it("saves the filters and sort, never the page", () => {
+    expect(
+      savedScreenQuery({ market: "IN", rsi_max: "30", sort: "rsi", dir: "asc", page: "2" }),
+    ).toBe("market=IN&rsi_max=30&sort=rsi&dir=asc");
+    expect(savedScreenQuery({})).toBe("");
   });
 });

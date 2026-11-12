@@ -58,6 +58,13 @@ class SymbolMetrics(SQLModel, table=True):
     high_52w: Decimal | None = Field(default=None, sa_column=Column(Numeric(18, 6), nullable=True))
     low_52w: Decimal | None = Field(default=None, sa_column=Column(Numeric(18, 6), nullable=True))
 
+    # Phase 6.2 screener snapshot, from the indicator engine on the same bars.
+    sma_50: float | None = None
+    sma_200: float | None = None
+    atr_pct_14: float | None = None  # ATR(14) as a percent of the close
+    hv_20: float | None = None  # annualised 20-day historical volatility, percent
+    avg_volume_20: float | None = None
+
     # Mean news sentiment over the trailing week, in [-1, 1]. Populated by the
     # sentiment aggregate pass; NULL when the symbol has no scored headlines.
     sentiment_7d: float | None = Field(default=None, index=True)

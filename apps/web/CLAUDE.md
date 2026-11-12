@@ -419,6 +419,12 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   empty data cache; the cache then holds a response for up to its revalidate
   window (an hour for market data), so a page can trail the nightly ingest by
   that long. Still render new fields optionally.
+- `/screener` reads `/v1/screener` (Phase 6.2): filtered, sorted and paged
+  on the server (50 a page, `?page=`), with market, currency, trend (close vs
+  SMA 50/200) and volatility filters, Market and "vs 200-day" columns, and
+  saved screens for signed-in users (`components/saved-screens.tsx`, actions
+  in `app/(product)/screener/actions.ts`; a saved screen is the URL query).
+  Any filter or sort change goes back to page 1.
 - `/screener` keeps filters and sort in the URL (`lib/screener-view.ts`, UI
   audit UX-1). Each applied filter shows as a removable chip; RSI bounds share
   a chip, and the momentum bounds belong to the window's chip because the API

@@ -9,6 +9,7 @@ indexed query.
 from __future__ import annotations
 
 import logging
+import math
 from datetime import date as date_type
 
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -16,7 +17,7 @@ from sqlmodel import Session, col, select
 
 from stockviz._time import utcnow
 from stockviz.models import PriceBar, Symbol, SymbolMetrics
-from stockviz.services.indicators import compute_rsi
+from stockviz.services.indicators import compute_rsi, engine
 from stockviz.services.instruments import instrument_ids, instrument_of
 
 logger = logging.getLogger(__name__)
@@ -30,6 +31,25 @@ YEAR_SESSIONS = 252
 sessions (audit RS-14). The stock page computes the same thing from bars."""
 
 RSI_PERIOD = 14
+
+
+def _last(series) -> float | None:
+    value = series.iloc[-1] if len(series) else None
+    return None if value is None or math.isnan(value) else float(value)
+
+
+def _snapshot(bars: list[PriceBar]) -> dict[str, float | None]:
+    """Screener columns from the indicator engine (Phase 6.2)."""
+    frame = engine.frame([(b.ts, b.open, b.high, b.low, b.close, b.volume) for b in bars])
+    close = float(bars[-1].close)
+    atr_14 = _last(engine.atr(frame, 14)["value"])
+    return {
+        "sma_50": _last(engine.sma(frame, 50)["value"]),
+        "sma_200": _last(engine.sma(frame, 200)["value"]),
+        "atr_pct_14": atr_14 / close * 100 if atr_14 is not None and close else None,
+        "hv_20": _last(engine.hv(frame, 20)["value"]),
+        "avg_volume_20": _last(frame["volume"].rolling(20, min_periods=20).mean()),
+    }
 
 
 def compute_for_ticker(session: Session, ticker: str) -> SymbolMetrics | None:
@@ -53,6 +73,7 @@ def compute_for_ticker(session: Session, ticker: str) -> SymbolMetrics | None:
     closes = [b.close for b in bars]
     rsi_points = compute_rsi([(b.ts, b.close) for b in bars], period=RSI_PERIOD)
     rsi = rsi_points[-1].value if rsi_points else None
+    snap = _snapshot(bars)
 
     return SymbolMetrics(
         ticker=ticker,
@@ -62,6 +83,11 @@ def compute_for_ticker(session: Session, ticker: str) -> SymbolMetrics | None:
         high_52w=max(b.high for b in bars[-YEAR_SESSIONS:]),
         low_52w=min(b.low for b in bars[-YEAR_SESSIONS:]),
         computed_at=utcnow(),
+        sma_50=snap["sma_50"],
+        sma_200=snap["sma_200"],
+        atr_pct_14=snap["atr_pct_14"],
+        hv_20=snap["hv_20"],
+        avg_volume_20=snap["avg_volume_20"],
     )
 
 
@@ -103,6 +129,11 @@ def _upsert(session: Session, row: SymbolMetrics) -> None:
         "rsi_14": row.rsi_14,
         "high_52w": row.high_52w,
         "low_52w": row.low_52w,
+        "sma_50": row.sma_50,
+        "sma_200": row.sma_200,
+        "atr_pct_14": row.atr_pct_14,
+        "hv_20": row.hv_20,
+        "avg_volume_20": row.avg_volume_20,
         "computed_at": row.computed_at,
     }
 
