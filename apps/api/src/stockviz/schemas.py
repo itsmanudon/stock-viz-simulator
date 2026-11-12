@@ -1049,6 +1049,57 @@ class BacktestOut(BaseModel):
     summary: BacktestSummaryOut
 
 
+class ExperimentIn(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    hypothesis: str | None = Field(default=None, max_length=4000)
+
+
+class ExperimentOut(BaseModel):
+    id: int
+    name: str
+    hypothesis: str | None
+    created_at: datetime
+    run_count: int = 0
+
+
+class ExperimentRunIn(BaseModel):
+    """Save a backtest (Phase 5.4): the same body as POST /v1/backtest."""
+
+    backtest: BacktestIn
+    experiment_id: int | None = None
+
+
+class ExperimentRunOut(BaseModel):
+    id: int
+    experiment_id: int | None
+    parent_run_id: int | None = None
+    kind: str
+    ticker: str
+    request: dict
+    execution_profile: str
+    fee_schedule: str
+    code_version: str
+    dataset_fingerprint: str
+    bar_count: int
+    first_bar_at: datetime | None
+    last_bar_at: datetime | None
+    created_at: datetime
+    summary: BacktestSummaryOut
+    # Full stored result; omitted from list responses.
+    result: BacktestOut | None = None
+
+
+class ExperimentRerunOut(BaseModel):
+    """``identical``: same data, same result. ``data_changed``: the bars or
+    dividends the run read are not the same any more, so nothing is compared.
+    ``different``: same data, different result (the code changed)."""
+
+    status: Literal["identical", "different", "data_changed"]
+    stored_fingerprint: str
+    current_fingerprint: str
+    differences: list[str] = []
+
+
 # ---------------------------------------------------------------------------
 # Markets summary
 # ---------------------------------------------------------------------------

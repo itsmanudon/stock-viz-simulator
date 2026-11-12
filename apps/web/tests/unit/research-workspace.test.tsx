@@ -31,6 +31,12 @@ vi.mock("lightweight-charts", () => ({
   }),
 }));
 
+const saveRun = vi.fn(async () => ({ runId: 7 }));
+vi.mock("@/app/(product)/backtest/actions", () => ({
+  saveBacktestRunAction: (...args: unknown[]) => saveRun(...(args as [])),
+  rerunBacktestRunAction: vi.fn(async () => ({})),
+}));
+
 vi.mock("@/lib/api", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api")>("@/lib/api");
   return {
@@ -184,6 +190,18 @@ describe("BacktestForm", () => {
     expect(note).toContain("250 bars before the start");
     expect(screen.getByText("€25.50")).toBeVisible();
     expect(runBacktest).toHaveBeenCalledWith(expect.objectContaining({ return_mode: "total" }));
+  });
+
+  it("offers to save the run it just showed (Phase 5.4)", async () => {
+    runBacktest.mockResolvedValue(success);
+    render(
+      <BacktestForm symbols={[{ ticker: "AAPL", name: "Apple Inc." }]} initialTicker="AAPL" />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Run backtest" }));
+    const save = await screen.findByRole("button", { name: "Save run" });
+    fireEvent.click(save);
+    await waitFor(() => expect(saveRun).toHaveBeenCalled());
+    expect(await screen.findByText(/Saved as run 7/)).toBeVisible();
   });
 
   it("keeps the form and shows a validation error when the API rejects the run", async () => {

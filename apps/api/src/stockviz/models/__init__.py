@@ -22,6 +22,7 @@ from stockviz.models.dividend import Dividend, PortfolioDividend
 from stockviz.models.earnings import EarningsEvent
 from stockviz.models.events import ConsumerInbox, OutboxEvent, PortfolioTradeActivity
 from stockviz.models.execution import SimulatedExecution
+from stockviz.models.experiment import Experiment, ExperimentRun
 from stockviz.models.instrument import Instrument, InstrumentIdentifier
 from stockviz.models.job_run import JobRun
 from stockviz.models.market import (
@@ -73,6 +74,8 @@ __all__ = [
     "CorporateActionApplication",
     "Dividend",
     "EarningsEvent",
+    "Experiment",
+    "ExperimentRun",
     "FxConversion",
     "FxRate",
     "Instrument",
