@@ -24,14 +24,14 @@ export async function ClosingCta() {
   const breadth = await loadBreadth();
   return (
     <section className="relative isolate overflow-hidden border-y border-border-muted bg-surface-secondary">
-      {breadth ? <MarketWeather share={breadth.share} strength={0.13} /> : null}
+      {breadth ? <MarketWeather share={breadth.share} strength={0.08} /> : null}
       <span
         aria-hidden
         className="brand-glow top-1/2 left-1/2 -z-10 h-80 w-[48rem] -translate-x-1/2 -translate-y-1/2 opacity-70"
       />
       <span
         aria-hidden
-        className="text-outline pointer-events-none absolute inset-x-0 top-1/2 -z-10 -translate-y-1/2 text-center font-mono text-[clamp(5rem,22vw,18rem)] leading-none font-bold whitespace-nowrap select-none [--outline-color:var(--border)] opacity-[0.18]"
+        className="text-outline pointer-events-none absolute inset-x-0 top-1/2 -z-10 -translate-y-1/2 text-center font-mono text-[clamp(5rem,22vw,18rem)] leading-none font-bold whitespace-nowrap select-none [--outline-color:var(--background)] opacity-[0.7]"
       >
         $100,000
       </span>
