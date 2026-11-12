@@ -366,7 +366,9 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   a browser call to the public `/v1/options/quote`) shows spot with its close
   date, volatility, value per share and premium, and the buy button names the
   premium. The strike starts at the money and follows the symbol until edited.
-  Only USD symbols are offered. The portfolio header and the dashboard hero
+  Only USD symbols are offered. `PortfolioMetrics` adds an "Other cash" figure
+  when `cash_by_currency` (Phase 4.5b) holds a non-base currency: a sale of a
+  EUR stock keeps its euros. The portfolio header and the dashboard hero
   show `ValuationNotice` when `valuation_warnings` is not empty (audit LG-13).
 - Operational trading (`/trade`, `/orders`, `/watchlist`, `/alerts`) is the
   authenticated execution/monitoring loop. See

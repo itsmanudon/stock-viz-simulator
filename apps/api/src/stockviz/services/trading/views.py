@@ -9,6 +9,7 @@ from sqlmodel import Session, select
 from stockviz._time import utcnow
 from stockviz.models import Portfolio, PortfolioSnapshot, Symbol
 from stockviz.schemas import (
+    CurrencyCashOut,
     PortfolioAnalyticsOut,
     PortfolioOptionOut,
     PortfolioOut,
@@ -33,6 +34,10 @@ def portfolio_response(snap: PortfolioValuation) -> PortfolioOut:
         portfolio_id=snap.portfolio_id,
         display_currency=snap.display_currency,
         cash_balance=snap.cash_balance,
+        cash_by_currency=[
+            CurrencyCashOut(currency=c.currency, amount=c.amount, value=c.value)
+            for c in snap.cash_by_currency
+        ],
         reserved_cash=snap.reserved_cash,
         available_cash=snap.available_cash,
         market_value=snap.market_value,

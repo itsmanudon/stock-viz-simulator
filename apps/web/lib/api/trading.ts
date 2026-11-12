@@ -38,6 +38,20 @@ export type Portfolio = {
   option_positions: PortfolioOption[];
   /** What total_value leaves out; empty when complete (audit LG-13). */
   valuation_warnings: ValuationWarning[];
+  /**
+   * Cash per currency, base first (Phase 4.5b): a sale of a EUR stock keeps
+   * its euros. cash_balance is their total; available_cash is the base's
+   * buying power only. A response cached before 4.5b lacks it, so readers use `?? []`.
+   */
+  cash_by_currency: CurrencyCash[];
+};
+
+export type CurrencyCash = {
+  currency: string;
+  /** In `currency`. */
+  amount: string;
+  /** In the portfolio's display currency. */
+  value: string;
 };
 
 export type ValuationWarning = {

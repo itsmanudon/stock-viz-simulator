@@ -529,6 +529,18 @@ fill converts only at a rate no older than the session before its own
 market order, the settled session for pending-order settlement. A stale rate
 raises `NoFxRateError`, which cancels a pending order with the reason.
 
+**Cash per currency (Phase 4.5b, design note option B).** `portfolios.cash_balance`
+is the base-currency cash (`base_currency`, USD only for now); other
+currencies live in `cash_balances`, written only by `services/trading/cash.py`
+under the portfolio lock. In `apply_fill` a non-base sell credits its own
+currency; a non-base buy spends that currency first and converts only the
+shortfall from the base, writing an `fx_conversions` row (rate, rate date,
+amounts, trade). The buying-power check is against that base shortfall.
+Valuation adds foreign cash at the latest rate into `cash_balance` and
+`total_value` (so snapshots and the leaderboard include it) and returns
+`cash_by_currency`; `available_cash` stays the base's buying power. Dividends
+and option premiums stay in the base currency for now; replay is USD only.
+
 **Instrument identity (Phase 4.3 expand, 4.4 reads).** `instruments` (venue
 MIC, currency, `quote_unit`, asset type) and `instrument_identifiers` (`yahoo`
 = the ticker, `aegis` = `stockviz:<ticker>`) sit beside `symbols`
