@@ -34,7 +34,15 @@ from stockviz.models.market import (
 from stockviz.models.metrics import SymbolMetrics
 from stockviz.models.option import OptionsPosition, OptionStatus, OptionType
 from stockviz.models.order import OrderStatus, OrderType, PendingOrder
-from stockviz.models.portfolio import Portfolio, PortfolioSnapshot, Position, Trade, TradeSide
+from stockviz.models.portfolio import (
+    CashBalance,
+    FxConversion,
+    Portfolio,
+    PortfolioSnapshot,
+    Position,
+    Trade,
+    TradeSide,
+)
 from stockviz.models.recommendation import Recommendation
 from stockviz.models.replay import (
     ReplayFill,
@@ -58,12 +66,14 @@ __all__ = [
     "Alert",
     "AlertDirection",
     "AuthRateLimit",
+    "CashBalance",
     "Comment",
     "ConsumerInbox",
     "CorporateAction",
     "CorporateActionApplication",
     "Dividend",
     "EarningsEvent",
+    "FxConversion",
     "FxRate",
     "Instrument",
     "InstrumentIdentifier",
@@ -99,3 +109,6 @@ __all__ = [
     "Watchlist",
     "WatchlistItem",
 ]
+
+# Identity triggers for schemas built by create_all (Phase 4.4a).
+import stockviz.db_identity  # noqa: F401

@@ -67,6 +67,7 @@ from stockviz.services.ingest.shadow import (
     compare_symbol,
 )
 from stockviz.services.ingest.shadow_report import ShadowRun, write_shadow_report
+from stockviz.services.instruments import instrument_of
 from stockviz.services.metrics import refresh_symbol_metrics
 from stockviz.services.recommend import MAX_SCORE, score_universe
 from stockviz.services.sentiment.store import backfill_unscored
@@ -363,6 +364,27 @@ def _cmd_instrument_check(_args: argparse.Namespace) -> int:
     return 1 if bad else 0
 
 
+def _cmd_instrument_verify(_args: argparse.Namespace) -> int:
+    """Compare totals read through the ticker and through the instrument (Phase 4.6a).
+
+    Read-only. Run before the NOT NULL migration and after it. Exit 1 on any
+    NULL ``instrument_id`` or any portfolio or symbol whose totals differ.
+    """
+    from stockviz.services.instruments.verify import verify_identity
+
+    with Session(engine) as session:
+        report = verify_identity(session)
+    print(f"portfolios: {report.portfolios}, symbols with daily bars: {report.symbols_with_bars}")
+    for table, count in report.nulls.items():
+        print(f"  NULL instrument_id: {table} {count}")
+    for key, ticker, instrument in report.portfolio_diffs:
+        print(f"  portfolio {key}: by ticker {ticker}, by instrument {instrument}")
+    for key, ticker, instrument in report.bar_diffs:
+        print(f"  bars {key}: by ticker {ticker}, by instrument {instrument}")
+    print("identity verified" if report.ok else "identity check FAILED")
+    return 0 if report.ok else 1
+
+
 def _refresh_aegis_sentiment() -> None:
     """Roll held Aegis sentiment into sentiment_7d, which the signals vote and
     the screener filter read (audit AG-14). Runs after a failed sync too, so
@@ -597,7 +619,9 @@ def _news_article_count(ticker: str) -> int:
     with Session(engine) as session:
         return int(
             session.exec(
-                select(func.count()).select_from(NewsArticle).where(NewsArticle.ticker == ticker)
+                select(func.count())
+                .select_from(NewsArticle)
+                .where(NewsArticle.instrument_id == instrument_of(ticker))
             ).one()
         )
 
@@ -611,7 +635,7 @@ def _latest_daily_bar_date(ticker: str) -> date | None:
     with Session(engine) as session:
         latest = session.exec(
             select(func.max(PriceBar.ts)).where(  # type: ignore[call-overload]
-                PriceBar.ticker == ticker, PriceBar.interval == "1d"
+                PriceBar.instrument_id == instrument_of(ticker), PriceBar.interval == "1d"
             )
         ).one()
     return latest.date() if latest is not None else None
@@ -1322,6 +1346,11 @@ def main(argv: list[str] | None = None) -> int:
         "instrument-check",
         help="Read-only: rows whose instrument_id the identity triggers missed (Phase 4.3)",
     ).set_defaults(fn=_cmd_instrument_check)
+
+    sub.add_parser(
+        "instrument-verify",
+        help="Read-only: totals through the ticker and the instrument agree (Phase 4.6a)",
+    ).set_defaults(fn=_cmd_instrument_verify)
 
     p_aegis = sub.add_parser(
         "aegis-sync",

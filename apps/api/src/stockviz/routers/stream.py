@@ -33,6 +33,7 @@ from sqlmodel import Session, select
 from stockviz.db import engine
 from stockviz.limiter import limiter
 from stockviz.models import PriceBar
+from stockviz.services.instruments import instrument_of
 
 router = APIRouter(prefix="/v1/stream", tags=["stream"])
 
@@ -61,7 +62,7 @@ def initial_close(ticker: str) -> float | None:
         bar = session.exec(
             select(PriceBar)
             .where(
-                PriceBar.ticker == t,  # pyright: ignore[reportArgumentType]
+                PriceBar.instrument_id == instrument_of(t),  # pyright: ignore[reportArgumentType]
                 PriceBar.interval == "1d",  # pyright: ignore[reportArgumentType]
             )
             .order_by(PriceBar.ts.desc())  # type: ignore[attr-defined]

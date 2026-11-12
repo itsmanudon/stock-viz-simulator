@@ -21,7 +21,10 @@ MICROS = Decimal("0.000001")
 def get_replay_position(session: Session, *, session_id: int, ticker: str) -> ReplayPosition | None:
     return session.exec(
         select(ReplayPosition)
-        .where(ReplayPosition.session_id == session_id, ReplayPosition.ticker == ticker)
+        .where(
+            ReplayPosition.session_id == session_id,
+            ReplayPosition.ticker == ticker,
+        )
         .limit(1)
     ).first()
 

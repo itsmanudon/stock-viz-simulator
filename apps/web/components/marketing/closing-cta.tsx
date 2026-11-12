@@ -7,24 +7,31 @@
  * The oversized hollow "$100,000" behind the heading is the ReadMe
  * oversized-wordmark trick applied to the number the copy is actually about.
  * It is decorative and `aria-hidden`; the figure is already in the heading.
+ *
+ * Behind both, the market weather (motion batch 3) colours the sky by the last
+ * session's breadth; the line under the buttons states that figure.
  */
 
 import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 
+import { describeBreadth, loadBreadth } from "@/components/marketing/proofs/breadth";
+import { MarketWeather } from "@/components/marketing/proofs/market-weather";
 import { Reveal } from "@/components/marketing/reveal";
 import { Button } from "@/components/ui/button";
 
-export function ClosingCta() {
+export async function ClosingCta() {
+  const breadth = await loadBreadth();
   return (
     <section className="relative isolate overflow-hidden border-y border-border-muted bg-surface-secondary">
+      {breadth ? <MarketWeather share={breadth.share} strength={0.08} /> : null}
       <span
         aria-hidden
         className="brand-glow top-1/2 left-1/2 -z-10 h-80 w-[48rem] -translate-x-1/2 -translate-y-1/2 opacity-70"
       />
       <span
         aria-hidden
-        className="text-outline pointer-events-none absolute inset-x-0 top-1/2 -z-10 -translate-y-1/2 text-center font-mono text-[clamp(5rem,22vw,18rem)] leading-none font-bold whitespace-nowrap select-none [--outline-color:var(--border)] opacity-[0.18]"
+        className="text-outline pointer-events-none absolute inset-x-0 top-1/2 -z-10 -translate-y-1/2 text-center font-mono text-[clamp(5rem,22vw,18rem)] leading-none font-bold whitespace-nowrap select-none [--outline-color:var(--background)] opacity-[0.7]"
       >
         $100,000
       </span>
@@ -49,6 +56,11 @@ export function ClosingCta() {
               <Link href="/leaderboard">See the leaderboard</Link>
             </Button>
           </div>
+          {breadth ? (
+            <p className="mt-6 font-mono text-2xs text-text-secondary">
+              Today&rsquo;s sky: {describeBreadth(breadth)}.
+            </p>
+          ) : null}
         </Reveal>
       </div>
     </section>

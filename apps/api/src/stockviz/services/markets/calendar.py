@@ -117,6 +117,15 @@ def _session_complete_at(day: date, venue: str) -> datetime:
     return close + COMPLETE_AFTER_CLOSE
 
 
+def previous_session(day: date, venue: str = NEW_YORK_VENUE) -> date:
+    """The session of ``venue`` before ``day`` (weekdays outside the calendar)."""
+    for back in range(1, _LOOKBACK_DAYS):
+        candidate = day - timedelta(days=back)
+        if is_session(candidate, venue):
+            return candidate
+    return day - timedelta(days=1)
+
+
 def latest_completed_session(now: datetime, venue: str = NEW_YORK_VENUE) -> date:
     """The newest session of ``venue`` whose daily bar is complete at ``now``.
 

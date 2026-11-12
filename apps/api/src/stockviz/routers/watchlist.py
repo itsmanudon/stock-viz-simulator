@@ -19,6 +19,7 @@ from stockviz.auth import UserIdDep
 from stockviz.db import get_session
 from stockviz.models import PriceBar, Symbol, Watchlist, WatchlistItem
 from stockviz.schemas import WatchlistItemOut
+from stockviz.services.instruments import instrument_of
 
 router = APIRouter(prefix="/v1/watchlist", tags=["watchlist"])
 
@@ -42,7 +43,7 @@ def _item_out(session: Session, item: WatchlistItem, symbol: Symbol) -> Watchlis
     """One row, with the latest 1d close and the date of the bar it came from."""
     bar = session.exec(
         select(PriceBar)
-        .where(PriceBar.ticker == item.ticker, PriceBar.interval == "1d")
+        .where(PriceBar.instrument_id == instrument_of(item.ticker), PriceBar.interval == "1d")
         .order_by(PriceBar.ts.desc())  # type: ignore[attr-defined]
         .limit(1)
     ).first()

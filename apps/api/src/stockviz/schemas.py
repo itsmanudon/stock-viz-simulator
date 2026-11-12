@@ -165,6 +165,10 @@ class DividendCreditOut(BaseModel):
     ticker: str
     ex_date: date
     amount_credited: Decimal
+    # The currency ``amount_credited`` is in; ``base_value`` is the same credit
+    # in the portfolio's base currency (Phase 4.5c). ``ytd_income`` sums those.
+    currency: str
+    base_value: Decimal
     credited_at: datetime
 
 
@@ -232,6 +236,14 @@ class ValuationWarningOut(BaseModel):
     message: str
 
 
+class CurrencyCashOut(BaseModel):
+    """Cash held in one currency: ``amount`` native, ``value`` in display currency."""
+
+    currency: str
+    amount: Decimal
+    value: Decimal
+
+
 class PortfolioOut(BaseModel):
     """Snapshot of the user's default portfolio used by /portfolio.
 
@@ -259,6 +271,9 @@ class PortfolioOut(BaseModel):
     option_positions: list[PortfolioOptionOut] = []
     # Empty when the total is complete; otherwise what it leaves out (LG-13).
     valuation_warnings: list[ValuationWarningOut] = []
+    # Phase 4.5b: cash per currency, base first. ``cash_balance`` is their
+    # total in display currency; ``available_cash`` is the base's buying power.
+    cash_by_currency: list[CurrencyCashOut] = []
 
 
 ClientOrderId = Annotated[

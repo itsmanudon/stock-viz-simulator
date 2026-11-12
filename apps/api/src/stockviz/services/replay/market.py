@@ -17,6 +17,7 @@ from decimal import Decimal
 from sqlmodel import Session, select
 
 from stockviz.models import PriceBar, ReplaySession, Symbol
+from stockviz.services.instruments import instrument_of
 from stockviz.services.replay.errors import (
     ReplayNoMarketError,
     ReplayRangeError,
@@ -31,7 +32,7 @@ REPLAY_INTERVAL = "1d"
 
 def _ticker_bars(ticker: str):
     return select(PriceBar).where(
-        PriceBar.ticker == ticker,
+        PriceBar.instrument_id == instrument_of(ticker),
         PriceBar.interval == REPLAY_INTERVAL,
     )
 

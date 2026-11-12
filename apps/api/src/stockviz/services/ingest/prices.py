@@ -10,6 +10,7 @@ network/parsing step so tests pass fixtures instead of mocking ``requests``.
 
 from __future__ import annotations
 
+import dataclasses
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -34,6 +35,7 @@ from stockviz.services.ingest.screening import (
     Disposition,
     screen_bar,
 )
+from stockviz.services.instruments import instrument_of
 from stockviz.services.markets.calendar import venue_for_ticker
 
 logger = logging.getLogger(__name__)
@@ -254,7 +256,7 @@ def _latest_stored_close(
         stmt = (
             select(PriceBar)
             .where(
-                PriceBar.ticker == ticker,
+                PriceBar.instrument_id == instrument_of(ticker),
                 PriceBar.interval == interval,
                 PriceBar.ts < before,
             )
@@ -450,6 +452,57 @@ def write_accepted_bars(session: Session, bars: list[BarRecord]) -> int:
     return len(rows)
 
 
+MINOR_UNIT_SCALE: dict[str, Decimal] = {"GBX": Decimal(100)}
+"""Quote units that are a fraction of the currency: London quotes in pence."""
+
+PROVIDER_SOURCES = frozenset({SOURCE_YFINANCE, SOURCE_ALPHA_VANTAGE})
+
+
+def minor_unit_scale(session: Session, ticker: str) -> Decimal:
+    """How many quote units make one currency unit for ``ticker`` (1 for most)."""
+    from stockviz.models.instrument import Instrument
+    from stockviz.services.instruments import instrument_of
+
+    unit = session.exec(
+        select(Instrument.quote_unit).where(col(Instrument.id) == instrument_of(ticker))
+    ).first()
+    return MINOR_UNIT_SCALE.get(unit or "", Decimal(1))
+
+
+def _in_major_units(session: Session, bars: list[BarRecord]) -> list[BarRecord]:
+    """Divide provider bars quoted in a minor unit into the symbol's currency.
+
+    yfinance quotes London shares in pence (``GBp``; audit MD-2, confirmed 12
+    Nov 2026: BARC.L near 430) while the symbol is GBP, so they were valued
+    100 times too high. The instrument's ``quote_unit`` (GBX for London, 4.3)
+    says so; only provider bars are scaled, never stored or seed rows. Volume
+    is a share count and stays.
+    """
+
+    scales = {
+        t: minor_unit_scale(session, t)
+        for t in {b.ticker for b in bars if b.source in PROVIDER_SOURCES}
+    }
+    if all(scale == 1 for scale in scales.values()):
+        return bars
+    out: list[BarRecord] = []
+    for bar in bars:
+        scale = scales.get(bar.ticker, Decimal(1)) if bar.source in PROVIDER_SOURCES else Decimal(1)
+        if scale == 1:
+            out.append(bar)
+            continue
+        out.append(
+            dataclasses.replace(
+                bar,
+                open=bar.open / scale,
+                high=bar.high / scale,
+                low=bar.low / scale,
+                close=bar.close / scale,
+            )
+        )
+    return out
+
+
 def _without_unadjusted_overlap(session: Session, bars: list[BarRecord]) -> list[BarRecord]:
     """Drop Alpha Vantage daily bars on or before the newest stored daily bar.
 
@@ -470,7 +523,8 @@ def _without_unadjusted_overlap(session: Session, bars: list[BarRecord]) -> list
     for ticker in {b.ticker for b in fallback}:
         newest[ticker] = session.exec(
             select(func.max(PriceBar.ts)).where(
-                col(PriceBar.ticker) == ticker, col(PriceBar.interval) == DAILY_INTERVAL
+                col(PriceBar.instrument_id) == instrument_of(ticker),
+                col(PriceBar.interval) == DAILY_INTERVAL,
             )
         ).one()
     kept: list[BarRecord] = []
@@ -501,6 +555,7 @@ def upsert_bars(session: Session, bars: list[BarRecord]) -> int:
     Does not commit.
     """
 
+    bars = _in_major_units(session, bars)
     bars = _without_unadjusted_overlap(session, bars)
     if not bars:
         return 0

@@ -15,6 +15,7 @@ from sqlmodel import Session, select
 
 from stockviz._time import utcnow
 from stockviz.models import Alert, AlertDirection, PriceBar
+from stockviz.services.instruments import instrument_of
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +23,7 @@ logger = logging.getLogger(__name__)
 def _latest_close(session: Session, ticker: str) -> Decimal | None:
     bar = session.exec(
         select(PriceBar)
-        .where(PriceBar.ticker == ticker, PriceBar.interval == "1d")
+        .where(PriceBar.instrument_id == instrument_of(ticker), PriceBar.interval == "1d")
         .order_by(PriceBar.ts.desc())  # type: ignore[attr-defined]
         .limit(1)
     ).first()
@@ -43,7 +44,7 @@ def evaluate_pending_alerts(
 
     stmt = select(Alert).where(Alert.triggered_at.is_(None))  # type: ignore[attr-defined]
     if ticker is not None:
-        stmt = stmt.where(Alert.ticker == ticker)
+        stmt = stmt.where(Alert.instrument_id == instrument_of(ticker))
     pending = list(session.exec(stmt).all())
     if not pending:
         return 0

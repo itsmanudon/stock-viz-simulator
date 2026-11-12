@@ -28,6 +28,7 @@ from stockviz.auth import UserIdDep
 from stockviz.db import get_session
 from stockviz.models import Comment, Symbol, User
 from stockviz.schemas import CommentIn, CommentOut
+from stockviz.services.instruments import instrument_of
 
 router = APIRouter(tags=["comments"])
 
@@ -74,7 +75,7 @@ def list_comments(
     top_level = list(
         session.exec(
             select(Comment)
-            .where(Comment.ticker == ticker, Comment.parent_id.is_(None))  # type: ignore[union-attr]
+            .where(Comment.instrument_id == instrument_of(ticker), Comment.parent_id.is_(None))  # type: ignore[union-attr]
             .order_by(Comment.created_at.desc())  # type: ignore[attr-defined]
             .offset(offset)
             .limit(limit)

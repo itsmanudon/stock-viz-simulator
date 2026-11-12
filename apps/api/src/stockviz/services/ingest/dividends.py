@@ -67,8 +67,13 @@ def ingest_dividends_for_ticker(
             failures.append(ticker)
         return 0
 
+    # London dividends arrive in pence like London prices (MD-2).
+    from stockviz.services.ingest.prices import minor_unit_scale
+
+    scale = minor_unit_scale(session, ticker)
     written = 0
-    for ex_date, amount in rows:
+    for ex_date, raw_amount in rows:
+        amount = (raw_amount / scale).quantize(Decimal("0.000001")) if scale != 1 else raw_amount
         existing = session.exec(
             select(Dividend).where(Dividend.ticker == ticker, Dividend.ex_date == ex_date)
         ).first()

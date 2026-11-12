@@ -22,6 +22,7 @@ from sqlmodel import Session, select
 
 from stockviz._time import utcnow
 from stockviz.models import PriceBar, Recommendation, Symbol, SymbolMetrics
+from stockviz.services.instruments import instrument_of
 
 logger = logging.getLogger(__name__)
 
@@ -340,7 +341,7 @@ def _load_recent_bars(
 ) -> list[tuple[Decimal, int]]:
     stmt = (
         select(PriceBar)
-        .where(PriceBar.ticker == ticker, PriceBar.interval == "1d")
+        .where(PriceBar.instrument_id == instrument_of(ticker), PriceBar.interval == "1d")
         .order_by(PriceBar.ts.desc())  # type: ignore[attr-defined]
         .limit(lookback)
     )

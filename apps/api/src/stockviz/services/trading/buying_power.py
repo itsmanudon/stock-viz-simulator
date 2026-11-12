@@ -23,6 +23,7 @@ from sqlmodel import Session, select
 
 from stockviz.models import PendingOrder, Portfolio, Position, Symbol, TradeSide, User
 from stockviz.models.order import OrderStatus
+from stockviz.services.instruments import instrument_of
 from stockviz.services.trading.fx import latest_rate
 
 MICROS = Decimal("0.000001")
@@ -129,7 +130,7 @@ def reserved_shares(
     """Shares reserved by currently pending SELL orders for ``ticker``."""
     stmt = select(PendingOrder).where(
         PendingOrder.portfolio_id == portfolio_id,
-        PendingOrder.ticker == ticker,
+        PendingOrder.instrument_id == instrument_of(ticker),
         PendingOrder.status == OrderStatus.PENDING,
         PendingOrder.side == TradeSide.SELL,
     )
@@ -151,7 +152,9 @@ def available_shares(
     """Held quantity minus pending-SELL reservations (optionally excluding one order)."""
     position = session.exec(
         select(Position)
-        .where(Position.portfolio_id == portfolio_id, Position.ticker == ticker)
+        .where(
+            Position.portfolio_id == portfolio_id, Position.instrument_id == instrument_of(ticker)
+        )
         .limit(1)
     ).first()
     held = position.quantity if position is not None else Decimal(0)

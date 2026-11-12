@@ -101,7 +101,15 @@ components/
                    real closes, SVG goo), on /product/research and
                    /product/paper-trading; and `departure-board.tsx`, the
                    split-flap board in the landing Rankings section, which
-                   keeps an sr-only list of the same rows),
+                   keeps an sr-only list of the same rows. Batch 3 adds
+                   `market-weather.tsx` (faint aurora behind the hero and
+                   closing CTA, coloured by `breadth.ts`: share of symbols that
+                   closed up; the hero chips and the CTA state the figure),
+                   `decode-text.tsx` (Moving today figures resolve digit by
+                   digit; sr-only real text), `exploded-candle.tsx` (one stored
+                   bar taken apart beside the FAQ) and `loupe-chart.tsx` (the
+                   "chart" row on /product/research: a magnifier that reads a
+                   day's OHLC)),
                    `closing-cta.tsx` (the monochrome full-bleed close),
                    `reveal.tsx` (scroll reveal: IntersectionObserver + the
                    `[data-reveal]` transition in globals.css). GSAP (+
@@ -358,7 +366,9 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   a browser call to the public `/v1/options/quote`) shows spot with its close
   date, volatility, value per share and premium, and the buy button names the
   premium. The strike starts at the money and follows the symbol until edited.
-  Only USD symbols are offered. The portfolio header and the dashboard hero
+  Only USD symbols are offered. `PortfolioMetrics` adds an "Other cash" figure
+  when `cash_by_currency` (Phase 4.5b) holds a non-base currency: a sale of a
+  EUR stock keeps its euros. The portfolio header and the dashboard hero
   show `ValuationNotice` when `valuation_warnings` is not empty (audit LG-13).
 - Operational trading (`/trade`, `/orders`, `/watchlist`, `/alerts`) is the
   authenticated execution/monitoring loop. See
@@ -424,6 +434,13 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   snapshots (with two it would repeat the period). The orders widget prices
   triggers in the symbol's currency, from the positions and watchlist the page
   already loads, falling back to USD as `/orders` does.
+- The one animation inside the product app is `SettleSweep`
+  (`components/settle-sweep.tsx`, motion batch 3): on /orders, an order this
+  browser last saw pending that is now filled gets one band of light across
+  its status chip (CSS in globals.css, motion allowed only). Last-seen
+  statuses live in localStorage under `stockviz:order-status`; the page
+  renders each order twice, so both copies compare against one snapshot.
+  Keep the rest of the product app still.
 - Trading pages (Aurora board v3): `OrderSideBadge` is neutral (an arrow and
   the word), `StatusBadge` carries a leading dot and a `warning` tone, and
   pending orders use it (brand stays for identity and selected controls).

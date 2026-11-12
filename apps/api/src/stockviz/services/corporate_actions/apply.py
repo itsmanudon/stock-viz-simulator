@@ -56,6 +56,7 @@ from stockviz.models import (
     Trade,
     TradeSide,
 )
+from stockviz.services.instruments import instrument_of
 from stockviz.services.markets.calendar import (
     latest_completed_session,
     session_complete_at,
@@ -123,7 +124,7 @@ def _shares_held_before(
     trades = session.exec(
         select(Trade).where(
             col(Trade.portfolio_id) == portfolio_id,
-            col(Trade.ticker) == ticker,
+            col(Trade.instrument_id) == instrument_of(ticker),
             col(Trade.ts) < before,
         )
     ).all()
@@ -141,14 +142,14 @@ def _candidate_user_ids(session: Session, action: CorporateAction, before: datet
     holders = session.exec(
         select(Portfolio.user_id)
         .join(Position, col(Position.portfolio_id) == col(Portfolio.id))
-        .where(col(Position.ticker) == ticker)
+        .where(col(Position.instrument_id) == instrument_of(ticker))
     ).all()
     users.update(holders)
     orders = session.exec(
         select(Portfolio.user_id)
         .join(PendingOrder, col(PendingOrder.portfolio_id) == col(Portfolio.id))
         .where(
-            col(PendingOrder.ticker) == ticker,
+            col(PendingOrder.instrument_id) == instrument_of(ticker),
             col(PendingOrder.status) == OrderStatus.PENDING,
             col(PendingOrder.created_at) < before,
         )
@@ -156,7 +157,7 @@ def _candidate_user_ids(session: Session, action: CorporateAction, before: datet
     users.update(orders)
     alerts = session.exec(
         select(Alert.user_id).where(
-            col(Alert.ticker) == ticker,
+            col(Alert.instrument_id) == instrument_of(ticker),
             col(Alert.triggered_at).is_(None),
             col(Alert.dismissed_at).is_(None),
             col(Alert.created_at) < before,
@@ -165,7 +166,7 @@ def _candidate_user_ids(session: Session, action: CorporateAction, before: datet
     users.update(alerts)
     options = session.exec(
         select(OptionsPosition.user_id).where(
-            col(OptionsPosition.ticker) == ticker,
+            col(OptionsPosition.instrument_id) == instrument_of(ticker),
             col(OptionsPosition.status) == OptionStatus.OPEN,
             col(OptionsPosition.opened_at) < before,
         )
@@ -201,7 +202,8 @@ def rebase_user(session: Session, action: CorporateAction, user_id: int) -> Reba
     if portfolio is not None and portfolio.id is not None:
         position = session.exec(
             select(Position).where(
-                col(Position.portfolio_id) == portfolio.id, col(Position.ticker) == ticker
+                col(Position.portfolio_id) == portfolio.id,
+                col(Position.instrument_id) == instrument_of(ticker),
             )
         ).first()
         if position is not None and position.quantity > 0:
@@ -220,7 +222,7 @@ def rebase_user(session: Session, action: CorporateAction, user_id: int) -> Reba
         orders = session.exec(
             select(PendingOrder).where(
                 col(PendingOrder.portfolio_id) == portfolio.id,
-                col(PendingOrder.ticker) == ticker,
+                col(PendingOrder.instrument_id) == instrument_of(ticker),
                 col(PendingOrder.status) == OrderStatus.PENDING,
                 col(PendingOrder.created_at) < before,
             )
@@ -234,7 +236,7 @@ def rebase_user(session: Session, action: CorporateAction, user_id: int) -> Reba
     alerts = session.exec(
         select(Alert).where(
             col(Alert.user_id) == user_id,
-            col(Alert.ticker) == ticker,
+            col(Alert.instrument_id) == instrument_of(ticker),
             col(Alert.triggered_at).is_(None),
             col(Alert.dismissed_at).is_(None),
             col(Alert.created_at) < before,
@@ -248,7 +250,7 @@ def rebase_user(session: Session, action: CorporateAction, user_id: int) -> Reba
     options = session.exec(
         select(OptionsPosition).where(
             col(OptionsPosition.user_id) == user_id,
-            col(OptionsPosition.ticker) == ticker,
+            col(OptionsPosition.instrument_id) == instrument_of(ticker),
             col(OptionsPosition.status) == OptionStatus.OPEN,
             col(OptionsPosition.opened_at) < before,
         )

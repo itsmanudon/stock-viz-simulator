@@ -51,6 +51,8 @@ class PriceBar(SQLModel, table=True):
     # on this column order covers it.
     __table_args__ = (
         Index("ix_price_bars_ticker_interval_ts", "ticker", "interval", "ts"),
+        # Phase 4.4: reads go by instrument; same shape as the ticker index.
+        Index("ix_price_bars_instrument_interval_ts", "instrument_id", "interval", "ts"),
         CheckConstraint(
             "adjustment_semantics IN ('unadjusted', 'split_adjusted', 'split_dividend_adjusted')",
             name="ck_price_bars_adjustment_semantics",
@@ -62,7 +64,7 @@ class PriceBar(SQLModel, table=True):
     )
 
     ticker: str = Field(foreign_key="symbols.ticker", primary_key=True, max_length=16)
-    instrument_id: int | None = Field(default=None, sa_column=instrument_id_column())
+    instrument_id: int | None = Field(default=None, sa_column=instrument_id_column(required=True))
     ts: datetime = Field(primary_key=True, index=True)
     interval: str = Field(primary_key=True, max_length=8)
 
@@ -96,7 +98,7 @@ class QuarantinedPriceBar(SQLModel, table=True):
 
     id: int | None = Field(default=None, primary_key=True)
     ticker: str = Field(foreign_key="symbols.ticker", max_length=16)
-    instrument_id: int | None = Field(default=None, sa_column=instrument_id_column())
+    instrument_id: int | None = Field(default=None, sa_column=instrument_id_column(required=True))
     ts: datetime
     interval: str = Field(max_length=8)
 
@@ -156,6 +158,10 @@ class FxRate(SQLModel, table=True):
     """
 
     __tablename__ = "fx_rates"  # pyright: ignore[reportAssignmentType]
+    # Audit MD-7. 'NaN' sorts above every number in Postgres, so it needs its own test.
+    __table_args__ = (
+        CheckConstraint("usd_rate > 0 AND usd_rate <> 'NaN'", name="ck_fx_rates_usd_rate_positive"),
+    )
 
     currency: str = Field(primary_key=True, max_length=3)
     date: date_type = Field(primary_key=True, index=True)

@@ -24,5 +24,5 @@ class WatchlistItem(SQLModel, table=True):
 
     watchlist_id: int = Field(foreign_key="watchlists.id", primary_key=True)
     ticker: str = Field(foreign_key="symbols.ticker", primary_key=True, max_length=16)
-    instrument_id: int | None = Field(default=None, sa_column=instrument_id_column())
+    instrument_id: int | None = Field(default=None, sa_column=instrument_id_column(required=True))
     added_at: datetime = Field(default_factory=utcnow, nullable=False)

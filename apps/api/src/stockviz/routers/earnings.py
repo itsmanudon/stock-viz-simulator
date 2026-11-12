@@ -17,6 +17,7 @@ from stockviz.auth import UserIdDep
 from stockviz.db import get_session
 from stockviz.models import EarningsEvent, Portfolio, Position, Symbol, Watchlist, WatchlistItem
 from stockviz.schemas import EarningsEventOut
+from stockviz.services.instruments import instruments_of
 
 router = APIRouter(prefix="/v1/earnings", tags=["earnings"])
 SessionDep = Annotated[Session, Depends(get_session)]
@@ -85,7 +86,7 @@ def list_earnings(
     if ticker_filter is not None:
         if not ticker_filter:
             return []
-        stmt = stmt.where(EarningsEvent.ticker.in_(ticker_filter))  # type: ignore[attr-defined]
+        stmt = stmt.where(col(EarningsEvent.instrument_id).in_(instruments_of(ticker_filter)))
 
     return [
         EarningsEventOut(

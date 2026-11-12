@@ -7,6 +7,7 @@ import {
   OrderStatusBadge,
   OrderTypeBadge,
 } from "@/components/operational-page-header";
+import { SettleSweep } from "@/components/settle-sweep";
 import { parseApiTimestamp } from "@/lib/api-time";
 import type { PendingOrder } from "@/lib/api/trading";
 import { buildTradeHref, formatNativePrice, userCancelReason } from "@/lib/operational-trading";
@@ -72,7 +73,9 @@ export function OrderBlotterRow({
       <td className="px-3 py-3 text-right font-mono">{formatQuantity(order.quantity)}</td>
       <td className="px-3 py-3 text-right font-mono">{native(order.limit_price)}</td>
       <td className="px-3 py-3">
-        <OrderStatusBadge status={order.status} />
+        <SettleSweep orderId={order.id} status={order.status}>
+          <OrderStatusBadge status={order.status} />
+        </SettleSweep>
       </td>
       <td className="hidden px-3 py-3 text-text-tertiary md:table-cell">
         {fmtWhen(order.created_at)}
@@ -123,7 +126,9 @@ export function OrderCard({
             <OrderTypeBadge type={order.order_type} />
           </span>
         </div>
-        <OrderStatusBadge status={order.status} />
+        <SettleSweep orderId={order.id} status={order.status}>
+          <OrderStatusBadge status={order.status} />
+        </SettleSweep>
       </div>
       <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
         {facts.map(([label, value]) => (

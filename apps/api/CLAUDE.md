@@ -517,20 +517,70 @@ migration both applied it and one failed. The lock is a session lock because a
 migration may commit part-way. `tests/test_migration_round_trip.py` starts two
 real upgrades at once.
 
-**Instrument identity, expand step (Phase 4.3).** `instruments` (venue MIC,
-currency, `quote_unit`, asset type) and `instrument_identifiers` (`yahoo` =
-the ticker, `aegis` = `stockviz:<ticker>`) sit beside `symbols`
+**Pence and FX age (Phase 4.5a, audits MD-2, MD-7).** yfinance quotes London
+shares and dividends in pence (`GBp`) while the symbol is GBP. `upsert_bars`
+divides provider bars (`yfinance`, `alpha_vantage`) by the instrument's
+`quote_unit` scale (`MINOR_UNIT_SCALE`, GBX = 100), and dividend ingest does
+the same; stored and seed rows are never scaled. The nightly full-history
+upsert rewrites existing London rows on its first run. FX: the ingest drops a
+NaN, zero or negative rate, `fx_rates` refuses one by check constraint, and a
+fill converts only at a rate no older than the session before its own
+(`rate_for_fill`, `fill_rate_floor`): the latest completed session for a
+market order, the settled session for pending-order settlement. A stale rate
+raises `NoFxRateError`, which cancels a pending order with the reason.
+
+**Cash per currency (Phase 4.5b, design note option B).** `portfolios.cash_balance`
+is the base-currency cash (`base_currency`, USD only for now); other
+currencies live in `cash_balances`, written only by `services/trading/cash.py`
+under the portfolio lock. In `apply_fill` a non-base sell credits its own
+currency; a non-base buy spends that currency first and converts only the
+shortfall from the base, writing an `fx_conversions` row (rate, rate date,
+amounts, trade). The buying-power check is against that base shortfall.
+Valuation adds foreign cash at the latest rate into `cash_balance` and
+`total_value` (so snapshots and the leaderboard include it) and returns
+`cash_by_currency`; `available_cash` stays the base's buying power. Dividends
+(4.5c, migration `d61f0a3b8c27`) are paid into their own currency through
+`cash.credit`; each `portfolio_dividends` row keeps `currency` and
+`base_value` (the credit at the ex-date rate), and `ytd_income` sums
+`base_value`. Option premiums stay in the base currency; replay is USD only.
+
+**Instrument identity (Phase 4.3 expand, 4.4 reads).** `instruments` (venue
+MIC, currency, `quote_unit`, asset type) and `instrument_identifiers` (`yahoo`
+= the ticker, `aegis` = `stockviz:<ticker>`) sit beside `symbols`
 (`models/instrument.py`). Every table with a `ticker` foreign key has a
-nullable `instrument_id`, kept filled by Postgres triggers
-(`stockviz_fill_instrument_id`, migration `686dcf74171b`), so application
-code does not set it; a new symbol gets its instrument from a trigger on
-`symbols`, and `metadata` filling an empty exchange fills its venue. Nothing
-reads `instrument_id` yet (4.4 switches reads; making it NOT NULL and
-dropping the ticker keys is 4.6 and needs the owner's approval). A new table
-with a `ticker` column must add `instrument_id_column()`, the trigger, and an
-entry in `services/instruments.TICKER_TABLES`. `stockviz.cli instrument-check`
-is a read-only report of rows the triggers missed. SQLite tests have no
-triggers, so `instrument_id` stays NULL there.
+nullable `instrument_id`, kept filled by triggers, so application code never
+sets it: in production from migration `686dcf74171b`, and on any schema built
+by `create_all` (SQLite tests, scratch Postgres) from `stockviz/db_identity.py`,
+whose SQLite rules `tests/test_instrument_identity_parity.py` holds equal to
+Postgres. A new symbol gets its instrument from a trigger on `symbols`;
+`metadata` filling an empty exchange fills its venue.
+
+Reads go by instrument: filter `X.instrument_id == instrument_of(ticker)` (or
+`.in_(instruments_of(tickers))`) from `services/instruments`, never
+`X.ticker == ticker`. `instrument_of` takes a string or a ticker column and
+correlates through LATERAL joins; `resolve_symbol()` turns a public symbol
+into an `Instrument`. 4.4a moved every `price_bars` read (index
+`ix_price_bars_instrument_interval_ts`); 4.4b moved the ledger, alerts,
+dividends, comments, earnings, news and recommendations reads. Still on
+`ticker`, on purpose: the ingest dedupe lookups for dividends, earnings and
+splits (they mirror unique keys that stay on `ticker` until 4.6),
+`redate-bars` (scoped by source), `replay_positions` (no foreign key, so no
+`instrument_id`), joins to `symbols` (keyed by ticker until 4.6), and plain
+Python comparisons.
+
+4.6a (migration `b4e2c7d9a610`) made `instrument_id` NOT NULL wherever the
+ticker is (all but `news_articles`); the upgrade stops if any row is still
+NULL. SQLite DDL leaves it nullable (`db_identity` compile hook), because
+SQLite's triggers fill it after the insert. The ticker keys stay for now:
+`price_bars`' primary key, the unique keys and the `symbols.ticker` foreign
+keys. Moving them needs writers to set `instrument_id` themselves first (the
+ORM needs a primary key it knows at insert time). A new table with a
+`ticker` column must add `instrument_id_column(required=True)`, the trigger
+in a migration, and an entry in `services/instruments.TICKER_TABLES`.
+`stockviz.cli instrument-check` is a read-only report of rows the triggers
+missed; `instrument-verify` compares per-portfolio and per-symbol totals
+read through each key, and exits 1 on any difference. Seed a `Symbol` before reading
+a ticker's bars in a test: no symbol, no instrument.
 
 ## Ingestion contract
 

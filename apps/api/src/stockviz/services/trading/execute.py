@@ -18,14 +18,15 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, date, datetime
 from decimal import Decimal
 
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
-from sqlmodel import Session, select
+from sqlmodel import Session, col, select
 
-from stockviz.models import Portfolio, Position, PriceBar, Symbol, Trade, TradeSide
+from stockviz.models import FxConversion, Portfolio, Position, PriceBar, Symbol, Trade, TradeSide
+from stockviz.services.instruments import instrument_of
 from stockviz.services.simulation import (
     LIVE_PAPER_EXECUTION_PROFILE,
     FillDecision,
@@ -41,11 +42,13 @@ from stockviz.services.trading.buying_power import (
     lock_user,
     reserved_shares,
 )
+from stockviz.services.trading.cash import credit as credit_cash
+from stockviz.services.trading.cash import pay_for_buy, plan_buy
 from stockviz.services.trading.execution_provenance import (
     FillProvenance,
     record_execution_provenance,
 )
-from stockviz.services.trading.fx import latest_rate
+from stockviz.services.trading.fx import StaleFxRate, rate_for_fill
 from stockviz.services.trading.simulation_adapter import (
     evaluation_clock,
     market_snapshot_from_bar,
@@ -101,7 +104,7 @@ def newest_close_for_currency(session: Session, currency: str) -> datetime | Non
     """
     return session.exec(
         select(func.max(PriceBar.ts))
-        .join(Symbol, Symbol.ticker == PriceBar.ticker)  # type: ignore[arg-type]
+        .join(Symbol, col(PriceBar.instrument_id) == instrument_of(Symbol.ticker))
         .where(
             PriceBar.interval == "1d",
             Symbol.currency == currency,
@@ -135,7 +138,7 @@ def latest_bar(session: Session, ticker: str) -> PriceBar | None:
     """Most recent ``1d`` bar for ``ticker``, or None when there is no history."""
     return session.exec(
         select(PriceBar)
-        .where(PriceBar.ticker == ticker, PriceBar.interval == "1d")
+        .where(PriceBar.instrument_id == instrument_of(ticker), PriceBar.interval == "1d")
         .order_by(PriceBar.ts.desc())  # type: ignore[attr-defined]
         .limit(1)
     ).first()
@@ -232,7 +235,9 @@ def get_position(session: Session, *, portfolio_id: int, ticker: str) -> Positio
 
     return session.exec(
         select(Position)
-        .where(Position.portfolio_id == portfolio_id, Position.ticker == ticker)
+        .where(
+            Position.portfolio_id == portfolio_id, Position.instrument_id == instrument_of(ticker)
+        )
         .limit(1)
     ).first()
 
@@ -248,8 +253,14 @@ class PricedSymbol:
     bar: PriceBar
 
 
-def resolve_priced_symbol(session: Session, ticker: str) -> PricedSymbol:
+def resolve_priced_symbol(
+    session: Session, ticker: str, *, settled_session: date | None = None
+) -> PricedSymbol:
     """Look up the symbol, its latest close, and the FX rate to convert to USD.
+
+    The rate is the newest stored one, refused when older than the session
+    before the fill's own (MD-7): the latest completed session for a market
+    order, ``settled_session`` for pending-order settlement.
 
     Raises the matching ``TradeExecutionError`` subclass when any leg is
     missing, so callers get one consistent failure vocabulary.
@@ -264,8 +275,19 @@ def resolve_priced_symbol(session: Session, ticker: str) -> PricedSymbol:
         raise NoMarketDataError(f"No market data for {ticker!r}; cannot fill order")
 
     currency = symbol.currency or "USD"
+    from stockviz._time import utcnow
+    from stockviz.services.markets.calendar import venue_for_ticker
+
     try:
-        fx_rate = latest_rate(session, currency)
+        fx_rate = rate_for_fill(
+            session,
+            currency,
+            now=utcnow().replace(tzinfo=UTC),
+            venue=venue_for_ticker(ticker),
+            settled_session=settled_session,
+        )
+    except StaleFxRate as exc:
+        raise NoFxRateError(f"{exc}; cannot price {ticker!r} trade in USD") from exc
     except LookupError as exc:
         raise NoFxRateError(
             f"No FX rate for {currency!r}; cannot price {ticker!r} trade in USD"
@@ -334,6 +356,7 @@ def apply_fill(
 
     native_cost = (price * quantity).quantize(MICROS)
     usd_cost = (native_cost * fx_rate).quantize(MICROS)
+    conversion: FxConversion | None = None
     position = get_position(session, portfolio_id=portfolio_id, ticker=ticker)
     realized_pnl: Decimal | None = None
     avg_cost_at_fill: Decimal | None = None
@@ -343,11 +366,15 @@ def apply_fill(
             spendable = available_cash(session, portfolio, exclude_order_id=exclude_order_id)
         except LookupError as exc:
             raise NoFxRateError(str(exc)) from exc
-        if spendable < usd_cost:
+        # Phase 4.5b: a non-base buy spends that currency's cash first and
+        # converts only the shortfall from the base balance.
+        funding = plan_buy(session, portfolio, currency, native_cost, fx_rate)
+        if spendable < funding.base_debit:
             raise InsufficientCash(
-                f"Available buying power ${spendable:.2f}; order requires ${usd_cost:.2f}."
+                f"Available buying power ${spendable:.2f}; order requires "
+                f"${funding.base_debit:.2f}."
             )
-        portfolio.cash_balance = (portfolio.cash_balance - usd_cost).quantize(MICROS)
+        conversion = pay_for_buy(session, portfolio, currency, funding, fx_rate)
 
         if position is None:
             position = Position(
@@ -380,7 +407,8 @@ def apply_fill(
             raise InsufficientPosition(f"Held {held} {ticker}, cannot sell {quantity}")
         assert position is not None
         avg_cost_at_fill = position.avg_cost
-        portfolio.cash_balance = (portfolio.cash_balance + usd_cost).quantize(MICROS)
+        # The proceeds stay in the symbol's currency (Phase 4.5b).
+        credit_cash(session, portfolio, currency, native_cost)
         # Realized P&L against the weighted-average cost basis, in USD.
         realized_pnl = ((price - position.avg_cost) * quantity * fx_rate).quantize(MICROS)
         position.quantity = position.quantity - quantity
@@ -406,6 +434,9 @@ def apply_fill(
     # Assign trade.id without committing so the outbox row can reference it
     # in this same transaction. Kafka is not involved here.
     session.flush()
+    if conversion is not None:
+        conversion.trade_id = trade.id
+        session.add(conversion)
     from stockviz.events.outbox import enqueue_trade_executed
 
     enqueue_trade_executed(

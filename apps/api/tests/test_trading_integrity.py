@@ -18,6 +18,7 @@ from decimal import Decimal
 
 from sqlmodel import Session, select
 
+from stockviz._time import utcnow
 from stockviz.models import (
     Dividend,
     FxRate,
@@ -33,6 +34,7 @@ from stockviz.models import (
     TradeSide,
     User,
 )
+from stockviz.models.dividend import PortfolioDividend
 from stockviz.models.order import OrderStatus, OrderType
 from stockviz.services.trading import (
     compute_portfolio,
@@ -41,6 +43,7 @@ from stockviz.services.trading import (
     execute_trade,
     settle_pending_orders,
 )
+from stockviz.services.trading.cash import balance
 
 BAR_DATE = datetime(2025, 4, 10)
 BAR_DAY = BAR_DATE.date()
@@ -131,6 +134,9 @@ def test_pending_order_fill_matches_market_order_cash_effect(session: Session) -
     limit_user = _user(session, "limit@stockviz.dev")
     _symbol(session, "SAP.DE", currency="EUR", close=Decimal("80"))
     _fx(session, "EUR", "1.10")
+    # A market order converts at a rate no older than the session before the
+    # latest (MD-7); settlement judges against its own session.
+    _fx(session, "EUR", "1.10", on=utcnow().date())
 
     execute_trade(
         session, user_id=market_user, ticker="SAP.DE", side=TradeSide.BUY, quantity=Decimal(5)
@@ -218,7 +224,7 @@ def test_unfillable_order_records_a_cancel_reason(session: Session) -> None:
 # --------------------------------------------------------------------------
 
 
-def test_dividend_credit_converts_to_usd(session: Session) -> None:
+def test_dividend_credit_is_paid_in_its_own_currency(session: Session) -> None:
     user_id = _user(session)
     _symbol(session, "BARC.L", currency="GBP", close=Decimal("100"))
     _fx(session, "GBP", "1.25")
@@ -240,8 +246,11 @@ def test_dividend_credit_converts_to_usd(session: Session) -> None:
 
     assert credit_due_dividends(session, credit_date=BAR_DAY) == 1
     session.refresh(portfolio)
-    # 100 shares x GBP 2 = GBP 200 -> USD 250.
-    assert portfolio.cash_balance - opening_cash == Decimal("250.000000")
+    # 100 shares x GBP 2 = GBP 200, kept in GBP (Phase 4.5c), worth USD 250.
+    assert portfolio.cash_balance == opening_cash
+    assert balance(session, portfolio, "GBP") == Decimal("200")
+    credit = session.exec(select(PortfolioDividend)).one()
+    assert (credit.currency, credit.base_value) == ("GBP", Decimal("250"))
 
 
 def test_dividend_credit_skips_symbol_without_fx_rate(session: Session) -> None:

@@ -12,7 +12,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy import func
-from sqlmodel import Session, select
+from sqlmodel import Session, col, select
 
 from stockviz.db import get_session
 from stockviz.limiter import limiter
@@ -42,19 +42,25 @@ def list_recommendations(
     # Per-ticker latest computed_at, joined back so we get the score + rationale
     # for that exact row.
     latest = (
-        select(Recommendation.ticker, func.max(Recommendation.computed_at).label("computed_at"))
-        .group_by(Recommendation.ticker)
+        select(
+            col(Recommendation.instrument_id),
+            func.max(Recommendation.computed_at).label("computed_at"),
+        )
+        .group_by(col(Recommendation.instrument_id))
         .subquery()
     )
     stmt = (
         select(Recommendation, Symbol, SymbolMetrics)
         .join(
             latest,
-            (Recommendation.ticker == latest.c.ticker)  # type: ignore[arg-type]
+            (col(Recommendation.instrument_id) == latest.c.instrument_id)
             & (Recommendation.computed_at == latest.c.computed_at),  # type: ignore[arg-type]
         )
         .join(Symbol, Symbol.ticker == Recommendation.ticker)  # type: ignore[arg-type]
-        .outerjoin(SymbolMetrics, SymbolMetrics.ticker == Recommendation.ticker)  # type: ignore[arg-type]
+        .outerjoin(
+            SymbolMetrics,
+            col(SymbolMetrics.instrument_id) == col(Recommendation.instrument_id),
+        )
         .where(Recommendation.score >= min_score)
         .order_by(Recommendation.score.desc(), Recommendation.ticker)  # type: ignore[attr-defined]
         .limit(limit)
