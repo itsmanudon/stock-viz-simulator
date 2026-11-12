@@ -67,6 +67,12 @@ def _calendar(venue: str) -> Any | None:
         return None
 
 
+def venue_zone(venue: str) -> ZoneInfo:
+    """The time zone ``venue`` trades in (New York when it has no calendar)."""
+    calendar = _calendar(venue)
+    return ZoneInfo(str(calendar.tz)) if calendar is not None else _FALLBACK_TZ
+
+
 def _warn_once(key: str, message: str, *args: object) -> None:
     if key not in _warned:
         _warned.add(key)

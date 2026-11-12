@@ -228,6 +228,64 @@ def _cmd_prune_events(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_redate_bars(args: argparse.Namespace) -> int:
+    """Replace the yfinance daily bars stored a day early (batch 4.1b).
+
+    Dry run unless ``--apply``: lists each affected ticker and the rows it
+    would replace. With ``--apply`` each ticker is fetched again from
+    yfinance and swapped in its own transaction; see
+    ``services/ingest/redate.py``. Exit 1 if any ticker raised.
+    """
+    from stockviz.services.ingest.redate import (
+        count_stored,
+        misdated_tickers,
+        redate_ticker,
+        was_misdated,
+    )
+
+    with Session(engine) as session:
+        tickers = (
+            [t.upper() for t in args.tickers if was_misdated(t.upper())]
+            if args.tickers
+            else misdated_tickers(session)
+        )
+        if not args.apply:
+            total_bars = total_quarantine = 0
+            for ticker in tickers:
+                bars, quarantine = count_stored(session, ticker)
+                total_bars += bars
+                total_quarantine += quarantine
+                print(f"  {ticker}: {bars} bars, {quarantine} quarantine rows")
+            print(
+                f"dry run: {len(tickers)} ticker(s), {total_bars} bars and "
+                f"{total_quarantine} quarantine rows would be replaced; pass --apply"
+            )
+            return 0
+
+    failed: list[str] = []
+    replaced = written = 0
+    for ticker in tickers:
+        try:
+            with Session(engine) as session:
+                result = redate_ticker(session, ticker)
+        except Exception as exc:
+            logger.exception("redate-bars: %s failed", ticker)
+            print(f"  {ticker}: FAILED ({exc.__class__.__name__}: {exc})", file=sys.stderr)
+            failed.append(ticker)
+            continue
+        if result.skipped:
+            print(f"  {ticker}: skipped, yfinance returned nothing; stored rows kept")
+            continue
+        replaced += result.deleted_bars
+        written += result.written
+        print(
+            f"  {ticker}: deleted {result.deleted_bars} bars and "
+            f"{result.deleted_quarantine} quarantine rows, wrote {result.written}"
+        )
+    print(f"redated {len(tickers) - len(failed)} ticker(s): {replaced} bars out, {written} in")
+    return 1 if failed else 0
+
+
 def _refresh_aegis_sentiment() -> None:
     """Roll held Aegis sentiment into sentiment_7d, which the signals vote and
     the screener filter read (audit AG-14). Runs after a failed sync too, so
@@ -1162,6 +1220,18 @@ def main(argv: list[str] | None = None) -> int:
         help="Also delete old unpublished outbox rows. Only where no publisher runs, like the Railway cron",
     )
     p_prune.set_defaults(fn=_cmd_prune_events)
+
+    p_redate = sub.add_parser(
+        "redate-bars",
+        help="Replace yfinance daily bars stored a day early on non-US venues (dry run by default)",
+    )
+    p_redate.add_argument(
+        "tickers", nargs="*", help="Limit to these tickers (default: all affected)"
+    )
+    p_redate.add_argument(
+        "--apply", action="store_true", help="Fetch again and replace the rows (default: dry run)"
+    )
+    p_redate.set_defaults(fn=_cmd_redate_bars)
 
     p_aegis = sub.add_parser(
         "aegis-sync",

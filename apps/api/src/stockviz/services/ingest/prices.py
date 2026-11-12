@@ -26,7 +26,6 @@ from stockviz.services.ingest.bar_semantics import (
     AdjustmentSemantics,
     SessionScope,
     completed_daily_bars,
-    new_york_session_date,
     session_label,
 )
 from stockviz.services.ingest.screening import (
@@ -126,10 +125,11 @@ def fetch_yfinance_daily(
         if not isinstance(ts, datetime):
             logger.warning("yfinance: skipping row with non-datetime index for %s: %r", ticker, ts)
             continue
-        if ts.tzinfo is not None and ts.utcoffset() is not None:
-            ts = session_label(new_york_session_date(ts))
-        else:
-            ts = session_label(ts.date())
+        # yfinance labels a daily bar with midnight in the venue's own time
+        # zone, so the session date is the date in that zone. Converting it to
+        # New York first dated every London, Tokyo, Mumbai or UTC bar a day
+        # early (found in the 11 Nov 2026 cron run).
+        ts = session_label(ts.date())
         try:
             open_ = Decimal(str(row["Open"]))
             high = Decimal(str(row["High"]))
