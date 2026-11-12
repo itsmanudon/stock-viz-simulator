@@ -36,7 +36,7 @@ class ReplaySession(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     user_id: int = Field(foreign_key="users.id", index=True)
     ticker: str = Field(foreign_key="symbols.ticker", max_length=16, index=True)
-    instrument_id: int | None = Field(default=None, sa_column=instrument_id_column())
+    instrument_id: int | None = Field(default=None, sa_column=instrument_id_column(required=True))
 
     profile_name: str = Field(max_length=64)
     model_version: str = Field(max_length=32)

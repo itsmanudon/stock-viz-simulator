@@ -19,6 +19,8 @@ from __future__ import annotations
 
 from sqlalchemy import event
 from sqlalchemy.engine import Connection
+from sqlalchemy.ext.compiler import compiles
+from sqlalchemy.schema import CreateColumn
 from sqlmodel import SQLModel
 
 from stockviz.services.instruments import TICKER_TABLES
@@ -301,3 +303,18 @@ def install(connection: Connection) -> None:
 @event.listens_for(SQLModel.metadata, "after_create")
 def _after_create(_target, connection: Connection, **_kw) -> None:
     install(connection)
+
+
+@compiles(CreateColumn, "sqlite")
+def _sqlite_instrument_id_nullable(element: CreateColumn, compiler, **kw) -> str:
+    """Leave a required ``instrument_id`` nullable in SQLite DDL (Phase 4.6a).
+
+    SQLite triggers cannot change ``NEW``, so the AFTER triggers above fill
+    ``instrument_id`` once the row exists, and a NOT NULL column would refuse
+    the insert first. Postgres fills it in a BEFORE trigger and keeps the
+    constraint; ``tests/test_instrument_contract.py`` checks it there.
+    """
+    text = compiler.visit_create_column(element, **kw)
+    if element.element.info.get("instrument_id_required"):
+        text = text.replace(" NOT NULL", "")
+    return text

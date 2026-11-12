@@ -563,12 +563,20 @@ dividends, comments, earnings, news and recommendations reads. Still on
 splits (they mirror unique keys that stay on `ticker` until 4.6),
 `redate-bars` (scoped by source), `replay_positions` (no foreign key, so no
 `instrument_id`), joins to `symbols` (keyed by ticker until 4.6), and plain
-Python comparisons. Making
-`instrument_id` NOT NULL and dropping the ticker keys is 4.6 and needs the
-owner's approval. A new table with a `ticker` column must add
-`instrument_id_column()`, the trigger in a migration, and an entry in
-`services/instruments.TICKER_TABLES`. `stockviz.cli instrument-check` is a
-read-only report of rows the triggers missed. Seed a `Symbol` before reading
+Python comparisons.
+
+4.6a (migration `b4e2c7d9a610`) made `instrument_id` NOT NULL wherever the
+ticker is (all but `news_articles`); the upgrade stops if any row is still
+NULL. SQLite DDL leaves it nullable (`db_identity` compile hook), because
+SQLite's triggers fill it after the insert. The ticker keys stay for now:
+`price_bars`' primary key, the unique keys and the `symbols.ticker` foreign
+keys. Moving them needs writers to set `instrument_id` themselves first (the
+ORM needs a primary key it knows at insert time). A new table with a
+`ticker` column must add `instrument_id_column(required=True)`, the trigger
+in a migration, and an entry in `services/instruments.TICKER_TABLES`.
+`stockviz.cli instrument-check` is a read-only report of rows the triggers
+missed; `instrument-verify` compares per-portfolio and per-symbol totals
+read through each key, and exits 1 on any difference. Seed a `Symbol` before reading
 a ticker's bars in a test: no symbol, no instrument.
 
 ## Ingestion contract

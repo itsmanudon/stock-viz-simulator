@@ -14,10 +14,13 @@ sets out (workspace ``docs/phase-4-design-note.md`` section 2) beside it:
 Every table with a ``ticker`` column gains a nullable ``instrument_id``.
 Postgres triggers fill it on every write (``stockviz_fill_instrument_id``),
 including the bulk ``price_bars`` upsert that bypasses the ORM, and create
-the instrument when a symbol is added. Nothing reads ``instrument_id`` yet:
-batch 4.4 switches reads, and only 4.6 (separately approved) makes it NOT
-NULL and drops the ticker keys. ``stockviz.cli instrument-check`` reports
-any row the triggers missed.
+the instrument when a symbol is added. Batch 4.4 switched reads to
+``instrument_id``; 4.6a made it NOT NULL wherever the ticker is. The ticker
+keys (``price_bars``' primary key, the ``symbols.ticker`` foreign keys) stay
+until writes set ``instrument_id`` themselves: the ORM needs a primary key
+it knows at insert time, and a trigger-filled one it does not.
+``stockviz.cli instrument-check`` reports any row the triggers missed, and
+``instrument-verify`` compares totals read through either key.
 """
 
 from __future__ import annotations
@@ -73,6 +76,17 @@ class InstrumentIdentifier(SQLModel, table=True):
     valid_to: date_type | None = None
 
 
-def instrument_id_column() -> Column:
-    """The nullable ``instrument_id`` added beside each ``ticker`` column."""
-    return Column(ID_TYPE, ForeignKey("instruments.id"), nullable=True, index=True)
+def instrument_id_column(*, required: bool = False) -> Column:
+    """The ``instrument_id`` beside each ``ticker`` column.
+
+    ``required`` (Phase 4.6a) makes it NOT NULL wherever the ticker is NOT
+    NULL; only ``news_articles`` (ticker optional) stays nullable. The value
+    is still written by the identity trigger, not by the application: the
+    Python attribute stays ``None`` until a row is read back. On SQLite the
+    trigger runs after the insert, so ``db_identity`` leaves the column
+    nullable there (tests only).
+    """
+    column = Column(ID_TYPE, ForeignKey("instruments.id"), nullable=not required, index=True)
+    if required:
+        column.info["instrument_id_required"] = True
+    return column

@@ -23,7 +23,7 @@ class Recommendation(SQLModel, table=True):
 
     id: int | None = Field(default=None, primary_key=True)
     ticker: str = Field(foreign_key="symbols.ticker", index=True, max_length=16)
-    instrument_id: int | None = Field(default=None, sa_column=instrument_id_column())
+    instrument_id: int | None = Field(default=None, sa_column=instrument_id_column(required=True))
     score: Decimal = Field(sa_column=Column(Numeric(8, 4), nullable=False))
     rationale: str | None = None
     votes: list[dict[str, Any]] | None = Field(

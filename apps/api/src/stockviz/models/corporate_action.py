@@ -43,7 +43,7 @@ class CorporateAction(SQLModel, table=True):
 
     id: int | None = Field(default=None, primary_key=True)
     ticker: str = Field(foreign_key="symbols.ticker", index=True, max_length=16)
-    instrument_id: int | None = Field(default=None, sa_column=instrument_id_column())
+    instrument_id: int | None = Field(default=None, sa_column=instrument_id_column(required=True))
     kind: str = Field(max_length=16)
     ex_date: date_type = Field(nullable=False, index=True)
     ratio_from: Decimal = Field(sa_column=Column(Numeric(18, 6), nullable=False))
