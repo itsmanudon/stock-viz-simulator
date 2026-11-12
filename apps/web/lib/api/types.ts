@@ -152,6 +152,8 @@ export type BacktestRequest = {
   /** Charged on both legs of every round trip. Zero models a frictionless run. */
   commission_bps?: number;
   slippage_bps?: number;
+  /** "price" (default) ignores dividends; "total" credits them on ex-dates (SR-7). */
+  return_mode?: "price" | "total";
 };
 
 export type BacktestTrade = {
@@ -181,6 +183,13 @@ export type BacktestSummary = {
 
 export type BacktestResult = {
   ticker: string;
+  /** Phase 5.2: amounts are in the symbol's currency (audit SR-11). */
+  currency?: string;
+  /** Stored bars' basis, e.g. "split_adjusted", or "mixed" (audit SR-7). */
+  price_basis?: string | null;
+  return_mode?: "price" | "total";
+  /** Bars before the start the strategy saw but did not trade (audit SR-3). */
+  warmup_bars?: number;
   trades: BacktestTrade[];
   equity_curve: BacktestEquityPoint[];
   summary: BacktestSummary;

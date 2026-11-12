@@ -65,7 +65,16 @@ src/stockviz/
                     SIM-07 forensics.py reconstructs episodes/MAE/MFE;
                     journal.py persists the first-fill-locked thesis.
     options/        Black-Scholes-style pricing + option trade execution/settlement
-    backtest/       engine.py — historical strategy simulation
+    backtest/       engine.py — historical strategy simulation. Since Phase
+                    5.2 (SIM-08) fills come from the kernel (`legacy_close`,
+                    next bar's close) and book in the shared SimLedger; costs
+                    are a fee per fill. The router loads warm-up bars before
+                    `from` (SMA: long window + 1; RSI: 250) that signals see
+                    but nothing trades on, and the equity curve and benchmark
+                    start at `from` (SR-3). Responses carry `currency`
+                    (SR-11), `price_basis` (or `mixed`) and `return_mode`;
+                    `return_mode: "total"` credits dividends to shares held
+                    into each ex-date, strategy and benchmark alike (SR-7)
     alerts.py       price-alert evaluation
     metrics.py      precomputed per-symbol RSI / 52w range (screener reads these)
     markets/        calendar.py — exchange calendars and completed sessions (Phase 4.1)

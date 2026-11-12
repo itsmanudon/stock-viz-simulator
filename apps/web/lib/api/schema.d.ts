@@ -1128,11 +1128,35 @@ export interface components {
              * @default 0
              */
             slippage_bps: number;
+            /**
+             * Return Mode
+             * @default price
+             * @enum {string}
+             */
+            return_mode: "price" | "total";
         };
         /** BacktestOut */
         BacktestOut: {
             /** Ticker */
             ticker: string;
+            /**
+             * Currency
+             * @default USD
+             */
+            currency: string;
+            /** Price Basis */
+            price_basis?: string | null;
+            /**
+             * Return Mode
+             * @default price
+             * @enum {string}
+             */
+            return_mode: "price" | "total";
+            /**
+             * Warmup Bars
+             * @default 0
+             */
+            warmup_bars: number;
             /** Trades */
             trades: components["schemas"]["BacktestTradeOut"][];
             /** Equity Curve */
