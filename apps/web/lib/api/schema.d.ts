@@ -1470,6 +1470,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Status */
+        get: operations["status_v1_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -2339,6 +2356,22 @@ export interface components {
             /** Window Start */
             window_start?: string | null;
         };
+        /** JobStatusOut */
+        JobStatusOut: {
+            /** Job */
+            job: string;
+            /** Status */
+            status: string;
+            /**
+             * Started At
+             * Format: date-time
+             */
+            started_at: string;
+            /** Finished At */
+            finished_at: string | null;
+            /** Last Success At */
+            last_success_at: string | null;
+        };
         /** JournalDayOut */
         JournalDayOut: {
             /** Date */
@@ -2608,6 +2641,13 @@ export interface components {
             signal: number;
             /** Histogram */
             histogram: number;
+        };
+        /** MarketStatusOut */
+        MarketStatusOut: {
+            /** Country */
+            country: string;
+            /** Newest Bar */
+            newest_bar: string | null;
         };
         /**
          * MarketSummaryRowOut
@@ -3954,6 +3994,19 @@ export interface components {
             short_window: number;
             /** Long Window */
             long_window: number;
+        };
+        /** StatusOut */
+        StatusOut: {
+            /** Jobs */
+            jobs: components["schemas"]["JobStatusOut"][];
+            /** Aegis Sync Status */
+            aegis_sync_status: string | null;
+            /** Aegis Sync Finished At */
+            aegis_sync_finished_at: string | null;
+            /** Markets */
+            markets: components["schemas"]["MarketStatusOut"][];
+            /** Dead Outbox Events */
+            dead_outbox_events: number;
         };
         /** SweepIn */
         SweepIn: {
@@ -7202,6 +7255,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    status_v1_status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StatusOut"];
                 };
             };
         };
