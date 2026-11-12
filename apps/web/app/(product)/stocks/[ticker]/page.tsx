@@ -9,6 +9,7 @@ import {
   type TicketPosition,
   type TradeTicketAccount,
 } from "@/components/contextual-trade-ticket";
+import { FundamentalsPanel } from "@/components/fundamentals-panel";
 import { MobileTradeSheet } from "@/components/mobile-trade-sheet";
 import { NewsList } from "@/components/news-list";
 import { PositionSummary } from "@/components/position-summary";
@@ -28,6 +29,7 @@ import {
   getSymbol,
 } from "@/lib/api";
 import { listComments } from "@/lib/api/comments";
+import { getFundamentals, getValuation, getValuationHistory } from "@/lib/api/fundamentals";
 import {
   type PendingOrder,
   type Portfolio,
@@ -119,13 +121,29 @@ export default async function StockPage({
   const rangeBarsPromise = timeframeDays >= 252 ? barsPromise : getBars(ticker, { limit: 252 });
   const requestedIndicators = Array.from(new Set([...selectedIndicators, "rsi_14"]));
 
-  const [bars, rangeBars, indicatorBundle, news, session, comments] = await Promise.all([
+  const [
+    bars,
+    rangeBars,
+    indicatorBundle,
+    news,
+    session,
+    comments,
+    fundamentalsAnnual,
+    fundamentalsQuarterly,
+    valuationNow,
+    peHistory,
+  ] = await Promise.all([
     barsPromise,
     rangeBarsPromise,
     getIndicators(ticker, { names: requestedIndicators, limit: timeframeDays }),
     getNewsForTicker(ticker, 8).catch(() => []),
     auth(),
     listComments(ticker).catch(() => [] as Awaited<ReturnType<typeof listComments>>),
+    // Phase 6.4: a failing financials call hides the panel, never the page.
+    getFundamentals(ticker, "annual").catch(() => null),
+    getFundamentals(ticker, "quarter").catch(() => null),
+    getValuation(ticker).catch(() => null),
+    getValuationHistory(ticker, "pe").catch(() => null),
   ]);
 
   const signedIn = Boolean(session?.user?.id);
@@ -258,6 +276,14 @@ export default async function StockPage({
               symbol={symbol}
               latestTimestamp={metrics.latestTimestamp}
               positionStatus={positionStatus}
+            />
+          }
+          financials={
+            <FundamentalsPanel
+              annual={fundamentalsAnnual}
+              quarterly={fundamentalsQuarterly}
+              valuation={valuationNow}
+              peHistory={peHistory}
             />
           }
           news={<NewsList articles={news} variant="workspace" />}
