@@ -12,7 +12,9 @@ import Link from "next/link";
 import type { CSSProperties, ReactNode } from "react";
 
 import { loadPhoneScreens } from "@/components/marketing/hero-phone-screens";
+import { DecodeText } from "@/components/marketing/proofs/decode-text";
 import { type BoardRow, DepartureBoard } from "@/components/marketing/proofs/departure-board";
+import { ExplodedCandle } from "@/components/marketing/proofs/exploded-candle";
 import { ScrollStory } from "@/components/marketing/scroll-story";
 import { Sparkline } from "@/components/sparkline";
 import { Button } from "@/components/ui/button";
@@ -119,8 +121,10 @@ export async function MovingToday() {
                     : "bg-negative-soft text-negative-soft-foreground",
                 )}
               >
-                {up ? "▲ +" : "▼ "}
-                {(row.change_pct ?? 0).toFixed(2)}%
+                <DecodeText
+                  text={`${up ? "▲ +" : "▼ "}${(row.change_pct ?? 0).toFixed(2)}%`}
+                  delay={index * 0.12}
+                />
               </span>
               <span className="text-xl font-medium tracking-tight">{row.ticker}</span>
               <span className="-mt-2 line-clamp-1 text-xs text-text-tertiary">{row.name}</span>
@@ -133,7 +137,10 @@ export async function MovingToday() {
               <span className="flex w-full justify-between text-xs text-text-tertiary">
                 {dates[index] ? `Close · ${dates[index]}` : "Close"}
                 <span className="font-mono text-foreground" data-financial>
-                  {formatCurrency(row.last_close, row.currency)}
+                  <DecodeText
+                    text={formatCurrency(row.last_close, row.currency)}
+                    delay={0.3 + index * 0.12}
+                  />
                 </span>
               </span>
               <Link
@@ -445,6 +452,38 @@ const FAQ = [
   },
 ];
 
+/**
+ * How to read a candle, beside the FAQ: one stored daily bar taken apart
+ * (motion batch 3). The caption states the same four prices in text.
+ */
+async function FaqCandle() {
+  for (const ticker of ["NVDA", "AAPL", "MSFT"]) {
+    const bars = await safe(() => getBars(ticker, { limit: 1 }));
+    const bar = bars?.[0];
+    if (!bar) continue;
+    const values = {
+      open: Number(bar.open),
+      high: Number(bar.high),
+      low: Number(bar.low),
+      close: Number(bar.close),
+    };
+    if (!(values.high > values.low)) continue;
+    const f = (v: number) => v.toFixed(2);
+    return (
+      <figure className="mt-4 grid gap-2">
+        <div className="relative aspect-[16/9] w-full max-w-md overflow-hidden rounded-2xl border border-border-muted bg-card">
+          <ExplodedCandle bar={values} />
+        </div>
+        <figcaption className="font-mono text-2xs leading-5 text-text-tertiary">
+          How to read a candle: {ticker}, {formatCloseDate(bar.ts)}. Open {f(values.open)}, high{" "}
+          {f(values.high)}, low {f(values.low)}, close {f(values.close)}.
+        </figcaption>
+      </figure>
+    );
+  }
+  return null;
+}
+
 export function LandingFaq() {
   return (
     <Wrap>
@@ -457,6 +496,7 @@ export function LandingFaq() {
             <Sparkles className="size-4 text-brand" aria-hidden />
             What people ask before they open an account.
           </p>
+          <FaqCandle />
         </div>
         <div className="grid gap-2">
           {FAQ.map((item, index) => (

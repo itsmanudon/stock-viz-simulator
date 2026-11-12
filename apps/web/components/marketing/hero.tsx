@@ -16,6 +16,7 @@ import {
   ArrowRight,
   CalendarCheck,
   Check,
+  CloudSun,
   Database,
   ShieldCheck,
   Sparkles,
@@ -27,6 +28,8 @@ import Link from "next/link";
 import { HeroPanel } from "@/components/marketing/hero-panel";
 import { loadPhoneScreens } from "@/components/marketing/hero-phone-screens";
 import { HeroStage } from "@/components/marketing/hero-stage";
+import { describeBreadth, loadBreadth } from "@/components/marketing/proofs/breadth";
+import { MarketWeather } from "@/components/marketing/proofs/market-weather";
 import { Button } from "@/components/ui/button";
 import { listSymbols } from "@/lib/api";
 
@@ -65,16 +68,31 @@ const STAGE_PILLS: { icon: LucideIcon; label: string; className: string }[] = [
 ];
 
 export async function Hero() {
-  const [count, screens] = await Promise.all([symbolCount(), loadPhoneScreens()]);
+  const [count, screens, breadth] = await Promise.all([
+    symbolCount(),
+    loadPhoneScreens(),
+    loadBreadth(),
+  ]);
 
   const chips: { icon: LucideIcon; label: string }[] = [
     { icon: Check, label: "No card required" },
     ...(count ? [{ icon: Database, label: `${count} symbols tracked` }] : []),
     { icon: ShieldCheck, label: "Simulated fills · EOD data" },
+    // The fact behind the weather in the background, so the colour is never
+    // the only place it appears.
+    ...(breadth ? [{ icon: CloudSun, label: describeBreadth(breadth) }] : []),
   ];
 
   const lead = (
     <div className="mx-auto flex w-full max-w-4xl flex-col items-center px-4 pt-14 text-center sm:px-6 sm:pt-20 lg:pt-24">
+      {breadth ? (
+        <MarketWeather
+          share={breadth.share}
+          // Full-bleed: the hero copy is transformed by its entrance motion,
+          // which makes it this canvas's positioning box.
+          className="top-0 left-1/2 h-[42rem] w-screen -translate-x-1/2"
+        />
+      ) : null}
       <Link
         href="/trade"
         className="glass inline-flex items-center gap-2 rounded-full py-1 pr-2.5 pl-3 font-mono text-2xs tracking-[0.12em] text-text-secondary uppercase transition-colors hover:text-foreground"
