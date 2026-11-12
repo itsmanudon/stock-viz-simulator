@@ -23,7 +23,7 @@ import { type RefObject, useEffect, useRef } from "react";
 export type Frame = (t: number, raw: number) => void;
 
 export function useFrameLoop(
-  target: RefObject<HTMLElement | null>,
+  target: RefObject<Element | null>,
   { duration, final, draw }: { duration: number; final: number; draw: Frame },
 ) {
   // The latest draw function, so a parent re-render never restarts the loop.

@@ -92,7 +92,16 @@ components/
                    only on screen, paints the final frame under reduced motion.
                    Canvases are aria-hidden; each row states its figures in
                    text. The landing shows all four; /product pages pick theirs
-                   with `only`. No GSAP inside them),
+                   with `only`. No GSAP inside them. Batch 2 adds
+                   `rebase-snap.tsx` (compare: two symbols spring onto one
+                   index; a US/India pair, else a same-currency fallback, and
+                   the copy says which), `sonar-sweep.tsx` (signals: distance
+                   from the centre is the vote share) and
+                   `liquid-allocation.tsx` (an example account's split at two
+                   real closes, SVG goo), on /product/research and
+                   /product/paper-trading; and `departure-board.tsx`, the
+                   split-flap board in the landing Rankings section, which
+                   keeps an sr-only list of the same rows),
                    `closing-cta.tsx` (the monochrome full-bleed close),
                    `reveal.tsx` (scroll reveal: IntersectionObserver + the
                    `[data-reveal]` transition in globals.css). GSAP (+
