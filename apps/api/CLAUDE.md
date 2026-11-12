@@ -74,7 +74,11 @@ src/stockviz/
                     `slippage_bps` are a kernel `CostModel` that moves the
                     fill price against the trader; `commission_bps` and
                     `fee_schedule` (`services/simulation/fees.py`: `none`,
-                    `us_equity_2026` = SEC $20.60/M and FINRA TAF on sales)
+                    `us_equity_2026` = SEC $20.60/M and FINRA TAF on sales;
+                    5.6: `in_delivery_nse_2026` / `in_delivery_bse_2026` =
+                    STT, exchange charge, SEBI, stamp, GST, DP per Zerodha's
+                    page read 12 Nov 2026; a schedule's currency must match
+                    the symbol's, else 400)
                     are fees per fill, listed per trade. Live trading passes
                     no cost model and stays on `legacy_close`. The router loads warm-up bars before
                     `from` (SMA: long window + 1; RSI: 250) that signals see

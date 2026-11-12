@@ -158,7 +158,8 @@ export type BacktestRequest = {
   fill_rule?: "next_open" | "next_close";
   /** Moves the fill price against the trader by half the spread. */
   spread_bps?: number;
-  fee_schedule?: "none" | "us_equity_2026";
+  /** Must match the symbol's currency (Phase 5.6); "none" fits any. */
+  fee_schedule?: "none" | "us_equity_2026" | "in_delivery_nse_2026" | "in_delivery_bse_2026";
 };
 
 export type BacktestTrade = {
