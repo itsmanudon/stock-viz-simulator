@@ -990,7 +990,11 @@ class BacktestIn(BaseModel):
     # Moves the fill price against the trader (half the spread, plus slippage).
     spread_bps: float = Field(default=0.0, ge=0, le=1000)
     # Regulatory fees per fill; commission_bps is charged on top.
-    fee_schedule: Literal["none", "us_equity_2026"] = "none"
+    # Phase 5.6 adds Indian delivery (NSE, BSE); a schedule must match the
+    # symbol's currency.
+    fee_schedule: Literal[
+        "none", "us_equity_2026", "in_delivery_nse_2026", "in_delivery_bse_2026"
+    ] = "none"
 
     model_config = ConfigDict(populate_by_name=True)
 

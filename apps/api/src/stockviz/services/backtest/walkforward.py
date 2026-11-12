@@ -43,6 +43,7 @@ from stockviz.services.backtest.engine import (
 from stockviz.services.backtest.run import (
     BadRange,
     UnknownSymbol,
+    check_fee_currency,
     fingerprint,
     load_bars,
     load_dividends,
@@ -105,6 +106,7 @@ def _load(session: Session, body: BacktestIn, grid: list[BacktestIn]) -> _Data:
         raise UnknownSymbol(f"Symbol {ticker!r} not found")
     if body.from_ > body.to:
         raise BadRange("'from' must be on or before 'to'")
+    check_fee_currency(body.fee_schedule, symbol.currency or "USD")
     warm = max(warmup_bars_for(*strategy_of(g)) for g in grid)
     rows, before = load_bars(
         session,

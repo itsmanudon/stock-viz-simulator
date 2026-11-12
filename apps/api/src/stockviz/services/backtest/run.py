@@ -27,8 +27,14 @@ from stockviz.schemas import (
     RsiThresholdStrategy,
     SmaCrossoverStrategy,
 )
-from stockviz.services.backtest.engine import FILL_RULES, run_backtest, warmup_bars_for
+from stockviz.services.backtest.engine import (
+    FILL_RULES,
+    BacktestError,
+    run_backtest,
+    warmup_bars_for,
+)
 from stockviz.services.instruments import instrument_of
+from stockviz.services.simulation import get_fee_schedule
 
 
 class UnknownSymbol(LookupError):
@@ -125,6 +131,16 @@ def price_basis_of(bars: list[PriceBar]) -> str | None:
     return None if not bases else bases.pop() if len(bases) == 1 else "mixed"
 
 
+def check_fee_currency(fee_schedule: str, currency: str) -> None:
+    """A fee schedule is for one currency's market (Phase 5.6)."""
+    schedule = get_fee_schedule(fee_schedule)
+    if schedule.currency is not None and schedule.currency != currency:
+        raise BacktestError(
+            f"Fee schedule {fee_schedule!r} is for {schedule.currency} stocks; "
+            f"this symbol trades in {currency}"
+        )
+
+
 def execute_backtest(session: Session, body: BacktestIn) -> BacktestRun:
     """Raises ``UnknownSymbol``, ``BadRange`` or ``BacktestError``."""
     ticker = body.ticker.upper()
@@ -133,6 +149,7 @@ def execute_backtest(session: Session, body: BacktestIn) -> BacktestRun:
         raise UnknownSymbol(f"Symbol {ticker!r} not found")
     if body.from_ > body.to:
         raise BadRange("'from' must be on or before 'to'")
+    check_fee_currency(body.fee_schedule, symbol.currency or "USD")
 
     # Inclusive date range; bars are stored at day granularity (interval 1d).
     start = datetime.combine(body.from_, time.min)

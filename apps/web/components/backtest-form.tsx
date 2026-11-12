@@ -36,6 +36,7 @@ import { formatCloseDate } from "@/lib/stock-workspace";
 import { cn } from "@/lib/utils";
 
 type StrategyType = "rsi_threshold" | "sma_crossover";
+type FeeScheduleName = NonNullable<BacktestRequest["fee_schedule"]>;
 
 const RISK_FREE_RATE = 0.05;
 
@@ -103,7 +104,7 @@ export function BacktestForm({
   const [returnMode, setReturnMode] = useState<"price" | "total">("price");
   const [fillRule, setFillRule] = useState<"next_open" | "next_close">("next_open");
   const [spreadBps, setSpreadBps] = useState("0");
-  const [feeSchedule, setFeeSchedule] = useState<"none" | "us_equity_2026">("none");
+  const [feeSchedule, setFeeSchedule] = useState<FeeScheduleName>("none");
   const [slippageBps, setSlippageBps] = useState("0");
 
   const [pending, setPending] = useState(false);
@@ -326,13 +327,17 @@ export function BacktestForm({
                 <select
                   id="bt-fees"
                   value={feeSchedule}
-                  onChange={(event) =>
-                    setFeeSchedule(event.target.value as "none" | "us_equity_2026")
-                  }
+                  onChange={(event) => setFeeSchedule(event.target.value as FeeScheduleName)}
                   className="flex h-10 w-full rounded-sm border border-input bg-transparent px-3 py-2 text-sm"
                 >
                   <option value="none">None</option>
                   <option value="us_equity_2026">US equity 2026 (SEC, FINRA on sales)</option>
+                  <option value="in_delivery_nse_2026">
+                    India delivery, NSE (STT, stamp, GST, DP)
+                  </option>
+                  <option value="in_delivery_bse_2026">
+                    India delivery, BSE (STT, stamp, GST, DP)
+                  </option>
                 </select>
               </div>
             </div>

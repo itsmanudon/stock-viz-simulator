@@ -17,7 +17,24 @@ stored run keeps the schedule it used.
 The same rates apply to every date in a run: a backtest over 2015 uses 2026
 rates. The result says which schedule it used.
 
-``none``: commission only.
+``in_delivery_nse_2026`` / ``in_delivery_bse_2026`` (Phase 5.6), Indian
+equity delivery as charged by Zerodha, read from zerodha.com/charges on
+12 Nov 2026 (the page gives no effective date):
+
+- brokerage: 0 for delivery (the run's ``commission_bps`` is charged as
+  brokerage if set);
+- STT 0.1% on buy and sell, rounded to the rupee per trade;
+- exchange transaction charge: NSE 0.00307%, BSE 0.00375%;
+- SEBI fee: Rs 10 per crore (0.0001%);
+- stamp duty: 0.015% on buys;
+- GST: 18% of (brokerage + SEBI fee + transaction charge);
+- DP charge: Rs 15.34 per scrip per sell (Rs 3.5 CDSL + Rs 9.5 Zerodha +
+  Rs 2.34 GST), whatever the quantity.
+
+Each schedule names its currency; a backtest refuses a schedule whose
+currency is not the symbol's.
+
+``none``: commission only, any currency.
 """
 
 from __future__ import annotations
@@ -45,6 +62,7 @@ class FeeBreakdown:
 class FeeSchedule:
     name: str
     version: str
+    currency: str | None = None  # None: any currency (commission only)
     sec_rate_per_million: Decimal = Decimal(0)
     taf_per_share: Decimal = Decimal(0)
     taf_max_per_trade: Decimal = Decimal(0)
@@ -79,12 +97,73 @@ NONE = FeeSchedule(name="none", version="v1")
 US_EQUITY_2026 = FeeSchedule(
     name="us_equity_2026",
     version="v1",
+    currency="USD",
     sec_rate_per_million=Decimal("20.60"),
     taf_per_share=Decimal("0.000195"),
     taf_max_per_trade=Decimal("9.79"),
 )
 
-FEE_SCHEDULES: dict[str, FeeSchedule] = {s.name: s for s in (NONE, US_EQUITY_2026)}
+RUPEE = Decimal(1)
+CRORE = Decimal(10_000_000)
+
+
+@dataclass(frozen=True)
+class IndiaDeliverySchedule(FeeSchedule):
+    """Indian equity delivery charges (Phase 5.6). See the module docstring."""
+
+    stt_rate: Decimal = Decimal("0.001")
+    exchange_rate: Decimal = Decimal(0)
+    sebi_per_crore: Decimal = Decimal(10)
+    stamp_buy_rate: Decimal = Decimal("0.00015")
+    gst_rate: Decimal = Decimal("0.18")
+    dp_per_sell: Decimal = Decimal("15.34")
+
+    def fees(
+        self,
+        side: OrderSide,
+        quantity: Decimal,
+        price: Decimal,
+        *,
+        commission_bps: Decimal = Decimal(0),
+    ) -> FeeBreakdown:
+        notional = price * quantity
+
+        def paise(value: Decimal) -> Decimal:
+            return value.quantize(CENTS, rounding=ROUND_HALF_UP)
+
+        brokerage = paise(notional * commission_bps / BPS)
+        exchange = paise(notional * self.exchange_rate)
+        sebi = paise(notional * self.sebi_per_crore / CRORE)
+        parts: list[tuple[str, Decimal]] = [
+            ("brokerage", brokerage),
+            ("stt", (notional * self.stt_rate).quantize(RUPEE, rounding=ROUND_HALF_UP)),
+            ("exchange_transaction", exchange),
+            ("sebi", sebi),
+            ("gst", paise((brokerage + exchange + sebi) * self.gst_rate)),
+        ]
+        if side is OrderSide.BUY:
+            parts.append(("stamp_duty", paise(notional * self.stamp_buy_rate)))
+        else:
+            parts.append(("dp_charge", self.dp_per_sell))
+        return FeeBreakdown(tuple((n, a) for n, a in parts if a))
+
+
+IN_DELIVERY_NSE_2026 = IndiaDeliverySchedule(
+    name="in_delivery_nse_2026",
+    version="v1",
+    currency="INR",
+    exchange_rate=Decimal("0.0000307"),
+)
+IN_DELIVERY_BSE_2026 = IndiaDeliverySchedule(
+    name="in_delivery_bse_2026",
+    version="v1",
+    currency="INR",
+    exchange_rate=Decimal("0.0000375"),
+)
+
+FEE_SCHEDULES: dict[str, FeeSchedule] = {
+    s.name: s for s in (NONE, US_EQUITY_2026, IN_DELIVERY_NSE_2026, IN_DELIVERY_BSE_2026)
+}
 
 
 class UnknownFeeScheduleError(LookupError):

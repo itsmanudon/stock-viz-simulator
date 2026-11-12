@@ -1268,7 +1268,7 @@ export interface components {
              * @default none
              * @enum {string}
              */
-            fee_schedule: "none" | "us_equity_2026";
+            fee_schedule: "none" | "us_equity_2026" | "in_delivery_nse_2026" | "in_delivery_bse_2026";
         };
         /** BacktestOut */
         BacktestOut: {
