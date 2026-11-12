@@ -4,19 +4,23 @@ from datetime import datetime
 from decimal import Decimal
 
 from sqlalchemy import func, true
-from sqlmodel import Session, select
+from sqlmodel import Session, col, select
 
 from stockviz.models import PriceBar, Symbol
+from stockviz.services.instruments import instrument_of, instruments_of
 
 
 def recent_closes_statement(tickers: list[str], limit: int, *, dialect: str):
     if dialect == "postgresql":
-        # The existing (ticker, interval, ts) index supports one backward index
+        # The (instrument_id, interval, ts) index supports one backward index
         # scan per requested symbol. The LIMIT is INSIDE the correlated scan.
         # Do not filter is_active: portfolio valuation also needs delisted names.
         recent = (
             select(PriceBar.ts, PriceBar.close)  # type: ignore[call-overload]
-            .where(PriceBar.ticker == Symbol.ticker, PriceBar.interval == "1d")
+            .where(
+                col(PriceBar.instrument_id) == instrument_of(Symbol.ticker),
+                PriceBar.interval == "1d",
+            )
             .order_by(PriceBar.ts.desc())  # type: ignore[attr-defined]
             .limit(limit)
             .correlate(Symbol)
@@ -37,10 +41,13 @@ def recent_closes_statement(tickers: list[str], limit: int, *, dialect: str):
             PriceBar.ts,
             PriceBar.close,  # type: ignore[arg-type]
             func.row_number()
-            .over(partition_by=PriceBar.ticker, order_by=PriceBar.ts.desc())  # type: ignore[attr-defined]
+            .over(partition_by=PriceBar.instrument_id, order_by=PriceBar.ts.desc())  # type: ignore[attr-defined]
             .label("rn"),
         )
-        .where(PriceBar.ticker.in_(tickers), PriceBar.interval == "1d")  # type: ignore[attr-defined]
+        .where(
+            col(PriceBar.instrument_id).in_(instruments_of(tickers)),
+            PriceBar.interval == "1d",
+        )
         .subquery()
     )
     return (

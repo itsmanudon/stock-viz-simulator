@@ -517,20 +517,29 @@ migration both applied it and one failed. The lock is a session lock because a
 migration may commit part-way. `tests/test_migration_round_trip.py` starts two
 real upgrades at once.
 
-**Instrument identity, expand step (Phase 4.3).** `instruments` (venue MIC,
-currency, `quote_unit`, asset type) and `instrument_identifiers` (`yahoo` =
-the ticker, `aegis` = `stockviz:<ticker>`) sit beside `symbols`
+**Instrument identity (Phase 4.3 expand, 4.4 reads).** `instruments` (venue
+MIC, currency, `quote_unit`, asset type) and `instrument_identifiers` (`yahoo`
+= the ticker, `aegis` = `stockviz:<ticker>`) sit beside `symbols`
 (`models/instrument.py`). Every table with a `ticker` foreign key has a
-nullable `instrument_id`, kept filled by Postgres triggers
-(`stockviz_fill_instrument_id`, migration `686dcf74171b`), so application
-code does not set it; a new symbol gets its instrument from a trigger on
-`symbols`, and `metadata` filling an empty exchange fills its venue. Nothing
-reads `instrument_id` yet (4.4 switches reads; making it NOT NULL and
-dropping the ticker keys is 4.6 and needs the owner's approval). A new table
-with a `ticker` column must add `instrument_id_column()`, the trigger, and an
-entry in `services/instruments.TICKER_TABLES`. `stockviz.cli instrument-check`
-is a read-only report of rows the triggers missed. SQLite tests have no
-triggers, so `instrument_id` stays NULL there.
+nullable `instrument_id`, kept filled by triggers, so application code never
+sets it: in production from migration `686dcf74171b`, and on any schema built
+by `create_all` (SQLite tests, scratch Postgres) from `stockviz/db_identity.py`,
+whose SQLite rules `tests/test_instrument_identity_parity.py` holds equal to
+Postgres. A new symbol gets its instrument from a trigger on `symbols`;
+`metadata` filling an empty exchange fills its venue.
+
+Reads go by instrument: filter `X.instrument_id == instrument_of(ticker)` (or
+`.in_(instruments_of(tickers))`) from `services/instruments`, never
+`X.ticker == ticker`. `instrument_of` takes a string or a ticker column and
+correlates through LATERAL joins; `resolve_symbol()` turns a public symbol
+into an `Instrument`. 4.4a moved every `price_bars` read (index
+`ix_price_bars_instrument_interval_ts`); 4.4b moves the rest. Making
+`instrument_id` NOT NULL and dropping the ticker keys is 4.6 and needs the
+owner's approval. A new table with a `ticker` column must add
+`instrument_id_column()`, the trigger in a migration, and an entry in
+`services/instruments.TICKER_TABLES`. `stockviz.cli instrument-check` is a
+read-only report of rows the triggers missed. Seed a `Symbol` before reading
+a ticker's bars in a test: no symbol, no instrument.
 
 ## Ingestion contract
 

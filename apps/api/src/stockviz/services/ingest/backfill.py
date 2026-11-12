@@ -29,6 +29,7 @@ from stockviz.services.ingest.prices import (
     BarRecord,
     upsert_bars,
 )
+from stockviz.services.instruments import instrument_of
 
 logger = logging.getLogger(__name__)
 
@@ -95,7 +96,7 @@ def backfill_price_bars_from_csvs(
         if replace:
             session.exec(
                 delete(PriceBar).where(
-                    col(PriceBar.ticker) == ticker,
+                    col(PriceBar.instrument_id) == instrument_of(ticker),
                     col(PriceBar.interval) == DAILY_INTERVAL,
                     col(PriceBar.source) == "v1_csv",
                 )

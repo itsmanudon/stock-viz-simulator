@@ -19,6 +19,7 @@ from stockviz.limiter import limiter
 from stockviz.models import PriceBar, Symbol
 from stockviz.schemas import IndicatorsOut
 from stockviz.services.indicator_view import compute_bundle
+from stockviz.services.instruments import instrument_of
 
 router = APIRouter(prefix="/v1/symbols", tags=["indicators"])
 
@@ -74,7 +75,9 @@ def get_indicators(
 
     parsed = _parse_names(names)
 
-    stmt = select(PriceBar).where(PriceBar.ticker == ticker, PriceBar.interval == interval)
+    stmt = select(PriceBar).where(
+        PriceBar.instrument_id == instrument_of(ticker), PriceBar.interval == interval
+    )
     if from_ is not None:
         stmt = stmt.where(PriceBar.ts >= from_)
     if to is not None:

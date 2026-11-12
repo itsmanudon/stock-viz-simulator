@@ -12,6 +12,7 @@ from stockviz.db import get_session
 from stockviz.limiter import limiter
 from stockviz.models import PriceBar, Symbol
 from stockviz.schemas import BarOut
+from stockviz.services.instruments import instrument_of
 
 router = APIRouter(prefix="/v1/symbols", tags=["bars"])
 
@@ -35,7 +36,9 @@ def get_bars(
     if session.get(Symbol, ticker) is None:
         raise HTTPException(status_code=404, detail=f"Symbol {ticker!r} not found")
 
-    stmt = select(PriceBar).where(PriceBar.ticker == ticker, PriceBar.interval == interval)
+    stmt = select(PriceBar).where(
+        PriceBar.instrument_id == instrument_of(ticker), PriceBar.interval == interval
+    )
     if from_ is not None:
         stmt = stmt.where(PriceBar.ts >= from_)
     if to is not None:

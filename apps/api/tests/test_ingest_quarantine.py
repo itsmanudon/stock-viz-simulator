@@ -13,7 +13,7 @@ from decimal import Decimal
 from sqlalchemy import func
 from sqlmodel import col, select
 
-from stockviz.models import PriceBar, QuarantinedPriceBar
+from stockviz.models import PriceBar, QuarantinedPriceBar, Symbol
 from stockviz.services.ingest.bar_semantics import AdjustmentSemantics, SessionScope
 from stockviz.services.ingest.prices import DAILY_INTERVAL, SOURCE_YFINANCE, BarRecord, upsert_bars
 
@@ -75,6 +75,8 @@ def test_a_structurally_broken_bar_is_dropped_entirely(session):
 
 
 def test_day_over_day_spike_is_quarantined_against_the_stored_prior_close(session):
+    # Bars are read by instrument (Phase 4.4), which a symbol row creates.
+    session.add(Symbol(ticker="AAPL", name="Apple"))
     session.add(
         PriceBar(
             ticker="AAPL",

@@ -41,6 +41,7 @@ from stockviz.services.ingest.bar_semantics import (
     latest_completed_session,
     new_york_session_date,
 )
+from stockviz.services.instruments import instrument_of
 from stockviz.services.markets.calendar import NEW_YORK_VENUE, session_on_or_before
 from stockviz.services.options.pricing import OptionPrice, black_scholes, historical_volatility
 from stockviz.services.trading.buying_power import (
@@ -97,7 +98,7 @@ def _bar_closes(session: Session, ticker: str, *, limit: int = 60) -> list[Decim
     rows = list(
         session.exec(
             select(PriceBar)
-            .where(PriceBar.ticker == ticker, PriceBar.interval == "1d")
+            .where(PriceBar.instrument_id == instrument_of(ticker), PriceBar.interval == "1d")
             .order_by(PriceBar.ts.desc())  # type: ignore[attr-defined]
             .limit(limit)
         )
@@ -193,7 +194,7 @@ def quote_option(
 
     newest = session.exec(
         select(PriceBar)
-        .where(PriceBar.ticker == ticker, PriceBar.interval == "1d")
+        .where(PriceBar.instrument_id == instrument_of(ticker), PriceBar.interval == "1d")
         .order_by(PriceBar.ts.desc())  # type: ignore[attr-defined]
         .limit(1)
     ).first()
@@ -479,7 +480,7 @@ def _expiry_close(session: Session, position: OptionsPosition) -> PriceBar | Non
     bar = session.exec(
         select(PriceBar)
         .where(
-            PriceBar.ticker == position.ticker,
+            PriceBar.instrument_id == instrument_of(position.ticker),
             PriceBar.interval == "1d",
             PriceBar.ts < datetime.combine(position.expiry + timedelta(days=1), time.min),
         )
@@ -493,7 +494,7 @@ def _expiry_close(session: Session, position: OptionsPosition) -> PriceBar | Non
     later = session.exec(
         select(PriceBar.ts)
         .where(
-            PriceBar.ticker == position.ticker,
+            PriceBar.instrument_id == instrument_of(position.ticker),
             PriceBar.interval == "1d",
             PriceBar.ts >= datetime.combine(position.expiry + timedelta(days=1), time.min),
         )

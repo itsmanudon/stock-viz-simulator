@@ -99,3 +99,6 @@ __all__ = [
     "Watchlist",
     "WatchlistItem",
 ]
+
+# Identity triggers for schemas built by create_all (Phase 4.4a).
+import stockviz.db_identity  # noqa: F401

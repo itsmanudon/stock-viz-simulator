@@ -67,6 +67,7 @@ from stockviz.services.ingest.shadow import (
     compare_symbol,
 )
 from stockviz.services.ingest.shadow_report import ShadowRun, write_shadow_report
+from stockviz.services.instruments import instrument_of
 from stockviz.services.metrics import refresh_symbol_metrics
 from stockviz.services.recommend import MAX_SCORE, score_universe
 from stockviz.services.sentiment.store import backfill_unscored
@@ -611,7 +612,7 @@ def _latest_daily_bar_date(ticker: str) -> date | None:
     with Session(engine) as session:
         latest = session.exec(
             select(func.max(PriceBar.ts)).where(  # type: ignore[call-overload]
-                PriceBar.ticker == ticker, PriceBar.interval == "1d"
+                PriceBar.instrument_id == instrument_of(ticker), PriceBar.interval == "1d"
             )
         ).one()
     return latest.date() if latest is not None else None
