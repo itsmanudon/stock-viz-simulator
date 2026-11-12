@@ -48,6 +48,7 @@ const COLUMNS: { heading: string; links: { href: string; label: string; external
         { href: "/login", label: "Sign in" },
         { href: "/leaderboard", label: "Leaderboard" },
         { href: "/settings", label: "Settings" },
+        { href: "/status", label: "Status" },
       ],
     },
     {

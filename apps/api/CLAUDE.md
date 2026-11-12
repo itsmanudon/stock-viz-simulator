@@ -309,6 +309,15 @@ event holds back later events of its topic and key in the batch; after
 shows in `stockviz.cli outbox-dead` and `/health`'s `dead_outbox_events`.
 Migration `d55cf5f51697`.
 
+**Status (audit OP-5, Phase 7.6).** `GET /v1/status` (public, 30/min):
+each recorded job's latest run (name, state, start, finish, last success),
+the latest Aegis sync's state and time, the newest daily bar per market
+(instrument country) and the dead outbox count. Names, times and states
+only, never `job_runs.error`. The web `/status` page reads it.
+Camus trial (Phase 7.6): `docs/benchmarks/2026-11-13-kafka-vs-camus.md`;
+`scripts/events/broker-benchmark.sh` runs the scaling benchmark against any
+broker. No hosted broker (owner, Phase 7).
+
 **Web cache after the night (audit RS-9, Phase 6.6).** The cron's last step
 is `revalidate-web`: it posts to `WEB_REVALIDATE_URL` with header
 `X-StockViz-Revalidate`, an HMAC-SHA256 of `stockviz-revalidate-v1` under
