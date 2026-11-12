@@ -96,6 +96,11 @@ const EOD_REFRESH = [
   // No publisher runs here, so unpublished outbox rows are never sent: clear
   // them after 30 days with the old inbox receipts (audit OP-11).
   job("python -m stockviz.cli prune-events --include-unpublished"),
+  // RS-9 (Phase 6.6): tell the web server the night's data is in, so cached
+  // pages refresh together instead of mixing two nights. Unreachable web is a
+  // warning (exit 0; a sleeping web has no cache), unset URL is a skip (2),
+  // a rejected key is a failure (1).
+  "python -m stockviz.cli revalidate-web || [ $? -eq 2 ] || rc=1",
   "exit $rc",
 ].join("; ");
 
@@ -175,6 +180,8 @@ export default defineRailway(() => {
       // No outbox publisher runs on Railway, so the news step skips its
       // article fan-out rather than fill a table nothing reads (audit OP-11).
       EVENTS_OUTBOX_ENABLED: "false",
+      // RS-9: the web route that drops cached market data after the run.
+      WEB_REVALIDATE_URL: `${WEB_PUBLIC_URL}/api/revalidate`,
       // Aegis News sync (Phase 2). Aegis has no public domain: the cron reaches
       // it over the private network. Issuer, audience and key id are the
       // values aegis-api trusts (not secret). The private key is the one

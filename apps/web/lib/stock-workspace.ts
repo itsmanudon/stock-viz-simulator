@@ -1,16 +1,71 @@
-import type { Bar } from "@/lib/api/types";
+import type { Bar, IndicatorPoint } from "@/lib/api/types";
 
 const QUANTITY_SCALE = 1_000_000;
 
 export const STOCK_TIMEFRAMES = ["1M", "3M", "6M", "1Y", "5Y", "MAX"] as const;
+/**
+ * The chart's indicator menu (Phase 6.6): names from the API's engine
+ * registry (`/v1/indicators/catalog`), with their usual parameters. Where each
+ * one draws comes from the API's `meta.pane`, not from this list, so adding an
+ * entry here is all a new indicator needs.
+ */
 export const STOCK_INDICATORS = [
-  { value: "sma_20", label: "SMA 20" },
-  { value: "sma_50", label: "SMA 50" },
-  { value: "sma_200", label: "SMA 200" },
-  { value: "ema_50", label: "EMA 50" },
-  { value: "rsi_14", label: "RSI 14" },
-  { value: "macd", label: "MACD" },
+  { value: "sma_20", label: "SMA 20", section: "price" },
+  { value: "sma_50", label: "SMA 50", section: "price" },
+  { value: "sma_200", label: "SMA 200", section: "price" },
+  { value: "ema_50", label: "EMA 50", section: "price" },
+  { value: "bb_20_2", label: "Bollinger Bands 20, 2", section: "price" },
+  { value: "keltner_20_2_10", label: "Keltner Channels", section: "price" },
+  { value: "donchian_20", label: "Donchian Channels 20", section: "price" },
+  { value: "vwap_20", label: "VWAP 20 (rolling)", section: "price" },
+  { value: "supertrend_10_3", label: "Supertrend 10, 3", section: "price" },
+  { value: "rsi_14", label: "RSI 14", section: "pane" },
+  { value: "macd", label: "MACD", section: "pane" },
+  { value: "stoch_14_3", label: "Stochastic 14, 3", section: "pane" },
+  { value: "adx_14", label: "ADX 14", section: "pane" },
+  { value: "atr_14", label: "ATR 14", section: "pane" },
+  { value: "cci_20", label: "CCI 20", section: "pane" },
+  { value: "mfi_14", label: "MFI 14", section: "pane" },
+  { value: "obv", label: "OBV", section: "pane" },
+  { value: "rvol_20", label: "Relative volume 20", section: "pane" },
 ] as const;
+
+export type ChartPane = { name: string; label: string; lines: Record<string, IndicatorPoint[]> };
+
+/**
+ * Split an indicator bundle into price-chart overlays and separate panes by
+ * each indicator's registry pane (Phase 6.6). RSI and MACD keep their own
+ * panes; Supertrend's direction output is a state, not a line, so it is left
+ * out of the overlay.
+ */
+export function chartLayers(
+  bundle: {
+    series: Record<string, IndicatorPoint[]>;
+    meta?: Record<string, { pane: string; label: string }>;
+  },
+  selected: readonly string[],
+): { overlays: Record<string, IndicatorPoint[]>; panes: ChartPane[] } {
+  const overlays: Record<string, IndicatorPoint[]> = {};
+  const panes: ChartPane[] = [];
+  for (const name of selected) {
+    if (name === "rsi_14" || name === "macd") continue;
+    const meta = bundle.meta?.[name];
+    const keys = Object.keys(bundle.series).filter((k) => k === name || k.startsWith(`${name}.`));
+    if (!keys.length) continue;
+    if ((meta?.pane ?? "price") === "price") {
+      for (const key of keys) {
+        if (!key.endsWith(".direction")) overlays[key] = bundle.series[key];
+      }
+    } else {
+      panes.push({
+        name,
+        label: meta?.label ?? name,
+        lines: Object.fromEntries(keys.map((k) => [k, bundle.series[k]])),
+      });
+    }
+  }
+  return { overlays, panes };
+}
 
 export type StockTimeframe = (typeof STOCK_TIMEFRAMES)[number];
 export type StockIndicator = (typeof STOCK_INDICATORS)[number]["value"];

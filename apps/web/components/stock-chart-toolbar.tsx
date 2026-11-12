@@ -74,7 +74,15 @@ export function StockChartToolbar({
             <DropdownMenu.Label className="px-2 py-1.5 text-3xs font-semibold uppercase tracking-[0.12em] text-text-tertiary">
               Technical indicators
             </DropdownMenu.Label>
-            {STOCK_INDICATORS.map((indicator) => (
+            {STOCK_INDICATORS.map((indicator, index) => [
+              index === 0 || STOCK_INDICATORS[index - 1].section !== indicator.section ? (
+                <DropdownMenu.Label
+                  key={`label-${indicator.section}`}
+                  className="px-2 pt-2 pb-1 text-3xs text-text-tertiary"
+                >
+                  {indicator.section === "price" ? "On the price chart" : "Below the chart"}
+                </DropdownMenu.Label>
+              ) : null,
               <DropdownMenu.CheckboxItem
                 key={indicator.value}
                 checked={indicators.includes(indicator.value)}
@@ -90,8 +98,8 @@ export function StockChartToolbar({
                   </DropdownMenu.ItemIndicator>
                 </span>
                 {indicator.label}
-              </DropdownMenu.CheckboxItem>
-            ))}
+              </DropdownMenu.CheckboxItem>,
+            ])}
           </DropdownMenu.Content>
         </DropdownMenu.Portal>
       </DropdownMenu.Root>

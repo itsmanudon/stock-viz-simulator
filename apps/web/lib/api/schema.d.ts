@@ -3824,6 +3824,11 @@ export interface components {
              * @default USD
              */
             currency: string;
+            /**
+             * Closes
+             * @default []
+             */
+            closes: string[];
         };
     };
     responses: never;

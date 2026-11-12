@@ -337,6 +337,22 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   beside MACD; indicator values come warmed up from the API (Phase 6.1), so
   they do not change with the timeframe. The change pill is labelled
   "<tf> return since <first bar>" (UX-10).
+- Chart indicators come from the API registry (Phase 6.6): `STOCK_INDICATORS`
+  in `lib/stock-workspace.ts` lists names with a menu `section`, and
+  `chartLayers()` splits the bundle by each indicator's `meta.pane`: price
+  overlays (Supertrend's `.direction` output is left out) and one small
+  `IndicatorPane` per separate-pane indicator under the chart. RSI and MACD
+  keep their own panes. A new indicator needs only a menu entry.
+- `POST /api/revalidate` (audit RS-9, Phase 6.6) is called by the nightly
+  cron's last step with `x-stockviz-revalidate` (HMAC of a fixed label under
+  `INTERNAL_API_TOKEN`, `lib/revalidate-key.ts`) and drops every tag in
+  `MARKET_TAGS` with `revalidateTag(tag, { expire: 0 })`, so a page never
+  mixes two nights. `getSymbol` (tags `bars`, `symbols`) and `getIndicators`
+  (`bars`) are cached an hour with the bars they sit beside. A new cached
+  market-data fetch should carry one of those tags.
+- `/watchlist` draws sparklines from each row's `closes` (RS-12, one API
+  call instead of one per item), and the add form is a searchable input with
+  a datalist of symbols (UX-7), nothing preselected.
 - The stock page's Financials tab (`components/fundamentals-panel.tsx`,
   Phase 6.4) shows key multiples as of today with their reasons when null,
   the P/E percentile over five years of month-ends, and annual/quarterly

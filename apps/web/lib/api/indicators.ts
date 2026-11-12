@@ -15,5 +15,9 @@ export function getIndicators(ticker: string, params: IndicatorsParams): Promise
   if (params.from) q.set("from", params.from);
   if (params.to) q.set("to", params.to);
   if (params.limit) q.set("limit", String(params.limit));
-  return apiGet<Indicators>(`/v1/symbols/${encodeURIComponent(ticker)}/indicators?${q.toString()}`);
+  // Cached with the bars they are drawn on (RS-9); refreshed together nightly.
+  return apiGet<Indicators>(
+    `/v1/symbols/${encodeURIComponent(ticker)}/indicators?${q.toString()}`,
+    { revalidateSeconds: 3600, tags: ["bars"] },
+  );
 }

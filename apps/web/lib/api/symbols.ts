@@ -20,8 +20,16 @@ export function listSymbols(params: ListSymbolsParams = {}): Promise<SymbolRow[]
   });
 }
 
+/**
+ * Cached with the bars it is shown beside (RS-9): uncached, the latest close
+ * could be a night newer than the cached price history on the same page. The
+ * nightly cron drops both together (`/api/revalidate`).
+ */
 export function getSymbol(ticker: string): Promise<SymbolDetail> {
-  return apiGet<SymbolDetail>(`/v1/symbols/${encodeURIComponent(ticker)}`);
+  return apiGet<SymbolDetail>(`/v1/symbols/${encodeURIComponent(ticker)}`, {
+    revalidateSeconds: 3600,
+    tags: ["bars", "symbols"],
+  });
 }
 
 /**

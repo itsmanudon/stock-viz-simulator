@@ -47,20 +47,13 @@ export default async function WatchlistPage() {
     .sort((a, b) => a.ticker.localeCompare(b.ticker))
     .map((symbol) => ({ ticker: symbol.ticker, name: symbol.name }));
 
-  const [sparklines, news] = await Promise.all([
-    Promise.all(
-      items.map((item) =>
-        getBars(item.ticker, { limit: 30 })
-          .then((bars) => bars.map((bar) => Number(bar.close)))
-          .catch(() => [] as number[]),
-      ),
-    ),
-    // Aegis news for the watched symbols (Phase 2). null when it failed.
-    getNewsForTickers(
-      items.map((item) => item.ticker),
-      10,
-    ).catch(() => null),
-  ]);
+  // The rows carry their own last 30 closes (RS-12, Phase 6.6).
+  const sparklines = items.map((item) => (item.closes ?? []).map(Number));
+  // Aegis news for the watched symbols (Phase 2). null when it failed.
+  const news = await getNewsForTickers(
+    items.map((item) => item.ticker),
+    10,
+  ).catch(() => null);
 
   return (
     <PageFrame width="workstation" className="py-5 sm:py-7">
