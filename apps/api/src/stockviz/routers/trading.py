@@ -40,6 +40,7 @@ from stockviz.schemas import (
     TradeIn,
     TradeOut,
 )
+from stockviz.services.instruments import instrument_of
 from stockviz.services.trading import (
     ClientOrderIdConflict,
     InsufficientCash,
@@ -319,7 +320,7 @@ def get_portfolio_dividends(session: SessionDep, user_id: UserIdDep) -> Dividend
         recent_divs = list(
             session.exec(
                 select(Dividend)
-                .where(Dividend.ticker == pos.ticker)
+                .where(Dividend.instrument_id == instrument_of(pos.ticker))
                 .order_by(Dividend.ex_date.desc())  # type: ignore[attr-defined]
                 .limit(5)
             )

@@ -598,7 +598,9 @@ def _news_article_count(ticker: str) -> int:
     with Session(engine) as session:
         return int(
             session.exec(
-                select(func.count()).select_from(NewsArticle).where(NewsArticle.ticker == ticker)
+                select(func.count())
+                .select_from(NewsArticle)
+                .where(NewsArticle.instrument_id == instrument_of(ticker))
             ).one()
         )
 
