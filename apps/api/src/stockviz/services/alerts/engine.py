@@ -165,10 +165,14 @@ def _message(alert: Alert, point: Point) -> str:
     return f"{describe(alert)} on {day} ({observed} against {threshold})."
 
 
-def _active_rules(session: Session, ticker: str | None) -> list[Alert]:
+def _active_rules(
+    session: Session,
+    ticker: str | None,
+    kinds: tuple[AlertKind, ...] = (AlertKind.PRICE, AlertKind.TECHNICAL),
+) -> list[Alert]:
     stmt = select(Alert).where(
         col(Alert.paused).is_(False),
-        col(Alert.kind).in_([AlertKind.PRICE, AlertKind.TECHNICAL]),
+        col(Alert.kind).in_(list(kinds)),
         or_(col(Alert.repeat) == AlertRepeat.EVERY_CROSS, col(Alert.triggered_at).is_(None)),
     )
     if ticker is not None:
@@ -302,6 +306,187 @@ def evaluate_pending_alerts(
                 now=now,
             )
             fired += event is not None
+    fired += _evaluate_news(session, ticker=ticker, now=now, session_date=session_date)
+    if ticker is None:
+        fired += _evaluate_portfolio(session, now=now, session_date=session_date)
     if commit:
         session.commit()
+    return fired
+
+
+# --- News rules (Phase 7.2) ------------------------------------------------
+
+NEWS_SCAN = 200
+"""Newest linked documents looked at per rule and run."""
+
+
+def _evaluate_news(
+    session: Session, *, ticker: str | None, now: datetime, session_date: date
+) -> int:
+    """Fire once per newly available Aegis document that matches a news rule.
+
+    A document counts when its ``available_at`` (never ``published_at``,
+    AG-12) is after the rule was armed; the unique ``<rule>:doc:<id>`` key
+    makes a rescan harmless, so documents that a later sync delivers late are
+    still caught.
+    """
+    from stockviz.models import AegisEvent
+    from stockviz.services.aegis.read import _latest_analyses, documents_for_ticker
+
+    fired = 0
+    for alert in _active_rules(session, ticker, (AlertKind.NEWS,)):
+        assert alert.ticker is not None
+        params = alert.params or {}
+        since = (alert.armed_at or alert.created_at).replace(tzinfo=None)
+        docs = [
+            d
+            for d in documents_for_ticker(session, alert.ticker, as_of=now, limit=NEWS_SCAN)
+            if d.available_at.replace(tzinfo=None) > since
+        ]
+        docs.reverse()  # oldest first
+        if not docs:
+            continue
+        ids = [d.document_id for d in docs]
+        sentiments = _latest_analyses(session, ids, "sentiment")
+        wanted_type = (params.get("event_type") or "").lower() or None
+        types: dict[str, set[str]] = {}
+        if wanted_type:
+            for doc_id, event_type in session.exec(
+                select(AegisEvent.document_id, AegisEvent.event_type).where(
+                    col(AegisEvent.document_id).in_(ids)
+                )
+            ).all():
+                if event_type:
+                    types.setdefault(doc_id, set()).add(event_type.lower())
+        for doc in docs:
+            label = sentiments[doc.document_id].label if doc.document_id in sentiments else None
+            if params.get("sentiment") and label != params["sentiment"]:
+                continue
+            if wanted_type and wanted_type not in types.get(doc.document_id, set()):
+                continue
+            when = doc.available_at.date().isoformat()
+            mood = f" ({label})" if label else ""
+            event = fire(
+                session,
+                alert,
+                session_date=session_date,
+                bar_date=None,
+                observed=None,
+                threshold=None,
+                message=f"{alert.ticker}: {doc.title[:300]}{mood}, available {when}.",
+                source=f"document:{doc.document_id}"[:80],
+                dedupe_key=f"{alert.id}:doc:{doc.document_id}"[:120],
+                now=now,
+            )
+            if event is not None:
+                fired += 1
+                if alert.repeat == AlertRepeat.ONCE:
+                    break
+        alert.last_seen_at = docs[-1].available_at
+        session.add(alert)
+    return fired
+
+
+# --- Portfolio rules (Phase 7.2) --------------------------------------------
+
+
+def _evaluate_portfolio(session: Session, *, now: datetime, session_date: date) -> int:
+    """Judge account-wide rules once per session, in the account's base currency.
+
+    ``drawdown_pct`` and ``position_weight_pct`` fire on a crossing;
+    ``day_change_pct`` fires on each session that moves that much. A rule
+    never judged before only records its state, so a drawdown that existed
+    when it was set does not fire (RS-8). An incomplete valuation (LG-13) is
+    not judged.
+    """
+    from stockviz.models import Portfolio, PortfolioSnapshot
+    from stockviz.services.trading.portfolio import compute_portfolio
+
+    rules = _active_rules(session, None, (AlertKind.PORTFOLIO,))
+    fired = 0
+    cache: dict[int, tuple | None] = {}
+    for alert in rules:
+        if alert.last_bar_date is not None and alert.last_bar_date >= session_date:
+            continue
+        if alert.user_id not in cache:
+            portfolio = session.exec(
+                select(Portfolio).where(Portfolio.user_id == alert.user_id)
+            ).first()
+            valuation = (
+                compute_portfolio(
+                    session, portfolio, display_currency=portfolio.base_currency or "USD"
+                )
+                if portfolio is not None
+                else None
+            )
+            if portfolio is None or valuation is None or valuation.warnings:
+                cache[alert.user_id] = None
+            else:
+                snaps = session.exec(
+                    select(PortfolioSnapshot)
+                    .where(PortfolioSnapshot.user_id == alert.user_id)
+                    .order_by(col(PortfolioSnapshot.date))
+                ).all()
+                cache[alert.user_id] = (portfolio, valuation, list(snaps))
+        entry = cache[alert.user_id]
+        if entry is None:
+            continue
+        portfolio, valuation, snaps = entry
+        live = Decimal(valuation.total_value)
+        if live <= 0:
+            continue
+        params = alert.params or {}
+        metric = params.get("metric")
+        threshold = Decimal(str(params.get("threshold", 0)))
+        detail = ""
+        if metric == "drawdown_pct":
+            peak = max([portfolio.opening_nav, *(s.nav for s in snaps), live])
+            observed = (peak - live) / peak * 100 if peak > 0 else Decimal(0)
+            state = observed >= threshold
+            detail = f"NAV {live:,.2f} is {observed:.2f}% below its peak of {peak:,.2f}"
+        elif metric == "position_weight_pct":
+            weights = [
+                (Decimal(p.market_value) / live * 100, p.ticker) for p in valuation.positions
+            ]
+            observed, top = max(weights) if weights else (Decimal(0), "")
+            state = observed >= threshold
+            detail = f"{top} is {observed:.2f}% of NAV"
+        elif metric == "day_change_pct":
+            before = [s.nav for s in snaps if s.date < session_date]
+            prev = before[-1] if before else portfolio.opening_nav
+            observed = (live / prev - 1) * 100 if prev > 0 else Decimal(0)
+            state = abs(observed) >= threshold
+            detail = f"NAV moved {observed:+.2f}% to {live:,.2f}"
+        else:
+            continue
+        event_rule = metric == "day_change_pct"
+        if alert.last_state is None and not (event_rule and alert.last_bar_date is not None):
+            hit = False  # first judgement only records the state
+        else:
+            hit = state and (event_rule or not alert.last_state)
+        if (
+            hit
+            and alert.repeat == AlertRepeat.EVERY_CROSS
+            and alert.last_fired_bar_date
+            and (session_date - alert.last_fired_bar_date).days < alert.cooldown_sessions
+        ):
+            hit = False
+        alert.last_state = state
+        alert.last_bar_date = session_date
+        session.add(alert)
+        if hit:
+            base = portfolio.base_currency or "USD"
+            event = fire(
+                session,
+                alert,
+                session_date=session_date,
+                bar_date=session_date,
+                observed=observed.quantize(Decimal("0.0001")),
+                threshold=threshold,
+                message=f"{detail} ({base}), past your {threshold:g}% on {session_date}.",
+                source="portfolio",
+                dedupe_key=f"{alert.id}:{session_date.isoformat()}",
+                now=now,
+            )
+            fired += event is not None
     return fired

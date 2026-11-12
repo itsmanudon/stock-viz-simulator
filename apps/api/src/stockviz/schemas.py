@@ -1541,3 +1541,24 @@ class BaseCurrencyIn(BaseModel):
     """``PUT /v1/portfolio/base-currency``: restart a fresh account in USD or INR."""
 
     base_currency: str = Field(min_length=3, max_length=3)
+
+
+# ---------------------------------------------------------------------------
+# Notifications (Phase 7.2)
+# ---------------------------------------------------------------------------
+
+
+class NotificationOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    category: str
+    title: str
+    body: str
+    link: str | None
+    created_at: datetime
+    read_at: datetime | None
+
+
+class UnreadCountOut(BaseModel):
+    unread: int

@@ -210,7 +210,5 @@ def test_rules_through_the_api(session: Session, client: TestClient) -> None:
     assert rearmed["triggered_at"] is None and rearmed["last_state"] is None
     paused = client.patch(f"/v1/alerts/{level['id']}", json={"paused": True}, headers=h).json()
     assert paused["paused"] is True
-    assert (
-        client.post("/v1/alerts", json={"ticker": "AAPL", "kind": "news"}, headers=h).status_code
-        == 400
-    )
+    bad_news = {"ticker": "AAPL", "kind": "news", "params": {"sentiment": "angry"}}
+    assert client.post("/v1/alerts", json=bad_news, headers=h).status_code == 400

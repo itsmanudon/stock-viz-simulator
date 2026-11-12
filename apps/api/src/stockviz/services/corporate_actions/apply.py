@@ -267,6 +267,18 @@ def rebase_user(session: Session, action: CorporateAction, user_id: int) -> Reba
     session.add(
         CorporateActionApplication(action_id=action.id, user_id=user_id, summary=summary.text())
     )
+    from stockviz.models import NotificationCategory
+    from stockviz.services.notifications import notify
+
+    notify(
+        session,
+        user_id=user_id,
+        category=NotificationCategory.CORPORATE_ACTION,
+        title=f"{action.ticker} split applied",
+        body=f"{action.ticker} split on {action.ex_date.isoformat()}: {summary.text()}",
+        link="/portfolio",
+        source_key=f"split:{action.id}:{user_id}",
+    )
     return summary
 
 
