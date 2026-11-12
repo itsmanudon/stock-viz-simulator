@@ -877,6 +877,18 @@ class ScreenerRowOut(BaseModel):
     hv_20: float | None = None
     avg_volume_20: float | None = None
     sentiment_7d: float | None = None
+    # Phase 6.5 fundamentals, as known on the snapshot date (percents are
+    # percents; market cap in USD to compare across markets).
+    pe: float | None = None
+    pb: float | None = None
+    ps: float | None = None
+    ev_ebitda: float | None = None
+    dividend_yield: float | None = None
+    market_cap_usd: float | None = None
+    net_margin: float | None = None
+    roe: float | None = None
+    debt_to_equity: float | None = None
+    revenue_growth: float | None = None
 
 
 class ScreenerPageOut(BaseModel):

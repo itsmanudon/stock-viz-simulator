@@ -430,7 +430,14 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   SMA 50/200) and volatility filters, Market and "vs 200-day" columns, and
   saved screens for signed-in users (`components/saved-screens.tsx`, actions
   in `app/(product)/screener/actions.ts`; a saved screen is the URL query).
-  Any filter or sort change goes back to page 1.
+  Any filter or sort change goes back to page 1. Phase 6.5 adds a
+  Fundamentals filter group (max P/E, min yield, min market cap in USD bn,
+  min ROE, max debt/equity), P/E and USD market-cap columns, and row
+  checkboxes in a GET form to `/compare` (`?tickers=A&tickers=B`;
+  `ClickableRow` ignores clicks on controls inside it). `/compare` cuts every
+  series to the days all symbols traded (`alignToSharedDates`, audit RS-7)
+  and shows fundamentals side by side (`components/compare-fundamentals.tsx`,
+  market cap in each company's reporting currency).
 - `/screener` keeps filters and sort in the URL (`lib/screener-view.ts`, UI
   audit UX-1). Each applied filter shows as a removable chip; RSI bounds share
   a chip, and the momentum bounds belong to the window's chip because the API

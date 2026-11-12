@@ -3,12 +3,18 @@
  *
  * Server component: loads bars in parallel, optionally joins screener metrics,
  * and derives window statistics. Symbol picking and the chart are client islands.
+ *
+ * Phase 6.5: every series is cut to the days all symbols traded (audit RS-7),
+ * so lines start together and rebase on one day, and the page lists each
+ * company's fundamentals side by side. The screener links here with the rows
+ * a user ticked (`?tickers=A&tickers=B`).
  */
 
 import type { Metadata } from "next";
 import Link from "next/link";
 
 import { CompareChart } from "@/components/compare-chart";
+import { CompareFundamentals } from "@/components/compare-fundamentals";
 import { CompareInsights, CompareMetricsTable } from "@/components/compare-metrics";
 import { CompareSymbolPicker } from "@/components/compare-symbol-picker";
 import { PageFrame } from "@/components/page-frame";
@@ -20,11 +26,13 @@ import {
 } from "@/components/research-page-header";
 import { VisitorLimitNotice } from "@/components/visitor-limit-notice";
 import { ApiError, type Bar, getBars, getSymbol, listSymbols, screenSymbols } from "@/lib/api";
+import { getValuation } from "@/lib/api/fundamentals";
 import type { ScreenerResult } from "@/lib/api/types";
 import { listWatchlist } from "@/lib/api/watchlist";
 import {
   type CompareMetrics,
   SAMPLE_COMPARE_TICKERS,
+  alignToSharedDates,
   annualizedVolatilityPct,
   buildCompareHref,
   closesFromBars,
@@ -63,7 +71,7 @@ async function loadSeries(
 export default async function ComparePage({
   searchParams,
 }: {
-  searchParams: Promise<{ tickers?: string; symbols?: string; tf?: string }>;
+  searchParams: Promise<{ tickers?: string | string[]; symbols?: string; tf?: string }>;
 }) {
   const params = await searchParams;
   const visitorLimit = await checkVisitorLimit("compare");
@@ -82,14 +90,17 @@ export default async function ComparePage({
   // list, which just hides the quick-add row.
   const watchlistPromise = listWatchlist().catch(() => []);
 
-  const [universe, screenRows, seriesByTicker, watchlist] = await Promise.all([
+  const [universe, screenRows, loadedSeries, watchlist, valuations] = await Promise.all([
     universePromise,
     screenPromise,
     tickers.length
       ? Promise.all(tickers.map((ticker) => loadSeries(ticker, days)))
       : Promise.resolve([]),
     watchlistPromise,
+    Promise.all(tickers.map((ticker) => getValuation(ticker).catch(() => null))),
   ]);
+  // RS-7: one shared window, the days every symbol traded.
+  const seriesByTicker = alignToSharedDates(loadedSeries);
   const watchlistTickers = watchlist.map((item) => item.ticker);
 
   const screenByTicker = new Map(screenRows.map((row) => [row.ticker, row]));
@@ -128,7 +139,7 @@ export default async function ComparePage({
     <PageFrame width="workstation" className="py-5 sm:py-7">
       <ResearchPageHeader
         title="Compare"
-        description="How do these assets compare over the selected period? Series are rebased to 100 at the first stored close in the window."
+        description="How do these assets compare over the selected period? Every series uses the days all of them traded, rebased to 100 on the first."
         actions={
           <nav
             aria-label="Comparison window"
@@ -204,6 +215,17 @@ export default async function ComparePage({
                 description="Window statistics are derived from the loaded closes. RSI, 52-week positioning, and sentiment come from daily metrics when available."
               />
               <CompareMetricsTable rows={metrics} />
+            </section>
+
+            <section aria-labelledby="compare-fundamentals-heading">
+              <ResearchSectionHeader
+                id="compare-fundamentals-heading"
+                title="Fundamentals"
+                description="As known today. Ratios compare directly; market cap is in each company's reporting currency."
+              />
+              <CompareFundamentals
+                rows={tickers.map((ticker, i) => ({ ticker, valuation: valuations[i] ?? null }))}
+              />
             </section>
 
             <CompareInsights insights={insights} />

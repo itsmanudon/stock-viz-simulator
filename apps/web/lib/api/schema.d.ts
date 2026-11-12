@@ -3454,6 +3454,26 @@ export interface components {
             avg_volume_20?: number | null;
             /** Sentiment 7D */
             sentiment_7d?: number | null;
+            /** Pe */
+            pe?: number | null;
+            /** Pb */
+            pb?: number | null;
+            /** Ps */
+            ps?: number | null;
+            /** Ev Ebitda */
+            ev_ebitda?: number | null;
+            /** Dividend Yield */
+            dividend_yield?: number | null;
+            /** Market Cap Usd */
+            market_cap_usd?: number | null;
+            /** Net Margin */
+            net_margin?: number | null;
+            /** Roe */
+            roe?: number | null;
+            /** Debt To Equity */
+            debt_to_equity?: number | null;
+            /** Revenue Growth */
+            revenue_growth?: number | null;
         };
         /** SectorAllocationOut */
         SectorAllocationOut: {
@@ -3920,6 +3940,26 @@ export interface operations {
                 atr_pct_max?: number | null;
                 sentiment_min?: number | null;
                 sentiment_max?: number | null;
+                pe_min?: number | null;
+                pe_max?: number | null;
+                pb_min?: number | null;
+                pb_max?: number | null;
+                ps_min?: number | null;
+                ps_max?: number | null;
+                ev_ebitda_min?: number | null;
+                ev_ebitda_max?: number | null;
+                dividend_yield_min?: number | null;
+                dividend_yield_max?: number | null;
+                market_cap_usd_min?: number | null;
+                market_cap_usd_max?: number | null;
+                net_margin_min?: number | null;
+                net_margin_max?: number | null;
+                roe_min?: number | null;
+                roe_max?: number | null;
+                debt_to_equity_min?: number | null;
+                debt_to_equity_max?: number | null;
+                revenue_growth_min?: number | null;
+                revenue_growth_max?: number | null;
                 sort?: string;
                 dir?: string;
                 offset?: number;

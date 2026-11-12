@@ -65,6 +65,16 @@ function num(s: string | undefined): number | undefined {
   return Number.isFinite(n) ? n : undefined;
 }
 
+function formatCompactUsd(n: number | null): string | null {
+  if (n === null || !Number.isFinite(n)) return null;
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    notation: "compact",
+    maximumFractionDigits: 1,
+  }).format(n);
+}
+
 function fmtPct(n: number | null): string {
   if (n === null) return "—";
   const sign = n > 0 ? "+" : "";
@@ -141,6 +151,8 @@ export default async function ScreenerPage({
     { key: "rsi", label: "RSI" },
     { key: "trend", label: "vs 200-day" },
     { key: "volatility", label: "Volatility" },
+    { key: "pe", label: "P/E" },
+    { key: "mcap", label: "Market cap" },
     ...(momentumDays ? [{ key: "momentum" as const, label: `${momentumDays}d %` }] : []),
   ];
 
@@ -272,6 +284,37 @@ export default async function ScreenerPage({
               </div>
               <p className="text-xs text-muted-foreground">
                 Min/Max apply only when a window is set.
+              </p>
+            </fieldset>
+          </details>
+
+          <details className="group rounded-md border border-border-muted/70 px-3 py-2 lg:border-0 lg:px-0 lg:py-0">
+            <summary className="cursor-pointer list-none text-xs font-semibold uppercase tracking-[0.1em] text-text-secondary marker:hidden [&::-webkit-details-marker]:hidden">
+              Fundamentals
+            </summary>
+            <fieldset className="mt-2 grid grid-cols-2 gap-2">
+              <legend className="sr-only">Fundamentals</legend>
+              {(
+                [
+                  ["pe_max", "Max P/E", "1"],
+                  ["dividend_yield_min", "Min yield %", "0.1"],
+                  ["mcap_min_bn", "Min cap, USD bn", "1"],
+                  ["roe_min", "Min ROE %", "1"],
+                  ["de_max", "Max debt/equity", "0.1"],
+                ] as const
+              ).map(([name, label, step]) => (
+                <Input
+                  key={name}
+                  type="number"
+                  name={name}
+                  aria-label={label}
+                  placeholder={label}
+                  step={step}
+                  defaultValue={params[name] ?? ""}
+                />
+              ))}
+              <p className="col-span-2 text-xs text-muted-foreground">
+                As known on the latest close. Market cap is in USD so both markets compare.
               </p>
             </fieldset>
           </details>
@@ -480,99 +523,141 @@ export default async function ScreenerPage({
                 )}
               />
 
-              <DataTableFrame className="hidden lg:block">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <SortableHead
-                        href={screenerSortHref("ticker", params)}
-                        label="Ticker"
-                        direction={direction("ticker")}
-                        className="w-[110px]"
-                      />
-                      <TableHead>Name</TableHead>
-                      <TableHead>Market</TableHead>
-                      {hasSector ? (
-                        <TableHead className="hidden 2xl:table-cell">Sector</TableHead>
-                      ) : null}
-                      <SortableHead
-                        href={screenerSortHref("price", params)}
-                        label="Price"
-                        direction={direction("price")}
-                        align="right"
-                      />
-                      <SortableHead
-                        href={screenerSortHref("rsi", params)}
-                        label="RSI(14)"
-                        direction={direction("rsi")}
-                        align="right"
-                      />
-                      <SortableHead
-                        href={screenerSortHref("trend", params)}
-                        label="vs 200-day"
-                        direction={direction("trend")}
-                        align="right"
-                      />
-                      <SortableHead
-                        href={screenerSortHref("volatility", params)}
-                        label="Volatility"
-                        direction={direction("volatility")}
-                        align="right"
-                      />
-                      {/* Momentum exists only for a chosen window; without one
-                          the column was a dash on every row (UI audit UX-1). */}
-                      {momentumDays ? (
+              <form
+                method="GET"
+                action="/compare"
+                className="hidden lg:block"
+                aria-label="Compare selected symbols"
+              >
+                <input type="hidden" name="tf" value="1Y" />
+                <div className="mb-2 flex items-center justify-between gap-3 text-xs text-text-secondary">
+                  <span>Tick up to six rows, then compare them on one shared window.</span>
+                  <Button type="submit" size="sm" variant="outline">
+                    Compare selected
+                  </Button>
+                </div>
+                <DataTableFrame>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-8">
+                          <span className="sr-only">Select to compare</span>
+                        </TableHead>
                         <SortableHead
-                          href={screenerSortHref("momentum", params)}
-                          label={`${momentumDays}d %`}
-                          direction={direction("momentum")}
+                          href={screenerSortHref("ticker", params)}
+                          label="Ticker"
+                          direction={direction("ticker")}
+                          className="w-[110px]"
+                        />
+                        <TableHead>Name</TableHead>
+                        <TableHead>Market</TableHead>
+                        {hasSector ? (
+                          <TableHead className="hidden 2xl:table-cell">Sector</TableHead>
+                        ) : null}
+                        <SortableHead
+                          href={screenerSortHref("price", params)}
+                          label="Price"
+                          direction={direction("price")}
                           align="right"
                         />
-                      ) : null}
-                      <TableHead className="hidden xl:table-cell">52-week range</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {results.map((row) => (
-                      <ClickableRow key={row.ticker} href={`/stocks/${row.ticker}`}>
-                        <TableCell className="ticker font-semibold">{row.ticker}</TableCell>
-                        <TableCell className="truncate">{row.name}</TableCell>
-                        <TableCell className="text-xs text-text-secondary">
-                          {row.mic ?? row.market ?? "—"}
-                        </TableCell>
-                        {hasSector ? (
-                          <TableCell className="hidden text-text-tertiary 2xl:table-cell">
-                            {row.sector ?? "—"}
-                          </TableCell>
-                        ) : null}
-                        <NumericCell>
-                          {formatCurrency(row.last_close ?? null, row.currency)}
-                          <span className="block text-2xs text-text-tertiary">
-                            {formatCloseDate(row.as_of)}
-                          </span>
-                        </NumericCell>
-                        <NumericCell>
-                          {row.rsi_14 == null ? null : row.rsi_14.toFixed(1)}
-                        </NumericCell>
-                        <NumericCell signedBy={row.sma_200_gap_pct ?? null}>
-                          {row.sma_200_gap_pct == null ? null : fmtPct(row.sma_200_gap_pct)}
-                        </NumericCell>
-                        <NumericCell>
-                          {row.hv_20 == null ? null : `${row.hv_20.toFixed(1)}%`}
-                        </NumericCell>
+                        <SortableHead
+                          href={screenerSortHref("rsi", params)}
+                          label="RSI(14)"
+                          direction={direction("rsi")}
+                          align="right"
+                        />
+                        <SortableHead
+                          href={screenerSortHref("trend", params)}
+                          label="vs 200-day"
+                          direction={direction("trend")}
+                          align="right"
+                        />
+                        <SortableHead
+                          href={screenerSortHref("volatility", params)}
+                          label="Volatility"
+                          direction={direction("volatility")}
+                          align="right"
+                        />
+                        <SortableHead
+                          href={screenerSortHref("pe", params)}
+                          label="P/E"
+                          direction={direction("pe")}
+                          align="right"
+                        />
+                        <SortableHead
+                          href={screenerSortHref("mcap", params)}
+                          label="Mkt cap (USD)"
+                          direction={direction("mcap")}
+                          align="right"
+                        />
+                        {/* Momentum exists only for a chosen window; without one
+                          the column was a dash on every row (UI audit UX-1). */}
                         {momentumDays ? (
-                          <NumericCell signedBy={row.momentum_pct ?? null}>
-                            {row.momentum_pct == null ? null : fmtPct(row.momentum_pct)}
-                          </NumericCell>
+                          <SortableHead
+                            href={screenerSortHref("momentum", params)}
+                            label={`${momentumDays}d %`}
+                            direction={direction("momentum")}
+                            align="right"
+                          />
                         ) : null}
-                        <TableCell className="hidden xl:table-cell">
-                          <ScreenerRange row={row} />
-                        </TableCell>
-                      </ClickableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </DataTableFrame>
+                        <TableHead className="hidden xl:table-cell">52-week range</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {results.map((row) => (
+                        <ClickableRow key={row.ticker} href={`/stocks/${row.ticker}`}>
+                          <TableCell>
+                            <input
+                              type="checkbox"
+                              name="tickers"
+                              value={row.ticker}
+                              aria-label={`Compare ${row.ticker}`}
+                              className="h-4 w-4 accent-brand"
+                            />
+                          </TableCell>
+                          <TableCell className="ticker font-semibold">{row.ticker}</TableCell>
+                          <TableCell className="truncate">{row.name}</TableCell>
+                          <TableCell className="text-xs text-text-secondary">
+                            {row.mic ?? row.market ?? "—"}
+                          </TableCell>
+                          {hasSector ? (
+                            <TableCell className="hidden text-text-tertiary 2xl:table-cell">
+                              {row.sector ?? "—"}
+                            </TableCell>
+                          ) : null}
+                          <NumericCell>
+                            {formatCurrency(row.last_close ?? null, row.currency)}
+                            <span className="block text-2xs text-text-tertiary">
+                              {formatCloseDate(row.as_of)}
+                            </span>
+                          </NumericCell>
+                          <NumericCell>
+                            {row.rsi_14 == null ? null : row.rsi_14.toFixed(1)}
+                          </NumericCell>
+                          <NumericCell signedBy={row.sma_200_gap_pct ?? null}>
+                            {row.sma_200_gap_pct == null ? null : fmtPct(row.sma_200_gap_pct)}
+                          </NumericCell>
+                          <NumericCell>
+                            {row.hv_20 == null ? null : `${row.hv_20.toFixed(1)}%`}
+                          </NumericCell>
+                          <NumericCell>
+                            {row.pe == null ? null : `${row.pe.toFixed(1)}×`}
+                          </NumericCell>
+                          <NumericCell>{formatCompactUsd(row.market_cap_usd ?? null)}</NumericCell>
+                          {momentumDays ? (
+                            <NumericCell signedBy={row.momentum_pct ?? null}>
+                              {row.momentum_pct == null ? null : fmtPct(row.momentum_pct)}
+                            </NumericCell>
+                          ) : null}
+                          <TableCell className="hidden xl:table-cell">
+                            <ScreenerRange row={row} />
+                          </TableCell>
+                        </ClickableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </DataTableFrame>
+              </form>
               {pageCount > 1 ? (
                 <nav aria-label="Screener pages" className="mt-3 flex items-center gap-3 text-sm">
                   {pageNumber > 1 ? (

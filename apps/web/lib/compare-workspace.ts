@@ -23,7 +23,7 @@ export const COMPARE_SERIES_COLORS = [
 ] as const;
 
 export type CompareSearchParams = {
-  tickers?: string;
+  tickers?: string | string[];
   symbols?: string;
   tf?: string;
 };
@@ -48,11 +48,13 @@ export type CompareInsight = {
   text: string;
 };
 
-export function parseCompareTickers(raw: string | undefined): string[] {
+export function parseCompareTickers(raw: string | string[] | undefined): string[] {
   if (!raw) return [];
+  // A checkbox form (the screener's "Compare selected") repeats the key.
+  const joined = Array.isArray(raw) ? raw.join(",") : raw;
   return Array.from(
     new Set(
-      raw
+      joined
         .split(",")
         .map((ticker) => ticker.trim().toUpperCase())
         .filter(Boolean),
@@ -262,4 +264,22 @@ function joinTickers(tickers: string[]): string {
   if (tickers.length === 1) return tickers[0];
   if (tickers.length === 2) return `${tickers[0]} and ${tickers[1]}`;
   return `${tickers.slice(0, -1).join(", ")}, and ${tickers[tickers.length - 1]}`;
+}
+
+/**
+ * Audit RS-7 (Phase 6.5): keep only the days every series traded, so all
+ * lines start on the same day and are rebased there. A US and an Indian
+ * listing have different holidays; without this each line started on its
+ * own first bar and the comparison drifted.
+ */
+export function alignToSharedDates<T extends { bars: { ts: string }[] }>(series: T[]): T[] {
+  const withBars = series.filter((s) => s.bars.length > 0);
+  if (withBars.length < 2) return series;
+  const day = (ts: string) => ts.slice(0, 10);
+  let shared = new Set(withBars[0].bars.map((b) => day(b.ts)));
+  for (const s of withBars.slice(1)) {
+    const dates = new Set(s.bars.map((b) => day(b.ts)));
+    shared = new Set([...shared].filter((d) => dates.has(d)));
+  }
+  return series.map((s) => ({ ...s, bars: s.bars.filter((b) => shared.has(day(b.ts))) }));
 }
