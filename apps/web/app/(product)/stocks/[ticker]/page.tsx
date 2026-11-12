@@ -197,6 +197,7 @@ export default async function StockPage({
         latestClose={latestClose}
         periodReturnPct={periodReturnPct}
         timeframe={timeframe}
+        periodStart={bars[0]?.ts ?? null}
         signedIn={signedIn}
         inWatchlist={inWatchlist}
         hasPosition={position !== null}
@@ -222,6 +223,7 @@ export default async function StockPage({
                   bars={bars}
                   overlays={overlaySeries}
                   macd={showMacd ? indicatorBundle.macd : null}
+                  rsi={selectedIndicators.includes("rsi_14") ? (rsiSeries ?? null) : null}
                 />
               ) : (
                 <p className="py-24 text-center text-sm text-muted-foreground">

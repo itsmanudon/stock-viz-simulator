@@ -333,6 +333,10 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   bordered wrapper and the right-aligned tinted number. `NumericCell` owns the
   sign→token mapping and the em-dash fallback — never write `text-green-500`
   or `text-red-500`, which are not the `--positive`/`--negative` tokens.
+- The stock page chart draws RSI in its own pane with 70/30 guides (#73),
+  beside MACD; indicator values come warmed up from the API (Phase 6.1), so
+  they do not change with the timeframe. The change pill is labelled
+  "<tf> return since <first bar>" (UX-10).
 - Charts use `lightweight-charts` v5. The wrapper lives in
   `components/price-chart.tsx`; reuse it rather than instantiating a chart inline.
   Compare and backtest charts live in `compare-chart.tsx` and `equity-curve.tsx`.

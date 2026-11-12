@@ -107,6 +107,28 @@ class MACDPointOut(BaseModel):
     histogram: float
 
 
+class IndicatorMetaOut(BaseModel):
+    label: str
+    pane: Literal["price", "separate"]
+    outputs: list[str]
+    params: dict[str, float]
+    lookback: int
+    group: str
+    # "start": a cumulative series (OBV, A/D) whose level starts at 0 on the
+    # first bar loaded; read its shape, not the number.
+    anchored: Literal["none", "start"] = "none"
+
+
+class IndicatorCatalogItemOut(BaseModel):
+    key: str
+    label: str
+    params: list[str]
+    defaults: list[float]
+    outputs: list[str]
+    pane: Literal["price", "separate"]
+    group: str
+
+
 class IndicatorsOut(BaseModel):
     """Indicator bundle keyed by indicator name.
 
@@ -116,8 +138,16 @@ class IndicatorsOut(BaseModel):
     """
 
     ticker: str
+    # A single-output indicator is keyed by its name ("rsi_14"); one with
+    # several outputs by name and output ("bb_20_2.upper") (Phase 6.1).
     series: dict[str, list[IndicatorPointOut]] = {}
     macd: list[MACDPointOut] | None = None
+    # Per requested name: label, pane, outputs, lookback (Phase 6.1).
+    meta: dict[str, IndicatorMetaOut] = {}
+    # Bars loaded before the window so the first value shown does not depend
+    # on where the data starts (audit RS-1); no value before this is returned.
+    warmup_bars: int = 0
+    window_start: datetime | None = None
 
 
 class RecommendationVoteOut(BaseModel):

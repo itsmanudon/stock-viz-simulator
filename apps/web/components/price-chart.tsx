@@ -5,8 +5,9 @@
  *
  * Client component: lightweight-charts touches ``window`` on init. We mount
  * once and recreate the chart only when the data identity changes. Indicator
- * overlay lines are added on top of the candlestick pane; MACD lives in its
- * own pane below the volume.
+ * overlay lines are added on top of the candlestick pane; MACD and RSI each
+ * live in their own pane below (#73). Indicator values arrive warmed up by the
+ * API (Phase 6.1), so RSI on a 1M chart equals RSI on a 1Y chart.
  */
 
 import {
@@ -40,6 +41,8 @@ type Props = {
   bars: Bar[];
   overlays?: Record<string, IndicatorPoint[]>;
   macd?: MACDPoint[] | null;
+  /** RSI(14) values; drawn in its own pane with 70/30 guides. */
+  rsi?: IndicatorPoint[] | null;
   markers?: PriceChartMarker[];
 };
 
@@ -47,9 +50,10 @@ function toUtcSeconds(iso: string): UTCTimestamp {
   return barTimeToUtcSeconds(iso) as UTCTimestamp;
 }
 
-export function PriceChart({ bars, overlays, macd, markers }: Props) {
+export function PriceChart({ bars, overlays, macd, rsi, markers }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const macdRef = useRef<HTMLDivElement | null>(null);
+  const rsiRef = useRef<HTMLDivElement | null>(null);
   const palette = useChartPalette();
 
   // Stable identity so the effect doesn't re-run on every render.
@@ -183,15 +187,48 @@ export function PriceChart({ bars, overlays, macd, markers }: Props) {
       );
     }
 
+    let rsiChart: IChartApi | null = null;
+    if (rsi?.length && rsiRef.current) {
+      rsiChart = createChart(rsiRef.current, {
+        autoSize: true,
+        layout: { background: { color: "transparent" }, textColor: palette.text },
+        grid: {
+          vertLines: { color: palette.grid },
+          horzLines: { color: palette.grid },
+        },
+        timeScale: { borderColor: palette.axis, timeVisible: false },
+        rightPriceScale: { borderColor: palette.axis },
+      });
+      const rsiLine = rsiChart.addSeries(LineSeries, {
+        color: palette.overlays[1],
+        lineWidth: 2,
+        priceLineVisible: false,
+        title: "RSI 14",
+      });
+      rsiLine.setData(rsi.map((p) => ({ time: toUtcSeconds(p.ts), value: p.value })));
+      for (const level of [70, 30]) {
+        rsiLine.createPriceLine({
+          price: level,
+          color: palette.axis,
+          lineWidth: 1,
+          lineStyle: 2,
+          axisLabelVisible: true,
+          title: "",
+        });
+      }
+    }
+
     const fallbackWidth = (containerRef.current?.clientWidth ?? 0) - 64;
     fitWithLabelRoom(chart, candles.length, fallbackWidth);
     if (macdChart && macd) fitWithLabelRoom(macdChart, macd.length, fallbackWidth);
+    if (rsiChart && rsi) fitWithLabelRoom(rsiChart, rsi.length, fallbackWidth);
 
     return () => {
       macdChart?.remove();
+      rsiChart?.remove();
       chart.remove();
     };
-  }, [candles, volumes, overlays, macd, markers, palette]);
+  }, [candles, volumes, overlays, macd, rsi, markers, palette]);
 
   // Text equivalent of the canvas: range, endpoints, and direction.
   const chartSummary = useMemo(() => {
@@ -230,6 +267,9 @@ export function PriceChart({ bars, overlays, macd, markers }: Props) {
         <figcaption className="sr-only">{chartSummary}</figcaption>
       </figure>
       {macd?.length ? <div ref={macdRef} className="h-[140px] w-full" /> : null}
+      {rsi?.length ? (
+        <div ref={rsiRef} className="h-[120px] w-full" data-testid="rsi-pane" />
+      ) : null}
     </div>
   );
 }

@@ -49,7 +49,17 @@ src/stockviz/
   services/
     ingest/         External-API fetchers (yfinance primary, Alpha Vantage fallback, Newsdata);
                     earnings ingestion is available through `stockviz earnings`
-    indicators/     SMA/EMA/RSI/MACD pure functions
+    indicators/     engine.py (Phase 6.1): one OHLCV indicator registry
+                    (about 20: SMA, EMA, WMA, VWAP, Supertrend, ADX, RSI,
+                    MACD, Stochastic, CCI, ROC, Williams %R, Bollinger, ATR,
+                    HV, Donchian, Keltner, OBV, MFI, A/D, relative volume),
+                    each with a lookback; `/v1/symbols/{t}/indicators`
+                    loads that many bars before the window and returns only
+                    the window (audit RS-1); `/v1/indicators/catalog` lists
+                    them. `compute.py`'s `compute_rsi` delegates to the
+                    engine, so the screener, backtests and chart share one
+                    RSI. `symbol_metrics` 52-week range = high/low of the
+                    last 252 sessions (RS-14)
     recommend/      7-vote scorer; API now returns structured votes + rationale
     trading/        execute, orders (pending limit/stop + derived reservations),
                     simulation_adapter (PriceBar / PendingOrder → kernel types),
