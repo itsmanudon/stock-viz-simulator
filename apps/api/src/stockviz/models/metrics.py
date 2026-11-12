@@ -65,6 +65,20 @@ class SymbolMetrics(SQLModel, table=True):
     hv_20: float | None = None  # annualised 20-day historical volatility, percent
     avg_volume_20: float | None = None
 
+    # Phase 6.5 fundamentals snapshot, from services/fundamentals/valuation.py
+    # as of the run date. Percent fields are percents; market cap is in USD so
+    # it compares across markets.
+    pe: float | None = None
+    pb: float | None = None
+    ps: float | None = None
+    ev_ebitda: float | None = None
+    dividend_yield: float | None = None
+    market_cap_usd: float | None = None
+    net_margin: float | None = None
+    roe: float | None = None
+    debt_to_equity: float | None = None
+    revenue_growth: float | None = None
+
     # Mean news sentiment over the trailing week, in [-1, 1]. Populated by the
     # sentiment aggregate pass; NULL when the symbol has no scored headlines.
     sentiment_7d: float | None = Field(default=None, index=True)

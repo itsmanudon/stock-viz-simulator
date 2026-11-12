@@ -107,7 +107,11 @@ src/stockviz/
                     limit (audit RS-5), sort with missing values last, page.
                     Serves `GET /v1/screener` (paged, total) and the old
                     `GET /v1/symbols/screen` list. `/v1/screens` (authed)
-                    saves named screens as the screener URL's query string
+                    saves named screens as the screener URL's query string.
+                    Phase 6.5: the snapshot carries valuation as of the
+                    run (P/E, P/B, P/S, EV/EBITDA, dividend yield, market
+                    cap in USD, net margin, ROE, debt/equity, revenue
+                    growth), each a `<column>_min`/`_max` filter and a sort
     markets/        calendar.py — exchange calendars and completed sessions (Phase 4.1)
     aegis/          Aegis News read sync (Phase 2): contract.py (lenient
                     feed models), token.py (EdDSA feed:read token), client.py

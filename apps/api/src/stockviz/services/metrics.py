@@ -52,6 +52,33 @@ def _snapshot(bars: list[PriceBar]) -> dict[str, float | None]:
     }
 
 
+def _fundamentals(session: Session, ticker: str, day) -> dict[str, float | None]:
+    """Valuation columns for the screener (Phase 6.5), as known on ``day``."""
+    from stockviz.services.fundamentals.valuation import valuation
+    from stockviz.services.trading.fx import latest_rate
+
+    v = valuation(session, ticker, day)
+    mcap = v.value("market_cap")
+    mcap_usd = None
+    if mcap is not None and v.reporting_currency:
+        try:
+            mcap_usd = mcap * float(latest_rate(session, v.reporting_currency, on_or_before=day))
+        except LookupError:
+            mcap_usd = None
+    return {
+        "pe": v.value("pe"),
+        "pb": v.value("pb"),
+        "ps": v.value("ps"),
+        "ev_ebitda": v.value("ev_ebitda"),
+        "dividend_yield": v.value("dividend_yield"),
+        "market_cap_usd": mcap_usd,
+        "net_margin": v.value("net_margin"),
+        "roe": v.value("roe"),
+        "debt_to_equity": v.value("debt_to_equity"),
+        "revenue_growth": v.value("revenue_growth"),
+    }
+
+
 def compute_for_ticker(session: Session, ticker: str) -> SymbolMetrics | None:
     """Build (but don't persist) the metrics row for one symbol.
 
@@ -75,7 +102,7 @@ def compute_for_ticker(session: Session, ticker: str) -> SymbolMetrics | None:
     rsi = rsi_points[-1].value if rsi_points else None
     snap = _snapshot(bars)
 
-    return SymbolMetrics(
+    row = SymbolMetrics(
         ticker=ticker,
         as_of=bars[-1].ts.date(),
         last_close=closes[-1],
@@ -89,6 +116,9 @@ def compute_for_ticker(session: Session, ticker: str) -> SymbolMetrics | None:
         hv_20=snap["hv_20"],
         avg_volume_20=snap["avg_volume_20"],
     )
+    for name, value in _fundamentals(session, ticker, bars[-1].ts.date()).items():
+        setattr(row, name, value)
+    return row
 
 
 def refresh_symbol_metrics(
@@ -134,6 +164,16 @@ def _upsert(session: Session, row: SymbolMetrics) -> None:
         "atr_pct_14": row.atr_pct_14,
         "hv_20": row.hv_20,
         "avg_volume_20": row.avg_volume_20,
+        "pe": row.pe,
+        "pb": row.pb,
+        "ps": row.ps,
+        "ev_ebitda": row.ev_ebitda,
+        "dividend_yield": row.dividend_yield,
+        "market_cap_usd": row.market_cap_usd,
+        "net_margin": row.net_margin,
+        "roe": row.roe,
+        "debt_to_equity": row.debt_to_equity,
+        "revenue_growth": row.revenue_growth,
         "computed_at": row.computed_at,
     }
 

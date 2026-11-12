@@ -32,6 +32,20 @@ from stockviz.services.recent_bars import recent_closes
 NEAR_52W_THRESHOLD = Decimal("0.05")
 MAX_MOMENTUM_DAYS = 252
 
+FUNDAMENTAL_COLUMNS = (
+    "pe",
+    "pb",
+    "ps",
+    "ev_ebitda",
+    "dividend_yield",
+    "market_cap_usd",
+    "net_margin",
+    "roe",
+    "debt_to_equity",
+    "revenue_growth",
+)
+"""Phase 6.5: valuation columns in the snapshot, each with an optional range."""
+
 SORT_KEYS = (
     "ticker",
     "name",
@@ -46,6 +60,7 @@ SORT_KEYS = (
     "hv_20",
     "avg_volume_20",
     "sentiment_7d",
+    *FUNDAMENTAL_COLUMNS,
 )
 
 
@@ -70,6 +85,8 @@ class ScreenQuery:
     atr_pct_max: float | None = None
     sentiment_min: float | None = None
     sentiment_max: float | None = None
+    # Phase 6.5: column -> (min, max) for any FUNDAMENTAL_COLUMNS entry.
+    fundamentals: dict[str, tuple[float | None, float | None]] = field(default_factory=dict)
     sort: str = "ticker"
     descending: bool = False
     offset: int = 0
@@ -101,6 +118,16 @@ class ScreenRow:
     hv_20: float | None
     avg_volume_20: float | None
     sentiment_7d: float | None
+    pe: float | None = None
+    pb: float | None = None
+    ps: float | None = None
+    ev_ebitda: float | None = None
+    dividend_yield: float | None = None
+    market_cap_usd: float | None = None
+    net_margin: float | None = None
+    roe: float | None = None
+    debt_to_equity: float | None = None
+    revenue_growth: float | None = None
 
     def get(self, key: str) -> Any:
         return getattr(self, key)
@@ -148,6 +175,14 @@ def run_screen(session: Session, q: ScreenQuery) -> tuple[list[ScreenRow], int]:
         (m.atr_pct_14, q.atr_pct_min, q.atr_pct_max),
         (m.sentiment_7d, q.sentiment_min, q.sentiment_max),
     ):
+        if low is not None:
+            stmt = stmt.where(col(column) >= low)
+        if high is not None:
+            stmt = stmt.where(col(column) <= high)
+    for name, (low, high) in q.fundamentals.items():
+        if name not in FUNDAMENTAL_COLUMNS:
+            continue
+        column = getattr(m, name)
         if low is not None:
             stmt = stmt.where(col(column) >= low)
         if high is not None:
@@ -210,6 +245,7 @@ def run_screen(session: Session, q: ScreenQuery) -> tuple[list[ScreenRow], int]:
                 hv_20=metrics.hv_20,
                 avg_volume_20=metrics.avg_volume_20,
                 sentiment_7d=metrics.sentiment_7d,
+                **{name: getattr(metrics, name) for name in FUNDAMENTAL_COLUMNS},
             )
         )
 
