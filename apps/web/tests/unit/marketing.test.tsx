@@ -25,6 +25,9 @@ vi.mock("@/components/marketing/landing-sections", () => ({
   Rankings: () => <div>Rankings</div>,
   LandingFaq: () => <div>FAQ</div>,
 }));
+vi.mock("@/components/marketing/proofs/proof-section", () => ({
+  ProofSection: () => <div>Watch it work</div>,
+}));
 vi.mock("@/components/marketing/closing-cta", () => ({
   ClosingCta: () => <div>Closing CTA</div>,
 }));

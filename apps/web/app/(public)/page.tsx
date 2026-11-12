@@ -22,6 +22,7 @@ import {
   StatementBand,
   StorySection,
 } from "@/components/marketing/landing-sections";
+import { ProofSection } from "@/components/marketing/proofs/proof-section";
 
 /**
  * Marketing home.
@@ -31,7 +32,8 @@ import {
  * or AI advice would misrepresent the engine (see the repo's agent guides).
  *
  * Section order follows the approved Aurora board (v5): hero with the pinned
- * card, movers, how a session works, the scroll story, every fill shows its
+ * card, movers, how a session works, "watch it work" (one animated row per
+ * feature, motion batch 1), the scroll story, every fill shows its
  * work, the statement band, rankings, the workspace tiles, FAQ, closing call
  * to action. The old ticker strip, product tour and numbers band fold into
  * those sections. The workspace tiles stay because they link every surface;
@@ -97,6 +99,7 @@ export default function HomePage() {
       <LandingMotion>
         <MovingToday />
         <SessionTiles />
+        <ProofSection />
         <StorySection />
         <FillSteps />
         <StatementBand />

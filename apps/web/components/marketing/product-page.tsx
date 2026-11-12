@@ -24,6 +24,7 @@ import {
   StatementBand,
 } from "@/components/marketing/landing-sections";
 import { PhoneFrame } from "@/components/marketing/phone-frame";
+import { ProofSection } from "@/components/marketing/proofs/proof-section";
 import { Button } from "@/components/ui/button";
 import { formatCloseDate } from "@/lib/stock-workspace";
 
@@ -69,6 +70,7 @@ export const PRODUCT_PAGES: ProductPageSpec[] = [
     ],
     sections: (
       <>
+        <ProofSection only={["fill"]} />
         <FillSteps />
         <LandingFaq />
       </>
@@ -91,6 +93,7 @@ export const PRODUCT_PAGES: ProductPageSpec[] = [
     ],
     sections: (
       <>
+        <ProofSection only={["backtest", "screener"]} />
         <MovingToday />
         <SessionTiles />
       </>
@@ -114,7 +117,12 @@ export const PRODUCT_PAGES: ProductPageSpec[] = [
       ],
       ["Journal", "Notes lock at the first fill, so hindsight cannot rewrite them."],
     ],
-    sections: <StatementBand />,
+    sections: (
+      <>
+        <ProofSection only={["replay"]} />
+        <StatementBand />
+      </>
+    ),
   },
 ];
 

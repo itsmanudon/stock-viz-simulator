@@ -80,6 +80,19 @@ components/
                    surface that fails is dropped, <2 tabs hides the section),
                    `by-the-numbers.tsx` (counts read live off the API; a stat
                    that can't be counted is omitted, never shown as 0),
+                   `proofs/` ("Watch it work", motion batch 1: `proof-section.tsx`
+                   loads real data server-side and renders one row per feature,
+                   each with its own client animation: `ghost-runs.tsx`
+                   (backtest curve among 36 bootstrap reshuffles of its own
+                   daily returns), `sieve.tsx` (screener chips through
+                   cumulative real screener queries), `fog-replay.tsx` (stored
+                   closes, future under fog), `print-stamp.tsx` (example order
+                   priced at a real stored close). All run on `useFrameLoop`
+                   in `canvas-loop.ts`: draw is a pure function of time, runs
+                   only on screen, paints the final frame under reduced motion.
+                   Canvases are aria-hidden; each row states its figures in
+                   text. The landing shows all four; /product pages pick theirs
+                   with `only`. No GSAP inside them),
                    `closing-cta.tsx` (the monochrome full-bleed close),
                    `reveal.tsx` (scroll reveal: IntersectionObserver + the
                    `[data-reveal]` transition in globals.css). GSAP (+
