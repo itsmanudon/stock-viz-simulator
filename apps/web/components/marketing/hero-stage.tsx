@@ -276,7 +276,7 @@ export function HeroStage({
         <div className="relative mx-auto mt-12 w-full max-w-6xl px-4 sm:mt-16 sm:px-6">
           <div
             ref={stageRef}
-            className="relative h-[33rem] overflow-hidden lg:h-[36rem]"
+            className="relative h-[45rem] overflow-hidden"
             onMouseEnter={() => {
               hold.current.hover = true;
             }}
@@ -302,9 +302,9 @@ export function HeroStage({
             <div
               ref={phoneRef}
               aria-hidden
-              className="dark absolute top-0 left-1/2 z-10 w-72 -translate-x-1/2 text-foreground lg:left-[61%] lg:translate-x-0 [&[data-card-out]_[data-phone-card]]:invisible"
+              className="dark absolute top-0 left-1/2 z-10 w-80 -translate-x-1/2 text-foreground lg:left-[61%] lg:translate-x-0 [&[data-card-out]_[data-phone-card]]:invisible"
             >
-              <PhoneFrame screens={screens} active={active} />
+              <PhoneFrame screens={screens} active={active} className="h-[41rem]" />
             </div>
 
             {/* Landing spot for the card in the pinned sequence. */}
@@ -321,7 +321,8 @@ export function HeroStage({
                 >
                   <PaperCard
                     currency="USD"
-                    className="absolute inset-0 aspect-auto size-full shadow-[0_0_70px_color-mix(in_oklab,var(--brand-gradient-from)_55%,transparent)] [backface-visibility:hidden]"
+                    fluid
+                    className="absolute inset-0 aspect-auto size-full rounded-[1.6rem] shadow-[0_0_70px_color-mix(in_oklab,var(--brand-gradient-from)_55%,transparent)] [backface-visibility:hidden]"
                   />
                   <div className="absolute inset-0 flex flex-col justify-between rounded-2xl border border-brand-gradient-via/40 bg-linear-to-br from-[#141b2b] to-[#0a0f19] p-5 text-[#eef2f8] shadow-[0_0_60px_color-mix(in_oklab,var(--brand-gradient-from)_45%,transparent)] [backface-visibility:hidden] [transform:rotateY(180deg)]">
                     <span className="flex items-start justify-between">
