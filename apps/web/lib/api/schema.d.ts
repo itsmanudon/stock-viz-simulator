@@ -806,7 +806,10 @@ export interface paths {
         put?: never;
         /**
          * Post Replay Advance
-         * @description Advance one stored 1d bar. Completes when the frozen end is reached.
+         * @description Advance one stored 1d bar; from the last bar, complete the session.
+         *
+         *     Pass ``expected_current_at`` (the bar on screen): a repeated request then
+         *     changes nothing (audit SR-10).
          */
         post: operations["post_replay_advance_v1_replay_sessions__session_id__advance_post"];
         delete?: never;
@@ -4605,7 +4608,9 @@ export interface operations {
     };
     post_replay_advance_v1_replay_sessions__session_id__advance_post: {
         parameters: {
-            query?: never;
+            query?: {
+                expected_current_at?: string | null;
+            };
             header?: {
                 authorization?: string | null;
             };
