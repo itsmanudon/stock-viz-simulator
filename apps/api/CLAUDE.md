@@ -517,6 +517,21 @@ migration both applied it and one failed. The lock is a session lock because a
 migration may commit part-way. `tests/test_migration_round_trip.py` starts two
 real upgrades at once.
 
+**Instrument identity, expand step (Phase 4.3).** `instruments` (venue MIC,
+currency, `quote_unit`, asset type) and `instrument_identifiers` (`yahoo` =
+the ticker, `aegis` = `stockviz:<ticker>`) sit beside `symbols`
+(`models/instrument.py`). Every table with a `ticker` foreign key has a
+nullable `instrument_id`, kept filled by Postgres triggers
+(`stockviz_fill_instrument_id`, migration `686dcf74171b`), so application
+code does not set it; a new symbol gets its instrument from a trigger on
+`symbols`, and `metadata` filling an empty exchange fills its venue. Nothing
+reads `instrument_id` yet (4.4 switches reads; making it NOT NULL and
+dropping the ticker keys is 4.6 and needs the owner's approval). A new table
+with a `ticker` column must add `instrument_id_column()`, the trigger, and an
+entry in `services/instruments.TICKER_TABLES`. `stockviz.cli instrument-check`
+is a read-only report of rows the triggers missed. SQLite tests have no
+triggers, so `instrument_id` stays NULL there.
+
 ## Ingestion contract
 
 Each ingest service writes straight to Postgres — no CSV intermediate.

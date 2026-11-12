@@ -26,6 +26,7 @@ from sqlalchemy import Numeric
 from sqlmodel import Column, Field, SQLModel
 
 from stockviz._time import utcnow
+from stockviz.models.instrument import instrument_id_column
 
 
 class SymbolMetrics(SQLModel, table=True):
@@ -39,6 +40,7 @@ class SymbolMetrics(SQLModel, table=True):
     __tablename__ = "symbol_metrics"  # pyright: ignore[reportAssignmentType]
 
     ticker: str = Field(foreign_key="symbols.ticker", primary_key=True, max_length=16)
+    instrument_id: int | None = Field(default=None, sa_column=instrument_id_column())
 
     # Date of the bar these metrics were computed from — lets a caller tell
     # stale rows from fresh ones without joining back to price_bars.

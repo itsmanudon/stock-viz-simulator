@@ -15,6 +15,7 @@ from sqlalchemy import CheckConstraint, Numeric, UniqueConstraint
 from sqlmodel import Column, Field, SQLModel
 
 from stockviz._time import utcnow
+from stockviz.models.instrument import instrument_id_column
 from stockviz.models.portfolio import TradeSide
 
 
@@ -48,6 +49,7 @@ class PendingOrder(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     portfolio_id: int = Field(foreign_key="portfolios.id", index=True)
     ticker: str = Field(foreign_key="symbols.ticker", index=True, max_length=16)
+    instrument_id: int | None = Field(default=None, sa_column=instrument_id_column())
 
     side: TradeSide = Field(max_length=8)
     order_type: OrderType = Field(max_length=16)

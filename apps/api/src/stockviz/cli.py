@@ -322,6 +322,47 @@ def _cmd_redate_bars(args: argparse.Namespace) -> int:
     return 1 if failed else 0
 
 
+def _cmd_instrument_check(_args: argparse.Namespace) -> int:
+    """Report rows whose ``instrument_id`` the dual-write triggers missed (Phase 4.3).
+
+    Read-only. For every table with a ``ticker`` column: rows with a ticker
+    but no ``instrument_id``, and rows whose ``instrument_id`` disagrees with
+    the ticker's current ``yahoo`` identifier. Exit 1 if any table has either.
+    """
+    from sqlalchemy import text
+
+    from stockviz.services.instruments import TICKER_TABLES
+
+    bad = False
+    with Session(engine) as session:
+        instruments = session.execute(text("SELECT count(*) FROM instruments")).scalar_one()
+        symbols = session.execute(text("SELECT count(*) FROM symbols")).scalar_one()
+        unmapped = session.execute(
+            text(
+                "SELECT count(*) FROM symbols s WHERE NOT EXISTS (SELECT 1 FROM "
+                "instrument_identifiers i WHERE i.scheme = 'yahoo' AND i.value = s.ticker "
+                "AND i.valid_to IS NULL)"
+            )
+        ).scalar_one()
+        print(f"instruments: {instruments} for {symbols} symbol(s), {unmapped} symbol(s) unmapped")
+        bad = bad or unmapped > 0
+        for table in TICKER_TABLES:
+            rows, missing, wrong = session.execute(
+                text(
+                    f"SELECT count(*), "
+                    f"count(*) FILTER (WHERE t.ticker IS NOT NULL AND t.instrument_id IS NULL), "
+                    f"count(*) FILTER (WHERE t.instrument_id IS DISTINCT FROM i.instrument_id "
+                    f"AND t.ticker IS NOT NULL) "
+                    f"FROM {table} t LEFT JOIN instrument_identifiers i ON i.scheme = 'yahoo' "
+                    f"AND i.value = t.ticker AND i.valid_to IS NULL"
+                )
+            ).one()
+            flag = "" if missing == 0 and wrong == 0 else "  <- check"
+            print(f"  {table}: {rows} rows, {missing} missing, {wrong} mismatched{flag}")
+            bad = bad or missing > 0 or wrong > 0
+    return 1 if bad else 0
+
+
 def _refresh_aegis_sentiment() -> None:
     """Roll held Aegis sentiment into sentiment_7d, which the signals vote and
     the screener filter read (audit AG-14). Runs after a failed sync too, so
@@ -1276,6 +1317,11 @@ def main(argv: list[str] | None = None) -> int:
     )
     p_ca.add_argument("tickers", nargs="*", help="Limit the split fetch to these tickers")
     p_ca.set_defaults(fn=_cmd_corporate_actions)
+
+    sub.add_parser(
+        "instrument-check",
+        help="Read-only: rows whose instrument_id the identity triggers missed (Phase 4.3)",
+    ).set_defaults(fn=_cmd_instrument_check)
 
     p_aegis = sub.add_parser(
         "aegis-sync",

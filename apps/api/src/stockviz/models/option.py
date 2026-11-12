@@ -22,6 +22,7 @@ from sqlalchemy import CheckConstraint, Index, Numeric, UniqueConstraint
 from sqlmodel import Column, Field, SQLModel
 
 from stockviz._time import utcnow
+from stockviz.models.instrument import instrument_id_column
 
 CONTRACT_MULTIPLIER = 100
 """Shares of the underlying covered by one option contract."""
@@ -63,6 +64,7 @@ class OptionsPosition(SQLModel, table=True):
     user_id: int = Field(foreign_key="users.id", index=True)
     portfolio_id: int = Field(foreign_key="portfolios.id", index=True)
     ticker: str = Field(foreign_key="symbols.ticker", index=True, max_length=16)
+    instrument_id: int | None = Field(default=None, sa_column=instrument_id_column())
 
     option_type: OptionType = Field(max_length=4)
     strike: Decimal = Field(sa_column=Column(Numeric(18, 6), nullable=False))
