@@ -257,8 +257,35 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get Indicators */
+        /**
+         * Get Indicators
+         * @description Indicators over a window of bars, warmed up on the bars before it (RS-1).
+         *
+         *     The window is the last ``limit`` bars within ``from``/``to``. The bars each
+         *     indicator needs before that window are loaded too, so a value on a given
+         *     day is the same whatever window the chart asks for.
+         */
         get: operations["get_indicators_v1_symbols__ticker__indicators_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/indicators/catalog": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Catalog
+         * @description Every indicator the engine offers, with its parameters and defaults.
+         */
+        get: operations["get_catalog_v1_indicators_catalog_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1688,6 +1715,52 @@ export interface components {
              */
             failing_jobs: string[];
         };
+        /** IndicatorCatalogItemOut */
+        IndicatorCatalogItemOut: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /** Params */
+            params: string[];
+            /** Defaults */
+            defaults: number[];
+            /** Outputs */
+            outputs: string[];
+            /**
+             * Pane
+             * @enum {string}
+             */
+            pane: "price" | "separate";
+            /** Group */
+            group: string;
+        };
+        /** IndicatorMetaOut */
+        IndicatorMetaOut: {
+            /** Label */
+            label: string;
+            /**
+             * Pane
+             * @enum {string}
+             */
+            pane: "price" | "separate";
+            /** Outputs */
+            outputs: string[];
+            /** Params */
+            params: {
+                [key: string]: number;
+            };
+            /** Lookback */
+            lookback: number;
+            /** Group */
+            group: string;
+            /**
+             * Anchored
+             * @default none
+             * @enum {string}
+             */
+            anchored: "none" | "start";
+        };
         /** IndicatorPointOut */
         IndicatorPointOut: {
             /**
@@ -1718,6 +1791,20 @@ export interface components {
             };
             /** Macd */
             macd?: components["schemas"]["MACDPointOut"][] | null;
+            /**
+             * Meta
+             * @default {}
+             */
+            meta: {
+                [key: string]: components["schemas"]["IndicatorMetaOut"];
+            };
+            /**
+             * Warmup Bars
+             * @default 0
+             */
+            warmup_bars: number;
+            /** Window Start */
+            window_start?: string | null;
         };
         /** JournalDayOut */
         JournalDayOut: {
@@ -3789,7 +3876,7 @@ export interface operations {
     get_indicators_v1_symbols__ticker__indicators_get: {
         parameters: {
             query: {
-                /** @description e.g. sma_20,sma_50,rsi_14,macd */
+                /** @description e.g. sma_20,rsi_14,macd,bb_20_2 */
                 names: string;
                 interval?: string;
                 from?: string | null;
@@ -3820,6 +3907,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_catalog_v1_indicators_catalog_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IndicatorCatalogItemOut"][];
                 };
             };
         };

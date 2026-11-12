@@ -22,7 +22,12 @@ from stockviz.services.instruments import instrument_ids, instrument_of
 logger = logging.getLogger(__name__)
 
 LOOKBACK_BARS = 260
-"""One trading year — enough for RSI(14) and the 52-week range."""
+"""A trading year plus a little: covers RSI(14)'s warm-up (140 bars) and the
+52-week range."""
+
+YEAR_SESSIONS = 252
+"""The 52-week range is the highest high and lowest low of the last 252
+sessions (audit RS-14). The stock page computes the same thing from bars."""
 
 RSI_PERIOD = 14
 
@@ -54,8 +59,8 @@ def compute_for_ticker(session: Session, ticker: str) -> SymbolMetrics | None:
         as_of=bars[-1].ts.date(),
         last_close=closes[-1],
         rsi_14=rsi,
-        high_52w=max(closes),
-        low_52w=min(closes),
+        high_52w=max(b.high for b in bars[-YEAR_SESSIONS:]),
+        low_52w=min(b.low for b in bars[-YEAR_SESSIONS:]),
         computed_at=utcnow(),
     )
 

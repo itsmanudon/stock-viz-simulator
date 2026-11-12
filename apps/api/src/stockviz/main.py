@@ -96,6 +96,7 @@ def create_app() -> FastAPI:
     app.include_router(news.router)
     app.include_router(quotes.router)
     app.include_router(indicators.router)
+    app.include_router(indicators.catalog_router)
     app.include_router(recommendations.router)
     app.include_router(trading.router)
     app.include_router(alerts.router)
