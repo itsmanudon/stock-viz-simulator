@@ -348,7 +348,7 @@ export function JournalPanel({
             className="rounded-md border border-border-muted bg-card p-4 text-sm text-muted-foreground"
           >
             Incomplete history: {month.unavailable_count} historical closing records lack reliable
-            USD accounting. Totals include only recorded realizations.
+            {month.currency} accounting. Totals include only recorded realizations.
           </p>
         ) : null}
 
@@ -363,6 +363,7 @@ export function JournalPanel({
       </>
 
       <JournalInspector
+        currency={month?.currency ?? "USD"}
         target={target}
         day={day?.date === dateParam ? day : null}
         week={selectedWeek}

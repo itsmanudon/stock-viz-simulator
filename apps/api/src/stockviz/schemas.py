@@ -304,6 +304,10 @@ class PortfolioOut(BaseModel):
     # Phase 4.5b: cash per currency, base first. ``cash_balance`` is their
     # total in display currency; ``available_cash`` is the base's buying power.
     cash_by_currency: list[CurrencyCashOut] = []
+    # Phase 4.8: the account's base currency (USD or INR), and whether it is
+    # fixed (true once the account has any trade, order or option).
+    base_currency: str = "USD"
+    base_currency_locked: bool = True
 
 
 ClientOrderId = Annotated[
@@ -352,6 +356,10 @@ class TradeOut(BaseModel):
     fx_rate: Decimal = Decimal(1)
     total_native: Decimal = Decimal(0)
     total_usd: Decimal = Decimal(0)
+    # Phase 4.8: the amount in the account's base currency (USD or INR);
+    # ``fx_rate`` converts into it. ``realized_pnl`` is in it too.
+    base_currency: str = "USD"
+    total_base: Decimal = Decimal(0)
     # USD gain/loss against the position's weighted-average cost basis.
     # Set on sells; None on buys and on rows written before this was tracked.
     realized_pnl: Decimal | None = None
@@ -659,6 +667,8 @@ class LeaderboardEntryOut(BaseModel):
     username: str
     return_pct: float
     portfolio_value: Decimal
+    # Phase 4.8: portfolio_value is in the account's base currency.
+    currency: str = "USD"
     days_tracked: int = 0
     ranked: bool = True
 
@@ -1480,3 +1490,9 @@ class JournalWeekOut(BaseModel):
     best_trade: JournalExecutionOut | None = None
     worst_trade: JournalExecutionOut | None = None
     unavailable_count: int = 0
+
+
+class BaseCurrencyIn(BaseModel):
+    """``PUT /v1/portfolio/base-currency``: restart a fresh account in USD or INR."""
+
+    base_currency: str = Field(min_length=3, max_length=3)

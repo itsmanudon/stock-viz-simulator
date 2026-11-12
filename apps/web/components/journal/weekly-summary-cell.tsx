@@ -20,8 +20,10 @@ export function WeeklySummaryCell({
   variant,
   selected,
   onSelect,
+  currency = "USD",
 }: {
   week: JournalWeekSummary | null;
+  currency?: string;
   variant: "column" | "row";
   selected: boolean;
   onSelect: (start: string) => void;
@@ -52,7 +54,7 @@ export function WeeklySummaryCell({
 
   const amount = Math.abs(pnl).toLocaleString("en-US", {
     style: "currency",
-    currency: "USD",
+    currency,
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });

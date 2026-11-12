@@ -440,6 +440,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/portfolio/base-currency": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Put Base Currency
+         * @description Restart a fresh account in USD ($100,000) or INR (₹1 crore) — Phase 4.8.
+         *
+         *     409 once the account has any trade, order, option, dividend or foreign
+         *     cash. Also sets the display currency to the new base.
+         */
+        put: operations["put_base_currency_v1_portfolio_base_currency_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/trades": {
         parameters: {
             query?: never;
@@ -1527,6 +1550,14 @@ export interface components {
             volume: number;
         };
         /**
+         * BaseCurrencyIn
+         * @description ``PUT /v1/portfolio/base-currency``: restart a fresh account in USD or INR.
+         */
+        BaseCurrencyIn: {
+            /** Base Currency */
+            base_currency: string;
+        };
+        /**
          * CommentIn
          * @description Request body for POST /v1/symbols/{ticker}/comments.
          */
@@ -2195,6 +2226,11 @@ export interface components {
             /** Portfolio Value */
             portfolio_value: string;
             /**
+             * Currency
+             * @default USD
+             */
+            currency: string;
+            /**
              * Days Tracked
              * @default 0
              */
@@ -2643,6 +2679,16 @@ export interface components {
              * @default []
              */
             cash_by_currency: components["schemas"]["CurrencyCashOut"][];
+            /**
+             * Base Currency
+             * @default USD
+             */
+            base_currency: string;
+            /**
+             * Base Currency Locked
+             * @default true
+             */
+            base_currency_locked: boolean;
         };
         /**
          * PortfolioOverviewOut
@@ -3663,6 +3709,16 @@ export interface components {
              * @default 0
              */
             total_usd: string;
+            /**
+             * Base Currency
+             * @default USD
+             */
+            base_currency: string;
+            /**
+             * Total Base
+             * @default 0
+             */
+            total_base: string;
             /** Realized Pnl */
             realized_pnl?: string | null;
         };
@@ -4590,6 +4646,41 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortfolioOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    put_base_currency_v1_portfolio_base_currency_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BaseCurrencyIn"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {

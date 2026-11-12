@@ -39,10 +39,11 @@ from stockviz.services.simulation import (
 from stockviz.services.trading.buying_power import (
     available_cash,
     available_shares,
-    buy_reservation_usd,
+    buy_reservation,
     lock_portfolio,
     reserved_shares,
 )
+from stockviz.services.trading.cash import base_currency
 from stockviz.services.trading.execute import (
     ClientOrderIdConflict,
     InsufficientCash,
@@ -139,15 +140,21 @@ def create_pending_order(
 
     if side == TradeSide.BUY:
         try:
-            required = buy_reservation_usd(
-                session, ticker=ticker, quantity=quantity, limit_price=limit_price
+            required = buy_reservation(
+                session,
+                ticker=ticker,
+                quantity=quantity,
+                limit_price=limit_price,
+                base=base_currency(portfolio),
             )
             spendable = available_cash(session, portfolio)
         except LookupError as exc:
             raise NoFxRateError(str(exc)) from exc
         if required > spendable:
+            base = base_currency(portfolio)
             raise InsufficientCash(
-                f"Available buying power ${spendable:.2f}; order requires ${required:.2f}."
+                f"Available buying power {base} {spendable:,.2f}; "
+                f"order requires {base} {required:,.2f}."
             )
     else:
         reserved = reserved_shares(session, portfolio_id, ticker)
@@ -270,8 +277,12 @@ def _settle_one(
         _expire(session, order)
         return False
     # The FX rate's age is judged against the session being settled (MD-7).
+    portfolio = session.get(Portfolio, order.portfolio_id)
+    base = base_currency(portfolio) if portfolio is not None else "USD"
     try:
-        priced = resolve_priced_symbol(session, order.ticker, settled_session=session_date)
+        priced = resolve_priced_symbol(
+            session, order.ticker, base=base, settled_session=session_date
+        )
     except NoMarketDataError:
         return False
     except (SymbolNotFound, NoFxRateError) as exc:

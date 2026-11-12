@@ -223,6 +223,7 @@ export function PnlCalendar({
                         selected={selectedDate === day.date}
                         onSelect={onSelectDay}
                         onKeyDown={handleKeyDown}
+                        currency={data?.currency ?? "USD"}
                       />
                     ))}
                   </div>
@@ -231,6 +232,7 @@ export function PnlCalendar({
                     variant="column"
                     selected={selectedWeek === week.key}
                     onSelect={onSelectWeek}
+                    currency={data?.currency ?? "USD"}
                   />
                 </div>
                 <WeeklySummaryCell
@@ -238,6 +240,7 @@ export function PnlCalendar({
                   variant="row"
                   selected={selectedWeek === week.key}
                   onSelect={onSelectWeek}
+                  currency={data?.currency ?? "USD"}
                 />
               </div>
             ))}

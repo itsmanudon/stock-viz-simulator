@@ -19,7 +19,14 @@ import { cn } from "@/lib/utils";
  * `Signal at entry` is reserved for persisted opening-decision provenance.
  * The current API returns null because closing fills lack opening links.
  */
-export function JournalExecutionRow({ execution }: { execution: JournalExecution }) {
+export function JournalExecutionRow({
+  execution,
+  currency = "USD",
+}: {
+  execution: JournalExecution;
+  /** The journal's currency: realized P&L is in the account's base (Phase 4.8). */
+  currency?: string;
+}) {
   const pnl = Number(execution.realized_pnl);
   const isOption = execution.kind === "option";
 
@@ -47,7 +54,7 @@ export function JournalExecutionRow({ execution }: { execution: JournalExecution
             )}
           >
             {pnl > 0 ? "+" : pnl < 0 ? "−" : ""}
-            {formatCurrency(Math.abs(pnl), "USD")}
+            {formatCurrency(Math.abs(pnl), currency)}
           </p>
           <p className="font-mono text-3xs text-text-tertiary">
             {new Date(execution.executed_at).toLocaleTimeString("en-US", {

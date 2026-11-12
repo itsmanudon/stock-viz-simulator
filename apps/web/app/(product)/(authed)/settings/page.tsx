@@ -15,6 +15,7 @@ import { PageHeader } from "@/components/page-header";
 import { PaperCard } from "@/components/paper-card";
 import { AccountDetails, InterfacePanel, KeyboardShortcuts } from "@/components/settings-workspace";
 import { getProfile, patchProfile } from "@/lib/api/leaderboard";
+import { getPortfolio, putBaseCurrency } from "@/lib/api/trading";
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Settings" };
@@ -38,8 +39,26 @@ async function setDisplayCurrency(formData: FormData) {
   revalidatePath("/portfolio");
 }
 
+async function setBaseCurrency(formData: FormData) {
+  "use server";
+  const next = formData.get("base_currency");
+  if (next !== "USD" && next !== "INR") return;
+  try {
+    await putBaseCurrency(next);
+  } catch {
+    // 409: the account traded since the page loaded; the page shows it locked.
+  }
+  for (const path of ["/settings", "/portfolio", "/dashboard", "/trade"]) revalidatePath(path);
+}
+
 export default async function SettingsPage() {
-  const [profile, session] = await Promise.all([getProfile(), auth()]);
+  const [profile, session, portfolio] = await Promise.all([
+    getProfile(),
+    auth(),
+    getPortfolio().catch(() => null),
+  ]);
+  const base = portfolio?.base_currency ?? "USD";
+  const other = base === "USD" ? "INR" : "USD";
   const visible = profile.public_profile;
 
   return (
@@ -83,10 +102,46 @@ export default async function SettingsPage() {
               </button>
             </form>
             <p className="mt-3 text-xs leading-relaxed text-text-tertiary">
-              Cash is held in USD. Each trade stays in its listing&apos;s own currency; only
-              portfolio totals are converted.
+              Cash is held in the account currency ({base}). Each trade stays in its listing&apos;s
+              own currency; only portfolio totals are converted.
             </p>
           </SettingsPanel>
+
+          {portfolio ? (
+            <SettingsPanel title="Account currency" id="base-currency-heading">
+              {portfolio.base_currency_locked === false ? (
+                <form
+                  action={setBaseCurrency}
+                  className="space-y-3"
+                  aria-labelledby="base-currency-heading"
+                >
+                  <input type="hidden" name="base_currency" value={other} />
+                  <p className="text-sm">
+                    This account holds its cash in <span className="font-semibold">{base}</span>.
+                  </p>
+                  <p className="text-xs leading-relaxed text-text-tertiary">
+                    Until your first trade, order or option you can restart it in {other}, with{" "}
+                    {other === "INR" ? "₹1,00,00,000 (₹1 crore)" : "$100,000"}. Cash, buying power,
+                    realized gains and the NAV history then stay in {other}; a purchase in another
+                    currency converts at the stored daily rate. After the first trade the currency
+                    is fixed.
+                  </p>
+                  <button
+                    type="submit"
+                    className="h-9 rounded-full border border-border px-5 text-sm font-medium transition hover:bg-surface-secondary"
+                  >
+                    Restart in {other}
+                  </button>
+                </form>
+              ) : (
+                <p className="text-xs leading-relaxed text-text-tertiary">
+                  This account holds its cash in{" "}
+                  <span className="font-semibold text-foreground">{base}</span>. The account
+                  currency can only change before the first trade, order or option.
+                </p>
+              )}
+            </SettingsPanel>
+          ) : null}
 
           <SettingsPanel title="Leaderboard" id="leaderboard-heading">
             <form action={setPublicProfile} className="flex items-center justify-between gap-4">

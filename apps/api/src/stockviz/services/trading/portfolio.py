@@ -118,6 +118,7 @@ class PortfolioValuation:
     # Cash per currency, base first. ``cash_balance`` is their display total;
     # ``available_cash`` is the base currency's buying power only.
     cash_by_currency: list[CurrencyCash] = field(default_factory=list)
+    base_currency: str = "USD"
 
     @property
     def complete(self) -> bool:
@@ -145,8 +146,8 @@ def compute_portfolio(
 ) -> PortfolioValuation:
     """Snapshot the portfolio with latest-close pricing in ``display_currency``.
 
-    The cash balance is stored in USD; we convert it to the display currency
-    before returning. Per-position values are exposed in both native and
+    The cash balance is stored in the portfolio's base currency (USD or INR,
+    Phase 4.8); we convert it to the display currency before returning. Per-position values are exposed in both native and
     display currency so the UI can show either side.
 
     Missing FX rates are treated as "skip conversion" for that one position
@@ -242,11 +243,12 @@ def compute_portfolio(
         market_value_display += mv_display
         cost_basis_display += cost_display
 
+    base_ccy = cash_base_currency(portfolio)
     try:
-        reserved_usd = reserved_cash(session, portfolio.id)
+        reserved_base = reserved_cash(session, portfolio.id)
     except LookupError as exc:
         # Cannot price a pending BUY — fail closed for display.
-        reserved_usd = portfolio.cash_balance
+        reserved_base = portfolio.cash_balance
         warnings.append(
             ValuationWarning(
                 code="no_fx_rate",
@@ -254,33 +256,15 @@ def compute_portfolio(
                 message=f"A pending buy cannot be priced ({exc}), so all cash shows as reserved.",
             )
         )
-    available_usd = portfolio.cash_balance - reserved_usd
+    available_base = portfolio.cash_balance - reserved_base
 
-    # Cash is USD-base — convert it (and reservation figures) to display currency.
-    if display_currency == "USD":
-        cash_display = portfolio.cash_balance
-        reserved_display = reserved_usd
-        available_display = available_usd
-    else:
-        try:
-            usd_per_display = latest_rate(session, display_currency)
-            if usd_per_display != Decimal(0):
-                cash_display = portfolio.cash_balance / usd_per_display
-                reserved_display = reserved_usd / usd_per_display
-                available_display = available_usd / usd_per_display
-            else:
-                cash_display = portfolio.cash_balance
-                reserved_display = reserved_usd
-                available_display = available_usd
-                _missing_rate(display_currency)
-        except LookupError:
-            cash_display = portfolio.cash_balance
-            reserved_display = reserved_usd
-            available_display = available_usd
-            _missing_rate(display_currency)
+    # Base cash (USD or INR, Phase 4.8) and the reservation figures, in the
+    # display currency.
+    cash_display = _to_display(portfolio.cash_balance, base_ccy)
+    reserved_display = _to_display(reserved_base, base_ccy)
+    available_display = _to_display(available_base, base_ccy)
 
     # Cash in other currencies (Phase 4.5b): converted into the display total.
-    base_ccy = cash_base_currency(portfolio)
     cash_by_currency = [CurrencyCash(base_ccy, portfolio.cash_balance, cash_display)]
     for ccy, amount in cash_balances(session, portfolio).items():
         if ccy == base_ccy:
@@ -296,6 +280,7 @@ def compute_portfolio(
     total_value = market_value_display + options_value_display + cash_display
     return PortfolioValuation(
         portfolio_id=portfolio.id,
+        base_currency=base_ccy,
         display_currency=display_currency,
         cash_balance=cash_display,
         reserved_cash=reserved_display,

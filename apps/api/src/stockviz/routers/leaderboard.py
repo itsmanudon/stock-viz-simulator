@@ -103,21 +103,21 @@ def _build_leaderboard(session: Session) -> list[LeaderboardEntryOut]:
     snapshot_counts = _snapshot_counts(session)
     # LG-1: measure from the fixed opening value, not the first snapshot, which
     # the nightly job overwrites when the user trades on the opening day.
-    opening_by_user: dict[int, Decimal] = (
-        {
-            p.user_id: p.opening_nav
-            for p in session.exec(
-                select(Portfolio).where(Portfolio.user_id.in_(user_ids))  # type: ignore[attr-defined]
-            )
-        }
+    portfolios = (
+        list(session.exec(select(Portfolio).where(Portfolio.user_id.in_(user_ids))))  # type: ignore[attr-defined]
         if user_ids
-        else {}
+        else []
     )
+    opening_by_user: dict[int, Decimal] = {p.user_id: p.opening_nav for p in portfolios}
+    # Phase 4.8: NAVs are in each account's base currency; returns compare.
+    base_by_user: dict[int, str] = {p.user_id: p.base_currency or "USD" for p in portfolios}
 
     entries: list[tuple[float, Decimal, int, User]] = []
     for user in public_users:
-        first_nav, current_nav = navs_by_user.get(user.id or -1, (_INITIAL_NAV, _INITIAL_NAV))
-        initial_nav = opening_by_user.get(user.id or -1, first_nav)
+        opening = opening_by_user.get(user.id or -1)
+        fallback = opening if opening is not None else _INITIAL_NAV
+        first_nav, current_nav = navs_by_user.get(user.id or -1, (fallback, fallback))
+        initial_nav = opening if opening is not None else first_nav
         snapshot_count = snapshot_counts.get(user.id or -1, 0)
 
         return_pct = (
@@ -137,6 +137,7 @@ def _build_leaderboard(session: Session) -> list[LeaderboardEntryOut]:
             username=user.name or user.email.split("@")[0],
             return_pct=round(return_pct, 4),
             portfolio_value=nav,
+            currency=base_by_user.get(user.id or -1, "USD"),
             days_tracked=snapshot_count,
             ranked=snapshot_count >= MIN_SNAPSHOTS_TO_RANK,
         )

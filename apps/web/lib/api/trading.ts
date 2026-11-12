@@ -1,6 +1,6 @@
 import "server-only";
 
-import { authedDelete, authedGet, authedPost } from "./server";
+import { authedDelete, authedGet, authedPost, authedPut } from "./server";
 
 export type Position = {
   ticker: string;
@@ -44,6 +44,13 @@ export type Portfolio = {
    * buying power only. A response cached before 4.5b lacks it, so readers use `?? []`.
    */
   cash_by_currency: CurrencyCash[];
+  /**
+   * Phase 4.8: the account's base currency (USD or INR): cash, buying power,
+   * realized P&L and the NAV history are kept in it. Locked once the account
+   * has any trade, order or option. Optional for responses cached before it.
+   */
+  base_currency: string;
+  base_currency_locked: boolean;
 };
 
 export type CurrencyCash = {
@@ -92,7 +99,10 @@ export type TradeRow = {
   fx_rate: string;
   total_native: string;
   total_usd: string;
-  /** USD gain/loss vs. the weighted-average cost basis. Set on sells only. */
+  /** Phase 4.8: the account's base currency and the trade's amount in it. */
+  base_currency: string;
+  total_base: string;
+  /** Gain/loss in the base currency vs. the average cost. Sells only. */
   realized_pnl: string | null;
 };
 
@@ -106,6 +116,14 @@ export type TradeInput = {
 
 export function getPortfolio(): Promise<Portfolio> {
   return authedGet<Portfolio>("/v1/portfolio");
+}
+
+/**
+ * Restart a fresh account in USD ($100,000) or INR (₹1 crore), Phase 4.8.
+ * The API answers 409 once the account has any trade, order or option.
+ */
+export function putBaseCurrency(baseCurrency: "USD" | "INR"): Promise<Portfolio> {
+  return authedPut<Portfolio>("/v1/portfolio/base-currency", { base_currency: baseCurrency });
 }
 
 export function postTrade(body: TradeInput): Promise<TradeRow> {

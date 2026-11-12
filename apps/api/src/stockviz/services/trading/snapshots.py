@@ -39,7 +39,9 @@ def upsert_user_snapshot(
     if portfolio is None:
         raise ValueError(f"User {user_id} has no portfolio yet")
 
-    snap = compute_portfolio(session, portfolio)
+    # NAV in the book's base currency (Phase 4.8), the unit of opening_nav,
+    # so returns and the leaderboard compare like with like.
+    snap = compute_portfolio(session, portfolio, display_currency=portfolio.base_currency or "USD")
     if not snap.complete:
         # A NAV with a holding at 0 would enter the equity curve, the returns
         # and the leaderboard as a real loss. Keep the last good snapshot.

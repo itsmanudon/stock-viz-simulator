@@ -473,6 +473,12 @@ intraday fills anywhere in the app:
 - New portfolios start with **$100,000** cash (`DEFAULT_STARTING_CASH`,
   `services/trading/execute.py`), auto-created on the first `/v1/portfolio`
   call via `ensure_default_portfolio` (idempotent).
+- **Rupee accounts (Phase 4.8).** `PUT /v1/portfolio/base-currency`
+  (`services/trading/account.py`) restarts a **fresh** account in USD
+  ($100,000) or INR (₹1 crore, `STARTING_CASH`): no trades, orders, options,
+  positions, dividends or foreign cash, else 409. It restates the opening
+  NAV and the account's snapshots and sets the display currency to match.
+  `PortfolioOut` carries `base_currency` and `base_currency_locked`.
 - **Market orders** fill immediately at the latest close. Buys recompute the
   position's weighted-average `avg_cost`; sells never touch `avg_cost`, and a
   position sold to zero is **deleted**, not kept at qty 0.
@@ -499,16 +505,23 @@ intraday fills anywhere in the app:
   races each writer pair on PostgreSQL: buy reservations, sells, an option
   closed twice, cancel against settle, dividend credit twice, and one client
   key sent twice.
-- **Cash is always USD.** Trade rows store price/quantity in the symbol's
-  native currency; the cash debit/credit converts at the latest FX rate
-  (`services/trading/fx.py` — rates are USD-per-unit, forward-filled over
-  weekends/holidays). A missing rate is a hard `NoFxRateError` on market
-  orders.
+- **Cash is in the account's base currency** (USD, or INR since Phase 4.8).
+  Trade rows store price/quantity in the symbol's native currency, and
+  `trades.fx_rate` is base units per native unit: `fx.fill_rate_to_base` /
+  `fx.base_rate` divide the stored USD-per-unit rates through the USD pivot
+  (both legs must pass the MD-7 age check). Reservations
+  (`buy_reservation`), realized P&L, snapshots (NAV in the base) and the
+  journal are in the base; `TradeOut` adds `base_currency` and `total_base`,
+  and `total_usd` is the base amount at the latest rate. A missing rate is a
+  hard `NoFxRateError` on market orders. Option premiums are USD: an INR
+  account spends USD cash first and converts the shortfall from rupees
+  (`fx_conversions`), and option proceeds land in its USD balance; the
+  journal counts an INR account's option closes as unavailable.
 - **Pending orders** (`services/trading/orders.py`): `limit` (buy triggers at
   close ≤ limit, sell at close ≥), `stop_loss`/`take_profit` (sell-only;
   close ≤ / ≥ trigger). Checked once per day by the 16:45 settlement job and
   filled **at the close price**, not the limit price. Pending BUYs reserve
-  USD buying power (`quantity × limit_price` at the latest FX rate); pending
+  base-currency buying power (`quantity × limit_price` at the latest FX rate); pending
   SELLs reserve shares. Reservations are derived from `PENDING` rows in
   `services/trading/buying_power.py` — cancel/fill releases them. Market
   equity trades and long-option opens check **available** cash/shares, not
@@ -647,7 +660,7 @@ market order, the settled session for pending-order settlement. A stale rate
 raises `NoFxRateError`, which cancels a pending order with the reason.
 
 **Cash per currency (Phase 4.5b, design note option B).** `portfolios.cash_balance`
-is the base-currency cash (`base_currency`, USD only for now); other
+is the base-currency cash (`base_currency`, USD or INR); other
 currencies live in `cash_balances`, written only by `services/trading/cash.py`
 under the portfolio lock. In `apply_fill` a non-base sell credits its own
 currency; a non-base buy spends that currency first and converts only the
