@@ -154,6 +154,9 @@ describe("BacktestForm", () => {
         ticker: "AAPL",
         commission_bps: 0,
         slippage_bps: 0,
+        fill_rule: "next_open",
+        spread_bps: 0,
+        fee_schedule: "none",
       }),
     );
   });

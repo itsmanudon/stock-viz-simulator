@@ -19,6 +19,7 @@ from stockviz.db import get_session
 from stockviz.limiter import limiter
 from stockviz.models import Dividend, PriceBar, Symbol
 from stockviz.schemas import (
+    BacktestFeeOut,
     BacktestIn,
     BacktestOut,
     BacktestSummaryOut,
@@ -28,6 +29,7 @@ from stockviz.schemas import (
     SmaCrossoverStrategy,
 )
 from stockviz.services.backtest import BacktestError, run_backtest, warmup_bars_for
+from stockviz.services.backtest.engine import FILL_RULES
 from stockviz.services.instruments import instrument_of
 
 router = APIRouter(prefix="/v1", tags=["backtest"])
@@ -93,6 +95,7 @@ def post_backtest(request: Request, body: BacktestIn, session: SessionDep) -> Ba
     )
     used = warmup + rows
     bars = [(r.ts, r.close) for r in used]
+    opens = {r.ts: r.open for r in used}
     bases = {r.adjustment_semantics for r in used}
     price_basis = None if not bases else bases.pop() if len(bases) == 1 else "mixed"
 
@@ -119,6 +122,10 @@ def post_backtest(request: Request, body: BacktestIn, session: SessionDep) -> Ba
             slippage_bps=body.slippage_bps,
             trade_from=start,
             dividends=dividends,
+            opens=opens,
+            fill_rule=body.fill_rule,
+            spread_bps=body.spread_bps,
+            fee_schedule=body.fee_schedule,
         )
     except BacktestError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -129,8 +136,17 @@ def post_backtest(request: Request, body: BacktestIn, session: SessionDep) -> Ba
         price_basis=str(price_basis) if price_basis is not None else None,
         return_mode=body.return_mode,
         warmup_bars=len(warmup),
+        execution_profile=f"{FILL_RULES[body.fill_rule].name}/{FILL_RULES[body.fill_rule].model_version}",
+        fee_schedule=body.fee_schedule,
         trades=[
-            BacktestTradeOut(date=t.date, side=t.side, price=t.price, shares=t.shares)  # type: ignore[arg-type]
+            BacktestTradeOut(
+                date=t.date,
+                side=t.side,  # type: ignore[arg-type]
+                price=t.price,
+                shares=t.shares,
+                reference_price=t.reference_price,
+                fees=[BacktestFeeOut(name=n, amount=a) for n, a in t.fees],
+            )
             for t in result.trades
         ],
         equity_curve=[EquityPointOut(date=p.date, nav=p.nav) for p in result.equity_curve],

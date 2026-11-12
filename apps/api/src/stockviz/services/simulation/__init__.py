@@ -8,6 +8,8 @@ See ``docs/SIMULATION.md``.
 
 from stockviz.services.simulation.clock import SimulationClock, SimulationClockError
 from stockviz.services.simulation.contracts import (
+    NO_COSTS,
+    CostModel,
     ExecutionProfile,
     ExecutionTrace,
     FillDecision,
@@ -17,7 +19,14 @@ from stockviz.services.simulation.contracts import (
     OrderSide,
     SimulationOrderType,
 )
-from stockviz.services.simulation.engine import evaluate_order
+from stockviz.services.simulation.engine import cost_adjusted, evaluate_order
+from stockviz.services.simulation.fees import (
+    FEE_SCHEDULES,
+    FeeBreakdown,
+    FeeSchedule,
+    UnknownFeeScheduleError,
+    get_fee_schedule,
+)
 from stockviz.services.simulation.ledger import (
     SimFill,
     SimInsufficientCash,
@@ -30,6 +39,7 @@ from stockviz.services.simulation.profiles import (
     LEGACY_CLOSE_ASSUMPTIONS,
     LEGACY_CLOSE_MODEL_VERSION,
     LEGACY_CLOSE_NAME,
+    NEXT_OPEN,
     is_legacy_close,
 )
 from stockviz.services.simulation.registry import (
@@ -39,13 +49,19 @@ from stockviz.services.simulation.registry import (
 )
 
 __all__ = [
+    "FEE_SCHEDULES",
     "LEGACY_CLOSE",
     "LEGACY_CLOSE_ASSUMPTIONS",
     "LEGACY_CLOSE_MODEL_VERSION",
     "LEGACY_CLOSE_NAME",
     "LIVE_PAPER_EXECUTION_PROFILE",
+    "NEXT_OPEN",
+    "NO_COSTS",
+    "CostModel",
     "ExecutionProfile",
     "ExecutionTrace",
+    "FeeBreakdown",
+    "FeeSchedule",
     "FillDecision",
     "FillStatus",
     "MarketSnapshot",
@@ -60,7 +76,10 @@ __all__ = [
     "SimulationClockError",
     "SimulationOrderType",
     "UnknownExecutionProfileError",
+    "UnknownFeeScheduleError",
+    "cost_adjusted",
     "evaluate_order",
     "get_execution_profile",
+    "get_fee_schedule",
     "is_legacy_close",
 ]

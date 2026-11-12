@@ -154,6 +154,11 @@ export type BacktestRequest = {
   slippage_bps?: number;
   /** "price" (default) ignores dividends; "total" credits them on ex-dates (SR-7). */
   return_mode?: "price" | "total";
+  /** Phase 5.3: "next_open" (default) or "next_close". */
+  fill_rule?: "next_open" | "next_close";
+  /** Moves the fill price against the trader by half the spread. */
+  spread_bps?: number;
+  fee_schedule?: "none" | "us_equity_2026";
 };
 
 export type BacktestTrade = {
@@ -161,6 +166,9 @@ export type BacktestTrade = {
   side: "buy" | "sell";
   price: string;
   shares: string;
+  /** Phase 5.3: the price before spread and slippage, and each fee charged. */
+  reference_price?: string | null;
+  fees?: { name: string; amount: string }[];
 };
 
 export type BacktestEquityPoint = {
@@ -190,6 +198,9 @@ export type BacktestResult = {
   return_mode?: "price" | "total";
   /** Bars before the start the strategy saw but did not trade (audit SR-3). */
   warmup_bars?: number;
+  /** Kernel profile, e.g. "next_open/v1", and the fee schedule used. */
+  execution_profile?: string;
+  fee_schedule?: string;
   trades: BacktestTrade[];
   equity_curve: BacktestEquityPoint[];
   summary: BacktestSummary;
