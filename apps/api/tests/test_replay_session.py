@@ -190,6 +190,9 @@ def test_end_bound_never_crosses_and_new_data_does_not_extend(session: Session) 
     replay = advance_replay_session(session, replay=replay)
     replay = advance_replay_session(session, replay=replay)
     assert replay.current_at == DAY3
+    assert replay.status == "active"  # last bar still tradable (SR-10)
+    replay = advance_replay_session(session, replay=replay)
+    assert replay.current_at == DAY3
     assert replay.status == "completed"
     assert get_next_session_bar(session, replay) is None
     history = get_visible_replay_history(session, replay)
@@ -220,6 +223,9 @@ def test_complete_then_advance_conflicts(session: Session) -> None:
     replay = create_replay_session(
         session, user_id=user_id, ticker="AAPL", start_at=DAY1, end_at=DAY2
     )
+    replay = advance_replay_session(session, replay=replay)
+    assert replay.current_at == DAY2
+    assert replay.status == "active"
     replay = advance_replay_session(session, replay=replay)
     assert replay.current_at == DAY2
     assert replay.status == "completed"

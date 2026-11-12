@@ -18,6 +18,13 @@ from stockviz.services.simulation.contracts import (
     SimulationOrderType,
 )
 from stockviz.services.simulation.engine import evaluate_order
+from stockviz.services.simulation.ledger import (
+    SimFill,
+    SimInsufficientCash,
+    SimInsufficientPosition,
+    SimLedger,
+    SimPosition,
+)
 from stockviz.services.simulation.profiles import (
     LEGACY_CLOSE,
     LEGACY_CLOSE_ASSUMPTIONS,
@@ -44,6 +51,11 @@ __all__ = [
     "MarketSnapshot",
     "OrderIntent",
     "OrderSide",
+    "SimFill",
+    "SimInsufficientCash",
+    "SimInsufficientPosition",
+    "SimLedger",
+    "SimPosition",
     "SimulationClock",
     "SimulationClockError",
     "SimulationOrderType",

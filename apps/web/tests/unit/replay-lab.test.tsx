@@ -89,6 +89,20 @@ describe("Replay Lab presentation", () => {
     expect(screen.queryByText(/holidays/i)).not.toBeInTheDocument();
   });
 
+  it("keeps the last bar tradable and offers to finish (audit SR-10)", () => {
+    render(
+      <ReplayAdvanceControls
+        sessionId={1}
+        currentAt="2020-01-06T00:00:00Z"
+        hasNext={false}
+        readOnly={false}
+      />,
+    );
+    const finish = screen.getByRole("button", { name: "Finish replay" });
+    expect(finish).toBeEnabled();
+    expect(screen.getByText(/You can still trade it/i)).toBeVisible();
+  });
+
   it("renders forensic scorecard, MAE/MFE, and so-far labelling", async () => {
     const user = userEvent.setup();
     const forensics: ReplayForensics = {

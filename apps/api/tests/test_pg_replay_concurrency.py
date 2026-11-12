@@ -80,5 +80,54 @@ def test_two_advances_serialize_onto_successive_bars() -> None:
             row = db.get(ReplaySession, session_id)
             assert row is not None
             assert row.current_at == DAY3
-            assert row.status == "completed"
+            assert row.status == "active"  # the last bar stays tradable (SR-10)
             assert db.exec(select(ReplaySession)).first() is not None
+
+
+def test_two_clicks_on_the_same_bar_move_one_bar() -> None:
+    """SR-10: both requests saw DAY1; only the first moves the session."""
+    with scratch_postgres_engine() as engine:
+        with Session(engine) as setup:
+            user = User(email=f"replay-twice-{uuid4().hex}@stockviz.dev", name="twice")
+            setup.add(user)
+            setup.add(Symbol(ticker="AAPL", name="Apple", currency="USD"))
+            setup.commit()
+            assert user.id is not None
+            for ts in (DAY1, DAY2, DAY3):
+                one = Decimal(1)
+                setup.add(
+                    PriceBar(
+                        ticker="AAPL", ts=ts, interval="1d", open=one, high=one, low=one,
+                        close=one, volume=1, source="test",
+                    )
+                )  # fmt: skip
+            setup.commit()
+            replay = create_replay_session(
+                setup, user_id=user.id, ticker="AAPL", start_at=DAY1, end_at=DAY3
+            )
+            assert replay.id is not None
+            session_id = replay.id
+
+        barrier = threading.Barrier(2, timeout=15)
+        errors: list[BaseException] = []
+
+        def worker() -> None:
+            try:
+                with Session(engine) as db:
+                    row = db.get(ReplaySession, session_id)
+                    assert row is not None
+                    barrier.wait()
+                    advance_replay_session(db, replay=row, expected_current_at=DAY1)
+            except BaseException as exc:
+                errors.append(exc)
+
+        threads = [threading.Thread(target=worker) for _ in range(2)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join(timeout=20)
+
+        assert errors == []
+        with Session(engine) as db:
+            row = db.get(ReplaySession, session_id)
+            assert row is not None and row.current_at == DAY2
