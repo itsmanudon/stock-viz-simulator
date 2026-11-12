@@ -140,5 +140,627 @@
     "name": "Reliance Industries Limited",
     "currency": "INR",
     "exchange": "NSE"
+  },
+  {
+    "symbol": "ADANIENT.NS",
+    "name": "Adani Enterprises",
+    "currency": "INR",
+    "exchange": "NSE"
+  },
+  {
+    "symbol": "ADANIPORTS.NS",
+    "name": "Adani Ports and SEZ",
+    "currency": "INR",
+    "exchange": "NSE"
+  },
+  {
+    "symbol": "APOLLOHOSP.NS",
+    "name": "Apollo Hospitals",
+    "currency": "INR",
+    "exchange": "NSE"
+  },
+  {
+    "symbol": "ASIANPAINT.NS",
+    "name": "Asian Paints",
+    "currency": "INR",
+    "exchange": "NSE"
+  },
+  {
+    "symbol": "AXISBANK.NS",
+    "name": "Axis Bank",
+    "currency": "INR",
+    "exchange": "NSE"
+  },
+  {
+    "symbol": "BAJAJ-AUTO.NS",
+    "name": "Bajaj Auto",
+    "currency": "INR",
+    "exchange": "NSE"
+  },
+  {
+    "symbol": "BAJFINANCE.NS",
+    "name": "Bajaj Finance",
+    "currency": "INR",
+    "exchange": "NSE"
+  },
+  {
+    "symbol": "BAJAJFINSV.NS",
+    "name": "Bajaj Finserv",
+    "currency": "INR",
+    "exchange": "NSE"
+  },
+  {
+    "symbol": "BEL.NS",
+    "name": "Bharat Electronics",
+    "currency": "INR",
+    "exchange": "NSE"
+  },
+  {
+    "symbol": "BHARTIARTL.NS",
+    "name": "Bharti Airtel",
+    "currency": "INR",
+    "exchange": "NSE"
+  },
+  {
+    "symbol": "BPCL.NS",
+    "name": "Bharat Petroleum",
+    "currency": "INR",
+    "exchange": "NSE"
+  },
+  {
+    "symbol": "BRITANNIA.NS",
+    "name": "Britannia Industries",
+    "currency": "INR",
+    "exchange": "NSE"
+  },
+  {
+    "symbol": "CIPLA.NS",
+    "name": "Cipla",
+    "currency": "INR",
+    "exchange": "NSE"
+  },
+  {
+    "symbol": "COALINDIA.NS",
+    "name": "Coal India",
+    "currency": "INR",
+    "exchange": "NSE"
+  },
+  {
+    "symbol": "DIVISLAB.NS",
+    "name": "Divi's Laboratories",
+    "currency": "INR",
+    "exchange": "NSE"
+  },
+  {
+    "symbol": "DRREDDY.NS",
+    "name": "Dr. Reddy's Laboratories",
+    "currency": "INR",
+    "exchange": "NSE"
+  },
+  {
+    "symbol": "EICHERMOT.NS",
+    "name": "Eicher Motors",
+    "currency": "INR",
+    "exchange": "NSE"
+  },
+  {
+    "symbol": "ETERNAL.NS",
+    "name": "Eternal (Zomato)",
+    "currency": "INR",
+    "exchange": "NSE"
+  },
+  {
+    "symbol": "GRASIM.NS",
+    "name": "Grasim Industries",
+    "currency": "INR",
+    "exchange": "NSE"
+  },
+  {
+    "symbol": "HCLTECH.NS",
+    "name": "HCL Technologies",
+    "currency": "INR",
+    "exchange": "NSE"
+  },
+  {
+    "symbol": "HDFCBANK.NS",
+    "name": "HDFC Bank",
+    "currency": "INR",
+    "exchange": "NSE"
+  },
+  {
+    "symbol": "HDFCLIFE.NS",
+    "name": "HDFC Life Insurance",
+    "currency": "INR",
+    "exchange": "NSE"
+  },
+  {
+    "symbol": "HEROMOTOCO.NS",
+    "name": "Hero MotoCorp",
+    "currency": "INR",
+    "exchange": "NSE"
+  },
+  {
+    "symbol": "HINDALCO.NS",
+    "name": "Hindalco Industries",
+    "currency": "INR",
+    "exchange": "NSE"
+  },
+  {
+    "symbol": "HINDUNILVR.NS",
+    "name": "Hindustan Unilever",
+    "currency": "INR",
+    "exchange": "NSE"
+  },
+  {
+    "symbol": "ICICIBANK.NS",
+    "name": "ICICI Bank",
+    "currency": "INR",
+    "exchange": "NSE"
+  },
+  {
+    "symbol": "INDIGO.NS",
+    "name": "InterGlobe Aviation (IndiGo)",
+    "currency": "INR",
+    "exchange": "NSE"
+  },
+  {
+    "symbol": "INDUSINDBK.NS",
+    "name": "IndusInd Bank",
+    "currency": "INR",
+    "exchange": "NSE"
+  },
+  {
+    "symbol": "INFY.NS",
+    "name": "Infosys",
+    "currency": "INR",
+    "exchange": "NSE"
+  },
+  {
+    "symbol": "ITC.NS",
+    "name": "ITC",
+    "currency": "INR",
+    "exchange": "NSE"
+  },
+  {
+    "symbol": "JIOFIN.NS",
+    "name": "Jio Financial Services",
+    "currency": "INR",
+    "exchange": "NSE"
+  },
+  {
+    "symbol": "JSWSTEEL.NS",
+    "name": "JSW Steel",
+    "currency": "INR",
+    "exchange": "NSE"
+  },
+  {
+    "symbol": "KOTAKBANK.NS",
+    "name": "Kotak Mahindra Bank",
+    "currency": "INR",
+    "exchange": "NSE"
+  },
+  {
+    "symbol": "LT.NS",
+    "name": "Larsen & Toubro",
+    "currency": "INR",
+    "exchange": "NSE"
+  },
+  {
+    "symbol": "MARUTI.NS",
+    "name": "Maruti Suzuki India",
+    "currency": "INR",
+    "exchange": "NSE"
+  },
+  {
+    "symbol": "MAXHEALTH.NS",
+    "name": "Max Healthcare Institute",
+    "currency": "INR",
+    "exchange": "NSE"
+  },
+  {
+    "symbol": "NESTLEIND.NS",
+    "name": "Nestle India",
+    "currency": "INR",
+    "exchange": "NSE"
+  },
+  {
+    "symbol": "NTPC.NS",
+    "name": "NTPC",
+    "currency": "INR",
+    "exchange": "NSE"
+  },
+  {
+    "symbol": "ONGC.NS",
+    "name": "Oil and Natural Gas Corporation",
+    "currency": "INR",
+    "exchange": "NSE"
+  },
+  {
+    "symbol": "POWERGRID.NS",
+    "name": "Power Grid Corporation of India",
+    "currency": "INR",
+    "exchange": "NSE"
+  },
+  {
+    "symbol": "SBILIFE.NS",
+    "name": "SBI Life Insurance",
+    "currency": "INR",
+    "exchange": "NSE"
+  },
+  {
+    "symbol": "SBIN.NS",
+    "name": "State Bank of India",
+    "currency": "INR",
+    "exchange": "NSE"
+  },
+  {
+    "symbol": "SHRIRAMFIN.NS",
+    "name": "Shriram Finance",
+    "currency": "INR",
+    "exchange": "NSE"
+  },
+  {
+    "symbol": "SUNPHARMA.NS",
+    "name": "Sun Pharmaceutical Industries",
+    "currency": "INR",
+    "exchange": "NSE"
+  },
+  {
+    "symbol": "TATACONSUM.NS",
+    "name": "Tata Consumer Products",
+    "currency": "INR",
+    "exchange": "NSE"
+  },
+  {
+    "symbol": "TMPV.NS",
+    "name": "Tata Motors Passenger Vehicles",
+    "currency": "INR",
+    "exchange": "NSE"
+  },
+  {
+    "symbol": "TATASTEEL.NS",
+    "name": "Tata Steel",
+    "currency": "INR",
+    "exchange": "NSE"
+  },
+  {
+    "symbol": "TCS.NS",
+    "name": "Tata Consultancy Services",
+    "currency": "INR",
+    "exchange": "NSE"
+  },
+  {
+    "symbol": "TECHM.NS",
+    "name": "Tech Mahindra",
+    "currency": "INR",
+    "exchange": "NSE"
+  },
+  {
+    "symbol": "TITAN.NS",
+    "name": "Titan Company",
+    "currency": "INR",
+    "exchange": "NSE"
+  },
+  {
+    "symbol": "TRENT.NS",
+    "name": "Trent",
+    "currency": "INR",
+    "exchange": "NSE"
+  },
+  {
+    "symbol": "ULTRACEMCO.NS",
+    "name": "UltraTech Cement",
+    "currency": "INR",
+    "exchange": "NSE"
+  },
+  {
+    "symbol": "WIPRO.NS",
+    "name": "Wipro",
+    "currency": "INR",
+    "exchange": "NSE"
+  },
+  {
+    "symbol": "ABBV",
+    "name": "AbbVie Inc."
+  },
+  {
+    "symbol": "ABT",
+    "name": "Abbott Laboratories"
+  },
+  {
+    "symbol": "ACN",
+    "name": "Accenture plc"
+  },
+  {
+    "symbol": "AIG",
+    "name": "American International Group"
+  },
+  {
+    "symbol": "AMD",
+    "name": "Advanced Micro Devices"
+  },
+  {
+    "symbol": "AMGN",
+    "name": "Amgen Inc."
+  },
+  {
+    "symbol": "AMT",
+    "name": "American Tower Corporation"
+  },
+  {
+    "symbol": "AVGO",
+    "name": "Broadcom Inc."
+  },
+  {
+    "symbol": "AXP",
+    "name": "American Express"
+  },
+  {
+    "symbol": "BA",
+    "name": "The Boeing Company"
+  },
+  {
+    "symbol": "BKNG",
+    "name": "Booking Holdings"
+  },
+  {
+    "symbol": "BLK",
+    "name": "BlackRock, Inc."
+  },
+  {
+    "symbol": "BMY",
+    "name": "Bristol-Myers Squibb"
+  },
+  {
+    "symbol": "BRK-B",
+    "name": "Berkshire Hathaway (Class B)"
+  },
+  {
+    "symbol": "C",
+    "name": "Citigroup Inc."
+  },
+  {
+    "symbol": "CAT",
+    "name": "Caterpillar Inc."
+  },
+  {
+    "symbol": "CHTR",
+    "name": "Charter Communications"
+  },
+  {
+    "symbol": "CL",
+    "name": "Colgate-Palmolive"
+  },
+  {
+    "symbol": "CMCSA",
+    "name": "Comcast Corporation"
+  },
+  {
+    "symbol": "COF",
+    "name": "Capital One Financial"
+  },
+  {
+    "symbol": "COP",
+    "name": "ConocoPhillips"
+  },
+  {
+    "symbol": "COST",
+    "name": "Costco Wholesale"
+  },
+  {
+    "symbol": "CVS",
+    "name": "CVS Health"
+  },
+  {
+    "symbol": "CVX",
+    "name": "Chevron Corporation"
+  },
+  {
+    "symbol": "DE",
+    "name": "Deere & Company"
+  },
+  {
+    "symbol": "DHR",
+    "name": "Danaher Corporation"
+  },
+  {
+    "symbol": "DUK",
+    "name": "Duke Energy"
+  },
+  {
+    "symbol": "EMR",
+    "name": "Emerson Electric"
+  },
+  {
+    "symbol": "F",
+    "name": "Ford Motor Company"
+  },
+  {
+    "symbol": "FDX",
+    "name": "FedEx Corporation"
+  },
+  {
+    "symbol": "GD",
+    "name": "General Dynamics"
+  },
+  {
+    "symbol": "GE",
+    "name": "GE Aerospace"
+  },
+  {
+    "symbol": "GILD",
+    "name": "Gilead Sciences"
+  },
+  {
+    "symbol": "GM",
+    "name": "General Motors"
+  },
+  {
+    "symbol": "GS",
+    "name": "The Goldman Sachs Group"
+  },
+  {
+    "symbol": "HON",
+    "name": "Honeywell International"
+  },
+  {
+    "symbol": "IBM",
+    "name": "International Business Machines"
+  },
+  {
+    "symbol": "INTU",
+    "name": "Intuit Inc."
+  },
+  {
+    "symbol": "ISRG",
+    "name": "Intuitive Surgical"
+  },
+  {
+    "symbol": "LIN",
+    "name": "Linde plc"
+  },
+  {
+    "symbol": "LLY",
+    "name": "Eli Lilly and Company"
+  },
+  {
+    "symbol": "LMT",
+    "name": "Lockheed Martin"
+  },
+  {
+    "symbol": "LOW",
+    "name": "Lowe's Companies"
+  },
+  {
+    "symbol": "MCD",
+    "name": "McDonald's Corporation"
+  },
+  {
+    "symbol": "MDLZ",
+    "name": "Mondelez International"
+  },
+  {
+    "symbol": "MDT",
+    "name": "Medtronic plc"
+  },
+  {
+    "symbol": "MET",
+    "name": "MetLife, Inc."
+  },
+  {
+    "symbol": "MMM",
+    "name": "3M Company"
+  },
+  {
+    "symbol": "MO",
+    "name": "Altria Group"
+  },
+  {
+    "symbol": "MRK",
+    "name": "Merck & Co."
+  },
+  {
+    "symbol": "MS",
+    "name": "Morgan Stanley"
+  },
+  {
+    "symbol": "NEE",
+    "name": "NextEra Energy"
+  },
+  {
+    "symbol": "NKE",
+    "name": "Nike, Inc."
+  },
+  {
+    "symbol": "NOW",
+    "name": "ServiceNow, Inc."
+  },
+  {
+    "symbol": "ORCL",
+    "name": "Oracle Corporation"
+  },
+  {
+    "symbol": "PEP",
+    "name": "PepsiCo, Inc."
+  },
+  {
+    "symbol": "PLTR",
+    "name": "Palantir Technologies"
+  },
+  {
+    "symbol": "PM",
+    "name": "Philip Morris International"
+  },
+  {
+    "symbol": "PYPL",
+    "name": "PayPal Holdings"
+  },
+  {
+    "symbol": "QCOM",
+    "name": "Qualcomm Incorporated"
+  },
+  {
+    "symbol": "RTX",
+    "name": "RTX Corporation"
+  },
+  {
+    "symbol": "SBUX",
+    "name": "Starbucks Corporation"
+  },
+  {
+    "symbol": "SCHW",
+    "name": "Charles Schwab"
+  },
+  {
+    "symbol": "SO",
+    "name": "The Southern Company"
+  },
+  {
+    "symbol": "SPG",
+    "name": "Simon Property Group"
+  },
+  {
+    "symbol": "T",
+    "name": "AT&T Inc."
+  },
+  {
+    "symbol": "TGT",
+    "name": "Target Corporation"
+  },
+  {
+    "symbol": "TMO",
+    "name": "Thermo Fisher Scientific"
+  },
+  {
+    "symbol": "TMUS",
+    "name": "T-Mobile US"
+  },
+  {
+    "symbol": "TXN",
+    "name": "Texas Instruments"
+  },
+  {
+    "symbol": "UBER",
+    "name": "Uber Technologies"
+  },
+  {
+    "symbol": "UNP",
+    "name": "Union Pacific"
+  },
+  {
+    "symbol": "UPS",
+    "name": "United Parcel Service"
+  },
+  {
+    "symbol": "USB",
+    "name": "U.S. Bancorp"
+  },
+  {
+    "symbol": "VZ",
+    "name": "Verizon Communications"
+  },
+  {
+    "symbol": "WFC",
+    "name": "Wells Fargo & Company"
   }
 ]

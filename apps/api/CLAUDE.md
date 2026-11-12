@@ -722,9 +722,18 @@ counts/close from accepted bars only. Any new write path must go through
 
 The newsdata.io query string is the **company name**, resolved by
 `scheduler.company_name_map()`: `symbols.name` from the database, with
-`seed-data/companies.json` layered on top. The seed file is not shipped in
-the API image, and before the database layer existed the query silently
-degraded to the bare ticker ("AMZN" rather than "Amazon.com Inc.").
+`seed-data/companies.json` layered on top. Before the database layer existed
+the query silently degraded to the bare ticker ("AMZN" rather than
+"Amazon.com Inc.").
+
+**Universe (12 Nov 2026).** `seed-data/companies.json` (shipped in the API
+image) holds 161 symbols: the original 32 plus 53 NSE and 76 US large caps
+drawn from recent NIFTY 50 and S&P 100 membership, each checked against
+yfinance for recent daily bars (not the exact index lists;
+`tests/test_seed_universe.py`). New seed rows reach a database through
+`stockviz.cli seed` (idempotent); the nightly ingest then backfills their full
+history, and Monday's `metadata` fills sector and exchange (and so a US
+listing's venue).
 
 ## Testing
 
