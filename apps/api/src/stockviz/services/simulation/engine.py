@@ -3,6 +3,9 @@
 Pure functions: no Session, settings, clock, or I/O. Fill economics for
 ``LEGACY_CLOSE`` match live paper trading: MARKET fills at the latest 1d
 close, and pending LIMIT / STOP_LOSS / TAKE_PROFIT trigger on that close.
+``NEXT_OPEN`` (Phase 5.3, backtests) fills MARKET orders at the bar's open.
+Either may take a ``CostModel`` (spread and slippage against the trader);
+live trading passes none, so its fills are unchanged.
 """
 
 from __future__ import annotations
@@ -10,6 +13,8 @@ from __future__ import annotations
 from decimal import Decimal
 
 from stockviz.services.simulation.contracts import (
+    NO_COSTS,
+    CostModel,
     ExecutionProfile,
     ExecutionTrace,
     FillDecision,
@@ -19,25 +24,36 @@ from stockviz.services.simulation.contracts import (
     OrderSide,
     SimulationOrderType,
 )
-from stockviz.services.simulation.profiles import LEGACY_CLOSE, is_legacy_close
+from stockviz.services.simulation.profiles import (
+    LEGACY_CLOSE,
+    NEXT_OPEN,
+    is_legacy_close,
+    is_next_open,
+)
+
+MICROS = Decimal("0.000001")
+BPS = Decimal(10_000)
 
 
 def evaluate_order(
     order: OrderIntent,
     market: MarketSnapshot,
     profile: ExecutionProfile,
+    costs: CostModel = NO_COSTS,
 ) -> FillDecision:
     """Decide whether ``order`` fills against ``market`` under ``profile``."""
 
-    if not is_legacy_close(profile):
+    # Provenance is the canonical object, not a caller-built lookalike.
+    if is_legacy_close(profile):
+        profile = LEGACY_CLOSE
+    elif is_next_open(profile):
+        profile = NEXT_OPEN
+    else:
         return _ineligible(
             order,
             profile,
             reason=f"Execution profile {profile.name!r} {profile.model_version!r} is not implemented",
         )
-
-    # Provenance is the canonical object, not a caller-built lookalike.
-    profile = LEGACY_CLOSE
 
     if _norm_ticker(order.ticker) != _norm_ticker(market.ticker):
         return _ineligible(
@@ -68,18 +84,40 @@ def evaluate_order(
             reason=f"{label} orders are sell-only",
         )
 
+    if profile is NEXT_OPEN:
+        if order.order_type is not SimulationOrderType.MARKET:
+            return _ineligible(order, profile, reason="next_open fills market orders only")
+        return _filled(
+            order,
+            market,
+            profile,
+            reason="Market order fills at the bar's open",
+            reference=market.open,
+            costs=costs,
+        )
+
     if order.order_type is SimulationOrderType.MARKET:
         return _filled(
             order,
             market,
             profile,
             reason="Market order fills at observable daily close",
+            costs=costs,
         )
 
     assert order.limit_price is not None
     if not _legacy_should_fill(order, market.close):
         return _not_triggered(order, market, profile, reason=_not_triggered_reason(order))
-    return _filled(order, market, profile, reason=_filled_reason(order))
+    return _filled(order, market, profile, reason=_filled_reason(order), costs=costs)
+
+
+def cost_adjusted(price: Decimal, side: OrderSide, costs: CostModel) -> Decimal:
+    """``price`` moved against the trader by half the spread plus slippage."""
+    if costs.is_free:
+        return price
+    move = (costs.spread_bps / 2 + costs.slippage_bps) / BPS
+    factor = Decimal(1) + move if side is OrderSide.BUY else Decimal(1) - move
+    return (price * factor).quantize(MICROS)
 
 
 def _legacy_should_fill(order: OrderIntent, close: Decimal) -> bool:
@@ -109,14 +147,23 @@ def _filled(
     profile: ExecutionProfile,
     *,
     reason: str,
+    reference: Decimal | None = None,
+    costs: CostModel = NO_COSTS,
 ) -> FillDecision:
     remaining = _remaining(order)
+    reference_price = market.close if reference is None else reference
+    price = cost_adjusted(reference_price, order.side, costs)
+    if not costs.is_free:
+        reason = (
+            f"{reason}; spread {costs.spread_bps} bps, slippage {costs.slippage_bps} bps "
+            "against the trader"
+        )
     return FillDecision(
         status=FillStatus.FILLED,
         fill_quantity=remaining,
-        fill_price=market.close,
+        fill_price=price,
         remaining_quantity=Decimal(0),
-        trace=_trace(profile, reference_price=market.close, fill_price=market.close, reason=reason),
+        trace=_trace(profile, reference_price=reference_price, fill_price=price, reason=reason),
     )
 
 

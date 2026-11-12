@@ -66,9 +66,16 @@ src/stockviz/
                     journal.py persists the first-fill-locked thesis.
     options/        Black-Scholes-style pricing + option trade execution/settlement
     backtest/       engine.py — historical strategy simulation. Since Phase
-                    5.2 (SIM-08) fills come from the kernel (`legacy_close`,
-                    next bar's close) and book in the shared SimLedger; costs
-                    are a fee per fill. The router loads warm-up bars before
+                    5.2 (SIM-08) fills come from the kernel and book in the
+                    shared SimLedger. 5.3: `fill_rule` picks the profile
+                    (`next_open` v1, the API default: next bar's open;
+                    `next_close` = `legacy_close`); `spread_bps` and
+                    `slippage_bps` are a kernel `CostModel` that moves the
+                    fill price against the trader; `commission_bps` and
+                    `fee_schedule` (`services/simulation/fees.py`: `none`,
+                    `us_equity_2026` = SEC $20.60/M and FINRA TAF on sales)
+                    are fees per fill, listed per trade. Live trading passes
+                    no cost model and stays on `legacy_close`. The router loads warm-up bars before
                     `from` (SMA: long window + 1; RSI: 250) that signals see
                     but nothing trades on, and the equity curve and benchmark
                     start at `from` (SR-3). Responses carry `currency`

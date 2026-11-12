@@ -1092,6 +1092,13 @@ export interface components {
              */
             currency: string;
         };
+        /** BacktestFeeOut */
+        BacktestFeeOut: {
+            /** Name */
+            name: string;
+            /** Amount */
+            amount: string;
+        };
         /**
          * BacktestIn
          * @description Request body for POST /v1/backtest.
@@ -1134,6 +1141,23 @@ export interface components {
              * @enum {string}
              */
             return_mode: "price" | "total";
+            /**
+             * Fill Rule
+             * @default next_open
+             * @enum {string}
+             */
+            fill_rule: "next_open" | "next_close";
+            /**
+             * Spread Bps
+             * @default 0
+             */
+            spread_bps: number;
+            /**
+             * Fee Schedule
+             * @default none
+             * @enum {string}
+             */
+            fee_schedule: "none" | "us_equity_2026";
         };
         /** BacktestOut */
         BacktestOut: {
@@ -1157,6 +1181,16 @@ export interface components {
              * @default 0
              */
             warmup_bars: number;
+            /**
+             * Execution Profile
+             * @default legacy_close/v1
+             */
+            execution_profile: string;
+            /**
+             * Fee Schedule
+             * @default none
+             */
+            fee_schedule: string;
             /** Trades */
             trades: components["schemas"]["BacktestTradeOut"][];
             /** Equity Curve */
@@ -1216,6 +1250,13 @@ export interface components {
             price: string;
             /** Shares */
             shares: string;
+            /** Reference Price */
+            reference_price?: string | null;
+            /**
+             * Fees
+             * @default []
+             */
+            fees: components["schemas"]["BacktestFeeOut"][];
         };
         /** BarOut */
         BarOut: {

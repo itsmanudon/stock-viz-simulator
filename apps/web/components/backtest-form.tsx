@@ -100,6 +100,9 @@ export function BacktestForm({
   const [longWindow, setLongWindow] = useState("50");
   const [commissionBps, setCommissionBps] = useState("0");
   const [returnMode, setReturnMode] = useState<"price" | "total">("price");
+  const [fillRule, setFillRule] = useState<"next_open" | "next_close">("next_open");
+  const [spreadBps, setSpreadBps] = useState("0");
+  const [feeSchedule, setFeeSchedule] = useState<"none" | "us_equity_2026">("none");
   const [slippageBps, setSlippageBps] = useState("0");
 
   const [pending, setPending] = useState(false);
@@ -152,6 +155,9 @@ export function BacktestForm({
         commission_bps: commission,
         slippage_bps: slippage,
         return_mode: returnMode,
+        fill_rule: fillRule,
+        spread_bps: Number(spreadBps) || 0,
+        fee_schedule: feeSchedule,
       });
       setLastCosts({ commissionBps: commission, slippageBps: slippage });
       setResult(res);
@@ -295,8 +301,51 @@ export function BacktestForm({
                   onChange={(event) => setSlippageBps(event.target.value)}
                 />
               </div>
+              <div className="space-y-1">
+                <Label htmlFor="bt-spread" className="text-xs">
+                  Spread (bps)
+                </Label>
+                <Input
+                  id="bt-spread"
+                  type="number"
+                  min="0"
+                  max="1000"
+                  step="1"
+                  value={spreadBps}
+                  onChange={(event) => setSpreadBps(event.target.value)}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="bt-fees" className="text-xs">
+                  Regulatory fees
+                </Label>
+                <select
+                  id="bt-fees"
+                  value={feeSchedule}
+                  onChange={(event) =>
+                    setFeeSchedule(event.target.value as "none" | "us_equity_2026")
+                  }
+                  className="flex h-10 w-full rounded-sm border border-input bg-transparent px-3 py-2 text-sm"
+                >
+                  <option value="none">None</option>
+                  <option value="us_equity_2026">US equity 2026 (SEC, FINRA on sales)</option>
+                </select>
+              </div>
             </div>
           </fieldset>
+
+          <div className="space-y-2">
+            <Label htmlFor="bt-fill-rule">Fill at</Label>
+            <select
+              id="bt-fill-rule"
+              value={fillRule}
+              onChange={(event) => setFillRule(event.target.value as "next_open" | "next_close")}
+              className="flex h-10 w-full rounded-sm border border-input bg-transparent px-3 py-2 text-sm"
+            >
+              <option value="next_open">Next bar&apos;s open</option>
+              <option value="next_close">Next bar&apos;s close</option>
+            </select>
+          </div>
 
           <div className="space-y-2">
             <Label htmlFor="bt-returns">Returns</Label>
@@ -518,8 +567,12 @@ function BacktestResults({
         />
         <p className="mt-3 text-xs leading-5 text-text-tertiary">
           Commission {commissionBps} bps · slippage {slippageBps} bps · Sharpe uses a{" "}
-          {(RISK_FREE_RATE * 100).toFixed(0)}% annual risk-free rate. Fills use the next bar&apos;s
-          close after a completed-bar signal.
+          {(RISK_FREE_RATE * 100).toFixed(0)}% annual risk-free rate. Fills use the next bar&apos;s{" "}
+          {(result.execution_profile ?? "legacy_close/v1").startsWith("next_open")
+            ? "open"
+            : "close"}{" "}
+          after a completed-bar signal ({result.execution_profile ?? "legacy_close/v1"}; fees:{" "}
+          {result.fee_schedule ?? "none"}).
         </p>
         <p className="mt-1 text-xs leading-5 text-text-tertiary" data-testid="backtest-basis">
           Amounts in {currency}.{" "}
@@ -539,7 +592,7 @@ function BacktestResults({
         <ResearchSectionHeader
           id="trades-heading"
           title={`Trade log (${result.trades.length})`}
-          description="All-in / all-out fills at the execution bar close."
+          description="All-in / all-out fills. Price includes spread and slippage; fees are shown separately."
         />
         {result.trades.length === 0 ? (
           <p className="border-y border-border-muted py-6 text-sm text-text-secondary">
@@ -554,6 +607,7 @@ function BacktestResults({
                   <TableHead className="w-[80px]">Side</TableHead>
                   <TableHead className="text-right">Price</TableHead>
                   <TableHead className="hidden text-right sm:table-cell">Shares</TableHead>
+                  <TableHead className="hidden text-right sm:table-cell">Fees</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -579,6 +633,15 @@ function BacktestResults({
                       {Number(trade.shares).toLocaleString("en-US", {
                         maximumFractionDigits: 4,
                       })}
+                    </TableCell>
+                    <TableCell
+                      className="hidden text-right font-mono sm:table-cell"
+                      title={(trade.fees ?? []).map((f) => `${f.name} ${f.amount}`).join(", ")}
+                    >
+                      {fmtCurrency(
+                        String((trade.fees ?? []).reduce((sum, f) => sum + Number(f.amount), 0)),
+                        currency,
+                      )}
                     </TableCell>
                   </TableRow>
                 ))}

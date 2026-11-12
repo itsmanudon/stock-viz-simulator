@@ -984,8 +984,20 @@ class BacktestIn(BaseModel):
     # Phase 5.2 (audit SR-7): "price" (default) ignores dividends and says so;
     # "total" credits each dividend to shares held into its ex-date.
     return_mode: Literal["price", "total"] = "price"
+    # Phase 5.3 cost models. Owner decision (12 Nov 2026): backtests fill at
+    # the next bar's open by default; "next_close" keeps the old rule.
+    fill_rule: Literal["next_open", "next_close"] = "next_open"
+    # Moves the fill price against the trader (half the spread, plus slippage).
+    spread_bps: float = Field(default=0.0, ge=0, le=1000)
+    # Regulatory fees per fill; commission_bps is charged on top.
+    fee_schedule: Literal["none", "us_equity_2026"] = "none"
 
     model_config = ConfigDict(populate_by_name=True)
+
+
+class BacktestFeeOut(BaseModel):
+    name: str
+    amount: Decimal
 
 
 class BacktestTradeOut(BaseModel):
@@ -993,6 +1005,9 @@ class BacktestTradeOut(BaseModel):
     side: Literal["buy", "sell"]
     price: Decimal
     shares: Decimal
+    # Phase 5.3: the price before spread and slippage, and each fee charged.
+    reference_price: Decimal | None = None
+    fees: list[BacktestFeeOut] = []
 
 
 class EquityPointOut(BaseModel):
@@ -1026,6 +1041,9 @@ class BacktestOut(BaseModel):
     return_mode: Literal["price", "total"] = "price"
     # Bars before ``from`` the strategy saw but did not trade on (audit SR-3).
     warmup_bars: int = 0
+    # Phase 5.3: the kernel profile (name/version) and fee schedule used.
+    execution_profile: str = "legacy_close/v1"
+    fee_schedule: str = "none"
     trades: list[BacktestTradeOut]
     equity_curve: list[EquityPointOut]
     summary: BacktestSummaryOut
