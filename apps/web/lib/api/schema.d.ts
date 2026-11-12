@@ -1450,6 +1450,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/research/event-study": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Event Study
+         * @description ``tickers`` may repeat (``?tickers=A&tickers=B``) or be comma-separated.
+         */
+        get: operations["event_study_v1_research_event_study_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1925,6 +1945,94 @@ export interface components {
             date: string;
             /** Nav */
             nav: string;
+        };
+        /** EventStudyEventOut */
+        EventStudyEventOut: {
+            /** Ticker */
+            ticker: string;
+            /** Document Id */
+            document_id: string;
+            /** Title */
+            title: string;
+            /**
+             * Available At
+             * Format: date-time
+             */
+            available_at: string;
+            /**
+             * Event Date
+             * Format: date
+             */
+            event_date: string;
+            /** Car Pct */
+            car_pct: number;
+        };
+        /**
+         * EventStudyOut
+         * @description Abnormal returns around news of a kind. Association, not cause.
+         */
+        EventStudyOut: {
+            /** Tickers */
+            tickers: string[];
+            /** Sentiment */
+            sentiment: string | null;
+            /** Event Type */
+            event_type: string | null;
+            /** Pre */
+            pre: number;
+            /** Post */
+            post: number;
+            /**
+             * Model
+             * @default market-adjusted: stock log return minus its market index's
+             */
+            model: string;
+            /** Benchmarks */
+            benchmarks: {
+                [key: string]: string;
+            };
+            /** No Benchmark */
+            no_benchmark: string[];
+            /** Min Events */
+            min_events: number;
+            /** Enough */
+            enough: boolean;
+            /** Events Found */
+            events_found: number;
+            /** Events Used */
+            events_used: number;
+            /** Events Incomplete */
+            events_incomplete: number;
+            /** Overlapping */
+            overlapping: number;
+            /** Windows */
+            windows: components["schemas"]["EventStudyWindowOut"][];
+            /** Path */
+            path: components["schemas"]["EventStudyPointOut"][];
+            /** Events */
+            events: components["schemas"]["EventStudyEventOut"][];
+        };
+        /** EventStudyPointOut */
+        EventStudyPointOut: {
+            /** Offset */
+            offset: number;
+            /** Mean Car Pct */
+            mean_car_pct: number | null;
+            /** Std Error Pct */
+            std_error_pct: number | null;
+        };
+        /** EventStudyWindowOut */
+        EventStudyWindowOut: {
+            /** Start */
+            start: number;
+            /** End */
+            end: number;
+            /** Mean Car Pct */
+            mean_car_pct: number | null;
+            /** Std Error Pct */
+            std_error_pct: number | null;
+            /** T Stat */
+            t_stat: number | null;
         };
         /**
          * ExecutionProvenanceOut
@@ -7038,6 +7146,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["UnreadCountOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    event_study_v1_research_event_study_get: {
+        parameters: {
+            query: {
+                tickers: string[];
+                sentiment?: ("negative" | "positive" | "mixed" | "neutral") | null;
+                event_type?: string | null;
+                pre?: number;
+                post?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EventStudyOut"];
                 };
             };
             /** @description Validation Error */

@@ -56,6 +56,7 @@ describe("getActiveNavigation", () => {
       "Backtest",
       "Replay",
       "News",
+      "News reactions",
     ]);
     const trade = APP_NAVIGATION.find((group) => group.label === "Trade");
     expect(trade?.items?.map((item) => item.label)).not.toContain("Backtest");

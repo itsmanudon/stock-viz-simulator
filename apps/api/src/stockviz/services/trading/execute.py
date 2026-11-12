@@ -26,7 +26,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, col, select
 
 from stockviz.models import FxConversion, Portfolio, Position, PriceBar, Symbol, Trade, TradeSide
-from stockviz.services.instruments import instrument_of
+from stockviz.services.instruments import instrument_of, is_index_ticker
 from stockviz.services.simulation import (
     LIVE_PAPER_EXECUTION_PROFILE,
     FillDecision,
@@ -70,6 +70,10 @@ class TradeExecutionError(Exception):
 
 class SymbolNotFound(TradeExecutionError):
     pass
+
+
+class NotTradable(TradeExecutionError):
+    """An index (Phase 7.4) has stored closes but cannot be bought or sold."""
 
 
 class NoMarketDataError(TradeExecutionError):
@@ -276,6 +280,8 @@ def resolve_priced_symbol(
     symbol = session.get(Symbol, ticker)
     if symbol is None:
         raise SymbolNotFound(f"Symbol {ticker!r} not found")
+    if is_index_ticker(ticker):
+        raise NotTradable(f"{ticker} is an index: it can be studied but not traded")
 
     bar = latest_bar(session, ticker)
     if bar is None:

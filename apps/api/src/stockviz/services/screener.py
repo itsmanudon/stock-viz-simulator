@@ -158,7 +158,7 @@ def run_screen(session: Session, q: ScreenQuery) -> tuple[list[ScreenRow], int]:
         select(SymbolMetrics, Symbol, Instrument)
         .join(Symbol, col(Symbol.ticker) == col(SymbolMetrics.ticker))
         .join(Instrument, col(Instrument.id) == instrument_of(Symbol.ticker), isouter=True)
-        .where(col(Symbol.is_active))
+        .where(col(Symbol.is_active), col(Symbol.ticker).not_like("^%"))
     )
     m = SymbolMetrics
     if q.markets:

@@ -762,5 +762,15 @@
   {
     "symbol": "WFC",
     "name": "Wells Fargo & Company"
+  },
+  {
+    "symbol": "^GSPC",
+    "name": "S&P 500 index",
+    "currency": "USD"
+  },
+  {
+    "symbol": "^NSEI",
+    "name": "NIFTY 50 index",
+    "currency": "INR"
   }
 ]

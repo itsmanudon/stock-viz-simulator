@@ -25,6 +25,7 @@ import { type RateLimitResult, hit } from "@/lib/rate-limit";
 export const VISITOR_LIMITS = {
   screener: 30,
   compare: 30,
+  reactions: 20,
   stock: 60,
 } as const;
 

@@ -189,6 +189,8 @@ def quote_option(
         raise OptionSymbolNotFound(f"Symbol {ticker!r} not found")
     if symbol.currency != "USD":
         raise OptionTradeError("Options paper trading currently supports USD underlyings only")
+    if ticker.startswith("^"):
+        raise OptionTradeError(f"{ticker} is an index: options are on stocks only")
 
     today = utcnow().date()
     if expiry <= today:

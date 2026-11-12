@@ -50,6 +50,7 @@ from stockviz.services.trading.execute import (
     InsufficientPosition,
     NoFxRateError,
     NoMarketDataError,
+    NotTradable,
     PricedSymbol,
     SymbolNotFound,
     TradeExecutionError,
@@ -104,6 +105,8 @@ def create_pending_order(
     ticker = ticker.upper()
     if session.get(Symbol, ticker) is None:
         raise SymbolNotFound(f"Symbol {ticker!r} not found")
+    if ticker.startswith("^"):
+        raise NotTradable(f"{ticker} is an index: it can be studied but not traded")
 
     if order_type in (OrderType.STOP_LOSS, OrderType.TAKE_PROFIT) and side != TradeSide.SELL:
         raise OrderError(f"{order_type} orders must be sell orders")

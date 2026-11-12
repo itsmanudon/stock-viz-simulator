@@ -543,6 +543,13 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   so in its title, and polling stops while the tab is hidden.
   `/notifications` (protected) lists everything by category with paging and
   mark read / mark all read. In-app only.
+- `/news-reactions` (Phase 7.4, Research subnav, public, 20 views a minute
+  per visitor): an event study from the URL (`tickers`, `sentiment`,
+  `event_type`, `pre`, `post`) through `getEventStudy()` (`lib/api/research.ts`,
+  cached with `bars`/`news` tags), shown by `components/event-study-view.tsx`
+  (windows table, mean CAR path as inline SVG, the events; counts only below
+  the minimum; "association, not cause"). The stock page's News tab adds a
+  "News reactions" block for its negative and positive news (`NewsReactions`).
 - Watchlist rows carry `last_close_at` and `currency`, and alert rows carry
   `currency` (audit RS-13), so the dashboard no longer loads the symbol list
   to format them. `/alerts` still loads it for the create form.

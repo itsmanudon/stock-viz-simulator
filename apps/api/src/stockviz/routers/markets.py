@@ -74,7 +74,12 @@ def markets_summary(
     ``sectors`` always covers the whole active universe, not just the filtered
     slice, so the filter control can render every option without a second call.
     """
-    all_active = list(session.exec(select(Symbol).where(Symbol.is_active).order_by(Symbol.ticker)))
+    # Indices (Phase 7.4) are benchmarks: not rows in the table or its breadth.
+    all_active = [
+        s
+        for s in session.exec(select(Symbol).where(Symbol.is_active).order_by(Symbol.ticker))
+        if not s.ticker.startswith("^")
+    ]
     sectors = sorted({s.sector for s in all_active if s.sector})
 
     symbols = [s for s in all_active if sector is None or s.sector == sector]
