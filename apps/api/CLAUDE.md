@@ -148,6 +148,23 @@ from the holding at the close before the ex-date: the current position with
 trades dated (New York) on or after the ex-date undone. FX is the rate on or
 before the ex-date. `portfolio_dividends` uniqueness stops double payment.
 
+**Splits rebase the ledger once (Phase 4.2, #65).** Stored closes are
+yfinance's split-adjusted series, rewritten every night, so a split divides
+every old close by its ratio. `stockviz.cli corporate-actions` (after
+`ingest`, before `fx` and `settle-orders` in the cron) records splits for the
+tickers the ledger touches (`corporate_actions`, from `yfinance.splits`) and,
+once the ex-date bar is complete on the venue, rebases each user in one
+transaction (`services/corporate_actions/apply.py`): shares bought before the
+cut-off and still held times r with the total cost kept; pending orders, live
+alerts and open options made before the cut-off scaled likewise (options
+carry `shares_per_contract`, 100 until a split changes it; value and
+exercise read it, never `CONTRACT_MULTIPLIER`). Trade rows stay as filled.
+`corporate_action_applications` (unique per action and user) makes it run
+once. Old splits change nothing because no ledger row predates them. The
+Alpha Vantage fallback is unadjusted, so `upsert_bars` lets it add only days
+newer than the newest stored daily bar (audit MD-5). Replay sessions read
+the same rescaled bars and are not rebased.
+
 **A night leaves a record (audits OP-5, OP-3, OP-15).** `cli.main` writes a
 `job_runs` row (`models/job_run.py`) for each command in `RECORDED_JOBS`:
 `running`, then `succeeded`, `failed` (any other exit code, or an exception,

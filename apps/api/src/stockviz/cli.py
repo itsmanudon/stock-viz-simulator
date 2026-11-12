@@ -175,6 +175,42 @@ def _cmd_earnings(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_corporate_actions(args: argparse.Namespace) -> int:
+    """Record splits for ledger tickers, then rebase the ledger for due ones (#65).
+
+    Runs after ``ingest`` (which rewrites the split-adjusted closes) and before
+    ``settle-orders``, so orders settle on the new scale. Exit 1 if any fetch
+    failed: a missed split leaves positions on the old scale.
+    """
+    from stockviz._time import utcnow
+    from stockviz.services.corporate_actions.apply import apply_due_splits
+    from stockviz.services.corporate_actions.splits import ledger_tickers, record_splits
+
+    failed: list[str] = []
+    recorded = 0
+    with Session(engine) as session:
+        tickers = [t.upper() for t in args.tickers] if args.tickers else ledger_tickers(session)
+        for ticker in tickers:
+            try:
+                recorded += record_splits(session, ticker)
+                session.commit()
+            except Exception as exc:
+                session.rollback()
+                logger.warning("corporate-actions: %s split fetch failed: %s", ticker, exc)
+                failed.append(ticker)
+        result = apply_due_splits(session, now=utcnow().replace(tzinfo=UTC))
+    print(
+        f"corporate actions: {len(tickers)} ticker(s) checked, {recorded} split row(s) "
+        f"recorded, {result.actions_due} due, {result.users_rebased} user(s) rebased"
+    )
+    for line in result.summaries:
+        print(f"  {line}")
+    if failed:
+        print(f"corporate-actions: fetch failed for {', '.join(failed)}", file=sys.stderr)
+        return 1
+    return 0
+
+
 def _cmd_credit_dividends(_args: argparse.Namespace) -> int:
     from stockviz._time import utcnow
 
@@ -991,6 +1027,7 @@ def _cmd_ingest_quarantine(args: argparse.Namespace) -> int:
 RECORDED_JOBS = frozenset(
     {
         "ingest",
+        "corporate-actions",
         "fx",
         "settle-orders",
         "evaluate-alerts",
@@ -1232,6 +1269,13 @@ def main(argv: list[str] | None = None) -> int:
         "--apply", action="store_true", help="Fetch again and replace the rows (default: dry run)"
     )
     p_redate.set_defaults(fn=_cmd_redate_bars)
+
+    p_ca = sub.add_parser(
+        "corporate-actions",
+        help="Record splits for ledger tickers and rebase positions, orders, alerts, options",
+    )
+    p_ca.add_argument("tickers", nargs="*", help="Limit the split fetch to these tickers")
+    p_ca.set_defaults(fn=_cmd_corporate_actions)
 
     p_aegis = sub.add_parser(
         "aegis-sync",

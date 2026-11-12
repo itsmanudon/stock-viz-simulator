@@ -104,6 +104,11 @@ def session_on_or_before(day: date, venue: str = NEW_YORK_VENUE) -> date:
     return day  # no session in two weeks: a calendar gap, not a market
 
 
+def session_complete_at(day: date, venue: str = NEW_YORK_VENUE) -> datetime:
+    """When ``day``'s daily bar on ``venue`` counts as complete (aware, UTC-comparable)."""
+    return _session_complete_at(day, venue)
+
+
 def _session_complete_at(day: date, venue: str) -> datetime:
     calendar = _calendar(venue)
     if calendar is None or not _in_range(calendar, day):

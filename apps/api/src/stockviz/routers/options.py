@@ -54,7 +54,7 @@ def _to_out(session: Session, position: OptionsPosition) -> OptionPositionOut:
     try:
         price = value_option(session, position)
         current_value = (
-            Decimal(str(price.value)) * CONTRACT_MULTIPLIER * position.quantity
+            Decimal(str(price.value)) * position.shares_per_contract * position.quantity
         ).quantize(Decimal("0.01"))
         if current_value < 0:
             current_value = Decimal("0.00")

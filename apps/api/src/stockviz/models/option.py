@@ -5,8 +5,10 @@ to close before expiry, or let it run to expiry where the settlement job
 exercises it (ITM) or expires it worthless (OTM). Writing/shorting options is
 out of scope for v1 — every row here is a long position.
 
-One contract covers ``CONTRACT_MULTIPLIER`` shares (the US equity-option
-standard of 100).
+A contract opens covering ``CONTRACT_MULTIPLIER`` shares (the US
+equity-option standard of 100). ``shares_per_contract`` is stored per row
+because a split changes it: a 4-for-1 split turns a 100-share contract at a
+$200 strike into a 400-share contract at $50 (Phase 4.2, #65).
 """
 
 from __future__ import annotations
@@ -66,6 +68,10 @@ class OptionsPosition(SQLModel, table=True):
     strike: Decimal = Field(sa_column=Column(Numeric(18, 6), nullable=False))
     expiry: date_type = Field(nullable=False, index=True)
     quantity: int = Field(nullable=False)  # number of contracts
+    shares_per_contract: Decimal = Field(
+        default=Decimal(CONTRACT_MULTIPLIER),
+        sa_column=Column(Numeric(18, 6), nullable=False, server_default="100"),
+    )
     premium_paid: Decimal = Field(sa_column=Column(Numeric(20, 6), nullable=False))
     client_order_id: str | None = Field(default=None, max_length=64, nullable=True)
 

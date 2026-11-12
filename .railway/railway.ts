@@ -64,6 +64,10 @@ const EOD_REFRESH = [
   "alembic upgrade head || exit 1",
   'TICKERS=$(python -c "from stockviz.db import engine; from sqlmodel import Session, select; from stockviz.models import Symbol; print(\\" \\".join(Session(engine).exec(select(Symbol.ticker).where(Symbol.is_active)).all()))") || exit 1',
   job("python -m stockviz.cli ingest $TICKERS"),
+  // Splits (Phase 4.2, #65): ingest has just rewritten the split-adjusted
+  // closes, so rebase positions, orders, alerts and options before anything
+  // fills or values against them.
+  job("python -m stockviz.cli corporate-actions"),
   job("python -m stockviz.cli fx"),
   // Pending orders and price alerts had no hosted runner (audits P0-1, P0-2).
   // After fx so fills convert at a fresh rate, before the snapshot so tonight's
