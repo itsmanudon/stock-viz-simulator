@@ -43,6 +43,37 @@ logger = logging.getLogger(__name__)
 DAILY_INTERVAL = "1d"
 SOURCE_YFINANCE = "yfinance"
 SOURCE_ALPHA_VANTAGE = "alpha_vantage"
+SOURCE_KITE = "kite"
+SOURCE_TRUEDATA = "truedata"
+
+SOURCE_RANK: dict[str, int] = {
+    SOURCE_KITE: 3,
+    SOURCE_TRUEDATA: 3,
+    SOURCE_YFINANCE: 2,
+    SOURCE_ALPHA_VANTAGE: 1,
+}
+"""Which provider's bar wins for the same (instrument, day, interval) (Phase 4.7).
+
+A write replaces a stored bar only when its source ranks at least as high.
+The paid providers (Kite, TrueData) run as occasional history snapshots, so a
+nightly yfinance refresh must never overwrite what they stored; it only adds
+newer days. Unlisted sources (``v1_csv``, ``bulk_*``) rank 0, so they behave
+as before: any provider bar replaces them.
+"""
+
+
+def source_rank(source: str | None) -> int:
+    return SOURCE_RANK.get(source or "", 0)
+
+
+def _rank_sql(column: Any) -> Any:
+    from sqlalchemy import case
+
+    return case(
+        *((column == name, rank) for name, rank in SOURCE_RANK.items()),
+        else_=0,
+    )
+
 
 UPSERT_CHUNK_ROWS = 1000
 """Bars per multi-row INSERT.
@@ -425,6 +456,9 @@ def write_accepted_bars(session: Session, bars: list[BarRecord]) -> int:
             stmt = pg_insert(PriceBar).values(chunk)
             stmt = stmt.on_conflict_do_update(
                 index_elements=["instrument_id", "ts", "interval"],
+                # A lower-ranked provider never replaces a higher one (4.7).
+                where=_rank_sql(PriceBar.__table__.c.source)  # pyright: ignore[reportAttributeAccessIssue]
+                <= _rank_sql(stmt.excluded.source),
                 set_={
                     "open": stmt.excluded.open,
                     "high": stmt.excluded.high,
@@ -444,6 +478,8 @@ def write_accepted_bars(session: Session, bars: list[BarRecord]) -> int:
         if existing is None:
             session.add(PriceBar(**row))
             continue
+        if source_rank(existing.source) > source_rank(row["source"]):
+            continue
         existing.open = row["open"]
         existing.high = row["high"]
         existing.low = row["low"]
@@ -459,7 +495,7 @@ def write_accepted_bars(session: Session, bars: list[BarRecord]) -> int:
 MINOR_UNIT_SCALE: dict[str, Decimal] = {"GBX": Decimal(100)}
 """Quote units that are a fraction of the currency: London quotes in pence."""
 
-PROVIDER_SOURCES = frozenset({SOURCE_YFINANCE, SOURCE_ALPHA_VANTAGE})
+PROVIDER_SOURCES = frozenset({SOURCE_YFINANCE, SOURCE_ALPHA_VANTAGE, SOURCE_KITE, SOURCE_TRUEDATA})
 
 
 def minor_unit_scale(session: Session, ticker: str) -> Decimal:
