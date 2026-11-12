@@ -12,18 +12,43 @@ import {
 import { Button } from "@/components/ui/button";
 import type { BacktestRequest } from "@/lib/api/types";
 
-/** "Save run" under a backtest result (Phase 5.4). */
+const STUDIES = [
+  { study: "single", label: "Save run" },
+  { study: "walk_forward", label: "Walk-forward" },
+  { study: "sweep", label: "Sweep settings" },
+] as const;
+
+/**
+ * Under a backtest result: save it (Phase 5.4), or test the strategy with a
+ * walk-forward or a sweep over the default grid (5.5). Each is stored.
+ */
 export function SaveBacktestRun({ request }: { request: BacktestRequest }) {
   const [state, save, saving] = useActionState<SaveRunState, FormData>(saveBacktestRunAction, {});
   return (
-    <form action={save} className="flex flex-wrap items-center gap-3">
+    <form action={save} className="space-y-2">
       <input type="hidden" name="request" value={JSON.stringify(request)} />
-      <Button type="submit" variant="outline" disabled={saving || state.runId !== undefined}>
-        {saving ? "Saving…" : state.runId !== undefined ? "Saved" : "Save run"}
-      </Button>
+      <div className="flex flex-wrap items-center gap-2">
+        {STUDIES.map((s) => (
+          <Button
+            key={s.study}
+            type="submit"
+            name="study"
+            value={s.study}
+            variant="outline"
+            disabled={saving}
+          >
+            {s.label}
+          </Button>
+        ))}
+        {saving ? <output className="text-sm">Working…</output> : null}
+      </div>
+      <p className="text-xs leading-5 text-text-tertiary">
+        Walk-forward picks the best setting on each 3-year period and scores it on the next year;
+        only those scored years count. A sweep ranks every setting over the whole range.
+      </p>
       {state.runId !== undefined ? (
-        <output className="text-sm">
-          Saved as run {state.runId}. <Link href="/backtest/runs">See saved runs</Link>
+        <output className="block text-sm">
+          Stored as run {state.runId}. <Link href={`/backtest/runs/${state.runId}`}>Open it</Link>
         </output>
       ) : null}
       {state.error ? (

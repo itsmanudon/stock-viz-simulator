@@ -368,6 +368,10 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   action in `app/(product)/backtest/actions.ts`) stores the request through
   `/v1/experiments/runs`; `/backtest/runs` (protected in `proxy.ts`) lists
   saved runs with a Rerun check (identical, different, or data changed).
+  Beside Save run, "Walk-forward" and "Sweep settings" (Phase 5.5) run the
+  default grid on the server and store the study; `/backtest/runs/[runId]`
+  shows a walk-forward's windows (chosen setting, scored year) or a sweep's
+  ranked settings ("best of N").
 - The `/trade` option ticket (`components/option-trade-form.tsx`) quotes
   before it buys (audit LG-7): `getOptionQuote()` (`lib/api/option-quote.ts`,
   a browser call to the public `/v1/options/quote`) shows spot with its close

@@ -20,7 +20,49 @@ export type ExperimentRun = {
   last_bar_at: string | null;
   created_at: string;
   summary: BacktestSummary;
-  result?: BacktestResult | null;
+  /** `kind` "single": a BacktestResult; "walk_forward" / "sweep": their own shape. */
+  result?: BacktestResult | WalkForwardResult | SweepResult | null;
+};
+
+export type WalkForwardWindow = {
+  in_sample_from: string;
+  in_sample_to: string;
+  out_of_sample_from: string;
+  out_of_sample_to: string;
+  chosen: Record<string, number | string>;
+  in_sample_score: number;
+  out_of_sample_return: number;
+  trades: number;
+};
+
+/** Phase 5.5: choose on each in-sample period, score on the next one. */
+export type WalkForwardResult = {
+  result_kind: "walk_forward";
+  ticker: string;
+  currency: string;
+  score: "sharpe" | "total_return";
+  in_sample_years: number;
+  out_of_sample_years: number;
+  step_years: number;
+  tried: number;
+  windows: WalkForwardWindow[];
+  equity_curve: { date: string; nav: string }[];
+  summary: BacktestSummary;
+};
+
+export type SweepResult = {
+  result_kind: "sweep";
+  ticker: string;
+  currency: string;
+  score: "sharpe" | "total_return";
+  tried: number;
+  runs: {
+    strategy: Record<string, number | string>;
+    score: number;
+    summary: BacktestSummary;
+    trades: number;
+  }[];
+  summary: BacktestSummary;
 };
 
 export type ExperimentRerun = {
@@ -32,6 +74,18 @@ export type ExperimentRerun = {
 
 export function saveExperimentRun(backtest: BacktestRequest): Promise<ExperimentRun> {
   return authedPost<ExperimentRun>("/v1/experiments/runs", { backtest });
+}
+
+export function runWalkForward(backtest: BacktestRequest): Promise<ExperimentRun> {
+  return authedPost<ExperimentRun>("/v1/experiments/walk-forward", { backtest });
+}
+
+export function runSweep(backtest: BacktestRequest): Promise<ExperimentRun> {
+  return authedPost<ExperimentRun>("/v1/experiments/sweep", { backtest });
+}
+
+export function getExperimentRun(runId: number): Promise<ExperimentRun> {
+  return authedGet<ExperimentRun>(`/v1/experiments/runs/${runId}`);
 }
 
 export function listExperimentRuns(): Promise<ExperimentRun[]> {

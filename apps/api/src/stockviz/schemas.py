@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -1069,6 +1069,26 @@ class ExperimentRunIn(BaseModel):
     experiment_id: int | None = None
 
 
+class WalkForwardIn(BaseModel):
+    """Phase 5.5. ``backtest`` sets the symbol, range, cash, costs and fees;
+    its strategy type picks the default grid when ``grid`` is empty."""
+
+    backtest: BacktestIn
+    grid: list[StrategySpec] | None = Field(default=None, max_length=50)
+    in_sample_years: int = Field(default=3, ge=1, le=20)
+    out_of_sample_years: int = Field(default=1, ge=1, le=10)
+    step_years: int = Field(default=1, ge=1, le=10)
+    score: Literal["sharpe", "total_return"] = "sharpe"
+    experiment_id: int | None = None
+
+
+class SweepIn(BaseModel):
+    backtest: BacktestIn
+    grid: list[StrategySpec] | None = Field(default=None, max_length=50)
+    score: Literal["sharpe", "total_return"] = "sharpe"
+    experiment_id: int | None = None
+
+
 class ExperimentRunOut(BaseModel):
     id: int
     experiment_id: int | None
@@ -1085,8 +1105,10 @@ class ExperimentRunOut(BaseModel):
     last_bar_at: datetime | None
     created_at: datetime
     summary: BacktestSummaryOut
-    # Full stored result; omitted from list responses.
-    result: BacktestOut | None = None
+    # Full stored result; omitted from list responses. A BacktestOut for
+    # ``single`` runs; for ``walk_forward`` and ``sweep`` runs, the shape their
+    # ``result_kind`` names (windows + stitched curve, or ranked settings).
+    result: dict[str, Any] | None = None
 
 
 class ExperimentRerunOut(BaseModel):

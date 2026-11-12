@@ -67,7 +67,18 @@ export default async function SavedBacktestsPage() {
                   <TableCell className="text-muted-foreground">
                     {formatUtcDateTime(run.created_at)}
                   </TableCell>
-                  <TableCell className="ticker font-semibold">{run.ticker}</TableCell>
+                  <TableCell>
+                    <Link href={`/backtest/runs/${run.id}`} className="ticker font-semibold">
+                      {run.ticker}
+                    </Link>
+                    <span className="ml-2 text-2xs text-text-tertiary">
+                      {run.kind === "walk_forward"
+                        ? "walk-forward"
+                        : run.kind === "sweep"
+                          ? "sweep"
+                          : "backtest"}
+                    </span>
+                  </TableCell>
                   <TableCell className="hidden text-xs md:table-cell">
                     {run.execution_profile} · fees {run.fee_schedule}
                   </TableCell>

@@ -2,7 +2,12 @@
 
 import { revalidatePath } from "next/cache";
 
-import { rerunExperimentRun, saveExperimentRun } from "@/lib/api/experiments";
+import {
+  rerunExperimentRun,
+  runSweep,
+  runWalkForward,
+  saveExperimentRun,
+} from "@/lib/api/experiments";
 import { AuthedApiError, UnauthenticatedError } from "@/lib/api/server";
 import type { BacktestRequest } from "@/lib/api/types";
 
@@ -19,7 +24,10 @@ function message(err: unknown, fallback: string): string {
   return fallback;
 }
 
-/** Save the run just shown (Phase 5.4). The server runs it again and stores it. */
+/**
+ * Save the run just shown (Phase 5.4), or run a walk-forward or sweep on it
+ * with the default grid (5.5). The server runs it again and stores it.
+ */
 export async function saveBacktestRunAction(
   _prev: SaveRunState,
   formData: FormData,
@@ -30,11 +38,18 @@ export async function saveBacktestRunAction(
   } catch {
     return { error: "Nothing to save yet." };
   }
+  const study = String(formData.get("study") ?? "single");
   try {
-    const run = await saveExperimentRun(request);
+    const run =
+      study === "walk_forward"
+        ? await runWalkForward(request)
+        : study === "sweep"
+          ? await runSweep(request)
+          : await saveExperimentRun(request);
     revalidatePath("/backtest/runs");
     return { runId: run.id };
   } catch (err) {
+    if (err instanceof AuthedApiError && err.status === 400) return { error: err.message };
     return { error: message(err, "The run could not be saved.") };
   }
 }
