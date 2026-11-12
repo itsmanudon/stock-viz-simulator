@@ -22,7 +22,11 @@ export function OperationalSubnav({ current }: { current: "/trade" | "/orders" }
   return <PageSubnav items={OPERATIONAL_SUBNAV} current={current} label="Trading tools" />;
 }
 
-export function MonitoringSubnav({ current }: { current: "/watchlist" | "/alerts" }) {
+export function MonitoringSubnav({
+  current,
+}: {
+  current: "/watchlist" | "/alerts" | "/notifications";
+}) {
   return <PageSubnav items={MONITORING_SUBNAV} current={current} label="Monitoring tools" />;
 }
 

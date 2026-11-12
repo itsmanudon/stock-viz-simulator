@@ -529,6 +529,20 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   News for a set of symbols is one call, `getNewsForTickers()` (`/v1/news?tickers=`):
   `/watchlist` lists it under the table, and `/portfolio?tab=news` loads it
   for the holdings only while that tab is open, as Journal does.
+- Alerts and notifications (Phase 7.3): `/alerts` lists rules of every kind
+  (price level, daily move, technical crossing, Aegis news, portfolio) with
+  the rule in words (`description`), the current close and its date from the
+  markets summary, the distance to a price target, status (paused, fired,
+  dismissed) and when it last fired; actions dismiss, re-arm, pause/resume,
+  delete; `?rule=<id>#history` narrows the firing history. `AlertForm`
+  (`components/alert-form.tsx`, UX-2) searches symbols with a datalist, shows
+  the stored close with its date and the distance to the target, and
+  previews the rule (`previewRule` in `lib/alert-rules.ts`). The header bell
+  (`components/alerts-bell.tsx`) polls `/api/notifications` (unread count +
+  five newest) every 60 s; RS-11: a failed poll keeps the last count and says
+  so in its title, and polling stops while the tab is hidden.
+  `/notifications` (protected) lists everything by category with paging and
+  mark read / mark all read. In-app only.
 - Watchlist rows carry `last_close_at` and `currency`, and alert rows carry
   `currency` (audit RS-13), so the dashboard no longer loads the symbol list
   to format them. `/alerts` still loads it for the create form.
