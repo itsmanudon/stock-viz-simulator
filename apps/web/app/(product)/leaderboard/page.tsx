@@ -29,10 +29,10 @@ import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Leaderboard" };
 
-function fmtCurrency(raw: string): string {
+function fmtCurrency(raw: string, currency = "USD"): string {
   return Number(raw).toLocaleString("en-US", {
     style: "currency",
-    currency: "USD",
+    currency,
     minimumFractionDigits: 2,
   });
 }
@@ -97,7 +97,7 @@ export default async function LeaderboardPage() {
                       <TableCell className="font-medium">{e.username}</TableCell>
                       <NumericCell signedBy={e.return_pct}>{fmtPct(e.return_pct)}</NumericCell>
                       <NumericCell className="hidden sm:table-cell">
-                        {fmtCurrency(e.portfolio_value)}
+                        {fmtCurrency(e.portfolio_value, e.currency ?? "USD")}
                       </NumericCell>
                     </TableRow>
                   ))}
@@ -164,7 +164,7 @@ function Podium({ top }: { top: LeaderboardEntry[] }) {
               {fmtPct(entry.return_pct)}
             </span>
             <span className="font-mono text-2xs text-text-tertiary tabular-nums" data-financial>
-              {fmtCurrency(entry.portfolio_value)}
+              {fmtCurrency(entry.portfolio_value, entry.currency ?? "USD")}
             </span>
           </li>
         );

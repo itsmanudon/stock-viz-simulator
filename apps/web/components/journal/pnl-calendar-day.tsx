@@ -21,8 +21,10 @@ export function PnlCalendarDay({
   selected,
   onSelect,
   onKeyDown,
+  currency = "USD",
 }: {
   day: CalendarDay;
+  currency?: string;
   /** Month-local tint reference; see `tintScale`. */
   scale: number;
   selected: boolean;
@@ -89,7 +91,7 @@ export function PnlCalendarDay({
               {pnl > 0 ? "+" : pnl < 0 ? "−" : ""}
               {Math.abs(pnl).toLocaleString("en-US", {
                 style: "currency",
-                currency: "USD",
+                currency,
                 minimumFractionDigits: 0,
                 maximumFractionDigits: 0,
               })}

@@ -89,7 +89,7 @@ def test_sim02_market_buy_matches_pre_kernel_fill_economics(session: Session) ->
     assert result.trade.quantity == Decimal(10)
     assert result.currency == "USD"
     assert result.native_cost == Decimal("1500")
-    assert result.usd_cost == Decimal("1500")
+    assert result.base_cost == Decimal("1500")
 
     portfolio = ensure_default_portfolio(session, user_id)
     assert portfolio.cash_balance == DEFAULT_STARTING_CASH - Decimal("1500")
@@ -185,7 +185,7 @@ def test_sim02_fx_path_still_converts_native_fill_to_usd(session: Session) -> No
     assert result.currency == "EUR"
     assert result.fx_rate == Decimal("1.10")
     assert result.native_cost == Decimal("1200.000000")
-    assert result.usd_cost == Decimal("1320.000000")
+    assert result.base_cost == Decimal("1320.000000")
     portfolio = ensure_default_portfolio(session, user_id)
     assert portfolio.cash_balance == DEFAULT_STARTING_CASH - Decimal("1320.000000")
 

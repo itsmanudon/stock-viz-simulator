@@ -49,6 +49,8 @@ const portfolio: Portfolio = {
   option_positions: [],
   valuation_warnings: [],
   cash_by_currency: [],
+  base_currency: "USD",
+  base_currency_locked: true,
 };
 
 const analytics: PortfolioAnalytics = {
@@ -97,6 +99,22 @@ describe("portfolio performance hierarchy", () => {
     expect(screen.getByRole("link", { name: "Trade" })).toHaveAttribute("href", "/trade");
     expect(screen.getByRole("link", { name: "3M" })).toHaveAttribute("aria-current", "true");
     expect(screen.getByRole("link", { name: "1Y" })).toHaveAttribute("href", "/portfolio?range=1y");
+  });
+
+  it("labels the NAV change in a rupee account's own currency (Phase 4.8)", () => {
+    render(
+      <PortfolioPerformance
+        portfolio={{ ...portfolio, display_currency: "INR", base_currency: "INR" }}
+        history={[
+          { date: "2026-06-01", nav: "10000000" },
+          { date: "2026-08-27", nav: "10250000" },
+        ]}
+        range="3m"
+        tab="positions"
+      />,
+    );
+    expect(screen.getByText("3M INR NAV change")).toBeVisible();
+    expect(screen.getByText("+₹250,000.00")).toBeVisible();
   });
 
   it("distinguishes unavailable history from insufficient successful history", () => {

@@ -94,7 +94,7 @@ def test_buy_then_sell_round_trip(session: Session) -> None:
     assert result.currency == "USD"
     assert result.fx_rate == Decimal(1)
     assert result.native_cost == Decimal("1500")
-    assert result.usd_cost == Decimal("1500")
+    assert result.base_cost == Decimal("1500")
 
     portfolio = ensure_default_portfolio(session, user_id)
     snap = compute_portfolio(session, portfolio)

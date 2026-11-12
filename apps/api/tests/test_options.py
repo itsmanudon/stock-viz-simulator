@@ -750,3 +750,37 @@ def test_a_call_exercise_is_a_buy_trade(session: Session) -> None:
     assert settle_expired_options(session, settle_date=TODAY) == 1
     (trade,) = session.exec(select(Trade).where(Trade.portfolio_id == portfolio_id)).all()
     assert (trade.side, trade.quantity, trade.price) == (TradeSide.BUY, Decimal(100), Decimal(100))
+
+
+def test_a_rupee_account_pays_the_premium_in_rupees(session: Session) -> None:
+    """Phase 4.8: an INR book converts the USD premium; the close pays dollars."""
+    from stockviz.models import FxConversion, FxRate
+    from stockviz.services.trading.account import STARTING_CASH, set_base_currency
+    from stockviz.services.trading.cash import balance
+
+    _seed_bars(session, [100 + (i % 7) for i in range(40)])
+    session.add(FxRate(currency="INR", date=TODAY, usd_rate=Decimal("0.0125"), source="test"))
+    session.commit()
+    user_id = _make_user(session)
+    portfolio = set_base_currency(session, user_id=user_id, currency="INR")
+
+    opened = open_option(
+        session,
+        user_id=user_id,
+        ticker="AAPL",
+        option_type=OptionType.CALL,
+        strike=Decimal(100),
+        expiry=TODAY + timedelta(days=30),
+        quantity=1,
+    )
+    premium = opened.position.premium_paid  # USD
+    session.refresh(portfolio)
+    assert portfolio.cash_balance == STARTING_CASH["INR"] - premium * 80
+    conversion = session.exec(select(FxConversion)).one()
+    assert (conversion.from_currency, conversion.to_amount) == ("INR", premium)
+
+    assert opened.position.id is not None
+    closed = close_option(session, user_id=user_id, option_id=opened.position.id)
+    session.refresh(portfolio)
+    # Proceeds stay in dollars, as a sale of a US stock does.
+    assert balance(session, portfolio, "USD") == closed.cash_delta

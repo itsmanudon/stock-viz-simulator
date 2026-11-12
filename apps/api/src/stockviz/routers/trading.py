@@ -29,6 +29,7 @@ from stockviz.models import (
 )
 from stockviz.models.dividend import Dividend, PortfolioDividend
 from stockviz.schemas import (
+    BaseCurrencyIn,
     DividendCreditOut,
     DividendSummaryOut,
     ExecutionProvenanceOut,
@@ -54,6 +55,12 @@ from stockviz.services.trading import (
     ensure_default_portfolio,
     execute_trade,
 )
+from stockviz.services.trading.account import (
+    AccountNotFresh,
+    UnsupportedBaseCurrency,
+    set_base_currency,
+)
+from stockviz.services.trading.account import activity as account_activity
 from stockviz.services.trading.fx import latest_rate as fx_latest_rate
 from stockviz.services.trading.simulation_adapter import as_aware_utc
 from stockviz.services.trading.views import portfolio_analytics_response, portfolio_response
@@ -73,7 +80,27 @@ def get_portfolio(session: SessionDep, user_id: UserIdDep) -> PortfolioOut:
     portfolio = ensure_default_portfolio(session, user_id)
     display = _user_display_currency(session, user_id)
     snap = compute_portfolio(session, portfolio, display_currency=display)
-    return portfolio_response(snap)
+    return portfolio_response(snap, base_currency_locked=bool(account_activity(session, portfolio)))
+
+
+@router.put("/portfolio/base-currency", response_model=PortfolioOut)
+def put_base_currency(
+    body: BaseCurrencyIn, session: SessionDep, user_id: UserIdDep
+) -> PortfolioOut:
+    """Restart a fresh account in USD ($100,000) or INR (₹1 crore) — Phase 4.8.
+
+    409 once the account has any trade, order, option, dividend or foreign
+    cash. Also sets the display currency to the new base.
+    """
+    try:
+        portfolio = set_base_currency(session, user_id=user_id, currency=body.base_currency)
+    except UnsupportedBaseCurrency as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
+    except AccountNotFresh as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
+    display = _user_display_currency(session, user_id)
+    snap = compute_portfolio(session, portfolio, display_currency=display)
+    return portfolio_response(snap, base_currency_locked=bool(account_activity(session, portfolio)))
 
 
 @router.post("/trades", response_model=TradeOut, status_code=status.HTTP_201_CREATED)
@@ -115,9 +142,21 @@ def post_trade(body: TradeIn, session: SessionDep, user_id: UserIdDep) -> TradeO
         currency=result.currency,
         fx_rate=result.fx_rate,
         total_native=result.native_cost,
-        total_usd=result.usd_cost,
+        total_usd=_usd_total(session, result.base_cost, result.base_currency),
+        base_currency=result.base_currency,
+        total_base=result.base_cost,
         realized_pnl=result.realized_pnl,
     )
+
+
+def _usd_total(session: Session, amount: Decimal, base: str) -> Decimal:
+    """``total_usd`` for an INR book: the base amount at the latest rate."""
+    if base == "USD":
+        return amount
+    try:
+        return amount * fx_latest_rate(session, base)
+    except LookupError:
+        return amount
 
 
 DEFAULT_RISK_FREE_RATE = 0.05
@@ -154,7 +193,9 @@ def get_portfolio_overview(
     display = _user_display_currency(session, user_id)
     valuation = compute_portfolio(session, portfolio, display_currency=display)
     return PortfolioOverviewOut(
-        portfolio=portfolio_response(valuation),
+        portfolio=portfolio_response(
+            valuation, base_currency_locked=bool(account_activity(session, portfolio))
+        ),
         analytics=portfolio_analytics_response(
             session, user_id, valuation, risk_free_rate=risk_free_rate
         ),
@@ -215,6 +256,7 @@ def list_trades(
         ).all()
     }
 
+    base = portfolio.base_currency or "USD"
     out: list[TradeOut] = []
     fx_cache: dict[str, Decimal] = {}
     for trade in rows:
@@ -239,7 +281,9 @@ def list_trades(
                 currency=ccy,
                 fx_rate=rate,
                 total_native=native,
-                total_usd=native * rate,
+                total_usd=_usd_total(session, native * rate, base),
+                base_currency=base,
+                total_base=native * rate,
                 realized_pnl=trade.realized_pnl,
             )
         )

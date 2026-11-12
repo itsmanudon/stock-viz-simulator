@@ -497,10 +497,14 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   `/orders` fetches every order once so each status tab shows a
   `CountBadge`. `/trades` prices each row in the trade's own currency
   (`total_native`), times it in UTC with `formatUtcDateTime()`
-  (`lib/api-time.ts`), and totals only realized P&L, which the API reports in
-  USD. `/trade` keeps chart and recent fills on the left and the ticket and
+  (`lib/api-time.ts`), and totals only realized P&L, in the account's base currency. `/trade` keeps chart and recent fills on the left and the ticket and
   account on the right; below `xl` the column wrappers are `contents` and
-  `order-*` sets chart, ticket, account, fills.
+  `order-*` sets chart, ticket, account, fills. Realized P&L is in the
+  account's base currency (`trade.base_currency`, Phase 4.8), and the
+  portfolio's NAV change and the journal use it too (`base_currency`,
+  journal `currency`). Settings has an "Account currency" panel that restarts
+  a fresh account in INR (₹1 crore) or USD (`putBaseCurrency`); once
+  `base_currency_locked` it only states the currency.
 - Monitoring and Replay (Aurora board v3): watchlist rows act through four
   round icon buttons (research, trade, alert, remove), each with a spoken name
   and a title; `/alerts` view tabs count with the same `matchesView()` rule

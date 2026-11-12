@@ -173,7 +173,7 @@ def test_buy_non_usd_symbol_debits_usd_at_fx_rate(session: Session) -> None:
     assert result.currency == "EUR"
     assert result.fx_rate == Decimal("1.10")
     assert result.native_cost == Decimal("1200.000000")
-    assert result.usd_cost == Decimal("1320.000000")
+    assert result.base_cost == Decimal("1320.000000")
 
     portfolio = ensure_default_portfolio(session, user_id)
     assert portfolio.cash_balance == Decimal("100000.000000") - Decimal("1320.000000")

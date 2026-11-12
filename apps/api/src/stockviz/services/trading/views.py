@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 from decimal import Decimal
 
 from sqlmodel import Session, select
@@ -26,12 +27,17 @@ from stockviz.services.trading.analytics import (
     compute_top_movers,
     compute_total_return_pct,
 )
+from stockviz.services.trading.fx import convert as fx_convert
 from stockviz.services.trading.portfolio import PortfolioValuation
 
 
-def portfolio_response(snap: PortfolioValuation) -> PortfolioOut:
+def portfolio_response(
+    snap: PortfolioValuation, *, base_currency_locked: bool = True
+) -> PortfolioOut:
     return PortfolioOut(
         portfolio_id=snap.portfolio_id,
+        base_currency=snap.base_currency,
+        base_currency_locked=base_currency_locked,
         display_currency=snap.display_currency,
         cash_balance=snap.cash_balance,
         cash_by_currency=[
@@ -105,6 +111,15 @@ def portfolio_analytics_response(
     portfolio = session.exec(select(Portfolio).where(Portfolio.user_id == user_id)).first()
     opening = portfolio.opening_nav if portfolio is not None else None
     live = Decimal(valuation.total_value)
+    # Opening and snapshots are in the base currency (Phase 4.8); so is live.
+    if valuation.display_currency != valuation.base_currency:
+        with contextlib.suppress(LookupError):
+            live = fx_convert(
+                session,
+                live,
+                from_currency=valuation.display_currency,
+                to_currency=valuation.base_currency,
+            )
     # No track record before two snapshots: report nothing rather than 0%.
     navs = (
         ([opening] if opening is not None else []) + [s.nav for s in snapshots] + [live]

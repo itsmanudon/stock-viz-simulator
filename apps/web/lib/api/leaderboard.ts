@@ -9,6 +9,8 @@ export type LeaderboardEntry = {
   username: string;
   return_pct: number;
   portfolio_value: string;
+  /** Phase 4.8: portfolio_value is in the account's base currency. */
+  currency?: string;
 };
 
 export type UserProfile = {

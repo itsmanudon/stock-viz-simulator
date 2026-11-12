@@ -40,13 +40,19 @@ from stockviz.services.journal import (
     month_view,
     week_view,
 )
+from stockviz.services.trading import ensure_default_portfolio
 
 router = APIRouter(prefix="/v1/portfolio/journal", tags=["journal"])
 
 SessionDep = Annotated[Session, Depends(get_session)]
 
-JOURNAL_CURRENCY = "USD"
-"""Realized P&L is a USD ledger quantity captured at fill-time FX.
+
+def _journal_currency(session: Session, user_id: int) -> str:
+    """The account's base currency (Phase 4.8: USD or INR)."""
+    return ensure_default_portfolio(session, user_id).base_currency or "USD"
+
+
+JOURNAL_CURRENCY_NOTE = """Realized P&L is a base-currency ledger quantity captured at fill-time FX.
 
 Converting history into the user's display currency would re-price past
 realizations at today's rate, which is exactly what ``trades.fx_rate`` exists
@@ -127,7 +133,7 @@ def get_journal_month(
             first_day=first.isoformat(),
             last_day=last.isoformat(),
         ),
-        currency=JOURNAL_CURRENCY,
+        currency=_journal_currency(session, user_id),
         summary=_stats_out(view.month.stats),
         return_pct=view.return_pct,
         start_nav=view.start_nav,
@@ -167,7 +173,7 @@ def get_journal_day(
     view = day_view(session, user_id=user_id, day=day)
     return JournalDayOut(
         date=view.date.isoformat(),
-        currency=JOURNAL_CURRENCY,
+        currency=_journal_currency(session, user_id),
         stats=_stats_out(view.stats),
         executions=[_execution_out(item) for item in view.executions[offset : offset + limit]],
         offset=offset,

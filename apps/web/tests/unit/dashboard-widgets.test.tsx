@@ -26,6 +26,8 @@ const portfolio: Portfolio = {
   option_positions: [],
   valuation_warnings: [],
   cash_by_currency: [],
+  base_currency: "USD",
+  base_currency_locked: true,
 };
 
 describe("DeltaPill", () => {
