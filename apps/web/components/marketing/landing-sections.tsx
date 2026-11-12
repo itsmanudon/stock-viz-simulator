@@ -12,6 +12,7 @@ import Link from "next/link";
 import type { CSSProperties, ReactNode } from "react";
 
 import { loadPhoneScreens } from "@/components/marketing/hero-phone-screens";
+import { type BoardRow, DepartureBoard } from "@/components/marketing/proofs/departure-board";
 import { ScrollStory } from "@/components/marketing/scroll-story";
 import { Sparkline } from "@/components/sparkline";
 import { Button } from "@/components/ui/button";
@@ -353,47 +354,59 @@ export function StatementBand() {
  * Rankings: the public leaderboard. Only people who chose a public profile
  * appear (the API enforces it), and the section is left out when none do.
  */
+/** A trader's name as it fits on the board: whole if it fits, else "AVA L". */
+function boardName(name: string) {
+  if (name.length <= 12) return name;
+  const [first, ...rest] = name.split(" ");
+  const initial = rest[0]?.[0];
+  return initial ? `${first.slice(0, 10)} ${initial}` : name.slice(0, 12);
+}
+
 export async function Rankings() {
   const entries = (await safe(() => getLeaderboard())) ?? [];
   const top = entries.slice(0, 5);
   if (top.length === 0) return null;
+  const byReturn: BoardRow[] = top.map((entry) => ({
+    rank: String(entry.rank),
+    name: boardName(entry.username),
+    value: `${entry.return_pct >= 0 ? "+" : ""}${entry.return_pct.toFixed(2)}%`,
+    tone: entry.return_pct > 0 ? "pos" : entry.return_pct < 0 ? "neg" : "none",
+  }));
+  const byValue: BoardRow[] = [...top]
+    .sort((a, b) => Number(b.portfolio_value) - Number(a.portfolio_value))
+    .map((entry, index) => ({
+      rank: String(index + 1),
+      name: boardName(entry.username),
+      value: `$${Math.round(Number(entry.portfolio_value)).toLocaleString("en-US")}`,
+      tone: "none",
+    }));
   return (
     <Wrap>
       <SectionHead title="Real paper." soft="Real rankings." center>
         The public leaderboard, ranked by return on the same paper start.
       </SectionHead>
-      <ul
-        data-motion="rise"
-        className="mt-10 grid snap-x snap-mandatory auto-cols-[minmax(12rem,1fr)] grid-flow-col gap-3 overflow-x-auto pb-3"
+      {/* The board is a picture of the list below it; the list is what a
+          screen reader reads, in the board's first order. */}
+      <div
+        className="relative mx-auto mt-10 w-full max-w-3xl overflow-hidden rounded-3xl border border-border-muted bg-card"
+        style={{ height: `${4.5 + top.length * 2.4}rem` }}
       >
-        {top.map((entry: LeaderboardEntry) => {
-          const up = entry.return_pct >= 0;
-          const text = `${up ? "▲ +" : "▼ "}${entry.return_pct.toFixed(1)}%`;
-          return (
-            <li
-              key={entry.user_id}
-              data-motion-item
-              className="grid snap-start gap-2 rounded-2xl border border-border-muted bg-card px-4 py-3.5"
-            >
-              <span className="flex items-center gap-1.5 text-xs text-text-tertiary">
-                <Trophy className="size-3.5" aria-hidden />#{entry.rank}
-              </span>
-              <span className="truncate text-sm">{entry.username}</span>
-              <span
-                data-motion="count"
-                data-value={Math.abs(entry.return_pct)}
-                data-decimals="1"
-                data-prefix={up ? "▲ +" : "▼ "}
-                data-suffix="%"
-                className={cn("font-mono text-xl", up ? "text-positive" : "text-negative")}
-                data-financial
-              >
-                {text}
-              </span>
-            </li>
-          );
-        })}
-      </ul>
+        <DepartureBoard
+          boards={[
+            { title: "BY RETURN", rows: byReturn },
+            { title: "BY VALUE", rows: byValue },
+          ]}
+        />
+      </div>
+      <ol className="sr-only">
+        {top.map((entry: LeaderboardEntry) => (
+          <li key={entry.user_id}>
+            Rank {entry.rank}: {entry.username}, {entry.return_pct >= 0 ? "up" : "down"}{" "}
+            {Math.abs(entry.return_pct).toFixed(2)}%, account value{" "}
+            {formatCurrency(entry.portfolio_value, "USD")}
+          </li>
+        ))}
+      </ol>
       <p className="mt-4 text-center">
         <Link
           href="/leaderboard"

@@ -70,7 +70,7 @@ export const PRODUCT_PAGES: ProductPageSpec[] = [
     ],
     sections: (
       <>
-        <ProofSection only={["fill"]} />
+        <ProofSection only={["fill", "portfolio"]} />
         <FillSteps />
         <LandingFaq />
       </>
@@ -93,7 +93,7 @@ export const PRODUCT_PAGES: ProductPageSpec[] = [
     ],
     sections: (
       <>
-        <ProofSection only={["backtest", "screener"]} />
+        <ProofSection only={["backtest", "screener", "compare", "signals"]} />
         <MovingToday />
         <SessionTiles />
       </>
