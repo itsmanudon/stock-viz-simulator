@@ -41,6 +41,7 @@ src/stockviz/
   routers/          /v1 endpoints, one file per resource — symbols, quotes, bars,
                     markets (one-call /markets summary), indicators, news,
                     recommendations, trading, orders, options, backtest,
+                    experiments (saved backtests, Phase 5.4),
                     screener, sentiment, leaderboard, watchlist, alerts,
                     comments, earnings, stream (SSE simulated quotes), replay
                     (isolated ReplaySession), health
@@ -211,6 +212,20 @@ reached the expected session, and only reports single tickers that are
 behind (their market may have been closed). `fx` exits 1 when a currency gets
 no rates; `dividends` exits 1 when a fetch failed. In the cron each failure
 sets the exit code without stopping later steps.
+
+**Experiment registry (Phase 5.4).** `/v1/experiments` (authed):
+`POST /runs` takes the same body as `POST /v1/backtest` (under `backtest`),
+runs it through `services/backtest/run.py::execute_backtest` (the code the
+public endpoint uses) and stores in `experiment_runs` the request, kernel
+profile, fee schedule, code version (`RAILWAY_GIT_COMMIT_SHA`, else
+`unknown`), a SHA-256 **dataset fingerprint** of every bar (ts, OHLC, basis)
+and dividend read, warm-up included, and the full result. `POST
+/runs/{id}/rerun` (`services/backtest/registry.py`) returns `identical`,
+`different` (same data, different result: the code changed; the differing
+fields are listed) or `data_changed` (the fingerprint moved, nothing
+compared). Runs are private, capped at 500 a user. `experiments` group runs
+under a name and hypothesis. `tests/test_experiment_registry.py` pins the
+acceptance: a saved run reruns identically and equals the public endpoint.
 
 **Event table retention (audit OP-11).** Nothing else deletes from
 `outbox_events` or `consumer_inbox`. `prune-events` deletes published outbox

@@ -11,6 +11,7 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
 
+import { SaveBacktestRun } from "@/components/backtest-run-actions";
 import { EquityCurve } from "@/components/equity-curve";
 import { FigureStrip } from "@/components/figure-strip";
 import { ResearchEmptyState, ResearchSectionHeader } from "@/components/research-page-header";
@@ -111,6 +112,7 @@ export function BacktestForm({
   );
   const [result, setResult] = useState<BacktestResult | null>(null);
   const [lastCosts, setLastCosts] = useState({ commissionBps: 0, slippageBps: 0 });
+  const [lastRequest, setLastRequest] = useState<BacktestRequest | null>(null);
 
   function syncTicker(next: string) {
     setTicker(next);
@@ -146,7 +148,7 @@ export function BacktestForm({
     const slippage = Number(slippageBps) || 0;
 
     try {
-      const res = await runBacktest({
+      const request: BacktestRequest = {
         ticker,
         from,
         to,
@@ -158,7 +160,9 @@ export function BacktestForm({
         fill_rule: fillRule,
         spread_bps: Number(spreadBps) || 0,
         fee_schedule: feeSchedule,
-      });
+      };
+      const res = await runBacktest(request);
+      setLastRequest(request);
       setLastCosts({ commissionBps: commission, slippageBps: slippage });
       setResult(res);
     } catch (err) {
@@ -463,6 +467,7 @@ export function BacktestForm({
         ) : (
           <BacktestResults
             result={result}
+            request={lastRequest}
             commissionBps={lastCosts.commissionBps}
             slippageBps={lastCosts.slippageBps}
           />
@@ -484,10 +489,12 @@ function Signed({ value, text }: { value: number; text: string }) {
 
 function BacktestResults({
   result,
+  request,
   commissionBps,
   slippageBps,
 }: {
   result: BacktestResult;
+  request: BacktestRequest | null;
   commissionBps: number;
   slippageBps: number;
 }) {
@@ -587,6 +594,8 @@ function BacktestResults({
             : ""}
         </p>
       </section>
+
+      {request ? <SaveBacktestRun request={request} /> : null}
 
       <section aria-labelledby="trades-heading">
         <ResearchSectionHeader

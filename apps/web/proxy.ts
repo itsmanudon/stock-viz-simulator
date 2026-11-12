@@ -25,6 +25,7 @@ const PROTECTED_PREFIXES = [
   "/orders",
   "/replay",
   "/earnings",
+  "/backtest/runs",
 ];
 
 export default proxyAuth((req) => {

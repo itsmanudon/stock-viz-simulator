@@ -361,6 +361,13 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   chosen symbol until the dates are edited by hand. The run is a browser
   call to the API, so a dev server on a port other than 3000 needs that
   origin in the API's `CORS_ORIGINS`, or the run fails with "Failed to fetch".
+- `/backtest` (Phase 5.2-5.4) sends `fill_rule` (default `next_open`),
+  `spread_bps`, `fee_schedule` and `return_mode`, formats amounts in the
+  run's `currency`, and states the basis, return mode, warm-up and profile
+  under the results. "Save run" (`components/backtest-run-actions.tsx`, server
+  action in `app/(product)/backtest/actions.ts`) stores the request through
+  `/v1/experiments/runs`; `/backtest/runs` (protected in `proxy.ts`) lists
+  saved runs with a Rerun check (identical, different, or data changed).
 - The `/trade` option ticket (`components/option-trade-form.tsx`) quotes
   before it buys (audit LG-7): `getOptionQuote()` (`lib/api/option-quote.ts`,
   a browser call to the public `/v1/options/quote`) shows spot with its close
