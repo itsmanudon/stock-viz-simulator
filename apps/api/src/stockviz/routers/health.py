@@ -31,6 +31,8 @@ class HealthResponse(BaseModel):
     last_job_success_at: datetime | None = None
     # Jobs whose most recent run failed.
     failing_jobs: list[str] = []
+    # OP-12: outbox events that exhausted their publish attempts.
+    dead_outbox_events: int = 0
 
 
 @router.get("/live", response_model=LiveResponse)
@@ -92,6 +94,16 @@ def _add_nightly_state(session: Session, out: HealthResponse) -> None:
                 .join(latest_per_job, JobRun.id == latest_per_job.c.latest_id)  # type: ignore[arg-type]
                 .where(JobRun.status == "failed")
             ).all()
+        )
+        from stockviz.models import OutboxEvent
+
+        out.dead_outbox_events = int(
+            session.exec(
+                select(func.count())
+                .select_from(OutboxEvent)
+                .where(OutboxEvent.dead_at.is_not(None))  # type: ignore[call-overload,union-attr]
+            ).one()
+            or 0
         )
     except Exception:
         session.rollback()

@@ -134,6 +134,9 @@ export type Recommendation = {
   votes: RecommendationVote[];
   sentiment_7d: number | null;
   computed_at: string;
+  /** SR-8 (Phase 7.5): the newest bar behind the votes; stale if it trails. */
+  bar_date: string | null;
+  stale: boolean;
 };
 
 export type ScreenerResult = {

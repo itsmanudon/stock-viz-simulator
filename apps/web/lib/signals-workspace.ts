@@ -41,6 +41,9 @@ export type SignalRow = {
   supportingVotes: number;
   sentiment7d: number | null;
   computedAt: string;
+  /** SR-8: the close the votes read, and whether it trails its market. */
+  barDate: string | null;
+  stale: boolean;
 };
 
 export function classifySignal(score: number): SignalClass {
@@ -84,6 +87,8 @@ export function recommendationToSignal(rec: Recommendation): SignalRow {
     supportingVotes: votes.filter((vote) => vote.passed).length,
     sentiment7d: rec.sentiment_7d ?? null,
     computedAt: rec.computed_at,
+    barDate: rec.bar_date ?? null,
+    stale: rec.stale ?? false,
   };
 }
 

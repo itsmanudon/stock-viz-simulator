@@ -22,6 +22,8 @@ const rec = (overrides: Partial<Recommendation> = {}): Recommendation => ({
   votes: [],
   sentiment_7d: 0.3,
   computed_at: "2026-08-26T00:00:00Z",
+  bar_date: "2026-08-25",
+  stale: false,
   ...overrides,
 });
 
@@ -152,5 +154,13 @@ describe("the maximum follows the votes available (audit SR-9)", () => {
   it("falls back to seven for a response cached before the field existed", () => {
     const { max_score: _dropped, ...old } = rec();
     expect(recommendationToSignal(old as Recommendation).maxScore).toBe(7);
+  });
+});
+
+describe("SR-8: signals carry their bar date", () => {
+  it("passes the bar date and the stale flag through", () => {
+    const row = recommendationToSignal(rec({ bar_date: "2026-11-02", stale: true }));
+    expect(row.barDate).toBe("2026-11-02");
+    expect(row.stale).toBe(true);
   });
 });

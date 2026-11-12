@@ -182,6 +182,10 @@ class RecommendationOut(BaseModel):
     votes: list[RecommendationVoteOut] = Field(default_factory=list)
     sentiment_7d: float | None = None
     computed_at: datetime
+    # SR-8: the newest bar behind the votes, and whether it trails the newest
+    # signal bar in the same currency by more than five days.
+    bar_date: date | None = None
+    stale: bool = False
 
 
 # ---------------------------------------------------------------------------

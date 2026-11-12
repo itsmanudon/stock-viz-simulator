@@ -176,6 +176,36 @@ def _cmd_earnings(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_outbox_dead(_args: argparse.Namespace) -> int:
+    """OP-12: list outbox events that will not be retried. Read-only."""
+    from stockviz.events.outbox import dead_events
+
+    with Session(engine) as session:
+        rows = dead_events(session)
+    for row in rows:
+        print(
+            f"{row.created_at.isoformat()} {row.event_type} key={row.partition_key} "
+            f"attempts={row.publish_attempts} error={(row.last_error or '')[:160]}"
+        )
+    print(f"{len(rows)} dead outbox event(s)")
+    return 0
+
+
+def _cmd_earnings_duplicates(_args: argparse.Namespace) -> int:
+    """RS-10: rows left by date moves before Phase 7.5. Lists; never deletes."""
+    from stockviz.services.ingest.earnings import duplicate_upcoming
+
+    with Session(engine) as session:
+        found = duplicate_upcoming(session)
+    if not found:
+        print("no tickers with more than one upcoming report date close together")
+        return 0
+    for ticker, days in found:
+        print(f"{ticker}: {', '.join(d.isoformat() for d in days)}")
+    print(f"{len(found)} ticker(s); removing the stale rows needs the owner's approval")
+    return 0
+
+
 def _cmd_corporate_actions(args: argparse.Namespace) -> int:
     """Record splits for ledger tickers, then rebase the ledger for due ones (#65).
 
@@ -1479,6 +1509,13 @@ def main(argv: list[str] | None = None) -> int:
     )
     p_earnings.add_argument("tickers", nargs="*", help="Optional ticker filter")
     p_earnings.set_defaults(fn=_cmd_earnings)
+    sub.add_parser(
+        "outbox-dead", help="List outbox events that exhausted their publish attempts (OP-12)"
+    ).set_defaults(fn=_cmd_outbox_dead)
+    sub.add_parser(
+        "earnings-duplicates",
+        help="List upcoming earnings dates that look like one report stored twice (read-only)",
+    ).set_defaults(fn=_cmd_earnings_duplicates)
 
     sub.add_parser(
         "credit-dividends", help="Credit today's due dividends to all eligible portfolios"
