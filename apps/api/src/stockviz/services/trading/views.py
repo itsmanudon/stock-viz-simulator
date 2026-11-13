@@ -12,9 +12,14 @@ from stockviz._time import utcnow
 from stockviz.models import Portfolio, PortfolioSnapshot, Symbol
 from stockviz.schemas import (
     CurrencyCashOut,
+    ExposureBucketOut,
+    ExposureOut,
+    HoldingAttributionOut,
     HoldingReturnOut,
     PeriodReturnOut,
     PortfolioAnalyticsOut,
+    PortfolioAttributionOut,
+    PortfolioExposureOut,
     PortfolioOptionOut,
     PortfolioOut,
     PortfolioReturnsOut,
@@ -31,6 +36,13 @@ from stockviz.services.trading.analytics import (
     compute_sharpe,
     compute_top_movers,
     compute_total_return_pct,
+)
+from stockviz.services.trading.attribution import ATTRIBUTION_BASIS, ATTRIBUTION_METHOD, attribute
+from stockviz.services.trading.exposure import (
+    EXPOSURE_BASIS,
+    EXPOSURE_METHOD,
+    classifications,
+    compute_exposure,
 )
 from stockviz.services.trading.fx import convert as fx_convert
 from stockviz.services.trading.portfolio import PortfolioValuation
@@ -209,6 +221,64 @@ def portfolio_analytics_response(
             if portfolio is not None
             else None
         ),
+        exposure=_exposure_out(session, valuation),
+        attribution=(
+            _attribution_out(session, portfolio, valuation) if portfolio is not None else None
+        ),
+    )
+
+
+def _exposure_out(session: Session, valuation: PortfolioValuation) -> PortfolioExposureOut:
+    tickers = sorted(
+        {p.ticker for p in valuation.positions} | {o.ticker for o in valuation.option_positions}
+    )
+    return PortfolioExposureOut(
+        currency=valuation.display_currency,
+        method=EXPOSURE_METHOD,
+        basis=EXPOSURE_BASIS,
+        dimensions=[
+            ExposureOut(
+                dimension=e.dimension,
+                buckets=[
+                    ExposureBucketOut(
+                        key=b.key,
+                        equity_value=b.equity_value,
+                        cash_value=b.cash_value,
+                        options_delta=b.options_delta,
+                        weight_pct=b.weight_pct,
+                        options_delta_pct=b.options_delta_pct,
+                    )
+                    for b in e.buckets
+                ],
+            )
+            for e in compute_exposure(valuation, classifications(session, tickers))
+        ],
+    )
+
+
+def _attribution_out(
+    session: Session, portfolio: Portfolio, valuation: PortfolioValuation
+) -> PortfolioAttributionOut:
+    return PortfolioAttributionOut(
+        currency=valuation.base_currency,
+        method=ATTRIBUTION_METHOD,
+        basis=ATTRIBUTION_BASIS,
+        holdings=[
+            HoldingAttributionOut(
+                ticker=a.ticker,
+                currency=a.currency,
+                entry_rate=a.entry_rate,
+                rate_now=a.rate_now,
+                cost_base=a.cost_base,
+                value_base=a.value_base,
+                price_effect=a.price_effect,
+                currency_effect=a.currency_effect,
+                cross_effect=a.cross_effect,
+                income=a.income,
+                reason=a.reason,
+            )
+            for a in attribute(session, portfolio, valuation)
+        ],
     )
 
 

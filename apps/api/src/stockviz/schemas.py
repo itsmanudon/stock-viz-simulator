@@ -1073,6 +1073,52 @@ class PortfolioReturnsOut(BaseModel):
     holdings: list[HoldingReturnOut]
 
 
+class ExposureBucketOut(BaseModel):
+    key: str
+    equity_value: Decimal
+    cash_value: Decimal
+    options_delta: Decimal
+    weight_pct: float
+    options_delta_pct: float
+
+
+class ExposureOut(BaseModel):
+    dimension: str
+    buckets: list[ExposureBucketOut]
+
+
+class PortfolioExposureOut(BaseModel):
+    """Phase 8.2: weights of NAV in the display currency; method named (UX-9)."""
+
+    currency: str
+    method: str
+    basis: str
+    dimensions: list[ExposureOut]
+
+
+class HoldingAttributionOut(BaseModel):
+    ticker: str
+    currency: str
+    entry_rate: Decimal | None
+    rate_now: Decimal | None
+    cost_base: Decimal | None
+    value_base: Decimal | None
+    price_effect: Decimal | None
+    currency_effect: Decimal | None
+    cross_effect: Decimal | None
+    income: Decimal
+    reason: str | None = None
+
+
+class PortfolioAttributionOut(BaseModel):
+    """Phase 8.2: each holding's gain split into price, currency and cross, in base."""
+
+    currency: str
+    method: str
+    basis: str
+    holdings: list[HoldingAttributionOut]
+
+
 class PortfolioAnalyticsOut(BaseModel):
     """Aggregated analytics for /v1/portfolio/analytics.
 
@@ -1092,6 +1138,8 @@ class PortfolioAnalyticsOut(BaseModel):
     top_gainers: list[TopMoverOut]
     top_losers: list[TopMoverOut]
     returns: PortfolioReturnsOut | None = None
+    exposure: PortfolioExposureOut | None = None
+    attribution: PortfolioAttributionOut | None = None
 
 
 class PortfolioOverviewOut(BaseModel):

@@ -4,6 +4,7 @@ import { JournalPanel } from "@/components/journal/journal-panel";
 import { NewsList } from "@/components/news-list";
 import { PortfolioInsights } from "@/components/portfolio-analytics";
 import { PortfolioEmptyState } from "@/components/portfolio-empty-state";
+import { PortfolioAttributionPanel, PortfolioExposurePanel } from "@/components/portfolio-exposure";
 import { PortfolioIncome } from "@/components/portfolio-income";
 import { PortfolioMetrics } from "@/components/portfolio-metrics";
 import { PortfolioOptions } from "@/components/portfolio-options";
@@ -115,7 +116,13 @@ export function PortfolioWorkspace({
               />
             </Suspense>
           }
-          analytics={<PortfolioReturnsPanel returns={analytics?.returns ?? null} />}
+          analytics={
+            <>
+              <PortfolioReturnsPanel returns={analytics?.returns ?? null} />
+              <PortfolioExposurePanel exposure={analytics?.exposure ?? null} />
+              <PortfolioAttributionPanel attribution={analytics?.attribution ?? null} />
+            </>
+          }
           positionCount={portfolio.positions.length}
           optionCount={portfolio.option_positions.length}
           orderCount={orders?.length ?? 0}

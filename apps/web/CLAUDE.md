@@ -554,7 +554,10 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   (`components/portfolio-returns.tsx`): time-weighted return by period and
   money-weighted (XIRR) return for the account and each holding, each with
   its method and basis written beside it and a reason where a figure is
-  null. Later Phase 8 panels (exposure, risk, stress) join this tab. The
+  null. Phase 8.2 adds `PortfolioExposurePanel` (weights by sector,
+  country and currency, options delta beside them) and
+  `PortfolioAttributionPanel` (price, currency, cross, income per holding)
+  from `components/portfolio-exposure.tsx`; risk and stress follow. The
   metrics strip shows "Unrealized P&L" (equities plus options, #68) and
   lifetime "Realized P&L".
 - `/status` (Phase 7.6, public, linked from the footer): each nightly job's
