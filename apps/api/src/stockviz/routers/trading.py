@@ -33,15 +33,23 @@ from stockviz.schemas import (
     DividendCreditOut,
     DividendSummaryOut,
     ExecutionProvenanceOut,
+    MonteCarloOut,
     PortfolioAnalyticsOut,
     PortfolioHistoryPointOut,
     PortfolioOut,
     PortfolioOverviewOut,
+    PortfolioRiskOut,
     ProjectedDividendOut,
+    RiskNoteOut,
+    RiskProxyOut,
+    RiskWindowOut,
     TradeIn,
     TradeOut,
+    VarOut,
 )
 from stockviz.services.instruments import instrument_of
+from stockviz.services.risk import compute_risk
+from stockviz.services.risk.engine import MC_METHOD, VAR_METHOD
 from stockviz.services.trading import (
     ClientOrderIdConflict,
     InsufficientCash,
@@ -199,6 +207,71 @@ def get_portfolio_overview(
         analytics=portfolio_analytics_response(
             session, user_id, valuation, risk_free_rate=risk_free_rate
         ),
+    )
+
+
+VAR_RULE = (
+    "VaR is the k-th worst scenario loss, k = ceil(scenarios x (1 - confidence)); "
+    "CVaR is the mean of those k losses"
+)
+
+
+@router.get("/portfolio/risk", response_model=PortfolioRiskOut)
+def get_portfolio_risk(session: SessionDep, user_id: UserIdDep) -> PortfolioRiskOut:
+    """Phase 8.3: historical-simulation VaR/CVaR and a block-bootstrap Monte Carlo.
+
+    Computed on request from stored daily closes and FX rates (about a
+    second for a large book). Every figure is in the base currency and the
+    response names the method, the window and any proxied holdings.
+    """
+    portfolio = ensure_default_portfolio(session, user_id)
+    display = _user_display_currency(session, user_id)
+    valuation = compute_portfolio(session, portfolio, display_currency=display)
+    report = compute_risk(session, portfolio, valuation, as_of=utcnow().date())
+    sc = report.scenarios
+    nav = sc.nav_base
+    mc = report.monte_carlo
+    return PortfolioRiskOut(
+        currency=sc.base_currency,
+        nav=nav,
+        method=VAR_METHOD,
+        var_rule=VAR_RULE,
+        window=RiskWindowOut(
+            start=sc.dates[0] if sc.dates else None,
+            end=sc.dates[-1] if sc.dates else None,
+            sessions=len(sc.dates),
+        ),
+        holdings_included=sc.included,
+        excluded=[RiskNoteOut(ticker=e.ticker, reason=e.reason) for e in sc.excluded],
+        proxied=[RiskProxyOut(ticker=p.ticker, proxy=p.proxy, days=p.days) for p in sc.proxied],
+        var=[
+            VarOut(
+                confidence=v.confidence,
+                horizon_days=v.horizon_days,
+                scenarios=v.scenarios,
+                tail_count=v.tail_count,
+                var=round(v.var, 2),
+                var_pct=round(v.var / nav * 100, 4) if nav else 0.0,
+                cvar=round(v.cvar, 2),
+                cvar_pct=round(v.cvar / nav * 100, 4) if nav else 0.0,
+            )
+            for v in report.var
+        ],
+        monte_carlo=(
+            MonteCarloOut(
+                method=MC_METHOD,
+                paths=mc.paths,
+                horizon_days=mc.horizon_days,
+                mean_block=mc.mean_block,
+                seed=mc.seed,
+                percentiles={str(k): round(v, 2) for k, v in mc.percentiles.items()},
+                prob_loss_10=mc.prob_loss_10,
+                prob_loss_20=mc.prob_loss_20,
+            )
+            if mc is not None
+            else None
+        ),
+        reason=sc.reason,
     )
 
 

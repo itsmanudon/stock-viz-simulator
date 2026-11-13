@@ -557,7 +557,11 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   null. Phase 8.2 adds `PortfolioExposurePanel` (weights by sector,
   country and currency, options delta beside them) and
   `PortfolioAttributionPanel` (price, currency, cross, income per holding)
-  from `components/portfolio-exposure.tsx`; risk and stress follow. The
+  from `components/portfolio-exposure.tsx`. Phase 8.3 adds
+  `PortfolioRiskPanel` (`components/portfolio-risk.tsx`): VaR/CVaR with the
+  rule, window, scenarios and proxies written beside them, and the one-year
+  bootstrap percentiles. Its `/v1/portfolio/risk` call runs only while the
+  Analytics tab is open (`loadPortfolioData(..., { risk })`). Stress follows. The
   metrics strip shows "Unrealized P&L" (equities plus options, #68) and
   lifetime "Realized P&L".
 - `/status` (Phase 7.6, public, linked from the footer): each nightly job's
