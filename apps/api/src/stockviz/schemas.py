@@ -1119,6 +1119,63 @@ class PortfolioAttributionOut(BaseModel):
     holdings: list[HoldingAttributionOut]
 
 
+class VarOut(BaseModel):
+    """One VaR/CVaR figure; losses are positive amounts in ``currency``."""
+
+    confidence: float
+    horizon_days: int
+    scenarios: int
+    tail_count: int
+    var: float
+    var_pct: float
+    cvar: float
+    cvar_pct: float
+
+
+class MonteCarloOut(BaseModel):
+    method: str
+    paths: int
+    horizon_days: int
+    mean_block: int
+    seed: int
+    percentiles: dict[str, float]
+    prob_loss_10: float
+    prob_loss_20: float
+
+
+class RiskWindowOut(BaseModel):
+    start: date | None
+    end: date | None
+    sessions: int
+
+
+class RiskNoteOut(BaseModel):
+    ticker: str
+    reason: str
+
+
+class RiskProxyOut(BaseModel):
+    ticker: str
+    proxy: str
+    days: int
+
+
+class PortfolioRiskOut(BaseModel):
+    """Phase 8.3 risk, in the base currency. Method, window and proxies named (UX-9)."""
+
+    currency: str
+    nav: float
+    method: str
+    var_rule: str
+    window: RiskWindowOut
+    holdings_included: int
+    excluded: list[RiskNoteOut]
+    proxied: list[RiskProxyOut]
+    var: list[VarOut]
+    monte_carlo: MonteCarloOut | None
+    reason: str | None = None
+
+
 class PortfolioAnalyticsOut(BaseModel):
     """Aggregated analytics for /v1/portfolio/analytics.
 

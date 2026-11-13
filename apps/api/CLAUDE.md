@@ -340,6 +340,22 @@ current holding's buys (after the running quantity last reached zero), and
 dividends since then are income. Both on `PortfolioAnalyticsOut`
 (`exposure`, `attribution`) with their method and basis.
 
+**Risk (Phase 8.3).** `GET /v1/portfolio/risk` (authed, computed on
+request) runs `services/risk/`: `scenarios.py` replays today's holdings over
+the last 500 dates with a stored bar for any held stock (250 needed, else a
+`reason`), each stock's close-to-close return combined with its currency's
+move into the base (`(1 + local)(1 + fx) - 1`), the market index (`^NSEI`
+for Indian listings, `^GSPC` otherwise) before a stock's own history starts
+(listed as proxied), 0 on its market's closed days; foreign cash moves with
+its currency; open options repriced in full with Black-Scholes at the
+scenario spot, today's volatility and the horizon off their expiry.
+`engine.py` (pure): VaR = the k-th largest loss, k = ceil(n x (1 -
+confidence)), CVaR = the mean of those k; 95% and 99% over 1 and 10
+sessions (overlapping real 10-session windows, not the square-root rule);
+a stationary block bootstrap (mean block 5, 10,000 paths, 252 sessions,
+fixed seed) of the portfolio's daily returns. The worked examples are in
+`docs/benchmarks/2026-11-13-risk-hand-check.md`, each asserted by a test.
+
 **Status (audit OP-5, Phase 7.6).** `GET /v1/status` (public, 30/min):
 each recorded job's latest run (name, state, start, finish, last success),
 the latest Aegis sync's state and time, the newest daily bar per market

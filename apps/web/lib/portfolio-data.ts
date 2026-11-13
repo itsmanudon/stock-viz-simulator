@@ -8,8 +8,10 @@ import {
   type Portfolio,
   type PortfolioAnalytics,
   type PortfolioHistoryPoint,
+  type PortfolioRisk,
   getDividends,
   getPortfolioHistory,
+  getPortfolioRisk,
   listOrders,
 } from "@/lib/api/trading";
 import type { NewsArticle } from "@/lib/api/types";
@@ -32,6 +34,8 @@ export type PortfolioData = {
    * null on the other tabs or when the request failed (Phase 2).
    */
   news: NewsArticle[] | null;
+  /** Phase 8.3: only fetched when the Analytics tab is open; null otherwise or on failure. */
+  risk: PortfolioRisk | null;
 };
 
 /**
@@ -44,7 +48,7 @@ export type PortfolioData = {
 export async function loadPortfolioData(
   range: PortfolioRange,
   journalMonthKey?: string,
-  { news: wantNews = false }: { news?: boolean } = {},
+  { news: wantNews = false, risk: wantRisk = false }: { news?: boolean; risk?: boolean } = {},
 ): Promise<PortfolioData> {
   const journalRequest = journalMonthKey
     ? optional(
@@ -52,12 +56,13 @@ export async function loadPortfolioData(
       )
     : Promise.resolve(null);
 
-  const [overview, history, orders, dividends, journalMonth] = await Promise.all([
+  const [overview, history, orders, dividends, journalMonth, risk] = await Promise.all([
     loadPortfolioOverview(),
     optional(getPortfolioHistory(portfolioRangeDays(range))),
     optional(listOrders("pending")),
     optional(getDividends()),
     journalRequest,
+    wantRisk ? optional(getPortfolioRisk()) : Promise.resolve(null),
   ]);
 
   // Needs the holdings, so it follows the overview rather than joining it.
@@ -76,6 +81,7 @@ export async function loadPortfolioData(
     journalMonth,
     journalFailed: Boolean(journalMonthKey) && journalMonth === null,
     news,
+    risk,
   };
 }
 

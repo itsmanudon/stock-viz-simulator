@@ -64,6 +64,9 @@ test("authenticated user can move from a paper trade into the Portfolio workspac
   await expect(main.getByRole("list", { name: "By sector" })).toBeVisible();
   await expect(main.getByRole("list", { name: "By currency" })).toContainText("USD");
   await expect(main.getByRole("table", { name: "Gain by source" })).toContainText("AAPL");
+  // Phase 8.3: risk names its method; seeded history is long enough for VaR.
+  await expect(main.getByText(/Method: historical simulation/)).toBeVisible({ timeout: 10_000 });
+  await expect(main.getByRole("table", { name: "Value at risk" })).toContainText("95%");
 });
 
 test("new mobile portfolio keeps value, tabs, and starting actions readable", async ({ page }) => {

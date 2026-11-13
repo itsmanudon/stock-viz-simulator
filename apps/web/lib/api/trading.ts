@@ -325,6 +325,46 @@ export type PortfolioReturns = {
   holdings: { ticker: string; kind: string; xirr: Xirr }[];
 };
 
+export type VarFigure = {
+  confidence: number;
+  horizon_days: number;
+  scenarios: number;
+  tail_count: number;
+  /** Losses are positive amounts in the risk report's currency. */
+  var: number;
+  var_pct: number;
+  cvar: number;
+  cvar_pct: number;
+};
+
+/** Phase 8.3: `GET /v1/portfolio/risk`, in the account's base currency. */
+export type PortfolioRisk = {
+  currency: string;
+  nav: number;
+  method: string;
+  var_rule: string;
+  window: { start: string | null; end: string | null; sessions: number };
+  holdings_included: number;
+  excluded: { ticker: string; reason: string }[];
+  proxied: { ticker: string; proxy: string; days: number }[];
+  var: VarFigure[];
+  monte_carlo: {
+    method: string;
+    paths: number;
+    horizon_days: number;
+    mean_block: number;
+    seed: number;
+    percentiles: Record<string, number>;
+    prob_loss_10: number;
+    prob_loss_20: number;
+  } | null;
+  reason?: string | null;
+};
+
+export function getPortfolioRisk(): Promise<PortfolioRisk> {
+  return authedGet<PortfolioRisk>("/v1/portfolio/risk");
+}
+
 export function getPortfolioAnalytics(): Promise<PortfolioAnalytics> {
   return authedGet<PortfolioAnalytics>("/v1/portfolio/analytics");
 }

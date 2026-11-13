@@ -19,6 +19,7 @@ export default async function PortfolioPage({
   const monthKey = parseMonthKey(params.month, currentMonthKey());
   const data = await loadPortfolioData(range, tab === "journal" ? monthKey : undefined, {
     news: tab === "news",
+    risk: tab === "analytics",
   });
 
   return <PortfolioWorkspace {...data} range={range} tab={tab} journalMonthKey={monthKey} />;
