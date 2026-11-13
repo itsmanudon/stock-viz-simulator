@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import contextlib
+from datetime import date
 from decimal import Decimal
 
 from sqlmodel import Session, select
@@ -11,13 +12,17 @@ from stockviz._time import utcnow
 from stockviz.models import Portfolio, PortfolioSnapshot, Symbol
 from stockviz.schemas import (
     CurrencyCashOut,
+    HoldingReturnOut,
+    PeriodReturnOut,
     PortfolioAnalyticsOut,
     PortfolioOptionOut,
     PortfolioOut,
+    PortfolioReturnsOut,
     PositionOut,
     SectorAllocationOut,
     TopMoverOut,
     ValuationWarningOut,
+    XirrOut,
 )
 from stockviz.services.trading.analytics import (
     compute_annualised_return_pct,
@@ -29,6 +34,15 @@ from stockviz.services.trading.analytics import (
 )
 from stockviz.services.trading.fx import convert as fx_convert
 from stockviz.services.trading.portfolio import PortfolioValuation
+from stockviz.services.trading.returns import (
+    TWR_BASIS,
+    TWR_METHOD,
+    XIRR_BASIS,
+    XIRR_METHOD,
+    Xirr,
+    period_returns,
+)
+from stockviz.services.trading.returns_ledger import account_xirr, holding_returns
 
 
 def portfolio_response(
@@ -51,6 +65,10 @@ def portfolio_response(
         total_value=snap.total_value,
         total_cost_basis=snap.total_cost_basis,
         unrealized_pl=snap.unrealized_pl,
+        unrealized_pl_equity=snap.unrealized_pl_equity,
+        unrealized_pl_options=snap.unrealized_pl_options,
+        realized_pl=snap.realized_pl,
+        realized_pl_unavailable=snap.realized_pl_unavailable,
         positions=[
             PositionOut(
                 ticker=p.ticker,
@@ -185,5 +203,60 @@ def portfolio_analytics_response(
                 return_pct=m.return_pct,
             )
             for m in losers
+        ],
+        returns=(
+            _returns_out(session, portfolio, valuation, snapshots, live=live)
+            if portfolio is not None
+            else None
+        ),
+    )
+
+
+def _xirr_out(result: Xirr) -> XirrOut:
+    return XirrOut(
+        rate_pct=result.rate_pct,
+        first_flow=result.first_flow,
+        flows=result.flows,
+        reason=result.reason,
+    )
+
+
+def _returns_out(
+    session: Session,
+    portfolio: Portfolio,
+    valuation: PortfolioValuation,
+    snapshots: list[PortfolioSnapshot],
+    *,
+    live: Decimal,
+) -> PortfolioReturnsOut:
+    """Phase 8.1: TWR by period, the account's and each holding's XIRR, in base."""
+    as_of = utcnow().date()
+    opened = portfolio.created_at.date()
+    points: list[tuple[date, Decimal]] = []
+    if portfolio.opening_nav is not None:
+        points.append((opened, portfolio.opening_nav))
+    points += [(s.date, s.nav) for s in snapshots if s.date >= opened]
+    points.append((as_of, live))
+    return PortfolioReturnsOut(
+        currency=valuation.base_currency,
+        twr_method=TWR_METHOD,
+        twr_basis=TWR_BASIS,
+        periods=[
+            PeriodReturnOut(
+                period=r.period,
+                start_date=r.start_date,
+                end_date=r.end_date,
+                return_pct=r.return_pct,
+                annualised_pct=r.annualised_pct,
+                reason=r.reason,
+            )
+            for r in period_returns(points, as_of=as_of, opened=opened)
+        ],
+        xirr_method=XIRR_METHOD,
+        xirr_basis=XIRR_BASIS,
+        account_xirr=_xirr_out(account_xirr(portfolio.opening_nav, opened, live, as_of=as_of)),
+        holdings=[
+            HoldingReturnOut(ticker=h.ticker, kind=h.kind, xirr=_xirr_out(h.result))
+            for h in holding_returns(session, portfolio, valuation, as_of=as_of)
         ],
     )

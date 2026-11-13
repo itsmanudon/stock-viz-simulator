@@ -10,6 +10,7 @@ import { PortfolioOptions } from "@/components/portfolio-options";
 import { PortfolioOrders } from "@/components/portfolio-orders";
 import { PortfolioPerformance } from "@/components/portfolio-performance";
 import { PortfolioPositions } from "@/components/portfolio-positions";
+import { PortfolioReturnsPanel } from "@/components/portfolio-returns";
 import { PortfolioTabs } from "@/components/portfolio-tabs";
 import type { JournalMonth } from "@/lib/api/journal";
 import type {
@@ -114,6 +115,7 @@ export function PortfolioWorkspace({
               />
             </Suspense>
           }
+          analytics={<PortfolioReturnsPanel returns={analytics?.returns ?? null} />}
           positionCount={portfolio.positions.length}
           optionCount={portfolio.option_positions.length}
           orderCount={orders?.length ?? 0}

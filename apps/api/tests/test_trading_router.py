@@ -238,7 +238,10 @@ def test_portfolio_overview_preserves_fx_options_reservations_and_missing_prices
         "options_market_value": "500",
         "total_value": "50650",
         "total_cost_basis": "106",
-        "unrealized_pl": "44",
+        # #68 (Phase 8.1): the headline includes open options.
+        "unrealized_pl": "494",
+        "unrealized_pl_equity": "44",
+        "unrealized_pl_options": "450",
     }.items():
         assert Decimal(body[field]) == Decimal(expected), field
     positions = {position["ticker"]: position for position in body["positions"]}

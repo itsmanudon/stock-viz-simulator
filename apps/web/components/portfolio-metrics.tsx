@@ -1,6 +1,10 @@
 import { FigureStrip } from "@/components/figure-strip";
 import type { Portfolio, PortfolioAnalytics } from "@/lib/api/trading";
-import { formatCurrency, formatSignedPercent } from "@/lib/portfolio-view-model";
+import {
+  formatCurrency,
+  formatSignedCurrency,
+  formatSignedPercent,
+} from "@/lib/portfolio-view-model";
 
 type Props = {
   portfolio: Portfolio;
@@ -44,6 +48,32 @@ export function PortfolioMetrics({ portfolio, analytics }: Props) {
     metrics.push({
       label: "Options exposure",
       value: formatCurrency(portfolio.options_market_value, currency),
+    });
+  }
+
+  // #68 (Phase 8.1): open P&L counts options too, and realized P&L is summed.
+  // Both read with fallbacks: a response cached before 8.1 lacks the parts.
+  if (hasInvestments) {
+    metrics.push({
+      label: "Unrealized P&L",
+      value: formatSignedCurrency(portfolio.unrealized_pl, currency),
+      tone: toneFor(Number(portfolio.unrealized_pl)),
+      detail:
+        portfolio.option_positions.length > 0 && portfolio.unrealized_pl_options != null
+          ? `Equities ${formatSignedCurrency(portfolio.unrealized_pl_equity, currency)} · options ${formatSignedCurrency(portfolio.unrealized_pl_options, currency)}`
+          : undefined,
+    });
+  }
+  const missing = portfolio.realized_pl_unavailable ?? 0;
+  if (Number(portfolio.realized_pl ?? 0) !== 0 || missing > 0) {
+    metrics.push({
+      label: "Realized P&L",
+      value: formatSignedCurrency(portfolio.realized_pl ?? 0, currency),
+      tone: toneFor(Number(portfolio.realized_pl ?? 0)),
+      detail:
+        missing > 0
+          ? `Lifetime · ${missing} close${missing === 1 ? "" : "s"} with no recorded figure left out`
+          : "Lifetime",
     });
   }
 

@@ -309,6 +309,24 @@ event holds back later events of its topic and key in the batch; after
 shows in `stockviz.cli outbox-dead` and `/health`'s `dead_outbox_events`.
 Migration `d55cf5f51697`.
 
+**Returns (Phase 8.1, #68).** `services/trading/returns.py` (pure):
+`time_weighted_return` chains sub-period returns between valuation points and
+takes outside flows (none exist yet: paper accounts get no deposits, so the
+account's TWR equals its NAV return); `period_returns` gives 1M, 3M, YTD, 1Y
+and ALL, each starting at the last point on or before its start (ALL at the
+opening value), null with a reason when the account is younger, annualised
+only past a year; `xirr` solves dated flows (Newton, bisection fallback),
+null with a reason under 30 days or without a sign change.
+`returns_ledger.py` reads the flows in the base currency: equity fills at
+`trades.fx_rate`, dividends at `base_value`, today's value at the latest
+rate; the options book as one line (USD accounts only; a book that expired
+worthless is -100%). `PortfolioAnalyticsOut.returns` carries the periods,
+the account's and each holding's XIRR, and each method's name and basis.
+#68: `PortfolioOut.unrealized_pl` is equities plus open options
+(`unrealized_pl_equity`, `unrealized_pl_options`), and `realized_pl` sums
+equity sells and option closes in the base, with `realized_pl_unavailable`
+counting closes that have no stored figure (never estimated).
+
 **Status (audit OP-5, Phase 7.6).** `GET /v1/status` (public, 30/min):
 each recorded job's latest run (name, state, start, finish, last success),
 the latest Aegis sync's state and time, the newest daily bar per market

@@ -31,7 +31,13 @@ export type Portfolio = {
   market_value: string;
   total_value: string;
   total_cost_basis: string;
+  /** #68 (Phase 8.1): equities plus open options; the parts follow. */
   unrealized_pl: string;
+  unrealized_pl_equity: string;
+  unrealized_pl_options: string;
+  /** Lifetime realized P&L; closes with no stored realization are counted, not estimated. */
+  realized_pl: string;
+  realized_pl_unavailable: number;
   /** Mark-to-model value of open option contracts, included in total_value. */
   options_market_value: string;
   positions: Position[];
@@ -244,6 +250,36 @@ export type PortfolioAnalytics = {
   sector_allocation: SectorAllocation[];
   top_gainers: TopMover[];
   top_losers: TopMover[];
+  /** Phase 8.1. Optional for responses cached before it. */
+  returns?: PortfolioReturns | null;
+};
+
+export type PeriodReturn = {
+  period: string;
+  start_date: string | null;
+  end_date: string;
+  return_pct: number | null;
+  annualised_pct: number | null;
+  reason?: string | null;
+};
+
+export type Xirr = {
+  rate_pct: number | null;
+  first_flow: string | null;
+  flows: number;
+  reason?: string | null;
+};
+
+export type PortfolioReturns = {
+  /** The account's base currency: every flow and NAV is in it. */
+  currency: string;
+  twr_method: string;
+  twr_basis: string;
+  periods: PeriodReturn[];
+  xirr_method: string;
+  xirr_basis: string;
+  account_xirr: Xirr;
+  holdings: { ticker: string; kind: string; xirr: Xirr }[];
 };
 
 export function getPortfolioAnalytics(): Promise<PortfolioAnalytics> {
