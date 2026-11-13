@@ -2187,6 +2187,28 @@ export interface components {
                 [key: string]: unknown;
             } | null;
         };
+        /** ExposureBucketOut */
+        ExposureBucketOut: {
+            /** Key */
+            key: string;
+            /** Equity Value */
+            equity_value: string;
+            /** Cash Value */
+            cash_value: string;
+            /** Options Delta */
+            options_delta: string;
+            /** Weight Pct */
+            weight_pct: number;
+            /** Options Delta Pct */
+            options_delta_pct: number;
+        };
+        /** ExposureOut */
+        ExposureOut: {
+            /** Dimension */
+            dimension: string;
+            /** Buckets */
+            buckets: components["schemas"]["ExposureBucketOut"][];
+        };
         /** FundamentalRowOut */
         FundamentalRowOut: {
             /** Concept */
@@ -2264,6 +2286,31 @@ export interface components {
              * @default 0
              */
             dead_outbox_events: number;
+        };
+        /** HoldingAttributionOut */
+        HoldingAttributionOut: {
+            /** Ticker */
+            ticker: string;
+            /** Currency */
+            currency: string;
+            /** Entry Rate */
+            entry_rate: string | null;
+            /** Rate Now */
+            rate_now: string | null;
+            /** Cost Base */
+            cost_base: string | null;
+            /** Value Base */
+            value_base: string | null;
+            /** Price Effect */
+            price_effect: string | null;
+            /** Currency Effect */
+            currency_effect: string | null;
+            /** Cross Effect */
+            cross_effect: string | null;
+            /** Income */
+            income: string;
+            /** Reason */
+            reason?: string | null;
         };
         /** HoldingReturnOut */
         HoldingReturnOut: {
@@ -3006,6 +3053,36 @@ export interface components {
             /** Top Losers */
             top_losers: components["schemas"]["TopMoverOut"][];
             returns?: components["schemas"]["PortfolioReturnsOut"] | null;
+            exposure?: components["schemas"]["PortfolioExposureOut"] | null;
+            attribution?: components["schemas"]["PortfolioAttributionOut"] | null;
+        };
+        /**
+         * PortfolioAttributionOut
+         * @description Phase 8.2: each holding's gain split into price, currency and cross, in base.
+         */
+        PortfolioAttributionOut: {
+            /** Currency */
+            currency: string;
+            /** Method */
+            method: string;
+            /** Basis */
+            basis: string;
+            /** Holdings */
+            holdings: components["schemas"]["HoldingAttributionOut"][];
+        };
+        /**
+         * PortfolioExposureOut
+         * @description Phase 8.2: weights of NAV in the display currency; method named (UX-9).
+         */
+        PortfolioExposureOut: {
+            /** Currency */
+            currency: string;
+            /** Method */
+            method: string;
+            /** Basis */
+            basis: string;
+            /** Dimensions */
+            dimensions: components["schemas"]["ExposureOut"][];
         };
         /**
          * PortfolioHistoryPointOut

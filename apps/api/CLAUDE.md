@@ -327,6 +327,19 @@ the account's and each holding's XIRR, and each method's name and basis.
 equity sells and option closes in the base, with `realized_pl_unavailable`
 counting closes that have no stored figure (never estimated).
 
+**Exposure and FX attribution (Phase 8.2).** `services/trading/exposure.py`:
+weights of NAV (display currency) by sector, instrument country and
+currency, equities at market value and cash under its currency ("Cash" for
+sector and country); open options beside them at delta-adjusted notional
+(`PortfolioOptionPosition.delta_notional`), never added into the weights.
+`attribution.py`: per holding, the gain since entry in the base currency
+split into price (qty x (close - avg cost) x entry rate), currency (qty x
+avg cost x (rate now - entry rate)) and cross, which sum exactly to value
+minus cost; the entry rate is the notional-weighted `trades.fx_rate` of the
+current holding's buys (after the running quantity last reached zero), and
+dividends since then are income. Both on `PortfolioAnalyticsOut`
+(`exposure`, `attribution`) with their method and basis.
+
 **Status (audit OP-5, Phase 7.6).** `GET /v1/status` (public, 30/min):
 each recorded job's latest run (name, state, start, finish, last success),
 the latest Aegis sync's state and time, the newest daily bar per market

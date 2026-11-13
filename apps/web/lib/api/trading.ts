@@ -252,6 +252,49 @@ export type PortfolioAnalytics = {
   top_losers: TopMover[];
   /** Phase 8.1. Optional for responses cached before it. */
   returns?: PortfolioReturns | null;
+  /** Phase 8.2. Optional for responses cached before it. */
+  exposure?: PortfolioExposure | null;
+  attribution?: PortfolioAttribution | null;
+};
+
+export type ExposureBucket = {
+  key: string;
+  equity_value: string;
+  cash_value: string;
+  /** Open options at delta-adjusted notional: exposure, not part of NAV. */
+  options_delta: string;
+  weight_pct: number;
+  options_delta_pct: number;
+};
+
+export type PortfolioExposure = {
+  /** The display currency. */
+  currency: string;
+  method: string;
+  basis: string;
+  dimensions: { dimension: string; buckets: ExposureBucket[] }[];
+};
+
+export type HoldingAttribution = {
+  ticker: string;
+  currency: string;
+  entry_rate: string | null;
+  rate_now: string | null;
+  cost_base: string | null;
+  value_base: string | null;
+  price_effect: string | null;
+  currency_effect: string | null;
+  cross_effect: string | null;
+  income: string;
+  reason?: string | null;
+};
+
+export type PortfolioAttribution = {
+  /** The account's base currency. */
+  currency: string;
+  method: string;
+  basis: string;
+  holdings: HoldingAttribution[];
 };
 
 export type PeriodReturn = {
