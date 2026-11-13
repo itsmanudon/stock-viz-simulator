@@ -60,6 +60,10 @@ test("authenticated user can move from a paper trade into the Portfolio workspac
   const holdings = main.getByRole("table", { name: "Money-weighted return by holding" });
   await expect(holdings).toContainText("AAPL");
   await expect(holdings).toContainText("held under 30 days");
+  // Phase 8.2: exposure weights and the holding's gain split by source.
+  await expect(main.getByRole("list", { name: "By sector" })).toBeVisible();
+  await expect(main.getByRole("list", { name: "By currency" })).toContainText("USD");
+  await expect(main.getByRole("table", { name: "Gain by source" })).toContainText("AAPL");
 });
 
 test("new mobile portfolio keeps value, tabs, and starting actions readable", async ({ page }) => {
