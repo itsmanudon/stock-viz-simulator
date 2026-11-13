@@ -18,6 +18,7 @@ import { CircleCheck, Clock3 } from "lucide-react";
 import Link from "next/link";
 import { useState, useSyncExternalStore } from "react";
 
+import { LimitPreviewRows } from "@/components/limit-preview";
 import { Button } from "@/components/ui/button";
 import { newClientOrderId } from "@/lib/order-review";
 import { splitMinorUnits } from "@/lib/portfolio-view-model";
@@ -199,6 +200,10 @@ export function OrderReview({
           <dd className="mt-1 leading-5">{describeFillRule(mode)}</dd>
         </div>
       </dl>
+
+      {side === "buy" && (mode === "market" || mode === "limit") ? (
+        <LimitPreviewRows ticker={ticker} quantity={quantity} />
+      ) : null}
 
       {overLimit ? (
         <output className="block text-xs text-warning">

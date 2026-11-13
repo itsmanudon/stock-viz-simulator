@@ -307,6 +307,9 @@ def open_option(
             f"{base} {funding.base_debit:,.2f}."
         )
 
+    from stockviz.services.risk.limits import enforce_option_open
+
+    enforce_option_open(session, portfolio, base_debit=funding.base_debit)
     pay_for_buy(session, portfolio, "USD", funding, rate)
     position = OptionsPosition(
         user_id=user_id,
@@ -436,6 +439,7 @@ def _exercise_call_into_equity(
             price=position.strike,
             currency="USD",  # options are USD underlyings only (open_option)
             fx_rate=base_rate(session, "USD", base_currency(portfolio)),
+            check_limits=False,  # settlement is never refused by a limit
         )
     except InsufficientCash:
         intrinsic = ((spot - position.strike) * shares).quantize(_CENTS)

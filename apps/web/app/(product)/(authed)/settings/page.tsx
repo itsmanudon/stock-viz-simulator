@@ -13,9 +13,11 @@ import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
 import { PageHeader } from "@/components/page-header";
 import { PaperCard } from "@/components/paper-card";
+import { RiskLimitsForm } from "@/components/risk-limits-form";
 import { AccountDetails, InterfacePanel, KeyboardShortcuts } from "@/components/settings-workspace";
 import { getProfile, patchProfile } from "@/lib/api/leaderboard";
-import { getPortfolio, putBaseCurrency } from "@/lib/api/trading";
+import { getPortfolio, getRiskLimits, putBaseCurrency, putRiskLimits } from "@/lib/api/trading";
+import { limitsFromForm } from "@/lib/risk-limits";
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Settings" };
@@ -51,11 +53,18 @@ async function setBaseCurrency(formData: FormData) {
   for (const path of ["/settings", "/portfolio", "/dashboard", "/trade"]) revalidatePath(path);
 }
 
+async function setRiskLimits(formData: FormData) {
+  "use server";
+  await putRiskLimits(limitsFromForm(formData));
+  revalidatePath("/settings");
+}
+
 export default async function SettingsPage() {
-  const [profile, session, portfolio] = await Promise.all([
+  const [profile, session, portfolio, limits] = await Promise.all([
     getProfile(),
     auth(),
     getPortfolio().catch(() => null),
+    getRiskLimits().catch(() => null),
   ]);
   const base = portfolio?.base_currency ?? "USD";
   const other = base === "USD" ? "INR" : "USD";
@@ -140,6 +149,12 @@ export default async function SettingsPage() {
                   currency can only change before the first trade, order or option.
                 </p>
               )}
+            </SettingsPanel>
+          ) : null}
+
+          {portfolio ? (
+            <SettingsPanel title="Risk limits" id="limits-heading">
+              <RiskLimitsForm limits={limits} action={setRiskLimits} />
             </SettingsPanel>
           ) : null}
 

@@ -28,11 +28,15 @@ from stockviz.models import (
     User,
 )
 from stockviz.models.dividend import Dividend, PortfolioDividend
+from stockviz.models.risk_limit import LIMIT_COLUMNS as RISK_LIMIT_COLUMNS
+from stockviz.models.risk_limit import RiskLimit
 from stockviz.schemas import (
     BaseCurrencyIn,
     DividendCreditOut,
     DividendSummaryOut,
     ExecutionProvenanceOut,
+    LimitCheckOut,
+    LimitPreviewOut,
     MonteCarloOut,
     PortfolioAnalyticsOut,
     PortfolioHistoryPointOut,
@@ -41,6 +45,8 @@ from stockviz.schemas import (
     PortfolioRiskOut,
     PortfolioStressOut,
     ProjectedDividendOut,
+    RiskLimitsIn,
+    RiskLimitsOut,
     RiskNoteOut,
     RiskProxyOut,
     RiskWindowOut,
@@ -53,6 +59,7 @@ from stockviz.schemas import (
 from stockviz.services.instruments import instrument_of
 from stockviz.services.risk import compute_risk
 from stockviz.services.risk.engine import MC_METHOD, VAR_METHOD
+from stockviz.services.risk.limits import LimitBreached, check_buy
 from stockviz.services.risk.stress import STRESS_METHOD, run_stress
 from stockviz.services.trading import (
     ClientOrderIdConflict,
@@ -73,6 +80,7 @@ from stockviz.services.trading.account import (
     set_base_currency,
 )
 from stockviz.services.trading.account import activity as account_activity
+from stockviz.services.trading.execute import resolve_priced_symbol
 from stockviz.services.trading.fx import convert as fx_convert
 from stockviz.services.trading.fx import latest_rate as fx_latest_rate
 from stockviz.services.trading.simulation_adapter import as_aware_utc
@@ -134,6 +142,9 @@ def post_trade(body: TradeIn, session: SessionDep, user_id: UserIdDep) -> TradeO
         )
     except SymbolNotFound as exc:
         raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+    except LimitBreached as exc:
+        session.rollback()
+        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
     except (StaleMarketData, ClientOrderIdConflict) as exc:
         # 409: the market or an earlier order conflicts with this one (#67).
         raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
@@ -324,6 +335,85 @@ def get_portfolio_stress(session: SessionDep, user_id: UserIdDep) -> PortfolioSt
             )
             for r in run_stress(session, portfolio, valuation, nav_base=nav)
         ],
+    )
+
+
+def _limits_out(row: RiskLimit | None) -> RiskLimitsOut:
+    if row is None:
+        return RiskLimitsOut()
+    return RiskLimitsOut(
+        max_position_pct=row.max_position_pct,
+        max_order_pct=row.max_order_pct,
+        max_sector_pct=row.max_sector_pct,
+        max_currency_pct=row.max_currency_pct,
+        max_var_pct=row.max_var_pct,
+        updated_at=row.updated_at,
+    )
+
+
+@router.get("/portfolio/limits", response_model=RiskLimitsOut)
+def get_risk_limits(session: SessionDep, user_id: UserIdDep) -> RiskLimitsOut:
+    """Phase 8.5: the account's own pre-trade limits; all null until set."""
+    portfolio = ensure_default_portfolio(session, user_id)
+    return _limits_out(session.get(RiskLimit, portfolio.id))
+
+
+@router.put("/portfolio/limits", response_model=RiskLimitsOut)
+def put_risk_limits(session: SessionDep, user_id: UserIdDep, body: RiskLimitsIn) -> RiskLimitsOut:
+    """Replace every limit at once; a null clears that limit."""
+    portfolio = ensure_default_portfolio(session, user_id)
+    assert portfolio.id is not None
+    row = session.get(RiskLimit, portfolio.id) or RiskLimit(portfolio_id=portfolio.id)
+    for name in RISK_LIMIT_COLUMNS:
+        setattr(row, name, getattr(body, name))
+    row.updated_at = utcnow()
+    session.add(row)
+    session.commit()
+    session.refresh(row)
+    return _limits_out(row)
+
+
+@router.get("/portfolio/limits/check", response_model=LimitPreviewOut)
+def preview_limits(
+    session: SessionDep,
+    user_id: UserIdDep,
+    ticker: Annotated[str, Query(min_length=1, max_length=16)],
+    quantity: Annotated[Decimal, Query(gt=0)],
+) -> LimitPreviewOut:
+    """What buying ``quantity`` of ``ticker`` at the latest close would do to
+    each limit (the order review shows it before the user places the order)."""
+    portfolio = ensure_default_portfolio(session, user_id)
+    base = portfolio.base_currency or "USD"
+    try:
+        priced = resolve_priced_symbol(session, ticker.upper(), base=base)
+    except TradeExecutionError as exc:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from exc
+    base_cost = priced.price * quantity * priced.fx_rate
+    checks = check_buy(
+        session,
+        portfolio,
+        ticker=priced.symbol.ticker,
+        currency=priced.currency,
+        quantity=quantity,
+        price=priced.price,
+        base_cost=base_cost,
+        base_debit=base_cost,
+    )
+    return LimitPreviewOut(
+        ticker=priced.symbol.ticker,
+        quantity=quantity,
+        checks=[
+            LimitCheckOut(
+                limit=c.limit,
+                label=c.label,
+                cap=c.cap,
+                value_after=c.value_after,
+                breached=c.breached,
+                note=c.note,
+            )
+            for c in checks
+        ],
+        breached=any(c.breached for c in checks),
     )
 
 

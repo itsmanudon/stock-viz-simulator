@@ -40,6 +40,7 @@ from stockviz.services.options import (
     quote_option,
     value_option,
 )
+from stockviz.services.risk.limits import LimitBreached
 from stockviz.services.trading.execute import NoFxRateError
 
 router = APIRouter(prefix="/v1/options", tags=["options"])
@@ -172,6 +173,9 @@ def post_options_trade(
                 client_order_id=body.client_order_id,
             )
         except OptionOrderConflict as exc:
+            raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
+        except LimitBreached as exc:
+            session.rollback()
             raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
         except OptionSymbolNotFound as exc:
             raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
