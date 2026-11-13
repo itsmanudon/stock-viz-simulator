@@ -28,7 +28,12 @@ class RiskReport:
 
 
 def compute_risk(
-    session: Session, portfolio: Portfolio, valuation: PortfolioValuation, *, as_of: date
+    session: Session,
+    portfolio: Portfolio,
+    valuation: PortfolioValuation,
+    *,
+    as_of: date,
+    goal: float | None = None,
 ) -> RiskReport:
     scenarios = build_scenarios(session, portfolio, valuation, horizons=HORIZONS, as_of=as_of)
     if scenarios.reason is not None or scenarios.included == 0 or scenarios.nav_base <= 0:
@@ -47,5 +52,5 @@ def compute_risk(
         is not None
     ]
     daily = scenarios.pnl[1] / scenarios.nav_base
-    mc = block_bootstrap(daily, start_value=scenarios.nav_base)
+    mc = block_bootstrap(daily, start_value=scenarios.nav_base, goal=goal)
     return RiskReport(scenarios, results, mc)

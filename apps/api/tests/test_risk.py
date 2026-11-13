@@ -176,3 +176,15 @@ def test_a_long_option_cannot_lose_more_than_its_value(
     assert body["holdings_included"] == 1 and body["reason"] is None
     for figure in body["var"]:
         assert 0 < figure["cvar"] <= value + 0.01
+
+
+def test_goal_probability_is_the_share_of_paths_reaching_it() -> None:
+    flat = np.full(300, 0.001)
+    end = 100_000 * 1.001**252
+    reached = block_bootstrap(flat, start_value=100_000, paths=200, goal=end - 1)
+    missed = block_bootstrap(flat, start_value=100_000, paths=200, goal=end + 1)
+    assert (reached.prob_goal, missed.prob_goal) == (1.0, 0.0)
+    noisy = np.random.default_rng(2).normal(0.0005, 0.02, 300)
+    median = block_bootstrap(noisy, start_value=1.0, paths=4000).percentiles[50]
+    half = block_bootstrap(noisy, start_value=1.0, paths=4000, goal=median)
+    assert half.prob_goal == pytest.approx(0.5, abs=0.01)

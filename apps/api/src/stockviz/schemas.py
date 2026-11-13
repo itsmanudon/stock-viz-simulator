@@ -674,7 +674,9 @@ class LeaderboardEntryOut(BaseModel):
     """
 
     rank: int
-    user_id: int
+    # SR-12 (Phase 8.6): an opaque public handle, never the database id.
+    handle: str
+    # The display name the user set, else the handle; never the email.
     username: str
     return_pct: float
     portfolio_value: Decimal
@@ -690,13 +692,31 @@ class ProfileOut(BaseModel):
     user_id: int
     public_profile: bool
     display_currency: str = "USD"
+    # SR-12: what the leaderboard shows: display_name, else public_handle.
+    public_handle: str | None = None
+    display_name: str | None = None
 
 
 class ProfilePatchIn(BaseModel):
-    """All fields are optional — patch sends only what changes."""
+    """All fields are optional — patch sends only what changes.
+
+    ``display_name`` is shown on the public leaderboard: 2 to 40 characters,
+    no "@" (it must not look like an email); an empty string clears it.
+    """
 
     public_profile: bool | None = None
     display_currency: str | None = None
+    display_name: str | None = Field(default=None, max_length=40)
+
+    @field_validator("display_name")
+    @classmethod
+    def _clean_name(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        cleaned = " ".join(value.split())
+        if cleaned and (len(cleaned) < 2 or "@" in cleaned):
+            raise ValueError("display_name must be 2 to 40 characters and contain no '@'")
+        return cleaned
 
 
 # ---------------------------------------------------------------------------
@@ -1141,6 +1161,10 @@ class MonteCarloOut(BaseModel):
     percentiles: dict[str, float]
     prob_loss_10: float
     prob_loss_20: float
+    # Phase 8.6 goals: a target value in a year, and the share of resampled
+    # paths that reach it ("about 1 in 4 on past behaviour").
+    goal: float | None = None
+    prob_goal: float | None = None
 
 
 class RiskWindowOut(BaseModel):

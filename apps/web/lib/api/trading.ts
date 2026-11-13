@@ -396,6 +396,9 @@ export type PortfolioRisk = {
     percentiles: Record<string, number>;
     prob_loss_10: number;
     prob_loss_20: number;
+    /** Phase 8.6 goals: the target, and the share of paths that reach it. */
+    goal?: number | null;
+    prob_goal?: number | null;
   } | null;
   reason?: string | null;
 };
@@ -427,8 +430,9 @@ export function getPortfolioStress(): Promise<PortfolioStress> {
   return authedGet<PortfolioStress>("/v1/portfolio/stress");
 }
 
-export function getPortfolioRisk(): Promise<PortfolioRisk> {
-  return authedGet<PortfolioRisk>("/v1/portfolio/risk");
+export function getPortfolioRisk(goal?: number | null): Promise<PortfolioRisk> {
+  const query = goal && goal > 0 ? `?goal=${encodeURIComponent(String(goal))}` : "";
+  return authedGet<PortfolioRisk>(`/v1/portfolio/risk${query}`);
 }
 
 export function getPortfolioAnalytics(): Promise<PortfolioAnalytics> {

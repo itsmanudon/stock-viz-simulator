@@ -233,7 +233,11 @@ VAR_RULE = (
 
 
 @router.get("/portfolio/risk", response_model=PortfolioRiskOut)
-def get_portfolio_risk(session: SessionDep, user_id: UserIdDep) -> PortfolioRiskOut:
+def get_portfolio_risk(
+    session: SessionDep,
+    user_id: UserIdDep,
+    goal: Annotated[Decimal | None, Query(gt=0, le=1e12)] = None,
+) -> PortfolioRiskOut:
     """Phase 8.3: historical-simulation VaR/CVaR and a block-bootstrap Monte Carlo.
 
     Computed on request from stored daily closes and FX rates (about a
@@ -243,7 +247,13 @@ def get_portfolio_risk(session: SessionDep, user_id: UserIdDep) -> PortfolioRisk
     portfolio = ensure_default_portfolio(session, user_id)
     display = _user_display_currency(session, user_id)
     valuation = compute_portfolio(session, portfolio, display_currency=display)
-    report = compute_risk(session, portfolio, valuation, as_of=utcnow().date())
+    report = compute_risk(
+        session,
+        portfolio,
+        valuation,
+        as_of=utcnow().date(),
+        goal=float(goal) if goal is not None else None,
+    )
     sc = report.scenarios
     nav = sc.nav_base
     mc = report.monte_carlo
@@ -283,6 +293,8 @@ def get_portfolio_risk(session: SessionDep, user_id: UserIdDep) -> PortfolioRisk
                 percentiles={str(k): round(v, 2) for k, v in mc.percentiles.items()},
                 prob_loss_10=mc.prob_loss_10,
                 prob_loss_20=mc.prob_loss_20,
+                goal=mc.goal,
+                prob_goal=mc.prob_goal,
             )
             if mc is not None
             else None

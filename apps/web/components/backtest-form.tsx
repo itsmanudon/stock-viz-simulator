@@ -516,6 +516,7 @@ function BacktestResults({
         <div className="border-y border-border-muted bg-surface-elevated p-3 sm:border-x sm:p-4">
           <EquityCurve
             points={result.equity_curve}
+            currency={result.currency ?? "USD"}
             accessibleLabel={`${result.ticker} strategy equity curve from the backtest run.`}
           />
         </div>
