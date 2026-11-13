@@ -1,7 +1,8 @@
 """Strategy backtesting — replay stored bars through a strategy spec.
 
-Pure computation: no DB, no network. The router loads ``PriceBar`` rows and
-hands ``(timestamp, close)`` pairs to :func:`run_backtest`.
+Pure computation: no DB, no network. The router loads ``PriceBar`` rows (with
+warm-up bars before the window) and hands ``(timestamp, close)`` pairs to
+:func:`run_backtest`, which fills through the shared kernel and SimLedger.
 """
 
 from stockviz.services.backtest.engine import (
@@ -11,6 +12,7 @@ from stockviz.services.backtest.engine import (
     BacktestTrade,
     EquityPoint,
     run_backtest,
+    warmup_bars_for,
 )
 
 __all__ = [
@@ -20,4 +22,5 @@ __all__ = [
     "BacktestTrade",
     "EquityPoint",
     "run_backtest",
+    "warmup_bars_for",
 ]

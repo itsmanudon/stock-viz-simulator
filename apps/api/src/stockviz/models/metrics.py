@@ -22,7 +22,7 @@ from datetime import date as date_type
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import Numeric
+from sqlalchemy import Numeric, UniqueConstraint
 from sqlmodel import Column, Field, SQLModel
 
 from stockviz._time import utcnow
@@ -39,8 +39,13 @@ class SymbolMetrics(SQLModel, table=True):
 
     __tablename__ = "symbol_metrics"  # pyright: ignore[reportAssignmentType]
 
-    ticker: str = Field(foreign_key="symbols.ticker", primary_key=True, max_length=16)
-    instrument_id: int | None = Field(default=None, sa_column=instrument_id_column(required=True))
+    __table_args__ = (UniqueConstraint("ticker", name="uq_symbol_metrics_ticker"),)
+
+    ticker: str = Field(foreign_key="symbols.ticker", max_length=16)
+    # Phase 4.6b: keyed by instrument.
+    instrument_id: int | None = Field(
+        default=None, sa_column=instrument_id_column(primary_key=True)
+    )
 
     # Date of the bar these metrics were computed from — lets a caller tell
     # stale rows from fresh ones without joining back to price_bars.
@@ -52,6 +57,27 @@ class SymbolMetrics(SQLModel, table=True):
     rsi_14: float | None = Field(default=None, index=True)
     high_52w: Decimal | None = Field(default=None, sa_column=Column(Numeric(18, 6), nullable=True))
     low_52w: Decimal | None = Field(default=None, sa_column=Column(Numeric(18, 6), nullable=True))
+
+    # Phase 6.2 screener snapshot, from the indicator engine on the same bars.
+    sma_50: float | None = None
+    sma_200: float | None = None
+    atr_pct_14: float | None = None  # ATR(14) as a percent of the close
+    hv_20: float | None = None  # annualised 20-day historical volatility, percent
+    avg_volume_20: float | None = None
+
+    # Phase 6.5 fundamentals snapshot, from services/fundamentals/valuation.py
+    # as of the run date. Percent fields are percents; market cap is in USD so
+    # it compares across markets.
+    pe: float | None = None
+    pb: float | None = None
+    ps: float | None = None
+    ev_ebitda: float | None = None
+    dividend_yield: float | None = None
+    market_cap_usd: float | None = None
+    net_margin: float | None = None
+    roe: float | None = None
+    debt_to_equity: float | None = None
+    revenue_growth: float | None = None
 
     # Mean news sentiment over the trailing week, in [-1, 1]. Populated by the
     # sentiment aggregate pass; NULL when the symbol has no scored headlines.

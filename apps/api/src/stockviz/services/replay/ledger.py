@@ -1,7 +1,10 @@
 """Isolated USD cash/position mutations for a ReplaySession.
 
-This is not ``apply_fill``. It does not touch ``Portfolio`` / ``Trade``,
-does not convert FX, and does not enqueue Kafka.
+This is not ``apply_fill``: it does not touch ``Portfolio`` / ``Trade``,
+convert FX or enqueue Kafka. Since Phase 5.1 the arithmetic is the shared
+``SimLedger`` (the backtester's too), which matches ``apply_fill``; this
+module only loads the session's cash and position into it and writes them
+back.
 """
 
 from __future__ import annotations
@@ -13,7 +16,15 @@ from sqlmodel import Session, select
 
 from stockviz.models import ReplayFill, ReplayPosition, ReplaySession
 from stockviz.services.replay.errors import ReplayInsufficientCash, ReplayInsufficientPosition
-from stockviz.services.simulation import FillDecision, FillStatus, OrderSide
+from stockviz.services.simulation import (
+    FillDecision,
+    FillStatus,
+    OrderSide,
+    SimInsufficientCash,
+    SimInsufficientPosition,
+    SimLedger,
+    SimPosition,
+)
 
 MICROS = Decimal("0.000001")
 
@@ -49,50 +60,44 @@ def apply_replay_fill(
         raise ValueError("replay fills are only recorded for filled decisions")
 
     price = decision.fill_price
-    cost = (price * quantity).quantize(MICROS)
-    realized_pnl: Decimal | None = None
     ticker = ticker.upper()
     session_id = replay.id
     position = get_replay_position(db, session_id=session_id, ticker=ticker)
 
-    if side is OrderSide.BUY:
-        if replay.cash_balance < cost:
-            raise ReplayInsufficientCash(
-                f"Replay cash ${replay.cash_balance:.2f}; order requires ${cost:.2f}."
-            )
-        replay.cash_balance = (replay.cash_balance - cost).quantize(MICROS)
-        if position is None:
-            db.add(
-                ReplayPosition(
-                    session_id=session_id,
-                    ticker=ticker,
-                    quantity=quantity,
-                    avg_cost=price,
-                )
-            )
-        else:
-            total_qty = position.quantity + quantity
-            position.avg_cost = (
-                ((position.avg_cost * position.quantity) + (price * quantity)) / total_qty
-            ).quantize(MICROS)
-            position.quantity = total_qty.quantize(MICROS)
-            db.add(position)
-    elif side is OrderSide.SELL:
+    ledger = SimLedger(cash=replay.cash_balance)
+    if position is not None:
+        ledger.positions[ticker] = SimPosition(position.quantity, position.avg_cost)
+    try:
+        fill = ledger.apply(side, ticker, quantity, price)
+    except SimInsufficientCash as exc:
+        raise ReplayInsufficientCash(
+            f"Replay cash ${replay.cash_balance:.2f}; order requires ${(price * quantity):.2f}."
+        ) from exc
+    except SimInsufficientPosition as exc:
         held = position.quantity if position is not None else Decimal(0)
-        if position is None or held < quantity:
-            raise ReplayInsufficientPosition(
-                f"Replay position {held} {ticker}; order requires {quantity}."
-            )
-        realized_pnl = ((price - position.avg_cost) * quantity).quantize(MICROS)
-        replay.cash_balance = (replay.cash_balance + cost).quantize(MICROS)
-        remaining = (position.quantity - quantity).quantize(MICROS)
-        if remaining == 0:
+        raise ReplayInsufficientPosition(
+            f"Replay position {held} {ticker}; order requires {quantity}."
+        ) from exc
+
+    realized_pnl = fill.realized_pnl
+    replay.cash_balance = ledger.cash
+    after = ledger.positions.get(ticker)
+    if after is None:
+        if position is not None:
             db.delete(position)
-        else:
-            position.quantity = remaining
-            db.add(position)
-    else:  # pragma: no cover
-        raise ValueError(f"unsupported side {side!r}")
+    elif position is None:
+        db.add(
+            ReplayPosition(
+                session_id=session_id,
+                ticker=ticker,
+                quantity=after.quantity,
+                avg_cost=after.avg_cost,
+            )
+        )
+    else:
+        position.quantity = after.quantity.quantize(MICROS)
+        position.avg_cost = after.avg_cost
+        db.add(position)
 
     db.add(replay)
     trace = decision.trace

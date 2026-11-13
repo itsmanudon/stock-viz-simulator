@@ -12,6 +12,12 @@ from sqlmodel import Session, col, select
 
 from stockviz import cli
 from stockviz.models import JobRun, PriceBar
+from tests.symbols import seed_symbols
+
+
+@pytest.fixture(autouse=True)
+def _symbols(session) -> None:
+    seed_symbols(session, "AAPL")
 
 
 @pytest.fixture

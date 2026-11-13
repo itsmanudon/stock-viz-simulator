@@ -31,6 +31,12 @@ vi.mock("lightweight-charts", () => ({
   }),
 }));
 
+const saveRun = vi.fn(async () => ({ runId: 7 }));
+vi.mock("@/app/(product)/backtest/actions", () => ({
+  saveBacktestRunAction: (...args: unknown[]) => saveRun(...(args as [])),
+  rerunBacktestRunAction: vi.fn(async () => ({})),
+}));
+
 vi.mock("@/lib/api", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api")>("@/lib/api");
   return {
@@ -154,8 +160,48 @@ describe("BacktestForm", () => {
         ticker: "AAPL",
         commission_bps: 0,
         slippage_bps: 0,
+        fill_rule: "next_open",
+        spread_bps: 0,
+        fee_schedule: "none",
       }),
     );
+  });
+
+  it("states the run's currency, return mode, basis and warm-up (Phase 5.2)", async () => {
+    runBacktest.mockResolvedValue({
+      ...success,
+      ticker: "SAP.DE",
+      currency: "EUR",
+      price_basis: "mixed",
+      return_mode: "total",
+      warmup_bars: 250,
+    } satisfies BacktestResult);
+    render(<BacktestForm symbols={[{ ticker: "SAP.DE", name: "SAP" }]} initialTicker="SAP.DE" />);
+    fireEvent.change(screen.getByLabelText("Returns"), { target: { value: "total" } });
+    fireEvent.click(screen.getByRole("button", { name: "Run backtest" }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("backtest-basis")).toBeVisible();
+    });
+    const note = screen.getByTestId("backtest-basis").textContent ?? "";
+    expect(note).toContain("Amounts in EUR.");
+    expect(note).toContain("dividends are credited");
+    expect(note).toContain("mixed");
+    expect(note).toContain("250 bars before the start");
+    expect(screen.getByText("€25.50")).toBeVisible();
+    expect(runBacktest).toHaveBeenCalledWith(expect.objectContaining({ return_mode: "total" }));
+  });
+
+  it("offers to save the run it just showed (Phase 5.4)", async () => {
+    runBacktest.mockResolvedValue(success);
+    render(
+      <BacktestForm symbols={[{ ticker: "AAPL", name: "Apple Inc." }]} initialTicker="AAPL" />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Run backtest" }));
+    const save = await screen.findByRole("button", { name: "Save run" });
+    fireEvent.click(save);
+    await waitFor(() => expect(saveRun).toHaveBeenCalled());
+    expect(await screen.findByText(/Stored as run 7/)).toBeVisible();
   });
 
   it("keeps the form and shows a validation error when the API rejects the run", async () => {
@@ -241,6 +287,8 @@ describe("SignalsTable", () => {
       ],
       sentiment_7d: 0.22,
       computed_at: "2026-08-26T00:00:00Z",
+      bar_date: "2026-08-25",
+      stale: false,
     });
     const neutral = recommendationToSignal({
       ticker: "MSFT",
@@ -252,6 +300,8 @@ describe("SignalsTable", () => {
       votes: [],
       sentiment_7d: null,
       computed_at: "2026-08-26T00:00:00Z",
+      bar_date: "2026-08-25",
+      stale: false,
     });
 
     pathname = "/recommendations";

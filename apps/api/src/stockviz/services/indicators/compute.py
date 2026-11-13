@@ -66,35 +66,22 @@ def compute_ema(bars: list[tuple[datetime, Decimal]], *, period: int) -> list[In
 
 
 def compute_rsi(bars: list[tuple[datetime, Decimal]], *, period: int = 14) -> list[IndicatorPoint]:
-    """RSI with Wilder's smoothing (alpha = 1/period).
+    """RSI with Wilder's smoothing: the engine's definition (Phase 6.1).
 
-    Output range is [0, 100]. Returns no points until ``period`` deltas have
-    been observed, matching the convention most charting libraries use.
+    The screener's metrics, the backtester's RSI strategy and the chart all
+    use ``engine.rsi``, so one stock has one RSI. Its first value needs
+    ``period`` changes (``period + 1`` bars) and is seeded with their mean,
+    as Wilder defined it.
     """
     if period <= 0:
         raise ValueError("period must be positive")
+    from stockviz.services.indicators import engine
+
     series = _close_series(bars)
     if len(series) < period + 1:
         return []
-
-    delta = series.diff()
-    gains = delta.clip(lower=0.0)
-    losses = -delta.clip(upper=0.0)
-
-    # Wilder's smoothing: alpha = 1/period, equivalent to ``com = period - 1``.
-    avg_gain = cast(
-        pd.Series, gains.ewm(alpha=1.0 / period, adjust=False, min_periods=period).mean()
-    )
-    avg_loss = cast(
-        pd.Series, losses.ewm(alpha=1.0 / period, adjust=False, min_periods=period).mean()
-    )
-
-    # Avoid divide-by-zero on a flat / monotonically increasing series.
-    rs = avg_gain / avg_loss.replace(0.0, pd.NA)
-    rsi = cast(pd.Series, 100.0 - (100.0 / (1.0 + rs)))
-    # When avg_loss == 0 across the window, RSI is 100 by convention.
-    rsi = rsi.where(~avg_loss.eq(0.0), 100.0)
-    return _to_points(rsi)
+    frame = pd.DataFrame({"close": series})
+    return _to_points(engine.rsi(frame, period)["value"])
 
 
 @dataclass(frozen=True, slots=True)

@@ -9,6 +9,8 @@ import {
   type TicketPosition,
   type TradeTicketAccount,
 } from "@/components/contextual-trade-ticket";
+import { NewsReactions } from "@/components/event-study-view";
+import { FundamentalsPanel } from "@/components/fundamentals-panel";
 import { MobileTradeSheet } from "@/components/mobile-trade-sheet";
 import { NewsList } from "@/components/news-list";
 import { PositionSummary } from "@/components/position-summary";
@@ -28,6 +30,8 @@ import {
   getSymbol,
 } from "@/lib/api";
 import { listComments } from "@/lib/api/comments";
+import { getFundamentals, getValuation, getValuationHistory } from "@/lib/api/fundamentals";
+import { getEventStudy } from "@/lib/api/research";
 import {
   type PendingOrder,
   type Portfolio,
@@ -44,6 +48,7 @@ import {
   calculateAllocationPct,
   calculatePeriodReturnPct,
   calculatePositionReturnPct,
+  chartLayers,
   deriveTrailingBarMetrics,
   formatCloseDate,
   parseStockIndicators,
@@ -119,13 +124,34 @@ export default async function StockPage({
   const rangeBarsPromise = timeframeDays >= 252 ? barsPromise : getBars(ticker, { limit: 252 });
   const requestedIndicators = Array.from(new Set([...selectedIndicators, "rsi_14"]));
 
-  const [bars, rangeBars, indicatorBundle, news, session, comments] = await Promise.all([
+  const [
+    bars,
+    rangeBars,
+    indicatorBundle,
+    news,
+    session,
+    comments,
+    fundamentalsAnnual,
+    fundamentalsQuarterly,
+    valuationNow,
+    peHistory,
+    negativeReactions,
+    positiveReactions,
+  ] = await Promise.all([
     barsPromise,
     rangeBarsPromise,
     getIndicators(ticker, { names: requestedIndicators, limit: timeframeDays }),
     getNewsForTicker(ticker, 8).catch(() => []),
     auth(),
     listComments(ticker).catch(() => [] as Awaited<ReturnType<typeof listComments>>),
+    // Phase 6.4: a failing financials call hides the panel, never the page.
+    getFundamentals(ticker, "annual").catch(() => null),
+    getFundamentals(ticker, "quarter").catch(() => null),
+    getValuation(ticker).catch(() => null),
+    getValuationHistory(ticker, "pe").catch(() => null),
+    // Phase 7.4: how this stock moved around its negative and positive news.
+    getEventStudy({ tickers: [ticker], sentiment: "negative" }).catch(() => null),
+    getEventStudy({ tickers: [ticker], sentiment: "positive" }).catch(() => null),
   ]);
 
   const signedIn = Boolean(session?.user?.id);
@@ -168,10 +194,10 @@ export default async function StockPage({
   const metrics = deriveTrailingBarMetrics(rangeBars);
   const rsiSeries = indicatorBundle.series.rsi_14;
   const latestRsi = rsiSeries?.at(-1)?.value ?? null;
-  const overlaySeries = Object.fromEntries(
-    Object.entries(indicatorBundle.series).filter(
-      ([name]) => name !== "rsi_14" && selectedIndicators.includes(name as StockIndicator),
-    ),
+  // Phase 6.6: overlays and panes by each indicator's registry pane.
+  const { overlays: overlaySeries, panes: indicatorPanes } = chartLayers(
+    indicatorBundle,
+    selectedIndicators,
   );
   const showMacd = selectedIndicators.includes("macd");
   const validCurrentUserId = Number.isFinite(currentUserId) ? currentUserId : null;
@@ -197,6 +223,7 @@ export default async function StockPage({
         latestClose={latestClose}
         periodReturnPct={periodReturnPct}
         timeframe={timeframe}
+        periodStart={bars[0]?.ts ?? null}
         signedIn={signedIn}
         inWatchlist={inWatchlist}
         hasPosition={position !== null}
@@ -222,6 +249,8 @@ export default async function StockPage({
                   bars={bars}
                   overlays={overlaySeries}
                   macd={showMacd ? indicatorBundle.macd : null}
+                  rsi={selectedIndicators.includes("rsi_14") ? (rsiSeries ?? null) : null}
+                  panes={indicatorPanes}
                 />
               ) : (
                 <p className="py-24 text-center text-sm text-muted-foreground">
@@ -258,7 +287,24 @@ export default async function StockPage({
               positionStatus={positionStatus}
             />
           }
-          news={<NewsList articles={news} variant="workspace" />}
+          financials={
+            <FundamentalsPanel
+              annual={fundamentalsAnnual}
+              quarterly={fundamentalsQuarterly}
+              valuation={valuationNow}
+              peHistory={peHistory}
+            />
+          }
+          news={
+            <div className="space-y-8">
+              <NewsList articles={news} variant="workspace" />
+              <NewsReactions
+                ticker={ticker}
+                negative={negativeReactions}
+                positive={positiveReactions}
+              />
+            </div>
+          }
           positionOrders={
             signedIn ? (
               <div className="space-y-8">

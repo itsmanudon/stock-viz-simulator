@@ -21,7 +21,10 @@ runs on the weekday EOD schedule.
 | Live pending-order settlement | ✅ SIM-03 — LIMIT / STOP_LOSS / TAKE_PROFIT via the same kernel |
 | Versioned profile registry | ✅ SIM-04 — `get_execution_profile(name, version)` |
 | Durable execution provenance | ✅ SIM-04 — `simulated_executions` (fill-only, no backfill) |
-| Backtester | **Unchanged** — separate engine (SIM-08) |
+| Backtester | ✅ SIM-08 (Phase 5.2) — kernel fills, shared `SimLedger`; `next_open` v1 profile, cost model and fee schedules (5.3, 5.6) |
+| Shared simulated ledger | ✅ Phase 5.1 — `SimLedger` for replay and backtests, held equal to `apply_fill` |
+| Experiment registry | ✅ Phase 5.4 — stored runs with a dataset fingerprint; reruns report identical / different / data changed |
+| Walk-forward and sweeps | ✅ Phase 5.5 — rolling in-sample choice, out-of-sample score; capped grids |
 | Replay sessions | ✅ SIM-05 — frozen ticker/start/end, next-bar clock, server-owned 1d bars |
 | Replay Lab UI | ✅ SIM-06 — launcher, blind chart, MARKET ticket, next-session, summary |
 | Replay forensics | ✅ SIM-07 — episodes, MAE/MFE, buy-and-hold excess, concentration, journal |
@@ -426,8 +429,7 @@ Live `evaluation_clock()` remains wall-clock UTC for paper trading.
 | SIM-05 | **Done.** ReplaySession with frozen ticker/start/end, next-bar clock, server-owned 1d bars |
 | SIM-06 | **Done.** Blind historical Replay Lab UI |
 | SIM-07 | **Done.** Post-trade forensic analytics + decision journal |
-| SIM-08 | Backtester uses the same execution kernel |
-| SIM-08 | Backtester uses the same execution kernel |
+| SIM-08 | **Done** (Phase 5.2). Backtester uses the same execution kernel and the shared `SimLedger` |
 | SIM-09 | Intraday market data |
 | SIM-10 | Liquidity + partial fills |
 
@@ -436,4 +438,8 @@ Kernel unit tests pin `legacy_close` itself. Live MARKET tests live in
 `test_pending_kernel_integration.py`. Provenance tests live in
 `test_execution_provenance.py`. Replay session tests live in
 `test_replay_session.py`. Forensics tests live in
-`test_replay_forensics.py` and `test_replay_forensics_router.py`. The backtester is still a separate engine.
+`test_replay_forensics.py` and `test_replay_forensics_router.py`. Phase 5:
+`test_sim_ledger.py` (ledger parity with `apply_fill`),
+`test_backtest_window.py` (warm-up, currency, basis), `test_cost_models.py`,
+`test_india_fees.py`, `test_experiment_registry.py` (identical reruns) and
+`test_walk_forward.py`.

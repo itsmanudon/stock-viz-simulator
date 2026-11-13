@@ -8,6 +8,7 @@ from sqlmodel import Session, col, select
 
 from stockviz.models import PriceBar
 from stockviz.services.indicator_view import compute_bundle, input_key
+from stockviz.services.indicators import engine
 from tests.test_indicators_router import _seed
 
 
@@ -30,29 +31,36 @@ class MemoryCache:
         return result
 
 
+def _rows(bars):
+    """(ts, close) -> OHLCV rows, as the router builds them (Phase 6.1)."""
+    return [(ts, c, c, c, c, 1000) for ts, c in bars]
+
+
+def _req(*names: str):
+    return [engine.parse(n) for n in names]
+
+
 def test_keys_bind_exact_decimal_timestamp_interval_names_and_version():
-    bars = [(datetime(2025, 1, 1), Decimal("123456789012.123456"))]
-    parsed: list[tuple[str, int | None]] = [("sma", 20)]
-    args = ("stockviz:test:v1", "AAPL", "1d", parsed, bars)
+    rows = _rows([(datetime(2025, 1, 1), Decimal("123456789012.123456"))])
+    args = ("stockviz:test:v1", "AAPL", "1d", ["sma_20"], rows, None)
     key = input_key(*args)
-    assert key.startswith("stockviz:test:v1:indicators:v1:")
+    assert key.startswith("stockviz:test:v1:indicators:v2:")
     assert "123456789012" not in key
     assert key != input_key("stockviz:test:v2", *args[1:])
     assert key != input_key(args[0], "NVDA", *args[2:])
     assert key != input_key(*args[:2], "1h", *args[3:])
-    assert key != input_key(*args[:3], [("sma", 21)], bars)
-    assert key != input_key(*args[:4], [(bars[0][0], Decimal("123456789012.123457"))])
-    assert key != input_key(*args[:4], [(datetime(2025, 1, 2), bars[0][1])])
+    assert key != input_key(*args[:3], ["sma_21"], rows, None)
+    assert key != input_key(*args[:4], _rows([(rows[0][0], Decimal("123456789012.123457"))]), None)
+    assert key != input_key(*args[:4], _rows([(datetime(2025, 1, 2), rows[0][4])]), None)
+    assert key != input_key(*args[:5], datetime(2025, 1, 1))
 
 
 def test_hit_matches_uncached_bundle_exactly():
     bars = [(datetime(2025, 1, 1, microsecond=i), Decimal(100 + i)) for i in range(60)]
     cache = MemoryCache()
-    first = compute_bundle(
-        "AAPL", "1d", [("sma", 20), ("rsi", 14), ("macd", None)], bars, cache=cache
-    )
+    first = compute_bundle("AAPL", "1d", _req("sma_20", "rsi_14", "macd"), _rows(bars), cache=cache)
     second = compute_bundle(
-        "AAPL", "1d", [("sma", 20), ("rsi", 14), ("macd", None)], bars, cache=cache
+        "AAPL", "1d", _req("sma_20", "rsi_14", "macd"), _rows(bars), cache=cache
     )
     assert first.model_dump_json() == second.model_dump_json()
     assert (cache.hits, cache.misses) == (1, 1)
@@ -93,7 +101,7 @@ def test_changed_window_and_empty_series_do_not_collide():
         ("NVDA", "1d", bars),
         ("AAPL", "1d", []),
     ):
-        compute_bundle(ticker, interval, [("sma", 20)], values, cache=cache)
+        compute_bundle(ticker, interval, _req("sma_20"), _rows(values), cache=cache)
     assert cache.misses == 5
 
 

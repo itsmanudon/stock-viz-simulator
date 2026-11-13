@@ -7,6 +7,7 @@ untouched. Sessions are not deleted.
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -262,13 +263,22 @@ def get_one_replay_session(
 
 @router.post("/sessions/{session_id}/advance", response_model=ReplaySessionOut)
 def post_replay_advance(
-    session_id: int, session: SessionDep, user_id: UserIdDep
+    session_id: int,
+    session: SessionDep,
+    user_id: UserIdDep,
+    expected_current_at: datetime | None = None,
 ) -> ReplaySessionOut:
-    """Advance one stored 1d bar. Completes when the frozen end is reached."""
+    """Advance one stored 1d bar; from the last bar, complete the session.
+
+    Pass ``expected_current_at`` (the bar on screen): a repeated request then
+    changes nothing (audit SR-10).
+    """
 
     replay = _load(session, session_id, user_id)
     try:
-        replay = advance_replay_session(session, replay=replay)
+        replay = advance_replay_session(
+            session, replay=replay, expected_current_at=expected_current_at
+        )
     except (ReplayClosed, ReplayCompleted) as exc:
         raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
     except SimulationClockError as exc:

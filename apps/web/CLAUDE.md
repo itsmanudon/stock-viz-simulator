@@ -333,6 +333,32 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   bordered wrapper and the right-aligned tinted number. `NumericCell` owns the
   sign→token mapping and the em-dash fallback — never write `text-green-500`
   or `text-red-500`, which are not the `--positive`/`--negative` tokens.
+- The stock page chart draws RSI in its own pane with 70/30 guides (#73),
+  beside MACD; indicator values come warmed up from the API (Phase 6.1), so
+  they do not change with the timeframe. The change pill is labelled
+  "<tf> return since <first bar>" (UX-10).
+- Chart indicators come from the API registry (Phase 6.6): `STOCK_INDICATORS`
+  in `lib/stock-workspace.ts` lists names with a menu `section`, and
+  `chartLayers()` splits the bundle by each indicator's `meta.pane`: price
+  overlays (Supertrend's `.direction` output is left out) and one small
+  `IndicatorPane` per separate-pane indicator under the chart. RSI and MACD
+  keep their own panes. A new indicator needs only a menu entry.
+- `POST /api/revalidate` (audit RS-9, Phase 6.6) is called by the nightly
+  cron's last step with `x-stockviz-revalidate` (HMAC of a fixed label under
+  `INTERNAL_API_TOKEN`, `lib/revalidate-key.ts`) and drops every tag in
+  `MARKET_TAGS` with `revalidateTag(tag, { expire: 0 })`, so a page never
+  mixes two nights. `getSymbol` (tags `bars`, `symbols`) and `getIndicators`
+  (`bars`) are cached an hour with the bars they sit beside. A new cached
+  market-data fetch should carry one of those tags.
+- `/watchlist` draws sparklines from each row's `closes` (RS-12, one API
+  call instead of one per item), and the add form is a searchable input with
+  a datalist of symbols (UX-7), nothing preselected.
+- The stock page's Financials tab (`components/fundamentals-panel.tsx`,
+  Phase 6.4) shows key multiples as of today with their reasons when null,
+  the P/E percentile over five years of month-ends, and annual/quarterly
+  statements labelled by period end and unit. It says when figures are not
+  point-in-time (yfinance) and when the reporting currency differs from the
+  trading currency. A failed financials call hides the panel, not the page.
 - Charts use `lightweight-charts` v5. The wrapper lives in
   `components/price-chart.tsx`; reuse it rather than instantiating a chart inline.
   Compare and backtest charts live in `compare-chart.tsx` and `equity-curve.tsx`.
@@ -361,6 +387,17 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   chosen symbol until the dates are edited by hand. The run is a browser
   call to the API, so a dev server on a port other than 3000 needs that
   origin in the API's `CORS_ORIGINS`, or the run fails with "Failed to fetch".
+- `/backtest` (Phase 5.2-5.4) sends `fill_rule` (default `next_open`),
+  `spread_bps`, `fee_schedule` and `return_mode`, formats amounts in the
+  run's `currency`, and states the basis, return mode, warm-up and profile
+  under the results. "Save run" (`components/backtest-run-actions.tsx`, server
+  action in `app/(product)/backtest/actions.ts`) stores the request through
+  `/v1/experiments/runs`; `/backtest/runs` (protected in `proxy.ts`) lists
+  saved runs with a Rerun check (identical, different, or data changed).
+  Beside Save run, "Walk-forward" and "Sweep settings" (Phase 5.5) run the
+  default grid on the server and store the study; `/backtest/runs/[runId]`
+  shows a walk-forward's windows (chosen setting, scored year) or a sweep's
+  ranked settings ("best of N").
 - The `/trade` option ticket (`components/option-trade-form.tsx`) quotes
   before it buys (audit LG-7): `getOptionQuote()` (`lib/api/option-quote.ts`,
   a browser call to the public `/v1/options/quote`) shows spot with its close
@@ -404,6 +441,19 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   empty data cache; the cache then holds a response for up to its revalidate
   window (an hour for market data), so a page can trail the nightly ingest by
   that long. Still render new fields optionally.
+- `/screener` reads `/v1/screener` (Phase 6.2): filtered, sorted and paged
+  on the server (50 a page, `?page=`), with market, currency, trend (close vs
+  SMA 50/200) and volatility filters, Market and "vs 200-day" columns, and
+  saved screens for signed-in users (`components/saved-screens.tsx`, actions
+  in `app/(product)/screener/actions.ts`; a saved screen is the URL query).
+  Any filter or sort change goes back to page 1. Phase 6.5 adds a
+  Fundamentals filter group (max P/E, min yield, min market cap in USD bn,
+  min ROE, max debt/equity), P/E and USD market-cap columns, and row
+  checkboxes in a GET form to `/compare` (`?tickers=A&tickers=B`;
+  `ClickableRow` ignores clicks on controls inside it). `/compare` cuts every
+  series to the days all symbols traded (`alignToSharedDates`, audit RS-7)
+  and shows fundamentals side by side (`components/compare-fundamentals.tsx`,
+  market cap in each company's reporting currency).
 - `/screener` keeps filters and sort in the URL (`lib/screener-view.ts`, UI
   audit UX-1). Each applied filter shows as a removable chip; RSI bounds share
   a chip, and the momentum bounds belong to the window's chip because the API
@@ -447,10 +497,14 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   `/orders` fetches every order once so each status tab shows a
   `CountBadge`. `/trades` prices each row in the trade's own currency
   (`total_native`), times it in UTC with `formatUtcDateTime()`
-  (`lib/api-time.ts`), and totals only realized P&L, which the API reports in
-  USD. `/trade` keeps chart and recent fills on the left and the ticket and
+  (`lib/api-time.ts`), and totals only realized P&L, in the account's base currency. `/trade` keeps chart and recent fills on the left and the ticket and
   account on the right; below `xl` the column wrappers are `contents` and
-  `order-*` sets chart, ticket, account, fills.
+  `order-*` sets chart, ticket, account, fills. Realized P&L is in the
+  account's base currency (`trade.base_currency`, Phase 4.8), and the
+  portfolio's NAV change and the journal use it too (`base_currency`,
+  journal `currency`). Settings has an "Account currency" panel that restarts
+  a fresh account in INR (₹1 crore) or USD (`putBaseCurrency`); once
+  `base_currency_locked` it only states the currency.
 - Monitoring and Replay (Aurora board v3): watchlist rows act through four
   round icon buttons (research, trade, alert, remove), each with a spoken name
   and a title; `/alerts` view tabs count with the same `matchesView()` rule
@@ -475,6 +529,31 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   News for a set of symbols is one call, `getNewsForTickers()` (`/v1/news?tickers=`):
   `/watchlist` lists it under the table, and `/portfolio?tab=news` loads it
   for the holdings only while that tab is open, as Journal does.
+- Alerts and notifications (Phase 7.3): `/alerts` lists rules of every kind
+  (price level, daily move, technical crossing, Aegis news, portfolio) with
+  the rule in words (`description`), the current close and its date from the
+  markets summary, the distance to a price target, status (paused, fired,
+  dismissed) and when it last fired; actions dismiss, re-arm, pause/resume,
+  delete; `?rule=<id>#history` narrows the firing history. `AlertForm`
+  (`components/alert-form.tsx`, UX-2) searches symbols with a datalist, shows
+  the stored close with its date and the distance to the target, and
+  previews the rule (`previewRule` in `lib/alert-rules.ts`). The header bell
+  (`components/alerts-bell.tsx`) polls `/api/notifications` (unread count +
+  five newest) every 60 s; RS-11: a failed poll keeps the last count and says
+  so in its title, and polling stops while the tab is hidden.
+  `/notifications` (protected) lists everything by category with paging and
+  mark read / mark all read. In-app only.
+- `/news-reactions` (Phase 7.4, Research subnav, public, 20 views a minute
+  per visitor): an event study from the URL (`tickers`, `sentiment`,
+  `event_type`, `pre`, `post`) through `getEventStudy()` (`lib/api/research.ts`,
+  cached with `bars`/`news` tags), shown by `components/event-study-view.tsx`
+  (windows table, mean CAR path as inline SVG, the events; counts only below
+  the minimum; "association, not cause"). The stock page's News tab adds a
+  "News reactions" block for its negative and positive news (`NewsReactions`).
+- `/status` (Phase 7.6, public, linked from the footer): each nightly job's
+  last result and last success, the newest stored close per market, the
+  Aegis sync and undeliverable events, from `/v1/status` (`lib/api/status.ts`,
+  `no-store`). Times in UTC.
 - Watchlist rows carry `last_close_at` and `currency`, and alert rows carry
   `currency` (audit RS-13), so the dashboard no longer loads the symbol list
   to format them. `/alerts` still loads it for the create form.

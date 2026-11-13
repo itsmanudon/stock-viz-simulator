@@ -28,6 +28,7 @@ export function SecurityHeader({
   latestClose,
   periodReturnPct,
   timeframe,
+  periodStart,
   signedIn,
   inWatchlist,
   hasPosition,
@@ -37,6 +38,8 @@ export function SecurityHeader({
   latestClose: number | null;
   periodReturnPct: number | null;
   timeframe: string;
+  /** First bar of the period, so the pill can say "since" (UX-10). */
+  periodStart?: string | null;
   signedIn: boolean;
   inWatchlist: boolean;
   hasPosition: boolean;
@@ -102,6 +105,11 @@ export function SecurityHeader({
                 />
               )}
             </div>
+            {periodReturnPct !== null && periodStart ? (
+              <p className="mt-1 text-2xs text-text-tertiary" data-testid="period-return-label">
+                {timeframe} return since {formatCloseDate(periodStart)}
+              </p>
+            ) : null}
             <div className="mt-1.5 sm:flex sm:justify-end">
               <LivePriceBadge
                 ticker={symbol.ticker}
@@ -118,6 +126,7 @@ export function SecurityHeader({
                 <AlertForm
                   ticker={symbol.ticker}
                   lastClose={symbol.latest?.close ?? null}
+                  lastCloseAt={symbol.latest?.ts ?? null}
                   currency={symbol.currency}
                 />
               </>

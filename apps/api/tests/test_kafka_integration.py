@@ -53,7 +53,6 @@ from stockviz.models import (
     PortfolioTradeActivity,
     PriceBar,
     Symbol,
-    SymbolMetrics,
     TradeSide,
     User,
 )
@@ -61,6 +60,7 @@ from stockviz.models.events import ConsumerInbox
 from stockviz.services.ingest.bar_semantics import AdjustmentSemantics, SessionScope
 from stockviz.services.ingest.news import ArticleRecord
 from stockviz.services.ingest.prices import DAILY_INTERVAL, SOURCE_YFINANCE, BarRecord
+from stockviz.services.metrics import metrics_for
 from stockviz.services.sentiment.base import SentimentScore
 from stockviz.services.trading import ensure_default_portfolio, execute_trade
 from tests.pg_scratch import postgres_admin_url, scratch_postgres_engine
@@ -267,7 +267,7 @@ def test_market_event_pipeline_roundtrip() -> None:
             with Session(engine) as session:
                 apply_market_bars_refreshed(session, parse_market_bars_refreshed(payload))
                 session.commit()
-                metrics = session.get(SymbolMetrics, ticker)
+                metrics = metrics_for(session, ticker)
                 assert metrics is not None
                 assert metrics.last_close == close + Decimal(19)
         finally:
@@ -363,7 +363,7 @@ def test_news_sentiment_event_pipeline_roundtrip() -> None:
             with Session(engine) as session:
                 apply_news_sentiment_scored(session, parse_news_sentiment_scored(payload))
                 session.commit()
-                metrics = session.get(SymbolMetrics, ticker)
+                metrics = metrics_for(session, ticker)
                 assert metrics is not None
                 assert metrics.sentiment_7d is not None
                 assert metrics.sentiment_article_count >= 1

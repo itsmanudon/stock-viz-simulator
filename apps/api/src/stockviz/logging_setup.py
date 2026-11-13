@@ -16,10 +16,23 @@ because ``httpx.HTTPStatusError`` puts the full URL in its message.
 
 from __future__ import annotations
 
+import contextvars
 import logging
 import re
 
-FORMAT = "%(levelname)s %(name)s: %(message)s"
+FORMAT = "%(levelname)s [%(request_id)s] %(name)s: %(message)s"
+
+REQUEST_ID: contextvars.ContextVar[str] = contextvars.ContextVar("request_id", default="-")
+"""Set per API request by ``request_id_middleware`` (audit OP-9); "-" elsewhere."""
+
+
+class RequestIdFilter(logging.Filter):
+    """Put the current request id on every record, so the format can print it."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        record.request_id = REQUEST_ID.get()
+        return True
+
 
 QUIET_LOGGERS = ("httpx", "httpcore")
 """Libraries whose INFO lines carry request URLs."""
@@ -63,3 +76,5 @@ def configure_logging(level: int = logging.INFO) -> None:
     for handler in logging.getLogger().handlers:
         if not any(isinstance(f, RedactSecrets) for f in handler.filters):
             handler.addFilter(RedactSecrets())
+        if not any(isinstance(f, RequestIdFilter) for f in handler.filters):
+            handler.addFilter(RequestIdFilter())

@@ -159,6 +159,7 @@ def test_empty_session_benchmark(session: Session, client: TestClient) -> None:
     headers = _auth_headers(_make_user(session, "empty-bh@stockviz.dev"))
     session_id = _create(client, headers).json()["id"]
     client.post(f"/v1/replay/sessions/{session_id}/advance", headers=headers)
+    client.post(f"/v1/replay/sessions/{session_id}/advance", headers=headers)  # last bar, tradable
     done = client.post(f"/v1/replay/sessions/{session_id}/advance", headers=headers)
     assert done.json()["status"] == "completed"
     body = client.get(f"/v1/replay/sessions/{session_id}/forensics", headers=headers).json()
@@ -191,8 +192,8 @@ def test_completed_does_not_use_bars_after_end(session: Session, client: TestCli
     _seed(session)
     headers = _auth_headers(_make_user(session, "end-horizon@stockviz.dev"))
     session_id = _create(client, headers, end=DAY3).json()["id"]
-    client.post(f"/v1/replay/sessions/{session_id}/advance", headers=headers)
-    client.post(f"/v1/replay/sessions/{session_id}/advance", headers=headers)
+    for _ in range(3):  # to DAY3 (still tradable), then complete
+        client.post(f"/v1/replay/sessions/{session_id}/advance", headers=headers)
     body = client.get(f"/v1/replay/sessions/{session_id}/forensics", headers=headers).json()
     assert body["status"] == "completed"
     assert body["analysis_at"].startswith("2024-06-05")

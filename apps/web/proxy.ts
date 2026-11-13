@@ -21,10 +21,12 @@ const PROTECTED_PREFIXES = [
   "/trades",
   "/watchlist",
   "/alerts",
+  "/notifications",
   "/settings",
   "/orders",
   "/replay",
   "/earnings",
+  "/backtest/runs",
 ];
 
 export default proxyAuth((req) => {

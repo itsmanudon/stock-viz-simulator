@@ -14,7 +14,7 @@ from stockviz.models.aegis import (
     AegisSyncRun,
     AegisSyncState,
 )
-from stockviz.models.alert import Alert, AlertDirection
+from stockviz.models.alert import Alert, AlertDirection, AlertEvent, AlertKind, AlertRepeat
 from stockviz.models.auth_rate_limit import AuthRateLimit
 from stockviz.models.comment import Comment
 from stockviz.models.corporate_action import CorporateAction, CorporateActionApplication
@@ -22,6 +22,8 @@ from stockviz.models.dividend import Dividend, PortfolioDividend
 from stockviz.models.earnings import EarningsEvent
 from stockviz.models.events import ConsumerInbox, OutboxEvent, PortfolioTradeActivity
 from stockviz.models.execution import SimulatedExecution
+from stockviz.models.experiment import Experiment, ExperimentRun
+from stockviz.models.fundamentals import FundamentalFact
 from stockviz.models.instrument import Instrument, InstrumentIdentifier
 from stockviz.models.job_run import JobRun
 from stockviz.models.market import (
@@ -32,6 +34,7 @@ from stockviz.models.market import (
     Symbol,
 )
 from stockviz.models.metrics import SymbolMetrics
+from stockviz.models.notification import Notification, NotificationCategory
 from stockviz.models.option import OptionsPosition, OptionStatus, OptionType
 from stockviz.models.order import OrderStatus, OrderType, PendingOrder
 from stockviz.models.portfolio import (
@@ -51,6 +54,7 @@ from stockviz.models.replay import (
     ReplaySession,
     ReplaySessionStatus,
 )
+from stockviz.models.screen import SavedScreen
 from stockviz.models.sentiment import NewsSentiment
 from stockviz.models.user import User
 from stockviz.models.watchlist import Watchlist, WatchlistItem
@@ -65,6 +69,9 @@ __all__ = [
     "AegisSyncState",
     "Alert",
     "AlertDirection",
+    "AlertEvent",
+    "AlertKind",
+    "AlertRepeat",
     "AuthRateLimit",
     "CashBalance",
     "Comment",
@@ -73,6 +80,9 @@ __all__ = [
     "CorporateActionApplication",
     "Dividend",
     "EarningsEvent",
+    "Experiment",
+    "ExperimentRun",
+    "FundamentalFact",
     "FxConversion",
     "FxRate",
     "Instrument",
@@ -80,6 +90,8 @@ __all__ = [
     "JobRun",
     "NewsArticle",
     "NewsSentiment",
+    "Notification",
+    "NotificationCategory",
     "OptionStatus",
     "OptionType",
     "OptionsPosition",
@@ -100,6 +112,7 @@ __all__ = [
     "ReplayPosition",
     "ReplaySession",
     "ReplaySessionStatus",
+    "SavedScreen",
     "SimulatedExecution",
     "Symbol",
     "SymbolMetrics",

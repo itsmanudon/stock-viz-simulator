@@ -1,24 +1,52 @@
 """Strategy backtesting over stored ``PriceBar`` history.
 
-The engine is pure: it takes a list of ``(timestamp, close)`` bars, an initial
-cash amount, and a strategy spec, and replays the bars day-by-day applying the
-strategy's buy/sell signals. No DB or network access — the router loads bars
-and hands them in.
+The engine is pure: it takes ``(timestamp, close)`` bars, an initial cash
+amount and a strategy spec, and replays the bars day by day. No DB or network
+access: the router loads bars and hands them in.
 
-Position model is deliberately simple: a signal is **all-in** (deploy all cash)
-or **all-out** (liquidate the whole position). That keeps the equity curve
-exactly reproducible by hand, which the issue's acceptance criteria require.
+Since Phase 5.2 (SIM-08) fills come from the same kernel as live and replay
+trading: each signal becomes an ``OrderIntent`` evaluated by
+``services.simulation.evaluate_order`` on the next bar, and the fill is booked
+in the shared ``SimLedger``. Costs (commission + slippage bps) are a fee on
+each fill, never folded into the price. The profile is ``legacy_close`` (the
+next bar's close); 5.3 adds the next-open fill rule.
+
+Position model: a signal is **all-in** (cash into shares, rounded down to
+6 places) or **all-out**. Bars before ``trade_from`` are warm-up only: signals
+see them, but nothing trades, and neither the equity curve nor the benchmark
+starts until the window does (audit SR-3).
 """
 
 from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
-from datetime import date, datetime
-from decimal import Decimal
+from datetime import UTC, date, datetime
+from decimal import ROUND_DOWN, Decimal
 from itertools import pairwise
 
 from stockviz.services.indicators import compute_rsi, compute_sma
+from stockviz.services.simulation import (
+    LEGACY_CLOSE,
+    NEXT_OPEN,
+    CostModel,
+    FeeSchedule,
+    FillStatus,
+    MarketSnapshot,
+    OrderIntent,
+    OrderSide,
+    SimInsufficientCash,
+    SimLedger,
+    SimulationOrderType,
+    cost_adjusted,
+    evaluate_order,
+    get_fee_schedule,
+)
+
+FILL_RULES = {"next_open": NEXT_OPEN, "next_close": LEGACY_CLOSE}
+
+MICROS = Decimal("0.000001")
+LEDGER_TICKER = "BACKTEST"
 
 TRADING_DAYS_PER_YEAR = 252
 
@@ -38,6 +66,9 @@ class BacktestTrade:
     side: str  # "buy" | "sell"
     price: Decimal
     shares: Decimal
+    # Phase 5.3: the price before spread/slippage, and each fee by name.
+    reference_price: Decimal | None = None
+    fees: tuple[tuple[str, Decimal], ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -178,6 +209,61 @@ def _max_drawdown(navs: list[Decimal]) -> float:
     return worst
 
 
+RSI_WARMUP_BARS = 250
+"""Wilder's RSI keeps a trace of every earlier bar; 250 bars (a year) makes the
+first value in the window agree with a long history to well under 0.1."""
+
+
+def warmup_bars_for(strategy_type: str, params: dict) -> int:
+    """Bars before the window a strategy needs for its first real signal (SR-3)."""
+    if strategy_type == "sma_crossover":
+        return int(params["long_window"]) + 1  # one more bar to see the cross
+    return RSI_WARMUP_BARS
+
+
+def _aware(ts: datetime) -> datetime:
+    return ts if ts.tzinfo is not None else ts.replace(tzinfo=UTC)
+
+
+def _kernel_fill(
+    side: OrderSide,
+    quantity: Decimal,
+    ts: datetime,
+    open_: Decimal,
+    close: Decimal,
+    profile=LEGACY_CLOSE,
+    costs: CostModel | None = None,
+) -> tuple[Decimal, Decimal] | None:
+    """The kernel's (fill price, reference price) for a market order on this bar."""
+    at = _aware(ts)
+    decision = evaluate_order(
+        OrderIntent(
+            ticker=LEDGER_TICKER,
+            side=side,
+            order_type=SimulationOrderType.MARKET,
+            quantity=quantity,
+            remaining_quantity=quantity,
+            submitted_at=at,
+        ),
+        MarketSnapshot(
+            ticker=LEDGER_TICKER,
+            observed_at=at,
+            interval="1d",
+            open=open_,
+            high=max(open_, close),
+            low=min(open_, close),
+            close=close,
+            volume=Decimal(0),
+        ),
+        profile,
+        costs or CostModel(),
+    )
+    if decision.status is not FillStatus.FILLED or decision.fill_price is None:
+        return None
+    reference = decision.trace.reference_price
+    return decision.fill_price, reference if reference is not None else decision.fill_price
+
+
 def run_backtest(
     bars: list[tuple[datetime, Decimal]],
     *,
@@ -187,6 +273,12 @@ def run_backtest(
     commission_bps: float = DEFAULT_COMMISSION_BPS,
     slippage_bps: float = DEFAULT_SLIPPAGE_BPS,
     risk_free_rate: float = DEFAULT_RISK_FREE_RATE,
+    trade_from: datetime | None = None,
+    dividends: dict[date, Decimal] | None = None,
+    opens: dict[datetime, Decimal] | None = None,
+    fill_rule: str = "next_close",
+    spread_bps: float = 0.0,
+    fee_schedule: str = "none",
 ) -> BacktestResult:
     """Replay ``bars`` through ``strategy_type`` and return trades + equity curve.
 
@@ -198,14 +290,30 @@ def run_backtest(
     or an SMA cross is only knowable once that bar has closed, so filling at
     that same close would be look-ahead bias.
 
-    ``commission_bps`` and ``slippage_bps`` are charged on both sides of every
-    round trip. They default to zero, which reproduces a frictionless run.
+    ``trade_from``: bars before it are warm-up (SR-3). ``dividends`` (per-share
+    amount by ex-date) turns on total return: shares held into an ex-date
+    receive the dividend as cash, in the strategy and the benchmark alike
+    (SR-7). Without it the result is price return.
+
+    Costs (Phase 5.3): ``fill_rule`` picks the kernel profile (``next_open``
+    fills at the next bar's open from ``opens``; ``next_close`` at its close).
+    ``spread_bps`` and ``slippage_bps`` move the fill price against the
+    trader inside the kernel; ``commission_bps`` and the ``fee_schedule`` are
+    fees booked beside each fill. ``total_costs`` is fees plus the price
+    cost of spread and slippage.
     """
 
     if initial_cash <= 0:
         raise BacktestError("initial_cash must be positive")
-    if commission_bps < 0 or slippage_bps < 0:
-        raise BacktestError("commission_bps and slippage_bps must be non-negative")
+    if commission_bps < 0 or slippage_bps < 0 or spread_bps < 0:
+        raise BacktestError("commission, spread and slippage must be non-negative")
+    if fill_rule not in FILL_RULES:
+        raise BacktestError(f"Unknown fill rule: {fill_rule!r}")
+    profile = FILL_RULES[fill_rule]
+    costs = CostModel(spread_bps=Decimal(str(spread_bps)), slippage_bps=Decimal(str(slippage_bps)))
+    commission = Decimal(str(commission_bps))
+    schedule: FeeSchedule = get_fee_schedule(fee_schedule)
+    open_of = opens or {}
 
     if strategy_type == "rsi_threshold":
         signals = _rsi_signals(bars, buy_below=params["buy_below"], sell_above=params["sell_above"])
@@ -216,58 +324,91 @@ def run_backtest(
     else:
         raise BacktestError(f"Unknown strategy type: {strategy_type!r}")
 
-    if not bars:
+    first = 0
+    if trade_from is not None:
+        first = next((i for i, (ts, _) in enumerate(bars) if ts >= trade_from), len(bars))
+    window = bars[first:]
+    if not window:
         return BacktestResult(
             summary=BacktestSummary(
                 total_return=0.0, sharpe=0.0, max_drawdown=0.0, final_nav=initial_cash
             )
         )
 
-    cash = initial_cash
-    shares = Decimal(0)
+    ledger = SimLedger(cash=initial_cash)
     trades: list[BacktestTrade] = []
     equity_curve: list[EquityPoint] = []
-    total_costs = Decimal(0)
+    price_costs = Decimal(0)
+    paid = dividends or {}
 
-    cost_rate = Decimal(str((commission_bps + slippage_bps) / 10_000.0))
-    # A signal is only knowable once bar i has closed, so it can't be filled at
-    # that same close — that would be look-ahead bias. Carry it to bar i+1 and
-    # fill there. The final bar's signal is therefore never acted on, which is
-    # correct: there is no next bar to trade into.
-    pending_signal: str | None = None
+    def held() -> Decimal:
+        position = ledger.positions.get(LEDGER_TICKER)
+        return position.quantity if position is not None else Decimal(0)
 
-    for ts, close in bars:
+    # A signal is only knowable once bar i has closed, so it fills on bar
+    # i+1. A signal on the last warm-up bar fills on the window's first bar;
+    # the final bar's signal is never acted on (no next bar).
+    pending_signal = signals[first - 1] if first > 0 else None
+
+    for offset, (ts, close) in enumerate(window):
+        index = first + offset
+        amount = paid.get(ts.date())
+        if amount is not None and held() > 0:
+            ledger.cash = (ledger.cash + (held() * amount).quantize(MICROS)).quantize(MICROS)
+
         signal = pending_signal
-        if signal == "buy" and shares == 0 and cash > 0 and close > 0:
-            # Slippage/commission make the effective purchase price worse.
-            effective = close * (Decimal(1) + cost_rate)
-            shares = cash / effective
-            cost = cash - (shares * close)
-            total_costs += cost
-            trades.append(BacktestTrade(date=ts.date(), side="buy", price=close, shares=shares))
-            cash = Decimal(0)
-        elif signal == "sell" and shares > 0:
-            gross = shares * close
-            cost = gross * cost_rate
-            total_costs += cost
-            trades.append(BacktestTrade(date=ts.date(), side="sell", price=close, shares=shares))
-            cash = gross - cost
-            shares = Decimal(0)
+        open_ = open_of.get(ts, close)
+        if signal == "buy" and held() == 0 and ledger.cash > 0 and close > 0:
+            ref = open_ if profile is NEXT_OPEN else close
+            est = cost_adjusted(ref, OrderSide.BUY, costs) * (Decimal(1) + commission / 10_000)
+            quantity = (ledger.cash / est).quantize(MICROS, rounding=ROUND_DOWN)
+            while quantity > 0:
+                filled = _kernel_fill(OrderSide.BUY, quantity, ts, open_, close, profile, costs)
+                if filled is None:
+                    break
+                price, reference = filled
+                fees = schedule.fees(OrderSide.BUY, quantity, price, commission_bps=commission)
+                try:
+                    ledger.apply(OrderSide.BUY, LEDGER_TICKER, quantity, price, fees=fees.total)
+                except SimInsufficientCash:  # rounding at the last micro-units
+                    quantity -= MICROS
+                    continue
+                price_costs += (price - reference) * quantity
+                trades.append(
+                    BacktestTrade(ts.date(), "buy", price, quantity, reference, fees.components)
+                )
+                break
+        elif signal == "sell" and held() > 0:
+            quantity = held()
+            filled = _kernel_fill(OrderSide.SELL, quantity, ts, open_, close, profile, costs)
+            if filled is not None:
+                price, reference = filled
+                fees = schedule.fees(OrderSide.SELL, quantity, price, commission_bps=commission)
+                ledger.apply(OrderSide.SELL, LEDGER_TICKER, quantity, price, fees=fees.total)
+                price_costs += (reference - price) * quantity
+                trades.append(
+                    BacktestTrade(ts.date(), "sell", price, quantity, reference, fees.components)
+                )
 
-        nav = cash + shares * close
-        equity_curve.append(EquityPoint(date=ts.date(), nav=nav))
-        pending_signal = signals[len(equity_curve) - 1]
+        equity_curve.append(EquityPoint(date=ts.date(), nav=ledger.equity({LEDGER_TICKER: close})))
+        pending_signal = signals[index]
 
     navs = [pt.nav for pt in equity_curve]
     final_nav = navs[-1]
     total_return = float((final_nav - initial_cash) / initial_cash)
 
-    # Buy-and-hold over the same window and with the same entry cost.
-    first_close = bars[0][1]
-    last_close = bars[-1][1]
+    # Buy-and-hold over the same window (from its first bar, not the warm-up),
+    # with the same entry cost and, in total-return mode, the same dividends.
+    first_close = window[0][1]
+    last_close = window[-1][1]
     if first_close > 0:
-        bh_shares = initial_cash / (first_close * (Decimal(1) + cost_rate))
-        benchmark_final = bh_shares * last_close
+        bh_price = cost_adjusted(first_close, OrderSide.BUY, costs)
+        bh_shares = initial_cash / (bh_price * (Decimal(1) + commission / 10_000))
+        bh_income = sum(
+            (bh_shares * amt for ts, _ in window[1:] if (amt := paid.get(ts.date())) is not None),
+            Decimal(0),
+        )
+        benchmark_final = bh_shares * last_close + bh_income
         benchmark_return = float((benchmark_final - initial_cash) / initial_cash)
     else:
         benchmark_final = initial_cash
@@ -281,6 +422,6 @@ def run_backtest(
         benchmark_return=benchmark_return,
         benchmark_final_nav=benchmark_final,
         excess_return=(total_return - benchmark_return) * 100,
-        total_costs=total_costs,
+        total_costs=(ledger.fees_paid + price_costs).quantize(MICROS),
     )
     return BacktestResult(trades=trades, equity_curve=equity_curve, summary=summary)

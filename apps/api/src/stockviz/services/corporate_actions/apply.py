@@ -240,9 +240,12 @@ def rebase_user(session: Session, action: CorporateAction, user_id: int) -> Reba
             col(Alert.triggered_at).is_(None),
             col(Alert.dismissed_at).is_(None),
             col(Alert.created_at) < before,
+            # Phase 7.1: only price levels are in the split's units.
+            col(Alert.target_price).is_not(None),
         )
     ).all()
     for alert in alerts:
+        assert alert.target_price is not None
         alert.target_price = (alert.target_price / ratio).quantize(_PRICE)
         session.add(alert)
     summary.alerts = len(alerts)
@@ -263,6 +266,18 @@ def rebase_user(session: Session, action: CorporateAction, user_id: int) -> Reba
 
     session.add(
         CorporateActionApplication(action_id=action.id, user_id=user_id, summary=summary.text())
+    )
+    from stockviz.models import NotificationCategory
+    from stockviz.services.notifications import notify
+
+    notify(
+        session,
+        user_id=user_id,
+        category=NotificationCategory.CORPORATE_ACTION,
+        title=f"{action.ticker} split applied",
+        body=f"{action.ticker} split on {action.ex_date.isoformat()}: {summary.text()}",
+        link="/portfolio",
+        source_key=f"split:{action.id}:{user_id}",
     )
     return summary
 

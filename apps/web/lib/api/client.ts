@@ -41,10 +41,16 @@ const WEB_SERVER_KEY_SLOT = Symbol.for("stockviz.webServerKey");
 function withWebServerKey(init: RequestInit): RequestInit {
   if (typeof window !== "undefined") return init;
   const key = (globalThis as Record<symbol, unknown>)[WEB_SERVER_KEY_SLOT];
-  if (typeof key !== "string") return init;
   const headers = new Headers(init.headers);
-  headers.set("X-StockViz-Web", key);
+  // OP-9 (Phase 7.5): one id per API call, echoed by the API in its logs.
+  headers.set("X-Request-ID", requestId());
+  if (typeof key === "string") headers.set("X-StockViz-Web", key);
   return { ...init, headers };
+}
+
+/** A fresh id for one API call (OP-9); the API keeps it in every log line. */
+export function requestId(): string {
+  return `web-${crypto.randomUUID().replaceAll("-", "")}`;
 }
 
 /**

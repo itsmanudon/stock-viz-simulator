@@ -25,6 +25,8 @@ pytestmark = pytest.mark.skipif(
 
 API_ROOT = Path(__file__).resolve().parents[1]
 PREVIOUS = "99489c8896a9"
+# The expand step itself: later steps move the bar key off the ticker (4.6b).
+EXPAND = "686dcf74171b"
 TS = datetime(2026, 1, 2)
 
 
@@ -87,7 +89,7 @@ def test_expand_backfills_dual_writes_and_downgrades() -> None:
             _bar(session, "BARC.L", TS)
             session.commit()
 
-        _alembic(engine, "upgrade", "head")
+        _alembic(engine, "upgrade", EXPAND)
 
         with Session(engine) as session:
             aapl = _instrument(session, "AAPL")
@@ -161,7 +163,7 @@ def test_expand_backfills_dual_writes_and_downgrades() -> None:
         assert "instrument_id" not in {c["name"] for c in inspector.get_columns("price_bars")}
 
         # Re-upgrade re-seeds from symbols.
-        _alembic(engine, "upgrade", "head")
+        _alembic(engine, "upgrade", EXPAND)
         with Session(engine) as session:
             count = session.execute(text("SELECT count(*) FROM instruments")).scalar_one()
             assert count == 6

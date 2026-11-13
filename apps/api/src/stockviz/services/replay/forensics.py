@@ -265,6 +265,15 @@ class _OpenEpisode:
     realized: Decimal = ZERO
     peak_exposure: Decimal = ZERO
     entry_equity: Decimal | None = None
+    # The ledger's average cost of the shares held (SimLedger / apply_fill):
+    # a buy re-averages it, a sell leaves it (audit SR-6, Phase 5.1).
+    avg_cost: Decimal = ZERO
+
+
+def _reaverage(avg: Decimal, held: Decimal, quantity: Decimal, price: Decimal) -> Decimal:
+    """The ledger's rule: ``(avg x held + price x qty) / (held + qty)``, 6 places."""
+    cost = (price * quantity).quantize(Decimal("0.000001"))
+    return ((avg * held + cost) / (held + quantity)).quantize(Decimal("0.000001"))
 
 
 def reconstruct_episodes(fills: Sequence[FillSnapshot]) -> list[_OpenEpisode]:
@@ -279,6 +288,9 @@ def reconstruct_episodes(fills: Sequence[FillSnapshot]) -> list[_OpenEpisode]:
             current = _OpenEpisode(ticker=fill.ticker, opened_at=fill.evaluated_at, fills=[])
         current.fills.append(fill)
         if fill.side == "buy":
+            current.avg_cost = _reaverage(
+                current.avg_cost, current.qty, fill.quantity, fill.fill_price
+            )
             current.qty += fill.quantity
             current.buy_qty += fill.quantity
             current.buy_notional += _q_money(fill.quantity * fill.fill_price)
@@ -326,11 +338,14 @@ def _mae_mfe(
     opened_at: datetime,
     holding_end: datetime,
 ) -> tuple[Decimal | None, Decimal | None, Decimal | None, Decimal | None]:
-    """Price-based MAE/MFE vs the active weighted entry after each bar's fills.
+    """Price-based MAE/MFE against the ledger's average cost (audits SR-2, SR-6).
 
-    Bars after a full exit on that timestamp are skipped (qty is already 0),
-    so a dedicated exit bar does not contribute same-day high/low unless the
-    episode also opened on that bar and remained open after its fills.
+    Replay fills at the bar's close. So on each bar, the shares held *before*
+    its fills saw the whole bar (its low and high), and the shares held after
+    them saw only the close. The entry bar therefore counts from the fill (its
+    close), not its earlier range, and an exit bar counts for the shares held
+    into it. Excursions are measured from the average cost the ledger holds
+    (re-averaged on buys, unchanged on sells).
     """
 
     fills_by_ts: dict[datetime, list[FillSnapshot]] = {}
@@ -338,37 +353,36 @@ def _mae_mfe(
         fills_by_ts.setdefault(fill.evaluated_at, []).append(fill)
 
     qty = ZERO
-    buy_qty = ZERO
-    buy_notional = ZERO
-    mae_amount: Decimal | None = None
-    mae_pct: Decimal | None = None
-    mfe_amount: Decimal | None = None
-    mfe_pct: Decimal | None = None
+    avg = ZERO
+    worst: tuple[Decimal, Decimal] | None = None  # (amount, pct)
+    best: tuple[Decimal, Decimal] | None = None
+
+    def _mark(low: Decimal, high: Decimal, cost: Decimal) -> None:
+        nonlocal worst, best
+        adverse, favorable = low - cost, high - cost
+        if worst is None or adverse < worst[0]:
+            worst = (adverse, adverse / cost * HUNDRED)
+        if best is None or favorable > best[0]:
+            best = (favorable, favorable / cost * HUNDRED)
 
     for bar in bars:
         if bar.ts < opened_at or bar.ts > holding_end:
             continue
-        for fill in fills_by_ts.get(bar.ts, []):
+        if qty > 0 and avg > 0:
+            _mark(bar.low, bar.high, avg)
+        todays = fills_by_ts.get(bar.ts, [])
+        for fill in todays:
             if fill.side == "buy":
+                avg = _reaverage(avg, qty, fill.quantity, fill.fill_price)
                 qty += fill.quantity
-                buy_qty += fill.quantity
-                buy_notional += _q_money(fill.quantity * fill.fill_price)
             else:
                 qty -= fill.quantity
-        if qty <= 0 or buy_qty <= 0:
-            continue
-        cost = buy_notional / buy_qty
-        adverse = bar.low - cost
-        favorable = bar.high - cost
-        adverse_pct = adverse / cost * HUNDRED
-        favorable_pct = favorable / cost * HUNDRED
-        if mae_amount is None or adverse < mae_amount:
-            mae_amount = _q_money(adverse)
-            mae_pct = _q_pct(adverse_pct)
-        if mfe_amount is None or favorable > mfe_amount:
-            mfe_amount = _q_money(favorable)
-            mfe_pct = _q_pct(favorable_pct)
-    return mae_amount, mae_pct, mfe_amount, mfe_pct
+        if todays and qty > 0 and avg > 0:
+            _mark(bar.close, bar.close, avg)
+
+    if worst is None or best is None:
+        return None, None, None, None
+    return _q_money(worst[0]), _q_pct(worst[1]), _q_money(best[0]), _q_pct(best[1])
 
 
 def _equity_curve(
@@ -428,7 +442,8 @@ def finish_episodes(
         closed = episode.qty <= 0
         closed_at = episode.fills[-1].evaluated_at if closed else None
         holding_end = closed_at if closed_at is not None else analysis_at
-        weighted_entry = episode.buy_notional / episode.buy_qty if episode.buy_qty > 0 else ZERO
+        # The ledger's average cost (SR-6), not all buys / all bought.
+        weighted_entry = episode.avg_cost
         weighted_exit = episode.sell_notional / episode.sell_qty if episode.sell_qty > 0 else None
         holding = _bars_in(bars, episode.opened_at, holding_end)
         holding_bars = len(holding)

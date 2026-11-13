@@ -8,6 +8,7 @@ round-trip, and left-joins ``symbol_metrics`` for trailing sentiment.
 
 from __future__ import annotations
 
+from datetime import date
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, Request
@@ -23,6 +24,10 @@ from stockviz.services.recommend.engine import max_score, votes_from_payload
 router = APIRouter(prefix="/v1", tags=["recommendations"])
 
 SessionDep = Annotated[Session, Depends(get_session)]
+
+
+STALE_DAYS = 5
+"""Like the markets summary's change rule (RS-13): more than five days behind."""
 
 
 def _parse_rationale(raw: str | None) -> list[str]:
@@ -67,7 +72,8 @@ def list_recommendations(
     )
 
     out: list[RecommendationOut] = []
-    for rec, symbol, metrics in session.exec(stmt).all():
+    rows = list(session.exec(stmt).all())
+    for rec, symbol, metrics in rows:
         rationale = _parse_rationale(rec.rationale)
         votes = votes_from_payload(rec.votes, rationale)
         out.append(
@@ -90,6 +96,23 @@ def list_recommendations(
                 ],
                 sentiment_7d=metrics.sentiment_7d if metrics is not None else None,
                 computed_at=rec.computed_at,
+                bar_date=rec.bar_date,
             )
+        )
+    # SR-8: a signal whose bars trail its market's newest by more than five
+    # days is stale, however recently it was computed.
+    currency = {
+        row.ticker: (symbol.currency or "USD")
+        for row, (_rec, symbol, _m) in zip(out, rows, strict=True)
+    }
+    newest: dict[str, date] = {}
+    for row in out:
+        if row.bar_date is not None:
+            ccy = currency[row.ticker]
+            newest[ccy] = max(newest.get(ccy, row.bar_date), row.bar_date)
+    for row in out:
+        peak = newest.get(currency[row.ticker])
+        row.stale = row.bar_date is None or (
+            peak is not None and (peak - row.bar_date).days > STALE_DAYS
         )
     return out

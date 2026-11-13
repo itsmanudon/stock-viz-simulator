@@ -47,11 +47,17 @@ export function ReplayAdvanceControls({
       <form action={advance}>
         <input type="hidden" name="session_id" value={sessionId} />
         <input type="hidden" name="current_at" value={currentAt} />
-        <Button type="submit" disabled={advancing || !hasNext} aria-label="Advance to next session">
-          {advancing ? "Advancing…" : "Next session"}
+        <Button
+          type="submit"
+          disabled={advancing}
+          aria-label={hasNext ? "Advance to next session" : "Finish replay"}
+        >
+          {advancing ? "Advancing…" : hasNext ? "Next session" : "Finish replay"}
         </Button>
         <p className="mt-2 text-xs leading-5 text-text-tertiary">
-          Moves to the next stored daily bar.
+          {hasNext
+            ? "Moves to the next stored daily bar."
+            : "This is the last bar. You can still trade it; finishing ends the replay."}
         </p>
       </form>
       {advanceState.from && advanceState.to ? (

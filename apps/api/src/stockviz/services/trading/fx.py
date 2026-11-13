@@ -94,6 +94,50 @@ def rate_for_fill(
     return row.usd_rate
 
 
+RATE_PLACES = Decimal("0.00000001")  # trades.fx_rate is Numeric(18, 8)
+
+
+def base_rate(
+    session: Session, currency: str, base: str, *, on_or_before: date_type | None = None
+) -> Decimal:
+    """Units of ``base`` per one unit of ``currency``, through the USD pivot.
+
+    Phase 4.8: a portfolio's cash is in its base currency (USD or INR), so a
+    fill, reservation or valuation converts into the base, not into USD. For a
+    USD base this is exactly :func:`latest_rate`.
+    """
+    if currency == base:
+        return Decimal(1)
+    usd_per_from = latest_rate(session, currency, on_or_before=on_or_before)
+    if base == "USD":
+        return usd_per_from
+    usd_per_base = latest_rate(session, base, on_or_before=on_or_before)
+    return (usd_per_from / usd_per_base).quantize(RATE_PLACES)
+
+
+def fill_rate_to_base(
+    session: Session,
+    currency: str,
+    base: str,
+    *,
+    now: datetime,
+    venue: str,
+    settled_session: date_type | None = None,
+) -> Decimal:
+    """:func:`rate_for_fill` into ``base``: both legs must be fresh (MD-7)."""
+    if currency == base:
+        return Decimal(1)
+    usd_per_from = rate_for_fill(
+        session, currency, now=now, venue=venue, settled_session=settled_session
+    )
+    if base == "USD":
+        return usd_per_from
+    usd_per_base = rate_for_fill(
+        session, base, now=now, venue=venue, settled_session=settled_session
+    )
+    return (usd_per_from / usd_per_base).quantize(RATE_PLACES)
+
+
 class StaleFxRate(LookupError):
     """The newest stored rate is older than a fill may use (MD-7)."""
 

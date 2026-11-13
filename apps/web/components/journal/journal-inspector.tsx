@@ -41,7 +41,10 @@ export function JournalInspector({
   moreLoading,
   moreError,
   onLoadMore,
+  currency = "USD",
 }: {
+  /** The journal's currency (the account's base, Phase 4.8). */
+  currency?: string;
   target: InspectorTarget | null;
   day: JournalDay | null;
   week: JournalWeekSummary | null;
@@ -156,7 +159,12 @@ export function JournalInspector({
               </div>
             ) : target?.mode === "week" ? (
               <>
-                <WeekBody week={weekDetail ?? week} days={dayDates} onSelectDay={onSelectDay} />
+                <WeekBody
+                  currency={currency}
+                  week={weekDetail ?? week}
+                  days={dayDates}
+                  onSelectDay={onSelectDay}
+                />
                 {weekError ? (
                   <p className="mt-4 text-sm" aria-live="polite">
                     {weekError}{" "}
@@ -173,7 +181,10 @@ export function JournalInspector({
                             {key === "best_trade" ? "Best trade" : "Worst trade"}
                           </h3>
                           <ul>
-                            <JournalExecutionRow execution={weekDetail[key]} />
+                            <JournalExecutionRow
+                              execution={weekDetail[key]}
+                              currency={weekDetail.currency}
+                            />
                           </ul>
                           <button
                             type="button"
@@ -246,6 +257,7 @@ function DayBody({ day }: { day: JournalDay | null }) {
           <JournalExecutionRow
             key={`${execution.kind}-${execution.reference_id}`}
             execution={execution}
+            currency={day.currency}
           />
         ))}
       </ul>
@@ -257,7 +269,9 @@ function WeekBody({
   week,
   days,
   onSelectDay,
+  currency,
 }: {
+  currency: string;
   week: JournalWeekSummary | null;
   days: { date: string; stats: JournalStats }[];
   onSelectDay: (date: string) => void;
@@ -275,7 +289,7 @@ function WeekBody({
 
   return (
     <>
-      <StatGrid stats={week.stats} currency="USD" extended />
+      <StatGrid stats={week.stats} currency={currency} extended />
       <h3 className="mt-5 text-xs font-semibold uppercase tracking-wide text-text-tertiary">
         Daily breakdown
       </h3>
@@ -302,7 +316,7 @@ function WeekBody({
                     )}
                   >
                     {pnl > 0 ? "+" : pnl < 0 ? "−" : ""}
-                    {formatCurrency(Math.abs(pnl), "USD")}
+                    {formatCurrency(Math.abs(pnl), currency)}
                   </span>
                 </span>
               </button>

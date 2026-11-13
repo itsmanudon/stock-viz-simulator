@@ -94,10 +94,24 @@ export type MACDPoint = {
   histogram: number;
 };
 
+export type IndicatorMeta = {
+  label: string;
+  pane: "price" | "separate";
+  outputs: string[];
+  params: Record<string, number>;
+  lookback: number;
+  group: string;
+  anchored?: "none" | "start";
+};
+
 export type Indicators = {
   ticker: string;
+  /** "rsi_14" for one output; "bb_20_2.upper" for an indicator with several. */
   series: Record<string, IndicatorPoint[]>;
   macd: MACDPoint[] | null;
+  /** Phase 6.1: per requested name, where it draws and what it outputs. */
+  meta?: Record<string, IndicatorMeta>;
+  warmup_bars?: number;
 };
 
 export type RecommendationVote = {
@@ -120,6 +134,9 @@ export type Recommendation = {
   votes: RecommendationVote[];
   sentiment_7d: number | null;
   computed_at: string;
+  /** SR-8 (Phase 7.5): the newest bar behind the votes; stale if it trails. */
+  bar_date: string | null;
+  stale: boolean;
 };
 
 export type ScreenerResult = {
@@ -152,6 +169,14 @@ export type BacktestRequest = {
   /** Charged on both legs of every round trip. Zero models a frictionless run. */
   commission_bps?: number;
   slippage_bps?: number;
+  /** "price" (default) ignores dividends; "total" credits them on ex-dates (SR-7). */
+  return_mode?: "price" | "total";
+  /** Phase 5.3: "next_open" (default) or "next_close". */
+  fill_rule?: "next_open" | "next_close";
+  /** Moves the fill price against the trader by half the spread. */
+  spread_bps?: number;
+  /** Must match the symbol's currency (Phase 5.6); "none" fits any. */
+  fee_schedule?: "none" | "us_equity_2026" | "in_delivery_nse_2026" | "in_delivery_bse_2026";
 };
 
 export type BacktestTrade = {
@@ -159,6 +184,9 @@ export type BacktestTrade = {
   side: "buy" | "sell";
   price: string;
   shares: string;
+  /** Phase 5.3: the price before spread and slippage, and each fee charged. */
+  reference_price?: string | null;
+  fees?: { name: string; amount: string }[];
 };
 
 export type BacktestEquityPoint = {
@@ -181,6 +209,16 @@ export type BacktestSummary = {
 
 export type BacktestResult = {
   ticker: string;
+  /** Phase 5.2: amounts are in the symbol's currency (audit SR-11). */
+  currency?: string;
+  /** Stored bars' basis, e.g. "split_adjusted", or "mixed" (audit SR-7). */
+  price_basis?: string | null;
+  return_mode?: "price" | "total";
+  /** Bars before the start the strategy saw but did not trade (audit SR-3). */
+  warmup_bars?: number;
+  /** Kernel profile, e.g. "next_open/v1", and the fee schedule used. */
+  execution_profile?: string;
+  fee_schedule?: string;
   trades: BacktestTrade[];
   equity_curve: BacktestEquityPoint[];
   summary: BacktestSummary;

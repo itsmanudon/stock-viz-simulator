@@ -6,7 +6,7 @@ computed_at) so we can backtest the recommender by looking at history.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Any
 
@@ -31,3 +31,6 @@ class Recommendation(SQLModel, table=True):
         sa_column=Column(JSON().with_variant(JSONB(), "postgresql"), nullable=True),
     )
     computed_at: datetime = Field(default_factory=utcnow, nullable=False, index=True)
+    # SR-8 (Phase 7.5): the date of the newest bar the votes were computed
+    # from, so a signal on a stalled symbol is not dated by the run.
+    bar_date: date | None = Field(default=None, nullable=True)

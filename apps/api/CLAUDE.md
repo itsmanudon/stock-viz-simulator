@@ -41,6 +41,7 @@ src/stockviz/
   routers/          /v1 endpoints, one file per resource — symbols, quotes, bars,
                     markets (one-call /markets summary), indicators, news,
                     recommendations, trading, orders, options, backtest,
+                    experiments (saved backtests, Phase 5.4),
                     screener, sentiment, leaderboard, watchlist, alerts,
                     comments, earnings, stream (SSE simulated quotes), replay
                     (isolated ReplaySession), health
@@ -48,7 +49,17 @@ src/stockviz/
   services/
     ingest/         External-API fetchers (yfinance primary, Alpha Vantage fallback, Newsdata);
                     earnings ingestion is available through `stockviz earnings`
-    indicators/     SMA/EMA/RSI/MACD pure functions
+    indicators/     engine.py (Phase 6.1): one OHLCV indicator registry
+                    (about 20: SMA, EMA, WMA, VWAP, Supertrend, ADX, RSI,
+                    MACD, Stochastic, CCI, ROC, Williams %R, Bollinger, ATR,
+                    HV, Donchian, Keltner, OBV, MFI, A/D, relative volume),
+                    each with a lookback; `/v1/symbols/{t}/indicators`
+                    loads that many bars before the window and returns only
+                    the window (audit RS-1); `/v1/indicators/catalog` lists
+                    them. `compute.py`'s `compute_rsi` delegates to the
+                    engine, so the screener, backtests and chart share one
+                    RSI. `symbol_metrics` 52-week range = high/low of the
+                    last 252 sessions (RS-14)
     recommend/      7-vote scorer; API now returns structured votes + rationale
     trading/        execute, orders (pending limit/stop + derived reservations),
                     simulation_adapter (PriceBar / PendingOrder → kernel types),
@@ -65,9 +76,42 @@ src/stockviz/
                     SIM-07 forensics.py reconstructs episodes/MAE/MFE;
                     journal.py persists the first-fill-locked thesis.
     options/        Black-Scholes-style pricing + option trade execution/settlement
-    backtest/       engine.py — historical strategy simulation
+    backtest/       engine.py — historical strategy simulation. Since Phase
+                    5.2 (SIM-08) fills come from the kernel and book in the
+                    shared SimLedger. 5.3: `fill_rule` picks the profile
+                    (`next_open` v1, the API default: next bar's open;
+                    `next_close` = `legacy_close`); `spread_bps` and
+                    `slippage_bps` are a kernel `CostModel` that moves the
+                    fill price against the trader; `commission_bps` and
+                    `fee_schedule` (`services/simulation/fees.py`: `none`,
+                    `us_equity_2026` = SEC $20.60/M and FINRA TAF on sales;
+                    5.6: `in_delivery_nse_2026` / `in_delivery_bse_2026` =
+                    STT, exchange charge, SEBI, stamp, GST, DP per Zerodha's
+                    page read 12 Nov 2026; a schedule's currency must match
+                    the symbol's, else 400)
+                    are fees per fill, listed per trade. Live trading passes
+                    no cost model and stays on `legacy_close`. The router loads warm-up bars before
+                    `from` (SMA: long window + 1; RSI: 250) that signals see
+                    but nothing trades on, and the equity curve and benchmark
+                    start at `from` (SR-3). Responses carry `currency`
+                    (SR-11), `price_basis` (or `mixed`) and `return_mode`;
+                    `return_mode: "total"` credits dividends to shares held
+                    into each ex-date, strategy and benchmark alike (SR-7)
     alerts.py       price-alert evaluation
-    metrics.py      precomputed per-symbol RSI / 52w range (screener reads these)
+    metrics.py      precomputed per-symbol snapshot the screener reads: RSI,
+                    52-week range, and (Phase 6.2) SMA 50/200, ATR %,
+                    20-day volatility, 20-day average volume
+    screener.py     Phase 6.2 `run_screen`: SQL filters on the snapshot joined
+                    to symbol and instrument (market = country, exchange =
+                    MIC, currency), momentum for every candidate BEFORE the
+                    limit (audit RS-5), sort with missing values last, page.
+                    Serves `GET /v1/screener` (paged, total) and the old
+                    `GET /v1/symbols/screen` list. `/v1/screens` (authed)
+                    saves named screens as the screener URL's query string.
+                    Phase 6.5: the snapshot carries valuation as of the
+                    run (P/E, P/B, P/S, EV/EBITDA, dividend yield, market
+                    cap in USD, net margin, ROE, debt/equity, revenue
+                    growth), each a `<column>_min`/`_max` filter and a sort
     markets/        calendar.py — exchange calendars and completed sessions (Phase 4.1)
     aegis/          Aegis News read sync (Phase 2): contract.py (lenient
                     feed models), token.py (EdDSA feed:read token), client.py
@@ -102,11 +146,11 @@ separately; Render still uses `/health` as `healthCheckPath`.
 
 CLI subcommands (`python -m stockviz.cli <cmd>`): `seed`, `backfill`,
 `metadata`, `ingest <tickers>`, `ingest-quarantine [--ticker T] [--release ID ...]`,
-`news [tickers]`, `fx`, `metrics`,
+`news [tickers]`, `fx`, `metrics`, `fundamentals [--source yfinance|edgar]`,
 `score-sentiment`, `sentiment-aggregate`, `recommend`, `snapshot-portfolios`,
 `dividends`, `credit-dividends`, `settle-options`, `run-scheduler`,
 `prune-events [--days N] [--include-unpublished]`, `aegis-sync [--max-pages N]`,
-`settle-orders [--session-date YYYY-MM-DD]`, `evaluate-alerts`,
+`settle-orders [--session-date YYYY-MM-DD]`, `evaluate-alerts`, `revalidate-web`,
 `publish-outbox [--once]`,
 `consume-trade-activity [--once]`, `consume-market-ingest [--once]`,
 `consume-market-analytics [--once]`, `consume-news-ingest [--once]`,
@@ -195,6 +239,145 @@ reached the expected session, and only reports single tickers that are
 behind (their market may have been closed). `fx` exits 1 when a currency gets
 no rates; `dividends` exits 1 when a fetch failed. In the cron each failure
 sets the exit code without stopping later steps.
+
+**Alert rules (Phase 7.1, audit RS-8).** `alerts` rows are rules with a
+`kind`: `price` (close above/below `target_price`, or `params.move_pct`, a
+session move either way) and `technical` (`params`: a registry `indicator`,
+`op` above/below, and `value` or `compare_to`, e.g. `close` vs `sma_200`;
+`.output` names one of several outputs). `services/alerts/rules.py`
+validates and words them; `services/alerts/engine.py::evaluate_pending_alerts`
+judges each active rule once per new daily bar (the cron's `evaluate-alerts`
+and the analytics worker both call it). A rule fires when its condition goes
+from false to true; never judged before, it takes its starting state from the
+newest bar known at `armed_at` (`known_at_arming`, the LG-5 rule; tests that
+seed old bars turn it off in `conftest.py`, `@pytest.mark.placement_guard`
+turns it back on). Session-move rules fire on each qualifying bar. `once`
+rules stop after firing; `every_cross` rules wait `cooldown_sessions` bars.
+Each firing is an `alert_events` row (bar date, observed value, threshold,
+message) with a unique `dedupe_key` (`<rule>:<bar date>`), so a rerun writes
+nothing twice. API: `GET /v1/alerts/events`, `GET /v1/alerts/{id}/events`,
+`POST /v1/alerts/{id}/rearm`, `PATCH /v1/alerts/{id}` (pause). Split rebasing
+scales price levels only. Migration `8ced30212d40`; existing alerts are
+armed from their creation time.
+
+**News and portfolio rules, notifications (Phase 7.2).** `news` rules
+(`params.sentiment`, `params.event_type`) fire once per Aegis document linked
+to the ticker whose `available_at` is after `armed_at` and that matches; the
+key is `<rule>:doc:<document id>`, so rescanning the newest 200 is harmless
+and a late-synced document is still caught. `portfolio` rules (no ticker:
+`drawdown_pct` from the peak of opening, snapshots and live NAV,
+`position_weight_pct`, `day_change_pct`) are judged once per session in the
+base currency; the first judgement only records state; an incomplete
+valuation is skipped. `notifications` (`models/notification.py`,
+`services/notifications.py::notify`, unique `source_key`, staged in the
+writer's transaction): alert firings (`on_alert_fired`), settlement fills,
+cancellations and expiries, dividend credits, split rebasing and option
+expiry. `/v1/notifications` (list with `category`, `unread`, `before_id`),
+`/unread-count`, `/{id}/read`, `/read-all`. `prune-events` deletes read
+notifications over 180 days old. In-app only (owner, Phase 7). Migration
+`4d4accec26be`.
+
+**Index benchmarks and news event studies (Phase 7.4).** `^GSPC` (S&P 500,
+USD) and `^NSEI` (NIFTY 50, INR) are seeded index instruments (a `^` ticker
+is asset type `index` in both identity rules; migration `4ec3f175fd60`;
+`calendar.INDEX_VENUES` dates them by XNYS and XBOM). The nightly ingest
+stores their bars; `is_index_ticker` keeps them out of trading
+(`NotTradable`, 400), options, the screener, the markets table and signals.
+`services/event_study.py::run_event_study`: for each Aegis document linked
+to a stock and matching a sentiment label and/or event type, the event day
+is the first stored bar whose session closed after `available_at`; abnormal
+return = stock log return minus its index's on the dates both traded; CAR
+from `-pre` to `+post`; mean, standard error and t across events for the
+windows (0,1), (0,5), (-5,-1), (0,20). Events lacking the full window are
+counted, not used; overlapping windows are counted; under `MIN_EVENTS` (10)
+no averages. `GET /v1/research/event-study?tickers=&sentiment=&event_type=&pre=&post=`
+(public, 20/min, up to 20 tickers).
+
+**Phase 7.5 fixes.** RS-10: `ingest_earnings_for_ticker` first moves an
+unreported upcoming row the provider no longer lists to the nearest newly
+listed date within 45 days (`previous_date` keeps the old one); rows left
+by earlier moves are listed by `stockviz.cli earnings-duplicates`
+(read-only; removing them is the owner's call). SR-8: `recommendations.bar_date`
+is the newest bar behind the votes; `/v1/recommendations` adds `bar_date`
+and `stale` (more than five days behind the newest signal bar in the same
+currency). OP-9: the API calls `configure_logging()`; every log line carries
+`[request id]` (`logging_setup.REQUEST_ID`, `RequestIdFilter`);
+`request_id.py` middleware takes a valid `X-Request-ID` (the web sends one
+per call) or makes one, tags Sentry and returns it. OP-12: a failed outbox
+event holds back later events of its topic and key in the batch; after
+`MAX_PUBLISH_ATTEMPTS` (10) it gets `dead_at`, is no longer claimed, and
+shows in `stockviz.cli outbox-dead` and `/health`'s `dead_outbox_events`.
+Migration `d55cf5f51697`.
+
+**Status (audit OP-5, Phase 7.6).** `GET /v1/status` (public, 30/min):
+each recorded job's latest run (name, state, start, finish, last success),
+the latest Aegis sync's state and time, the newest daily bar per market
+(instrument country) and the dead outbox count. Names, times and states
+only, never `job_runs.error`. The web `/status` page reads it.
+Camus trial (Phase 7.6): `docs/benchmarks/2026-11-13-kafka-vs-camus.md`;
+`scripts/events/broker-benchmark.sh` runs the scaling benchmark against any
+broker. No hosted broker (owner, Phase 7).
+
+**Web cache after the night (audit RS-9, Phase 6.6).** The cron's last step
+is `revalidate-web`: it posts to `WEB_REVALIDATE_URL` with header
+`X-StockViz-Revalidate`, an HMAC-SHA256 of `stockviz-revalidate-v1` under
+`INTERNAL_API_TOKEN` (`cli.revalidate_key`; the web checks the same in
+`lib/revalidate-key.ts`). Exit 2 when the URL is unset, 1 when the web
+answers 401/403, 0 otherwise: an unreachable or sleeping web holds no cache.
+
+**Watchlist rows carry their sparkline (audit RS-12, Phase 6.6).**
+`WatchlistItemOut.closes` holds the last 30 daily closes, oldest first, read
+for every row in one `recent_bars` query; the list and add endpoints both
+use `_items_out`.
+
+**Fundamentals, point in time (Phase 6.3).** `fundamental_facts` holds one
+row per reported figure (`models/fundamentals.py`), append-only: a changed or
+restated value is a new row with a later `available_at`, and
+`services/fundamentals/store.py::facts_as_of` returns the version known on a
+date, preferring EDGAR over yfinance for the same period. Concepts are
+normalised (`concepts.py`, `MAPPING_VERSION`), outflows stored positive.
+`stockviz.cli fundamentals [--source yfinance|edgar] [tickers]` (recorded
+job; Fridays in the cron): yfinance for every active equity, dated by fetch
+day and `point_in_time = false`; EDGAR (US equities, filing-date
+`available_at`) only with `SEC_USER_AGENT`, else exit 2. The owner sets that
+contact before release, so until then fundamentals are yfinance only.
+`GET /v1/symbols/{t}/fundamentals?period=annual|quarter&as_of=` returns a
+statement table with `sources` and `point_in_time`.
+
+**Valuation (Phase 6.4).** `services/fundamentals/valuation.py::valuation`
+computes multiples and metrics as known on a date: point-in-time facts plus
+that day's close, the price converted into the reporting currency at that
+day's FX when they differ (INFY.NS reports in USD, trades in INR). TTM is
+four consecutive quarters, else the latest year (`basis`). A metric with
+missing or meaningless inputs is null with a `reason` ("loss", "no shares
+outstanding"); ROIC is pre-tax and labelled so; no forward P/E (no estimate
+source). `GET /v1/symbols/{t}/valuation?as_of=` and
+`/valuation/history?metric=pe&years=5` (month-end values, each as known
+then, with the latest's percentile).
+
+**Experiment registry (Phase 5.4).** `/v1/experiments` (authed):
+`POST /runs` takes the same body as `POST /v1/backtest` (under `backtest`),
+runs it through `services/backtest/run.py::execute_backtest` (the code the
+public endpoint uses) and stores in `experiment_runs` the request, kernel
+profile, fee schedule, code version (`RAILWAY_GIT_COMMIT_SHA`, else
+`unknown`), a SHA-256 **dataset fingerprint** of every bar (ts, OHLC, basis)
+and dividend read, warm-up included, and the full result. `POST
+/runs/{id}/rerun` (`services/backtest/registry.py`) returns `identical`,
+`different` (same data, different result: the code changed; the differing
+fields are listed) or `data_changed` (the fingerprint moved, nothing
+compared). Runs are private, capped at 500 a user. `experiments` group runs
+under a name and hypothesis. `tests/test_experiment_registry.py` pins the
+acceptance: a saved run reruns identically and equals the public endpoint.
+Phase 5.5 adds `POST /walk-forward` and `POST /sweep`
+(`services/backtest/walkforward.py`): rolling windows (default 3-year
+in-sample, 1-year out-of-sample, yearly steps); each in-sample period picks
+the best grid setting by Sharpe or return, the next period scores it with the
+capital carried over, and the stitched out-of-sample curve is the result. A
+sweep ranks every setting over the range and records how many were tried.
+Grids are capped at 50 (default: 15 SMA or 16 RSI settings). Bars load once
+and runs are in memory: 50 settings over ten years took 1.9 s locally, so
+these run in the request. Both are stored as runs (`kind` `walk_forward` /
+`sweep`) and rerun like single runs.
 
 **Event table retention (audit OP-11).** Nothing else deletes from
 `outbox_events` or `consumer_inbox`. `prune-events` deletes published outbox
@@ -368,6 +551,12 @@ intraday fills anywhere in the app:
 - New portfolios start with **$100,000** cash (`DEFAULT_STARTING_CASH`,
   `services/trading/execute.py`), auto-created on the first `/v1/portfolio`
   call via `ensure_default_portfolio` (idempotent).
+- **Rupee accounts (Phase 4.8).** `PUT /v1/portfolio/base-currency`
+  (`services/trading/account.py`) restarts a **fresh** account in USD
+  ($100,000) or INR (₹1 crore, `STARTING_CASH`): no trades, orders, options,
+  positions, dividends or foreign cash, else 409. It restates the opening
+  NAV and the account's snapshots and sets the display currency to match.
+  `PortfolioOut` carries `base_currency` and `base_currency_locked`.
 - **Market orders** fill immediately at the latest close. Buys recompute the
   position's weighted-average `avg_cost`; sells never touch `avg_cost`, and a
   position sold to zero is **deleted**, not kept at qty 0.
@@ -394,16 +583,23 @@ intraday fills anywhere in the app:
   races each writer pair on PostgreSQL: buy reservations, sells, an option
   closed twice, cancel against settle, dividend credit twice, and one client
   key sent twice.
-- **Cash is always USD.** Trade rows store price/quantity in the symbol's
-  native currency; the cash debit/credit converts at the latest FX rate
-  (`services/trading/fx.py` — rates are USD-per-unit, forward-filled over
-  weekends/holidays). A missing rate is a hard `NoFxRateError` on market
-  orders.
+- **Cash is in the account's base currency** (USD, or INR since Phase 4.8).
+  Trade rows store price/quantity in the symbol's native currency, and
+  `trades.fx_rate` is base units per native unit: `fx.fill_rate_to_base` /
+  `fx.base_rate` divide the stored USD-per-unit rates through the USD pivot
+  (both legs must pass the MD-7 age check). Reservations
+  (`buy_reservation`), realized P&L, snapshots (NAV in the base) and the
+  journal are in the base; `TradeOut` adds `base_currency` and `total_base`,
+  and `total_usd` is the base amount at the latest rate. A missing rate is a
+  hard `NoFxRateError` on market orders. Option premiums are USD: an INR
+  account spends USD cash first and converts the shortfall from rupees
+  (`fx_conversions`), and option proceeds land in its USD balance; the
+  journal counts an INR account's option closes as unavailable.
 - **Pending orders** (`services/trading/orders.py`): `limit` (buy triggers at
   close ≤ limit, sell at close ≥), `stop_loss`/`take_profit` (sell-only;
   close ≤ / ≥ trigger). Checked once per day by the 16:45 settlement job and
   filled **at the close price**, not the limit price. Pending BUYs reserve
-  USD buying power (`quantity × limit_price` at the latest FX rate); pending
+  base-currency buying power (`quantity × limit_price` at the latest FX rate); pending
   SELLs reserve shares. Reservations are derived from `PENDING` rows in
   `services/trading/buying_power.py` — cancel/fill releases them. Market
   equity trades and long-option opens check **available** cash/shares, not
@@ -448,17 +644,29 @@ intraday fills anywhere in the app:
 - **Replay sessions** (`services/replay/`, `/v1/replay/...`): isolated
   cash/positions over a frozen ticker/`start_at`/`end_at` 1d range.
   `current_at` is the currently observable stored bar. `POST .../advance`
-  moves to the next stored bar under `SELECT … FOR UPDATE`. Market and
+  moves to the next stored bar under `SELECT … FOR UPDATE`; with
+  `?expected_current_at=` (the web sends it) a repeated request after the
+  session moved on changes nothing (audit SR-10). Market and
   history never return bars after `current_at`. `GET .../summary` marks
   positions at the current replay close. `GET .../availability` returns the
   stored 1d range for the launcher. List rows omit positions (no N+1).
   Orders take intent only; fill price is the current bar close. USD
-  symbols only. Cancel is manual; exhausting `end_at` marks `completed`.
+  symbols only. Cancel is manual. Reaching the last bar keeps the session
+  active, so that bar can be traded; advancing from it marks `completed`
+  (the web's "Finish replay"). Cash and positions go through the shared
+  `services/simulation/ledger.py::SimLedger` (Phase 5.1), whose arithmetic
+  `tests/test_sim_ledger.py` holds equal to `apply_fill`; the backtester
+  moves onto it in 5.2. `stockviz.cli benchmark-kernel` measures kernel +
+  ledger throughput (about 140k fills/s locally; `test_kernel_benchmark.py`
+  keeps a 10k floor).
   No delete endpoint; child rows cascade if a session row is removed.
   Replay Lab UI is `/replay` (SIM-06). MARKET-only in the UI.
   `GET .../forensics` is derived (episodes, MAE/MFE vs active weighted
   entry using stored daily high/low, same-symbol buy-and-hold excess,
-  one-ticker concentration). Horizon is `current_at` (cancelled the
+  one-ticker concentration). MAE/MFE count a bar's range only for shares
+  held before its fills (fills are at the close), and measure from the
+  ledger's average cost, as does the episode entry (audits SR-2, SR-6).
+  Horizon is `current_at` (cancelled the
   same; completed through frozen `end_at`). `GET`/`PUT .../journal`
   stores thesis/invalidation/expected bars/confidence; those fields
   lock after the first fill (`409`); reflection stays editable.
@@ -530,7 +738,7 @@ market order, the settled session for pending-order settlement. A stale rate
 raises `NoFxRateError`, which cancels a pending order with the reason.
 
 **Cash per currency (Phase 4.5b, design note option B).** `portfolios.cash_balance`
-is the base-currency cash (`base_currency`, USD only for now); other
+is the base-currency cash (`base_currency`, USD or INR); other
 currencies live in `cash_balances`, written only by `services/trading/cash.py`
 under the portfolio lock. In `apply_fill` a non-base sell credits its own
 currency; a non-base buy spends that currency first and converts only the
@@ -570,17 +778,51 @@ Python comparisons.
 
 4.6a (migration `b4e2c7d9a610`) made `instrument_id` NOT NULL wherever the
 ticker is (all but `news_articles`); the upgrade stops if any row is still
-NULL. SQLite DDL leaves it nullable (`db_identity` compile hook), because
-SQLite's triggers fill it after the insert. The ticker keys stay for now:
-`price_bars`' primary key, the unique keys and the `symbols.ticker` foreign
-keys. Moving them needs writers to set `instrument_id` themselves first (the
-ORM needs a primary key it knows at insert time). A new table with a
-`ticker` column must add `instrument_id_column(required=True)`, the trigger
-in a migration, and an entry in `services/instruments.TICKER_TABLES`.
+NULL.
+
+4.6b (migration `e7a3c5d1f942`): **writers set `instrument_id`
+themselves.** `db_identity` registers a `before_insert`/`before_update`
+hook on every mapper that resolves the ticker to its current instrument on
+the flush's connection, and gives each ticker model a private `noload`
+relationship to `Symbol` so a symbol added in the same flush is inserted
+first (a foreign key alone does not order a flush). Bulk upserts that skip
+the ORM (`write_accepted_bars`, metrics `_upsert`) take ids from
+`services.instruments.instrument_ids`. The Postgres triggers stay as a
+backstop and write the same value. The keys are now the instrument:
+`price_bars` `(instrument_id, ts, interval)`, `symbol_metrics`
+`(instrument_id)` (ticker still unique), `watchlist_items`
+`(watchlist_id, instrument_id)`, and the unique keys of positions,
+dividends, portfolio dividends, corporate actions and earnings. Look rows up
+with `metrics_for(session, ticker)` or a filter on `instrument_of(ticker)`,
+never `session.get(..., ticker)`. The ticker columns, their indexes and the
+`symbols.ticker` foreign keys stay. Tests seed symbols with
+`tests/symbols.py::seed_symbols`: a bar for an unknown ticker is refused on
+SQLite now, as Postgres always did. A new table with a `ticker` column
+needs `instrument_id_column(required=True)` (or `primary_key=True`), the
+trigger in a migration, and an entry in `services/instruments.TICKER_TABLES`.
 `stockviz.cli instrument-check` is a read-only report of rows the triggers
 missed; `instrument-verify` compares per-portfolio and per-symbol totals
 read through each key, and exits 1 on any difference. Seed a `Symbol` before reading
 a ticker's bars in a test: no symbol, no instrument.
+
+**Several providers, paid ones as snapshots (Phase 4.7).** Each stored bar
+keeps its `source`, and `prices.SOURCE_RANK` decides which wins for the same
+instrument, day and interval: `kite` and `truedata` (3) over `yfinance` (2)
+over `alpha_vantage` (1); unlisted sources (`v1_csv`, `bulk_*`) rank 0 and
+are replaced as before. The Postgres upsert's `ON CONFLICT ... WHERE` and the
+SQLite path both apply it, so the nightly yfinance refresh adds newer days
+and never overwrites a paid snapshot. Kite (`services/ingest/providers/kite.py`)
+is optional (`KITE_API_KEY`, `KITE_API_SECRET`; blank exits 2) and never
+nightly: `stockviz.cli kite-login-url` prints Zerodha's login page; the owner
+logs in by hand (daily tokens, an exchange rule: never automate the login)
+and passes the redirect's `request_token` to `ingest-history --provider kite
+[--apply] [tickers]`, which swaps it for the day's access token in memory
+(never stored) and pulls every daily candle since 2000 in 2000-day requests.
+Without `--apply` it only reports, per ticker, bars fetched, new days,
+overlap and the largest close difference against stored bars. Applying also
+records the `kite` identifier (instrument token). TrueData has no adapter
+until its trial. Check a provider's redistribution terms before its bars are
+shown publicly.
 
 ## Ingestion contract
 
@@ -631,9 +873,18 @@ counts/close from accepted bars only. Any new write path must go through
 
 The newsdata.io query string is the **company name**, resolved by
 `scheduler.company_name_map()`: `symbols.name` from the database, with
-`seed-data/companies.json` layered on top. The seed file is not shipped in
-the API image, and before the database layer existed the query silently
-degraded to the bare ticker ("AMZN" rather than "Amazon.com Inc.").
+`seed-data/companies.json` layered on top. Before the database layer existed
+the query silently degraded to the bare ticker ("AMZN" rather than
+"Amazon.com Inc.").
+
+**Universe (12 Nov 2026).** `seed-data/companies.json` (shipped in the API
+image) holds 161 symbols: the original 32 plus 53 NSE and 76 US large caps
+drawn from recent NIFTY 50 and S&P 100 membership, each checked against
+yfinance for recent daily bars (not the exact index lists;
+`tests/test_seed_universe.py`). New seed rows reach a database through
+`stockviz.cli seed` (idempotent); the nightly ingest then backfills their full
+history, and Monday's `metadata` fills sector and exchange (and so a US
+listing's venue).
 
 ## Testing
 

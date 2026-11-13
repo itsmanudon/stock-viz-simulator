@@ -10,14 +10,21 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 from decimal import Decimal
 
+import pytest
 from sqlalchemy import func
 from sqlmodel import col, select
 
-from stockviz.models import PriceBar, QuarantinedPriceBar, Symbol
+from stockviz.models import PriceBar, QuarantinedPriceBar
 from stockviz.services.ingest.bar_semantics import AdjustmentSemantics, SessionScope
 from stockviz.services.ingest.prices import DAILY_INTERVAL, SOURCE_YFINANCE, BarRecord, upsert_bars
+from tests.symbols import seed_symbols
 
 TS0 = datetime(2025, 1, 2)
+
+
+@pytest.fixture(autouse=True)
+def _symbols(session) -> None:
+    seed_symbols(session, "AAPL")
 
 
 def _bar(day: int, *, open="100", high="101", low="99", close="100", volume="1000000") -> BarRecord:
@@ -75,8 +82,7 @@ def test_a_structurally_broken_bar_is_dropped_entirely(session):
 
 
 def test_day_over_day_spike_is_quarantined_against_the_stored_prior_close(session):
-    # Bars are read by instrument (Phase 4.4), which a symbol row creates.
-    session.add(Symbol(ticker="AAPL", name="Apple"))
+    # Bars are read by instrument (Phase 4.4); the autouse fixture seeds AAPL.
     session.add(
         PriceBar(
             ticker="AAPL",

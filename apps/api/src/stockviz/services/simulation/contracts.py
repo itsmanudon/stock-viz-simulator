@@ -169,6 +169,34 @@ class ExecutionProfile:
 
 
 @dataclass(frozen=True, slots=True)
+class CostModel:
+    """Price costs applied by the kernel to a fill (Phase 5.3).
+
+    Both in basis points of the reference price, always against the trader:
+    a buy fills at ``reference x (1 + half spread + slippage)``, a sell at
+    ``reference x (1 - half spread - slippage)``. Fees (commission, regulatory
+    charges) are not here: they come from a fee schedule (``fees.py``) and are
+    booked beside the fill, never folded into its price.
+    """
+
+    spread_bps: Decimal = Decimal(0)
+    slippage_bps: Decimal = Decimal(0)
+
+    def __post_init__(self) -> None:
+        for name in ("spread_bps", "slippage_bps"):
+            value = require_decimal(getattr(self, name), field=name)
+            object.__setattr__(self, name, value)
+            _require_non_negative(value, field=name)
+
+    @property
+    def is_free(self) -> bool:
+        return self.spread_bps == 0 and self.slippage_bps == 0
+
+
+NO_COSTS = CostModel()
+
+
+@dataclass(frozen=True, slots=True)
 class ExecutionTrace:
     """Explainability payload. Prices are omitted when they were not eligible to observe."""
 

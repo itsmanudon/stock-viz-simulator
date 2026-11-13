@@ -45,10 +45,10 @@ class PriceBar(SQLModel, table=True):
     """
 
     __tablename__ = "price_bars"  # pyright: ignore[reportAssignmentType]
-    # The PK is (ticker, ts, interval), which does not serve the shape every
-    # read actually uses: WHERE ticker = ? AND interval = ? ORDER BY ts DESC.
-    # Postgres scans a btree in either direction, so a plain ascending index
-    # on this column order covers it.
+    # The PK is (instrument_id, ts, interval) since Phase 4.6b. Reads use
+    # WHERE instrument_id = ? AND interval = ? ORDER BY ts DESC, served by the
+    # instrument index below (a btree scans either way). The ticker index
+    # serves the ingest and redate paths that still filter by ticker.
     __table_args__ = (
         Index("ix_price_bars_ticker_interval_ts", "ticker", "interval", "ts"),
         # Phase 4.4: reads go by instrument; same shape as the ticker index.
@@ -63,8 +63,12 @@ class PriceBar(SQLModel, table=True):
         ),
     )
 
-    ticker: str = Field(foreign_key="symbols.ticker", primary_key=True, max_length=16)
-    instrument_id: int | None = Field(default=None, sa_column=instrument_id_column(required=True))
+    # Phase 4.6b: the key is the instrument, so a renamed listing keeps its
+    # history. ``ticker`` stays as written (display, provenance, the index).
+    ticker: str = Field(foreign_key="symbols.ticker", max_length=16)
+    instrument_id: int | None = Field(
+        default=None, sa_column=instrument_id_column(primary_key=True)
+    )
     ts: datetime = Field(primary_key=True, index=True)
     interval: str = Field(primary_key=True, max_length=8)
 

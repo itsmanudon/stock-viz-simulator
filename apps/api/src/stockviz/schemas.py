@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -107,6 +107,28 @@ class MACDPointOut(BaseModel):
     histogram: float
 
 
+class IndicatorMetaOut(BaseModel):
+    label: str
+    pane: Literal["price", "separate"]
+    outputs: list[str]
+    params: dict[str, float]
+    lookback: int
+    group: str
+    # "start": a cumulative series (OBV, A/D) whose level starts at 0 on the
+    # first bar loaded; read its shape, not the number.
+    anchored: Literal["none", "start"] = "none"
+
+
+class IndicatorCatalogItemOut(BaseModel):
+    key: str
+    label: str
+    params: list[str]
+    defaults: list[float]
+    outputs: list[str]
+    pane: Literal["price", "separate"]
+    group: str
+
+
 class IndicatorsOut(BaseModel):
     """Indicator bundle keyed by indicator name.
 
@@ -116,8 +138,16 @@ class IndicatorsOut(BaseModel):
     """
 
     ticker: str
+    # A single-output indicator is keyed by its name ("rsi_14"); one with
+    # several outputs by name and output ("bb_20_2.upper") (Phase 6.1).
     series: dict[str, list[IndicatorPointOut]] = {}
     macd: list[MACDPointOut] | None = None
+    # Per requested name: label, pane, outputs, lookback (Phase 6.1).
+    meta: dict[str, IndicatorMetaOut] = {}
+    # Bars loaded before the window so the first value shown does not depend
+    # on where the data starts (audit RS-1); no value before this is returned.
+    warmup_bars: int = 0
+    window_start: datetime | None = None
 
 
 class RecommendationVoteOut(BaseModel):
@@ -152,6 +182,10 @@ class RecommendationOut(BaseModel):
     votes: list[RecommendationVoteOut] = Field(default_factory=list)
     sentiment_7d: float | None = None
     computed_at: datetime
+    # SR-8: the newest bar behind the votes, and whether it trails the newest
+    # signal bar in the same currency by more than five days.
+    bar_date: date | None = None
+    stale: bool = False
 
 
 # ---------------------------------------------------------------------------
@@ -274,6 +308,10 @@ class PortfolioOut(BaseModel):
     # Phase 4.5b: cash per currency, base first. ``cash_balance`` is their
     # total in display currency; ``available_cash`` is the base's buying power.
     cash_by_currency: list[CurrencyCashOut] = []
+    # Phase 4.8: the account's base currency (USD or INR), and whether it is
+    # fixed (true once the account has any trade, order or option).
+    base_currency: str = "USD"
+    base_currency_locked: bool = True
 
 
 ClientOrderId = Annotated[
@@ -322,6 +360,10 @@ class TradeOut(BaseModel):
     fx_rate: Decimal = Decimal(1)
     total_native: Decimal = Decimal(0)
     total_usd: Decimal = Decimal(0)
+    # Phase 4.8: the amount in the account's base currency (USD or INR);
+    # ``fx_rate`` converts into it. ``realized_pnl`` is in it too.
+    base_currency: str = "USD"
+    total_base: Decimal = Decimal(0)
     # USD gain/loss against the position's weighted-average cost basis.
     # Set on sells; None on buys and on rows written before this was tracked.
     realized_pnl: Decimal | None = None
@@ -629,6 +671,8 @@ class LeaderboardEntryOut(BaseModel):
     username: str
     return_pct: float
     portfolio_value: Decimal
+    # Phase 4.8: portfolio_value is in the account's base currency.
+    currency: str = "USD"
     days_tracked: int = 0
     ranked: bool = True
 
@@ -654,28 +698,73 @@ class ProfilePatchIn(BaseModel):
 
 
 class AlertIn(BaseModel):
-    """Request body for POST /v1/alerts."""
+    """Request body for POST /v1/alerts (Phase 7.1: rules of several kinds).
 
-    ticker: str
-    direction: Literal["above", "below"]
-    target_price: Decimal
+    A price-level alert keeps the original shape: ``ticker``, ``direction``,
+    ``target_price``. Other rules name a ``kind`` and its ``params`` (see
+    ``services/alerts/rules.py``).
+    """
+
+    ticker: str | None = None
+    kind: Literal["price", "technical", "news", "portfolio"] = "price"
+    direction: Literal["above", "below"] | None = None
+    target_price: Decimal | None = None
+    params: dict[str, Any] | None = None
+    repeat: Literal["once", "every_cross"] = "once"
+    cooldown_sessions: int = Field(default=1, ge=1, le=250)
+
+
+class AlertPatch(BaseModel):
+    """``PATCH /v1/alerts/{id}``: pause or resume a rule."""
+
+    paused: bool
 
 
 class AlertOut(BaseModel):
-    """One alert row in API responses."""
+    """One alert rule in API responses."""
 
     model_config = ConfigDict(from_attributes=True)
 
     id: int
-    ticker: str
-    direction: Literal["above", "below"]
-    target_price: Decimal
+    ticker: str | None
+    kind: str = "price"
+    direction: Literal["above", "below"] | None
+    target_price: Decimal | None
+    params: dict[str, Any] | None = None
+    repeat: str = "once"
+    cooldown_sessions: int = 1
+    paused: bool = False
     created_at: datetime
+    armed_at: datetime | None = None
     triggered_at: datetime | None
     dismissed_at: datetime | None
+    # Evaluation state: the condition at the last judged bar (RS-8).
+    last_state: bool | None = None
+    last_bar_date: date | None = None
+    last_fired_bar_date: date | None = None
+    # The rule in words, for lists and notifications.
+    description: str = ""
     # The symbol's trading currency, so the target formats without a second
     # lookup. The target is in this currency, like every stored price.
     currency: str = "USD"
+
+
+class AlertEventOut(BaseModel):
+    """One firing of a rule: what was seen, against what, on which bar."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    alert_id: int
+    kind: str
+    ticker: str | None
+    session_date: date
+    bar_date: date | None
+    observed: Decimal | None
+    threshold: Decimal | None
+    message: str
+    source: str
+    created_at: datetime
 
 
 # ---------------------------------------------------------------------------
@@ -695,6 +784,9 @@ class WatchlistItemOut(BaseModel):
     # can date the price. None when the symbol has no stored bars.
     last_close_at: datetime | None = None
     currency: str = "USD"
+    # The last 30 daily closes, oldest first, for the row's sparkline (RS-12:
+    # the page used to fetch bars once per item).
+    closes: list[Decimal] = []
 
 
 # ---------------------------------------------------------------------------
@@ -752,6 +844,134 @@ class ScreenerResultOut(BaseModel):
     # Rolling 7-day mean news sentiment in [-1, 1]. None when the symbol has no
     # scored headlines (or sentiment scoring is disabled).
     sentiment_7d: float | None = None
+
+
+class FundamentalRowOut(BaseModel):
+    concept: str
+    label: str
+    unit: str  # a currency, "shares" or "<currency>/share"
+    values: list[Decimal | None]  # aligned with FundamentalsOut.periods
+
+
+class FundamentalsOut(BaseModel):
+    """Statement figures as known on ``as_of`` (Phase 6.3).
+
+    ``point_in_time`` is false when any figure came from a source without
+    filing dates (yfinance), whose values are dated by when they were fetched.
+    """
+
+    ticker: str
+    period: Literal["annual", "quarter"]
+    as_of: date
+    currency: str | None = None
+    periods: list[date]
+    rows: list[FundamentalRowOut]
+    sources: list[str]
+    point_in_time: bool
+    latest_available_at: date | None = None
+
+
+class ValuationMetricOut(BaseModel):
+    key: str
+    label: str
+    value: float | None
+    unit: str  # "x", "%", or a currency
+    reason: str | None = None  # why value is null
+
+
+class ValuationOut(BaseModel):
+    """Valuation and metrics as known on ``as_of`` (Phase 6.4).
+
+    ``fx_rate`` converts the trading currency's price into the reporting
+    currency (INFY.NS trades in INR and reports in USD). ``basis`` is
+    ``ttm`` (four quarters) or ``annual`` (the latest year).
+    """
+
+    ticker: str
+    as_of: date
+    price: Decimal | None = None
+    price_date: date | None = None
+    trading_currency: str
+    reporting_currency: str | None = None
+    fx_rate: Decimal | None = None
+    basis: Literal["ttm", "annual"] | None = None
+    point_in_time: bool
+    sources: list[str]
+    metrics: list[ValuationMetricOut]
+
+
+class ValuationPointOut(BaseModel):
+    date: date
+    value: float
+
+
+class ValuationHistoryOut(BaseModel):
+    ticker: str
+    metric: str
+    points: list[ValuationPointOut]
+    # Share of the history at or below the latest value, 0-100.
+    percentile: float | None = None
+
+
+class ScreenerRowOut(BaseModel):
+    """One row of /v1/screener (Phase 6.2). Unknown values are null, never 0."""
+
+    ticker: str
+    name: str
+    sector: str | None = None
+    exchange: str | None = None
+    market: str | None = None  # ISO country of the listing (US, IN, GB, ...)
+    mic: str | None = None  # the venue, e.g. XNAS, XNSE
+    currency: str = "USD"
+    last_close: Decimal | None = None
+    as_of: date | None = None
+    rsi_14: float | None = None
+    momentum_pct: float | None = None
+    momentum_days: int | None = None
+    high_52w: Decimal | None = None
+    low_52w: Decimal | None = None
+    pct_from_52w_high: float | None = None
+    sma_50: float | None = None
+    sma_200: float | None = None
+    sma_50_gap_pct: float | None = None
+    sma_200_gap_pct: float | None = None
+    atr_pct_14: float | None = None
+    hv_20: float | None = None
+    avg_volume_20: float | None = None
+    sentiment_7d: float | None = None
+    # Phase 6.5 fundamentals, as known on the snapshot date (percents are
+    # percents; market cap in USD to compare across markets).
+    pe: float | None = None
+    pb: float | None = None
+    ps: float | None = None
+    ev_ebitda: float | None = None
+    dividend_yield: float | None = None
+    market_cap_usd: float | None = None
+    net_margin: float | None = None
+    roe: float | None = None
+    debt_to_equity: float | None = None
+    revenue_growth: float | None = None
+
+
+class ScreenerPageOut(BaseModel):
+    rows: list[ScreenerRowOut]
+    total: int  # every match, before paging (audit RS-5)
+    offset: int
+    limit: int
+
+
+class SavedScreenIn(BaseModel):
+    name: str = Field(min_length=1, max_length=80)
+    # The screener URL's query string, e.g. "market=IN&rsi_max=30&sort=rsi_14".
+    query: str = Field(max_length=2000)
+
+
+class SavedScreenOut(BaseModel):
+    id: int
+    name: str
+    query: str
+    created_at: datetime
+    updated_at: datetime
 
 
 # ---------------------------------------------------------------------------
@@ -981,8 +1201,27 @@ class BacktestIn(BaseModel):
     strategy: StrategySpec
     commission_bps: float = Field(default=0.0, ge=0, le=1000)
     slippage_bps: float = Field(default=0.0, ge=0, le=1000)
+    # Phase 5.2 (audit SR-7): "price" (default) ignores dividends and says so;
+    # "total" credits each dividend to shares held into its ex-date.
+    return_mode: Literal["price", "total"] = "price"
+    # Phase 5.3 cost models. Owner decision (12 Nov 2026): backtests fill at
+    # the next bar's open by default; "next_close" keeps the old rule.
+    fill_rule: Literal["next_open", "next_close"] = "next_open"
+    # Moves the fill price against the trader (half the spread, plus slippage).
+    spread_bps: float = Field(default=0.0, ge=0, le=1000)
+    # Regulatory fees per fill; commission_bps is charged on top.
+    # Phase 5.6 adds Indian delivery (NSE, BSE); a schedule must match the
+    # symbol's currency.
+    fee_schedule: Literal[
+        "none", "us_equity_2026", "in_delivery_nse_2026", "in_delivery_bse_2026"
+    ] = "none"
 
     model_config = ConfigDict(populate_by_name=True)
+
+
+class BacktestFeeOut(BaseModel):
+    name: str
+    amount: Decimal
 
 
 class BacktestTradeOut(BaseModel):
@@ -990,6 +1229,9 @@ class BacktestTradeOut(BaseModel):
     side: Literal["buy", "sell"]
     price: Decimal
     shares: Decimal
+    # Phase 5.3: the price before spread and slippage, and each fee charged.
+    reference_price: Decimal | None = None
+    fees: list[BacktestFeeOut] = []
 
 
 class EquityPointOut(BaseModel):
@@ -1016,9 +1258,92 @@ class BacktestSummaryOut(BaseModel):
 
 class BacktestOut(BaseModel):
     ticker: str
+    # Phase 5.2: every amount is in the symbol's currency (audit SR-11).
+    currency: str = "USD"
+    # The stored bars' basis ("split_adjusted", ...), or "mixed" (audit SR-7).
+    price_basis: str | None = None
+    return_mode: Literal["price", "total"] = "price"
+    # Bars before ``from`` the strategy saw but did not trade on (audit SR-3).
+    warmup_bars: int = 0
+    # Phase 5.3: the kernel profile (name/version) and fee schedule used.
+    execution_profile: str = "legacy_close/v1"
+    fee_schedule: str = "none"
     trades: list[BacktestTradeOut]
     equity_curve: list[EquityPointOut]
     summary: BacktestSummaryOut
+
+
+class ExperimentIn(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    hypothesis: str | None = Field(default=None, max_length=4000)
+
+
+class ExperimentOut(BaseModel):
+    id: int
+    name: str
+    hypothesis: str | None
+    created_at: datetime
+    run_count: int = 0
+
+
+class ExperimentRunIn(BaseModel):
+    """Save a backtest (Phase 5.4): the same body as POST /v1/backtest."""
+
+    backtest: BacktestIn
+    experiment_id: int | None = None
+
+
+class WalkForwardIn(BaseModel):
+    """Phase 5.5. ``backtest`` sets the symbol, range, cash, costs and fees;
+    its strategy type picks the default grid when ``grid`` is empty."""
+
+    backtest: BacktestIn
+    grid: list[StrategySpec] | None = Field(default=None, max_length=50)
+    in_sample_years: int = Field(default=3, ge=1, le=20)
+    out_of_sample_years: int = Field(default=1, ge=1, le=10)
+    step_years: int = Field(default=1, ge=1, le=10)
+    score: Literal["sharpe", "total_return"] = "sharpe"
+    experiment_id: int | None = None
+
+
+class SweepIn(BaseModel):
+    backtest: BacktestIn
+    grid: list[StrategySpec] | None = Field(default=None, max_length=50)
+    score: Literal["sharpe", "total_return"] = "sharpe"
+    experiment_id: int | None = None
+
+
+class ExperimentRunOut(BaseModel):
+    id: int
+    experiment_id: int | None
+    parent_run_id: int | None = None
+    kind: str
+    ticker: str
+    request: dict
+    execution_profile: str
+    fee_schedule: str
+    code_version: str
+    dataset_fingerprint: str
+    bar_count: int
+    first_bar_at: datetime | None
+    last_bar_at: datetime | None
+    created_at: datetime
+    summary: BacktestSummaryOut
+    # Full stored result; omitted from list responses. A BacktestOut for
+    # ``single`` runs; for ``walk_forward`` and ``sweep`` runs, the shape their
+    # ``result_kind`` names (windows + stitched curve, or ranked settings).
+    result: dict[str, Any] | None = None
+
+
+class ExperimentRerunOut(BaseModel):
+    """``identical``: same data, same result. ``data_changed``: the bars or
+    dividends the run read are not the same any more, so nothing is compared.
+    ``different``: same data, different result (the code changed)."""
+
+    status: Literal["identical", "different", "data_changed"]
+    stored_fingerprint: str
+    current_fingerprint: str
+    differences: list[str] = []
 
 
 # ---------------------------------------------------------------------------
@@ -1214,3 +1539,80 @@ class JournalWeekOut(BaseModel):
     best_trade: JournalExecutionOut | None = None
     worst_trade: JournalExecutionOut | None = None
     unavailable_count: int = 0
+
+
+class BaseCurrencyIn(BaseModel):
+    """``PUT /v1/portfolio/base-currency``: restart a fresh account in USD or INR."""
+
+    base_currency: str = Field(min_length=3, max_length=3)
+
+
+# ---------------------------------------------------------------------------
+# Notifications (Phase 7.2)
+# ---------------------------------------------------------------------------
+
+
+class NotificationOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    category: str
+    title: str
+    body: str
+    link: str | None
+    created_at: datetime
+    read_at: datetime | None
+
+
+class UnreadCountOut(BaseModel):
+    unread: int
+
+
+# ---------------------------------------------------------------------------
+# News event studies (Phase 7.4)
+# ---------------------------------------------------------------------------
+
+
+class EventStudyWindowOut(BaseModel):
+    start: int
+    end: int
+    mean_car_pct: float | None
+    std_error_pct: float | None
+    t_stat: float | None
+
+
+class EventStudyPointOut(BaseModel):
+    offset: int
+    mean_car_pct: float | None
+    std_error_pct: float | None
+
+
+class EventStudyEventOut(BaseModel):
+    ticker: str
+    document_id: str
+    title: str
+    available_at: datetime
+    event_date: date
+    car_pct: float
+
+
+class EventStudyOut(BaseModel):
+    """Abnormal returns around news of a kind. Association, not cause."""
+
+    tickers: list[str]
+    sentiment: str | None
+    event_type: str | None
+    pre: int
+    post: int
+    model: str = "market-adjusted: stock log return minus its market index's"
+    benchmarks: dict[str, str]
+    no_benchmark: list[str]
+    min_events: int
+    enough: bool
+    events_found: int
+    events_used: int
+    events_incomplete: int
+    overlapping: int
+    windows: list[EventStudyWindowOut]
+    path: list[EventStudyPointOut]
+    events: list[EventStudyEventOut]

@@ -9,26 +9,34 @@ from slowapi.middleware import SlowAPIMiddleware
 
 from stockviz import __version__
 from stockviz.limiter import limiter
+from stockviz.logging_setup import configure_logging
 from stockviz.observability import init_sentry
+from stockviz.request_id import request_id_middleware
 from stockviz.routers import (
     alerts,
     backtest,
     bars,
     comments,
     earnings,
+    experiments,
+    fundamentals,
     health,
     indicators,
     journal,
     leaderboard,
     markets,
     news,
+    notifications,
     options,
     orders,
     quotes,
     recommendations,
     replay,
+    research,
     screener,
+    screens,
     sentiment,
+    status,
     stream,
     symbols,
     trading,
@@ -65,6 +73,9 @@ async def lifespan(app: FastAPI):
 def create_app() -> FastAPI:
     settings = get_settings()
     init_sentry(settings)
+    # OP-9: the API process sets up logging like the CLI and workers, with the
+    # request id in every line.
+    configure_logging()
 
     app = FastAPI(
         title="StockViz API",
@@ -76,18 +87,22 @@ def create_app() -> FastAPI:
     app.state.limiter = limiter
     app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # type: ignore[arg-type]
     app.add_middleware(SlowAPIMiddleware)
+    app.middleware("http")(request_id_middleware)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
+        expose_headers=["X-Request-ID"],
     )
 
     app.include_router(health.router)
     # Register screener before symbols so /v1/symbols/screen wins over the
     # /v1/symbols/{ticker} catch-all in symbols.router.
     app.include_router(screener.router)
+    app.include_router(screener.page_router)
+    app.include_router(screens.router)
     app.include_router(sentiment.router)
     app.include_router(symbols.router)
     app.include_router(bars.router)
@@ -95,6 +110,8 @@ def create_app() -> FastAPI:
     app.include_router(news.router)
     app.include_router(quotes.router)
     app.include_router(indicators.router)
+    app.include_router(fundamentals.router)
+    app.include_router(indicators.catalog_router)
     app.include_router(recommendations.router)
     app.include_router(trading.router)
     app.include_router(alerts.router)
@@ -105,9 +122,13 @@ def create_app() -> FastAPI:
     app.include_router(comments.router)
     app.include_router(options.router)
     app.include_router(backtest.router)
+    app.include_router(experiments.router)
     app.include_router(replay.router)
     app.include_router(earnings.router)
     app.include_router(journal.router)
+    app.include_router(notifications.router)
+    app.include_router(research.router)
+    app.include_router(status.router)
 
     return app
 

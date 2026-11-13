@@ -35,7 +35,9 @@ class CorporateAction(SQLModel, table=True):
 
     __tablename__ = "corporate_actions"  # pyright: ignore[reportAssignmentType]
     __table_args__ = (
-        UniqueConstraint("ticker", "kind", "ex_date", name="uq_corporate_actions_ticker_kind_ex"),
+        UniqueConstraint(
+            "instrument_id", "kind", "ex_date", name="uq_corporate_actions_instrument_kind_ex"
+        ),
         CheckConstraint(
             "ratio_from > 0 AND ratio_to > 0", name="ck_corporate_actions_ratio_positive"
         ),

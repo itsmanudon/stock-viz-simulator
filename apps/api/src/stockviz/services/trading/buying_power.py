@@ -1,6 +1,6 @@
 """Derived buying-power and share reservations from pending orders.
 
-A pending BUY reserves ``quantity * limit_price`` converted to USD at the
+A pending BUY reserves ``quantity * limit_price`` converted to the portfolio's base currency at the
 latest FX rate. A pending SELL reserves its quantity of the ticker. Only
 ``PENDING`` rows contribute, so cancel/fill/expiry releases the reservation
 without a second stored balance.
@@ -11,7 +11,7 @@ observe the same available buying power.
 
 FX for an existing reservation is re-read at the latest known rate. That is an
 admission-control estimate, not a frozen fill price — settlement still
-revalidates actual USD cost against ``cash_balance`` minus *other* orders'
+revalidates actual base-currency cost against ``cash_balance`` minus *other* orders'
 reservations.
 """
 
@@ -24,7 +24,7 @@ from sqlmodel import Session, select
 from stockviz.models import PendingOrder, Portfolio, Position, Symbol, TradeSide, User
 from stockviz.models.order import OrderStatus
 from stockviz.services.instruments import instrument_of
-from stockviz.services.trading.fx import latest_rate
+from stockviz.services.trading.fx import base_rate
 
 MICROS = Decimal("0.000001")
 
@@ -59,26 +59,28 @@ def lock_user(session: Session, user_id: int) -> User:
     return user
 
 
-def buy_reservation_usd(
+def buy_reservation(
     session: Session,
     *,
     ticker: str,
     quantity: Decimal,
     limit_price: Decimal,
+    base: str = "USD",
 ) -> Decimal:
-    """USD notional reserved by a pending BUY of ``quantity`` at ``limit_price``.
+    """Base-currency amount reserved by a pending BUY of ``quantity`` at ``limit_price``.
 
-    Raises ``LookupError`` (from :func:`latest_rate`) when a non-USD symbol
-    has no FX rate — callers wrap that as ``NoFxRateError``.
+    ``base`` is the portfolio's base currency (Phase 4.8). Raises
+    ``LookupError`` when a rate is missing — callers wrap that as
+    ``NoFxRateError``.
     """
     symbol = session.get(Symbol, ticker)
     currency = (symbol.currency if symbol is not None else None) or "USD"
     native = (quantity * limit_price).quantize(MICROS)
     try:
-        rate = latest_rate(session, currency)
+        rate = base_rate(session, currency, base)
     except LookupError as exc:
         raise LookupError(
-            f"No FX rate for {currency!r}; cannot price {ticker!r} reservation in USD"
+            f"No FX rate for {currency!r}; cannot price {ticker!r} reservation in {base}"
         ) from exc
     return (native * rate).quantize(MICROS)
 
@@ -89,7 +91,9 @@ def reserved_cash(
     *,
     exclude_order_id: int | None = None,
 ) -> Decimal:
-    """USD reserved by currently pending BUY orders on ``portfolio_id``."""
+    """Base currency reserved by currently pending BUY orders on ``portfolio_id``."""
+    portfolio = session.get(Portfolio, portfolio_id)
+    base = (portfolio.base_currency if portfolio is not None else None) or "USD"
     stmt = select(PendingOrder).where(
         PendingOrder.portfolio_id == portfolio_id,
         PendingOrder.status == OrderStatus.PENDING,
@@ -99,11 +103,12 @@ def reserved_cash(
         stmt = stmt.where(PendingOrder.id != exclude_order_id)
     total = Decimal(0)
     for order in session.exec(stmt).all():
-        total += buy_reservation_usd(
+        total += buy_reservation(
             session,
             ticker=order.ticker,
             quantity=order.quantity,
             limit_price=order.limit_price,
+            base=base,
         )
     return total.quantize(MICROS)
 

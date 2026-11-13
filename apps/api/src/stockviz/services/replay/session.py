@@ -197,16 +197,31 @@ def create_replay_session(
     return row
 
 
-def advance_replay_session(session: Session, *, replay: ReplaySession) -> ReplaySession:
+def advance_replay_session(
+    session: Session,
+    *,
+    replay: ReplaySession,
+    expected_current_at: datetime | None = None,
+) -> ReplaySession:
     """Move ``current_at`` to the next stored 1d bar inside the frozen range.
 
-    Completes the session when that bar is the last eligible bar (``end_at``).
+    Audit SR-10 (Phase 5.1):
+
+    - ``expected_current_at`` is the bar the caller saw. If the session has
+      already moved on (a repeated or doubled request), nothing changes and
+      the current state is returned, so two clicks move one bar.
+    - Reaching the last bar no longer completes the session: that bar can be
+      traded. Advancing from the last bar completes it.
+
     Replay follows stored daily bars; it does not apply an exchange calendar.
     """
 
     if replay.id is None:
         raise ValueError("replay session must be persisted before advance")
     locked = lock_replay_session(session, session_id=replay.id, user_id=replay.user_id)
+    if expected_current_at is not None and as_naive_utc(expected_current_at) != locked.current_at:
+        session.commit()  # release the row lock
+        return locked
     _require_active(locked)
     nxt = get_next_session_bar(session, locked)
     if nxt is None:
@@ -217,10 +232,7 @@ def advance_replay_session(session: Session, *, replay: ReplaySession) -> Replay
         return locked
     clock = _clock_from_row(locked).advance_to(as_aware_utc(nxt.ts))
     locked.current_at = as_naive_utc(clock.instant())
-    if get_next_session_bar(session, locked) is None:
-        _complete(locked)
-    else:
-        _touch(locked)
+    _touch(locked)
     session.add(locked)
     session.commit()
     session.refresh(locked)

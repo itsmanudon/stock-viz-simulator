@@ -174,6 +174,21 @@ def credit_due_dividends(session: Session, *, credit_date: date_type) -> int:
                     base_value=base_value,
                 )
             )
+            from stockviz.models import NotificationCategory
+            from stockviz.services.notifications import notify
+
+            notify(
+                session,
+                user_id=portfolio.user_id,
+                category=NotificationCategory.DIVIDEND,
+                title=f"{ticker} dividend credited",
+                body=(
+                    f"{credit_amount:,.2f} {currency} for {quantity.normalize():f} shares "
+                    f"held into the {div.ex_date.isoformat()} ex-date."
+                ),
+                link="/portfolio?tab=income",
+                source_key=f"dividend:{portfolio_id}:{ticker}:{div.ex_date.isoformat()}",
+            )
             try:
                 session.commit()
             except IntegrityError:

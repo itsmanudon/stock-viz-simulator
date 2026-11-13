@@ -8,5 +8,5 @@ export { getMarketsSummary } from "./markets";
 export { getLatestNews, getNewsForTicker, getNewsForTickers } from "./news";
 export { getIndicators } from "./indicators";
 export { getRecommendations } from "./recommendations";
-export { screenSymbols } from "./screener";
+export { type ScreenerPage, type ScreenerRow, getScreenerPage, screenSymbols } from "./screener";
 export { runBacktest } from "./backtest";

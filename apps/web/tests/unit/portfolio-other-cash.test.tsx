@@ -19,6 +19,8 @@ const base: Portfolio = {
   option_positions: [],
   valuation_warnings: [],
   cash_by_currency: [],
+  base_currency: "USD",
+  base_currency_locked: true,
 };
 
 describe("PortfolioMetrics other cash (Phase 4.5b)", () => {

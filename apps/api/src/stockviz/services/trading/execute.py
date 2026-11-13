@@ -26,7 +26,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, col, select
 
 from stockviz.models import FxConversion, Portfolio, Position, PriceBar, Symbol, Trade, TradeSide
-from stockviz.services.instruments import instrument_of
+from stockviz.services.instruments import instrument_of, is_index_ticker
 from stockviz.services.simulation import (
     LIVE_PAPER_EXECUTION_PROFILE,
     FillDecision,
@@ -42,13 +42,13 @@ from stockviz.services.trading.buying_power import (
     lock_user,
     reserved_shares,
 )
+from stockviz.services.trading.cash import base_currency, pay_for_buy, plan_buy
 from stockviz.services.trading.cash import credit as credit_cash
-from stockviz.services.trading.cash import pay_for_buy, plan_buy
 from stockviz.services.trading.execution_provenance import (
     FillProvenance,
     record_execution_provenance,
 )
-from stockviz.services.trading.fx import StaleFxRate, rate_for_fill
+from stockviz.services.trading.fx import StaleFxRate, fill_rate_to_base, latest_rate
 from stockviz.services.trading.simulation_adapter import (
     evaluation_clock,
     market_snapshot_from_bar,
@@ -70,6 +70,10 @@ class TradeExecutionError(Exception):
 
 class SymbolNotFound(TradeExecutionError):
     pass
+
+
+class NotTradable(TradeExecutionError):
+    """An index (Phase 7.4) has stored closes but cannot be bought or sold."""
 
 
 class NoMarketDataError(TradeExecutionError):
@@ -254,9 +258,16 @@ class PricedSymbol:
 
 
 def resolve_priced_symbol(
-    session: Session, ticker: str, *, settled_session: date | None = None
+    session: Session,
+    ticker: str,
+    *,
+    base: str = "USD",
+    settled_session: date | None = None,
 ) -> PricedSymbol:
-    """Look up the symbol, its latest close, and the FX rate to convert to USD.
+    """Look up the symbol, its latest close, and the FX rate into ``base``.
+
+    ``base`` is the portfolio's base currency (Phase 4.8: USD or INR); the
+    rate is units of ``base`` per unit of the symbol's currency.
 
     The rate is the newest stored one, refused when older than the session
     before the fill's own (MD-7): the latest completed session for a market
@@ -269,6 +280,8 @@ def resolve_priced_symbol(
     symbol = session.get(Symbol, ticker)
     if symbol is None:
         raise SymbolNotFound(f"Symbol {ticker!r} not found")
+    if is_index_ticker(ticker):
+        raise NotTradable(f"{ticker} is an index: it can be studied but not traded")
 
     bar = latest_bar(session, ticker)
     if bar is None:
@@ -279,18 +292,19 @@ def resolve_priced_symbol(
     from stockviz.services.markets.calendar import venue_for_ticker
 
     try:
-        fx_rate = rate_for_fill(
+        fx_rate = fill_rate_to_base(
             session,
             currency,
+            base,
             now=utcnow().replace(tzinfo=UTC),
             venue=venue_for_ticker(ticker),
             settled_session=settled_session,
         )
     except StaleFxRate as exc:
-        raise NoFxRateError(f"{exc}; cannot price {ticker!r} trade in USD") from exc
+        raise NoFxRateError(f"{exc}; cannot price {ticker!r} trade in {base}") from exc
     except LookupError as exc:
         raise NoFxRateError(
-            f"No FX rate for {currency!r}; cannot price {ticker!r} trade in USD"
+            f"No FX rate for {currency!r}; cannot price {ticker!r} trade in {base}"
         ) from exc
 
     return PricedSymbol(symbol=symbol, price=bar.close, currency=currency, fx_rate=fx_rate, bar=bar)
@@ -301,17 +315,18 @@ class TradeExecution:
     """Result of a fill: the persisted Trade row plus FX metadata.
 
     The Trade row stores price + quantity in the symbol's native currency
-    (e.g. EUR for SAP.DE). ``usd_cost`` is what was actually debited from /
-    credited to the USD cash bucket; ``fx_rate`` is the USD-per-native-unit
-    rate used for that conversion (1 for USD symbols).
+    (e.g. EUR for SAP.DE). ``base_cost`` is the fill's value in the
+    portfolio's base currency (``base_currency``, USD or INR since Phase 4.8);
+    ``fx_rate`` is base units per native unit (1 when they match).
     """
 
     trade: Trade
     currency: str
     fx_rate: Decimal
     native_cost: Decimal
-    usd_cost: Decimal
+    base_cost: Decimal
     realized_pnl: Decimal | None
+    base_currency: str = "USD"
     # True when a repeated client_order_id returned an earlier fill (LG-10).
     replayed: bool = False
 
@@ -336,8 +351,9 @@ def apply_fill(
     commit — the caller owns the transaction boundary, which lets the
     settlement job batch many fills together.
 
-    ``price`` is in the symbol's native currency; ``fx_rate`` is USD per one
-    unit of that currency. Cash is always USD.
+    ``price`` is in the symbol's native currency; ``fx_rate`` is units of the
+    portfolio's base currency per one unit of it (Phase 4.8). Cash debits,
+    reservations and realized P&L are in the base currency.
 
     Spendability is checked against *available* cash/shares (ledger balance
     minus reservations from *other* pending orders). ``exclude_order_id``
@@ -354,8 +370,9 @@ def apply_fill(
     portfolio_id = portfolio.id
     portfolio = lock_portfolio(session, portfolio_id)
 
+    base = base_currency(portfolio)
     native_cost = (price * quantity).quantize(MICROS)
-    usd_cost = (native_cost * fx_rate).quantize(MICROS)
+    base_cost = (native_cost * fx_rate).quantize(MICROS)
     conversion: FxConversion | None = None
     position = get_position(session, portfolio_id=portfolio_id, ticker=ticker)
     realized_pnl: Decimal | None = None
@@ -371,8 +388,8 @@ def apply_fill(
         funding = plan_buy(session, portfolio, currency, native_cost, fx_rate)
         if spendable < funding.base_debit:
             raise InsufficientCash(
-                f"Available buying power ${spendable:.2f}; order requires "
-                f"${funding.base_debit:.2f}."
+                f"Available buying power {base} {spendable:,.2f}; order requires "
+                f"{base} {funding.base_debit:,.2f}."
             )
         conversion = pay_for_buy(session, portfolio, currency, funding, fx_rate)
 
@@ -409,7 +426,7 @@ def apply_fill(
         avg_cost_at_fill = position.avg_cost
         # The proceeds stay in the symbol's currency (Phase 4.5b).
         credit_cash(session, portfolio, currency, native_cost)
-        # Realized P&L against the weighted-average cost basis, in USD.
+        # Realized P&L against the weighted-average cost basis, in the base.
         realized_pnl = ((price - position.avg_cost) * quantity * fx_rate).quantize(MICROS)
         position.quantity = position.quantity - quantity
         # Don't recompute avg_cost on sells — keeps cost basis honest for
@@ -444,16 +461,31 @@ def apply_fill(
         trade=trade,
         currency=currency,
         fx_rate=fx_rate,
-        usd_notional=usd_cost,
+        usd_notional=_usd_value(session, base_cost, base),
     )
     return TradeExecution(
         trade=trade,
         currency=currency,
         fx_rate=fx_rate,
         native_cost=native_cost,
-        usd_cost=usd_cost,
+        base_cost=base_cost,
         realized_pnl=realized_pnl,
+        base_currency=base,
     )
+
+
+def _usd_value(session: Session, amount: Decimal, currency: str) -> Decimal:
+    """``amount`` in USD at the latest rate, for the trade event's notional.
+
+    The event contract names a USD notional; for an INR book it is an
+    estimate, and the amount itself when no rate is stored.
+    """
+    if currency == "USD":
+        return amount
+    try:
+        return (amount * latest_rate(session, currency)).quantize(MICROS)
+    except LookupError:
+        return amount
 
 
 def execute_trade(
@@ -468,8 +500,8 @@ def execute_trade(
     """Execute a market order. Raises a ``TradeExecutionError`` subclass on validation failure.
 
     The price stored on the Trade row is in the symbol's native currency.
-    Cash (always USD) is debited/credited at today's FX rate for non-USD
-    symbols. USD symbols pass through unchanged.
+    Cash is debited/credited in the portfolio's base currency (Phase 4.8),
+    converted at the fill's FX rate when the symbol trades in another one.
 
     Fill price comes from the SIM-01 kernel (``LIVE_PAPER_EXECUTION_PROFILE``,
     currently ``LEGACY_CLOSE``). Account validity, FX, and persistence stay in
@@ -499,7 +531,7 @@ def execute_trade(
         if earlier is not None:
             return _replay_trade(session, earlier, ticker=ticker, side=side, quantity=quantity)
 
-    priced = resolve_priced_symbol(session, ticker)
+    priced = resolve_priced_symbol(session, ticker, base=base_currency(portfolio))
     require_current_close(session, priced)
     provenance = _market_fill_provenance(bar=priced.bar, side=side, quantity=quantity)
     fill_price = provenance.decision.fill_price
@@ -536,13 +568,15 @@ def _replay_trade(
     currency = (symbol.currency if symbol else None) or "USD"
     fx_rate = trade.fx_rate if trade.fx_rate is not None else Decimal(1)
     native_cost = (trade.price * trade.quantity).quantize(MICROS)
+    portfolio = session.get(Portfolio, trade.portfolio_id)
     return TradeExecution(
         trade=trade,
         currency=currency,
         fx_rate=fx_rate,
         native_cost=native_cost,
-        usd_cost=(native_cost * fx_rate).quantize(MICROS),
+        base_cost=(native_cost * fx_rate).quantize(MICROS),
         realized_pnl=trade.realized_pnl,
+        base_currency=base_currency(portfolio) if portfolio is not None else "USD",
         replayed=True,
     )
 

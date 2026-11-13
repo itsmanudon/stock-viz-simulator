@@ -13,10 +13,15 @@ from stockviz.services.simulation.profiles import (
     LEGACY_CLOSE,
     LEGACY_CLOSE_MODEL_VERSION,
     LEGACY_CLOSE_NAME,
+    NEXT_OPEN,
+    NEXT_OPEN_MODEL_VERSION,
+    NEXT_OPEN_NAME,
 )
 
 EXECUTION_PROFILES: dict[tuple[str, str], ExecutionProfile] = {
     (LEGACY_CLOSE_NAME, LEGACY_CLOSE_MODEL_VERSION): LEGACY_CLOSE,
+    # Phase 5.3: backtests only. Live paper trading stays on legacy_close.
+    (NEXT_OPEN_NAME, NEXT_OPEN_MODEL_VERSION): NEXT_OPEN,
 }
 
 

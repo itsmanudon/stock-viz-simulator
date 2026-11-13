@@ -144,6 +144,8 @@ def test_the_nightly_chain_leaves_the_night_it_should(chain_engine, monkeypatch)
 
     # aegis-sync exits 2 when Aegis is not configured; the chain tolerates it.
     assert codes.pop("aegis-sync") == 2
+    # revalidate-web exits 2 when WEB_REVALIDATE_URL is unset (RS-9); likewise.
+    assert codes.pop("revalidate-web") == 2
     assert codes == dict.fromkeys(codes, 0), codes
 
     with Session(engine) as session:
@@ -154,6 +156,8 @@ def test_the_nightly_chain_leaves_the_night_it_should(chain_engine, monkeypatch)
         snapshot_days = {s.date for s in session.exec(select(PortfolioSnapshot)).all()}
         assert WEDNESDAY.date() in snapshot_days
         runs = session.exec(select(JobRun)).all()
-        assert {r.job for r in runs} == set(codes) | {"aegis-sync"}
-        assert {r.job: r.status for r in runs}["aegis-sync"] == "skipped"
-        assert all(r.status == "succeeded" for r in runs if r.job != "aegis-sync")
+        skipped = {"aegis-sync", "revalidate-web"}
+        assert {r.job for r in runs} == set(codes) | skipped
+        statuses = {r.job: r.status for r in runs}
+        assert all(statuses[job] == "skipped" for job in skipped)
+        assert all(r.status == "succeeded" for r in runs if r.job not in skipped)

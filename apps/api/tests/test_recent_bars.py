@@ -9,9 +9,13 @@ from sqlalchemy.dialects import postgresql
 from sqlmodel import Session
 
 from stockviz.models import PriceBar, Symbol
-from stockviz.routers.screener import _momentum_by_ticker
 from stockviz.services.recent_bars import recent_closes, recent_closes_statement
+from stockviz.services.screener import _momentum as _momentum_raw
 from tests.pg_scratch import postgres_admin_url, scratch_postgres_engine
+
+
+def _momentum_by_ticker(session, tickers, *, days):
+    return _momentum_raw(session, tickers, days)
 
 
 def seed(session: Session) -> None:

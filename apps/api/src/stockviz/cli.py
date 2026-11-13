@@ -176,6 +176,36 @@ def _cmd_earnings(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_outbox_dead(_args: argparse.Namespace) -> int:
+    """OP-12: list outbox events that will not be retried. Read-only."""
+    from stockviz.events.outbox import dead_events
+
+    with Session(engine) as session:
+        rows = dead_events(session)
+    for row in rows:
+        print(
+            f"{row.created_at.isoformat()} {row.event_type} key={row.partition_key} "
+            f"attempts={row.publish_attempts} error={(row.last_error or '')[:160]}"
+        )
+    print(f"{len(rows)} dead outbox event(s)")
+    return 0
+
+
+def _cmd_earnings_duplicates(_args: argparse.Namespace) -> int:
+    """RS-10: rows left by date moves before Phase 7.5. Lists; never deletes."""
+    from stockviz.services.ingest.earnings import duplicate_upcoming
+
+    with Session(engine) as session:
+        found = duplicate_upcoming(session)
+    if not found:
+        print("no tickers with more than one upcoming report date close together")
+        return 0
+    for ticker, days in found:
+        print(f"{ticker}: {', '.join(d.isoformat() for d in days)}")
+    print(f"{len(found)} ticker(s); removing the stale rows needs the owner's approval")
+    return 0
+
+
 def _cmd_corporate_actions(args: argparse.Namespace) -> int:
     """Record splits for ledger tickers, then rebase the ledger for due ones (#65).
 
@@ -257,10 +287,14 @@ def _cmd_prune_events(args: argparse.Namespace) -> int:
             include_unpublished=args.include_unpublished,
         )
         session.commit()
+        from stockviz.services.notifications import prune_read
+
+        notices = prune_read(session)
     print(
         f"pruned events older than {args.days} day(s): {result.published} published outbox, "
         f"{result.unpublished} unpublished outbox, {result.inbox} inbox, "
-        f"{result.auth_counters} expired sign-in counters"
+        f"{result.auth_counters} expired sign-in counters, "
+        f"{notices} read notifications over 180 days old"
     )
     return 0
 
@@ -362,6 +396,182 @@ def _cmd_instrument_check(_args: argparse.Namespace) -> int:
             print(f"  {table}: {rows} rows, {missing} missing, {wrong} mismatched{flag}")
             bad = bad or missing > 0 or wrong > 0
     return 1 if bad else 0
+
+
+def _cmd_fundamentals(args: argparse.Namespace) -> int:
+    """Fetch company fundamentals and append them point-in-time (Phase 6.3).
+
+    ``--source yfinance`` (default): every active equity, not point-in-time.
+    ``--source edgar``: US equities, point-in-time; exit 2 without
+    ``SEC_USER_AGENT``. Exit 1 if any symbol failed.
+    """
+    from stockviz._time import utcnow
+    from stockviz.services.fundamentals import ingest as fi
+
+    settings = get_settings()
+    with Session(engine) as session:
+        if args.source == "edgar":
+            if not settings.sec_user_agent.strip():
+                print("SEC_USER_AGENT is not set: EDGAR is off")
+                return 2
+            tickers = [t.upper() for t in args.tickers] or fi.equity_tickers(session, country="US")
+            report = fi.ingest(session, tickers, fi.edgar_fetcher(settings.sec_user_agent))
+        else:
+            tickers = [t.upper() for t in args.tickers] or fi.equity_tickers(session)
+            report = fi.ingest(
+                session,
+                tickers,
+                fi.yfinance_fetcher(utcnow().date()),
+                pause=fi.YFINANCE_GAP_SECONDS,
+            )
+    print(
+        f"fundamentals ({args.source}): {len(report.written)} symbols, "
+        f"{sum(report.written.values())} facts written, {len(report.failed)} failed"
+    )
+    for ticker, reason in report.failed.items():
+        print(f"  {ticker}: {reason}")
+    return 1 if report.failed else 0
+
+
+REVALIDATE_HEADER = "X-StockViz-Revalidate"
+REVALIDATE_LABEL = b"stockviz-revalidate-v1"
+
+
+def revalidate_key(secret: str) -> str:
+    """HMAC-SHA256 of a fixed label under INTERNAL_API_TOKEN (web checks the same)."""
+    import hashlib
+    import hmac
+
+    return hmac.new(secret.encode(), REVALIDATE_LABEL, hashlib.sha256).hexdigest()
+
+
+def _cmd_revalidate_web(_args: argparse.Namespace) -> int:
+    """Ask the web server to drop cached market data (audit RS-9, Phase 6.6).
+
+    Exit 2 when ``WEB_REVALIDATE_URL`` is unset; 1 when the web rejects the
+    key (a configuration error); 0 otherwise, including when the web cannot
+    be reached: a sleeping web holds no cache, it starts empty on wake.
+    """
+    import httpx
+
+    settings = get_settings()
+    url = settings.web_revalidate_url.strip()
+    if not url:
+        print("WEB_REVALIDATE_URL is not set: skipping web revalidation")
+        return 2
+    try:
+        response = httpx.post(
+            url,
+            headers={REVALIDATE_HEADER: revalidate_key(settings.internal_api_token)},
+            timeout=30.0,
+        )
+    except httpx.HTTPError as exc:
+        print(
+            f"web revalidation not delivered ({type(exc).__name__}); its cache refreshes on its own"
+        )
+        return 0
+    if response.status_code in (401, 403):
+        print(f"web rejected the revalidation key ({response.status_code})")
+        return 1
+    if response.status_code >= 400:
+        print(f"web revalidation answered {response.status_code}; its cache refreshes on its own")
+        return 0
+    print(f"web revalidated: {response.text[:200]}")
+    return 0
+
+
+def _cmd_benchmark_kernel(args: argparse.Namespace) -> int:
+    """Kernel + SimLedger throughput on a seeded walk (Phase 5.1). No database."""
+    from stockviz.benchmarks.kernel import run
+
+    result = run(bars=args.bars)
+    print(
+        f"{result.bars} bars in {result.seconds:.3f}s: "
+        f"{result.fills_per_second:,.0f} fills/s (kernel evaluate + SimLedger apply)"
+    )
+    return 0
+
+
+def _cmd_kite_login_url(_args: argparse.Namespace) -> int:
+    """Print Zerodha's login page for the Kite app (Phase 4.7). Exit 2 without a key."""
+    from stockviz.services.ingest.providers.kite import login_url
+
+    settings = get_settings()
+    if not settings.kite_api_key:
+        print("KITE_API_KEY is not set: Kite is off")
+        return 2
+    print(login_url(settings.kite_api_key))
+    print(
+        "Log in there. Zerodha redirects to the app's redirect address with "
+        "?request_token=...; pass it to `ingest-history --provider kite --request-token`."
+    )
+    return 0
+
+
+def _cmd_ingest_history(args: argparse.Namespace) -> int:
+    """One-off full-history pull from an optional provider (Phase 4.7).
+
+    Dry run unless ``--apply``: per ticker, bars fetched, new days, overlap
+    with stored bars and the largest close difference there. Exit 2 when the
+    provider is not configured, 1 if any ticker failed.
+    """
+    from datetime import date as date_type
+
+    from stockviz.services.ingest.history import indian_tickers, snapshot
+
+    if args.provider != "kite":
+        print(f"provider {args.provider!r}: no adapter yet (TrueData comes with its trial)")
+        return 2
+    from stockviz.services.ingest.providers.kite import KiteError, kite_symbol, open_session
+
+    settings = get_settings()
+    if not (settings.kite_api_key and settings.kite_api_secret):
+        print("KITE_API_KEY and KITE_API_SECRET are not set: Kite is off")
+        return 2
+    if not args.request_token:
+        print("--request-token is required; get one with `stockviz.cli kite-login-url`")
+        return 2
+    try:
+        client = open_session(settings.kite_api_key, settings.kite_api_secret, args.request_token)
+    except KiteError as exc:
+        print(f"Kite login failed: {exc}")
+        return 1
+
+    tokens: dict[str, dict[str, int]] = {}
+    end = date_type.today()
+
+    def fetch(ticker: str):
+        venue = kite_symbol(ticker)
+        if venue is None:
+            raise ValueError("not an NSE or BSE ticker")
+        exchange, symbol = venue
+        if exchange not in tokens:
+            tokens[exchange] = client.instrument_tokens(exchange)
+        token = tokens[exchange].get(symbol)
+        if token is None:
+            raise ValueError(f"{exchange}:{symbol} not in Kite's instrument list")
+        return client.daily_bars(ticker, token, end=end), str(token)
+
+    with Session(engine) as session:
+        tickers = [t.upper() for t in args.tickers] or indian_tickers(session)
+        reports = snapshot(session, tickers, fetch, scheme="kite", apply=args.apply)
+    failed = False
+    for r in reports:
+        if r.error:
+            failed = True
+            print(f"  {r.ticker}: FAILED {r.error}")
+            continue
+        print(
+            f"  {r.ticker}: {r.fetched} bars, {r.new_days} new days, {r.overlap} overlap, "
+            f"max close diff {r.max_close_diff_pct}%"
+            + (f", {r.written} written" if args.apply else "")
+        )
+    if not args.apply:
+        print(
+            "dry run: nothing written. Check the overlap differences and the provider's "
+            "data terms (redistribution) before --apply."
+        )
+    return 1 if failed else 0
 
 
 def _cmd_instrument_verify(_args: argparse.Namespace) -> int:
@@ -1092,6 +1302,8 @@ def _cmd_ingest_quarantine(args: argparse.Namespace) -> int:
 RECORDED_JOBS = frozenset(
     {
         "ingest",
+        "fundamentals",
+        "revalidate-web",
         "corporate-actions",
         "fx",
         "settle-orders",
@@ -1297,6 +1509,13 @@ def main(argv: list[str] | None = None) -> int:
     )
     p_earnings.add_argument("tickers", nargs="*", help="Optional ticker filter")
     p_earnings.set_defaults(fn=_cmd_earnings)
+    sub.add_parser(
+        "outbox-dead", help="List outbox events that exhausted their publish attempts (OP-12)"
+    ).set_defaults(fn=_cmd_outbox_dead)
+    sub.add_parser(
+        "earnings-duplicates",
+        help="List upcoming earnings dates that look like one report stored twice (read-only)",
+    ).set_defaults(fn=_cmd_earnings_duplicates)
 
     sub.add_parser(
         "credit-dividends", help="Credit today's due dividends to all eligible portfolios"
@@ -1346,6 +1565,37 @@ def main(argv: list[str] | None = None) -> int:
         "instrument-check",
         help="Read-only: rows whose instrument_id the identity triggers missed (Phase 4.3)",
     ).set_defaults(fn=_cmd_instrument_check)
+
+    p_fund = sub.add_parser(
+        "fundamentals", help="Append company fundamentals point-in-time (Phase 6.3)"
+    )
+    p_fund.add_argument("--source", choices=["yfinance", "edgar"], default="yfinance")
+    p_fund.add_argument("tickers", nargs="*", help="Default: every active equity")
+    p_fund.set_defaults(fn=_cmd_fundamentals)
+
+    sub.add_parser(
+        "revalidate-web", help="Tell the web to drop cached market data (RS-9)"
+    ).set_defaults(fn=_cmd_revalidate_web)
+
+    p_bench = sub.add_parser(
+        "benchmark-kernel", help="Kernel + SimLedger throughput, no database (Phase 5.1)"
+    )
+    p_bench.add_argument("--bars", type=int, default=20_000)
+    p_bench.set_defaults(fn=_cmd_benchmark_kernel)
+
+    sub.add_parser(
+        "kite-login-url", help="Print Zerodha's login page for the Kite app (Phase 4.7)"
+    ).set_defaults(fn=_cmd_kite_login_url)
+
+    p_hist = sub.add_parser(
+        "ingest-history",
+        help="One-off full-history pull from an optional provider; dry run unless --apply",
+    )
+    p_hist.add_argument("--provider", choices=["kite", "truedata"], required=True)
+    p_hist.add_argument("--request-token", default=None, help="Kite: from the login redirect")
+    p_hist.add_argument("--apply", action="store_true", help="Write the bars (default: report)")
+    p_hist.add_argument("tickers", nargs="*", help="Default: every active NSE/BSE symbol")
+    p_hist.set_defaults(fn=_cmd_ingest_history)
 
     sub.add_parser(
         "instrument-verify",

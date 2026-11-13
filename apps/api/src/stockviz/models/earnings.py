@@ -22,7 +22,7 @@ class EarningsEvent(SQLModel, table=True):
     __tablename__ = "earnings_events"  # pyright: ignore[reportAssignmentType]
     __table_args__ = (
         UniqueConstraint(
-            "ticker", "event_date", "fiscal_period", name="uq_earnings_events_identity"
+            "instrument_id", "event_date", "fiscal_period", name="uq_earnings_events_identity"
         ),
         Index("ix_earnings_events_date_ticker", "event_date", "ticker"),
     )
@@ -45,5 +45,8 @@ class EarningsEvent(SQLModel, table=True):
         default=None, sa_column=Column(Numeric(18, 6), nullable=True)
     )
     source: str = Field(default="yfinance", max_length=32, nullable=False)
+    # RS-10 (Phase 7.5): when the provider moved an unreported date, the row
+    # moves with it and keeps the date it had.
+    previous_date: date_type | None = Field(default=None, nullable=True)
     fetched_at: datetime = Field(default_factory=utcnow, nullable=False)
     created_at: datetime = Field(default_factory=utcnow, nullable=False)

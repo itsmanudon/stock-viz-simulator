@@ -48,6 +48,7 @@ from stockviz.services.trading.buying_power import (
     available_cash,
     lock_portfolio,
 )
+from stockviz.services.trading.cash import base_currency, credit, pay_for_buy, plan_buy
 from stockviz.services.trading.execute import (
     InsufficientCash,
     InsufficientPosition,
@@ -55,6 +56,7 @@ from stockviz.services.trading.execute import (
     apply_fill,
     ensure_default_portfolio,
 )
+from stockviz.services.trading.fx import base_rate
 
 logger = logging.getLogger(__name__)
 
@@ -187,6 +189,8 @@ def quote_option(
         raise OptionSymbolNotFound(f"Symbol {ticker!r} not found")
     if symbol.currency != "USD":
         raise OptionTradeError("Options paper trading currently supports USD underlyings only")
+    if ticker.startswith("^"):
+        raise OptionTradeError(f"{ticker} is an index: options are on stocks only")
 
     today = utcnow().date()
     if expiry <= today:
@@ -287,16 +291,23 @@ def open_option(
     assert portfolio.id is not None
     portfolio_id = portfolio.id
     portfolio = lock_portfolio(session, portfolio_id)
+    # Phase 4.8: the premium is in USD (options are USD underlyings only). A
+    # USD book pays it from its base cash; an INR book spends any USD cash it
+    # holds first and converts the shortfall from rupees, as a stock buy does.
+    base = base_currency(portfolio)
     try:
         spendable = available_cash(session, portfolio)
+        rate = base_rate(session, "USD", base)
     except LookupError as exc:
         raise NoFxRateError(str(exc)) from exc
-    if spendable < premium:
+    funding = plan_buy(session, portfolio, "USD", premium, rate)
+    if spendable < funding.base_debit:
         raise InsufficientCashForOption(
-            f"Available buying power ${spendable:.2f}; option premium ${premium:.2f}."
+            f"Available buying power {base} {spendable:,.2f}; option premium "
+            f"{base} {funding.base_debit:,.2f}."
         )
 
-    portfolio.cash_balance = (portfolio.cash_balance - premium).quantize(_MICROS)
+    pay_for_buy(session, portfolio, "USD", funding, rate)
     position = OptionsPosition(
         user_id=user_id,
         portfolio_id=portfolio_id,
@@ -355,7 +366,8 @@ def close_option(session: Session, *, user_id: int, option_id: int) -> OptionTra
     if position.status != OptionStatus.OPEN:
         raise OptionTradeError(f"Option position is already {position.status.value}")
 
-    portfolio.cash_balance = (portfolio.cash_balance + proceeds).quantize(_MICROS)
+    # Proceeds are USD: a USD book's base cash, an INR book's USD balance.
+    credit(session, portfolio, "USD", proceeds)
     position.status = OptionStatus.CLOSED
     position.settled_at = utcnow()
     _record_realization(position, proceeds=proceeds)
@@ -384,9 +396,14 @@ def _record_realization(
 
 
 def _cash_settle(
-    portfolio: Portfolio, position: OptionsPosition, *, intrinsic: Decimal, why: str
+    session: Session,
+    portfolio: Portfolio,
+    position: OptionsPosition,
+    *,
+    intrinsic: Decimal,
+    why: str,
 ) -> None:
-    portfolio.cash_balance = (portfolio.cash_balance + intrinsic).quantize(_MICROS)
+    credit(session, portfolio, "USD", intrinsic)
     _record_realization(position, proceeds=intrinsic)
     logger.info(
         "options_settle: %s %s cash-settled (%s) +%s",
@@ -418,11 +435,13 @@ def _exercise_call_into_equity(
             quantity=shares,
             price=position.strike,
             currency="USD",  # options are USD underlyings only (open_option)
-            fx_rate=Decimal(1),
+            fx_rate=base_rate(session, "USD", base_currency(portfolio)),
         )
     except InsufficientCash:
         intrinsic = ((spot - position.strike) * shares).quantize(_CENTS)
-        _cash_settle(portfolio, position, intrinsic=intrinsic, why="insufficient cash to exercise")
+        _cash_settle(
+            session, portfolio, position, intrinsic=intrinsic, why="insufficient cash to exercise"
+        )
         return
     # Exercised into the equity book: the upside carries forward as a
     # strike-priced cost basis and is realized by a later sell, so the option
@@ -450,11 +469,13 @@ def _exercise_put(
             quantity=shares,
             price=position.strike,
             currency="USD",
-            fx_rate=Decimal(1),
+            fx_rate=base_rate(session, "USD", base_currency(portfolio)),
         )
     except InsufficientPosition:
         intrinsic = ((position.strike - spot) * shares).quantize(_CENTS)
-        _cash_settle(portfolio, position, intrinsic=intrinsic, why="not enough shares to deliver")
+        _cash_settle(
+            session, portfolio, position, intrinsic=intrinsic, why="not enough shares to deliver"
+        )
         return
     _record_realization(position, proceeds=Decimal("0"), realized_pnl=-position.premium_paid)
 
@@ -559,6 +580,24 @@ def settle_expired_options(session: Session, *, settle_date: date_type) -> int:
         position.settled_at = utcnow()
         session.add(portfolio)
         session.add(position)
+        from stockviz.models import NotificationCategory
+        from stockviz.services.notifications import notify
+
+        notify(
+            session,
+            user_id=portfolio.user_id,
+            category=NotificationCategory.OPTION,
+            title=(
+                f"{position.ticker} {position.strike:,.2f} {position.option_type.value} "
+                f"{position.status.value}"
+            ),
+            body=(
+                f"Settled on the {position.expiry.isoformat()} expiry at a {spot:,.2f} close; "
+                f"realized {position.realized_pnl or 0:,.2f} USD."
+            ),
+            link="/portfolio?tab=options",
+            source_key=f"option:{position.id}:settled",
+        )
         session.commit()
         settled += 1
         logger.info("options_settle: option %s -> %s", position.id, position.status.value)

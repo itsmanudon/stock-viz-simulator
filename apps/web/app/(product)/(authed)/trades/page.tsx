@@ -42,6 +42,8 @@ export default async function TradesPage() {
   const winningSells = sells.filter((trade) => Number(trade.realized_pnl) > 0).length;
   const buys = trades.filter((trade) => trade.side === "buy").length;
   const realized = sells.reduce((sum, trade) => sum + Number(trade.realized_pnl), 0);
+  // Realized P&L is in the account's base currency (Phase 4.8).
+  const baseCurrency = trades[0]?.base_currency ?? "USD";
 
   return (
     <div className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:py-7">
@@ -108,7 +110,7 @@ export default async function TradesPage() {
                           {realized === 0 ? null : (
                             <span aria-hidden>{realized > 0 ? "▲ " : "▼ "}</span>
                           )}
-                          {formatSignedCurrency(realized, "USD")}
+                          {formatSignedCurrency(realized, baseCurrency)}
                         </span>
                       ),
                       note: "USD, all sells listed",
@@ -172,7 +174,7 @@ export default async function TradesPage() {
                     >
                       {trade.realized_pnl === null
                         ? null
-                        : formatSignedCurrency(trade.realized_pnl, "USD")}
+                        : formatSignedCurrency(trade.realized_pnl, trade.base_currency ?? "USD")}
                     </NumericCell>
                   </TableRow>
                 ))}

@@ -102,8 +102,18 @@ describe("Watchlist and alert native prices", () => {
 
 describe("Alert form stored-close copy", () => {
   it("shows the current stored close in the symbol currency", () => {
-    render(<AlertForm ticker="7203.T" lastClose="2800" currency="JPY" variant="inline" />);
-    expect(screen.getByText(/Current stored close: ¥2,800/)).toBeVisible();
+    render(
+      <AlertForm
+        ticker="7203.T"
+        lastClose="2800"
+        lastCloseAt="2026-11-12T00:00:00"
+        currency="JPY"
+        variant="inline"
+      />,
+    );
+    expect(screen.getByTestId("alert-close")).toHaveTextContent(
+      "Stored close ¥2,800 on Nov 12, 2026.",
+    );
     expect(screen.queryByText(/\$2,800/)).toBeNull();
   });
 });

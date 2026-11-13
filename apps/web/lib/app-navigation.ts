@@ -29,6 +29,7 @@ export const APP_NAVIGATION: readonly NavigationGroup[] = [
       "/stocks",
       "/backtest",
       "/replay",
+      "/news-reactions",
     ],
     items: [
       { label: "Screener", href: "/screener", matches: ["/screener"] },
@@ -37,6 +38,7 @@ export const APP_NAVIGATION: readonly NavigationGroup[] = [
       { label: "Backtest", href: "/backtest", matches: ["/backtest"] },
       { label: "Replay", href: "/replay", matches: ["/replay"] },
       { label: "News", href: "/news", matches: ["/news"] },
+      { label: "News reactions", href: "/news-reactions", matches: ["/news-reactions"] },
     ],
   },
   {
@@ -79,6 +81,7 @@ export const RESEARCH_SUBNAV = [
   { href: "/backtest", label: "Backtest" },
   { href: "/recommendations", label: "Signals" },
   { href: "/replay", label: "Replay" },
+  { href: "/news-reactions", label: "News reactions" },
 ] as const;
 
 /**

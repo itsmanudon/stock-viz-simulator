@@ -15,7 +15,11 @@ const MAX_ROWS = 4;
  * in the currency each alert row carries.
  */
 export function AlertsWidget({ alerts }: { alerts: Alert[] | null }) {
-  const fmtTarget = (alert: Alert) => formatCurrency(alert.target_price, alert.currency ?? "USD");
+  const fmtTarget = (alert: Alert) =>
+    alert.target_price === null ? "" : formatCurrency(alert.target_price, alert.currency ?? "USD");
+  // Phase 7.1: rules without a ticker (portfolio) or a level (technical, news).
+  const hrefOf = (alert: Alert) =>
+    alert.ticker ? `/stocks/${encodeURIComponent(alert.ticker)}` : "/alerts";
   const all = alerts ?? [];
   const triggered = all.filter((alert) => alert.triggered_at && !alert.dismissed_at);
   const armed = all.filter((alert) => !alert.triggered_at && !alert.dismissed_at);
@@ -44,7 +48,7 @@ export function AlertsWidget({ alerts }: { alerts: Alert[] | null }) {
           {shownTriggered.map((alert) => (
             <Link
               key={alert.id}
-              href={`/stocks/${encodeURIComponent(alert.ticker)}`}
+              href={hrefOf(alert)}
               className="flex items-start gap-2.5 rounded-sm bg-warning-soft px-3 py-2.5 transition-opacity hover:opacity-90"
             >
               <BellRing
@@ -52,8 +56,14 @@ export function AlertsWidget({ alerts }: { alerts: Alert[] | null }) {
                 aria-hidden
               />
               <span className="min-w-0 text-xs leading-5 text-warning-soft-foreground">
-                <span className="ticker font-semibold">{alert.ticker}</span> crossed{" "}
-                {alert.direction} <span className="font-mono">{fmtTarget(alert)}</span>
+                {alert.target_price === null ? (
+                  (alert.description ?? "An alert fired")
+                ) : (
+                  <>
+                    <span className="ticker font-semibold">{alert.ticker}</span> crossed{" "}
+                    {alert.direction} <span className="font-mono">{fmtTarget(alert)}</span>
+                  </>
+                )}
               </span>
             </Link>
           ))}
@@ -62,16 +72,22 @@ export function AlertsWidget({ alerts }: { alerts: Alert[] | null }) {
               {shownArmed.map((alert) => (
                 <li key={alert.id}>
                   <Link
-                    href={`/stocks/${encodeURIComponent(alert.ticker)}`}
+                    href={hrefOf(alert)}
                     className="flex min-h-10 items-center gap-2.5 py-2 text-xs transition-colors hover:text-foreground"
                   >
                     <Bell className="size-3.5 shrink-0 text-text-tertiary" aria-hidden />
-                    <span className="ticker font-semibold">{alert.ticker}</span>
-                    <span className="ml-auto text-text-secondary">
-                      {alert.direction === "above" ? "Above" : "Below"}{" "}
-                      <span className="font-mono" data-financial>
-                        {fmtTarget(alert)}
-                      </span>
+                    <span className="ticker font-semibold">{alert.ticker ?? "Portfolio"}</span>
+                    <span className="ml-auto truncate text-text-secondary">
+                      {alert.target_price === null ? (
+                        (alert.kind ?? "rule")
+                      ) : (
+                        <>
+                          {alert.direction === "above" ? "Above" : "Below"}{" "}
+                          <span className="font-mono" data-financial>
+                            {fmtTarget(alert)}
+                          </span>
+                        </>
+                      )}
                     </span>
                   </Link>
                 </li>

@@ -63,12 +63,67 @@ export interface paths {
         };
         /**
          * Screen Symbols
-         * @description Screen the universe against the precomputed metrics.
+         * @description The original list screen, on the unified query path (RS-5 fixed).
          */
         get: operations["screen_symbols_v1_symbols_screen_get"];
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/screener": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Screener */
+        get: operations["screener_v1_screener_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/screens": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Screens */
+        get: operations["list_screens_v1_screens_get"];
+        put?: never;
+        /**
+         * Save Screen
+         * @description Create a screen, or replace the query of the one with this name.
+         */
+        post: operations["save_screen_v1_screens_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/screens/{screen_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Screen */
+        delete: operations["delete_screen_v1_screens__screen_id__delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -257,8 +312,92 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get Indicators */
+        /**
+         * Get Indicators
+         * @description Indicators over a window of bars, warmed up on the bars before it (RS-1).
+         *
+         *     The window is the last ``limit`` bars within ``from``/``to``. The bars each
+         *     indicator needs before that window are loaded too, so a value on a given
+         *     day is the same whatever window the chart asks for.
+         */
         get: operations["get_indicators_v1_symbols__ticker__indicators_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/symbols/{ticker}/fundamentals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Fundamentals */
+        get: operations["get_fundamentals_v1_symbols__ticker__fundamentals_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/symbols/{ticker}/valuation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Valuation
+         * @description Multiples and quality metrics as known on ``as_of`` (Phase 6.4).
+         */
+        get: operations["get_valuation_v1_symbols__ticker__valuation_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/symbols/{ticker}/valuation/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Valuation History
+         * @description Month-end values of one multiple, each computed as known on that day.
+         */
+        get: operations["get_valuation_history_v1_symbols__ticker__valuation_history_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/indicators/catalog": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Catalog
+         * @description Every indicator the engine offers, with its parameters and defaults.
+         */
+        get: operations["get_catalog_v1_indicators_catalog_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -294,6 +433,29 @@ export interface paths {
         /** Get Portfolio */
         get: operations["get_portfolio_v1_portfolio_get"];
         put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/portfolio/base-currency": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Put Base Currency
+         * @description Restart a fresh account in USD ($100,000) or INR (₹1 crore) — Phase 4.8.
+         *
+         *     409 once the account has any trade, order, option, dividend or foreign
+         *     cash. Also sets the display currency to the new base.
+         */
+        put: operations["put_base_currency_v1_portfolio_base_currency_put"];
         post?: never;
         delete?: never;
         options?: never;
@@ -447,12 +609,52 @@ export interface paths {
         };
         /**
          * List Alerts
-         * @description Return every alert the user owns, newest first.
+         * @description Return every rule the user owns, newest first.
          */
         get: operations["list_alerts_v1_alerts_get"];
         put?: never;
         /** Create Alert */
         post: operations["create_alert_v1_alerts_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/alerts/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Events
+         * @description Every firing of the user's rules, newest first (the alert history).
+         */
+        get: operations["list_events_v1_alerts_events_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/alerts/{alert_id}/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Rule Events
+         * @description One rule's firings, newest first.
+         */
+        get: operations["list_rule_events_v1_alerts__alert_id__events_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -473,6 +675,30 @@ export interface paths {
         delete: operations["delete_alert_v1_alerts__alert_id__delete"];
         options?: never;
         head?: never;
+        /**
+         * Patch Alert
+         * @description Pause or resume a rule. Resuming re-arms it from the current state.
+         */
+        patch: operations["patch_alert_v1_alerts__alert_id__patch"];
+        trace?: never;
+    };
+    "/v1/alerts/{alert_id}/rearm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Rearm Alert
+         * @description Restart a rule that fired (audit RS-8: alerts could not be re-armed).
+         */
+        post: operations["rearm_alert_v1_alerts__alert_id__rearm_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
         patch?: never;
         trace?: never;
     };
@@ -487,10 +713,10 @@ export interface paths {
         put?: never;
         /**
          * Dismiss Alert
-         * @description Mark a triggered alert as read.
+         * @description Mark a rule's last firing as read.
          *
-         *     Only triggered alerts can be dismissed — dismissing an un-triggered alert
-         *     is a no-op that returns 422 so the UI can surface the mistake.
+         *     Only a rule that fired can be dismissed — dismissing one that has not is
+         *     a no-op that returns 422 so the UI can surface the mistake.
          */
         post: operations["dismiss_alert_v1_alerts__alert_id__dismiss_post"];
         delete?: never;
@@ -737,6 +963,117 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/experiments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Experiments */
+        get: operations["list_experiments_v1_experiments_get"];
+        put?: never;
+        /** Create Experiment */
+        post: operations["create_experiment_v1_experiments_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/experiments/runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Runs */
+        get: operations["list_runs_v1_experiments_runs_get"];
+        put?: never;
+        /** Post Run */
+        post: operations["post_run_v1_experiments_runs_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/experiments/walk-forward": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Post Walk Forward
+         * @description Phase 5.5: choose on each in-sample period, score on the next; stored.
+         */
+        post: operations["post_walk_forward_v1_experiments_walk_forward_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/experiments/sweep": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Post Sweep
+         * @description Phase 5.5: every setting over the whole range, ranked; stored.
+         */
+        post: operations["post_sweep_v1_experiments_sweep_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/experiments/runs/{run_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Run */
+        get: operations["get_run_v1_experiments_runs__run_id__get"];
+        put?: never;
+        post?: never;
+        /** Delete Run */
+        delete: operations["delete_run_v1_experiments_runs__run_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/experiments/runs/{run_id}/rerun": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Post Rerun */
+        post: operations["post_rerun_v1_experiments_runs__run_id__rerun_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/replay/availability": {
         parameters: {
             query?: never;
@@ -806,7 +1143,10 @@ export interface paths {
         put?: never;
         /**
          * Post Replay Advance
-         * @description Advance one stored 1d bar. Completes when the frozen end is reached.
+         * @description Advance one stored 1d bar; from the last bar, complete the session.
+         *
+         *     Pass ``expected_current_at`` (the bar on screen): a repeated request then
+         *     changes nothing (audit SR-10).
          */
         post: operations["post_replay_advance_v1_replay_sessions__session_id__advance_post"];
         delete?: never;
@@ -1039,55 +1379,268 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/notifications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Notifications
+         * @description Newest first. ``before_id`` pages back.
+         */
+        get: operations["list_notifications_v1_notifications_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/notifications/unread-count": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Unread Count */
+        get: operations["unread_count_v1_notifications_unread_count_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/notifications/{notification_id}/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Mark Read */
+        post: operations["mark_read_v1_notifications__notification_id__read_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/notifications/read-all": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Mark All Read */
+        post: operations["mark_all_read_v1_notifications_read_all_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/research/event-study": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Event Study
+         * @description ``tickers`` may repeat (``?tickers=A&tickers=B``) or be comma-separated.
+         */
+        get: operations["event_study_v1_research_event_study_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Status */
+        get: operations["status_v1_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
         /**
-         * AlertIn
-         * @description Request body for POST /v1/alerts.
+         * AlertEventOut
+         * @description One firing of a rule: what was seen, against what, on which bar.
          */
-        AlertIn: {
-            /** Ticker */
-            ticker: string;
-            /**
-             * Direction
-             * @enum {string}
-             */
-            direction: "above" | "below";
-            /** Target Price */
-            target_price: number | string;
-        };
-        /**
-         * AlertOut
-         * @description One alert row in API responses.
-         */
-        AlertOut: {
+        AlertEventOut: {
             /** Id */
             id: number;
+            /** Alert Id */
+            alert_id: number;
+            /** Kind */
+            kind: string;
             /** Ticker */
-            ticker: string;
+            ticker: string | null;
             /**
-             * Direction
-             * @enum {string}
+             * Session Date
+             * Format: date
              */
-            direction: "above" | "below";
-            /** Target Price */
-            target_price: string;
+            session_date: string;
+            /** Bar Date */
+            bar_date: string | null;
+            /** Observed */
+            observed: string | null;
+            /** Threshold */
+            threshold: string | null;
+            /** Message */
+            message: string;
+            /** Source */
+            source: string;
             /**
              * Created At
              * Format: date-time
              */
             created_at: string;
+        };
+        /**
+         * AlertIn
+         * @description Request body for POST /v1/alerts (Phase 7.1: rules of several kinds).
+         *
+         *     A price-level alert keeps the original shape: ``ticker``, ``direction``,
+         *     ``target_price``. Other rules name a ``kind`` and its ``params`` (see
+         *     ``services/alerts/rules.py``).
+         */
+        AlertIn: {
+            /** Ticker */
+            ticker?: string | null;
+            /**
+             * Kind
+             * @default price
+             * @enum {string}
+             */
+            kind: "price" | "technical" | "news" | "portfolio";
+            /** Direction */
+            direction?: ("above" | "below") | null;
+            /** Target Price */
+            target_price?: number | string | null;
+            /** Params */
+            params?: {
+                [key: string]: unknown;
+            } | null;
+            /**
+             * Repeat
+             * @default once
+             * @enum {string}
+             */
+            repeat: "once" | "every_cross";
+            /**
+             * Cooldown Sessions
+             * @default 1
+             */
+            cooldown_sessions: number;
+        };
+        /**
+         * AlertOut
+         * @description One alert rule in API responses.
+         */
+        AlertOut: {
+            /** Id */
+            id: number;
+            /** Ticker */
+            ticker: string | null;
+            /**
+             * Kind
+             * @default price
+             */
+            kind: string;
+            /** Direction */
+            direction: ("above" | "below") | null;
+            /** Target Price */
+            target_price: string | null;
+            /** Params */
+            params?: {
+                [key: string]: unknown;
+            } | null;
+            /**
+             * Repeat
+             * @default once
+             */
+            repeat: string;
+            /**
+             * Cooldown Sessions
+             * @default 1
+             */
+            cooldown_sessions: number;
+            /**
+             * Paused
+             * @default false
+             */
+            paused: boolean;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Armed At */
+            armed_at?: string | null;
             /** Triggered At */
             triggered_at: string | null;
             /** Dismissed At */
             dismissed_at: string | null;
+            /** Last State */
+            last_state?: boolean | null;
+            /** Last Bar Date */
+            last_bar_date?: string | null;
+            /** Last Fired Bar Date */
+            last_fired_bar_date?: string | null;
+            /**
+             * Description
+             * @default
+             */
+            description: string;
             /**
              * Currency
              * @default USD
              */
             currency: string;
+        };
+        /**
+         * AlertPatch
+         * @description ``PATCH /v1/alerts/{id}``: pause or resume a rule.
+         */
+        AlertPatch: {
+            /** Paused */
+            paused: boolean;
+        };
+        /** BacktestFeeOut */
+        BacktestFeeOut: {
+            /** Name */
+            name: string;
+            /** Amount */
+            amount: string;
         };
         /**
          * BacktestIn
@@ -1125,11 +1678,62 @@ export interface components {
              * @default 0
              */
             slippage_bps: number;
+            /**
+             * Return Mode
+             * @default price
+             * @enum {string}
+             */
+            return_mode: "price" | "total";
+            /**
+             * Fill Rule
+             * @default next_open
+             * @enum {string}
+             */
+            fill_rule: "next_open" | "next_close";
+            /**
+             * Spread Bps
+             * @default 0
+             */
+            spread_bps: number;
+            /**
+             * Fee Schedule
+             * @default none
+             * @enum {string}
+             */
+            fee_schedule: "none" | "us_equity_2026" | "in_delivery_nse_2026" | "in_delivery_bse_2026";
         };
         /** BacktestOut */
         BacktestOut: {
             /** Ticker */
             ticker: string;
+            /**
+             * Currency
+             * @default USD
+             */
+            currency: string;
+            /** Price Basis */
+            price_basis?: string | null;
+            /**
+             * Return Mode
+             * @default price
+             * @enum {string}
+             */
+            return_mode: "price" | "total";
+            /**
+             * Warmup Bars
+             * @default 0
+             */
+            warmup_bars: number;
+            /**
+             * Execution Profile
+             * @default legacy_close/v1
+             */
+            execution_profile: string;
+            /**
+             * Fee Schedule
+             * @default none
+             */
+            fee_schedule: string;
             /** Trades */
             trades: components["schemas"]["BacktestTradeOut"][];
             /** Equity Curve */
@@ -1189,6 +1793,13 @@ export interface components {
             price: string;
             /** Shares */
             shares: string;
+            /** Reference Price */
+            reference_price?: string | null;
+            /**
+             * Fees
+             * @default []
+             */
+            fees: components["schemas"]["BacktestFeeOut"][];
         };
         /** BarOut */
         BarOut: {
@@ -1207,6 +1818,14 @@ export interface components {
             close: string;
             /** Volume */
             volume: number;
+        };
+        /**
+         * BaseCurrencyIn
+         * @description ``PUT /v1/portfolio/base-currency``: restart a fresh account in USD or INR.
+         */
+        BaseCurrencyIn: {
+            /** Base Currency */
+            base_currency: string;
         };
         /**
          * CommentIn
@@ -1344,6 +1963,94 @@ export interface components {
             /** Nav */
             nav: string;
         };
+        /** EventStudyEventOut */
+        EventStudyEventOut: {
+            /** Ticker */
+            ticker: string;
+            /** Document Id */
+            document_id: string;
+            /** Title */
+            title: string;
+            /**
+             * Available At
+             * Format: date-time
+             */
+            available_at: string;
+            /**
+             * Event Date
+             * Format: date
+             */
+            event_date: string;
+            /** Car Pct */
+            car_pct: number;
+        };
+        /**
+         * EventStudyOut
+         * @description Abnormal returns around news of a kind. Association, not cause.
+         */
+        EventStudyOut: {
+            /** Tickers */
+            tickers: string[];
+            /** Sentiment */
+            sentiment: string | null;
+            /** Event Type */
+            event_type: string | null;
+            /** Pre */
+            pre: number;
+            /** Post */
+            post: number;
+            /**
+             * Model
+             * @default market-adjusted: stock log return minus its market index's
+             */
+            model: string;
+            /** Benchmarks */
+            benchmarks: {
+                [key: string]: string;
+            };
+            /** No Benchmark */
+            no_benchmark: string[];
+            /** Min Events */
+            min_events: number;
+            /** Enough */
+            enough: boolean;
+            /** Events Found */
+            events_found: number;
+            /** Events Used */
+            events_used: number;
+            /** Events Incomplete */
+            events_incomplete: number;
+            /** Overlapping */
+            overlapping: number;
+            /** Windows */
+            windows: components["schemas"]["EventStudyWindowOut"][];
+            /** Path */
+            path: components["schemas"]["EventStudyPointOut"][];
+            /** Events */
+            events: components["schemas"]["EventStudyEventOut"][];
+        };
+        /** EventStudyPointOut */
+        EventStudyPointOut: {
+            /** Offset */
+            offset: number;
+            /** Mean Car Pct */
+            mean_car_pct: number | null;
+            /** Std Error Pct */
+            std_error_pct: number | null;
+        };
+        /** EventStudyWindowOut */
+        EventStudyWindowOut: {
+            /** Start */
+            start: number;
+            /** End */
+            end: number;
+            /** Mean Car Pct */
+            mean_car_pct: number | null;
+            /** Std Error Pct */
+            std_error_pct: number | null;
+            /** T Stat */
+            t_stat: number | null;
+        };
         /**
          * ExecutionProvenanceOut
          * @description Durable kernel provenance for one live equity paper fill (SIM-04).
@@ -1382,6 +2089,148 @@ export interface components {
              */
             created_at: string;
         };
+        /** ExperimentIn */
+        ExperimentIn: {
+            /** Name */
+            name: string;
+            /** Hypothesis */
+            hypothesis?: string | null;
+        };
+        /** ExperimentOut */
+        ExperimentOut: {
+            /** Id */
+            id: number;
+            /** Name */
+            name: string;
+            /** Hypothesis */
+            hypothesis: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Run Count
+             * @default 0
+             */
+            run_count: number;
+        };
+        /**
+         * ExperimentRerunOut
+         * @description ``identical``: same data, same result. ``data_changed``: the bars or
+         *     dividends the run read are not the same any more, so nothing is compared.
+         *     ``different``: same data, different result (the code changed).
+         */
+        ExperimentRerunOut: {
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "identical" | "different" | "data_changed";
+            /** Stored Fingerprint */
+            stored_fingerprint: string;
+            /** Current Fingerprint */
+            current_fingerprint: string;
+            /**
+             * Differences
+             * @default []
+             */
+            differences: string[];
+        };
+        /**
+         * ExperimentRunIn
+         * @description Save a backtest (Phase 5.4): the same body as POST /v1/backtest.
+         */
+        ExperimentRunIn: {
+            backtest: components["schemas"]["BacktestIn"];
+            /** Experiment Id */
+            experiment_id?: number | null;
+        };
+        /** ExperimentRunOut */
+        ExperimentRunOut: {
+            /** Id */
+            id: number;
+            /** Experiment Id */
+            experiment_id: number | null;
+            /** Parent Run Id */
+            parent_run_id?: number | null;
+            /** Kind */
+            kind: string;
+            /** Ticker */
+            ticker: string;
+            /** Request */
+            request: {
+                [key: string]: unknown;
+            };
+            /** Execution Profile */
+            execution_profile: string;
+            /** Fee Schedule */
+            fee_schedule: string;
+            /** Code Version */
+            code_version: string;
+            /** Dataset Fingerprint */
+            dataset_fingerprint: string;
+            /** Bar Count */
+            bar_count: number;
+            /** First Bar At */
+            first_bar_at: string | null;
+            /** Last Bar At */
+            last_bar_at: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            summary: components["schemas"]["BacktestSummaryOut"];
+            /** Result */
+            result?: {
+                [key: string]: unknown;
+            } | null;
+        };
+        /** FundamentalRowOut */
+        FundamentalRowOut: {
+            /** Concept */
+            concept: string;
+            /** Label */
+            label: string;
+            /** Unit */
+            unit: string;
+            /** Values */
+            values: (string | null)[];
+        };
+        /**
+         * FundamentalsOut
+         * @description Statement figures as known on ``as_of`` (Phase 6.3).
+         *
+         *     ``point_in_time`` is false when any figure came from a source without
+         *     filing dates (yfinance), whose values are dated by when they were fetched.
+         */
+        FundamentalsOut: {
+            /** Ticker */
+            ticker: string;
+            /**
+             * Period
+             * @enum {string}
+             */
+            period: "annual" | "quarter";
+            /**
+             * As Of
+             * Format: date
+             */
+            as_of: string;
+            /** Currency */
+            currency?: string | null;
+            /** Periods */
+            periods: string[];
+            /** Rows */
+            rows: components["schemas"]["FundamentalRowOut"][];
+            /** Sources */
+            sources: string[];
+            /** Point In Time */
+            point_in_time: boolean;
+            /** Latest Available At */
+            latest_available_at?: string | null;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -1410,6 +2259,57 @@ export interface components {
              * @default []
              */
             failing_jobs: string[];
+            /**
+             * Dead Outbox Events
+             * @default 0
+             */
+            dead_outbox_events: number;
+        };
+        /** IndicatorCatalogItemOut */
+        IndicatorCatalogItemOut: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /** Params */
+            params: string[];
+            /** Defaults */
+            defaults: number[];
+            /** Outputs */
+            outputs: string[];
+            /**
+             * Pane
+             * @enum {string}
+             */
+            pane: "price" | "separate";
+            /** Group */
+            group: string;
+        };
+        /** IndicatorMetaOut */
+        IndicatorMetaOut: {
+            /** Label */
+            label: string;
+            /**
+             * Pane
+             * @enum {string}
+             */
+            pane: "price" | "separate";
+            /** Outputs */
+            outputs: string[];
+            /** Params */
+            params: {
+                [key: string]: number;
+            };
+            /** Lookback */
+            lookback: number;
+            /** Group */
+            group: string;
+            /**
+             * Anchored
+             * @default none
+             * @enum {string}
+             */
+            anchored: "none" | "start";
         };
         /** IndicatorPointOut */
         IndicatorPointOut: {
@@ -1441,6 +2341,36 @@ export interface components {
             };
             /** Macd */
             macd?: components["schemas"]["MACDPointOut"][] | null;
+            /**
+             * Meta
+             * @default {}
+             */
+            meta: {
+                [key: string]: components["schemas"]["IndicatorMetaOut"];
+            };
+            /**
+             * Warmup Bars
+             * @default 0
+             */
+            warmup_bars: number;
+            /** Window Start */
+            window_start?: string | null;
+        };
+        /** JobStatusOut */
+        JobStatusOut: {
+            /** Job */
+            job: string;
+            /** Status */
+            status: string;
+            /**
+             * Started At
+             * Format: date-time
+             */
+            started_at: string;
+            /** Finished At */
+            finished_at: string | null;
+            /** Last Success At */
+            last_success_at: string | null;
         };
         /** JournalDayOut */
         JournalDayOut: {
@@ -1675,6 +2605,11 @@ export interface components {
             /** Portfolio Value */
             portfolio_value: string;
             /**
+             * Currency
+             * @default USD
+             */
+            currency: string;
+            /**
              * Days Tracked
              * @default 0
              */
@@ -1706,6 +2641,13 @@ export interface components {
             signal: number;
             /** Histogram */
             histogram: number;
+        };
+        /** MarketStatusOut */
+        MarketStatusOut: {
+            /** Country */
+            country: string;
+            /** Newest Bar */
+            newest_bar: string | null;
         };
         /**
          * MarketSummaryRowOut
@@ -1787,6 +2729,31 @@ export interface components {
             sentiment_model?: string | null;
             /** Topic */
             topic?: string | null;
+        };
+        /**
+         * NotificationCategory
+         * @enum {string}
+         */
+        NotificationCategory: "alert" | "order" | "dividend" | "corporate_action" | "option" | "system";
+        /** NotificationOut */
+        NotificationOut: {
+            /** Id */
+            id: number;
+            /** Category */
+            category: string;
+            /** Title */
+            title: string;
+            /** Body */
+            body: string;
+            /** Link */
+            link: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Read At */
+            read_at: string | null;
         };
         /**
          * OptionGreeksOut
@@ -2123,6 +3090,16 @@ export interface components {
              * @default []
              */
             cash_by_currency: components["schemas"]["CurrencyCashOut"][];
+            /**
+             * Base Currency
+             * @default USD
+             */
+            base_currency: string;
+            /**
+             * Base Currency Locked
+             * @default true
+             */
+            base_currency_locked: boolean;
         };
         /**
          * PortfolioOverviewOut
@@ -2250,6 +3227,13 @@ export interface components {
              * Format: date-time
              */
             computed_at: string;
+            /** Bar Date */
+            bar_date?: string | null;
+            /**
+             * Stale
+             * @default false
+             */
+            stale: boolean;
         };
         /**
          * RecommendationVoteOut
@@ -2808,6 +3792,43 @@ export interface components {
             /** Sell Above */
             sell_above: number;
         };
+        /** SavedScreenIn */
+        SavedScreenIn: {
+            /** Name */
+            name: string;
+            /** Query */
+            query: string;
+        };
+        /** SavedScreenOut */
+        SavedScreenOut: {
+            /** Id */
+            id: number;
+            /** Name */
+            name: string;
+            /** Query */
+            query: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** ScreenerPageOut */
+        ScreenerPageOut: {
+            /** Rows */
+            rows: components["schemas"]["ScreenerRowOut"][];
+            /** Total */
+            total: number;
+            /** Offset */
+            offset: number;
+            /** Limit */
+            limit: number;
+        };
         /**
          * ScreenerResultOut
          * @description One symbol that passed every active filter on /v1/symbols/screen.
@@ -2842,6 +3863,81 @@ export interface components {
             low_52w: string;
             /** Sentiment 7D */
             sentiment_7d?: number | null;
+        };
+        /**
+         * ScreenerRowOut
+         * @description One row of /v1/screener (Phase 6.2). Unknown values are null, never 0.
+         */
+        ScreenerRowOut: {
+            /** Ticker */
+            ticker: string;
+            /** Name */
+            name: string;
+            /** Sector */
+            sector?: string | null;
+            /** Exchange */
+            exchange?: string | null;
+            /** Market */
+            market?: string | null;
+            /** Mic */
+            mic?: string | null;
+            /**
+             * Currency
+             * @default USD
+             */
+            currency: string;
+            /** Last Close */
+            last_close?: string | null;
+            /** As Of */
+            as_of?: string | null;
+            /** Rsi 14 */
+            rsi_14?: number | null;
+            /** Momentum Pct */
+            momentum_pct?: number | null;
+            /** Momentum Days */
+            momentum_days?: number | null;
+            /** High 52W */
+            high_52w?: string | null;
+            /** Low 52W */
+            low_52w?: string | null;
+            /** Pct From 52W High */
+            pct_from_52w_high?: number | null;
+            /** Sma 50 */
+            sma_50?: number | null;
+            /** Sma 200 */
+            sma_200?: number | null;
+            /** Sma 50 Gap Pct */
+            sma_50_gap_pct?: number | null;
+            /** Sma 200 Gap Pct */
+            sma_200_gap_pct?: number | null;
+            /** Atr Pct 14 */
+            atr_pct_14?: number | null;
+            /** Hv 20 */
+            hv_20?: number | null;
+            /** Avg Volume 20 */
+            avg_volume_20?: number | null;
+            /** Sentiment 7D */
+            sentiment_7d?: number | null;
+            /** Pe */
+            pe?: number | null;
+            /** Pb */
+            pb?: number | null;
+            /** Ps */
+            ps?: number | null;
+            /** Ev Ebitda */
+            ev_ebitda?: number | null;
+            /** Dividend Yield */
+            dividend_yield?: number | null;
+            /** Market Cap Usd */
+            market_cap_usd?: number | null;
+            /** Net Margin */
+            net_margin?: number | null;
+            /** Roe */
+            roe?: number | null;
+            /** Debt To Equity */
+            debt_to_equity?: number | null;
+            /** Revenue Growth */
+            revenue_growth?: number | null;
         };
         /** SectorAllocationOut */
         SectorAllocationOut: {
@@ -2898,6 +3994,33 @@ export interface components {
             short_window: number;
             /** Long Window */
             long_window: number;
+        };
+        /** StatusOut */
+        StatusOut: {
+            /** Jobs */
+            jobs: components["schemas"]["JobStatusOut"][];
+            /** Aegis Sync Status */
+            aegis_sync_status: string | null;
+            /** Aegis Sync Finished At */
+            aegis_sync_finished_at: string | null;
+            /** Markets */
+            markets: components["schemas"]["MarketStatusOut"][];
+            /** Dead Outbox Events */
+            dead_outbox_events: number;
+        };
+        /** SweepIn */
+        SweepIn: {
+            backtest: components["schemas"]["BacktestIn"];
+            /** Grid */
+            grid?: (components["schemas"]["RsiThresholdStrategy"] | components["schemas"]["SmaCrossoverStrategy"])[] | null;
+            /**
+             * Score
+             * @default sharpe
+             * @enum {string}
+             */
+            score: "sharpe" | "total_return";
+            /** Experiment Id */
+            experiment_id?: number | null;
         };
         /**
          * SymbolDetailOut
@@ -3017,8 +4140,23 @@ export interface components {
              * @default 0
              */
             total_usd: string;
+            /**
+             * Base Currency
+             * @default USD
+             */
+            base_currency: string;
+            /**
+             * Total Base
+             * @default 0
+             */
+            total_base: string;
             /** Realized Pnl */
             realized_pnl?: string | null;
+        };
+        /** UnreadCountOut */
+        UnreadCountOut: {
+            /** Unread */
+            unread: number;
         };
         /** ValidationError */
         ValidationError: {
@@ -3032,6 +4170,75 @@ export interface components {
             input?: unknown;
             /** Context */
             ctx?: Record<string, never>;
+        };
+        /** ValuationHistoryOut */
+        ValuationHistoryOut: {
+            /** Ticker */
+            ticker: string;
+            /** Metric */
+            metric: string;
+            /** Points */
+            points: components["schemas"]["ValuationPointOut"][];
+            /** Percentile */
+            percentile?: number | null;
+        };
+        /** ValuationMetricOut */
+        ValuationMetricOut: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /** Value */
+            value: number | null;
+            /** Unit */
+            unit: string;
+            /** Reason */
+            reason?: string | null;
+        };
+        /**
+         * ValuationOut
+         * @description Valuation and metrics as known on ``as_of`` (Phase 6.4).
+         *
+         *     ``fx_rate`` converts the trading currency's price into the reporting
+         *     currency (INFY.NS trades in INR and reports in USD). ``basis`` is
+         *     ``ttm`` (four quarters) or ``annual`` (the latest year).
+         */
+        ValuationOut: {
+            /** Ticker */
+            ticker: string;
+            /**
+             * As Of
+             * Format: date
+             */
+            as_of: string;
+            /** Price */
+            price?: string | null;
+            /** Price Date */
+            price_date?: string | null;
+            /** Trading Currency */
+            trading_currency: string;
+            /** Reporting Currency */
+            reporting_currency?: string | null;
+            /** Fx Rate */
+            fx_rate?: string | null;
+            /** Basis */
+            basis?: ("ttm" | "annual") | null;
+            /** Point In Time */
+            point_in_time: boolean;
+            /** Sources */
+            sources: string[];
+            /** Metrics */
+            metrics: components["schemas"]["ValuationMetricOut"][];
+        };
+        /** ValuationPointOut */
+        ValuationPointOut: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Value */
+            value: number;
         };
         /**
          * ValuationWarningOut
@@ -3050,6 +4257,39 @@ export interface components {
             subject: string;
             /** Message */
             message: string;
+        };
+        /**
+         * WalkForwardIn
+         * @description Phase 5.5. ``backtest`` sets the symbol, range, cash, costs and fees;
+         *     its strategy type picks the default grid when ``grid`` is empty.
+         */
+        WalkForwardIn: {
+            backtest: components["schemas"]["BacktestIn"];
+            /** Grid */
+            grid?: (components["schemas"]["RsiThresholdStrategy"] | components["schemas"]["SmaCrossoverStrategy"])[] | null;
+            /**
+             * In Sample Years
+             * @default 3
+             */
+            in_sample_years: number;
+            /**
+             * Out Of Sample Years
+             * @default 1
+             */
+            out_of_sample_years: number;
+            /**
+             * Step Years
+             * @default 1
+             */
+            step_years: number;
+            /**
+             * Score
+             * @default sharpe
+             * @enum {string}
+             */
+            score: "sharpe" | "total_return";
+            /** Experiment Id */
+            experiment_id?: number | null;
         };
         /**
          * WatchlistItemOut
@@ -3076,6 +4316,11 @@ export interface components {
              * @default USD
              */
             currency: string;
+            /**
+             * Closes
+             * @default []
+             */
+            closes: string[];
         };
     };
     responses: never;
@@ -3155,6 +4400,179 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ScreenerResultOut"][];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    screener_v1_screener_get: {
+        parameters: {
+            query?: {
+                /** @description Countries, e.g. US,IN */
+                market?: string | null;
+                /** @description MICs, e.g. XNAS,XNSE */
+                exchange?: string | null;
+                /** @description e.g. USD,INR */
+                currency?: string | null;
+                sector?: string | null;
+                rsi_min?: number | null;
+                rsi_max?: number | null;
+                momentum_days?: number | null;
+                momentum_min?: number | null;
+                momentum_max?: number | null;
+                near_52w_high?: boolean;
+                near_52w_low?: boolean;
+                above_sma_50?: boolean | null;
+                above_sma_200?: boolean | null;
+                hv_min?: number | null;
+                hv_max?: number | null;
+                atr_pct_min?: number | null;
+                atr_pct_max?: number | null;
+                sentiment_min?: number | null;
+                sentiment_max?: number | null;
+                pe_min?: number | null;
+                pe_max?: number | null;
+                pb_min?: number | null;
+                pb_max?: number | null;
+                ps_min?: number | null;
+                ps_max?: number | null;
+                ev_ebitda_min?: number | null;
+                ev_ebitda_max?: number | null;
+                dividend_yield_min?: number | null;
+                dividend_yield_max?: number | null;
+                market_cap_usd_min?: number | null;
+                market_cap_usd_max?: number | null;
+                net_margin_min?: number | null;
+                net_margin_max?: number | null;
+                roe_min?: number | null;
+                roe_max?: number | null;
+                debt_to_equity_min?: number | null;
+                debt_to_equity_max?: number | null;
+                revenue_growth_min?: number | null;
+                revenue_growth_max?: number | null;
+                sort?: string;
+                dir?: string;
+                offset?: number;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScreenerPageOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_screens_v1_screens_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SavedScreenOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    save_screen_v1_screens_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SavedScreenIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SavedScreenOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_screen_v1_screens__screen_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                screen_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {
@@ -3465,7 +4883,7 @@ export interface operations {
     get_indicators_v1_symbols__ticker__indicators_get: {
         parameters: {
             query: {
-                /** @description e.g. sma_20,sma_50,rsi_14,macd */
+                /** @description e.g. sma_20,rsi_14,macd,bb_20_2 */
                 names: string;
                 interval?: string;
                 from?: string | null;
@@ -3496,6 +4914,128 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_fundamentals_v1_symbols__ticker__fundamentals_get: {
+        parameters: {
+            query?: {
+                period?: string;
+                as_of?: string | null;
+                periods?: number;
+            };
+            header?: never;
+            path: {
+                ticker: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FundamentalsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_valuation_v1_symbols__ticker__valuation_get: {
+        parameters: {
+            query?: {
+                as_of?: string | null;
+            };
+            header?: never;
+            path: {
+                ticker: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ValuationOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_valuation_history_v1_symbols__ticker__valuation_history_get: {
+        parameters: {
+            query?: {
+                metric?: string;
+                years?: number;
+            };
+            header?: never;
+            path: {
+                ticker: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ValuationHistoryOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_catalog_v1_indicators_catalog_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IndicatorCatalogItemOut"][];
                 };
             };
         };
@@ -3542,6 +5082,41 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortfolioOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    put_base_currency_v1_portfolio_base_currency_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BaseCurrencyIn"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -3860,6 +5435,72 @@ export interface operations {
             };
         };
     };
+    list_events_v1_alerts_events_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AlertEventOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_rule_events_v1_alerts__alert_id__events_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                alert_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AlertEventOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     delete_alert_v1_alerts__alert_id__delete: {
         parameters: {
             query?: never;
@@ -3879,6 +5520,76 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    patch_alert_v1_alerts__alert_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                alert_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AlertPatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AlertOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    rearm_alert_v1_alerts__alert_id__rearm_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                alert_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AlertOut"];
+                };
             };
             /** @description Validation Error */
             422: {
@@ -4471,6 +6182,307 @@ export interface operations {
             };
         };
     };
+    list_experiments_v1_experiments_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExperimentOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_experiment_v1_experiments_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExperimentIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExperimentOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_runs_v1_experiments_runs_get: {
+        parameters: {
+            query?: {
+                experiment_id?: number | null;
+            };
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExperimentRunOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    post_run_v1_experiments_runs_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExperimentRunIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExperimentRunOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    post_walk_forward_v1_experiments_walk_forward_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WalkForwardIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExperimentRunOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    post_sweep_v1_experiments_sweep_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SweepIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExperimentRunOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_run_v1_experiments_runs__run_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                run_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExperimentRunOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_run_v1_experiments_runs__run_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                run_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    post_rerun_v1_experiments_runs__run_id__rerun_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                run_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExperimentRerunOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_replay_ticker_availability_v1_replay_availability_get: {
         parameters: {
             query: {
@@ -4605,7 +6617,9 @@ export interface operations {
     };
     post_replay_advance_v1_replay_sessions__session_id__advance_post: {
         parameters: {
-            query?: never;
+            query?: {
+                expected_current_at?: string | null;
+            };
             header?: {
                 authorization?: string | null;
             };
@@ -5075,6 +7089,192 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_notifications_v1_notifications_get: {
+        parameters: {
+            query?: {
+                category?: components["schemas"]["NotificationCategory"] | null;
+                unread?: boolean;
+                before_id?: number | null;
+                limit?: number;
+            };
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    unread_count_v1_notifications_unread_count_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnreadCountOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    mark_read_v1_notifications__notification_id__read_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                notification_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    mark_all_read_v1_notifications_read_all_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnreadCountOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    event_study_v1_research_event_study_get: {
+        parameters: {
+            query: {
+                tickers: string[];
+                sentiment?: ("negative" | "positive" | "mixed" | "neutral") | null;
+                event_type?: string | null;
+                pre?: number;
+                post?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EventStudyOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    status_v1_status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StatusOut"];
                 };
             };
         };

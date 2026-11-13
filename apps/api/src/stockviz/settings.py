@@ -86,6 +86,17 @@ class Settings(BaseSettings):
     nextauth_jwt_secret: str = "dev-secret-change-me"
 
     alpha_vantage_key: str = ""
+    # Kite Connect (Zerodha), optional (Phase 4.7). Blank: every Kite command
+    # exits 2 and nothing else changes. Used only by the on-demand history
+    # snapshot (`stockviz.cli ingest-history --provider kite`), never nightly.
+    # SEC EDGAR asks automated clients for a User-Agent with a contact. The
+    # owner sets it before release (Phase 6.3); blank keeps EDGAR off.
+    sec_user_agent: str = ""
+    # RS-9 (Phase 6.6): the web's revalidation route, called at the end of the
+    # nightly cron. Blank: `revalidate-web` exits 2 and the cron skips it.
+    web_revalidate_url: str = ""
+    kite_api_key: str = ""
+    kite_api_secret: str = ""
     # yfinance remains the persisted/default provider. Massive is an optional,
     # private shadow comparison only and must never be exposed by an API path.
     massive_shadow_enabled: bool = False

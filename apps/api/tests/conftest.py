@@ -80,3 +80,8 @@ def _orders_placed_before_seeded_bars(request, monkeypatch):
         monkeypatch.setattr(
             "stockviz.services.trading.orders._known_at_placement", lambda _order: date.min
         )
+        # Alerts follow the same rule (RS-8): a rule fires only on a bar newer
+        # than the one known when it was armed.
+        monkeypatch.setattr(
+            "stockviz.services.alerts.engine.known_at_arming", lambda _alert: date.min
+        )

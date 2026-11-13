@@ -15,7 +15,7 @@ from datetime import UTC, datetime, time, timedelta
 from datetime import date as date_type
 from decimal import Decimal
 
-from sqlalchemy import func, or_
+from sqlalchemy import func, literal, or_
 from sqlmodel import Session, col, select
 
 from stockviz.models import (
@@ -181,11 +181,13 @@ def realized_executions(
 
     assert portfolio.id is not None
     start, end = utc_window(first, last)
-    executions = _equity_executions(
-        session, portfolio_id=portfolio.id, start=start, end=end
-    ) + _option_executions(
-        session, user_id=user_id, portfolio_id=portfolio.id, start=start, end=end
-    )
+    executions = _equity_executions(session, portfolio_id=portfolio.id, start=start, end=end)
+    # Option P&L is in USD. A non-USD book (Phase 4.8) has no fill-time rate
+    # for it, so those closes are counted as unavailable instead of converted.
+    if (portfolio.base_currency or "USD") == "USD":
+        executions += _option_executions(
+            session, user_id=user_id, portfolio_id=portfolio.id, start=start, end=end
+        )
     executions.sort(key=lambda item: (item.executed_at, item.reference_id))
     return executions
 
@@ -213,7 +215,7 @@ def month_start_nav(session: Session, *, user_id: int, first: date_type) -> Deci
 def unavailable_realizations(
     session: Session, *, portfolio: Portfolio, user_id: int, first: date_type, last: date_type
 ) -> int:
-    """Count dated closes lacking reliable USD accounting; never silently call them zero."""
+    """Count dated closes lacking reliable base-currency accounting; never silently call them zero."""
     start, end = utc_window(first, last)
     equity = session.exec(
         select(func.count())
@@ -236,7 +238,11 @@ def unavailable_realizations(
             OptionsPosition.status != OptionStatus.OPEN,
             col(OptionsPosition.settled_at) >= start,
             col(OptionsPosition.settled_at) < end,
-            or_(col(OptionsPosition.realized_pnl).is_(None), col(Symbol.currency) != "USD"),
+            or_(
+                col(OptionsPosition.realized_pnl).is_(None),
+                col(Symbol.currency) != "USD",
+                literal((portfolio.base_currency or "USD") != "USD"),
+            ),
         )
     ).one()
     return equity + options

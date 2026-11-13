@@ -39,16 +39,18 @@ from stockviz.services.simulation import (
 from stockviz.services.trading.buying_power import (
     available_cash,
     available_shares,
-    buy_reservation_usd,
+    buy_reservation,
     lock_portfolio,
     reserved_shares,
 )
+from stockviz.services.trading.cash import base_currency
 from stockviz.services.trading.execute import (
     ClientOrderIdConflict,
     InsufficientCash,
     InsufficientPosition,
     NoFxRateError,
     NoMarketDataError,
+    NotTradable,
     PricedSymbol,
     SymbolNotFound,
     TradeExecutionError,
@@ -103,6 +105,8 @@ def create_pending_order(
     ticker = ticker.upper()
     if session.get(Symbol, ticker) is None:
         raise SymbolNotFound(f"Symbol {ticker!r} not found")
+    if ticker.startswith("^"):
+        raise NotTradable(f"{ticker} is an index: it can be studied but not traded")
 
     if order_type in (OrderType.STOP_LOSS, OrderType.TAKE_PROFIT) and side != TradeSide.SELL:
         raise OrderError(f"{order_type} orders must be sell orders")
@@ -139,15 +143,21 @@ def create_pending_order(
 
     if side == TradeSide.BUY:
         try:
-            required = buy_reservation_usd(
-                session, ticker=ticker, quantity=quantity, limit_price=limit_price
+            required = buy_reservation(
+                session,
+                ticker=ticker,
+                quantity=quantity,
+                limit_price=limit_price,
+                base=base_currency(portfolio),
             )
             spendable = available_cash(session, portfolio)
         except LookupError as exc:
             raise NoFxRateError(str(exc)) from exc
         if required > spendable:
+            base = base_currency(portfolio)
             raise InsufficientCash(
-                f"Available buying power ${spendable:.2f}; order requires ${required:.2f}."
+                f"Available buying power {base} {spendable:,.2f}; "
+                f"order requires {base} {required:,.2f}."
             )
     else:
         reserved = reserved_shares(session, portfolio_id, ticker)
@@ -203,6 +213,7 @@ def _cancel(session: Session, order: PendingOrder, reason: str) -> None:
     order.status = OrderStatus.CANCELLED
     order.cancel_reason = reason[:200]
     session.add(order)
+    _notify_order(session, order, "cancelled", f"Cancelled: {reason[:200]}")
     logger.warning("order %s cancelled: %s", order.id, reason)
 
 
@@ -217,7 +228,29 @@ def _expire(session: Session, order: PendingOrder) -> None:
     order.status = OrderStatus.EXPIRED
     order.cancel_reason = f"Expired after {ORDER_MAX_AGE_DAYS} days without filling"
     session.add(order)
+    _notify_order(session, order, "expired", order.cancel_reason)
     logger.info("order %s expired", order.id)
+
+
+def _notify_order(session: Session, order: PendingOrder, what: str, body: str) -> None:
+    """Tell the owner what the nightly settlement did to their order (Phase 7.2)."""
+    if order.id is None:
+        return
+    from stockviz.models import NotificationCategory
+    from stockviz.services.notifications import notify_portfolio
+
+    notify_portfolio(
+        session,
+        order.portfolio_id,
+        category=NotificationCategory.ORDER,
+        title=(
+            f"{order.order_type.value.replace('_', ' ').title()} {order.side.value} "
+            f"{order.quantity.normalize():f} {order.ticker} {what}"
+        ),
+        body=body,
+        link=f"/orders?status={what}",
+        source_key=f"order:{order.id}:{what}",
+    )
 
 
 def _known_at_placement(order: PendingOrder) -> date_type:
@@ -270,8 +303,12 @@ def _settle_one(
         _expire(session, order)
         return False
     # The FX rate's age is judged against the session being settled (MD-7).
+    portfolio = session.get(Portfolio, order.portfolio_id)
+    base = base_currency(portfolio) if portfolio is not None else "USD"
     try:
-        priced = resolve_priced_symbol(session, order.ticker, settled_session=session_date)
+        priced = resolve_priced_symbol(
+            session, order.ticker, base=base, settled_session=session_date
+        )
     except NoMarketDataError:
         return False
     except (SymbolNotFound, NoFxRateError) as exc:
@@ -397,6 +434,13 @@ def _fill(
     record_execution_provenance(session, trade=result.trade, provenance=provenance)
 
     order.status = OrderStatus.FILLED
+    _notify_order(
+        session,
+        order,
+        "filled",
+        f"Filled at {fill_price:,.2f} {priced.currency} on the "
+        f"{priced.bar.ts.date().isoformat()} close.",
+    )
     order.filled_at = utcnow()
     order.fill_price = fill_price
     session.add(order)

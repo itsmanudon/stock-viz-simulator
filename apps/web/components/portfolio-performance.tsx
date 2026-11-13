@@ -29,6 +29,8 @@ export function PortfolioPerformance({ portfolio, history, range, tab }: Props) 
   const latestDate = history?.at(-1)?.date ?? null;
   const direction = change && change.percent < 0 ? "Loss" : "Gain";
   const currency = portfolio.display_currency || "USD";
+  // The NAV history is in the base currency (Phase 4.8), not the display one.
+  const navCurrency = portfolio.base_currency ?? "USD";
   const [major, minor] = splitMinorUnits(formatCurrency(portfolio.total_value, currency));
   const tone =
     change && change.percent > 0
@@ -88,13 +90,15 @@ export function PortfolioPerformance({ portfolio, history, range, tab }: Props) 
 
         {hasInvestments ? (
           <div className="lg:text-right">
-            <p className="text-xs font-medium text-muted-foreground">{rangeLabel} USD NAV change</p>
+            <p className="text-xs font-medium text-muted-foreground">
+              {rangeLabel} {navCurrency} NAV change
+            </p>
             {change ? (
               <div className={`mt-1 flex flex-wrap items-baseline gap-2 lg:justify-end ${tone}`}>
                 <span className="sr-only">{direction}</span>
                 <span className="font-mono text-lg font-semibold" data-financial>
                   {change.absolute > 0 ? "+" : ""}
-                  {formatCurrency(change.absolute, "USD")}
+                  {formatCurrency(change.absolute, navCurrency)}
                 </span>
                 <span className="font-mono text-sm" data-financial>
                   {formatSignedPercent(change.percent)}

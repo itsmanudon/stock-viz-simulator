@@ -14,7 +14,7 @@ from fastapi.testclient import TestClient
 from sqlmodel import Session, select
 
 from stockviz.models import PriceBar, Symbol, SymbolMetrics
-from stockviz.services.metrics import refresh_symbol_metrics, set_sentiment
+from stockviz.services.metrics import metrics_for, refresh_symbol_metrics, set_sentiment
 
 _START = datetime(2025, 1, 1)
 
@@ -177,7 +177,7 @@ def test_refresh_computes_rsi_and_52w_range(session: Session) -> None:
     _seed(session, "UPUP", [Decimal(100 + i) for i in range(60)])
 
     assert refresh_symbol_metrics(session) == 1
-    row = session.get(SymbolMetrics, "UPUP")
+    row = metrics_for(session, "UPUP")
     assert row is not None
     assert row.last_close == Decimal(159)
     assert row.high_52w == Decimal(159)
@@ -200,7 +200,7 @@ def test_refresh_skips_symbols_without_bars(session: Session) -> None:
     session.add(Symbol(ticker="EMPTY", name="No Bars"))
     session.commit()
     assert refresh_symbol_metrics(session) == 0
-    assert session.get(SymbolMetrics, "EMPTY") is None
+    assert metrics_for(session, "EMPTY") is None
 
 
 def test_refresh_preserves_sentiment_columns(session: Session) -> None:
@@ -212,7 +212,7 @@ def test_refresh_preserves_sentiment_columns(session: Session) -> None:
     session.commit()
 
     refresh_symbol_metrics(session)
-    row = session.get(SymbolMetrics, "AAA")
+    row = metrics_for(session, "AAA")
     assert row is not None
     assert row.sentiment_7d == 0.42
     assert row.sentiment_article_count == 7
