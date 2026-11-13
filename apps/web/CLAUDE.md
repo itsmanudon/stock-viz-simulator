@@ -568,6 +568,13 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   report (`/v1/portfolio/stress`). The
   metrics strip shows "Unrealized P&L" (equities plus options, #68) and
   lifetime "Realized P&L".
+- Pre-trade limits (Phase 8.5): Settings has a "Risk limits" panel
+  (`components/risk-limits-form.tsx`, server action, `lib/risk-limits.ts`
+  maps empty or invalid fields to no limit). The order review shows
+  `LimitPreviewRows` (`components/limit-preview.tsx`) for market and limit
+  buys, from `GET /api/limits-check` (a route handler over
+  `/v1/portfolio/limits/check`); it is advice only, the API checks again
+  when the order fills.
 - `/status` (Phase 7.6, public, linked from the footer): each nightly job's
   last result and last success, the newest stored close per market, the
   Aegis sync and undeliverable events, from `/v1/status` (`lib/api/status.ts`,

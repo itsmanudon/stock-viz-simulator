@@ -1205,6 +1205,38 @@ class PortfolioStressOut(BaseModel):
     scenarios: list[StressScenarioOut]
 
 
+class RiskLimitsIn(BaseModel):
+    """Phase 8.5: each cap is a percentage of NAV, (0, 100], or null for none."""
+
+    max_position_pct: Decimal | None = Field(default=None, gt=0, le=100)
+    max_order_pct: Decimal | None = Field(default=None, gt=0, le=100)
+    max_sector_pct: Decimal | None = Field(default=None, gt=0, le=100)
+    max_currency_pct: Decimal | None = Field(default=None, gt=0, le=100)
+    max_var_pct: Decimal | None = Field(default=None, gt=0, le=100)
+
+
+class RiskLimitsOut(RiskLimitsIn):
+    updated_at: datetime | None = None
+
+
+class LimitCheckOut(BaseModel):
+    limit: str
+    label: str
+    cap: float
+    value_after: float | None
+    breached: bool
+    note: str | None = None
+
+
+class LimitPreviewOut(BaseModel):
+    """What a buy would do to each limit that is set; empty when none are."""
+
+    ticker: str
+    quantity: Decimal
+    checks: list[LimitCheckOut]
+    breached: bool
+
+
 class PortfolioAnalyticsOut(BaseModel):
     """Aggregated analytics for /v1/portfolio/analytics.
 

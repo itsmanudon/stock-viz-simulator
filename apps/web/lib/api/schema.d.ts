@@ -533,6 +533,95 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/portfolio/risk": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Portfolio Risk
+         * @description Phase 8.3: historical-simulation VaR/CVaR and a block-bootstrap Monte Carlo.
+         *
+         *     Computed on request from stored daily closes and FX rates (about a
+         *     second for a large book). Every figure is in the base currency and the
+         *     response names the method, the window and any proxied holdings.
+         */
+        get: operations["get_portfolio_risk_v1_portfolio_risk_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/portfolio/stress": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Portfolio Stress
+         * @description Phase 8.4: historical replays and hypothetical shocks on today's book.
+         */
+        get: operations["get_portfolio_stress_v1_portfolio_stress_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/portfolio/limits": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Risk Limits
+         * @description Phase 8.5: the account's own pre-trade limits; all null until set.
+         */
+        get: operations["get_risk_limits_v1_portfolio_limits_get"];
+        /**
+         * Put Risk Limits
+         * @description Replace every limit at once; a null clears that limit.
+         */
+        put: operations["put_risk_limits_v1_portfolio_limits_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/portfolio/limits/check": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Preview Limits
+         * @description What buying ``quantity`` of ``ticker`` at the latest close would do to
+         *     each limit (the order review shows it before the user places the order).
+         */
+        get: operations["preview_limits_v1_portfolio_limits_check_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/portfolio/history": {
         parameters: {
             query?: never;
@@ -2675,6 +2764,35 @@ export interface components {
              */
             ranked: boolean;
         };
+        /** LimitCheckOut */
+        LimitCheckOut: {
+            /** Limit */
+            limit: string;
+            /** Label */
+            label: string;
+            /** Cap */
+            cap: number;
+            /** Value After */
+            value_after: number | null;
+            /** Breached */
+            breached: boolean;
+            /** Note */
+            note?: string | null;
+        };
+        /**
+         * LimitPreviewOut
+         * @description What a buy would do to each limit that is set; empty when none are.
+         */
+        LimitPreviewOut: {
+            /** Ticker */
+            ticker: string;
+            /** Quantity */
+            quantity: string;
+            /** Checks */
+            checks: components["schemas"]["LimitCheckOut"][];
+            /** Breached */
+            breached: boolean;
+        };
         /** LiveResponse */
         LiveResponse: {
             /**
@@ -2748,6 +2866,27 @@ export interface components {
             rows: components["schemas"]["MarketSummaryRowOut"][];
             /** Sectors */
             sectors: string[];
+        };
+        /** MonteCarloOut */
+        MonteCarloOut: {
+            /** Method */
+            method: string;
+            /** Paths */
+            paths: number;
+            /** Horizon Days */
+            horizon_days: number;
+            /** Mean Block */
+            mean_block: number;
+            /** Seed */
+            seed: number;
+            /** Percentiles */
+            percentiles: {
+                [key: string]: number;
+            };
+            /** Prob Loss 10 */
+            prob_loss_10: number;
+            /** Prob Loss 20 */
+            prob_loss_20: number;
         };
         /**
          * NewsArticleOut
@@ -3256,6 +3395,46 @@ export interface components {
             account_xirr: components["schemas"]["XirrOut"];
             /** Holdings */
             holdings: components["schemas"]["HoldingReturnOut"][];
+        };
+        /**
+         * PortfolioRiskOut
+         * @description Phase 8.3 risk, in the base currency. Method, window and proxies named (UX-9).
+         */
+        PortfolioRiskOut: {
+            /** Currency */
+            currency: string;
+            /** Nav */
+            nav: number;
+            /** Method */
+            method: string;
+            /** Var Rule */
+            var_rule: string;
+            window: components["schemas"]["RiskWindowOut"];
+            /** Holdings Included */
+            holdings_included: number;
+            /** Excluded */
+            excluded: components["schemas"]["RiskNoteOut"][];
+            /** Proxied */
+            proxied: components["schemas"]["RiskProxyOut"][];
+            /** Var */
+            var: components["schemas"]["VarOut"][];
+            monte_carlo: components["schemas"]["MonteCarloOut"] | null;
+            /** Reason */
+            reason?: string | null;
+        };
+        /**
+         * PortfolioStressOut
+         * @description Phase 8.4 stress tests, in the base currency, applied instantly (UX-9).
+         */
+        PortfolioStressOut: {
+            /** Currency */
+            currency: string;
+            /** Method */
+            method: string;
+            /** Basis */
+            basis: string;
+            /** Scenarios */
+            scenarios: components["schemas"]["StressScenarioOut"][];
         };
         /** PositionOut */
         PositionOut: {
@@ -3926,6 +4105,62 @@ export interface components {
             visible_low: string;
         };
         /**
+         * RiskLimitsIn
+         * @description Phase 8.5: each cap is a percentage of NAV, (0, 100], or null for none.
+         */
+        RiskLimitsIn: {
+            /** Max Position Pct */
+            max_position_pct?: number | string | null;
+            /** Max Order Pct */
+            max_order_pct?: number | string | null;
+            /** Max Sector Pct */
+            max_sector_pct?: number | string | null;
+            /** Max Currency Pct */
+            max_currency_pct?: number | string | null;
+            /** Max Var Pct */
+            max_var_pct?: number | string | null;
+        };
+        /** RiskLimitsOut */
+        RiskLimitsOut: {
+            /** Max Position Pct */
+            max_position_pct?: string | null;
+            /** Max Order Pct */
+            max_order_pct?: string | null;
+            /** Max Sector Pct */
+            max_sector_pct?: string | null;
+            /** Max Currency Pct */
+            max_currency_pct?: string | null;
+            /** Max Var Pct */
+            max_var_pct?: string | null;
+            /** Updated At */
+            updated_at?: string | null;
+        };
+        /** RiskNoteOut */
+        RiskNoteOut: {
+            /** Ticker */
+            ticker: string;
+            /** Reason */
+            reason: string;
+        };
+        /** RiskProxyOut */
+        RiskProxyOut: {
+            /** Ticker */
+            ticker: string;
+            /** Proxy */
+            proxy: string;
+            /** Days */
+            days: number;
+        };
+        /** RiskWindowOut */
+        RiskWindowOut: {
+            /** Start */
+            start: string | null;
+            /** End */
+            end: string | null;
+            /** Sessions */
+            sessions: number;
+        };
+        /**
          * RsiThresholdStrategy
          * @description Buy when RSI(14) drops below ``buy_below``, sell when it rises above ``sell_above``.
          */
@@ -4155,6 +4390,40 @@ export interface components {
             markets: components["schemas"]["MarketStatusOut"][];
             /** Dead Outbox Events */
             dead_outbox_events: number;
+        };
+        /** StressDriverOut */
+        StressDriverOut: {
+            /** Ticker */
+            ticker: string;
+            /** Change */
+            change: number;
+        };
+        /** StressScenarioOut */
+        StressScenarioOut: {
+            /** Key */
+            key: string;
+            /** Name */
+            name: string;
+            /** Kind */
+            kind: string;
+            /** Start */
+            start: string | null;
+            /** End */
+            end: string | null;
+            /** Nav Before */
+            nav_before: number;
+            /** Nav After */
+            nav_after: number;
+            /** Change */
+            change: number;
+            /** Change Pct */
+            change_pct: number;
+            /** Drivers */
+            drivers: components["schemas"]["StressDriverOut"][];
+            /** Proxied */
+            proxied: string[];
+            /** Missing */
+            missing: string[];
         };
         /** SweepIn */
         SweepIn: {
@@ -4405,6 +4674,28 @@ export interface components {
             subject: string;
             /** Message */
             message: string;
+        };
+        /**
+         * VarOut
+         * @description One VaR/CVaR figure; losses are positive amounts in ``currency``.
+         */
+        VarOut: {
+            /** Confidence */
+            confidence: number;
+            /** Horizon Days */
+            horizon_days: number;
+            /** Scenarios */
+            scenarios: number;
+            /** Tail Count */
+            tail_count: number;
+            /** Var */
+            var: number;
+            /** Var Pct */
+            var_pct: number;
+            /** Cvar */
+            cvar: number;
+            /** Cvar Pct */
+            cvar_pct: number;
         };
         /**
          * WalkForwardIn
@@ -5421,6 +5712,168 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PortfolioOverviewOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_portfolio_risk_v1_portfolio_risk_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortfolioRiskOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_portfolio_stress_v1_portfolio_stress_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortfolioStressOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_risk_limits_v1_portfolio_limits_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RiskLimitsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    put_risk_limits_v1_portfolio_limits_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RiskLimitsIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RiskLimitsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    preview_limits_v1_portfolio_limits_check_get: {
+        parameters: {
+            query: {
+                ticker: string;
+                quantity: number | string;
+            };
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LimitPreviewOut"];
                 };
             };
             /** @description Validation Error */

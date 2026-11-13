@@ -368,6 +368,21 @@ unmoved. Fixed shocks (`HYPOTHETICAL`) move US-listed and Indian-listed
 stocks by instrument country, and the rupee against the dollar. The combined
 shock is worked by hand in `docs/benchmarks/2026-11-13-risk-hand-check.md`.
 
+**Pre-trade limits (Phase 8.5).** `risk_limits` (one row per portfolio,
+migration `a3e5c7f9b812`, every cap nullable: off until the user sets it;
+check constraints keep each in (0, 100]). `services/risk/limits.py`:
+`check_buy` evaluates, as % of NAV in the base currency before the fill,
+the holding after the fill, the order's cost, the sector after, a non-base
+currency's stocks and cash after, and (only when set) an estimated 1-day 95%
+VaR with the order added (`not checked: ...` without 250 sessions).
+`apply_fill` calls `enforce_buy` on buys under the portfolio lock before
+anything moves (`LimitBreached`, a `TradeExecutionError`: 409 on
+`POST /v1/trades`, a cancel with the reason at settlement); option exercise
+passes `check_limits=False`. Option opens check the premium against the
+single-order cap only (`enforce_option_open`, 409). Sells are never checked.
+`GET`/`PUT /v1/portfolio/limits`, `GET /v1/portfolio/limits/check?ticker=&quantity=`
+(the order review's preview).
+
 **Status (audit OP-5, Phase 7.6).** `GET /v1/status` (public, 30/min):
 each recorded job's latest run (name, state, start, finish, last success),
 the latest Aegis sync's state and time, the newest daily bar per market

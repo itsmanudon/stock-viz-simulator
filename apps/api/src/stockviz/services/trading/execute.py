@@ -343,6 +343,7 @@ def apply_fill(
     fx_rate: Decimal,
     exclude_order_id: int | None = None,
     client_order_id: str | None = None,
+    check_limits: bool = True,
 ) -> TradeExecution:
     """Mutate cash + position and stage the Trade row for ``portfolio``.
 
@@ -390,6 +391,21 @@ def apply_fill(
             raise InsufficientCash(
                 f"Available buying power {base} {spendable:,.2f}; order requires "
                 f"{base} {funding.base_debit:,.2f}."
+            )
+        if check_limits:
+            # Phase 8.5: the account's own limits, before anything moves. Option
+            # exercise passes check_limits=False: settlement is never refused.
+            from stockviz.services.risk.limits import enforce_buy
+
+            enforce_buy(
+                session,
+                portfolio,
+                ticker=ticker,
+                currency=currency,
+                quantity=quantity,
+                price=price,
+                base_cost=base_cost,
+                base_debit=funding.base_debit,
             )
         conversion = pay_for_buy(session, portfolio, currency, funding, fx_rate)
 

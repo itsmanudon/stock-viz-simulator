@@ -69,6 +69,18 @@ test("authenticated user can move from a paper trade into the Portfolio workspac
   await expect(main.getByRole("table", { name: "Value at risk" })).toContainText("95%");
   // Phase 8.4: the fixed shocks always apply; a US stock moves with them.
   await expect(main.getByRole("table", { name: "Fixed shocks" })).toContainText("US stocks -10%");
+
+  // Phase 8.5: a single-order limit set in Settings shows in the review and
+  // refuses a buy over it.
+  await page.goto("/settings");
+  await page.getByLabel("Single order (%)").fill("0.01");
+  await page.getByRole("button", { name: "Save limits" }).click();
+  await expect(page.getByLabel("Single order (%)")).toHaveValue("0.01");
+  await page.goto("/trade?ticker=AAPL");
+  await page.getByRole("button", { name: /Review market buy/i }).click();
+  await expect(page.getByText(/crosses one of your limits/)).toBeVisible({ timeout: 10_000 });
+  await page.getByRole("button", { name: /Place market buy/i }).click();
+  await expect(page.getByText(/over your limit of 0\.01%/)).toBeVisible({ timeout: 10_000 });
 });
 
 test("new mobile portfolio keeps value, tabs, and starting actions readable", async ({ page }) => {

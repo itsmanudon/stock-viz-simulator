@@ -132,6 +132,45 @@ export function putBaseCurrency(baseCurrency: "USD" | "INR"): Promise<Portfolio>
   return authedPut<Portfolio>("/v1/portfolio/base-currency", { base_currency: baseCurrency });
 }
 
+/** Phase 8.5: the account's own pre-trade caps, % of NAV; null means no limit. */
+export type RiskLimits = {
+  max_position_pct: string | null;
+  max_order_pct: string | null;
+  max_sector_pct: string | null;
+  max_currency_pct: string | null;
+  max_var_pct: string | null;
+  updated_at?: string | null;
+};
+
+export type LimitCheck = {
+  limit: string;
+  label: string;
+  cap: number;
+  value_after: number | null;
+  breached: boolean;
+  note?: string | null;
+};
+
+export type LimitPreview = {
+  ticker: string;
+  quantity: string;
+  checks: LimitCheck[];
+  breached: boolean;
+};
+
+export function getRiskLimits(): Promise<RiskLimits> {
+  return authedGet<RiskLimits>("/v1/portfolio/limits");
+}
+
+export function putRiskLimits(limits: Omit<RiskLimits, "updated_at">): Promise<RiskLimits> {
+  return authedPut<RiskLimits>("/v1/portfolio/limits", limits);
+}
+
+export function previewLimits(ticker: string, quantity: string): Promise<LimitPreview> {
+  const q = new URLSearchParams({ ticker, quantity });
+  return authedGet<LimitPreview>(`/v1/portfolio/limits/check?${q.toString()}`);
+}
+
 export function postTrade(body: TradeInput): Promise<TradeRow> {
   return authedPost<TradeRow>("/v1/trades", body);
 }

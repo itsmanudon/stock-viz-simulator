@@ -54,6 +54,7 @@ from stockviz.models.replay import (
     ReplaySession,
     ReplaySessionStatus,
 )
+from stockviz.models.risk_limit import RiskLimit
 from stockviz.models.screen import SavedScreen
 from stockviz.models.sentiment import NewsSentiment
 from stockviz.models.user import User
@@ -112,6 +113,7 @@ __all__ = [
     "ReplayPosition",
     "ReplaySession",
     "ReplaySessionStatus",
+    "RiskLimit",
     "SavedScreen",
     "SimulatedExecution",
     "Symbol",
