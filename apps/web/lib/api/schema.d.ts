@@ -2265,6 +2265,14 @@ export interface components {
              */
             dead_outbox_events: number;
         };
+        /** HoldingReturnOut */
+        HoldingReturnOut: {
+            /** Ticker */
+            ticker: string;
+            /** Kind */
+            kind: string;
+            xirr: components["schemas"]["XirrOut"];
+        };
         /** IndicatorCatalogItemOut */
         IndicatorCatalogItemOut: {
             /** Key */
@@ -2945,6 +2953,27 @@ export interface components {
             cancel_reason?: string | null;
         };
         /**
+         * PeriodReturnOut
+         * @description One period's time-weighted return (Phase 8.1). Percentages, or null with a reason.
+         */
+        PeriodReturnOut: {
+            /** Period */
+            period: string;
+            /** Start Date */
+            start_date: string | null;
+            /**
+             * End Date
+             * Format: date
+             */
+            end_date: string;
+            /** Return Pct */
+            return_pct: number | null;
+            /** Annualised Pct */
+            annualised_pct: number | null;
+            /** Reason */
+            reason?: string | null;
+        };
+        /**
          * PortfolioAnalyticsOut
          * @description Aggregated analytics for /v1/portfolio/analytics.
          *
@@ -2976,6 +3005,7 @@ export interface components {
             top_gainers: components["schemas"]["TopMoverOut"][];
             /** Top Losers */
             top_losers: components["schemas"]["TopMoverOut"][];
+            returns?: components["schemas"]["PortfolioReturnsOut"] | null;
         };
         /**
          * PortfolioHistoryPointOut
@@ -3073,6 +3103,26 @@ export interface components {
             total_cost_basis: string;
             /** Unrealized Pl */
             unrealized_pl: string;
+            /**
+             * Unrealized Pl Equity
+             * @default 0
+             */
+            unrealized_pl_equity: string;
+            /**
+             * Unrealized Pl Options
+             * @default 0
+             */
+            unrealized_pl_options: string;
+            /**
+             * Realized Pl
+             * @default 0
+             */
+            realized_pl: string;
+            /**
+             * Realized Pl Unavailable
+             * @default 0
+             */
+            realized_pl_unavailable: number;
             /** Positions */
             positions: components["schemas"]["PositionOut"][];
             /**
@@ -3108,6 +3158,27 @@ export interface components {
         PortfolioOverviewOut: {
             portfolio: components["schemas"]["PortfolioOut"];
             analytics: components["schemas"]["PortfolioAnalyticsOut"];
+        };
+        /**
+         * PortfolioReturnsOut
+         * @description Phase 8.1 returns. Each block names its method and basis (UX-9).
+         */
+        PortfolioReturnsOut: {
+            /** Currency */
+            currency: string;
+            /** Twr Method */
+            twr_method: string;
+            /** Twr Basis */
+            twr_basis: string;
+            /** Periods */
+            periods: components["schemas"]["PeriodReturnOut"][];
+            /** Xirr Method */
+            xirr_method: string;
+            /** Xirr Basis */
+            xirr_basis: string;
+            account_xirr: components["schemas"]["XirrOut"];
+            /** Holdings */
+            holdings: components["schemas"]["HoldingReturnOut"][];
         };
         /** PositionOut */
         PositionOut: {
@@ -4321,6 +4392,20 @@ export interface components {
              * @default []
              */
             closes: string[];
+        };
+        /**
+         * XirrOut
+         * @description A money-weighted (XIRR) annual return; null with a reason when it means nothing.
+         */
+        XirrOut: {
+            /** Rate Pct */
+            rate_pct: number | null;
+            /** First Flow */
+            first_flow: string | null;
+            /** Flows */
+            flows: number;
+            /** Reason */
+            reason?: string | null;
         };
     };
     responses: never;

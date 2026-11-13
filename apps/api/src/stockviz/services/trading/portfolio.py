@@ -112,7 +112,14 @@ class PortfolioValuation:
     options_market_value: Decimal = Decimal(0)
     total_value: Decimal = Decimal(0)
     total_cost_basis: Decimal = Decimal(0)
+    # #68 (Phase 8.1): equities plus open options; each part is kept too.
     unrealized_pl: Decimal = Decimal(0)
+    unrealized_pl_equity: Decimal = Decimal(0)
+    unrealized_pl_options: Decimal = Decimal(0)
+    # Lifetime realized P&L (equity sells, option closes and expiries), and how
+    # many closes have no stored realization and are left out of it.
+    realized_pl: Decimal = Decimal(0)
+    realized_pl_unavailable: int = 0
     # Empty when every figure was priced; otherwise the total is incomplete.
     warnings: list[ValuationWarning] = field(default_factory=list)
     # Cash per currency, base first. ``cash_balance`` is their display total;
@@ -278,6 +285,12 @@ def compute_portfolio(
     )
 
     total_value = market_value_display + options_value_display + cash_display
+    equity_pl = market_value_display - cost_basis_display
+    options_pl = sum((o.unrealized_pl for o in option_positions), Decimal(0))
+    # Local import: returns_ledger reads PortfolioValuation from this module.
+    from stockviz.services.trading.returns_ledger import realized_totals
+
+    realized = realized_totals(session, portfolio)
     return PortfolioValuation(
         portfolio_id=portfolio.id,
         base_currency=base_ccy,
@@ -291,7 +304,11 @@ def compute_portfolio(
         options_market_value=options_value_display,
         total_value=total_value,
         total_cost_basis=cost_basis_display,
-        unrealized_pl=market_value_display - cost_basis_display,
+        unrealized_pl=equity_pl + options_pl,
+        unrealized_pl_equity=equity_pl,
+        unrealized_pl_options=options_pl,
+        realized_pl=_to_display(realized.amount, base_ccy),
+        realized_pl_unavailable=realized.unavailable,
         warnings=warnings,
         cash_by_currency=cash_by_currency,
     )

@@ -550,6 +550,13 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   (windows table, mean CAR path as inline SVG, the events; counts only below
   the minimum; "association, not cause"). The stock page's News tab adds a
   "News reactions" block for its negative and positive news (`NewsReactions`).
+- `/portfolio?tab=analytics` (Phase 8.1) holds `PortfolioReturnsPanel`
+  (`components/portfolio-returns.tsx`): time-weighted return by period and
+  money-weighted (XIRR) return for the account and each holding, each with
+  its method and basis written beside it and a reason where a figure is
+  null. Later Phase 8 panels (exposure, risk, stress) join this tab. The
+  metrics strip shows "Unrealized P&L" (equities plus options, #68) and
+  lifetime "Realized P&L".
 - `/status` (Phase 7.6, public, linked from the footer): each nightly job's
   last result and last success, the newest stored close per market, the
   Aegis sync and undeliverable events, from `/v1/status` (`lib/api/status.ts`,

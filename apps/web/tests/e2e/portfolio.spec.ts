@@ -52,6 +52,14 @@ test("authenticated user can move from a paper trade into the Portfolio workspac
   await page.getByRole("tab", { name: "Income" }).click();
   await expect(page).toHaveURL(/range=1y&tab=income/);
   await expect(page.getByText("No dividend income has been credited yet.")).toBeVisible();
+
+  // Phase 8.1: returns name their method; a day-old holding has no XIRR yet.
+  await page.getByRole("tab", { name: "Analytics" }).click();
+  await expect(page).toHaveURL(/range=1y&tab=analytics/);
+  await expect(main.getByText(/Method: time-weighted/)).toBeVisible();
+  const holdings = main.getByRole("table", { name: "Money-weighted return by holding" });
+  await expect(holdings).toContainText("AAPL");
+  await expect(holdings).toContainText("held under 30 days");
 });
 
 test("new mobile portfolio keeps value, tabs, and starting actions readable", async ({ page }) => {
@@ -85,8 +93,9 @@ test("new mobile portfolio keeps value, tabs, and starting actions readable", as
   await expect(page.getByRole("tab", { name: "Journal" })).toBeInViewport();
   await expect(row).toHaveAttribute("data-more-start", "true");
 
-  // With room to spare every tab fits, so nothing fades.
-  await page.setViewportSize({ width: 430, height: 700 });
+  // With room to spare every tab fits, so nothing fades. Seven tabs since
+  // Phase 8.1 (Analytics) need 423px, more than a 430px phone leaves them.
+  await page.setViewportSize({ width: 480, height: 700 });
   await expect(row).not.toHaveAttribute("data-more-start", "true");
   await expect(row).not.toHaveAttribute("data-more-end", "true");
 });

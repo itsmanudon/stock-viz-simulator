@@ -300,7 +300,14 @@ class PortfolioOut(BaseModel):
     options_market_value: Decimal = Decimal(0)
     total_value: Decimal
     total_cost_basis: Decimal
+    # #68 (Phase 8.1): equities plus open options, with each part.
     unrealized_pl: Decimal
+    unrealized_pl_equity: Decimal = Decimal(0)
+    unrealized_pl_options: Decimal = Decimal(0)
+    # Lifetime realized P&L; closes without a stored realization are counted
+    # in ``realized_pl_unavailable`` and left out, never estimated.
+    realized_pl: Decimal = Decimal(0)
+    realized_pl_unavailable: int = 0
     positions: list[PositionOut]
     option_positions: list[PortfolioOptionOut] = []
     # Empty when the total is complete; otherwise what it leaves out (LG-13).
@@ -1027,6 +1034,45 @@ class TopMoverOut(BaseModel):
     return_pct: float
 
 
+class PeriodReturnOut(BaseModel):
+    """One period's time-weighted return (Phase 8.1). Percentages, or null with a reason."""
+
+    period: str
+    start_date: date | None
+    end_date: date
+    return_pct: float | None
+    annualised_pct: float | None
+    reason: str | None = None
+
+
+class XirrOut(BaseModel):
+    """A money-weighted (XIRR) annual return; null with a reason when it means nothing."""
+
+    rate_pct: float | None
+    first_flow: date | None
+    flows: int
+    reason: str | None = None
+
+
+class HoldingReturnOut(BaseModel):
+    ticker: str
+    kind: str
+    xirr: XirrOut
+
+
+class PortfolioReturnsOut(BaseModel):
+    """Phase 8.1 returns. Each block names its method and basis (UX-9)."""
+
+    currency: str
+    twr_method: str
+    twr_basis: str
+    periods: list[PeriodReturnOut]
+    xirr_method: str
+    xirr_basis: str
+    account_xirr: XirrOut
+    holdings: list[HoldingReturnOut]
+
+
 class PortfolioAnalyticsOut(BaseModel):
     """Aggregated analytics for /v1/portfolio/analytics.
 
@@ -1045,6 +1091,7 @@ class PortfolioAnalyticsOut(BaseModel):
     sector_allocation: list[SectorAllocationOut]
     top_gainers: list[TopMoverOut]
     top_losers: list[TopMoverOut]
+    returns: PortfolioReturnsOut | None = None
 
 
 class PortfolioOverviewOut(BaseModel):
