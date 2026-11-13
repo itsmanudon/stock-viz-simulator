@@ -356,6 +356,18 @@ a stationary block bootstrap (mean block 5, 10,000 paths, 252 sessions,
 fixed seed) of the portfolio's daily returns. The worked examples are in
 `docs/benchmarks/2026-11-13-risk-hand-check.md`, each asserted by a test.
 
+**Stress tests (Phase 8.4).** `GET /v1/portfolio/stress` (authed, on
+request) runs `services/risk/stress.py`: every scenario applied instantly to
+today's holdings in the base currency (stocks by the scenario's move,
+currencies by its rate move, foreign cash with its currency, options
+repriced in full). Historical replays (`HISTORICAL`: 2008, COVID 2020, 2022
+rates, 2013 taper) use each stock's own close-to-close move over the window
+(a start bar within a week of the window's start), else its index's move
+times its beta over the last 500 sessions (`proxied`), else `missing` and
+unmoved. Fixed shocks (`HYPOTHETICAL`) move US-listed and Indian-listed
+stocks by instrument country, and the rupee against the dollar. The combined
+shock is worked by hand in `docs/benchmarks/2026-11-13-risk-hand-check.md`.
+
 **Status (audit OP-5, Phase 7.6).** `GET /v1/status` (public, 30/min):
 each recorded job's latest run (name, state, start, finish, last success),
 the latest Aegis sync's state and time, the newest daily bar per market

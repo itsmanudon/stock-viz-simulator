@@ -361,6 +361,33 @@ export type PortfolioRisk = {
   reason?: string | null;
 };
 
+/** Phase 8.4: `GET /v1/portfolio/stress`, in the account's base currency. */
+export type StressScenario = {
+  key: string;
+  name: string;
+  kind: "historical" | "hypothetical" | string;
+  start: string | null;
+  end: string | null;
+  nav_before: number;
+  nav_after: number;
+  change: number;
+  change_pct: number;
+  drivers: { ticker: string; change: number }[];
+  proxied: string[];
+  missing: string[];
+};
+
+export type PortfolioStress = {
+  currency: string;
+  method: string;
+  basis: string;
+  scenarios: StressScenario[];
+};
+
+export function getPortfolioStress(): Promise<PortfolioStress> {
+  return authedGet<PortfolioStress>("/v1/portfolio/stress");
+}
+
 export function getPortfolioRisk(): Promise<PortfolioRisk> {
   return authedGet<PortfolioRisk>("/v1/portfolio/risk");
 }

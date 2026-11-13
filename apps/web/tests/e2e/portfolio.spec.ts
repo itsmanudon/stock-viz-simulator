@@ -67,6 +67,8 @@ test("authenticated user can move from a paper trade into the Portfolio workspac
   // Phase 8.3: risk names its method; seeded history is long enough for VaR.
   await expect(main.getByText(/Method: historical simulation/)).toBeVisible({ timeout: 10_000 });
   await expect(main.getByRole("table", { name: "Value at risk" })).toContainText("95%");
+  // Phase 8.4: the fixed shocks always apply; a US stock moves with them.
+  await expect(main.getByRole("table", { name: "Fixed shocks" })).toContainText("US stocks -10%");
 });
 
 test("new mobile portfolio keeps value, tabs, and starting actions readable", async ({ page }) => {

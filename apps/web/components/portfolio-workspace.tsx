@@ -13,6 +13,7 @@ import { PortfolioPerformance } from "@/components/portfolio-performance";
 import { PortfolioPositions } from "@/components/portfolio-positions";
 import { PortfolioReturnsPanel } from "@/components/portfolio-returns";
 import { PortfolioRiskPanel } from "@/components/portfolio-risk";
+import { PortfolioStressPanel } from "@/components/portfolio-stress";
 import { PortfolioTabs } from "@/components/portfolio-tabs";
 import type { JournalMonth } from "@/lib/api/journal";
 import type {
@@ -22,6 +23,7 @@ import type {
   PortfolioAnalytics,
   PortfolioHistoryPoint,
   PortfolioRisk,
+  PortfolioStress,
 } from "@/lib/api/trading";
 import type { NewsArticle } from "@/lib/api/types";
 import type { PortfolioRange, PortfolioTab } from "@/lib/portfolio-view-model";
@@ -41,6 +43,8 @@ type Props = {
   news?: NewsArticle[] | null;
   /** Phase 8.3 risk report; only loaded while the Analytics tab is open. */
   risk?: PortfolioRisk | null;
+  /** Phase 8.4 stress tests; loaded with the risk report. */
+  stress?: PortfolioStress | null;
 };
 
 export function PortfolioWorkspace({
@@ -56,6 +60,7 @@ export function PortfolioWorkspace({
   journalMonthKey,
   news = null,
   risk = null,
+  stress = null,
 }: Props) {
   const displayCurrency = portfolio.display_currency || "USD";
   const hasEquityPositions = portfolio.positions.length > 0;
@@ -127,6 +132,7 @@ export function PortfolioWorkspace({
               <PortfolioExposurePanel exposure={analytics?.exposure ?? null} />
               <PortfolioAttributionPanel attribution={analytics?.attribution ?? null} />
               <PortfolioRiskPanel risk={risk} open={tab === "analytics"} />
+              <PortfolioStressPanel stress={stress} open={tab === "analytics"} />
             </>
           }
           positionCount={portfolio.positions.length}
