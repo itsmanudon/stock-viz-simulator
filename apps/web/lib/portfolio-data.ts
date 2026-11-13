@@ -9,9 +9,11 @@ import {
   type PortfolioAnalytics,
   type PortfolioHistoryPoint,
   type PortfolioRisk,
+  type PortfolioStress,
   getDividends,
   getPortfolioHistory,
   getPortfolioRisk,
+  getPortfolioStress,
   listOrders,
 } from "@/lib/api/trading";
 import type { NewsArticle } from "@/lib/api/types";
@@ -36,6 +38,8 @@ export type PortfolioData = {
   news: NewsArticle[] | null;
   /** Phase 8.3: only fetched when the Analytics tab is open; null otherwise or on failure. */
   risk: PortfolioRisk | null;
+  /** Phase 8.4: fetched with the risk report, on the Analytics tab only. */
+  stress: PortfolioStress | null;
 };
 
 /**
@@ -56,13 +60,14 @@ export async function loadPortfolioData(
       )
     : Promise.resolve(null);
 
-  const [overview, history, orders, dividends, journalMonth, risk] = await Promise.all([
+  const [overview, history, orders, dividends, journalMonth, risk, stress] = await Promise.all([
     loadPortfolioOverview(),
     optional(getPortfolioHistory(portfolioRangeDays(range))),
     optional(listOrders("pending")),
     optional(getDividends()),
     journalRequest,
     wantRisk ? optional(getPortfolioRisk()) : Promise.resolve(null),
+    wantRisk ? optional(getPortfolioStress()) : Promise.resolve(null),
   ]);
 
   // Needs the holdings, so it follows the overview rather than joining it.
@@ -82,6 +87,7 @@ export async function loadPortfolioData(
     journalFailed: Boolean(journalMonthKey) && journalMonth === null,
     news,
     risk,
+    stress,
   };
 }
 

@@ -3,7 +3,7 @@
 Date: 2026-11-13. The handover's Phase 8 acceptance: **"Risk figures state
 their method and horizon and match a hand-checked sample."** Each worked
 example below is asserted by a test, so a change to the method that moves a
-figure fails the build. Phase 8.4 adds the stress-test example.
+figure fails the build.
 
 ## 1. Time-weighted return (8.1)
 
@@ -79,3 +79,23 @@ A long option is repriced in full, so its loss cannot exceed its value
 with every past day at +0.1%, every resampled path ends at
 100,000 x 1.001^252 = **128,643.40**, so all percentiles are equal; with a
 fixed seed the same input gives the same output.
+
+## 6. Stress test, combined shock (8.4)
+
+`tests/test_stress.py::test_combined_shock_matches_the_hand_check`
+
+USD account: 100 AAPL at 100 USD; 166 RELIANCE.NS at 2,500 INR with the
+rupee at 0.012 USD; 100,000 INR of cash. Scenario: US stocks -20%, Indian
+stocks -20%, rupee 10% weaker, applied instantly.
+
+| Holding | Value (USD) | Move | Change (USD) |
+| --- | ---: | --- | ---: |
+| AAPL | 100 x 100 = 10,000 | -20% | -2,000.00 |
+| RELIANCE.NS | 166 x 2,500 x 0.012 = 4,980 | (0.8 x 0.9) - 1 = -28% | -1,394.40 |
+| INR cash | 100,000 x 0.012 = 1,200 | -10% | -120.00 |
+| **Total** | | | **-3,514.40** |
+
+A historical window (`test_historical_window_uses_own_history_or_a_beta_proxy`):
+AAPL fell from 100 to 70 over the COVID window, so 10 shares lose 300; MSFT
+has no bar then and moves twice the index day by day over its recent
+history (beta 2), so it takes the index's -20% x 2 = -40%.

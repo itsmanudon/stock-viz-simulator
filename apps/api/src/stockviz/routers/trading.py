@@ -39,10 +39,13 @@ from stockviz.schemas import (
     PortfolioOut,
     PortfolioOverviewOut,
     PortfolioRiskOut,
+    PortfolioStressOut,
     ProjectedDividendOut,
     RiskNoteOut,
     RiskProxyOut,
     RiskWindowOut,
+    StressDriverOut,
+    StressScenarioOut,
     TradeIn,
     TradeOut,
     VarOut,
@@ -50,6 +53,7 @@ from stockviz.schemas import (
 from stockviz.services.instruments import instrument_of
 from stockviz.services.risk import compute_risk
 from stockviz.services.risk.engine import MC_METHOD, VAR_METHOD
+from stockviz.services.risk.stress import STRESS_METHOD, run_stress
 from stockviz.services.trading import (
     ClientOrderIdConflict,
     InsufficientCash,
@@ -69,6 +73,7 @@ from stockviz.services.trading.account import (
     set_base_currency,
 )
 from stockviz.services.trading.account import activity as account_activity
+from stockviz.services.trading.fx import convert as fx_convert
 from stockviz.services.trading.fx import latest_rate as fx_latest_rate
 from stockviz.services.trading.simulation_adapter import as_aware_utc
 from stockviz.services.trading.views import portfolio_analytics_response, portfolio_response
@@ -272,6 +277,53 @@ def get_portfolio_risk(session: SessionDep, user_id: UserIdDep) -> PortfolioRisk
             else None
         ),
         reason=sc.reason,
+    )
+
+
+STRESS_BASIS = (
+    "each scenario applied instantly to today's holdings in the base currency: stocks "
+    "by the scenario's move, currencies by its rate move, options repriced in full; "
+    "a stock without history in a past window takes its index's move times its "
+    "two-year beta"
+)
+
+
+@router.get("/portfolio/stress", response_model=PortfolioStressOut)
+def get_portfolio_stress(session: SessionDep, user_id: UserIdDep) -> PortfolioStressOut:
+    """Phase 8.4: historical replays and hypothetical shocks on today's book."""
+    portfolio = ensure_default_portfolio(session, user_id)
+    display = _user_display_currency(session, user_id)
+    valuation = compute_portfolio(session, portfolio, display_currency=display)
+    base = portfolio.base_currency or "USD"
+    try:
+        nav = float(
+            fx_convert(session, valuation.total_value, from_currency=display, to_currency=base)
+        )
+    except LookupError:
+        nav = float(valuation.total_value)
+    return PortfolioStressOut(
+        currency=base,
+        method=STRESS_METHOD,
+        basis=STRESS_BASIS,
+        scenarios=[
+            StressScenarioOut(
+                key=r.key,
+                name=r.name,
+                kind=r.kind,
+                start=r.start,
+                end=r.end,
+                nav_before=round(r.nav_before, 2),
+                nav_after=round(r.nav_after, 2),
+                change=round(r.change, 2),
+                change_pct=round(r.change_pct, 4),
+                drivers=[
+                    StressDriverOut(ticker=d.ticker, change=round(d.change, 2)) for d in r.drivers
+                ],
+                proxied=r.proxied,
+                missing=r.missing,
+            )
+            for r in run_stress(session, portfolio, valuation, nav_base=nav)
+        ],
     )
 
 

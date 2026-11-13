@@ -1176,6 +1176,35 @@ class PortfolioRiskOut(BaseModel):
     reason: str | None = None
 
 
+class StressDriverOut(BaseModel):
+    ticker: str
+    change: float
+
+
+class StressScenarioOut(BaseModel):
+    key: str
+    name: str
+    kind: str
+    start: date | None
+    end: date | None
+    nav_before: float
+    nav_after: float
+    change: float
+    change_pct: float
+    drivers: list[StressDriverOut]
+    proxied: list[str]
+    missing: list[str]
+
+
+class PortfolioStressOut(BaseModel):
+    """Phase 8.4 stress tests, in the base currency, applied instantly (UX-9)."""
+
+    currency: str
+    method: str
+    basis: str
+    scenarios: list[StressScenarioOut]
+
+
 class PortfolioAnalyticsOut(BaseModel):
     """Aggregated analytics for /v1/portfolio/analytics.
 
