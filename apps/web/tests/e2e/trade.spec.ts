@@ -68,14 +68,13 @@ test("operational trading loop from ticket to orders, watchlist, alerts, and rep
 
   await page.goto("/alerts?ticker=AAPL");
   await expect(main.getByRole("heading", { name: "Alerts", exact: true })).toBeVisible();
-  await expect(main.locator("header")).toContainText(
-    /This is not email, push, or real-time exchange monitoring/i,
-  );
+  // Phase 7.3: rules of several kinds, judged after the nightly run.
+  await expect(main.locator("header")).toContainText(/not real-time monitoring/i);
 
   const create = main.getByRole("region", { name: "Create alert" });
-  await create.getByLabel("Target price").fill("1");
+  await create.getByLabel("Target (USD)").fill("1");
   await create.getByRole("button", { name: "Create alert" }).click();
-  await expect(main.getByRole("table", { name: "Price alerts" })).toContainText("AAPL", {
+  await expect(main.getByRole("list", { name: "Alert rules" })).toContainText("AAPL", {
     timeout: 10_000,
   });
   await expect(create.getByText("Alert set.")).toBeVisible();
@@ -150,7 +149,7 @@ test("operational trading loop from ticket to orders, watchlist, alerts, and rep
   for (const [path, list] of [
     ["/orders?status=all", null],
     ["/watchlist", "Watched securities"],
-    ["/alerts?view=all", "Price alerts"],
+    ["/alerts?view=all", "Alert rules"],
   ] as const) {
     await page.goto(path);
     if (list) await expect(main.getByRole("list", { name: list })).toContainText("AAPL");

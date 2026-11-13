@@ -81,7 +81,7 @@ test("authenticated stock workspace exposes account-aware actions", async ({ pag
   await expect(ticket.getByLabel("Quantity").first()).toBeVisible();
   await expect(page.getByRole("button", { name: "Add AAPL to watchlist" })).toBeVisible();
   await page.getByRole("button", { name: "Alert", exact: true }).click();
-  await expect(page.getByLabel("Set a price alert for AAPL")).toBeVisible();
+  await expect(page.getByLabel("Set an alert for AAPL")).toBeVisible();
 });
 
 test("the statistics strip shows every label and price in full (audit D1)", async ({ page }) => {
