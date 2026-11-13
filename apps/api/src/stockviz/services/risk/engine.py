@@ -45,6 +45,9 @@ class MonteCarloResult:
     """Ending value at percentile p, for p in 5, 25, 50, 75, 95."""
     prob_loss_10: float
     prob_loss_20: float
+    goal: float | None = None
+    """A target value (8.6), and the share of paths ending at or above it."""
+    prob_goal: float | None = None
 
 
 def tail_count(scenarios: int, confidence: float) -> int:
@@ -93,6 +96,7 @@ def block_bootstrap(
     horizon_days: int = 252,
     mean_block: int = 5,
     seed: int = 20261113,
+    goal: float | None = None,
 ) -> MonteCarloResult:
     """Resample the portfolio's past daily returns in blocks of mean length 5.
 
@@ -120,4 +124,6 @@ def block_bootstrap(
         percentiles={p: float(np.percentile(ending, p)) for p in (5, 25, 50, 75, 95)},
         prob_loss_10=float(np.mean(ending < start_value * 0.9)),
         prob_loss_20=float(np.mean(ending < start_value * 0.8)),
+        goal=goal,
+        prob_goal=float(np.mean(ending >= goal)) if goal is not None else None,
     )

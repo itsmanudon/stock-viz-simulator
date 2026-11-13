@@ -70,6 +70,16 @@ test("authenticated user can move from a paper trade into the Portfolio workspac
   // Phase 8.4: the fixed shocks always apply; a US stock moves with them.
   await expect(main.getByRole("table", { name: "Fixed shocks" })).toContainText("US stocks -10%");
 
+  // Phase 8.6: a goal is answered from the resampled paths; the rebalance
+  // preview lists orders without placing them.
+  await main.getByLabel(/Goal: account value in a year/).fill("1");
+  await main.getByRole("button", { name: "Check goal" }).click();
+  await expect(page).toHaveURL(/tab=analytics.*goal=1|goal=1.*tab=analytics/);
+  await expect(main.getByText(/Reaching \$1(\.00)? in a year: nearly every path/)).toBeVisible({
+    timeout: 10_000,
+  });
+  await expect(main.getByRole("heading", { name: "Rebalance preview" })).toBeVisible();
+
   // Phase 8.5: a single-order limit set in Settings shows in the review and
   // refuses a buy over it.
   await page.goto("/settings");

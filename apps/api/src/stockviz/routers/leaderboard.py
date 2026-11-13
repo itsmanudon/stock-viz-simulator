@@ -10,16 +10,18 @@ PATCH /v1/profile    — authed; sets public_profile true/false.
 
 from __future__ import annotations
 
+import secrets
 import time
 from decimal import Decimal
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import func
 from sqlmodel import Session, select
 
 from stockviz.auth import UserIdDep
 from stockviz.db import get_session
+from stockviz.limiter import limiter
 from stockviz.models import Portfolio, PortfolioSnapshot
 from stockviz.models.user import User
 from stockviz.schemas import LeaderboardEntryOut, ProfileOut, ProfilePatchIn
@@ -46,7 +48,9 @@ everyone who qualifies, with ``ranked: false`` so the UI can mark them.
 # can read below ``_CACHE_TTL``, so ``monotonic() - 0.0`` would wrongly look
 # "fresh" and the endpoint would serve an empty leaderboard for the first hour
 # after deploy.
-_cache: list[LeaderboardEntryOut] = []
+# Each entry keeps its user id beside it for the visibility check; the id is
+# never part of the response (audit SR-12).
+_cache: list[tuple[int, LeaderboardEntryOut]] = []
 _cache_ts: float | None = None
 
 
@@ -96,8 +100,33 @@ def _first_and_last_navs(
     return {uid: (first[uid], last[uid]) for uid in first if uid in last}
 
 
-def _build_leaderboard(session: Session) -> list[LeaderboardEntryOut]:
+HANDLE_PREFIX = "trader-"
+
+
+def ensure_public_handle(session: Session, user: User) -> str:
+    """The user's opaque public handle, made once (SR-12). Commits when new."""
+    if user.public_handle:
+        return user.public_handle
+    while True:
+        candidate = f"{HANDLE_PREFIX}{secrets.token_hex(3)}"
+        clash = session.exec(select(User.id).where(User.public_handle == candidate)).first()
+        if clash is None:
+            break
+    user.public_handle = candidate
+    session.add(user)
+    session.commit()
+    session.refresh(user)
+    return candidate
+
+
+def _public_name(display_name: str | None, handle: str) -> str:
+    return display_name or handle
+
+
+def _build_leaderboard(session: Session) -> list[tuple[int, LeaderboardEntryOut]]:
     public_users = list(session.exec(select(User).where(User.public_profile.is_(True))))  # type: ignore[union-attr]
+    for user in public_users:
+        ensure_public_handle(session, user)
     user_ids = [u.id for u in public_users if u.id is not None]
     navs_by_user = _first_and_last_navs(session, user_ids)
     snapshot_counts = _snapshot_counts(session)
@@ -131,15 +160,18 @@ def _build_leaderboard(session: Session) -> list[LeaderboardEntryOut]:
     entries.sort(key=lambda t: (t[2] >= MIN_SNAPSHOTS_TO_RANK, t[0]), reverse=True)
 
     return [
-        LeaderboardEntryOut(
-            rank=rank,
-            user_id=user.id,  # type: ignore[arg-type]
-            username=user.name or user.email.split("@")[0],
-            return_pct=round(return_pct, 4),
-            portfolio_value=nav,
-            currency=base_by_user.get(user.id or -1, "USD"),
-            days_tracked=snapshot_count,
-            ranked=snapshot_count >= MIN_SNAPSHOTS_TO_RANK,
+        (
+            user.id,  # type: ignore[misc]
+            LeaderboardEntryOut(
+                rank=rank,
+                handle=user.public_handle or "",
+                username=_public_name(user.display_name, user.public_handle or ""),
+                return_pct=round(return_pct, 4),
+                portfolio_value=nav,
+                currency=base_by_user.get(user.id or -1, "USD"),
+                days_tracked=snapshot_count,
+                ranked=snapshot_count >= MIN_SNAPSHOTS_TO_RANK,
+            ),
         )
         for rank, (return_pct, nav, snapshot_count, user) in enumerate(entries, start=1)
     ]
@@ -154,7 +186,13 @@ def _snapshot_counts(session: Session) -> dict[int, int]:
 
 
 @router.get("/leaderboard", response_model=list[LeaderboardEntryOut])
-def get_leaderboard(session: SessionDep) -> list[LeaderboardEntryOut]:
+@limiter.limit("30/minute")
+def get_leaderboard(request: Request, session: SessionDep) -> list[LeaderboardEntryOut]:
+    return visible_leaderboard(session)
+
+
+def visible_leaderboard(session: Session) -> list[LeaderboardEntryOut]:
+    """The public top 50, cache-backed, visibility read from the database."""
     global _cache, _cache_ts
     if _cache_ts is None or time.monotonic() - _cache_ts > _CACHE_TTL:
         _cache = _build_leaderboard(session)
@@ -166,17 +204,19 @@ def get_leaderboard(session: SessionDep) -> list[LeaderboardEntryOut]:
     # columns after the fill so neither cached names nor stale ORM instances can
     # bypass the authoritative database visibility check. DB errors fail closed.
     public_names = {
-        user_id: name or email.split("@")[0]
-        for user_id, name, email in session.exec(
-            select(User.id, User.name, User.email).where(User.public_profile.is_(True))  # type: ignore[union-attr]
+        user_id: _public_name(display_name, handle or "")
+        for user_id, display_name, handle in session.exec(
+            select(User.id, User.display_name, User.public_handle).where(  # type: ignore[call-overload]
+                User.public_profile.is_(True)  # type: ignore[union-attr]
+            )
         )
     }
-    visible = [entry for entry in candidates if entry.user_id in public_names]
+    visible = [(uid, entry) for uid, entry in candidates if uid in public_names]
     # Keep every candidate in the cache: filtering an already-truncated top 50
     # would leave holes when users opt out. Copy to avoid mutating shared ranks.
     return [
-        entry.model_copy(update={"rank": rank, "username": public_names[entry.user_id]})
-        for rank, entry in enumerate(visible[:50], start=1)
+        entry.model_copy(update={"rank": rank, "username": public_names[uid]})
+        for rank, (uid, entry) in enumerate(visible[:50], start=1)
     ]
 
 
@@ -188,10 +228,17 @@ def get_profile(session: SessionDep, user_id: UserIdDep) -> ProfileOut:
     user = session.get(User, user_id)
     if user is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "User not found")
+    return _profile_out(session, user)
+
+
+def _profile_out(session: Session, user: User) -> ProfileOut:
+    assert user.id is not None
     return ProfileOut(
-        user_id=user_id,
+        user_id=user.id,
         public_profile=user.public_profile,
         display_currency=user.display_currency or "USD",
+        public_handle=ensure_public_handle(session, user),
+        display_name=user.display_name,
     )
 
 
@@ -217,13 +264,11 @@ def patch_profile(
                 f"Unsupported display_currency {ccy!r}; allowed: {sorted(SUPPORTED_DISPLAY_CURRENCIES)}",
             )
         user.display_currency = ccy
+    if body.display_name is not None:
+        user.display_name = body.display_name or None
 
     session.add(user)
     session.commit()
-    if body.public_profile is not None:
-        _cache_ts = None  # Invalidate only after the visibility change is durable.
-    return ProfileOut(
-        user_id=user_id,
-        public_profile=user.public_profile,
-        display_currency=user.display_currency or "USD",
-    )
+    if body.public_profile is not None or body.display_name is not None:
+        _cache_ts = None  # Invalidate only after the change is durable.
+    return _profile_out(session, user)

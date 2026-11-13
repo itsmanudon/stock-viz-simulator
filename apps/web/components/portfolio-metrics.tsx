@@ -86,11 +86,17 @@ export function PortfolioMetrics({ portfolio, analytics }: Props) {
       label: "All-history return",
       value: formatSignedPercent(analytics.total_return_pct),
       tone: toneFor(analytics.total_return_pct),
+      // UX-9: every figure states its method and period.
+      detail: "Opening value to today's valuation",
     });
   }
 
   if (hasInvestments && analytics?.sharpe_ratio !== null && analytics?.sharpe_ratio !== undefined) {
-    metrics.push({ label: "Sharpe ratio", value: analytics.sharpe_ratio.toFixed(2) });
+    metrics.push({
+      label: "Sharpe ratio",
+      value: analytics.sharpe_ratio.toFixed(2),
+      detail: `Daily returns, annualised · risk-free ${(analytics.risk_free_rate * 100).toFixed(1)}%`,
+    });
   }
 
   if (
@@ -102,6 +108,7 @@ export function PortfolioMetrics({ portfolio, analytics }: Props) {
       label: "Max drawdown",
       value: formatSignedPercent(analytics.max_drawdown_pct),
       tone: "negative",
+      detail: "Largest fall from a peak, all history",
     });
   }
 

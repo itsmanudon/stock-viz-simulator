@@ -21,12 +21,30 @@ function toUtcSeconds(yyyyMmDd: string): UTCTimestamp {
   return Math.floor(new Date(`${yyyyMmDd}T00:00:00Z`).getTime() / 1000) as UTCTimestamp;
 }
 
+/** Whole units with grouping, in the series' currency (UX-9). */
+export function axisFormatter(currency: string): (value: number) => string {
+  let format: Intl.NumberFormat;
+  try {
+    format = new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency,
+      maximumFractionDigits: 0,
+    });
+  } catch {
+    format = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 });
+  }
+  return (value: number) => format.format(value);
+}
+
 export function EquityCurve({
   points,
-  accessibleLabel = "Portfolio USD NAV history chart.",
+  accessibleLabel = "Portfolio NAV history chart.",
+  currency = "USD",
 }: {
   points: Point[];
   accessibleLabel?: string;
+  /** UX-9 (Phase 8.6): the price axis prints this currency with grouping. */
+  currency?: string;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const palette = useChartPalette();
@@ -56,6 +74,8 @@ export function EquityCurve({
       timeScale: { borderColor: palette.axis, timeVisible: false },
       rightPriceScale: { borderColor: palette.axis },
       crosshair: { mode: 1 },
+      // UX-9: "$106,000", not "106000.00".
+      localization: { priceFormatter: axisFormatter(currency) },
     });
 
     const series = chart.addSeries(AreaSeries, {
@@ -71,7 +91,7 @@ export function EquityCurve({
     return () => {
       chart.remove();
     };
-  }, [data, isPositive, palette]);
+  }, [data, isPositive, palette, currency]);
 
   return (
     <div role="img" aria-label={accessibleLabel} className="w-full">

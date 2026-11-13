@@ -15,6 +15,7 @@ import { PortfolioReturnsPanel } from "@/components/portfolio-returns";
 import { PortfolioRiskPanel } from "@/components/portfolio-risk";
 import { PortfolioStressPanel } from "@/components/portfolio-stress";
 import { PortfolioTabs } from "@/components/portfolio-tabs";
+import { RebalancePreview } from "@/components/rebalance-preview";
 import type { JournalMonth } from "@/lib/api/journal";
 import type {
   DividendSummary,
@@ -45,6 +46,8 @@ type Props = {
   risk?: PortfolioRisk | null;
   /** Phase 8.4 stress tests; loaded with the risk report. */
   stress?: PortfolioStress | null;
+  /** Phase 8.6: the goal value from the URL, for the risk panel's form. */
+  goal?: number | null;
 };
 
 export function PortfolioWorkspace({
@@ -61,6 +64,7 @@ export function PortfolioWorkspace({
   news = null,
   risk = null,
   stress = null,
+  goal = null,
 }: Props) {
   const displayCurrency = portfolio.display_currency || "USD";
   const hasEquityPositions = portfolio.positions.length > 0;
@@ -131,8 +135,20 @@ export function PortfolioWorkspace({
               <PortfolioReturnsPanel returns={analytics?.returns ?? null} />
               <PortfolioExposurePanel exposure={analytics?.exposure ?? null} />
               <PortfolioAttributionPanel attribution={analytics?.attribution ?? null} />
-              <PortfolioRiskPanel risk={risk} open={tab === "analytics"} />
+              <PortfolioRiskPanel
+                risk={risk}
+                open={tab === "analytics"}
+                goal={goal}
+                range={range}
+              />
               <PortfolioStressPanel stress={stress} open={tab === "analytics"} />
+              {tab === "analytics" ? (
+                <RebalancePreview
+                  positions={portfolio.positions}
+                  nav={Number(portfolio.total_value)}
+                  currency={displayCurrency}
+                />
+              ) : null}
             </>
           }
           positionCount={portfolio.positions.length}

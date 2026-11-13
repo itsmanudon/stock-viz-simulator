@@ -11,10 +11,16 @@ import { formatCloseDate } from "@/lib/stock-workspace";
 export function PortfolioRiskPanel({
   risk,
   open,
+  goal = null,
+  range,
 }: {
   risk: PortfolioRisk | null;
   /** False while another tab is open: the report is only loaded on Analytics. */
   open: boolean;
+  /** Phase 8.6: the target value from `?goal=`, if any. */
+  goal?: number | null;
+  /** Kept in the goal form so submitting it does not reset the chart range. */
+  range?: string;
 }) {
   if (!open) return null;
   if (!risk) {
@@ -105,6 +111,37 @@ export function PortfolioRiskPanel({
             Chance of losing more than 10%: {(mc.prob_loss_10 * 100).toFixed(1)}% · more than 20%:{" "}
             {(mc.prob_loss_20 * 100).toFixed(1)}%
           </p>
+          <form method="get" action="/portfolio" className="mt-4 flex flex-wrap items-end gap-3">
+            <input type="hidden" name="tab" value="analytics" />
+            {range ? <input type="hidden" name="range" value={range} /> : null}
+            <div className="grid gap-1">
+              <label htmlFor="goal-value" className="text-2xs text-text-tertiary">
+                Goal: account value in a year ({ccy})
+              </label>
+              <input
+                id="goal-value"
+                name="goal"
+                type="number"
+                inputMode="decimal"
+                min="1"
+                step="any"
+                defaultValue={goal ?? ""}
+                className="h-8 w-40 rounded-md border border-input bg-transparent px-2 font-mono text-sm"
+              />
+            </div>
+            <button
+              type="submit"
+              className="h-8 rounded-full border border-border px-4 text-xs font-medium transition hover:bg-surface-secondary"
+            >
+              Check goal
+            </button>
+          </form>
+          {mc.goal != null && mc.prob_goal != null ? (
+            <output className="mt-2 block text-sm">
+              Reaching {formatCurrency(mc.goal, ccy)} in a year: {goalOdds(mc.prob_goal)} on past
+              behaviour ({(mc.prob_goal * 100).toFixed(1)}% of resampled paths).
+            </output>
+          ) : null}
         </div>
       ) : null}
       {risk.proxied.length > 0 || risk.excluded.length > 0 ? (
@@ -123,4 +160,12 @@ export function PortfolioRiskPanel({
       ) : null}
     </section>
   );
+}
+
+/** "about 1 in 4": a probability in words, never a promise. */
+export function goalOdds(p: number): string {
+  if (p >= 0.995) return "nearly every path";
+  if (p <= 0.005) return "almost no path";
+  if (p >= 0.5) return `about ${Math.round(p * 100)} in 100`;
+  return `about 1 in ${Math.round(1 / p)}`;
 }

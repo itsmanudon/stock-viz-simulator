@@ -383,6 +383,17 @@ single-order cap only (`enforce_option_open`, 409). Sells are never checked.
 `GET`/`PUT /v1/portfolio/limits`, `GET /v1/portfolio/limits/check?ticker=&quantity=`
 (the order review's preview).
 
+**Phase 8.6 small items.** SR-12: `users.public_handle` (unique, random
+`trader-xxxxxx`, given to every existing user by migration `c4f6a8b0d923`
+and to anyone else when the profile or the leaderboard first needs it) and
+`users.display_name` (2 to 40 characters, no "@", set through `PATCH
+/v1/profile`). `/v1/leaderboard` returns `handle` and `username` (display
+name, else handle), never the database id, the signup name or the email,
+and is limited to 30/min; the cache keeps each entry's user id beside it for
+the visibility check only (`visible_leaderboard`). Goals: `GET
+/v1/portfolio/risk?goal=` adds `monte_carlo.goal` and `prob_goal`, the share
+of the one-year bootstrap paths ending at or above it.
+
 **Status (audit OP-5, Phase 7.6).** `GET /v1/status` (public, 30/min):
 each recorded job's latest run (name, state, start, finish, last success),
 the latest Aegis sync's state and time, the newest daily bar per market

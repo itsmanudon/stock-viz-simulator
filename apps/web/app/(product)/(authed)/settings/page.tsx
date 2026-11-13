@@ -53,6 +53,19 @@ async function setBaseCurrency(formData: FormData) {
   for (const path of ["/settings", "/portfolio", "/dashboard", "/trade"]) revalidatePath(path);
 }
 
+async function setDisplayName(formData: FormData) {
+  "use server";
+  const raw = formData.get("display_name");
+  const name = typeof raw === "string" ? raw.trim() : "";
+  try {
+    await patchProfile({ display_name: name });
+  } catch {
+    // 422: too short or contains "@"; the field keeps the saved name.
+  }
+  revalidatePath("/settings");
+  revalidatePath("/leaderboard");
+}
+
 async function setRiskLimits(formData: FormData) {
   "use server";
   await putRiskLimits(limitsFromForm(formData));
@@ -166,8 +179,8 @@ export default async function SettingsPage() {
                   Show me on the public leaderboard
                 </p>
                 <p className="mt-0.5 text-xs leading-relaxed text-text-tertiary">
-                  Currently {visible ? "visible" : "hidden"}. Only your username and return are
-                  shown; holdings and cash never are.
+                  Currently {visible ? "visible" : "hidden"}. Only your public name and return are
+                  shown; holdings, cash and your email never are.
                 </p>
               </div>
               {/* A submit button acting as a switch: one press saves the
@@ -190,6 +203,37 @@ export default async function SettingsPage() {
                   )}
                 />
               </button>
+            </form>
+            <form
+              action={setDisplayName}
+              className="mt-4 flex flex-wrap items-end gap-3 border-t border-border-muted pt-4"
+            >
+              <div className="grid gap-1.5">
+                <label htmlFor="display-name" className="text-xs text-text-tertiary">
+                  Public name
+                </label>
+                <input
+                  id="display-name"
+                  name="display_name"
+                  maxLength={40}
+                  defaultValue={profile.display_name ?? ""}
+                  placeholder={profile.public_handle ?? "Your public name"}
+                  className="flex h-9 w-56 rounded-md border border-input bg-transparent px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                />
+              </div>
+              <button
+                type="submit"
+                className="h-9 rounded-full border border-border px-5 text-sm font-medium transition hover:bg-surface-secondary"
+              >
+                Save name
+              </button>
+              <p className="w-full text-xs leading-relaxed text-text-tertiary">
+                Shown on the leaderboard as{" "}
+                <span className="font-medium text-foreground">
+                  {profile.display_name || profile.public_handle || "your handle"}
+                </span>
+                . Leave it empty to show your random handle. 2 to 40 characters, no &quot;@&quot;.
+              </p>
             </form>
           </SettingsPanel>
 

@@ -575,6 +575,15 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   buys, from `GET /api/limits-check` (a route handler over
   `/v1/portfolio/limits/check`); it is advice only, the API checks again
   when the order fills.
+- Phase 8.6: the leaderboard keys rows by `handle` (SR-12) and Settings
+  sets the public name (`display_name`; empty shows the handle). UX-9: the
+  NAV chart's axis prints the account's currency with grouping
+  (`EquityCurve` `currency`, `axisFormatter`), and the metrics strip says
+  how each figure is measured (Sharpe names the risk-free rate). The
+  Analytics tab adds `RebalancePreview` (`components/rebalance-preview.tsx`,
+  whole shares to target weights, nothing placed, each line opens the
+  ticket) and a goal form in the Risk panel (`?goal=` on `/portfolio`,
+  `goalOdds` puts the chance in words).
 - `/status` (Phase 7.6, public, linked from the footer): each nightly job's
   last result and last success, the newest stored close per market, the
   Aegis sync and undeliverable events, from `/v1/status` (`lib/api/status.ts`,

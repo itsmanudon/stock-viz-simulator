@@ -262,7 +262,7 @@ export function TrackPanel({ rows }: { rows: LeaderboardEntry[] }) {
       />
       <ul className="divide-y divide-border-muted/60">
         {rows.map((row) => (
-          <li key={row.user_id} className="flex items-center gap-3 py-2.5">
+          <li key={row.handle} className="flex items-center gap-3 py-2.5">
             <span className="w-6 shrink-0 font-mono text-2xs text-text-tertiary tabular-nums">
               {String(row.rank).padStart(2, "0")}
             </span>

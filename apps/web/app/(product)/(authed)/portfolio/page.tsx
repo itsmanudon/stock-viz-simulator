@@ -9,7 +9,7 @@ export const metadata: Metadata = { title: "Portfolio" };
 export default async function PortfolioPage({
   searchParams,
 }: {
-  searchParams: Promise<{ range?: string; tab?: string; month?: string }>;
+  searchParams: Promise<{ range?: string; tab?: string; month?: string; goal?: string }>;
 }) {
   const params = await searchParams;
   const range = parsePortfolioRange(params.range);
@@ -20,7 +20,22 @@ export default async function PortfolioPage({
   const data = await loadPortfolioData(range, tab === "journal" ? monthKey : undefined, {
     news: tab === "news",
     risk: tab === "analytics",
+    goal: parseGoal(params.goal),
   });
 
-  return <PortfolioWorkspace {...data} range={range} tab={tab} journalMonthKey={monthKey} />;
+  return (
+    <PortfolioWorkspace
+      {...data}
+      range={range}
+      tab={tab}
+      journalMonthKey={monthKey}
+      goal={parseGoal(params.goal)}
+    />
+  );
+}
+
+/** Phase 8.6: a target value from `?goal=`, positive and finite, else none. */
+function parseGoal(raw: string | undefined): number | null {
+  const value = Number(raw);
+  return raw && Number.isFinite(value) && value > 0 && value <= 1e12 ? value : null;
 }

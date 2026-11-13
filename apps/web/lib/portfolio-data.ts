@@ -52,7 +52,11 @@ export type PortfolioData = {
 export async function loadPortfolioData(
   range: PortfolioRange,
   journalMonthKey?: string,
-  { news: wantNews = false, risk: wantRisk = false }: { news?: boolean; risk?: boolean } = {},
+  {
+    news: wantNews = false,
+    risk: wantRisk = false,
+    goal = null,
+  }: { news?: boolean; risk?: boolean; goal?: number | null } = {},
 ): Promise<PortfolioData> {
   const journalRequest = journalMonthKey
     ? optional(
@@ -66,7 +70,7 @@ export async function loadPortfolioData(
     optional(listOrders("pending")),
     optional(getDividends()),
     journalRequest,
-    wantRisk ? optional(getPortfolioRisk()) : Promise.resolve(null),
+    wantRisk ? optional(getPortfolioRisk(goal)) : Promise.resolve(null),
     wantRisk ? optional(getPortfolioStress()) : Promise.resolve(null),
   ]);
 

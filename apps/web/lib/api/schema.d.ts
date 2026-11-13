@@ -2740,8 +2740,8 @@ export interface components {
         LeaderboardEntryOut: {
             /** Rank */
             rank: number;
-            /** User Id */
-            user_id: number;
+            /** Handle */
+            handle: string;
             /** Username */
             username: string;
             /** Return Pct */
@@ -2887,6 +2887,10 @@ export interface components {
             prob_loss_10: number;
             /** Prob Loss 20 */
             prob_loss_20: number;
+            /** Goal */
+            goal?: number | null;
+            /** Prob Goal */
+            prob_goal?: number | null;
         };
         /**
          * NewsArticleOut
@@ -3489,16 +3493,25 @@ export interface components {
              * @default USD
              */
             display_currency: string;
+            /** Public Handle */
+            public_handle?: string | null;
+            /** Display Name */
+            display_name?: string | null;
         };
         /**
          * ProfilePatchIn
          * @description All fields are optional — patch sends only what changes.
+         *
+         *     ``display_name`` is shown on the public leaderboard: 2 to 40 characters,
+         *     no "@" (it must not look like an email); an empty string clears it.
          */
         ProfilePatchIn: {
             /** Public Profile */
             public_profile?: boolean | null;
             /** Display Currency */
             display_currency?: string | null;
+            /** Display Name */
+            display_name?: string | null;
         };
         /** ProjectedDividendOut */
         ProjectedDividendOut: {
@@ -5727,7 +5740,9 @@ export interface operations {
     };
     get_portfolio_risk_v1_portfolio_risk_get: {
         parameters: {
-            query?: never;
+            query?: {
+                goal?: number | string | null;
+            };
             header?: {
                 authorization?: string | null;
             };

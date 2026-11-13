@@ -154,7 +154,8 @@ export function PortfolioPerformance({ portfolio, history, range, tab }: Props) 
           ) : (
             <EquityCurve
               points={history}
-              accessibleLabel={`${rangeLabel} USD NAV chart, ${change.percent >= 0 ? "up" : "down"} ${Math.abs(change.percent).toFixed(2)}% from ${formatDate(change.firstDate)} to ${formatDate(change.lastDate)}.`}
+              currency={portfolio.base_currency || "USD"}
+              accessibleLabel={`${rangeLabel} ${portfolio.base_currency || "USD"} NAV chart, ${change.percent >= 0 ? "up" : "down"} ${Math.abs(change.percent).toFixed(2)}% from ${formatDate(change.firstDate)} to ${formatDate(change.lastDate)}.`}
             />
           )}
         </div>
