@@ -101,6 +101,27 @@ export const DOC_SECTIONS: DocSection[] = [
         summary:
           "Time- and money-weighted returns, exposure, value at risk, stress tests and goals.",
       },
+      {
+        slug: "alerts",
+        title: "Alerts and notifications",
+        summary:
+          "Price, technical, news and portfolio rules, when they fire, and what notifies you.",
+      },
+    ],
+  },
+  {
+    title: "Reference",
+    pages: [
+      {
+        slug: "how-figures-are-measured",
+        title: "How figures are measured",
+        summary: "Where prices and rates come from, and the method behind each figure.",
+      },
+      {
+        slug: "glossary-and-faq",
+        title: "Glossary and FAQ",
+        summary: "The terms used here, and answers to the questions people ask most.",
+      },
     ],
   },
 ];

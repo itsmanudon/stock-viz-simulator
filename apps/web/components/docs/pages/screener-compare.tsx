@@ -10,7 +10,9 @@ export function ScreenerCompare() {
           applied filter shows as a chip you can remove.
         </P>
         <Terms>
-          <Term name="Market and currency">Country of listing, exchange and trading currency.</Term>
+          <Term name="Market, currency and sector">
+            Country of listing, exchange, trading currency and sector.
+          </Term>
           <Term name="Technicals">
             RSI, momentum over a window, the 52-week range, price against its 50- and 200-day
             averages, volatility and average volume.
@@ -25,7 +27,7 @@ export function ScreenerCompare() {
             Results come 50 to a page; any change to a filter or the sort goes back to page one.
           </Li>
           <Li>Signed in, you can save a screen by name and open it again later.</Li>
-          <Li>Tick rows and press Compare to open them side by side.</Li>
+          <Li>Tick up to six rows and press Compare selected to open them on one chart.</Li>
         </List>
         <Shot
           src="/docs/screener.png"

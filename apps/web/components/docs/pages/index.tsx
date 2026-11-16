@@ -1,7 +1,10 @@
 import type { ComponentType } from "react";
 
+import { Alerts } from "@/components/docs/pages/alerts";
 import { Backtests } from "@/components/docs/pages/backtests";
 import { GettingStarted } from "@/components/docs/pages/getting-started";
+import { GlossaryFaq } from "@/components/docs/pages/glossary-faq";
+import { HowFiguresAreMeasured } from "@/components/docs/pages/how-figures-are-measured";
 import { MarketsAndStocks } from "@/components/docs/pages/markets-and-stocks";
 import { NewsReactions } from "@/components/docs/pages/news-reactions";
 import { OptionStrategies } from "@/components/docs/pages/option-strategies";
@@ -27,4 +30,7 @@ export const DOC_CONTENT: Record<string, ComponentType> = {
   replay: Replay,
   portfolio: Portfolio,
   "returns-and-risk": ReturnsAndRisk,
+  alerts: Alerts,
+  "how-figures-are-measured": HowFiguresAreMeasured,
+  "glossary-and-faq": GlossaryFaq,
 };

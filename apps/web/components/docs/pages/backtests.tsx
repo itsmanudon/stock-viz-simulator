@@ -18,8 +18,8 @@ export function Backtests() {
         </Terms>
         <Shot
           src="/docs/backtest.png"
-          alt="A backtest result: the equity curve against buy-and-hold, with its figures"
-          caption="A backtest result: the strategy's equity curve against buying and holding, with the run's assumptions written under it."
+          alt="A backtest equity curve, with the buy-and-hold return"
+          caption="A default run's equity curve, with buying and holding's return over the same window beside it."
         />
       </DocSection>
 
