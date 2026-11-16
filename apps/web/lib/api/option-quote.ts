@@ -29,6 +29,23 @@ export type OptionQuote = {
   volatility_closes: number;
   /** True when the model price was under the 0.01-a-share minimum (LG-14). */
   premium_floor_applied: boolean;
+  side: "long" | "short";
+  risk: OptionRisk;
+};
+
+/**
+ * What the position can lose and must hold back (Phase 9.2), in USD.
+ * `collateral` is cash reserved (a cash-secured put's strike value);
+ * `shares_reserved` the shares a covered call holds back. `max_gain` is null
+ * when unbounded.
+ */
+export type OptionRisk = {
+  collateral: string;
+  shares_reserved: string;
+  max_loss: string;
+  max_gain: string | null;
+  breakeven: string;
+  basis: string;
 };
 
 /**
@@ -62,6 +79,8 @@ export type OptionQuoteRequest = {
   strike?: string;
   expiry: string;
   quantity: number;
+  /** Long buys to open; short writes a covered contract. Default long. */
+  side?: "long" | "short";
 };
 
 export function getOptionQuote(
@@ -75,6 +94,7 @@ export function getOptionQuote(
     quantity: String(request.quantity),
   });
   if (request.strike) params.set("strike", request.strike);
+  if (request.side) params.set("side", request.side);
   return apiGet<OptionQuote>(`/v1/options/quote?${params}`, {
     init: { signal },
     maxAttempts: 1,
@@ -83,7 +103,10 @@ export function getOptionQuote(
 
 /** GET /v1/options/implied-volatility: the volatility a per-share price implies. */
 export function getImpliedVolatility(
-  request: Omit<OptionQuoteRequest, "quantity" | "strike"> & { strike: string; price: string },
+  request: Omit<OptionQuoteRequest, "quantity" | "strike" | "side"> & {
+    strike: string;
+    price: string;
+  },
   signal?: AbortSignal,
 ): Promise<ImpliedVolatility> {
   const params = new URLSearchParams({

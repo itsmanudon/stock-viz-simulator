@@ -35,7 +35,13 @@ from stockviz.models.market import (
 )
 from stockviz.models.metrics import SymbolMetrics
 from stockviz.models.notification import Notification, NotificationCategory
-from stockviz.models.option import OptionsPosition, OptionStatus, OptionType
+from stockviz.models.option import (
+    OptionCover,
+    OptionSide,
+    OptionsPosition,
+    OptionStatus,
+    OptionType,
+)
 from stockviz.models.order import OrderStatus, OrderType, PendingOrder
 from stockviz.models.portfolio import (
     CashBalance,
@@ -93,6 +99,8 @@ __all__ = [
     "NewsSentiment",
     "Notification",
     "NotificationCategory",
+    "OptionCover",
+    "OptionSide",
     "OptionStatus",
     "OptionType",
     "OptionsPosition",

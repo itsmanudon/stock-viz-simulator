@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { PortfolioIncome } from "@/components/portfolio-income";
@@ -111,6 +111,30 @@ describe("portfolio operational panels", () => {
       "Δ 0.53 · Θ -¥4",
     );
     expect(screen.getByText(/Greeks are per share; theta is per day/)).toBeVisible();
+  });
+
+  it("shows a written covered call as a liability you buy back (Phase 9.2)", () => {
+    const written = {
+      ...option,
+      ticker: "AAPL",
+      currency: "USD",
+      side: "short" as const,
+      premium_paid: "746.40",
+      market_value: "-512.30",
+      market_value_native: "-512.30",
+      unrealized_pl: "234.10",
+    };
+    render(<PortfolioOptions positions={[written]} displayCurrency="USD" />);
+
+    const table = screen.getByRole("table", { name: "Options positions" });
+    expect(within(table).getByText("Covered call (written)")).toBeVisible();
+    expect(within(table).getByText("received")).toBeVisible();
+    const buyBack = within(table).getByRole("button", {
+      name: "Close AAPL written call position",
+    });
+    expect(buyBack).toHaveTextContent("Buy back");
+    fireEvent.click(buyBack);
+    expect(within(table).getByText("Buy back for about $512.30?")).toBeVisible();
   });
 
   it("uses a concise true empty state for options", () => {

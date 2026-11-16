@@ -789,7 +789,29 @@ intraday fills anywhere in the app:
   inputs and returns it beside the historical volatility; nothing is
   stored. Greeks (with rho) are on the quote, `/v1/options/positions` and
   each `PortfolioOptionOut.greeks` (null when unpriceable).
-- **Options** (`services/options/`): long-only book. Black-Scholes pricing
+- **Covered short legs (Phase 9.2).** `options_positions.side` (`long` |
+  `short`) and `cover` (`shares` | `cash`; migration `e1b7d3f5a924`, a check
+  refuses a short leg with no cover: no naked options). `open_option(side=
+  SHORT)` writes a **covered call** (needs that many available shares) or a
+  **cash-secured put** (needs its full strike value in available cash: not
+  less the premium, which is already spendable cash), credits the premium in
+  USD, and is for USD accounts only for now (`InsufficientCoverForOption`,
+  422). The cover is a derived reservation in `buying_power.py`
+  (`option_share_reservation`, `option_cash_reservation`), so the shares
+  cannot be sold and the cash cannot be spent while the leg is open;
+  `exclude_option_id` (also on `apply_fill`) lets the leg's own buy-back or
+  assignment use it. `close_option` buys a short leg back (realized =
+  premium - cost, `proceeds` = -cost). At expiry long legs settle first,
+  then short: an ITM covered call sells its reserved shares at the strike,
+  an ITM cash-secured put buys the shares at the strike with its reserved
+  cash (both through `apply_fill`, so a `Trade` is written; the option leg
+  realizes the premium); OTM short legs expire with the premium kept.
+  `services/options/margin.py` (pure) gives each leg's collateral, shares
+  held back, most it can lose and gain, breakeven and basis; the quote
+  (`?side=short`) returns them as `risk`. Valuation: a short leg is a
+  liability (`position_sign`): negative market value, cost basis and delta
+  notional, negated Greeks, and a negative size in VaR and stress tests.
+- **Options** (`services/options/`): long legs plus covered short legs (Phase 9.2, above). Black-Scholes pricing
   with 30-day historical volatility as the IV proxy and a 5% risk-free rate;
   contracts are ×100 (`CONTRACT_MULTIPLIER`). Premiums debit the USD cash
   bucket and must honour pending-equity-BUY reservations. Option pricing is

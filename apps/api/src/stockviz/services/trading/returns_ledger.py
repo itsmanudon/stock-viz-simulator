@@ -23,6 +23,7 @@ from stockviz.models import (
     Trade,
     TradeSide,
 )
+from stockviz.models.option import position_sign
 from stockviz.services.trading.fx import convert as fx_convert
 from stockviz.services.trading.portfolio import PortfolioValuation
 from stockviz.services.trading.returns import MIN_XIRR_DAYS, Xirr, xirr
@@ -150,7 +151,8 @@ def _options_return(
         )
     flows: list[tuple[date, Decimal]] = []
     for option in options:
-        flows.append((option.opened_at.date(), -option.premium_paid))
+        # A long leg pays its premium; a short leg (Phase 9.2) receives it.
+        flows.append((option.opened_at.date(), -option.premium_paid * position_sign(option)))
         if option.status == OptionStatus.OPEN:
             continue
         if option.proceeds is None or option.settled_at is None:

@@ -1,8 +1,10 @@
 "use client";
 
 /**
- * Options order ticket on /trade. Buys a call/put to open via the
- * openOptionAction server action. Closing positions happens from /portfolio.
+ * Options order ticket on /trade. Buys a call/put to open, or writes a covered
+ * one (Phase 9.2: a covered call on shares held, a cash-secured put on cash),
+ * via the openOptionAction server action. Closing happens from /portfolio.
+ * The quote shows what the position can lose and what it holds back.
  *
  * Before the buy it shows what the buy will take (audit LG-7): the spot it
  * prices from with that close's date, the volatility, the value per share and
@@ -72,6 +74,7 @@ function quoteError(error: unknown): string {
 export function OptionTradeForm({ options }: { options: SymbolOption[] }) {
   const [state, action, pending] = useActionState<OptionTradeState, FormData>(openOptionAction, {});
   const [optionType, setOptionType] = useState<"call" | "put">("call");
+  const [side, setSide] = useState<"long" | "short">("long");
   const [ticker, setTicker] = useState(options[0]?.ticker ?? "");
   // "" until the first quote fills it at the money; edited marks it the user's.
   const [strike, setStrike] = useState("");
@@ -110,6 +113,7 @@ export function OptionTradeForm({ options }: { options: SymbolOption[] }) {
           strike: strike || undefined,
           expiry,
           quantity: contracts,
+          side,
         },
         controller.signal,
       )
@@ -127,13 +131,43 @@ export function OptionTradeForm({ options }: { options: SymbolOption[] }) {
       clearTimeout(timer);
       controller.abort();
     };
-  }, [ticker, optionType, strike, quantity, expiry]);
+  }, [ticker, optionType, strike, quantity, expiry, side]);
 
   const ready = quote.status === "ready" ? quote.quote : null;
 
   return (
     <div className="overflow-hidden rounded-md border border-border-muted bg-card">
       <form action={action} className="space-y-5 p-5">
+        <fieldset className="space-y-2">
+          <legend className="sr-only">Open as</legend>
+          <div className="grid grid-cols-2 gap-3">
+            <Button
+              type="button"
+              variant={side === "long" ? "default" : "outline"}
+              aria-pressed={side === "long"}
+              onClick={() => setSide("long")}
+            >
+              Buy to open
+            </Button>
+            <Button
+              type="button"
+              variant={side === "short" ? "default" : "outline"}
+              aria-pressed={side === "short"}
+              onClick={() => setSide("short")}
+            >
+              Write covered
+            </Button>
+          </div>
+          <input type="hidden" name="side" value={side} />
+          {side === "short" ? (
+            <p className="text-xs text-text-tertiary">
+              {optionType === "call"
+                ? "Covered call: you need 100 shares per contract, held back until it is bought back or expires. Above the strike at expiry they are sold at the strike."
+                : "Cash-secured put: the strike value is held back in cash until it is bought back or expires. Below the strike at expiry you buy the shares at the strike."}{" "}
+              Uncovered (naked) options are not offered.
+            </p>
+          ) : null}
+        </fieldset>
         <div className="grid grid-cols-2 gap-3">
           <Button
             type="button"
@@ -234,22 +268,32 @@ export function OptionTradeForm({ options }: { options: SymbolOption[] }) {
         ) : null}
         {state.success ? (
           <output className="block text-sm text-positive">
-            Bought {state.success.quantity} {state.success.ticker}{" "}
-            {state.success.option_type.toUpperCase()} @ ${Number(state.success.strike).toFixed(2)}{" "}
-            for ${Number(state.success.premium_paid).toFixed(2)}
+            {state.success.side === "short" ? "Wrote" : "Bought"} {state.success.quantity}{" "}
+            {state.success.ticker} {state.success.option_type.toUpperCase()} @ $
+            {Number(state.success.strike).toFixed(2)}{" "}
+            {state.success.side === "short" ? "and received" : "for"} $
+            {Number(state.success.premium_paid).toFixed(2)}
           </output>
         ) : null}
 
         <Button type="submit" disabled={pending} className="w-full">
-          {pending
-            ? "Placing order…"
-            : ready
-              ? `Buy ${optionType} for ${usd(ready.premium)}`
-              : `Buy ${optionType}`}
+          {pending ? "Placing order…" : submitLabel(side, optionType, ready)}
         </Button>
       </form>
     </div>
   );
+}
+
+function submitLabel(
+  side: "long" | "short",
+  optionType: "call" | "put",
+  ready: OptionQuote | null,
+): string {
+  if (side === "long") {
+    return ready ? `Buy ${optionType} for ${usd(ready.premium)}` : `Buy ${optionType}`;
+  }
+  const what = optionType === "call" ? "covered call" : "cash-secured put";
+  return ready ? `Write ${what}, receive ${usd(ready.premium)}` : `Write ${what}`;
 }
 
 /** The quote the buy will be charged by, or why there is none. */
@@ -273,9 +317,10 @@ function QuotePreview({ quote }: { quote: QuoteState }) {
         { label: "Risk-free rate", value: pct(ready.risk_free_rate) },
         { label: "Value per share", value: usd(ready.per_share) },
         {
-          label: "Premium",
+          label: ready.side === "short" ? "Premium received" : "Premium",
           value: `${usd(ready.premium)} for ${ready.quantity} × ${ready.contract_size} shares`,
         },
+        ...riskRows(ready),
       ]
     : [];
   return (
@@ -303,9 +348,51 @@ function QuotePreview({ quote }: { quote: QuoteState }) {
           The model price is under 1 cent a share, so the premium is the 1-cent minimum.
         </p>
       ) : null}
-      {ready ? <GreeksList greeks={ready.greeks} contractShares={ready.contract_size} /> : null}
+      {ready?.risk ? <p className="mt-2 text-text-tertiary">{ready.risk.basis}.</p> : null}
+      {ready ? (
+        <GreeksList
+          // A written contract's Greeks are the position's: the contract's, negated.
+          greeks={ready.side === "short" ? negated(ready.greeks) : ready.greeks}
+          contractShares={ready.contract_size}
+        />
+      ) : null}
     </section>
   );
+}
+
+/** Phase 9.2: what the position holds back, can lose and can gain, at expiry. */
+function riskRows(quote: OptionQuote): { label: string; value: string }[] {
+  const risk = quote.risk;
+  if (!risk) return [];
+  const rows: { label: string; value: string }[] = [];
+  if (Number(risk.shares_reserved) > 0) {
+    rows.push({
+      label: "Shares held back",
+      value: `${Number(risk.shares_reserved).toLocaleString("en-US")} ${quote.ticker}`,
+    });
+  }
+  if (Number(risk.collateral) > 0) {
+    rows.push({ label: "Cash held back", value: usd(risk.collateral) });
+  }
+  rows.push(
+    { label: "Most it can lose", value: usd(risk.max_loss) },
+    {
+      label: "Most it can gain",
+      value: risk.max_gain === null ? "Unlimited" : usd(risk.max_gain),
+    },
+    { label: "Breakeven at expiry", value: usd(risk.breakeven) },
+  );
+  return rows;
+}
+
+function negated(greeks: OptionQuote["greeks"]): OptionQuote["greeks"] {
+  return {
+    delta: -greeks.delta,
+    gamma: -greeks.gamma,
+    theta: -greeks.theta,
+    vega: -greeks.vega,
+    rho: -greeks.rho,
+  };
 }
 
 function pct(value: number): string {

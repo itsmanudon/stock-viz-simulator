@@ -409,7 +409,14 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   contract) and a collapsed "Saw a different premium?" check that calls
   `getImpliedVolatility()` (read only; the buy is still charged at the
   quote). The portfolio options table shows each contract's delta and theta
-  from `PortfolioOption.greeks`, a dash when it cannot be priced. `PortfolioMetrics` adds an "Other cash" figure
+  from `PortfolioOption.greeks`, a dash when it cannot be priced. Phase 9.2:
+  the ticket's "Buy to open" / "Write covered" choice posts `side`; writing
+  explains the cover (100 shares per contract, or the strike value in cash),
+  quotes with `side=short` and shows what is held back, the most it can lose
+  and gain and the breakeven (`riskRows`), with the position's (negated)
+  Greeks. Written legs show as "Covered call (written)" / "Cash-secured put
+  (written)" with the premium received, and `CloseOptionButton short` reads
+  "Buy back". `PortfolioMetrics` adds an "Other cash" figure
   when `cash_by_currency` (Phase 4.5b) holds a non-base currency: a sale of a
   EUR stock keeps its euros. The portfolio header and the dashboard hero
   show `ValuationNotice` when `valuation_warnings` is not empty (audit LG-13).

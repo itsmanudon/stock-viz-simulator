@@ -344,6 +344,7 @@ def apply_fill(
     exclude_order_id: int | None = None,
     client_order_id: str | None = None,
     check_limits: bool = True,
+    exclude_option_id: int | None = None,
 ) -> TradeExecution:
     """Mutate cash + position and stage the Trade row for ``portfolio``.
 
@@ -357,8 +358,9 @@ def apply_fill(
     reservations and realized P&L are in the base currency.
 
     Spendability is checked against *available* cash/shares (ledger balance
-    minus reservations from *other* pending orders). ``exclude_order_id``
-    lets a filling order consume its own reservation.
+    minus reservations from *other* pending orders and short option legs).
+    ``exclude_order_id`` lets a filling order consume its own reservation,
+    and ``exclude_option_id`` lets an assigned short leg use its cover.
 
     Locks the portfolio row for the rest of the caller's transaction.
 
@@ -381,7 +383,12 @@ def apply_fill(
 
     if side == TradeSide.BUY:
         try:
-            spendable = available_cash(session, portfolio, exclude_order_id=exclude_order_id)
+            spendable = available_cash(
+                session,
+                portfolio,
+                exclude_order_id=exclude_order_id,
+                exclude_option_id=exclude_option_id,
+            )
         except LookupError as exc:
             raise NoFxRateError(str(exc)) from exc
         # Phase 4.5b: a non-base buy spends that currency's cash first and
@@ -427,15 +434,25 @@ def apply_fill(
 
     else:  # SELL
         held = position.quantity if position else Decimal(0)
-        reserved = reserved_shares(session, portfolio_id, ticker, exclude_order_id=exclude_order_id)
+        reserved = reserved_shares(
+            session,
+            portfolio_id,
+            ticker,
+            exclude_order_id=exclude_order_id,
+            exclude_option_id=exclude_option_id,
+        )
         spendable = available_shares(
-            session, portfolio_id, ticker, exclude_order_id=exclude_order_id
+            session,
+            portfolio_id,
+            ticker,
+            exclude_order_id=exclude_order_id,
+            exclude_option_id=exclude_option_id,
         )
         if spendable < quantity:
             if reserved > 0:
                 raise InsufficientPosition(
                     f"Only {spendable} {ticker} shares are available; "
-                    f"{reserved} are reserved by pending orders."
+                    f"{reserved} are reserved by pending orders or covered calls."
                 )
             raise InsufficientPosition(f"Held {held} {ticker}, cannot sell {quantity}")
         assert position is not None

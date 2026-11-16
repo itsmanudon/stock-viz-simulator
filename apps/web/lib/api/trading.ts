@@ -91,6 +91,12 @@ export type PortfolioOption = {
   unrealized_pl: string;
   /** Per-share Greeks at today's price; null when it cannot be priced. */
   greeks?: OptionGreeks | null;
+  /**
+   * Phase 9.2: a short (written, covered) leg's `premium_paid` is the premium
+   * it received, its `market_value` is negative (the cost to buy it back) and
+   * its Greeks are the position's (negated).
+   */
+  side?: "long" | "short";
 };
 
 export type TradeRow = {

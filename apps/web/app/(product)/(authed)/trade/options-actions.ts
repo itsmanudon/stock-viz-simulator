@@ -14,6 +14,7 @@ const OpenSchema = z.object({
     .max(16)
     .transform((s) => s.trim().toUpperCase()),
   option_type: z.enum(["call", "put"]),
+  side: z.enum(["long", "short"]).default("long"),
   strike: z
     .string()
     .min(1, "Strike is required")
@@ -36,6 +37,7 @@ export type OptionTradeState = {
     strike: string;
     quantity: number;
     premium_paid: string;
+    side: "long" | "short";
   };
 };
 
@@ -56,6 +58,7 @@ export async function openOptionAction(
   const parsed = OpenSchema.safeParse({
     ticker: formData.get("ticker"),
     option_type: formData.get("option_type"),
+    side: formData.get("side") ?? undefined,
     strike: formData.get("strike"),
     expiry: formData.get("expiry"),
     quantity: formData.get("quantity"),
@@ -69,6 +72,7 @@ export async function openOptionAction(
       action: "open",
       ticker: parsed.data.ticker,
       option_type: parsed.data.option_type,
+      side: parsed.data.side,
       strike: parsed.data.strike,
       expiry: parsed.data.expiry,
       quantity: Number(parsed.data.quantity),
@@ -83,6 +87,7 @@ export async function openOptionAction(
         strike: result.position.strike,
         quantity: result.position.quantity,
         premium_paid: result.position.premium_paid,
+        side: result.position.side ?? "long",
       },
     };
   } catch (err) {

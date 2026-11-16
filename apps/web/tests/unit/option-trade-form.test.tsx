@@ -41,6 +41,25 @@ function quoteFor(request: OptionQuoteRequest): OptionQuote {
     volatility_method: "historical volatility of daily closes, 30 sessions, annualised",
     volatility_closes: 31,
     premium_floor_applied: false,
+    side: request.side ?? "long",
+    risk:
+      request.side === "short"
+        ? {
+            collateral: "0.00",
+            shares_reserved: String(100 * request.quantity),
+            max_loss: "18125.50",
+            max_gain: "712.50",
+            breakeven: "181.26",
+            basis: "covered call from today's close: the shares are reserved",
+          }
+        : {
+            collateral: "0",
+            shares_reserved: "0",
+            max_loss: "712.50",
+            max_gain: null,
+            breakeven: "195.51",
+            basis: "long call: loss limited to the premium, gain unlimited",
+          },
   };
 }
 
@@ -145,5 +164,39 @@ describe("option ticket", () => {
       expect.objectContaining({ price: "9.00", ticker: "AAPL" }),
     );
     expect(screen.getByRole("button", { name: "Buy call for $712.50" })).toBeVisible();
+  });
+
+  it("states a long call's most it can lose and that its gain is unlimited", async () => {
+    render(<OptionTradeForm options={SYMBOLS} />);
+
+    const quote = await screen.findByRole("region", { name: "Option quote" });
+    await waitFor(() => expect(quote).toHaveTextContent("Most it can lose$712.50"));
+    expect(quote).toHaveTextContent("Most it can gainUnlimited");
+    expect(quote).toHaveTextContent("Breakeven at expiry$195.51");
+  });
+
+  it("writes a covered call: quotes the short side and says what it holds back", async () => {
+    const { container } = render(<OptionTradeForm options={SYMBOLS} />);
+    await screen.findByLabelText("Greeks");
+
+    fireEvent.click(screen.getByRole("button", { name: "Write covered" }));
+
+    await waitFor(() =>
+      expect(getOptionQuote).toHaveBeenLastCalledWith(expect.objectContaining({ side: "short" })),
+    );
+    expect(container.querySelector<HTMLInputElement>('input[name="side"]')?.value).toBe("short");
+    expect(screen.getByText(/you need 100 shares per contract/)).toBeVisible();
+    expect(screen.getByText(/Uncovered \(naked\) options are not offered/)).toBeVisible();
+    const quote = screen.getByRole("region", { name: "Option quote" });
+    await waitFor(() => expect(quote).toHaveTextContent("Shares held back100 AAPL"));
+    expect(quote).toHaveTextContent("Premium received");
+    // The position's delta: the written contract's, negated.
+    expect(screen.getByLabelText("Greeks")).toHaveTextContent("-0.500");
+    expect(
+      screen.getByRole("button", { name: "Write covered call, receive $712.50" }),
+    ).toBeVisible();
+
+    fireEvent.click(screen.getByRole("button", { name: "Put" }));
+    expect(await screen.findByText(/the strike value is held back in cash/)).toBeVisible();
   });
 });

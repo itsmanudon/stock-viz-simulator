@@ -127,6 +127,7 @@ def portfolio_response(
                 market_value=o.market_value,
                 unrealized_pl=o.unrealized_pl,
                 greeks=greeks_out(o.greeks),
+                side=o.side,  # type: ignore[arg-type]
             )
             for o in snap.option_positions
         ],

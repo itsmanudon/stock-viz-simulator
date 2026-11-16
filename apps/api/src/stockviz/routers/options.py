@@ -17,19 +17,21 @@ from sqlmodel import Session, select
 from stockviz.auth import UserIdDep
 from stockviz.db import get_session
 from stockviz.limiter import limiter
-from stockviz.models import OptionsPosition, OptionStatus, OptionType
-from stockviz.models.option import CONTRACT_MULTIPLIER
+from stockviz.models import OptionCover, OptionSide, OptionsPosition, OptionStatus, OptionType
+from stockviz.models.option import CONTRACT_MULTIPLIER, position_sign
 from stockviz.schemas import (
     OptionGreeksOut,
     OptionImpliedVolOut,
     OptionPositionOut,
     OptionQuoteOut,
+    OptionRiskOut,
     OptionTradeIn,
     OptionTradeOut,
 )
 from stockviz.services.options import (
     RISK_FREE_RATE,
     InsufficientCashForOption,
+    InsufficientCoverForOption,
     InvalidExpiry,
     NoOptionMarketData,
     OptionNotFound,
@@ -44,7 +46,9 @@ from stockviz.services.options import (
     value_option,
 )
 from stockviz.services.risk.limits import LimitBreached
+from stockviz.services.trading.buying_power import put_collateral_usd
 from stockviz.services.trading.execute import NoFxRateError
+from stockviz.services.trading.portfolio import signed_greeks
 from stockviz.services.trading.views import greeks_out
 
 router = APIRouter(prefix="/v1/options", tags=["options"])
@@ -70,11 +74,27 @@ def _to_out(session: Session, position: OptionsPosition) -> OptionPositionOut:
         ).quantize(Decimal("0.01"))
         if current_value < 0:
             current_value = Decimal("0.00")
-        greeks = _greeks(price)
+        # A short leg is a liability: its value and Greeks are negated (Phase 9.2).
+        sign = position_sign(position)
+        current_value = current_value * sign
+        signed = signed_greeks(price, sign)
+        assert signed is not None
+        greeks = _greeks(signed)
     except NoOptionMarketData:
         current_value = Decimal("0.00")
         greeks = _ZERO_GREEKS
 
+    is_open = position.status == OptionStatus.OPEN
+    covered_shares = (
+        position.quantity * position.shares_per_contract
+        if is_open and position.cover == OptionCover.SHARES
+        else Decimal(0)
+    )
+    collateral = (
+        put_collateral_usd(position)
+        if is_open and position.cover == OptionCover.CASH
+        else Decimal(0)
+    )
     return OptionPositionOut(
         id=position.id,  # type: ignore[arg-type]
         ticker=position.ticker,
@@ -87,6 +107,10 @@ def _to_out(session: Session, position: OptionsPosition) -> OptionPositionOut:
         opened_at=position.opened_at,
         current_value=current_value,
         greeks=greeks,
+        side=str(position.side),  # type: ignore[arg-type]
+        cover=str(position.cover) if position.cover else None,  # type: ignore[arg-type]
+        collateral=collateral,
+        shares_reserved=covered_shares,
     )
 
 
@@ -100,6 +124,7 @@ def get_option_quote(
     expiry: Annotated[date, Query()],
     strike: Annotated[Decimal | None, Query(gt=0, le=1_000_000_000)] = None,
     quantity: Annotated[int, Query(ge=1, le=1_000)] = 1,
+    side: Annotated[OptionSide, Query()] = OptionSide.LONG,
 ) -> OptionQuoteOut:
     """Price an open without placing it, the way ``POST /trade`` would charge it.
 
@@ -116,6 +141,7 @@ def get_option_quote(
             strike=strike,
             expiry=expiry,
             quantity=quantity,
+            side=side,
         )
     except OptionSymbolNotFound as exc:
         raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
@@ -124,6 +150,8 @@ def get_option_quote(
     except (InvalidExpiry, OptionTradeError) as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
     price = quote.price
+    risk = quote.risk
+    assert risk is not None
     return OptionQuoteOut(
         ticker=quote.ticker,
         option_type=option_type.value,  # type: ignore[arg-type]
@@ -141,6 +169,15 @@ def get_option_quote(
         volatility_method=_VOL_METHOD,
         volatility_closes=quote.closes_used,
         premium_floor_applied=quote.floored,
+        side=side.value,  # type: ignore[arg-type]
+        risk=OptionRiskOut(
+            collateral=risk.collateral,
+            shares_reserved=risk.shares_reserved,
+            max_loss=risk.max_loss,
+            max_gain=risk.max_gain,
+            breakeven=risk.breakeven,
+            basis=risk.basis,
+        ),
     )
 
 
@@ -219,6 +256,7 @@ def post_options_trade(
                 expiry=body.expiry,  # type: ignore[arg-type]
                 quantity=body.quantity,  # type: ignore[arg-type]
                 client_order_id=body.client_order_id,
+                side=OptionSide(body.side),
             )
         except OptionOrderConflict as exc:
             raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
@@ -227,7 +265,12 @@ def post_options_trade(
             raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
         except OptionSymbolNotFound as exc:
             raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
-        except (InsufficientCashForOption, NoOptionMarketData, NoFxRateError) as exc:
+        except (
+            InsufficientCashForOption,
+            InsufficientCoverForOption,
+            NoOptionMarketData,
+            NoFxRateError,
+        ) as exc:
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from exc
         except (InvalidExpiry, OptionTradeError) as exc:
             raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
@@ -238,7 +281,7 @@ def post_options_trade(
             result = close_option(session, user_id=user_id, option_id=body.option_id)
         except OptionNotFound as exc:
             raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
-        except NoOptionMarketData as exc:
+        except (NoOptionMarketData, InsufficientCashForOption, NoFxRateError) as exc:
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from exc
         except OptionTradeError as exc:
             raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
