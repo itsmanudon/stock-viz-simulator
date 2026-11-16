@@ -35,7 +35,15 @@ from stockviz.models.market import (
 )
 from stockviz.models.metrics import SymbolMetrics
 from stockviz.models.notification import Notification, NotificationCategory
-from stockviz.models.option import OptionsPosition, OptionStatus, OptionType
+from stockviz.models.option import (
+    OptionCover,
+    OptionSide,
+    OptionsPosition,
+    OptionStatus,
+    OptionType,
+)
+from stockviz.models.option_quote import OptionChainQuote
+from stockviz.models.option_strategy import OptionStrategy, StrategyKind, StrategyStatus
 from stockviz.models.order import OrderStatus, OrderType, PendingOrder
 from stockviz.models.portfolio import (
     CashBalance,
@@ -93,7 +101,11 @@ __all__ = [
     "NewsSentiment",
     "Notification",
     "NotificationCategory",
+    "OptionChainQuote",
+    "OptionCover",
+    "OptionSide",
     "OptionStatus",
+    "OptionStrategy",
     "OptionType",
     "OptionsPosition",
     "OrderStatus",
@@ -116,6 +128,8 @@ __all__ = [
     "RiskLimit",
     "SavedScreen",
     "SimulatedExecution",
+    "StrategyKind",
+    "StrategyStatus",
     "Symbol",
     "SymbolMetrics",
     "Trade",

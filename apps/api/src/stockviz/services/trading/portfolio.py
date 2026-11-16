@@ -23,6 +23,8 @@ from stockviz.models import (
     Position,
     Symbol,
 )
+from stockviz.models.option import position_sign
+from stockviz.services.options.pricing import OptionPrice  # no stockviz imports: no cycle
 from stockviz.services.recent_bars import recent_closes
 from stockviz.services.trading.buying_power import reserved_cash, reserved_shares
 from stockviz.services.trading.cash import balances as cash_balances
@@ -74,6 +76,12 @@ class PortfolioOptionPosition:
     # (delta x shares per contract x contracts) times the latest close, in
     # the display currency. 0 when the contract cannot be priced.
     delta_notional: Decimal = Decimal(0)
+    # Phase 9.1 (UX-5): the per-share price and Greeks, None when unpriceable.
+    # Phase 9.2: signed for the position (a short leg's are negated).
+    greeks: OptionPrice | None = None
+    side: str = "long"
+    # Phase 9.3: the strategy this leg belongs to, in words ("Bull call spread").
+    strategy: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -350,6 +358,7 @@ def _value_open_options(
     for opt, sym in rows:
         native_ccy = sym.currency or "USD"
         delta = Decimal(0)
+        priced: OptionPrice | None = None
         try:
             priced = value_option(session, opt)
             per_share = Decimal(str(priced.value))
@@ -370,14 +379,21 @@ def _value_open_options(
         )
         if mv_native < 0:
             mv_native = Decimal(0)
+        # Phase 9.2: a short leg is a liability: its value, cost and delta
+        # count against the account, and its Greeks are the position's.
+        sign = position_sign(opt)
+        mv_native = mv_native * sign
         mv_display = to_display(mv_native, native_ccy)
         spot = latest_close_map(session, [opt.ticker]).get(opt.ticker, Decimal(0))
         delta_display = to_display(
-            (delta * opt.shares_per_contract * opt.quantity * spot).quantize(Decimal("0.01")),
+            (sign * delta * opt.shares_per_contract * opt.quantity * spot).quantize(
+                Decimal("0.01")
+            ),
             native_ccy,
         )
         # premium_paid is already USD (cash is USD), so compare in USD terms.
-        premium_display = to_display(opt.premium_paid, "USD")
+        # A short leg received it, so its cost basis is negative.
+        premium_display = to_display(opt.premium_paid * sign, "USD")
 
         out.append(
             PortfolioOptionPosition(
@@ -393,8 +409,35 @@ def _value_open_options(
                 market_value=mv_display,
                 unrealized_pl=mv_display - premium_display,
                 delta_notional=delta_display,
+                greeks=signed_greeks(priced, sign),
+                side=str(opt.side),
+                strategy=_strategy_label(session, opt.strategy_id),
             )
         )
         total_display += mv_display
 
     return out, total_display
+
+
+def _strategy_label(session: Session, strategy_id: int | None) -> str | None:
+    if strategy_id is None:
+        return None
+    from stockviz.models.option_strategy import OptionStrategy, StrategyKind
+    from stockviz.services.options.strategies import LABELS
+
+    row = session.get(OptionStrategy, strategy_id)
+    return LABELS[StrategyKind(row.kind)] if row is not None else None
+
+
+def signed_greeks(price: OptionPrice | None, sign: int) -> OptionPrice | None:
+    """The position's Greeks: a short leg's are the contract's, negated."""
+    if price is None or sign == 1:
+        return price
+    return OptionPrice(
+        value=-price.value,
+        delta=-price.delta,
+        gamma=-price.gamma,
+        theta=-price.theta,
+        vega=-price.vega,
+        rho=-price.rho,
+    )

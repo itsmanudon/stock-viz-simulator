@@ -165,7 +165,7 @@ def create_pending_order(
         if quantity > spendable:
             raise InsufficientPosition(
                 f"Only {spendable} {ticker} shares are available; "
-                f"{reserved} are reserved by pending orders."
+                f"{reserved} are reserved by pending orders or covered calls."
             )
 
     order = PendingOrder(

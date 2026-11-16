@@ -771,7 +771,113 @@ intraday fills anywhere in the app:
   `open_option` charges with: spot and its date, 30-day volatility, value per
   share, premium for the contracts. Without `strike` it prices at the money
   (the latest close rounded to cents) and returns that strike.
-- **Options** (`services/options/`): long-only book. Black-Scholes pricing
+- **Options basics (Phase 9.1).** `services/options/pricing.py` adds rho
+  (per 1.00 of rate) to `OptionPrice`, `RISK_FREE_RATES` with
+  `risk_free_rate(currency)` (USD 5%; `trade.RISK_FREE_RATE` is its USD
+  value), and `implied_volatility()` (Newton on vega with a bisection
+  fallback, 1% to 500%, `None` with a reason below intrinsic, above the
+  no-arbitrage bound or past expiry). LG-14: `quote_option` (so every open)
+  refuses a ticker with fewer than `MIN_VOL_CLOSES` (20) closes in the
+  volatility window (422) and floors the premium at `MIN_PREMIUM_PER_SHARE`
+  (0.01); the quote says `premium_floor_applied`, `volatility_method` and
+  `volatility_closes`. LG-15: "today" for options (open, quote, valuation,
+  close gate) and for the `settle-options` and `credit-dividends` jobs is
+  `services/markets/calendar.py::trading_date`, New York's calendar date;
+  `tests/test_options_basics.py` fails if the options service reads the UTC
+  date. `GET /v1/options/implied-volatility?ticker&option_type&strike&expiry&price`
+  (public, 60/min) solves a user-entered per-share price on the quote's
+  inputs and returns it beside the historical volatility; nothing is
+  stored. Greeks (with rho) are on the quote, `/v1/options/positions` and
+  each `PortfolioOptionOut.greeks` (null when unpriceable).
+- **Covered short legs (Phase 9.2).** `options_positions.side` (`long` |
+  `short`) and `cover` (`shares` | `cash`; migration `e1b7d3f5a924`, a check
+  refuses a short leg with no cover: no naked options). `open_option(side=
+  SHORT)` writes a **covered call** (needs that many available shares) or a
+  **cash-secured put** (needs its full strike value in available cash: not
+  less the premium, which is already spendable cash), credits the premium in
+  USD, and is for USD accounts only for now (`InsufficientCoverForOption`,
+  422). The cover is a derived reservation in `buying_power.py`
+  (`option_share_reservation`, `option_cash_reservation`), so the shares
+  cannot be sold and the cash cannot be spent while the leg is open;
+  `exclude_option_id` (also on `apply_fill`) lets the leg's own buy-back or
+  assignment use it. `close_option` buys a short leg back (realized =
+  premium - cost, `proceeds` = -cost). At expiry long legs settle first,
+  then short: an ITM covered call sells its reserved shares at the strike,
+  an ITM cash-secured put buys the shares at the strike with its reserved
+  cash (both through `apply_fill`, so a `Trade` is written; the option leg
+  realizes the premium); OTM short legs expire with the premium kept.
+  `services/options/margin.py` (pure) gives each leg's collateral, shares
+  held back, most it can lose and gain, breakeven and basis; the quote
+  (`?side=short`) returns them as `risk`. Valuation: a short leg is a
+  liability (`position_sign`): negative market value, cost basis and delta
+  notional, negated Greeks, and a negative size in VaR and stress tests.
+- **Strategies (Phase 9.3).** `option_strategies` (migration `f2c8e4a6b135`)
+  groups legs opened from one template (`services/options/strategies.py`):
+  covered call, cash-secured put, protective put (needs the shares held),
+  bull call, bear put, bull put, bear call, iron condor, straddle, strangle,
+  calendar. Strikes go low to high; a template lists each long leg before
+  the short leg it covers. A short leg in a spread or calendar has `cover =
+  'leg'` and `covering_leg_id` (a check keeps them in step). Every leg is
+  priced by `quote_option`, then all open in one transaction or none.
+  `margin.same_expiry_risk` works same-expiry legs exactly (the payoff is
+  piecewise linear: extremes at 0, a strike or infinity) and refuses an
+  unlimited loss (a naked call); `collateral` = the most the legs can cost
+  at expiry with premiums aside (a credit spread holds back its width, an
+  iron condor its wider side). `calendar_risk`: a call calendar needs no
+  cash; a put calendar holds back K(1 - e^(-r t)) a share (a European put
+  can sit that far below intrinsic). The open needs available cash + net
+  premium >= collateral; the single-order limit checks the most it can
+  lose. `strategy_collateral_usd` reserves a strategy's collateral while a
+  leg-covered short is open in it; `exclude_strategy_id` lets its own close
+  use it. `close_strategy` closes every open leg at model value as one net
+  payment; a long leg covering an open short cannot be closed alone. Status
+  goes to `closed` or `settled` when no leg is open. **Expiry (Phase 9.4):**
+  `settle_expired_strategies` runs first in `settle_expired_options` and
+  settles each multi-leg strategy as a unit **in cash**: every leg expiring
+  that day at intrinsic value from the expiry session's close (LG-3; it
+  waits while that close is missing), long legs receive, short legs pay, the
+  net moves once (never more than the collateral held back) and nothing
+  goes through the equity book. A calendar's near short leg settles first:
+  out of the money it expires and the far leg stays open as a plain long;
+  in the money the far leg is sold at its Black-Scholes value at that close
+  to pay the short's intrinsic (a call's value is at least that). One
+  notification per strategy (`strategy:<id>:settled:<expiry>`). Legs whose
+  strategy still has another open leg never take the single-leg path.
+  Acceptance worked by hand: `docs/benchmarks/2026-11-16-options-hand-check.md`
+  (`tests/test_options_hand_check.py`).
+- **Payoff and the book (Phase 9.5).** `services/options/payoff.py`:
+  `POST /v1/options/strategies/payoff` (public, 60/min) returns the quote,
+  two P&L curves after premiums over a price range (at the first expiry,
+  where later legs keep their Black-Scholes value, and today) and a model
+  chance of profit (lognormal price at the first expiry, the legs'
+  volatility and the risk-free drift; checked against the closed form). A
+  covered call and a protective put include their shares from today's
+  close. `services/options/book.py`: `GET /v1/options/book` (authed) sums
+  the open legs' Greeks in money per underlying (delta in shares and
+  dollars, gamma, theta per day, vega and rho per percentage point; short
+  legs negated) and groups legs by expiry with what today's close would do,
+  in settlement's terms, and the money at risk.
+- **Option chains (Phase 9.6).** `option_quotes` (migration `a7d9c1e3f246`,
+  keyed by instrument, one row per contract per snapshot day): the nightly
+  `stockviz.cli options-snapshot [tickers]` (recorded job, in the cron after
+  `fx`) fetches each active US stock's listed chain for the nearest 4
+  expiries from yfinance (`services/options/chains.py`; `cli.fetch_option_chain`
+  is the network call, stubbed in `test_cron_chain.py`), stores bid, ask,
+  last, volume, open interest, the price used (bid-ask mid, else last) and
+  the IV solved from it against that day's stored close; a rerun replaces
+  the day; one ticker failing never stops the rest; exit 1 only when every
+  ticker failed. Pricing (`quote_option`, `value_option`) uses
+  `chain_volatility`: the nearest listed contract of the same type (expiry,
+  then strike) from a snapshot at most 5 days old, within 45 days of expiry
+  and 10% of strike, else the 30-session historical volatility (with the
+  LG-14 20-close rule); `OptionQuote.volatility_method` says which. The
+  payoff prices each leg at its own volatility. `GET /v1/options/surface?ticker=`
+  (public, 30/min) returns IV by expiry and strike from the latest snapshot.
+  History starts when collection starts; nothing is backfilled. VaR and
+  stress scenarios still revalue options on historical volatility. API: `POST /v1/options/strategies/quote` (public, 60/min),
+  `POST /v1/options/strategies`, `GET /v1/options/strategies`,
+  `POST /v1/options/strategies/{id}/close`.
+- **Options** (`services/options/`): long legs plus covered short legs (Phase 9.2, above). Black-Scholes pricing
   with 30-day historical volatility as the IV proxy and a 5% risk-free rate;
   contracts are ×100 (`CONTRACT_MULTIPLIER`). Premiums debit the USD cash
   bucket and must honour pending-equity-BUY reservations. Option pricing is

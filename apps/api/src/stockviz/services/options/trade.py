@@ -1,8 +1,10 @@
 """Options paper-trading: open, close, value, and settle long option positions.
 
-The book is long-only. ``open_option`` buys a contract (premium debited from
-cash), ``close_option`` sells it back at the current theoretical price
-(proceeds credited), and ``settle_expired_options`` runs at/after expiry:
+``open_option`` buys a contract (premium debited from cash) or, since Phase
+9.2, writes a covered one (premium credited, cover reserved: shares for a
+call, the strike value for a put). ``close_option`` sells a
+long contract back, or buys a short one back, at the current theoretical
+price, and ``settle_expired_options`` runs at/after expiry. Long legs:
 
 - ITM call  -> exercised into the equity book: buy ``qty * 100`` shares at the
   strike. If *available* cash (ledger minus pending-BUY reservations) can't
@@ -11,6 +13,12 @@ cash), ``close_option`` sells it back at the current theoretical price
   pending-SELL reservations) they're sold at the strike; otherwise the
   intrinsic value is cash-settled.
 - OTM       -> expires worthless; the premium is already lost.
+
+Short legs (always covered; settled after the long legs):
+
+- ITM call  -> assigned: the reserved shares are sold at the strike.
+- ITM put   -> assigned: shares are bought at the strike with the reserved cash.
+- OTM       -> expires; the premium received is kept.
 
 Implied volatility is the 30-day historical volatility of the underlying — a
 documented v1 proxy for a real IV surface.
@@ -36,17 +44,32 @@ from stockviz.models import (
     Symbol,
     TradeSide,
 )
-from stockviz.models.option import CONTRACT_MULTIPLIER
-from stockviz.services.ingest.bar_semantics import (
-    latest_completed_session,
-    new_york_session_date,
-)
+from stockviz.models.option import CONTRACT_MULTIPLIER, OptionCover, OptionSide, position_sign
+from stockviz.services.ingest.bar_semantics import latest_completed_session
 from stockviz.services.instruments import instrument_of
-from stockviz.services.markets.calendar import NEW_YORK_VENUE, session_on_or_before
-from stockviz.services.options.pricing import OptionPrice, black_scholes, historical_volatility
+from stockviz.services.markets.calendar import (
+    NEW_YORK_VENUE,
+    session_on_or_before,
+    trading_date,
+)
+from stockviz.services.options.chains import chain_volatility
+from stockviz.services.options.margin import PositionRisk, position_risk
+from stockviz.services.options.pricing import (
+    MIN_PREMIUM_PER_SHARE,
+    MIN_VOL_CLOSES,
+    ImpliedVolatility,
+    OptionPrice,
+    black_scholes,
+    historical_volatility,
+    implied_volatility,
+    risk_free_rate,
+    usable_closes,
+)
 from stockviz.services.trading.buying_power import (
     available_cash,
+    available_shares,
     lock_portfolio,
+    put_collateral_usd,
 )
 from stockviz.services.trading.cash import base_currency, credit, pay_for_buy, plan_buy
 from stockviz.services.trading.execute import (
@@ -60,7 +83,8 @@ from stockviz.services.trading.fx import base_rate
 
 logger = logging.getLogger(__name__)
 
-RISK_FREE_RATE = 0.05
+RISK_FREE_RATE = risk_free_rate("USD")
+HISTORICAL_VOL_METHOD = "historical volatility of daily closes, 30 sessions, annualised"
 """Annual risk-free rate fed to Black-Scholes (matches the analytics default)."""
 
 _CENTS = Decimal("0.01")
@@ -91,6 +115,10 @@ class OptionOrderConflict(OptionTradeError):
     """A client_order_id already names a different option open (audit LG-10)."""
 
 
+class InsufficientCoverForOption(OptionTradeError):
+    """A short leg needs shares (covered call) or cash (cash-secured put) it lacks."""
+
+
 class OptionNotFound(OptionTradeError):
     pass
 
@@ -114,6 +142,11 @@ def _spot(session: Session, ticker: str) -> Decimal | None:
     return closes[-1] if closes else None
 
 
+def _today() -> date_type:
+    """The New York trading date (audit LG-15). ``utcnow`` stays patchable."""
+    return trading_date(utcnow().replace(tzinfo=UTC))
+
+
 def _years_to_expiry(expiry: date_type, *, asof: date_type) -> float:
     return (expiry - asof).days / 365.0
 
@@ -122,11 +155,23 @@ def value_option(
     session: Session, position: OptionsPosition, *, asof: date_type | None = None
 ) -> OptionPrice:
     """Current Black-Scholes valuation (per share) for an open position."""
-    asof = asof or utcnow().date()
+    asof = asof or _today()
     spot = _spot(session, position.ticker)
     if spot is None:
         raise NoOptionMarketData(f"No market data for {position.ticker!r}")
-    vol = historical_volatility(_bar_closes(session, position.ticker))
+    chain = chain_volatility(
+        session,
+        position.ticker,
+        option_type=position.option_type.value,
+        strike=position.strike,
+        expiry=position.expiry,
+        asof=asof,
+    )
+    vol = (
+        chain.volatility
+        if chain is not None
+        else historical_volatility(_bar_closes(session, position.ticker))
+    )
     return black_scholes(
         spot=float(spot),
         strike=float(position.strike),
@@ -162,6 +207,15 @@ class OptionQuote:
     per_share: Decimal
     premium: Decimal
     price: OptionPrice
+    floored: bool = False
+    """True when the model price was under :data:`MIN_PREMIUM_PER_SHARE`."""
+    closes_used: int = 0
+    """Daily closes behind ``volatility``."""
+    volatility_method: str = "historical volatility of daily closes, 30 sessions, annualised"
+    """Where ``volatility`` came from, in words (Phase 9.6: a chain's IV or historical)."""
+    side: OptionSide = OptionSide.LONG
+    risk: PositionRisk | None = None
+    """Collateral, most it can lose and gain, and breakeven (Phase 9.2)."""
 
 
 def quote_option(
@@ -172,6 +226,7 @@ def quote_option(
     strike: Decimal | None,
     expiry: date_type,
     quantity: int = 1,
+    side: OptionSide = OptionSide.LONG,
 ) -> OptionQuote:
     """Price an open without placing it (audit LG-7). Raises the open's errors.
 
@@ -192,7 +247,7 @@ def quote_option(
     if ticker.startswith("^"):
         raise OptionTradeError(f"{ticker} is an index: options are on stocks only")
 
-    today = utcnow().date()
+    today = _today()
     if expiry <= today:
         raise InvalidExpiry("expiry must be a future date")
 
@@ -207,7 +262,22 @@ def quote_option(
     if strike is None:
         strike = newest.close.quantize(_CENTS)
 
-    vol = historical_volatility(_bar_closes(session, ticker))
+    closes = _bar_closes(session, ticker)
+    usable = usable_closes(closes)
+    # Phase 9.6: the nearest listed contract's implied volatility from the
+    # latest option-chain snapshot, else the 30-session historical figure.
+    chain = chain_volatility(
+        session, ticker, option_type=option_type.value, strike=strike, expiry=expiry, asof=today
+    )
+    if chain is not None:
+        vol, vol_method = chain.volatility, chain.method
+    else:
+        if usable < MIN_VOL_CLOSES:
+            raise NoOptionMarketData(
+                f"{ticker} has {usable} daily closes in the last 30 sessions; "
+                f"at least {MIN_VOL_CLOSES} are needed to estimate its volatility"
+            )
+        vol, vol_method = historical_volatility(closes), HISTORICAL_VOL_METHOD
     price = black_scholes(
         spot=float(newest.close),
         strike=float(strike),
@@ -217,9 +287,10 @@ def quote_option(
         option_type=option_type.value,
     )
     per_share = Decimal(str(price.value))
+    floored = per_share < MIN_PREMIUM_PER_SHARE
+    if floored:
+        per_share = MIN_PREMIUM_PER_SHARE
     premium = (per_share * CONTRACT_MULTIPLIER * quantity).quantize(_CENTS)
-    if premium < 0:
-        premium = Decimal("0.00")
     return OptionQuote(
         ticker=ticker,
         strike=strike,
@@ -229,6 +300,32 @@ def quote_option(
         per_share=per_share,
         premium=premium,
         price=price,
+        floored=floored,
+        closes_used=usable,
+        volatility_method=vol_method,
+        side=side,
+        risk=position_risk(
+            side=side.value,
+            option_type=option_type.value,
+            strike=strike,
+            premium=per_share,
+            shares=Decimal(CONTRACT_MULTIPLIER * quantity),
+            spot=newest.close,
+        ),
+    )
+
+
+def implied_volatility_for(
+    quote: OptionQuote, *, expiry: date_type, price: Decimal, option_type: OptionType
+) -> ImpliedVolatility:
+    """Solve the volatility that gives ``price`` per share on ``quote``'s inputs."""
+    return implied_volatility(
+        price=float(price),
+        spot=float(quote.spot),
+        strike=float(quote.strike),
+        time_to_expiry_years=_years_to_expiry(expiry, asof=_today()),
+        risk_free_rate=RISK_FREE_RATE,
+        option_type=option_type.value,
     )
 
 
@@ -242,8 +339,13 @@ def open_option(
     expiry: date_type,
     quantity: int,
     client_order_id: str | None = None,
+    side: OptionSide = OptionSide.LONG,
 ) -> OptionTradeResult:
-    """Buy ``quantity`` contracts to open. Premium is debited from portfolio cash.
+    """Open ``quantity`` contracts: buy them (``side`` long) or write covered ones.
+
+    A long open debits the premium. A short open (Phase 9.2) credits it and
+    reserves the cover under the portfolio lock: a call needs that many
+    available shares, a put its strike value in available cash. Short legs are for USD accounts only for now.
 
     With a ``client_order_id`` a repeat of the same open returns the first
     contract without charging again, and a repeat naming a different contract
@@ -266,6 +368,7 @@ def open_option(
                 and earlier.strike == strike
                 and earlier.expiry == expiry
                 and earlier.quantity == quantity
+                and earlier.side == side
             )
             if not same:
                 raise OptionOrderConflict(
@@ -275,7 +378,9 @@ def open_option(
                 )
             session.rollback()  # release the lock; nothing was written
             session.refresh(earlier)
-            return OptionTradeResult(position=earlier, cash_delta=-earlier.premium_paid)
+            return OptionTradeResult(
+                position=earlier, cash_delta=earlier.premium_paid * -position_sign(earlier)
+            )
 
     quote = quote_option(
         session,
@@ -284,8 +389,21 @@ def open_option(
         strike=strike,
         expiry=expiry,
         quantity=quantity,
+        side=side,
     )
     premium = quote.premium
+    if side == OptionSide.SHORT:
+        return _write_covered(
+            session,
+            user_id=user_id,
+            ticker=ticker,
+            option_type=option_type,
+            strike=strike,
+            expiry=expiry,
+            quantity=quantity,
+            premium=premium,
+            client_order_id=client_order_id,
+        )
 
     portfolio = ensure_default_portfolio(session, user_id)
     assert portfolio.id is not None
@@ -330,6 +448,77 @@ def open_option(
     return OptionTradeResult(position=position, cash_delta=-premium)
 
 
+def _write_covered(
+    session: Session,
+    *,
+    user_id: int,
+    ticker: str,
+    option_type: OptionType,
+    strike: Decimal,
+    expiry: date_type,
+    quantity: int,
+    premium: Decimal,
+    client_order_id: str | None,
+) -> OptionTradeResult:
+    """Write a covered call or a cash-secured put: credit the premium, reserve the cover."""
+    portfolio = ensure_default_portfolio(session, user_id)
+    assert portfolio.id is not None
+    portfolio_id = portfolio.id
+    portfolio = lock_portfolio(session, portfolio_id)
+    if base_currency(portfolio) != "USD":
+        raise OptionTradeError(
+            "Writing options is available on USD accounts only for now; "
+            "this account's base currency is " + base_currency(portfolio)
+        )
+    shares = Decimal(CONTRACT_MULTIPLIER * quantity)
+    position = OptionsPosition(
+        user_id=user_id,
+        portfolio_id=portfolio_id,
+        ticker=ticker,
+        option_type=option_type,
+        strike=strike,
+        expiry=expiry,
+        quantity=quantity,
+        premium_paid=premium,
+        status=OptionStatus.OPEN,
+        client_order_id=client_order_id,
+        side=OptionSide.SHORT,
+    )
+    if option_type == OptionType.CALL:
+        free = available_shares(session, portfolio_id, ticker)
+        if free < shares:
+            raise InsufficientCoverForOption(
+                f"A covered call on {quantity} contract(s) needs {shares:,.0f} {ticker} "
+                f"shares that are not reserved; {free:,.0f} are available. "
+                "Writing an uncovered call is not allowed."
+            )
+        position.cover = OptionCover.SHARES
+    else:
+        collateral = put_collateral_usd(position)
+        try:
+            spendable = available_cash(session, portfolio)
+        except LookupError as exc:
+            raise NoFxRateError(str(exc)) from exc
+        # The premium is credited into cash, so it counts toward the cover; it
+        # is never also left spendable (the full strike value stays reserved).
+        if spendable + premium < collateral:
+            raise InsufficientCoverForOption(
+                f"A cash-secured put reserves USD {collateral:,.2f} (its strike value); "
+                f"available buying power is USD {spendable:,.2f}."
+            )
+        from stockviz.services.risk.limits import enforce_option_open
+
+        enforce_option_open(session, portfolio, base_debit=collateral)
+        position.cover = OptionCover.CASH
+
+    credit(session, portfolio, "USD", premium)
+    session.add(portfolio)
+    session.add(position)
+    session.commit()
+    session.refresh(position)
+    return OptionTradeResult(position=position, cash_delta=premium)
+
+
 def _earlier_open(
     session: Session, *, user_id: int, client_order_id: str
 ) -> OptionsPosition | None:
@@ -346,15 +535,32 @@ def _earlier_open(
 
 
 def close_option(session: Session, *, user_id: int, option_id: int) -> OptionTradeResult:
-    """Sell an open position back at its current theoretical value."""
+    """Sell a long position back, or buy a short one back, at its theoretical value.
+
+    Buying back a short leg pays from available cash, counting the cash its
+    own cover held back (a cash-secured put's collateral is released by the
+    same close); its realized P&L is the premium received less that cost.
+    """
 
     position = session.get(OptionsPosition, option_id)
     if position is None or position.user_id != user_id:
         raise OptionNotFound("Option position not found")
     if position.status != OptionStatus.OPEN:
         raise OptionTradeError(f"Option position is already {position.status.value}")
-    if position.expiry < new_york_session_date(utcnow().replace(tzinfo=UTC)):
+    if position.expiry < _today():
         raise OptionTradeError("This expired option is awaiting expiry settlement")
+    if position.side == OptionSide.LONG:
+        covers = session.exec(
+            select(OptionsPosition).where(
+                OptionsPosition.covering_leg_id == position.id,
+                OptionsPosition.status == OptionStatus.OPEN,
+            )
+        ).first()
+        if covers is not None:
+            raise OptionTradeError(
+                "This long leg covers an open short leg of the same strategy; buy the "
+                "short leg back first, or close the whole strategy."
+            )
 
     price = value_option(session, position)
     proceeds = (
@@ -369,6 +575,9 @@ def close_option(session: Session, *, user_id: int, option_id: int) -> OptionTra
     if position.status != OptionStatus.OPEN:
         raise OptionTradeError(f"Option position is already {position.status.value}")
 
+    if position.side == OptionSide.SHORT:
+        return _buy_back(session, portfolio, position, cost=proceeds)
+
     # Proceeds are USD: a USD book's base cash, an INR book's USD balance.
     credit(session, portfolio, "USD", proceeds)
     position.status = OptionStatus.CLOSED
@@ -376,9 +585,43 @@ def close_option(session: Session, *, user_id: int, option_id: int) -> OptionTra
     _record_realization(position, proceeds=proceeds)
     session.add(portfolio)
     session.add(position)
+    _refresh_strategy(session, position)
     session.commit()
     session.refresh(position)
     return OptionTradeResult(position=position, cash_delta=proceeds)
+
+
+def _buy_back(
+    session: Session, portfolio: Portfolio, position: OptionsPosition, *, cost: Decimal
+) -> OptionTradeResult:
+    """Close a short leg: pay ``cost`` (USD; short legs are USD accounts only)."""
+    try:
+        spendable = available_cash(session, portfolio, exclude_option_id=position.id)
+    except LookupError as exc:
+        raise NoFxRateError(str(exc)) from exc
+    if spendable < cost:
+        raise InsufficientCashForOption(
+            f"Buying back this contract costs USD {cost:,.2f}; available buying power "
+            f"is USD {spendable:,.2f}."
+        )
+    funding = plan_buy(session, portfolio, "USD", cost, Decimal(1))
+    pay_for_buy(session, portfolio, "USD", funding, Decimal(1))
+    position.status = OptionStatus.CLOSED
+    position.settled_at = utcnow()
+    _record_realization(position, proceeds=-cost, realized_pnl=position.premium_paid - cost)
+    session.add(portfolio)
+    session.add(position)
+    _refresh_strategy(session, position)
+    session.commit()
+    session.refresh(position)
+    return OptionTradeResult(position=position, cash_delta=-cost)
+
+
+def _refresh_strategy(session: Session, position: OptionsPosition) -> None:
+    from stockviz.services.options.strategies import refresh_strategy_status
+
+    session.flush()
+    refresh_strategy_status(session, position.strategy_id)
 
 
 def _record_realization(
@@ -387,7 +630,8 @@ def _record_realization(
     """Stamp the terminal-event accounting on a position leaving ``OPEN``.
 
     ``realized_pnl`` defaults to ``proceeds - premium_paid``, which is right
-    for every event that settles the contract in cash. Exercise into (or
+    for every event that settles a long contract in cash. Short legs always
+    pass it: the premium was received, so it is ``premium - cost``. Exercise into (or
     against) the equity book overrides it — see ``docs/TRADING_JOURNAL.md``
     for why those two cases differ.
     """
@@ -484,6 +728,52 @@ def _exercise_put(
     _record_realization(position, proceeds=Decimal("0"), realized_pnl=-position.premium_paid)
 
 
+def _assign_short(
+    session: Session, portfolio: Portfolio, position: OptionsPosition, *, spot: Decimal
+) -> None:
+    """ITM short leg: assigned against its own cover through the equity fill path.
+
+    A covered call sells its reserved shares at the strike; a cash-secured put
+    buys the shares at the strike with its reserved cash. Each writes a
+    ``Trade`` (#62), so the option leg realizes the premium received. The
+    cover was reserved for exactly this, so a failure here means the ledger
+    moved in a way the reservation should have stopped; the intrinsic value
+    is then paid in cash rather than leaving the contract open.
+    """
+    shares = position.quantity * position.shares_per_contract
+    call = position.option_type == OptionType.CALL
+    try:
+        apply_fill(
+            session,
+            portfolio=portfolio,
+            ticker=position.ticker,
+            side=TradeSide.SELL if call else TradeSide.BUY,
+            quantity=shares,
+            price=position.strike,
+            currency="USD",
+            fx_rate=base_rate(session, "USD", base_currency(portfolio)),
+            check_limits=False,  # settlement is never refused by a limit
+            exclude_option_id=position.id,
+        )
+    except (InsufficientCash, InsufficientPosition):
+        intrinsic = ((spot - position.strike) if call else (position.strike - spot)) * shares
+        intrinsic = intrinsic.quantize(_CENTS)
+        logger.error(
+            "options_settle: short %s %s could not be assigned against its cover; "
+            "paying intrinsic %s",
+            position.option_type.value,
+            position.id,
+            intrinsic,
+        )
+        funding = plan_buy(session, portfolio, "USD", intrinsic, Decimal(1))
+        pay_for_buy(session, portfolio, "USD", funding, Decimal(1))
+        _record_realization(
+            position, proceeds=-intrinsic, realized_pnl=position.premium_paid - intrinsic
+        )
+        return
+    _record_realization(position, proceeds=Decimal("0"), realized_pnl=position.premium_paid)
+
+
 def _last_weekday_on_or_before(day: date_type) -> date_type:
     """The expiry session: the last New York session on or before ``day``.
 
@@ -536,6 +826,15 @@ def settle_expired_options(session: Session, *, settle_date: date_type) -> int:
     """
 
     newest_complete = latest_completed_session(utcnow().replace(tzinfo=UTC))
+    from stockviz.services.options.strategies import (
+        has_other_open_leg,
+        settle_expired_strategies,
+    )
+
+    # Multi-leg strategies first, each as a unit (Phase 9.4).
+    strategy_legs_settled = settle_expired_strategies(
+        session, settle_date=settle_date, newest_complete=newest_complete
+    )
     # A weekend expiry's session is the Friday before, so compare sessions.
     expired = [
         position
@@ -547,6 +846,12 @@ def settle_expired_options(session: Session, *, settle_date: date_type) -> int:
         )
         if _last_weekday_on_or_before(position.expiry) <= newest_complete
     ]
+    # Long legs settle before short ones (design note, section 5): a long
+    # leg's exercise may bring in what a short leg then needs.
+    expired.sort(key=lambda p: (p.side == OptionSide.SHORT, p.id or 0))
+    # A leg whose strategy still has another open leg was left by the
+    # strategy pass (its expiry close is not stored yet): it waits with it.
+    expired = [p for p in expired if not has_other_open_leg(session, p)]
     settled = 0
     for position in expired:
         # Only the expiry session's close may settle a contract (LG-3).
@@ -570,12 +875,20 @@ def settle_expired_options(session: Session, *, settle_date: date_type) -> int:
         else:
             in_the_money = spot < position.strike
 
-        if in_the_money:
+        short = position.side == OptionSide.SHORT
+        if in_the_money and short:
+            _assign_short(session, portfolio, position, spot=spot)
+            position.status = OptionStatus.EXERCISED
+        elif in_the_money:
             if position.option_type == OptionType.CALL:
                 _exercise_call_into_equity(session, portfolio, position, spot=spot)
             else:
                 _exercise_put(session, portfolio, position, spot=spot)
             position.status = OptionStatus.EXERCISED
+        elif short:
+            # Expired unexercised: the writer keeps the premium; the cover is released.
+            _record_realization(position, proceeds=Decimal("0"), realized_pnl=position.premium_paid)
+            position.status = OptionStatus.EXPIRED
         else:
             # Worthless at expiry: the premium is the whole loss.
             _record_realization(position, proceeds=Decimal("0"))
@@ -584,6 +897,7 @@ def settle_expired_options(session: Session, *, settle_date: date_type) -> int:
         position.settled_at = utcnow()
         session.add(portfolio)
         session.add(position)
+        _refresh_strategy(session, position)
         from stockviz.models import NotificationCategory
         from stockviz.services.notifications import notify
 
@@ -606,4 +920,4 @@ def settle_expired_options(session: Session, *, settle_date: date_type) -> int:
         settled += 1
         logger.info("options_settle: option %s -> %s", position.id, position.status.value)
 
-    return settled
+    return settled + strategy_legs_settled

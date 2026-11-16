@@ -35,7 +35,9 @@ export function PortfolioOptions({
           Options exposure
         </h2>
         <p className="mt-1 text-xs text-muted-foreground">
-          Modelled values in {displayCurrency}; no realtime option quote or Greeks implied.
+          Modelled values in {displayCurrency}: Black-Scholes on a stored option chain&apos;s
+          implied volatility, or 30-day historical volatility, not market quotes. Greeks are per
+          share; theta is per day.
         </p>
       </div>
 
@@ -47,9 +49,10 @@ export function PortfolioOptions({
               <TableHead className="text-right">Strike</TableHead>
               <TableHead>Expiry</TableHead>
               <TableHead className="text-right">Contracts</TableHead>
-              <TableHead className="text-right">Premium paid · USD</TableHead>
+              <TableHead className="text-right">Premium · USD</TableHead>
               <TableHead className="text-right">Estimated value</TableHead>
               <TableHead className="text-right">Unrealized P&amp;L</TableHead>
+              <TableHead className="text-right">Delta · Theta/day</TableHead>
               <TableHead className="w-16" />
             </TableRow>
           </TableHeader>
@@ -67,9 +70,14 @@ export function PortfolioOptions({
                     >
                       {position.ticker}
                     </Link>
-                    <span className="ml-2 text-xs font-medium capitalize text-muted-foreground">
-                      {position.option_type}
+                    <span className="ml-2 text-xs font-medium text-muted-foreground">
+                      {contractLabel(position)}
                     </span>
+                    {position.strategy ? (
+                      <span className="mt-0.5 block text-2xs text-muted-foreground">
+                        Leg of a {position.strategy.toLowerCase()}
+                      </span>
+                    ) : null}
                   </TableCell>
                   <TableCell className="text-right font-mono" data-financial>
                     {formatCurrency(position.strike, position.currency)}
@@ -82,6 +90,9 @@ export function PortfolioOptions({
                   </TableCell>
                   <TableCell className="text-right font-mono" data-financial>
                     {formatCurrency(position.premium_paid, "USD")}
+                    <span className="mt-0.5 block text-2xs text-muted-foreground">
+                      {position.side === "short" ? "received" : "paid"}
+                    </span>
                   </TableCell>
                   <TableCell className="text-right font-mono" data-financial>
                     {formatCurrency(position.market_value, displayCurrency)}
@@ -93,6 +104,9 @@ export function PortfolioOptions({
                   </TableCell>
                   <TableCell className={`text-right font-mono ${tone}`} data-financial>
                     {direction} {formatSignedCurrency(position.unrealized_pl, displayCurrency)}
+                  </TableCell>
+                  <TableCell className="text-right font-mono text-xs" data-financial>
+                    <GreeksCell position={position} />
                   </TableCell>
                   <TableCell className="text-right">
                     <CloseOption position={position} displayCurrency={displayCurrency} />
@@ -120,13 +134,17 @@ export function PortfolioOptions({
                 <Link href={`/stocks/${position.ticker}`} className="ticker font-semibold">
                   {position.ticker}
                 </Link>
-                <p className="mt-1 text-xs capitalize text-muted-foreground">
-                  {position.option_type} · {formatCurrency(position.strike, position.currency)} ·{" "}
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {contractLabel(position)} · {formatCurrency(position.strike, position.currency)} ·{" "}
                   {formatDate(position.expiry)}
                 </p>
                 <p className="mt-2 text-xs text-muted-foreground">
                   {formatQuantity(position.quantity)} contracts · Premium{" "}
+                  {position.side === "short" ? "received" : "paid"}{" "}
                   {formatCurrency(position.premium_paid, "USD")} USD
+                </p>
+                <p className="mt-1 font-mono text-xs text-muted-foreground" data-financial>
+                  <GreeksCell position={position} />
                 </p>
               </div>
               <div className="text-right">
@@ -154,6 +172,17 @@ export function PortfolioOptions({
   );
 }
 
+/** Per-share delta and theta, or a dash when the contract cannot be priced. */
+function GreeksCell({ position }: { position: PortfolioOption }) {
+  const greeks = position.greeks;
+  if (!greeks) return <span aria-label="Greeks unavailable">-</span>;
+  return (
+    <span aria-label={`Delta ${greeks.delta.toFixed(2)}, theta ${greeks.theta.toFixed(2)} a day`}>
+      Δ {greeks.delta.toFixed(2)} · Θ {formatCurrency(String(greeks.theta), position.currency)}
+    </span>
+  );
+}
+
 function CloseOption({
   position,
   displayCurrency,
@@ -168,10 +197,21 @@ function CloseOption({
   return (
     <CloseOptionButton
       optionId={position.option_id}
-      label={`${position.ticker} ${position.option_type} position`}
-      valueText={formatCurrency(position.market_value, displayCurrency)}
+      label={`${position.ticker} ${position.side === "short" ? "written " : ""}${position.option_type} position`}
+      valueText={formatCurrency(String(Math.abs(Number(position.market_value))), displayCurrency)}
+      short={position.side === "short"}
     />
   );
+}
+
+/** "call" or "put"; a written leg says what covers it (Phase 9.2). */
+function contractLabel(position: PortfolioOption): string {
+  if (position.side !== "short") return position.option_type;
+  // A short leg of a spread or calendar is covered by the strategy's long leg.
+  const coveredBySpread =
+    position.strategy && !["Covered call", "Cash-secured put"].includes(position.strategy);
+  if (coveredBySpread) return `${position.option_type} (written)`;
+  return position.option_type === "call" ? "Covered call (written)" : "Cash-secured put (written)";
 }
 
 /** Today's date in New York, as YYYY-MM-DD, the date the API compares expiry with. */

@@ -102,6 +102,7 @@ def test_the_nightly_chain_leaves_the_night_it_should(chain_engine, monkeypatch)
     monkeypatch.setattr(cli, "ingest_dividends_for_all", lambda _s, **_kw: {})
     monkeypatch.setattr(cli, "ingest_earnings_for_all", lambda _s, **_kw: {})
     monkeypatch.setattr(cli, "backfill_symbol_metadata", lambda _s, **_kw: {})
+    monkeypatch.setattr(cli, "fetch_option_chain", lambda _t: [])
     monkeypatch.setattr(
         "stockviz.services.corporate_actions.splits._default_split_fetch", lambda _t: []
     )

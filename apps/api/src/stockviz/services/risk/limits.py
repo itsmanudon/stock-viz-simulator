@@ -203,9 +203,12 @@ def enforce_buy(session: Session, portfolio: Portfolio, **kwargs: object) -> Non
             )
 
 
-def enforce_option_open(session: Session, portfolio: Portfolio, *, base_debit: Decimal) -> None:
+def enforce_option_open(
+    session: Session, portfolio: Portfolio, *, base_debit: Decimal, what: str = "premium"
+) -> None:
     """An option open is checked against the single-order limit only: its premium
-    is not a holding of the underlying, so the other caps do not apply to it."""
+    is not a holding of the underlying, so the other caps do not apply to it.
+    A strategy (Phase 9.3) passes the most it can lose as ``base_debit``."""
     limits = limits_for(session, portfolio)
     if limits is None or limits.max_order_pct is None:
         return
@@ -216,6 +219,6 @@ def enforce_option_open(session: Session, portfolio: Portfolio, *, base_debit: D
     value = float(base_debit / nav * 100)
     if value > float(limits.max_order_pct):
         raise LimitBreached(
-            f"This option's premium is {value:.2f}% of the account, over your single-order "
+            f"This option's {what} is {value:.2f}% of the account, over your single-order "
             f"limit of {float(limits.max_order_pct):.2f}%."
         )

@@ -2,6 +2,7 @@ import { Suspense } from "react";
 
 import { JournalPanel } from "@/components/journal/journal-panel";
 import { NewsList } from "@/components/news-list";
+import { ExpirationView, OptionsGreeks } from "@/components/options-book";
 import { PortfolioInsights } from "@/components/portfolio-analytics";
 import { PortfolioEmptyState } from "@/components/portfolio-empty-state";
 import { PortfolioAttributionPanel, PortfolioExposurePanel } from "@/components/portfolio-exposure";
@@ -13,10 +14,12 @@ import { PortfolioPerformance } from "@/components/portfolio-performance";
 import { PortfolioPositions } from "@/components/portfolio-positions";
 import { PortfolioReturnsPanel } from "@/components/portfolio-returns";
 import { PortfolioRiskPanel } from "@/components/portfolio-risk";
+import { PortfolioStrategies } from "@/components/portfolio-strategies";
 import { PortfolioStressPanel } from "@/components/portfolio-stress";
 import { PortfolioTabs } from "@/components/portfolio-tabs";
 import { RebalancePreview } from "@/components/rebalance-preview";
 import type { JournalMonth } from "@/lib/api/journal";
+import type { OptionStrategy, OptionsBook } from "@/lib/api/options";
 import type {
   DividendSummary,
   PendingOrder,
@@ -48,6 +51,10 @@ type Props = {
   stress?: PortfolioStress | null;
   /** Phase 8.6: the goal value from the URL, for the risk panel's form. */
   goal?: number | null;
+  /** Phase 9.5: the options book (Options and Analytics tabs). */
+  optionsBook?: OptionsBook | null;
+  /** Phase 9.5: strategies (Options tab). */
+  strategies?: OptionStrategy[] | null;
 };
 
 export function PortfolioWorkspace({
@@ -65,6 +72,8 @@ export function PortfolioWorkspace({
   risk = null,
   stress = null,
   goal = null,
+  optionsBook = null,
+  strategies = null,
 }: Props) {
   const displayCurrency = portfolio.display_currency || "USD";
   const hasEquityPositions = portfolio.positions.length > 0;
@@ -97,10 +106,15 @@ export function PortfolioWorkspace({
           range={range}
           positions={positions}
           options={
-            <PortfolioOptions
-              positions={portfolio.option_positions}
-              displayCurrency={displayCurrency}
-            />
+            <>
+              <OptionsGreeks book={optionsBook} />
+              <ExpirationView book={optionsBook} />
+              <PortfolioStrategies strategies={strategies} />
+              <PortfolioOptions
+                positions={portfolio.option_positions}
+                displayCurrency={displayCurrency}
+              />
+            </>
           }
           orders={<PortfolioOrders orders={orders} />}
           income={<PortfolioIncome dividends={dividends} positions={portfolio.positions} />}
@@ -135,6 +149,7 @@ export function PortfolioWorkspace({
               <PortfolioReturnsPanel returns={analytics?.returns ?? null} />
               <PortfolioExposurePanel exposure={analytics?.exposure ?? null} />
               <PortfolioAttributionPanel attribution={analytics?.attribution ?? null} />
+              {tab === "analytics" ? <OptionsGreeks book={optionsBook} /> : null}
               <PortfolioRiskPanel
                 risk={risk}
                 open={tab === "analytics"}

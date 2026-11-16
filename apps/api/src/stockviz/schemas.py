@@ -256,6 +256,14 @@ class PortfolioOptionOut(BaseModel):
     market_value_native: Decimal
     market_value: Decimal
     unrealized_pl: Decimal
+    greeks: OptionGreeksOut | None = None
+    """Per-share Greeks at today's price (Phase 9.1, UX-5); null when unpriceable.
+    Signed for the position: a short leg's are negated (Phase 9.2)."""
+    side: Literal["long", "short"] = "long"
+    """A short leg's ``premium_paid`` is the premium it received, and its
+    ``market_value`` is negative: what buying it back would cost."""
+    strategy: str | None = None
+    """The strategy this leg was opened in, in words (Phase 9.3)."""
 
 
 class ValuationWarningOut(BaseModel):
@@ -1300,11 +1308,14 @@ class OptionTradeIn(BaseModel):
     """Request body for POST /v1/options/trade.
 
     ``action="open"`` buys a contract — ``ticker``, ``option_type``,
-    ``strike``, ``expiry`` and ``quantity`` are required. ``action="close"``
-    sells an open position back — only ``option_id`` is required.
+    ``strike``, ``expiry`` and ``quantity`` are required — or, with
+    ``side="short"`` (Phase 9.2), writes a covered one: a call covered by
+    held shares, a put secured by cash. ``action="close"`` sells a long
+    position back or buys a short one back — only ``option_id`` is required.
     """
 
     action: Literal["open", "close"]
+    side: Literal["long", "short"] = "long"
     ticker: str | None = None
     option_type: Literal["call", "put"] | None = None
     strike: Decimal | None = None
@@ -1334,13 +1345,32 @@ class OptionTradeIn(BaseModel):
 
 
 class OptionGreeksOut(BaseModel):
-    """Per-share Black-Scholes greeks. Returned for completeness; the v1 UI
-    doesn't surface them."""
+    """Per-share Black-Scholes greeks, shown on the ticket and each position.
+
+    ``theta`` is per calendar day; ``vega`` and ``rho`` are per 1.00 (100
+    percentage points) of volatility and rate.
+    """
 
     delta: float
     gamma: float
     theta: float
     vega: float
+    rho: float
+
+
+class OptionRiskOut(BaseModel):
+    """What a position can lose and must hold back (Phase 9.2), in USD.
+
+    ``collateral`` is cash reserved (a cash-secured put's strike value); ``shares_reserved`` the shares a
+    covered call holds back. ``max_gain`` is null when unbounded.
+    """
+
+    collateral: Decimal
+    shares_reserved: Decimal
+    max_loss: Decimal
+    max_gain: Decimal | None
+    breakeven: Decimal
+    basis: str
 
 
 class OptionQuoteOut(BaseModel):
@@ -1365,13 +1395,42 @@ class OptionQuoteOut(BaseModel):
     premium: Decimal
     contract_size: int
     greeks: OptionGreeksOut
+    volatility_method: str
+    """How ``volatility`` was estimated, in words."""
+    side: Literal["long", "short"] = "long"
+    risk: OptionRiskOut
+    volatility_closes: int
+    premium_floor_applied: bool
+    """True when the model price was under the 0.01-a-share minimum (LG-14)."""
+
+
+class OptionImpliedVolOut(BaseModel):
+    """GET /v1/options/implied-volatility: the volatility a price implies.
+
+    ``implied_volatility`` is annualised (0.25 = 25%), or ``null`` with a
+    ``reason``. ``historical_volatility`` is what StockViz prices with, for
+    comparison.
+    """
+
+    ticker: str
+    option_type: Literal["call", "put"]
+    strike: Decimal
+    expiry: date
+    per_share_price: Decimal
+    spot: Decimal
+    spot_at: datetime
+    risk_free_rate: float
+    implied_volatility: float | None
+    reason: str | None
+    historical_volatility: float
 
 
 class OptionPositionOut(BaseModel):
     """One options position with its current Black-Scholes valuation.
 
     ``premium_paid`` and ``current_value`` are whole-position totals (per-share
-    price * 100 * contracts); ``greeks`` are per-share.
+    price * 100 * contracts); ``greeks`` are per-share. For a short leg
+    (Phase 9.2) ``current_value`` and ``greeks`` are negated: it is a liability.
     """
 
     id: int
@@ -1385,6 +1444,185 @@ class OptionPositionOut(BaseModel):
     opened_at: datetime
     current_value: Decimal
     greeks: OptionGreeksOut
+    side: Literal["long", "short"] = "long"
+    """``premium_paid`` is the premium received for a short leg (Phase 9.2)."""
+    cover: Literal["shares", "cash", "leg"] | None = None
+    collateral: Decimal = Decimal(0)
+    """USD a cash-secured put holds back while open; 0 otherwise."""
+    shares_reserved: Decimal = Decimal(0)
+    """Shares a covered call holds back while open; 0 otherwise."""
+    strategy_id: int | None = None
+    """The strategy this leg was opened in (Phase 9.3)."""
+    covering_leg_id: int | None = None
+
+
+class OptionStrategyIn(BaseModel):
+    """A strategy from a template (Phase 9.3). Strikes go low to high:
+
+    - one strike: covered_call, cash_secured_put, protective_put, straddle,
+      calendar (with ``far_expiry`` and ``option_type``);
+    - two: bull_call, bear_put, bull_put, bear_call, strangle;
+    - four: iron_condor (long put, short put, short call, long call).
+    """
+
+    kind: Literal[
+        "covered_call", "cash_secured_put", "protective_put", "bull_call", "bear_put",
+        "bull_put", "bear_call", "iron_condor", "straddle", "strangle", "calendar",
+    ]  # fmt: skip
+    ticker: str = Field(min_length=1, max_length=16)
+    strikes: list[Decimal] = Field(min_length=1, max_length=4)
+    expiry: date
+    far_expiry: date | None = None
+    option_type: Literal["call", "put"] | None = None
+    quantity: int = Field(ge=1, le=1_000)
+    client_order_id: ClientOrderId = None
+
+    @field_validator("strikes")
+    @classmethod
+    def _bounded_strikes(cls, value: list[Decimal]) -> list[Decimal]:
+        from stockviz.services.trading.bounds import MAX_PRICE, check_amount
+
+        return [check_amount(v, name="strike", maximum=MAX_PRICE) for v in value]
+
+
+class OptionStrategyLegOut(BaseModel):
+    """One leg of a strategy quote: priced per share and for the whole leg (USD)."""
+
+    side: Literal["long", "short"]
+    option_type: Literal["call", "put"]
+    strike: Decimal
+    expiry: date
+    per_share: Decimal
+    premium: Decimal
+
+
+class OptionStrategyRiskOut(BaseModel):
+    """The strategy's figures at open, in USD. ``net_premium`` is positive when
+    credited; ``collateral`` is cash held back while it is open (a covered
+    call's ``shares_reserved`` instead); ``max_gain`` null when unbounded or,
+    for a calendar, not stated; ``breakevens`` underlying prices at expiry."""
+
+    net_premium: Decimal
+    collateral: Decimal
+    shares_reserved: Decimal
+    max_loss: Decimal
+    max_gain: Decimal | None
+    breakevens: list[Decimal]
+    basis: str
+
+
+class OptionStrategyQuoteOut(BaseModel):
+    kind: str
+    label: str
+    ticker: str
+    quantity: int
+    spot: Decimal
+    spot_at: datetime
+    legs: list[OptionStrategyLegOut]
+    risk: OptionStrategyRiskOut
+
+
+class OptionStrategyOut(BaseModel):
+    """An opened strategy and its legs. ``status`` is ``open``, ``closed`` (by
+    the user) or ``settled`` (at expiry)."""
+
+    id: int
+    kind: str
+    label: str
+    status: str
+    net_premium: Decimal
+    collateral: Decimal
+    max_loss: Decimal | None
+    max_gain: Decimal | None
+    opened_at: datetime
+    legs: list[OptionPositionOut]
+
+
+class OptionStrategyTradeOut(BaseModel):
+    strategy: OptionStrategyOut
+    cash_delta: Decimal
+
+
+class PayoffPointOut(BaseModel):
+    spot: float
+    at_expiry: float
+    today: float
+
+
+class OptionStrategyPayoffOut(BaseModel):
+    """POST /v1/options/strategies/payoff (Phase 9.5): the quote plus two P&L
+    curves after premiums, at the first expiry and today, and the model chance
+    of profit (null without volatility or time). ``method`` states the model."""
+
+    quote: OptionStrategyQuoteOut
+    horizon: date
+    points: list[PayoffPointOut]
+    prob_profit: float | None
+    volatility: float
+    method: str
+
+
+class UnderlyingGreeksOut(BaseModel):
+    ticker: str
+    spot: Decimal
+    delta_shares: float
+    dollar_delta: float
+    gamma_shares: float
+    theta_per_day: float
+    vega_per_point: float
+    rho_per_point: float
+
+
+class ExpiryItemOut(BaseModel):
+    label: str
+    legs: list[str]
+    at_risk: Decimal | None
+    outcome: str
+    net_cash: Decimal | None
+    strategy_id: int | None
+
+
+class ExpiryGroupOut(BaseModel):
+    expiry: date
+    items: list[ExpiryItemOut]
+
+
+class OptionsBookOut(BaseModel):
+    """GET /v1/options/book (Phase 9.5): the book's Greeks in money (per
+    underlying, and dollar figures summed) and open legs by expiry with what
+    today's close would do. ``unpriced`` lists legs with no stored close."""
+
+    underlyings: list[UnderlyingGreeksOut]
+    dollar_delta: float
+    theta_per_day: float
+    vega_per_point: float
+    rho_per_point: float
+    expirations: list[ExpiryGroupOut]
+    unpriced: list[str]
+    method: str
+
+
+class SurfacePointOut(BaseModel):
+    strike: Decimal
+    call_iv: float | None
+    put_iv: float | None
+
+
+class SurfaceExpiryOut(BaseModel):
+    expiry: date
+    points: list[SurfacePointOut]
+
+
+class OptionSurfaceOut(BaseModel):
+    """GET /v1/options/surface (Phase 9.6): implied volatility by expiry and
+    strike from the latest stored option-chain snapshot, or ``snapshot_date``
+    null when none is stored. Annualised (0.25 = 25%)."""
+
+    ticker: str
+    snapshot_date: date | None
+    spot: Decimal | None
+    expiries: list[SurfaceExpiryOut]
+    source: str
 
 
 class OptionTradeOut(BaseModel):

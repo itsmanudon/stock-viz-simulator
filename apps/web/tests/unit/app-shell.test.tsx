@@ -143,7 +143,9 @@ describe("PublicHeader", () => {
     render(await PublicHeader());
     const nav = screen.getByRole("navigation", { name: "Public" });
 
-    expect(within(nav).getAllByRole("link")).toHaveLength(3);
+    // The three product pages and the docs.
+    expect(within(nav).getAllByRole("link")).toHaveLength(4);
+    expect(within(nav).getByRole("link", { name: "Docs" })).toHaveAttribute("href", "/docs");
     expect(screen.queryByRole("link", { name: "Orders" })).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Create account" })).toHaveAttribute("href", "/signup");
   });

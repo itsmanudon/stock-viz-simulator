@@ -19,6 +19,7 @@ const COLUMNS: { heading: string; links: { href: string; label: string; external
         { href: "/product/paper-trading", label: "Paper trading" },
         { href: "/product/research", label: "Research" },
         { href: "/product/replay", label: "Replay" },
+        { href: "/docs", label: "Docs" },
       ],
     },
     {

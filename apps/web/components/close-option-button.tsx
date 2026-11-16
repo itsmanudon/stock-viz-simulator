@@ -19,10 +19,13 @@ export function CloseOptionButton({
   optionId,
   label,
   valueText,
+  short = false,
 }: {
   optionId: number;
   label: string;
   valueText: string;
+  /** A written leg is bought back (it costs), not sold (Phase 9.2). */
+  short?: boolean;
 }) {
   const [confirming, setConfirming] = useState(false);
   const [state, action, pending] = useActionState(closeOptionFormAction, INITIAL);
@@ -38,7 +41,7 @@ export function CloseOptionButton({
           aria-label={`Close ${label}`}
           className={`${buttonClass} text-muted-foreground hover:text-foreground`}
         >
-          Close
+          {short ? "Buy back" : "Close"}
         </button>
         {state.error ? (
           <p role="alert" className="max-w-48 text-right text-2xs text-negative">
@@ -58,7 +61,9 @@ export function CloseOptionButton({
       className="flex flex-col items-end gap-1"
     >
       <input type="hidden" name="option_id" value={optionId} />
-      <p className="text-2xs text-muted-foreground">Close for about {valueText}?</p>
+      <p className="text-2xs text-muted-foreground">
+        {short ? `Buy back for about ${valueText}?` : `Close for about ${valueText}?`}
+      </p>
       <div className="flex gap-1.5">
         <button
           type="button"

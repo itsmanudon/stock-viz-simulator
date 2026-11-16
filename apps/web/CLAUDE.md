@@ -403,7 +403,39 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   a browser call to the public `/v1/options/quote`) shows spot with its close
   date, volatility, value per share and premium, and the buy button names the
   premium. The strike starts at the money and follows the symbol until edited.
-  Only USD symbols are offered. `PortfolioMetrics` adds an "Other cash" figure
+  Only USD symbols are offered. Phase 9.1 adds the risk-free rate, the
+  number of closes behind the volatility, a note when the premium is the
+  1-cent floor (LG-14), `GreeksList` (per share, with what each means for one
+  contract) and a collapsed "Saw a different premium?" check that calls
+  `getImpliedVolatility()` (read only; the buy is still charged at the
+  quote). The portfolio options table shows each contract's delta and theta
+  from `PortfolioOption.greeks`, a dash when it cannot be priced. Phase 9.2:
+  the ticket's "Buy to open" / "Write covered" choice posts `side`; writing
+  explains the cover (100 shares per contract, or the strike value in cash),
+  quotes with `side=short` and shows what is held back, the most it can lose
+  and gain and the breakeven (`riskRows`), with the position's (negated)
+  Greeks. Written legs show as "Covered call (written)" / "Cash-secured put
+  (written)" with the premium received, and `CloseOptionButton short` reads
+  "Buy back". Phase 9.5: `/trade` shows the single-contract ticket beside
+  `StrategyBuilder` (`components/strategy-builder.tsx`): a template from
+  `STRATEGY_TEMPLATES` (`lib/api/option-strategies.ts`), strikes defaulted
+  around today's close by `defaultStrikes` (step 1/5/10 by price) and
+  editable, expiry (near and far for a calendar), contracts. It calls the
+  public `getStrategyPayoff()` (a browser `apiPost`) and shows the legs,
+  net premium, cash held back, most it can lose and gain, breakevens, the
+  model chance of profit and `PayoffChart` (`components/payoff-chart.tsx`,
+  inline SVG: solid at the first expiry, dashed today). Placing is
+  two-step: "Review strategy" then "Place …", posting `review_step=confirmed`
+  and a client key to `openStrategyAction`, which refuses a draft.
+  `/portfolio?tab=options` loads `getOptionsBook()` and `listStrategies()`
+  only on that tab (`loadPortfolioData(..., { options })`; the book also on
+  Analytics) and shows `OptionsGreeks` and `ExpirationView`
+  (`components/options-book.tsx`), `PortfolioStrategies` with a two-step
+  "Close strategy", then the legs. The Analytics tab shows `OptionsGreeks`. Phase 9.6: the ticket states its
+  `volatility_method` (a stored chain's IV or 30-day historical), and the
+  builder has a collapsed "Volatility smile" (`components/volatility-smile.tsx`,
+  `getOptionSurface()`, inline SVG; each strike from its out-of-the-money
+  contract) that says when no chain is stored. `PortfolioMetrics` adds an "Other cash" figure
   when `cash_by_currency` (Phase 4.5b) holds a non-base currency: a sale of a
   EUR stock keeps its euros. The portfolio header and the dashboard hero
   show `ValuationNotice` when `valuation_warnings` is not empty (audit LG-13).

@@ -13,6 +13,10 @@ import { loadDashboardData } from "@/lib/dashboard-data";
 import { loadPortfolioData } from "@/lib/portfolio-data";
 
 vi.mock("@/lib/api/alerts", () => ({ listAlerts: vi.fn().mockResolvedValue([]) }));
+vi.mock("@/lib/api/options", () => ({
+  getOptionsBook: vi.fn().mockResolvedValue(null),
+  listStrategies: vi.fn().mockResolvedValue([]),
+}));
 vi.mock("@/lib/api/watchlist", () => ({ listWatchlist: vi.fn().mockResolvedValue([]) }));
 
 vi.mock("@/lib/api/journal", () => ({

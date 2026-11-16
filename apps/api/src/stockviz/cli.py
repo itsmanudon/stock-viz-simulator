@@ -244,8 +244,9 @@ def _cmd_corporate_actions(args: argparse.Namespace) -> int:
 
 def _cmd_credit_dividends(_args: argparse.Namespace) -> int:
     from stockviz._time import utcnow
+    from stockviz.services.markets.calendar import trading_date
 
-    today = utcnow().date()
+    today = trading_date(utcnow().replace(tzinfo=UTC))
     with Session(engine) as session:
         n = credit_due_dividends(session, credit_date=today)
     print(f"credited {n} portfolio(s) for dividends on {today}")
@@ -264,11 +265,53 @@ def _cmd_snapshot(_args: argparse.Namespace) -> int:
     return 0
 
 
+def fetch_option_chain(ticker: str):
+    """Network fetch of one listed chain (yfinance); see services/options/chains.py."""
+    from stockviz.services.options.chains import yfinance_chain
+
+    return yfinance_chain(ticker)
+
+
+def _cmd_options_snapshot(args: argparse.Namespace) -> int:
+    """Phase 9.6: store tonight's option chains for US stocks (or ``tickers``).
+
+    Exit 1 only when every ticker failed: one stock without listed options or
+    a single provider error is reported and the rest are stored.
+    """
+    from sqlmodel import select
+
+    from stockviz._time import utcnow
+    from stockviz.models import Symbol
+    from stockviz.services.markets.calendar import trading_date
+    from stockviz.services.options.chains import snapshot_all
+
+    today = trading_date(utcnow().replace(tzinfo=UTC))
+    with Session(engine) as session:
+        tickers = [t.upper() for t in args.tickers] or [
+            row.ticker
+            for row in session.exec(
+                select(Symbol).where(Symbol.is_active, Symbol.currency == "USD")
+            ).all()
+            if not row.ticker.startswith("^")
+        ]
+        stored, failed = snapshot_all(
+            session, tickers, snapshot_date=today, fetch=fetch_option_chain
+        )
+    print(
+        f"options-snapshot: {len(tickers) - len(failed)} of {len(tickers)} tickers, "
+        f"{stored} contracts stored for {today}"
+    )
+    if failed:
+        print(f"options-snapshot: failed: {', '.join(failed[:20])}")
+    return 1 if tickers and len(failed) == len(tickers) else 0
+
+
 def _cmd_settle_options(_args: argparse.Namespace) -> int:
     from stockviz._time import utcnow
+    from stockviz.services.markets.calendar import trading_date
     from stockviz.services.options import settle_expired_options
 
-    today = utcnow().date()
+    today = trading_date(utcnow().replace(tzinfo=UTC))
     with Session(engine) as session:
         n = settle_expired_options(session, settle_date=today)
     print(f"settled {n} expired option position(s) as of {today}")
@@ -1313,6 +1356,7 @@ RECORDED_JOBS = frozenset(
         "dividends",
         "credit-dividends",
         "settle-options",
+        "options-snapshot",
         "recommend",
         "snapshot-portfolios",
         "prune-events",
@@ -1524,6 +1568,13 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser(
         "settle-options", help="Settle every option position that has reached expiry"
     ).set_defaults(fn=_cmd_settle_options)
+
+    p_chain = sub.add_parser(
+        "options-snapshot",
+        help="Store tonight's option chains (yfinance) for US stocks, or the tickers given",
+    )
+    p_chain.add_argument("tickers", nargs="*")
+    p_chain.set_defaults(fn=_cmd_options_snapshot)
 
     p_prune = sub.add_parser(
         "prune-events",

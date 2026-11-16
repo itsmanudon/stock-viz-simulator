@@ -1,3 +1,9 @@
+import {
+  type OptionStrategy,
+  type OptionsBook,
+  getOptionsBook,
+  listStrategies,
+} from "@/lib/api/options";
 import "server-only";
 
 import { getNewsForTickers } from "@/lib/api";
@@ -40,6 +46,10 @@ export type PortfolioData = {
   risk: PortfolioRisk | null;
   /** Phase 8.4: fetched with the risk report, on the Analytics tab only. */
   stress: PortfolioStress | null;
+  /** Phase 9.5: the options book; on the Options and Analytics tabs only. */
+  optionsBook: OptionsBook | null;
+  /** Phase 9.5: strategies; on the Options tab only. */
+  strategies: OptionStrategy[] | null;
 };
 
 /**
@@ -56,7 +66,8 @@ export async function loadPortfolioData(
     news: wantNews = false,
     risk: wantRisk = false,
     goal = null,
-  }: { news?: boolean; risk?: boolean; goal?: number | null } = {},
+    options: wantOptions = false,
+  }: { news?: boolean; risk?: boolean; goal?: number | null; options?: boolean } = {},
 ): Promise<PortfolioData> {
   const journalRequest = journalMonthKey
     ? optional(
@@ -64,7 +75,17 @@ export async function loadPortfolioData(
       )
     : Promise.resolve(null);
 
-  const [overview, history, orders, dividends, journalMonth, risk, stress] = await Promise.all([
+  const [
+    overview,
+    history,
+    orders,
+    dividends,
+    journalMonth,
+    risk,
+    stress,
+    optionsBook,
+    strategies,
+  ] = await Promise.all([
     loadPortfolioOverview(),
     optional(getPortfolioHistory(portfolioRangeDays(range))),
     optional(listOrders("pending")),
@@ -72,6 +93,8 @@ export async function loadPortfolioData(
     journalRequest,
     wantRisk ? optional(getPortfolioRisk(goal)) : Promise.resolve(null),
     wantRisk ? optional(getPortfolioStress()) : Promise.resolve(null),
+    wantOptions || wantRisk ? optional(getOptionsBook()) : Promise.resolve(null),
+    wantOptions ? optional(listStrategies()) : Promise.resolve(null),
   ]);
 
   // Needs the holdings, so it follows the overview rather than joining it.
@@ -92,6 +115,8 @@ export async function loadPortfolioData(
     news,
     risk,
     stress,
+    optionsBook,
+    strategies,
   };
 }
 

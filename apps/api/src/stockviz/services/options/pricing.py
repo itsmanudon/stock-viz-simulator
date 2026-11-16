@@ -13,6 +13,27 @@ from decimal import Decimal
 
 TRADING_DAYS_PER_YEAR = 252
 
+RISK_FREE_RATES: dict[str, float] = {"USD": 0.05}
+"""Annual risk-free rate by premium currency (Phase 9.1). One place for the
+rate every option price uses; INR joins when Indian options do."""
+
+MIN_VOL_CLOSES = 20
+"""Fewer usable closes than this in the volatility window and an option is not
+priced at all (audit LG-14): a near-zero volatility would price an
+out-of-the-money contract at nothing."""
+
+MIN_PREMIUM_PER_SHARE = Decimal("0.01")
+"""No contract opens for less than a cent a share (audit LG-14)."""
+
+IV_MIN = 0.01
+IV_MAX = 5.0
+"""Bounds of the implied-volatility search: 1% to 500% a year."""
+
+
+def risk_free_rate(currency: str) -> float:
+    """The rate options in ``currency`` are priced at. KeyError if unsupported."""
+    return RISK_FREE_RATES[currency.upper()]
+
 
 def _norm_cdf(x: float) -> float:
     """Standard-normal cumulative distribution function."""
@@ -30,7 +51,8 @@ class OptionPrice:
 
     Greeks are per-share too: ``delta`` is unitless, ``vega`` is the price
     change per 1.00 (100%) change in volatility, ``theta`` is the price change
-    per calendar day.
+    per calendar day, ``rho`` the price change per 1.00 (100%) change in the
+    risk-free rate.
     """
 
     value: float
@@ -38,6 +60,7 @@ class OptionPrice:
     gamma: float
     theta: float
     vega: float
+    rho: float = 0.0
 
 
 def black_scholes(
@@ -67,7 +90,7 @@ def black_scholes(
             intrinsic = max(spot - discounted_strike, 0.0)
         else:
             intrinsic = max(discounted_strike - spot, 0.0)
-        return OptionPrice(value=intrinsic, delta=0.0, gamma=0.0, theta=0.0, vega=0.0)
+        return OptionPrice(value=intrinsic, delta=0.0, gamma=0.0, theta=0.0, vega=0.0, rho=0.0)
 
     sqrt_t = math.sqrt(time_to_expiry_years)
     d1 = (
@@ -84,12 +107,14 @@ def black_scholes(
     if option_type == "call":
         value = spot * _norm_cdf(d1) - strike * discount * _norm_cdf(d2)
         delta = _norm_cdf(d1)
+        rho = strike * time_to_expiry_years * discount * _norm_cdf(d2)
         theta_year = -(spot * pdf_d1 * volatility) / (2.0 * sqrt_t) - (
             risk_free_rate * strike * discount * _norm_cdf(d2)
         )
     else:
         value = strike * discount * _norm_cdf(-d2) - spot * _norm_cdf(-d1)
         delta = _norm_cdf(d1) - 1.0
+        rho = -strike * time_to_expiry_years * discount * _norm_cdf(-d2)
         theta_year = -(spot * pdf_d1 * volatility) / (2.0 * sqrt_t) + (
             risk_free_rate * strike * discount * _norm_cdf(-d2)
         )
@@ -100,6 +125,7 @@ def black_scholes(
         gamma=gamma,
         theta=theta_year / 365.0,  # per calendar day
         vega=vega,
+        rho=rho,
     )
 
 
@@ -127,3 +153,81 @@ def historical_volatility(closes: list[Decimal], *, window: int = 30) -> float:
     variance = sum((r - mean) ** 2 for r in log_returns) / (len(log_returns) - 1)
     daily_vol = math.sqrt(variance)
     return daily_vol * math.sqrt(TRADING_DAYS_PER_YEAR)
+
+
+def usable_closes(closes: list[Decimal], *, window: int = 30) -> int:
+    """How many positive closes :func:`historical_volatility` would use."""
+    return sum(1 for c in closes[-(window + 1) :] if c > 0)
+
+
+@dataclass(frozen=True, slots=True)
+class ImpliedVolatility:
+    """The volatility that prices a contract at ``price``, or why there is none."""
+
+    volatility: float | None
+    reason: str | None = None
+
+
+def implied_volatility(
+    *,
+    price: float,
+    spot: float,
+    strike: float,
+    time_to_expiry_years: float,
+    risk_free_rate: float,
+    option_type: str,
+    tolerance: float = 1e-8,
+    max_iterations: int = 100,
+) -> ImpliedVolatility:
+    """Solve Black-Scholes for volatility: Newton's method on vega, bisection fallback.
+
+    Returns ``volatility=None`` with a reason when no volatility in
+    [:data:`IV_MIN`, :data:`IV_MAX`] gives ``price``: at or below the
+    discounted intrinsic value, at or above the no-arbitrage bound (spot for a
+    call, discounted strike for a put), or past expiry.
+    """
+    if time_to_expiry_years <= 0:
+        return ImpliedVolatility(None, "the contract has expired")
+    if price <= 0:
+        return ImpliedVolatility(None, "the price must be positive")
+
+    def value(vol: float) -> OptionPrice:
+        return black_scholes(
+            spot=spot,
+            strike=strike,
+            time_to_expiry_years=time_to_expiry_years,
+            volatility=vol,
+            risk_free_rate=risk_free_rate,
+            option_type=option_type,
+        )
+
+    discount = math.exp(-risk_free_rate * time_to_expiry_years)
+    if option_type == "call":
+        intrinsic = max(spot - strike * discount, 0.0)
+        upper = spot
+    else:
+        intrinsic = max(strike * discount - spot, 0.0)
+        upper = strike * discount
+    if price <= intrinsic:
+        return ImpliedVolatility(None, "the price is at or below intrinsic value")
+    if price >= upper:
+        return ImpliedVolatility(None, "the price is above the no-arbitrage bound")
+
+    low, high = IV_MIN, IV_MAX
+    if not value(low).value <= price <= value(high).value:
+        return ImpliedVolatility(None, "no volatility between 1% and 500% gives this price")
+
+    vol = 0.3
+    for _ in range(max_iterations):
+        priced = value(vol)
+        diff = priced.value - price
+        if abs(diff) < tolerance:
+            return ImpliedVolatility(vol)
+        if diff > 0:
+            high = vol
+        else:
+            low = vol
+        step = vol - diff / priced.vega if priced.vega > 1e-12 else -1.0
+        # Newton while it stays inside the bracket, bisection otherwise.
+        vol = step if low < step < high else (low + high) / 2.0
+    return ImpliedVolatility(vol)

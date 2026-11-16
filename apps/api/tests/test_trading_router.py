@@ -250,6 +250,11 @@ def test_portfolio_overview_preserves_fx_options_reservations_and_missing_prices
     assert positions["MISSING"]["last_close"] is None
     assert Decimal(positions["MISSING"]["unrealized_pl"]) == -6
     assert Decimal(body["option_positions"][0]["unrealized_pl"]) == 450
+    # Phase 9.1 (UX-5): each contract carries its per-share Greeks; past expiry
+    # the price is intrinsic, so they are all zero.
+    assert body["option_positions"][0]["greeks"] == {
+        "delta": 0.0, "gamma": 0.0, "theta": 0.0, "vega": 0.0, "rho": 0.0
+    }  # fmt: skip
     assert overview["analytics"]["display_currency"] == "EUR"
     assert body == client.get("/v1/portfolio", headers=_auth_headers(user_id)).json()
     assert (

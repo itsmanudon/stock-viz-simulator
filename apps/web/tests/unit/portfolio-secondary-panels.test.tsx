@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { PortfolioIncome } from "@/components/portfolio-income";
@@ -27,6 +27,7 @@ const option: PortfolioOption = {
   market_value_native: "81000",
   market_value: "505.25",
   unrealized_pl: "85.25",
+  side: "long",
 };
 
 const order: PendingOrder = {
@@ -94,8 +95,63 @@ describe("portfolio operational panels", () => {
     expect(within(table).getByText("¥81,000 native")).toBeVisible();
     expect(within(table).getByText("Gain +€85.25")).toBeVisible();
     expect(within(table).getByRole("button", { name: "Close 7203.T call position" })).toBeVisible();
-    expect(screen.queryByText(/implied volatility/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/delta|gamma|theta|vega/i)).not.toBeInTheDocument();
+    // The values are modelled, and the subtitle says from what (Phase 9.6).
+    expect(screen.getByText(/stored option chain.*implied volatility/)).toBeVisible();
+    // No Greeks in the payload: a dash, never an invented zero.
+    expect(within(table).getByLabelText("Greeks unavailable")).toBeVisible();
+  });
+
+  it("shows each contract's per-share delta and theta (Phase 9.1, UX-5)", () => {
+    const priced = {
+      ...option,
+      greeks: { delta: 0.5321, gamma: 0.0012, theta: -4.2, vega: 310, rho: 120 },
+    };
+    render(<PortfolioOptions positions={[priced]} displayCurrency="EUR" />);
+
+    const table = screen.getByRole("table", { name: "Options positions" });
+    expect(within(table).getByLabelText("Delta 0.53, theta -4.20 a day")).toHaveTextContent(
+      "Δ 0.53 · Θ -¥4",
+    );
+    expect(screen.getByText(/Greeks are per share; theta is per day/)).toBeVisible();
+  });
+
+  it("shows a written covered call as a liability you buy back (Phase 9.2)", () => {
+    const written = {
+      ...option,
+      ticker: "AAPL",
+      currency: "USD",
+      side: "short" as const,
+      premium_paid: "746.40",
+      market_value: "-512.30",
+      market_value_native: "-512.30",
+      unrealized_pl: "234.10",
+    };
+    render(<PortfolioOptions positions={[written]} displayCurrency="USD" />);
+
+    const table = screen.getByRole("table", { name: "Options positions" });
+    expect(within(table).getByText("Covered call (written)")).toBeVisible();
+    expect(within(table).getByText("received")).toBeVisible();
+    const buyBack = within(table).getByRole("button", {
+      name: "Close AAPL written call position",
+    });
+    expect(buyBack).toHaveTextContent("Buy back");
+    fireEvent.click(buyBack);
+    expect(within(table).getByText("Buy back for about $512.30?")).toBeVisible();
+  });
+
+  it("labels a leg of a spread with its strategy (Phase 9.3)", () => {
+    const leg = {
+      ...option,
+      ticker: "AAPL",
+      currency: "USD",
+      side: "short" as const,
+      strategy: "Bear call spread",
+    };
+    render(<PortfolioOptions positions={[leg]} displayCurrency="USD" />);
+
+    const table = screen.getByRole("table", { name: "Options positions" });
+    expect(within(table).getByText("call (written)")).toBeVisible();
+    expect(within(table).getByText("Leg of a bear call spread")).toBeVisible();
   });
 
   it("uses a concise true empty state for options", () => {

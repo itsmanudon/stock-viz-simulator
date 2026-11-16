@@ -1,9 +1,11 @@
 """Options paper-trading model.
 
-A single long-options book per user: you buy a call or put to open, sell it
-to close before expiry, or let it run to expiry where the settlement job
-exercises it (ITM) or expires it worthless (OTM). Writing/shorting options is
-out of scope for v1 — every row here is a long position.
+One options book per user. A long position is bought to open and sold to
+close; a short one (Phase 9.2) is written to open and bought back to close.
+Either can run to expiry, where the settlement job exercises or assigns it
+(ITM) or lets it expire (OTM). A short leg is always covered: ``cover`` says
+by what (``shares`` for a covered call, ``cash`` for a cash-secured put), and
+that cover is reserved while the leg is open. Naked options are refused.
 
 A contract opens covering ``CONTRACT_MULTIPLIER`` shares (the US
 equity-option standard of 100). ``shares_per_contract`` is stored per row
@@ -18,7 +20,7 @@ from datetime import date as date_type
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import CheckConstraint, Index, Numeric, UniqueConstraint
+from sqlalchemy import CheckConstraint, Index, Numeric, String, UniqueConstraint
 from sqlmodel import Column, Field, SQLModel
 
 from stockviz._time import utcnow
@@ -31,6 +33,19 @@ CONTRACT_MULTIPLIER = 100
 class OptionType(enum.StrEnum):
     CALL = "call"
     PUT = "put"
+
+
+class OptionSide(enum.StrEnum):
+    LONG = "long"
+    SHORT = "short"
+
+
+class OptionCover(enum.StrEnum):
+    """What covers a short leg (Phase 9.2). Spreads add ``leg`` covers in 9.3."""
+
+    SHARES = "shares"  # covered call: shares held and reserved
+    CASH = "cash"  # cash-secured put: strike value reserved
+    LEG = "leg"  # Phase 9.3: a long leg of the same strategy (covering_leg_id)
 
 
 class OptionStatus(enum.StrEnum):
@@ -50,6 +65,16 @@ class OptionsPosition(SQLModel, table=True):
         CheckConstraint(
             "quantity > 0 AND strike > 0 AND premium_paid >= 0",
             name="ck_options_positions_amounts_valid",
+        ),
+        # Phase 9.2: a short leg names its cover; a long leg has none.
+        CheckConstraint(
+            "(side = 'long' AND cover IS NULL) OR (side = 'short' AND cover IS NOT NULL)",
+            name="ck_options_positions_short_is_covered",
+        ),
+        # Phase 9.3: a leg-covered short names the leg that covers it.
+        CheckConstraint(
+            "(cover = 'leg') = (covering_leg_id IS NOT NULL)",
+            name="ck_options_positions_leg_cover_named",
         ),
         # A repeated open with the same client key returns the first contract
         # (audit LG-10). NULLs never clash.
@@ -74,7 +99,21 @@ class OptionsPosition(SQLModel, table=True):
         default=Decimal(CONTRACT_MULTIPLIER),
         sa_column=Column(Numeric(18, 6), nullable=False, server_default="100"),
     )
+    # The premium's size: paid for a long leg, received for a short one.
     premium_paid: Decimal = Field(sa_column=Column(Numeric(20, 6), nullable=False))
+    side: OptionSide = Field(
+        default=OptionSide.LONG,
+        sa_column=Column(String(5), nullable=False, server_default="long"),
+    )
+    cover: OptionCover | None = Field(default=None, sa_column=Column(String(16), nullable=True))
+    # Phase 9.3: the strategy this leg was opened in, and the long leg covering
+    # a short one (cover == "leg").
+    strategy_id: int | None = Field(
+        default=None, foreign_key="option_strategies.id", index=True, nullable=True
+    )
+    covering_leg_id: int | None = Field(
+        default=None, foreign_key="options_positions.id", nullable=True
+    )
     client_order_id: str | None = Field(default=None, max_length=64, nullable=True)
 
     status: OptionStatus = Field(default=OptionStatus.OPEN, max_length=12, index=True)
@@ -92,3 +131,8 @@ class OptionsPosition(SQLModel, table=True):
     realized_pnl: Decimal | None = Field(
         default=None, sa_column=Column(Numeric(20, 6), nullable=True)
     )
+
+
+def position_sign(position: OptionsPosition) -> int:
+    """+1 for a long leg (an asset), -1 for a short one (a liability)."""
+    return -1 if position.side == OptionSide.SHORT else 1
