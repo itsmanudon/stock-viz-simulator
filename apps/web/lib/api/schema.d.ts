@@ -998,6 +998,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/options/implied-volatility": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Implied Volatility
+         * @description The volatility at which Black-Scholes gives ``price`` per share (Phase 9.1).
+         *
+         *     For a premium the user saw elsewhere: it is solved against the same spot,
+         *     rate and day count StockViz prices with, and returned beside the
+         *     historical volatility StockViz uses. Nothing is stored.
+         */
+        get: operations["get_implied_volatility_v1_options_implied_volatility_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/options/trade": {
         parameters: {
             query?: never;
@@ -1027,6 +1051,128 @@ export interface paths {
          * @description Return the user's open options positions, newest first, each priced now.
          */
         get: operations["list_options_positions_v1_options_positions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/options/strategies/quote": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Post Strategy Quote
+         * @description Price a strategy without opening it: every leg, the net premium, what it
+         *     holds back, the most it can lose and gain, and the breakevens. Public.
+         */
+        post: operations["post_strategy_quote_v1_options_strategies_quote_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/options/strategies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Strategies */
+        get: operations["list_strategies_v1_options_strategies_get"];
+        put?: never;
+        /**
+         * Post Strategy
+         * @description Open every leg of a strategy in one transaction, or none.
+         */
+        post: operations["post_strategy_v1_options_strategies_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/options/strategies/{strategy_id}/close": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Post Strategy Close
+         * @description Close every open leg at its model value: long legs sold, short legs bought back.
+         */
+        post: operations["post_strategy_close_v1_options_strategies__strategy_id__close_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/options/strategies/payoff": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Post Strategy Payoff
+         * @description The quote plus its payoff curves and model chance of profit. Public.
+         */
+        post: operations["post_strategy_payoff_v1_options_strategies_payoff_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/options/book": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Options Book
+         * @description The options book's Greeks and its legs by expiry (Phase 9.5).
+         */
+        get: operations["get_options_book_v1_options_book_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/options/surface": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Option Surface
+         * @description Implied volatility by expiry and strike from the latest chain snapshot. Public.
+         */
+        get: operations["get_option_surface_v1_options_surface_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2276,6 +2422,31 @@ export interface components {
                 [key: string]: unknown;
             } | null;
         };
+        /** ExpiryGroupOut */
+        ExpiryGroupOut: {
+            /**
+             * Expiry
+             * Format: date
+             */
+            expiry: string;
+            /** Items */
+            items: components["schemas"]["ExpiryItemOut"][];
+        };
+        /** ExpiryItemOut */
+        ExpiryItemOut: {
+            /** Label */
+            label: string;
+            /** Legs */
+            legs: string[];
+            /** At Risk */
+            at_risk: string | null;
+            /** Outcome */
+            outcome: string;
+            /** Net Cash */
+            net_cash: string | null;
+            /** Strategy Id */
+            strategy_id: number | null;
+        };
         /** ExposureBucketOut */
         ExposureBucketOut: {
             /** Key */
@@ -2955,8 +3126,10 @@ export interface components {
         };
         /**
          * OptionGreeksOut
-         * @description Per-share Black-Scholes greeks. Returned for completeness; the v1 UI
-         *     doesn't surface them.
+         * @description Per-share Black-Scholes greeks, shown on the ticket and each position.
+         *
+         *     ``theta`` is per calendar day; ``vega`` and ``rho`` are per 1.00 (100
+         *     percentage points) of volatility and rate.
          */
         OptionGreeksOut: {
             /** Delta */
@@ -2967,13 +3140,57 @@ export interface components {
             theta: number;
             /** Vega */
             vega: number;
+            /** Rho */
+            rho: number;
+        };
+        /**
+         * OptionImpliedVolOut
+         * @description GET /v1/options/implied-volatility: the volatility a price implies.
+         *
+         *     ``implied_volatility`` is annualised (0.25 = 25%), or ``null`` with a
+         *     ``reason``. ``historical_volatility`` is what StockViz prices with, for
+         *     comparison.
+         */
+        OptionImpliedVolOut: {
+            /** Ticker */
+            ticker: string;
+            /**
+             * Option Type
+             * @enum {string}
+             */
+            option_type: "call" | "put";
+            /** Strike */
+            strike: string;
+            /**
+             * Expiry
+             * Format: date
+             */
+            expiry: string;
+            /** Per Share Price */
+            per_share_price: string;
+            /** Spot */
+            spot: string;
+            /**
+             * Spot At
+             * Format: date-time
+             */
+            spot_at: string;
+            /** Risk Free Rate */
+            risk_free_rate: number;
+            /** Implied Volatility */
+            implied_volatility: number | null;
+            /** Reason */
+            reason: string | null;
+            /** Historical Volatility */
+            historical_volatility: number;
         };
         /**
          * OptionPositionOut
          * @description One options position with its current Black-Scholes valuation.
          *
          *     ``premium_paid`` and ``current_value`` are whole-position totals (per-share
-         *     price * 100 * contracts); ``greeks`` are per-share.
+         *     price * 100 * contracts); ``greeks`` are per-share. For a short leg
+         *     (Phase 9.2) ``current_value`` and ``greeks`` are negated: it is a liability.
          */
         OptionPositionOut: {
             /** Id */
@@ -3009,6 +3226,28 @@ export interface components {
             /** Current Value */
             current_value: string;
             greeks: components["schemas"]["OptionGreeksOut"];
+            /**
+             * Side
+             * @default long
+             * @enum {string}
+             */
+            side: "long" | "short";
+            /** Cover */
+            cover?: ("shares" | "cash" | "leg") | null;
+            /**
+             * Collateral
+             * @default 0
+             */
+            collateral: string;
+            /**
+             * Shares Reserved
+             * @default 0
+             */
+            shares_reserved: string;
+            /** Strategy Id */
+            strategy_id?: number | null;
+            /** Covering Leg Id */
+            covering_leg_id?: number | null;
         };
         /**
          * OptionQuoteOut
@@ -3054,14 +3293,235 @@ export interface components {
             /** Contract Size */
             contract_size: number;
             greeks: components["schemas"]["OptionGreeksOut"];
+            /** Volatility Method */
+            volatility_method: string;
+            /**
+             * Side
+             * @default long
+             * @enum {string}
+             */
+            side: "long" | "short";
+            risk: components["schemas"]["OptionRiskOut"];
+            /** Volatility Closes */
+            volatility_closes: number;
+            /** Premium Floor Applied */
+            premium_floor_applied: boolean;
+        };
+        /**
+         * OptionRiskOut
+         * @description What a position can lose and must hold back (Phase 9.2), in USD.
+         *
+         *     ``collateral`` is cash reserved (a cash-secured put's strike value); ``shares_reserved`` the shares a
+         *     covered call holds back. ``max_gain`` is null when unbounded.
+         */
+        OptionRiskOut: {
+            /** Collateral */
+            collateral: string;
+            /** Shares Reserved */
+            shares_reserved: string;
+            /** Max Loss */
+            max_loss: string;
+            /** Max Gain */
+            max_gain: string | null;
+            /** Breakeven */
+            breakeven: string;
+            /** Basis */
+            basis: string;
+        };
+        /**
+         * OptionSide
+         * @enum {string}
+         */
+        OptionSide: "long" | "short";
+        /**
+         * OptionStrategyIn
+         * @description A strategy from a template (Phase 9.3). Strikes go low to high:
+         *
+         *     - one strike: covered_call, cash_secured_put, protective_put, straddle,
+         *       calendar (with ``far_expiry`` and ``option_type``);
+         *     - two: bull_call, bear_put, bull_put, bear_call, strangle;
+         *     - four: iron_condor (long put, short put, short call, long call).
+         */
+        OptionStrategyIn: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "covered_call" | "cash_secured_put" | "protective_put" | "bull_call" | "bear_put" | "bull_put" | "bear_call" | "iron_condor" | "straddle" | "strangle" | "calendar";
+            /** Ticker */
+            ticker: string;
+            /** Strikes */
+            strikes: (number | string)[];
+            /**
+             * Expiry
+             * Format: date
+             */
+            expiry: string;
+            /** Far Expiry */
+            far_expiry?: string | null;
+            /** Option Type */
+            option_type?: ("call" | "put") | null;
+            /** Quantity */
+            quantity: number;
+            /** Client Order Id */
+            client_order_id?: string | null;
+        };
+        /**
+         * OptionStrategyLegOut
+         * @description One leg of a strategy quote: priced per share and for the whole leg (USD).
+         */
+        OptionStrategyLegOut: {
+            /**
+             * Side
+             * @enum {string}
+             */
+            side: "long" | "short";
+            /**
+             * Option Type
+             * @enum {string}
+             */
+            option_type: "call" | "put";
+            /** Strike */
+            strike: string;
+            /**
+             * Expiry
+             * Format: date
+             */
+            expiry: string;
+            /** Per Share */
+            per_share: string;
+            /** Premium */
+            premium: string;
+        };
+        /**
+         * OptionStrategyOut
+         * @description An opened strategy and its legs. ``status`` is ``open``, ``closed`` (by
+         *     the user) or ``settled`` (at expiry).
+         */
+        OptionStrategyOut: {
+            /** Id */
+            id: number;
+            /** Kind */
+            kind: string;
+            /** Label */
+            label: string;
+            /** Status */
+            status: string;
+            /** Net Premium */
+            net_premium: string;
+            /** Collateral */
+            collateral: string;
+            /** Max Loss */
+            max_loss: string | null;
+            /** Max Gain */
+            max_gain: string | null;
+            /**
+             * Opened At
+             * Format: date-time
+             */
+            opened_at: string;
+            /** Legs */
+            legs: components["schemas"]["OptionPositionOut"][];
+        };
+        /**
+         * OptionStrategyPayoffOut
+         * @description POST /v1/options/strategies/payoff (Phase 9.5): the quote plus two P&L
+         *     curves after premiums, at the first expiry and today, and the model chance
+         *     of profit (null without volatility or time). ``method`` states the model.
+         */
+        OptionStrategyPayoffOut: {
+            quote: components["schemas"]["OptionStrategyQuoteOut"];
+            /**
+             * Horizon
+             * Format: date
+             */
+            horizon: string;
+            /** Points */
+            points: components["schemas"]["PayoffPointOut"][];
+            /** Prob Profit */
+            prob_profit: number | null;
+            /** Volatility */
+            volatility: number;
+            /** Method */
+            method: string;
+        };
+        /** OptionStrategyQuoteOut */
+        OptionStrategyQuoteOut: {
+            /** Kind */
+            kind: string;
+            /** Label */
+            label: string;
+            /** Ticker */
+            ticker: string;
+            /** Quantity */
+            quantity: number;
+            /** Spot */
+            spot: string;
+            /**
+             * Spot At
+             * Format: date-time
+             */
+            spot_at: string;
+            /** Legs */
+            legs: components["schemas"]["OptionStrategyLegOut"][];
+            risk: components["schemas"]["OptionStrategyRiskOut"];
+        };
+        /**
+         * OptionStrategyRiskOut
+         * @description The strategy's figures at open, in USD. ``net_premium`` is positive when
+         *     credited; ``collateral`` is cash held back while it is open (a covered
+         *     call's ``shares_reserved`` instead); ``max_gain`` null when unbounded or,
+         *     for a calendar, not stated; ``breakevens`` underlying prices at expiry.
+         */
+        OptionStrategyRiskOut: {
+            /** Net Premium */
+            net_premium: string;
+            /** Collateral */
+            collateral: string;
+            /** Shares Reserved */
+            shares_reserved: string;
+            /** Max Loss */
+            max_loss: string;
+            /** Max Gain */
+            max_gain: string | null;
+            /** Breakevens */
+            breakevens: string[];
+            /** Basis */
+            basis: string;
+        };
+        /** OptionStrategyTradeOut */
+        OptionStrategyTradeOut: {
+            strategy: components["schemas"]["OptionStrategyOut"];
+            /** Cash Delta */
+            cash_delta: string;
+        };
+        /**
+         * OptionSurfaceOut
+         * @description GET /v1/options/surface (Phase 9.6): implied volatility by expiry and
+         *     strike from the latest stored option-chain snapshot, or ``snapshot_date``
+         *     null when none is stored. Annualised (0.25 = 25%).
+         */
+        OptionSurfaceOut: {
+            /** Ticker */
+            ticker: string;
+            /** Snapshot Date */
+            snapshot_date: string | null;
+            /** Spot */
+            spot: string | null;
+            /** Expiries */
+            expiries: components["schemas"]["SurfaceExpiryOut"][];
+            /** Source */
+            source: string;
         };
         /**
          * OptionTradeIn
          * @description Request body for POST /v1/options/trade.
          *
          *     ``action="open"`` buys a contract — ``ticker``, ``option_type``,
-         *     ``strike``, ``expiry`` and ``quantity`` are required. ``action="close"``
-         *     sells an open position back — only ``option_id`` is required.
+         *     ``strike``, ``expiry`` and ``quantity`` are required — or, with
+         *     ``side="short"`` (Phase 9.2), writes a covered one: a call covered by
+         *     held shares, a put secured by cash. ``action="close"`` sells a long
+         *     position back or buys a short one back — only ``option_id`` is required.
          */
         OptionTradeIn: {
             /**
@@ -3069,6 +3529,12 @@ export interface components {
              * @enum {string}
              */
             action: "open" | "close";
+            /**
+             * Side
+             * @default long
+             * @enum {string}
+             */
+            side: "long" | "short";
             /** Ticker */
             ticker?: string | null;
             /** Option Type */
@@ -3099,6 +3565,39 @@ export interface components {
          * @enum {string}
          */
         OptionType: "call" | "put";
+        /**
+         * OptionsBookOut
+         * @description GET /v1/options/book (Phase 9.5): the book's Greeks in money (per
+         *     underlying, and dollar figures summed) and open legs by expiry with what
+         *     today's close would do. ``unpriced`` lists legs with no stored close.
+         */
+        OptionsBookOut: {
+            /** Underlyings */
+            underlyings: components["schemas"]["UnderlyingGreeksOut"][];
+            /** Dollar Delta */
+            dollar_delta: number;
+            /** Theta Per Day */
+            theta_per_day: number;
+            /** Vega Per Point */
+            vega_per_point: number;
+            /** Rho Per Point */
+            rho_per_point: number;
+            /** Expirations */
+            expirations: components["schemas"]["ExpiryGroupOut"][];
+            /** Unpriced */
+            unpriced: string[];
+            /** Method */
+            method: string;
+        };
+        /** PayoffPointOut */
+        PayoffPointOut: {
+            /** Spot */
+            spot: number;
+            /** At Expiry */
+            at_expiry: number;
+            /** Today */
+            today: number;
+        };
         /** PendingOrderIn */
         PendingOrderIn: {
             /** Ticker */
@@ -3276,6 +3775,15 @@ export interface components {
             market_value: string;
             /** Unrealized Pl */
             unrealized_pl: string;
+            greeks?: components["schemas"]["OptionGreeksOut"] | null;
+            /**
+             * Side
+             * @default long
+             * @enum {string}
+             */
+            side: "long" | "short";
+            /** Strategy */
+            strategy?: string | null;
         };
         /**
          * PortfolioOut
@@ -4438,6 +4946,25 @@ export interface components {
             /** Missing */
             missing: string[];
         };
+        /** SurfaceExpiryOut */
+        SurfaceExpiryOut: {
+            /**
+             * Expiry
+             * Format: date
+             */
+            expiry: string;
+            /** Points */
+            points: components["schemas"]["SurfacePointOut"][];
+        };
+        /** SurfacePointOut */
+        SurfacePointOut: {
+            /** Strike */
+            strike: string;
+            /** Call Iv */
+            call_iv: number | null;
+            /** Put Iv */
+            put_iv: number | null;
+        };
         /** SweepIn */
         SweepIn: {
             backtest: components["schemas"]["BacktestIn"];
@@ -4582,6 +5109,25 @@ export interface components {
             total_base: string;
             /** Realized Pnl */
             realized_pnl?: string | null;
+        };
+        /** UnderlyingGreeksOut */
+        UnderlyingGreeksOut: {
+            /** Ticker */
+            ticker: string;
+            /** Spot */
+            spot: string;
+            /** Delta Shares */
+            delta_shares: number;
+            /** Dollar Delta */
+            dollar_delta: number;
+            /** Gamma Shares */
+            gamma_shares: number;
+            /** Theta Per Day */
+            theta_per_day: number;
+            /** Vega Per Point */
+            vega_per_point: number;
+            /** Rho Per Point */
+            rho_per_point: number;
         };
         /** UnreadCountOut */
         UnreadCountOut: {
@@ -6686,6 +7232,7 @@ export interface operations {
                 expiry: string;
                 strike?: number | string | null;
                 quantity?: number;
+                side?: components["schemas"]["OptionSide"];
             };
             header?: never;
             path?: never;
@@ -6700,6 +7247,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["OptionQuoteOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_implied_volatility_v1_options_implied_volatility_get: {
+        parameters: {
+            query: {
+                ticker: string;
+                option_type: components["schemas"]["OptionType"];
+                expiry: string;
+                strike: number | string;
+                price: number | string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OptionImpliedVolOut"];
                 };
             };
             /** @description Validation Error */
@@ -6766,6 +7348,233 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["OptionPositionOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    post_strategy_quote_v1_options_strategies_quote_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OptionStrategyIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OptionStrategyQuoteOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_strategies_v1_options_strategies_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OptionStrategyOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    post_strategy_v1_options_strategies_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OptionStrategyIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OptionStrategyTradeOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    post_strategy_close_v1_options_strategies__strategy_id__close_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                strategy_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OptionStrategyTradeOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    post_strategy_payoff_v1_options_strategies_payoff_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OptionStrategyIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OptionStrategyPayoffOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_options_book_v1_options_book_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OptionsBookOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_option_surface_v1_options_surface_get: {
+        parameters: {
+            query: {
+                ticker: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OptionSurfaceOut"];
                 };
             };
             /** @description Validation Error */
