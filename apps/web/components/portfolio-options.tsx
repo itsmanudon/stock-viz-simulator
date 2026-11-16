@@ -10,7 +10,12 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import type { PortfolioOption } from "@/lib/api/trading";
-import { formatCurrency, formatQuantity, formatSignedCurrency } from "@/lib/portfolio-view-model";
+import {
+  displayedAmount,
+  formatCurrency,
+  formatQuantity,
+  formatSignedCurrency,
+} from "@/lib/portfolio-view-model";
 
 export function PortfolioOptions({
   positions,
@@ -58,7 +63,7 @@ export function PortfolioOptions({
           </TableHeader>
           <TableBody>
             {positions.map((position) => {
-              const pnl = Number(position.unrealized_pl);
+              const pnl = displayedAmount(position.unrealized_pl, displayCurrency);
               const tone = pnl > 0 ? "text-positive" : pnl < 0 ? "text-negative" : "";
               const direction = pnl > 0 ? "Gain" : pnl < 0 ? "Loss" : "Flat";
               return (
@@ -123,7 +128,7 @@ export function PortfolioOptions({
         className="divide-y divide-border-muted md:hidden"
       >
         {positions.map((position) => {
-          const pnl = Number(position.unrealized_pl);
+          const pnl = displayedAmount(position.unrealized_pl, displayCurrency);
           return (
             <li
               key={position.option_id}

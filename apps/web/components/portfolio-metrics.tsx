@@ -1,6 +1,7 @@
 import { FigureStrip } from "@/components/figure-strip";
 import type { Portfolio, PortfolioAnalytics } from "@/lib/api/trading";
 import {
+  displayedAmount,
   formatCurrency,
   formatSignedCurrency,
   formatSignedPercent,
@@ -157,7 +158,9 @@ type Metric = {
   tone?: "positive" | "negative";
 };
 
-function toneFor(value: number): Metric["tone"] {
+function toneFor(raw: number): Metric["tone"] {
+  // Tone follows the figure as shown: a sub-cent amount is zero, not a loss.
+  const value = displayedAmount(raw);
   if (value > 0) return "positive";
   if (value < 0) return "negative";
   return undefined;

@@ -115,3 +115,17 @@ describe("splitMinorUnits", () => {
     expect(splitMinorUnits("—")).toEqual(["—", null]);
   });
 });
+
+describe("amounts as shown (no negative zero)", () => {
+  it("rounds to the shown precision and folds -0 to 0", async () => {
+    const { displayedAmount } = await import("@/lib/portfolio-view-model");
+    expect(displayedAmount("-0.000001")).toBe(0);
+    expect(Object.is(displayedAmount(-0.004), -0)).toBe(false);
+    expect(displayedAmount("-0.005")).toBe(-0.01);
+    expect(displayedAmount("12.4", "JPY")).toBe(12);
+    expect(formatCurrency("-0.000001")).toBe("$0.00");
+    expect(formatSignedCurrency("-0.000001")).toBe("$0.00");
+    expect(formatSignedCurrency("0.004")).toBe("$0.00");
+    expect(formatSignedCurrency("0.006")).toBe("+$0.01");
+  });
+});
