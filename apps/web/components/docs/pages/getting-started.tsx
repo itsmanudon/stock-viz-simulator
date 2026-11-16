@@ -62,8 +62,8 @@ export function GettingStarted() {
             {"Every symbol with its latest close, the day's move and its date."}
           </Term>
           <Term name="Research">
-            Screener, compare, signals, backtests, news reactions and replay. See the Research pages
-            (coming next).
+            Screener, compare, signals, backtests, news reactions and replay. Start with{" "}
+            <DocLink href="/docs/markets-and-stocks">Markets and stock pages</DocLink>.
           </Term>
           <Term name="Trade">
             The order ticket, the option ticket and the strategy builder. See{" "}
@@ -71,7 +71,8 @@ export function GettingStarted() {
             <DocLink href="/docs/options">Options</DocLink>.
           </Term>
           <Term name="Portfolio">
-            {"Positions, options, orders, income, journal, news and analytics."}
+            Positions, options, orders, income, journal, news and analytics. See{" "}
+            <DocLink href="/docs/portfolio">Portfolio</DocLink>.
           </Term>
           <Term name="Alerts">
             {"Price, technical, news and portfolio rules, judged after each night."}
