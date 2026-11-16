@@ -20,6 +20,7 @@ export default async function PortfolioPage({
   const data = await loadPortfolioData(range, tab === "journal" ? monthKey : undefined, {
     news: tab === "news",
     risk: tab === "analytics",
+    options: tab === "options",
     goal: parseGoal(params.goal),
   });
 

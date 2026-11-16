@@ -21,6 +21,7 @@ import { PendingOrderQuote } from "@/components/order-blotter-row";
 import { OrderTicket } from "@/components/order-ticket";
 import { PageFrame } from "@/components/page-frame";
 import { PriceChart } from "@/components/price-chart";
+import { StrategyBuilder } from "@/components/strategy-builder";
 import { ApiError, getBars, getQuotes, listSymbols } from "@/lib/api";
 import { parseApiTimestamp } from "@/lib/api-time";
 import { getPortfolio, listOrders, listTrades } from "@/lib/api/trading";
@@ -84,6 +85,12 @@ export default async function TradePage({
   const position = portfolio.positions.find((item) => item.ticker === activeTicker) ?? null;
   const tickerOrders = pendingOrders.filter((order) => order.ticker === activeTicker);
   const currencies = currencyByTicker(options);
+
+  // The API takes USD stocks only (audit LG-7): no other currency, and no
+  // index (^GSPC is USD but has no options here).
+  const optionUnderlyings = options
+    .filter((symbol) => (symbol.currency || "USD") === "USD" && !symbol.ticker.startsWith("^"))
+    .map((symbol) => ({ ticker: symbol.ticker, name: symbol.name }));
 
   const recentExecution = (
     <section
@@ -343,23 +350,22 @@ export default async function TradePage({
           Options
         </h2>
         <p className="mt-1 max-w-2xl text-xs leading-5 text-text-tertiary">
-          Buy calls and puts to open. Premiums use Black-Scholes with 30-day historical volatility,
-          not a live implied-vol surface. Close positions from{" "}
+          Buy or write single contracts, or open a strategy whose legs open together. Premiums use
+          Black-Scholes with 30-day historical volatility, not market quotes. Close positions from{" "}
           <Link href="/portfolio?tab=options" className="hover:underline">
             Portfolio
           </Link>
           .
         </p>
-        <div className="mt-4 max-w-xl">
-          <OptionTradeForm
-            // The API takes USD stocks only (audit LG-7): no other currency,
-            // and no index (^GSPC is USD but has no options here).
-            options={options
-              .filter(
-                (symbol) => (symbol.currency || "USD") === "USD" && !symbol.ticker.startsWith("^"),
-              )
-              .map((symbol) => ({ ticker: symbol.ticker, name: symbol.name }))}
-          />
+        <div className="mt-4 grid gap-6 xl:grid-cols-2">
+          <div>
+            <h3 className="mb-2 text-xs font-medium text-text-secondary">One contract type</h3>
+            <OptionTradeForm options={optionUnderlyings} />
+          </div>
+          <div>
+            <h3 className="mb-2 text-xs font-medium text-text-secondary">Strategy builder</h3>
+            <StrategyBuilder options={optionUnderlyings} />
+          </div>
         </div>
       </section>
     </PageFrame>

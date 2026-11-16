@@ -416,7 +416,22 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   and gain and the breakeven (`riskRows`), with the position's (negated)
   Greeks. Written legs show as "Covered call (written)" / "Cash-secured put
   (written)" with the premium received, and `CloseOptionButton short` reads
-  "Buy back". `PortfolioMetrics` adds an "Other cash" figure
+  "Buy back". Phase 9.5: `/trade` shows the single-contract ticket beside
+  `StrategyBuilder` (`components/strategy-builder.tsx`): a template from
+  `STRATEGY_TEMPLATES` (`lib/api/option-strategies.ts`), strikes defaulted
+  around today's close by `defaultStrikes` (step 1/5/10 by price) and
+  editable, expiry (near and far for a calendar), contracts. It calls the
+  public `getStrategyPayoff()` (a browser `apiPost`) and shows the legs,
+  net premium, cash held back, most it can lose and gain, breakevens, the
+  model chance of profit and `PayoffChart` (`components/payoff-chart.tsx`,
+  inline SVG: solid at the first expiry, dashed today). Placing is
+  two-step: "Review strategy" then "Place …", posting `review_step=confirmed`
+  and a client key to `openStrategyAction`, which refuses a draft.
+  `/portfolio?tab=options` loads `getOptionsBook()` and `listStrategies()`
+  only on that tab (`loadPortfolioData(..., { options })`; the book also on
+  Analytics) and shows `OptionsGreeks` and `ExpirationView`
+  (`components/options-book.tsx`), `PortfolioStrategies` with a two-step
+  "Close strategy", then the legs. The Analytics tab shows `OptionsGreeks`. `PortfolioMetrics` adds an "Other cash" figure
   when `cash_by_currency` (Phase 4.5b) holds a non-base currency: a sale of a
   EUR stock keeps its euros. The portfolio header and the dashboard hero
   show `ValuationNotice` when `valuation_warnings` is not empty (audit LG-13).
