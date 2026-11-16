@@ -20,6 +20,7 @@ import { PayoffChart } from "@/components/payoff-chart";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { VolatilitySmile } from "@/components/volatility-smile";
 import { ApiError } from "@/lib/api/client";
 import { getOptionQuote } from "@/lib/api/option-quote";
 import {
@@ -283,6 +284,12 @@ export function StrategyBuilder({ options }: { options: SymbolOption[] }) {
           <p className="text-xs text-text-tertiary">Pricing the legs…</p>
         ) : null}
         {ready ? <StrategyFigures payoff={ready} /> : null}
+        <details className="rounded-md border border-border-muted px-3 py-2.5">
+          <summary className="cursor-pointer text-xs text-text-secondary">Volatility smile</summary>
+          <div className="mt-2.5">
+            <VolatilitySmile ticker={ticker} />
+          </div>
+        </details>
 
         {state.error ? (
           <p className="text-sm text-negative" role="alert">
@@ -411,8 +418,10 @@ function StrategyFigures({ payoff }: { payoff: StrategyPayoff }) {
         ))}
       </dl>
       <p className="text-2xs text-text-tertiary">
-        {risk.basis}. Prices are Black-Scholes on {(payoff.volatility * 100).toFixed(1)}% historical
-        volatility, not market quotes; the chance of profit is a model figure.
+        {risk.basis}. Each leg is priced with Black-Scholes on the implied volatility of the nearest
+        listed contract in the latest stored option chain, or on 30-day historical volatility where
+        none is stored; the chance of profit is a model figure at{" "}
+        {(payoff.volatility * 100).toFixed(1)}% volatility.
       </p>
     </section>
   );

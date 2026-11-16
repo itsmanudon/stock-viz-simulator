@@ -1602,6 +1602,29 @@ class OptionsBookOut(BaseModel):
     method: str
 
 
+class SurfacePointOut(BaseModel):
+    strike: Decimal
+    call_iv: float | None
+    put_iv: float | None
+
+
+class SurfaceExpiryOut(BaseModel):
+    expiry: date
+    points: list[SurfacePointOut]
+
+
+class OptionSurfaceOut(BaseModel):
+    """GET /v1/options/surface (Phase 9.6): implied volatility by expiry and
+    strike from the latest stored option-chain snapshot, or ``snapshot_date``
+    null when none is stored. Annualised (0.25 = 25%)."""
+
+    ticker: str
+    snapshot_date: date | None
+    spot: Decimal | None
+    expiries: list[SurfaceExpiryOut]
+    source: str
+
+
 class OptionTradeOut(BaseModel):
     """Result of an options trade: the affected position plus the cash move
     (negative when premium was paid, positive when proceeds were received)."""

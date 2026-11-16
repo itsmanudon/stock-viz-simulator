@@ -58,7 +58,10 @@ def strategy_payoff(quote: StrategyQuote, *, asof: date_type | None = None) -> P
     asof = asof or _today()
     first = quote.legs[0][1]
     spot0 = float(first.spot)
-    vol = first.volatility
+    # Each leg keeps the volatility it was priced with (a chain's IV differs
+    # by strike, Phase 9.6); the chance of profit uses the leg nearest the money.
+    atm = min(quote.legs, key=lambda leg: abs(float(leg[0].strike) - spot0))
+    vol = atm[1].volatility
     horizon = min(plan.expiry for plan, _ in quote.legs)
     t_h = max((horizon - asof).days / 365.0, 0.0)
     shares = 100 * quote.quantity
@@ -69,13 +72,13 @@ def strategy_payoff(quote: StrategyQuote, *, asof: date_type | None = None) -> P
 
     def value(spot: float, years_from_now: float) -> float:
         total = 0.0
-        for plan, _q in quote.legs:
+        for plan, q in quote.legs:
             left = max((plan.expiry - asof).days / 365.0 - years_from_now, 0.0)
             price = black_scholes(
                 spot=spot,
                 strike=float(plan.strike),
                 time_to_expiry_years=left,
-                volatility=vol,
+                volatility=q.volatility,
                 risk_free_rate=RISK_FREE_RATE,
                 option_type=plan.option_type.value,
             ).value
@@ -123,6 +126,6 @@ def strategy_payoff(quote: StrategyQuote, *, asof: date_type | None = None) -> P
         method=(
             "profit or loss after premiums; at the first expiry legs expiring then are worth "
             "intrinsic value and later legs their Black-Scholes value; chance of profit assumes "
-            "a lognormal price at that expiry with the volatility used to price the legs"
+            "a lognormal price at that expiry with the volatility of the leg nearest the money"
         ),
     )

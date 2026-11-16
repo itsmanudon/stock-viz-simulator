@@ -36,9 +36,12 @@ from stockviz.schemas import (
     OptionStrategyQuoteOut,
     OptionStrategyRiskOut,
     OptionStrategyTradeOut,
+    OptionSurfaceOut,
     OptionTradeIn,
     OptionTradeOut,
     PayoffPointOut,
+    SurfaceExpiryOut,
+    SurfacePointOut,
     UnderlyingGreeksOut,
 )
 from stockviz.services.options import (
@@ -79,7 +82,6 @@ router = APIRouter(prefix="/v1/options", tags=["options"])
 SessionDep = Annotated[Session, Depends(get_session)]
 
 _ZERO_GREEKS = OptionGreeksOut(delta=0.0, gamma=0.0, theta=0.0, vega=0.0, rho=0.0)
-_VOL_METHOD = "historical volatility of daily closes, 30 sessions, annualised"
 
 
 def _greeks(price: OptionPrice) -> OptionGreeksOut:
@@ -191,7 +193,7 @@ def get_option_quote(
         premium=quote.premium,
         contract_size=int(CONTRACT_MULTIPLIER),
         greeks=_greeks(price),
-        volatility_method=_VOL_METHOD,
+        volatility_method=quote.volatility_method,
         volatility_closes=quote.closes_used,
         premium_floor_applied=quote.floored,
         side=side.value,  # type: ignore[arg-type]
@@ -550,4 +552,46 @@ def get_options_book(session: SessionDep, user_id: UserIdDep) -> OptionsBookOut:
             "summed over open legs (short legs negated); outcomes assume the stock closes at "
             "today's price on each expiry"
         ),
+    )
+
+
+@router.get("/surface", response_model=OptionSurfaceOut)
+@limiter.limit("30/minute")
+def get_option_surface(
+    request: Request,
+    session: SessionDep,
+    ticker: Annotated[str, Query(min_length=1, max_length=16)],
+) -> OptionSurfaceOut:
+    """Implied volatility by expiry and strike from the latest chain snapshot. Public."""
+    from stockviz.services.options.chains import surface
+    from stockviz.services.options.trade import _spot, _today
+
+    del request  # slowapi reads it
+    ticker = ticker.upper()
+    found = surface(session, ticker, asof=_today())
+    source = "yfinance option chains, stored nightly (Phase 9.6); IV solved from the bid-ask mid"
+    if found is None:
+        return OptionSurfaceOut(
+            ticker=ticker, snapshot_date=None, spot=None, expiries=[], source=source
+        )
+    snapshot_date, expiries = found
+    return OptionSurfaceOut(
+        ticker=ticker,
+        snapshot_date=snapshot_date,
+        spot=_spot(session, ticker),
+        expiries=[
+            SurfaceExpiryOut(
+                expiry=expiry,
+                points=[
+                    SurfacePointOut(
+                        strike=p.strike,
+                        call_iv=None if p.call_iv is None else round(p.call_iv, 6),
+                        put_iv=None if p.put_iv is None else round(p.put_iv, 6),
+                    )
+                    for p in points
+                ],
+            )
+            for expiry, points in expiries
+        ],
+        source=source,
     )

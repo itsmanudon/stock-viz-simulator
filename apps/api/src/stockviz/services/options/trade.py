@@ -52,6 +52,7 @@ from stockviz.services.markets.calendar import (
     session_on_or_before,
     trading_date,
 )
+from stockviz.services.options.chains import chain_volatility
 from stockviz.services.options.margin import PositionRisk, position_risk
 from stockviz.services.options.pricing import (
     MIN_PREMIUM_PER_SHARE,
@@ -83,6 +84,7 @@ from stockviz.services.trading.fx import base_rate
 logger = logging.getLogger(__name__)
 
 RISK_FREE_RATE = risk_free_rate("USD")
+HISTORICAL_VOL_METHOD = "historical volatility of daily closes, 30 sessions, annualised"
 """Annual risk-free rate fed to Black-Scholes (matches the analytics default)."""
 
 _CENTS = Decimal("0.01")
@@ -157,7 +159,19 @@ def value_option(
     spot = _spot(session, position.ticker)
     if spot is None:
         raise NoOptionMarketData(f"No market data for {position.ticker!r}")
-    vol = historical_volatility(_bar_closes(session, position.ticker))
+    chain = chain_volatility(
+        session,
+        position.ticker,
+        option_type=position.option_type.value,
+        strike=position.strike,
+        expiry=position.expiry,
+        asof=asof,
+    )
+    vol = (
+        chain.volatility
+        if chain is not None
+        else historical_volatility(_bar_closes(session, position.ticker))
+    )
     return black_scholes(
         spot=float(spot),
         strike=float(position.strike),
@@ -197,6 +211,8 @@ class OptionQuote:
     """True when the model price was under :data:`MIN_PREMIUM_PER_SHARE`."""
     closes_used: int = 0
     """Daily closes behind ``volatility``."""
+    volatility_method: str = "historical volatility of daily closes, 30 sessions, annualised"
+    """Where ``volatility`` came from, in words (Phase 9.6: a chain's IV or historical)."""
     side: OptionSide = OptionSide.LONG
     risk: PositionRisk | None = None
     """Collateral, most it can lose and gain, and breakeven (Phase 9.2)."""
@@ -248,12 +264,20 @@ def quote_option(
 
     closes = _bar_closes(session, ticker)
     usable = usable_closes(closes)
-    if usable < MIN_VOL_CLOSES:
-        raise NoOptionMarketData(
-            f"{ticker} has {usable} daily closes in the last 30 sessions; "
-            f"at least {MIN_VOL_CLOSES} are needed to estimate its volatility"
-        )
-    vol = historical_volatility(closes)
+    # Phase 9.6: the nearest listed contract's implied volatility from the
+    # latest option-chain snapshot, else the 30-session historical figure.
+    chain = chain_volatility(
+        session, ticker, option_type=option_type.value, strike=strike, expiry=expiry, asof=today
+    )
+    if chain is not None:
+        vol, vol_method = chain.volatility, chain.method
+    else:
+        if usable < MIN_VOL_CLOSES:
+            raise NoOptionMarketData(
+                f"{ticker} has {usable} daily closes in the last 30 sessions; "
+                f"at least {MIN_VOL_CLOSES} are needed to estimate its volatility"
+            )
+        vol, vol_method = historical_volatility(closes), HISTORICAL_VOL_METHOD
     price = black_scholes(
         spot=float(newest.close),
         strike=float(strike),
@@ -278,6 +302,7 @@ def quote_option(
         price=price,
         floored=floored,
         closes_used=usable,
+        volatility_method=vol_method,
         side=side,
         risk=position_risk(
             side=side.value,

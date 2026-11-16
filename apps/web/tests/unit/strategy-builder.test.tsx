@@ -9,7 +9,11 @@ vi.mock("@/app/(product)/(authed)/trade/options-actions", () => ({
 }));
 
 const getOptionQuote = vi.fn<() => Promise<OptionQuote>>();
-vi.mock("@/lib/api/option-quote", () => ({ getOptionQuote: () => getOptionQuote() }));
+vi.mock("@/lib/api/option-quote", () => ({
+  getOptionQuote: () => getOptionQuote(),
+  getOptionSurface: () =>
+    Promise.resolve({ ticker: "AAPL", snapshot_date: null, spot: null, expiries: [], source: "" }),
+}));
 
 const getStrategyPayoff = vi.fn<(r: StrategyRequest) => Promise<StrategyPayoff>>();
 vi.mock("@/lib/api/option-strategies", async (importOriginal) => {

@@ -856,7 +856,25 @@ intraday fills anywhere in the app:
   the open legs' Greeks in money per underlying (delta in shares and
   dollars, gamma, theta per day, vega and rho per percentage point; short
   legs negated) and groups legs by expiry with what today's close would do,
-  in settlement's terms, and the money at risk. API: `POST /v1/options/strategies/quote` (public, 60/min),
+  in settlement's terms, and the money at risk.
+- **Option chains (Phase 9.6).** `option_quotes` (migration `a7d9c1e3f246`,
+  keyed by instrument, one row per contract per snapshot day): the nightly
+  `stockviz.cli options-snapshot [tickers]` (recorded job, in the cron after
+  `fx`) fetches each active US stock's listed chain for the nearest 4
+  expiries from yfinance (`services/options/chains.py`; `cli.fetch_option_chain`
+  is the network call, stubbed in `test_cron_chain.py`), stores bid, ask,
+  last, volume, open interest, the price used (bid-ask mid, else last) and
+  the IV solved from it against that day's stored close; a rerun replaces
+  the day; one ticker failing never stops the rest; exit 1 only when every
+  ticker failed. Pricing (`quote_option`, `value_option`) uses
+  `chain_volatility`: the nearest listed contract of the same type (expiry,
+  then strike) from a snapshot at most 5 days old, within 45 days of expiry
+  and 10% of strike, else the 30-session historical volatility (with the
+  LG-14 20-close rule); `OptionQuote.volatility_method` says which. The
+  payoff prices each leg at its own volatility. `GET /v1/options/surface?ticker=`
+  (public, 30/min) returns IV by expiry and strike from the latest snapshot.
+  History starts when collection starts; nothing is backfilled. VaR and
+  stress scenarios still revalue options on historical volatility. API: `POST /v1/options/strategies/quote` (public, 60/min),
   `POST /v1/options/strategies`, `GET /v1/options/strategies`,
   `POST /v1/options/strategies/{id}/close`.
 - **Options** (`services/options/`): long legs plus covered short legs (Phase 9.2, above). Black-Scholes pricing

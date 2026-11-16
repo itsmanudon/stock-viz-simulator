@@ -431,7 +431,11 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   only on that tab (`loadPortfolioData(..., { options })`; the book also on
   Analytics) and shows `OptionsGreeks` and `ExpirationView`
   (`components/options-book.tsx`), `PortfolioStrategies` with a two-step
-  "Close strategy", then the legs. The Analytics tab shows `OptionsGreeks`. `PortfolioMetrics` adds an "Other cash" figure
+  "Close strategy", then the legs. The Analytics tab shows `OptionsGreeks`. Phase 9.6: the ticket states its
+  `volatility_method` (a stored chain's IV or 30-day historical), and the
+  builder has a collapsed "Volatility smile" (`components/volatility-smile.tsx`,
+  `getOptionSurface()`, inline SVG; each strike from its out-of-the-money
+  contract) that says when no chain is stored. `PortfolioMetrics` adds an "Other cash" figure
   when `cash_by_currency` (Phase 4.5b) holds a non-base currency: a sale of a
   EUR stock keeps its euros. The portfolio header and the dashboard hero
   show `ValuationNotice` when `valuation_warnings` is not empty (audit LG-13).
