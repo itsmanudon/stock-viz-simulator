@@ -23,7 +23,36 @@ export type OptionQuote = {
   /** USD charge for `quantity` contracts of `contract_size` shares. */
   premium: string;
   contract_size: number;
-  greeks: { delta: number; gamma: number; theta: number; vega: number };
+  greeks: OptionGreeks;
+  /** How `volatility` was estimated, in words (Phase 9.1). */
+  volatility_method: string;
+  volatility_closes: number;
+  /** True when the model price was under the 0.01-a-share minimum (LG-14). */
+  premium_floor_applied: boolean;
+};
+
+/**
+ * Per-share Black-Scholes Greeks. `theta` is per calendar day; `vega` and
+ * `rho` are per 1.00 (100 points) of volatility and of the rate.
+ */
+export type OptionGreeks = {
+  delta: number;
+  gamma: number;
+  theta: number;
+  vega: number;
+  rho: number;
+};
+
+export type ImpliedVolatility = {
+  ticker: string;
+  strike: string;
+  expiry: string;
+  per_share_price: string;
+  /** Annualised (0.25 = 25%), or null with `reason`. */
+  implied_volatility: number | null;
+  reason: string | null;
+  /** The volatility StockViz prices with, for comparison. */
+  historical_volatility: number;
 };
 
 export type OptionQuoteRequest = {
@@ -47,6 +76,24 @@ export function getOptionQuote(
   });
   if (request.strike) params.set("strike", request.strike);
   return apiGet<OptionQuote>(`/v1/options/quote?${params}`, {
+    init: { signal },
+    maxAttempts: 1,
+  });
+}
+
+/** GET /v1/options/implied-volatility: the volatility a per-share price implies. */
+export function getImpliedVolatility(
+  request: Omit<OptionQuoteRequest, "quantity" | "strike"> & { strike: string; price: string },
+  signal?: AbortSignal,
+): Promise<ImpliedVolatility> {
+  const params = new URLSearchParams({
+    ticker: request.ticker,
+    option_type: request.option_type,
+    expiry: request.expiry,
+    strike: request.strike,
+    price: request.price,
+  });
+  return apiGet<ImpliedVolatility>(`/v1/options/implied-volatility?${params}`, {
     init: { signal },
     maxAttempts: 1,
   });

@@ -1,5 +1,7 @@
 import "server-only";
 
+import type { OptionGreeks } from "./option-quote";
+
 import { authedDelete, authedGet, authedPost, authedPut } from "./server";
 
 export type Position = {
@@ -87,6 +89,8 @@ export type PortfolioOption = {
   market_value_native: string;
   market_value: string;
   unrealized_pl: string;
+  /** Per-share Greeks at today's price; null when it cannot be priced. */
+  greeks?: OptionGreeks | null;
 };
 
 export type TradeRow = {

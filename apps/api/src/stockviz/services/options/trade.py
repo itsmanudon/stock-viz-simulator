@@ -37,13 +37,24 @@ from stockviz.models import (
     TradeSide,
 )
 from stockviz.models.option import CONTRACT_MULTIPLIER
-from stockviz.services.ingest.bar_semantics import (
-    latest_completed_session,
-    new_york_session_date,
-)
+from stockviz.services.ingest.bar_semantics import latest_completed_session
 from stockviz.services.instruments import instrument_of
-from stockviz.services.markets.calendar import NEW_YORK_VENUE, session_on_or_before
-from stockviz.services.options.pricing import OptionPrice, black_scholes, historical_volatility
+from stockviz.services.markets.calendar import (
+    NEW_YORK_VENUE,
+    session_on_or_before,
+    trading_date,
+)
+from stockviz.services.options.pricing import (
+    MIN_PREMIUM_PER_SHARE,
+    MIN_VOL_CLOSES,
+    ImpliedVolatility,
+    OptionPrice,
+    black_scholes,
+    historical_volatility,
+    implied_volatility,
+    risk_free_rate,
+    usable_closes,
+)
 from stockviz.services.trading.buying_power import (
     available_cash,
     lock_portfolio,
@@ -60,7 +71,7 @@ from stockviz.services.trading.fx import base_rate
 
 logger = logging.getLogger(__name__)
 
-RISK_FREE_RATE = 0.05
+RISK_FREE_RATE = risk_free_rate("USD")
 """Annual risk-free rate fed to Black-Scholes (matches the analytics default)."""
 
 _CENTS = Decimal("0.01")
@@ -114,6 +125,11 @@ def _spot(session: Session, ticker: str) -> Decimal | None:
     return closes[-1] if closes else None
 
 
+def _today() -> date_type:
+    """The New York trading date (audit LG-15). ``utcnow`` stays patchable."""
+    return trading_date(utcnow().replace(tzinfo=UTC))
+
+
 def _years_to_expiry(expiry: date_type, *, asof: date_type) -> float:
     return (expiry - asof).days / 365.0
 
@@ -122,7 +138,7 @@ def value_option(
     session: Session, position: OptionsPosition, *, asof: date_type | None = None
 ) -> OptionPrice:
     """Current Black-Scholes valuation (per share) for an open position."""
-    asof = asof or utcnow().date()
+    asof = asof or _today()
     spot = _spot(session, position.ticker)
     if spot is None:
         raise NoOptionMarketData(f"No market data for {position.ticker!r}")
@@ -162,6 +178,10 @@ class OptionQuote:
     per_share: Decimal
     premium: Decimal
     price: OptionPrice
+    floored: bool = False
+    """True when the model price was under :data:`MIN_PREMIUM_PER_SHARE`."""
+    closes_used: int = 0
+    """Daily closes behind ``volatility``."""
 
 
 def quote_option(
@@ -192,7 +212,7 @@ def quote_option(
     if ticker.startswith("^"):
         raise OptionTradeError(f"{ticker} is an index: options are on stocks only")
 
-    today = utcnow().date()
+    today = _today()
     if expiry <= today:
         raise InvalidExpiry("expiry must be a future date")
 
@@ -207,7 +227,14 @@ def quote_option(
     if strike is None:
         strike = newest.close.quantize(_CENTS)
 
-    vol = historical_volatility(_bar_closes(session, ticker))
+    closes = _bar_closes(session, ticker)
+    usable = usable_closes(closes)
+    if usable < MIN_VOL_CLOSES:
+        raise NoOptionMarketData(
+            f"{ticker} has {usable} daily closes in the last 30 sessions; "
+            f"at least {MIN_VOL_CLOSES} are needed to estimate its volatility"
+        )
+    vol = historical_volatility(closes)
     price = black_scholes(
         spot=float(newest.close),
         strike=float(strike),
@@ -217,9 +244,10 @@ def quote_option(
         option_type=option_type.value,
     )
     per_share = Decimal(str(price.value))
+    floored = per_share < MIN_PREMIUM_PER_SHARE
+    if floored:
+        per_share = MIN_PREMIUM_PER_SHARE
     premium = (per_share * CONTRACT_MULTIPLIER * quantity).quantize(_CENTS)
-    if premium < 0:
-        premium = Decimal("0.00")
     return OptionQuote(
         ticker=ticker,
         strike=strike,
@@ -229,6 +257,22 @@ def quote_option(
         per_share=per_share,
         premium=premium,
         price=price,
+        floored=floored,
+        closes_used=usable,
+    )
+
+
+def implied_volatility_for(
+    quote: OptionQuote, *, expiry: date_type, price: Decimal, option_type: OptionType
+) -> ImpliedVolatility:
+    """Solve the volatility that gives ``price`` per share on ``quote``'s inputs."""
+    return implied_volatility(
+        price=float(price),
+        spot=float(quote.spot),
+        strike=float(quote.strike),
+        time_to_expiry_years=_years_to_expiry(expiry, asof=_today()),
+        risk_free_rate=RISK_FREE_RATE,
+        option_type=option_type.value,
     )
 
 
@@ -353,7 +397,7 @@ def close_option(session: Session, *, user_id: int, option_id: int) -> OptionTra
         raise OptionNotFound("Option position not found")
     if position.status != OptionStatus.OPEN:
         raise OptionTradeError(f"Option position is already {position.status.value}")
-    if position.expiry < new_york_session_date(utcnow().replace(tzinfo=UTC)):
+    if position.expiry < _today():
         raise OptionTradeError("This expired option is awaiting expiry settlement")
 
     price = value_option(session, position)

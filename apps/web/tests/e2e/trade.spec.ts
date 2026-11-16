@@ -45,6 +45,13 @@ test("operational trading loop from ticket to orders, watchlist, alerts, and rep
   );
   await expect(main.getByRole("table", { name: "Recent paper fills" })).toContainText("AAPL");
 
+  // Phase 9.1 (UX-5): the option ticket quotes with its rate and Greeks.
+  const optionQuote = main.getByRole("region", { name: "Option quote" });
+  await expect(optionQuote).toContainText("Risk-free rate", { timeout: 10_000 });
+  await expect(optionQuote).toContainText(/closes/);
+  await expect(main.getByLabel("Greeks")).toContainText("Delta");
+  await expect(main.getByLabel("Greeks")).toContainText("Rho");
+
   await page.goto("/trades");
   await expect(main.getByRole("heading", { name: "Trade history" })).toBeVisible();
   await expect(main.locator("tbody tr").first()).toContainText(/buy/i);

@@ -1,9 +1,12 @@
 """Options paper trading: Black-Scholes pricing + long-position lifecycle."""
 
 from stockviz.services.options.pricing import (
+    ImpliedVolatility,
     OptionPrice,
     black_scholes,
     historical_volatility,
+    implied_volatility,
+    risk_free_rate,
 )
 from stockviz.services.options.trade import (
     RISK_FREE_RATE,
@@ -17,6 +20,7 @@ from stockviz.services.options.trade import (
     OptionTradeError,
     OptionTradeResult,
     close_option,
+    implied_volatility_for,
     open_option,
     quote_option,
     settle_expired_options,
@@ -25,6 +29,7 @@ from stockviz.services.options.trade import (
 
 __all__ = [
     "RISK_FREE_RATE",
+    "ImpliedVolatility",
     "InsufficientCashForOption",
     "InvalidExpiry",
     "NoOptionMarketData",
@@ -38,8 +43,11 @@ __all__ = [
     "black_scholes",
     "close_option",
     "historical_volatility",
+    "implied_volatility",
+    "implied_volatility_for",
     "open_option",
     "quote_option",
+    "risk_free_rate",
     "settle_expired_options",
     "value_option",
 ]

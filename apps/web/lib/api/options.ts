@@ -2,12 +2,8 @@ import "server-only";
 
 import { authedGet, authedPost } from "./server";
 
-export type OptionGreeks = {
-  delta: number;
-  gamma: number;
-  theta: number;
-  vega: number;
-};
+export type { OptionGreeks } from "./option-quote";
+import type { OptionGreeks } from "./option-quote";
 
 export type OptionPosition = {
   id: number;

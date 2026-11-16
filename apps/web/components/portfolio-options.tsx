@@ -35,7 +35,8 @@ export function PortfolioOptions({
           Options exposure
         </h2>
         <p className="mt-1 text-xs text-muted-foreground">
-          Modelled values in {displayCurrency}; no realtime option quote or Greeks implied.
+          Modelled values in {displayCurrency}: Black-Scholes on 30-day historical volatility, not
+          market quotes. Greeks are per share; theta is per day.
         </p>
       </div>
 
@@ -50,6 +51,7 @@ export function PortfolioOptions({
               <TableHead className="text-right">Premium paid · USD</TableHead>
               <TableHead className="text-right">Estimated value</TableHead>
               <TableHead className="text-right">Unrealized P&amp;L</TableHead>
+              <TableHead className="text-right">Delta · Theta/day</TableHead>
               <TableHead className="w-16" />
             </TableRow>
           </TableHeader>
@@ -94,6 +96,9 @@ export function PortfolioOptions({
                   <TableCell className={`text-right font-mono ${tone}`} data-financial>
                     {direction} {formatSignedCurrency(position.unrealized_pl, displayCurrency)}
                   </TableCell>
+                  <TableCell className="text-right font-mono text-xs" data-financial>
+                    <GreeksCell position={position} />
+                  </TableCell>
                   <TableCell className="text-right">
                     <CloseOption position={position} displayCurrency={displayCurrency} />
                   </TableCell>
@@ -128,6 +133,9 @@ export function PortfolioOptions({
                   {formatQuantity(position.quantity)} contracts · Premium{" "}
                   {formatCurrency(position.premium_paid, "USD")} USD
                 </p>
+                <p className="mt-1 font-mono text-xs text-muted-foreground" data-financial>
+                  <GreeksCell position={position} />
+                </p>
               </div>
               <div className="text-right">
                 <p className="font-mono font-semibold" data-financial>
@@ -151,6 +159,17 @@ export function PortfolioOptions({
         })}
       </ul>
     </section>
+  );
+}
+
+/** Per-share delta and theta, or a dash when the contract cannot be priced. */
+function GreeksCell({ position }: { position: PortfolioOption }) {
+  const greeks = position.greeks;
+  if (!greeks) return <span aria-label="Greeks unavailable">-</span>;
+  return (
+    <span aria-label={`Delta ${greeks.delta.toFixed(2)}, theta ${greeks.theta.toFixed(2)} a day`}>
+      Δ {greeks.delta.toFixed(2)} · Θ {formatCurrency(String(greeks.theta), position.currency)}
+    </span>
   );
 }
 

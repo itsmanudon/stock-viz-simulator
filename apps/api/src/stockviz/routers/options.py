@@ -21,6 +21,7 @@ from stockviz.models import OptionsPosition, OptionStatus, OptionType
 from stockviz.models.option import CONTRACT_MULTIPLIER
 from stockviz.schemas import (
     OptionGreeksOut,
+    OptionImpliedVolOut,
     OptionPositionOut,
     OptionQuoteOut,
     OptionTradeIn,
@@ -33,21 +34,31 @@ from stockviz.services.options import (
     NoOptionMarketData,
     OptionNotFound,
     OptionOrderConflict,
+    OptionPrice,
     OptionSymbolNotFound,
     OptionTradeError,
     close_option,
+    implied_volatility_for,
     open_option,
     quote_option,
     value_option,
 )
 from stockviz.services.risk.limits import LimitBreached
 from stockviz.services.trading.execute import NoFxRateError
+from stockviz.services.trading.views import greeks_out
 
 router = APIRouter(prefix="/v1/options", tags=["options"])
 
 SessionDep = Annotated[Session, Depends(get_session)]
 
-_ZERO_GREEKS = OptionGreeksOut(delta=0.0, gamma=0.0, theta=0.0, vega=0.0)
+_ZERO_GREEKS = OptionGreeksOut(delta=0.0, gamma=0.0, theta=0.0, vega=0.0, rho=0.0)
+_VOL_METHOD = "historical volatility of daily closes, 30 sessions, annualised"
+
+
+def _greeks(price: OptionPrice) -> OptionGreeksOut:
+    out = greeks_out(price)
+    assert out is not None
+    return out
 
 
 def _to_out(session: Session, position: OptionsPosition) -> OptionPositionOut:
@@ -59,12 +70,7 @@ def _to_out(session: Session, position: OptionsPosition) -> OptionPositionOut:
         ).quantize(Decimal("0.01"))
         if current_value < 0:
             current_value = Decimal("0.00")
-        greeks = OptionGreeksOut(
-            delta=round(price.delta, 6),
-            gamma=round(price.gamma, 6),
-            theta=round(price.theta, 6),
-            vega=round(price.vega, 6),
-        )
+        greeks = _greeks(price)
     except NoOptionMarketData:
         current_value = Decimal("0.00")
         greeks = _ZERO_GREEKS
@@ -131,12 +137,54 @@ def get_option_quote(
         per_share=quote.per_share.quantize(Decimal("0.000001")),
         premium=quote.premium,
         contract_size=int(CONTRACT_MULTIPLIER),
-        greeks=OptionGreeksOut(
-            delta=round(price.delta, 6),
-            gamma=round(price.gamma, 6),
-            theta=round(price.theta, 6),
-            vega=round(price.vega, 6),
-        ),
+        greeks=_greeks(price),
+        volatility_method=_VOL_METHOD,
+        volatility_closes=quote.closes_used,
+        premium_floor_applied=quote.floored,
+    )
+
+
+@router.get("/implied-volatility", response_model=OptionImpliedVolOut)
+@limiter.limit("60/minute")
+def get_implied_volatility(
+    request: Request,
+    session: SessionDep,
+    ticker: Annotated[str, Query(min_length=1, max_length=16)],
+    option_type: Annotated[OptionType, Query()],
+    expiry: Annotated[date, Query()],
+    strike: Annotated[Decimal, Query(gt=0, le=1_000_000_000)],
+    price: Annotated[Decimal, Query(gt=0, le=1_000_000_000)],
+) -> OptionImpliedVolOut:
+    """The volatility at which Black-Scholes gives ``price`` per share (Phase 9.1).
+
+    For a premium the user saw elsewhere: it is solved against the same spot,
+    rate and day count StockViz prices with, and returned beside the
+    historical volatility StockViz uses. Nothing is stored.
+    """
+    del request  # slowapi reads it
+    try:
+        quote = quote_option(
+            session, ticker=ticker, option_type=option_type, strike=strike, expiry=expiry
+        )
+    except OptionSymbolNotFound as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+    except NoOptionMarketData as exc:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from exc
+    except (InvalidExpiry, OptionTradeError) as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
+    solved = implied_volatility_for(quote, expiry=expiry, price=price, option_type=option_type)
+    return OptionImpliedVolOut(
+        ticker=quote.ticker,
+        option_type=option_type.value,  # type: ignore[arg-type]
+        strike=quote.strike,
+        expiry=expiry,
+        per_share_price=price,
+        spot=quote.spot,
+        spot_at=quote.spot_at,
+        risk_free_rate=RISK_FREE_RATE,
+        implied_volatility=(round(solved.volatility, 6) if solved.volatility is not None else None),
+        reason=solved.reason,
+        historical_volatility=round(quote.volatility, 6),
     )
 
 

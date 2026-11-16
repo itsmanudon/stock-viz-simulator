@@ -244,8 +244,9 @@ def _cmd_corporate_actions(args: argparse.Namespace) -> int:
 
 def _cmd_credit_dividends(_args: argparse.Namespace) -> int:
     from stockviz._time import utcnow
+    from stockviz.services.markets.calendar import trading_date
 
-    today = utcnow().date()
+    today = trading_date(utcnow().replace(tzinfo=UTC))
     with Session(engine) as session:
         n = credit_due_dividends(session, credit_date=today)
     print(f"credited {n} portfolio(s) for dividends on {today}")
@@ -266,9 +267,10 @@ def _cmd_snapshot(_args: argparse.Namespace) -> int:
 
 def _cmd_settle_options(_args: argparse.Namespace) -> int:
     from stockviz._time import utcnow
+    from stockviz.services.markets.calendar import trading_date
     from stockviz.services.options import settle_expired_options
 
-    today = utcnow().date()
+    today = trading_date(utcnow().replace(tzinfo=UTC))
     with Session(engine) as session:
         n = settle_expired_options(session, settle_date=today)
     print(f"settled {n} expired option position(s) as of {today}")

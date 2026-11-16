@@ -403,7 +403,13 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   a browser call to the public `/v1/options/quote`) shows spot with its close
   date, volatility, value per share and premium, and the buy button names the
   premium. The strike starts at the money and follows the symbol until edited.
-  Only USD symbols are offered. `PortfolioMetrics` adds an "Other cash" figure
+  Only USD symbols are offered. Phase 9.1 adds the risk-free rate, the
+  number of closes behind the volatility, a note when the premium is the
+  1-cent floor (LG-14), `GreeksList` (per share, with what each means for one
+  contract) and a collapsed "Saw a different premium?" check that calls
+  `getImpliedVolatility()` (read only; the buy is still charged at the
+  quote). The portfolio options table shows each contract's delta and theta
+  from `PortfolioOption.greeks`, a dash when it cannot be priced. `PortfolioMetrics` adds an "Other cash" figure
   when `cash_by_currency` (Phase 4.5b) holds a non-base currency: a sale of a
   EUR stock keeps its euros. The portfolio header and the dashboard hero
   show `ValuationNotice` when `valuation_warnings` is not empty (audit LG-13).

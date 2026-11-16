@@ -1,15 +1,17 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { OptionQuote, OptionQuoteRequest } from "@/lib/api/option-quote";
+import type { ImpliedVolatility, OptionQuote, OptionQuoteRequest } from "@/lib/api/option-quote";
 
 vi.mock("@/app/(product)/(authed)/trade/options-actions", () => ({
   openOptionAction: vi.fn(),
 }));
 
 const getOptionQuote = vi.fn<(request: OptionQuoteRequest) => Promise<OptionQuote>>();
+const getImpliedVolatility = vi.fn<(request: { price: string }) => Promise<ImpliedVolatility>>();
 vi.mock("@/lib/api/option-quote", () => ({
   getOptionQuote: (request: OptionQuoteRequest) => getOptionQuote(request),
+  getImpliedVolatility: (request: { price: string }) => getImpliedVolatility(request),
 }));
 
 const { ApiError } = await import("@/lib/api/client");
@@ -35,7 +37,10 @@ function quoteFor(request: OptionQuoteRequest): OptionQuote {
     per_share: "7.125",
     premium: (7.125 * 100 * request.quantity).toFixed(2),
     contract_size: 100,
-    greeks: { delta: 0.5, gamma: 0.01, theta: -0.02, vega: 0.3 },
+    greeks: { delta: 0.5, gamma: 0.01, theta: -0.02, vega: 0.3, rho: 0.12 },
+    volatility_method: "historical volatility of daily closes, 30 sessions, annualised",
+    volatility_closes: 31,
+    premium_floor_applied: false,
   };
 }
 
@@ -92,5 +97,53 @@ describe("option ticket", () => {
     render(<OptionTradeForm options={SYMBOLS} />);
 
     expect(await screen.findByText("No market data for 'AAPL'; cannot price option")).toBeVisible();
+  });
+
+  it("shows the Greeks with what they mean for one contract (Phase 9.1, UX-5)", async () => {
+    render(<OptionTradeForm options={SYMBOLS} />);
+
+    const list = await screen.findByLabelText("Greeks");
+    expect(list).toHaveTextContent("Delta");
+    expect(list).toHaveTextContent("moves like 50 shares per contract");
+    expect(list).toHaveTextContent("-$2.00 per contract");
+    expect(list).toHaveTextContent("Rho");
+    expect(screen.getByRole("region", { name: "Option quote" })).toHaveTextContent("5.0%");
+  });
+
+  it("says when the premium is the 1-cent minimum (LG-14)", async () => {
+    getOptionQuote.mockImplementation(async (request) => ({
+      ...quoteFor(request),
+      per_share: "0.01",
+      premium: "1.00",
+      premium_floor_applied: true,
+    }));
+    render(<OptionTradeForm options={SYMBOLS} />);
+
+    expect(await screen.findByText(/premium is the 1-cent minimum/)).toBeVisible();
+  });
+
+  it("solves the volatility a premium implies, without changing the buy", async () => {
+    getImpliedVolatility.mockResolvedValue({
+      ticker: "AAPL",
+      strike: "188.38",
+      expiry: "2026-12-16",
+      per_share_price: "9.00",
+      implied_volatility: 0.3312,
+      reason: null,
+      historical_volatility: 0.2514,
+    });
+    render(<OptionTradeForm options={SYMBOLS} />);
+    await screen.findByLabelText("Greeks");
+
+    fireEvent.change(screen.getByLabelText("Premium per share (USD)"), {
+      target: { value: "9.00" },
+    });
+
+    const result = await screen.findByLabelText("Implied volatility");
+    expect(result).toHaveTextContent("Implies 33.1% a year, against 25.1% historical");
+    expect(getImpliedVolatility).toHaveBeenLastCalledWith(
+      expect.objectContaining({ price: "9.00", ticker: "AAPL" }),
+    );
+    expect(screen.getByRole("button", { name: "Buy call for $712.50" })).toBeVisible();
   });
 });

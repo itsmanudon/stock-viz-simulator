@@ -22,7 +22,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ApiError } from "@/lib/api/client";
-import { type OptionQuote, getOptionQuote } from "@/lib/api/option-quote";
+import {
+  type ImpliedVolatility,
+  type OptionQuote,
+  getImpliedVolatility,
+  getOptionQuote,
+} from "@/lib/api/option-quote";
 import { newClientOrderId } from "@/lib/order-review";
 import { formatCloseDate } from "@/lib/stock-workspace";
 
@@ -220,6 +225,7 @@ export function OptionTradeForm({ options }: { options: SymbolOption[] }) {
         </div>
 
         <QuotePreview quote={quote} />
+        {ready ? <ImpliedVolCheck quote={ready} /> : null}
 
         {state.error ? (
           <p className="text-sm text-negative" role="alert">
@@ -262,8 +268,9 @@ function QuotePreview({ quote }: { quote: QuoteState }) {
         },
         {
           label: "Volatility (30-day historical)",
-          value: `${(ready.volatility * 100).toFixed(1)}%`,
+          value: `${pct(ready.volatility)} · ${ready.volatility_closes} closes`,
         },
+        { label: "Risk-free rate", value: pct(ready.risk_free_rate) },
         { label: "Value per share", value: usd(ready.per_share) },
         {
           label: "Premium",
@@ -291,6 +298,135 @@ function QuotePreview({ quote }: { quote: QuoteState }) {
       ) : (
         <p className="text-text-tertiary">Pricing…</p>
       )}
+      {ready?.premium_floor_applied ? (
+        <p className="mt-2 text-text-tertiary">
+          The model price is under 1 cent a share, so the premium is the 1-cent minimum.
+        </p>
+      ) : null}
+      {ready ? <GreeksList greeks={ready.greeks} contractShares={ready.contract_size} /> : null}
     </section>
+  );
+}
+
+function pct(value: number): string {
+  return `${(value * 100).toFixed(1)}%`;
+}
+
+/**
+ * The quote's Greeks, per share, each with what it means for one contract.
+ * Theta is per calendar day; vega and rho are shown per 1 percentage point.
+ */
+export function GreeksList({
+  greeks,
+  contractShares,
+}: {
+  greeks: OptionQuote["greeks"];
+  contractShares: number;
+}) {
+  const rows = [
+    {
+      label: "Delta",
+      value: greeks.delta.toFixed(3),
+      hint: `moves like ${(greeks.delta * contractShares).toFixed(0)} shares per contract`,
+    },
+    { label: "Gamma", value: greeks.gamma.toFixed(4), hint: "delta change per $1 move" },
+    {
+      label: "Theta",
+      value: usd(greeks.theta),
+      hint: `per day, ${usd(greeks.theta * contractShares)} per contract`,
+    },
+    { label: "Vega", value: usd(greeks.vega / 100), hint: "per 1 point of volatility" },
+    { label: "Rho", value: usd(greeks.rho / 100), hint: "per 1 point of the rate" },
+  ];
+  return (
+    <dl aria-label="Greeks" className="mt-2.5 space-y-1.5 border-t border-border-muted pt-2.5">
+      {rows.map((row) => (
+        <div key={row.label} className="flex items-baseline justify-between gap-3">
+          <dt className="text-text-tertiary">
+            {row.label} <span className="text-2xs">· {row.hint}</span>
+          </dt>
+          <dd className="text-right font-mono tabular-nums" data-financial>
+            {row.value}
+          </dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+type IvState =
+  | { status: "idle" }
+  | { status: "loading" }
+  | { status: "ready"; result: ImpliedVolatility }
+  | { status: "error"; message: string };
+
+/**
+ * "Saw a different premium?" Solves the volatility a per-share price implies,
+ * on the quote's spot, strike, expiry and rate, beside the one StockViz uses.
+ * Read only: the buy is still charged at the quote above.
+ */
+function ImpliedVolCheck({ quote }: { quote: OptionQuote }) {
+  const [price, setPrice] = useState("");
+  const [state, setState] = useState<IvState>({ status: "idle" });
+
+  useEffect(() => {
+    if (!(Number(price) > 0)) {
+      setState({ status: "idle" });
+      return;
+    }
+    const controller = new AbortController();
+    const timer = setTimeout(() => {
+      setState({ status: "loading" });
+      getImpliedVolatility(
+        {
+          ticker: quote.ticker,
+          option_type: quote.option_type,
+          expiry: quote.expiry,
+          strike: quote.strike,
+          price,
+        },
+        controller.signal,
+      )
+        .then((result) => setState({ status: "ready", result }))
+        .catch((error: unknown) => {
+          if (controller.signal.aborted) return;
+          setState({ status: "error", message: quoteError(error) });
+        });
+    }, QUOTE_DELAY_MS);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [price, quote.ticker, quote.option_type, quote.expiry, quote.strike]);
+
+  return (
+    <details className="rounded-md border border-border-muted px-3 py-2.5 text-xs">
+      <summary className="cursor-pointer text-text-secondary">
+        Saw a different premium? Check its implied volatility
+      </summary>
+      <div className="mt-2.5 space-y-2">
+        <Label htmlFor="opt-iv-price">Premium per share (USD)</Label>
+        <Input
+          id="opt-iv-price"
+          type="number"
+          min="0.01"
+          step="0.01"
+          inputMode="decimal"
+          value={price}
+          onChange={(event) => setPrice(event.target.value)}
+        />
+        {state.status === "loading" ? <p className="text-text-tertiary">Solving…</p> : null}
+        {state.status === "error" ? <p className="text-warning">{state.message}</p> : null}
+        {state.status === "ready" ? (
+          <output className="block" aria-label="Implied volatility">
+            {state.result.implied_volatility === null
+              ? `No volatility gives that price: ${state.result.reason}.`
+              : `Implies ${pct(state.result.implied_volatility)} a year, against ${pct(
+                  state.result.historical_volatility,
+                )} historical. The buy is still charged at the quote above.`}
+          </output>
+        ) : null}
+      </div>
+    </details>
   );
 }

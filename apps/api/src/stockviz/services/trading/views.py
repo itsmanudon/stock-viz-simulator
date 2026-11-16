@@ -16,6 +16,7 @@ from stockviz.schemas import (
     ExposureOut,
     HoldingAttributionOut,
     HoldingReturnOut,
+    OptionGreeksOut,
     PeriodReturnOut,
     PortfolioAnalyticsOut,
     PortfolioAttributionOut,
@@ -29,6 +30,7 @@ from stockviz.schemas import (
     ValuationWarningOut,
     XirrOut,
 )
+from stockviz.services.options.pricing import OptionPrice
 from stockviz.services.trading.analytics import (
     compute_annualised_return_pct,
     compute_max_drawdown_pct,
@@ -55,6 +57,19 @@ from stockviz.services.trading.returns import (
     period_returns,
 )
 from stockviz.services.trading.returns_ledger import account_xirr, holding_returns
+
+
+def greeks_out(price: OptionPrice | None) -> OptionGreeksOut | None:
+    """Per-share Greeks for the wire, rounded to 6 places; None stays None."""
+    if price is None:
+        return None
+    return OptionGreeksOut(
+        delta=round(price.delta, 6),
+        gamma=round(price.gamma, 6),
+        theta=round(price.theta, 6),
+        vega=round(price.vega, 6),
+        rho=round(price.rho, 6),
+    )
 
 
 def portfolio_response(
@@ -111,6 +126,7 @@ def portfolio_response(
                 market_value_native=o.market_value_native,
                 market_value=o.market_value,
                 unrealized_pl=o.unrealized_pl,
+                greeks=greeks_out(o.greeks),
             )
             for o in snap.option_positions
         ],

@@ -150,6 +150,10 @@ def test_an_option_premium_over_the_order_limit_is_refused(
     session: Session, client: TestClient
 ) -> None:
     _, headers = _account(session)
+    # A quote needs 20 closes to estimate volatility (Phase 9.1, LG-14).
+    start = utcnow() - timedelta(days=40)
+    session.add_all(_bar("AAPL", start + timedelta(days=i), str(95 + i % 5)) for i in range(30))
+    session.commit()
     client.put("/v1/portfolio/limits", headers=headers, json={"max_order_pct": "0.01"})
     expiry = (date.today() + timedelta(days=30)).isoformat()
     r = client.post(
