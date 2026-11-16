@@ -21,19 +21,25 @@ from stockviz.models import OptionCover, OptionSide, OptionsPosition, OptionStat
 from stockviz.models.option import CONTRACT_MULTIPLIER, position_sign
 from stockviz.models.option_strategy import OptionStrategy, StrategyKind
 from stockviz.schemas import (
+    ExpiryGroupOut,
+    ExpiryItemOut,
     OptionGreeksOut,
     OptionImpliedVolOut,
     OptionPositionOut,
     OptionQuoteOut,
     OptionRiskOut,
+    OptionsBookOut,
     OptionStrategyIn,
     OptionStrategyLegOut,
     OptionStrategyOut,
+    OptionStrategyPayoffOut,
     OptionStrategyQuoteOut,
     OptionStrategyRiskOut,
     OptionStrategyTradeOut,
     OptionTradeIn,
     OptionTradeOut,
+    PayoffPointOut,
+    UnderlyingGreeksOut,
 )
 from stockviz.services.options import (
     RISK_FREE_RATE,
@@ -52,8 +58,11 @@ from stockviz.services.options import (
     quote_option,
     value_option,
 )
+from stockviz.services.options.book import options_book
+from stockviz.services.options.payoff import strategy_payoff
 from stockviz.services.options.strategies import LABELS as STRATEGY_LABELS
 from stockviz.services.options.strategies import (
+    StrategyQuote,
     close_strategy,
     open_strategy,
     quote_strategy,
@@ -390,6 +399,10 @@ def post_strategy_quote(
         quote = quote_strategy(session, **_strategy_args(body))
     except _STRATEGY_ERRORS as exc:
         raise _strategy_errors(exc) from exc
+    return _quote_out(quote)
+
+
+def _quote_out(quote: StrategyQuote) -> OptionStrategyQuoteOut:
     first = quote.legs[0][1]
     risk = quote.risk
     return OptionStrategyQuoteOut(
@@ -463,4 +476,78 @@ def post_strategy_close(
         raise _strategy_errors(exc) from exc
     return OptionStrategyTradeOut(
         strategy=_strategy_out(session, result.strategy), cash_delta=result.cash_delta
+    )
+
+
+@router.post("/strategies/payoff", response_model=OptionStrategyPayoffOut)
+@limiter.limit("60/minute")
+def post_strategy_payoff(
+    request: Request, body: OptionStrategyIn, session: SessionDep
+) -> OptionStrategyPayoffOut:
+    """The quote plus its payoff curves and model chance of profit. Public."""
+    del request  # slowapi reads it
+    try:
+        quote = quote_strategy(session, **_strategy_args(body))
+    except _STRATEGY_ERRORS as exc:
+        raise _strategy_errors(exc) from exc
+    payoff = strategy_payoff(quote)
+    return OptionStrategyPayoffOut(
+        quote=_quote_out(quote),
+        horizon=payoff.horizon,
+        points=[
+            PayoffPointOut(spot=p.spot, at_expiry=p.at_expiry, today=p.today) for p in payoff.points
+        ],
+        prob_profit=payoff.prob_profit,
+        volatility=round(payoff.volatility, 6),
+        method=payoff.method,
+    )
+
+
+@router.get("/book", response_model=OptionsBookOut)
+def get_options_book(session: SessionDep, user_id: UserIdDep) -> OptionsBookOut:
+    """The options book's Greeks and its legs by expiry (Phase 9.5)."""
+    from stockviz.services.trading import ensure_default_portfolio
+
+    book = options_book(session, ensure_default_portfolio(session, user_id))
+    return OptionsBookOut(
+        underlyings=[
+            UnderlyingGreeksOut(
+                ticker=u.ticker,
+                spot=u.spot,
+                delta_shares=round(u.delta_shares, 4),
+                dollar_delta=round(u.dollar_delta, 2),
+                gamma_shares=round(u.gamma_shares, 4),
+                theta_per_day=round(u.theta_per_day, 2),
+                vega_per_point=round(u.vega_per_point, 2),
+                rho_per_point=round(u.rho_per_point, 2),
+            )
+            for u in book.underlyings
+        ],
+        dollar_delta=round(book.dollar_delta, 2),
+        theta_per_day=round(book.theta_per_day, 2),
+        vega_per_point=round(book.vega_per_point, 2),
+        rho_per_point=round(book.rho_per_point, 2),
+        expirations=[
+            ExpiryGroupOut(
+                expiry=expiry,
+                items=[
+                    ExpiryItemOut(
+                        label=i.label,
+                        legs=i.legs,
+                        at_risk=i.at_risk,
+                        outcome=i.outcome,
+                        net_cash=i.net_cash,
+                        strategy_id=i.strategy_id,
+                    )
+                    for i in items
+                ],
+            )
+            for expiry, items in book.expirations
+        ],
+        unpriced=book.unpriced,
+        method=(
+            "Black-Scholes Greeks at the latest close with 30-session historical volatility, "
+            "summed over open legs (short legs negated); outcomes assume the stock closes at "
+            "today's price on each expiry"
+        ),
     )

@@ -844,7 +844,19 @@ intraday fills anywhere in the app:
   notification per strategy (`strategy:<id>:settled:<expiry>`). Legs whose
   strategy still has another open leg never take the single-leg path.
   Acceptance worked by hand: `docs/benchmarks/2026-11-16-options-hand-check.md`
-  (`tests/test_options_hand_check.py`). API: `POST /v1/options/strategies/quote` (public, 60/min),
+  (`tests/test_options_hand_check.py`).
+- **Payoff and the book (Phase 9.5).** `services/options/payoff.py`:
+  `POST /v1/options/strategies/payoff` (public, 60/min) returns the quote,
+  two P&L curves after premiums over a price range (at the first expiry,
+  where later legs keep their Black-Scholes value, and today) and a model
+  chance of profit (lognormal price at the first expiry, the legs'
+  volatility and the risk-free drift; checked against the closed form). A
+  covered call and a protective put include their shares from today's
+  close. `services/options/book.py`: `GET /v1/options/book` (authed) sums
+  the open legs' Greeks in money per underlying (delta in shares and
+  dollars, gamma, theta per day, vega and rho per percentage point; short
+  legs negated) and groups legs by expiry with what today's close would do,
+  in settlement's terms, and the money at risk. API: `POST /v1/options/strategies/quote` (public, 60/min),
   `POST /v1/options/strategies`, `GET /v1/options/strategies`,
   `POST /v1/options/strategies/{id}/close`.
 - **Options** (`services/options/`): long legs plus covered short legs (Phase 9.2, above). Black-Scholes pricing
