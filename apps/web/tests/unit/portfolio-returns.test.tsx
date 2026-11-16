@@ -110,4 +110,18 @@ describe("PortfolioMetrics P&L (#68)", () => {
     expect(screen.getByText("Realized P&L")).toBeTruthy();
     expect(screen.getByText(/1 close with no recorded figure left out/)).toBeTruthy();
   });
+
+  it("shows a sub-cent P&L as zero, not a red loss", () => {
+    const flat = {
+      ...portfolio,
+      unrealized_pl: "-0.000001",
+      unrealized_pl_equity: "0",
+      unrealized_pl_options: "-0.000001",
+    };
+    render(<PortfolioMetrics portfolio={flat} analytics={null} />);
+    const figure = screen.getByText("Unrealized P&L").closest("div")?.parentElement;
+    expect(figure?.textContent).toContain("$0.00");
+    expect(figure?.textContent).not.toContain("-$0.00");
+    expect(screen.getByText(/Equities \$0\.00 · options \$0\.00/)).toBeTruthy();
+  });
 });
