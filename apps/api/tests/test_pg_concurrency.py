@@ -311,6 +311,59 @@ def test_two_concurrent_sells_cannot_sell_more_than_is_held() -> None:
             assert row.cash_balance == (DEFAULT_STARTING_CASH + Decimal(6000)).quantize(MICROS)
 
 
+def test_a_covered_call_and_a_sale_cannot_both_take_the_shares() -> None:
+    """Phase 9.2: writing a covered call reserves its shares under the portfolio
+    lock, so a concurrent market sell of the same shares gets one outcome."""
+    from datetime import timedelta
+
+    from stockviz._time import utcnow
+    from stockviz.models.option import OptionSide, OptionType
+    from stockviz.services.options import InsufficientCoverForOption, open_option
+    from stockviz.services.trading import InsufficientPosition
+
+    with scratch_postgres_engine() as engine:
+        with Session(engine) as setup:
+            user_id = _user(setup, "covered")
+            setup.add(Symbol(ticker="AAPL", name="Apple", currency="USD"))
+            setup.commit()
+            start = utcnow() - timedelta(days=41)
+            for day in range(40):
+                price = Decimal(100 + (day % 5))
+                setup.add(
+                    PriceBar(ticker="AAPL", ts=start + timedelta(days=day), interval="1d",
+                             open=price, high=price, low=price, close=price, volume=1_000,
+                             source="test")
+                )  # fmt: skip
+            setup.commit()
+            portfolio_id = _holding(setup, user_id, "AAPL", "100")
+
+        def write(session: Session) -> None:
+            open_option(
+                session, user_id=user_id, ticker="AAPL", option_type=OptionType.CALL,
+                strike=Decimal(110), expiry=utcnow().date() + timedelta(days=30), quantity=1,
+                side=OptionSide.SHORT,
+            )  # fmt: skip
+
+        def sell(session: Session) -> None:
+            execute_trade(
+                session, user_id=user_id, ticker="AAPL", side=TradeSide.SELL, quantity=Decimal(100)
+            )
+
+        outcomes = _race(engine, write, sell)
+        assert outcomes.count("ok") == 1, outcomes
+        assert set(outcomes) - {"ok"} <= {
+            InsufficientPosition.__name__, InsufficientCoverForOption.__name__
+        }  # fmt: skip
+        with Session(engine) as check:
+            from stockviz.models import Position
+            from stockviz.models.option import OptionsPosition
+
+            written = check.exec(select(OptionsPosition)).all()
+            held = check.exec(select(Position).where(Position.portfolio_id == portfolio_id)).all()
+            # Either the call was written on the 100 shares still held, or they were sold.
+            assert (len(written), len(held)) in {(1, 1), (0, 0)}
+
+
 def test_two_concurrent_closes_of_one_option_pay_once() -> None:
     from datetime import timedelta
 
