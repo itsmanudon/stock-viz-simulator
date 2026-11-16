@@ -137,6 +137,21 @@ describe("portfolio operational panels", () => {
     expect(within(table).getByText("Buy back for about $512.30?")).toBeVisible();
   });
 
+  it("labels a leg of a spread with its strategy (Phase 9.3)", () => {
+    const leg = {
+      ...option,
+      ticker: "AAPL",
+      currency: "USD",
+      side: "short" as const,
+      strategy: "Bear call spread",
+    };
+    render(<PortfolioOptions positions={[leg]} displayCurrency="USD" />);
+
+    const table = screen.getByRole("table", { name: "Options positions" });
+    expect(within(table).getByText("call (written)")).toBeVisible();
+    expect(within(table).getByText("Leg of a bear call spread")).toBeVisible();
+  });
+
   it("uses a concise true empty state for options", () => {
     render(<PortfolioOptions positions={[]} displayCurrency="USD" />);
     expect(screen.getByText("No option positions are currently open.")).toBeVisible();

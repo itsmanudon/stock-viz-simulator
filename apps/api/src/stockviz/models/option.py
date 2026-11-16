@@ -45,6 +45,7 @@ class OptionCover(enum.StrEnum):
 
     SHARES = "shares"  # covered call: shares held and reserved
     CASH = "cash"  # cash-secured put: strike value reserved
+    LEG = "leg"  # Phase 9.3: a long leg of the same strategy (covering_leg_id)
 
 
 class OptionStatus(enum.StrEnum):
@@ -69,6 +70,11 @@ class OptionsPosition(SQLModel, table=True):
         CheckConstraint(
             "(side = 'long' AND cover IS NULL) OR (side = 'short' AND cover IS NOT NULL)",
             name="ck_options_positions_short_is_covered",
+        ),
+        # Phase 9.3: a leg-covered short names the leg that covers it.
+        CheckConstraint(
+            "(cover = 'leg') = (covering_leg_id IS NOT NULL)",
+            name="ck_options_positions_leg_cover_named",
         ),
         # A repeated open with the same client key returns the first contract
         # (audit LG-10). NULLs never clash.
@@ -100,6 +106,14 @@ class OptionsPosition(SQLModel, table=True):
         sa_column=Column(String(5), nullable=False, server_default="long"),
     )
     cover: OptionCover | None = Field(default=None, sa_column=Column(String(16), nullable=True))
+    # Phase 9.3: the strategy this leg was opened in, and the long leg covering
+    # a short one (cover == "leg").
+    strategy_id: int | None = Field(
+        default=None, foreign_key="option_strategies.id", index=True, nullable=True
+    )
+    covering_leg_id: int | None = Field(
+        default=None, foreign_key="options_positions.id", nullable=True
+    )
     client_order_id: str | None = Field(default=None, max_length=64, nullable=True)
 
     status: OptionStatus = Field(default=OptionStatus.OPEN, max_length=12, index=True)

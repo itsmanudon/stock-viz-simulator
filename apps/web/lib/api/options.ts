@@ -19,7 +19,9 @@ export type OptionPosition = {
   greeks: OptionGreeks;
   /** Phase 9.2: a short leg's premium_paid is the premium it received. */
   side?: OptionSide;
-  cover?: "shares" | "cash" | null;
+  cover?: "shares" | "cash" | "leg" | null;
+  strategy_id?: number | null;
+  covering_leg_id?: number | null;
   collateral?: string;
   shares_reserved?: string;
 };

@@ -19,12 +19,19 @@ from stockviz.db import get_session
 from stockviz.limiter import limiter
 from stockviz.models import OptionCover, OptionSide, OptionsPosition, OptionStatus, OptionType
 from stockviz.models.option import CONTRACT_MULTIPLIER, position_sign
+from stockviz.models.option_strategy import OptionStrategy, StrategyKind
 from stockviz.schemas import (
     OptionGreeksOut,
     OptionImpliedVolOut,
     OptionPositionOut,
     OptionQuoteOut,
     OptionRiskOut,
+    OptionStrategyIn,
+    OptionStrategyLegOut,
+    OptionStrategyOut,
+    OptionStrategyQuoteOut,
+    OptionStrategyRiskOut,
+    OptionStrategyTradeOut,
     OptionTradeIn,
     OptionTradeOut,
 )
@@ -44,6 +51,13 @@ from stockviz.services.options import (
     open_option,
     quote_option,
     value_option,
+)
+from stockviz.services.options.strategies import LABELS as STRATEGY_LABELS
+from stockviz.services.options.strategies import (
+    close_strategy,
+    open_strategy,
+    quote_strategy,
+    strategy_legs,
 )
 from stockviz.services.risk.limits import LimitBreached
 from stockviz.services.trading.buying_power import put_collateral_usd
@@ -111,6 +125,8 @@ def _to_out(session: Session, position: OptionsPosition) -> OptionPositionOut:
         cover=str(position.cover) if position.cover else None,  # type: ignore[arg-type]
         collateral=collateral,
         shares_reserved=covered_shares,
+        strategy_id=position.strategy_id,
+        covering_leg_id=position.covering_leg_id,
     )
 
 
@@ -306,3 +322,145 @@ def list_options_positions(session: SessionDep, user_id: UserIdDep) -> list[Opti
         )
     )
     return [_to_out(session, position) for position in rows]
+
+
+# ---------------------------------------------------------------------------
+# Strategies (Phase 9.3)
+# ---------------------------------------------------------------------------
+
+
+def _strategy_args(body: OptionStrategyIn) -> dict:
+    return {
+        "kind": StrategyKind(body.kind),
+        "ticker": body.ticker,
+        "strikes": body.strikes,
+        "expiry": body.expiry,
+        "quantity": body.quantity,
+        "far_expiry": body.far_expiry,
+        "option_type": OptionType(body.option_type) if body.option_type else None,
+    }
+
+
+def _strategy_errors(exc: Exception) -> HTTPException:
+    if isinstance(exc, OptionNotFound | OptionSymbolNotFound):
+        return HTTPException(status.HTTP_404_NOT_FOUND, str(exc))
+    if isinstance(exc, OptionOrderConflict | LimitBreached):
+        return HTTPException(status.HTTP_409_CONFLICT, str(exc))
+    if isinstance(
+        exc,
+        InsufficientCashForOption | InsufficientCoverForOption | NoOptionMarketData | NoFxRateError,
+    ):
+        return HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc))
+    return HTTPException(status.HTTP_400_BAD_REQUEST, str(exc))
+
+
+_STRATEGY_ERRORS = (
+    OptionTradeError,
+    InvalidExpiry,
+    NoOptionMarketData,
+    NoFxRateError,
+    LimitBreached,
+)
+
+
+def _strategy_out(session: Session, strategy: OptionStrategy) -> OptionStrategyOut:
+    return OptionStrategyOut(
+        id=strategy.id,  # type: ignore[arg-type]
+        kind=strategy.kind,
+        label=STRATEGY_LABELS[StrategyKind(strategy.kind)],
+        status=strategy.status,
+        net_premium=strategy.net_premium,
+        collateral=strategy.collateral,
+        max_loss=strategy.max_loss,
+        max_gain=strategy.max_gain,
+        opened_at=strategy.opened_at,
+        legs=[_to_out(session, leg) for leg in strategy_legs(session, strategy)],
+    )
+
+
+@router.post("/strategies/quote", response_model=OptionStrategyQuoteOut)
+@limiter.limit("60/minute")
+def post_strategy_quote(
+    request: Request, body: OptionStrategyIn, session: SessionDep
+) -> OptionStrategyQuoteOut:
+    """Price a strategy without opening it: every leg, the net premium, what it
+    holds back, the most it can lose and gain, and the breakevens. Public."""
+    del request  # slowapi reads it
+    try:
+        quote = quote_strategy(session, **_strategy_args(body))
+    except _STRATEGY_ERRORS as exc:
+        raise _strategy_errors(exc) from exc
+    first = quote.legs[0][1]
+    risk = quote.risk
+    return OptionStrategyQuoteOut(
+        kind=quote.kind.value,
+        label=STRATEGY_LABELS[quote.kind],
+        ticker=quote.ticker,
+        quantity=quote.quantity,
+        spot=first.spot,
+        spot_at=first.spot_at,
+        legs=[
+            OptionStrategyLegOut(
+                side=plan.side.value,  # type: ignore[arg-type]
+                option_type=plan.option_type.value,  # type: ignore[arg-type]
+                strike=plan.strike,
+                expiry=plan.expiry,
+                per_share=q.per_share.quantize(Decimal("0.000001")),
+                premium=q.premium,
+            )
+            for plan, q in quote.legs
+        ],
+        risk=OptionStrategyRiskOut(
+            net_premium=risk.net_premium,
+            collateral=risk.collateral,
+            shares_reserved=quote.shares_reserved,
+            max_loss=risk.max_loss,
+            max_gain=risk.max_gain,
+            breakevens=list(risk.breakevens),
+            basis=risk.basis,
+        ),
+    )
+
+
+@router.post(
+    "/strategies", response_model=OptionStrategyTradeOut, status_code=status.HTTP_201_CREATED
+)
+def post_strategy(
+    body: OptionStrategyIn, session: SessionDep, user_id: UserIdDep
+) -> OptionStrategyTradeOut:
+    """Open every leg of a strategy in one transaction, or none."""
+    try:
+        result = open_strategy(
+            session, user_id=user_id, client_order_id=body.client_order_id, **_strategy_args(body)
+        )
+    except _STRATEGY_ERRORS as exc:
+        session.rollback()
+        raise _strategy_errors(exc) from exc
+    return OptionStrategyTradeOut(
+        strategy=_strategy_out(session, result.strategy), cash_delta=result.cash_delta
+    )
+
+
+@router.get("/strategies", response_model=list[OptionStrategyOut])
+def list_strategies(session: SessionDep, user_id: UserIdDep) -> list[OptionStrategyOut]:
+    rows = session.exec(
+        select(OptionStrategy)
+        .where(OptionStrategy.user_id == user_id)
+        .order_by(OptionStrategy.opened_at.desc())  # type: ignore[attr-defined]
+    ).all()
+    return [_strategy_out(session, row) for row in rows]
+
+
+@router.post("/strategies/{strategy_id}/close", response_model=OptionStrategyTradeOut)
+def post_strategy_close(
+    strategy_id: int, session: SessionDep, user_id: UserIdDep
+) -> OptionStrategyTradeOut:
+    """Close every open leg at its model value: long legs sold, short legs bought back."""
+    try:
+        result = close_strategy(session, user_id=user_id, strategy_id=strategy_id)
+    except (*_STRATEGY_ERRORS, OptionNotFound) as exc:
+        session.rollback()
+        raise _strategy_errors(exc) from exc
+    return OptionStrategyTradeOut(
+        strategy=_strategy_out(session, result.strategy), cash_delta=result.cash_delta
+    )

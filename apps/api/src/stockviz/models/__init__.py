@@ -42,6 +42,7 @@ from stockviz.models.option import (
     OptionStatus,
     OptionType,
 )
+from stockviz.models.option_strategy import OptionStrategy, StrategyKind, StrategyStatus
 from stockviz.models.order import OrderStatus, OrderType, PendingOrder
 from stockviz.models.portfolio import (
     CashBalance,
@@ -102,6 +103,7 @@ __all__ = [
     "OptionCover",
     "OptionSide",
     "OptionStatus",
+    "OptionStrategy",
     "OptionType",
     "OptionsPosition",
     "OrderStatus",
@@ -124,6 +126,8 @@ __all__ = [
     "RiskLimit",
     "SavedScreen",
     "SimulatedExecution",
+    "StrategyKind",
+    "StrategyStatus",
     "Symbol",
     "SymbolMetrics",
     "Trade",

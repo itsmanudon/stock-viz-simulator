@@ -811,6 +811,32 @@ intraday fills anywhere in the app:
   (`?side=short`) returns them as `risk`. Valuation: a short leg is a
   liability (`position_sign`): negative market value, cost basis and delta
   notional, negated Greeks, and a negative size in VaR and stress tests.
+- **Strategies (Phase 9.3).** `option_strategies` (migration `f2c8e4a6b135`)
+  groups legs opened from one template (`services/options/strategies.py`):
+  covered call, cash-secured put, protective put (needs the shares held),
+  bull call, bear put, bull put, bear call, iron condor, straddle, strangle,
+  calendar. Strikes go low to high; a template lists each long leg before
+  the short leg it covers. A short leg in a spread or calendar has `cover =
+  'leg'` and `covering_leg_id` (a check keeps them in step). Every leg is
+  priced by `quote_option`, then all open in one transaction or none.
+  `margin.same_expiry_risk` works same-expiry legs exactly (the payoff is
+  piecewise linear: extremes at 0, a strike or infinity) and refuses an
+  unlimited loss (a naked call); `collateral` = the most the legs can cost
+  at expiry with premiums aside (a credit spread holds back its width, an
+  iron condor its wider side). `calendar_risk`: a call calendar needs no
+  cash; a put calendar holds back K(1 - e^(-r t)) a share (a European put
+  can sit that far below intrinsic). The open needs available cash + net
+  premium >= collateral; the single-order limit checks the most it can
+  lose. `strategy_collateral_usd` reserves a strategy's collateral while a
+  leg-covered short is open in it; `exclude_strategy_id` lets its own close
+  use it. `close_strategy` closes every open leg at model value as one net
+  payment; a long leg covering an open short cannot be closed alone. Status
+  goes to `closed` or `settled` when no leg is open. **Multi-leg strategies
+  are not yet settled at expiry**: `settle_expired_options` leaves their
+  legs open (batch 9.4 settles them as a unit); one-leg strategies settle
+  as single legs. API: `POST /v1/options/strategies/quote` (public, 60/min),
+  `POST /v1/options/strategies`, `GET /v1/options/strategies`,
+  `POST /v1/options/strategies/{id}/close`.
 - **Options** (`services/options/`): long legs plus covered short legs (Phase 9.2, above). Black-Scholes pricing
   with 30-day historical volatility as the IV proxy and a 5% risk-free rate;
   contracts are ×100 (`CONTRACT_MULTIPLIER`). Premiums debit the USD cash

@@ -80,6 +80,8 @@ class PortfolioOptionPosition:
     # Phase 9.2: signed for the position (a short leg's are negated).
     greeks: OptionPrice | None = None
     side: str = "long"
+    # Phase 9.3: the strategy this leg belongs to, in words ("Bull call spread").
+    strategy: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -409,11 +411,22 @@ def _value_open_options(
                 delta_notional=delta_display,
                 greeks=signed_greeks(priced, sign),
                 side=str(opt.side),
+                strategy=_strategy_label(session, opt.strategy_id),
             )
         )
         total_display += mv_display
 
     return out, total_display
+
+
+def _strategy_label(session: Session, strategy_id: int | None) -> str | None:
+    if strategy_id is None:
+        return None
+    from stockviz.models.option_strategy import OptionStrategy, StrategyKind
+    from stockviz.services.options.strategies import LABELS
+
+    row = session.get(OptionStrategy, strategy_id)
+    return LABELS[StrategyKind(row.kind)] if row is not None else None
 
 
 def signed_greeks(price: OptionPrice | None, sign: int) -> OptionPrice | None:
