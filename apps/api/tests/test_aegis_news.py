@@ -154,6 +154,25 @@ def test_latest_news_lists_only_documents_linked_to_a_symbol(
     assert [a["id"] for a in client.get("/v1/news").json()] == ["doc_linked"]
 
 
+def test_market_scope_lists_the_documents_linked_to_no_symbol(
+    session: Session, client: TestClient
+) -> None:
+    """General headlines (no entity, or entities StockViz does not map) are the
+    market scope; a linked document never appears there."""
+    _symbols(session)
+    now = utcnow()
+    _document(session, "doc_linked", tickers=["AAPL"], available_at=now)
+    _document(session, "doc_unmapped", tickers=[], entities=["ent_unknown"], available_at=now)
+    _document(session, "doc_bare", tickers=[], available_at=now - timedelta(hours=1))
+
+    market = client.get("/v1/news?scope=market").json()
+    assert [a["id"] for a in market] == ["doc_unmapped", "doc_bare"]
+    assert all(a["tickers"] == [] for a in market)
+    assert [a["id"] for a in client.get("/v1/news?scope=symbols").json()] == ["doc_linked"]
+    assert client.get("/v1/news?scope=market&tickers=AAPL").status_code == 400
+    assert client.get("/v1/news?scope=other").status_code == 422
+
+
 # ---------------------------------------------------------------------------
 # /v1/symbols/{ticker}/sentiment
 # ---------------------------------------------------------------------------

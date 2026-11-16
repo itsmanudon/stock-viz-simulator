@@ -5833,6 +5833,8 @@ export interface operations {
                 limit?: number;
                 /** @description Comma-separated symbols, e.g. a watchlist or a portfolio's holdings */
                 tickers?: string | null;
+                /** @description symbols: documents linked to a StockViz symbol (default). market: general headlines linked to none; cannot be combined with tickers */
+                scope?: "symbols" | "market";
             };
             header?: never;
             path?: never;

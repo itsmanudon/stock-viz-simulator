@@ -45,6 +45,19 @@ test("news speaks to readers, not operators (audit S1)", async ({ page }) => {
   if ((await main.getByText(/No stored headlines yet/).count()) > 0) {
     await expect(pager).toHaveCount(0);
   }
+  // General headlines have their own view, linked from the page.
+  const views = main.getByRole("navigation", { name: "News views" });
+  await expect(views.getByRole("link", { name: "Listed companies" })).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
+  await views.getByRole("link", { name: "Market headlines" }).click();
+  await expect(page).toHaveURL(/\/news\?view=market$/);
+  await expect(views.getByRole("link", { name: "Market headlines" })).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
+  await expect(main).toContainText("name no company StockViz lists");
 });
 
 test("screener filters show as chips and columns sort (audit UX-1)", async ({ page }) => {

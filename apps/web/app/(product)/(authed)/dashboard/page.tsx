@@ -5,6 +5,7 @@ import Link from "next/link";
 import { AlertsWidget } from "@/components/dashboard/alerts-widget";
 import { AllocationWidget } from "@/components/dashboard/allocation-widget";
 import { MoversWidget } from "@/components/dashboard/movers-widget";
+import { NewsWidget } from "@/components/dashboard/news-widget";
 import { OrdersWidget } from "@/components/dashboard/orders-widget";
 import { PortfolioHero } from "@/components/dashboard/portfolio-hero";
 import { WatchlistWidget } from "@/components/dashboard/watchlist-widget";
@@ -21,7 +22,8 @@ const SHORTCUTS = [
 ] as const;
 
 export default async function DashboardPage() {
-  const { portfolio, history, analytics, orders, alerts, watchlist } = await loadDashboardData();
+  const { portfolio, history, analytics, orders, alerts, watchlist, news, newsTickers } =
+    await loadDashboardData();
   // Ticker to trading currency from what the page already holds, so pending
   // triggers show in their own currency without another request.
   const currencies: Record<string, string> = {};
@@ -62,7 +64,8 @@ export default async function DashboardPage() {
       </div>
 
       {/* Aurora board v3: the account hero takes the full width, then what is
-          open (orders, watchlist, alerts), then how the book moved. */}
+          open (orders, watchlist, alerts), then how the book moved, then news
+          on the symbols held or watched. */}
       <div className="mt-6 grid gap-4">
         <PortfolioHero portfolio={portfolio} history={history} />
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -74,6 +77,7 @@ export default async function DashboardPage() {
           <MoversWidget analytics={analytics} />
           <AllocationWidget analytics={analytics} />
         </div>
+        <NewsWidget news={news} tickers={newsTickers} />
       </div>
     </PageFrame>
   );
