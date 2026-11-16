@@ -1543,6 +1543,65 @@ class OptionStrategyTradeOut(BaseModel):
     cash_delta: Decimal
 
 
+class PayoffPointOut(BaseModel):
+    spot: float
+    at_expiry: float
+    today: float
+
+
+class OptionStrategyPayoffOut(BaseModel):
+    """POST /v1/options/strategies/payoff (Phase 9.5): the quote plus two P&L
+    curves after premiums, at the first expiry and today, and the model chance
+    of profit (null without volatility or time). ``method`` states the model."""
+
+    quote: OptionStrategyQuoteOut
+    horizon: date
+    points: list[PayoffPointOut]
+    prob_profit: float | None
+    volatility: float
+    method: str
+
+
+class UnderlyingGreeksOut(BaseModel):
+    ticker: str
+    spot: Decimal
+    delta_shares: float
+    dollar_delta: float
+    gamma_shares: float
+    theta_per_day: float
+    vega_per_point: float
+    rho_per_point: float
+
+
+class ExpiryItemOut(BaseModel):
+    label: str
+    legs: list[str]
+    at_risk: Decimal | None
+    outcome: str
+    net_cash: Decimal | None
+    strategy_id: int | None
+
+
+class ExpiryGroupOut(BaseModel):
+    expiry: date
+    items: list[ExpiryItemOut]
+
+
+class OptionsBookOut(BaseModel):
+    """GET /v1/options/book (Phase 9.5): the book's Greeks in money (per
+    underlying, and dollar figures summed) and open legs by expiry with what
+    today's close would do. ``unpriced`` lists legs with no stored close."""
+
+    underlyings: list[UnderlyingGreeksOut]
+    dollar_delta: float
+    theta_per_day: float
+    vega_per_point: float
+    rho_per_point: float
+    expirations: list[ExpiryGroupOut]
+    unpriced: list[str]
+    method: str
+
+
 class OptionTradeOut(BaseModel):
     """Result of an options trade: the affected position plus the cash move
     (negative when premium was paid, positive when proceeds were received)."""
