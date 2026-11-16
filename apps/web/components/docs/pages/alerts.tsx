@@ -1,4 +1,4 @@
-import { Callout, DocSection, H3, Li, List, P, Term, Terms } from "@/components/docs/docs-ui";
+import { Callout, DocSection, H3, Li, List, P, Shot, Term, Terms } from "@/components/docs/docs-ui";
 
 export function Alerts() {
   return (
@@ -25,6 +25,11 @@ export function Alerts() {
           The form shows the latest close and its date, how far the target is, and the rule in words
           before you save it.
         </P>
+        <Shot
+          src="/docs/alerts.png"
+          alt="The alerts page with one price rule"
+          caption="Alerts: each rule in words, the latest close and its date, and its status."
+        />
       </DocSection>
 
       <DocSection title="When an alert fires">

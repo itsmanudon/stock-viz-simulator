@@ -1,4 +1,4 @@
-import { Callout, DocSection, Li, List, P, Term, Terms } from "@/components/docs/docs-ui";
+import { Callout, DocSection, Li, List, P, Shot, Term, Terms } from "@/components/docs/docs-ui";
 
 export function Replay() {
   return (
@@ -23,6 +23,11 @@ export function Replay() {
           <Li>On the last bar you can still trade; advancing from it finishes the replay.</Li>
         </List>
         <P>The journal&apos;s thesis locks at your first fill; your reflection stays editable.</P>
+        <Shot
+          src="/docs/replay.png"
+          alt="A replay session after one buy, the chart ending at the current bar"
+          caption="A replay session in January 2020 after one buy: the chart stops at the current bar."
+        />
       </DocSection>
 
       <DocSection title="Forensics">

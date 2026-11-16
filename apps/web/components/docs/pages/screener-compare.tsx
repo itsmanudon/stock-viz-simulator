@@ -53,6 +53,11 @@ export function ScreenerCompare() {
             reporting currency.
           </Li>
         </List>
+        <Shot
+          src="/docs/compare.png"
+          alt="Compare with three symbols rebased to 100 over one year"
+          caption="Three symbols over a year, each rebased to 100 at the start, on the days all three traded."
+        />
       </DocSection>
     </>
   );

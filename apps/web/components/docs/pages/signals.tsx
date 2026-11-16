@@ -1,4 +1,4 @@
-import { Callout, DocSection, Li, List, P } from "@/components/docs/docs-ui";
+import { Callout, DocSection, Li, List, P, Shot } from "@/components/docs/docs-ui";
 
 export function Signals() {
   return (
@@ -27,6 +27,11 @@ export function Signals() {
           Signals are a fixed set of rules applied the same way to every stock. They are not a
           prediction and not a recommendation to trade.
         </Callout>
+        <Shot
+          src="/docs/signals.png"
+          alt="The signals list with each symbol's score and its votes"
+          caption="Signals: each symbol's score out of its available votes, dated by the close behind it."
+        />
       </DocSection>
     </>
   );

@@ -1,4 +1,14 @@
-import { Callout, DocLink, DocSection, Li, List, P, Term, Terms } from "@/components/docs/docs-ui";
+import {
+  Callout,
+  DocLink,
+  DocSection,
+  Li,
+  List,
+  P,
+  Shot,
+  Term,
+  Terms,
+} from "@/components/docs/docs-ui";
 
 export function Portfolio() {
   return (
@@ -24,6 +34,11 @@ export function Portfolio() {
           exchange rate, the portfolio says so at the top instead of quietly counting it as zero.
           The nightly snapshot skips that night rather than record a false loss.
         </Callout>
+        <Shot
+          src="/docs/portfolio.png"
+          alt="The portfolio page: account value, figures and the holdings"
+          caption="The portfolio: value and its chart, the headline figures, then the tabs."
+        />
       </DocSection>
 
       <DocSection title="The tabs">

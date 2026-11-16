@@ -8,6 +8,13 @@ import { type Page, expect, test } from "@playwright/test";
 
 const OUT = "public/docs";
 
+/** The top of #main, for pages too long to capture whole. */
+async function topOf(page: Page, path: string, height = 820) {
+  const box = await page.locator("#main").boundingBox();
+  if (!box) throw new Error(`no #main for ${path}`);
+  await page.screenshot({ path, clip: { x: box.x, y: box.y, width: box.width, height } });
+}
+
 /** Element screenshots scroll; a sticky top bar would sit over them. */
 async function go(page: Page, url: string) {
   await page.goto(url);
@@ -112,6 +119,36 @@ test("capture the docs screenshots", async ({ page }) => {
   await create.getByLabel("Target (USD)").fill("200");
   await create.getByRole("button", { name: "Create alert" }).click();
   await expect(create.getByText("Alert set.")).toBeVisible();
+
+  // Alerts, the portfolio, compare and signals: the top of each page.
+  await go(page, "/alerts");
+  await expect(main.getByRole("list", { name: "Alert rules" })).toContainText("AAPL");
+  await topOf(page, `${OUT}/alerts.png`, 700);
+  await go(page, "/portfolio");
+  await expect(main.getByText("AAPL").first()).toBeVisible();
+  await topOf(page, `${OUT}/portfolio.png`);
+  await go(page, "/compare?tickers=AAPL&tickers=MSFT&tickers=NVDA&tf=1Y");
+  await page.waitForLoadState("networkidle");
+  await topOf(page, `${OUT}/compare.png`);
+  await go(page, "/recommendations");
+  await page.waitForLoadState("networkidle");
+  await topOf(page, `${OUT}/signals.png`, 760);
+
+  // A replay session after one buy.
+  await go(page, "/replay");
+  await main.getByLabel("Symbol").selectOption("AAPL");
+  await expect(main.getByText(/Stored daily bars for AAPL/i)).toBeVisible({ timeout: 10_000 });
+  await main.getByLabel("Start date").fill("2020-01-06");
+  await main.getByLabel("End date").fill("2020-01-31");
+  await main.getByRole("button", { name: "Start replay" }).click();
+  await expect(page).toHaveURL(/\/replay\/\d+/, { timeout: 15_000 });
+  await page.addStyleTag({ content: "header.sticky { position: static !important; }" });
+  await main
+    .locator("aside")
+    .getByRole("button", { name: /Submit market buy/i })
+    .click();
+  await expect(main.getByText(/Filled BUY/i)).toBeVisible({ timeout: 10_000 });
+  await topOf(page, `${OUT}/replay.png`);
 
   // Home.
   await go(page, "/dashboard");
