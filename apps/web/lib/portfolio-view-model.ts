@@ -94,9 +94,24 @@ export function currencyForProjectedDividend(ticker: string, positions: Position
   return position?.currency || null;
 }
 
+/**
+ * An amount rounded to the precision it is shown at (whole yen, else cents),
+ * with negative zero folded to zero. Sign, tone and the formatted figure all
+ * use this, so a -0.000001 from the API reads as $0.00, not a red "-$0.00".
+ */
+export function displayedAmount(raw: string | number, currency = "USD"): number {
+  const value = Number(raw);
+  if (!Number.isFinite(value)) return value;
+  const scale = currency === "JPY" ? 1 : 100;
+  // Halves round away from zero, as toLocaleString does, so the sign and
+  // tone always agree with the printed figure (Math.round sends -0.5 to -0).
+  const rounded = (Math.sign(value) * Math.round(Math.abs(value) * scale)) / scale;
+  return rounded === 0 ? 0 : rounded;
+}
+
 export function formatCurrency(raw: string | number | null, currency = "USD"): string {
   if (raw === null) return "—";
-  const value = Number(raw);
+  const value = displayedAmount(raw, currency);
   if (!Number.isFinite(value)) return "—";
 
   const fractionDigits = currency === "JPY" ? 0 : 2;
@@ -130,7 +145,7 @@ export function formatQuantity(raw: string | number): string {
 
 export function formatSignedCurrency(raw: string | number | null, currency = "USD"): string {
   if (raw === null) return "—";
-  const value = Number(raw);
+  const value = displayedAmount(raw, currency);
   if (!Number.isFinite(value)) return "—";
   const formatted = formatCurrency(value, currency);
   return value > 0 ? `+${formatted}` : formatted;
