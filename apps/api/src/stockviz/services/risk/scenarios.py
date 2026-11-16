@@ -13,7 +13,8 @@ held stock or option underlying has a stored daily bar. On each date:
 
 Stocks and foreign cash scale linearly. Options are repriced in full with
 Black-Scholes at the scenario's spot, today's volatility and the horizon
-taken off their time to expiry, so a long option's loss stops at its value.
+taken off their time to expiry, so a long option's loss stops at its value;
+a short leg (Phase 9.2) counts with a negative size.
 """
 
 from __future__ import annotations
@@ -29,6 +30,7 @@ from sqlmodel import Session, col, select
 
 from stockviz.models import OptionsPosition, OptionStatus, Portfolio, PriceBar
 from stockviz.models.market import FxRate
+from stockviz.models.option import position_sign
 from stockviz.services.instruments import instrument_of
 from stockviz.services.markets.calendar import venue_for_ticker
 from stockviz.services.options.pricing import black_scholes, historical_volatility
@@ -238,7 +240,8 @@ def build_scenarios(
         spot = closes[option.ticker][-1][1]
         vol = historical_volatility([Decimal(str(c)) for _, c in closes[option.ticker][-61:]])
         years = max((option.expiry - as_of).days / 365.0, 0.0)
-        size = float(option.shares_per_contract) * option.quantity
+        # A short leg (Phase 9.2) moves against the account: negative size.
+        size = position_sign(option) * float(option.shares_per_contract) * option.quantity
         option_inputs.append((option, spot, vol, years, size, local_series(option.ticker)))
         out.included += 1
 

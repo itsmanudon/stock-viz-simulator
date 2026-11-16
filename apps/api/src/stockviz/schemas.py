@@ -257,7 +257,11 @@ class PortfolioOptionOut(BaseModel):
     market_value: Decimal
     unrealized_pl: Decimal
     greeks: OptionGreeksOut | None = None
-    """Per-share Greeks at today's price (Phase 9.1, UX-5); null when unpriceable."""
+    """Per-share Greeks at today's price (Phase 9.1, UX-5); null when unpriceable.
+    Signed for the position: a short leg's are negated (Phase 9.2)."""
+    side: Literal["long", "short"] = "long"
+    """A short leg's ``premium_paid`` is the premium it received, and its
+    ``market_value`` is negative: what buying it back would cost."""
 
 
 class ValuationWarningOut(BaseModel):
@@ -1302,11 +1306,14 @@ class OptionTradeIn(BaseModel):
     """Request body for POST /v1/options/trade.
 
     ``action="open"`` buys a contract — ``ticker``, ``option_type``,
-    ``strike``, ``expiry`` and ``quantity`` are required. ``action="close"``
-    sells an open position back — only ``option_id`` is required.
+    ``strike``, ``expiry`` and ``quantity`` are required — or, with
+    ``side="short"`` (Phase 9.2), writes a covered one: a call covered by
+    held shares, a put secured by cash. ``action="close"`` sells a long
+    position back or buys a short one back — only ``option_id`` is required.
     """
 
     action: Literal["open", "close"]
+    side: Literal["long", "short"] = "long"
     ticker: str | None = None
     option_type: Literal["call", "put"] | None = None
     strike: Decimal | None = None
@@ -1349,6 +1356,21 @@ class OptionGreeksOut(BaseModel):
     rho: float
 
 
+class OptionRiskOut(BaseModel):
+    """What a position can lose and must hold back (Phase 9.2), in USD.
+
+    ``collateral`` is cash reserved (a cash-secured put's strike value); ``shares_reserved`` the shares a
+    covered call holds back. ``max_gain`` is null when unbounded.
+    """
+
+    collateral: Decimal
+    shares_reserved: Decimal
+    max_loss: Decimal
+    max_gain: Decimal | None
+    breakeven: Decimal
+    basis: str
+
+
 class OptionQuoteOut(BaseModel):
     """GET /v1/options/quote: what an open would cost now (audit LG-7).
 
@@ -1373,6 +1395,8 @@ class OptionQuoteOut(BaseModel):
     greeks: OptionGreeksOut
     volatility_method: str
     """How ``volatility`` was estimated, in words."""
+    side: Literal["long", "short"] = "long"
+    risk: OptionRiskOut
     volatility_closes: int
     premium_floor_applied: bool
     """True when the model price was under the 0.01-a-share minimum (LG-14)."""
@@ -1403,7 +1427,8 @@ class OptionPositionOut(BaseModel):
     """One options position with its current Black-Scholes valuation.
 
     ``premium_paid`` and ``current_value`` are whole-position totals (per-share
-    price * 100 * contracts); ``greeks`` are per-share.
+    price * 100 * contracts); ``greeks`` are per-share. For a short leg
+    (Phase 9.2) ``current_value`` and ``greeks`` are negated: it is a liability.
     """
 
     id: int
@@ -1417,6 +1442,13 @@ class OptionPositionOut(BaseModel):
     opened_at: datetime
     current_value: Decimal
     greeks: OptionGreeksOut
+    side: Literal["long", "short"] = "long"
+    """``premium_paid`` is the premium received for a short leg (Phase 9.2)."""
+    cover: Literal["shares", "cash"] | None = None
+    collateral: Decimal = Decimal(0)
+    """USD a cash-secured put holds back while open; 0 otherwise."""
+    shares_reserved: Decimal = Decimal(0)
+    """Shares a covered call holds back while open; 0 otherwise."""
 
 
 class OptionTradeOut(BaseModel):

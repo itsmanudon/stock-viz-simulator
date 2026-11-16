@@ -17,7 +17,15 @@ export type OptionPosition = {
   opened_at: string;
   current_value: string;
   greeks: OptionGreeks;
+  /** Phase 9.2: a short leg's premium_paid is the premium it received. */
+  side?: OptionSide;
+  cover?: "shares" | "cash" | null;
+  collateral?: string;
+  shares_reserved?: string;
 };
+
+/** Long: bought to open. Short: written to open, always covered (Phase 9.2). */
+export type OptionSide = "long" | "short";
 
 export type OptionTradeResult = {
   position: OptionPosition;
@@ -31,6 +39,8 @@ export type OpenOptionInput = {
   strike: string;
   expiry: string;
   quantity: number;
+  /** "short" writes a covered call or a cash-secured put (Phase 9.2). */
+  side?: OptionSide;
   /** A repeat with the same key returns the first contract (audit LG-10). */
   client_order_id?: string;
 };

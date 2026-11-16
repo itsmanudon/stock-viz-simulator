@@ -55,6 +55,17 @@ test("operational trading loop from ticket to orders, watchlist, alerts, and rep
   await expect(main.getByLabel("Greeks")).toContainText("Delta");
   await expect(main.getByLabel("Greeks")).toContainText("Rho");
 
+  // Phase 9.2: write a cash-secured put; its strike value is held back.
+  await main.getByRole("button", { name: "Write covered" }).click();
+  await main.getByRole("button", { name: "Put", exact: true }).click();
+  await expect(optionQuote).toContainText("Cash held back", { timeout: 10_000 });
+  await main.getByRole("button", { name: /Write cash-secured put, receive/ }).click();
+  await expect(main.getByText(/Wrote 1 AAPL PUT .* and received/)).toBeVisible({ timeout: 10_000 });
+  await page.goto("/portfolio?tab=options");
+  await expect(
+    main.getByRole("table", { name: "Options positions" }).getByText("Cash-secured put (written)"),
+  ).toBeVisible();
+
   await page.goto("/trades");
   await expect(main.getByRole("heading", { name: "Trade history" })).toBeVisible();
   await expect(main.locator("tbody tr").first()).toContainText(/buy/i);

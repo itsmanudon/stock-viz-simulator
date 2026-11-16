@@ -11,6 +11,7 @@ from stockviz.services.options.pricing import (
 from stockviz.services.options.trade import (
     RISK_FREE_RATE,
     InsufficientCashForOption,
+    InsufficientCoverForOption,
     InvalidExpiry,
     NoOptionMarketData,
     OptionNotFound,
@@ -31,6 +32,7 @@ __all__ = [
     "RISK_FREE_RATE",
     "ImpliedVolatility",
     "InsufficientCashForOption",
+    "InsufficientCoverForOption",
     "InvalidExpiry",
     "NoOptionMarketData",
     "OptionNotFound",

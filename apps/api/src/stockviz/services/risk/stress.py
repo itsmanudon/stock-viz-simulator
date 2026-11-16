@@ -28,6 +28,7 @@ from sqlmodel import Session, col, select
 from stockviz._time import utcnow
 from stockviz.models import OptionsPosition, OptionStatus, Portfolio, PriceBar
 from stockviz.models.market import FxRate
+from stockviz.models.option import position_sign
 from stockviz.services.instruments import instrument_of
 from stockviz.services.options.pricing import black_scholes, historical_volatility
 from stockviz.services.options.trade import RISK_FREE_RATE
@@ -245,7 +246,8 @@ def _items(
             continue
         vol = historical_volatility([Decimal(str(c)) for c in closes[-61:]])
         country = info[o.ticker].country if o.ticker in info else None
-        size = float(o.shares_per_contract) * o.quantity
+        # A short leg (Phase 9.2) moves against the account: negative size.
+        size = position_sign(o) * float(o.shares_per_contract) * o.quantity
         item = _Item(
             f"{o.ticker} option", o.ticker, "USD", 0.0, country, o, closes[-1], vol,
             max((o.expiry - today).days / 365.0, 0.0), size,
