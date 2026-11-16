@@ -37,7 +37,7 @@ export function Portfolio() {
         <Shot
           src="/docs/portfolio.png"
           alt="The portfolio page: account value, figures and the holdings"
-          caption="The portfolio: value and its chart, the headline figures, then the tabs."
+          caption="A new account's portfolio: its value (the chart appears after two nights of history), the headline figures, then the tabs."
         />
       </DocSection>
 

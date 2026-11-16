@@ -27,8 +27,8 @@ export function Alerts() {
         </P>
         <Shot
           src="/docs/alerts.png"
-          alt="The alerts page with one price rule"
-          caption="Alerts: each rule in words, the latest close and its date, and its status."
+          alt="The alerts page with the form for a new price alert"
+          caption="Creating an alert: the kind, the symbol, the condition and target, and how often it repeats."
         />
       </DocSection>
 
