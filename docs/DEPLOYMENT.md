@@ -298,6 +298,12 @@ Railway deprecated config-as-code (`railway.json` / `.toml`) in favour of
 the Railway CLI (`railway config plan` / `apply`). The `railway` root
 devDependency is the SDK the CLI evaluates. Requires CLI ≥ 5.42.1 and Node ≥ 22.
 
+The Railway project is shared with Aegis News, so `.railway/railway.ts`
+exports the named partial `stockviz` and declares only StockViz's resources;
+Aegis declares `aegis-api`, `aegis-daily` and `aegis-raw` as the `aegis`
+partial in its own repository. A plan from either file leaves the other's
+resources alone. See `.railway/README.md`.
+
 `.railway/railway.ts` describes a **lean, low-idle-cost** topology — four
 resources instead of the full event-driven stack:
 
