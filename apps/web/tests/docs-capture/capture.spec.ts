@@ -54,7 +54,7 @@ test("capture the docs screenshots", async ({ page }) => {
   await builder.getByRole("button", { name: "Review strategy" }).click();
   await builder.getByRole("button", { name: "Place bull call spread" }).click();
   await expect(builder.getByText(/Opened a bull call spread/)).toBeVisible({ timeout: 15_000 });
-  await builder.getByLabel("Strategy").selectOption("covered_call");
+  await builder.getByLabel("Strategy", { exact: true }).selectOption("covered_call");
   await expect(builder.getByRole("region", { name: "Strategy figures" })).toContainText(
     "Shares used",
     { timeout: 15_000 },
