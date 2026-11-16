@@ -47,8 +47,10 @@ test("operational trading loop from ticket to orders, watchlist, alerts, and rep
 
   // Phase 9.1 (UX-5): the option ticket quotes with its rate and Greeks.
   // Indexes are not offered as underlyings: the API refuses options on them.
-  await expect(main.getByLabel("Underlying").locator('option[value="^GSPC"]')).toHaveCount(0);
-  await main.getByLabel("Underlying").selectOption("AAPL");
+  // The single-contract ticket's select (the strategy builder has its own).
+  const ticketUnderlying = main.locator("#opt-ticker");
+  await expect(ticketUnderlying.locator('option[value="^GSPC"]')).toHaveCount(0);
+  await ticketUnderlying.selectOption("AAPL");
   const optionQuote = main.getByRole("region", { name: "Option quote" });
   await expect(optionQuote).toContainText("Risk-free rate", { timeout: 10_000 });
   await expect(optionQuote).toContainText(/closes/);
