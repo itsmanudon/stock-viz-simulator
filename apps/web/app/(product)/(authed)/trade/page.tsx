@@ -351,7 +351,8 @@ export default async function TradePage({
         </h2>
         <p className="mt-1 max-w-2xl text-xs leading-5 text-text-tertiary">
           Buy or write single contracts, or open a strategy whose legs open together. Premiums use
-          Black-Scholes with 30-day historical volatility, not market quotes. Close positions from{" "}
+          Black-Scholes on a stored option chain&apos;s implied volatility where there is one, else
+          30-day historical volatility; they are not market quotes. Close positions from{" "}
           <Link href="/portfolio?tab=options" className="hover:underline">
             Portfolio
           </Link>
