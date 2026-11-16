@@ -7,7 +7,7 @@ call Aegis. Newest first by ``available_at``, never ``published_at``.
 
 from __future__ import annotations
 
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlmodel import Session
@@ -71,7 +71,20 @@ def latest_news(
             description="Comma-separated symbols, e.g. a watchlist or a portfolio's holdings",
         ),
     ] = None,
+    scope: Annotated[
+        Literal["symbols", "market"],
+        Query(
+            description=(
+                "symbols: documents linked to a StockViz symbol (default). "
+                "market: general headlines linked to none; cannot be combined with tickers"
+            ),
+        ),
+    ] = "symbols",
 ) -> list[NewsArticleOut]:
+    if scope == "market":
+        if tickers is not None:
+            raise HTTPException(status_code=400, detail="scope=market takes no tickers")
+        return [_out(item) for item in news_items(session, limit=limit, market=True)]
     wanted: list[str] | None = None
     if tickers is not None:
         wanted = sorted({t.strip().upper() for t in tickers.split(",") if t.strip()})[:MAX_TICKERS]

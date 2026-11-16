@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const apiGet = vi.fn();
 vi.mock("@/lib/api/client", () => ({ apiGet: (...args: unknown[]) => apiGet(...args) }));
 
-import { getNewsForTickers } from "@/lib/api/news";
+import { getMarketNews, getNewsForTickers } from "@/lib/api/news";
 
 describe("getNewsForTickers (Phase 2)", () => {
   beforeEach(() => {
@@ -20,5 +20,17 @@ describe("getNewsForTickers (Phase 2)", () => {
   it("makes no request for an empty list", async () => {
     await expect(getNewsForTickers([])).resolves.toEqual([]);
     expect(apiGet).not.toHaveBeenCalled();
+  });
+});
+
+describe("getMarketNews", () => {
+  beforeEach(() => {
+    apiGet.mockReset();
+    apiGet.mockResolvedValue([]);
+  });
+
+  it("asks for the market scope", async () => {
+    await getMarketNews(26);
+    expect(apiGet.mock.calls[0][0]).toBe("/v1/news?scope=market&limit=26");
   });
 });

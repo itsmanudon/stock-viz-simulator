@@ -503,7 +503,11 @@ the workspace repository and `aegis-news/docs/feed.md`. Rules:
 - **Readers (Phase 2 task 5).** `/v1/news`, `/v1/symbols/{ticker}/news` and
   `/v1/symbols/{ticker}/sentiment` read the `aegis_*` tables, not
   `news_articles`. `/v1/news` lists only documents linked to a StockViz
-  symbol. `symbol_metrics.sentiment_7d` (the 7th signals vote and the
+  symbol; `?scope=market` lists the rest (documents linked to no symbol:
+  general market headlines), and refuses `tickers` (400). Whether a
+  document links depends on Aegis resolving its entities to a seeded
+  `stockviz:` mapping (Aegis `data/instruments/stockviz.json`, all 161
+  symbols since 16 Nov 2026). `symbol_metrics.sentiment_7d` (the 7th signals vote and the
   screener's sentiment filter) is written by `refresh_aegis_sentiment`, run at
   the end of every `aegis-sync` (also after a failed sync) and by the
   `sentiment-aggregate` CLI and scheduler job (audit AG-14). The legacy

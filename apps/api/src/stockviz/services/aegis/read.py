@@ -106,13 +106,17 @@ def news_items(
     ticker: str | None = None,
     tickers: list[str] | None = None,
     limit: int = 50,
+    market: bool = False,
 ) -> list[NewsItem]:
     """Newest-available first: for one ticker, a set of tickers (a watchlist or
-    a portfolio), or every linked document.
+    a portfolio), every linked document, or (``market``) every document linked
+    to no StockViz symbol.
 
-    ``/v1/news`` lists only documents linked to a StockViz symbol, so the page
-    never shows news about companies StockViz does not cover. A document
-    linked to several of the tickers appears once.
+    By default ``/v1/news`` lists only documents linked to a StockViz symbol.
+    ``market`` is the rest: general market headlines (rates, indices, other
+    companies), which the news page shows in their own section so they are
+    never presented as news about a symbol. A document linked to several of
+    the tickers appears once.
     """
     if ticker is not None:
         documents = documents_for_ticker(session, ticker, limit=limit)
@@ -126,10 +130,15 @@ def news_items(
             linked = linked.where(
                 col(AegisMapping.identifier).in_([stockviz_identifier(t) for t in tickers])
             )
+        chosen = (
+            col(AegisDocument.document_id).not_in(linked)
+            if market
+            else col(AegisDocument.document_id).in_(linked)
+        )
         documents = list(
             session.exec(
                 select(AegisDocument)
-                .where(col(AegisDocument.document_id).in_(linked))
+                .where(chosen)
                 .order_by(col(AegisDocument.available_at).desc(), col(AegisDocument.document_id))
                 .limit(limit)
             ).all()

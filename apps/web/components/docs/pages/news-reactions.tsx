@@ -10,6 +10,11 @@ export function NewsReactions() {
           articles&apos; text. A headline is dated by its publisher, or by when it was collected
           when the source gives no date.
         </P>
+        <P>
+          The News page has two views. Listed companies shows headlines about companies StockViz
+          lists. Market headlines shows the rest: rates, indices and companies StockViz does not
+          list. The dashboard&apos;s news card shows headlines about what you hold or watch.
+        </P>
       </DocSection>
 
       <DocSection title="News reactions (event studies)">
