@@ -27,6 +27,7 @@ const option: PortfolioOption = {
   market_value_native: "81000",
   market_value: "505.25",
   unrealized_pl: "85.25",
+  side: "long",
 };
 
 const order: PendingOrder = {

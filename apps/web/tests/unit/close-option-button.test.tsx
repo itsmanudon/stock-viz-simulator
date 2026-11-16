@@ -24,6 +24,7 @@ const option: PortfolioOption = {
   market_value_native: "505.25",
   market_value: "505.25",
   unrealized_pl: "85.25",
+  side: "long",
 };
 
 describe("closing an option (audit LG-8)", () => {

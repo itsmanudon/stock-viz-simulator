@@ -94,9 +94,9 @@ export type PortfolioOption = {
   /**
    * Phase 9.2: a short (written, covered) leg's `premium_paid` is the premium
    * it received, its `market_value` is negative (the cost to buy it back) and
-   * its Greeks are the position's (negated).
+   * its Greeks are the position's (negated). The API always sends it.
    */
-  side?: "long" | "short";
+  side: "long" | "short";
   /** The strategy this leg belongs to, in words (Phase 9.3). */
   strategy?: string | null;
 };

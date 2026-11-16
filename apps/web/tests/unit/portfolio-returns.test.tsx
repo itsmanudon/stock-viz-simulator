@@ -93,6 +93,7 @@ const portfolio: Portfolio = {
       market_value_native: "300",
       market_value: "300",
       unrealized_pl: "200",
+      side: "long",
     },
   ],
   valuation_warnings: [],
