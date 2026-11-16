@@ -267,10 +267,11 @@ def test_a_long_leg_covering_a_short_one_cannot_be_closed_alone(session: Session
 # ---------------------------------------------------------------------------
 
 
-def test_multi_leg_strategies_wait_for_strategy_settlement(session: Session) -> None:
-    """Until batch 9.4 a spread's legs stay open past expiry: settling the long
-    leg alone would leave the short leg uncovered."""
-    _seed_bars(session, [120.0], end=EXPIRY_SESSION)
+def _expired_spread(session: Session, *, with_close: bool = True):
+    if with_close:
+        _seed_bars(session, [120.0], end=EXPIRY_SESSION)
+    else:
+        _seed_bars(session, [120.0], end=EXPIRY_SESSION - timedelta(days=3))
     user_id = _make_user(session)
     portfolio = ensure_default_portfolio(session, user_id)
     assert portfolio.id is not None
@@ -295,8 +296,84 @@ def test_multi_leg_strategies_wait_for_strategy_settlement(session: Session) -> 
         )
     )  # fmt: skip
     session.commit()
+    return strategy
+
+
+def test_a_spread_waits_while_its_expiry_close_is_missing(session: Session) -> None:
+    strategy = _expired_spread(session, with_close=False)
     assert settle_expired_options(session, settle_date=TODAY) == 0
     assert all(p.status == OptionStatus.OPEN for p in session.exec(select(OptionsPosition)))
+    session.refresh(strategy)
+    assert strategy.status == "open"
+
+
+def test_a_spread_settles_once(session: Session) -> None:
+    strategy = _expired_spread(session)
+    assert settle_expired_options(session, settle_date=TODAY) == 2
+    assert settle_expired_options(session, settle_date=TODAY) == 0
+    session.refresh(strategy)
+    assert strategy.status == "settled"
+    from stockviz.models import Notification
+
+    (note,) = session.exec(select(Notification)).all()
+    assert note.title == "Bull call spread settled"
+    assert "net +1,000.00 USD" in note.body
+
+
+def _calendar(session: Session, near_close: float):
+    _seed_bars(session, [near_close], end=EXPIRY_SESSION)
+    user_id = _make_user(session)
+    portfolio = ensure_default_portfolio(session, user_id)
+    assert portfolio.id is not None
+    strategy = OptionStrategy(
+        user_id=user_id, portfolio_id=portfolio.id, kind="calendar", net_premium=D(-150),
+    )  # fmt: skip
+    session.add(strategy)
+    session.flush()
+    far = OptionsPosition(
+        user_id=user_id, portfolio_id=portfolio.id, ticker="AAPL", option_type=OptionType.CALL,
+        strike=D(105), expiry=TODAY + timedelta(days=60), quantity=1, premium_paid=D(450),
+        strategy_id=strategy.id,
+    )  # fmt: skip
+    session.add(far)
+    session.flush()
+    near = OptionsPosition(
+        user_id=user_id, portfolio_id=portfolio.id, ticker="AAPL", option_type=OptionType.CALL,
+        strike=D(105), expiry=TODAY - timedelta(days=1), quantity=1, premium_paid=D(300),
+        side=OptionSide.SHORT, cover=OptionCover.LEG, covering_leg_id=far.id,
+        strategy_id=strategy.id,
+    )  # fmt: skip
+    session.add(near)
+    session.commit()
+    return portfolio.id, strategy, far, near
+
+
+def test_an_out_of_the_money_calendar_keeps_its_far_leg(session: Session) -> None:
+    _, strategy, far, near = _calendar(session, 100.0)
+    assert settle_expired_options(session, settle_date=TODAY) == 1
+    session.refresh(near)
+    session.refresh(far)
+    session.refresh(strategy)
+    assert (near.status, near.realized_pnl) == (OptionStatus.EXPIRED, D(300))
+    assert far.status == OptionStatus.OPEN
+    assert strategy.status == "open"
+
+
+def test_an_in_the_money_calendar_sells_its_far_leg_to_pay(session: Session) -> None:
+    portfolio_id, strategy, far, near = _calendar(session, 120.0)
+    from stockviz.models import Portfolio
+
+    before = session.get(Portfolio, portfolio_id).cash_balance  # type: ignore[union-attr]
+    assert settle_expired_options(session, settle_date=TODAY) == 2
+    for row in (near, far, strategy):
+        session.refresh(row)
+    assert (near.status, near.proceeds) == (OptionStatus.EXERCISED, D(-1500))
+    assert far.status == OptionStatus.CLOSED
+    # The far call is worth at least the 15.00 a share the near one owes.
+    assert far.proceeds is not None and far.proceeds >= D(1500)
+    after = session.get(Portfolio, portfolio_id).cash_balance  # type: ignore[union-attr]
+    assert after == before - D(1500) + far.proceeds
+    assert strategy.status == "settled"
 
 
 def test_a_one_leg_strategy_settles_and_is_marked_settled(session: Session) -> None:

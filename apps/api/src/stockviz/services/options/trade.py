@@ -801,6 +801,15 @@ def settle_expired_options(session: Session, *, settle_date: date_type) -> int:
     """
 
     newest_complete = latest_completed_session(utcnow().replace(tzinfo=UTC))
+    from stockviz.services.options.strategies import (
+        has_other_open_leg,
+        settle_expired_strategies,
+    )
+
+    # Multi-leg strategies first, each as a unit (Phase 9.4).
+    strategy_legs_settled = settle_expired_strategies(
+        session, settle_date=settle_date, newest_complete=newest_complete
+    )
     # A weekend expiry's session is the Friday before, so compare sessions.
     expired = [
         position
@@ -815,19 +824,9 @@ def settle_expired_options(session: Session, *, settle_date: date_type) -> int:
     # Long legs settle before short ones (design note, section 5): a long
     # leg's exercise may bring in what a short leg then needs.
     expired.sort(key=lambda p: (p.side == OptionSide.SHORT, p.id or 0))
-    from stockviz.services.options.strategies import is_multi_leg
-
-    # Multi-leg strategies settle as a unit from batch 9.4; until then their
-    # legs wait (a spread's long leg exercised into shares on its own would
-    # leave its short leg uncovered).
-    waiting = [p for p in expired if is_multi_leg(session, p)]
-    for position in waiting:
-        logger.warning(
-            "options_settle: strategy %s leg %s waits for strategy settlement",
-            position.strategy_id,
-            position.id,
-        )
-    expired = [p for p in expired if p not in waiting]
+    # A leg whose strategy still has another open leg was left by the
+    # strategy pass (its expiry close is not stored yet): it waits with it.
+    expired = [p for p in expired if not has_other_open_leg(session, p)]
     settled = 0
     for position in expired:
         # Only the expiry session's close may settle a contract (LG-3).
@@ -896,4 +895,4 @@ def settle_expired_options(session: Session, *, settle_date: date_type) -> int:
         settled += 1
         logger.info("options_settle: option %s -> %s", position.id, position.status.value)
 
-    return settled
+    return settled + strategy_legs_settled

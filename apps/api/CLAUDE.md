@@ -831,10 +831,20 @@ intraday fills anywhere in the app:
   leg-covered short is open in it; `exclude_strategy_id` lets its own close
   use it. `close_strategy` closes every open leg at model value as one net
   payment; a long leg covering an open short cannot be closed alone. Status
-  goes to `closed` or `settled` when no leg is open. **Multi-leg strategies
-  are not yet settled at expiry**: `settle_expired_options` leaves their
-  legs open (batch 9.4 settles them as a unit); one-leg strategies settle
-  as single legs. API: `POST /v1/options/strategies/quote` (public, 60/min),
+  goes to `closed` or `settled` when no leg is open. **Expiry (Phase 9.4):**
+  `settle_expired_strategies` runs first in `settle_expired_options` and
+  settles each multi-leg strategy as a unit **in cash**: every leg expiring
+  that day at intrinsic value from the expiry session's close (LG-3; it
+  waits while that close is missing), long legs receive, short legs pay, the
+  net moves once (never more than the collateral held back) and nothing
+  goes through the equity book. A calendar's near short leg settles first:
+  out of the money it expires and the far leg stays open as a plain long;
+  in the money the far leg is sold at its Black-Scholes value at that close
+  to pay the short's intrinsic (a call's value is at least that). One
+  notification per strategy (`strategy:<id>:settled:<expiry>`). Legs whose
+  strategy still has another open leg never take the single-leg path.
+  Acceptance worked by hand: `docs/benchmarks/2026-11-16-options-hand-check.md`
+  (`tests/test_options_hand_check.py`). API: `POST /v1/options/strategies/quote` (public, 60/min),
   `POST /v1/options/strategies`, `GET /v1/options/strategies`,
   `POST /v1/options/strategies/{id}/close`.
 - **Options** (`services/options/`): long legs plus covered short legs (Phase 9.2, above). Black-Scholes pricing

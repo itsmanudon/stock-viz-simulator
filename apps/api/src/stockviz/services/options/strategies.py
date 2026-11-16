@@ -15,8 +15,15 @@ the portfolio lock: every leg or none. Short legs are always covered:
 template can leave a naked option. Strategies are for USD accounts only, as
 writing a single leg is.
 
-Expiry settlement of multi-leg strategies arrives in batch 9.4; until then
-``settle_expired_options`` leaves their legs open (see ``trade.py``).
+At expiry (batch 9.4) a multi-leg strategy settles as a unit, in cash:
+every leg expiring that day is worth its intrinsic value at the expiry
+session's close; long legs receive it, short legs pay it, and the strategy
+moves the net once. Nothing is exercised into shares, so a spread never needs
+cash or shares it does not hold back: the net it can owe is at most its
+collateral. For a calendar the near (short) leg settles first: out of the
+money it expires and the far leg stays open as a plain long option; in the
+money the far leg is sold at its model value at that close and the short
+leg's intrinsic value paid from the proceeds, closing both.
 """
 
 from __future__ import annotations
@@ -28,7 +35,7 @@ from decimal import Decimal
 from sqlmodel import Session, select
 
 from stockviz._time import utcnow
-from stockviz.models import Position
+from stockviz.models import Portfolio, Position
 from stockviz.models.option import (
     CONTRACT_MULTIPLIER,
     OptionCover,
@@ -40,6 +47,7 @@ from stockviz.models.option import (
 from stockviz.models.option_strategy import OptionStrategy, StrategyKind, StrategyStatus
 from stockviz.services.instruments import instrument_of
 from stockviz.services.options import margin
+from stockviz.services.options.pricing import black_scholes, historical_volatility
 from stockviz.services.options.trade import (
     RISK_FREE_RATE,
     InsufficientCashForOption,
@@ -48,6 +56,9 @@ from stockviz.services.options.trade import (
     OptionOrderConflict,
     OptionQuote,
     OptionTradeError,
+    _bar_closes,
+    _expiry_close,
+    _last_weekday_on_or_before,
     _record_realization,
     _today,
     quote_option,
@@ -512,14 +523,168 @@ def refresh_strategy_status(session: Session, strategy_id: int | None) -> None:
     session.add(strategy)
 
 
-def is_multi_leg(session: Session, position: OptionsPosition) -> bool:
-    """True for a leg of a strategy with more than one leg (settled from batch 9.4)."""
+def has_other_open_leg(session: Session, position: OptionsPosition) -> bool:
+    """True while another leg of ``position``'s strategy is open: the strategy
+    settles it, not the single-leg path."""
     if position.strategy_id is None:
         return False
-    count = session.exec(
-        select(OptionsPosition.id).where(OptionsPosition.strategy_id == position.strategy_id)
+    other = session.exec(
+        select(OptionsPosition.id).where(
+            OptionsPosition.strategy_id == position.strategy_id,
+            OptionsPosition.status == OptionStatus.OPEN,
+            OptionsPosition.id != position.id,
+        )
+    ).first()
+    return other is not None
+
+
+def _intrinsic(leg: OptionsPosition, spot: Decimal) -> Decimal:
+    per_share = spot - leg.strike if leg.option_type == CALL else leg.strike - spot
+    return (max(per_share, Decimal(0)) * leg.shares_per_contract * leg.quantity).quantize(_CENTS)
+
+
+def settle_expired_strategies(
+    session: Session, *, settle_date: date_type, newest_complete: date_type
+) -> int:
+    """Settle multi-leg strategies whose nearest open leg has expired. Returns legs settled.
+
+    Waits, like a single leg (LG-3), until the expiry session's close is stored.
+    Each strategy commits on its own.
+    """
+    candidates = session.exec(
+        select(OptionStrategy).where(OptionStrategy.status == StrategyStatus.OPEN)
     ).all()
-    return len(count) > 1
+    settled = 0
+    for strategy in candidates:
+        legs = [leg for leg in _legs(session, strategy) if leg.status == OptionStatus.OPEN]
+        if len(legs) < 2:
+            continue  # a one-leg strategy (or what is left of a calendar) settles as a leg
+        near = min(leg.expiry for leg in legs)
+        if near > settle_date or _last_weekday_on_or_before(near) > newest_complete:
+            continue
+        expiring = [leg for leg in legs if leg.expiry == near]
+        bar = _expiry_close(session, expiring[0])
+        if bar is None:
+            continue  # the expiry close is not stored yet
+        portfolio = lock_portfolio(session, strategy.portfolio_id)
+        session.refresh(strategy)
+        if strategy.status != StrategyStatus.OPEN:
+            continue
+        later = [leg for leg in legs if leg.expiry != near]
+        if later:
+            settled += _settle_calendar(session, portfolio, strategy, expiring, later, bar.close)
+        else:
+            settled += _settle_in_cash(session, portfolio, strategy, expiring, bar.close)
+        refresh_strategy_status(session, strategy.id)
+        session.commit()
+    return settled
+
+
+def _settle_in_cash(
+    session: Session,
+    portfolio: Portfolio,
+    strategy: OptionStrategy,
+    legs: list[OptionsPosition],
+    spot: Decimal,
+) -> int:
+    """Every leg at intrinsic value; the net moves once."""
+    now = utcnow()
+    net = Decimal(0)
+    for leg in legs:
+        value = _intrinsic(leg, spot)
+        leg.status = OptionStatus.EXERCISED if value > 0 else OptionStatus.EXPIRED
+        leg.settled_at = now
+        if leg.side == LONG:
+            net += value
+            _record_realization(leg, proceeds=value)
+        else:
+            net -= value
+            _record_realization(leg, proceeds=-value, realized_pnl=leg.premium_paid - value)
+        session.add(leg)
+    _move(session, portfolio, net)
+    _notify(session, portfolio, strategy, spot, net, legs[0].expiry)
+    return len(legs)
+
+
+def _settle_calendar(
+    session: Session,
+    portfolio: Portfolio,
+    strategy: OptionStrategy,
+    near: list[OptionsPosition],
+    far: list[OptionsPosition],
+    spot: Decimal,
+) -> int:
+    """The near short leg expires; in the money, the far leg is sold to pay it."""
+    now = utcnow()
+    (short,) = near
+    owed = _intrinsic(short, spot)
+    short.settled_at = now
+    if owed == 0:
+        short.status = OptionStatus.EXPIRED
+        _record_realization(short, proceeds=Decimal(0), realized_pnl=short.premium_paid)
+        session.add(short)
+        _notify(session, portfolio, strategy, spot, Decimal(0), short.expiry)
+        return 1
+    short.status = OptionStatus.EXERCISED
+    _record_realization(short, proceeds=-owed, realized_pnl=short.premium_paid - owed)
+    session.add(short)
+    net = -owed
+    closes = _bar_closes(session, short.ticker)
+    vol = historical_volatility(closes)
+    for leg in far:
+        years = max((leg.expiry - short.expiry).days / 365.0, 0.0)
+        per_share = black_scholes(
+            spot=float(spot),
+            strike=float(leg.strike),
+            time_to_expiry_years=years,
+            volatility=vol,
+            risk_free_rate=RISK_FREE_RATE,
+            option_type=leg.option_type.value,
+        ).value
+        value = (Decimal(str(per_share)) * leg.shares_per_contract * leg.quantity).quantize(_CENTS)
+        leg.status = OptionStatus.CLOSED
+        leg.settled_at = now
+        _record_realization(leg, proceeds=value)
+        session.add(leg)
+        net += value
+    _move(session, portfolio, net)
+    _notify(session, portfolio, strategy, spot, net, short.expiry)
+    return 1 + len(far)
+
+
+def _move(session: Session, portfolio: Portfolio, net: Decimal) -> None:
+    if net > 0:
+        credit(session, portfolio, "USD", net)
+    elif net < 0:
+        funding = plan_buy(session, portfolio, "USD", -net, Decimal(1))
+        pay_for_buy(session, portfolio, "USD", funding, Decimal(1))
+    session.add(portfolio)
+
+
+def _notify(
+    session: Session,
+    portfolio: Portfolio,
+    strategy: OptionStrategy,
+    spot: Decimal,
+    net: Decimal,
+    expiry: date_type,
+) -> None:
+    from stockviz.models import NotificationCategory
+    from stockviz.services.notifications import notify
+
+    label = LABELS[StrategyKind(strategy.kind)]
+    notify(
+        session,
+        user_id=portfolio.user_id,
+        category=NotificationCategory.OPTION,
+        title=f"{label} settled",
+        body=(
+            f"Settled on the {expiry.isoformat()} expiry at a {spot:,.2f} close; "
+            f"net {net:+,.2f} USD."
+        ),
+        link="/portfolio?tab=options",
+        source_key=f"strategy:{strategy.id}:settled:{expiry.isoformat()}",
+    )
 
 
 __all__ = [
@@ -529,10 +694,11 @@ __all__ = [
     "StrategyQuote",
     "StrategyResult",
     "close_strategy",
-    "is_multi_leg",
+    "has_other_open_leg",
     "open_strategy",
     "plan_legs",
     "quote_strategy",
     "refresh_strategy_status",
+    "settle_expired_strategies",
     "strategy_legs",
 ]
