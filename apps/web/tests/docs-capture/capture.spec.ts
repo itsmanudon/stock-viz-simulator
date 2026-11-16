@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { type Page, expect, test } from "@playwright/test";
 
 /**
  * Captures the screenshots the /docs pages show, from the real app (run by
@@ -7,6 +7,12 @@ import { expect, test } from "@playwright/test";
  */
 
 const OUT = "public/docs";
+
+/** Element screenshots scroll; a sticky top bar would sit over them. */
+async function go(page: Page, url: string) {
+  await page.goto(url);
+  await page.addStyleTag({ content: "header.sticky { position: static !important; }" });
+}
 test.use({ viewport: { width: 1280, height: 900 }, colorScheme: "dark" });
 
 test("capture the docs screenshots", async ({ page }) => {
@@ -20,7 +26,7 @@ test("capture the docs screenshots", async ({ page }) => {
   const main = page.locator("#main");
 
   // Shares to cover a call, and a market buy under review for the Orders page.
-  await page.goto("/trade?ticker=AAPL");
+  await go(page, "/trade?ticker=AAPL");
   await main.getByLabel("Quantity").fill("100");
   await main.getByRole("button", { name: /Review market buy/i }).click();
   await main
@@ -33,7 +39,7 @@ test("capture the docs screenshots", async ({ page }) => {
   );
 
   // The single-contract option ticket with its quote and Greeks.
-  await page.goto("/trade?ticker=AAPL");
+  await go(page, "/trade?ticker=AAPL");
   await main.locator("#opt-ticker").selectOption("AAPL");
   await expect(main.getByLabel("Greeks")).toContainText("Delta", { timeout: 15_000 });
   await main
@@ -64,14 +70,27 @@ test("capture the docs screenshots", async ({ page }) => {
   await expect(builder.getByText(/Opened a covered call/)).toBeVisible({ timeout: 15_000 });
 
   // The portfolio's options book.
-  await page.goto("/portfolio?tab=options");
+  await go(page, "/portfolio?tab=options");
   await expect(main.getByRole("region", { name: "Expirations" })).toBeVisible();
   await main.getByRole("region", { name: "Options Greeks" }).screenshot({
     path: `${OUT}/options-book.png`,
   });
 
+  // A watchlist and an alert, so Home shows them.
+  await go(page, "/watchlist");
+  for (const ticker of ["MSFT", "NVDA"]) {
+    await main.getByLabel("Add symbol").fill(ticker);
+    await main.getByRole("button", { name: "Add to watchlist" }).click();
+    await expect(main.getByRole("link", { name: ticker }).first()).toBeVisible();
+  }
+  await go(page, "/alerts?ticker=AAPL");
+  const create = main.getByRole("region", { name: "Create alert" });
+  await create.getByLabel("Target (USD)").fill("200");
+  await create.getByRole("button", { name: "Create alert" }).click();
+  await expect(create.getByText("Alert set.")).toBeVisible();
+
   // Home.
-  await page.goto("/dashboard");
+  await go(page, "/dashboard");
   await page.waitForLoadState("networkidle");
   await main.screenshot({ path: `${OUT}/dashboard.png` });
 });
