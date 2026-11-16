@@ -560,7 +560,14 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   7: the sentiment vote is unavailable without scored news (audit SR-9).
   News for a set of symbols is one call, `getNewsForTickers()` (`/v1/news?tickers=`):
   `/watchlist` lists it under the table, and `/portfolio?tab=news` loads it
-  for the holdings only while that tab is open, as Journal does.
+  for the holdings only while that tab is open, as Journal does. `/news` has
+  two views (`?view=`): listed companies (default, linked documents) and
+  `market` (`getMarketNews()`, `/v1/news?scope=market`: documents linked to no
+  symbol), so a general headline is never shown as news about a symbol. The
+  dashboard's `NewsWidget` (`components/dashboard/news-widget.tsx`) shows the
+  five newest headlines on the holdings and watchlist (`dashboardNewsTickers`
+  in `lib/dashboard-news.ts`), loaded after the rest as the page's one second
+  call and degrading to its own empty state.
 - Alerts and notifications (Phase 7.3): `/alerts` lists rules of every kind
   (price level, daily move, technical crossing, Aegis news, portfolio) with
   the rule in words (`description`), the current close and its date from the

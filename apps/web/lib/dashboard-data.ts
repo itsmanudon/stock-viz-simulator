@@ -1,6 +1,7 @@
 import "server-only";
 
 import { type Alert, listAlerts } from "@/lib/api/alerts";
+import { getNewsForTickers } from "@/lib/api/news";
 import {
   type PendingOrder,
   type Portfolio,
@@ -9,7 +10,9 @@ import {
   getPortfolioHistory,
   listOrders,
 } from "@/lib/api/trading";
+import type { NewsArticle } from "@/lib/api/types";
 import { type WatchlistItem, listWatchlist } from "@/lib/api/watchlist";
+import { DASHBOARD_NEWS_LIMIT, dashboardNewsTickers } from "@/lib/dashboard-news";
 import { loadPortfolioOverview } from "@/lib/portfolio-overview";
 import { DASHBOARD_HISTORY_DAYS } from "@/lib/portfolio-view-model";
 
@@ -28,6 +31,10 @@ export type DashboardData = {
   alerts: Alert[] | null;
   /** Watchlist and alert rows carry their own currency. */
   watchlist: WatchlistItem[] | null;
+  /** Headlines linked to a holding or a watchlist symbol; null when the call failed. */
+  news: NewsArticle[] | null;
+  /** The symbols `news` was asked for: holdings first, then the watchlist. */
+  newsTickers: string[];
 };
 
 export async function loadDashboardData(): Promise<DashboardData> {
@@ -39,7 +46,14 @@ export async function loadDashboardData(): Promise<DashboardData> {
     optional(listWatchlist()),
   ]);
 
-  return { ...overview, history, orders, alerts, watchlist };
+  // News needs the holdings and the watchlist, so it is the one second call.
+  const newsTickers = dashboardNewsTickers(overview.portfolio.positions, watchlist);
+  const news =
+    newsTickers.length === 0
+      ? []
+      : await optional(getNewsForTickers(newsTickers, DASHBOARD_NEWS_LIMIT));
+
+  return { ...overview, history, orders, alerts, watchlist, news, newsTickers };
 }
 
 function optional<T>(request: Promise<T>): Promise<T | null> {

@@ -12,6 +12,18 @@ export function getLatestNews(limit = 50): Promise<NewsArticle[]> {
   });
 }
 
+/**
+ * General market headlines: stored documents linked to no StockViz symbol
+ * (rates, indices, companies StockViz does not list). Shown in their own
+ * section, never as news about a symbol.
+ */
+export function getMarketNews(limit = 50): Promise<NewsArticle[]> {
+  return apiGet<NewsArticle[]>(`/v1/news?scope=market&limit=${limit}`, {
+    revalidateSeconds: NEWS_REVALIDATE_SECONDS,
+    tags: ["news"],
+  });
+}
+
 export function getNewsForTicker(ticker: string, limit = 20): Promise<NewsArticle[]> {
   return apiGet<NewsArticle[]>(`/v1/symbols/${encodeURIComponent(ticker)}/news?limit=${limit}`, {
     revalidateSeconds: NEWS_REVALIDATE_SECONDS,
