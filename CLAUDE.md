@@ -16,7 +16,7 @@ apps/web/    Next.js 16 (App Router, React 19, TS, Tailwind v4, NextAuth v5) + P
 apps/api/    FastAPI + SQLModel + Alembic + APScheduler (Python 3.12, uv)
 infra/       docker-compose (local Postgres; Kafka via `--profile events`) + render.yaml
              k8s/ (Kustomize layers: bootstrap → migrate → app → scale; Strimzi)
-.railway/    railway.ts — Railway TypeScript IaC (lean 4-resource topology)
+.railway/    railway.ts — Railway TypeScript IaC (lean 4-resource topology; named partial `stockviz`, Aegis owns the `aegis` partial)
 scripts/k8s/ kind create / build / deploy / smoke / destroy
 .github/workflows/ci.yml   web, api, events-integration, security, docker, e2e
 .github/workflows/k8s-smoke.yml   kind + Strimzi + migrate Job + smoke + reduced Kafka benchmark

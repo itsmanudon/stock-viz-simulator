@@ -31,7 +31,17 @@ import { defineRailway, github, group, postgres, preserve, project, service } fr
  * domain is attached. After the first apply:
  *   1) railway domain --service api   &&   railway domain --service web
  *   2) railway redeploy --service web   (rebuilds with the resolved URL)
+ *
+ * Shared project: Aegis News (aegis-api, aegis-daily, the aegis-raw bucket)
+ * runs in this same Railway project and is declared in
+ * `itsmanudon/aegis-news` under `.railway/railway.ts` as the `aegis` partial.
+ * This file is the `stockviz` partial. The CLI records which partial owns
+ * each resource, so omitting Aegis here does not delete it. Without the
+ * export, `railway config plan` from this file planned to delete aegis-api,
+ * aegis-daily and aegis-raw (checked 16 Nov 2026). Keep the export.
  */
+
+export const partial = "stockviz";
 
 const REPO = "itsmanudon/stock-viz-simulator";
 const BRANCH = "main";
@@ -193,6 +203,13 @@ export default defineRailway(() => {
       AEGIS_AUDIENCE: "aegis-news",
       AEGIS_KEY_ID: "stockviz-sync-2026-11",
       AEGIS_SERVICE_TOKEN_KEY: preserve(),
+      // Set on the service out of band before this file managed it; kept so
+      // an apply does not delete them. ALPHA_VANTAGE_KEY is the optional
+      // ingest fallback; the DOPPLER_* names point at the secrets config.
+      ALPHA_VANTAGE_KEY: preserve(),
+      DOPPLER_CONFIG: preserve(),
+      DOPPLER_ENVIRONMENT: preserve(),
+      DOPPLER_PROJECT: preserve(),
     },
     deploy: {
       cronSchedule: "0 22 * * 1-5",
