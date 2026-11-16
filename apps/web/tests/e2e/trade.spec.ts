@@ -47,8 +47,10 @@ test("operational trading loop from ticket to orders, watchlist, alerts, and rep
 
   // Phase 9.1 (UX-5): the option ticket quotes with its rate and Greeks.
   // Indexes are not offered as underlyings: the API refuses options on them.
-  await expect(main.getByLabel("Underlying").locator('option[value="^GSPC"]')).toHaveCount(0);
-  await main.getByLabel("Underlying").selectOption("AAPL");
+  // The single-contract ticket's select (the strategy builder has its own).
+  const ticketUnderlying = main.locator("#opt-ticker");
+  await expect(ticketUnderlying.locator('option[value="^GSPC"]')).toHaveCount(0);
+  await ticketUnderlying.selectOption("AAPL");
   const optionQuote = main.getByRole("region", { name: "Option quote" });
   await expect(optionQuote).toContainText("Risk-free rate", { timeout: 10_000 });
   await expect(optionQuote).toContainText(/closes/);
@@ -61,10 +63,29 @@ test("operational trading loop from ticket to orders, watchlist, alerts, and rep
   await expect(optionQuote).toContainText("Cash held back", { timeout: 10_000 });
   await main.getByRole("button", { name: /Write cash-secured put, receive/ }).click();
   await expect(main.getByText(/Wrote 1 AAPL PUT .* and received/)).toBeVisible({ timeout: 10_000 });
+  // Phase 9.5: open a bull call spread from the builder, reviewed first.
+  await page.goto("/trade?ticker=AAPL");
+  const builder = main.getByRole("region", { name: "Strategy builder" });
+  await builder.getByLabel("Underlying").selectOption("AAPL");
+  await expect(builder.getByRole("region", { name: "Strategy figures" })).toContainText(
+    "Most it can lose",
+    { timeout: 15_000 },
+  );
+  await builder.getByRole("button", { name: "Review strategy" }).click();
+  await builder.getByRole("button", { name: "Place bull call spread" }).click();
+  await expect(builder.getByText(/Opened a bull call spread on AAPL/)).toBeVisible({
+    timeout: 10_000,
+  });
+
   await page.goto("/portfolio?tab=options");
   await expect(
     main.getByRole("table", { name: "Options positions" }).getByText("Cash-secured put (written)"),
   ).toBeVisible();
+  await expect(main.getByRole("region", { name: "Strategies" })).toContainText("Bull call spread");
+  await expect(main.getByRole("region", { name: "Expirations" })).toContainText(
+    /Settles in cash|Expires|Assigned/,
+  );
+  await expect(main.getByRole("region", { name: "Options Greeks" })).toContainText("Dollar delta");
 
   await page.goto("/trades");
   await expect(main.getByRole("heading", { name: "Trade history" })).toBeVisible();
