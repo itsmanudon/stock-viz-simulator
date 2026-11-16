@@ -48,6 +48,61 @@ export const DOC_SECTIONS: DocSection[] = [
       },
     ],
   },
+  {
+    title: "Research",
+    pages: [
+      {
+        slug: "markets-and-stocks",
+        title: "Markets and stock pages",
+        summary:
+          "Every symbol's latest close, and a stock's chart, indicators, financials and news.",
+      },
+      {
+        slug: "screener-and-compare",
+        title: "Screener and compare",
+        summary:
+          "Filter the universe on technicals and fundamentals, and compare symbols side by side.",
+      },
+      {
+        slug: "signals",
+        title: "Signals",
+        summary:
+          "Seven explainable votes per symbol, what makes a signal bullish, and what it is not.",
+      },
+      {
+        slug: "backtests",
+        title: "Backtests",
+        summary:
+          "Replay a rule over history with honest fills and costs, save runs, walk forward and sweep.",
+      },
+      {
+        slug: "news-reactions",
+        title: "News and news reactions",
+        summary: "Where the news comes from, and how stocks moved around news of one kind.",
+      },
+      {
+        slug: "replay",
+        title: "Replay",
+        summary: "Trade a past stretch of history bar by bar without seeing what comes next.",
+      },
+    ],
+  },
+  {
+    title: "Portfolio and risk",
+    pages: [
+      {
+        slug: "portfolio",
+        title: "Portfolio",
+        summary: "The headline figures, each tab, the daily history and the leaderboard.",
+      },
+      {
+        slug: "returns-and-risk",
+        title: "Returns and risk",
+        summary:
+          "Time- and money-weighted returns, exposure, value at risk, stress tests and goals.",
+      },
+    ],
+  },
 ];
 
 export const DOC_PAGES: DocPage[] = DOC_SECTIONS.flatMap((section) => section.pages);

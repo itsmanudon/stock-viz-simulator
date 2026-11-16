@@ -76,6 +76,30 @@ test("capture the docs screenshots", async ({ page }) => {
     path: `${OUT}/options-book.png`,
   });
 
+  // The risk panel, on the shares and options bought above.
+  await go(page, "/portfolio?tab=analytics");
+  const risk = page.locator('#main section[aria-labelledby="risk-heading"]');
+  await expect(risk).toContainText(/VaR|value at risk/i, { timeout: 20_000 });
+  await risk.screenshot({ path: `${OUT}/risk-panel.png` });
+
+  // The screener, top of the page.
+  await go(page, "/screener");
+  await expect(main.getByRole("table").first()).toBeVisible({ timeout: 15_000 });
+  const box = await main.boundingBox();
+  if (box) {
+    await page.screenshot({
+      path: `${OUT}/screener.png`,
+      clip: { x: box.x, y: box.y, width: box.width, height: 820 },
+    });
+  }
+
+  // A backtest result.
+  await go(page, "/backtest?ticker=AAPL");
+  await main.getByRole("button", { name: "Run backtest" }).click();
+  const curve = main.getByRole("heading", { name: "Equity curve" });
+  await expect(curve).toBeVisible({ timeout: 20_000 });
+  await curve.locator("xpath=ancestor::section[1]").screenshot({ path: `${OUT}/backtest.png` });
+
   // A watchlist and an alert, so Home shows them.
   await go(page, "/watchlist");
   for (const ticker of ["MSFT", "NVDA"]) {
