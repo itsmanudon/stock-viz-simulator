@@ -79,6 +79,10 @@ const EOD_REFRESH = [
   // fills or values against them.
   job("python -m stockviz.cli corporate-actions"),
   job("python -m stockviz.cli fx"),
+  // Option chains (Phase 9.6): US stocks' listed chains from yfinance, the
+  // nearest four expiries, after ingest so implied volatility is solved
+  // against tonight's close. Fails only when every ticker failed.
+  job("python -m stockviz.cli options-snapshot"),
   // Pending orders and price alerts had no hosted runner (audits P0-1, P0-2).
   // After fx so fills convert at a fresh rate, before the snapshot so tonight's
   // NAV includes them.

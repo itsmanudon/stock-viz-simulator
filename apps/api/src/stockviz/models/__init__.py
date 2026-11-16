@@ -42,6 +42,7 @@ from stockviz.models.option import (
     OptionStatus,
     OptionType,
 )
+from stockviz.models.option_quote import OptionChainQuote
 from stockviz.models.option_strategy import OptionStrategy, StrategyKind, StrategyStatus
 from stockviz.models.order import OrderStatus, OrderType, PendingOrder
 from stockviz.models.portfolio import (
@@ -100,6 +101,7 @@ __all__ = [
     "NewsSentiment",
     "Notification",
     "NotificationCategory",
+    "OptionChainQuote",
     "OptionCover",
     "OptionSide",
     "OptionStatus",

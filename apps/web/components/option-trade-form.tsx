@@ -311,8 +311,10 @@ function QuotePreview({ quote }: { quote: QuoteState }) {
           value: `${usd(ready.spot)}${closeDate ? ` · close of ${closeDate}` : ""}`,
         },
         {
-          label: "Volatility (30-day historical)",
-          value: `${pct(ready.volatility)} · ${ready.volatility_closes} closes`,
+          label: "Volatility",
+          value: ready.volatility_method.startsWith("historical")
+            ? `${pct(ready.volatility)} · ${ready.volatility_closes} closes`
+            : pct(ready.volatility),
         },
         { label: "Risk-free rate", value: pct(ready.risk_free_rate) },
         { label: "Value per share", value: usd(ready.per_share) },
@@ -347,6 +349,9 @@ function QuotePreview({ quote }: { quote: QuoteState }) {
         <p className="mt-2 text-text-tertiary">
           The model price is under 1 cent a share, so the premium is the 1-cent minimum.
         </p>
+      ) : null}
+      {ready ? (
+        <p className="mt-2 text-text-tertiary">Volatility: {ready.volatility_method}.</p>
       ) : null}
       {ready?.risk ? <p className="mt-2 text-text-tertiary">{ready.risk.basis}.</p> : null}
       {ready ? (

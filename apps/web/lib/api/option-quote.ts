@@ -121,3 +121,23 @@ export function getImpliedVolatility(
     maxAttempts: 1,
   });
 }
+
+export type OptionSurface = {
+  ticker: string;
+  /** Null until a chain has been stored for this symbol. */
+  snapshot_date: string | null;
+  spot: string | null;
+  expiries: {
+    expiry: string;
+    points: { strike: string; call_iv: number | null; put_iv: number | null }[];
+  }[];
+  source: string;
+};
+
+/** GET /v1/options/surface (Phase 9.6): implied volatility by expiry and strike. */
+export function getOptionSurface(ticker: string, signal?: AbortSignal): Promise<OptionSurface> {
+  return apiGet<OptionSurface>(`/v1/options/surface?${new URLSearchParams({ ticker })}`, {
+    init: { signal },
+    maxAttempts: 1,
+  });
+}
