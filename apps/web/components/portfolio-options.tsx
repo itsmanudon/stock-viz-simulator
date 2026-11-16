@@ -35,8 +35,9 @@ export function PortfolioOptions({
           Options exposure
         </h2>
         <p className="mt-1 text-xs text-muted-foreground">
-          Modelled values in {displayCurrency}: Black-Scholes on 30-day historical volatility, not
-          market quotes. Greeks are per share; theta is per day.
+          Modelled values in {displayCurrency}: Black-Scholes on a stored option chain&apos;s
+          implied volatility, or 30-day historical volatility, not market quotes. Greeks are per
+          share; theta is per day.
         </p>
       </div>
 

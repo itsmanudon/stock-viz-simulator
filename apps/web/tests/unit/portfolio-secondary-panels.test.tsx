@@ -94,7 +94,8 @@ describe("portfolio operational panels", () => {
     expect(within(table).getByText("¥81,000 native")).toBeVisible();
     expect(within(table).getByText("Gain +€85.25")).toBeVisible();
     expect(within(table).getByRole("button", { name: "Close 7203.T call position" })).toBeVisible();
-    expect(screen.queryByText(/implied volatility/i)).not.toBeInTheDocument();
+    // The values are modelled, and the subtitle says from what (Phase 9.6).
+    expect(screen.getByText(/stored option chain.*implied volatility/)).toBeVisible();
     // No Greeks in the payload: a dash, never an invented zero.
     expect(within(table).getByLabelText("Greeks unavailable")).toBeVisible();
   });
