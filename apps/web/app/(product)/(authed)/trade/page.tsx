@@ -352,9 +352,12 @@ export default async function TradePage({
         </p>
         <div className="mt-4 max-w-xl">
           <OptionTradeForm
-            // The API takes USD underlyings only (audit LG-7).
+            // The API takes USD stocks only (audit LG-7): no other currency,
+            // and no index (^GSPC is USD but has no options here).
             options={options
-              .filter((symbol) => (symbol.currency || "USD") === "USD")
+              .filter(
+                (symbol) => (symbol.currency || "USD") === "USD" && !symbol.ticker.startsWith("^"),
+              )
               .map((symbol) => ({ ticker: symbol.ticker, name: symbol.name }))}
           />
         </div>
