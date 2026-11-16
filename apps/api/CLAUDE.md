@@ -771,6 +771,24 @@ intraday fills anywhere in the app:
   `open_option` charges with: spot and its date, 30-day volatility, value per
   share, premium for the contracts. Without `strike` it prices at the money
   (the latest close rounded to cents) and returns that strike.
+- **Options basics (Phase 9.1).** `services/options/pricing.py` adds rho
+  (per 1.00 of rate) to `OptionPrice`, `RISK_FREE_RATES` with
+  `risk_free_rate(currency)` (USD 5%; `trade.RISK_FREE_RATE` is its USD
+  value), and `implied_volatility()` (Newton on vega with a bisection
+  fallback, 1% to 500%, `None` with a reason below intrinsic, above the
+  no-arbitrage bound or past expiry). LG-14: `quote_option` (so every open)
+  refuses a ticker with fewer than `MIN_VOL_CLOSES` (20) closes in the
+  volatility window (422) and floors the premium at `MIN_PREMIUM_PER_SHARE`
+  (0.01); the quote says `premium_floor_applied`, `volatility_method` and
+  `volatility_closes`. LG-15: "today" for options (open, quote, valuation,
+  close gate) and for the `settle-options` and `credit-dividends` jobs is
+  `services/markets/calendar.py::trading_date`, New York's calendar date;
+  `tests/test_options_basics.py` fails if the options service reads the UTC
+  date. `GET /v1/options/implied-volatility?ticker&option_type&strike&expiry&price`
+  (public, 60/min) solves a user-entered per-share price on the quote's
+  inputs and returns it beside the historical volatility; nothing is
+  stored. Greeks (with rho) are on the quote, `/v1/options/positions` and
+  each `PortfolioOptionOut.greeks` (null when unpriceable).
 - **Options** (`services/options/`): long-only book. Black-Scholes pricing
   with 30-day historical volatility as the IV proxy and a 5% risk-free rate;
   contracts are ×100 (`CONTRACT_MULTIPLIER`). Premiums debit the USD cash

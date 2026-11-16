@@ -256,6 +256,8 @@ class PortfolioOptionOut(BaseModel):
     market_value_native: Decimal
     market_value: Decimal
     unrealized_pl: Decimal
+    greeks: OptionGreeksOut | None = None
+    """Per-share Greeks at today's price (Phase 9.1, UX-5); null when unpriceable."""
 
 
 class ValuationWarningOut(BaseModel):
@@ -1334,13 +1336,17 @@ class OptionTradeIn(BaseModel):
 
 
 class OptionGreeksOut(BaseModel):
-    """Per-share Black-Scholes greeks. Returned for completeness; the v1 UI
-    doesn't surface them."""
+    """Per-share Black-Scholes greeks, shown on the ticket and each position.
+
+    ``theta`` is per calendar day; ``vega`` and ``rho`` are per 1.00 (100
+    percentage points) of volatility and rate.
+    """
 
     delta: float
     gamma: float
     theta: float
     vega: float
+    rho: float
 
 
 class OptionQuoteOut(BaseModel):
@@ -1365,6 +1371,32 @@ class OptionQuoteOut(BaseModel):
     premium: Decimal
     contract_size: int
     greeks: OptionGreeksOut
+    volatility_method: str
+    """How ``volatility`` was estimated, in words."""
+    volatility_closes: int
+    premium_floor_applied: bool
+    """True when the model price was under the 0.01-a-share minimum (LG-14)."""
+
+
+class OptionImpliedVolOut(BaseModel):
+    """GET /v1/options/implied-volatility: the volatility a price implies.
+
+    ``implied_volatility`` is annualised (0.25 = 25%), or ``null`` with a
+    ``reason``. ``historical_volatility`` is what StockViz prices with, for
+    comparison.
+    """
+
+    ticker: str
+    option_type: Literal["call", "put"]
+    strike: Decimal
+    expiry: date
+    per_share_price: Decimal
+    spot: Decimal
+    spot_at: datetime
+    risk_free_rate: float
+    implied_volatility: float | None
+    reason: str | None
+    historical_volatility: float
 
 
 class OptionPositionOut(BaseModel):

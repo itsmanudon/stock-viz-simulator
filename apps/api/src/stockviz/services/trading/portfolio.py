@@ -23,6 +23,7 @@ from stockviz.models import (
     Position,
     Symbol,
 )
+from stockviz.services.options.pricing import OptionPrice  # no stockviz imports: no cycle
 from stockviz.services.recent_bars import recent_closes
 from stockviz.services.trading.buying_power import reserved_cash, reserved_shares
 from stockviz.services.trading.cash import balances as cash_balances
@@ -74,6 +75,8 @@ class PortfolioOptionPosition:
     # (delta x shares per contract x contracts) times the latest close, in
     # the display currency. 0 when the contract cannot be priced.
     delta_notional: Decimal = Decimal(0)
+    # Phase 9.1 (UX-5): the per-share price and Greeks, None when unpriceable.
+    greeks: OptionPrice | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -350,6 +353,7 @@ def _value_open_options(
     for opt, sym in rows:
         native_ccy = sym.currency or "USD"
         delta = Decimal(0)
+        priced: OptionPrice | None = None
         try:
             priced = value_option(session, opt)
             per_share = Decimal(str(priced.value))
@@ -393,6 +397,7 @@ def _value_open_options(
                 market_value=mv_display,
                 unrealized_pl=mv_display - premium_display,
                 delta_notional=delta_display,
+                greeks=priced,
             )
         )
         total_display += mv_display

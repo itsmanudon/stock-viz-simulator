@@ -135,6 +135,21 @@ def previous_session(day: date, venue: str = NEW_YORK_VENUE) -> date:
     return day - timedelta(days=1)
 
 
+def trading_date(now: datetime | None = None, venue: str = NEW_YORK_VENUE) -> date:
+    """Today's calendar date at ``venue`` (audit LG-15).
+
+    The one answer to "what day is it?" for trading: option opens, quotes,
+    valuation, closes and expiry settlement, and dividend crediting all ask
+    here, so none of them uses the UTC date while another uses New York's.
+    Not a session: on a weekend or holiday it is still that day.
+    """
+    if now is None:
+        now = datetime.now(UTC)
+    if now.tzinfo is None or now.utcoffset() is None:
+        raise ValueError("now must be timezone-aware")
+    return now.astimezone(venue_zone(venue)).date()
+
+
 def latest_completed_session(now: datetime, venue: str = NEW_YORK_VENUE) -> date:
     """The newest session of ``venue`` whose daily bar is complete at ``now``.
 

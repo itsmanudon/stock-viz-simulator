@@ -95,7 +95,22 @@ describe("portfolio operational panels", () => {
     expect(within(table).getByText("Gain +€85.25")).toBeVisible();
     expect(within(table).getByRole("button", { name: "Close 7203.T call position" })).toBeVisible();
     expect(screen.queryByText(/implied volatility/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/delta|gamma|theta|vega/i)).not.toBeInTheDocument();
+    // No Greeks in the payload: a dash, never an invented zero.
+    expect(within(table).getByLabelText("Greeks unavailable")).toBeVisible();
+  });
+
+  it("shows each contract's per-share delta and theta (Phase 9.1, UX-5)", () => {
+    const priced = {
+      ...option,
+      greeks: { delta: 0.5321, gamma: 0.0012, theta: -4.2, vega: 310, rho: 120 },
+    };
+    render(<PortfolioOptions positions={[priced]} displayCurrency="EUR" />);
+
+    const table = screen.getByRole("table", { name: "Options positions" });
+    expect(within(table).getByLabelText("Delta 0.53, theta -4.20 a day")).toHaveTextContent(
+      "Δ 0.53 · Θ -¥4",
+    );
+    expect(screen.getByText(/Greeks are per share; theta is per day/)).toBeVisible();
   });
 
   it("uses a concise true empty state for options", () => {
