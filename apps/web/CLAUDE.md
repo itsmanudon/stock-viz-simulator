@@ -550,6 +550,40 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   (windows table, mean CAR path as inline SVG, the events; counts only below
   the minimum; "association, not cause"). The stock page's News tab adds a
   "News reactions" block for its negative and positive news (`NewsReactions`).
+- `/portfolio?tab=analytics` (Phase 8.1) holds `PortfolioReturnsPanel`
+  (`components/portfolio-returns.tsx`): time-weighted return by period and
+  money-weighted (XIRR) return for the account and each holding, each with
+  its method and basis written beside it and a reason where a figure is
+  null. Phase 8.2 adds `PortfolioExposurePanel` (weights by sector,
+  country and currency, options delta beside them) and
+  `PortfolioAttributionPanel` (price, currency, cross, income per holding)
+  from `components/portfolio-exposure.tsx`. Phase 8.3 adds
+  `PortfolioRiskPanel` (`components/portfolio-risk.tsx`): VaR/CVaR with the
+  rule, window, scenarios and proxies written beside them, and the one-year
+  bootstrap percentiles. Its `/v1/portfolio/risk` call runs only while the
+  Analytics tab is open (`loadPortfolioData(..., { risk })`). Phase 8.4
+  adds `PortfolioStressPanel` (`components/portfolio-stress.tsx`): past
+  crises and fixed shocks, each with its change, value after, main drivers,
+  and which holdings were proxied or had no history; fetched with the risk
+  report (`/v1/portfolio/stress`). The
+  metrics strip shows "Unrealized P&L" (equities plus options, #68) and
+  lifetime "Realized P&L".
+- Pre-trade limits (Phase 8.5): Settings has a "Risk limits" panel
+  (`components/risk-limits-form.tsx`, server action, `lib/risk-limits.ts`
+  maps empty or invalid fields to no limit). The order review shows
+  `LimitPreviewRows` (`components/limit-preview.tsx`) for market and limit
+  buys, from `GET /api/limits-check` (a route handler over
+  `/v1/portfolio/limits/check`); it is advice only, the API checks again
+  when the order fills.
+- Phase 8.6: the leaderboard keys rows by `handle` (SR-12) and Settings
+  sets the public name (`display_name`; empty shows the handle). UX-9: the
+  NAV chart's axis prints the account's currency with grouping
+  (`EquityCurve` `currency`, `axisFormatter`), and the metrics strip says
+  how each figure is measured (Sharpe names the risk-free rate). The
+  Analytics tab adds `RebalancePreview` (`components/rebalance-preview.tsx`,
+  whole shares to target weights, nothing placed, each line opens the
+  ticket) and a goal form in the Risk panel (`?goal=` on `/portfolio`,
+  `goalOdds` puts the chance in words).
 - `/status` (Phase 7.6, public, linked from the footer): each nightly job's
   last result and last success, the newest stored close per market, the
   Aegis sync and undeliverable events, from `/v1/status` (`lib/api/status.ts`,

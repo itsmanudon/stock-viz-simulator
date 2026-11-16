@@ -8,7 +8,13 @@ afterEach(() => vi.unstubAllGlobals());
 
 it("never caches leaderboard identities, including calls with a legacy TTL argument", async () => {
   const entries: LeaderboardEntry[] = [
-    { rank: 1, user_id: 7, username: "Trader", return_pct: 5, portfolio_value: "105000" },
+    {
+      rank: 1,
+      handle: "trader-0a1b2c",
+      username: "Trader",
+      return_pct: 5,
+      portfolio_value: "105000",
+    },
   ];
   const fetchRequest = vi
     .fn()

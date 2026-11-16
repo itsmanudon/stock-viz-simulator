@@ -31,7 +31,13 @@ export type Portfolio = {
   market_value: string;
   total_value: string;
   total_cost_basis: string;
+  /** #68 (Phase 8.1): equities plus open options; the parts follow. */
   unrealized_pl: string;
+  unrealized_pl_equity: string;
+  unrealized_pl_options: string;
+  /** Lifetime realized P&L; closes with no stored realization are counted, not estimated. */
+  realized_pl: string;
+  realized_pl_unavailable: number;
   /** Mark-to-model value of open option contracts, included in total_value. */
   options_market_value: string;
   positions: Position[];
@@ -124,6 +130,45 @@ export function getPortfolio(): Promise<Portfolio> {
  */
 export function putBaseCurrency(baseCurrency: "USD" | "INR"): Promise<Portfolio> {
   return authedPut<Portfolio>("/v1/portfolio/base-currency", { base_currency: baseCurrency });
+}
+
+/** Phase 8.5: the account's own pre-trade caps, % of NAV; null means no limit. */
+export type RiskLimits = {
+  max_position_pct: string | null;
+  max_order_pct: string | null;
+  max_sector_pct: string | null;
+  max_currency_pct: string | null;
+  max_var_pct: string | null;
+  updated_at?: string | null;
+};
+
+export type LimitCheck = {
+  limit: string;
+  label: string;
+  cap: number;
+  value_after: number | null;
+  breached: boolean;
+  note?: string | null;
+};
+
+export type LimitPreview = {
+  ticker: string;
+  quantity: string;
+  checks: LimitCheck[];
+  breached: boolean;
+};
+
+export function getRiskLimits(): Promise<RiskLimits> {
+  return authedGet<RiskLimits>("/v1/portfolio/limits");
+}
+
+export function putRiskLimits(limits: Omit<RiskLimits, "updated_at">): Promise<RiskLimits> {
+  return authedPut<RiskLimits>("/v1/portfolio/limits", limits);
+}
+
+export function previewLimits(ticker: string, quantity: string): Promise<LimitPreview> {
+  const q = new URLSearchParams({ ticker, quantity });
+  return authedGet<LimitPreview>(`/v1/portfolio/limits/check?${q.toString()}`);
 }
 
 export function postTrade(body: TradeInput): Promise<TradeRow> {
@@ -244,7 +289,151 @@ export type PortfolioAnalytics = {
   sector_allocation: SectorAllocation[];
   top_gainers: TopMover[];
   top_losers: TopMover[];
+  /** Phase 8.1. Optional for responses cached before it. */
+  returns?: PortfolioReturns | null;
+  /** Phase 8.2. Optional for responses cached before it. */
+  exposure?: PortfolioExposure | null;
+  attribution?: PortfolioAttribution | null;
 };
+
+export type ExposureBucket = {
+  key: string;
+  equity_value: string;
+  cash_value: string;
+  /** Open options at delta-adjusted notional: exposure, not part of NAV. */
+  options_delta: string;
+  weight_pct: number;
+  options_delta_pct: number;
+};
+
+export type PortfolioExposure = {
+  /** The display currency. */
+  currency: string;
+  method: string;
+  basis: string;
+  dimensions: { dimension: string; buckets: ExposureBucket[] }[];
+};
+
+export type HoldingAttribution = {
+  ticker: string;
+  currency: string;
+  entry_rate: string | null;
+  rate_now: string | null;
+  cost_base: string | null;
+  value_base: string | null;
+  price_effect: string | null;
+  currency_effect: string | null;
+  cross_effect: string | null;
+  income: string;
+  reason?: string | null;
+};
+
+export type PortfolioAttribution = {
+  /** The account's base currency. */
+  currency: string;
+  method: string;
+  basis: string;
+  holdings: HoldingAttribution[];
+};
+
+export type PeriodReturn = {
+  period: string;
+  start_date: string | null;
+  end_date: string;
+  return_pct: number | null;
+  annualised_pct: number | null;
+  reason?: string | null;
+};
+
+export type Xirr = {
+  rate_pct: number | null;
+  first_flow: string | null;
+  flows: number;
+  reason?: string | null;
+};
+
+export type PortfolioReturns = {
+  /** The account's base currency: every flow and NAV is in it. */
+  currency: string;
+  twr_method: string;
+  twr_basis: string;
+  periods: PeriodReturn[];
+  xirr_method: string;
+  xirr_basis: string;
+  account_xirr: Xirr;
+  holdings: { ticker: string; kind: string; xirr: Xirr }[];
+};
+
+export type VarFigure = {
+  confidence: number;
+  horizon_days: number;
+  scenarios: number;
+  tail_count: number;
+  /** Losses are positive amounts in the risk report's currency. */
+  var: number;
+  var_pct: number;
+  cvar: number;
+  cvar_pct: number;
+};
+
+/** Phase 8.3: `GET /v1/portfolio/risk`, in the account's base currency. */
+export type PortfolioRisk = {
+  currency: string;
+  nav: number;
+  method: string;
+  var_rule: string;
+  window: { start: string | null; end: string | null; sessions: number };
+  holdings_included: number;
+  excluded: { ticker: string; reason: string }[];
+  proxied: { ticker: string; proxy: string; days: number }[];
+  var: VarFigure[];
+  monte_carlo: {
+    method: string;
+    paths: number;
+    horizon_days: number;
+    mean_block: number;
+    seed: number;
+    percentiles: Record<string, number>;
+    prob_loss_10: number;
+    prob_loss_20: number;
+    /** Phase 8.6 goals: the target, and the share of paths that reach it. */
+    goal?: number | null;
+    prob_goal?: number | null;
+  } | null;
+  reason?: string | null;
+};
+
+/** Phase 8.4: `GET /v1/portfolio/stress`, in the account's base currency. */
+export type StressScenario = {
+  key: string;
+  name: string;
+  kind: "historical" | "hypothetical" | string;
+  start: string | null;
+  end: string | null;
+  nav_before: number;
+  nav_after: number;
+  change: number;
+  change_pct: number;
+  drivers: { ticker: string; change: number }[];
+  proxied: string[];
+  missing: string[];
+};
+
+export type PortfolioStress = {
+  currency: string;
+  method: string;
+  basis: string;
+  scenarios: StressScenario[];
+};
+
+export function getPortfolioStress(): Promise<PortfolioStress> {
+  return authedGet<PortfolioStress>("/v1/portfolio/stress");
+}
+
+export function getPortfolioRisk(goal?: number | null): Promise<PortfolioRisk> {
+  const query = goal && goal > 0 ? `?goal=${encodeURIComponent(String(goal))}` : "";
+  return authedGet<PortfolioRisk>(`/v1/portfolio/risk${query}`);
+}
 
 export function getPortfolioAnalytics(): Promise<PortfolioAnalytics> {
   return authedGet<PortfolioAnalytics>("/v1/portfolio/analytics");

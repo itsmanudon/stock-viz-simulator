@@ -34,6 +34,20 @@ Apply the planned changes:
 railway config apply
 ```
 
+## Shared project (named partials)
+
+The Railway project `stockviz` also runs Aegis News. Each repository owns its
+slice as a named partial:
+
+| Partial | File | Resources |
+| --- | --- | --- |
+| `stockviz` | this repository, `.railway/railway.ts` | Postgres, api, web, cron |
+| `aegis` | `itsmanudon/aegis-news`, `.railway/railway.ts` | aegis-api, aegis-daily, aegis-raw |
+
+Keep `export const partial = "stockviz"` in `railway.ts`. Without it the file
+is planned as the whole project, and a plan deletes the Aegis services.
+`railway config partials list` shows who owns what.
+
 ## Notes
 
 - `railway config plan` is safe and does not change Railway.

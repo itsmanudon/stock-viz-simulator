@@ -300,7 +300,14 @@ class PortfolioOut(BaseModel):
     options_market_value: Decimal = Decimal(0)
     total_value: Decimal
     total_cost_basis: Decimal
+    # #68 (Phase 8.1): equities plus open options, with each part.
     unrealized_pl: Decimal
+    unrealized_pl_equity: Decimal = Decimal(0)
+    unrealized_pl_options: Decimal = Decimal(0)
+    # Lifetime realized P&L; closes without a stored realization are counted
+    # in ``realized_pl_unavailable`` and left out, never estimated.
+    realized_pl: Decimal = Decimal(0)
+    realized_pl_unavailable: int = 0
     positions: list[PositionOut]
     option_positions: list[PortfolioOptionOut] = []
     # Empty when the total is complete; otherwise what it leaves out (LG-13).
@@ -667,7 +674,9 @@ class LeaderboardEntryOut(BaseModel):
     """
 
     rank: int
-    user_id: int
+    # SR-12 (Phase 8.6): an opaque public handle, never the database id.
+    handle: str
+    # The display name the user set, else the handle; never the email.
     username: str
     return_pct: float
     portfolio_value: Decimal
@@ -683,13 +692,31 @@ class ProfileOut(BaseModel):
     user_id: int
     public_profile: bool
     display_currency: str = "USD"
+    # SR-12: what the leaderboard shows: display_name, else public_handle.
+    public_handle: str | None = None
+    display_name: str | None = None
 
 
 class ProfilePatchIn(BaseModel):
-    """All fields are optional — patch sends only what changes."""
+    """All fields are optional — patch sends only what changes.
+
+    ``display_name`` is shown on the public leaderboard: 2 to 40 characters,
+    no "@" (it must not look like an email); an empty string clears it.
+    """
 
     public_profile: bool | None = None
     display_currency: str | None = None
+    display_name: str | None = Field(default=None, max_length=40)
+
+    @field_validator("display_name")
+    @classmethod
+    def _clean_name(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        cleaned = " ".join(value.split())
+        if cleaned and (len(cleaned) < 2 or "@" in cleaned):
+            raise ValueError("display_name must be 2 to 40 characters and contain no '@'")
+        return cleaned
 
 
 # ---------------------------------------------------------------------------
@@ -1027,6 +1054,213 @@ class TopMoverOut(BaseModel):
     return_pct: float
 
 
+class PeriodReturnOut(BaseModel):
+    """One period's time-weighted return (Phase 8.1). Percentages, or null with a reason."""
+
+    period: str
+    start_date: date | None
+    end_date: date
+    return_pct: float | None
+    annualised_pct: float | None
+    reason: str | None = None
+
+
+class XirrOut(BaseModel):
+    """A money-weighted (XIRR) annual return; null with a reason when it means nothing."""
+
+    rate_pct: float | None
+    first_flow: date | None
+    flows: int
+    reason: str | None = None
+
+
+class HoldingReturnOut(BaseModel):
+    ticker: str
+    kind: str
+    xirr: XirrOut
+
+
+class PortfolioReturnsOut(BaseModel):
+    """Phase 8.1 returns. Each block names its method and basis (UX-9)."""
+
+    currency: str
+    twr_method: str
+    twr_basis: str
+    periods: list[PeriodReturnOut]
+    xirr_method: str
+    xirr_basis: str
+    account_xirr: XirrOut
+    holdings: list[HoldingReturnOut]
+
+
+class ExposureBucketOut(BaseModel):
+    key: str
+    equity_value: Decimal
+    cash_value: Decimal
+    options_delta: Decimal
+    weight_pct: float
+    options_delta_pct: float
+
+
+class ExposureOut(BaseModel):
+    dimension: str
+    buckets: list[ExposureBucketOut]
+
+
+class PortfolioExposureOut(BaseModel):
+    """Phase 8.2: weights of NAV in the display currency; method named (UX-9)."""
+
+    currency: str
+    method: str
+    basis: str
+    dimensions: list[ExposureOut]
+
+
+class HoldingAttributionOut(BaseModel):
+    ticker: str
+    currency: str
+    entry_rate: Decimal | None
+    rate_now: Decimal | None
+    cost_base: Decimal | None
+    value_base: Decimal | None
+    price_effect: Decimal | None
+    currency_effect: Decimal | None
+    cross_effect: Decimal | None
+    income: Decimal
+    reason: str | None = None
+
+
+class PortfolioAttributionOut(BaseModel):
+    """Phase 8.2: each holding's gain split into price, currency and cross, in base."""
+
+    currency: str
+    method: str
+    basis: str
+    holdings: list[HoldingAttributionOut]
+
+
+class VarOut(BaseModel):
+    """One VaR/CVaR figure; losses are positive amounts in ``currency``."""
+
+    confidence: float
+    horizon_days: int
+    scenarios: int
+    tail_count: int
+    var: float
+    var_pct: float
+    cvar: float
+    cvar_pct: float
+
+
+class MonteCarloOut(BaseModel):
+    method: str
+    paths: int
+    horizon_days: int
+    mean_block: int
+    seed: int
+    percentiles: dict[str, float]
+    prob_loss_10: float
+    prob_loss_20: float
+    # Phase 8.6 goals: a target value in a year, and the share of resampled
+    # paths that reach it ("about 1 in 4 on past behaviour").
+    goal: float | None = None
+    prob_goal: float | None = None
+
+
+class RiskWindowOut(BaseModel):
+    start: date | None
+    end: date | None
+    sessions: int
+
+
+class RiskNoteOut(BaseModel):
+    ticker: str
+    reason: str
+
+
+class RiskProxyOut(BaseModel):
+    ticker: str
+    proxy: str
+    days: int
+
+
+class PortfolioRiskOut(BaseModel):
+    """Phase 8.3 risk, in the base currency. Method, window and proxies named (UX-9)."""
+
+    currency: str
+    nav: float
+    method: str
+    var_rule: str
+    window: RiskWindowOut
+    holdings_included: int
+    excluded: list[RiskNoteOut]
+    proxied: list[RiskProxyOut]
+    var: list[VarOut]
+    monte_carlo: MonteCarloOut | None
+    reason: str | None = None
+
+
+class StressDriverOut(BaseModel):
+    ticker: str
+    change: float
+
+
+class StressScenarioOut(BaseModel):
+    key: str
+    name: str
+    kind: str
+    start: date | None
+    end: date | None
+    nav_before: float
+    nav_after: float
+    change: float
+    change_pct: float
+    drivers: list[StressDriverOut]
+    proxied: list[str]
+    missing: list[str]
+
+
+class PortfolioStressOut(BaseModel):
+    """Phase 8.4 stress tests, in the base currency, applied instantly (UX-9)."""
+
+    currency: str
+    method: str
+    basis: str
+    scenarios: list[StressScenarioOut]
+
+
+class RiskLimitsIn(BaseModel):
+    """Phase 8.5: each cap is a percentage of NAV, (0, 100], or null for none."""
+
+    max_position_pct: Decimal | None = Field(default=None, gt=0, le=100)
+    max_order_pct: Decimal | None = Field(default=None, gt=0, le=100)
+    max_sector_pct: Decimal | None = Field(default=None, gt=0, le=100)
+    max_currency_pct: Decimal | None = Field(default=None, gt=0, le=100)
+    max_var_pct: Decimal | None = Field(default=None, gt=0, le=100)
+
+
+class RiskLimitsOut(RiskLimitsIn):
+    updated_at: datetime | None = None
+
+
+class LimitCheckOut(BaseModel):
+    limit: str
+    label: str
+    cap: float
+    value_after: float | None
+    breached: bool
+    note: str | None = None
+
+
+class LimitPreviewOut(BaseModel):
+    """What a buy would do to each limit that is set; empty when none are."""
+
+    ticker: str
+    quantity: Decimal
+    checks: list[LimitCheckOut]
+    breached: bool
+
+
 class PortfolioAnalyticsOut(BaseModel):
     """Aggregated analytics for /v1/portfolio/analytics.
 
@@ -1045,6 +1279,9 @@ class PortfolioAnalyticsOut(BaseModel):
     sector_allocation: list[SectorAllocationOut]
     top_gainers: list[TopMoverOut]
     top_losers: list[TopMoverOut]
+    returns: PortfolioReturnsOut | None = None
+    exposure: PortfolioExposureOut | None = None
+    attribution: PortfolioAttributionOut | None = None
 
 
 class PortfolioOverviewOut(BaseModel):

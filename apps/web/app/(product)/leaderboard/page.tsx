@@ -90,7 +90,7 @@ export default async function LeaderboardPage() {
                 </TableHeader>
                 <TableBody>
                   {entries.map((e) => (
-                    <TableRow key={e.user_id}>
+                    <TableRow key={e.handle}>
                       <TableCell className="text-center">
                         <RankChip rank={e.rank} />
                       </TableCell>
@@ -141,7 +141,7 @@ function Podium({ top }: { top: LeaderboardEntry[] }) {
         const up = entry.return_pct >= 0;
         return (
           <li
-            key={entry.user_id}
+            key={entry.handle}
             className={cn(
               "relative isolate grid justify-items-center gap-1.5 overflow-hidden rounded-xl border border-border-muted bg-surface-secondary/60 px-3 text-center",
               first ? "pt-7 pb-6" : "pt-5 pb-4",

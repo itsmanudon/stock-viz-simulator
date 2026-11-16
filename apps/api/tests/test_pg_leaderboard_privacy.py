@@ -26,8 +26,17 @@ def isolated_ranking_cache(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(leaderboard, "_cache_ts", None)
 
 
+HANDLE = "trader-0a1b2c"
+"""SR-12: rows are identified by handle; the id is never in the response."""
+
+
 def _public_user(session: Session) -> int:
-    user = User(email="leaderboard-privacy@stockviz.dev", name="Public Trader", public_profile=True)
+    user = User(
+        email="leaderboard-privacy@stockviz.dev",
+        name="Public Trader",
+        public_handle=HANDLE,
+        public_profile=True,
+    )
     session.add(user)
     session.commit()
     session.refresh(user)
@@ -43,7 +52,7 @@ def test_committed_opt_out_bypasses_cached_ranking_and_stale_identity_map() -> N
         with Session(engine) as reader, Session(engine) as writer:
             resident_user = reader.get(User, user_id)
             assert resident_user is not None
-            assert [entry.user_id for entry in leaderboard.get_leaderboard(reader)] == [user_id]
+            assert [entry.handle for entry in leaderboard.visible_leaderboard(reader)] == [HANDLE]
             populated_at = leaderboard._cache_ts
 
             changed_user = writer.get(User, user_id)
@@ -54,7 +63,7 @@ def test_committed_opt_out_bypasses_cached_ranking_and_stale_identity_map() -> N
 
             assert leaderboard._cache_ts == populated_at
             assert resident_user.public_profile is True
-            assert leaderboard.get_leaderboard(reader) == []
+            assert leaderboard.visible_leaderboard(reader) == []
 
 
 def test_uncommitted_opt_out_and_rollback_preserve_committed_public_visibility() -> None:
@@ -63,7 +72,7 @@ def test_uncommitted_opt_out_and_rollback_preserve_committed_public_visibility()
             user_id = _public_user(setup)
 
         with Session(engine) as reader, Session(engine) as writer:
-            assert [entry.user_id for entry in leaderboard.get_leaderboard(reader)] == [user_id]
+            assert [entry.handle for entry in leaderboard.visible_leaderboard(reader)] == [HANDLE]
             populated_at = leaderboard._cache_ts
             changed_user = writer.get(User, user_id)
             assert changed_user is not None
@@ -71,11 +80,11 @@ def test_uncommitted_opt_out_and_rollback_preserve_committed_public_visibility()
             writer.add(changed_user)
             writer.flush()
 
-            assert [entry.user_id for entry in leaderboard.get_leaderboard(reader)] == [user_id]
+            assert [entry.handle for entry in leaderboard.visible_leaderboard(reader)] == [HANDLE]
             writer.rollback()
 
             assert leaderboard._cache_ts == populated_at
-            assert [entry.user_id for entry in leaderboard.get_leaderboard(reader)] == [user_id]
+            assert [entry.handle for entry in leaderboard.visible_leaderboard(reader)] == [HANDLE]
 
 
 def test_cache_fill_rechecks_committed_privacy_on_its_next_statement(
@@ -87,7 +96,7 @@ def test_cache_fill_rechecks_committed_privacy_on_its_next_statement(
 
         build = leaderboard._build_leaderboard
 
-        def build_across_opt_out(session: Session) -> list[LeaderboardEntryOut]:
+        def build_across_opt_out(session: Session) -> list[tuple[int, LeaderboardEntryOut]]:
             candidates = build(session)
             with Session(engine) as writer:
                 leaderboard.patch_profile(ProfilePatchIn(public_profile=False), writer, user_id)
@@ -95,5 +104,5 @@ def test_cache_fill_rechecks_committed_privacy_on_its_next_statement(
 
         monkeypatch.setattr(leaderboard, "_build_leaderboard", build_across_opt_out)
         with Session(engine) as reader:
-            assert leaderboard.get_leaderboard(reader) == []
-            assert leaderboard.get_leaderboard(reader) == []
+            assert leaderboard.visible_leaderboard(reader) == []
+            assert leaderboard.visible_leaderboard(reader) == []

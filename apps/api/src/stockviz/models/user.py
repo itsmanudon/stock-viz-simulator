@@ -26,6 +26,10 @@ class User(SQLModel, table=True):
     # created via Google OAuth, or seeded outside of signup.
     password_hash: str | None = Field(default=None, max_length=255)
     public_profile: bool = Field(default=False, nullable=False)
+    # SR-12 (Phase 8.6): the leaderboard shows a display name the user sets,
+    # else a random public handle ("trader-7f3a9c"); never the email or the id.
+    public_handle: str | None = Field(default=None, unique=True, index=True, max_length=24)
+    display_name: str | None = Field(default=None, max_length=40)
     # ISO-4217 currency the portfolio totals are rendered in on the UI. The
     # underlying cash balance stays USD-base; conversion happens at read time.
     display_currency: str = Field(default="USD", max_length=3, nullable=False)

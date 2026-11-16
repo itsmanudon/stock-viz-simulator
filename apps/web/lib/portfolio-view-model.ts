@@ -17,6 +17,7 @@ export const PORTFOLIO_TABS = [
   "income",
   "news",
   "journal",
+  "analytics",
 ] as const;
 
 export type PortfolioRange = (typeof PORTFOLIO_RANGES)[number]["value"];

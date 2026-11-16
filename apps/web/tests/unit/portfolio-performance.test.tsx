@@ -29,6 +29,10 @@ const portfolio: Portfolio = {
   total_value: "128420.38",
   total_cost_basis: "90000.00",
   unrealized_pl: "10018.38",
+  unrealized_pl_equity: "10018.38",
+  unrealized_pl_options: "0",
+  realized_pl: "0",
+  realized_pl_unavailable: 0,
   options_market_value: "5000.00",
   positions: [
     {

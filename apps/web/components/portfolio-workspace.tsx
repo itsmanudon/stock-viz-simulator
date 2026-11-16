@@ -4,13 +4,18 @@ import { JournalPanel } from "@/components/journal/journal-panel";
 import { NewsList } from "@/components/news-list";
 import { PortfolioInsights } from "@/components/portfolio-analytics";
 import { PortfolioEmptyState } from "@/components/portfolio-empty-state";
+import { PortfolioAttributionPanel, PortfolioExposurePanel } from "@/components/portfolio-exposure";
 import { PortfolioIncome } from "@/components/portfolio-income";
 import { PortfolioMetrics } from "@/components/portfolio-metrics";
 import { PortfolioOptions } from "@/components/portfolio-options";
 import { PortfolioOrders } from "@/components/portfolio-orders";
 import { PortfolioPerformance } from "@/components/portfolio-performance";
 import { PortfolioPositions } from "@/components/portfolio-positions";
+import { PortfolioReturnsPanel } from "@/components/portfolio-returns";
+import { PortfolioRiskPanel } from "@/components/portfolio-risk";
+import { PortfolioStressPanel } from "@/components/portfolio-stress";
 import { PortfolioTabs } from "@/components/portfolio-tabs";
+import { RebalancePreview } from "@/components/rebalance-preview";
 import type { JournalMonth } from "@/lib/api/journal";
 import type {
   DividendSummary,
@@ -18,6 +23,8 @@ import type {
   Portfolio,
   PortfolioAnalytics,
   PortfolioHistoryPoint,
+  PortfolioRisk,
+  PortfolioStress,
 } from "@/lib/api/trading";
 import type { NewsArticle } from "@/lib/api/types";
 import type { PortfolioRange, PortfolioTab } from "@/lib/portfolio-view-model";
@@ -35,6 +42,12 @@ type Props = {
   journalMonthKey: string;
   /** Aegis news for the holdings; only loaded while the News tab is open. */
   news?: NewsArticle[] | null;
+  /** Phase 8.3 risk report; only loaded while the Analytics tab is open. */
+  risk?: PortfolioRisk | null;
+  /** Phase 8.4 stress tests; loaded with the risk report. */
+  stress?: PortfolioStress | null;
+  /** Phase 8.6: the goal value from the URL, for the risk panel's form. */
+  goal?: number | null;
 };
 
 export function PortfolioWorkspace({
@@ -49,6 +62,9 @@ export function PortfolioWorkspace({
   journalFailed,
   journalMonthKey,
   news = null,
+  risk = null,
+  stress = null,
+  goal = null,
 }: Props) {
   const displayCurrency = portfolio.display_currency || "USD";
   const hasEquityPositions = portfolio.positions.length > 0;
@@ -113,6 +129,27 @@ export function PortfolioWorkspace({
                 initialError={journalFailed}
               />
             </Suspense>
+          }
+          analytics={
+            <>
+              <PortfolioReturnsPanel returns={analytics?.returns ?? null} />
+              <PortfolioExposurePanel exposure={analytics?.exposure ?? null} />
+              <PortfolioAttributionPanel attribution={analytics?.attribution ?? null} />
+              <PortfolioRiskPanel
+                risk={risk}
+                open={tab === "analytics"}
+                goal={goal}
+                range={range}
+              />
+              <PortfolioStressPanel stress={stress} open={tab === "analytics"} />
+              {tab === "analytics" ? (
+                <RebalancePreview
+                  positions={portfolio.positions}
+                  nav={Number(portfolio.total_value)}
+                  currency={displayCurrency}
+                />
+              ) : null}
+            </>
           }
           positionCount={portfolio.positions.length}
           optionCount={portfolio.option_positions.length}

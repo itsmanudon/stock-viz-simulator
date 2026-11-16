@@ -70,6 +70,10 @@ class PortfolioOptionPosition:
     market_value_native: Decimal
     market_value: Decimal
     unrealized_pl: Decimal
+    # Phase 8.2: shares of the underlying the contract moves like
+    # (delta x shares per contract x contracts) times the latest close, in
+    # the display currency. 0 when the contract cannot be priced.
+    delta_notional: Decimal = Decimal(0)
 
 
 @dataclass(frozen=True, slots=True)
@@ -112,7 +116,14 @@ class PortfolioValuation:
     options_market_value: Decimal = Decimal(0)
     total_value: Decimal = Decimal(0)
     total_cost_basis: Decimal = Decimal(0)
+    # #68 (Phase 8.1): equities plus open options; each part is kept too.
     unrealized_pl: Decimal = Decimal(0)
+    unrealized_pl_equity: Decimal = Decimal(0)
+    unrealized_pl_options: Decimal = Decimal(0)
+    # Lifetime realized P&L (equity sells, option closes and expiries), and how
+    # many closes have no stored realization and are left out of it.
+    realized_pl: Decimal = Decimal(0)
+    realized_pl_unavailable: int = 0
     # Empty when every figure was priced; otherwise the total is incomplete.
     warnings: list[ValuationWarning] = field(default_factory=list)
     # Cash per currency, base first. ``cash_balance`` is their display total;
@@ -278,6 +289,12 @@ def compute_portfolio(
     )
 
     total_value = market_value_display + options_value_display + cash_display
+    equity_pl = market_value_display - cost_basis_display
+    options_pl = sum((o.unrealized_pl for o in option_positions), Decimal(0))
+    # Local import: returns_ledger reads PortfolioValuation from this module.
+    from stockviz.services.trading.returns_ledger import realized_totals
+
+    realized = realized_totals(session, portfolio)
     return PortfolioValuation(
         portfolio_id=portfolio.id,
         base_currency=base_ccy,
@@ -291,7 +308,11 @@ def compute_portfolio(
         options_market_value=options_value_display,
         total_value=total_value,
         total_cost_basis=cost_basis_display,
-        unrealized_pl=market_value_display - cost_basis_display,
+        unrealized_pl=equity_pl + options_pl,
+        unrealized_pl_equity=equity_pl,
+        unrealized_pl_options=options_pl,
+        realized_pl=_to_display(realized.amount, base_ccy),
+        realized_pl_unavailable=realized.unavailable,
         warnings=warnings,
         cash_by_currency=cash_by_currency,
     )
@@ -328,9 +349,11 @@ def _value_open_options(
     total_display = Decimal(0)
     for opt, sym in rows:
         native_ccy = sym.currency or "USD"
+        delta = Decimal(0)
         try:
             priced = value_option(session, opt)
             per_share = Decimal(str(priced.value))
+            delta = Decimal(str(priced.delta))
         except NoOptionMarketData:
             per_share = Decimal(0)
             warnings.append(
@@ -348,6 +371,11 @@ def _value_open_options(
         if mv_native < 0:
             mv_native = Decimal(0)
         mv_display = to_display(mv_native, native_ccy)
+        spot = latest_close_map(session, [opt.ticker]).get(opt.ticker, Decimal(0))
+        delta_display = to_display(
+            (delta * opt.shares_per_contract * opt.quantity * spot).quantize(Decimal("0.01")),
+            native_ccy,
+        )
         # premium_paid is already USD (cash is USD), so compare in USD terms.
         premium_display = to_display(opt.premium_paid, "USD")
 
@@ -364,6 +392,7 @@ def _value_open_options(
                 market_value_native=mv_native,
                 market_value=mv_display,
                 unrealized_pl=mv_display - premium_display,
+                delta_notional=delta_display,
             )
         )
         total_display += mv_display

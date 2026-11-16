@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import secrets
 from datetime import date
 from decimal import Decimal
 
@@ -9,7 +10,7 @@ import pytest
 from fastapi.testclient import TestClient
 from jose import jwt as jose_jwt
 from sqlalchemy import event
-from sqlmodel import Session, select
+from sqlmodel import Session, col, select
 
 import stockviz.routers.leaderboard as lb_module
 from stockviz.models import PortfolioSnapshot, User
@@ -30,7 +31,16 @@ def _make_user(
     name: str = "Trader",
     public_profile: bool = False,
 ) -> int:
-    user = User(email=email, name=name, public_profile=public_profile)
+    # SR-12: the leaderboard shows the display name the user set.
+    # Real accounts get a handle from the migration or when they opt in; the
+    # lazy fallback for one without is tested on its own below.
+    user = User(
+        email=email,
+        name=name,
+        display_name=name,
+        public_handle=f"trader-{secrets.token_hex(3)}",
+        public_profile=public_profile,
+    )
     session.add(user)
     session.commit()
     session.refresh(user)
@@ -112,15 +122,18 @@ def test_leaderboard_no_snapshot_shows_zero_return(session: Session, client: Tes
     assert entries[0]["return_pct"] == 0.0
 
 
-def test_leaderboard_username_falls_back_to_email_prefix(
-    session: Session, client: TestClient
-) -> None:
-    user = User(email="noname@stockviz.dev", name=None, public_profile=True)
+def test_leaderboard_never_shows_the_email_or_the_id(session: Session, client: TestClient) -> None:
+    """SR-12: without a display name the row shows a random handle, never the
+    email's local part, the signup name or the database id."""
+    user = User(email="noname@stockviz.dev", name="Real Name", public_profile=True)
     session.add(user)
     session.commit()
 
-    entries = client.get("/v1/leaderboard").json()
-    assert entries[0]["username"] == "noname"
+    (entry,) = client.get("/v1/leaderboard").json()
+    assert entry["username"] == entry["handle"]
+    assert entry["handle"].startswith("trader-") and len(entry["handle"]) == 13
+    assert "user_id" not in entry
+    assert "noname" not in str(entry) and "Real Name" not in str(entry)
 
 
 # ---------------------------------------------------------------------------
@@ -201,7 +214,10 @@ def test_cached_leaderboard_obeys_privacy_commit_on_another_replica(
     assert stale_user.public_profile is True
 
     entries = client.get("/v1/leaderboard").json()
-    assert [entry["user_id"] for entry in entries] == [visible_id]
+    visible = session.get(User, visible_id)
+    assert visible is not None
+    session.refresh(visible)
+    assert [entry["handle"] for entry in entries] == [visible.public_handle]
     assert entries[0]["rank"] == 1
 
 
@@ -214,11 +230,9 @@ def test_cached_leaderboard_filters_before_top_fifty(
     )
     session.commit()
     first_page = client.get("/v1/leaderboard").json()
-    removed_ids = {entry["user_id"] for entry in first_page[:2]}
+    removed = {entry["handle"] for entry in first_page[:2]}
     with Session(engine) as other_replica:
-        for user_id in removed_ids:
-            user = other_replica.get(User, user_id)
-            assert user is not None
+        for user in other_replica.exec(select(User).where(col(User.public_handle).in_(removed))):
             user.public_profile = False
             other_replica.add(user)
         other_replica.commit()
@@ -226,7 +240,7 @@ def test_cached_leaderboard_filters_before_top_fifty(
     entries = client.get("/v1/leaderboard").json()
     assert len(entries) == 50
     assert [entry["rank"] for entry in entries] == list(range(1, 51))
-    assert not removed_ids.intersection(entry["user_id"] for entry in entries)
+    assert not removed.intersection(entry["handle"] for entry in entries)
 
 
 def test_cache_fill_rechecks_privacy_after_concurrent_commit(
@@ -255,7 +269,7 @@ def test_cached_leaderboard_uses_current_public_username(
     with Session(engine) as other_replica:
         user = other_replica.get(User, user_id)
         assert user is not None
-        user.name = "New public name"
+        user.display_name = "New public name"
         other_replica.add(user)
         other_replica.commit()
 
@@ -303,7 +317,9 @@ def test_failed_profile_commit_preserves_cache_and_durable_visibility(
     persisted_user = session.get(User, user_id)
     assert persisted_user is not None
     assert persisted_user.public_profile is True
-    assert [entry["user_id"] for entry in client.get("/v1/leaderboard").json()] == [user_id]
+    assert [entry["handle"] for entry in client.get("/v1/leaderboard").json()] == [
+        persisted_user.public_handle
+    ]
 
 
 def test_snapshot_count_query_runs_once_per_leaderboard_build(
@@ -352,3 +368,18 @@ def test_leaderboard_measures_from_the_opening_value(session: Session, client: T
     entry = client.get("/v1/leaderboard").json()[0]
     # 100k opening -> 110k; measuring from the first snapshot gave 7.84%.
     assert abs(entry["return_pct"] - 10.0) < 1e-4
+
+
+def test_display_name_is_set_cleaned_and_cleared(session: Session, client: TestClient) -> None:
+    user_id = _make_user(session, public_profile=True)
+    headers = _auth_headers(user_id)
+    body = client.patch("/v1/profile", headers=headers, json={"display_name": "  Ada   L "}).json()
+    assert body["display_name"] == "Ada L" and body["public_handle"].startswith("trader-")
+    assert client.get("/v1/leaderboard").json()[0]["username"] == "Ada L"
+    for bad in ("a", "me@example.com", "x" * 41):
+        r = client.patch("/v1/profile", headers=headers, json={"display_name": bad})
+        assert r.status_code == 422, bad
+    cleared = client.patch("/v1/profile", headers=headers, json={"display_name": ""}).json()
+    assert cleared["display_name"] is None
+    entry = client.get("/v1/leaderboard").json()[0]
+    assert entry["username"] == entry["handle"] == cleared["public_handle"]

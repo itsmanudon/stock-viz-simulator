@@ -28,20 +28,39 @@ from stockviz.models import (
     User,
 )
 from stockviz.models.dividend import Dividend, PortfolioDividend
+from stockviz.models.risk_limit import LIMIT_COLUMNS as RISK_LIMIT_COLUMNS
+from stockviz.models.risk_limit import RiskLimit
 from stockviz.schemas import (
     BaseCurrencyIn,
     DividendCreditOut,
     DividendSummaryOut,
     ExecutionProvenanceOut,
+    LimitCheckOut,
+    LimitPreviewOut,
+    MonteCarloOut,
     PortfolioAnalyticsOut,
     PortfolioHistoryPointOut,
     PortfolioOut,
     PortfolioOverviewOut,
+    PortfolioRiskOut,
+    PortfolioStressOut,
     ProjectedDividendOut,
+    RiskLimitsIn,
+    RiskLimitsOut,
+    RiskNoteOut,
+    RiskProxyOut,
+    RiskWindowOut,
+    StressDriverOut,
+    StressScenarioOut,
     TradeIn,
     TradeOut,
+    VarOut,
 )
 from stockviz.services.instruments import instrument_of
+from stockviz.services.risk import compute_risk
+from stockviz.services.risk.engine import MC_METHOD, VAR_METHOD
+from stockviz.services.risk.limits import LimitBreached, check_buy
+from stockviz.services.risk.stress import STRESS_METHOD, run_stress
 from stockviz.services.trading import (
     ClientOrderIdConflict,
     InsufficientCash,
@@ -61,6 +80,8 @@ from stockviz.services.trading.account import (
     set_base_currency,
 )
 from stockviz.services.trading.account import activity as account_activity
+from stockviz.services.trading.execute import resolve_priced_symbol
+from stockviz.services.trading.fx import convert as fx_convert
 from stockviz.services.trading.fx import latest_rate as fx_latest_rate
 from stockviz.services.trading.simulation_adapter import as_aware_utc
 from stockviz.services.trading.views import portfolio_analytics_response, portfolio_response
@@ -121,6 +142,9 @@ def post_trade(body: TradeIn, session: SessionDep, user_id: UserIdDep) -> TradeO
         )
     except SymbolNotFound as exc:
         raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+    except LimitBreached as exc:
+        session.rollback()
+        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
     except (StaleMarketData, ClientOrderIdConflict) as exc:
         # 409: the market or an earlier order conflicts with this one (#67).
         raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
@@ -199,6 +223,209 @@ def get_portfolio_overview(
         analytics=portfolio_analytics_response(
             session, user_id, valuation, risk_free_rate=risk_free_rate
         ),
+    )
+
+
+VAR_RULE = (
+    "VaR is the k-th worst scenario loss, k = ceil(scenarios x (1 - confidence)); "
+    "CVaR is the mean of those k losses"
+)
+
+
+@router.get("/portfolio/risk", response_model=PortfolioRiskOut)
+def get_portfolio_risk(
+    session: SessionDep,
+    user_id: UserIdDep,
+    goal: Annotated[Decimal | None, Query(gt=0, le=1e12)] = None,
+) -> PortfolioRiskOut:
+    """Phase 8.3: historical-simulation VaR/CVaR and a block-bootstrap Monte Carlo.
+
+    Computed on request from stored daily closes and FX rates (about a
+    second for a large book). Every figure is in the base currency and the
+    response names the method, the window and any proxied holdings.
+    """
+    portfolio = ensure_default_portfolio(session, user_id)
+    display = _user_display_currency(session, user_id)
+    valuation = compute_portfolio(session, portfolio, display_currency=display)
+    report = compute_risk(
+        session,
+        portfolio,
+        valuation,
+        as_of=utcnow().date(),
+        goal=float(goal) if goal is not None else None,
+    )
+    sc = report.scenarios
+    nav = sc.nav_base
+    mc = report.monte_carlo
+    return PortfolioRiskOut(
+        currency=sc.base_currency,
+        nav=nav,
+        method=VAR_METHOD,
+        var_rule=VAR_RULE,
+        window=RiskWindowOut(
+            start=sc.dates[0] if sc.dates else None,
+            end=sc.dates[-1] if sc.dates else None,
+            sessions=len(sc.dates),
+        ),
+        holdings_included=sc.included,
+        excluded=[RiskNoteOut(ticker=e.ticker, reason=e.reason) for e in sc.excluded],
+        proxied=[RiskProxyOut(ticker=p.ticker, proxy=p.proxy, days=p.days) for p in sc.proxied],
+        var=[
+            VarOut(
+                confidence=v.confidence,
+                horizon_days=v.horizon_days,
+                scenarios=v.scenarios,
+                tail_count=v.tail_count,
+                var=round(v.var, 2),
+                var_pct=round(v.var / nav * 100, 4) if nav else 0.0,
+                cvar=round(v.cvar, 2),
+                cvar_pct=round(v.cvar / nav * 100, 4) if nav else 0.0,
+            )
+            for v in report.var
+        ],
+        monte_carlo=(
+            MonteCarloOut(
+                method=MC_METHOD,
+                paths=mc.paths,
+                horizon_days=mc.horizon_days,
+                mean_block=mc.mean_block,
+                seed=mc.seed,
+                percentiles={str(k): round(v, 2) for k, v in mc.percentiles.items()},
+                prob_loss_10=mc.prob_loss_10,
+                prob_loss_20=mc.prob_loss_20,
+                goal=mc.goal,
+                prob_goal=mc.prob_goal,
+            )
+            if mc is not None
+            else None
+        ),
+        reason=sc.reason,
+    )
+
+
+STRESS_BASIS = (
+    "each scenario applied instantly to today's holdings in the base currency: stocks "
+    "by the scenario's move, currencies by its rate move, options repriced in full; "
+    "a stock without history in a past window takes its index's move times its "
+    "two-year beta"
+)
+
+
+@router.get("/portfolio/stress", response_model=PortfolioStressOut)
+def get_portfolio_stress(session: SessionDep, user_id: UserIdDep) -> PortfolioStressOut:
+    """Phase 8.4: historical replays and hypothetical shocks on today's book."""
+    portfolio = ensure_default_portfolio(session, user_id)
+    display = _user_display_currency(session, user_id)
+    valuation = compute_portfolio(session, portfolio, display_currency=display)
+    base = portfolio.base_currency or "USD"
+    try:
+        nav = float(
+            fx_convert(session, valuation.total_value, from_currency=display, to_currency=base)
+        )
+    except LookupError:
+        nav = float(valuation.total_value)
+    return PortfolioStressOut(
+        currency=base,
+        method=STRESS_METHOD,
+        basis=STRESS_BASIS,
+        scenarios=[
+            StressScenarioOut(
+                key=r.key,
+                name=r.name,
+                kind=r.kind,
+                start=r.start,
+                end=r.end,
+                nav_before=round(r.nav_before, 2),
+                nav_after=round(r.nav_after, 2),
+                change=round(r.change, 2),
+                change_pct=round(r.change_pct, 4),
+                drivers=[
+                    StressDriverOut(ticker=d.ticker, change=round(d.change, 2)) for d in r.drivers
+                ],
+                proxied=r.proxied,
+                missing=r.missing,
+            )
+            for r in run_stress(session, portfolio, valuation, nav_base=nav)
+        ],
+    )
+
+
+def _limits_out(row: RiskLimit | None) -> RiskLimitsOut:
+    if row is None:
+        return RiskLimitsOut()
+    return RiskLimitsOut(
+        max_position_pct=row.max_position_pct,
+        max_order_pct=row.max_order_pct,
+        max_sector_pct=row.max_sector_pct,
+        max_currency_pct=row.max_currency_pct,
+        max_var_pct=row.max_var_pct,
+        updated_at=row.updated_at,
+    )
+
+
+@router.get("/portfolio/limits", response_model=RiskLimitsOut)
+def get_risk_limits(session: SessionDep, user_id: UserIdDep) -> RiskLimitsOut:
+    """Phase 8.5: the account's own pre-trade limits; all null until set."""
+    portfolio = ensure_default_portfolio(session, user_id)
+    return _limits_out(session.get(RiskLimit, portfolio.id))
+
+
+@router.put("/portfolio/limits", response_model=RiskLimitsOut)
+def put_risk_limits(session: SessionDep, user_id: UserIdDep, body: RiskLimitsIn) -> RiskLimitsOut:
+    """Replace every limit at once; a null clears that limit."""
+    portfolio = ensure_default_portfolio(session, user_id)
+    assert portfolio.id is not None
+    row = session.get(RiskLimit, portfolio.id) or RiskLimit(portfolio_id=portfolio.id)
+    for name in RISK_LIMIT_COLUMNS:
+        setattr(row, name, getattr(body, name))
+    row.updated_at = utcnow()
+    session.add(row)
+    session.commit()
+    session.refresh(row)
+    return _limits_out(row)
+
+
+@router.get("/portfolio/limits/check", response_model=LimitPreviewOut)
+def preview_limits(
+    session: SessionDep,
+    user_id: UserIdDep,
+    ticker: Annotated[str, Query(min_length=1, max_length=16)],
+    quantity: Annotated[Decimal, Query(gt=0)],
+) -> LimitPreviewOut:
+    """What buying ``quantity`` of ``ticker`` at the latest close would do to
+    each limit (the order review shows it before the user places the order)."""
+    portfolio = ensure_default_portfolio(session, user_id)
+    base = portfolio.base_currency or "USD"
+    try:
+        priced = resolve_priced_symbol(session, ticker.upper(), base=base)
+    except TradeExecutionError as exc:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from exc
+    base_cost = priced.price * quantity * priced.fx_rate
+    checks = check_buy(
+        session,
+        portfolio,
+        ticker=priced.symbol.ticker,
+        currency=priced.currency,
+        quantity=quantity,
+        price=priced.price,
+        base_cost=base_cost,
+        base_debit=base_cost,
+    )
+    return LimitPreviewOut(
+        ticker=priced.symbol.ticker,
+        quantity=quantity,
+        checks=[
+            LimitCheckOut(
+                limit=c.limit,
+                label=c.label,
+                cap=c.cap,
+                value_after=c.value_after,
+                breached=c.breached,
+                note=c.note,
+            )
+            for c in checks
+        ],
+        breached=any(c.breached for c in checks),
     )
 
 

@@ -407,7 +407,7 @@ export async function Rankings() {
       </div>
       <ol className="sr-only">
         {top.map((entry: LeaderboardEntry) => (
-          <li key={entry.user_id}>
+          <li key={entry.handle}>
             Rank {entry.rank}: {entry.username}, {entry.return_pct >= 0 ? "up" : "down"}{" "}
             {Math.abs(entry.return_pct).toFixed(2)}%, account value{" "}
             {formatCurrency(entry.portfolio_value, "USD")}

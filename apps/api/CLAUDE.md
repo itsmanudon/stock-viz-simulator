@@ -309,6 +309,91 @@ event holds back later events of its topic and key in the batch; after
 shows in `stockviz.cli outbox-dead` and `/health`'s `dead_outbox_events`.
 Migration `d55cf5f51697`.
 
+**Returns (Phase 8.1, #68).** `services/trading/returns.py` (pure):
+`time_weighted_return` chains sub-period returns between valuation points and
+takes outside flows (none exist yet: paper accounts get no deposits, so the
+account's TWR equals its NAV return); `period_returns` gives 1M, 3M, YTD, 1Y
+and ALL, each starting at the last point on or before its start (ALL at the
+opening value), null with a reason when the account is younger, annualised
+only past a year; `xirr` solves dated flows (Newton, bisection fallback),
+null with a reason under 30 days or without a sign change.
+`returns_ledger.py` reads the flows in the base currency: equity fills at
+`trades.fx_rate`, dividends at `base_value`, today's value at the latest
+rate; the options book as one line (USD accounts only; a book that expired
+worthless is -100%). `PortfolioAnalyticsOut.returns` carries the periods,
+the account's and each holding's XIRR, and each method's name and basis.
+#68: `PortfolioOut.unrealized_pl` is equities plus open options
+(`unrealized_pl_equity`, `unrealized_pl_options`), and `realized_pl` sums
+equity sells and option closes in the base, with `realized_pl_unavailable`
+counting closes that have no stored figure (never estimated).
+
+**Exposure and FX attribution (Phase 8.2).** `services/trading/exposure.py`:
+weights of NAV (display currency) by sector, instrument country and
+currency, equities at market value and cash under its currency ("Cash" for
+sector and country); open options beside them at delta-adjusted notional
+(`PortfolioOptionPosition.delta_notional`), never added into the weights.
+`attribution.py`: per holding, the gain since entry in the base currency
+split into price (qty x (close - avg cost) x entry rate), currency (qty x
+avg cost x (rate now - entry rate)) and cross, which sum exactly to value
+minus cost; the entry rate is the notional-weighted `trades.fx_rate` of the
+current holding's buys (after the running quantity last reached zero), and
+dividends since then are income. Both on `PortfolioAnalyticsOut`
+(`exposure`, `attribution`) with their method and basis.
+
+**Risk (Phase 8.3).** `GET /v1/portfolio/risk` (authed, computed on
+request) runs `services/risk/`: `scenarios.py` replays today's holdings over
+the last 500 dates with a stored bar for any held stock (250 needed, else a
+`reason`), each stock's close-to-close return combined with its currency's
+move into the base (`(1 + local)(1 + fx) - 1`), the market index (`^NSEI`
+for Indian listings, `^GSPC` otherwise) before a stock's own history starts
+(listed as proxied), 0 on its market's closed days; foreign cash moves with
+its currency; open options repriced in full with Black-Scholes at the
+scenario spot, today's volatility and the horizon off their expiry.
+`engine.py` (pure): VaR = the k-th largest loss, k = ceil(n x (1 -
+confidence)), CVaR = the mean of those k; 95% and 99% over 1 and 10
+sessions (overlapping real 10-session windows, not the square-root rule);
+a stationary block bootstrap (mean block 5, 10,000 paths, 252 sessions,
+fixed seed) of the portfolio's daily returns. The worked examples are in
+`docs/benchmarks/2026-11-13-risk-hand-check.md`, each asserted by a test.
+
+**Stress tests (Phase 8.4).** `GET /v1/portfolio/stress` (authed, on
+request) runs `services/risk/stress.py`: every scenario applied instantly to
+today's holdings in the base currency (stocks by the scenario's move,
+currencies by its rate move, foreign cash with its currency, options
+repriced in full). Historical replays (`HISTORICAL`: 2008, COVID 2020, 2022
+rates, 2013 taper) use each stock's own close-to-close move over the window
+(a start bar within a week of the window's start), else its index's move
+times its beta over the last 500 sessions (`proxied`), else `missing` and
+unmoved. Fixed shocks (`HYPOTHETICAL`) move US-listed and Indian-listed
+stocks by instrument country, and the rupee against the dollar. The combined
+shock is worked by hand in `docs/benchmarks/2026-11-13-risk-hand-check.md`.
+
+**Pre-trade limits (Phase 8.5).** `risk_limits` (one row per portfolio,
+migration `a3e5c7f9b812`, every cap nullable: off until the user sets it;
+check constraints keep each in (0, 100]). `services/risk/limits.py`:
+`check_buy` evaluates, as % of NAV in the base currency before the fill,
+the holding after the fill, the order's cost, the sector after, a non-base
+currency's stocks and cash after, and (only when set) an estimated 1-day 95%
+VaR with the order added (`not checked: ...` without 250 sessions).
+`apply_fill` calls `enforce_buy` on buys under the portfolio lock before
+anything moves (`LimitBreached`, a `TradeExecutionError`: 409 on
+`POST /v1/trades`, a cancel with the reason at settlement); option exercise
+passes `check_limits=False`. Option opens check the premium against the
+single-order cap only (`enforce_option_open`, 409). Sells are never checked.
+`GET`/`PUT /v1/portfolio/limits`, `GET /v1/portfolio/limits/check?ticker=&quantity=`
+(the order review's preview).
+
+**Phase 8.6 small items.** SR-12: `users.public_handle` (unique, random
+`trader-xxxxxx`, given to every existing user by migration `c4f6a8b0d923`
+and to anyone else when the profile or the leaderboard first needs it) and
+`users.display_name` (2 to 40 characters, no "@", set through `PATCH
+/v1/profile`). `/v1/leaderboard` returns `handle` and `username` (display
+name, else handle), never the database id, the signup name or the email,
+and is limited to 30/min; the cache keeps each entry's user id beside it for
+the visibility check only (`visible_leaderboard`). Goals: `GET
+/v1/portfolio/risk?goal=` adds `monte_carlo.goal` and `prob_goal`, the share
+of the one-year bootstrap paths ending at or above it.
+
 **Status (audit OP-5, Phase 7.6).** `GET /v1/status` (public, 30/min):
 each recorded job's latest run (name, state, start, finish, last success),
 the latest Aegis sync's state and time, the newest daily bar per market
