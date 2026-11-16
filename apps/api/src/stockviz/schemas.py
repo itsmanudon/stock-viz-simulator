@@ -262,6 +262,8 @@ class PortfolioOptionOut(BaseModel):
     side: Literal["long", "short"] = "long"
     """A short leg's ``premium_paid`` is the premium it received, and its
     ``market_value`` is negative: what buying it back would cost."""
+    strategy: str | None = None
+    """The strategy this leg was opened in, in words (Phase 9.3)."""
 
 
 class ValuationWarningOut(BaseModel):
@@ -1444,11 +1446,101 @@ class OptionPositionOut(BaseModel):
     greeks: OptionGreeksOut
     side: Literal["long", "short"] = "long"
     """``premium_paid`` is the premium received for a short leg (Phase 9.2)."""
-    cover: Literal["shares", "cash"] | None = None
+    cover: Literal["shares", "cash", "leg"] | None = None
     collateral: Decimal = Decimal(0)
     """USD a cash-secured put holds back while open; 0 otherwise."""
     shares_reserved: Decimal = Decimal(0)
     """Shares a covered call holds back while open; 0 otherwise."""
+    strategy_id: int | None = None
+    """The strategy this leg was opened in (Phase 9.3)."""
+    covering_leg_id: int | None = None
+
+
+class OptionStrategyIn(BaseModel):
+    """A strategy from a template (Phase 9.3). Strikes go low to high:
+
+    - one strike: covered_call, cash_secured_put, protective_put, straddle,
+      calendar (with ``far_expiry`` and ``option_type``);
+    - two: bull_call, bear_put, bull_put, bear_call, strangle;
+    - four: iron_condor (long put, short put, short call, long call).
+    """
+
+    kind: Literal[
+        "covered_call", "cash_secured_put", "protective_put", "bull_call", "bear_put",
+        "bull_put", "bear_call", "iron_condor", "straddle", "strangle", "calendar",
+    ]  # fmt: skip
+    ticker: str = Field(min_length=1, max_length=16)
+    strikes: list[Decimal] = Field(min_length=1, max_length=4)
+    expiry: date
+    far_expiry: date | None = None
+    option_type: Literal["call", "put"] | None = None
+    quantity: int = Field(ge=1, le=1_000)
+    client_order_id: ClientOrderId = None
+
+    @field_validator("strikes")
+    @classmethod
+    def _bounded_strikes(cls, value: list[Decimal]) -> list[Decimal]:
+        from stockviz.services.trading.bounds import MAX_PRICE, check_amount
+
+        return [check_amount(v, name="strike", maximum=MAX_PRICE) for v in value]
+
+
+class OptionStrategyLegOut(BaseModel):
+    """One leg of a strategy quote: priced per share and for the whole leg (USD)."""
+
+    side: Literal["long", "short"]
+    option_type: Literal["call", "put"]
+    strike: Decimal
+    expiry: date
+    per_share: Decimal
+    premium: Decimal
+
+
+class OptionStrategyRiskOut(BaseModel):
+    """The strategy's figures at open, in USD. ``net_premium`` is positive when
+    credited; ``collateral`` is cash held back while it is open (a covered
+    call's ``shares_reserved`` instead); ``max_gain`` null when unbounded or,
+    for a calendar, not stated; ``breakevens`` underlying prices at expiry."""
+
+    net_premium: Decimal
+    collateral: Decimal
+    shares_reserved: Decimal
+    max_loss: Decimal
+    max_gain: Decimal | None
+    breakevens: list[Decimal]
+    basis: str
+
+
+class OptionStrategyQuoteOut(BaseModel):
+    kind: str
+    label: str
+    ticker: str
+    quantity: int
+    spot: Decimal
+    spot_at: datetime
+    legs: list[OptionStrategyLegOut]
+    risk: OptionStrategyRiskOut
+
+
+class OptionStrategyOut(BaseModel):
+    """An opened strategy and its legs. ``status`` is ``open``, ``closed`` (by
+    the user) or ``settled`` (at expiry)."""
+
+    id: int
+    kind: str
+    label: str
+    status: str
+    net_premium: Decimal
+    collateral: Decimal
+    max_loss: Decimal | None
+    max_gain: Decimal | None
+    opened_at: datetime
+    legs: list[OptionPositionOut]
+
+
+class OptionStrategyTradeOut(BaseModel):
+    strategy: OptionStrategyOut
+    cash_delta: Decimal
 
 
 class OptionTradeOut(BaseModel):

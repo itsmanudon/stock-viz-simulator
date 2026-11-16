@@ -474,7 +474,9 @@ def _write_covered(
             spendable = available_cash(session, portfolio)
         except LookupError as exc:
             raise NoFxRateError(str(exc)) from exc
-        if spendable < collateral:
+        # The premium is credited into cash, so it counts toward the cover; it
+        # is never also left spendable (the full strike value stays reserved).
+        if spendable + premium < collateral:
             raise InsufficientCoverForOption(
                 f"A cash-secured put reserves USD {collateral:,.2f} (its strike value); "
                 f"available buying power is USD {spendable:,.2f}."
@@ -522,6 +524,18 @@ def close_option(session: Session, *, user_id: int, option_id: int) -> OptionTra
         raise OptionTradeError(f"Option position is already {position.status.value}")
     if position.expiry < _today():
         raise OptionTradeError("This expired option is awaiting expiry settlement")
+    if position.side == OptionSide.LONG:
+        covers = session.exec(
+            select(OptionsPosition).where(
+                OptionsPosition.covering_leg_id == position.id,
+                OptionsPosition.status == OptionStatus.OPEN,
+            )
+        ).first()
+        if covers is not None:
+            raise OptionTradeError(
+                "This long leg covers an open short leg of the same strategy; buy the "
+                "short leg back first, or close the whole strategy."
+            )
 
     price = value_option(session, position)
     proceeds = (
@@ -546,6 +560,7 @@ def close_option(session: Session, *, user_id: int, option_id: int) -> OptionTra
     _record_realization(position, proceeds=proceeds)
     session.add(portfolio)
     session.add(position)
+    _refresh_strategy(session, position)
     session.commit()
     session.refresh(position)
     return OptionTradeResult(position=position, cash_delta=proceeds)
@@ -571,9 +586,17 @@ def _buy_back(
     _record_realization(position, proceeds=-cost, realized_pnl=position.premium_paid - cost)
     session.add(portfolio)
     session.add(position)
+    _refresh_strategy(session, position)
     session.commit()
     session.refresh(position)
     return OptionTradeResult(position=position, cash_delta=-cost)
+
+
+def _refresh_strategy(session: Session, position: OptionsPosition) -> None:
+    from stockviz.services.options.strategies import refresh_strategy_status
+
+    session.flush()
+    refresh_strategy_status(session, position.strategy_id)
 
 
 def _record_realization(
@@ -792,6 +815,19 @@ def settle_expired_options(session: Session, *, settle_date: date_type) -> int:
     # Long legs settle before short ones (design note, section 5): a long
     # leg's exercise may bring in what a short leg then needs.
     expired.sort(key=lambda p: (p.side == OptionSide.SHORT, p.id or 0))
+    from stockviz.services.options.strategies import is_multi_leg
+
+    # Multi-leg strategies settle as a unit from batch 9.4; until then their
+    # legs wait (a spread's long leg exercised into shares on its own would
+    # leave its short leg uncovered).
+    waiting = [p for p in expired if is_multi_leg(session, p)]
+    for position in waiting:
+        logger.warning(
+            "options_settle: strategy %s leg %s waits for strategy settlement",
+            position.strategy_id,
+            position.id,
+        )
+    expired = [p for p in expired if p not in waiting]
     settled = 0
     for position in expired:
         # Only the expiry session's close may settle a contract (LG-3).
@@ -837,6 +873,7 @@ def settle_expired_options(session: Session, *, settle_date: date_type) -> int:
         position.settled_at = utcnow()
         session.add(portfolio)
         session.add(position)
+        _refresh_strategy(session, position)
         from stockviz.models import NotificationCategory
         from stockviz.services.notifications import notify
 

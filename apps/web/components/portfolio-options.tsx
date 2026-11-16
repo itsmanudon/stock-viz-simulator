@@ -72,6 +72,11 @@ export function PortfolioOptions({
                     <span className="ml-2 text-xs font-medium text-muted-foreground">
                       {contractLabel(position)}
                     </span>
+                    {position.strategy ? (
+                      <span className="mt-0.5 block text-2xs text-muted-foreground">
+                        Leg of a {position.strategy.toLowerCase()}
+                      </span>
+                    ) : null}
                   </TableCell>
                   <TableCell className="text-right font-mono" data-financial>
                     {formatCurrency(position.strike, position.currency)}
@@ -201,6 +206,10 @@ function CloseOption({
 /** "call" or "put"; a written leg says what covers it (Phase 9.2). */
 function contractLabel(position: PortfolioOption): string {
   if (position.side !== "short") return position.option_type;
+  // A short leg of a spread or calendar is covered by the strategy's long leg.
+  const coveredBySpread =
+    position.strategy && !["Covered call", "Cash-secured put"].includes(position.strategy);
+  if (coveredBySpread) return `${position.option_type} (written)`;
   return position.option_type === "call" ? "Covered call (written)" : "Cash-secured put (written)";
 }
 

@@ -97,6 +97,8 @@ export type PortfolioOption = {
    * its Greeks are the position's (negated).
    */
   side?: "long" | "short";
+  /** The strategy this leg belongs to, in words (Phase 9.3). */
+  strategy?: string | null;
 };
 
 export type TradeRow = {
