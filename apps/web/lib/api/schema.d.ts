@@ -658,6 +658,23 @@ export interface paths {
         patch: operations["update_drawing_v1_drawings__drawing_id__patch"];
         trace?: never;
     };
+    "/v1/symbols/{ticker}/avwap": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Avwap */
+        get: operations["get_avwap_v1_symbols__ticker__avwap_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/portfolio": {
         parameters: {
             query?: never;
@@ -2210,6 +2227,61 @@ export interface components {
             /** Setup Version Id */
             setup_version_id?: number | null;
         };
+        /** AvwapOut */
+        AvwapOut: {
+            /** Ticker */
+            ticker: string;
+            /**
+             * Anchor
+             * Format: date
+             */
+            anchor: string;
+            /**
+             * Anchor Bar
+             * Format: date
+             */
+            anchor_bar: string;
+            /**
+             * Interval
+             * @enum {string}
+             */
+            interval: "1d" | "1wk" | "1mo";
+            /** Bands */
+            bands: number;
+            /**
+             * Computed From
+             * @default daily
+             * @constant
+             */
+            computed_from: "daily";
+            /** Decimals */
+            decimals: number;
+            /** Points */
+            points: components["schemas"]["AvwapPointOut"][];
+        };
+        /**
+         * AvwapPointOut
+         * @description One bar's anchored VWAP. ``ts`` is the bar's time as the bars route
+         *     gives it (on weekly/monthly the period's last stored session). Bands are
+         *     null unless asked for.
+         */
+        AvwapPointOut: {
+            /**
+             * Ts
+             * Format: date-time
+             */
+            ts: string;
+            /** Vwap */
+            vwap: number;
+            /** Upper1 */
+            upper1?: number | null;
+            /** Lower1 */
+            lower1?: number | null;
+            /** Upper2 */
+            upper2?: number | null;
+            /** Lower2 */
+            lower2?: number | null;
+        };
         /** BacktestFeeOut */
         BacktestFeeOut: {
             /** Name */
@@ -2678,7 +2750,7 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "trendline" | "ray" | "hline" | "rectangle" | "channel" | "fib_retracement" | "fib_extension" | "ruler" | "text" | "position_long" | "position_short";
+            kind: "trendline" | "ray" | "hline" | "rectangle" | "channel" | "fib_retracement" | "fib_extension" | "ruler" | "text" | "position_long" | "position_short" | "avwap";
             /** Points */
             points: components["schemas"]["DrawingPoint-Input"][];
             style?: components["schemas"]["DrawingStyle"];
@@ -2700,7 +2772,7 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "trendline" | "ray" | "hline" | "rectangle" | "channel" | "fib_retracement" | "fib_extension" | "ruler" | "text" | "position_long" | "position_short";
+            kind: "trendline" | "ray" | "hline" | "rectangle" | "channel" | "fib_retracement" | "fib_extension" | "ruler" | "text" | "position_long" | "position_short" | "avwap";
             /** Points */
             points: components["schemas"]["DrawingPoint-Output"][];
             style: components["schemas"]["DrawingStyle"];
@@ -2738,25 +2810,27 @@ export interface components {
          * DrawingPoint
          * @description An anchor: a daily bar's venue date and a price. ``ts`` is null only
          *     where the kind takes a price alone (an hline, a position's stop and
-         *     target).
+         *     target). ``price`` is null only for an anchored VWAP (A3.3), whose one
+         *     point is its anchor date.
          */
         "DrawingPoint-Input": {
             /** Ts */
             ts?: string | null;
             /** Price */
-            price: number | string;
+            price?: number | string | null;
         };
         /**
          * DrawingPoint
          * @description An anchor: a daily bar's venue date and a price. ``ts`` is null only
          *     where the kind takes a price alone (an hline, a position's stop and
-         *     target).
+         *     target). ``price`` is null only for an anchored VWAP (A3.3), whose one
+         *     point is its anchor date.
          */
         "DrawingPoint-Output": {
             /** Ts */
             ts?: string | null;
             /** Price */
-            price: string;
+            price?: string | null;
         };
         /** DrawingStyle */
         DrawingStyle: {
@@ -2782,6 +2856,11 @@ export interface components {
              * @default 0.12
              */
             fill_opacity: number;
+            /**
+             * Bands
+             * @default 0
+             */
+            bands: number;
         };
         /** DrawingsOut */
         DrawingsOut: {
@@ -5394,6 +5473,11 @@ export interface components {
             warmup_whole_history: boolean;
             /** Uses */
             uses?: string[];
+            /**
+             * User Scoped
+             * @default false
+             */
+            user_scoped: boolean;
             error?: components["schemas"]["RuleErrorOut"] | null;
         };
         /** RuleErrorOut */
@@ -5621,6 +5705,11 @@ export interface components {
             /** Evaluated */
             evaluated: number;
             /**
+             * User Scoped
+             * @default false
+             */
+            user_scoped: boolean;
+            /**
              * Cached
              * @default false
              */
@@ -5795,6 +5884,11 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+            /**
+             * User Scoped
+             * @default false
+             */
+            user_scoped: boolean;
         };
         /**
          * SmaCrossoverStrategy
@@ -7843,6 +7937,42 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DrawingOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_avwap_v1_symbols__ticker__avwap_get: {
+        parameters: {
+            query: {
+                /** @description Anchor date, YYYY-MM-DD */
+                anchor: string;
+                interval?: "1d" | "1wk" | "1mo";
+                bands?: number;
+            };
+            header?: never;
+            path: {
+                ticker: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AvwapOut"];
                 };
             };
             /** @description Validation Error */

@@ -8,7 +8,7 @@ import type { StockInterval } from "@/lib/stock-workspace";
 
 import { anchorLogical, logicalToDate } from "./anchor";
 import type { DrawingKind, DrawingPoint } from "./kinds";
-import { pointForStep } from "./kinds";
+import { kindSpec, pointForStep } from "./kinds";
 
 /** A price from the chart, rounded for storage: 2 decimals, or 4 under 1. */
 export function roundPrice(price: number): string {
@@ -47,7 +47,14 @@ export function dragPoints(
   }
   const dLogical = Math.round(now.logical - start.logical);
   const dPrice = now.price - start.price;
+  const dateOnly = kindSpec(kind).dateOnly === true;
   return points.map((p) => {
+    if (dateOnly && p.ts) {
+      // An anchored VWAP moves in time only; its line follows the data.
+      const logical = anchorLogical(p.ts, interval, barDates);
+      const ts = logical === null ? p.ts : (logicalToDate(logical + dLogical, barDates) ?? p.ts);
+      return { ts, price: "" };
+    }
     const price = roundPrice(Number(p.price) + dPrice);
     if (!p.ts) return { ts: null, price };
     const logical = anchorLogical(p.ts, interval, barDates);

@@ -8,6 +8,7 @@
  */
 
 import {
+  Activity,
   AlignJustify,
   ChartNoAxesGantt,
   Equal,
@@ -44,6 +45,7 @@ const ICONS: Record<DrawingKind, LucideIcon> = {
   text: Type,
   position_long: TrendingUp,
   position_short: TrendingDown,
+  avwap: Activity,
 };
 
 type Props = {

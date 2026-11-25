@@ -17,6 +17,10 @@ const actions = vi.hoisted(() => ({
   deleteDrawingAction: vi.fn(),
 }));
 vi.mock("@/app/(product)/stocks/[ticker]/drawing-actions", () => actions);
+vi.mock("@/app/(product)/stocks/[ticker]/avwap-actions", () => ({
+  avwapAction: vi.fn(async () => ({ error: "not in this test" })),
+  lastEarningsDateAction: vi.fn(async () => ({ date: null })),
+}));
 
 const bar = (ts: string, close: string) => ({
   ts: `${ts}T00:00:00`,
@@ -102,6 +106,7 @@ describe("ChartWorkbench", () => {
       "Text note",
       "Long position",
       "Short position",
+      "Anchored VWAP",
       "Undo",
       "Redo",
     ]) {

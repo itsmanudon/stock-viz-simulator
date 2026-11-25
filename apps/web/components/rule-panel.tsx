@@ -233,7 +233,7 @@ export function RulePanel({
         </div>
 
         <div id={`${id}-status`} aria-live="polite" className="min-h-5 text-xs">
-          <RuleStatus status={status} text={text} />
+          <RuleStatus status={status} text={text} signedIn={signedIn} />
         </div>
 
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -305,7 +305,15 @@ export function RulePanel({
   );
 }
 
-function RuleStatus({ status, text }: { status: Check; text: string }) {
+function RuleStatus({
+  status,
+  text,
+  signedIn,
+}: {
+  status: Check;
+  text: string;
+  signedIn: boolean;
+}) {
   if (status.state === "idle") {
     return <span className="text-text-tertiary">Write a condition, for example {EXAMPLE}.</span>;
   }
@@ -348,6 +356,13 @@ function RuleStatus({ status, text }: { status: Check; text: string }) {
       <p className="break-words font-mono text-2xs text-text-tertiary" data-testid="canonical">
         {result.canonical}
       </p>
+      {result.user_scoped ? (
+        <p className="text-2xs text-text-secondary" data-testid="rule-user-scoped">
+          {signedIn
+            ? "Uses your drawings; only you can run it. Symbols without the named drawing are unknown."
+            : "Uses drawings, which belong to one person: sign in to run it on yours."}
+        </p>
+      ) : null}
     </div>
   );
 }

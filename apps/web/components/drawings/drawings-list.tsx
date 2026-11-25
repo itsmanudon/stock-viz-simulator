@@ -4,7 +4,8 @@
  * The "Drawings" list (A3.2): every drawing on the symbol with edit, lock
  * and delete, and a form that adds one by typing dates and prices. This is
  * the keyboard path and the phone path: drawing by touch on a small chart is
- * hard, so any kind can be added and edited here.
+ * hard, so any kind can be added and edited here. An anchored VWAP (A3.3)
+ * takes a date only, a label (rules name it) and its bands.
  */
 
 import { useId, useState } from "react";
@@ -34,6 +35,8 @@ export type PointsDraft = {
   points: DrawingPoint[];
   label: string;
   colour: DrawingColour;
+  /** Anchored VWAP bands, 0-2 (A3.3); other kinds ignore it. */
+  bands?: number;
 };
 
 type Bounds = { first: string | null; last: string | null };
@@ -54,7 +57,9 @@ export function draftProblem(draft: PointsDraft, bounds: Bounds): string | null 
   const spec = kindSpec(draft.kind);
   for (const [i, p] of draft.points.entries()) {
     const price = Number(p.price);
-    if (!p.price.trim() || !Number.isFinite(price) || price <= 0) {
+    if (spec.dateOnly) {
+      if (!p.ts) return `Enter a date for ${spec.steps[i]}.`;
+    } else if (!p.price.trim() || !Number.isFinite(price) || price <= 0) {
       return `Enter a price above 0 for ${spec.steps[i]}.`;
     }
     if (p.ts !== null) {
@@ -65,6 +70,9 @@ export function draftProblem(draft: PointsDraft, bounds: Bounds): string | null 
     }
   }
   if (draft.kind === "text" && !draft.label.trim()) return "A text note needs its text.";
+  if (spec.needsLabel && !draft.label.trim()) {
+    return 'Give it a label: rules name it, e.g. avwap("swing").';
+  }
   if (draft.kind === "position_long" || draft.kind === "position_short") {
     const [entry, stop, target] = draft.points.map((p) => Number(p.price));
     const side = draft.kind === "position_long" ? "long" : "short";
@@ -158,20 +166,22 @@ function PointsForm({
                 onChange={(event) => setPoint(i, { ts: event.target.value })}
               />
             ) : null}
-            <input
-              type="text"
-              inputMode="decimal"
-              aria-label={`${spec.steps[i]} price`}
-              placeholder="Price"
-              className={cn(FIELD, "font-mono")}
-              value={point.price}
-              onChange={(event) => setPoint(i, { price: event.target.value.trim() })}
-              data-testid={`drawing-price-${i}`}
-            />
+            {spec.dateOnly ? null : (
+              <input
+                type="text"
+                inputMode="decimal"
+                aria-label={`${spec.steps[i]} price`}
+                placeholder="Price"
+                className={cn(FIELD, "font-mono")}
+                value={point.price}
+                onChange={(event) => setPoint(i, { price: event.target.value.trim() })}
+                data-testid={`drawing-price-${i}`}
+              />
+            )}
           </fieldset>
         ))}
         <label className="grid gap-1 text-2xs text-text-tertiary">
-          {draft.kind === "text" ? "Text" : "Label (optional)"}
+          {draft.kind === "text" ? "Text" : spec.needsLabel ? "Label" : "Label (optional)"}
           <input
             type="text"
             maxLength={80}
@@ -181,6 +191,21 @@ function PointsForm({
             data-testid="drawing-label"
           />
         </label>
+        {draft.kind === "avwap" ? (
+          <label className="grid gap-1 text-2xs text-text-tertiary">
+            Bands
+            <select
+              className={FIELD}
+              value={draft.bands ?? 0}
+              onChange={(event) => setDraft((d) => ({ ...d, bands: Number(event.target.value) }))}
+              data-testid="drawing-bands"
+            >
+              <option value={0}>None</option>
+              <option value={1}>±1σ</option>
+              <option value={2}>±1σ and ±2σ</option>
+            </select>
+          </label>
+        ) : null}
         <label className="grid gap-1 text-2xs text-text-tertiary">
           Colour
           <select
@@ -363,6 +388,7 @@ export function DrawingsList({
                         points: toPoints(drawing.points),
                         label: drawing.label ?? "",
                         colour: drawing.style.colour,
+                        bands: drawing.style.bands ?? 0,
                       }}
                       kindLocked
                       bounds={bounds}

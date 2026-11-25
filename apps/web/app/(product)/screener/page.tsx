@@ -49,7 +49,9 @@ import {
   getScreenerPage,
   listSymbols,
 } from "@/lib/api";
+import { getScreenerPageAsUser } from "@/lib/api/screener-server";
 import { type SavedScreen, listSavedScreens } from "@/lib/api/screens";
+import { AuthedApiError, UnauthenticatedError } from "@/lib/api/server";
 import { listPresets } from "@/lib/api/setups";
 import { listWatchlists } from "@/lib/api/watchlist";
 import { buildCompareHref } from "@/lib/compare-workspace";
@@ -135,14 +137,27 @@ export default async function ScreenerPage({
   let total = 0;
   let errorMessage: string | null = null;
   let screen: ScreenerPageData | null = null;
+  // A3.3: a rule runs as the signed-in user, so rules that read their
+  // drawings (drawing(), avwap()) resolve on theirs and nobody else's.
+  const session = await auth();
+  const signedIn = Boolean(session?.user?.id);
+  const asUser = signedIn && Boolean(rule);
   try {
-    screen = await getScreenerPage(screenerApiQuery(params, PAGE_SIZE));
+    const query = screenerApiQuery(params, PAGE_SIZE);
+    screen = asUser ? await getScreenerPageAsUser(query) : await getScreenerPage(query);
     results = screen.rows;
     total = screen.total;
   } catch (err) {
-    if (err instanceof ApiError) {
+    if (err instanceof ApiError || err instanceof AuthedApiError) {
+      const status = err.status;
       const ruleError = rule ? ruleErrorFromMessage(err.message) : null;
-      errorMessage = ruleError ? `Rule: ${describeRuleError(ruleError)}` : err.message;
+      errorMessage = ruleError
+        ? `Rule: ${describeRuleError(ruleError)}`
+        : status === 401 && rule
+          ? "This rule reads your drawings (drawing() or avwap()). Sign in to run it."
+          : err.message;
+    } else if (err instanceof UnauthenticatedError) {
+      errorMessage = "Sign in to run this rule.";
     } else {
       throw err;
     }
@@ -162,8 +177,6 @@ export default async function ScreenerPage({
   const pageNumber = parseScreenerPage(params);
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
-  const session = await auth();
-  const signedIn = Boolean(session?.user?.id);
   let savedScreens: SavedScreen[] = [];
   // A2.5: the lists the bulk "Add to list" offers (signed in only).
   let watchlists: ListChoice[] = [];
