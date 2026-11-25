@@ -93,6 +93,27 @@ test("authenticated stock workspace exposes account-aware actions", async ({ pag
   await expect(page.getByRole("button", { name: "Add AAPL to watchlist" })).toBeVisible();
   await page.getByRole("button", { name: "Alert", exact: true }).click();
   await expect(page.getByLabel("Set an alert for AAPL")).toBeVisible();
+  await page.keyboard.press("Escape");
+
+  // A3.2: a horizontal line added by typing survives a reload and shows on
+  // weekly bars (canvas pixels are not assertable: the list and the chart's
+  // drawing count are).
+  const main = page.locator("#main");
+  const list = main.getByTestId("drawings-list").first();
+  await list.getByTestId("drawing-add-toggle").click();
+  await list.getByTestId("drawing-price-0").fill("150");
+  await list.getByTestId("drawing-label").fill("E2E level");
+  await list.getByTestId("drawing-submit").click();
+  await expect(list.getByTestId("drawing-item")).toHaveCount(1);
+  await page.reload();
+  await expect(main.getByTestId("drawing-item").first()).toContainText(
+    'Horizontal line "E2E level", at 150',
+  );
+  await page.goto("/stocks/AAPL?interval=1wk");
+  const weekly = main.getByTestId("drawings-list").first();
+  await expect(weekly.getByTestId("drawing-item")).toHaveCount(1);
+  await expect(weekly.getByTestId("drawing-item").first()).toHaveAttribute("data-kind", "hline");
+  await expect(main.getByTestId("price-chart").first()).toHaveAttribute("data-drawing-count", "1");
 });
 
 test("the statistics strip shows every label and price in full (audit D1)", async ({ page }) => {

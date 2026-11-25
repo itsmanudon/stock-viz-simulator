@@ -42,6 +42,8 @@ import {
 import { ChevronDown, ChevronUp } from "lucide-react";
 import {
   type KeyboardEvent,
+  type PointerEvent as ReactPointerEvent,
+  type SyntheticEvent,
   useCallback,
   useEffect,
   useId,
@@ -65,6 +67,11 @@ import {
 import { fitWithLabelRoom } from "@/lib/chart-range";
 import { type ChartPalette, useChartPalette } from "@/lib/chart-theme";
 import type { ChartScale, ChartType } from "@/lib/chart-view";
+import { barDate } from "@/lib/drawings/anchor";
+import { dragPoints, placePoint } from "@/lib/drawings/drag";
+import type { DrawingPoint } from "@/lib/drawings/kinds";
+import { DrawingsPrimitive } from "@/lib/drawings/primitive";
+import { type SceneDrawing, hitScene } from "@/lib/drawings/scene";
 import { heikinAshi } from "@/lib/heikin-ashi";
 import {
   type ChartPane,
@@ -79,6 +86,25 @@ export type PriceChartMarker = {
   color: string;
   shape: "arrowUp" | "arrowDown" | "circle";
   text: string;
+};
+
+/**
+ * A3.2: the drawings on the price pane and what the pointer does with them.
+ * Drawings are drawn by one series primitive (`lib/drawings/primitive.ts`).
+ */
+export type ChartDrawingLayer = {
+  /** Saved drawings plus the one being placed (id "draft"). */
+  drawings: SceneDrawing[];
+  selectedId: string | null;
+  /** A tool is active: a click places its next anchor. */
+  placingKind: SceneDrawing["kind"] | null;
+  /** Anchors already placed for the tool. */
+  placedCount: number;
+  onPlace: (point: DrawingPoint) => void;
+  /** Where the next anchor would go, while placing (null when the pointer leaves). */
+  onPreview: (point: DrawingPoint | null) => void;
+  onSelect: (id: string | null) => void;
+  onMoved: (id: string, points: DrawingPoint[]) => void;
 };
 
 type Props = {
@@ -96,7 +122,10 @@ type Props = {
   chartType?: ChartType;
   scale?: ChartScale;
   showVolume?: boolean;
+  drawingLayer?: ChartDrawingLayer;
 };
+
+const DRAG_THRESHOLD_PX = 4;
 
 const TIME_AXIS_PX = 28;
 const SEPARATOR_PX = 1;
@@ -195,12 +224,18 @@ export function PriceChart({
   chartType = "candles",
   scale = "linear",
   showVolume = true,
+  drawingLayer,
 }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const mainRef = useRef<{ series: ISeriesApi<SeriesType>; closes: number[] } | null>(null);
   const rangeRef = useRef<{ count: number; range: LogicalRange } | null>(null);
   const palette = useChartPalette();
+  const primitiveRef = useRef<DrawingsPrimitive | null>(null);
+  const layerRef = useRef<ChartDrawingLayer | undefined>(drawingLayer);
+  layerRef.current = drawingLayer;
+  const hasLayer = drawingLayer !== undefined;
+  const barDates = useMemo(() => bars.map((b) => barDate(b.ts)), [bars]);
 
   // Remembered layout: read after mount (localStorage is the browser's), and
   // the chart waits for it so it is built once.
@@ -301,6 +336,11 @@ export function PriceChart({
           const main = addPriceSeries(chart, chartType, candles, palette);
           mainRef.current = main;
           main.series.priceScale().applyOptions({ mode: SCALE_MODE[scale] });
+          if (hasLayer) {
+            const primitive = new DrawingsPrimitive();
+            main.series.attachPrimitive(primitive);
+            primitiveRef.current = primitive;
+          }
           if (markers?.length) {
             createSeriesMarkers(
               main.series,
@@ -403,6 +443,7 @@ export function PriceChart({
       chart.remove();
       chartRef.current = null;
       mainRef.current = null;
+      primitiveRef.current = null;
     };
   }, [
     candles,
@@ -415,7 +456,183 @@ export function PriceChart({
     layout,
     indexByTime,
     measurePanes,
+    hasLayer,
   ]);
+
+  // ---- Drawings (A3.2) ----
+  const fontRef = useRef("sans-serif");
+  const pushDrawings = useCallback(
+    (override?: SceneDrawing[]) => {
+      const layer = layerRef.current;
+      const primitive = primitiveRef.current;
+      if (!layer || !primitive) return;
+      if (containerRef.current && typeof getComputedStyle === "function") {
+        fontRef.current = getComputedStyle(containerRef.current).fontFamily || "sans-serif";
+      }
+      primitive.setState({
+        drawings: override ?? layer.drawings,
+        selectedId: layer.selectedId,
+        interval,
+        barDates,
+        palette,
+        fontFamily: fontRef.current,
+      });
+    },
+    [interval, barDates, palette],
+  );
+  // biome-ignore lint/correctness/useExhaustiveDependencies: a rebuilt chart (new candles, layout, type) needs the drawings again.
+  useEffect(() => {
+    pushDrawings();
+  }, [
+    pushDrawings,
+    drawingLayer?.drawings,
+    drawingLayer?.selectedId,
+    candles,
+    layout,
+    chartType,
+    scale,
+    visible,
+  ]);
+
+  type Grab = {
+    id: string;
+    handle: number | null;
+    start: { logical: number; price: number };
+    startX: number;
+    startY: number;
+    points: DrawingPoint[];
+    kind: SceneDrawing["kind"];
+    moved: DrawingPoint[] | null;
+  };
+  const grabRef = useRef<Grab | null>(null);
+  const downRef = useRef<{ x: number; y: number } | null>(null);
+
+  /** Pointer position in the price pane, or null outside it. */
+  const panePoint = useCallback((clientX: number, clientY: number) => {
+    const el = containerRef.current;
+    const chart = chartRef.current;
+    if (!el || !chart) return null;
+    const rect = el.getBoundingClientRect();
+    const x = clientX - rect.left;
+    const y = clientY - rect.top;
+    const width = chart.timeScale().width();
+    const height = chart.panes()[0]?.getHeight() ?? 0;
+    if (x < 0 || y < 0 || x > width || y > height) return null;
+    return { x, y };
+  }, []);
+
+  const onDrawingPointerDown = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>) => {
+      const layer = layerRef.current;
+      const primitive = primitiveRef.current;
+      if (!layer || !primitive || event.button !== 0) return;
+      downRef.current = { x: event.clientX, y: event.clientY };
+      if (layer.placingKind) return;
+      const at = panePoint(event.clientX, event.clientY);
+      if (!at) return;
+      const hit = hitScene(primitive.shapes, at.x, at.y);
+      if (!hit || hit.id === "draft") return;
+      const drawing = layer.drawings.find((d) => d.id === hit.id);
+      const start = primitive.toChart(at.x, at.y);
+      if (!drawing || drawing.locked || !start) return;
+      // Only the selected drawing moves; a first press selects it.
+      if (layer.selectedId !== drawing.id) return;
+      grabRef.current = {
+        id: drawing.id,
+        handle: hit.handle,
+        start,
+        startX: event.clientX,
+        startY: event.clientY,
+        points: drawing.points,
+        kind: drawing.kind,
+        moved: null,
+      };
+    },
+    [panePoint],
+  );
+
+  // Keep Lightweight Charts from panning while a drawing is grabbed: it
+  // listens for mouse and touch events, which follow the pointer event.
+  const stopIfGrabbed = useCallback((event: SyntheticEvent) => {
+    if (grabRef.current) event.stopPropagation();
+  }, []);
+
+  useEffect(() => {
+    if (!hasLayer) return;
+    const onMove = (event: PointerEvent) => {
+      const layer = layerRef.current;
+      const primitive = primitiveRef.current;
+      const grab = grabRef.current;
+      if (!layer || !primitive) return;
+      if (grab) {
+        if (
+          !grab.moved &&
+          Math.hypot(event.clientX - grab.startX, event.clientY - grab.startY) < DRAG_THRESHOLD_PX
+        )
+          return;
+        const el = containerRef.current;
+        if (!el) return;
+        const rect = el.getBoundingClientRect();
+        const now = primitive.toChart(event.clientX - rect.left, event.clientY - rect.top);
+        if (!now) return;
+        grab.moved = dragPoints(
+          grab.kind,
+          grab.points,
+          grab.handle,
+          grab.start,
+          now,
+          interval,
+          barDates,
+        );
+        pushDrawings(
+          layer.drawings.map((d) =>
+            d.id === grab.id ? { ...d, points: grab.moved ?? d.points } : d,
+          ),
+        );
+        return;
+      }
+      if (layer.placingKind) {
+        const at = panePoint(event.clientX, event.clientY);
+        const chartAt = at ? primitive.toChart(at.x, at.y) : null;
+        layer.onPreview(
+          chartAt ? placePoint(layer.placingKind, layer.placedCount, chartAt, barDates) : null,
+        );
+      }
+    };
+    const onUp = (event: PointerEvent) => {
+      const layer = layerRef.current;
+      const primitive = primitiveRef.current;
+      const grab = grabRef.current;
+      const down = downRef.current;
+      grabRef.current = null;
+      downRef.current = null;
+      if (!layer || !primitive) return;
+      if (grab?.moved) {
+        layer.onMoved(grab.id, grab.moved);
+        return;
+      }
+      if (!down || Math.hypot(event.clientX - down.x, event.clientY - down.y) >= DRAG_THRESHOLD_PX)
+        return;
+      const at = panePoint(event.clientX, event.clientY);
+      if (!at) return;
+      if (layer.placingKind) {
+        const chartAt = primitive.toChart(at.x, at.y);
+        const point = chartAt
+          ? placePoint(layer.placingKind, layer.placedCount, chartAt, barDates)
+          : null;
+        if (point) layer.onPlace(point);
+        return;
+      }
+      const hit = hitScene(primitive.shapes, at.x, at.y);
+      layer.onSelect(hit && hit.id !== "draft" ? hit.id : null);
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    return () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+    };
+  }, [hasLayer, interval, barDates, panePoint, pushDrawings]);
 
   // After a separator drag, remember each pane's new height (no rebuild).
   const rememberHeights = useCallback(() => {
@@ -556,19 +773,27 @@ export function PriceChart({
       <figure className="m-0">
         {/* Focusable for the keyboard path; pointer-up saves dragged pane heights. */}
         <div
-          // biome-ignore lint/a11y/noNoninteractiveTabindex: the chart takes keys (arrows, +, -, 0).
-          tabIndex={0}
           // biome-ignore lint/a11y/useSemanticElements: a fieldset is for form controls; this is a canvas widget.
           role="group"
+          // biome-ignore lint/a11y/noNoninteractiveTabindex: the chart takes keys (arrows, +, -, 0).
+          tabIndex={0}
           aria-label="Interactive price chart"
           aria-describedby={helpId}
           onKeyDown={onKeyDown}
           onPointerUp={rememberHeights}
+          onPointerDownCapture={hasLayer ? onDrawingPointerDown : undefined}
+          onMouseDownCapture={hasLayer ? stopIfGrabbed : undefined}
+          onTouchStartCapture={hasLayer ? stopIfGrabbed : undefined}
           onBlur={() => setKeyIndex(null)}
           className="relative rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-brand/60"
           data-testid="price-chart"
           data-pane-count={visible.length}
           data-panes={visible.map((p) => p.kind).join(",")}
+          data-drawing-count={
+            drawingLayer ? drawingLayer.drawings.filter((d) => d.id !== "draft").length : undefined
+          }
+          data-drawing-tool={drawingLayer?.placingKind ?? undefined}
+          style={drawingLayer?.placingKind ? { cursor: "crosshair" } : undefined}
         >
           {/* lightweight-charts renders to a canvas, which is opaque to
               assistive tech; the caption and legend carry the facts in text. */}

@@ -9,6 +9,7 @@ import {
   type TicketPosition,
   type TradeTicketAccount,
 } from "@/components/contextual-trade-ticket";
+import { ChartWorkbench } from "@/components/drawings/chart-workbench";
 import { NewsReactions } from "@/components/event-study-view";
 import { FundamentalsPanel } from "@/components/fundamentals-panel";
 import { MobileTradeSheet } from "@/components/mobile-trade-sheet";
@@ -31,6 +32,7 @@ import {
   getSymbol,
 } from "@/lib/api";
 import { getSymbolChecklist } from "@/lib/api/checklist";
+import { listDrawings } from "@/lib/api/drawings";
 import { getFundamentals, getValuation, getValuationHistory } from "@/lib/api/fundamentals";
 import { getEventStudy } from "@/lib/api/research";
 import {
@@ -42,6 +44,7 @@ import {
 } from "@/lib/api/trading";
 import { type WatchlistList, listWatchlists } from "@/lib/api/watchlist";
 import { parseChartView } from "@/lib/chart-view";
+import type { DrawingsResponse } from "@/lib/drawings/kinds";
 import {
   STOCK_TIMEFRAMES,
   type StockIndicator,
@@ -205,14 +208,18 @@ export default async function StockPage({
   let tickerOrders: PendingOrder[] | null = null;
   let inWatchlist = false;
   let watchlists: WatchlistList[] = [];
+  let drawings: DrawingsResponse | null = null;
 
   if (signedIn) {
-    const [portfolioResult, ordersResult, watchlistResult] = await Promise.all([
+    const [portfolioResult, ordersResult, watchlistResult, drawingsResult] = await Promise.all([
       getPortfolio().catch(() => null),
       listOrders("pending").catch(() => null),
       // A2.5: every list, each saying whether it holds this ticker.
       listWatchlists(ticker).catch(() => [] as WatchlistList[]),
+      // A3.2: the user's drawings; a failed call turns the tools off, not the chart.
+      listDrawings(ticker).catch(() => null),
     ]);
+    drawings = drawingsResult;
     portfolio = portfolioResult;
     tickerOrders = ordersResult?.filter((order) => order.ticker === ticker) ?? null;
     watchlists = watchlistResult;
@@ -301,12 +308,27 @@ export default async function StockPage({
               hasRaw={hasRaw}
             />
             <div className="p-1.5 sm:p-3">
-              {chartBars.length ? (
+              {chartBars.length && !showingRaw ? (
+                <ChartWorkbench
+                  ticker={ticker}
+                  signedIn={signedIn}
+                  initial={drawings}
+                  callbackUrl={activeStockUrl}
+                  bars={chartBars}
+                  overlays={overlaySeries}
+                  macd={showMacd ? indicatorBundle.macd : null}
+                  rsi={selectedIndicators.includes("rsi_14") ? (rsiSeries ?? null) : null}
+                  panes={indicatorPanes}
+                  interval={interval}
+                  chartType={view.type}
+                  scale={view.scale}
+                />
+              ) : chartBars.length ? (
                 <PriceChart
                   bars={chartBars}
-                  // Overlays are on adjusted prices: on raw prices they would
-                  // jump at every split, so they are left off.
-                  overlays={showingRaw ? {} : overlaySeries}
+                  // Overlays and drawings are on adjusted prices: on raw
+                  // prices they would jump at every split, so they are left off.
+                  overlays={{}}
                   macd={showMacd ? indicatorBundle.macd : null}
                   rsi={selectedIndicators.includes("rsi_14") ? (rsiSeries ?? null) : null}
                   panes={indicatorPanes}
@@ -321,8 +343,8 @@ export default async function StockPage({
               )}
               {showingRaw ? (
                 <p className="px-1 pt-1 text-2xs text-text-tertiary" data-testid="raw-prices-note">
-                  Raw exchange prices, as published, not adjusted for splits. Indicators are
-                  computed on adjusted prices, so price overlays are hidden here.
+                  Raw exchange prices, as published, not adjusted for splits. Indicators and
+                  drawings are on adjusted prices, so price overlays and drawings are hidden here.
                 </p>
               ) : null}
               {rawRequestedButMissing || rawFailed ? (

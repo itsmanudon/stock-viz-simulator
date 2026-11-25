@@ -2451,3 +2451,95 @@ class SymbolChecklistOut(BaseModel):
     row: ChecklistRowOut | None = None
     universe: UniverseOut
     disclaimer: str
+
+
+# ---------------------------------------------------------------------------
+# Chart drawings (A3.2, M2.4)
+# ---------------------------------------------------------------------------
+
+DrawingKind = Literal[
+    "trendline",
+    "ray",
+    "hline",
+    "rectangle",
+    "channel",
+    "fib_retracement",
+    "fib_extension",
+    "ruler",
+    "text",
+    "position_long",
+    "position_short",
+]
+DrawingColour = Literal["aqua", "blue", "violet", "pink", "amber", "lime", "slate", "foreground"]
+
+
+class DrawingPoint(BaseModel):
+    """An anchor: a daily bar's venue date and a price. ``ts`` is null only
+    where the kind takes a price alone (an hline, a position's stop and
+    target)."""
+
+    ts: date | None = None
+    price: Decimal = Field(gt=0, max_digits=18, decimal_places=6)
+
+
+class DrawingStyle(BaseModel):
+    colour: DrawingColour = "aqua"
+    width: int = Field(default=1, ge=1, le=4)
+    dash: Literal["solid", "dashed", "dotted"] = "solid"
+    fill_opacity: float = Field(default=0.12, ge=0, le=0.5)
+
+
+class DrawingIn(BaseModel):
+    ticker: str = Field(min_length=1, max_length=16)
+    kind: DrawingKind
+    points: list[DrawingPoint] = Field(min_length=1, max_length=3)
+    style: DrawingStyle = Field(default_factory=DrawingStyle)
+    label: str | None = Field(default=None, max_length=80)
+    locked: bool = False
+
+
+class DrawingPatch(BaseModel):
+    """Only the fields sent change; ``label: null`` clears it. A locked
+    drawing takes only ``locked`` (409 otherwise)."""
+
+    points: list[DrawingPoint] | None = Field(default=None, min_length=1, max_length=3)
+    style: DrawingStyle | None = None
+    label: str | None = Field(default=None, max_length=80)
+    locked: bool | None = None
+
+
+class PositionMetricsOut(BaseModel):
+    """The position tool's figures, per share, in the symbol's currency."""
+
+    side: Literal["long", "short"]
+    entry: Decimal
+    stop: Decimal
+    target: Decimal
+    risk_per_share: Decimal
+    reward_per_share: Decimal
+    # reward / risk: the target is this many R from the entry.
+    reward_risk: Decimal
+    stop_pct: Decimal
+    target_pct: Decimal
+
+
+class DrawingOut(BaseModel):
+    id: int
+    ticker: str
+    kind: DrawingKind
+    points: list[DrawingPoint]
+    style: DrawingStyle
+    label: str | None
+    locked: bool
+    position: PositionMetricsOut | None = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class DrawingsOut(BaseModel):
+    ticker: str
+    drawings: list[DrawingOut]
+    limit: int
+    # The stored daily bar range anchors must fall in (null: no bars).
+    first_bar: date | None
+    last_bar: date | None

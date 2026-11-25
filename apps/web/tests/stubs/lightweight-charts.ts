@@ -28,6 +28,8 @@ export const lwcCalls = {
   crosshair: [] as { price: number; time: number }[],
   handlers: [] as Handler[],
   visibleRanges: [] as { from: number; to: number }[],
+  /** A3.2: series primitives attached (the drawings host). */
+  primitives: [] as unknown[],
 };
 
 export function resetLwc(): void {
@@ -38,6 +40,7 @@ export function resetLwc(): void {
   lwcCalls.crosshair = [];
   lwcCalls.handlers = [];
   lwcCalls.visibleRanges = [];
+  lwcCalls.primitives = [];
 }
 
 /** Fire the newest chart's crosshair handler, as a hover would. */
@@ -70,6 +73,14 @@ function createChart() {
         priceScale: () => ({
           applyOptions: (o: Record<string, unknown>) => record.scaleOptions.push(o),
         }),
+        // A3.2: price = 200 - y, so a test can predict coordinates.
+        priceToCoordinate: (price: number) => 200 - price,
+        coordinateToPrice: (y: number) => 200 - y,
+        attachPrimitive: (primitive: { attached?: (p: unknown) => void }) => {
+          lwcCalls.primitives.push(primitive);
+          primitive.attached?.({ chart, series: api, requestUpdate: () => {} });
+        },
+        detachPrimitive: vi.fn(),
       };
       apis.push({ pane, api });
       return api;
@@ -83,9 +94,13 @@ function createChart() {
       }));
     },
     priceScale: () => ({ applyOptions: vi.fn() }),
+    applyOptions: vi.fn(),
     timeScale: () => ({
       fitContent: vi.fn(),
       width: () => 0,
+      // A3.2: ten pixels a bar.
+      logicalToCoordinate: (logical: number) => logical * 10,
+      coordinateToLogical: (x: number) => x / 10,
       getVisibleLogicalRange: () => range,
       setVisibleLogicalRange: (r: { from: number; to: number }) => {
         range = r;
