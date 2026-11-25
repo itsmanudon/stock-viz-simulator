@@ -622,6 +622,42 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/drawings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Drawings */
+        get: operations["list_drawings_v1_drawings_get"];
+        put?: never;
+        /** Create Drawing */
+        post: operations["create_drawing_v1_drawings_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/drawings/{drawing_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Drawing */
+        delete: operations["delete_drawing_v1_drawings__drawing_id__delete"];
+        options?: never;
+        head?: never;
+        /** Update Drawing */
+        patch: operations["update_drawing_v1_drawings__drawing_id__patch"];
+        trace?: never;
+    };
     "/v1/portfolio": {
         parameters: {
             query?: never;
@@ -2634,6 +2670,132 @@ export interface components {
             /** Projected */
             projected: components["schemas"]["ProjectedDividendOut"][];
         };
+        /** DrawingIn */
+        DrawingIn: {
+            /** Ticker */
+            ticker: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "trendline" | "ray" | "hline" | "rectangle" | "channel" | "fib_retracement" | "fib_extension" | "ruler" | "text" | "position_long" | "position_short";
+            /** Points */
+            points: components["schemas"]["DrawingPoint-Input"][];
+            style?: components["schemas"]["DrawingStyle"];
+            /** Label */
+            label?: string | null;
+            /**
+             * Locked
+             * @default false
+             */
+            locked: boolean;
+        };
+        /** DrawingOut */
+        DrawingOut: {
+            /** Id */
+            id: number;
+            /** Ticker */
+            ticker: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "trendline" | "ray" | "hline" | "rectangle" | "channel" | "fib_retracement" | "fib_extension" | "ruler" | "text" | "position_long" | "position_short";
+            /** Points */
+            points: components["schemas"]["DrawingPoint-Output"][];
+            style: components["schemas"]["DrawingStyle"];
+            /** Label */
+            label: string | null;
+            /** Locked */
+            locked: boolean;
+            position?: components["schemas"]["PositionMetricsOut"] | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /**
+         * DrawingPatch
+         * @description Only the fields sent change; ``label: null`` clears it. A locked
+         *     drawing takes only ``locked`` (409 otherwise).
+         */
+        DrawingPatch: {
+            /** Points */
+            points?: components["schemas"]["DrawingPoint-Input"][] | null;
+            style?: components["schemas"]["DrawingStyle"] | null;
+            /** Label */
+            label?: string | null;
+            /** Locked */
+            locked?: boolean | null;
+        };
+        /**
+         * DrawingPoint
+         * @description An anchor: a daily bar's venue date and a price. ``ts`` is null only
+         *     where the kind takes a price alone (an hline, a position's stop and
+         *     target).
+         */
+        "DrawingPoint-Input": {
+            /** Ts */
+            ts?: string | null;
+            /** Price */
+            price: number | string;
+        };
+        /**
+         * DrawingPoint
+         * @description An anchor: a daily bar's venue date and a price. ``ts`` is null only
+         *     where the kind takes a price alone (an hline, a position's stop and
+         *     target).
+         */
+        "DrawingPoint-Output": {
+            /** Ts */
+            ts?: string | null;
+            /** Price */
+            price: string;
+        };
+        /** DrawingStyle */
+        DrawingStyle: {
+            /**
+             * Colour
+             * @default aqua
+             * @enum {string}
+             */
+            colour: "aqua" | "blue" | "violet" | "pink" | "amber" | "lime" | "slate" | "foreground";
+            /**
+             * Width
+             * @default 1
+             */
+            width: number;
+            /**
+             * Dash
+             * @default solid
+             * @enum {string}
+             */
+            dash: "solid" | "dashed" | "dotted";
+            /**
+             * Fill Opacity
+             * @default 0.12
+             */
+            fill_opacity: number;
+        };
+        /** DrawingsOut */
+        DrawingsOut: {
+            /** Ticker */
+            ticker: string;
+            /** Drawings */
+            drawings: components["schemas"]["DrawingOut"][];
+            /** Limit */
+            limit: number;
+            /** First Bar */
+            first_bar: string | null;
+            /** Last Bar */
+            last_bar: string | null;
+        };
         /**
          * EarningsEventOut
          * @description One provider-backed earnings date for the calendar.
@@ -4498,6 +4660,33 @@ export interface components {
             basis: string;
             /** Scenarios */
             scenarios: components["schemas"]["StressScenarioOut"][];
+        };
+        /**
+         * PositionMetricsOut
+         * @description The position tool's figures, per share, in the symbol's currency.
+         */
+        PositionMetricsOut: {
+            /**
+             * Side
+             * @enum {string}
+             */
+            side: "long" | "short";
+            /** Entry */
+            entry: string;
+            /** Stop */
+            stop: string;
+            /** Target */
+            target: string;
+            /** Risk Per Share */
+            risk_per_share: string;
+            /** Reward Per Share */
+            reward_per_share: string;
+            /** Reward Risk */
+            reward_risk: string;
+            /** Stop Pct */
+            stop_pct: string;
+            /** Target Pct */
+            target_pct: string;
         };
         /** PositionOut */
         PositionOut: {
@@ -7518,6 +7707,142 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SymbolChecklistOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_drawings_v1_drawings_get: {
+        parameters: {
+            query: {
+                ticker: string;
+            };
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DrawingsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_drawing_v1_drawings_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DrawingIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DrawingOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_drawing_v1_drawings__drawing_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                drawing_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_drawing_v1_drawings__drawing_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                drawing_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DrawingPatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DrawingOut"];
                 };
             };
             /** @description Validation Error */
