@@ -126,7 +126,11 @@ export interface paths {
         delete: operations["delete_screen_v1_screens__screen_id__delete"];
         options?: never;
         head?: never;
-        patch?: never;
+        /**
+         * Patch Screen
+         * @description Turn the nightly change notification on or off (A2.3).
+         */
+        patch: operations["patch_screen_v1_screens__screen_id__patch"];
         trace?: never;
     };
     "/v1/rules/check": {
@@ -938,7 +942,8 @@ export interface paths {
         head?: never;
         /**
          * Patch Alert
-         * @description Pause or resume a rule. Resuming re-arms it from the current state.
+         * @description Pause or resume a rule (resuming re-arms it from the current state), or
+         *     point a rule alert at another setup version (which re-arms it).
          */
         patch: operations["patch_alert_v1_alerts__alert_id__patch"];
         trace?: never;
@@ -1714,6 +1719,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/notifications/channels": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Channels */
+        get: operations["list_channels_v1_notifications_channels_get"];
+        /** Put Channels */
+        put: operations["put_channels_v1_notifications_channels_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/notifications/channels/{channel}/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Test Channel */
+        post: operations["test_channel_v1_notifications_channels__channel__test_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/notifications": {
         parameters: {
             query?: never;
@@ -1876,7 +1916,7 @@ export interface components {
              * @default price
              * @enum {string}
              */
-            kind: "price" | "technical" | "news" | "portfolio";
+            kind: "price" | "technical" | "news" | "portfolio" | "rule";
             /** Direction */
             direction?: ("above" | "below") | null;
             /** Target Price */
@@ -1885,6 +1925,8 @@ export interface components {
             params?: {
                 [key: string]: unknown;
             } | null;
+            /** Setup Version Id */
+            setup_version_id?: number | null;
             /**
              * Repeat
              * @default once
@@ -1919,6 +1961,8 @@ export interface components {
             params?: {
                 [key: string]: unknown;
             } | null;
+            /** Setup Version Id */
+            setup_version_id?: number | null;
             /**
              * Repeat
              * @default once
@@ -1964,11 +2008,14 @@ export interface components {
         };
         /**
          * AlertPatch
-         * @description ``PATCH /v1/alerts/{id}``: pause or resume a rule.
+         * @description ``PATCH /v1/alerts/{id}``: pause or resume a rule; point a rule alert at
+         *     another setup version (A2.3: it re-arms from now).
          */
         AlertPatch: {
             /** Paused */
-            paused: boolean;
+            paused?: boolean | null;
+            /** Setup Version Id */
+            setup_version_id?: number | null;
         };
         /** BacktestFeeOut */
         BacktestFeeOut: {
@@ -3141,7 +3188,95 @@ export interface components {
          * NotificationCategory
          * @enum {string}
          */
-        NotificationCategory: "alert" | "order" | "dividend" | "corporate_action" | "option" | "system";
+        NotificationCategory: "alert" | "order" | "dividend" | "corporate_action" | "option" | "screen" | "system";
+        /**
+         * NotificationChannelIn
+         * @description A change to one channel. Fields left null are unchanged.
+         */
+        NotificationChannelIn: {
+            /**
+             * Channel
+             * @enum {string}
+             */
+            channel: "webhook" | "email" | "telegram";
+            /** Enabled */
+            enabled?: boolean | null;
+            /** Url */
+            url?: string | null;
+            /** Secret */
+            secret?: string | null;
+            /** Address */
+            address?: string | null;
+            /** Chat Id */
+            chat_id?: string | null;
+            /** Muted Categories */
+            muted_categories?: string[] | null;
+        };
+        /**
+         * NotificationChannelOut
+         * @description One delivery channel (A2.3). The webhook secret is never returned.
+         */
+        NotificationChannelOut: {
+            /**
+             * Channel
+             * @enum {string}
+             */
+            channel: "webhook" | "email" | "telegram";
+            /**
+             * Enabled
+             * @default false
+             */
+            enabled: boolean;
+            /** Available */
+            available: boolean;
+            /**
+             * Configured
+             * @default false
+             */
+            configured: boolean;
+            /** Url */
+            url?: string | null;
+            /**
+             * Secret Set
+             * @default false
+             */
+            secret_set: boolean;
+            /** Address */
+            address?: string | null;
+            /** Chat Id */
+            chat_id?: string | null;
+            /**
+             * Muted Categories
+             * @default []
+             */
+            muted_categories: string[];
+            /** Updated At */
+            updated_at?: string | null;
+        };
+        /** NotificationChannelTestOut */
+        NotificationChannelTestOut: {
+            /**
+             * Channel
+             * @enum {string}
+             */
+            channel: "webhook" | "email" | "telegram";
+            /** Ok */
+            ok: boolean;
+            /** Detail */
+            detail: string;
+        };
+        /** NotificationChannelsIn */
+        NotificationChannelsIn: {
+            /** Channels */
+            channels: components["schemas"]["NotificationChannelIn"][];
+        };
+        /** NotificationChannelsOut */
+        NotificationChannelsOut: {
+            /** Channels */
+            channels: components["schemas"]["NotificationChannelOut"][];
+            /** Categories */
+            categories: string[];
+        };
         /** NotificationOut */
         NotificationOut: {
             /** Id */
@@ -3161,6 +3296,10 @@ export interface components {
             created_at: string;
             /** Read At */
             read_at: string | null;
+            /** Data */
+            data?: {
+                [key: string]: unknown;
+            } | null;
         };
         /**
          * OptionGreeksOut
@@ -4776,6 +4915,8 @@ export interface components {
             query: string;
             /** Setup Version Id */
             setup_version_id?: number | null;
+            /** Notify On Change */
+            notify_on_change?: boolean | null;
         };
         /** SavedScreenOut */
         SavedScreenOut: {
@@ -4788,6 +4929,11 @@ export interface components {
             /** Setup Version Id */
             setup_version_id?: number | null;
             /**
+             * Notify On Change
+             * @default false
+             */
+            notify_on_change: boolean;
+            /**
              * Created At
              * Format: date-time
              */
@@ -4797,6 +4943,14 @@ export interface components {
              * Format: date-time
              */
             updated_at: string;
+        };
+        /**
+         * SavedScreenPatch
+         * @description ``PATCH /v1/screens/{id}`` (A2.3).
+         */
+        SavedScreenPatch: {
+            /** Notify On Change */
+            notify_on_change: boolean;
         };
         /** ScreenerPageOut */
         ScreenerPageOut: {
@@ -5927,6 +6081,43 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    patch_screen_v1_screens__screen_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                screen_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SavedScreenPatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SavedScreenOut"];
+                };
             };
             /** @description Validation Error */
             422: {
@@ -9120,6 +9311,105 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["JournalWeekOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_channels_v1_notifications_channels_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationChannelsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    put_channels_v1_notifications_channels_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NotificationChannelsIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationChannelsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    test_channel_v1_notifications_channels__channel__test_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                channel: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationChannelTestOut"];
                 };
             };
             /** @description Validation Error */

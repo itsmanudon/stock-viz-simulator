@@ -8,6 +8,8 @@ that a ``rule`` alert names a setup version. Down removes exactly those
 
 from __future__ import annotations
 
+import logging
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
@@ -33,6 +35,26 @@ def _state(engine) -> tuple[set[str], bool, bool]:
     notify = "notify_on_change" in {c["name"] for c in inspector.get_columns("saved_screens")}
     data = "data" in {c["name"] for c in inspector.get_columns("notifications")}
     return tables, notify, data
+
+
+@pytest.fixture(autouse=True)
+def _keep_logging() -> Iterator[None]:
+    """``migrations/env.py`` runs ``fileConfig``, which disables every logger
+    that exists and resets the root handlers. This file sorts early, so put
+    logging back for the tests after it (their ``caplog`` checks)."""
+    root = logging.getLogger()
+    handlers, level = list(root.handlers), root.level
+    disabled = {
+        name: lg.disabled
+        for name, lg in logging.root.manager.loggerDict.items()
+        if isinstance(lg, logging.Logger)
+    }
+    yield
+    root.handlers[:] = handlers
+    root.setLevel(level)
+    for name, lg in logging.root.manager.loggerDict.items():
+        if isinstance(lg, logging.Logger):
+            lg.disabled = disabled.get(name, False)
 
 
 def test_delivery_migration_up_down_up(monkeypatch) -> None:

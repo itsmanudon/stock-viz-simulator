@@ -1,8 +1,8 @@
 /**
  * /settings — user preferences (Aurora board v3).
  *
- * Main column: display currency, account currency and risk limits (server
- * actions, so they work without JavaScript), then interface preferences that
+ * Main column: display currency, account currency, risk limits and (A2.3)
+ * notification channels (server actions), then interface preferences that
  * live in this browser. Aside: the account's paper card and details, keyboard
  * shortcuts, and the system context.
  */
@@ -11,10 +11,12 @@ import type { Metadata } from "next";
 import { revalidatePath } from "next/cache";
 
 import { auth } from "@/auth";
+import { NotificationChannelsPanel } from "@/components/notification-channels-panel";
 import { PageHeader } from "@/components/page-header";
 import { PaperCard } from "@/components/paper-card";
 import { RiskLimitsForm } from "@/components/risk-limits-form";
 import { AccountDetails, InterfacePanel, KeyboardShortcuts } from "@/components/settings-workspace";
+import { type NotificationChannels, listNotificationChannels } from "@/lib/api/notifications";
 import { getProfile, patchProfile } from "@/lib/api/profile";
 import { getPortfolio, getRiskLimits, putBaseCurrency, putRiskLimits } from "@/lib/api/trading";
 import { limitsFromForm } from "@/lib/risk-limits";
@@ -52,11 +54,12 @@ async function setRiskLimits(formData: FormData) {
 }
 
 export default async function SettingsPage() {
-  const [profile, session, portfolio, limits] = await Promise.all([
+  const [profile, session, portfolio, limits, channels] = await Promise.all([
     getProfile(),
     auth(),
     getPortfolio().catch(() => null),
     getRiskLimits().catch(() => null),
+    listNotificationChannels().catch(() => null as NotificationChannels | null),
   ]);
   const base = portfolio?.base_currency ?? "USD";
   const other = base === "USD" ? "INR" : "USD";
@@ -146,6 +149,16 @@ export default async function SettingsPage() {
           {portfolio ? (
             <SettingsPanel title="Risk limits" id="limits-heading">
               <RiskLimitsForm limits={limits} action={setRiskLimits} />
+            </SettingsPanel>
+          ) : null}
+
+          {channels ? (
+            <SettingsPanel title="Notifications" id="notifications-heading">
+              <NotificationChannelsPanel
+                channels={channels.channels}
+                categories={channels.categories}
+                accountEmail={session?.user?.email}
+              />
             </SettingsPanel>
           ) : null}
 
