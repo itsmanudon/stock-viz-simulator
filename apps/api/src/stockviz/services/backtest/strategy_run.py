@@ -316,10 +316,9 @@ def execute_strategy(
         for name in ("delivery_pct", "deliverable_qty"):
             digest.update(f"{name}|{data.bars[name].tolist()!r}\n".encode())
         if data.benchmark is not None:
-            digest.update(
-                f"bench|{data.benchmark_ticker}|"
-                f"{list(zip(data.benchmark.index.strftime('%Y-%m-%d'), data.benchmark.tolist(), strict=True))!r}\n".encode()
-            )
+            days = pd.DatetimeIndex(data.benchmark.index).strftime("%Y-%m-%d").tolist()
+            closes = list(zip(days, data.benchmark.tolist(), strict=True))
+            digest.update(f"bench|{data.benchmark_ticker}|{closes!r}\n".encode())
         for part in ("fundamentals", "news", "drawings"):
             value = getattr(data, part)
             if value is not None:

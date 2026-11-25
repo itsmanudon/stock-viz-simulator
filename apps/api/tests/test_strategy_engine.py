@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 
@@ -21,12 +22,12 @@ START = date(2024, 1, 1)
 
 
 def sym(
-    bars: list[tuple[float, float, float, float]],
-    entry: list[bool | None],
-    exit_: list[bool | None] | None = None,
+    bars: Sequence[tuple[float, float, float, float]],
+    entry: Sequence[bool | None],
+    exit_: Sequence[bool | None] | None = None,
     *,
     ticker: str = "AAA",
-    atr: dict[int, list[float | None]] | None = None,
+    atr: Mapping[int, Sequence[float | None]] | None = None,
     first: int = 0,
 ) -> SymbolInput:
     dates = [START + timedelta(days=i) for i in range(len(bars))]
@@ -40,9 +41,9 @@ def sym(
         low=[b[2] for b in d],
         close=[b[3] for b in d],
         volume=[Decimal(1000)] * len(bars),
-        entry=entry,
-        exit=exit_,
-        atr=atr or {},
+        entry=list(entry),
+        exit=list(exit_) if exit_ is not None else None,
+        atr={k: list(v) for k, v in (atr or {}).items()},
         first=first,
     )
 
