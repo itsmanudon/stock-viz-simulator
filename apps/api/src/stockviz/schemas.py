@@ -85,6 +85,9 @@ class SymbolDetailOut(BaseModel):
     currency: str = "USD"
     is_active: bool
     latest: QuoteOut | None = None
+    # A3.1: whether raw exchange prices (``eod_raw``) are stored, so the chart
+    # can offer ``/bars?adjustment=raw``. False means adjusted prices only.
+    has_raw: bool = False
 
 
 class EarningsEventOut(BaseModel):

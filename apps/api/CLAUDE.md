@@ -113,7 +113,8 @@ src/stockviz/
                     cap in USD, net margin, ROE, debt/equity, revenue
                     growth), each a `<column>_min`/`_max` filter and a sort
     bars/           A1.4a: resample.py (pure: daily -> 1wk/1mo, the partial
-                    rule) and load.py (loads enough daily bars for n output bars)
+                    rule) and load.py (loads enough daily bars for n output bars);
+                    A3.1: raw.py (`eod_raw` bars for `adjustment=raw`, `has_raw`)
     markets/        calendar.py — exchange calendars and completed sessions (Phase 4.1);
                     india_holidays.py — the maintained NSE/BSE holiday table (A0)
     nse/            A1.1 NSE end-of-day files placed by hand: formats.py
@@ -566,6 +567,30 @@ counted in output bars, and leave a partial newest bar out of the inputs:
 on. `BarOut` adds `source` and `adjustment_semantics` on every interval
 (null `sessions`/`partial` on `1d`). Tests: `tests/test_resample.py`,
 `tests/test_bars_interval.py` (clock patched through `bars.load.now_utc`).
+
+**Raw prices on the bars route (A3.1, M2.3).** `GET /v1/symbols/{t}/bars`
+takes `adjustment=adjusted|raw` (default `adjusted`, the split-adjusted
+`price_bars`). `raw` reads `eod_raw` (A1.1) through `services/bars/raw.py`:
+one bar per session, the first series of `RAW_SERIES_ORDER` (EQ, BE, BZ, SM,
+ST, the delivery order) when a session has several; `ts` is the session date
+at midnight (the naive venue label daily `price_bars` carry), `source` the
+row's, `adjustment_semantics` `"raw"`. `1wk`/`1mo` resample the raw daily
+bars with the same rules and partial flag (`load_raw_resampled`, same clock
+as `load_resampled`); `from`/`to`/`limit` behave as on adjusted bars. An
+instrument with no `eod_raw` row is **409** ("Only adjusted prices are
+stored for T..."); `SymbolDetailOut.has_raw` (`has_raw()`, one indexed
+lookup) tells the web whether to offer the toggle. Nothing adjusts raw rows
+or fills their gaps, and indicators always run on adjusted bars. Until the
+NSE backfill loads files, `has_raw` is false everywhere. Tests:
+`tests/test_bars_raw.py`.
+
+**A2 done-when (one rule, three consumers).** `tests/test_one_rule_three_consumers.py`
+saves one rule as a setup version and checks, over seeded random walks for
+eight tickers, that the screen (`/v1/screener?setup_version_id=&as_of=`),
+rule alerts armed the session before (`evaluate_pending_alerts` after the
+target bar arrives) and the vector series (symbols turning true on that
+date) name the same symbols on the same session. The rule is a crossing, so
+"met on the date" and "turned true on the date" are the same set.
 
 **Survivorship stamp (A1.4a, part of M1.5).** Every backtest result carries
 `universe: {name, point_in_time, survivorship_biased, note}`: the public
