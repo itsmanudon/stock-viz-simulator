@@ -31,7 +31,7 @@ import pandas as pd
 
 from stockviz.services.bars.resample import MAX_SESSIONS_PER_PERIOD
 from stockviz.services.dsl import ast
-from stockviz.services.dsl.bindings import DELIVERY_SERIES, INTERVAL_BY_TIMEFRAME
+from stockviz.services.dsl.bindings import DELIVERY_SERIES, INDEX_SERIES, INTERVAL_BY_TIMEFRAME
 from stockviz.services.dsl.canonical import canonicalize, rule_hash
 from stockviz.services.dsl.check import Type, check
 from stockviz.services.dsl.data import Needs, SymbolData
@@ -99,7 +99,11 @@ def lookback(node: ast.Node, tf: str = "daily") -> int | None:
 def needs(node: ast.Node) -> Needs:
     nodes = list(ast.walk(node))
     return Needs(
-        benchmark=any(isinstance(n, ast.Call) and FUNCTIONS[n.name].needs_benchmark for n in nodes),
+        benchmark=any(
+            (isinstance(n, ast.Call) and FUNCTIONS[n.name].needs_benchmark)
+            or (isinstance(n, ast.Name) and n.name in INDEX_SERIES)
+            for n in nodes
+        ),
         fundamentals=any(isinstance(n, ast.Fundamental) for n in nodes),
         news=any(isinstance(n, ast.News) for n in nodes),
         delivery=any(isinstance(n, ast.Name) and n.name in DELIVERY_SERIES for n in nodes),
@@ -215,6 +219,8 @@ class Evaluation:
                 return np.full(n, v, dtype=float)
             case ast.Name(name=name):
                 frame = self.frame(tf)
+                if name in INDEX_SERIES:
+                    name = "bench"
                 if name not in frame:
                     return np.full(n, NAN)
                 return frame[name].to_numpy(dtype=float)
@@ -298,6 +304,11 @@ class Evaluation:
         day = self.frame(tf).index[i].date()
         match node:
             case ast.Name(name=name):
+                if name in INDEX_SERIES:
+                    index = self.data.benchmark_ticker
+                    if index is None:
+                        return [f"{name}: no index series for {self.data.ticker}'s venue"]
+                    return [f"{name}: no {index} close on or up to 5 bars before {day.isoformat()}"]
                 if name in DELIVERY_SERIES:
                     if not self.data.delivery_loaded:
                         return [f"{name}: no delivery data for {self.data.ticker} (eod_extras)"]

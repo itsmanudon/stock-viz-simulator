@@ -68,7 +68,6 @@ from stockviz.services.ingest.shadow import (
 from stockviz.services.ingest.shadow_report import ShadowRun, write_shadow_report
 from stockviz.services.instruments import instrument_of
 from stockviz.services.metrics import refresh_symbol_metrics
-from stockviz.services.recommend import MAX_SCORE, score_universe
 from stockviz.services.trading import credit_due_dividends, snapshot_user_navs
 from stockviz.settings import get_settings
 
@@ -80,11 +79,13 @@ DEFAULT_SHADOW_OUTPUT = Path("artifacts/private/massive-shadow")
 
 
 def _cmd_seed(_args: argparse.Namespace) -> int:
+    from stockviz.services.checklist.dimensions import seed_dimensions
     from stockviz.services.setups.presets import seed_presets
 
     with Session(engine) as session:
         n = seed_symbols(session)
         presets = seed_presets(session)  # A2.2: the read-only system setups
+        presets |= seed_dimensions(session)  # A2.4: the checklist dimensions
     print(f"seeded {n} symbols")
     for key, state in presets.items():
         print(f"preset {key}: {state}")
@@ -133,13 +134,35 @@ def _cmd_metrics(_args: argparse.Namespace) -> int:
     return 0
 
 
-def _cmd_recommend(_args: argparse.Namespace) -> int:
+def _cmd_checklist(_args: argparse.Namespace) -> int:
+    """Judge the six checklist dimensions for every active symbol (A2.4)."""
+    from stockviz.services.checklist.score import run_checklist
+
     with Session(engine) as session:
-        results = score_universe(session, persist=True)
-    print(f"scored {len(results)} tickers")
-    for r in sorted(results, key=lambda x: x.score, reverse=True):
-        flag = "BUY" if r.recommend else "    "
-        print(f"  {flag} {r.ticker:6s} score={r.score}/{MAX_SCORE}")
+        run = run_checklist(session)
+    spread = ", ".join(f"{k} met: {v}" for k, v in sorted(run.met_histogram.items(), reverse=True))
+    sessions = ", ".join(f"{v} {d.isoformat()}" for v, d in sorted(run.sessions.items()))
+    print(f"checklist: {run.symbols} symbols ({sessions or 'no sessions'}); {spread or 'none'}")
+    return 0
+
+
+def _cmd_checklist_evidence(args: argparse.Namespace) -> int:
+    """Grade every checklist dimension on the stored history (A2.4)."""
+    from stockviz.services.checklist.evidence import run_evidence
+
+    with Session(engine) as session:
+        run = run_evidence(session, end=args.end, start=args.start, horizon=args.horizon)
+        print(f"checklist-evidence: window {run.start} to {run.end}")
+        for row in run.rows:
+            excess = f"{row.mean_excess:+.4f}" if row.mean_excess is not None else "n/a"
+            t = f"{row.t_stat:.2f}" if row.t_stat is not None else "n/a"
+            hit = f"{row.hit_rate:.2f}" if row.hit_rate is not None else "n/a"
+            print(
+                f"  {row.dimension}/{row.scope} (setup version {row.setup_version_id}): grade {row.grade}, "
+                f"n={row.n_events} over {row.symbols} symbols, mean excess {excess}, t {t}, "
+                f"hit {hit}, universe {row.universe}"
+                + (" (survivorship-biased)" if row.survivorship_biased else "")
+            )
     return 0
 
 
@@ -1515,7 +1538,8 @@ RECORDED_JOBS = frozenset(
         "credit-dividends",
         "settle-options",
         "options-snapshot",
-        "recommend",
+        "checklist",
+        "checklist-evidence",
         "snapshot-portfolios",
         "prune-events",
         "earnings",
@@ -1678,8 +1702,17 @@ def main(argv: list[str] | None = None) -> int:
     ).set_defaults(fn=_cmd_sentiment_aggregate)
 
     sub.add_parser(
-        "recommend", help="Recompute recommendations for every active symbol"
-    ).set_defaults(fn=_cmd_recommend)
+        "checklist", help="Judge the six checklist dimensions for every active symbol (A2.4)"
+    ).set_defaults(fn=_cmd_checklist)
+
+    p_evidence = sub.add_parser(
+        "checklist-evidence",
+        help="Grade each checklist dimension: forward returns net of fees vs the base rate",
+    )
+    p_evidence.add_argument("--start", type=date.fromisoformat, default=None)
+    p_evidence.add_argument("--end", type=date.fromisoformat, default=None)
+    p_evidence.add_argument("--horizon", type=int, default=20)
+    p_evidence.set_defaults(fn=_cmd_checklist_evidence)
 
     sub.add_parser(
         "snapshot-portfolios", help="Upsert today's NAV snapshot for every user"

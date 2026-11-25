@@ -164,44 +164,6 @@ class IndicatorsOut(BaseModel):
     partial_bar_excluded: datetime | None = None
 
 
-class RecommendationVoteOut(BaseModel):
-    """One of the seven deterministic recommendation checks."""
-
-    id: str
-    label: str
-    passed: bool
-    detail: str
-    # False when the vote's input is missing, e.g. no scored news this week.
-    available: bool = True
-
-
-class RecommendationOut(BaseModel):
-    """One row from the ``recommendations`` table, joined with the symbol name.
-
-    ``votes`` is the full seven-check evidence list. ``rationale`` remains the
-    passing phrases only so older clients keep working. ``sentiment_7d`` is the
-    trailing-week mean from ``symbol_metrics`` when present.
-    """
-
-    model_config = ConfigDict(from_attributes=True)
-
-    ticker: str
-    name: str
-    sector: str | None = None
-    score: int
-    # Votes that could have passed: 7, or 6 when the symbol has no scored
-    # Aegis news in the trailing week (audit SR-9). The threshold stays 4.
-    max_score: int = 7
-    rationale: list[str]
-    votes: list[RecommendationVoteOut] = Field(default_factory=list)
-    sentiment_7d: float | None = None
-    computed_at: datetime
-    # SR-8: the newest bar behind the votes, and whether it trails the newest
-    # signal bar in the same currency by more than five days.
-    bar_date: date | None = None
-    stale: bool = False
-
-
 # ---------------------------------------------------------------------------
 # Dividends
 # ---------------------------------------------------------------------------
@@ -2268,3 +2230,111 @@ class EventStudyOut(BaseModel):
     windows: list[EventStudyWindowOut]
     path: list[EventStudyPointOut]
     events: list[EventStudyEventOut]
+
+
+# ---------------------------------------------------------------------------
+# Checklist (A2.4, M4.4)
+# ---------------------------------------------------------------------------
+
+ChecklistStatus = Literal["met", "not_met", "unknown"]
+ChecklistGrade = Literal["A", "B", "C", "D", "insufficient"]
+
+
+class ChecklistEvidenceOut(BaseModel):
+    """The latest evidence study of one dimension setup version: the forward
+    20-session return after the rule turned true, net of fees, against the
+    base rate (``services/checklist/evidence.py``). Association, not advice."""
+
+    grade: ChecklistGrade
+    n_events: int
+    symbols: int
+    horizon: int
+    window_start: date
+    window_end: date
+    mean_excess: float | None = None
+    t_stat: float | None = None
+    hit_rate: float | None = None
+    mean_net_return: float | None = None
+    base_rate: float | None = None
+    overlapping_skipped: int = 0
+    fee_schedules: dict[str, int] = Field(default_factory=dict)
+    universe: UniverseOut
+    computed_at: datetime
+
+
+class ChecklistConditionDefOut(BaseModel):
+    label: str
+    rule: str  # canonical text
+
+
+class ChecklistVariantOut(BaseModel):
+    """One setup of a dimension: ``all`` listings, or ``india`` / ``other``."""
+
+    scope: Literal["all", "india", "other"]
+    setup_id: int
+    setup_version_id: int
+    version: int
+    canonical: str
+    hash: str
+    conditions: list[ChecklistConditionDefOut]
+    evidence: ChecklistEvidenceOut | None = None
+
+
+class ChecklistDimensionOut(BaseModel):
+    key: str
+    name: str
+    summary: str
+    source: str
+    variants: list[ChecklistVariantOut]
+
+
+class ChecklistConditionOut(BaseModel):
+    label: str
+    rule: str
+    status: ChecklistStatus
+    reason: str | None = None
+
+
+class ChecklistResultOut(BaseModel):
+    key: str
+    scope: Literal["all", "india", "other"]
+    setup_version_id: int | None = None
+    status: ChecklistStatus
+    reason: str | None = None
+    conditions: list[ChecklistConditionOut] = Field(default_factory=list)
+
+
+class ChecklistRowOut(BaseModel):
+    """One symbol's checklist on its venue session. ``met`` of ``total`` (6)
+    dimensions met; ``evaluated`` judged met or not met (the rest unknown).
+    Neutral wording only: a count of conditions, never a call to buy or sell."""
+
+    ticker: str
+    name: str
+    sector: str | None = None
+    currency: str | None = None
+    session_date: date
+    met: int
+    evaluated: int
+    total: int
+    results: list[ChecklistResultOut]
+    computed_at: datetime
+    # The session trails the newest checklist session of the same venue by
+    # more than five days (a stalled symbol).
+    stale: bool = False
+
+
+class ChecklistOut(BaseModel):
+    dimensions: list[ChecklistDimensionOut]
+    rows: list[ChecklistRowOut]
+    total: int
+    universe: UniverseOut
+    disclaimer: str
+
+
+class SymbolChecklistOut(BaseModel):
+    ticker: str
+    dimensions: list[ChecklistDimensionOut]
+    row: ChecklistRowOut | None = None
+    universe: UniverseOut
+    disclaimer: str

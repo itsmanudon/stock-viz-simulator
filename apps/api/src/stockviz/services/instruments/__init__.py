@@ -11,7 +11,6 @@ TICKER_TABLES = (
     "positions",
     "price_bar_quarantine",
     "price_bars",
-    "recommendations",
     "replay_sessions",
     "symbol_metrics",
     "trades",

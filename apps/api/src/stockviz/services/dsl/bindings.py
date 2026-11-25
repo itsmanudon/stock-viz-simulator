@@ -1,4 +1,5 @@
-"""Names a rule can read (A2.1): bar series, fundamentals and news."""
+"""Names a rule can read (A2.1): bar series, the venue index (A2.4),
+fundamentals and news."""
 
 from __future__ import annotations
 
@@ -9,7 +10,14 @@ DELIVERY_SERIES = ("delivery_pct", "deliverable_qty")
 """Daily only, from ``eod_extras`` (NSE). Missing ("no data", never false)
 until A1's NSE files are loaded."""
 
-SERIES = PRICE_SERIES + DELIVERY_SERIES
+INDEX_SERIES = ("index_close",)
+"""The venue index's daily close on each bar (A2.4): ``^GSPC`` for US
+listings, ``^NSEI`` for Indian ones (``event_study.BENCHMARK_BY_VENUE``),
+forward-filled at most 5 bars, as ``rs()`` reads it. Point in time: a bar
+sees the index close of its own date or earlier. On ``weekly.`` /
+``monthly.`` it is the period's last index close."""
+
+SERIES = PRICE_SERIES + DELIVERY_SERIES + INDEX_SERIES
 
 FUNDAMENTAL_METRICS = (
     "market_cap",
@@ -46,6 +54,7 @@ INTERVAL_BY_TIMEFRAME = {"weekly": "1wk", "monthly": "1mo"}
 __all__ = [
     "DELIVERY_SERIES",
     "FUNDAMENTAL_METRICS",
+    "INDEX_SERIES",
     "INTERVAL_BY_TIMEFRAME",
     "NEWS_FUNCTIONS",
     "NEWS_MAX_DAYS",

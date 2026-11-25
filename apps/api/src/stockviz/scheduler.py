@@ -40,7 +40,6 @@ from stockviz.services.ingest.fx import ingest_fx
 from stockviz.services.ingest.prices import ingest_ticker
 from stockviz.services.metrics import refresh_symbol_metrics
 from stockviz.services.options import settle_expired_options
-from stockviz.services.recommend import score_universe
 from stockviz.services.trading import (
     credit_due_dividends,
     settle_pending_orders,
@@ -200,8 +199,7 @@ def fx_refresh() -> None:
 def sentiment_aggregate_refresh() -> None:
     """Roll Aegis News sentiment into the per-symbol trailing average.
 
-    Feeds the screener's sentiment filter and the recommendation engine's
-    sentiment vote. Aegis is the source since Phase 2 (audit AG-14); the
+    Feeds the screener's sentiment filter. Aegis is the source since Phase 2 (audit AG-14); the
     copy itself is ``stockviz.cli aegis-sync``.
     """
     from stockviz.services.aegis.read import refresh_aegis_sentiment
@@ -219,12 +217,24 @@ def symbol_metrics_refresh() -> None:
     logger.info("symbol_metrics_refresh: wrote %d rows", written)
 
 
-@single_instance("recommendations_refresh")
-def recommendations_refresh() -> None:
-    """Recompute the recommendation score for every active ticker."""
+@single_instance("checklist_refresh")
+def checklist_refresh() -> None:
+    """Judge the six checklist dimensions for every active symbol (A2.4)."""
+    from stockviz.services.checklist.score import run_checklist
+
     with _session_scope() as session:
-        results = score_universe(session, persist=True)
-    logger.info("recommendations_refresh: scored %d tickers", len(results))
+        run = run_checklist(session)
+    logger.info("checklist_refresh: scored %d symbols", run.symbols)
+
+
+@single_instance("checklist_evidence_refresh")
+def checklist_evidence_refresh() -> None:
+    """Grade each checklist dimension on the stored history (A2.4, Fridays)."""
+    from stockviz.services.checklist.evidence import run_evidence
+
+    with _session_scope() as session:
+        run = run_evidence(session)
+    logger.info("checklist_evidence_refresh: graded %d setups", len(run.rows))
 
 
 @single_instance("portfolio_snapshots_refresh")
@@ -343,7 +353,7 @@ def build_scheduler() -> BackgroundScheduler:
         replace_existing=True,
     )
 
-    # 4:45pm ET on weekdays — after prices, before recommendations + snapshots
+    # 4:45pm ET on weekdays — after prices, before the checklist + snapshots
     # so today's FX rates are in the table when snapshots convert NAV.
     scheduler.add_job(
         fx_refresh,
@@ -352,7 +362,7 @@ def build_scheduler() -> BackgroundScheduler:
         replace_existing=True,
     )
 
-    # 4:50pm ET on weekdays — after prices, before the recommendations and
+    # 4:50pm ET on weekdays — after prices, before the checklist and
     # snapshot jobs that read the same numbers.
     scheduler.add_job(
         symbol_metrics_refresh,
@@ -370,16 +380,25 @@ def build_scheduler() -> BackgroundScheduler:
         replace_existing=True,
     )
 
-    # 5pm ET on weekdays — after the daily price refresh, so the algo has
-    # today's close to score against.
+    # 5pm ET on weekdays — after the daily price refresh and metrics, so the
+    # checklist judges today's close (A2.4; replaced the recommendations job).
     scheduler.add_job(
-        recommendations_refresh,
+        checklist_refresh,
         trigger=CronTrigger(day_of_week="mon-fri", hour=17, minute=0),
-        id="recommendations_refresh",
+        id="checklist_refresh",
         replace_existing=True,
     )
 
-    # 5:15pm ET on weekdays — after recommendations, so today's close has
+    # 6pm ET on Fridays — the weekly evidence study (A2.4). Grades move slowly
+    # (one more week of a ten-year window), so once a week is enough.
+    scheduler.add_job(
+        checklist_evidence_refresh,
+        trigger=CronTrigger(day_of_week="fri", hour=18, minute=0),
+        id="checklist_evidence_refresh",
+        replace_existing=True,
+    )
+
+    # 5:15pm ET on weekdays — after the checklist, so today's close has
     # propagated through positions before we snapshot NAV.
     scheduler.add_job(
         portfolio_snapshots_refresh,
