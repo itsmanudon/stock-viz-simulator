@@ -500,6 +500,29 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   `data-drawing-tool`; list items `data-testid="drawing-item"` and
   `data-kind`. The test stub records attached primitives
   (`lwcCalls.primitives`) and maps price to `200 - y`, ten pixels a bar.
+- **Anchored VWAP (A3.3, M2.5).** A drawing of kind `avwap`
+  (`KIND_SPECS`: one date-only point, `dateOnly`, `needsLabel`): its
+  `price` is `""` in the web's `DrawingPoint` and null on the API
+  (`lib/api/drawings.ts::toApiPoints`); `style.bands` (0-2) picks the bands.
+  The toolbar's "Anchored VWAP" tool places it with one click on a bar, with
+  an "AVWAP label" field (default `avwap <date>`), a Bands select and quick
+  anchors (highest high and lowest low of the loaded bars, the last earnings
+  date through `lastEarningsDateAction`); the list adds and edits one by
+  date, label and bands. `ChartWorkbench` fetches each one's line through
+  `app/(product)/stocks/[ticker]/avwap-actions.ts` (`lib/api/avwap.ts`,
+  `GET /v1/symbols/{t}/avwap`), keyed by `avwapKey` (id, anchor, interval,
+  bands), so a new interval, anchor or band count fetches again; the API
+  computes it from daily bars and samples weekly/monthly bars. The scene
+  draws it with `avwapShapes`: one `path` shape per line (the VWAP, then
+  dashed bands; one path so dashes run on), a tick at the anchor, the label
+  and last value at the right end; a drag moves the anchor in time only.
+- **User-scoped rules (A3.3).** The rule panel says "Uses your drawings;
+  only you can run it." (`data-testid="rule-user-scoped"`) when
+  `/v1/rules/check` returns `user_scoped` (signed out: sign in to run it).
+  `/screener` runs any rule as the signed-in user
+  (`lib/api/screener-server.ts::getScreenerPageAsUser`, authed), so
+  `drawing()`/`avwap()` resolve on their drawings; signed out the API
+  refuses such a rule and the page says to sign in.
 - Other `PriceChart` users (`/trade`, `/replay/[id]` with fill markers on the
   price pane) get price and volume panes and the legend; they pass no
   indicators. Unit tests mock the library with

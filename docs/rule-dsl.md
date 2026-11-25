@@ -18,6 +18,8 @@ fundamental.pe < 25 and fundamental.roe > 15
 delivery_pct > 60 and close > open
 news.count(7, sentiment="negative") = 0
 rs(126) > 0 and bars_since(close crosses_above sma(close, 50)) <= 5
+close crosses_above drawing("support").price
+close > avwap("swing") and close < avwap("swing").upper2
 ```
 
 ## The language
@@ -33,6 +35,7 @@ rs(126) > 0 and bars_since(close crosses_above sma(close, 50)) <= 5
 | Timeframe | `weekly.x`, `monthly.x`, `weekly.(close > open)` |
 | Fundamentals | `fundamental.<metric>` |
 | News | `news.count(days, sentiment="...", event_type="...")` |
+| Your drawings (A3.3) | `drawing("label").price`, `.top`, `.bottom`; `avwap("label")` and `.upper1 .lower1 .upper2 .lower2` |
 | Comments | `# to the end of the line` |
 
 `index_close` is the close of the listing's market index on each bar's date:
@@ -42,7 +45,8 @@ bars (the series `rs()` reads). A bar never sees a later index close. On
 index series it is unknown. `index_close > sma(index_close, 200)` is the
 market-regime test the Checklist uses.
 
-Names are lowercase. Strings appear only as keyword values. Arguments go by
+Names are lowercase. Strings appear only as keyword values and as a
+drawing's label in `drawing("...")` and `avwap("...")`. Arguments go by
 position or by name: `bb(20, k=2.5)`. Defaults may be left out: `rsi()` is
 `rsi(14)`.
 
@@ -76,6 +80,52 @@ Indian ones).
 `roic_pretax`, `debt_to_equity`, `current_ratio`, `payout_ratio`,
 `revenue_growth`, `net_income_growth`. Margins, returns and growth are
 percentages. Each is the valuation page's figure as known on the bar's date.
+
+## Your drawings and anchored VWAPs (A3.3)
+
+A rule can read the chart drawings you saved on a symbol, by their label
+(labels match ignoring case and extra spaces). On a daily bar dated `d`:
+
+| Binding | Drawing | Value |
+| --- | --- | --- |
+| `drawing("x").price` | horizontal line | its price, on every bar |
+| `drawing("x").price` | trend line | linear between its two anchors, by weekdays (Monday to Friday); only from the earlier anchor's date to the later one's, inclusive. Before or after: unknown. It is not extended; draw a ray for that |
+| `drawing("x").price` | ray | linear through its two anchors and extended past the second. It runs from its first point towards the second: drawn to the right, it has a value on every bar from the first point on; drawn to the left, on every bar up to it |
+| `drawing("x").top`, `.bottom` | rectangle | its higher and lower price, on every bar from its left edge on (a zone keeps its level after it is drawn); unknown before |
+| `avwap("x")` | anchored VWAP | the VWAP from its anchor date over the daily bars up to each bar; unknown before the anchor. `.upper1 .lower1 .upper2 .lower2` are the bands at one and two volume-weighted standard deviations |
+
+- **Weekdays, not sessions.** The daily chart draws a line straight through
+  its bars, so it is linear in sessions; a rule reads it linear in weekdays,
+  which differ only by the exchange holidays between the anchors (a few
+  sessions of slope at most). Weekdays are known in advance, so a line's
+  value on a bar never depends on bars that come later.
+- **No look-ahead.** A drawing's value on a bar reads only its anchors, and an
+  AVWAP only bars up to that bar. A line that starts after a bar is unknown
+  on it. A drawing you drew later is still applied to earlier bars: it is
+  your geometry, not data. The conformance suite checks both modes and the
+  perturb-the-future test with drawings in its test data.
+- **Daily only.** `weekly.drawing(...)` is an error. On a weekly or monthly
+  chart, the AVWAP is the daily one sampled at each bar's last session.
+- **Unknown, never a crash.** A label with no drawing ("drawing 'x' not
+  found"), two drawings with one label, a kind the binding cannot read (a
+  Fibonacci, a text note; `.price` on a rectangle), or a deleted or renamed
+  drawing all make the value unknown with the reason. An alert on such a
+  rule stays quiet (unknown never fires).
+- **Yours only.** These rules are *user-scoped*: they resolve only for their
+  owner. `POST /v1/rules/check` says `user_scoped: true` (and `uses`
+  includes `drawings`); the rule editor notes "Uses your drawings; only you
+  can run it". The screener runs such a rule for the signed-in user only
+  (signed out it is refused, 401), and never caches it; a rule alert reads
+  the alert owner's drawings; a nightly saved-screen run reads the setup
+  owner's. A preset cannot hold one, and another user cannot fork a setup
+  that uses one. `rule-check` reads `--user-id N`'s drawings; without it the
+  values are unknown.
+
+An anchored VWAP is a drawing of kind `avwap` (one date, a label, its bands).
+On the stock page pick the "Anchored VWAP" tool and click the anchor bar,
+or anchor at the highest high or lowest low of the loaded bars or the last
+earnings date, or add one by typing a date in the Drawings list. The chart
+reads `GET /v1/symbols/{t}/avwap?anchor=YYYY-MM-DD&interval=1d|1wk|1mo&bands=0|1|2`.
 
 ## Rules that keep it honest
 
@@ -113,7 +163,8 @@ uv --directory apps/api run python -m stockviz.cli rule-check \
 It prints the canonical text, the hash and the warm-up the rule needs, then
 met / not_met / unknown per ticker at the latest completed session (or
 `--date`), with the reasons and, with `--explain`, every part's value. A
-syntax or type error prints its line and column and exits 2.
+syntax or type error prints its line and column and exits 2. A rule that
+reads drawings needs `--user-id N` (whose drawings it reads).
 
 ## In the screener
 
