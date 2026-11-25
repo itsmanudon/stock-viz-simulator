@@ -20,18 +20,18 @@
   --popover-foreground: #0b1220;
   --primary: #0b1220;
   --primary-foreground: #ffffff;
-  /* Volt fails contrast on white, so light mode carries a deep olive for
-     brand text, focus and selection. The gradient stops stay the same in
+  /* Solar orange fails contrast on white, so light mode carries a deep
+     burnt orange for brand text, focus and selection. The gradient stops stay the same in
      both themes because the paper card always sits on its own dark ground. */
-  --brand: #4a6600;
-  --brand-muted: #eef6d6;
-  --brand-gradient-from: #a6f000;
-  --brand-gradient-via: #d4ff3a;
-  --brand-gradient-to: #f6ffb0;
+  --brand: #a84300;
+  --brand-muted: #fdebdc;
+  --brand-gradient-from: #ff4d00;
+  --brand-gradient-via: #ff9a1f;
+  --brand-gradient-to: #ffd36e;
   /* Stops for gradient display text. Kept dark enough in light mode that the
      lightest stop still clears 3:1 for large text on the canvas. */
-  --brand-text-from: #4a6600;
-  --brand-text-to: #2f4200;
+  --brand-text-from: #a84300;
+  --brand-text-to: #7a3000;
   --secondary: #e9edf3;
   --secondary-foreground: #172033;
   --muted: #e9edf3;
@@ -42,7 +42,7 @@
   --destructive-foreground: #ffffff;
   --border: #cdd4df;
   --input: #b7c0ce;
-  --ring: #4a6600;
+  --ring: #a84300;
   --surface-elevated: #ffffff;
   --surface-secondary: #e9edf3;
   --surface-hover: #e1e6ee;
@@ -82,67 +82,67 @@
 }
 
 .dark {
-  /* PRISM, Volt (Nov 2026 redesign, third palette). Graphite black, cool
-     paper-white text, and one electric brand: acid volt #d4ff3a running from
-     deep lime to citron. Almost no finance product uses it, and it reads at a
-     glance. The Aurora rule holds: the brand is identity, focus and selection
-     only. Gains moved a step toward aqua (#34e6b0) and losses stay red, so
-     neither is ever mistaken for the brand. */
-  --background: #08090a;
-  --foreground: #f1f4ec;
-  --card: #0e100f;
-  --card-foreground: #f1f4ec;
-  --popover: #151816;
-  --popover-foreground: #f1f4ec;
-  --primary: #f1f4ec;
-  --primary-foreground: #08090a;
-  --brand: #d4ff3a;
-  --brand-muted: #232b0c;
-  --brand-gradient-from: #a6f000;
-  --brand-gradient-via: #d4ff3a;
-  --brand-gradient-to: #f6ffb0;
-  --brand-text-from: #f4ffd0;
-  --brand-text-to: #c6f53a;
-  --secondary: #141614;
-  --secondary-foreground: #d9ddd3;
-  --muted: #141614;
+  /* PRISM, Solar (Nov 2026 redesign; owner's default, chosen over Volt and
+     liquid chrome). Warm ember black, warm paper text, and one hot brand:
+     solar orange #ff8a2a running from flare red-orange to amber gold. The
+     Aurora rule holds: the brand is identity, focus and selection only.
+     Gains are aqua (#34e6b0) and losses a cool rose (#ff4f8b), so neither is
+     mistaken for the orange brand, and warnings are yellow, not amber. */
+  --background: #0a0806;
+  --foreground: #f6efe6;
+  --card: #110e0b;
+  --card-foreground: #f6efe6;
+  --popover: #18140f;
+  --popover-foreground: #f6efe6;
+  --primary: #f6efe6;
+  --primary-foreground: #0a0806;
+  --brand: #ff8a2a;
+  --brand-muted: #2e1a0a;
+  --brand-gradient-from: #ff4d00;
+  --brand-gradient-via: #ff9a1f;
+  --brand-gradient-to: #ffd36e;
+  --brand-text-from: #ffe2bf;
+  --brand-text-to: #ff8a2a;
+  --secondary: #16120e;
+  --secondary-foreground: #e2d9cd;
+  --muted: #16120e;
   --muted-foreground: var(--text-secondary);
-  --accent: #1d201c;
-  --accent-foreground: #f1f4ec;
-  --destructive: #ff6b7f;
-  --destructive-foreground: #2d0c10;
-  --border: #262924;
-  --input: #646a5e;
-  --ring: #d4ff3a;
+  --accent: #201a14;
+  --accent-foreground: #f6efe6;
+  --destructive: #ff4f8b;
+  --destructive-foreground: #2d0a17;
+  --border: #2a241e;
+  --input: #6b6158;
+  --ring: #ff8a2a;
   /* One step above --card so overlays separate from the tiles they sit on. */
-  --surface-elevated: #121412;
-  --surface-secondary: #151715;
-  --surface-hover: #1d201c;
-  --border-muted: #1a1c19;
-  --text-secondary: #b4b9ad;
-  --text-tertiary: #8c9186;
+  --surface-elevated: #14110d;
+  --surface-secondary: #17130f;
+  --surface-hover: #201a14;
+  --border-muted: #1c1813;
+  --text-secondary: #bdb2a5;
+  --text-tertiary: #948a7d;
   --positive: #34e6b0;
   --positive-foreground: #032a1f;
   --financial-tint-1: 6%;
   --financial-tint-2: 11%;
   --financial-tint-3: 17%;
-  --negative: #ff6b7f;
-  --negative-foreground: #2d0c10;
-  --warning: #ffc15a;
-  --warning-foreground: #271b05;
+  --negative: #ff4f8b;
+  --negative-foreground: #2d0a17;
+  --warning: #ffe14d;
+  --warning-foreground: #2a2405;
   --positive-soft: #0b2c25;
   --positive-soft-foreground: #8ef3d9;
-  --negative-soft: #38141c;
-  --negative-soft-foreground: #ffa3af;
-  --warning-soft: #33270f;
-  --warning-soft-foreground: #f8d48a;
-  --neutral-soft: #1d201c;
-  --neutral-soft-foreground: #b4b9ad;
+  --negative-soft: #3a1224;
+  --negative-soft-foreground: #ffa0c2;
+  --warning-soft: #332c0c;
+  --warning-soft-foreground: #fff0a0;
+  --neutral-soft: #201a14;
+  --neutral-soft-foreground: #bdb2a5;
 
-  --marketing-panel: #0b0c0b;
-  --marketing-panel-border: #262924;
+  --marketing-panel: #0d0a08;
+  --marketing-panel-border: #2a241e;
   --marketing-glow: color-mix(in oklab, var(--brand-gradient-from) 55%, transparent);
-  --grid-line: #161815;
+  --grid-line: #18140f;
 }
 
 @theme inline {
@@ -303,8 +303,8 @@ html[data-density="compact"] .workspace-main .density-workspace {
 
   .dark .panel-inset {
     /* A shade above --card so nested tiles still separate from the panel. */
-    --surface-elevated: #161916;
-    --border-muted: #1d201c;
+    --surface-elevated: #1a1511;
+    --border-muted: #231d17;
     border-color: var(--marketing-panel-border);
     background-color: var(--marketing-panel);
     color-scheme: dark;
@@ -1258,8 +1258,8 @@ body::after {
     background: linear-gradient(
       105deg,
       transparent 35%,
-      rgb(212 255 58 / 0.4) 48%,
-      rgb(246 255 176 / 0.35) 55%,
+      rgb(255 154 31 / 0.4) 48%,
+      rgb(255 211 110 / 0.35) 55%,
       transparent 68%
     );
     transform: translateX(-120%);

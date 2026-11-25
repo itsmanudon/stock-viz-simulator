@@ -3,7 +3,7 @@
 /**
  * PrismField: the hero's light. One full-screen fragment shader (three.js,
  * loaded on demand) that draws slow iridescent ribbons of the brand's
- * deep lime, volt and citron, bending toward the pointer.
+ * flare orange, solar and amber gold, bending toward the pointer.
  *
  * It carries one fact as colour, like the Aurora "market weather" it
  * replaces: `share` (the fraction of tracked symbols that closed up at the
@@ -151,14 +151,14 @@ export function PrismField({ share, className }: { share?: number | null; classN
         uTime: { value: 12 },
         uRes: { value: new THREE.Vector2(1, 1) },
         uPointer: { value: new THREE.Vector2(0.3, 0.1) },
-        uA: { value: srgb(cssColor("--brand-gradient-from", "#a6f000")) },
-        uB: { value: srgb(cssColor("--brand-gradient-via", "#d4ff3a")) },
-        uC: { value: srgb(cssColor("--brand-gradient-to", "#f6ffb0")) },
+        uA: { value: srgb(cssColor("--brand-gradient-from", "#ff4d00")) },
+        uB: { value: srgb(cssColor("--brand-gradient-via", "#ff9a1f")) },
+        uC: { value: srgb(cssColor("--brand-gradient-to", "#ffd36e")) },
         uMood: {
           value: srgb(
             moodShare >= 0.5
               ? cssColor("--positive", "#34e6b0")
-              : cssColor("--negative", "#ff6b7f"),
+              : cssColor("--negative", "#ff4f8b"),
           ),
         },
         uMoodAmount: { value: Math.min(0.55, Math.abs(moodShare - 0.5) * 1.4) },

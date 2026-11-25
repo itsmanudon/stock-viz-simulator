@@ -309,13 +309,14 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   loaded), so there is no ₹ fallback face any more.
 - **PRISM layer (Nov 2026 redesign)** sits on top of the Aurora rules below,
   which still hold (brand is identity/focus/selection only, gain and loss keep
-  their own hues). The palette is **Volt** (owner, 25 Nov 2026, after a
-  violet/pink/cyan pass and a liquid-chrome pass were judged too common or too
-  colourless): graphite black `#08090a`, paper-white text `#f1f4ec`, and one
-  electric brand, acid volt `#d4ff3a` (`--brand`), with a gradient from deep
-  lime `#a6f000` to citron `#f6ffb0`. Gains moved a step toward aqua
-  (`#34e6b0`) so they never read as the brand; losses stay `#ff6b7f`.
-  `--input` is `#646a5e` so field borders clear 3:1 (WCAG 1.4.11). The paper
+  their own hues). The palette is **Solar** (owner's default, 25 Nov 2026,
+  after violet/pink/cyan, liquid chrome and Volt passes): warm ember black
+  `#0a0806`, warm paper text `#f6efe6`, and one hot brand, solar orange
+  `#ff8a2a` (`--brand`), with a gradient from flare `#ff4d00` through
+  `#ff9a1f` to amber gold `#ffd36e`. Gains are aqua (`#34e6b0`) and losses a
+  cool rose (`#ff4f8b`) so neither reads as the orange brand; warnings are
+  yellow (`#ffe14d`), not amber, for the same reason.
+  `--input` is `#6b6158` so field borders clear 3:1 (WCAG 1.4.11). The paper
   card is black titanium lit by the brand. The terrain's flat colour is
   `--text-tertiary`, never the brand, so up/down stays readable. Don't
   reintroduce navy or violet literals. Instrument
