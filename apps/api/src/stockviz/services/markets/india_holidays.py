@@ -26,9 +26,9 @@ copy of the table.
 
 Weekend holidays are left out: they close nothing.
 
-**Special sessions.** The exchanges sometimes trade on a weekend: Budget
+**Special sessions.** The exchanges sometimes trade on a weekend (Budget
 day, Diwali Muhurat trading, a live test of a new system or of the disaster
-recovery site. :data:`SPECIAL_SESSIONS` lists each one with its source, and
+recovery site) or on a weekday holiday (Diwali Muhurat on Laxmi Pujan). :data:`SPECIAL_SESSIONS` lists each one with its source, and
 the calendars count it as a session, so its daily bar is expected and not
 reported as a bar on a closed day. Their hours are not modelled (a Muhurat
 session runs about an hour in the evening); the calendar gives them the
@@ -136,13 +136,34 @@ SPECIAL_SESSIONS: dict[date, str] = {
     ): "Live session with a switch to the disaster-recovery site (Zerodha bulletin 377895)",
     date(2025, 2, 1): "Union Budget (Zerodha bulletin 400094)",
     date(2026, 2, 1): "Union Budget (Zerodha bulletin 439957)",
+    # Weekday Muhurat sessions on the Laxmi Pujan holiday. Each checked on
+    # 25 Nov 2026 against NSE circulars or broker and press notices, and each
+    # has stored bars with real volume in production on 60+ tickers.
+    date(2015, 11, 11): "Diwali Muhurat trading (Zerodha bulletin 52927, Business Standard)",
+    date(2017, 10, 19): "Diwali Muhurat trading (NSE circular CMTR35993)",
+    date(2018, 11, 7): "Diwali Muhurat trading (Zerodha bulletin 198876)",
+    date(2021, 11, 4): "Diwali Muhurat trading (NSE circular CMTR50050)",
+    date(2022, 10, 24): "Diwali Muhurat trading (Zerodha bulletin 334061)",
+    date(2024, 11, 1): "Diwali Muhurat trading (NSE notification; Groww, Business Standard)",
+    date(2025, 10, 21): "Diwali Muhurat trading (NSE circular; Business Standard)",
 }
-"""Weekend days NSE and BSE traded. Weekday sessions on a holiday (a weekday
-Muhurat) are not listed yet: none is confirmed against stored bars."""
+"""Days NSE and BSE traded outside their normal sessions: weekends, and
+weekday holidays with a Muhurat session. Each counts as a session."""
+
+HISTORY_CORRECTIONS: dict[date, bool] = {
+    # The package's BSE list has Muharram 2013 on 14 Nov. The exchanges moved
+    # it to 15 Nov two days before (Business Today, 13 Nov 2013; Business
+    # Standard "Markets closed on account of Moharrum", 15 Nov 2013); every
+    # stored bar on the 14th has real volume.
+    date(2013, 11, 14): True,
+    date(2013, 11, 15): False,
+}
+"""Dates where the package's history is wrong: True opens the day, False
+closes it."""
 
 
 def special_weekmasks() -> list[tuple[date, date, str]]:
-    """One (Monday, Sunday, mask) per special session's week, oldest first.
+    """One (Monday, Sunday, mask) per weekend special session's week, oldest first.
 
     The mask is the week's trading days, Monday first: weekdays open, plus
     the special day. Holidays in that week stay closed (they are listed
@@ -151,7 +172,7 @@ def special_weekmasks() -> list[tuple[date, date, str]]:
     masks: list[tuple[date, date, str]] = []
     for day in sorted(SPECIAL_SESSIONS):
         if day.weekday() < 5:
-            raise ValueError(f"{day} is a weekday; SPECIAL_SESSIONS lists weekend sessions")
+            continue  # a weekday opens by taking it off the holiday list
         monday = date.fromordinal(day.toordinal() - day.weekday())
         sunday = date.fromordinal(monday.toordinal() + 6)
         if masks and masks[-1][0] == monday:
