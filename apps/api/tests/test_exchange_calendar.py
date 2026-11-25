@@ -22,7 +22,8 @@ THANKSGIVING_CRON = datetime(2026, 11, 26, 22, 0, tzinfo=UTC)  # US closed, Lond
     ("ticker", "venue"),
     [
         ("AAPL", "XNYS"),
-        ("RELIANCE.NS", "XBOM"),
+        ("RELIANCE.NS", "XNSE"),
+        ("RELIANCE.BO", "XBOM"),
         ("BARC.L", "XLON"),
         ("SAP.DE", "XETR"),
         ("SHOP.TO", "XTSE"),
@@ -64,12 +65,9 @@ def test_an_expiry_on_a_holiday_settles_on_the_session_before() -> None:
 
 
 def test_outside_a_calendar_the_weekday_rule_applies() -> None:
-    # XBOM in this package version ends on 31 Dec 2026.
-    assert is_session(date(2027, 3, 1), "XBOM")
-    assert not is_session(date(2027, 3, 6), "XBOM")
-    assert latest_completed_session(datetime(2027, 3, 2, 22, 0, tzinfo=UTC), "XBOM") == date(
-        2027, 3, 2
-    )
+    # An unknown venue has no calendar; weekdays stand in for sessions.
+    assert is_session(date(2027, 3, 1), "XZZZ")
+    assert not is_session(date(2027, 3, 6), "XZZZ")
 
 
 def test_bars_are_judged_by_their_own_venue() -> None:

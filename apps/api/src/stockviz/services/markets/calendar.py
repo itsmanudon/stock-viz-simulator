@@ -6,12 +6,20 @@ every market used one rule: a weekday's bar is complete once New York passes
 ``exchange_calendars`` package, imported only in this module.
 
 Until instruments carry a venue (Phase 4 identity work), the venue comes from
-the Yahoo ticker suffix (:func:`venue_for_ticker`). NSE has no calendar in the
-package; BSE (``XBOM``) keeps the same holidays and stands in for it.
+the Yahoo ticker suffix (:func:`venue_for_ticker`).
 
-A calendar covers a fixed range (about 20 years back to a year ahead, and
-``XBOM`` only to the end of 2026). Outside it, and for an unknown venue, the
-functions fall back to the old weekday rule rather than fail, and log once.
+**India (A0).** The package has no NSE calendar, and its BSE list ends with
+2026. NSE (``XNSE``) and BSE (``XBOM``) are therefore built here from one
+holiday list: the package's BSE holidays before 2026, then the table
+maintained in :mod:`stockviz.services.markets.india_holidays`, official or
+provisional by year. A provisional year closes only the fixed-date holidays
+and logs a warning once per venue and year. Hours and special Saturday
+sessions are the package's BSE ones.
+
+A calendar covers a fixed range (about 20 years back to a year ahead; the
+Indian ones to the end of ``india_holidays.PROVISIONAL_THROUGH``). Outside it,
+and for an unknown venue, the functions fall back to the old weekday rule
+rather than fail, and log once.
 """
 
 from __future__ import annotations
@@ -27,8 +35,11 @@ logger = logging.getLogger(__name__)
 NEW_YORK_VENUE = "XNYS"
 """Default venue: US listings, and the session the nightly jobs are dated by."""
 
+INDIAN_VENUES = frozenset({"XNSE", "XBOM"})
+"""NSE and BSE: calendars built here from the maintained holiday table."""
+
 VENUE_BY_SUFFIX: dict[str, str] = {
-    ".NS": "XBOM",  # NSE: no calendar in the package; BSE shares its holidays
+    ".NS": "XNSE",
     ".BO": "XBOM",
     ".L": "XLON",
     ".DE": "XETR",
@@ -49,9 +60,14 @@ _warned: set[str] = set()
 
 INDEX_VENUES: dict[str, str] = {
     "^GSPC": "XNYS",  # S&P 500 (Phase 7.4 benchmark)
-    "^NSEI": "XBOM",  # NIFTY 50: NSE hours and holidays
+    "^NSEI": "XNSE",  # NIFTY 50
 }
 """Benchmarks have no suffix; they are dated by their market's sessions."""
+
+
+def is_indian_venue(venue: str) -> bool:
+    """Whether ``venue`` is NSE or BSE."""
+    return venue in INDIAN_VENUES
 
 
 def venue_for_ticker(ticker: str) -> str:
@@ -69,11 +85,81 @@ def venue_for_ticker(ticker: str) -> str:
 def _calendar(venue: str) -> Any | None:
     import exchange_calendars as xcals
 
+    if venue in INDIAN_VENUES:
+        return _indian_calendar(venue)
     try:
         return xcals.get_calendar(venue)
     except Exception:  # unknown venue name
         _warn_once(venue, "no calendar for %s; using weekdays", venue)
         return None
+
+
+def indian_holidays() -> list[date]:
+    """Every NSE and BSE weekday holiday the calendars close, oldest first.
+
+    The package's BSE list before ``FIRST_MAINTAINED_YEAR``, then the
+    maintained table (official years, then provisional ones).
+    """
+    from exchange_calendars.exchange_calendar_xbom import precomputed_bse_holidays
+
+    from stockviz.services.markets import india_holidays
+
+    history = {
+        stamp.date()
+        for stamp in precomputed_bse_holidays
+        if stamp.year < india_holidays.FIRST_MAINTAINED_YEAR
+    }
+    return sorted(history | set(india_holidays.maintained_holidays()))
+
+
+def _indian_calendar(venue: str) -> Any:
+    import pandas as pd
+    from exchange_calendars.exchange_calendar_xbom import XBOMExchangeCalendar
+
+    from stockviz.services.markets import india_holidays
+
+    holidays = pd.DatetimeIndex([pd.Timestamp(day) for day in indian_holidays()])
+
+    class IndianExchangeCalendar(XBOMExchangeCalendar):
+        """BSE's hours and special sessions; this module's holiday list."""
+
+        name = venue
+
+        @classmethod
+        def precomputed_holidays(cls) -> pd.DatetimeIndex:
+            return holidays
+
+    return IndianExchangeCalendar(end=f"{india_holidays.PROVISIONAL_THROUGH}-12-31")
+
+
+def holiday_basis(day: date, venue: str = NEW_YORK_VENUE) -> str:
+    """Where ``day``'s session answer comes from.
+
+    ``"official"`` or ``"provisional"`` for a maintained Indian year,
+    ``"calendar"`` for any other date a calendar covers, and ``"weekdays"``
+    when the weekday fallback applies.
+    """
+    calendar = _calendar(venue)
+    if calendar is None or not _in_range(calendar, day):
+        return "weekdays"
+    if venue in INDIAN_VENUES:
+        from stockviz.services.markets import india_holidays
+
+        status = india_holidays.year_status(day.year)
+        if status != "none":
+            return status
+    return "calendar"
+
+
+def _note_provisional(day: date, venue: str) -> None:
+    if venue in INDIAN_VENUES and holiday_basis(day, venue) == "provisional":
+        _warn_once(
+            f"{venue}:{day.year}:provisional",
+            "%s holidays for %s are provisional (fixed-date holidays only) until the "
+            "official list is added to india_holidays.py",
+            venue,
+            day.year,
+        )
 
 
 def venue_zone(venue: str) -> ZoneInfo:
@@ -101,6 +187,7 @@ def is_session(day: date, venue: str = NEW_YORK_VENUE) -> bool:
                 f"{venue}:range", "%s calendar does not cover %s; using weekdays", venue, day
             )
         return day.weekday() < 5
+    _note_provisional(day, venue)
     return bool(calendar.is_session(day.isoformat()))
 
 
