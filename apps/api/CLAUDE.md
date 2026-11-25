@@ -39,7 +39,8 @@ src/stockviz/
                     markets (one-call /markets summary), indicators, news,
                     checklist (A2.4), trading, orders, options, backtest,
                     experiments (saved backtests, Phase 5.4),
-                    screener, sentiment, watchlist, alerts, profile
+                    screener, sentiment, watchlist (the default list,
+                    deprecated), watchlists + column_sets (A2.5), alerts, profile
                     (display currency), earnings, replay
                     (isolated ReplaySession), rules / setups / theses
                     (A2.2), notification_channels (A2.3), health
@@ -867,6 +868,60 @@ answers 401/403, 0 otherwise: an unreachable or sleeping web holds no cache.
 for every row in one `recent_bars` query; the list and add endpoints both
 use `_items_out`.
 
+**Many watchlists, notes, tags, column sets (A2.5, M4.6).** Migration
+`5a167f08f3f7` (additive): `watchlists` gains `colour` (palette
+`models/watchlist.WATCHLIST_COLOURS`: aqua blue violet pink amber lime slate,
+each a `--list-<name>` token in the web), `position`, `is_default` and
+`column_set_id` (to `column_sets`, `ON DELETE SET NULL`); `watchlist_items`
+gains `note` (VARCHAR 2000) and `tags` (JSON list); `column_sets` (user,
+name, ordered `columns`) is new. The upgrade numbers each user's lists by
+id, flags the oldest as default and renames a repeated name " (2)" before
+`uq_watchlists_user_name` (user, name) and the partial unique index
+`uq_watchlists_user_default` (one default per user) land. Rules live in
+`services/watchlists.py`:
+
+- **Default list.** `ensure_default` makes an empty "Default" on first use,
+  or flags the first list by position if none is. Deleting the default moves
+  the flag to the first remaining list; deleting the **last** list leaves a
+  fresh empty "Default", so every user always has one. `PATCH {is_default:
+  true}` moves it (false is 422).
+- **Limits.** 50 lists a user; names 1-64 characters, unique per user
+  ignoring case (409); 100 symbols a list (the news filter's bound; a bulk
+  add that would pass it adds nothing, 409); a bulk add takes up to 100
+  tickers, de-duplicated, reporting `added`, `already_listed`, `unknown`.
+  Notes up to 2,000 characters (blank clears); up to 10 tags of 1-24
+  letters, digits, spaces or `- _ . & /`, de-duplicated ignoring case.
+  Column sets: 20 a user, columns from `COLUMN_KEYS` (each once; the
+  `ColumnKey` literal in `schemas.py` must equal it, a test checks).
+- **API** (authed). `/v1/watchlists`: `GET` (`?contains=T` adds `contains`
+  per list), `POST {name, colour}` (201), `PATCH /{id}` `{name?, colour?,
+  is_default?, column_set_id?}` (null clears), `POST /reorder {ids}` (every
+  id once, else 422), `DELETE /{id}`; `GET /{id}/items?column_set_id=&columns=a,b`
+  -> `{watchlist, columns, column_set_id, items: [WatchlistRowOut: the
+  WatchlistItemOut fields + note, tags, values]}` (columns: `columns=`, then
+  `column_set_id=`, then the list's set, then `DEFAULT_COLUMNS`), `POST
+  /{id}/items {tickers}`, `PATCH /{id}/items/{ticker} {note?, tags?}`,
+  `DELETE /{id}/items/{ticker}`. `/v1/column-sets`: `GET`, `POST {name,
+  columns}`, `PATCH /{id}`, `DELETE /{id}` (lists using it fall back to the
+  default columns). Another user's list or set is 404.
+- **Values** (`column_values`): every row in a fixed number of queries:
+  the sparkline bars (also `close` and `change_pct`, last close against the
+  one before), one `symbol_metrics` read (RSI, gaps to the 52-week high and
+  SMA 50/200 from the snapshot's close, ATR %, volatility, average volume,
+  P/E, P/B, USD market cap, yield, ROE, 7-day sentiment), the newest daily
+  bar's volume (`volume_ratio` = it over the 20-day average), the newest
+  `eod_extras` session (`delivery_pct`, EQ first) and the newest
+  `checklist_scores` row (`checklist_met`, with `checklist_evaluated`). No
+  data is `null`, never 0.
+- **Old routes.** `/v1/watchlist` (GET, `POST /{ticker}`, `DELETE
+  /{ticker}`) act on the default list and keep their shapes; marked
+  deprecated in OpenAPI. Earnings' `scope=watchlist` reads every list of
+  the user. No alert kind or screen run reads watchlists. News for a list is
+  `/v1/news?tickers=` with the list's symbols.
+- Tests: `test_watchlists_router.py`, `test_watchlist_router.py`,
+  `test_watchlist_batched.py`, `test_watchlists_migration.py` (PostgreSQL
+  up/down/up with a duplicated name).
+
 **Fundamentals, point in time (Phase 6.3).** `fundamental_facts` holds one
 row per reported figure (`models/fundamentals.py`), append-only: a changed or
 restated value is a new row with a later `available_at`, and
@@ -1043,7 +1098,8 @@ users ─┬─ portfolios ─┬─ positions           (qty + native-currency 
        │              ├─ options_positions    (also carries user_id)
        │              └─ portfolio_dividends  (credited payouts)
        ├─ portfolio_snapshots   (daily NAV — powers the equity curve and returns)
-       ├─ watchlists ── watchlist_items
+       ├─ watchlists ── watchlist_items   (A2.5: many lists, one default; notes, tags)
+       ├─ column_sets           (A2.5: saved watchlist columns)
        ├─ alerts
 
 symbols ─┬─ price_bars          (EOD OHLCV; everything prices off the latest 1d close)

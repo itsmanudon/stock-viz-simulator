@@ -72,7 +72,7 @@ from stockviz.models.risk_limit import RiskLimit
 from stockviz.models.screen import SavedScreen, ScreenRun
 from stockviz.models.setup import Setup, SetupVersion, Thesis
 from stockviz.models.user import User
-from stockviz.models.watchlist import Watchlist, WatchlistItem
+from stockviz.models.watchlist import ColumnSet, Watchlist, WatchlistItem
 
 __all__ = [
     "AegisAnalysis",
@@ -92,6 +92,7 @@ __all__ = [
     "ChannelKind",
     "ChecklistEvidence",
     "ChecklistScore",
+    "ColumnSet",
     "ConsumerInbox",
     "CorporateAction",
     "CorporateActionApplication",
