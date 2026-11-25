@@ -62,6 +62,41 @@ timeframe): `rsi(n=14)`, `macd(fast=12, slow=26, signal=9)` with outputs
 `cci(20)`, `roc(12)`, `willr(14)`, `mfi(14)`, `rvol(20)`, `wma(20)`,
 `vwap(20)`, `obv()`, `ad()`.
 
+**Added in A3.4** (each with its parameters' bounds from the registry; out
+of bounds is a type error, as on the chart and the API):
+
+- Moving averages: `hma(n=20)`, `dema(n=20)`, `tema(n=20)`,
+  `kama(n=10, fast=2, slow=30)`.
+- `psar(step=0.02, max=0.2)` `.sar` (default; the stop in force on the bar,
+  from the bars before it), `.direction` (1 up, -1 down, after the bar's
+  reversal check).
+- `ichimoku(tenkan=9, kijun=26, senkou=52, shift=26)` with `.tenkan`,
+  `.kijun`, `.senkou_a`, `.senkou_b` (one must be named). A leading span on
+  a bar is the span *drawn on that bar*, computed `shift` bars earlier, so a
+  rule never reads a later bar; there is no lagging span (it would put a
+  later close on an earlier bar).
+- `pivots(basis=3)` `.pp` (default), `.r1`, `.r2`, `.s1`, `.s2`: classic
+  floor pivots from the prior bar (1), week (2), month (3) or year (4).
+- Trend and momentum: `aroon(n=25)` `.up` / `.down`; `vortex(n=14)` `.plus`
+  / `.minus`; `elder(n=13)` `.bull` / `.bear`; `chop(14)`, `trix(15)`,
+  `cmo(9)`, `uo(short=7, mid=14, long=28)`, `coppock(long=14, short=11,
+  n=10)`; `tsi(long=25, short=13, signal=7)` `.tsi` (default), `.signal`;
+  `ppo(12, 26, 9)` `.ppo` (default), `.signal`, `.histogram`;
+  `stochrsi(rsi_n=14, n=14, k=3, d=3)` `.k` (default), `.d` (0-100).
+- Volatility: `natr(14)` (ATR % of close), `massi(n=9, total=25)`,
+  `rmv(n=5, lookback=50)` (StockViz's range tightness: 0 = the tightest
+  n-bar range of `lookback` bars, 100 the widest).
+- Volume: `cmf(20)`, `chaikin(fast=3, slow=10)`, `force(13)`, `eom(14)`.
+- `rsline()`: the close over the venue index's close (`^GSPC`, `^NSEI`),
+  the index forward-filled at most 5 bars; unknown without an index.
+
+Each study's **canonical signal**, graded on the chart's evidence badge,
+is a rule in this language; the list is
+`apps/api/src/stockviz/services/indicators/signals.py` (for example `rsi(14)
+crosses_above 30`, `psar(0.02, 0.2).direction crosses_above 0`, `close
+crosses_above max(ichimoku(9, 26, 52, 26).senkou_a, ichimoku(9, 26, 52,
+26).senkou_b)`).
+
 **On any series:** `sma(x, n)`, `ema(x, n)`, `highest(x, n)`,
 `lowest(x, n)`, `sum(x, n)`, `change(x, n=1)`, `pct_change(x, n=1)`
 (percent), `abs(x)`, `min(a, b, ...)`, `max(a, b, ...)`. Indicators of
