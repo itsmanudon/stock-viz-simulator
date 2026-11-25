@@ -25,6 +25,7 @@ import {
 } from "@/app/(product)/(authed)/trade/actions";
 import { OrderConfirmation, OrderReview, useHydrated } from "@/components/order-review";
 import { OrderSideToggle } from "@/components/order-side-toggle";
+import { useOutcomeSound } from "@/components/sound/sound-provider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -145,6 +146,7 @@ export function OrderTicket({
     : orderSuccess;
   const confirmed = Boolean(successMessage) && !pending && activeState !== dismissed;
   const label = `${orderTypeLabel(mode).toLowerCase()} ${effectiveSide}`;
+  useOutcomeSound(successMessage, error, marketSuccess ? "fill" : "success");
 
   function startNewOrder() {
     setDismissed(activeState);

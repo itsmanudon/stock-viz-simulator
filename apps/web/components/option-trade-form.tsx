@@ -20,6 +20,7 @@ import {
   type OptionTradeState,
   openOptionAction,
 } from "@/app/(product)/(authed)/trade/options-actions";
+import { useOutcomeSound } from "@/components/sound/sound-provider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -73,6 +74,7 @@ function quoteError(error: unknown): string {
 
 export function OptionTradeForm({ options }: { options: SymbolOption[] }) {
   const [state, action, pending] = useActionState<OptionTradeState, FormData>(openOptionAction, {});
+  useOutcomeSound(state.success, state.error, "fill");
   const [optionType, setOptionType] = useState<"call" | "put">("call");
   const [side, setSide] = useState<"long" | "short">("long");
   const [ticker, setTicker] = useState(options[0]?.ticker ?? "");

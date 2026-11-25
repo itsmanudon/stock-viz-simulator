@@ -2,6 +2,8 @@ import Link from "next/link";
 
 import { EquityCurve } from "@/components/equity-curve";
 import { PaperCard } from "@/components/paper-card";
+import { RollingFigure } from "@/components/prism/rolling-figure";
+import { TiltCard } from "@/components/prism/tilt-card";
 import { ValuationNotice } from "@/components/valuation-notice";
 import type { Portfolio, PortfolioHistoryPoint } from "@/lib/api/trading";
 import {
@@ -66,7 +68,9 @@ export function PortfolioPerformance({ portfolio, history, range, tab }: Props) 
       <div className="mt-6 grid gap-6 md:grid-cols-[13rem_minmax(0,1fr)] md:items-center lg:grid-cols-[13rem_minmax(0,1fr)_auto] lg:items-end">
         <div className="relative isolate hidden md:block">
           <div aria-hidden className="brand-glow -top-10 -left-10 -z-10 h-56 w-80 opacity-70" />
-          <PaperCard accountId={portfolio.portfolio_id} currency={currency} className="w-full" />
+          <TiltCard>
+            <PaperCard accountId={portfolio.portfolio_id} currency={currency} className="w-full" />
+          </TiltCard>
         </div>
         <div className="min-w-0">
           <p className="mb-1 flex items-center gap-2 text-xs text-muted-foreground">
@@ -79,8 +83,8 @@ export function PortfolioPerformance({ portfolio, history, range, tab }: Props) 
             className="font-mono text-4xl font-medium tracking-[-0.04em] sm:text-5xl"
             data-financial
           >
-            {major}
-            {minor ? <span className="figure-minor">{minor}</span> : null}
+            <RollingFigure text={major} />
+            {minor ? <RollingFigure text={minor} className="figure-minor" /> : null}
           </p>
           <p className="mt-2 text-xs text-muted-foreground">
             Latest EOD valuation · Display currency {currency}

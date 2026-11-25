@@ -1,7 +1,9 @@
 "use client";
 
-import { LineChart, Menu, X } from "lucide-react";
+import { Menu, X } from "lucide-react";
 import Link from "next/link";
+
+import { PrismWordmark } from "@/components/brand/prism-mark";
 import { Dialog } from "radix-ui";
 import { useState } from "react";
 
@@ -36,10 +38,7 @@ export function AppMobileNav({ signedIn }: { signedIn: boolean }) {
               onClick={() => setOpen(false)}
               className="flex items-center gap-2.5 rounded-sm font-semibold tracking-tight focus-visible:ring-2 focus-visible:ring-ring"
             >
-              <span className="flex size-7 items-center justify-center rounded-md border border-brand/40 bg-brand/10 text-brand">
-                <LineChart className="size-4" aria-hidden />
-              </span>
-              <span>StockViz</span>
+              <PrismWordmark />
             </Link>
             <SimulatedDataTag />
             <Dialog.Close asChild>

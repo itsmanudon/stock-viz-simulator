@@ -1,6 +1,7 @@
 import { ShieldCheck, TrendingUp, Wallet } from "lucide-react";
 
 import { PaperCard } from "@/components/paper-card";
+import { TiltCard } from "@/components/prism/tilt-card";
 
 /**
  * Shared frame for sign-in and sign-up.
@@ -43,7 +44,9 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         <aside className="max-w-md">
           <div className="relative isolate mb-8 hidden sm:block">
             <div aria-hidden className="brand-glow -top-8 -left-8 -z-10 h-56 w-80 opacity-70" />
-            <PaperCard currency="USD" className="w-full max-w-xs -rotate-3" />
+            <TiltCard className="w-full max-w-xs -rotate-3">
+              <PaperCard currency="USD" className="w-full" />
+            </TiltCard>
           </div>
           <h2 className="text-2xl font-bold tracking-tight text-balance sm:text-3xl">
             A trading workspace where mistakes are free

@@ -27,6 +27,10 @@ vi.mock("@/components/marketing/landing-sections", () => ({
 vi.mock("@/components/marketing/proofs/proof-section", () => ({
   ProofSection: () => <div>Watch it work</div>,
 }));
+// PRISM sections: the terrain loads market data (async server component).
+vi.mock("@/components/prism/terrain-section", () => ({
+  TerrainSection: () => <div>Terrain</div>,
+}));
 vi.mock("@/components/marketing/closing-cta", () => ({
   ClosingCta: () => <div>Closing CTA</div>,
 }));

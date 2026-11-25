@@ -324,7 +324,7 @@ export function HeroStage({
                     fluid
                     className="absolute inset-0 aspect-auto size-full rounded-[1.6rem] shadow-[0_0_70px_color-mix(in_oklab,var(--brand-gradient-from)_55%,transparent)] [backface-visibility:hidden]"
                   />
-                  <div className="absolute inset-0 flex flex-col justify-between rounded-2xl border border-brand-gradient-via/40 bg-linear-to-br from-[#141b2b] to-[#0a0f19] p-5 text-[#eef2f8] shadow-[0_0_60px_color-mix(in_oklab,var(--brand-gradient-from)_45%,transparent)] [backface-visibility:hidden] [transform:rotateY(180deg)]">
+                  <div className="absolute inset-0 flex flex-col justify-between rounded-2xl border border-brand-gradient-via/40 bg-linear-to-br from-[#1c1d20] to-[#0b0b0d] p-5 text-[#f2eee6] shadow-[0_0_60px_color-mix(in_oklab,var(--brand-gradient-from)_45%,transparent)] [backface-visibility:hidden] [transform:rotateY(180deg)]">
                     <span className="flex items-start justify-between">
                       <span className="text-lg font-semibold tracking-[-0.04em]">stockviz</span>
                       <span className="rounded-md border border-white/25 bg-black/25 px-1.5 py-0.5 font-mono text-3xs tracking-[0.08em]">
@@ -341,7 +341,7 @@ export function HeroStage({
                         ),
                       )}
                     </span>
-                    <span className="font-mono text-3xs tracking-[0.06em] text-[#8892a4]">
+                    <span className="font-mono text-3xs tracking-[0.06em] text-[#8e8a82]">
                       NOT A REAL CARD · NOTHING REACHES AN EXCHANGE
                     </span>
                   </div>

@@ -6,6 +6,7 @@ import {
   type ReplayActionState,
   submitReplayOrderAction,
 } from "@/app/(product)/(authed)/replay/actions";
+import { useOutcomeSound } from "@/components/sound/sound-provider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -39,6 +40,7 @@ export function ReplayTradeTicket({
     submitReplayOrderAction,
     {},
   );
+  useOutcomeSound(state.status, state.error, "fill");
   const close = Number(currentClose);
   const qty = Number(quantity);
   const notional = Number.isFinite(close) && Number.isFinite(qty) ? close * qty : null;

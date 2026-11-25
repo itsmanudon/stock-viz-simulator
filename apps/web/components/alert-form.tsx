@@ -15,6 +15,7 @@ import { Popover } from "radix-ui";
 import { useActionState, useId, useMemo, useState } from "react";
 
 import { type CreateAlertState, createAlertAction } from "@/app/(product)/(authed)/alerts/actions";
+import { useOutcomeSound } from "@/components/sound/sound-provider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -392,6 +393,7 @@ export function AlertForm({
     createAlertAction,
     {},
   );
+  useOutcomeSound(state.createdId, state.error);
   const fields = (
     <AlertFields
       fixedTicker={variant === "inline" ? "" : ticker}

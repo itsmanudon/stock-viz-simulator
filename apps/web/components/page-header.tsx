@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import { cn } from "@/lib/utils";
 
 /**
@@ -29,10 +31,11 @@ export function PageHeader({
   return (
     <header className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
       <div className="min-w-0 max-w-3xl">
-        <p className="text-2xs font-medium tracking-[0.12em] text-text-secondary uppercase">
+        <p className="flex items-center gap-2 font-mono text-2xs font-medium tracking-[0.16em] text-text-secondary uppercase">
+          <span aria-hidden className="nav-active-bar size-1.5 rounded-full" />
           {eyebrow}
         </p>
-        <h1 className="mt-1.5 text-2xl font-semibold tracking-[-0.025em] sm:text-3xl">{title}</h1>
+        <h1 className="mt-2 text-3xl font-semibold tracking-[-0.04em] sm:text-4xl">{title}</h1>
         <p className="mt-1.5 max-w-2xl text-sm leading-6 text-text-secondary">{description}</p>
         {meta ? <div className="mt-1.5 text-xs text-text-tertiary">{meta}</div> : null}
       </div>
@@ -58,18 +61,26 @@ export function PageSubnav({
           const active = item.href === current;
           return (
             <li key={item.href}>
-              <a
+              {/* Client-side navigation (was a plain <a>, which reloaded the
+                  whole document on every tab switch). */}
+              <Link
                 href={item.href}
                 aria-current={active ? "page" : undefined}
                 className={cn(
-                  "inline-flex h-9 items-center border-b-2 px-2.5 text-sm whitespace-nowrap transition-colors",
+                  "relative inline-flex h-10 items-center px-2.5 text-sm whitespace-nowrap transition-colors",
                   active
-                    ? "border-brand font-medium text-foreground"
-                    : "border-transparent text-text-tertiary hover:text-foreground",
+                    ? "font-medium text-foreground"
+                    : "text-text-tertiary hover:text-foreground",
                 )}
               >
                 {item.label}
-              </a>
+                {active ? (
+                  <span
+                    aria-hidden
+                    className="nav-active-bar absolute inset-x-2 -bottom-px h-0.5 rounded-full"
+                  />
+                ) : null}
+              </Link>
             </li>
           );
         })}
@@ -89,7 +100,7 @@ export function PageEmptyState({
   action?: React.ReactNode;
 }) {
   return (
-    <section className="rounded-md border border-border-muted bg-card px-4 py-8 sm:px-6">
+    <section className="rounded-xl border border-dashed border-border bg-card/60 px-4 py-10 sm:px-6">
       <h2 className="text-base font-semibold">{title}</h2>
       <div className="mt-2 max-w-2xl text-sm leading-6 text-text-secondary">{children}</div>
       {action ? <div className="mt-5">{action}</div> : null}
