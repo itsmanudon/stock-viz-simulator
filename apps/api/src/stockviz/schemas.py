@@ -88,6 +88,12 @@ class SymbolDetailOut(BaseModel):
     # A3.1: whether raw exchange prices (``eod_raw``) are stored, so the chart
     # can offer ``/bars?adjustment=raw``. False means adjusted prices only.
     has_raw: bool = False
+    # A3.5: the symbol's market (``US`` or ``IN``) and venue index, when its
+    # venue has one; ``is_indian`` mounts the delivery pane.
+    market: Literal["US", "IN"] | None = None
+    benchmark: str | None = None
+    benchmark_name: str | None = None
+    is_indian: bool = False
 
 
 class EarningsEventOut(BaseModel):
@@ -2624,3 +2630,159 @@ class AvwapOut(BaseModel):
     computed_from: Literal["daily"] = "daily"
     decimals: int
     points: list[AvwapPointOut]
+
+
+# ---------------------------------------------------------------------------
+# A3.5: relative strength, delivery, chart events, market regime
+# ---------------------------------------------------------------------------
+
+
+class RelativeStrengthPeriodOut(BaseModel):
+    period: Literal["1m", "3m", "6m", "12m"]
+    sessions: int
+    return_pct: float | None = None
+    percentile: float | None = None
+
+
+class RelativeStrengthUniverseOut(BaseModel):
+    market: Literal["US", "IN"] | None = None
+    size: int
+    as_of: date | None = None
+    point_in_time: bool = False
+    survivorship_biased: bool = True
+    note: str
+
+
+class RelativeStrengthOut(BaseModel):
+    ticker: str
+    market: Literal["US", "IN"] | None = None
+    benchmark: str | None = None
+    benchmark_name: str | None = None
+    as_of: date | None = None
+    periods: list[RelativeStrengthPeriodOut]
+    method: str
+    universe: RelativeStrengthUniverseOut
+    high_52w: float | None = None
+    last_close: float | None = None
+    distance_from_high_52w_pct: float | None = None
+    reason: str | None = None
+
+
+class DeliveryPointOut(BaseModel):
+    ts: date
+    delivery_pct: float
+    avg_20: float | None = None
+
+
+class DeliveryOut(BaseModel):
+    ticker: str
+    interval: Literal["1d", "1wk", "1mo"]
+    applicable: bool
+    has_data: bool
+    avg_sessions: int
+    points: list[DeliveryPointOut]
+    note: str | None = None
+
+
+class NewsHeadlineOut(BaseModel):
+    id: str
+    title: str
+    source: str | None = None
+    url: str | None = None
+    available_at: datetime
+    published_at: datetime | None = None
+
+
+class NewsEventOut(BaseModel):
+    type: Literal["news"] = "news"
+    date: date
+    count: int
+    sources: list[str]
+    headlines: list[NewsHeadlineOut]
+
+
+class EarningsMarkerOut(BaseModel):
+    type: Literal["earnings"] = "earnings"
+    date: date
+    report_time: str | None = None
+    fiscal_period: str | None = None
+    eps_estimate: Decimal | None = None
+    eps_actual: Decimal | None = None
+    surprise_pct: Decimal | None = None
+
+
+class DividendEventOut(BaseModel):
+    type: Literal["dividend"] = "dividend"
+    date: date
+    amount: Decimal
+    currency: str
+
+
+class SplitEventOut(BaseModel):
+    type: Literal["split"] = "split"
+    date: date
+    ratio_from: Decimal
+    ratio_to: Decimal
+
+
+class FillEventOut(BaseModel):
+    type: Literal["fill"] = "fill"
+    date: date
+    ts: datetime
+    side: str
+    quantity: Decimal
+    price: Decimal
+    # A5 adds trade plans; until then the R-multiple is unknown.
+    r_multiple: float | None = None
+
+
+SymbolEventOut = Annotated[
+    NewsEventOut | EarningsMarkerOut | DividendEventOut | SplitEventOut | FillEventOut,
+    Field(discriminator="type"),
+]
+
+
+class SymbolEventsOut(BaseModel):
+    ticker: str
+    from_date: date = Field(serialization_alias="from")
+    to_date: date = Field(serialization_alias="to")
+    types: list[Literal["news", "earnings", "dividend", "split", "fill"]]
+    fills_included: bool
+    news_rule: str
+    events: list[SymbolEventOut]
+
+
+class RegimeInputOut(BaseModel):
+    name: str
+    value: float | None = None
+    description: str
+
+
+class RegimeRuleOut(BaseModel):
+    state: Literal["Calm trend", "Choppy", "High-vol down"]
+    rule: str
+    description: str
+    met: bool | None = None
+
+
+class MarketRegimeOut(BaseModel):
+    market: Literal["US", "IN"]
+    name: str
+    index: str
+    index_name: str
+    as_of: date | None = None
+    state: Literal["Calm trend", "Choppy", "High-vol down"] | None = None
+    reason: str | None = None
+    inputs: list[RegimeInputOut]
+    rules: list[RegimeRuleOut]
+    breadth_count: int
+    breadth_universe: int
+    breadth_as_of: date | None = None
+    vol_window_sessions: int
+    hv_20: float | None = None
+
+
+class RegimeOut(BaseModel):
+    markets: list[MarketRegimeOut]
+    method: str
+    disclaimer: str
