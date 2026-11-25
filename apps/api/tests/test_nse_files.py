@@ -151,6 +151,15 @@ def test_format_comes_from_the_header_in_any_order_and_case(path: Path) -> None:
     assert shuffled.rows == straight.rows
 
 
+@pytest.mark.parametrize("path", [UDIFF, LEGACY, SEC])
+def test_crlf_lf_and_a_byte_order_mark_read_the_same(path: Path) -> None:
+    # Git checks fixtures out with LF (.gitattributes); NSE ships CRLF.
+    lf = _text(path).replace("\r\n", "\n")
+    crlf = lf.replace("\n", "\r\n")
+    bom = read_bytes_as_text(b"\xef\xbb\xbf" + crlf.encode("utf-8"))
+    assert parse_any(crlf).rows == parse_any(lf).rows == parse_any(bom).rows
+
+
 def test_a_zip_with_one_csv_reads_as_that_csv(tmp_path: Path) -> None:
     path = _zip(tmp_path, UDIFF.name + ".zip", {UDIFF.name: _text(UDIFF)})
     assert parse_cm(read_bytes_as_text(path.read_bytes())).rows == parse_cm(_text(UDIFF)).rows
