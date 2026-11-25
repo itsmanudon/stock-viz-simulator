@@ -60,6 +60,12 @@ htmlcov/
 artifacts/private/
 # Raw NSE files (A1.1, NSE_ARCHIVE_DIR); exchange data, never committed
 **/var/nse-archive/
+# Parquet exports for the research node (A1.6) and their DuckDB catalogues;
+# exchange data, never committed
+lab/data/
+**/var/lake/
+*.duckdb
+*.duckdb.wal
 
 # Logs
 *.log

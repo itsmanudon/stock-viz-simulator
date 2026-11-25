@@ -17,6 +17,8 @@ docs
 infra
 scripts
 artifacts
+# The research node (A1.6) is laptop only; lab/data holds exchange data
+lab
 *.md
 !apps/api/README.md
 !apps/web/README.md

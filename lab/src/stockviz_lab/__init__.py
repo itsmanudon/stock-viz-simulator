@@ -1,0 +1,1 @@
+"""StockViz research node."""
