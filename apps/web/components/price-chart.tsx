@@ -27,7 +27,12 @@ import type { Bar, IndicatorPoint, MACDPoint } from "@/lib/api";
 import { barTimeToUtcSeconds } from "@/lib/api-time";
 import { fitWithLabelRoom } from "@/lib/chart-range";
 import { useChartPalette } from "@/lib/chart-theme";
-import { type ChartPane, formatCloseDate } from "@/lib/stock-workspace";
+import {
+  type ChartPane,
+  type StockInterval,
+  formatCloseDate,
+  partialBarLabel,
+} from "@/lib/stock-workspace";
 
 export type PriceChartMarker = {
   time: string;
@@ -46,13 +51,15 @@ type Props = {
   /** Phase 6.6: other separate-pane indicators, one small chart each. */
   panes?: ChartPane[];
   markers?: PriceChartMarker[];
+  /** A1.4a: the bars' interval; a partial newest weekly/monthly bar is labelled. */
+  interval?: StockInterval;
 };
 
 function toUtcSeconds(iso: string): UTCTimestamp {
   return barTimeToUtcSeconds(iso) as UTCTimestamp;
 }
 
-export function PriceChart({ bars, overlays, macd, rsi, panes, markers }: Props) {
+export function PriceChart({ bars, overlays, macd, rsi, panes, markers, interval = "1d" }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const macdRef = useRef<HTMLDivElement | null>(null);
   const rsiRef = useRef<HTMLDivElement | null>(null);
@@ -232,6 +239,8 @@ export function PriceChart({ bars, overlays, macd, rsi, panes, markers }: Props)
     };
   }, [candles, volumes, overlays, macd, rsi, markers, palette]);
 
+  const partialLabel = partialBarLabel(bars.at(-1), interval);
+
   // Text equivalent of the canvas: range, endpoints, and direction.
   const chartSummary = useMemo(() => {
     if (bars.length === 0) return "Price chart with no data available.";
@@ -243,6 +252,7 @@ export function PriceChart({ bars, overlays, macd, rsi, panes, markers }: Props)
     const direction = changePct >= 0 ? "up" : "down";
     const overlayNames = Object.keys(overlays ?? {});
     const withOverlays = overlayNames.length ? ` Overlays: ${overlayNames.join(", ")}.` : "";
+    const partialText = partialLabel ? ` ${partialLabel}` : "";
     const markerText = markers?.length
       ? ` Trade markers: ${markers.map((marker) => `${marker.text} on ${formatCloseDate(marker.time) ?? marker.time}`).join("; ")}.`
       : "";
@@ -251,9 +261,9 @@ export function PriceChart({ bars, overlays, macd, rsi, panes, markers }: Props)
       `${formatCloseDate(first.ts) ?? first.ts} to ` +
       `${formatCloseDate(last.ts) ?? last.ts}. ` +
       `Closed at ${close.toFixed(2)}, ${direction} ${Math.abs(changePct).toFixed(2)} percent ` +
-      `over the period.${withOverlays}${markerText}`
+      `over the period.${withOverlays}${markerText}${partialText}`
     );
-  }, [bars, overlays, markers]);
+  }, [bars, overlays, markers, partialLabel]);
 
   return (
     <div className="space-y-2">
@@ -268,6 +278,11 @@ export function PriceChart({ bars, overlays, macd, rsi, panes, markers }: Props)
         />
         <figcaption className="sr-only">{chartSummary}</figcaption>
       </figure>
+      {partialLabel ? (
+        <p className="px-1 text-2xs text-text-tertiary" data-testid="partial-bar-label">
+          {partialLabel}
+        </p>
+      ) : null}
       {macd?.length ? <div ref={macdRef} className="h-[140px] w-full" /> : null}
       {rsi?.length ? (
         <div ref={rsiRef} className="h-[120px] w-full" data-testid="rsi-pane" />

@@ -42,6 +42,7 @@ import {
   STOCK_TIMEFRAMES,
   type StockIndicator,
   type StockTimeframe,
+  barsForLookback,
   buildStockChartHref,
   calculateAllocationPct,
   calculatePeriodReturnPct,
@@ -50,6 +51,7 @@ import {
   deriveTrailingBarMetrics,
   formatCloseDate,
   parseStockIndicators,
+  parseStockInterval,
 } from "@/lib/stock-workspace";
 import { checkVisitorLimit } from "@/lib/visitor-limit";
 
@@ -98,7 +100,7 @@ export default async function StockPage({
   searchParams,
 }: {
   params: Promise<{ ticker: string }>;
-  searchParams: Promise<{ tf?: string; indicators?: string }>;
+  searchParams: Promise<{ tf?: string; indicators?: string; interval?: string }>;
 }) {
   const [{ ticker: rawTicker }, query] = await Promise.all([params, searchParams]);
   const visitorLimit = await checkVisitorLimit("stock");
@@ -109,6 +111,10 @@ export default async function StockPage({
   const timeframe = parseTimeframe(query.tf);
   const selectedIndicators = parseStockIndicators(query.indicators);
   const timeframeDays = TIMEFRAME_DAYS[timeframe];
+  // A1.4a: the bar interval (daily, weekly, monthly) is separate from the
+  // lookback; the limit counts bars of that interval.
+  const interval = parseStockInterval(query.interval);
+  const chartLimit = barsForLookback(timeframeDays, interval);
 
   let symbol: SymbolDetail;
   try {
@@ -118,14 +124,27 @@ export default async function StockPage({
     throw error;
   }
 
-  const barsPromise = getBars(ticker, { limit: timeframeDays });
-  const rangeBarsPromise = timeframeDays >= 252 ? barsPromise : getBars(ticker, { limit: 252 });
+  const barsPromise = getBars(ticker, { interval, limit: chartLimit });
+  // The metrics strip (52-week range, daily RSI) always reads daily bars.
+  const rangeBarsPromise =
+    interval === "1d" && timeframeDays >= 252 ? barsPromise : getBars(ticker, { limit: 252 });
   const requestedIndicators = Array.from(new Set([...selectedIndicators, "rsi_14"]));
+  // Chart indicators run on the chart's own bars (weekly RSI on weekly bars).
+  const indicatorsPromise = getIndicators(ticker, {
+    names: requestedIndicators,
+    interval,
+    limit: chartLimit,
+  });
+  const dailyRsiPromise =
+    interval === "1d"
+      ? indicatorsPromise
+      : getIndicators(ticker, { names: ["rsi_14"], limit: 22 }).catch(() => null);
 
   const [
     bars,
     rangeBars,
     indicatorBundle,
+    dailyRsiBundle,
     news,
     session,
     fundamentalsAnnual,
@@ -137,7 +156,8 @@ export default async function StockPage({
   ] = await Promise.all([
     barsPromise,
     rangeBarsPromise,
-    getIndicators(ticker, { names: requestedIndicators, limit: timeframeDays }),
+    indicatorsPromise,
+    dailyRsiPromise,
     getNewsForTicker(ticker, 8).catch(() => []),
     auth(),
     // Phase 6.4: a failing financials call hides the panel, never the page.
@@ -188,14 +208,16 @@ export default async function StockPage({
   const periodReturnPct = calculatePeriodReturnPct(firstClose, latestClose);
   const metrics = deriveTrailingBarMetrics(rangeBars);
   const rsiSeries = indicatorBundle.series.rsi_14;
-  const latestRsi = rsiSeries?.at(-1)?.value ?? null;
+  const latestRsi = dailyRsiBundle?.series.rsi_14?.at(-1)?.value ?? null;
+  const partialExcluded =
+    interval !== "1d" && selectedIndicators.length > 0 && indicatorBundle.partial_bar_excluded;
   // Phase 6.6: overlays and panes by each indicator's registry pane.
   const { overlays: overlaySeries, panes: indicatorPanes } = chartLayers(
     indicatorBundle,
     selectedIndicators,
   );
   const showMacd = selectedIndicators.includes("macd");
-  const activeStockUrl = buildStockChartHref(ticker, timeframe, selectedIndicators);
+  const activeStockUrl = buildStockChartHref(ticker, timeframe, selectedIndicators, interval);
   const ticketProps = {
     ticker,
     name: symbol.name,
@@ -236,6 +258,7 @@ export default async function StockPage({
               ticker={ticker}
               timeframe={timeframe}
               indicators={selectedIndicators}
+              interval={interval}
             />
             <div className="p-1.5 sm:p-3">
               {bars.length ? (
@@ -245,12 +268,19 @@ export default async function StockPage({
                   macd={showMacd ? indicatorBundle.macd : null}
                   rsi={selectedIndicators.includes("rsi_14") ? (rsiSeries ?? null) : null}
                   panes={indicatorPanes}
+                  interval={interval}
                 />
               ) : (
                 <p className="py-24 text-center text-sm text-muted-foreground">
                   No price history is available for this timeframe.
                 </p>
               )}
+              {partialExcluded ? (
+                <p className="px-1 pt-1 text-2xs text-text-tertiary">
+                  Indicators run on {interval === "1wk" ? "weekly" : "monthly"} bars and leave out
+                  the partial {interval === "1wk" ? "week" : "month"} until it closes.
+                </p>
+              ) : null}
             </div>
           </section>
 

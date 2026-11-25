@@ -1,7 +1,7 @@
 import "server-only";
 
 import { authedDelete, authedGet, authedPost } from "./server";
-import type { BacktestRequest, BacktestResult, BacktestSummary } from "./types";
+import type { BacktestRequest, BacktestResult, BacktestSummary, BacktestUniverse } from "./types";
 
 /** A stored backtest (Phase 5.4). `result` is only on single-run reads. */
 export type ExperimentRun = {
@@ -20,6 +20,8 @@ export type ExperimentRun = {
   last_bar_at: string | null;
   created_at: string;
   summary: BacktestSummary;
+  /** A1.4a: the run's universe stamp (old runs get the pinned one). */
+  universe?: BacktestUniverse;
   /** `kind` "single": a BacktestResult; "walk_forward" / "sweep": their own shape. */
   result?: BacktestResult | WalkForwardResult | SweepResult | null;
 };

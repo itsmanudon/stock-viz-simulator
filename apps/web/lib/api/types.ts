@@ -59,6 +59,12 @@ export type Bar = {
   low: string;
   close: string;
   volume: number;
+  /** The stored bar's provenance; "mixed" on a resampled bar whose days disagree. */
+  source?: string | null;
+  adjustment_semantics?: string | null;
+  /** A1.4a, weekly/monthly only: daily bars in the period, and whether it is not over. */
+  sessions?: number | null;
+  partial?: boolean | null;
 };
 
 /** "mixed" (strong signals both ways) comes from Aegis News (audit AG-4). */
@@ -112,6 +118,9 @@ export type Indicators = {
   /** Phase 6.1: per requested name, where it draws and what it outputs. */
   meta?: Record<string, IndicatorMeta>;
   warmup_bars?: number;
+  /** A1.4a: the interval they ran on; a partial newest bar is left out of the inputs. */
+  interval?: string;
+  partial_bar_excluded?: string | null;
 };
 
 export type RecommendationVote = {
@@ -222,6 +231,15 @@ export type BacktestResult = {
   trades: BacktestTrade[];
   equity_curve: BacktestEquityPoint[];
   summary: BacktestSummary;
+  /** A1.4a: the universe it ran on; "pinned" today, survivorship-biased. */
+  universe?: BacktestUniverse;
+};
+
+export type BacktestUniverse = {
+  name: string;
+  point_in_time: boolean;
+  survivorship_biased: boolean;
+  note: string;
 };
 
 export type MarketSummaryRow = {

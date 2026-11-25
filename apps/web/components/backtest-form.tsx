@@ -26,6 +26,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { UniverseNote } from "@/components/universe-note";
 import { ApiError, type BacktestRequest, type BacktestResult, runBacktest } from "@/lib/api";
 import {
   type BacktestSymbol,
@@ -599,6 +600,7 @@ function BacktestResults({
             ? ` The strategy warmed up on ${result.warmup_bars} bars before the start; trading and the benchmark begin on the start date.`
             : ""}
         </p>
+        <UniverseNote universe={result.universe} className="mt-1" />
       </section>
 
       {request ? <SaveBacktestRun request={request} /> : null}

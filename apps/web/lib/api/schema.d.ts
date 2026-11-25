@@ -1902,6 +1902,7 @@ export interface components {
             /** Equity Curve */
             equity_curve: components["schemas"]["EquityPointOut"][];
             summary: components["schemas"]["BacktestSummaryOut"];
+            universe: components["schemas"]["UniverseOut"];
         };
         /**
          * BacktestSummaryOut
@@ -1981,6 +1982,14 @@ export interface components {
             close: string;
             /** Volume */
             volume: number;
+            /** Source */
+            source?: string | null;
+            /** Adjustment Semantics */
+            adjustment_semantics?: string | null;
+            /** Sessions */
+            sessions?: number | null;
+            /** Partial */
+            partial?: boolean | null;
         };
         /**
          * BaseCurrencyIn
@@ -2301,6 +2310,7 @@ export interface components {
              */
             created_at: string;
             summary: components["schemas"]["BacktestSummaryOut"];
+            universe: components["schemas"]["UniverseOut"];
             /** Result */
             result?: {
                 [key: string]: unknown;
@@ -2554,6 +2564,13 @@ export interface components {
             warmup_bars: number;
             /** Window Start */
             window_start?: string | null;
+            /**
+             * Interval
+             * @default 1d
+             */
+            interval: string;
+            /** Partial Bar Excluded */
+            partial_bar_excluded?: string | null;
         };
         /** JobStatusOut */
         JobStatusOut: {
@@ -4967,6 +4984,23 @@ export interface components {
             vega_per_point: number;
             /** Rho Per Point */
             rho_per_point: number;
+        };
+        /**
+         * UniverseOut
+         * @description The universe a backtest ran on and whether it is point in time (A1.4a,
+         *     M1.5). ``survivorship_biased`` is true when names that were delisted are
+         *     missing from it, so results look better than an investor could have done.
+         *     Set in one place: ``services/backtest/universe.py``.
+         */
+        UniverseOut: {
+            /** Name */
+            name: string;
+            /** Point In Time */
+            point_in_time: boolean;
+            /** Survivorship Biased */
+            survivorship_biased: boolean;
+            /** Note */
+            note: string;
         };
         /** UnreadCountOut */
         UnreadCountOut: {
