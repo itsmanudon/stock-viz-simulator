@@ -105,7 +105,7 @@ def test_run_grades_rsi_and_macd_on_the_test_universe(session: Session) -> None:
         assert row.n_events == direct.n
         assert row.grade == direct.grade
         assert row.mean_excess == pytest.approx(direct.mean_excess)
-        assert row.fee_schedules == {"us_equity_2026": row.n_events}
+        assert row.fee_schedules == {"us_equity": row.n_events}
     # Idempotent: a rerun replaces the rows.
     run_indicator_evidence(session, end=end, now=NOW, only=["rsi", "macd"])
     assert len(session.exec(select(IndicatorEvidence)).all()) == 2

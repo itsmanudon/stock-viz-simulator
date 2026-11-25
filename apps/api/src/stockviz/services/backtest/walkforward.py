@@ -51,6 +51,7 @@ from stockviz.services.backtest.run import (
     strategy_of,
 )
 from stockviz.services.backtest.universe import universe_json
+from stockviz.services.fee_view import resolve_fee_schedule
 
 MAX_SETTINGS = 50
 SCORES = ("sharpe", "total_return")
@@ -107,7 +108,7 @@ def _load(session: Session, body: BacktestIn, grid: list[BacktestIn]) -> _Data:
         raise UnknownSymbol(f"Symbol {ticker!r} not found")
     if body.from_ > body.to:
         raise BadRange("'from' must be on or before 'to'")
-    check_fee_currency(body.fee_schedule, symbol.currency or "USD")
+    check_fee_currency(resolve_fee_schedule(body.fee_schedule, ticker), symbol.currency or "USD")
     warm = max(warmup_bars_for(*strategy_of(g)) for g in grid)
     rows, before = load_bars(
         session,
@@ -143,7 +144,10 @@ def _run(data: _Data, spec: BacktestIn, start: date, end: date, cash: Decimal) -
         opens={b.ts: b.open for b in used},
         fill_rule=spec.fill_rule,
         spread_bps=spec.spread_bps,
-        fee_schedule=spec.fee_schedule,
+        fee_schedule=resolve_fee_schedule(spec.fee_schedule, spec.ticker.upper()),
+        volumes={b.ts: Decimal(b.volume) for b in used},
+        adv_cap_pct=spec.adv_cap_pct,
+        brokerage=spec.brokerage,
     )
 
 
@@ -261,7 +265,7 @@ def walk_forward(
         "summary": _summary(navs, body.initial_cash, bench, costs),
         "universe": universe_json(body.ticker.upper()),
     }
-    return _computed(result, data)
+    return _computed(result, data, body)
 
 
 def sweep(
@@ -304,13 +308,13 @@ def sweep(
         "summary": runs[0]["summary"],
         "universe": universe_json(body.ticker.upper()),
     }
-    return _computed(result, data)
+    return _computed(result, data, body)
 
 
-def _computed(result: dict[str, Any], data: _Data) -> Computed:
+def _computed(result: dict[str, Any], data: _Data, body: BacktestIn) -> Computed:
     return Computed(
         result=result,
-        fingerprint=fingerprint(data.bars, data.dividends),
+        fingerprint=fingerprint(data.bars, data.dividends, volume=body.adv_cap_pct is not None),
         bar_count=len(data.bars),
         first_bar_at=data.bars[0].ts if data.bars else None,
         last_bar_at=data.bars[-1].ts if data.bars else None,

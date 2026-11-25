@@ -296,4 +296,14 @@ describe("RuleStrategyResults", () => {
     await waitFor(() => expect(lwcCalls.markers.some((m) => m.length === 3)).toBe(true));
     expect(screen.getByTestId("strategy-chart-caption").textContent).toContain("AAPL: 2 trades");
   });
+
+  // A4.2: costs default on (auto), Zerodha brokerage, the 10% ADV cap.
+  it("sends the costs settings with a rule strategy", () => {
+    const form = initialStrategyForm("TCS.NS", { from: "2024-01-01", to: "2024-12-31" });
+    const request = buildStrategyRequest(form);
+    expect(request.fee_schedule).toBe("auto");
+    expect(request.brokerage).toBe("zerodha");
+    expect(request.adv_cap_pct).toBe(10);
+    expect(buildStrategyRequest({ ...form, advCapPct: "" }).adv_cap_pct).toBeNull();
+  });
 });

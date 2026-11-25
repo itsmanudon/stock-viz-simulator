@@ -13,6 +13,7 @@ from __future__ import annotations
 import hashlib
 from dataclasses import dataclass
 from datetime import datetime, time
+from decimal import Decimal
 
 from sqlmodel import Session, select
 
@@ -34,6 +35,7 @@ from stockviz.services.backtest.engine import (
     warmup_bars_for,
 )
 from stockviz.services.backtest.universe import universe_for
+from stockviz.services.fee_view import costs_out, is_indian, liquidity_out, resolve_fee_schedule
 from stockviz.services.instruments import instrument_of
 from stockviz.services.simulation import get_fee_schedule
 
@@ -69,12 +71,15 @@ def strategy_of(body: BacktestIn) -> tuple[str, dict]:
     raise ValueError("Unsupported strategy type")  # pragma: no cover
 
 
-def fingerprint(bars: list[PriceBar], dividends: dict) -> str:
+def fingerprint(bars: list[PriceBar], dividends: dict, *, volume: bool = False) -> str:
+    """``volume``: the run read volumes too (A4.2's ADV cap), so they are part
+    of its data. Runs without the cap hash exactly as before A4.2."""
     digest = hashlib.sha256()
     for bar in bars:
+        tail = f"|{bar.volume}" if volume else ""
         digest.update(
             f"{bar.ts.isoformat()}|{bar.open}|{bar.high}|{bar.low}|{bar.close}|"
-            f"{bar.adjustment_semantics}\n".encode()
+            f"{bar.adjustment_semantics}{tail}\n".encode()
         )
     for ex_date in sorted(dividends):
         digest.update(f"div|{ex_date.isoformat()}|{dividends[ex_date]}\n".encode())
@@ -150,7 +155,8 @@ def execute_backtest(session: Session, body: BacktestIn) -> BacktestRun:
         raise UnknownSymbol(f"Symbol {ticker!r} not found")
     if body.from_ > body.to:
         raise BadRange("'from' must be on or before 'to'")
-    check_fee_currency(body.fee_schedule, symbol.currency or "USD")
+    schedule_name = resolve_fee_schedule(body.fee_schedule, ticker)
+    check_fee_currency(schedule_name, symbol.currency or "USD")
 
     # Inclusive date range; bars are stored at day granularity (interval 1d).
     start = datetime.combine(body.from_, time.min)
@@ -176,9 +182,14 @@ def execute_backtest(session: Session, body: BacktestIn) -> BacktestRun:
         opens={r.ts: r.open for r in used},
         fill_rule=body.fill_rule,
         spread_bps=body.spread_bps,
-        fee_schedule=body.fee_schedule,
+        fee_schedule=schedule_name,
+        volumes={r.ts: Decimal(r.volume) for r in used},
+        adv_cap_pct=body.adv_cap_pct,
+        brokerage=body.brokerage,
     )
     profile = FILL_RULES[body.fill_rule]
+    cash = body.initial_cash
+    gross_nav = result.summary.final_nav + result.total_fees + result.price_costs
     out = BacktestOut(
         ticker=ticker,
         currency=symbol.currency or "USD",
@@ -186,7 +197,7 @@ def execute_backtest(session: Session, body: BacktestIn) -> BacktestRun:
         return_mode=body.return_mode,
         warmup_bars=len(warmup),
         execution_profile=f"{profile.name}/{profile.model_version}",
-        fee_schedule=body.fee_schedule,
+        fee_schedule=schedule_name if body.fee_schedule == "auto" else body.fee_schedule,
         trades=[
             BacktestTradeOut(
                 date=t.date,
@@ -195,6 +206,7 @@ def execute_backtest(session: Session, body: BacktestIn) -> BacktestRun:
                 shares=t.shares,
                 reference_price=t.reference_price,
                 fees=[BacktestFeeOut(name=n, amount=a) for n, a in t.fees],
+                requested_shares=t.requested_shares,
             )
             for t in result.trades
         ],
@@ -208,12 +220,31 @@ def execute_backtest(session: Session, body: BacktestIn) -> BacktestRun:
             benchmark_final_nav=result.summary.benchmark_final_nav,
             excess_return=result.summary.excess_return,
             total_costs=result.summary.total_costs,
+            gross_return=float((gross_nav - cash) / cash),
+            gross_final_nav=gross_nav,
+            total_fees=result.total_fees,
+            price_costs=result.price_costs,
         ),
         universe=universe_for(ticker),
+        costs=costs_out(
+            requested=body.fee_schedule,
+            resolved=schedule_name,
+            brokerage=body.brokerage,
+            commission_bps=body.commission_bps,
+            fee_versions=result.fee_versions,
+            fills_before_coverage=result.fills_before_coverage,
+            indian=is_indian(ticker),
+        ),
+        liquidity=liquidity_out(
+            body.adv_cap_pct,
+            partial=sum(1 for t in result.trades if t.requested_shares is not None),
+            skipped=result.adv_skipped,
+            unknown=result.adv_unknown,
+        ),
     )
     return BacktestRun(
         out=out,
-        fingerprint=fingerprint(used, dividends),
+        fingerprint=fingerprint(used, dividends, volume=body.adv_cap_pct is not None),
         bar_count=len(used),
         first_bar_at=used[0].ts if used else None,
         last_bar_at=used[-1].ts if used else None,

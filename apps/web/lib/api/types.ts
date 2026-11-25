@@ -10,6 +10,8 @@
  * precision. Parse to Number only at the render boundary.
  */
 
+import type { components } from "./schema";
+
 export type Health = {
   status: "ok" | "degraded";
   version: string;
@@ -298,8 +300,13 @@ export type BacktestRequest = {
   fill_rule?: "next_open" | "next_close";
   /** Moves the fill price against the trader by half the spread. */
   spread_bps?: number;
-  /** Must match the symbol's currency (Phase 5.6); "none" fits any. */
-  fee_schedule?: "none" | "us_equity_2026" | "in_delivery_nse_2026" | "in_delivery_bse_2026";
+  /** Must match the symbol's currency (Phase 5.6); "none" fits any. A4.2:
+   * "auto" (the default) picks the symbol's market; old names still work. */
+  fee_schedule?: components["schemas"]["BacktestIn"]["fee_schedule"];
+  /** A4.2: Indian brokerage model. */
+  brokerage?: "zerodha" | "zero";
+  /** A4.2: % of the 20-day average traded value a buy may take; null: off. */
+  adv_cap_pct?: number | null;
 };
 
 export type BacktestTrade = {
@@ -310,6 +317,8 @@ export type BacktestTrade = {
   /** Phase 5.3: the price before spread and slippage, and each fee charged. */
   reference_price?: string | null;
   fees?: { name: string; amount: string }[];
+  /** A4.2: the shares asked for when the ADV cap bought fewer. */
+  requested_shares?: string | null;
 };
 
 export type BacktestEquityPoint = {
@@ -328,6 +337,11 @@ export type BacktestSummary = {
   /** Strategy return minus benchmark return, in percentage points. */
   excess_return: number;
   total_costs: string;
+  /** A4.2, net first: the figures above are after costs; these add them back. */
+  gross_return: number;
+  gross_final_nav: string;
+  total_fees: string;
+  price_costs: string;
 };
 
 export type BacktestResult = {
@@ -347,6 +361,9 @@ export type BacktestResult = {
   summary: BacktestSummary;
   /** A1.4a: the universe it ran on; "pinned" today, survivorship-biased. */
   universe?: BacktestUniverse;
+  /** A4.2: each fee component with its rate and source, and the ADV cap. */
+  costs?: components["schemas"]["CostsOut"] | null;
+  liquidity?: components["schemas"]["LiquidityOut"] | null;
 };
 
 export type BacktestUniverse = {

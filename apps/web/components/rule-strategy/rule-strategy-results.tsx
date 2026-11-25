@@ -11,6 +11,7 @@
 import { useState } from "react";
 
 import { SaveStrategyRun } from "@/components/backtest-run-actions";
+import { CostsDisclosure } from "@/components/costs-disclosure";
 import { EquityCurve } from "@/components/equity-curve";
 import { FigureStrip } from "@/components/figure-strip";
 import { ResearchEmptyState, ResearchSectionHeader } from "@/components/research-page-header";
@@ -24,6 +25,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { UniverseNote } from "@/components/universe-note";
+import { partialLabel } from "@/lib/fees";
 import {
   REASON_LABEL,
   type StrategyRequest,
@@ -119,7 +121,11 @@ export function RuleStrategyResults({
           label="Gross and risk"
           figures={[
             { label: "Gross return", value: pct(s.gross_return ?? 0), note: "before costs" },
-            { label: "Costs", value: money(s.total_costs ?? 0, currency) },
+            {
+              label: "Costs",
+              value: money(s.total_costs ?? 0, currency),
+              note: `fees ${money(s.total_fees ?? 0, currency)}`,
+            },
             { label: "Sharpe", value: s.sharpe.toFixed(2) },
             {
               label: "Max drawdown",
@@ -163,6 +169,7 @@ export function RuleStrategyResults({
           </ul>
         </details>
         <UniverseNote universe={result.universe} className="mt-1" />
+        <CostsDisclosure costs={result.costs} liquidity={result.liquidity} className="mt-3" />
       </section>
 
       {request ? <SaveStrategyRun request={request} /> : null}
@@ -243,6 +250,19 @@ export function RuleStrategyResults({
                     </TableCell>
                     <TableCell className={`text-right font-mono ${tone(Number(t.pnl))}`}>
                       {money(t.pnl, currency)}
+                      {t.requested_quantity ? (
+                        <span
+                          className="block font-sans text-2xs text-warning"
+                          data-testid="partial-fill"
+                        >
+                          {partialLabel(t.quantity, t.requested_quantity)}
+                        </span>
+                      ) : null}
+                      {t.exit_adv_pct ? (
+                        <span className="block font-sans text-2xs text-warning">
+                          exit {t.exit_adv_pct.toFixed(1)}% of ADV
+                        </span>
+                      ) : null}
                       <span className="block font-sans text-2xs text-text-tertiary sm:hidden">
                         {REASON_LABEL[t.reason]}
                         {t.gap ? " (gap)" : ""} · {formatR(t.r_multiple)}

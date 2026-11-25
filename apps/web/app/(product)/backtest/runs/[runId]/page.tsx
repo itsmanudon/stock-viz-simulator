@@ -12,6 +12,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { RerunBacktestRun } from "@/components/backtest-run-actions";
+import { CostsDisclosure } from "@/components/costs-disclosure";
 import { DataTableFrame } from "@/components/data-table";
 import { FigureStrip } from "@/components/figure-strip";
 import { MetaChip, PageHeader } from "@/components/page-header";
@@ -33,6 +34,7 @@ import {
   getExperimentRun,
 } from "@/lib/api/experiments";
 import { AuthedApiError } from "@/lib/api/server";
+import type { BacktestResult } from "@/lib/api/types";
 import type { StrategyResult } from "@/lib/rule-strategy";
 
 export const metadata: Metadata = { title: "Saved backtest" };
@@ -84,9 +86,20 @@ export default async function SavedRunPage({ params }: { params: Promise<{ runId
             label="Run result"
             figures={[
               {
-                label: kind === "sweep" ? "Best return" : "Return",
+                label: kind === "sweep" ? "Best net return" : "Net return",
                 value: pct(run.summary.total_return),
               },
+              // A4.2: gross second, when the stored summary has it (runs saved
+              // before A4.2 stored the net figures only).
+              ...(Number(run.summary.gross_final_nav ?? 0) > 0
+                ? [
+                    {
+                      label: "Gross return",
+                      value: pct(run.summary.gross_return ?? 0),
+                      note: "before costs",
+                    },
+                  ]
+                : []),
               { label: "Buy and hold", value: pct(run.summary.benchmark_return) },
               {
                 label: "Excess",
@@ -97,6 +110,12 @@ export default async function SavedRunPage({ params }: { params: Promise<{ runId
             ]}
           />
         </>
+      ) : null}
+      {kind === "single" && result ? (
+        <CostsDisclosure
+          costs={(result as BacktestResult).costs}
+          liquidity={(result as BacktestResult).liquidity}
+        />
       ) : null}
       {kind === "walk_forward" && result ? (
         <WalkForwardTable result={result as WalkForwardResult} />

@@ -25,6 +25,7 @@ import {
   defaultBacktestRange,
   pickBacktestTicker,
 } from "@/lib/backtest-defaults";
+import { BROKERAGE_OPTIONS, DEFAULT_ADV_CAP_PCT, FEE_SCHEDULE_OPTIONS } from "@/lib/fees";
 import {
   type StrategyForm,
   type StrategyRequest,
@@ -51,7 +52,9 @@ export function initialStrategyForm(
     to: range.to,
     initialCash: "100000",
     fillRule: "next_open",
-    feeSchedule: "none",
+    feeSchedule: "auto",
+    brokerage: "zerodha",
+    advCapPct: DEFAULT_ADV_CAP_PCT,
     commissionBps: "0",
     slippageBps: "0",
     spreadBps: "0",
@@ -399,7 +402,7 @@ export function RuleStrategyForm({
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1">
                 <Label htmlFor="rs-fees" className="text-xs">
-                  Regulatory fees
+                  Fees and taxes
                 </Label>
                 <select
                   id="rs-fees"
@@ -409,12 +412,31 @@ export function RuleStrategyForm({
                   }
                   className={SELECT}
                 >
-                  <option value="none">None</option>
-                  <option value="us_equity_2026">US equity 2026</option>
-                  <option value="in_delivery_nse_2026">India delivery, NSE</option>
-                  <option value="in_delivery_bse_2026">India delivery, BSE</option>
+                  {FEE_SCHEDULE_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
                 </select>
               </div>
+              <div className="space-y-1">
+                <Label htmlFor="rs-brokerage" className="text-xs">
+                  Brokerage (India)
+                </Label>
+                <select
+                  id="rs-brokerage"
+                  value={form.brokerage}
+                  onChange={(e) => set("brokerage", e.target.value as StrategyForm["brokerage"])}
+                  className={SELECT}
+                >
+                  {BROKERAGE_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {numberField("advCapPct", "Most of 20-day traded value %", { min: "0", max: "100" })}
               <div className="space-y-1">
                 <Label htmlFor="rs-fill" className="text-xs">
                   Fill at

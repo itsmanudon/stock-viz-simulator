@@ -10,7 +10,7 @@ from __future__ import annotations
 from datetime import date as date_type
 from datetime import timedelta
 from decimal import Decimal
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlmodel import Session, select
@@ -52,6 +52,7 @@ from stockviz.schemas import (
     RiskWindowOut,
     StressDriverOut,
     StressScenarioOut,
+    TradeFeeLineOut,
     TradeIn,
     TradeOut,
     VarOut,
@@ -170,7 +171,30 @@ def post_trade(body: TradeIn, session: SessionDep, user_id: UserIdDep) -> TradeO
         base_currency=result.base_currency,
         total_base=result.base_cost,
         realized_pnl=result.realized_pnl,
+        **trade_fee_fields(trade, result.native_cost),
     )
+
+
+def trade_fee_fields(trade: Trade, native: Decimal) -> dict[str, Any]:
+    """A4.2: net first. ``net_native`` and ``realized_pnl_net`` are after this
+    fill's fees (null fees: a fill from before A4.2, shown as it was)."""
+    fees = trade.fees
+    if fees is None:
+        return {"fees": None, "fee_schedule": None, "fee_lines": [], "net_native": None,
+                "realized_pnl_net": None}  # fmt: skip
+    buy = trade.side == TradeSide.BUY
+    net = native + fees if buy else native - fees
+    realized_net = None
+    if trade.realized_pnl is not None:
+        rate = trade.fx_rate if trade.fx_rate is not None else Decimal(1)
+        realized_net = trade.realized_pnl - (fees * rate).quantize(Decimal("0.000001"))
+    return {
+        "fees": fees,
+        "fee_schedule": trade.fee_schedule,
+        "fee_lines": [TradeFeeLineOut.model_validate(line) for line in trade.fee_lines or []],
+        "net_native": net,
+        "realized_pnl_net": realized_net,
+    }
 
 
 def _usd_total(session: Session, amount: Decimal, base: str) -> Decimal:
@@ -512,6 +536,7 @@ def list_trades(
                 base_currency=base,
                 total_base=native * rate,
                 realized_pnl=trade.realized_pnl,
+                **trade_fee_fields(trade, native),
             )
         )
     return out

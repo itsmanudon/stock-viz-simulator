@@ -41,7 +41,15 @@ export default async function TradesPage() {
   const sells = trades.filter((trade) => trade.realized_pnl !== null);
   const winningSells = sells.filter((trade) => Number(trade.realized_pnl) > 0).length;
   const buys = trades.filter((trade) => trade.side === "buy").length;
-  const realized = sells.reduce((sum, trade) => sum + Number(trade.realized_pnl), 0);
+  const grossRealized = sells.reduce((sum, trade) => sum + Number(trade.realized_pnl), 0);
+  // A4.2, net first: realized P&L less every fee paid on the listed fills
+  // (buys too), each at its fill's rate into the base currency. Fills from
+  // before A4.2 carry no fee and add nothing.
+  const feesPaid = trades.reduce(
+    (sum, trade) => sum + Number(trade.fees ?? 0) * Number(trade.fx_rate ?? 1),
+    0,
+  );
+  const realized = grossRealized - feesPaid;
   // Realized P&L is in the account's base currency (Phase 4.8).
   const baseCurrency = trades[0]?.base_currency ?? "USD";
 
@@ -113,7 +121,10 @@ export default async function TradesPage() {
                           {formatSignedCurrency(realized, baseCurrency)}
                         </span>
                       ),
-                      note: "USD, all sells listed",
+                      note:
+                        feesPaid > 0
+                          ? `after ${formatCurrency(String(feesPaid), baseCurrency)} of fees · gross ${formatSignedCurrency(grossRealized, baseCurrency)}`
+                          : "after fees, all sells listed",
                     },
                   ]
                 : []),
@@ -142,7 +153,7 @@ export default async function TradesPage() {
                   <TableHead className="hidden text-right md:table-cell">Price</TableHead>
                   <TableHead className="text-right">Total</TableHead>
                   <TableHead className="hidden text-right sm:table-cell">
-                    Realized P&amp;L · USD
+                    Realized P&amp;L, net
                   </TableHead>
                 </TableRow>
               </TableHeader>
@@ -164,17 +175,49 @@ export default async function TradesPage() {
                     <TableCell className="hidden text-right font-mono md:table-cell">
                       {formatCurrency(trade.price, trade.currency)}
                     </TableCell>
+                    {/* Net first: what the fill cost or paid after its fees. */}
                     <TableCell className="text-right font-mono">
-                      {formatCurrency(trade.total_native, trade.currency)}
+                      {formatCurrency(trade.net_native ?? trade.total_native, trade.currency)}
+                      {trade.fees != null && Number(trade.fees) > 0 ? (
+                        <span
+                          className="block text-2xs text-text-tertiary"
+                          data-testid="trade-fees"
+                          title={(trade.fee_lines ?? [])
+                            .map((line) => `${line.label} ${line.amount}`)
+                            .join(", ")}
+                        >
+                          {formatCurrency(trade.total_native, trade.currency)}{" "}
+                          {trade.side === "buy" ? "+" : "−"} fees{" "}
+                          {formatCurrency(trade.fees, trade.currency)}
+                        </span>
+                      ) : null}
                     </TableCell>
                     {/* Only sells realize a gain or loss; a buy shows an em dash. */}
                     <NumericCell
-                      signedBy={trade.realized_pnl === null ? null : Number(trade.realized_pnl)}
+                      signedBy={
+                        trade.realized_pnl === null
+                          ? null
+                          : Number(trade.realized_pnl_net ?? trade.realized_pnl)
+                      }
                       className="hidden sm:table-cell"
                     >
-                      {trade.realized_pnl === null
-                        ? null
-                        : formatSignedCurrency(trade.realized_pnl, trade.base_currency ?? "USD")}
+                      {trade.realized_pnl === null ? null : (
+                        <>
+                          {formatSignedCurrency(
+                            trade.realized_pnl_net ?? trade.realized_pnl,
+                            trade.base_currency ?? "USD",
+                          )}
+                          {trade.realized_pnl_net != null ? (
+                            <span className="block text-2xs text-text-tertiary">
+                              gross{" "}
+                              {formatSignedCurrency(
+                                trade.realized_pnl,
+                                trade.base_currency ?? "USD",
+                              )}
+                            </span>
+                          ) : null}
+                        </>
+                      )}
                     </NumericCell>
                   </TableRow>
                 ))}

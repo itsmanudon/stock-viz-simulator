@@ -6,6 +6,7 @@
  */
 
 import type { components } from "./api/schema";
+import { advCapValue } from "./fees";
 
 export type StrategyRequest = components["schemas"]["StrategyBacktestIn"];
 export type StrategyResult = components["schemas"]["StrategyBacktestOut"];
@@ -34,6 +35,9 @@ export type StrategyForm = {
   initialCash: string;
   fillRule: "next_open" | "next_close";
   feeSchedule: FeeSchedule;
+  /** A4.2: Indian brokerage model and the ADV cap (% of 20-day traded value; empty: off). */
+  brokerage: NonNullable<StrategyRequest["brokerage"]>;
+  advCapPct: string;
   commissionBps: string;
   slippageBps: string;
   spreadBps: string;
@@ -131,6 +135,8 @@ export function buildStrategyRequest(form: StrategyForm): StrategyRequest {
     initial_cash: form.initialCash,
     fill_rule: form.fillRule,
     fee_schedule: form.feeSchedule,
+    brokerage: form.brokerage,
+    adv_cap_pct: advCapValue(form.advCapPct),
     commission_bps: num(form.commissionBps) || 0,
     slippage_bps: num(form.slippageBps) || 0,
     spread_bps: num(form.spreadBps) || 0,

@@ -12,6 +12,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
 
 import { SaveBacktestRun } from "@/components/backtest-run-actions";
+import { CostsDisclosure } from "@/components/costs-disclosure";
 import { EquityCurve } from "@/components/equity-curve";
 import { FigureStrip } from "@/components/figure-strip";
 import { ResearchEmptyState, ResearchSectionHeader } from "@/components/research-page-header";
@@ -33,11 +34,19 @@ import {
   defaultBacktestRange,
   pickBacktestTicker,
 } from "@/lib/backtest-defaults";
+import {
+  BROKERAGE_OPTIONS,
+  type BrokerageName,
+  DEFAULT_ADV_CAP_PCT,
+  FEE_SCHEDULE_OPTIONS,
+  type FeeScheduleName,
+  advCapValue,
+  partialLabel,
+} from "@/lib/fees";
 import { formatCloseDate } from "@/lib/stock-workspace";
 import { cn } from "@/lib/utils";
 
 type StrategyType = "rsi_threshold" | "sma_crossover";
-type FeeScheduleName = NonNullable<BacktestRequest["fee_schedule"]>;
 
 const RISK_FREE_RATE = 0.05;
 
@@ -105,7 +114,10 @@ export function BacktestForm({
   const [returnMode, setReturnMode] = useState<"price" | "total">("price");
   const [fillRule, setFillRule] = useState<"next_open" | "next_close">("next_open");
   const [spreadBps, setSpreadBps] = useState("0");
-  const [feeSchedule, setFeeSchedule] = useState<FeeScheduleName>("none");
+  // A4.2: costs on by default for Indian symbols ("auto" picks the market).
+  const [feeSchedule, setFeeSchedule] = useState<FeeScheduleName>("auto");
+  const [brokerage, setBrokerage] = useState<BrokerageName>("zerodha");
+  const [advCap, setAdvCap] = useState(DEFAULT_ADV_CAP_PCT);
   const [slippageBps, setSlippageBps] = useState("0");
 
   const [pending, setPending] = useState(false);
@@ -162,6 +174,8 @@ export function BacktestForm({
         fill_rule: fillRule,
         spread_bps: Number(spreadBps) || 0,
         fee_schedule: feeSchedule,
+        brokerage,
+        adv_cap_pct: advCapValue(advCap),
       };
       const res = await runBacktest(request);
       setLastRequest(request);
@@ -323,7 +337,7 @@ export function BacktestForm({
               </div>
               <div className="space-y-1">
                 <Label htmlFor="bt-fees" className="text-xs">
-                  Regulatory fees
+                  Fees and taxes
                 </Label>
                 <select
                   id="bt-fees"
@@ -331,15 +345,47 @@ export function BacktestForm({
                   onChange={(event) => setFeeSchedule(event.target.value as FeeScheduleName)}
                   className="flex h-10 w-full rounded-sm border border-input bg-transparent px-3 py-2 text-sm"
                 >
-                  <option value="none">None</option>
-                  <option value="us_equity_2026">US equity 2026 (SEC, FINRA on sales)</option>
-                  <option value="in_delivery_nse_2026">
-                    India delivery, NSE (STT, stamp, GST, DP)
-                  </option>
-                  <option value="in_delivery_bse_2026">
-                    India delivery, BSE (STT, stamp, GST, DP)
-                  </option>
+                  {FEE_SCHEDULE_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
                 </select>
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="bt-brokerage" className="text-xs">
+                  Brokerage (India)
+                </Label>
+                <select
+                  id="bt-brokerage"
+                  value={brokerage}
+                  onChange={(event) => setBrokerage(event.target.value as BrokerageName)}
+                  className="flex h-10 w-full rounded-sm border border-input bg-transparent px-3 py-2 text-sm"
+                >
+                  {BROKERAGE_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="bt-adv" className="text-xs">
+                  Most of 20-day traded value (%)
+                </Label>
+                <Input
+                  id="bt-adv"
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="1"
+                  value={advCap}
+                  onChange={(event) => setAdvCap(event.target.value)}
+                  aria-describedby="bt-adv-hint"
+                />
+                <p id="bt-adv-hint" className="text-2xs text-text-tertiary">
+                  A buy fills at most this share of the 20-day average traded value. Empty: no cap.
+                </p>
               </div>
             </div>
           </fieldset>
@@ -524,12 +570,16 @@ function BacktestResults({
       </section>
 
       <section aria-labelledby="primary-metrics-heading">
-        <ResearchSectionHeader id="primary-metrics-heading" title="Performance" />
+        <ResearchSectionHeader
+          id="primary-metrics-heading"
+          title="Performance, net of costs"
+          description="Every figure here is after fees, spread and slippage; gross figures follow."
+        />
         <FigureStrip
           label="Performance"
           figures={[
             {
-              label: "Strategy return",
+              label: "Net return",
               value: (
                 <Signed
                   value={result.summary.total_return}
@@ -575,7 +625,19 @@ function BacktestResults({
                 </span>
               ),
             },
-            { label: "Total costs", value: fmtCurrency(result.summary.total_costs, currency) },
+            {
+              label: "Gross return",
+              value: fmtPct(result.summary.gross_return ?? result.summary.total_return),
+              note: "before costs",
+            },
+            {
+              label: "Total costs",
+              value: fmtCurrency(result.summary.total_costs, currency),
+              note:
+                result.summary.total_fees !== undefined
+                  ? `fees ${fmtCurrency(result.summary.total_fees, currency)}`
+                  : undefined,
+            },
             { label: "Trades", value: String(result.trades.length) },
           ]}
         />
@@ -601,6 +663,7 @@ function BacktestResults({
             : ""}
         </p>
         <UniverseNote universe={result.universe} className="mt-1" />
+        <CostsDisclosure costs={result.costs} liquidity={result.liquidity} className="mt-3" />
       </section>
 
       {request ? <SaveBacktestRun request={request} /> : null}
@@ -650,6 +713,11 @@ function BacktestResults({
                       {Number(trade.shares).toLocaleString("en-US", {
                         maximumFractionDigits: 4,
                       })}
+                      {trade.requested_shares ? (
+                        <span className="block text-2xs text-warning" data-testid="partial-fill">
+                          {partialLabel(trade.shares, trade.requested_shares)}
+                        </span>
+                      ) : null}
                     </TableCell>
                     <TableCell
                       className="hidden text-right font-mono sm:table-cell"

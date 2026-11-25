@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { placeTradeAction } from "@/app/(product)/(authed)/trade/actions";
@@ -7,6 +7,25 @@ import { ContextualTradeTicket } from "@/components/contextual-trade-ticket";
 vi.mock("@/app/(product)/(authed)/trade/actions", () => ({
   placeTradeAction: vi.fn().mockResolvedValue({}),
   placeOrderAction: vi.fn().mockResolvedValue({}),
+}));
+
+// A4.2: the review asks the public estimate for the fill's fees; a US
+// symbol's default schedule charges none.
+vi.mock("@/lib/api/fees", () => ({
+  getFeeEstimate: vi.fn().mockResolvedValue({
+    ticker: "AAPL",
+    side: "buy",
+    quantity: "3",
+    price: "25",
+    currency: "USD",
+    schedule: "none",
+    label: "No fees (commission only)",
+    on: "2026-11-26",
+    notional: "75",
+    total: "0",
+    net_amount: "75",
+    lines: [],
+  }),
 }));
 
 const baseProps = {
@@ -96,7 +115,7 @@ describe("ContextualTradeTicket", () => {
     expect(screen.getByLabelText("Quantity")).toHaveValue(5);
   });
 
-  it("reviews a market order before it can be placed", () => {
+  it("reviews a market order before it can be placed", async () => {
     render(
       <ContextualTradeTicket
         {...baseProps}
@@ -112,8 +131,10 @@ describe("ContextualTradeTicket", () => {
     expect(screen.getByText("Review order")).toBeVisible();
     expect(screen.getByText("Market buy 3 AAPL")).toBeVisible();
     expect(screen.getByText("$25.00 · close of Apr 4, 2025")).toBeVisible();
-    expect(screen.getByText("None in the simulator")).toBeVisible();
-    expect(screen.getByText("$75.00", { selector: "dd" })).toBeVisible();
+    await waitFor(() => expect(screen.getByText("None for this market")).toBeVisible());
+    expect(screen.getByText("Estimated total, after fees")).toBeVisible();
+    // Net first, then the value before fees: both $75.00 when there are none.
+    expect(screen.getAllByText("$75.00", { selector: "dd" })).toHaveLength(2);
     expect(screen.getByText(/Fills now at the latest stored daily close/)).toBeVisible();
     expect(placeTradeAction).not.toHaveBeenCalled();
 

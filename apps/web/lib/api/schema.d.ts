@@ -2148,6 +2148,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/fees/schedules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Schedules */
+        get: operations["list_schedules_v1_fees_schedules_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/fees/estimate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Estimate */
+        get: operations["estimate_v1_fees_estimate_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/status": {
         parameters: {
             query?: never;
@@ -2451,10 +2485,21 @@ export interface components {
             spread_bps: number;
             /**
              * Fee Schedule
-             * @default none
+             * @default auto
              * @enum {string}
              */
-            fee_schedule: "none" | "us_equity_2026" | "in_delivery_nse_2026" | "in_delivery_bse_2026";
+            fee_schedule: "auto" | "none" | "us_equity" | "us_equity_2026" | "in_equity_delivery_nse" | "in_delivery_nse_2026" | "in_equity_delivery_bse" | "in_delivery_bse_2026";
+            /**
+             * Brokerage
+             * @default zerodha
+             * @enum {string}
+             */
+            brokerage: "zerodha" | "zero";
+            /**
+             * Adv Cap Pct
+             * @default 10
+             */
+            adv_cap_pct: number | null;
         };
         /** BacktestOut */
         BacktestOut: {
@@ -2494,6 +2539,8 @@ export interface components {
             equity_curve: components["schemas"]["EquityPointOut"][];
             summary: components["schemas"]["BacktestSummaryOut"];
             universe: components["schemas"]["UniverseOut"];
+            costs?: components["schemas"]["CostsOut"] | null;
+            liquidity?: components["schemas"]["LiquidityOut"] | null;
         };
         /**
          * BacktestSummaryOut
@@ -2531,6 +2578,26 @@ export interface components {
              * @default 0
              */
             total_costs: string;
+            /**
+             * Gross Return
+             * @default 0
+             */
+            gross_return: number;
+            /**
+             * Gross Final Nav
+             * @default 0
+             */
+            gross_final_nav: string;
+            /**
+             * Total Fees
+             * @default 0
+             */
+            total_fees: string;
+            /**
+             * Price Costs
+             * @default 0
+             */
+            price_costs: string;
         };
         /** BacktestTradeOut */
         BacktestTradeOut: {
@@ -2555,6 +2622,8 @@ export interface components {
              * @default []
              */
             fees: components["schemas"]["BacktestFeeOut"][];
+            /** Requested Shares */
+            requested_shares?: string | null;
         };
         /** BarOut */
         BarOut: {
@@ -2589,6 +2658,16 @@ export interface components {
         BaseCurrencyIn: {
             /** Base Currency */
             base_currency: string;
+        };
+        /** BrokerageOut */
+        BrokerageOut: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /** Rate Text */
+            rate_text: string;
+            source?: components["schemas"]["FeeSourceOut"] | null;
         };
         /** ChecklistConditionDefOut */
         ChecklistConditionDefOut: {
@@ -2806,6 +2885,55 @@ export interface components {
             name?: string | null;
             /** Columns */
             columns?: ("close" | "change_pct" | "rsi_14" | "pct_from_52w_high" | "sma_50_gap_pct" | "sma_200_gap_pct" | "atr_pct_14" | "hv_20" | "volume_ratio" | "avg_volume_20" | "pe" | "pb" | "market_cap_usd" | "dividend_yield" | "roe" | "sentiment_7d" | "delivery_pct" | "checklist_met" | "sector")[] | null;
+        };
+        /**
+         * CostsOut
+         * @description A4.2: the costs a run applied, each component with its rate and source.
+         */
+        CostsOut: {
+            /** Schedule */
+            schedule: string;
+            /** Requested */
+            requested: string;
+            /** Label */
+            label: string;
+            /** Currency */
+            currency?: string | null;
+            /**
+             * Segment
+             * @default
+             */
+            segment: string;
+            brokerage?: components["schemas"]["BrokerageOut"] | null;
+            /**
+             * Commission Bps
+             * @default 0
+             */
+            commission_bps: number;
+            /** Coverage From */
+            coverage_from?: string | null;
+            /**
+             * Fills Before Coverage
+             * @default 0
+             */
+            fills_before_coverage: number;
+            /**
+             * Versions
+             * @default []
+             */
+            versions: components["schemas"]["FeeVersionOut"][];
+            /**
+             * Notes
+             * @default []
+             */
+            notes: string[];
+            /**
+             * Price Bands Checked
+             * @default false
+             */
+            price_bands_checked: boolean;
+            /** Price Bands Note */
+            price_bands_note?: string | null;
         };
         /**
          * CurrencyCashOut
@@ -3378,6 +3506,213 @@ export interface components {
             /** Buckets */
             buckets: components["schemas"]["ExposureBucketOut"][];
         };
+        /** FeeComponentOut */
+        FeeComponentOut: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "value" | "per_share" | "flat" | "gst";
+            /** Rate */
+            rate: string;
+            /** Rate Text */
+            rate_text: string;
+            /**
+             * Side
+             * @enum {string}
+             */
+            side: "buy" | "sell" | "both";
+            /** Cap */
+            cap?: string | null;
+            /**
+             * Gst On
+             * @default []
+             */
+            gst_on: string[];
+            /**
+             * Per Scrip Day
+             * @default false
+             */
+            per_scrip_day: boolean;
+            /**
+             * Note
+             * @default
+             */
+            note: string;
+            source: components["schemas"]["FeeSourceOut"];
+        };
+        /** FeeEstimateLineOut */
+        FeeEstimateLineOut: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /** Amount */
+            amount: string;
+            /** Rate Text */
+            rate_text: string;
+            source?: components["schemas"]["FeeSourceOut"] | null;
+        };
+        /**
+         * FeeEstimateOut
+         * @description GET /v1/fees/estimate (A4.2): the order review's costs.
+         */
+        FeeEstimateOut: {
+            /** Ticker */
+            ticker: string;
+            /**
+             * Side
+             * @enum {string}
+             */
+            side: "buy" | "sell";
+            /** Quantity */
+            quantity: string;
+            /** Price */
+            price: string;
+            /** Currency */
+            currency: string;
+            /** Schedule */
+            schedule: string;
+            /** Label */
+            label: string;
+            /**
+             * On
+             * Format: date
+             */
+            on: string;
+            /** Effective From */
+            effective_from?: string | null;
+            /**
+             * Before Coverage
+             * @default false
+             */
+            before_coverage: boolean;
+            brokerage?: components["schemas"]["BrokerageOut"] | null;
+            /** Notional */
+            notional: string;
+            /** Total */
+            total: string;
+            /** Net Amount */
+            net_amount: string;
+            /** Lines */
+            lines: components["schemas"]["FeeEstimateLineOut"][];
+            /** Dp Note */
+            dp_note?: string | null;
+        };
+        /** FeeScheduleOut */
+        FeeScheduleOut: {
+            /** Name */
+            name: string;
+            /**
+             * Aliases
+             * @default []
+             */
+            aliases: string[];
+            /** Label */
+            label: string;
+            /** Currency */
+            currency?: string | null;
+            /**
+             * Market
+             * @default
+             */
+            market: string;
+            /**
+             * Segment
+             * @default
+             */
+            segment: string;
+            /** Venue */
+            venue?: string | null;
+            /** Coverage From */
+            coverage_from?: string | null;
+            /**
+             * Brokerage
+             * @default []
+             */
+            brokerage: components["schemas"]["BrokerageOut"][];
+            /**
+             * Versions
+             * @default []
+             */
+            versions: components["schemas"]["FeeVersionOut"][];
+            /**
+             * Notes
+             * @default []
+             */
+            notes: string[];
+            /**
+             * Default For
+             * @default []
+             */
+            default_for: string[];
+        };
+        /**
+         * FeeSchedulesOut
+         * @description GET /v1/fees/schedules (A4.2).
+         */
+        FeeSchedulesOut: {
+            /** Schedules */
+            schedules: components["schemas"]["FeeScheduleOut"][];
+            /** Defaults */
+            defaults: {
+                [key: string]: string;
+            };
+            /**
+             * Default Other
+             * @default none
+             */
+            default_other: string;
+            /** Brokerage Models */
+            brokerage_models: string[];
+            /**
+             * Notes
+             * @default []
+             */
+            notes: string[];
+        };
+        /** FeeSourceOut */
+        FeeSourceOut: {
+            /** Url */
+            url: string;
+            /** Title */
+            title: string;
+            /** Date */
+            date: string;
+            /**
+             * Read On
+             * Format: date
+             */
+            read_on: string;
+        };
+        /** FeeVersionOut */
+        FeeVersionOut: {
+            /**
+             * Effective From
+             * Format: date
+             */
+            effective_from: string;
+            /** Effective To */
+            effective_to?: string | null;
+            /**
+             * Start Confirmed
+             * @default true
+             */
+            start_confirmed: boolean;
+            /** Components */
+            components: components["schemas"]["FeeComponentOut"][];
+            /**
+             * Notes
+             * @default []
+             */
+            notes: string[];
+            /** Fills */
+            fills?: number | null;
+        };
         /** FillEventOut */
         FillEventOut: {
             /**
@@ -3943,6 +4278,36 @@ export interface components {
             checks: components["schemas"]["LimitCheckOut"][];
             /** Breached */
             breached: boolean;
+        };
+        /**
+         * LiquidityOut
+         * @description A4.2: the ADV participation cap.
+         */
+        LiquidityOut: {
+            /** Adv Cap Pct */
+            adv_cap_pct?: number | null;
+            /**
+             * Adv Bars
+             * @default 20
+             */
+            adv_bars: number;
+            /**
+             * Partial Entries
+             * @default 0
+             */
+            partial_entries: number;
+            /**
+             * Skipped Entries
+             * @default 0
+             */
+            skipped_entries: number;
+            /**
+             * Not Capped
+             * @default 0
+             */
+            not_capped: number;
+            /** Note */
+            note: string;
         };
         /** LiveResponse */
         LiveResponse: {
@@ -4994,6 +5359,16 @@ export interface components {
              * @default 0
              */
             realized_pl_unavailable: number;
+            /**
+             * Fees Paid
+             * @default 0
+             */
+            fees_paid: string;
+            /**
+             * Realized Pl Net
+             * @default 0
+             */
+            realized_pl_net: string;
             /** Positions */
             positions: components["schemas"]["PositionOut"][];
             /**
@@ -6415,10 +6790,21 @@ export interface components {
             fill_rule: "next_open" | "next_close";
             /**
              * Fee Schedule
-             * @default none
+             * @default auto
              * @enum {string}
              */
-            fee_schedule: "none" | "us_equity_2026" | "in_delivery_nse_2026" | "in_delivery_bse_2026";
+            fee_schedule: "auto" | "none" | "us_equity" | "us_equity_2026" | "in_equity_delivery_nse" | "in_delivery_nse_2026" | "in_equity_delivery_bse" | "in_delivery_bse_2026";
+            /**
+             * Brokerage
+             * @default zerodha
+             * @enum {string}
+             */
+            brokerage: "zerodha" | "zero";
+            /**
+             * Adv Cap Pct
+             * @default 10
+             */
+            adv_cap_pct: number | null;
             /**
              * Commission Bps
              * @default 0
@@ -6524,6 +6910,8 @@ export interface components {
              * @default []
              */
             notes: string[];
+            costs?: components["schemas"]["CostsOut"] | null;
+            liquidity?: components["schemas"]["LiquidityOut"] | null;
         };
         /**
          * StrategyBenchmarkOut
@@ -6747,6 +7135,10 @@ export interface components {
             initial_risk?: string | null;
             /** R Multiple */
             r_multiple?: number | null;
+            /** Requested Quantity */
+            requested_quantity?: string | null;
+            /** Exit Adv Pct */
+            exit_adv_pct?: number | null;
         };
         /**
          * StrategyUniverseIn
@@ -7006,6 +7398,24 @@ export interface components {
             /** Return Pct */
             return_pct: number;
         };
+        /** TradeFeeLineOut */
+        TradeFeeLineOut: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /** Amount */
+            amount: string;
+            /**
+             * Rate
+             * @default
+             */
+            rate: string;
+            /** Effective From */
+            effective_from?: string | null;
+            /** Source Url */
+            source_url?: string | null;
+        };
         /**
          * TradeIn
          * @description Request body for POST /v1/trades.
@@ -7083,6 +7493,19 @@ export interface components {
             total_base: string;
             /** Realized Pnl */
             realized_pnl?: string | null;
+            /** Fees */
+            fees?: string | null;
+            /** Fee Schedule */
+            fee_schedule?: string | null;
+            /**
+             * Fee Lines
+             * @default []
+             */
+            fee_lines: components["schemas"]["TradeFeeLineOut"][];
+            /** Net Native */
+            net_native?: string | null;
+            /** Realized Pnl Net */
+            realized_pnl_net?: string | null;
         };
         /**
          * TrailingStopIn
@@ -12050,6 +12473,61 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EventStudyOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_schedules_v1_fees_schedules_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeeSchedulesOut"];
+                };
+            };
+        };
+    };
+    estimate_v1_fees_estimate_get: {
+        parameters: {
+            query: {
+                ticker: string;
+                side: "buy" | "sell";
+                quantity: number | string;
+                price?: number | string | null;
+                on?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeeEstimateOut"];
                 };
             };
             /** @description Validation Error */

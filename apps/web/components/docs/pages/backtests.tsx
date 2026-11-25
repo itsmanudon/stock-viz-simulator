@@ -1,4 +1,15 @@
-import { Callout, DocSection, H3, Li, List, P, Shot, Term, Terms } from "@/components/docs/docs-ui";
+import {
+  Callout,
+  DocLink,
+  DocSection,
+  H3,
+  Li,
+  List,
+  P,
+  Shot,
+  Term,
+  Terms,
+} from "@/components/docs/docs-ui";
 
 export function Backtests() {
   return (
@@ -36,9 +47,16 @@ export function Backtests() {
             Optional costs, in basis points, that move each fill against you.
           </Term>
           <Term name="Fees">
-            None, a US schedule (SEC and FINRA fees on sales), or the NSE or BSE delivery schedules
-            (securities transaction tax, exchange charges, stamp duty, GST and more). A schedule
-            must match the symbol&apos;s currency.
+            Automatic by default: Indian symbols pay their exchange&apos;s equity delivery charges
+            (securities transaction tax, exchange charges, stamp duty, GST, the DP charge), other
+            markets none. You can choose none, the US schedule (SEC and FINRA fees on sales) or a
+            delivery schedule. Each fill pays the rates in force on its date; the results list every
+            component with its source under Costs. See{" "}
+            <DocLink href="/docs/costs">Costs and fees</DocLink>.
+          </Term>
+          <Term name="Liquidity cap">
+            A buy fills at most 10% (you can change it) of the 20-day average traded value; the rest
+            is not filled and the trade says &quot;partial&quot;. Price bands are not checked yet.
           </Term>
           <Term name="Total return">
             When chosen, dividends are paid on shares held into each ex-date, for the strategy and

@@ -12,9 +12,13 @@ production code:
   backtest fill goes through.
 
 Compared: fill or no fill, fill price, quantity, the cash change and (USD)
-the realised P&L. Live and replay book no fees, so for a fee schedule the
-backtest's cash change must equal the live one less exactly the schedule's
-fee on that same fill.
+the realised P&L. A4.2: live fills pay the ticker's default schedule
+(Indian symbols: their venue's delivery schedule, version in force on the
+fill's venue date; US: none). So under the live default the backtest's cash
+change and fees equal live's to the cent; under any other schedule the
+backtest's cash change equals live's before its fees, less exactly that
+schedule's fees on the same fill and date. Replay is USD-only and books no
+fees (USD's default is ``none``).
 
 What a path does not support is a skip with its reason (never silent):
 live is pinned to ``legacy_close``; replay is pinned to ``legacy_close`` and
@@ -25,7 +29,7 @@ kernel's own rule in :func:`test_next_open_backtest_path`).
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from decimal import Decimal
 
 import pytest
@@ -34,6 +38,7 @@ from sqlmodel import Session, col, select
 from stockviz.models import FxRate, Portfolio, PriceBar, Symbol, Trade, TradeSide, User
 from stockviz.models.order import OrderType
 from stockviz.services.backtest.fills import book
+from stockviz.services.fee_view import default_schedule_name, fee_date
 from stockviz.services.replay import (
     advance_replay_session,
     create_replay_session,
@@ -69,8 +74,8 @@ QTY = Decimal(7)
 MICROS = Decimal("0.000001")
 TICKERS = {"USD": "AAPL", "INR": "TCS.NS"}
 FEES = {
-    "USD": ("none", "us_equity_2026"),
-    "INR": ("none", "in_delivery_nse_2026", "in_delivery_bse_2026"),
+    "USD": ("none", "us_equity_2026", "us_equity"),
+    "INR": ("none", "in_delivery_nse_2026", "in_equity_delivery_nse", "in_delivery_bse_2026"),
 }
 
 
@@ -96,8 +101,11 @@ ORDERS = (
 class Fill:
     price: Decimal
     quantity: Decimal
-    cash_change: Decimal  # in the symbol's currency
+    cash_change: Decimal  # in the symbol's currency, fees included
     realized: Decimal | None
+    fees: Decimal = Decimal(0)
+    fee_on: date | None = None
+    """The date the path priced its fees on (None: it books none)."""
 
 
 def _seed(session: Session, currency: str) -> str:
@@ -147,13 +155,25 @@ def live_fill(session: Session, currency: str, order: Order) -> Fill | None:
     if trade is None:
         return None
     native = (trade.price * trade.quantity).quantize(MICROS)
-    change = -native if trade.side == TradeSide.BUY else native
+    fees = trade.fees if trade.fees is not None else Decimal(0)
+    change = -native - fees if trade.side == TradeSide.BUY else native - fees
     if currency == "USD":
         session.expire_all()
         after = session.get(Portfolio, portfolio.id).cash_balance  # type: ignore[union-attr]
         assert after - cash_before == change
+    else:
+        # The rupee leg: a buy converts native + fees from USD cash; a sell
+        # credits native - fees to the INR balance.
+        from stockviz.models import CashBalance
+
+        session.expire_all()
+        row = session.exec(select(CashBalance).where(CashBalance.currency == "INR")).first()
+        held = row.amount if row is not None else None
+        if trade.side == TradeSide.SELL:
+            assert held == native - fees
     realized = trade.realized_pnl if currency == "USD" else None
-    return Fill(trade.price, trade.quantity, change, realized)
+    assert trade.fee_schedule == default_schedule_name(ticker)
+    return Fill(trade.price, trade.quantity, change, realized, fees, fee_date(ticker, trade.ts))
 
 
 def replay_fill(session: Session, currency: str, order: Order) -> Fill | None:
@@ -174,7 +194,11 @@ def replay_fill(session: Session, currency: str, order: Order) -> Fill | None:
 
 
 def backtest_fill(
-    currency: str, order: Order, profile: ExecutionProfile, fee_schedule: str
+    currency: str,
+    order: Order,
+    profile: ExecutionProfile,
+    fee_schedule: str,
+    on: date | None = None,
 ) -> tuple[Fill | None, Decimal]:
     """The backtest path's fill and the fees it charged."""
     ticker = TICKERS[currency]
@@ -185,7 +209,7 @@ def backtest_fill(
                          submitted_at=DAY1.replace(tzinfo=UTC), limit_price=order.limit)  # fmt: skip
     bar = MarketSnapshot(ticker=ticker, observed_at=DAY2.replace(tzinfo=UTC), interval="1d",
                          open=OPEN, high=HIGH, low=LOW, close=CLOSE, volume=Decimal(1000))  # fmt: skip
-    booked = book(ledger, intent, bar, profile, schedule=get_fee_schedule(fee_schedule))
+    booked = book(ledger, intent, bar, profile, schedule=get_fee_schedule(fee_schedule), on=on)
     if booked is None:
         return None, Decimal(0)
     return (
@@ -195,14 +219,26 @@ def backtest_fill(
 
 
 def _agree(path: Fill | None, currency: str, order: Order, fee_schedule: str) -> None:
-    backtest, fees = backtest_fill(currency, order, LEGACY_CLOSE, fee_schedule)
+    on = path.fee_on if path is not None else None
+    backtest, fees = backtest_fill(currency, order, LEGACY_CLOSE, fee_schedule, on=on)
     assert (path is None) == (backtest is None), (order.name, fee_schedule)
     if path is None or backtest is None:
         return
     assert (backtest.price, backtest.quantity) == (path.price, path.quantity)
-    expected_fees = get_fee_schedule(fee_schedule).fees(order.side, path.quantity, path.price).total
+    expected_fees = (
+        get_fee_schedule(fee_schedule)
+        .fees(order.side, path.quantity, path.price, on=on or DAY2.date())
+        .total
+    )
     assert fees == expected_fees.quantize(MICROS)
-    assert backtest.cash_change == path.cash_change - fees, (order.name, fee_schedule)
+    gross = path.cash_change + path.fees  # the path's cash change before its own fees
+    assert backtest.cash_change == gross - fees, (order.name, fee_schedule)
+    if path.fee_on is not None and get_fee_schedule(fee_schedule) is get_fee_schedule(
+        default_schedule_name(TICKERS[currency])
+    ):
+        # The live default schedule: fees and cash agree to the cent.
+        assert fees == path.fees and backtest.cash_change == path.cash_change
+        assert (fees > 0) == (currency == "INR")
     if path.realized is not None:
         assert backtest.realized == path.realized
 
@@ -249,8 +285,30 @@ def test_three_way_market_buy_headline(engine) -> None:
     with Session(engine) as session:
         replay = replay_fill(session, "USD", ORDERS[0])
     backtest, fees = backtest_fill("USD", ORDERS[0], LEGACY_CLOSE, "none")
-    assert live == replay == backtest and fees == 0
-    assert live is not None and live.price == CLOSE and live.cash_change == -(CLOSE * QTY)
+    assert live is not None and replay is not None and backtest is not None and fees == 0
+    assert (live.price, live.quantity, live.cash_change, live.fees) == (
+        replay.price, replay.quantity, replay.cash_change, replay.fees
+    ) == (backtest.price, backtest.quantity, backtest.cash_change, backtest.fees)  # fmt: skip
+    assert live.price == CLOSE and live.cash_change == -(CLOSE * QTY)
+
+
+def test_three_way_inr_default_fees(engine) -> None:
+    """A4.2: an Indian market buy and sell pay the NSE delivery schedule live,
+    and the backtest under the same schedule and date books the same fees and
+    the same cash change, to the cent."""
+    from sqlmodel import SQLModel
+
+    for order in (ORDERS[0], ORDERS[1]):
+        SQLModel.metadata.drop_all(engine)
+        SQLModel.metadata.create_all(engine)
+        with Session(engine) as session:
+            live = live_fill(session, "INR", order)
+        assert live is not None and live.fees > 0 and live.fee_on is not None
+        backtest, fees = backtest_fill(
+            "INR", order, LEGACY_CLOSE, default_schedule_name("TCS.NS"), on=live.fee_on
+        )
+        assert backtest is not None
+        assert (backtest.cash_change, fees) == (live.cash_change, live.fees)
 
 
 @pytest.mark.parametrize("order", ORDERS, ids=[o.name for o in ORDERS])

@@ -10,8 +10,10 @@ import enum
 from datetime import date as date_type
 from datetime import datetime
 from decimal import Decimal
+from typing import Any
 
-from sqlalchemy import CheckConstraint, Index, Numeric, String, UniqueConstraint
+from sqlalchemy import JSON, CheckConstraint, Index, Numeric, String, UniqueConstraint
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Column, Field, SQLModel
 
 from stockviz._time import utcnow
@@ -165,6 +167,17 @@ class Trade(SQLModel, table=True):
     # Client-generated key for a market order (POST /v1/trades). NULL on fills
     # from pending orders, option exercise and rows written before it existed.
     client_order_id: str | None = Field(default=None, max_length=64, nullable=True)
+    # A4.2: fees charged on this fill, in the symbol's currency, from the
+    # date-versioned schedule in force on the fill date
+    # (``services/simulation/fees.py``). Buys pay them on top of the price,
+    # sells net them from the proceeds; ``realized_pnl`` stays the price
+    # gain (gross). NULL on rows written before A4.2 (never recalculated).
+    fees: Decimal | None = Field(default=None, sa_column=Column(Numeric(20, 6), nullable=True))
+    fee_schedule: str | None = Field(default=None, max_length=40, nullable=True)
+    # [{key, label, amount, rate, side, effective_from, source_url}] per component.
+    fee_lines: list[dict[str, Any]] | None = Field(
+        default=None, sa_column=Column(JSON().with_variant(JSONB(), "postgresql"), nullable=True)
+    )
 
 
 class PortfolioSnapshot(SQLModel, table=True):
