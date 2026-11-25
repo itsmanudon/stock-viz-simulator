@@ -9,10 +9,11 @@ charts, returns, backtests and replay.
 session of its ticker's venue (``services/markets/calendar.py``), split into
 weekend and weekday-holiday bars, and marks each one that only repeats the
 previous stored bar's prices (a carried-forward copy rather than a trade).
-Special sessions the calendar knows (the 2024 and 2025 Saturday sessions)
-count as sessions and are never listed. A Diwali Muhurat session on a
-weekend is not modelled and would be listed as a weekend bar: check the
-report's dates before deleting.
+Special sessions in the calendar (``india_holidays.SPECIAL_SESSIONS``:
+Budget days, Diwali Muhurat, live system and DR-site tests) count as
+sessions and are never listed. On 25 Nov 2026 every weekend bar in
+production fell on one of those 12 dates, so check the report's dates
+against the exchange's notices before deleting.
 
 :func:`delete_weekend_bars` removes the weekend ones only, for the tickers
 named. Weekday-holiday bars are reported, never deleted here: a holiday

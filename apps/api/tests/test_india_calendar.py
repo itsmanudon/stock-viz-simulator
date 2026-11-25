@@ -79,13 +79,40 @@ def test_nse_and_bse_close_on_the_same_days() -> None:
 
 
 @pytest.mark.parametrize("venue", INDIAN)
-def test_history_before_2027_matches_the_package_bse_calendar(venue: str) -> None:
+def test_history_before_2027_is_the_package_plus_the_special_sessions(venue: str) -> None:
     import exchange_calendars as xcals
 
     package = xcals.get_calendar("XBOM")
     ours = _sessions(venue)
-    ours = ours[(ours >= package.first_session) & (ours <= package.last_session)]
-    assert ours.equals(package.sessions)
+    ours = {
+        s.date() for s in ours[(ours >= package.first_session) & (ours <= package.last_session)]
+    }
+    theirs = {s.date() for s in package.sessions}
+    added = {d for d in india_holidays.SPECIAL_SESSIONS if package.first_session.date() <= d}
+    assert ours - theirs == added - theirs
+    assert theirs <= ours  # nothing the package trades is closed here
+
+
+@pytest.mark.parametrize("day", sorted(india_holidays.SPECIAL_SESSIONS))
+def test_every_special_session_is_a_session(day: date) -> None:
+    assert day.weekday() >= 5
+    assert is_session(day, "XNSE")
+    assert is_session(day, "XBOM")
+    assert day not in indian_holidays()
+
+
+def test_a_special_session_opens_only_its_own_day() -> None:
+    # 2 Mar 2024 (Saturday) traded; the Sunday after and the next Saturday did not.
+    assert is_session(date(2024, 3, 2), "XNSE")
+    assert not is_session(date(2024, 3, 3), "XNSE")
+    assert not is_session(date(2024, 3, 9), "XNSE")
+    # The holiday in a special session's week stays closed (22 Jan 2024).
+    assert not is_session(date(2024, 1, 22), "XNSE")
+
+
+def test_muhurat_on_a_package_holiday_counts_as_a_session() -> None:
+    # The package lists Diwali Laxmi Pujan as a holiday on Sunday 27 Oct 2019.
+    assert is_session(date(2019, 10, 27), "XNSE")
 
 
 def test_the_maintained_2026_list_matches_the_package() -> None:

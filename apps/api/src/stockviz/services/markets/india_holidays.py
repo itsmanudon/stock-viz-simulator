@@ -24,9 +24,15 @@ NSE and BSE share one list: the 2026 list marks every trading holiday for both
 exchanges. If they ever differ, add a per-venue override rather than a second
 copy of the table.
 
-Weekend holidays are left out: they close nothing. Special sessions on a
-weekend or holiday (Diwali Muhurat trading, a Budget-day session) are not
-modelled: the daily-bar jobs do not use them.
+Weekend holidays are left out: they close nothing.
+
+**Special sessions.** The exchanges sometimes trade on a weekend: Budget
+day, Diwali Muhurat trading, a live test of a new system or of the disaster
+recovery site. :data:`SPECIAL_SESSIONS` lists each one with its source, and
+the calendars count it as a session, so its daily bar is expected and not
+reported as a bar on a closed day. Their hours are not modelled (a Muhurat
+session runs about an hour in the evening); the calendar gives them the
+normal close. Add a new one here when the exchanges announce it.
 """
 
 from __future__ import annotations
@@ -108,3 +114,48 @@ def maintained_holidays() -> list[date]:
     for year in range(FIRST_MAINTAINED_YEAR, PROVISIONAL_THROUGH + 1):
         days.extend(holidays_for_year(year))
     return sorted(days)
+
+
+SPECIAL_SESSIONS: dict[date, str] = {
+    # Each checked on 25 Nov 2026 against an NSE circular or a broker or
+    # press notice; every one also has stored bars in production from more
+    # than one ticker (yfinance and/or the Zerodha bulk files).
+    date(2010, 2, 6): "Live session to test NSE's upgraded trading system (Business Standard)",
+    date(2015, 2, 28): "Union Budget (Zerodha bulletin 52900)",
+    date(2016, 10, 30): "Diwali Muhurat trading (Zerodha bulletin 53006, Business Standard)",
+    date(2019, 10, 27): "Diwali Muhurat trading (NSE circular FAOP39613)",
+    date(2020, 2, 1): "Union Budget (NSE circular FAOP43291)",
+    date(2020, 11, 14): "Diwali Muhurat trading (NSE circular FAOP42878)",
+    date(2023, 11, 12): "Diwali Muhurat trading (NSE circular COM54758)",
+    date(2024, 1, 20): "Live session, planned as a disaster-recovery test (NSE)",
+    date(
+        2024, 3, 2
+    ): "Live session with a switch to the disaster-recovery site (Zerodha bulletin 371327)",
+    date(
+        2024, 5, 18
+    ): "Live session with a switch to the disaster-recovery site (Zerodha bulletin 377895)",
+    date(2025, 2, 1): "Union Budget (Zerodha bulletin 400094)",
+    date(2026, 2, 1): "Union Budget (Zerodha bulletin 439957)",
+}
+"""Weekend days NSE and BSE traded. Weekday sessions on a holiday (a weekday
+Muhurat) are not listed yet: none is confirmed against stored bars."""
+
+
+def special_weekmasks() -> list[tuple[date, date, str]]:
+    """One (Monday, Sunday, mask) per special session's week, oldest first.
+
+    The mask is the week's trading days, Monday first: weekdays open, plus
+    the special day. Holidays in that week stay closed (they are listed
+    separately).
+    """
+    masks: list[tuple[date, date, str]] = []
+    for day in sorted(SPECIAL_SESSIONS):
+        if day.weekday() < 5:
+            raise ValueError(f"{day} is a weekday; SPECIAL_SESSIONS lists weekend sessions")
+        monday = date.fromordinal(day.toordinal() - day.weekday())
+        sunday = date.fromordinal(monday.toordinal() + 6)
+        if masks and masks[-1][0] == monday:
+            raise ValueError(f"two special sessions in the week of {monday}: merge their masks")
+        mask = "".join("1" if i < 5 or i == day.weekday() else "0" for i in range(7))
+        masks.append((monday, sunday, mask))
+    return masks

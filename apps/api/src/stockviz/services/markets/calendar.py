@@ -13,8 +13,8 @@ the Yahoo ticker suffix (:func:`venue_for_ticker`).
 holiday list: the package's BSE holidays before 2026, then the table
 maintained in :mod:`stockviz.services.markets.india_holidays`, official or
 provisional by year. A provisional year closes only the fixed-date holidays
-and logs a warning once per venue and year. Hours and special Saturday
-sessions are the package's BSE ones.
+and logs a warning once per venue and year. Hours are the package's
+BSE ones; weekend special sessions come from ``india_holidays.SPECIAL_SESSIONS``.
 
 A calendar covers a fixed range (about 20 years back to a year ahead; the
 Indian ones to the end of ``india_holidays.PROVISIONAL_THROUGH``). Outside it,
@@ -95,10 +95,13 @@ def _calendar(venue: str) -> Any | None:
 
 
 def indian_holidays() -> list[date]:
-    """Every NSE and BSE weekday holiday the calendars close, oldest first.
+    """Every NSE and BSE holiday the calendars close, oldest first.
 
-    The package's BSE list before ``FIRST_MAINTAINED_YEAR``, then the
-    maintained table (official years, then provisional ones).
+    The package's BSE list before ``FIRST_MAINTAINED_YEAR`` (which also lists
+    some weekend festivals), then the maintained table (official years, then
+    provisional ones). A special session on the same date wins: the package
+    lists Diwali Laxmi Pujan as a holiday even on the weekends NSE held
+    Muhurat trading (2016, 2019, 2020).
     """
     from exchange_calendars.exchange_calendar_xbom import precomputed_bse_holidays
 
@@ -109,7 +112,8 @@ def indian_holidays() -> list[date]:
         for stamp in precomputed_bse_holidays
         if stamp.year < india_holidays.FIRST_MAINTAINED_YEAR
     }
-    return sorted(history | set(india_holidays.maintained_holidays()))
+    closed = history | set(india_holidays.maintained_holidays())
+    return sorted(closed - set(india_holidays.SPECIAL_SESSIONS))
 
 
 def _indian_calendar(venue: str) -> Any:
@@ -121,13 +125,21 @@ def _indian_calendar(venue: str) -> Any:
     holidays = pd.DatetimeIndex([pd.Timestamp(day) for day in indian_holidays()])
 
     class IndianExchangeCalendar(XBOMExchangeCalendar):
-        """BSE's hours and special sessions; this module's holiday list."""
+        """BSE's hours; the holidays and special sessions maintained here."""
 
         name = venue
 
         @classmethod
         def precomputed_holidays(cls) -> pd.DatetimeIndex:
             return holidays
+
+        @property
+        def special_weekmasks(self) -> list[tuple[Any, Any, str]]:
+            # Replaces the package's two BSE Saturdays with the full list.
+            return [
+                (pd.Timestamp(start), pd.Timestamp(end), mask)
+                for start, end, mask in india_holidays.special_weekmasks()
+            ]
 
     return IndianExchangeCalendar(end=f"{india_holidays.PROVISIONAL_THROUGH}-12-31")
 
