@@ -29,6 +29,7 @@ import type {
   Checklist,
   ChecklistDimension,
   EarningsEvent,
+  IndicatorCatalogItem,
   MarketsSummary,
   ScreenerResult,
   SymbolChecklist,
@@ -96,3 +97,8 @@ export type _ReplayJournalMatches = Expect<Assignable<ReplayJournal, Schemas["Re
 // Keep `Exact` referenced so an unused-type lint doesn't remove the helper —
 // it's the stricter check to reach for when a shape should match exactly.
 export type _ExactHelperInUse = Exact<true, true>;
+
+// --- A3.4: the indicator catalog (parameters and evidence badges) -------------
+export type _IndicatorCatalogMatches = Expect<
+  Assignable<IndicatorCatalogItem, Schemas["IndicatorCatalogItemOut"]>
+>;

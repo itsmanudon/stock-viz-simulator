@@ -1,5 +1,5 @@
 import type { IndicatorPoint, MACDPoint } from "@/lib/api/types";
-import { type ChartPane, STOCK_INDICATORS } from "@/lib/stock-workspace";
+import { type ChartPane, indicatorLabel, splitSeriesKey } from "@/lib/stock-workspace";
 
 /**
  * Which series go to which pane of the one stock chart (A3.1, M2.1).
@@ -18,6 +18,8 @@ export type LineSpec = {
   label: string;
   points: IndicatorPoint[];
   colorIndex: number;
+  /** A3.4: dots, not a line (Parabolic SAR's stop sits on one side of price). */
+  dots?: boolean;
 };
 export type HistogramSpec = {
   kind: "histogram";
@@ -56,13 +58,22 @@ export type PaneInputs = {
   macd?: MACDPoint[] | null;
   panes?: ChartPane[];
   showVolume?: boolean;
+  /** A3.4: the chart keys drawn in the RSI and MACD panes (default `rsi_14`, `macd`). */
+  rsiKey?: string;
+  macdKey?: string;
 };
 
 /** "SMA 50", "Bollinger Bands 20, 2 upper": the menu's name plus the output. */
 export function overlayLabel(key: string): string {
-  const [base, output] = key.split(".");
-  const name = STOCK_INDICATORS.find((i) => i.value === base)?.label ?? base.toUpperCase();
-  return output ? `${name} ${output}` : name;
+  const [base, output] = splitSeriesKey(key);
+  const name = indicatorLabel(base);
+  // A study's one drawn line needs no output name (Parabolic SAR, Supertrend).
+  return output && output !== "sar" && output !== "line" ? `${name} ${output}` : name;
+}
+
+/** Series drawn as dots rather than a line (A3.4). */
+export function drawsAsDots(key: string): boolean {
+  return /^psar(_|\.)/.test(key) && key.endsWith(".sar");
 }
 
 /** Every pane the inputs ask for, in chart order, collapsed or not. */
@@ -72,13 +83,22 @@ export function allPanes({
   macd,
   panes,
   showVolume = true,
+  rsiKey = "rsi_14",
+  macdKey = "macd",
 }: PaneInputs): PaneSpec[] {
   const out: PaneSpec[] = [];
   const price: SeriesSpec[] = [{ kind: "price" }];
   let colorIndex = 0;
   for (const [key, points] of Object.entries(overlays ?? {})) {
     if (!points.length) continue;
-    price.push({ kind: "line", key, label: overlayLabel(key), points, colorIndex });
+    price.push({
+      kind: "line",
+      key,
+      label: overlayLabel(key),
+      points,
+      colorIndex,
+      ...(drawsAsDots(key) ? { dots: true } : {}),
+    });
     colorIndex += 1;
   }
   out.push({
@@ -100,8 +120,10 @@ export function allPanes({
   if (rsi?.length) {
     out.push({
       kind: "rsi",
-      label: "RSI 14",
-      series: [{ kind: "line", key: "rsi_14", label: "RSI 14", points: rsi, colorIndex: 1 }],
+      label: indicatorLabel(rsiKey),
+      series: [
+        { kind: "line", key: rsiKey, label: indicatorLabel(rsiKey), points: rsi, colorIndex: 1 },
+      ],
       guides: [70, 30],
       defaultHeight: DEFAULT_PANE_HEIGHTS.rsi,
     });
@@ -109,25 +131,25 @@ export function allPanes({
   if (macd?.length) {
     out.push({
       kind: "macd",
-      label: "MACD",
+      label: indicatorLabel(macdKey),
       series: [
         {
           kind: "line",
-          key: "macd",
-          label: "MACD",
+          key: macdKey,
+          label: indicatorLabel(macdKey),
           points: macd.map((p) => ({ ts: p.ts, value: p.macd })),
           colorIndex: 0,
         },
         {
           kind: "line",
-          key: "macd.signal",
+          key: `${macdKey}.signal`,
           label: "Signal",
           points: macd.map((p) => ({ ts: p.ts, value: p.signal })),
           colorIndex: 2,
         },
         {
           kind: "histogram",
-          key: "macd.histogram",
+          key: `${macdKey}.histogram`,
           label: "Histogram",
           points: macd.map((p) => ({ ts: p.ts, value: p.histogram })),
         },
@@ -140,7 +162,7 @@ export function allPanes({
     const series: SeriesSpec[] = Object.entries(pane.lines).map(([key, points], index) => ({
       kind: "line",
       key,
-      label: key.includes(".") ? `${pane.label} ${key.split(".")[1]}` : pane.label,
+      label: splitSeriesKey(key)[1] ? `${pane.label} ${splitSeriesKey(key)[1]}` : pane.label,
       points,
       colorIndex: index,
     }));

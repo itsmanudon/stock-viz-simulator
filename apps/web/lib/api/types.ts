@@ -125,6 +125,47 @@ export type Indicators = {
   partial_bar_excluded?: string | null;
 };
 
+/** A3.4: one study parameter and its bounds, from `/v1/indicators/catalog`. */
+export type IndicatorParam = {
+  name: string;
+  label: string;
+  type: "int" | "float";
+  default: number;
+  min: number;
+  max: number;
+  /** Decimals must be above `min`; whole numbers may equal it. */
+  min_exclusive: boolean;
+  step: number;
+  /** Names for the values 1..n when the parameter picks an option. */
+  choices: string[];
+};
+
+/** A3.4: a study's canonical signal (default parameters) and its evidence grade. */
+export type IndicatorSignal = {
+  rule: string;
+  hash: string;
+  description: string;
+  source: string;
+  evidence?: ChecklistEvidence | null;
+};
+
+export type IndicatorCatalogItem = {
+  key: string;
+  label: string;
+  params: string[];
+  defaults: number[];
+  outputs: string[];
+  pane: "price" | "separate";
+  group: string;
+  parameters: IndicatorParam[];
+  default_key: string;
+  anchored: "none" | "start";
+  description: string;
+  source: string;
+  /** Null: no canonical signal, so "No grade". */
+  signal?: IndicatorSignal | null;
+};
+
 /** A2.4: met, not met, or unknown (an input is missing and nothing failed). */
 export type ChecklistStatus = "met" | "not_met" | "unknown";
 export type ChecklistGrade = "A" | "B" | "C" | "D" | "insufficient";

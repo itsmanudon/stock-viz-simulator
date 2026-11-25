@@ -27,7 +27,8 @@ src/stockviz/
                     setup — A2.2 Setup / SetupVersion / Thesis,
                     screen — saved screens + A2.3 ScreenRun, delivery —
                     A2.3 NotificationChannel / DeliveryAttempt,
-                    drawing — A3.2 chart drawings)
+                    drawing — A3.2 chart drawings, indicator_evidence —
+                    A3.4 IndicatorEvidence)
   events/           versioned contracts (trades/market), outbox/inbox,
                     dispatcher, domain handlers, Kafka producer wrappers
                     (not imported by FastAPI startup)
@@ -51,10 +52,10 @@ src/stockviz/
     ingest/         External-API fetchers (yfinance primary, Alpha Vantage fallback);
                     earnings ingestion is available through `stockviz earnings`
     indicators/     engine.py (Phase 6.1): one OHLCV indicator registry
-                    (about 20: SMA, EMA, WMA, VWAP, Supertrend, ADX, RSI,
-                    MACD, Stochastic, CCI, ROC, Williams %R, Bollinger, ATR,
-                    HV, Donchian, Keltner, OBV, MFI, A/D, relative volume),
-                    each with a lookback; `/v1/symbols/{t}/indicators`
+                    (47 since A3.4; see "Indicator studies and evidence
+                    badges"), each with a lookback and bounded parameters;
+                    signals.py (A3.4: canonical signals), evidence.py
+                    (A3.4: their grades); `/v1/symbols/{t}/indicators`
                     loads that many bars before the window and returns only
                     the window (audit RS-1); `/v1/indicators/catalog` lists
                     them. `compute.py`'s `compute_rsi` delegates to the
@@ -174,7 +175,8 @@ CLI subcommands (`python -m stockviz.cli <cmd>`): `seed`, `backfill`,
 `metadata`, `ingest <tickers>`, `ingest-quarantine [--ticker T] [--release ID ...]`,
 `fx`, `metrics`, `fundamentals [--source yfinance|edgar]`,
 `sentiment-aggregate`, `checklist`,
-`checklist-evidence [--start D] [--end D] [--horizon N]`, `snapshot-portfolios`,
+`checklist-evidence [--start D] [--end D] [--horizon N]`,
+`indicator-evidence [--start D] [--end D] [--horizon N] [--only KEY ...]`, `snapshot-portfolios`,
 `dividends`, `credit-dividends`, `settle-options`, `run-scheduler`,
 `prune-events [--days N] [--include-unpublished]`, `aegis-sync [--max-pages N]`,
 `settle-orders [--session-date YYYY-MM-DD]`, `evaluate-alerts`, `revalidate-web`,
@@ -272,12 +274,15 @@ section).
   fine in arithmetic and comparisons, but anything built from them has no
   bar history (no `[n]`, windowed function, crossing or prefix). A rule must
   be a condition. Errors carry the column.
-- **Functions** (`functions.py`): the 21 registry indicators run on the
-  timeframe's bar frame with the registry's parameters, defaults and bounds
-  (`rsi atr hv cci roc willr mfi rvol wma vwap obv ad adx macd stoch
-  supertrend bb donchian keltner`); outputs by `.name` (`macd().signal`;
-  `macd adx stoch supertrend` default to `macd adx k line`; `bb donchian
-  keltner` must name one). The registry's `sma`/`ema` are the primitives
+- **Functions** (`functions.py`): every registry indicator (45 besides
+  `sma`/`ema` since A3.4) runs on the timeframe's bar frame with the
+  registry's parameters, defaults and bounds (`engine.Param`: the same
+  bounds the API and the chart's editor use); outputs by `.name`
+  (`macd().signal`; `DEFAULT_OUTPUTS` names each multi-output study's
+  default, e.g. `macd adx stoch supertrend psar pivots stochrsi tsi ppo` ->
+  `macd adx k line sar pp k tsi ppo`; `bb donchian keltner ichimoku aroon
+  vortex elder` must name one). `rsline` reads the venue index
+  (`needs_benchmark`). The registry's `sma`/`ema` are the primitives
   on `close`. Primitives: `sma ema highest lowest sum change pct_change abs
   min max count_true bars_since rs`. `rs(n)` is 100 x ((stock n-bar
   return + 1) / (index n-bar return + 1) - 1) against
@@ -313,8 +318,11 @@ section).
   histories (split step, NSE holidays, partial last week, delivery gaps,
   USD-reporting INR listing, a bar hole) over 52 rules and 7 numeric
   expressions (A2.2 adds the four presets; A2.4 adds three `index_close` rules,
-  one `index_close` expression and the seven checklist dimension setups; 444,683 point evaluations over 7,537 bars before them, a process pool, about a
-  minute), plus a test that perturbs everything after `t` and finds no
+  one `index_close` expression and the seven checklist dimension setups; A3.4
+  adds the 32 indicator signal rules (two were already there), seven rules
+  for the new studies without a signal and three expressions; 444,683 point
+  evaluations over 7,537 bars before them, a process pool, about a minute;
+  about two minutes since A3.4), plus a test that perturbs everything after `t` and finds no
   value up to `t` changed. Vector mode: about 1.3 ms for a 5-condition rule
   over 10 years, 0.2 s for 163 symbols (synthetic, local).
 - **CLI.** `stockviz.cli rule-check "<rule>" [TICKER ...] [--date]
@@ -551,6 +559,73 @@ and the `recommend` command, scheduler job and cron step are removed.
   (PostgreSQL up/down/up with an archived row), the conformance corpus (every
   checklist setup and `index_close` rules), `test_railway_cron.py`,
   `test_cron_chain.py`.
+
+**Indicator studies and evidence badges (A3.4, M2.6).** Pure NumPy/pandas
+(no TA-Lib; design note question 2).
+
+- **Registry** (`services/indicators/engine.py`): 47 studies. A3.4 added
+  Ichimoku, HMA, DEMA, TEMA, KAMA, Parabolic SAR, pivot points (classic,
+  prior bar/week/month/year), Aroon, Vortex, choppiness, TRIX, Elder ray,
+  PPO, StochRSI (0-100), TSI, Ultimate oscillator, Chande momentum,
+  Coppock, the RS line (`rsline`, close / venue index), ATR %, mass index,
+  RMV tightness (StockViz's definition, after Deepvue's unpublished RMV),
+  CMF, Chaikin oscillator, force index and ease of movement. Each `Spec`
+  holds `parameters` (`Param`: name, default, `lo`/`hi`, integer or
+  decimal, optional `choices`; whole numbers in [lo, hi], decimals in (lo,
+  hi]); `coerce` enforces them, so `/indicators` answers 400 ("... must be
+  ...") and the DSL a type error for the same values. Every study's
+  largest parameters keep its lookback within the route's 5,000-bar cap
+  (ADX `n` is capped at 250 for that). KAMA's warm-up is the bars until its
+  seed weighs under 0.01% at the slowest smoothing (2,219 at defaults);
+  Parabolic SAR is path-dependent and warms up on 250 bars (tested equal
+  from different starts). **Ichimoku displacement:** each bar carries the
+  cloud drawn on it, i.e. senkou A/B computed `shift` bars earlier; the 26
+  bars of cloud past the last bar are not drawn and the lagging span is left
+  out, so neither the chart nor a rule sees a later bar. `frame(rows,
+  bench)` adds a `bench` column (index close on or before each bar,
+  forward-filled at most 5) for studies with `needs_benchmark`; the router
+  loads `event_study.benchmark_for(ticker)` closes only when one is asked
+  for (and skips the indicator cache then).
+- **Reference tests** (`tests/test_indicator_studies.py`): published
+  StockCharts ChartSchool worked examples (`tests/fixtures/indicators/*.csv`,
+  the columns needed from each article's `cs-*.xls`, read 26 Nov 2026) for
+  CMF, A/D, KAMA, TSI (to 0.02 points: the sheet rounds its EMA
+  multipliers), Ultimate oscillator, Vortex, StochRSI, price relative (RS
+  line), mass index, Coppock, ease of movement and PPO's formula; small
+  cases worked by hand for the rest; every new study's warm-up (window
+  values independent of the start); bounds.
+- **Catalog** `GET /v1/indicators/catalog` (still a list): adds per study
+  `parameters [{name, label, type int|float, default, min, max,
+  min_exclusive, step, choices}]`, `default_key`, `anchored`, `description`,
+  `source` and `signal {rule (canonical), hash, description, source,
+  evidence (the checklist's evidence shape) | null} | null`.
+- **Canonical signals** (`services/indicators/signals.py`): 32 studies, each
+  one Rule DSL rule on its default parameters (e.g. `rsi(14) crosses_above
+  30`, MACD over its signal, close over the SMA/EMA/HMA/KAMA/..., Supertrend
+  and SAR flips, Donchian breakout `close > donchian(20).upper[1]`, Aroon
+  and Vortex crosses, CCI through -100, close over the cloud). Studies
+  without a textbook single-bar signal (OBV, A/D, ATR, ATR %, HV, relative
+  volume, pivots, RS line, RMV, mass index, Elder ray, UO, choppiness, VWAP,
+  WMA) have none: "No grade", never an invented one. Every rule is in the
+  conformance corpus (the test checks).
+- **Evidence** (`services/indicators/evidence.py`, `stockviz.cli
+  indicator-evidence [--only KEY ...]`, recorded in `job_runs`; **not in the
+  scheduler or the cron**: config is deferred, run it by hand): loads every
+  active non-index symbol once, then `checklist/evidence.py::study` per
+  rule (same events, 20-session horizon, fees, base rate, overlap, grades,
+  10-year window, pinned survivorship-biased stamp). Migration
+  `d89bb4083e68` (additive): `indicator_evidence` (indicator, canonical
+  rule, `rule_hash`, universe, window, horizon, the study's figures, grade,
+  fee schedules), unique on (rule hash, universe, window, horizon), so a
+  rerun replaces it. `latest_by_indicator` reads the newest row whose hash
+  is the current rule's: a changed rule shows no grade until rerun. On
+  `stockviz_e2e` (25 symbols, 26 Nov 2026) every graded signal was D except
+  Supertrend (C).
+- Tests: `test_indicator_studies.py`, `test_indicator_evidence.py`
+  (signals on defaults, neutral wording, RSI and MACD graded on a seeded
+  universe equal to the study run directly, catalog shape, bounds 400 and
+  DSL errors, the RS line on the route), `test_indicator_evidence_migration.py`
+  (PostgreSQL up/down/up).
 
 **Weekly and monthly bars (A1.4a, M2.2 first half).** Resampled on read,
 never stored (`services/bars/resample.py`). `GET /v1/symbols/{t}/bars` and

@@ -33,12 +33,14 @@ test("guest can research a stock and retain shareable chart state", async ({ pag
   await page.getByRole("link", { name: "5Y" }).click();
   await expect(page).toHaveURL(/\/stocks\/AAPL\?tf=5Y&indicators=sma_50/);
 
+  // A3.4: the Indicators control is a popover with one editor per study.
   await page.getByRole("button", { name: /Indicators, 1 selected/ }).click();
-  await page.getByRole("menuitemcheckbox", { name: "SMA 50" }).click();
+  const menu = page.getByTestId("indicator-menu");
+  await menu.getByRole("button", { name: "Remove SMA 50" }).click();
   await expect(page).toHaveURL(/tf=5Y&indicators=$/);
-  await expect(page.getByRole("menu", { name: /Indicators, 0 selected/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Indicators, 0 selected/ })).toBeVisible();
 
-  await page.getByRole("menuitemcheckbox", { name: "RSI 14" }).click();
+  await menu.getByRole("button", { name: "Add RSI" }).click();
   await expect(page).toHaveURL(/tf=5Y/);
   await expect(page).toHaveURL(/indicators=rsi_14/);
   await page.keyboard.press("Escape");
@@ -48,6 +50,16 @@ test("guest can research a stock and retain shareable chart state", async ({ pag
   await expect(
     page.locator("aside").getByRole("link", { name: "Sign in to trade AAPL" }),
   ).toHaveAttribute("href", "/login?callbackUrl=%2Fstocks%2FAAPL%3Ftf%3D5Y%26indicators%3Drsi_14");
+
+  // Editing a parameter rewrites the key in the URL.
+  await page.getByRole("button", { name: /Indicators, 1 selected/ }).click();
+  const rsiForm = page
+    .getByTestId("indicator-menu")
+    .getByRole("form", { name: "RSI 14 parameters" });
+  const period = rsiForm.getByRole("spinbutton").first();
+  await period.fill("21");
+  await period.press("Enter");
+  await expect(page).toHaveURL(/indicators=rsi_21/);
 });
 
 test("mobile research opens trading as an intentional bottom sheet", async ({ page }) => {
