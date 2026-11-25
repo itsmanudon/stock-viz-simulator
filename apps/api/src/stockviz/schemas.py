@@ -131,6 +131,34 @@ class IndicatorMetaOut(BaseModel):
     anchored: Literal["none", "start"] = "none"
 
 
+class IndicatorParamOut(BaseModel):
+    """One study parameter and its bounds (A3.4). Whole numbers from ``min``
+    to ``max``; decimals above ``min`` (``min_exclusive``) up to ``max``.
+    ``choices`` names the values 1..n when the parameter picks an option."""
+
+    name: str
+    label: str
+    type: Literal["int", "float"]
+    default: float
+    min: float
+    max: float
+    min_exclusive: bool
+    step: float
+    choices: list[str] = Field(default_factory=list)
+
+
+class IndicatorSignalOut(BaseModel):
+    """A study's canonical signal as a Rule DSL rule, on its default
+    parameters, with the latest evidence grade (A3.4) or null before the
+    ``indicator-evidence`` job has run."""
+
+    rule: str  # canonical text
+    hash: str
+    description: str
+    source: str = ""
+    evidence: ChecklistEvidenceOut | None = None
+
+
 class IndicatorCatalogItemOut(BaseModel):
     key: str
     label: str
@@ -139,6 +167,14 @@ class IndicatorCatalogItemOut(BaseModel):
     outputs: list[str]
     pane: Literal["price", "separate"]
     group: str
+    # A3.4: parameter schemas, the all-defaults key, and the evidence badge.
+    parameters: list[IndicatorParamOut] = Field(default_factory=list)
+    default_key: str = ""
+    anchored: Literal["none", "start"] = "none"
+    description: str = ""
+    source: str = ""
+    # Null: no canonical signal, so "No grade" (never a made-up one).
+    signal: IndicatorSignalOut | None = None
 
 
 class IndicatorsOut(BaseModel):

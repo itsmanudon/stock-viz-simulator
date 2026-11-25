@@ -1525,8 +1525,35 @@ def _cmd_ingest_quarantine(args: argparse.Namespace) -> int:
         return 0
 
 
+def _cmd_indicator_evidence(args: argparse.Namespace) -> int:
+    """Grade each study's canonical signal on the stored history (A3.4)."""
+    from stockviz.services.indicators.evidence import run_indicator_evidence
+    from stockviz.services.indicators.signals import SIGNALS
+
+    unknown = [k for k in args.only or [] if k not in SIGNALS]
+    if unknown:
+        print(f"indicator-evidence: no canonical signal for {', '.join(unknown)}", file=sys.stderr)
+        return 2
+    with Session(engine) as session:
+        run = run_indicator_evidence(
+            session, end=args.end, start=args.start, horizon=args.horizon, only=args.only or None
+        )
+        print(f"indicator-evidence: window {run.start} to {run.end}")
+        for row in run.rows:
+            excess = f"{row.mean_excess:+.4f}" if row.mean_excess is not None else "n/a"
+            t = f"{row.t_stat:.2f}" if row.t_stat is not None else "n/a"
+            print(
+                f"  {row.indicator}: grade {row.grade}, n={row.n_events} over {row.symbols} "
+                f"symbols, mean excess {excess}, t {t}, universe {row.universe}"
+                + (" (survivorship-biased)" if row.survivorship_biased else "")
+                + f"  [{row.rule}]"
+            )
+        return 0
+
+
 RECORDED_JOBS = frozenset(
     {
+        "indicator-evidence",
         "ingest",
         "fundamentals",
         "revalidate-web",
@@ -1717,6 +1744,16 @@ def main(argv: list[str] | None = None) -> int:
     p_evidence.add_argument("--end", type=date.fromisoformat, default=None)
     p_evidence.add_argument("--horizon", type=int, default=20)
     p_evidence.set_defaults(fn=_cmd_checklist_evidence)
+
+    p_ind = sub.add_parser(
+        "indicator-evidence",
+        help="Grade each indicator's canonical signal (A3.4): the checklist's evidence study",
+    )
+    p_ind.add_argument("--start", type=date.fromisoformat, default=None)
+    p_ind.add_argument("--end", type=date.fromisoformat, default=None)
+    p_ind.add_argument("--horizon", type=int, default=20)
+    p_ind.add_argument("--only", nargs="*", default=None, help="study keys (default: all)")
+    p_ind.set_defaults(fn=_cmd_indicator_evidence)
 
     sub.add_parser(
         "snapshot-portfolios", help="Upsert today's NAV snapshot for every user"

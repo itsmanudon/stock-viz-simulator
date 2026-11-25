@@ -62,9 +62,13 @@ def compute_bundle(
     window_start: datetime | None = None,
     warmup_bars: int = 0,
     cache=None,
+    bench=None,
 ) -> IndicatorsOut:
+    """``bench``: the venue index's daily closes (a pandas Series), for
+    studies that read it (the RS line, A3.4)."""
+
     def calculate() -> IndicatorsOut:
-        frame = engine.frame(rows)
+        frame = engine.frame(rows, bench)
         series: dict[str, list[IndicatorPointOut]] = {}
         meta: dict[str, IndicatorMetaOut] = {}
         macd_points: list[MACDPointOut] | None = None
@@ -114,7 +118,8 @@ def compute_bundle(
 
     cache = cache if cache is not None else get_cache()
     # Bound the pilot's cardinality/serialization work.
-    if not cache.enabled or len(rows) > 3000 or len(requests) > 8:
+    # A benchmark-reading study is not cached (its key would need the index's bars).
+    if not cache.enabled or len(rows) > 3000 or len(requests) > 8 or bench is not None:
         return calculate()
     return cache.get_or_set(
         input_key(

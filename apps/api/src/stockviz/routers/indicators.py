@@ -18,16 +18,27 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Annotated
 
+import pandas as pd
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlmodel import Session, select
 
 from stockviz.db import get_session
 from stockviz.limiter import limiter
 from stockviz.models import PriceBar, Symbol
-from stockviz.schemas import IndicatorCatalogItemOut, IndicatorsOut
+from stockviz.schemas import (
+    ChecklistEvidenceOut,
+    IndicatorCatalogItemOut,
+    IndicatorParamOut,
+    IndicatorSignalOut,
+    IndicatorsOut,
+    UniverseOut,
+)
+from stockviz.services.backtest.universe import evidence_universe
 from stockviz.services.bars.load import load_resampled
 from stockviz.services.indicator_view import compute_bundle
 from stockviz.services.indicators import engine
+from stockviz.services.indicators.evidence import compiled_signals, latest_by_indicator
+from stockviz.services.indicators.signals import SIGNALS
 from stockviz.services.instruments import instrument_of
 
 router = APIRouter(prefix="/v1/symbols", tags=["indicators"])
@@ -41,6 +52,10 @@ MAX_BARS = 5000
 MAX_WARMUP = 5000
 """Cap on extra bars loaded before the window (the largest lookback is ADX at
 20 x n; a 500-period ADX is not a request worth serving)."""
+
+
+def _needs_bench(parsed: list[engine.Request]) -> bool:
+    return any(r.spec.needs_benchmark for r in parsed)
 
 
 def _parse_names(raw: str) -> list[engine.Request]:
@@ -62,20 +77,88 @@ def _parse_names(raw: str) -> list[engine.Request]:
 
 @catalog_router.get("/catalog", response_model=list[IndicatorCatalogItemOut])
 @limiter.limit("60/minute")
-def get_catalog(request: Request) -> list[IndicatorCatalogItemOut]:
-    """Every indicator the engine offers, with its parameters and defaults."""
-    return [
-        IndicatorCatalogItemOut(
-            key=s.key,
-            label=s.label,
-            params=list(s.params),
-            defaults=[float(d) for d in s.defaults],
-            outputs=list(s.outputs),
-            pane=s.pane,
-            group=s.group,
+def get_catalog(request: Request, session: SessionDep) -> list[IndicatorCatalogItemOut]:
+    """Every indicator the engine offers, with its parameters (names,
+    defaults, bounds) and, for studies with a canonical signal, the signal
+    rule and its latest evidence grade (A3.4)."""
+    rules = compiled_signals()
+    rows = latest_by_indicator(session)
+    note = evidence_universe().note
+    out: list[IndicatorCatalogItemOut] = []
+    for s in engine.REGISTRY.values():
+        signal = None
+        if s.key in SIGNALS:
+            row = rows.get(s.key)
+            evidence = (
+                ChecklistEvidenceOut(
+                    grade=row.grade,  # type: ignore[arg-type]
+                    n_events=row.n_events,
+                    symbols=row.symbols,
+                    horizon=row.horizon,
+                    window_start=row.window_start,
+                    window_end=row.window_end,
+                    mean_excess=row.mean_excess,
+                    t_stat=row.t_stat,
+                    hit_rate=row.hit_rate,
+                    mean_net_return=row.mean_net_return,
+                    base_rate=row.base_rate,
+                    overlapping_skipped=row.overlapping_skipped,
+                    fee_schedules={k: int(v) for k, v in (row.fee_schedules or {}).items()},
+                    universe=UniverseOut(
+                        name=row.universe,
+                        point_in_time=row.point_in_time,
+                        survivorship_biased=row.survivorship_biased,
+                        note=note,
+                    ),
+                    computed_at=row.computed_at,
+                )
+                if row is not None
+                else None
+            )
+            signal = IndicatorSignalOut(
+                rule=rules[s.key].canonical_text,
+                hash=rules[s.key].hash,
+                description=SIGNALS[s.key].description,
+                source=SIGNALS[s.key].source,
+                evidence=evidence,
+            )
+        out.append(
+            IndicatorCatalogItemOut(
+                key=s.key,
+                label=s.label,
+                params=list(s.params),
+                defaults=[float(d) for d in s.defaults],
+                outputs=list(s.outputs),
+                pane=s.pane,
+                group=s.group,
+                parameters=[IndicatorParamOut(**p.schema()) for p in s.parameters],  # type: ignore[arg-type]
+                default_key=s.default_key(),
+                anchored=s.anchored,
+                description=s.description,
+                source=s.source,
+                signal=signal,
+            )
         )
-        for s in engine.REGISTRY.values()
-    ]
+    return out
+
+
+def _bench_closes(session: Session, ticker: str) -> pd.Series | None:
+    """The venue index's daily closes for the RS line (A3.4), or None."""
+    from stockviz.services.event_study import benchmark_for
+
+    bench = benchmark_for(ticker)
+    if bench is None:
+        return None
+    rows = session.exec(
+        select(PriceBar)
+        .where(PriceBar.instrument_id == instrument_of(bench), PriceBar.interval == "1d")
+        .order_by(PriceBar.ts)  # type: ignore[arg-type]
+    ).all()
+    return pd.Series(
+        [float(r.close) for r in rows],
+        index=pd.DatetimeIndex([r.ts for r in rows]),
+        dtype=float,
+    )
 
 
 @router.get("/{ticker}/indicators", response_model=IndicatorsOut)
@@ -141,6 +224,7 @@ def get_indicators(
         ohlcv,
         window_start=window_start,
         warmup_bars=len(warmup),
+        bench=_bench_closes(session, ticker) if _needs_bench(parsed) else None,
     )
 
 
@@ -184,5 +268,6 @@ def _resampled_indicators(
         ohlcv,
         window_start=rows[0].ts if rows else None,
         warmup_bars=len(warmup),
+        bench=_bench_closes(session, ticker) if _needs_bench(parsed) else None,
     )
     return bundle.model_copy(update={"interval": interval, "partial_bar_excluded": excluded})
