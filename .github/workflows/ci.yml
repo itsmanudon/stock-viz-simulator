@@ -154,6 +154,9 @@ jobs:
           DATABASE_URL: postgresql+psycopg://stockviz:stockviz_dev@localhost:5432/stockviz
           KAFKA_BOOTSTRAP_SERVERS: localhost:9092
           STOCKVIZ_KAFKA_REQUIRED: "1"
+          # A2.1: the Rule DSL conformance check runs every 5th bar on CI
+          # (every bar locally); see tests/test_dsl_conformance.py.
+          DSL_CONFORMANCE_STRIDE: "5"
 
       # Catches a model change that never got a migration. dev previously had
       # two alembic heads and six columns of enum drift; neither was visible

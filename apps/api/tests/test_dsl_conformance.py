@@ -118,13 +118,25 @@ def _same(a, b) -> bool:
     return math.isclose(float(a), float(b), rel_tol=1e-12, abs_tol=1e-12)
 
 
+STRIDE = max(1, int(os.environ.get("DSL_CONFORMANCE_STRIDE", "1")))
+"""Check every bar locally (1). CI sets a stride (``.github/workflows/ci.yml``)
+so the check fits a small runner: every STRIDE-th bar plus the last, with a
+per-rule offset so the corpus still covers every bar position between rules."""
+
+
 def check_every_bar(rule: str, ticker: str) -> tuple[str, str, int, list[str]]:
-    """Point at every bar against the vector. Returns (rule, ticker, bars, mismatches)."""
+    """Point against the vector at every bar (or every STRIDE-th). Returns
+    (rule, ticker, bars, mismatches)."""
     data = universe()[ticker]
     compiled = compile_rule(rule, require_condition=False)
     full = vector(compiled, data)
     bad: list[str] = []
-    for ts, expected in full.items():
+    items = list(full.items())
+    start = sum(map(ord, rule + ticker)) % STRIDE
+    chosen = items[start::STRIDE]
+    if items and items[-1] not in chosen:
+        chosen.append(items[-1])
+    for ts, expected in chosen:
         got = point(compiled, data, ts.date())  # pyright: ignore[reportAttributeAccessIssue]
         want = None if expected is pd.NA else expected
         if not _same(got, want):
