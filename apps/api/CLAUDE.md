@@ -152,9 +152,10 @@ daily bars dated on a day its venue did not trade: weekend and
 weekday-holiday counts, how many repeat the previous bar's prices, the span
 and the sources. It is read-only by default. `--apply TICKERS` deletes the
 **weekend** bars of the tickers named, in one transaction (no all-tickers
-delete; holiday bars are never deleted by it); run `metrics` after. A
-weekend Muhurat session is not modelled and would be listed, so read the
-dates first. Production deletions are the owner's call.
+delete; holiday bars are never deleted by it); run `metrics` after. The
+12 weekend dates production held on 25 Nov 2026 were all real special
+sessions, now in the calendar, so read the dates before deleting anything.
+Production deletions are the owner's call.
 
 **Pending orders and alerts when hosted (audits P0-1, P0-2).** The Railway
 cron has no scheduler, so `settle-orders` and `evaluate-alerts` run in its
@@ -184,8 +185,12 @@ exchanges' published list, with names and the source checked) or
 and year), through `PROVISIONAL_THROUGH` (2030). **When NSE publishes a
 year's list (usually November or December), add it to `OFFICIAL_HOLIDAYS`
 and move `OFFICIAL_THROUGH`.** `holiday_basis(day, venue)` says which source
-answered. Hours and the special Saturday sessions are the package's BSE
-ones; Muhurat sessions are not modelled. `tests/test_india_calendar.py`.
+answered. Hours are the package's BSE ones. Weekend special sessions
+(Budget days, Diwali Muhurat, live tests of new systems and of the DR site)
+are `SPECIAL_SESSIONS` in the same module, each with its source; they count
+as sessions even where the package lists a holiday (Laxmi Pujan), and
+their short hours are not modelled. Add new ones as the exchanges announce
+them. `tests/test_india_calendar.py`.
 
 **A daily bar's date is its venue's date (Phase 4.1b).** yfinance labels a
 daily bar with midnight in the venue's time zone, and `fetch_yfinance_daily`

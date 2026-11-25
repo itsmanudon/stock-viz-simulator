@@ -41,6 +41,7 @@ def bars(session: Session) -> Session:
             _bar("RELIANCE.NS", date(2026, 1, 26), "101"),  # Monday, Republic Day
             _bar("RELIANCE.NS", date(2026, 1, 27), "102"),  # Tuesday
             _bar("RELIANCE.NS", date(2025, 2, 1), "90"),  # Budget-day Saturday session
+            _bar("RELIANCE.NS", date(2023, 11, 12), "95"),  # Diwali Muhurat, a Sunday
             _bar("INFY.NS", date(2026, 1, 31), "50"),  # Saturday
             _bar("AAPL", date(2026, 1, 30), "200", source="yfinance"),  # Friday
         ]
@@ -70,6 +71,7 @@ def test_the_report_splits_weekends_from_holidays_and_marks_repeats(bars: Sessio
 def test_a_special_saturday_session_is_not_listed(bars: Session) -> None:
     (reliance,) = find_non_session_bars(bars, ["RELIANCE.NS"])
     assert date(2025, 2, 1) not in reliance.weekend
+    assert date(2023, 11, 12) not in reliance.weekend
 
 
 def test_delete_removes_weekend_bars_of_the_named_tickers_only(bars: Session) -> None:
@@ -77,6 +79,7 @@ def test_delete_removes_weekend_bars_of_the_named_tickers_only(bars: Session) ->
     bars.commit()
     assert deleted == {"RELIANCE.NS": 2}
     assert _dates(bars, "RELIANCE.NS") == [
+        date(2023, 11, 12),
         date(2025, 2, 1),
         date(2026, 1, 23),
         date(2026, 1, 26),  # holiday bars are reported, never deleted here
@@ -99,7 +102,7 @@ def test_the_command_reports_without_deleting(
     assert "RELIANCE.NS (XNSE): weekend 2, holiday 1, repeat the previous bar 2" in out
     assert "2 ticker(s): 3 weekend bar(s), 1 holiday bar(s)" in out
     assert "dry run: nothing deleted" in out
-    assert len(_dates(bars, "RELIANCE.NS")) == 6
+    assert len(_dates(bars, "RELIANCE.NS")) == 7
 
 
 def test_the_command_deletes_only_with_tickers(
@@ -107,9 +110,9 @@ def test_the_command_deletes_only_with_tickers(
 ) -> None:
     monkeypatch.setattr(cli, "engine", engine)
     assert cli.main(["non-session-bars", "--apply"]) == 2
-    assert len(_dates(bars, "RELIANCE.NS")) == 6
+    assert len(_dates(bars, "RELIANCE.NS")) == 7
     assert cli.main(["non-session-bars", "--apply", "infy.ns"]) == 0
     assert "deleted INFY.NS: 1" in capsys.readouterr().out
     bars.expire_all()
     assert _dates(bars, "INFY.NS") == []
-    assert len(_dates(bars, "RELIANCE.NS")) == 6
+    assert len(_dates(bars, "RELIANCE.NS")) == 7
