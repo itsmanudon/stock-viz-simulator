@@ -129,7 +129,7 @@ export function SiteFooter() {
         <ol className="mt-14 grid gap-x-10 gap-y-4 border-t border-border-muted pt-8 sm:grid-cols-3">
           {DISCLOSURES.map((note, index) => (
             <li key={note} className="flex gap-2.5">
-              <span aria-hidden className="font-mono text-2xs text-brand/70 tabular-nums">
+              <span aria-hidden className="font-mono text-2xs text-brand tabular-nums">
                 {index + 1}
               </span>
               <p className="text-2xs leading-5 text-text-tertiary">{note}</p>

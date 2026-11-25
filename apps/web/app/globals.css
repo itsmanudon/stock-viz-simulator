@@ -1045,7 +1045,7 @@ body::after {
   .prism-ambient {
     position: fixed;
     inset: 0 auto auto 0;
-    width: 42rem;
+    width: min(42rem, 100vw);
     height: 28rem;
     pointer-events: none;
     z-index: 0;
