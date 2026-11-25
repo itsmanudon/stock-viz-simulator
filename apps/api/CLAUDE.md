@@ -218,11 +218,13 @@ exchanges' published list, with names and the source checked) or
 and year), through `PROVISIONAL_THROUGH` (2030). **When NSE publishes a
 year's list (usually November or December), add it to `OFFICIAL_HOLIDAYS`
 and move `OFFICIAL_THROUGH`.** `holiday_basis(day, venue)` says which source
-answered. Hours are the package's BSE ones. Weekend special sessions
-(Budget days, Diwali Muhurat, live tests of new systems and of the DR site)
-are `SPECIAL_SESSIONS` in the same module, each with its source; they count
-as sessions even where the package lists a holiday (Laxmi Pujan), and
-their short hours are not modelled. Add new ones as the exchanges announce
+answered. Hours are the package's BSE ones. Special sessions (weekend
+Budget days, Diwali Muhurat on a weekend or on the Laxmi Pujan weekday
+holiday, live tests of new systems and of the DR site) are
+`SPECIAL_SESSIONS` in the same module, each with its source; they count as
+sessions even where the package lists a holiday, and their short hours are
+not modelled. `HISTORY_CORRECTIONS` fixes the package's history where it is
+wrong (Muharram 2013 moved from 14 to 15 Nov). Add new ones as the exchanges announce
 them. `tests/test_india_calendar.py`.
 
 **A daily bar's date is its venue's date (Phase 4.1b).** yfinance labels a
