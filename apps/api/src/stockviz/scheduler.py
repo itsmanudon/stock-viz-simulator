@@ -7,8 +7,11 @@ uses the dedicated process so API replicas can scale without multiplying crons.
 Every job is wrapped in ``single_instance``, which takes a Postgres advisory
 lock so two scheduler copies cannot double-fire jobs that move money.
 
-Market jobs enqueue durable outbox requests; they do not call providers.
-Provider I/O lives in Kafka workers. Financial jobs (orders, options,
+Market jobs (A0): by default they refresh prices in-process, as the Railway
+cron's ``ingest`` does, then refresh metrics and judge alerts for each
+refreshed ticker. Only with ``EVENTS_OUTBOX_ENABLED=true`` (the Kubernetes
+events lab) do they enqueue durable outbox requests for the Kafka workers
+instead, so Kafka is never on the default path. Financial jobs (orders, options,
 dividends, FX, snapshots) stay in-process by design. News is not fetched
 here: Aegis News owns it and ``aegis-sync`` copies it (A0 removed the
 legacy news job).
@@ -32,7 +35,9 @@ from stockviz._time import utcnow
 from stockviz.db import engine
 from stockviz.events.outbox import enqueue_market_refresh_requested
 from stockviz.models import Symbol
+from stockviz.services.alerts import evaluate_pending_alerts
 from stockviz.services.ingest.fx import ingest_fx
+from stockviz.services.ingest.prices import ingest_ticker
 from stockviz.services.metrics import refresh_symbol_metrics
 from stockviz.services.options import settle_expired_options
 from stockviz.services.recommend import score_universe
@@ -41,6 +46,7 @@ from stockviz.services.trading import (
     settle_pending_orders,
     snapshot_user_navs,
 )
+from stockviz.settings import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -113,39 +119,54 @@ def single_instance(job_id: str) -> Callable[[Callable[[], None]], Callable[[], 
     return decorate
 
 
+def _refresh_prices(tickers: list[str], reason: str) -> None:
+    """Refresh ``tickers``: in-process by default, or through Kafka in the lab.
+
+    In-process, each ticker is fetched with the same ``ingest_ticker`` the
+    cron's ``ingest`` uses (yfinance, then Alpha Vantage when its key is
+    set), then its metrics and alerts are judged, which the market-analytics
+    worker did on the Kafka path. One failing ticker is logged and the rest
+    still run. With ``EVENTS_OUTBOX_ENABLED=true`` a durable
+    ``market.refresh.requested`` is enqueued per ticker instead.
+    """
+    settings = get_settings()
+    if settings.events_outbox_enabled:
+        with _session_scope() as session:
+            for ticker in tickers:
+                enqueue_market_refresh_requested(session, ticker=ticker, reason=reason)
+            session.commit()
+        logger.info("%s: enqueued %d market.refresh.requested", reason, len(tickers))
+        return
+
+    refreshed = 0
+    for ticker in tickers:
+        try:
+            with _session_scope() as session:
+                ingest_ticker(session, ticker, alpha_vantage_key=settings.alpha_vantage_key)
+                refresh_symbol_metrics(session, tickers=[ticker], commit=False)
+                evaluate_pending_alerts(session, ticker=ticker, commit=False)
+                session.commit()
+            refreshed += 1
+        except Exception:
+            logger.exception("%s: refresh of %s failed", reason, ticker)
+    logger.info("%s: refreshed %d of %d tickers in-process", reason, refreshed, len(tickers))
+
+
 @single_instance("daily_price_refresh")
 def daily_price_refresh() -> None:
-    """Enqueue ``market.refresh.requested`` for every active symbol.
-
-    Does not call yfinance / Alpha Vantage. The market-ingest worker performs
-    provider I/O after the outbox publisher lands the request on Kafka.
-    Duplicate schedules are safe: ingest upserts bars and the consumer inbox
-    de-duplicates a redelivered event_id. A second scheduled request has a
-    new event_id and may re-fetch; DB writes stay idempotent.
-    """
+    """Refresh every active symbol (see :func:`_refresh_prices`)."""
     with _session_scope() as session:
         tickers = list(session.exec(select(Symbol.ticker).where(Symbol.is_active)).all())
-        if not tickers:
-            logger.info("daily_price_refresh: no active symbols, nothing to do")
-            return
-        for ticker in tickers:
-            enqueue_market_refresh_requested(session, ticker=ticker, reason="daily")
-        session.commit()
-    logger.info("daily_price_refresh: enqueued %d market.refresh.requested", len(tickers))
+    if not tickers:
+        logger.info("daily_price_refresh: no active symbols, nothing to do")
+        return
+    _refresh_prices(tickers, "daily")
 
 
 @single_instance("hourly_top_movers")
 def hourly_top_movers() -> None:
-    """Enqueue hourly ``market.refresh.requested`` for ``TOP_TICKERS_HOURLY``.
-
-    Does not fetch quotes and does not evaluate alerts. Alert evaluation runs
-    in the market-analytics worker after ``market.bars.refreshed``.
-    """
-    with _session_scope() as session:
-        for ticker in TOP_TICKERS_HOURLY:
-            enqueue_market_refresh_requested(session, ticker=ticker, reason="hourly")
-        session.commit()
-    logger.info("hourly_top_movers: enqueued %d market.refresh.requested", len(TOP_TICKERS_HOURLY))
+    """Refresh ``TOP_TICKERS_HOURLY`` (see :func:`_refresh_prices`)."""
+    _refresh_prices(list(TOP_TICKERS_HOURLY), "hourly")
 
 
 @single_instance("fx_refresh")
