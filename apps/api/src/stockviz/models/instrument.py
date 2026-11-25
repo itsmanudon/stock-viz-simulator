@@ -38,6 +38,9 @@ ID_TYPE = BigInteger().with_variant(Integer(), "sqlite")
 
 SCHEME_YAHOO = "yahoo"
 SCHEME_AEGIS = "aegis"
+# A1.1: the listing's ISIN as NSE prints it in the bhavcopy. Recorded only on
+# NSE listings, by `services/nse/load.py`.
+SCHEME_ISIN = "isin"
 
 
 class Instrument(SQLModel, table=True):

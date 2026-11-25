@@ -669,6 +669,77 @@ def _cmd_instrument_verify(_args: argparse.Namespace) -> int:
     return 0 if report.ok else 1
 
 
+def _cmd_nse_load(args: argparse.Namespace) -> int:
+    """Parse NSE end-of-day files placed by hand (A1.1). Nothing downloads.
+
+    Dry run unless ``--apply``: per file, the format, date, rows, matched and
+    unmatched rows and what would load; nothing is written, not even the
+    archive. ``--apply`` archives each file, records it in ``data_files`` and
+    loads it. Exit 1 if any file failed, was unrecognised or had the wrong
+    date; a file already recorded (same SHA-256) is a no-op.
+    """
+    from stockviz.services.nse.process import process_file
+
+    failed = False
+    with Session(engine) as session:
+        for raw in args.paths:
+            report = process_file(session, Path(raw), apply=args.apply)
+            failed = failed or not report.ok
+            day = report.trading_date.isoformat() if report.trading_date else "-"
+            print(f"{report.path}: {report.status} ({report.source}, {day})")
+            if report.error:
+                print(f"  {report.error}")
+            plan = report.plan
+            if plan is not None:
+                print(
+                    f"  rows {plan.rows_total}, in loaded series {plan.in_series}, "
+                    f"matched {plan.matched}, unmatched {plan.unmatched}, "
+                    f"incomplete {plan.incomplete}, isin conflicts {plan.isin_conflicts}, "
+                    f"new isin identifiers {len(plan.isins_to_record)}"
+                )
+                if plan.unmatched_symbols:
+                    print(
+                        f"  unmatched (first {len(plan.unmatched_symbols)}): "
+                        + ", ".join(plan.unmatched_symbols)
+                    )
+                if report.result is not None:
+                    r = report.result
+                    print(
+                        f"  loaded {r.loaded} ({r.inserted} new, {r.updated} updated, "
+                        f"{r.unchanged} unchanged), isin identifiers recorded {r.isins_recorded}"
+                    )
+                elif not args.apply:
+                    print(f"  would load {plan.matched}")
+            if report.archived_path and args.apply:
+                print(f"  archived at {report.archived_path} (data_files id {report.data_file_id})")
+    if not args.apply:
+        print("dry run: nothing written. Run with --apply to archive and load.")
+    return 1 if failed else 0
+
+
+def _cmd_nse_files(args: argparse.Namespace) -> int:
+    """List the most recent ``data_files`` rows (A1.1). Read-only."""
+    from sqlmodel import col, select
+
+    from stockviz.models.data_file import DataFile
+
+    with Session(engine) as session:
+        rows = session.exec(
+            select(DataFile)
+            .order_by(col(DataFile.received_at).desc(), col(DataFile.id).desc())
+            .limit(args.limit)
+        ).all()
+    for f in rows:
+        day = f.trading_date.isoformat() if f.trading_date else "-"
+        print(
+            f"{f.id}  {f.received_at:%Y-%m-%d %H:%M}  {f.source}  {day}  {f.parse_status}  "
+            f"rows {f.rows_total}/{f.rows_loaded} loaded  {f.file_name}  {f.sha256[:12]}"
+            + (f"  ({f.error[:80]})" if f.error else "")
+        )
+    print(f"{len(rows)} file(s)")
+    return 0
+
+
 def _refresh_aegis_sentiment() -> None:
     """Roll held Aegis sentiment into sentiment_7d, which the signals vote and
     the screener filter read (audit AG-14). Runs after a failed sync too, so
@@ -1589,6 +1660,17 @@ def main(argv: list[str] | None = None) -> int:
         "instrument-verify",
         help="Read-only: totals through the ticker and the instrument agree (Phase 4.6a)",
     ).set_defaults(fn=_cmd_instrument_verify)
+
+    p_nse = sub.add_parser(
+        "nse-load",
+        help="Parse NSE EOD files placed by hand (dry run; --apply archives and loads)",
+    )
+    p_nse.add_argument("paths", nargs="+", help="CM bhavcopy or sec_bhavdata_full files")
+    p_nse.add_argument("--apply", action="store_true", help="Archive, record and load")
+    p_nse.set_defaults(fn=_cmd_nse_load)
+    p_nse_files = sub.add_parser("nse-files", help="List recent recorded NSE files")
+    p_nse_files.add_argument("--limit", type=int, default=20)
+    p_nse_files.set_defaults(fn=_cmd_nse_files)
 
     p_aegis = sub.add_parser(
         "aegis-sync",
