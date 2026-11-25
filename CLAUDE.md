@@ -30,7 +30,8 @@ Each app has its own `CLAUDE.md` with deeper notes. Skim those before editing.
 Beyond the original markets/charts/news/recommendations pages, the app now
 includes: paper trading with **pending limit/stop orders** and **options**
 (pricing, positions, expiry settlement), **dividends** and **multi-currency
-FX**, **backtesting** (`/backtest`), **screener**, **watchlists**, **price
+FX**, **backtesting** (`/backtest`), **screener** (with Rule DSL rules and
+saved **setups** and presets since A2.2, `/setups`), **watchlists**, **price
 alerts** and **news sentiment** from Aegis News. A0 hygiene (25 Nov 2026)
 removed the leaderboard, per-ticker comments (the table is archived in the
 `archive` schema), the simulated random-walk quote stream (prices show the
