@@ -79,9 +79,6 @@ EXPOSE 8000
 #   python -m stockviz.workers.trade_activity_consumer
 #   python -m stockviz.workers.market_ingest_consumer
 #   python -m stockviz.workers.market_analytics_consumer
-#   python -m stockviz.workers.news_ingest_consumer
-#   python -m stockviz.workers.news_sentiment_consumer
-#   python -m stockviz.workers.sentiment_aggregate_consumer
 #
 # Run migrations on boot, then start uvicorn.
 # Render's free tier doesn't support release commands, so we inline it here.

@@ -53,7 +53,7 @@ export async function ClosingCta() {
               </Link>
             </Button>
             <Button asChild size="lg" variant="outline" className="glass rounded-full px-6">
-              <Link href="/leaderboard">See the leaderboard</Link>
+              <Link href="/markets">See the markets</Link>
             </Button>
           </div>
           {breadth ? (

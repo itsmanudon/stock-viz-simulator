@@ -8,7 +8,6 @@ export function StockResearchTabs({
   financials,
   news,
   positionOrders,
-  discussion,
   newsCount = 0,
   orderCount = 0,
 }: {
@@ -17,7 +16,6 @@ export function StockResearchTabs({
   financials?: ReactNode;
   news: ReactNode;
   positionOrders: ReactNode;
-  discussion: ReactNode;
   newsCount?: number;
   orderCount?: number;
 }) {
@@ -31,13 +29,11 @@ export function StockResearchTabs({
         {financials ? <Tab value="financials">Financials</Tab> : null}
         <Tab value="news">News{newsCount ? ` ${newsCount}` : ""}</Tab>
         <Tab value="position-orders">Position &amp; orders{orderCount ? ` ${orderCount}` : ""}</Tab>
-        <Tab value="discussion">Discussion</Tab>
       </Tabs.List>
       <TabPanel value="overview">{overview}</TabPanel>
       {financials ? <TabPanel value="financials">{financials}</TabPanel> : null}
       <TabPanel value="news">{news}</TabPanel>
       <TabPanel value="position-orders">{positionOrders}</TabPanel>
-      <TabPanel value="discussion">{discussion}</TabPanel>
     </Tabs.Root>
   );
 }

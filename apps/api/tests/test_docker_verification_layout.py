@@ -51,16 +51,17 @@ def test_clean_verification_is_isolated_and_always_torn_down() -> None:
     assert "artifacts/verification" in script.replace("\\", "/")
 
 
-def test_clean_verification_runs_market_news_and_kafka_paths() -> None:
+def test_clean_verification_runs_market_and_kafka_paths() -> None:
     script = VERIFY_SCRIPT.read_text(encoding="utf-8")
 
     for test in (
         "test_market_event_pipeline_roundtrip",
-        "test_news_sentiment_event_pipeline_roundtrip",
-        "tests/test_market_news_pipeline.py",
+        "tests/test_event_contracts_market.py",
         "tests/test_outbox.py",
     ):
         assert test in script
+    # A0 retired the legacy news pipeline and its tests.
+    assert "news" not in script.lower()
     assert "http://127.0.0.1:18000/live" in script
     assert "http://127.0.0.1:13100/api/health" in script
 

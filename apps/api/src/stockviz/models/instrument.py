@@ -80,7 +80,7 @@ def instrument_id_column(*, required: bool = False, primary_key: bool = False) -
     """The ``instrument_id`` beside each ``ticker`` column.
 
     ``required`` (Phase 4.6a) makes it NOT NULL wherever the ticker is NOT
-    NULL; only ``news_articles`` (ticker optional) stays nullable. The value
+    NULL; only ``alerts`` (portfolio rules carry no ticker) stays nullable. The value
     is still written by the identity trigger, not by the application: the
     Since 4.6b the ORM sets it before every insert (``db_identity``), and bulk
     upserts set it from ``services.instruments.instrument_ids``.

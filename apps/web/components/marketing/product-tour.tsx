@@ -1,7 +1,7 @@
 /**
  * Product tour — the replacement for the old 3x2 icon-and-paragraph grid.
  *
- * Fetches the four public surfaces in parallel and hands the rendered panels
+ * Fetches the three public surfaces in parallel and hands the rendered panels
  * to a client tab shell. Each tab is independent: a surface that fails or has
  * no data is dropped rather than shown empty, and if fewer than two survive
  * the whole section renders nothing. A landing page with a broken tour is
@@ -9,16 +9,9 @@
  */
 
 import { Reveal } from "@/components/marketing/reveal";
-import {
-  ResearchPanel,
-  ScreenPanel,
-  SimulatePanel,
-  TrackPanel,
-} from "@/components/marketing/tour-panels";
+import { ResearchPanel, ScreenPanel, SimulatePanel } from "@/components/marketing/tour-panels";
 import { type TourTab, TourTabs } from "@/components/marketing/tour-tabs";
 import { ApiError, getBars, getRecommendations, runBacktest, screenSymbols } from "@/lib/api";
-import { getLeaderboard } from "@/lib/api/leaderboard";
-import type { LeaderboardEntry } from "@/lib/api/leaderboard";
 import type { BacktestResult, Recommendation, ScreenerResult } from "@/lib/api/types";
 
 // Tried in order; the first with enough stored history wins — same fallback
@@ -34,7 +27,6 @@ const BACKTEST_CANDIDATES = ["HDFCBANK.NS", "RELIANCE.NS", "TCS.NS", "NVDA", "AA
  * The market panels use the same canned queries for every visitor and the data
  * behind them moves once a day, so they go through the Next data cache rather
  * than hitting the API on every landing-page render.
- * The leaderboard always reloads so profile opt-outs take effect immediately.
  *
  * The backtest itself is a POST, which Next does not cache — its 400-bar
  * `getBars` call is cached, but the simulation re-runs per render.
@@ -80,11 +72,10 @@ async function loadBacktest(): Promise<BacktestResult | null> {
 }
 
 export async function ProductTour() {
-  const [screen, recs, backtest, leaders] = await Promise.all([
+  const [screen, recs, backtest] = await Promise.all([
     safe<ScreenerResult[]>(() => screenSymbols({ momentumDays: 30, revalidateSeconds: CACHE_S })),
     safe<Recommendation[]>(() => getRecommendations({ limit: 5, revalidateSeconds: CACHE_S })),
     loadBacktest(),
-    safe<LeaderboardEntry[]>(() => getLeaderboard()),
   ]);
 
   // The first recommendation that actually carries a vote breakdown — the
@@ -104,13 +95,6 @@ export async function ProductTour() {
   }
   if (backtest) {
     tabs.push({ id: "simulate", label: "Simulate", panel: <SimulatePanel result={backtest} /> });
-  }
-  if (leaders && leaders.length > 0) {
-    tabs.push({
-      id: "track",
-      label: "Track",
-      panel: <TrackPanel rows={leaders.slice(0, ROWS)} />,
-    });
   }
 
   if (tabs.length < 2) return null;

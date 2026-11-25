@@ -2,11 +2,9 @@
 
 TICKER_TABLES = (
     "alerts",
-    "comments",
     "corporate_actions",
     "dividends",
     "earnings_events",
-    "news_articles",
     "options_positions",
     "pending_orders",
     "portfolio_dividends",

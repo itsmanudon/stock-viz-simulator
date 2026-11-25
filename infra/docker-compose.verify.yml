@@ -29,8 +29,6 @@ services:
       ENVIRONMENT: development
       ENABLE_SCHEDULER: "false"
       CORS_ORIGINS: '["http://localhost:13100"]'
-      NEWS_PROVIDER: none
-      SENTIMENT_PROVIDER: none
 
   web:
     build:
@@ -71,8 +69,6 @@ services:
       DATABASE_URL: postgresql+psycopg://stockviz:stockviz_dev@postgres:5432/stockviz
       ENVIRONMENT: development
       ENABLE_SCHEDULER: "false"
-      NEWS_PROVIDER: none
-      SENTIMENT_PROVIDER: none
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       STOCKVIZ_KAFKA_REQUIRED: "1"
     depends_on:

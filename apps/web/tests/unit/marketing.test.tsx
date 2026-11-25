@@ -9,7 +9,7 @@ import { SiteFooter } from "@/components/site-footer";
 // live data from the API; each is covered on its own or in the Playwright
 // marketing spec. Stub them so HomePage renders synchronously and this suite
 // stays on what page.tsx itself owns — the workspace surface index. Stubbing
-// the sections also severs the `lib/api/leaderboard` → `@/auth` → next-auth
+// the sections also severs the `lib/api/*` → `@/auth` → next-auth
 // import chain, which Vitest cannot resolve. LandingMotion is stubbed because
 // GSAP's matchMedia needs `window.matchMedia`, which jsdom does not provide.
 vi.mock("@/components/marketing/hero", () => ({ Hero: () => <div>Hero</div> }));
@@ -22,7 +22,6 @@ vi.mock("@/components/marketing/landing-sections", () => ({
   StorySection: () => <div>Scroll story</div>,
   FillSteps: () => <div>Fill steps</div>,
   StatementBand: () => <div>Statement band</div>,
-  Rankings: () => <div>Rankings</div>,
   LandingFaq: () => <div>FAQ</div>,
 }));
 vi.mock("@/components/marketing/proofs/proof-section", () => ({

@@ -19,7 +19,6 @@ dependencies = [
     "tenacity>=9.0.0",
     "sentry-sdk[fastapi]>=2.20.0",
     "slowapi>=0.1.9",
-    "anthropic>=0.42.0",
     "confluent-kafka>=2.15.0",
     "redis>=5.2,<7",
     "pyjwt[crypto]>=2.9",

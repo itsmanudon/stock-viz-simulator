@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils";
  * The Settings page's client panels (Aurora board v3): interface preferences
  * in the main column, and the account card and keyboard shortcuts in the
  * aside. Everything here lives in this browser; account preferences that the
- * API stores (currency, leaderboard) stay server actions on the page.
+ * API stores (display and account currency, risk limits) stay server actions on the page.
  */
 
 const DENSITY_OPTIONS = [

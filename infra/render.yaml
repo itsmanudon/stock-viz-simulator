@@ -3,15 +3,15 @@
 # Usage:
 #   - In the Render dashboard, "New +" -> "Blueprint" and point at this repo.
 #   - Render reads this file, provisions the database, and creates the web
-#     service. Secrets (alpha_vantage_key, newsdata_key, sentry_dsn,
+#     service. Secrets (alpha_vantage_key, sentry_dsn,
 #     nextauth_jwt_secret, internal_api_token) must be set after creation —
 #     `sync: false` keeps Render from overwriting them.
 #
 # The Next.js frontend deploys separately on Vercel; see apps/web/vercel.json.
 #
 # Note: there is no nightly cron service in this Blueprint. This hosting path
-# relies on APScheduler inside FastAPI (ENABLE_SCHEDULER=true) for daily price
-# and news refreshes. See docs/DEPLOYMENT.md before adding a cron resource;
+# relies on APScheduler inside FastAPI (ENABLE_SCHEDULER=true) for the daily
+# price refresh. See docs/DEPLOYMENT.md before adding a cron resource;
 # provider plan names and pricing should be verified at deploy time.
 
 databases:
@@ -50,21 +50,6 @@ services:
       - key: INTERNAL_API_TOKEN
         sync: false
       - key: ALPHA_VANTAGE_KEY
-        sync: false
-      - key: NEWSDATA_KEY
-        sync: false
-      # Required for headline sentiment scoring. Its absence here is why every
-      # news_articles.sentiment written in production was NULL.
-      - key: ANTHROPIC_API_KEY
-        sync: false
-      # "none" (default) | "anthropic" | "http". Set to "http" and fill in the
-      # SENTIMENT_SERVICE_* vars to score with a standalone service instead —
-      # see docs/SENTIMENT.md.
-      - key: SENTIMENT_PROVIDER
-        value: anthropic
-      - key: SENTIMENT_SERVICE_URL
-        sync: false
-      - key: SENTIMENT_SERVICE_TOKEN
         sync: false
       - key: SENTRY_DSN
         sync: false

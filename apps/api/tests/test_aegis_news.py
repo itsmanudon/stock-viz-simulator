@@ -15,7 +15,6 @@ from stockviz.models import (
     AegisDocument,
     AegisDocumentEntity,
     AegisMapping,
-    NewsArticle,
     Recommendation,
     Symbol,
 )
@@ -119,8 +118,6 @@ def test_ticker_news_reads_aegis_newest_available_first(
         published_at=now - timedelta(days=5),
     )
     _document(session, "doc_msft", tickers=["MSFT"], available_at=now)
-    # Legacy rows are no longer read.
-    session.add(NewsArticle(ticker="AAPL", title="Legacy", url="https://x", published_at=now))
     session.commit()
 
     response = client.get("/v1/symbols/aapl/news")
@@ -335,3 +332,13 @@ def test_latest_news_filters_to_a_set_of_tickers(session: Session, client: TestC
     assert ids("tickers=TSLA") == []
     assert ids("tickers=,") == []
     assert ids("tickers=AAPL&limit=1") == ["doc_both"]
+
+
+def test_the_legacy_news_tables_are_gone_from_the_live_schema() -> None:
+    """A0: StockViz never stores article text; the legacy tables are archived."""
+    from sqlmodel import SQLModel
+
+    import stockviz.models  # noqa: F401  (registers every table)
+
+    assert "news_articles" not in SQLModel.metadata.tables
+    assert "news_sentiment" not in SQLModel.metadata.tables

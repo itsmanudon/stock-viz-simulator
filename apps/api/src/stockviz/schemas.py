@@ -669,62 +669,21 @@ class PortfolioHistoryPointOut(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# Leaderboard / profile
+# Profile
 # ---------------------------------------------------------------------------
 
 
-class LeaderboardEntryOut(BaseModel):
-    """One row of the public leaderboard.
-
-    ``ranked`` is False for accounts with too little history to compare
-    fairly — they still show, sorted below everyone who qualifies, so the UI
-    can label them rather than pretending a two-day return is a track record.
-    """
-
-    rank: int
-    # SR-12 (Phase 8.6): an opaque public handle, never the database id.
-    handle: str
-    # The display name the user set, else the handle; never the email.
-    username: str
-    return_pct: float
-    portfolio_value: Decimal
-    # Phase 4.8: portfolio_value is in the account's base currency.
-    currency: str = "USD"
-    days_tracked: int = 0
-    ranked: bool = True
-
-
 class ProfileOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
+    """The caller's display settings (`/v1/profile`)."""
 
     user_id: int
-    public_profile: bool
     display_currency: str = "USD"
-    # SR-12: what the leaderboard shows: display_name, else public_handle.
-    public_handle: str | None = None
-    display_name: str | None = None
 
 
 class ProfilePatchIn(BaseModel):
-    """All fields are optional — patch sends only what changes.
+    """Fields are optional: a patch sends only what changes."""
 
-    ``display_name`` is shown on the public leaderboard: 2 to 40 characters,
-    no "@" (it must not look like an email); an empty string clears it.
-    """
-
-    public_profile: bool | None = None
     display_currency: str | None = None
-    display_name: str | None = Field(default=None, max_length=40)
-
-    @field_validator("display_name")
-    @classmethod
-    def _clean_name(cls, value: str | None) -> str | None:
-        if value is None:
-            return None
-        cleaned = " ".join(value.split())
-        if cleaned and (len(cleaned) < 2 or "@" in cleaned):
-            raise ValueError("display_name must be 2 to 40 characters and contain no '@'")
-        return cleaned
 
 
 # ---------------------------------------------------------------------------
@@ -876,8 +835,8 @@ class ScreenerResultOut(BaseModel):
     momentum_days: int | None = None
     high_52w: Decimal
     low_52w: Decimal
-    # Rolling 7-day mean news sentiment in [-1, 1]. None when the symbol has no
-    # scored headlines (or sentiment scoring is disabled).
+    # Rolling 7-day mean Aegis news sentiment in [-1, 1]. None when the symbol
+    # has no scored Aegis documents in the week.
     sentiment_7d: float | None = None
 
 
@@ -1007,40 +966,6 @@ class SavedScreenOut(BaseModel):
     query: str
     created_at: datetime
     updated_at: datetime
-
-
-# ---------------------------------------------------------------------------
-# Comments
-# ---------------------------------------------------------------------------
-
-
-class CommentIn(BaseModel):
-    """Request body for POST /v1/symbols/{ticker}/comments."""
-
-    body: str
-    parent_id: int | None = None
-
-
-class CommentOut(BaseModel):
-    """One comment in API responses.
-
-    ``replies`` is populated by the GET endpoint when the comment is a
-    top-level post — it contains its immediate children in chronological
-    order. For deeper threads the UI is expected to render any further
-    nesting by following ``parent_id``, but in v1 we only present a single
-    level of indentation.
-    """
-
-    model_config = ConfigDict(from_attributes=True)
-
-    id: int
-    user_id: int
-    user_name: str | None = None
-    ticker: str
-    body: str
-    parent_id: int | None = None
-    created_at: datetime
-    replies: list[CommentOut] = []
 
 
 # ---------------------------------------------------------------------------

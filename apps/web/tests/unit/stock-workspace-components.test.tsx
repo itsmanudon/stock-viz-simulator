@@ -171,7 +171,6 @@ describe("stock workspace presentation", () => {
         overview={<p>Security overview content</p>}
         news={<p>News content</p>}
         positionOrders={<p>Position content</p>}
-        discussion={<p>Discussion content</p>}
         newsCount={3}
         orderCount={1}
       />,

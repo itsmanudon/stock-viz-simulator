@@ -79,8 +79,9 @@ class SymbolMetrics(SQLModel, table=True):
     debt_to_equity: float | None = None
     revenue_growth: float | None = None
 
-    # Mean news sentiment over the trailing week, in [-1, 1]. Populated by the
-    # sentiment aggregate pass; NULL when the symbol has no scored headlines.
+    # Mean news sentiment over the trailing week, in [-1, 1]. Written from the
+    # Aegis copies by ``refresh_aegis_sentiment``; NULL when the symbol has no
+    # scored Aegis documents that week.
     sentiment_7d: float | None = Field(default=None, index=True)
     sentiment_article_count: int = Field(default=0)
 

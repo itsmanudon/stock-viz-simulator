@@ -108,8 +108,8 @@ export default async function ReplaySessionPage({
         <p className="mt-4 flex items-start gap-2.5 rounded-xl border border-border-muted bg-card px-4 py-3 text-sm text-text-secondary">
           <Lock className="mt-0.5 size-4 shrink-0 text-text-tertiary" aria-hidden />
           <span>
-            Blind session: you see bars up to the replay date only, with no news or comments. Fills
-            use that day&apos;s stored close, with no spread and no slippage.
+            Blind session: you see bars up to the replay date only, with no news. Fills use that
+            day&apos;s stored close, with no spread and no slippage.
           </span>
         </p>
 

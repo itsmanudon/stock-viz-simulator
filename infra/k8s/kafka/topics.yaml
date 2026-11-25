@@ -44,27 +44,6 @@ spec:
 apiVersion: kafka.strimzi.io/v1beta2
 kind: KafkaTopic
 metadata:
-  name: stockviz-news-v1
-  namespace: stockviz
-  labels:
-    strimzi.io/cluster: stockviz
-    app.kubernetes.io/name: stockviz
-    app.kubernetes.io/component: kafka-topic
-    app.kubernetes.io/part-of: stockviz
-    app.kubernetes.io/version: 2.0.0
-  annotations:
-    stockviz.io/purpose: Domain news events.
-spec:
-  topicName: stockviz.news.v1
-  partitions: 3
-  replicas: 1
-  config:
-    retention.ms: 604800000
-    min.insync.replicas: 1
----
-apiVersion: kafka.strimzi.io/v1beta2
-kind: KafkaTopic
-metadata:
   name: stockviz-benchmark-v1
   namespace: stockviz
   labels:

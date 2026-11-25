@@ -1,4 +1,4 @@
-"""Market-data models: symbols, price bars, news articles.
+"""Market-data models: symbols, price bars, FX rates.
 
 These are populated by the ingest pipeline and read by the public API.
 """
@@ -121,35 +121,6 @@ class QuarantinedPriceBar(SQLModel, table=True):
     prev_close: Decimal | None = Field(default=None, sa_column=Column(Numeric(18, 6)))
     reason: str = Field(max_length=256)
     detected_at: datetime = Field(default_factory=utcnow, nullable=False)
-
-
-class NewsArticle(SQLModel, table=True):
-    """News article attached to a symbol.
-
-    ``url`` is globally unique so we can dedupe re-ingests across sources.
-    ``symbol`` is nullable — some general-market news isn't tied to one ticker.
-    """
-
-    __tablename__ = "news_articles"  # pyright: ignore[reportAssignmentType]
-
-    id: int | None = Field(default=None, primary_key=True)
-    ticker: str | None = Field(
-        default=None, foreign_key="symbols.ticker", index=True, max_length=16
-    )
-    instrument_id: int | None = Field(default=None, sa_column=instrument_id_column())
-
-    title: str
-    url: str = Field(unique=True, max_length=1024)
-    source: str | None = Field(default=None, max_length=128)
-    published_at: datetime = Field(index=True)
-    summary: str | None = None
-    image_url: str | None = Field(default=None, max_length=1024)
-
-    # ``positive`` | ``neutral`` | ``negative`` | None. Filled by the headline
-    # classifier on ingest when ANTHROPIC_API_KEY is set; otherwise stays None.
-    sentiment: str | None = Field(default=None, max_length=16)
-
-    created_at: datetime = Field(default_factory=utcnow, nullable=False)
 
 
 class FxRate(SQLModel, table=True):

@@ -129,8 +129,9 @@ def refresh_symbol_metrics(
 ) -> int:
     """Recompute and upsert metrics for ``tickers`` (default: all active symbols).
 
-    Sentiment columns are left untouched — they are owned by the sentiment
-    aggregate pass, which runs on its own cadence after news ingest.
+    Sentiment columns are left untouched — they are owned by the Aegis
+    sentiment pass (``services/aegis/read.py::refresh_aegis_sentiment``),
+    which runs after every ``aegis-sync``.
     """
     if tickers is None:
         tickers = list(session.exec(select(Symbol.ticker).where(Symbol.is_active)).all())

@@ -27,7 +27,6 @@ describe("getActiveNavigation", () => {
     ["/watchlist", "/portfolio", "/watchlist"],
     ["/alerts", "/portfolio", "/alerts"],
     ["/trades", "/portfolio", "/trades"],
-    ["/leaderboard", "/leaderboard", "/leaderboard"],
     ["/settings", "/settings", "/settings"],
   ])("maps %s to its owning domain", (pathname, groupHref, itemHref) => {
     expect(getActiveNavigation(pathname)).toEqual({ groupHref, itemHref });
@@ -45,7 +44,6 @@ describe("getActiveNavigation", () => {
       "Research",
       "Trade",
       "Portfolio",
-      "Community",
     ]);
     const research = APP_NAVIGATION.find((group) => group.label === "Research");
     expect(research?.href).toBe("/screener");
