@@ -129,11 +129,11 @@ class Settings(BaseSettings):
     # constants on the event contracts, not env vars.
     kafka_poll_timeout_seconds: float = 1.0
     kafka_retry_backoff_seconds: float = 2.0
-    # False where no outbox publisher runs (the Railway cron). Since A0
-    # (25 Nov 2026) nothing reads it: its only reader was the legacy news
-    # ingest's ``news.article.ingested`` fan-out (audit OP-11), now removed.
-    # Kept while the Railway cron still sets it; the outbox batch retires it.
-    events_outbox_enabled: bool = True
+    # A0: the scheduler's price jobs enqueue ``market.refresh.requested`` for
+    # the Kafka workers only when this is true (the Kubernetes events lab sets
+    # it). Off, the default, they refresh in-process like the Railway cron, so
+    # Kafka is never on the default path.
+    events_outbox_enabled: bool = False
 
     # Aegis News read sync (`stockviz.cli aegis-sync`, Phase 2). The sync is
     # off until URL, key, issuer and audience are set; the command then exits 2.

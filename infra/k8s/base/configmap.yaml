@@ -12,6 +12,8 @@ data:
   ENVIRONMENT: development
   ENABLE_SCHEDULER: 'false'
   KAFKA_BOOTSTRAP_SERVERS: stockviz-kafka-bootstrap:9092
+  # A0: the lab's scheduler sends price refreshes through Kafka.
+  EVENTS_OUTBOX_ENABLED: 'true'
   CORS_ORIGINS: http://localhost:3000
   API_URL: http://stockviz-api:8000
   NEXT_PUBLIC_API_URL: http://localhost:8000

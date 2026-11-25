@@ -481,8 +481,8 @@ these run in the request. Both are stored as runs (`kind` `walk_forward` /
 `outbox_events` or `consumer_inbox`. `prune-events` deletes published outbox
 rows and inbox receipts older than 30 days; `--include-unpublished` also
 deletes old unsent rows, for hosts where no publisher runs. The Railway cron
-runs it with that flag and sets `EVENTS_OUTBOX_ENABLED=false`, which nothing
-reads since A0 (the legacy news fan-out was its only reader). It also deletes
+runs it with that flag and sets `EVENTS_OUTBOX_ENABLED=false` (the default
+since A0; see Scheduler). It also deletes
 sign-in counters (`auth_rate_limits`, written by the web server's
 `lib/rate-limit.ts`; audit OP-8) whose window ended more than a day ago.
 
@@ -556,10 +556,17 @@ owns line length). Pyright is `basic`.
 America/New_York, weekdays unless noted):
 
 - 09:30 — `dividend_credit_refresh` (credit due dividends to portfolios)
-- 10:00–16:00 hourly — `hourly_top_movers` (enqueue `market.refresh.requested`
-  for `TOP_TICKERS_HOURLY`; alerts run in the analytics worker)
-- 16:30 — `daily_price_refresh` (enqueue `market.refresh.requested` for every
-  active symbol; no provider I/O in-process)
+- 10:00–16:00 hourly — `hourly_top_movers` (refresh `TOP_TICKERS_HOURLY`)
+- 16:30 — `daily_price_refresh` (refresh every active symbol)
+
+**Price jobs keep Kafka off the default path (A0).** Both call
+`_refresh_prices`: by default each ticker goes through the cron's
+`ingest_ticker`, then its metrics and alerts are judged in the same
+transaction (what the market-analytics worker did); one failing ticker is
+logged and the rest run. With `EVENTS_OUTBOX_ENABLED=true` (set only in
+`infra/k8s/base/configmap.yaml`, the events lab) they enqueue
+`market.refresh.requested` per ticker for the Kafka workers instead.
+`tests/test_scheduler_price_jobs.py`.
 - 16:45 — `fx_refresh` and `pending_orders_settlement` (fill limit/stop orders against the new close)
 - 16:50 — `symbol_metrics_refresh` (RSI / 52w range the screener reads)
 - 16:55 — `sentiment_aggregate_refresh` (rolling per-symbol Aegis News sentiment)
@@ -570,8 +577,8 @@ America/New_York, weekdays unless noted):
 No job fetches news: Aegis News owns it (`aegis-sync`; A0 removed `news_refresh`).
 
 `symbol_metrics_refresh` and `sentiment_aggregate_refresh` remain
-full-universe **reconciliation** jobs. Kafka consumers are the incremental
-path. Pending orders, options, dividends, FX, snapshots, and recommendations
+full-universe **reconciliation** jobs. In the events lab the Kafka consumers
+are the incremental path. Pending orders, options, dividends, FX, snapshots, and recommendations
 stay on APScheduler.
 
 Every job is wrapped in `@single_instance(...)`, which takes a Postgres

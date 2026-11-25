@@ -56,8 +56,11 @@ buy-and-hold excess, and a first-fill-locked journal from replay-visible
 bars only. See
 [`docs/SIMULATION.md`](./docs/SIMULATION.md).
 
-Market ingest is **event-driven**. APScheduler enqueues durable outbox
-requests; Kafka workers fetch providers and write Postgres. Metrics and
+Market ingest runs **in-process by default** (A0): the Railway cron's `ingest`
+and, where the scheduler runs, its price jobs fetch providers and write
+Postgres directly. Kafka is the optional events lab: with
+`EVENTS_OUTBOX_ENABLED=true` (the Kubernetes lab sets it) the scheduler
+enqueues durable outbox requests and the Kafka workers fetch instead. Metrics and
 sentiment-aggregate (Aegis-based) jobs remain full-universe reconciliation. Trading
 still commits the ledger in FastAPI. See
 [`docs/EVENT_DRIVEN_ARCHITECTURE.md`](./docs/EVENT_DRIVEN_ARCHITECTURE.md).
@@ -297,7 +300,7 @@ Full lists live in `apps/web/.env.example` and `apps/api/.env.example`
 | `KITE_API_KEY`, `KITE_API_SECRET`                      | api                          | optional Kite Connect app for on-demand NSE/BSE history snapshots (`ingest-history --provider kite`); blank turns Kite off (exit 2). Never used nightly; the login is manual every day |
 | `MASSIVE_SHADOW_ENABLED`, `MASSIVE_API_KEY`             | api                          | Massive is private/nonpersistent shadow only; explicit enablement without its key fails validation |
 | `KAFKA_BOOTSTRAP_SERVERS`                                | api workers                  | defaults to `localhost:9092`; workers run inside compose need `kafka:29092`. The API never produces to Kafka, so the compose `api` service does not set it |
-| `EVENTS_OUTBOX_ENABLED`                                  | api, cron                    | default `true`; the Railway cron sets `false`. Unread since A0 (its only reader, the legacy news fan-out, is gone); kept until the outbox batch. Old rows go with `stockviz.cli prune-events` |
+| `EVENTS_OUTBOX_ENABLED`                                  | api, cron                    | default `false` (A0). `true` only in the Kubernetes events lab: the scheduler's price jobs then enqueue `market.refresh.requested` for the Kafka workers instead of refreshing in-process. Old rows go with `stockviz.cli prune-events` |
 | `AEGIS_BASE_URL`, `AEGIS_SERVICE_TOKEN_KEY`, `AEGIS_ISSUER`, `AEGIS_AUDIENCE`, `AEGIS_KEY_ID` | api, cron              | the Aegis News read sync (`stockviz.cli aegis-sync`). Off, exit 2, until the first four are set. The key is the Ed25519 private PEM Aegis trusts as `stockviz-sync-2026-11` (Doppler `stock-viz-simulator/prd`); never commit it. The other values are in `.railway/railway.ts`. See `apps/api/CLAUDE.md` |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`               | web                          | Google OAuth sign-in                                                                                                                                                                                                         |
 | `NEXTAUTH_JWT_SECRET`                                    | api                          | **legacy** — still in `settings.py` but no longer read by the auth bridge                                                                                                                                                    |
