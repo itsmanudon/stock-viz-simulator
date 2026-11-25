@@ -5734,6 +5734,11 @@ export interface components {
             /** Is Active */
             is_active: boolean;
             latest?: components["schemas"]["QuoteOut"] | null;
+            /**
+             * Has Raw
+             * @default false
+             */
+            has_raw: boolean;
         };
         /** SymbolOut */
         SymbolOut: {
@@ -7137,6 +7142,7 @@ export interface operations {
                 from?: string | null;
                 to?: string | null;
                 limit?: number;
+                adjustment?: "adjusted" | "raw";
             };
             header?: never;
             path: {

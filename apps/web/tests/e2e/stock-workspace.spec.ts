@@ -17,10 +17,18 @@ test("guest can research a stock and retain shareable chart state", async ({ pag
 
   await expect(page.getByRole("heading", { level: 1, name: /Apple Inc\./ })).toBeVisible();
   await expect(page.getByText("Latest close", { exact: false }).first()).toBeVisible();
-  await expect(page.getByRole("region", { name: "AAPL price chart" }).first()).toBeVisible();
+  const chartRegion = page.getByRole("region", { name: "AAPL price chart" }).first();
+  await expect(chartRegion).toBeVisible();
   await expect(
     page.locator("aside").getByRole("link", { name: "Sign in to trade AAPL" }),
   ).toBeVisible();
+  // A3.1: one chart instance; price and volume are panes of it, and the
+  // legend reads the last bar until the cursor moves.
+  await expect(chartRegion.getByTestId("price-chart")).toHaveCount(1);
+  await expect(chartRegion.getByTestId("price-chart")).toHaveAttribute("data-pane-count", "2");
+  const legend = chartRegion.getByTestId("chart-legend");
+  await expect(legend).toHaveAttribute("data-last", "true");
+  await expect(legend).toContainText(/C \d/);
 
   await page.getByRole("link", { name: "5Y" }).click();
   await expect(page).toHaveURL(/\/stocks\/AAPL\?tf=5Y&indicators=sma_50/);
@@ -34,6 +42,9 @@ test("guest can research a stock and retain shareable chart state", async ({ pag
   await expect(page).toHaveURL(/tf=5Y/);
   await expect(page).toHaveURL(/indicators=rsi_14/);
   await page.keyboard.press("Escape");
+  await expect(
+    page.getByRole("region", { name: "AAPL price chart" }).first().getByTestId("price-chart"),
+  ).toHaveAttribute("data-panes", "price,volume,rsi");
   await expect(
     page.locator("aside").getByRole("link", { name: "Sign in to trade AAPL" }),
   ).toHaveAttribute("href", "/login?callbackUrl=%2Fstocks%2FAAPL%3Ftf%3D5Y%26indicators%3Drsi_14");

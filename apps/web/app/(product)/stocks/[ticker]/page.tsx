@@ -41,6 +41,7 @@ import {
   listOrders,
 } from "@/lib/api/trading";
 import { type WatchlistList, listWatchlists } from "@/lib/api/watchlist";
+import { parseChartView } from "@/lib/chart-view";
 import {
   STOCK_TIMEFRAMES,
   type StockIndicator,
@@ -103,7 +104,14 @@ export default async function StockPage({
   searchParams,
 }: {
   params: Promise<{ ticker: string }>;
-  searchParams: Promise<{ tf?: string; indicators?: string; interval?: string }>;
+  searchParams: Promise<{
+    tf?: string;
+    indicators?: string;
+    interval?: string;
+    type?: string;
+    scale?: string;
+    adjustment?: string;
+  }>;
 }) {
   const [{ ticker: rawTicker }, query] = await Promise.all([params, searchParams]);
   const visitorLimit = await checkVisitorLimit("stock");
@@ -127,7 +135,21 @@ export default async function StockPage({
     throw error;
   }
 
+  // A3.1: raw prices only where the API stores them; otherwise adjusted.
+  const requestedView = parseChartView(query);
+  const hasRaw = Boolean(symbol.has_raw);
+  const view =
+    requestedView.adjustment === "raw" && !hasRaw
+      ? { ...requestedView, adjustment: "adjusted" as const }
+      : requestedView;
+  const rawRequestedButMissing = requestedView.adjustment === "raw" && !hasRaw;
+
   const barsPromise = getBars(ticker, { interval, limit: chartLimit });
+  // The header's period return and the metrics stay on adjusted prices.
+  const chartBarsPromise =
+    view.adjustment === "raw"
+      ? getBars(ticker, { interval, limit: chartLimit, adjustment: "raw" }).catch(() => null)
+      : barsPromise;
   // The metrics strip (52-week range, daily RSI) always reads daily bars.
   const rangeBarsPromise =
     interval === "1d" && timeframeDays >= 252 ? barsPromise : getBars(ticker, { limit: 252 });
@@ -145,6 +167,7 @@ export default async function StockPage({
 
   const [
     bars,
+    rawChartBars,
     rangeBars,
     indicatorBundle,
     dailyRsiBundle,
@@ -159,6 +182,7 @@ export default async function StockPage({
     checklist,
   ] = await Promise.all([
     barsPromise,
+    chartBarsPromise,
     rangeBarsPromise,
     indicatorsPromise,
     dailyRsiPromise,
@@ -226,7 +250,11 @@ export default async function StockPage({
     selectedIndicators,
   );
   const showMacd = selectedIndicators.includes("macd");
-  const activeStockUrl = buildStockChartHref(ticker, timeframe, selectedIndicators, interval);
+  // A raw request that failed falls back to the adjusted bars, and says so.
+  const rawFailed = view.adjustment === "raw" && rawChartBars === null;
+  const showingRaw = view.adjustment === "raw" && rawChartBars !== null;
+  const chartBars = showingRaw ? rawChartBars : bars;
+  const activeStockUrl = buildStockChartHref(ticker, timeframe, selectedIndicators, interval, view);
   const ticketProps = {
     ticker,
     name: symbol.name,
@@ -269,22 +297,41 @@ export default async function StockPage({
               timeframe={timeframe}
               indicators={selectedIndicators}
               interval={interval}
+              view={showingRaw ? view : { ...view, adjustment: "adjusted" }}
+              hasRaw={hasRaw}
             />
             <div className="p-1.5 sm:p-3">
-              {bars.length ? (
+              {chartBars.length ? (
                 <PriceChart
-                  bars={bars}
-                  overlays={overlaySeries}
+                  bars={chartBars}
+                  // Overlays are on adjusted prices: on raw prices they would
+                  // jump at every split, so they are left off.
+                  overlays={showingRaw ? {} : overlaySeries}
                   macd={showMacd ? indicatorBundle.macd : null}
                   rsi={selectedIndicators.includes("rsi_14") ? (rsiSeries ?? null) : null}
                   panes={indicatorPanes}
                   interval={interval}
+                  chartType={view.type}
+                  scale={view.scale}
                 />
               ) : (
                 <p className="py-24 text-center text-sm text-muted-foreground">
                   No price history is available for this timeframe.
                 </p>
               )}
+              {showingRaw ? (
+                <p className="px-1 pt-1 text-2xs text-text-tertiary" data-testid="raw-prices-note">
+                  Raw exchange prices, as published, not adjusted for splits. Indicators are
+                  computed on adjusted prices, so price overlays are hidden here.
+                </p>
+              ) : null}
+              {rawRequestedButMissing || rawFailed ? (
+                <p className="px-1 pt-1 text-2xs text-text-tertiary">
+                  {rawRequestedButMissing
+                    ? "Only adjusted prices are stored for this symbol, so the chart shows those."
+                    : "Raw prices could not be loaded, so the chart shows adjusted prices."}
+                </p>
+              ) : null}
               {partialExcluded ? (
                 <p className="px-1 pt-1 text-2xs text-text-tertiary">
                   Indicators run on {interval === "1wk" ? "weekly" : "monthly"} bars and leave out

@@ -336,9 +336,10 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   sign→token mapping and the em-dash fallback — never write `text-green-500`
   or `text-red-500`, which are not the `--positive`/`--negative` tokens.
 - The stock page chart draws RSI in its own pane with 70/30 guides (#73),
-  beside MACD; indicator values come warmed up from the API (Phase 6.1), so
-  they do not change with the timeframe. The change pill is labelled
-  "<tf> return since <first bar>" (UX-10).
+  and MACD (lines plus a sign-coloured histogram) in another; indicator
+  values come warmed up from the API (Phase 6.1), so they do not change with
+  the timeframe. The change pill is labelled "<tf> return since <first bar>"
+  (UX-10).
 - The stock page has a bar interval control (A1.4a: Daily / Weekly /
   Monthly, `?interval=1d|1wk|1mo`, default daily and left out of daily links)
   beside the lookback ranges, which stay ranges: `barsForLookback()` turns a
@@ -355,8 +356,8 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
 - Chart indicators come from the API registry (Phase 6.6): `STOCK_INDICATORS`
   in `lib/stock-workspace.ts` lists names with a menu `section`, and
   `chartLayers()` splits the bundle by each indicator's `meta.pane`: price
-  overlays (Supertrend's `.direction` output is left out) and one small
-  `IndicatorPane` per separate-pane indicator under the chart. RSI and MACD
+  overlays (Supertrend's `.direction` output is left out) and one pane per
+  separate-pane indicator, all panes of the one chart (below). RSI and MACD
   keep their own panes. A new indicator needs only a menu entry.
 - `POST /api/revalidate` (audit RS-9, Phase 6.6) is called by the nightly
   cron's last step with `x-stockviz-revalidate` (HMAC of a fixed label under
@@ -408,19 +409,71 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   statements labelled by period end and unit. It says when figures are not
   point-in-time (yfinance) and when the reporting currency differs from the
   trading currency. A failed financials call hides the panel, not the page.
-- Charts use `lightweight-charts` v5. The wrapper lives in
-  `components/price-chart.tsx`; reuse it rather than instantiating a chart inline.
-  Compare and backtest charts live in `compare-chart.tsx` and `equity-curve.tsx`.
-  Canvas can't read CSS vars, so all three take their colours from
-  `useChartPalette()` (`lib/chart-theme.ts`), which reads the tokens off the
-  document and re-reads on theme change — never hard-code chart colours. The
-  hook keeps its object identity stable while colours are unchanged because
-  callers pass it to `useEffect`, and a new identity forces a full chart
-  rebuild. Fit the time axis with `fitWithLabelRoom()` (`lib/chart-range.ts`),
-  not `timeScale().fitContent()`: it leaves room for the outermost date label,
-  which lightweight-charts otherwise clips ("ug", "25"; UI audit P4). A volume
-  series on the price pane sets `lastValueVisible: false` and
-  `priceLineVisible: false`, or its tag sits on the price labels.
+- Charts use `lightweight-charts`, pinned at **5.3.0** (A3.1; exact pin,
+  upgrade deliberately). The wrapper lives in `components/price-chart.tsx`;
+  reuse it rather than instantiating a chart inline. Compare and backtest
+  charts live in `compare-chart.tsx` and `equity-curve.tsx`. Canvas can't
+  read CSS vars, so all three take their colours from `useChartPalette()`
+  (`lib/chart-theme.ts`; `line`/`areaTop`/`areaBottom` come from
+  `--foreground`), which reads the tokens off the document and re-reads on
+  theme change — never hard-code chart colours. The hook keeps its object
+  identity stable while colours are unchanged because callers pass it to
+  `useEffect`, and a new identity forces a full chart rebuild. Fit the time
+  axis with `fitWithLabelRoom()` (`lib/chart-range.ts`), not
+  `timeScale().fitContent()`: it leaves room for the outermost date label,
+  which lightweight-charts otherwise clips ("ug", "25"; UI audit P4). Bar
+  times go through `barTimeToUtcSeconds()` (5.3 throws on unpadded
+  business-day strings; we never pass strings).
+- **One chart, many panes (A3.1, M2.1).** `PriceChart` is one `createChart`
+  with native panes (series `paneIndex`, `chart.panes()`), so every pane
+  shares one time scale, crosshair, zoom and pan; there are no other chart
+  instances under it. `lib/chart-panes.ts::allPanes`/`assemblePanes` decide
+  what goes where, in a fixed order: price (main series + overlays), volume
+  (its own pane; `lastValueVisible`/`priceLineVisible` off), RSI (70/30
+  guides), MACD, then each `chartLayers()` pane. Heights are stretch factors
+  from `DEFAULT_PANE_HEIGHTS` (price 300, 240 on a phone; volume 80; RSI 110;
+  MACD 130; others 100); the container's height is their sum plus the time
+  axis. Separators drag (`layout.panes.enableResize`); on pointer-up each
+  pane's height is saved per pane kind in localStorage
+  (`stockviz:chart-panes`, `readPaneLayout`/`writePaneLayout`, try/catch, a
+  convenience only) without a rebuild. Every pane but price has a header
+  with a collapse arrow; a collapsed pane leaves the chart (rebuilt, the
+  visible range kept) and shows as "Show <pane>" under it. The wrapper
+  exposes `data-testid="price-chart"`, `data-pane-count` and `data-panes`.
+- **Crosshair legend.** `lib/chart-legend.ts` (`buildLegendModel`,
+  `legendAt`, `legendText`): top-left of the price pane, the hovered bar's
+  date (`formatCloseDate`), O/H/L/C, change against the previous close,
+  compact volume and every drawn indicator's value on that bar ("—" when it
+  has none); with no bar hovered it reads the last bar (`data-last`).
+  Values are matched by UTC seconds. It always reads the stored bar, also
+  under Heikin-Ashi. Keyboard: the chart wrapper is focusable; arrows step
+  the crosshair a bar (`setCrosshairPosition`, scrolling it into view),
+  Home/End, `+`/`-` zoom around it, `0` fits, Escape clears; while it is
+  keyboard-driven the legend sentence goes to an `aria-live="polite"` region
+  at most every 600 ms. The keys are written in the "Chart keys and panes"
+  disclosure under the chart (the wrapper's `aria-describedby`).
+- **Chart types and scales (A3.1, M2.3).** `lib/chart-view.ts`: types
+  candles, hollow candles, OHLC bars, line, area and "Heikin-Ashi (derived)"
+  (`lib/heikin-ashi.ts`, pure, computed from the stored bars); scales linear,
+  log, percent (`PriceScaleMode` on the price series' scale). URL state on
+  the stock page: `?type=`, `?scale=`, `?adjustment=`, each left out at its
+  default (candles, linear, adjusted) by `buildStockChartHref(..., view)`,
+  so old links are unchanged. The toolbar adds a native "Chart type" select
+  (pushes the URL), a "Price scale" segment and a "Price adjustment" segment.
+- **Adjusted vs raw.** `symbol.has_raw` (API) says whether `eod_raw` holds
+  rows; without it the Raw control is a focusable, inert `aria-disabled`
+  button titled "Only adjusted prices are stored for this symbol", and a
+  `?adjustment=raw` URL falls back to adjusted with a note. With it the page
+  fetches `getBars(..., { adjustment: "raw" })` for the chart only (the
+  header return and metrics stay adjusted), hides the price overlays (they
+  are computed on adjusted prices and would jump at splits) and says so; a
+  failed raw call falls back to adjusted, also said.
+- Other `PriceChart` users (`/trade`, `/replay/[id]` with fill markers on the
+  price pane) get price and volume panes and the legend; they pass no
+  indicators. Unit tests mock the library with
+  `tests/stubs/lightweight-charts.ts` (records series, panes, price lines,
+  crosshair calls): `vi.mock("lightweight-charts", async () => (await
+  import("../stubs/lightweight-charts")).lwc)`.
 - Server components by default — only mark `"use client"` when you need state,
   effects, or interactivity.
 - Research (`/compare`, `/backtest`, `/checklist`, `/replay`) is one

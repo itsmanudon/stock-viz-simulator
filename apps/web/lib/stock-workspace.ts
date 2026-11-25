@@ -1,4 +1,5 @@
 import type { Bar, IndicatorPoint } from "@/lib/api/types";
+import { type ChartView, DEFAULT_CHART_VIEW, setChartViewParams } from "@/lib/chart-view";
 
 const QUANTITY_SCALE = 1_000_000;
 
@@ -119,12 +120,15 @@ export function buildStockChartHref(
   timeframe: StockTimeframe,
   indicators: StockIndicator[],
   interval: StockInterval = "1d",
+  view: ChartView = DEFAULT_CHART_VIEW,
 ): string {
   const params = new URLSearchParams();
   params.set("tf", timeframe);
   params.set("indicators", indicators.join(","));
   // Daily is the default, so its links stay as they were.
   if (interval !== "1d") params.set("interval", interval);
+  // A3.1: chart type, scale and adjustment, each left out at its default.
+  setChartViewParams(params, view);
   return `/stocks/${ticker}?${params.toString()}`;
 }
 

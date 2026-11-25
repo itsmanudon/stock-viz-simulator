@@ -17,6 +17,7 @@ from stockviz.db import get_session
 from stockviz.limiter import limiter
 from stockviz.models import PriceBar, Symbol
 from stockviz.schemas import QuoteOut, SymbolDetailOut, SymbolOut
+from stockviz.services.bars.raw import has_raw
 from stockviz.services.instruments import instrument_of
 
 router = APIRouter(prefix="/v1/symbols", tags=["symbols"])
@@ -106,4 +107,6 @@ def get_symbol(request: Request, ticker: str, session: SessionDep) -> SymbolDeta
         if latest_bar is not None
         else None
     )
-    return SymbolDetailOut.model_validate({**symbol.model_dump(), "latest": latest})
+    return SymbolDetailOut.model_validate(
+        {**symbol.model_dump(), "latest": latest, "has_raw": has_raw(session, symbol.ticker)}
+    )
