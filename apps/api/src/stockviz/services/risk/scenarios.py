@@ -32,7 +32,7 @@ from stockviz.models import OptionsPosition, OptionStatus, Portfolio, PriceBar
 from stockviz.models.market import FxRate
 from stockviz.models.option import position_sign
 from stockviz.services.instruments import instrument_of
-from stockviz.services.markets.calendar import venue_for_ticker
+from stockviz.services.markets.calendar import is_indian_venue, venue_for_ticker
 from stockviz.services.options.pricing import black_scholes, historical_volatility
 from stockviz.services.options.trade import RISK_FREE_RATE
 from stockviz.services.risk.engine import compound_windows
@@ -46,7 +46,7 @@ SESSIONS_PER_YEAR = 252
 
 
 def proxy_for(ticker: str) -> str:
-    return "^NSEI" if venue_for_ticker(ticker) == "XBOM" else "^GSPC"
+    return "^NSEI" if is_indian_venue(venue_for_ticker(ticker)) else "^GSPC"
 
 
 @dataclass(frozen=True, slots=True)

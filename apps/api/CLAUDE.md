@@ -112,7 +112,8 @@ src/stockviz/
                     run (P/E, P/B, P/S, EV/EBITDA, dividend yield, market
                     cap in USD, net margin, ROE, debt/equity, revenue
                     growth), each a `<column>_min`/`_max` filter and a sort
-    markets/        calendar.py — exchange calendars and completed sessions (Phase 4.1)
+    markets/        calendar.py — exchange calendars and completed sessions (Phase 4.1);
+                    india_holidays.py — the maintained NSE/BSE holiday table (A0)
     aegis/          Aegis News read sync (Phase 2): contract.py (lenient
                     feed models), token.py (EdDSA feed:read token), client.py
                     (the one client: timeouts, bounded retries), sync.py
@@ -170,10 +171,22 @@ York (`XNYS`), which dates the nightly jobs, so the 22:00 UTC cron stores and
 settles the day's own session and, on a US holiday, the session before. Bars
 are filtered by their own venue (`venue_for_ticker`, from the Yahoo suffix
 until instruments carry a venue: `.L` XLON, `.DE` XETR, `.TO` XTSE, `.T` XTKS,
-`.NS`/`.BO` XBOM, which shares NSE's holidays). `ingest` judges each ticker
-against its venue's session. Option expiry uses the last New York session on
-or before expiry. Outside a calendar's range (XBOM ends 2026-12-31 in the
-pinned package) the weekday rule applies and a warning is logged.
+`.NS` XNSE, `.BO` XBOM). `ingest` judges each ticker against its venue's
+session. Option expiry uses the last New York session on or before expiry.
+Outside a calendar's range the weekday rule applies and a warning is logged.
+
+**Indian holidays (A0).** The package has no NSE calendar and its BSE list
+ends with 2026, so XNSE and XBOM are built in `calendar.py` from one list:
+the package's BSE holidays before 2026, then the table in
+`services/markets/india_holidays.py`. A year there is `official` (the
+exchanges' published list, with names and the source checked) or
+`provisional` (no list yet: only the fixed-date holidays, 26 Jan, 14 Apr,
+1 May, 15 Aug, 2 Oct and 25 Dec, close; a warning is logged once per venue
+and year), through `PROVISIONAL_THROUGH` (2030). **When NSE publishes a
+year's list (usually November or December), add it to `OFFICIAL_HOLIDAYS`
+and move `OFFICIAL_THROUGH`.** `holiday_basis(day, venue)` says which source
+answered. Hours and the special Saturday sessions are the package's BSE
+ones; Muhurat sessions are not modelled. `tests/test_india_calendar.py`.
 
 **A daily bar's date is its venue's date (Phase 4.1b).** yfinance labels a
 daily bar with midnight in the venue's time zone, and `fetch_yfinance_daily`
@@ -280,7 +293,7 @@ notifications over 180 days old. In-app only (owner, Phase 7). Migration
 **Index benchmarks and news event studies (Phase 7.4).** `^GSPC` (S&P 500,
 USD) and `^NSEI` (NIFTY 50, INR) are seeded index instruments (a `^` ticker
 is asset type `index` in both identity rules; migration `4ec3f175fd60`;
-`calendar.INDEX_VENUES` dates them by XNYS and XBOM). The nightly ingest
+`calendar.INDEX_VENUES` dates them by XNYS and XNSE). The nightly ingest
 stores their bars; `is_index_ticker` keeps them out of trading
 (`NotTradable`, 400), options, the screener, the markets table and signals.
 `services/event_study.py::run_event_study`: for each Aegis document linked
