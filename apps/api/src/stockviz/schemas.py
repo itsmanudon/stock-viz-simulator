@@ -1067,6 +1067,8 @@ class ScreenerRuleOut(BaseModel):
     sessions: dict[str, date]
     counts: ScreenerRuleCountsOut  # over every candidate the filters let through
     evaluated: int
+    # A3.3: judged on the signed-in caller's drawings (never cached).
+    user_scoped: bool = False
     cached: bool = False  # true when every result came from the in-process cache
 
 
@@ -1136,8 +1138,12 @@ class RuleCheckOut(BaseModel):
     # ``warmup_whole_history`` when it reads the whole history.
     warmup_bars: int | None = None
     warmup_whole_history: bool = False
-    # What it reads besides bars: "benchmark", "fundamentals", "news", "delivery".
+    # What it reads besides bars: "benchmark", "fundamentals", "news",
+    # "delivery", "drawings" (A3.3).
     uses: list[str] = Field(default_factory=list)
+    # A3.3: it reads the owner's drawings (drawing(), avwap()), so only its
+    # owner can run it; it cannot be a preset or forked by another user.
+    user_scoped: bool = False
     error: RuleErrorOut | None = None
 
 
@@ -1154,6 +1160,8 @@ class SetupVersionOut(BaseModel):
     timeframe: str
     notes: str | None = None
     created_at: datetime
+    # A3.3: the rule reads its owner's drawings (only the owner can run it).
+    user_scoped: bool = False
 
 
 class SetupOut(BaseModel):
@@ -2469,6 +2477,7 @@ DrawingKind = Literal[
     "text",
     "position_long",
     "position_short",
+    "avwap",
 ]
 DrawingColour = Literal["aqua", "blue", "violet", "pink", "amber", "lime", "slate", "foreground"]
 
@@ -2476,10 +2485,11 @@ DrawingColour = Literal["aqua", "blue", "violet", "pink", "amber", "lime", "slat
 class DrawingPoint(BaseModel):
     """An anchor: a daily bar's venue date and a price. ``ts`` is null only
     where the kind takes a price alone (an hline, a position's stop and
-    target)."""
+    target). ``price`` is null only for an anchored VWAP (A3.3), whose one
+    point is its anchor date."""
 
     ts: date | None = None
-    price: Decimal = Field(gt=0, max_digits=18, decimal_places=6)
+    price: Decimal | None = Field(default=None, gt=0, max_digits=18, decimal_places=6)
 
 
 class DrawingStyle(BaseModel):
@@ -2487,6 +2497,9 @@ class DrawingStyle(BaseModel):
     width: int = Field(default=1, ge=1, le=4)
     dash: Literal["solid", "dashed", "dotted"] = "solid"
     fill_opacity: float = Field(default=0.12, ge=0, le=0.5)
+    # A3.3: an anchored VWAP's bands (0 none, 1 = +-1, 2 = +-1 and +-2
+    # standard deviations); other kinds ignore it.
+    bands: int = Field(default=0, ge=0, le=2)
 
 
 class DrawingIn(BaseModel):
@@ -2543,3 +2556,35 @@ class DrawingsOut(BaseModel):
     # The stored daily bar range anchors must fall in (null: no bars).
     first_bar: date | None
     last_bar: date | None
+
+
+# ---------------------------------------------------------------------------
+# Anchored VWAP (A3.3, M2.5)
+# ---------------------------------------------------------------------------
+
+
+class AvwapPointOut(BaseModel):
+    """One bar's anchored VWAP. ``ts`` is the bar's time as the bars route
+    gives it (on weekly/monthly the period's last stored session). Bands are
+    null unless asked for."""
+
+    ts: datetime
+    vwap: float
+    upper1: float | None = None
+    lower1: float | None = None
+    upper2: float | None = None
+    lower2: float | None = None
+
+
+class AvwapOut(BaseModel):
+    ticker: str
+    anchor: date
+    # The first stored daily bar on or after ``anchor``: where the sums start.
+    anchor_bar: date
+    interval: Literal["1d", "1wk", "1mo"]
+    bands: int
+    # Always "daily": weekly/monthly values are the daily AVWAP sampled at each
+    # period's last stored session.
+    computed_from: Literal["daily"] = "daily"
+    decimals: int
+    points: list[AvwapPointOut]

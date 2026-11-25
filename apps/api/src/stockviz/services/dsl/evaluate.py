@@ -35,6 +35,9 @@ from stockviz.services.dsl.bindings import DELIVERY_SERIES, INDEX_SERIES, INTERV
 from stockviz.services.dsl.canonical import canonicalize, rule_hash
 from stockviz.services.dsl.check import Type, check
 from stockviz.services.dsl.data import Needs, SymbolData
+from stockviz.services.dsl.drawings import RefResult
+from stockviz.services.dsl.drawings import reason as ref_reason
+from stockviz.services.dsl.drawings import resolve as resolve_ref
 from stockviz.services.dsl.functions import FUNCTIONS, FunctionSpec, shift
 from stockviz.services.dsl.parser import RuleError, parse
 from stockviz.services.dsl.printer import format_number, to_text
@@ -57,6 +60,13 @@ class CompiledRule:
     lookback: int | None
     """Daily bars needed before the first bar judged; None: the whole history."""
     needs: Needs
+
+    @property
+    def user_scoped(self) -> bool:
+        """A3.3: the rule reads the owner's drawings (``drawing()``, ``avwap()``),
+        so it resolves only for its owner: never a preset, never another
+        user's to run or fork."""
+        return self.needs.drawings
 
 
 def _params(fn: FunctionSpec, n: int):
@@ -86,6 +96,10 @@ def lookback(node: ast.Node, tf: str = "daily") -> int | None:
         case ast.Cross(left=left, right=right):
             subs = [lookback(left, tf), lookback(right, tf)]
             return None if None in subs else 1 + max(s for s in subs if s is not None)
+        case ast.Ref(kind=kind):
+            # An AVWAP sums every bar since its anchor, which the rule does
+            # not know: load the whole history. A line reads no bars.
+            return None if kind == "avwap" else 0
         case ast.Timeframe(timeframe=timeframe, expr=expr):
             sub = lookback(expr, timeframe)
             per = MAX_SESSIONS_PER_PERIOD[INTERVAL_BY_TIMEFRAME[timeframe]]
@@ -107,6 +121,7 @@ def needs(node: ast.Node) -> Needs:
         fundamentals=any(isinstance(n, ast.Fundamental) for n in nodes),
         news=any(isinstance(n, ast.News) for n in nodes),
         delivery=any(isinstance(n, ast.Name) and n.name in DELIVERY_SERIES for n in nodes),
+        drawings=any(isinstance(n, ast.Ref) for n in nodes),
     )
 
 
@@ -184,6 +199,7 @@ class Evaluation:
         self.cache: dict[tuple[ast.Node, str], np.ndarray] = {}
         self._indicators: dict[tuple, dict[str, np.ndarray]] = {}
         self._fundamentals = None
+        self._refs: dict[ast.Ref, RefResult] = {}
 
     def frame(self, tf: str) -> pd.DataFrame:
         if tf not in self.frames:
@@ -203,6 +219,16 @@ class Evaluation:
                 daily.index.to_numpy(dtype="datetime64[D]"), daily["close"].to_numpy(dtype=float)
             )
         return self._fundamentals
+
+    def ref(self, node: ast.Ref) -> RefResult:
+        hit = self._refs.get(node)
+        if hit is None:
+            daily = self.frames["daily"]
+            hit = resolve_ref(
+                node, self.data.drawings, daily.index.to_numpy(dtype="datetime64[D]"), daily
+            )
+            self._refs[node] = hit
+        return hit
 
     def value(self, node: ast.Node, tf: str = "daily") -> np.ndarray:
         key = (node, tf)
@@ -240,6 +266,8 @@ class Evaluation:
                 )
             case ast.Call():
                 return self._call(node, tf)
+            case ast.Ref():
+                return self.ref(node).values
             case ast.Offset(expr=expr, bars=bars):
                 return shift(self.value(expr, tf), bars)
             case ast.Timeframe(timeframe=timeframe, expr=expr):
@@ -322,6 +350,8 @@ class Evaluation:
             case ast.News():
                 news = self.data.news
                 return [f"{text}: {news.reason() if news else 'no news loaded'}"]
+            case ast.Ref():
+                return [ref_reason(node, self.ref(node), day)]
             case ast.Timeframe(timeframe=timeframe, expr=expr):
                 j = self.index_in(timeframe, i)
                 if j < 0:

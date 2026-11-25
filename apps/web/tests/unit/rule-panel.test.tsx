@@ -18,7 +18,16 @@ const VALID: RuleCheck = {
   warmup_bars: 199,
   warmup_whole_history: false,
   uses: [],
+  user_scoped: false,
   error: null,
+};
+
+const SCOPED: RuleCheck = {
+  ...VALID,
+  canonical: 'close > drawing("support").price',
+  warmup_bars: 0,
+  uses: ["drawings"],
+  user_scoped: true,
 };
 
 const INVALID: RuleCheck = {
@@ -29,6 +38,7 @@ const INVALID: RuleCheck = {
   warmup_bars: null,
   warmup_whole_history: false,
   uses: [],
+  user_scoped: false,
   error: { kind: "syntax", message: "unexpected 'andd'", line: 1, column: 9 },
 };
 
@@ -89,6 +99,32 @@ describe("RulePanel (A2.2)", () => {
       expect(screen.getByRole("button", { name: "Save as setup" })).toBeEnabled(),
     );
     expect(screen.getByRole("button", { name: "Run" })).toBeEnabled();
+  });
+
+  it("notes a user-scoped rule (A3.3): it reads your drawings and runs only for you", async () => {
+    const user = userEvent.setup();
+    const check = vi.fn(async () => SCOPED);
+    renderPanel({ check });
+    await user.type(screen.getByLabelText("Rule text"), 'close > drawing("support").price');
+    expect(await screen.findByTestId("rule-user-scoped")).toHaveTextContent(
+      "Uses your drawings; only you can run it.",
+    );
+    expect(screen.getByText(/reads drawings/)).toBeVisible();
+  });
+
+  it("tells a signed-out visitor to sign in to run a user-scoped rule", async () => {
+    const user = userEvent.setup();
+    renderPanel({ check: vi.fn(async () => SCOPED), signedIn: false });
+    await user.type(screen.getByLabelText("Rule text"), 'close > avwap("swing")');
+    expect(await screen.findByTestId("rule-user-scoped")).toHaveTextContent(/sign in to run it/);
+  });
+
+  it("says nothing extra for an ordinary rule", async () => {
+    const user = userEvent.setup();
+    renderPanel();
+    await user.type(screen.getByLabelText("Rule text"), "close > open");
+    await screen.findByTestId("canonical");
+    expect(screen.queryByTestId("rule-user-scoped")).toBeNull();
   });
 
   it("is a GET form to /screener that carries the other filters (URL state)", () => {

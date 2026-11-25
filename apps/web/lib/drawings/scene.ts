@@ -36,6 +36,19 @@ export type SceneContext = {
   };
 };
 
+/**
+ * An anchored VWAP's line as the chart's interval shows it (A3.3): one point
+ * per bar from the API (`date` = the bar's date), bands when asked for.
+ */
+export type AvwapLine = {
+  date: string;
+  vwap: number;
+  upper1?: number | null;
+  lower1?: number | null;
+  upper2?: number | null;
+  lower2?: number | null;
+}[];
+
 /** A drawing as the scene draws it: a saved one, or the one being placed. */
 export type SceneDrawing = {
   /** "draft" while it is being placed. */
@@ -45,6 +58,8 @@ export type SceneDrawing = {
   style: DrawingStyle;
   label?: string | null;
   locked?: boolean;
+  /** A3.3: an anchored VWAP's computed line (null while it loads). */
+  avwap?: AvwapLine | null;
 };
 
 type Dash = DrawingStyle["dash"];
@@ -57,6 +72,15 @@ export type Shape =
       y1: number;
       x2: number;
       y2: number;
+      colour: string;
+      width: number;
+      dash: Dash;
+    }
+  | {
+      /** A3.3: an open polyline (an anchored VWAP), stroked as one path so dashes run on. */
+      type: "path";
+      id: string;
+      points: [number, number][];
       colour: string;
       width: number;
       dash: Dash;
@@ -146,8 +170,85 @@ export function rayEnd(
   return { x: far, y: a.y + (dy / dx) * (far - a.x) };
 }
 
+const BAND_KEYS = ["upper2", "upper1", "lower1", "lower2"] as const;
+
+/**
+ * An anchored VWAP (A3.3): its line through the bars it covers, dashed bands
+ * when it has them, a label at its right end and a short tick at the anchor.
+ * Before its line loads, only the tick and the label show.
+ */
+export function avwapShapes(d: SceneDrawing, ctx: SceneContext, selected: boolean): Shape[] {
+  const anchor = d.points[0]?.ts;
+  if (!anchor) return [];
+  const colour = ctx.colours.drawing[d.style.colour] ?? ctx.colours.drawing.aqua;
+  const id = d.id;
+  const shapes: Shape[] = [];
+  const at = (date: string, value: number | null | undefined) => {
+    if (value === null || value === undefined || !Number.isFinite(value)) return null;
+    const logical = anchorLogical(date, ctx.interval, ctx.barDates);
+    if (logical === null) return null;
+    const x = ctx.xOfLogical(logical);
+    const y = ctx.yOfPrice(value);
+    return x === null || y === null ? null : { x, y };
+  };
+  const polyline = (key: "vwap" | (typeof BAND_KEYS)[number], width: number, dash: Dash) => {
+    let run: [number, number][] = [];
+    const flush = () => {
+      if (run.length >= 2) shapes.push({ type: "path", id, points: run, colour, width, dash });
+      run = [];
+    };
+    for (const point of d.avwap ?? []) {
+      const here = at(point.date, point[key]);
+      if (here) run.push([here.x, here.y]);
+      else flush();
+    }
+    flush();
+  };
+  for (const key of BAND_KEYS) polyline(key, 1, "dashed");
+  polyline("vwap", d.style.width + 1, d.style.dash);
+
+  const first = d.avwap?.[0];
+  const start = first ? at(first.date, first.vwap) : null;
+  const logical = anchorLogical(anchor, ctx.interval, ctx.barDates);
+  const ax = start?.x ?? (logical === null ? null : ctx.xOfLogical(logical));
+  if (ax !== null && ax !== undefined) {
+    const y = start?.y ?? ctx.height - 4;
+    shapes.push(line(id, { x: ax, y: y - 7 }, { x: ax, y: y + 7 }, colour, 2, "solid"));
+    if (selected) {
+      shapes.push({ type: "handle", id, index: 0, x: ax, y, colour, ring: ctx.colours.text });
+    }
+  }
+  const last = d.avwap?.at(-1);
+  const end = last ? at(last.date, last.vwap) : null;
+  const name = d.label || "AVWAP";
+  if (end) {
+    const value = `${name} ${formatPrice(last?.vwap ?? 0)}`;
+    shapes.push({
+      type: "text",
+      id,
+      y: end.y - FONT_PX - 4,
+      text: value,
+      colour,
+      bg: ctx.colours.labelBg,
+      ...fitLabel(end.x + 4, value, "left", ctx.width),
+    });
+  } else if (ax !== null && ax !== undefined) {
+    shapes.push({
+      type: "text",
+      id,
+      y: ctx.height - FONT_PX - 14,
+      text: name,
+      colour,
+      bg: ctx.colours.labelBg,
+      ...fitLabel(ax + 4, name, "left", ctx.width),
+    });
+  }
+  return shapes;
+}
+
 /** Shapes for one drawing. `selected` adds its anchor handles. */
 export function drawingShapes(d: SceneDrawing, ctx: SceneContext, selected: boolean): Shape[] {
+  if (d.kind === "avwap") return avwapShapes(d, ctx, selected);
   const p = resolvePoints(d.points, ctx);
   if (!p || p.length === 0) return [];
   const colour = ctx.colours.drawing[d.style.colour] ?? ctx.colours.drawing.aqua;
@@ -465,6 +566,24 @@ export function hitScene(shapes: readonly Shape[], x: number, y: number): Hit | 
     } else if (s.type === "line") {
       distance = segmentDistance(x, y, s);
       if (distance <= HIT_PX) rank = 2;
+    } else if (s.type === "path") {
+      for (let k = 1; k < s.points.length; k++) {
+        const [x1, y1] = s.points[k - 1];
+        const [x2, y2] = s.points[k];
+        const seg = {
+          type: "line" as const,
+          id: s.id,
+          x1,
+          y1,
+          x2,
+          y2,
+          colour: "",
+          width: 1,
+          dash: "solid" as Dash,
+        };
+        distance = Math.min(distance, segmentDistance(x, y, seg));
+      }
+      if (distance <= HIT_PX) rank = 2;
     } else if (s.type === "text") {
       const b = textBox(s);
       if (x >= b.left && x <= b.left + b.width && y >= b.top && y <= b.top + b.height) {
@@ -530,6 +649,14 @@ export function paintScene(c: PaintContext, shapes: readonly Shape[], fontFamily
         c.lineWidth = s.width ?? 1;
         c.stroke();
       }
+    } else if (s.type === "path") {
+      c.beginPath();
+      c.setLineDash(DASHES[s.dash]);
+      c.strokeStyle = s.colour;
+      c.lineWidth = s.width;
+      s.points.forEach(([x, y], i) => (i === 0 ? c.moveTo(x, y) : c.lineTo(x, y)));
+      c.stroke();
+      c.setLineDash([]);
     } else if (s.type === "line") {
       c.beginPath();
       c.setLineDash(DASHES[s.dash]);

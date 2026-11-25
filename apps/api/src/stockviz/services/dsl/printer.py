@@ -68,6 +68,9 @@ def to_text(node: ast.Node) -> str:
         case ast.Call(name=name, args=args, kwargs=kwargs, output=output):
             text = f"{name}({_args(args, kwargs)})"
             return f"{text}.{output}" if output else text
+        case ast.Ref(kind=kind, label=label, output=output):
+            text = f'{kind}("{label}")'
+            return f"{text}.{output}" if output else text
         case ast.News(name=name, args=args, kwargs=kwargs):
             return f"news.{name}({_args(args, kwargs)})"
         case ast.Offset(expr=expr, bars=bars):

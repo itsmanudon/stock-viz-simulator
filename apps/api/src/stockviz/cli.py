@@ -798,7 +798,8 @@ def _cmd_rule_check(args: argparse.Namespace) -> int:
     not_met / unknown (with the reason) at ``--date`` or, by default, the
     latest completed session of the ticker's venue, judged on the latest
     stored bar on or before it. Exit 2 on a syntax or type error, 1 when a
-    ticker is unknown or has no bar.
+    ticker is unknown or has no bar. A rule that reads drawings (A3.3) reads
+    ``--user-id``'s; without it those values are unknown.
     """
     from stockviz.models import Symbol
     from stockviz.services.dsl import RuleError, compile_rule, evaluate_at, load_symbol
@@ -813,6 +814,9 @@ def _cmd_rule_check(args: argparse.Namespace) -> int:
     print(f"hash:      {rule.hash}")
     warm = "the whole history" if rule.lookback is None else f"{rule.lookback} daily bars"
     print(f"type:      {rule.type}; warm-up {warm}")
+    if rule.user_scoped:
+        owner = f"user {args.user_id}" if args.user_id is not None else "nobody (pass --user-id)"
+        print(f"scope:     user-scoped (reads drawings); judged for {owner}")
     code = 0
     with Session(engine) as session:
         for raw in args.tickers:
@@ -829,7 +833,7 @@ def _cmd_rule_check(args: argparse.Namespace) -> int:
             )
             data = load_symbol(
                 session, ticker, end=target, start=target, lookback=rule.lookback,
-                needs=rule.needs,
+                needs=rule.needs, user_id=args.user_id,
             )  # fmt: skip
             if data.bars.empty:
                 print(f"{ticker}: no daily bars on or before {target.isoformat()}")
@@ -1874,6 +1878,12 @@ def main(argv: list[str] | None = None) -> int:
         "--date", default=None, help="YYYY-MM-DD; default: the latest completed session"
     )
     p_rule.add_argument("--explain", action="store_true", help="Print every sub-expression's value")
+    p_rule.add_argument(
+        "--user-id",
+        type=int,
+        default=None,
+        help="Whose drawings drawing()/avwap() read (A3.3); without it they are unknown",
+    )
     p_rule.set_defaults(fn=_cmd_rule_check)
 
     p_aegis = sub.add_parser(

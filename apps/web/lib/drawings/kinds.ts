@@ -10,7 +10,11 @@ export type Drawing = components["schemas"]["DrawingOut"];
 export type DrawingKind = Drawing["kind"];
 export type DrawingStyle = components["schemas"]["DrawingStyle"];
 export type DrawingColour = DrawingStyle["colour"];
-/** An anchor: a daily bar's venue date (YYYY-MM-DD) and a price string. */
+/**
+ * An anchor: a daily bar's venue date (YYYY-MM-DD) and a price string. An
+ * anchored VWAP's one point has no price (A3.3): it is "" here and null on
+ * the API (`lib/api/drawings.ts::toApiPoints`).
+ */
 export type DrawingPoint = { ts: string | null; price: string };
 export type DrawingsResponse = components["schemas"]["DrawingsOut"];
 
@@ -23,6 +27,10 @@ export type KindSpec = {
   steps: string[];
   /** Anchors after the first that are prices only (no date). */
   priceOnlyFrom?: number;
+  /** Anchors that are dates only (A3.3: the anchored VWAP). */
+  dateOnly?: boolean;
+  /** A label is required (rules name the drawing by it). */
+  needsLabel?: boolean;
 };
 
 export const KIND_SPECS: readonly KindSpec[] = [
@@ -64,6 +72,14 @@ export const KIND_SPECS: readonly KindSpec[] = [
     steps: ["entry", "stop", "target"],
     priceOnlyFrom: 1,
   },
+  {
+    kind: "avwap",
+    label: "Anchored VWAP",
+    points: 1,
+    steps: ["the anchor bar"],
+    dateOnly: true,
+    needsLabel: true,
+  },
 ];
 
 const BY_KIND = new Map(KIND_SPECS.map((s) => [s.kind, s]));
@@ -90,12 +106,14 @@ export const DEFAULT_STYLE: DrawingStyle = {
   width: 1,
   dash: "solid",
   fill_opacity: 0.12,
+  bands: 0,
 };
 
 /** A click's point for a kind: dates are dropped where the kind takes prices only. */
 export function pointForStep(kind: DrawingKind, step: number, point: DrawingPoint): DrawingPoint {
   const spec = kindSpec(kind);
   if (kind === "hline") return { ts: null, price: point.price };
+  if (spec.dateOnly) return { ts: point.ts, price: "" };
   if (spec.priceOnlyFrom !== undefined && step >= spec.priceOnlyFrom) {
     return { ts: null, price: point.price };
   }
@@ -103,20 +121,34 @@ export function pointForStep(kind: DrawingKind, step: number, point: DrawingPoin
 }
 
 /** A short description of a drawing for the list ("Trend line, 10 Mar 2025 100.50 to ..."). */
-export function describeDrawing(drawing: Pick<Drawing, "kind" | "points" | "label">): string {
+export function describeDrawing(
+  drawing: Pick<Drawing, "kind" | "points" | "label"> & { style?: Pick<DrawingStyle, "bands"> },
+): string {
   const spec = kindSpec(drawing.kind);
   const at = (p: DrawingPoint) => (p.ts ? `${p.price} on ${p.ts}` : p.price);
   const points = toPoints(drawing.points);
   let body: string;
   if (drawing.kind === "hline") body = `at ${points[0]?.price}`;
+  else if (drawing.kind === "avwap") body = `from ${points[0]?.ts}`;
   else if (drawing.kind === "position_long" || drawing.kind === "position_short") {
     body = `entry ${at(points[0])}, stop ${points[1]?.price}, target ${points[2]?.price}`;
   } else if (points.length === 1) body = `at ${at(points[0])}`;
   else body = points.map(at).join(" to ");
-  return `${spec.label}${drawing.label ? ` "${drawing.label}"` : ""}, ${body}`;
+  const bands =
+    drawing.kind === "avwap" && drawing.style?.bands
+      ? drawing.style.bands === 1
+        ? ", bands ±1σ"
+        : ", bands ±1σ and ±2σ"
+      : "";
+  return `${spec.label}${drawing.label ? ` "${drawing.label}"` : ""}, ${body}${bands}`;
 }
 
 /** A saved drawing's points with `ts` always present (the API may omit a null). */
 export function toPoints(points: Drawing["points"]): DrawingPoint[] {
-  return points.map((p) => ({ ts: p.ts ?? null, price: p.price }));
+  return points.map((p) => ({ ts: p.ts ?? null, price: p.price ?? "" }));
+}
+
+/** An anchored VWAP's suggested label from its anchor date ("avwap 2025-03-10"). */
+export function defaultAvwapLabel(date: string | null): string {
+  return date ? `avwap ${date}` : "avwap";
 }

@@ -20,7 +20,7 @@ from sqlmodel import Session, col, select
 
 from stockviz.models.setup import Setup
 from stockviz.services.dsl import compile_rule
-from stockviz.services.setups.store import add_version
+from stockviz.services.setups.store import UserScopedRule, add_version
 
 
 @dataclass(frozen=True)
@@ -144,6 +144,8 @@ def seed_setups(session: Session, presets: tuple[Preset, ...]) -> dict[str, str]
     report: dict[str, str] = {}
     for preset in presets:
         rule = compile_rule(preset.rule)
+        if rule.user_scoped:
+            raise UserScopedRule(f"preset {preset.key} reads drawings; presets cannot")
         setup = session.exec(select(Setup).where(col(Setup.preset_key) == preset.key)).first()
         status = "unchanged"
         if setup is None:

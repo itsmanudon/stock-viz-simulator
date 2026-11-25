@@ -48,11 +48,22 @@ NEWS_FUNCTIONS = ("count",)
 NEWS_SENTIMENTS = ("positive", "neutral", "negative", "mixed")
 NEWS_MAX_DAYS = 365
 
+DRAWING_OUTPUTS = ("price", "top", "bottom")
+"""A3.3 ``drawing("label").<output>``: ``price`` for an hline, trendline or
+ray; ``top`` / ``bottom`` for a rectangle. The kind is the user's data, so a
+mismatch is unknown at evaluation, not a type error."""
+
+AVWAP_OUTPUTS = ("vwap", "upper1", "lower1", "upper2", "lower2")
+"""A3.3 ``avwap("label")``: the anchored VWAP (default) or a band at +-1 / +-2
+volume-weighted standard deviations."""
+
 TIMEFRAMES = ("weekly", "monthly")
 INTERVAL_BY_TIMEFRAME = {"weekly": "1wk", "monthly": "1mo"}
 
 __all__ = [
+    "AVWAP_OUTPUTS",
     "DELIVERY_SERIES",
+    "DRAWING_OUTPUTS",
     "FUNDAMENTAL_METRICS",
     "INDEX_SERIES",
     "INTERVAL_BY_TIMEFRAME",

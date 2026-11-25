@@ -28,6 +28,7 @@ def uses(rule: CompiledRule) -> list[str]:
             ("fundamentals", needs.fundamentals),
             ("news", needs.news),
             ("delivery", needs.delivery),
+            ("drawings", needs.drawings),
         )
         if used
     ]
@@ -46,6 +47,7 @@ def check_rule(text: str) -> RuleCheckOut:
         warmup_bars=rule.lookback,
         warmup_whole_history=rule.lookback is None,
         uses=uses(rule),
+        user_scoped=rule.user_scoped,
     )
 
 

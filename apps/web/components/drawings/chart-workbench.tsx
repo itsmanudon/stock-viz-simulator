@@ -15,10 +15,25 @@
  *
  * Anchors are bar dates and prices, so the same drawings render on daily,
  * weekly and monthly bars (`lib/drawings/anchor.ts`).
+ *
+ * A3.3: an anchored VWAP is a drawing too (one date, a label, bands 0-2).
+ * Its line comes from the API (`avwap-actions.ts`), computed from daily bars
+ * and sampled at this interval's bars, and is fetched again when the interval,
+ * the anchor or the bands change. Quick anchors place one at the loaded bars'
+ * highest high, lowest low, or the last earnings date.
  */
 
 import Link from "next/link";
-import { type ComponentProps, type KeyboardEvent, useCallback, useMemo, useState } from "react";
+import {
+  type ComponentProps,
+  type KeyboardEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+
+import { avwapAction, lastEarningsDateAction } from "@/app/(product)/stocks/[ticker]/avwap-actions";
 
 import {
   createDrawingAction,
@@ -26,6 +41,7 @@ import {
   updateDrawingAction,
 } from "@/app/(product)/stocks/[ticker]/drawing-actions";
 import { type ChartDrawingLayer, PriceChart } from "@/components/price-chart";
+import { barDate } from "@/lib/drawings/anchor";
 import {
   EMPTY_HISTORY,
   type History,
@@ -42,10 +58,11 @@ import {
   type DrawingKind,
   type DrawingPoint,
   type DrawingsResponse,
+  defaultAvwapLabel,
   kindSpec,
   toPoints,
 } from "@/lib/drawings/kinds";
-import type { SceneDrawing } from "@/lib/drawings/scene";
+import type { AvwapLine, SceneDrawing } from "@/lib/drawings/scene";
 
 import { DrawingToolbar } from "./drawing-toolbar";
 import { DrawingsList, type PointsDraft } from "./drawings-list";
@@ -60,7 +77,7 @@ type Props = ChartProps & {
   callbackUrl: string;
 };
 
-function toScene(d: Drawing): SceneDrawing {
+function toScene(d: Drawing, avwap?: AvwapLine | null): SceneDrawing {
   return {
     id: String(d.id),
     kind: d.kind,
@@ -68,7 +85,28 @@ function toScene(d: Drawing): SceneDrawing {
     style: d.style,
     label: d.label,
     locked: d.locked,
+    ...(d.kind === "avwap" ? { avwap: avwap ?? null } : {}),
   };
+}
+
+/** The key an anchored VWAP's line is cached under: what changes it. */
+export function avwapKey(d: Pick<Drawing, "id" | "points" | "style">, interval: string): string {
+  return `${d.id}:${d.points[0]?.ts ?? ""}:${interval}:${d.style.bands ?? 0}`;
+}
+
+/** Quick anchors (A3.3): the loaded bars' highest high and lowest low dates. */
+export function extremeDates(
+  bars: readonly { ts: string; high: string | number; low: string | number }[],
+): { high: string | null; low: string | null } {
+  let hi: { v: number; d: string } | null = null;
+  let lo: { v: number; d: string } | null = null;
+  for (const b of bars) {
+    const h = Number(b.high);
+    const l = Number(b.low);
+    if (Number.isFinite(h) && (!hi || h > hi.v)) hi = { v: h, d: barDate(b.ts) };
+    if (Number.isFinite(l) && (!lo || l < lo.v)) lo = { v: l, d: barDate(b.ts) };
+  }
+  return { high: hi?.d ?? null, low: lo?.d ?? null };
 }
 
 function isTyping(target: EventTarget | null): boolean {
@@ -88,6 +126,9 @@ export function ChartWorkbench({ ticker, signedIn, initial, callbackUrl, ...char
   const [preview, setPreview] = useState<DrawingPoint | null>(null);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [noteText, setNoteText] = useState("");
+  const [avwapBands, setAvwapBands] = useState(1);
+  const [avwapLines, setAvwapLines] = useState<Record<string, AvwapLine | null>>({});
+  const interval = chart.interval ?? "1d";
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const enabled = signedIn && initial !== null;
@@ -95,6 +136,25 @@ export function ChartWorkbench({ ticker, signedIn, initial, callbackUrl, ...char
   const bounds = { first: initial?.first_bar ?? null, last: initial?.last_bar ?? null };
 
   const selected = drawings.find((d) => d.id === selectedId) ?? null;
+
+  // Each anchored VWAP's line for this interval, fetched once per anchor,
+  // interval and bands (the line follows the data, not the drawing's style).
+  useEffect(() => {
+    for (const d of drawings) {
+      if (d.kind !== "avwap") continue;
+      const anchor = d.points[0]?.ts;
+      const key = avwapKey(d, interval);
+      if (!anchor || key in avwapLines) continue;
+      setAvwapLines((lines) => ({ ...lines, [key]: null }));
+      void avwapAction(ticker, anchor, interval, d.style.bands ?? 0).then((result) => {
+        const line: AvwapLine | null = result.avwap
+          ? result.avwap.points.map((p) => ({ ...p, date: barDate(p.ts) }))
+          : null;
+        if (!result.avwap) setMessage(result.error ?? "The anchored VWAP could not be loaded.");
+        setAvwapLines((lines) => ({ ...lines, [key]: line }));
+      });
+    }
+  }, [drawings, interval, ticker, avwapLines]);
 
   const chooseTool = useCallback((kind: DrawingKind | null) => {
     setTool(kind);
@@ -246,16 +306,42 @@ export function ChartWorkbench({ ticker, signedIn, initial, callbackUrl, ...char
       void create({
         kind,
         points,
-        style: DEFAULT_STYLE,
-        label: kind === "text" ? noteText.trim() || "Note" : null,
+        style: kind === "avwap" ? { ...DEFAULT_STYLE, bands: avwapBands } : DEFAULT_STYLE,
+        label:
+          kind === "text"
+            ? noteText.trim() || "Note"
+            : kind === "avwap"
+              ? noteText.trim() || defaultAvwapLabel(points[0]?.ts ?? null)
+              : null,
         locked: false,
       });
     },
-    [tool, placed, create, noteText],
+    [tool, placed, create, noteText, avwapBands],
   );
 
+  const anchorAvwap = useCallback(
+    (date: string | null, why: string) => {
+      if (!date) {
+        setMessage(`No ${why} to anchor to.`);
+        return;
+      }
+      void create({
+        kind: "avwap",
+        points: [{ ts: date, price: "" }],
+        style: { ...DEFAULT_STYLE, bands: avwapBands },
+        label: noteText.trim() || defaultAvwapLabel(date),
+        locked: false,
+      });
+    },
+    [create, avwapBands, noteText],
+  );
+
+  const extremes = useMemo(() => extremeDates(chart.bars), [chart.bars]);
+
   const sceneDrawings = useMemo(() => {
-    const saved = drawings.map(toScene);
+    const saved = drawings.map((d) =>
+      toScene(d, d.kind === "avwap" ? avwapLines[avwapKey(d, interval)] : undefined),
+    );
     if (!tool) return saved;
     const spec = kindSpec(tool);
     const points = [...placed, ...(preview ? [preview] : [])].slice(0, spec.points);
@@ -267,10 +353,10 @@ export function ChartWorkbench({ ticker, signedIn, initial, callbackUrl, ...char
         kind: tool,
         points,
         style: DEFAULT_STYLE,
-        label: tool === "text" ? noteText || "Note" : null,
+        label: tool === "text" ? noteText || "Note" : tool === "avwap" ? noteText || null : null,
       },
     ];
-  }, [drawings, tool, placed, preview, noteText]);
+  }, [drawings, tool, placed, preview, noteText, avwapLines, interval]);
 
   const layer: ChartDrawingLayer | undefined = enabled
     ? {
@@ -345,6 +431,74 @@ export function ChartWorkbench({ ticker, signedIn, initial, callbackUrl, ...char
         ) : initial === null ? (
           <p>Your drawings could not be loaded, so the tools are off. Reload to try again.</p>
         ) : null}
+        {tool === "avwap" ? (
+          <>
+            <label className="flex items-center gap-1">
+              AVWAP label
+              <input
+                type="text"
+                maxLength={80}
+                value={noteText}
+                placeholder="e.g. swing"
+                onChange={(event) => setNoteText(event.target.value)}
+                className="h-6 rounded-sm border border-border-muted bg-background px-1.5 text-2xs text-foreground"
+                data-testid="avwap-label"
+              />
+            </label>
+            <label className="flex items-center gap-1">
+              Bands
+              <select
+                value={avwapBands}
+                onChange={(event) => setAvwapBands(Number(event.target.value))}
+                className="h-6 rounded-sm border border-border-muted bg-background px-1 text-2xs text-foreground"
+                data-testid="avwap-bands"
+              >
+                <option value={0}>None</option>
+                <option value={1}>±1σ</option>
+                <option value={2}>±1σ and ±2σ</option>
+              </select>
+            </label>
+            <span className="flex flex-wrap items-center gap-1" data-testid="avwap-quick">
+              Or anchor at:
+              <button
+                type="button"
+                className="rounded-sm border border-border-muted px-1.5 py-0.5 hover:text-foreground disabled:opacity-40"
+                disabled={busy}
+                onClick={() => {
+                  chooseTool(null);
+                  anchorAvwap(extremes.high, "highest high");
+                }}
+              >
+                Highest high in view
+              </button>
+              <button
+                type="button"
+                className="rounded-sm border border-border-muted px-1.5 py-0.5 hover:text-foreground disabled:opacity-40"
+                disabled={busy}
+                onClick={() => {
+                  chooseTool(null);
+                  anchorAvwap(extremes.low, "lowest low");
+                }}
+              >
+                Lowest low in view
+              </button>
+              <button
+                type="button"
+                className="rounded-sm border border-border-muted px-1.5 py-0.5 hover:text-foreground disabled:opacity-40"
+                disabled={busy || !bounds.first || !bounds.last}
+                onClick={() => {
+                  chooseTool(null);
+                  if (!bounds.first || !bounds.last) return;
+                  void lastEarningsDateAction(ticker, bounds.first, bounds.last).then((r) =>
+                    r.error ? setMessage(r.error) : anchorAvwap(r.date, "earnings date"),
+                  );
+                }}
+              >
+                Last earnings date
+              </button>
+            </span>
+          </>
+        ) : null}
         {tool === "text" ? (
           <label className="flex items-center gap-1">
             Note text
@@ -374,7 +528,7 @@ export function ChartWorkbench({ ticker, signedIn, initial, callbackUrl, ...char
             void create({
               kind: draft.kind,
               points: draft.points,
-              style: { ...DEFAULT_STYLE, colour: draft.colour },
+              style: { ...DEFAULT_STYLE, colour: draft.colour, bands: draft.bands ?? 0 },
               label: draft.label.trim() || null,
               locked: false,
             })
@@ -383,7 +537,7 @@ export function ChartWorkbench({ ticker, signedIn, initial, callbackUrl, ...char
             void update(drawing, {
               points: draft.points,
               label: draft.label.trim() || null,
-              style: { ...drawing.style, colour: draft.colour },
+              style: { ...drawing.style, colour: draft.colour, bands: draft.bands ?? 0 },
             })
           }
           onToggleLock={(drawing) => void update(drawing, { locked: !drawing.locked })}

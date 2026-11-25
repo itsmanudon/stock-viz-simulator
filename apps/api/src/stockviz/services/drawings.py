@@ -11,6 +11,9 @@ Rules:
   may be null.
 - A Fibonacci retracement's two prices differ, an extension's first two do.
 - A text note needs a label.
+- An anchored VWAP (A3.3) is one point ``{ts: anchor date, price: null}``
+  and needs a label, so a rule can name it (``avwap("label")``).
+- Every other point needs a price.
 - Position tools: long has stop < entry < target, short target < entry < stop.
 - At most ``MAX_DRAWINGS_PER_INSTRUMENT`` per user and instrument.
 """
@@ -47,6 +50,7 @@ POINT_COUNTS: dict[str, int] = {
     "text": 1,
     "position_long": 3,
     "position_short": 3,
+    "avwap": 1,
 }
 POSITION_KINDS = ("position_long", "position_short")
 FIB_RETRACEMENT_LEVELS = (0.0, 0.236, 0.382, 0.5, 0.618, 0.786, 1.0)
@@ -85,6 +89,11 @@ def validate_points(
     if len(points) != expected:
         raise _unprocessable(f"A {kind} takes {expected} point{'s' if expected > 1 else ''}")
     for index, point in enumerate(points):
+        if kind == "avwap":
+            if point.price is not None:
+                raise _unprocessable("An anchored VWAP takes a date only (price must be null)")
+        elif point.price is None:
+            raise _unprocessable(f"Point {index + 1} needs a price")
         price_only = kind == "hline" or (kind in POSITION_KINDS and index > 0)
         if point.ts is None:
             if not price_only:
@@ -103,8 +112,11 @@ def validate_points(
         raise _unprocessable("The first two prices must differ")
     if kind == "text" and not (label or "").strip():
         raise _unprocessable("A text note needs a label")
+    if kind == "avwap" and not (label or "").strip():
+        raise _unprocessable("An anchored VWAP needs a label, so rules can name it")
     if kind in POSITION_KINDS:
         entry, stop, target = (p.price for p in points)
+        assert entry is not None and stop is not None and target is not None  # checked above
         if kind == "position_long" and not (stop < entry < target):
             raise _unprocessable("A long position needs stop < entry < target")
         if kind == "position_short" and not (target < entry < stop):
@@ -116,6 +128,8 @@ def position_metrics(kind: str, points: list[DrawingPoint]) -> PositionMetricsOu
     if kind not in POSITION_KINDS or len(points) != 3:
         return None
     entry, stop, target = (p.price for p in points)
+    if entry is None or stop is None or target is None:
+        return None
     risk = abs(entry - stop)
     reward = abs(target - entry)
     if risk == 0 or entry == 0:
@@ -135,7 +149,10 @@ def position_metrics(kind: str, points: list[DrawingPoint]) -> PositionMetricsOu
 
 def points_json(points: list[DrawingPoint]) -> list[dict[str, Any]]:
     return [
-        {"ts": p.ts.isoformat() if p.ts else None, "price": format(p.price.normalize(), "f")}
+        {
+            "ts": p.ts.isoformat() if p.ts else None,
+            "price": format(p.price.normalize(), "f") if p.price is not None else None,
+        }
         for p in points
     ]
 

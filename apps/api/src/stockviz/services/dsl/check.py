@@ -28,7 +28,9 @@ from typing import Literal
 
 from stockviz.services.dsl import ast
 from stockviz.services.dsl.bindings import (
+    AVWAP_OUTPUTS,
     DELIVERY_SERIES,
+    DRAWING_OUTPUTS,
     FUNDAMENTAL_METRICS,
     INDEX_SERIES,
     NEWS_FUNCTIONS,
@@ -114,6 +116,8 @@ class _Checker:
             return Type("number", "series")
         if node.name in FUNCTIONS:
             raise _err(node, f"{node.name} is a function; write {node.name}(...)")
+        if node.name in ("drawing", "avwap"):
+            raise _err(node, f'{node.name} names one of your drawings: write {node.name}("label")')
         if node.name in FUNDAMENTAL_METRICS:
             raise _err(node, f"write fundamental.{node.name}")
         raise _err(node, f"unknown series {node.name!r}{_suggest(node.name, SERIES)}")
@@ -156,10 +160,37 @@ class _Checker:
             raise _err(event_type, 'event_type must be a name in quotes, e.g. "earnings"')
         return Type("number", "pit")
 
+    def _ref(self, node: ast.Ref, tf: str) -> Type:
+        """A3.3: the owner's drawing or anchored VWAP, one value per daily bar."""
+        if tf != "daily":
+            raise _err(node, f"{node.kind}() reads a drawing on daily bars and has no {tf} form")
+        if node.kind == "drawing":
+            if node.output is None:
+                raise _err(
+                    node,
+                    f'drawing() needs an output: drawing("{node.label}").price for a line, '
+                    ".top or .bottom for a rectangle",
+                )
+            if node.output not in DRAWING_OUTPUTS:
+                raise _err(
+                    node,
+                    f"drawing() has no output {node.output!r} (it has {', '.join(DRAWING_OUTPUTS)})",
+                )
+        elif node.output is not None and node.output not in AVWAP_OUTPUTS:
+            raise _err(
+                node, f"avwap() has no output {node.output!r} (it has {', '.join(AVWAP_OUTPUTS)})"
+            )
+        return Type("number", "series")
+
     # --- functions ----------------------------------------------------------
 
     def _call(self, node: ast.Call, tf: str) -> Type:
         fn = FUNCTIONS.get(node.name)
+        if fn is None and node.name in ("drawing", "avwap"):
+            raise _err(
+                node,
+                f'{node.name}() takes a drawing\'s label in quotes, e.g. {node.name}("support")',
+            )
         if fn is None:
             raise _err(node, f"unknown function {node.name!r}{_suggest(node.name, FUNCTIONS)}")
         self._check_output(node, fn)

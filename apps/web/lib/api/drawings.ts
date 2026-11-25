@@ -24,8 +24,13 @@ export type DrawingInput = {
   locked?: boolean;
 };
 
+/** The API's points: an empty price (an anchored VWAP's date-only point) is null. */
+export function toApiPoints(points: DrawingPoint[]): { ts: string | null; price: string | null }[] {
+  return points.map((p) => ({ ts: p.ts, price: p.price === "" ? null : p.price }));
+}
+
 export function createDrawing(input: DrawingInput): Promise<Drawing> {
-  return authedPost<Drawing>("/v1/drawings", input);
+  return authedPost<Drawing>("/v1/drawings", { ...input, points: toApiPoints(input.points) });
 }
 
 export type DrawingChanges = {
@@ -36,7 +41,8 @@ export type DrawingChanges = {
 };
 
 export function updateDrawing(id: number, changes: DrawingChanges): Promise<Drawing> {
-  return authedPatch<Drawing>(`/v1/drawings/${id}`, changes);
+  const body = changes.points ? { ...changes, points: toApiPoints(changes.points) } : changes;
+  return authedPatch<Drawing>(`/v1/drawings/${id}`, body);
 }
 
 export function deleteDrawing(id: number): Promise<void> {
