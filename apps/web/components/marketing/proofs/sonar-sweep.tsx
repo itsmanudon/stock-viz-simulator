@@ -1,12 +1,13 @@
 "use client";
 
 /**
- * Sonar sweep: the signals proof.
+ * Sonar sweep: the checklist proof (A2.4).
  *
  * A beam turns over a radar. Each symbol's blip pings as the beam passes, and
- * its distance from the centre is its vote count: more of the seven rules
- * passing puts it nearer the middle and makes the ping brighter. Every blip is
- * a real Signals row; the angle only spreads them out and means nothing.
+ * its distance from the centre is the share of the six checklist dimensions
+ * it meets: more met puts it nearer the middle and makes the ping brighter.
+ * Every blip is a real `/v1/checklist` row; the angle only spreads them out
+ * and means nothing.
  */
 
 import { useRef } from "react";
@@ -128,5 +129,5 @@ function paint(
   ctx.textAlign = "left";
   ctx.textBaseline = "alphabetic";
   ctx.fillStyle = c.muted;
-  ctx.fillText("Nearer the centre: more rules pass", 12, h - 12);
+  ctx.fillText("Nearer the centre: more of the six met", 12, h - 12);
 }

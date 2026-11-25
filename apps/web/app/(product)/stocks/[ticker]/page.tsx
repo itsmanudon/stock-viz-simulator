@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { auth } from "@/auth";
+import { ChecklistPanel } from "@/components/checklist/checklist-panel";
 import {
   ContextualTradeTicket,
   type TicketPosition,
@@ -22,12 +23,14 @@ import { TickerOrders } from "@/components/ticker-orders";
 import { VisitorLimitNotice } from "@/components/visitor-limit-notice";
 import {
   ApiError,
+  type SymbolChecklist,
   type SymbolDetail,
   getBars,
   getIndicators,
   getNewsForTicker,
   getSymbol,
 } from "@/lib/api";
+import { getSymbolChecklist } from "@/lib/api/checklist";
 import { getFundamentals, getValuation, getValuationHistory } from "@/lib/api/fundamentals";
 import { getEventStudy } from "@/lib/api/research";
 import {
@@ -153,6 +156,7 @@ export default async function StockPage({
     peHistory,
     negativeReactions,
     positiveReactions,
+    checklist,
   ] = await Promise.all([
     barsPromise,
     rangeBarsPromise,
@@ -168,6 +172,8 @@ export default async function StockPage({
     // Phase 7.4: how this stock moved around its negative and positive news.
     getEventStudy({ tickers: [ticker], sentiment: "negative" }).catch(() => null),
     getEventStudy({ tickers: [ticker], sentiment: "positive" }).catch(() => null),
+    // A2.4: the six-dimension checklist; a failed call drops the panel only.
+    getSymbolChecklist(ticker).catch(() => null),
   ]);
 
   const signedIn = Boolean(session?.user?.id);
@@ -309,6 +315,7 @@ export default async function StockPage({
               symbol={symbol}
               latestTimestamp={metrics.latestTimestamp}
               positionStatus={positionStatus}
+              checklist={checklist}
             />
           }
           financials={
@@ -372,7 +379,9 @@ function Overview({
   symbol,
   latestTimestamp,
   positionStatus,
+  checklist,
 }: {
+  checklist?: SymbolChecklist | null;
   symbol: SymbolDetail;
   latestTimestamp: string | null;
   positionStatus: "held" | "not-held" | "sign-in" | "unavailable";
@@ -387,64 +396,70 @@ function Overview({
   ];
 
   return (
-    <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,0.55fr)]">
-      <div>
-        <p className="text-2xs font-semibold uppercase tracking-[0.14em] text-text-tertiary">
-          Security overview
-        </p>
-        <h2 className="mt-2 text-xl font-semibold tracking-tight">{symbol.name}</h2>
-        <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">
-          Price history, technical analysis, company news, and paper-trading context are organized
-          around this security. Market orders use the latest cached close as their simulation basis.
-        </p>
-        <p className="mt-3 text-xs leading-5 text-text-tertiary">
-          End-of-day data
-          {latestTimestamp ? ` through ${formatCloseDate(latestTimestamp) ?? latestTimestamp}` : ""}
-          . The indicative price is simulated from the cached close and is not a realtime market
-          quote.
-        </p>
-        <nav aria-label="Research this security" className="mt-4 flex flex-wrap gap-3 text-sm">
-          <Link href={`/compare?tickers=${symbol.ticker}`} className="hover:underline">
-            Compare
-          </Link>
-          <Link
-            href={`/backtest?ticker=${symbol.ticker}`}
-            className="text-text-secondary hover:underline"
-          >
-            Backtest
-          </Link>
-          <Link
-            href={`/recommendations?q=${symbol.ticker}`}
-            className="text-text-secondary hover:underline"
-          >
-            Signals
-          </Link>
-        </nav>
-      </div>
-      <dl className="grid grid-cols-2 gap-x-6 gap-y-5 border-y border-border-muted py-5">
-        {items.map(([label, value]) => (
-          <div key={label}>
-            <dt className="text-3xs font-semibold uppercase tracking-[0.12em] text-text-tertiary">
-              {label}
-            </dt>
-            <dd className="mt-1 text-sm font-medium">{value}</dd>
-          </div>
-        ))}
+    <div className="space-y-8">
+      <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,0.55fr)]">
         <div>
-          <dt className="text-3xs font-semibold uppercase tracking-[0.12em] text-text-tertiary">
-            Portfolio status
-          </dt>
-          <dd className="mt-1 text-sm font-medium">
-            {positionStatus === "held"
-              ? "Current holding"
-              : positionStatus === "not-held"
-                ? "Not held"
-                : positionStatus === "sign-in"
-                  ? "Sign in to view"
-                  : "Unavailable"}
-          </dd>
+          <p className="text-2xs font-semibold uppercase tracking-[0.14em] text-text-tertiary">
+            Security overview
+          </p>
+          <h2 className="mt-2 text-xl font-semibold tracking-tight">{symbol.name}</h2>
+          <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">
+            Price history, technical analysis, company news, and paper-trading context are organized
+            around this security. Market orders use the latest cached close as their simulation
+            basis.
+          </p>
+          <p className="mt-3 text-xs leading-5 text-text-tertiary">
+            End-of-day data
+            {latestTimestamp
+              ? ` through ${formatCloseDate(latestTimestamp) ?? latestTimestamp}`
+              : ""}
+            . The indicative price is simulated from the cached close and is not a realtime market
+            quote.
+          </p>
+          <nav aria-label="Research this security" className="mt-4 flex flex-wrap gap-3 text-sm">
+            <Link href={`/compare?tickers=${symbol.ticker}`} className="hover:underline">
+              Compare
+            </Link>
+            <Link
+              href={`/backtest?ticker=${symbol.ticker}`}
+              className="text-text-secondary hover:underline"
+            >
+              Backtest
+            </Link>
+            <Link
+              href={`/checklist?q=${symbol.ticker}`}
+              className="text-text-secondary hover:underline"
+            >
+              Checklist
+            </Link>
+          </nav>
         </div>
-      </dl>
+        <dl className="grid grid-cols-2 gap-x-6 gap-y-5 border-y border-border-muted py-5">
+          {items.map(([label, value]) => (
+            <div key={label}>
+              <dt className="text-3xs font-semibold uppercase tracking-[0.12em] text-text-tertiary">
+                {label}
+              </dt>
+              <dd className="mt-1 text-sm font-medium">{value}</dd>
+            </div>
+          ))}
+          <div>
+            <dt className="text-3xs font-semibold uppercase tracking-[0.12em] text-text-tertiary">
+              Portfolio status
+            </dt>
+            <dd className="mt-1 text-sm font-medium">
+              {positionStatus === "held"
+                ? "Current holding"
+                : positionStatus === "not-held"
+                  ? "Not held"
+                  : positionStatus === "sign-in"
+                    ? "Sign in to view"
+                    : "Unavailable"}
+            </dd>
+          </div>
+        </dl>
+      </div>
+      {checklist ? <ChecklistPanel checklist={checklist} /> : null}
     </div>
   );
 }

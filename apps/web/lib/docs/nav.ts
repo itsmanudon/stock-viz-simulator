@@ -64,10 +64,10 @@ export const DOC_SECTIONS: DocSection[] = [
           "Filter the universe on technicals and fundamentals, and compare symbols side by side.",
       },
       {
-        slug: "signals",
-        title: "Signals",
+        slug: "checklist",
+        title: "Checklist",
         summary:
-          "Seven explainable votes per symbol, what makes a signal bullish, and what it is not.",
+          "Six published conditions per symbol, their formulas, evidence grades, and what they are not.",
       },
       {
         slug: "backtests",

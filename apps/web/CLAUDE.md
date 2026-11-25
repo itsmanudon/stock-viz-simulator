@@ -26,7 +26,8 @@ app/
   compare/         Research workspace: normalized multi-ticker comparison
   screener/        filterable symbol screener
   backtest/        Research workspace: strategy experiment + equity curve
-  recommendations/ Research workspace titled Signals (route unchanged)
+  checklist/       Research workspace: the six-dimension Checklist (A2.4; replaced
+                   Signals, and `/recommendations` permanently redirects here)
   news/
   sign-in-required/  redirect target for unauthenticated access
   layout.tsx       document providers + skip link only; route groups own chrome
@@ -94,8 +95,9 @@ components/
                    with `only`. No GSAP inside them. Batch 2 adds
                    `rebase-snap.tsx` (compare: two symbols spring onto one
                    index; a US/India pair, else a same-currency fallback, and
-                   the copy says which), `sonar-sweep.tsx` (signals: distance
-                   from the centre is the vote share) and
+                   the copy says which), `sonar-sweep.tsx` (checklist: distance
+                   from the centre is the share of the six dimensions met, real
+                   `/v1/checklist` rows) and
                    `liquid-allocation.tsx` (an example account's split at two
                    real closes, SVG goo), on /product/research and
                    /product/paper-trading (the landing Rankings section and its
@@ -127,8 +129,9 @@ components/
                    (Aurora board v3); /markets breadth and /backtest results use it
   range-bar.tsx    RangeBar + rangePositionPct: a price's place in a range as a
                    marker on a monochrome track (screener 52-week, compare)
-  strength-dots.tsx StrengthDots: one dot per signal vote plus the count
-                   (`dotsFrom="md"` keeps phone rows wide enough for names)
+  strength-dots.tsx StrengthDots: a count out of a fixed number as dots plus
+                   "n/max" (the Checklist's dimensions met of six; the dots are
+                   aria-hidden, so callers also state the count in words)
   count-badge.tsx  CountBadge: the rounded count beside a tab label (Portfolio
                    tabs; reuse for any tab that counts its rows)
   status-badge.tsx one tone-mapped chip behind the order/alert badges
@@ -251,7 +254,7 @@ $env:AUTH_TRUST_HOST = "true"         # prod builds don't trust the host by defa
 pnpm db:up && pnpm api:migrate
 uv --directory apps/api run python -m stockviz.cli seed
 uv --directory apps/api run python -m stockviz.cli backfill
-uv --directory apps/api run python -m stockviz.cli recommend
+uv --directory apps/api run python -m stockviz.cli checklist
 pnpm api:dev                          # another terminal, same INTERNAL_API_TOKEN
 pnpm --filter @stockviz/web build
 pnpm e2e
@@ -386,10 +389,9 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   `priceLineVisible: false`, or its tag sits on the price labels.
 - Server components by default — only mark `"use client"` when you need state,
   effects, or interactivity.
-- Research (`/compare`, `/backtest`, `/recommendations`, `/replay`) is one
+- Research (`/compare`, `/backtest`, `/checklist`, `/replay`) is one
   domain. See [`docs/RESEARCH.md`](../../docs/RESEARCH.md). Keep URL state
-  shareable (`tickers`/`tf`, `ticker`, `min`/`signal`/`q`). Do not present
-  Signals as AI advice; the engine is a seven-vote rule set. Replay Lab is
+  shareable (`tickers`/`tf`, `ticker`, `min`/`dimension`/`sort`/`q`). Replay Lab is
   future-blind historical simulation; never fetch live bars or
   news into `/replay/[id]`. Forensics (`?view=forensics`) may call session
   `/forensics`, `/journal`, `/history`, `/summary`, and `/fills` only.
@@ -597,8 +599,7 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   `tickers`, `available_at`, an optional `url` and `published_at`, and no
   summary or image. Date a headline with `newsDateLabel()`
   (`components/news-list.tsx`): the publisher's date, else "Collected <date>"
-  (GDELT sends none, audit AG-12). Signals print `row.maxScore`, not a fixed
-  7: the sentiment vote is unavailable without scored news (audit SR-9).
+  (GDELT sends none, audit AG-12).
   News for a set of symbols is one call, `getNewsForTickers()` (`/v1/news?tickers=`):
   `/watchlist` lists it under the table, and `/portfolio?tab=news` loads it
   for the holdings only while that tab is open, as Journal does. `/news` has
@@ -644,6 +645,30 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   category (unticked = muted on that channel), an enable box, Save and Send
   test; a channel whose server config is missing reads "Not available on
   this server.", not an error. Browser push is not built.
+- `/checklist` (A2.4, M4.4, Research nav and subnav, public): the
+  Checklist that replaced the 7-vote Signals. `getChecklist()` /
+  `getSymbolChecklist()` (`lib/api/checklist.ts`, public) read
+  `/v1/checklist` and `/v1/symbols/{t}/checklist`; helpers in
+  `lib/checklist-view.ts`. The page (server component) shows "The six
+  dimensions" (`DimensionGuide`: summary, each setup's canonical formula per
+  scope (Volume / delivery has an NSE/BSE setup and an outside-India one),
+  the grade badge, its sample and survivorship note, the source), then one
+  native `<details>` card per symbol (`ChecklistSymbol` in
+  `components/checklist/checklist-view.tsx`): six statuses in words, "N of 6
+  met" with how many were judged, and on expand each condition's label,
+  formula, status and unknown reason with the grade of the setup that judged
+  it (`variantFor`: by `setup_version_id`, else scope). URL state: `min`
+  (at least N met), `dimension` (must be met), `sort=met|ticker`, `q` (an
+  exact ticker opens its card). It ends with `UniverseNote` and the API's
+  disclaimer. The stock page's Overview tab adds `ChecklistPanel`
+  (`components/checklist/checklist-panel.tsx`), dropped when the call fails.
+  Neutral wording only: met / not met / unknown and "N of 6 met", never buy
+  or sell words (SEBI note; `tests/unit/checklist.test.tsx` checks). The
+  marketing tour's Research panel, the numbers band, the footer, the home
+  tiles and /docs/checklist read the same data or describe it. `/recommendations`
+  is a `permanentRedirect` to `/checklist` (keeping `q`); `lib/api/recommendations.ts`,
+  `signals-table.tsx` and `signals-workspace.ts` are gone. The revalidate tag is
+  `checklist`.
 - `/news-reactions` (Phase 7.4, Research subnav, public, 20 views a minute
   per visitor): an event study from the URL (`tickers`, `sentiment`,
   `event_type`, `pre`, `post`) through `getEventStudy()` (`lib/api/research.ts`,

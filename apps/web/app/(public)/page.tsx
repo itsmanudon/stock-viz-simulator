@@ -3,9 +3,9 @@ import {
   BriefcaseBusiness,
   ChartCandlestick,
   FlaskConical,
+  ListChecks,
   ListFilter,
   ScrollText,
-  Signal,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import Link from "next/link";
@@ -27,7 +27,7 @@ import { ProofSection } from "@/components/marketing/proofs/proof-section";
  * Marketing home.
  *
  * Copy here is deliberately literal about what the product is: end-of-day
- * data, simulated fills, rule-based signals. Overselling it as live trading
+ * data, simulated fills, a rule-based checklist. Overselling it as live trading
  * or AI advice would misrepresent the engine (see the repo's agent guides).
  *
  * Section order follows the approved Aurora board (v5): hero with the pinned
@@ -61,11 +61,11 @@ const SURFACES: {
     detail: "Filter tracked symbols by the metrics you care about.",
   },
   {
-    icon: Signal,
-    label: "Signals",
-    href: "/recommendations",
-    lead: "A seven-vote rule set.",
-    detail: "Transparent, per symbol. Not investment advice.",
+    icon: ListChecks,
+    label: "Checklist",
+    href: "/checklist",
+    lead: "Six published conditions.",
+    detail: "Each with its formula and evidence grade, per symbol. Not investment advice.",
   },
   {
     icon: FlaskConical,

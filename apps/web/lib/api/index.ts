@@ -7,6 +7,6 @@ export { getBars } from "./bars";
 export { getMarketsSummary } from "./markets";
 export { getLatestNews, getMarketNews, getNewsForTicker, getNewsForTickers } from "./news";
 export { getIndicators } from "./indicators";
-export { getRecommendations } from "./recommendations";
+export { type ChecklistParams, getChecklist, getSymbolChecklist } from "./checklist";
 export { type ScreenerPage, type ScreenerRow, getScreenerPage, screenSymbols } from "./screener";
 export { runBacktest } from "./backtest";

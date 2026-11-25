@@ -37,7 +37,7 @@ test("each page names itself in the browser tab (audit A1)", async ({ page }) =>
     ["/", "StockViz | Market Visualization Platform"],
     ["/markets", "Markets | StockViz"],
     ["/screener", "Screener | StockViz"],
-    ["/recommendations", "Signals | StockViz"],
+    ["/checklist", "Checklist | StockViz"],
     ["/stocks/aapl", "AAPL | StockViz"],
     ["/login", "Sign in | StockViz"],
   ] as const) {

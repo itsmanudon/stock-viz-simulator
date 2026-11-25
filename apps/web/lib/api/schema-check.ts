@@ -26,10 +26,12 @@ import type { components } from "./schema";
 import type { Portfolio, PortfolioOption, PortfolioOverview, TradeRow } from "./trading";
 import type {
   BacktestSummary,
+  Checklist,
+  ChecklistDimension,
   EarningsEvent,
   MarketsSummary,
-  Recommendation,
   ScreenerResult,
+  SymbolChecklist,
 } from "./types";
 
 type Schemas = components["schemas"];
@@ -71,8 +73,12 @@ export type _MarketsSummaryMatches = Expect<
   Assignable<MarketsSummary, Schemas["MarketsSummaryOut"]>
 >;
 export type _ScreenerMatches = Expect<Assignable<ScreenerResult, Schemas["ScreenerResultOut"]>>;
-export type _RecommendationMatches = Expect<
-  Assignable<Recommendation, Schemas["RecommendationOut"]>
+export type _ChecklistMatches = Expect<Assignable<Checklist, Schemas["ChecklistOut"]>>;
+export type _ChecklistDimensionMatches = Expect<
+  Assignable<ChecklistDimension, Schemas["ChecklistDimensionOut"]>
+>;
+export type _SymbolChecklistMatches = Expect<
+  Assignable<SymbolChecklist, Schemas["SymbolChecklistOut"]>
 >;
 export type _EarningsEventMatches = Expect<Assignable<EarningsEvent, Schemas["EarningsEventOut"]>>;
 export type _BacktestSummaryMatches = Expect<

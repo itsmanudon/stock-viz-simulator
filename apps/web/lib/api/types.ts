@@ -123,29 +123,95 @@ export type Indicators = {
   partial_bar_excluded?: string | null;
 };
 
-export type RecommendationVote = {
-  id: string;
-  label: string;
-  passed: boolean;
-  detail: string;
-  /** False when the vote's input is missing (no scored news this week). */
-  available: boolean;
+/** A2.4: met, not met, or unknown (an input is missing and nothing failed). */
+export type ChecklistStatus = "met" | "not_met" | "unknown";
+export type ChecklistGrade = "A" | "B" | "C" | "D" | "insufficient";
+export type ChecklistScope = "all" | "india" | "other";
+
+/** The latest evidence study of one dimension setup version (association, not advice). */
+export type ChecklistEvidence = {
+  grade: ChecklistGrade;
+  n_events: number;
+  symbols: number;
+  horizon: number;
+  window_start: string;
+  window_end: string;
+  mean_excess?: number | null;
+  t_stat?: number | null;
+  hit_rate?: number | null;
+  mean_net_return?: number | null;
+  base_rate?: number | null;
+  overlapping_skipped: number;
+  universe: BacktestUniverse;
+  computed_at: string;
 };
 
-export type Recommendation = {
+export type ChecklistConditionDef = { label: string; rule: string };
+
+/** One setup of a dimension: every listing, or Indian / other listings (delivery). */
+export type ChecklistVariant = {
+  scope: ChecklistScope;
+  setup_id: number;
+  setup_version_id: number;
+  version: number;
+  canonical: string;
+  hash: string;
+  conditions: ChecklistConditionDef[];
+  evidence?: ChecklistEvidence | null;
+};
+
+export type ChecklistDimension = {
+  key: string;
+  name: string;
+  summary: string;
+  source: string;
+  variants: ChecklistVariant[];
+};
+
+export type ChecklistCondition = {
+  label: string;
+  rule: string;
+  status: ChecklistStatus;
+  reason?: string | null;
+};
+
+export type ChecklistResult = {
+  key: string;
+  scope: ChecklistScope;
+  setup_version_id?: number | null;
+  status: ChecklistStatus;
+  reason?: string | null;
+  conditions?: ChecklistCondition[];
+};
+
+export type ChecklistRow = {
   ticker: string;
   name: string;
-  sector: string | null;
-  score: number;
-  /** Votes that could have passed: 7, or 6 without scored news (audit SR-9). */
-  max_score: number;
-  rationale: string[];
-  votes: RecommendationVote[];
-  sentiment_7d: number | null;
+  sector?: string | null;
+  currency?: string | null;
+  session_date: string;
+  met: number;
+  evaluated: number;
+  total: number;
+  results: ChecklistResult[];
   computed_at: string;
-  /** SR-8 (Phase 7.5): the newest bar behind the votes; stale if it trails. */
-  bar_date: string | null;
   stale: boolean;
+};
+
+export type Checklist = {
+  dimensions: ChecklistDimension[];
+  rows: ChecklistRow[];
+  total: number;
+  universe: BacktestUniverse;
+  disclaimer: string;
+};
+
+export type SymbolChecklist = {
+  ticker: string;
+  dimensions: ChecklistDimension[];
+  row?: ChecklistRow | null;
+  universe: BacktestUniverse;
+  disclaimer: string;
 };
 
 export type ScreenerResult = {
