@@ -93,7 +93,7 @@ export const DOC_SECTIONS: DocSection[] = [
       {
         slug: "portfolio",
         title: "Portfolio",
-        summary: "The headline figures, each tab, the daily history and the leaderboard.",
+        summary: "The headline figures, each tab and the daily history.",
       },
       {
         slug: "returns-and-risk",

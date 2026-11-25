@@ -29,11 +29,11 @@ Each app has its own `CLAUDE.md` with deeper notes. Skim those before editing.
 Beyond the original markets/charts/news/recommendations pages, the app now
 includes: paper trading with **pending limit/stop orders** and **options**
 (pricing, positions, expiry settlement), **dividends** and **multi-currency
-FX**, **backtesting** (`/backtest`), **screener**, **leaderboard**,
-**watchlists**, **price alerts**, per-ticker **comments** and **AI sentiment**
-(Anthropic, optional), and a **simulated quote** ticker over **SSE**
-(`/v1/stream/quotes/{ticker}` — Gaussian random walk from the latest close,
-not exchange real-time data). Remaining product/ops constraints:
+FX**, **backtesting** (`/backtest`), **screener**, **watchlists**, **price
+alerts** and **AI sentiment** (Anthropic, optional). A0 hygiene (25 Nov 2026)
+removed the leaderboard, per-ticker comments (the table is archived in the
+`archive` schema) and the simulated random-walk quote stream: prices show the
+latest close with its date. Remaining product/ops constraints:
 [`docs/KNOWN_LIMITATIONS.md`](./docs/KNOWN_LIMITATIONS.md).
 
 News sentiment runs through a pluggable provider (Anthropic, an external HTTP

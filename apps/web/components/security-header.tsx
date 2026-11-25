@@ -3,7 +3,6 @@ import Link from "next/link";
 
 import { AlertForm } from "@/components/alert-form";
 import { DeltaPill } from "@/components/dashboard/delta-pill";
-import { LivePriceBadge } from "@/components/live-price-badge";
 import { WatchlistToggle } from "@/components/watchlist-toggle";
 import type { SymbolDetail } from "@/lib/api";
 import { splitMinorUnits } from "@/lib/portfolio-view-model";
@@ -110,13 +109,6 @@ export function SecurityHeader({
                 {timeframe} return since {formatCloseDate(periodStart)}
               </p>
             ) : null}
-            <div className="mt-1.5 sm:flex sm:justify-end">
-              <LivePriceBadge
-                ticker={symbol.ticker}
-                initialPrice={latestClose}
-                currency={symbol.currency}
-              />
-            </div>
           </div>
 
           <div className="flex items-center gap-2">

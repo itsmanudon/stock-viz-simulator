@@ -2,7 +2,6 @@
 
 TICKER_TABLES = (
     "alerts",
-    "comments",
     "corporate_actions",
     "dividends",
     "earnings_events",

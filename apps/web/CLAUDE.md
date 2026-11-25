@@ -22,12 +22,11 @@ app/
                    fill, alert target) format in the symbol-native currency.
   api/auth/        NextAuth handler
   markets/         sortable symbol table
-  stocks/[ticker]/ chart + indicators + news + comments + sentiment + simulated quote badge
+  stocks/[ticker]/ chart + indicators + news + financials + position & orders (latest close with its date)
   compare/         Research workspace: normalized multi-ticker comparison
   screener/        filterable symbol screener
   backtest/        Research workspace: strategy experiment + equity curve
   recommendations/ Research workspace titled Signals (route unchanged)
-  leaderboard/     user NAV ranking
   news/
   sign-in-required/  redirect target for unauthenticated access
   layout.tsx       document providers + skip link only; route groups own chrome
@@ -99,9 +98,9 @@ components/
                    from the centre is the vote share) and
                    `liquid-allocation.tsx` (an example account's split at two
                    real closes, SVG goo), on /product/research and
-                   /product/paper-trading; and `departure-board.tsx`, the
-                   split-flap board in the landing Rankings section, which
-                   keeps an sr-only list of the same rows. Batch 3 adds
+                   /product/paper-trading (the landing Rankings section and its
+                   `departure-board.tsx` went with the leaderboard in A0).
+                   Batch 3 adds
                    `market-weather.tsx` (faint aurora behind the hero and
                    closing CTA, coloured by `breadth.ts`: share of symbols that
                    closed up; the hero chips and the CTA state the figure),
@@ -378,7 +377,7 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   domain. See [`docs/RESEARCH.md`](../../docs/RESEARCH.md). Keep URL state
   shareable (`tickers`/`tf`, `ticker`, `min`/`signal`/`q`). Do not present
   Signals as AI advice; the engine is a seven-vote rule set. Replay Lab is
-  future-blind historical simulation; never fetch live bars, SSE quotes, or
+  future-blind historical simulation; never fetch live bars or
   news into `/replay/[id]`. Forensics (`?view=forensics`) may call session
   `/forensics`, `/journal`, `/history`, `/summary`, and `/fills` only.
 - `/backtest` starts on the first symbol with stored closes and ends its
@@ -503,7 +502,7 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   `TZ=Asia/Tokyo` as well as UTC.
 - The product sidebar follows the Aurora board v3 (`lib/app-navigation.ts`):
   Home, Markets and Earnings, then labelled sections (Research, Trade,
-  Portfolio, Community) whose headings are not links but light up while one
+  Portfolio) whose headings are not links but light up while one
   of their routes is open, including `/stocks/*` for Research. Settings sits
   apart at the bottom and only for signed-in users (proxy.ts guards it). The
   wordmark carries the `EOD · SIMULATED` tag, and the top bar shows
@@ -614,8 +613,9 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   buys, from `GET /api/limits-check` (a route handler over
   `/v1/portfolio/limits/check`); it is advice only, the API checks again
   when the order fills.
-- Phase 8.6: the leaderboard keys rows by `handle` (SR-12) and Settings
-  sets the public name (`display_name`; empty shows the handle). UX-9: the
+- A0 (25 Nov 2026): the leaderboard, comments and the simulated quote
+  badge are gone; Settings keeps display currency, account currency and risk
+  limits (`lib/api/profile.ts`). Phase 8.6, UX-9: the
   NAV chart's axis prints the account's currency with grouping
   (`EquityCurve` `currency`, `axisFormatter`), and the metrics strip says
   how each figure is measured (Sharpe names the risk-free rate). The

@@ -5,7 +5,6 @@ These are the current, code-verified boundaries of StockViz. They are not commit
 ## Market data and analytics
 
 - **End-of-day data, not an exchange feed.** yfinance is the primary daily OHLCV source and Alpha Vantage is a fallback when configured. Quotes, charts, fills, backtests, and alerts use cached daily closes.
-- **Simulated live badge.** The ticker SSE endpoint emits a labeled Gaussian random walk from the latest close; it is not a tradable real-time quote.
 - **Provider quality and freshness.** yfinance and Newsdata.io can be delayed, unavailable, or rate-limited. Seed/backfill data is historical and does not prove a hosted feed is current.
 - **Massive is evaluation-only.** The adapter is a private, nonpersistent
   shadow. Live semantic statistics and fractional-volume database precision

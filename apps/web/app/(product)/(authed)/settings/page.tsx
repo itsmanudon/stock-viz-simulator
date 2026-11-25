@@ -1,9 +1,9 @@
 /**
  * /settings — user preferences (Aurora board v3).
  *
- * Main column: display currency and leaderboard visibility (server actions,
- * so both work without JavaScript), then interface preferences that live in
- * this browser. Aside: the account's paper card and details, keyboard
+ * Main column: display currency, account currency and risk limits (server
+ * actions, so they work without JavaScript), then interface preferences that
+ * live in this browser. Aside: the account's paper card and details, keyboard
  * shortcuts, and the system context.
  */
 
@@ -15,21 +15,13 @@ import { PageHeader } from "@/components/page-header";
 import { PaperCard } from "@/components/paper-card";
 import { RiskLimitsForm } from "@/components/risk-limits-form";
 import { AccountDetails, InterfacePanel, KeyboardShortcuts } from "@/components/settings-workspace";
-import { getProfile, patchProfile } from "@/lib/api/leaderboard";
+import { getProfile, patchProfile } from "@/lib/api/profile";
 import { getPortfolio, getRiskLimits, putBaseCurrency, putRiskLimits } from "@/lib/api/trading";
 import { limitsFromForm } from "@/lib/risk-limits";
-import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Settings" };
 
 const SUPPORTED_CURRENCIES = ["USD", "EUR", "GBP", "JPY", "CAD", "INR"] as const;
-
-async function setPublicProfile(formData: FormData) {
-  "use server";
-  const next = formData.get("public_profile") === "true";
-  await patchProfile({ public_profile: next });
-  revalidatePath("/settings");
-}
 
 async function setDisplayCurrency(formData: FormData) {
   "use server";
@@ -53,19 +45,6 @@ async function setBaseCurrency(formData: FormData) {
   for (const path of ["/settings", "/portfolio", "/dashboard", "/trade"]) revalidatePath(path);
 }
 
-async function setDisplayName(formData: FormData) {
-  "use server";
-  const raw = formData.get("display_name");
-  const name = typeof raw === "string" ? raw.trim() : "";
-  try {
-    await patchProfile({ display_name: name });
-  } catch {
-    // 422: too short or contains "@"; the field keeps the saved name.
-  }
-  revalidatePath("/settings");
-  revalidatePath("/leaderboard");
-}
-
 async function setRiskLimits(formData: FormData) {
   "use server";
   await putRiskLimits(limitsFromForm(formData));
@@ -81,7 +60,6 @@ export default async function SettingsPage() {
   ]);
   const base = portfolio?.base_currency ?? "USD";
   const other = base === "USD" ? "INR" : "USD";
-  const visible = profile.public_profile;
 
   return (
     <div className="density-workspace mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 lg:py-7">
@@ -170,72 +148,6 @@ export default async function SettingsPage() {
               <RiskLimitsForm limits={limits} action={setRiskLimits} />
             </SettingsPanel>
           ) : null}
-
-          <SettingsPanel title="Leaderboard" id="leaderboard-heading">
-            <form action={setPublicProfile} className="flex items-center justify-between gap-4">
-              <input type="hidden" name="public_profile" value={visible ? "false" : "true"} />
-              <div className="min-w-0">
-                <p id="leaderboard-label" className="text-sm font-medium">
-                  Show me on the public leaderboard
-                </p>
-                <p className="mt-0.5 text-xs leading-relaxed text-text-tertiary">
-                  Currently {visible ? "visible" : "hidden"}. Only your public name and return are
-                  shown; holdings, cash and your email never are.
-                </p>
-              </div>
-              {/* A submit button acting as a switch: one press saves the
-                  opposite state, and it works without JavaScript. */}
-              <button
-                type="submit"
-                role="switch"
-                aria-checked={visible}
-                aria-labelledby="leaderboard-label"
-                className={cn(
-                  "relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border transition",
-                  visible ? "border-brand bg-brand" : "border-border bg-surface-secondary",
-                )}
-              >
-                <span
-                  aria-hidden
-                  className={cn(
-                    "size-4 rounded-full bg-background shadow transition-transform",
-                    visible ? "translate-x-6" : "translate-x-1",
-                  )}
-                />
-              </button>
-            </form>
-            <form
-              action={setDisplayName}
-              className="mt-4 flex flex-wrap items-end gap-3 border-t border-border-muted pt-4"
-            >
-              <div className="grid gap-1.5">
-                <label htmlFor="display-name" className="text-xs text-text-tertiary">
-                  Public name
-                </label>
-                <input
-                  id="display-name"
-                  name="display_name"
-                  maxLength={40}
-                  defaultValue={profile.display_name ?? ""}
-                  placeholder={profile.public_handle ?? "Your public name"}
-                  className="flex h-9 w-56 rounded-md border border-input bg-transparent px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                />
-              </div>
-              <button
-                type="submit"
-                className="h-9 rounded-full border border-border px-5 text-sm font-medium transition hover:bg-surface-secondary"
-              >
-                Save name
-              </button>
-              <p className="w-full text-xs leading-relaxed text-text-tertiary">
-                Shown on the leaderboard as{" "}
-                <span className="font-medium text-foreground">
-                  {profile.display_name || profile.public_handle || "your handle"}
-                </span>
-                . Leave it empty to show your random handle. 2 to 40 characters, no &quot;@&quot;.
-              </p>
-            </form>
-          </SettingsPanel>
 
           <SettingsPanel title="Interface" id="interface-heading">
             <InterfacePanel />

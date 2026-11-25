@@ -161,7 +161,7 @@ async function resetDemoAccounts(client, emails) {
     "DELETE FROM watchlist_items WHERE watchlist_id IN (SELECT id FROM watchlists WHERE user_id = ANY($1))",
     "DELETE FROM watchlists WHERE user_id = ANY($1)",
     "DELETE FROM alerts WHERE user_id = ANY($1)",
-    "DELETE FROM comments WHERE user_id = ANY($1)",
+    "DELETE FROM archive.comments WHERE user_id = ANY($1)",
     "DELETE FROM portfolio_snapshots WHERE user_id = ANY($1)",
     "DELETE FROM portfolios WHERE user_id = ANY($1)",
     "DELETE FROM users WHERE id = ANY($1)",

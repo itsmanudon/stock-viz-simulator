@@ -3,7 +3,6 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { auth } from "@/auth";
-import { CommentsSection } from "@/components/comments-section";
 import {
   ContextualTradeTicket,
   type TicketPosition,
@@ -29,7 +28,6 @@ import {
   getNewsForTicker,
   getSymbol,
 } from "@/lib/api";
-import { listComments } from "@/lib/api/comments";
 import { getFundamentals, getValuation, getValuationHistory } from "@/lib/api/fundamentals";
 import { getEventStudy } from "@/lib/api/research";
 import {
@@ -130,7 +128,6 @@ export default async function StockPage({
     indicatorBundle,
     news,
     session,
-    comments,
     fundamentalsAnnual,
     fundamentalsQuarterly,
     valuationNow,
@@ -143,7 +140,6 @@ export default async function StockPage({
     getIndicators(ticker, { names: requestedIndicators, limit: timeframeDays }),
     getNewsForTicker(ticker, 8).catch(() => []),
     auth(),
-    listComments(ticker).catch(() => [] as Awaited<ReturnType<typeof listComments>>),
     // Phase 6.4: a failing financials call hides the panel, never the page.
     getFundamentals(ticker, "annual").catch(() => null),
     getFundamentals(ticker, "quarter").catch(() => null),
@@ -155,7 +151,6 @@ export default async function StockPage({
   ]);
 
   const signedIn = Boolean(session?.user?.id);
-  const currentUserId = session?.user?.id ? Number(session.user.id) : null;
   let portfolio: Portfolio | null = null;
   let tickerOrders: PendingOrder[] | null = null;
   let inWatchlist = false;
@@ -200,7 +195,6 @@ export default async function StockPage({
     selectedIndicators,
   );
   const showMacd = selectedIndicators.includes("macd");
-  const validCurrentUserId = Number.isFinite(currentUserId) ? currentUserId : null;
   const activeStockUrl = buildStockChartHref(ticker, timeframe, selectedIndicators);
   const ticketProps = {
     ticker,
@@ -337,14 +331,6 @@ export default async function StockPage({
             ) : (
               <GuestPersonalContext ticker={ticker} callbackUrl={activeStockUrl} />
             )
-          }
-          discussion={
-            <CommentsSection
-              ticker={ticker}
-              comments={comments}
-              currentUserId={validCurrentUserId}
-              embedded
-            />
           }
         />
       </section>

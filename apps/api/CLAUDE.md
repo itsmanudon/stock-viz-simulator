@@ -24,7 +24,7 @@ src/stockviz/
   schemas.py        shared Pydantic response models
   observability.py  Sentry bootstrap (no-op without DSN)
   models/           SQLModel tables (market, portfolio, user, order, option, dividend,
-                    earnings, alert, comment, recommendation, watchlist, metrics, sentiment,
+                    earnings, alert, recommendation, watchlist, metrics, sentiment,
                     events — outbox, consumer inbox, derived trade activity,
                     execution — SimulatedExecution provenance,
                     replay — ReplaySession / ReplayPosition / ReplayFill /
@@ -42,8 +42,8 @@ src/stockviz/
                     markets (one-call /markets summary), indicators, news,
                     recommendations, trading, orders, options, backtest,
                     experiments (saved backtests, Phase 5.4),
-                    screener, sentiment, leaderboard, watchlist, alerts,
-                    comments, earnings, stream (SSE simulated quotes), replay
+                    screener, sentiment, watchlist, alerts, profile
+                    (display currency), earnings, replay
                     (isolated ReplaySession), health
                     (`GET /live` liveness, `GET /health` readiness + DB)
   services/
@@ -396,14 +396,15 @@ single-order cap only (`enforce_option_open`, 409). Sells are never checked.
 `GET`/`PUT /v1/portfolio/limits`, `GET /v1/portfolio/limits/check?ticker=&quantity=`
 (the order review's preview).
 
-**Phase 8.6 small items.** SR-12: `users.public_handle` (unique, random
-`trader-xxxxxx`, given to every existing user by migration `c4f6a8b0d923`
-and to anyone else when the profile or the leaderboard first needs it) and
-`users.display_name` (2 to 40 characters, no "@", set through `PATCH
-/v1/profile`). `/v1/leaderboard` returns `handle` and `username` (display
-name, else handle), never the database id, the signup name or the email,
-and is limited to 30/min; the cache keeps each entry's user id beside it for
-the visibility check only (`visible_leaderboard`). Goals: `GET
+**Removed in A0 (25 Nov 2026).** The leaderboard, comments and the
+simulated quote stream (`/v1/stream/quotes`) are gone. `/v1/profile`
+(`routers/profile.py`) now carries the display currency only. The
+`users.public_profile`, `public_handle` and `display_name` columns stay,
+unused. Migration `89b9ba1b46b5` moves `comments` to the `archive` schema
+(rows kept; its keys to live tables and its trigger dropped, restored by the
+downgrade); dropping it is the owner's call.
+
+**Phase 8.6 small items.** Goals: `GET
 /v1/portfolio/risk?goal=` adds `monte_carlo.goal` and `prob_goal`, the share
 of the one-year bootstrap paths ending at or above it.
 
@@ -600,10 +601,9 @@ users ─┬─ portfolios ─┬─ positions           (qty + native-currency 
        │              ├─ pending_orders       (limit / stop_loss / take_profit)
        │              ├─ options_positions    (also carries user_id)
        │              └─ portfolio_dividends  (credited payouts)
-       ├─ portfolio_snapshots   (daily NAV — powers leaderboard + equity curve)
+       ├─ portfolio_snapshots   (daily NAV — powers the equity curve and returns)
        ├─ watchlists ── watchlist_items
        ├─ alerts
-       └─ comments              (parent_id self-FK = one level of replies)
 
 symbols ─┬─ price_bars          (EOD OHLCV; everything prices off the latest 1d close)
          ├─ news_articles ── news_sentiment   (one row per article+model)
@@ -639,8 +639,7 @@ Current budget: **60/min** on the public reads
 screener, **20/min** backtest. Authenticated routers are deliberately *not*
 slowapi-limited — every authed request arrives from the Next.js server, so a
 per-IP limit would be one global bucket for all users. Where per-user
-throttling matters, do it in the router like comments does (5 posts/min via
-a DB count of recent rows). Disable the limiter with `RATELIMIT_ENABLED=0` — note that slowapi reads that
+throttling matters, do it in the router with a DB count of recent rows. Disable the limiter with `RATELIMIT_ENABLED=0` — note that slowapi reads that
 variable itself and keeps the raw string, so `limiter.py` parses it and assigns
 a real bool after construction; without that, `"0"` was truthy and the switch
 did nothing.

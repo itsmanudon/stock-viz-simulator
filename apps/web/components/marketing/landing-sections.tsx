@@ -13,13 +13,11 @@ import type { CSSProperties, ReactNode } from "react";
 
 import { loadPhoneScreens } from "@/components/marketing/hero-phone-screens";
 import { DecodeText } from "@/components/marketing/proofs/decode-text";
-import { type BoardRow, DepartureBoard } from "@/components/marketing/proofs/departure-board";
 import { ExplodedCandle } from "@/components/marketing/proofs/exploded-candle";
 import { ScrollStory } from "@/components/marketing/scroll-story";
 import { Sparkline } from "@/components/sparkline";
 import { Button } from "@/components/ui/button";
 import { ApiError, getBars, getMarketsSummary } from "@/lib/api";
-import { type LeaderboardEntry, getLeaderboard } from "@/lib/api/leaderboard";
 import { formatCurrency } from "@/lib/portfolio-view-model";
 import { describeFillRule, formatCloseDate } from "@/lib/stock-workspace";
 import { cn } from "@/lib/utils";
@@ -358,75 +356,6 @@ export function StatementBand() {
 }
 
 /* ---------------------------------------------------------------------------
- * Rankings: the public leaderboard. Only people who chose a public profile
- * appear (the API enforces it), and the section is left out when none do.
- */
-/** A trader's name as it fits on the board: whole if it fits, else "AVA L". */
-function boardName(name: string) {
-  if (name.length <= 12) return name;
-  const [first, ...rest] = name.split(" ");
-  const initial = rest[0]?.[0];
-  return initial ? `${first.slice(0, 10)} ${initial}` : name.slice(0, 12);
-}
-
-export async function Rankings() {
-  const entries = (await safe(() => getLeaderboard())) ?? [];
-  const top = entries.slice(0, 5);
-  if (top.length === 0) return null;
-  const byReturn: BoardRow[] = top.map((entry) => ({
-    rank: String(entry.rank),
-    name: boardName(entry.username),
-    value: `${entry.return_pct >= 0 ? "+" : ""}${entry.return_pct.toFixed(2)}%`,
-    tone: entry.return_pct > 0 ? "pos" : entry.return_pct < 0 ? "neg" : "none",
-  }));
-  const byValue: BoardRow[] = [...top]
-    .sort((a, b) => Number(b.portfolio_value) - Number(a.portfolio_value))
-    .map((entry, index) => ({
-      rank: String(index + 1),
-      name: boardName(entry.username),
-      value: `$${Math.round(Number(entry.portfolio_value)).toLocaleString("en-US")}`,
-      tone: "none",
-    }));
-  return (
-    <Wrap>
-      <SectionHead title="Real paper." soft="Real rankings." center>
-        The public leaderboard, ranked by return on the same paper start.
-      </SectionHead>
-      {/* The board is a picture of the list below it; the list is what a
-          screen reader reads, in the board's first order. */}
-      <div
-        className="relative mx-auto mt-10 w-full max-w-3xl overflow-hidden rounded-3xl border border-border-muted bg-card"
-        style={{ height: `${4.5 + top.length * 2.4}rem` }}
-      >
-        <DepartureBoard
-          boards={[
-            { title: "BY RETURN", rows: byReturn },
-            { title: "BY VALUE", rows: byValue },
-          ]}
-        />
-      </div>
-      <ol className="sr-only">
-        {top.map((entry: LeaderboardEntry) => (
-          <li key={entry.handle}>
-            Rank {entry.rank}: {entry.username}, {entry.return_pct >= 0 ? "up" : "down"}{" "}
-            {Math.abs(entry.return_pct).toFixed(2)}%, account value{" "}
-            {formatCurrency(entry.portfolio_value, "USD")}
-          </li>
-        ))}
-      </ol>
-      <p className="mt-4 text-center">
-        <Link
-          href="/leaderboard"
-          className="text-sm text-text-secondary underline-offset-4 hover:underline"
-        >
-          See the full leaderboard
-        </Link>
-      </p>
-    </Wrap>
-  );
-}
-
-/* ---------------------------------------------------------------------------
  * FAQ. Answers describe what the product does today, nothing planned.
  */
 const FAQ = [
@@ -445,10 +374,6 @@ const FAQ = [
   {
     q: "Are the signals advice?",
     a: "No. Signals are a seven-rule vote you can read line by line, including the rules that failed.",
-  },
-  {
-    q: "Who appears on the leaderboard?",
-    a: "Only people who chose to make their profile public. You can change that in Settings at any time.",
   },
 ];
 

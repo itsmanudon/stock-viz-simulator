@@ -222,7 +222,7 @@ test.describe("product pages", () => {
   });
 });
 
-test.describe("sign-in pages and leaderboard", () => {
+test.describe("sign-in pages", () => {
   for (const [path, heading] of [
     ["/login", "Sign in"],
     ["/signup", "Create your account"],
@@ -245,25 +245,5 @@ test.describe("sign-in pages and leaderboard", () => {
     expect(email && pitch && email.y < pitch.y).toBe(true);
     // The field is on the first screen, not half a screen down.
     expect(email && email.y < 844).toBe(true);
-  });
-
-  test("the leaderboard puts its top three on a podium", async ({ page }) => {
-    await page.goto("/leaderboard");
-    const podium = page.getByRole("list", { name: "Top three traders" });
-    if ((await podium.count()) === 0) test.skip(true, "Fewer than three public profiles");
-    await expect(podium.getByRole("listitem")).toHaveCount(3);
-  });
-
-  test("the home rankings board is backed by a readable list", async ({ page }) => {
-    // The split-flap board is a picture; the ranked list beside it carries
-    // the same rows for assistive technology.
-    await page.goto("/");
-    const section = page.locator("section", { hasText: "Real rankings." });
-    if ((await section.count()) === 0) test.skip(true, "No public profiles");
-    const board = section.locator("[data-cell]").first();
-    expect(await board.evaluate((el) => el.closest("[aria-hidden]") !== null)).toBe(true);
-    const items = section.locator("ol li");
-    expect(await items.count()).toBeGreaterThan(0);
-    await expect(items.first()).toContainText("Rank 1:");
   });
 });
