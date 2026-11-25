@@ -99,9 +99,9 @@ def indian_holidays() -> list[date]:
 
     The package's BSE list before ``FIRST_MAINTAINED_YEAR`` (which also lists
     some weekend festivals), then the maintained table (official years, then
-    provisional ones). A special session on the same date wins: the package
-    lists Diwali Laxmi Pujan as a holiday even on the weekends NSE held
-    Muhurat trading (2016, 2019, 2020).
+    provisional ones), with ``HISTORY_CORRECTIONS`` applied. A special
+    session on the same date wins: the package lists Diwali Laxmi Pujan as a
+    holiday on every Muhurat day, weekend or weekday.
     """
     from exchange_calendars.exchange_calendar_xbom import precomputed_bse_holidays
 
@@ -112,8 +112,11 @@ def indian_holidays() -> list[date]:
         for stamp in precomputed_bse_holidays
         if stamp.year < india_holidays.FIRST_MAINTAINED_YEAR
     }
+    corrections = india_holidays.HISTORY_CORRECTIONS
     closed = history | set(india_holidays.maintained_holidays())
-    return sorted(closed - set(india_holidays.SPECIAL_SESSIONS))
+    closed |= {day for day, is_open in corrections.items() if not is_open}
+    opened = set(india_holidays.SPECIAL_SESSIONS) | {day for day, o in corrections.items() if o}
+    return sorted(closed - opened)
 
 
 def _indian_calendar(venue: str) -> Any:

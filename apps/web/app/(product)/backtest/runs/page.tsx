@@ -22,6 +22,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { universeSummary } from "@/components/universe-note";
 import { formatUtcDateTime } from "@/lib/api-time";
 import { listExperimentRuns } from "@/lib/api/experiments";
 
@@ -78,6 +79,15 @@ export default async function SavedBacktestsPage() {
                           ? "sweep"
                           : "backtest"}
                     </span>
+                    {run.universe ? (
+                      <span
+                        className="block text-2xs text-text-tertiary"
+                        title={run.universe.note}
+                        data-testid="run-universe"
+                      >
+                        {universeSummary(run.universe)}
+                      </span>
+                    ) : null}
                   </TableCell>
                   <TableCell className="hidden text-xs md:table-cell">
                     {run.execution_profile} · fees {run.fee_schedule}

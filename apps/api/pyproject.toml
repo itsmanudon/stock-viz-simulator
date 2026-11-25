@@ -23,6 +23,8 @@ dependencies = [
     "redis>=5.2,<7",
     "pyjwt[crypto]>=2.9",
     "exchange-calendars>=4.13.2",
+    "pyarrow>=26.0.1",
+    "lark>=1.2.2",
 ]
 
 [dependency-groups]

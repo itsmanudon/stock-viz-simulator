@@ -23,6 +23,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { UniverseNote } from "@/components/universe-note";
 import { formatUtcDateTime } from "@/lib/api-time";
 import {
   type ExperimentRun,
@@ -73,6 +74,7 @@ export default async function SavedRunPage({ params }: { params: Promise<{ runId
         meta={<MetaChip>Saved {formatUtcDateTime(run.created_at)}</MetaChip>}
         actions={<RerunBacktestRun runId={run.id} />}
       />
+      <UniverseNote universe={run.universe} />
       <FigureStrip
         label="Run result"
         figures={[

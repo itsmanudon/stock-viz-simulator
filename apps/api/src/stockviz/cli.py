@@ -80,9 +80,14 @@ DEFAULT_SHADOW_OUTPUT = Path("artifacts/private/massive-shadow")
 
 
 def _cmd_seed(_args: argparse.Namespace) -> int:
+    from stockviz.services.setups.presets import seed_presets
+
     with Session(engine) as session:
         n = seed_symbols(session)
+        presets = seed_presets(session)  # A2.2: the read-only system setups
     print(f"seeded {n} symbols")
+    for key, state in presets.items():
+        print(f"preset {key}: {state}")
     return 0
 
 
@@ -667,6 +672,179 @@ def _cmd_instrument_verify(_args: argparse.Namespace) -> int:
         print(f"  bars {key}: by ticker {ticker}, by instrument {instrument}")
     print("identity verified" if report.ok else "identity check FAILED")
     return 0 if report.ok else 1
+
+
+def _cmd_nse_load(args: argparse.Namespace) -> int:
+    """Parse NSE end-of-day files placed by hand (A1.1). Nothing downloads.
+
+    Dry run unless ``--apply``: per file, the format, date, rows, matched and
+    unmatched rows and what would load; nothing is written, not even the
+    archive. ``--apply`` archives each file, records it in ``data_files`` and
+    loads it. Exit 1 if any file failed, was unrecognised or had the wrong
+    date; a file already recorded (same SHA-256) is a no-op.
+    """
+    from stockviz.services.nse.process import process_file
+
+    failed = False
+    with Session(engine) as session:
+        for raw in args.paths:
+            report = process_file(session, Path(raw), apply=args.apply)
+            failed = failed or not report.ok
+            day = report.trading_date.isoformat() if report.trading_date else "-"
+            print(f"{report.path}: {report.status} ({report.source}, {day})")
+            if report.error:
+                print(f"  {report.error}")
+            plan = report.plan
+            if plan is not None:
+                print(
+                    f"  rows {plan.rows_total}, in loaded series {plan.in_series}, "
+                    f"matched {plan.matched}, unmatched {plan.unmatched}, "
+                    f"incomplete {plan.incomplete}, isin conflicts {plan.isin_conflicts}, "
+                    f"new isin identifiers {len(plan.isins_to_record)}"
+                )
+                if plan.unmatched_symbols:
+                    print(
+                        f"  unmatched (first {len(plan.unmatched_symbols)}): "
+                        + ", ".join(plan.unmatched_symbols)
+                    )
+                if report.result is not None:
+                    r = report.result
+                    print(
+                        f"  loaded {r.loaded} ({r.inserted} new, {r.updated} updated, "
+                        f"{r.unchanged} unchanged), isin identifiers recorded {r.isins_recorded}"
+                    )
+                elif not args.apply:
+                    print(f"  would load {plan.matched}")
+            if report.archived_path and args.apply:
+                print(f"  archived at {report.archived_path} (data_files id {report.data_file_id})")
+    if not args.apply:
+        print("dry run: nothing written. Run with --apply to archive and load.")
+    return 1 if failed else 0
+
+
+def _cmd_export_parquet(args: argparse.Namespace) -> int:
+    """Write the spine tables as monthly zstd Parquet with a manifest (A1.6, M1.8).
+
+    For the laptop's ``lab/`` package. Read-only on the database. ``--since``
+    re-exports only months on or after it. Refuses an ``--out`` inside the git
+    work tree that git would not ignore: exports hold exchange data.
+    """
+    from stockviz.services.export.parquet import (
+        ExportError,
+        export_parquet,
+        inside_unignored_worktree,
+    )
+
+    out = Path(args.out)
+    if inside_unignored_worktree(out):
+        print(
+            f"refusing {out}: it is inside the repository and not git-ignored. "
+            "Exports hold exchange data and are never committed; use a path outside "
+            "the repository or under lab/data/."
+        )
+        return 1
+    since = date.fromisoformat(args.since) if args.since else None
+    try:
+        report = export_parquet(engine, out, since=since, tables=args.tables)
+    except ExportError as exc:
+        print(f"export failed: {exc}")
+        return 1
+    for t in report.tables:
+        if t.status == "empty":
+            print(f"{t.name}: empty, skipped")
+            continue
+        mode = "full" if t.full else f"since {report.manifest['since']}"
+        entry = report.manifest["tables"][t.name]
+        print(
+            f"{t.name} ({mode}): wrote {t.partitions_written} partition(s), "
+            f"{t.rows_written} rows; kept {t.partitions_kept}, removed {t.partitions_removed}; "
+            f"{entry['rows']} rows in {len(entry['partitions'])} partition(s) in total"
+        )
+    m = report.manifest
+    print(
+        f"manifest {out / 'manifest.json'} (schema {m['schema_version']}, "
+        f"commit {m['source_commit']}, exported {m['exported_at']})"
+    )
+    return 0
+
+
+def _cmd_rule_check(args: argparse.Namespace) -> int:
+    """Parse, type-check and judge a Rule DSL rule (A2.1, M4.1). Read-only.
+
+    Prints the canonical form and its hash, then for each ticker met /
+    not_met / unknown (with the reason) at ``--date`` or, by default, the
+    latest completed session of the ticker's venue, judged on the latest
+    stored bar on or before it. Exit 2 on a syntax or type error, 1 when a
+    ticker is unknown or has no bar.
+    """
+    from stockviz.models import Symbol
+    from stockviz.services.dsl import RuleError, compile_rule, evaluate_at, load_symbol
+    from stockviz.services.markets.calendar import latest_completed_session, venue_for_ticker
+
+    try:
+        rule = compile_rule(args.rule)
+    except RuleError as exc:
+        print(exc.pretty())
+        return 2
+    print(f"canonical: {rule.canonical_text}")
+    print(f"hash:      {rule.hash}")
+    warm = "the whole history" if rule.lookback is None else f"{rule.lookback} daily bars"
+    print(f"type:      {rule.type}; warm-up {warm}")
+    code = 0
+    with Session(engine) as session:
+        for raw in args.tickers:
+            ticker = raw.upper()
+            if session.get(Symbol, ticker) is None:
+                print(f"{ticker}: unknown symbol")
+                code = 1
+                continue
+            venue = venue_for_ticker(ticker)
+            target = (
+                date.fromisoformat(args.date)
+                if args.date
+                else latest_completed_session(datetime.now(UTC), venue)
+            )
+            data = load_symbol(
+                session, ticker, end=target, start=target, lookback=rule.lookback,
+                needs=rule.needs,
+            )  # fmt: skip
+            if data.bars.empty:
+                print(f"{ticker}: no daily bars on or before {target.isoformat()}")
+                code = 1
+                continue
+            bar = data.dates[-1]
+            stale = "" if bar == target else f" (latest bar; session {target.isoformat()})"
+            outcome, rows = evaluate_at(rule, data, bar, explain=args.explain)
+            print(f"{ticker} {bar.isoformat()}{stale}: {outcome.status}")
+            for reason in outcome.reasons:
+                print(f"  unknown because {reason}")
+            for row in rows:
+                tf = "" if row.timeframe == "daily" else f" [{row.timeframe}]"
+                print(f"  {row.text}{tf} = {row.value}")
+    return code
+
+
+def _cmd_nse_files(args: argparse.Namespace) -> int:
+    """List the most recent ``data_files`` rows (A1.1). Read-only."""
+    from sqlmodel import col, select
+
+    from stockviz.models.data_file import DataFile
+
+    with Session(engine) as session:
+        rows = session.exec(
+            select(DataFile)
+            .order_by(col(DataFile.received_at).desc(), col(DataFile.id).desc())
+            .limit(args.limit)
+        ).all()
+    for f in rows:
+        day = f.trading_date.isoformat() if f.trading_date else "-"
+        print(
+            f"{f.id}  {f.received_at:%Y-%m-%d %H:%M}  {f.source}  {day}  {f.parse_status}  "
+            f"rows {f.rows_total}/{f.rows_loaded} loaded  {f.file_name}  {f.sha256[:12]}"
+            + (f"  ({f.error[:80]})" if f.error else "")
+        )
+    print(f"{len(rows)} file(s)")
+    return 0
 
 
 def _refresh_aegis_sentiment() -> None:
@@ -1385,7 +1563,9 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="stockviz", description="StockViz API operator commands.")
     sub = parser.add_subparsers(dest="cmd", required=True)
 
-    sub.add_parser("seed", help="Seed symbols from companies.json").set_defaults(fn=_cmd_seed)
+    sub.add_parser(
+        "seed", help="Seed symbols from companies.json and the rule presets"
+    ).set_defaults(fn=_cmd_seed)
     p_backfill = sub.add_parser(
         "backfill", help="Load the seed CSVs into price_bars (run once after seed)"
     )
@@ -1589,6 +1769,44 @@ def main(argv: list[str] | None = None) -> int:
         "instrument-verify",
         help="Read-only: totals through the ticker and the instrument agree (Phase 4.6a)",
     ).set_defaults(fn=_cmd_instrument_verify)
+
+    p_nse = sub.add_parser(
+        "nse-load",
+        help="Parse NSE EOD files placed by hand (dry run; --apply archives and loads)",
+    )
+    p_nse.add_argument("paths", nargs="+", help="CM bhavcopy or sec_bhavdata_full files")
+    p_nse.add_argument("--apply", action="store_true", help="Archive, record and load")
+    p_nse.set_defaults(fn=_cmd_nse_load)
+    p_nse_files = sub.add_parser("nse-files", help="List recent recorded NSE files")
+    p_nse_files.add_argument("--limit", type=int, default=20)
+    p_nse_files.set_defaults(fn=_cmd_nse_files)
+
+    from stockviz.services.export.tables import TABLE_NAMES
+
+    p_export = sub.add_parser(
+        "export-parquet",
+        help="Write the spine tables as monthly Parquet partitions with a manifest (A1.6)",
+    )
+    p_export.add_argument("--out", required=True, help="Export directory")
+    p_export.add_argument(
+        "--since", default=None, help="YYYY-MM-DD; re-export only months on or after it"
+    )
+    p_export.add_argument(
+        "--tables", nargs="+", choices=TABLE_NAMES, default=None, help="Default: all"
+    )
+    p_export.set_defaults(fn=_cmd_export_parquet)
+
+    p_rule = sub.add_parser(
+        "rule-check",
+        help="Parse and type-check a Rule DSL rule and judge it for tickers (A2.1)",
+    )
+    p_rule.add_argument("rule", help='e.g. "close > sma(close, 200) and rsi(14) < 70"')
+    p_rule.add_argument("tickers", nargs="*", help="Symbols to judge the rule for")
+    p_rule.add_argument(
+        "--date", default=None, help="YYYY-MM-DD; default: the latest completed session"
+    )
+    p_rule.add_argument("--explain", action="store_true", help="Print every sub-expression's value")
+    p_rule.set_defaults(fn=_cmd_rule_check)
 
     p_aegis = sub.add_parser(
         "aegis-sync",

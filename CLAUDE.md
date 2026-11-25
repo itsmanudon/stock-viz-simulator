@@ -14,6 +14,7 @@ for the remaining honest gaps.
 ```
 apps/web/    Next.js 16 (App Router, React 19, TS, Tailwind v4, NextAuth v5) + Playwright e2e
 apps/api/    FastAPI + SQLModel + Alembic + APScheduler (Python 3.12, uv)
+lab/         research node, laptop only (A1.6): own uv project (duckdb, polars, pyarrow); `lab verify|catalog|query` over the API's `export-parquet` output. Not in any image
 infra/       docker-compose (local Postgres; Kafka via `--profile events`) + render.yaml
              k8s/ (Kustomize layers: bootstrap → migrate → app → scale; Strimzi)
 .railway/    railway.ts — Railway TypeScript IaC (lean 4-resource topology; named partial `stockviz`, Aegis owns the `aegis` partial)
@@ -29,7 +30,8 @@ Each app has its own `CLAUDE.md` with deeper notes. Skim those before editing.
 Beyond the original markets/charts/news/recommendations pages, the app now
 includes: paper trading with **pending limit/stop orders** and **options**
 (pricing, positions, expiry settlement), **dividends** and **multi-currency
-FX**, **backtesting** (`/backtest`), **screener**, **watchlists**, **price
+FX**, **backtesting** (`/backtest`), **screener** (with Rule DSL rules and
+saved **setups** and presets since A2.2, `/setups`), **watchlists**, **price
 alerts** and **news sentiment** from Aegis News. A0 hygiene (25 Nov 2026)
 removed the leaderboard, per-ticker comments (the table is archived in the
 `archive` schema), the simulated random-walk quote stream (prices show the
@@ -298,6 +300,7 @@ Full lists live in `apps/web/.env.example` and `apps/api/.env.example`
 | `SEC_USER_AGENT`                                        | api, cron                    | SEC EDGAR fundamentals (Phase 6.3): "<name> <contact>" the SEC asks automated clients for. Blank keeps EDGAR off (exit 2); set by the owner before release. Never the owner's personal address without their say-so |
 | `WEB_REVALIDATE_URL`                                     | cron                         | the web's `POST /api/revalidate` (Phase 6.6, RS-9), called last in the nightly chain with an HMAC of `INTERNAL_API_TOKEN`, so the web's cached market data refreshes together. Blank skips it (exit 2); a rejected key fails the job. Set in `.railway/railway.ts` from the web's domain |
 | `KITE_API_KEY`, `KITE_API_SECRET`                      | api                          | optional Kite Connect app for on-demand NSE/BSE history snapshots (`ingest-history --provider kite`); blank turns Kite off (exit 2). Never used nightly; the login is manual every day |
+| `NSE_ARCHIVE_DIR`                                       | api                          | A1.1: where `stockviz.cli nse-load --apply` keeps raw NSE files (default `var/nse-archive`, relative to the API's working directory; gitignored). Never commit or serve its contents. Nothing downloads into it yet |
 | `MASSIVE_SHADOW_ENABLED`, `MASSIVE_API_KEY`             | api                          | Massive is private/nonpersistent shadow only; explicit enablement without its key fails validation |
 | `KAFKA_BOOTSTRAP_SERVERS`                                | api workers                  | defaults to `localhost:9092`; workers run inside compose need `kafka:29092`. The API never produces to Kafka, so the compose `api` service does not set it |
 | `EVENTS_OUTBOX_ENABLED`                                  | api, cron                    | default `false` (A0). `true` only in the Kubernetes events lab: the scheduler's price jobs then enqueue `market.refresh.requested` for the Kafka workers instead of refreshing in-process. Old rows go with `stockviz.cli prune-events` |

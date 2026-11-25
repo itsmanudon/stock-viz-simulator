@@ -22,7 +22,8 @@ src/stockviz/
                     events — outbox, consumer inbox, derived trade activity,
                     execution — SimulatedExecution provenance,
                     replay — ReplaySession / ReplayPosition / ReplayFill /
-                    ReplayJournal, aegis — read-only Aegis News copies)
+                    ReplayJournal, aegis — read-only Aegis News copies,
+                    setup — A2.2 Setup / SetupVersion / Thesis)
   events/           versioned contracts (trades/market), outbox/inbox,
                     dispatcher, domain handlers, Kafka producer wrappers
                     (not imported by FastAPI startup)
@@ -37,7 +38,8 @@ src/stockviz/
                     experiments (saved backtests, Phase 5.4),
                     screener, sentiment, watchlist, alerts, profile
                     (display currency), earnings, replay
-                    (isolated ReplaySession), health
+                    (isolated ReplaySession), rules / setups / theses
+                    (A2.2), health
                     (`GET /live` liveness, `GET /health` readiness + DB)
   services/
     ingest/         External-API fetchers (yfinance primary, Alpha Vantage fallback);
@@ -105,8 +107,26 @@ src/stockviz/
                     run (P/E, P/B, P/S, EV/EBITDA, dividend yield, market
                     cap in USD, net margin, ROE, debt/equity, revenue
                     growth), each a `<column>_min`/`_max` filter and a sort
+    bars/           A1.4a: resample.py (pure: daily -> 1wk/1mo, the partial
+                    rule) and load.py (loads enough daily bars for n output bars)
     markets/        calendar.py — exchange calendars and completed sessions (Phase 4.1);
                     india_holidays.py — the maintained NSE/BSE holiday table (A0)
+    nse/            A1.1 NSE end-of-day files placed by hand: formats.py
+                    (header detection), parse.py (+ date check), archive.py
+                    (`NSE_ARCHIVE_DIR`, `data_files`), load.py (`eod_raw`,
+                    `eod_extras`, ISIN identifiers), process.py (one file)
+    export/         A1.6 Parquet export for the laptop's `lab/` package:
+                    tables.py (what is exported), parquet.py (partitions,
+                    manifest, atomic writes)
+    dsl/            A2.1 Rule DSL: grammar.lark (Lark, LALR), parser.py, ast.py,
+                    printer.py, canonical.py (canonical form, SHA-256 hash),
+                    check.py (types), functions.py, bindings.py, pit.py
+                    (fundamentals, news), timeframes.py, data.py (SymbolData,
+                    load_symbol), evaluate.py (vector, point, evaluate_at)
+    setups/         A2.2 spine: store.py (setups and immutable versions),
+                    presets.py (seeded system setups), rules.py (rule check)
+    screener_rule.py  A2.2: judges a rule for every screener candidate
+    theses.py       A2.2: thesis reads (the router writes)
     aegis/          Aegis News read sync (Phase 2): contract.py (lenient
                     feed models), token.py (EdDSA feed:read token), client.py
                     (the one client: timeouts, bounded retries), sync.py
@@ -144,7 +164,245 @@ CLI subcommands (`python -m stockviz.cli <cmd>`): `seed`, `backfill`,
 `settle-orders [--session-date YYYY-MM-DD]`, `evaluate-alerts`, `revalidate-web`,
 `publish-outbox [--once]`,
 `consume-trade-activity [--once]`, `consume-market-ingest [--once]`,
-`consume-market-analytics [--once]`.
+`consume-market-analytics [--once]`, `nse-load PATH ... [--apply]`,
+`nse-files [--limit N]`,
+`export-parquet --out DIR [--since YYYY-MM-DD] [--tables T ...]`,
+`rule-check "<rule>" [TICKER ...] [--date YYYY-MM-DD] [--explain]`.
+`seed` also writes the rule presets (A2.2).
+
+**NSE files (A1.1).** `services/nse/` parses NSE end-of-day files **placed
+by hand**. Nothing downloads from NSE yet (that is A1.2, after the owner's
+legal question). Formats are detected from the header (any order, case and
+spaces ignored), never the file name: the CM bhavcopy in UDiFF
+(`nse_cm_udiff`, since 8 Jul 2024) and legacy (`nse_cm_legacy`) layouts, and
+`sec_bhavdata_full` (`nse_sec_full`); a `.zip` must hold one CSV. Values
+are `Decimal`; empty or `-` is None; turnover is stored in rupees
+(`TURNOVER_LACS` x 100,000). Every row must carry one date, equal to the
+file name's date when it has one, and an XNSE session (special sessions
+count); otherwise the file is `date_mismatch` and nothing loads.
+`stockviz.cli nse-load PATH ...` is a dry run (format, date, rows, matched,
+unmatched, would load; nothing written, not even the archive); `--apply`
+copies each file to `NSE_ARCHIVE_DIR` (`<source>/<yyyy>/<file name>`),
+writes a `data_files` row (SHA-256 unique: a file already recorded is a
+no-op; status `parsed`, `date_mismatch`, `unrecognised` or `failed`) and
+loads it in one transaction. Exit 1 if any file was not `parsed`. Series
+`EQ BE BZ SM ST` (`load.LOAD_SERIES`) go to `eod_raw` (CM, raw exchange
+numbers, never adjusted) and `eod_extras` (delivery), keyed by
+(instrument, session, series), upserted, so a rerun changes nothing. Rows
+match by the current `isin` identifier, else the Yahoo ticker
+`<SYMBOL>.NS`; a ticker match records the ISIN (scheme `isin`, once). A
+ticker match whose instrument holds a different current ISIN is counted as
+a conflict and skipped. Unmatched rows are counted; no instruments are
+created. Not in `RECORDED_JOBS` or the cron. `price_bars` is untouched
+until A1.3. `nse-files` lists recent `data_files` rows. Tests use synthetic
+files in `tests/fixtures/nse/` (real headers, invented numbers; never
+commit real NSE data).
+
+**Parquet export (A1.6, M1.8).** `stockviz.cli export-parquet --out DIR`
+(`services/export/`) writes `price_bars` (`1d` only), `eod_raw`,
+`eod_extras`, `corporate_actions`, `fundamental_facts` and `fx_rates` as one
+zstd Parquet file per calendar month of their date column
+(`<table>/year=YYYY/month=MM/part.parquet`; `ts`, `session_date`, `ex_date`,
+`available_at`, `date`), and `instruments`, `instrument_identifiers` and
+`data_files` (metadata only, never the raw files) whole as
+`<table>/part.parquet`. It only reads the database. Rules: `Numeric(p, s)`
+is Parquet `decimal(p, s)`, never float; timestamps naive UTC; rows stream
+in chunks of `CHUNK_ROWS` (50,000), one month at a time, ordered by
+instrument then date; each file goes to a hidden temporary name and is
+renamed into place, the manifest last, so a failure never leaves a partial
+file. `manifest.json` holds `schema_version` (`EXPORT_SCHEMA_VERSION`, 1;
+bump it when the layout or columns change), `exported_at`, `source_commit`
+(`RAILWAY_GIT_COMMIT_SHA`, else `git rev-parse HEAD`, else `unknown`), and per
+partition rows, bytes, SHA-256 and min/max date. An empty table is skipped
+and listed in `empty_tables`. `--since` rewrites only months on or after its
+month and keeps older partitions untouched with their entries (a row added
+later with an older date needs a full export); a manifest of another schema
+version, or a table whose columns changed, gets a full export. Files the old
+manifest listed and this run did not write are deleted; nothing else in
+`DIR` is. `--tables` exports a subset and keeps the other tables' entries.
+It refuses an `--out` inside the work tree that git would not ignore (exports
+hold exchange data; use `lab/data/`, ignored, or a path outside the repo).
+`pyarrow` is an API dependency for this; DuckDB and Polars are in `lab/`
+only. Not in `RECORDED_JOBS` or the cron yet; where the export lives for the
+laptop to pull is an open owner question. `tests/test_export_parquet.py`;
+the reader is `lab/` (see `lab/README.md`).
+
+**Rule DSL (A2.1, M4.1).** One rule language, `services/dsl/`, for the
+screens, alerts and setups A2.2 onwards builds. User reference:
+`docs/rule-dsl.md`. A2.2 added the routes, tables and web editor (next
+section).
+
+- **Surface** (`grammar.lark`, Lark LALR, MIT, pinned in `uv.lock`):
+  numbers, the series `open high low close volume delivery_pct
+  deliverable_qty`, calls with positional and keyword arguments,
+  `+ - * /`, `< <= > >= = !=` (`==` is `=`; comparisons never chain),
+  `and or not`, parentheses, `crosses_above` / `crosses_below`, `[n]`
+  offsets, `weekly.` / `monthly.` prefixes, `fundamental.<metric>`,
+  `news.count(days, sentiment="...", event_type="...")`, `#` comments.
+  Strings only as keyword values; names lowercase. Errors are
+  `RuleError(kind, message, line, column)` (`pretty()` adds a caret).
+- **Tree, canonical form, hash.** `ast.py` frozen dataclasses (`pos` is not
+  compared); `parse(to_text(tree)) == tree`. `canonicalize`: arguments by
+  position with defaults written out (`rsi()` is `rsi(14)`), default
+  outputs dropped, `news.count` keywords sorted, `and`/`or` flattened and
+  sorted by canonical text (Kleene `and`/`or` commute). Comparisons, `+` and
+  `*` are never reordered. Hash = SHA-256 of the canonical text.
+- **Types** (`check.py`): value `number` | `boolean`, kind `const` |
+  `series` | `pit`. `fundamental.*` and `news.*` are point-in-time values:
+  fine in arithmetic and comparisons, but anything built from them has no
+  bar history (no `[n]`, windowed function, crossing or prefix). A rule must
+  be a condition. Errors carry the column.
+- **Functions** (`functions.py`): the 21 registry indicators run on the
+  timeframe's bar frame with the registry's parameters, defaults and bounds
+  (`rsi atr hv cci roc willr mfi rvol wma vwap obv ad adx macd stoch
+  supertrend bb donchian keltner`); outputs by `.name` (`macd().signal`;
+  `macd adx stoch supertrend` default to `macd adx k line`; `bb donchian
+  keltner` must name one). The registry's `sma`/`ema` are the primitives
+  on `close`. Primitives: `sma ema highest lowest sum change pct_change abs
+  min max count_true bars_since rs`. `rs(n)` is 100 x ((stock n-bar
+  return + 1) / (index n-bar return + 1) - 1) against
+  `event_study.BENCHMARK_BY_VENUE` (`^GSPC`, `^NSEI`), index closes
+  forward-filled at most 5 bars. Each function declares its lookback;
+  `CompiledRule.lookback` is the rule's warm-up in daily bars (`None` for
+  `bars_since`, `obv`, `ad`: whole history), and `load_symbol` loads that
+  many bars before the window. A new function must join the conformance
+  corpus before it is registered.
+- **Three-valued logic.** Values are float arrays, conditions 1/0/NaN. A
+  comparison with a missing input is unknown; `and`/`or`/`not` are
+  Kleene's. `vector` returns a pandas nullable `boolean` Series (`pd.NA`
+  unknown); `evaluate_at` gives `met | not_met | unknown` with reasons (the
+  missing binding, or the function short of history).
+- **Timeframes** (`timeframes.py`): A1.4a's periods. A period is closed on
+  the venue's last session in it (Thursday before a Friday holiday); a
+  weekly/monthly value on a daily bar is the last *closed* period at or
+  before it, never the partial one. Prefixes do not nest; fundamentals,
+  news and delivery are daily only.
+- **Bindings, point in time** (`pit.py`, `data.py`): bars by instrument;
+  fundamentals equal `valuation(ticker, bar date)` (facts with
+  `available_at <=` the date, close converted at the FX rate on or before
+  it; `tests/test_dsl_data.py`), computed once per known state; delivery
+  from `eod_extras` (EQ first; "no delivery data" until NSE files load);
+  news counts documents linked to the ticker with `available_at` in the
+  days up to the session's close (calendar close), sentiment and event type
+  as available by then; bars before the first Aegis document held are
+  unknown.
+- **Two modes, one evaluator.** `vector(rule, data)` over the whole frame;
+  `point(rule, data, t)` = the same code on `data.cut(t)` (bars to `t`,
+  facts to its date, news to its close). `tests/test_dsl_conformance.py`
+  asserts `point(t) == vector[t]` for every bar of three seeded 10-year
+  histories (split step, NSE holidays, partial last week, delivery gaps,
+  USD-reporting INR listing, a bar hole) over 52 rules and 7 numeric
+  expressions (A2.2 adds the four presets; 444,683 point evaluations over 7,537 bars before them, a process pool, about a
+  minute), plus a test that perturbs everything after `t` and finds no
+  value up to `t` changed. Vector mode: about 1.3 ms for a 5-condition rule
+  over 10 years, 0.2 s for 163 symbols (synthetic, local).
+- **CLI.** `stockviz.cli rule-check "<rule>" [TICKER ...] [--date]
+  [--explain]` prints the canonical text, hash, type and warm-up, then per
+  ticker the status at the latest stored bar on or before the date
+  (default: the venue's latest completed session; a stale bar is flagged)
+  with reasons; `--explain` lists each sub-expression's value. Exit 2 on a
+  syntax or type error, 1 for an unknown ticker or no bars. Read-only, not
+  in the cron.
+
+**Setups, theses and the screener rule (A2.2, M4.1 consumers, M4.3).** The
+spine: migration `e6364eff4e51` (additive) adds `setups`, `setup_versions`,
+`theses` (`models/setup.py`) and a nullable `setup_version_id` on
+`saved_screens`, `alerts` and `experiment_runs` (nothing writes the last two
+yet: A2.3 rule alerts, A4 rule backtests).
+
+- **Versions are immutable.** No code path updates a `setup_versions` row;
+  `services/setups/store.py::add_version` writes n+1, or returns the version
+  that already has the rule (unique `(setup_id, rule_hash)` on the canonical
+  hash, so spacing, comments, default arguments and `and` order do not make a
+  new version). A concurrent save of the same rule loses the race and gets
+  the winner's row. Caps: 200 setups a user, 500 versions a setup.
+- **Presets** are setups with `user_id` null, `is_preset` (check
+  `ck_setups_preset_owner`) and a unique `preset_key`. `stockviz.cli seed`
+  runs `services/setups/presets.py::seed_presets` after the symbols:
+  idempotent; name, kind and description follow the code; a changed rule
+  becomes a new version. Four today (Minervini trend template,
+  52-week-high breakout on rising volume, RSI(2) pullback in an uptrend,
+  Piotroski-style quality); each description states its source and limits,
+  and every preset rule is in the conformance corpus
+  (`test_corpus_covers_every_function_and_is_large_enough` checks). The
+  cron does not run `seed`, so a new preset reaches a host with a manual
+  `seed` run or the next deploy that runs it.
+- **API.** `POST /v1/rules/check` (public, 60/min; always 200: `valid`,
+  `canonical`, `hash`, `type`, `warmup_bars`, `warmup_whole_history`,
+  `uses`, or `error {kind, message, line, column}`). `/v1/setups` (authed):
+  list (yours and presets, `include_archived`), create (rule = version 1),
+  get (versions newest first), `POST /{id}/versions` (201 new, 200 when the
+  rule is already a version), `POST /{id}/archive`, `POST /{id}/fork`
+  (`{name?, version_id?}`; presets and your own; `forked_from_version_id`).
+  `GET /v1/setups/presets` is public (60/min). Presets are 403 on versions
+  and archive; another user's setup is 404; an archived setup takes no
+  version (409); a rule that does not compile is 422 with the error object
+  as `detail` (`services/setups/rules.py::compile_or_422`, shared by every
+  writer). `/v1/theses` (authed): list (`status=`), create (`ticker`,
+  `title`, `body`, optional `kill_rule`, which must compile; stores its text
+  and hash), `PATCH` while open (`kill_rule: null` removes it), `POST
+  /{id}/close` (`closed` | `invalidated`, final). Theses key on
+  `instrument_id` (no ticker column, so no identity trigger); reads map it
+  back through the `yahoo` identifier. Nothing evaluates kill rules yet.
+  `/v1/screens` takes and returns `setup_version_id` (yours or a preset's,
+  else 404); saving by name replaces it with what was sent.
+- **Screener rule.** `GET /v1/screener?rule=` (or `setup_version_id=`: a
+  preset's for anyone, your own with a Bearer token through
+  `auth.OptionalUserIdDep`; not both, 400) runs after the SQL filters, which
+  still pre-filter. `services/screener_rule.py` judges every remaining
+  candidate (`dsl.load_symbol` + `evaluate_at`), then the screener sorts and
+  pages what is left: `rule_mode=met_only` (default) keeps met rows and
+  `total` counts them; `all` keeps every row. Each venue has one session:
+  the newest stored daily bar of its active symbols on or before the target
+  (`as_of=`, capped at the venue's latest completed session, else that
+  session). A symbol without a bar that day is `unknown` ("no bar for D;
+  latest D'"), never judged on stale prices. Rows add `rule_result`,
+  `rule_reason` (unknown only: the evaluator's reasons) and `rule_bar_date`;
+  the page adds `rule {text, canonical, hash, setup_version_id, mode, as_of,
+  sessions, counts, evaluated, cached}` and, on every page, `universe`
+  (`backtest/universe.py::screen_universe`: pinned, survivorship-biased).
+  Latency, 5-condition rule (`rs` included) over 161 symbols x 10 years,
+  in-memory SQLite on the laptop: 0.72 s cold. Results are cached in
+  process per (rule hash, ticker, session) for 15 minutes, 50,000 entries
+  LRU (`CACHE`; a new session is a new key): 5-30 ms warm. Each API process
+  has its own cache. Tests: `tests/test_screener_rule.py`,
+  `test_setups_router.py`, `test_theses_router.py`,
+  `test_setups_migration.py` (PostgreSQL up/down/up); `conftest.py` clears
+  the cache around every test.
+
+**Weekly and monthly bars (A1.4a, M2.2 first half).** Resampled on read,
+never stored (`services/bars/resample.py`). `GET /v1/symbols/{t}/bars` and
+`/indicators` take `interval=1d|1wk|1mo` (`1h` was never written or sent and
+is refused now). A week is the ISO week (Monday to Sunday) and a month the
+calendar month, by the bar's venue date; open is the first session's open,
+high/low the extremes, close the last session's close, volume the sum, all
+`Decimal`; `ts` is the period's last stored session, `sessions` the daily
+bars in it, and `source` / `adjustment_semantics` the daily bars' own or
+`mixed`. Only the newest bar can be `partial`: when the venue calendar still
+has a session in its period after the last stored one, or that session is
+not complete at now (`session_complete_at`). Older bars have a later bar, so
+their period is over (a gap in old data is not "so far"). `limit` counts
+output bars; `load_resampled` reads `(n + 1) x 7` (weeks) or `x 31` (months)
+daily rows and drops the oldest period when that cap was hit. `from`/`to`
+select bars by their `ts`, and every bar covers its whole period. Indicators
+on `1wk`/`1mo` run the same registry on resampled bars with the warm-up
+counted in output bars, and leave a partial newest bar out of the inputs:
+`IndicatorsOut.partial_bar_excluded` names it, `interval` says what they ran
+on. `BarOut` adds `source` and `adjustment_semantics` on every interval
+(null `sessions`/`partial` on `1d`). Tests: `tests/test_resample.py`,
+`tests/test_bars_interval.py` (clock patched through `bars.load.now_utc`).
+
+**Survivorship stamp (A1.4a, part of M1.5).** Every backtest result carries
+`universe: {name, point_in_time, survivorship_biased, note}`: the public
+`POST /v1/backtest` (`BacktestOut.universe`), stored single runs, and
+walk-forward and sweep results; `ExperimentRunOut.universe` gives list rows
+the stamp. One helper sets it, `services/backtest/universe.py::universe_for`:
+today every run is `pinned` (the seed list with provider history),
+`point_in_time: false`, `survivorship_biased: true`, because delisted names
+are missing. A1.4b changes that function. Runs stored before the stamp read
+back with the pinned stamp, and `registry.result_differences` skips a field
+in `STAMPS_ADDED_LATER` that the stored result lacks, so their rerun is
+still `identical` (`tests/test_backtest_universe.py`).
 
 **Bars on closed days (A0, audit MD-9).** `stockviz.cli non-session-bars
 [tickers]` (`services/ingest/non_session_bars.py`) lists, per ticker, the
@@ -185,11 +443,13 @@ exchanges' published list, with names and the source checked) or
 and year), through `PROVISIONAL_THROUGH` (2030). **When NSE publishes a
 year's list (usually November or December), add it to `OFFICIAL_HOLIDAYS`
 and move `OFFICIAL_THROUGH`.** `holiday_basis(day, venue)` says which source
-answered. Hours are the package's BSE ones. Weekend special sessions
-(Budget days, Diwali Muhurat, live tests of new systems and of the DR site)
-are `SPECIAL_SESSIONS` in the same module, each with its source; they count
-as sessions even where the package lists a holiday (Laxmi Pujan), and
-their short hours are not modelled. Add new ones as the exchanges announce
+answered. Hours are the package's BSE ones. Special sessions (weekend
+Budget days, Diwali Muhurat on a weekend or on the Laxmi Pujan weekday
+holiday, live tests of new systems and of the DR site) are
+`SPECIAL_SESSIONS` in the same module, each with its source; they count as
+sessions even where the package lists a holiday, and their short hours are
+not modelled. `HISTORY_CORRECTIONS` fixes the package's history where it is
+wrong (Muharram 2013 moved from 14 to 15 Nov). Add new ones as the exchanges announce
 them. `tests/test_india_calendar.py`.
 
 **A daily bar's date is its venue's date (Phase 4.1b).** yfinance labels a
@@ -640,7 +900,8 @@ overrides slowapi's private `_check_request_limit`, because its request
 filters receive no request; `tests/test_rate_limit_web_server.py` pins it.
 
 Current budget: **60/min** on the public reads
-(symbols, bars, quotes, news, indicators, recommendations), **30/min**
+(symbols, bars, quotes, news, indicators, recommendations, rule check,
+setup presets), **30/min**
 screener, **20/min** backtest. Authenticated routers are deliberately *not*
 slowapi-limited — every authed request arrives from the Next.js server, so a
 per-IP limit would be one global bucket for all users. Where per-user

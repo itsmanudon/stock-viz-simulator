@@ -23,11 +23,13 @@ from stockviz.schemas import (
     ExperimentRunIn,
     ExperimentRunOut,
     SweepIn,
+    UniverseOut,
     WalkForwardIn,
 )
 from stockviz.services.backtest import BacktestError
 from stockviz.services.backtest.registry import RunLimitReached, rerun, save_run, save_study
 from stockviz.services.backtest.run import BadRange, UnknownSymbol
+from stockviz.services.backtest.universe import universe_for
 
 router = APIRouter(prefix="/v1/experiments", tags=["experiments"])
 
@@ -52,6 +54,11 @@ def _run_out(row: ExperimentRun, *, full: bool) -> ExperimentRunOut:
         last_bar_at=row.last_bar_at,
         created_at=row.created_at,
         summary=BacktestSummaryOut.model_validate(row.result["summary"]),
+        universe=(
+            UniverseOut.model_validate(row.result["universe"])
+            if "universe" in row.result
+            else universe_for(row.ticker)
+        ),
         result=row.result if full else None,
     )
 

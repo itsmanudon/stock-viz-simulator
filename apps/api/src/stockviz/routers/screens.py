@@ -2,6 +2,10 @@
 
 A saved screen is a name and the screener URL's query string. Private to its
 owner; names are unique per user. All endpoints need ``UserIdDep``.
+
+A2.2: a screen may also name a ``setup_version_id`` (the user's own setup's
+or a preset's; anything else is 404). Screens saved before keep working:
+their query alone is the screen.
 """
 
 from __future__ import annotations
@@ -17,6 +21,7 @@ from stockviz.auth import UserIdDep
 from stockviz.db import get_session
 from stockviz.models import SavedScreen
 from stockviz.schemas import SavedScreenIn, SavedScreenOut
+from stockviz.services.setups import store as setups
 
 router = APIRouter(prefix="/v1/screens", tags=["screener"])
 
@@ -31,6 +36,7 @@ def _out(row: SavedScreen) -> SavedScreenOut:
         id=row.id,
         name=row.name,
         query=row.query,
+        setup_version_id=row.setup_version_id,
         created_at=row.created_at,
         updated_at=row.updated_at,
     )
@@ -52,7 +58,14 @@ def list_screens(session: SessionDep, user_id: UserIdDep) -> list[SavedScreenOut
 
 @router.post("", response_model=SavedScreenOut, status_code=status.HTTP_201_CREATED)
 def save_screen(body: SavedScreenIn, session: SessionDep, user_id: UserIdDep) -> SavedScreenOut:
-    """Create a screen, or replace the query of the one with this name."""
+    """Create a screen, or replace the query (and setup version) of the one with this name."""
+    if body.setup_version_id is not None:
+        try:
+            setups.visible_version(session, body.setup_version_id, user_id)
+        except setups.SetupNotFound as exc:
+            raise HTTPException(
+                status.HTTP_404_NOT_FOUND, f"Setup version {body.setup_version_id} not found"
+            ) from exc
     existing = session.exec(
         select(SavedScreen).where(
             col(SavedScreen.user_id) == user_id, col(SavedScreen.name) == body.name
@@ -60,6 +73,7 @@ def save_screen(body: SavedScreenIn, session: SessionDep, user_id: UserIdDep) ->
     ).first()
     if existing is not None:
         existing.query = _clean(body.query)
+        existing.setup_version_id = body.setup_version_id
         existing.updated_at = utcnow()
         session.add(existing)
         session.commit()
@@ -72,7 +86,12 @@ def save_screen(body: SavedScreenIn, session: SessionDep, user_id: UserIdDep) ->
         raise HTTPException(
             status.HTTP_409_CONFLICT, f"At most {MAX_SCREENS_PER_USER} saved screens"
         )
-    row = SavedScreen(user_id=user_id, name=body.name, query=_clean(body.query))
+    row = SavedScreen(
+        user_id=user_id,
+        name=body.name,
+        query=_clean(body.query),
+        setup_version_id=body.setup_version_id,
+    )
     session.add(row)
     try:
         session.commit()

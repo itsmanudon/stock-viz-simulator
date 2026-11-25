@@ -88,14 +88,17 @@ def test_history_before_2027_is_the_package_plus_the_special_sessions(venue: str
         s.date() for s in ours[(ours >= package.first_session) & (ours <= package.last_session)]
     }
     theirs = {s.date() for s in package.sessions}
-    added = {d for d in india_holidays.SPECIAL_SESSIONS if package.first_session.date() <= d}
-    assert ours - theirs == added - theirs
-    assert theirs <= ours  # nothing the package trades is closed here
+    start = package.first_session.date()
+    corrections = india_holidays.HISTORY_CORRECTIONS
+    opened = {d for d in india_holidays.SPECIAL_SESSIONS if start <= d}
+    opened |= {d for d, is_open in corrections.items() if is_open}
+    closed = {d for d, is_open in corrections.items() if not is_open}
+    assert ours - theirs == opened - theirs
+    assert theirs - ours == closed  # only the corrections close a package session
 
 
 @pytest.mark.parametrize("day", sorted(india_holidays.SPECIAL_SESSIONS))
 def test_every_special_session_is_a_session(day: date) -> None:
-    assert day.weekday() >= 5
     assert is_session(day, "XNSE")
     assert is_session(day, "XBOM")
     assert day not in indian_holidays()
@@ -167,3 +170,23 @@ def test_a_provisional_year_warns_once(caplog: pytest.LogCaptureFixture) -> None
         is_session(date(2028, 2, 2), "XNSE")
     warnings = [r for r in caplog.records if "2028 are provisional" in r.getMessage()]
     assert len(warnings) == 1
+
+
+def test_a_weekday_muhurat_on_laxmi_pujan_is_a_session() -> None:
+    # Tuesday 21 Oct 2025: a holiday with a one-hour Muhurat session.
+    assert is_session(date(2025, 10, 21), "XNSE")
+    assert is_session(date(2024, 11, 1), "XBOM")
+    # Real closures nearby stay closed (Ganesh Chaturthi 2021, an election day 2026).
+    assert not is_session(date(2021, 9, 10), "XNSE")
+    assert not is_session(date(2026, 1, 15), "XNSE")
+
+
+def test_muharram_2013_is_on_the_day_the_exchanges_moved_it_to() -> None:
+    assert is_session(date(2013, 11, 14), "XNSE")
+    assert not is_session(date(2013, 11, 15), "XNSE")
+    assert date(2013, 11, 15) in indian_holidays()
+
+
+def test_weekday_special_sessions_need_no_weekmask() -> None:
+    weeks = {start for start, _end, _mask in india_holidays.special_weekmasks()}
+    assert date(2025, 10, 20) not in weeks  # the week of 21 Oct 2025 keeps its normal mask

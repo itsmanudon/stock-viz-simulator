@@ -3,6 +3,40 @@ import type { Bar, IndicatorPoint } from "@/lib/api/types";
 const QUANTITY_SCALE = 1_000_000;
 
 export const STOCK_TIMEFRAMES = ["1M", "3M", "6M", "1Y", "5Y", "MAX"] as const;
+
+/**
+ * A1.4a: the bar interval, separate from the lookback range above. Weekly and
+ * monthly bars are resampled by the API from the daily ones; the newest can
+ * be `partial` (its week or month is not over).
+ */
+export const STOCK_INTERVALS = [
+  { value: "1d", label: "Daily", short: "D" },
+  { value: "1wk", label: "Weekly", short: "W" },
+  { value: "1mo", label: "Monthly", short: "M" },
+] as const;
+export type StockInterval = (typeof STOCK_INTERVALS)[number]["value"];
+
+export function parseStockInterval(raw: string | undefined): StockInterval {
+  return STOCK_INTERVALS.some((i) => i.value === raw) ? (raw as StockInterval) : "1d";
+}
+
+/** Trading days a lookback covers, as bars of `interval` (weeks of five, months of 21). */
+export function barsForLookback(days: number, interval: StockInterval): number {
+  if (interval === "1wk") return Math.min(5000, Math.ceil(days / 5));
+  if (interval === "1mo") return Math.min(5000, Math.ceil(days / 21));
+  return days;
+}
+
+/** The caption under a chart whose newest bar is partial, or null. */
+export function partialBarLabel(
+  bar: { ts: string; partial?: boolean | null } | undefined,
+  interval: StockInterval,
+): string | null {
+  if (!bar?.partial || interval === "1d") return null;
+  const period = interval === "1wk" ? "week" : "month";
+  const through = formatCloseDate(bar.ts) ?? bar.ts;
+  return `Latest ${period} so far (partial), sessions through ${through}. It is not a closed bar.`;
+}
 /**
  * The chart's indicator menu (Phase 6.6): names from the API's engine
  * registry (`/v1/indicators/catalog`), with their usual parameters. Where each
@@ -84,10 +118,13 @@ export function buildStockChartHref(
   ticker: string,
   timeframe: StockTimeframe,
   indicators: StockIndicator[],
+  interval: StockInterval = "1d",
 ): string {
   const params = new URLSearchParams();
   params.set("tf", timeframe);
   params.set("indicators", indicators.join(","));
+  // Daily is the default, so its links stay as they were.
+  if (interval !== "1d") params.set("interval", interval);
   return `/stocks/${ticker}?${params.toString()}`;
 }
 

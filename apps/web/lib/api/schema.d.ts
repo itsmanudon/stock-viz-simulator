@@ -103,7 +103,7 @@ export interface paths {
         put?: never;
         /**
          * Save Screen
-         * @description Create a screen, or replace the query of the one with this name.
+         * @description Create a screen, or replace the query (and setup version) of the one with this name.
          */
         post: operations["save_screen_v1_screens_post"];
         delete?: never;
@@ -124,6 +124,178 @@ export interface paths {
         post?: never;
         /** Delete Screen */
         delete: operations["delete_screen_v1_screens__screen_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/rules/check": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Check */
+        post: operations["check_v1_rules_check_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/setups/presets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Presets */
+        get: operations["list_presets_v1_setups_presets_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/setups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Setups */
+        get: operations["list_setups_v1_setups_get"];
+        put?: never;
+        /** Create Setup */
+        post: operations["create_setup_v1_setups_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/setups/{setup_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Setup */
+        get: operations["get_setup_v1_setups__setup_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/setups/{setup_id}/versions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Add Version */
+        post: operations["add_version_v1_setups__setup_id__versions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/setups/{setup_id}/archive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Archive Setup */
+        post: operations["archive_setup_v1_setups__setup_id__archive_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/setups/{setup_id}/fork": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Fork Setup */
+        post: operations["fork_setup_v1_setups__setup_id__fork_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/theses": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Theses */
+        get: operations["get_theses_v1_theses_get"];
+        put?: never;
+        /** Create Thesis */
+        post: operations["create_thesis_v1_theses_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/theses/{thesis_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update Thesis */
+        patch: operations["update_thesis_v1_theses__thesis_id__patch"];
+        trace?: never;
+    };
+    "/v1/theses/{thesis_id}/close": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Close Thesis */
+        post: operations["close_thesis_v1_theses__thesis_id__close_post"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -1902,6 +2074,7 @@ export interface components {
             /** Equity Curve */
             equity_curve: components["schemas"]["EquityPointOut"][];
             summary: components["schemas"]["BacktestSummaryOut"];
+            universe: components["schemas"]["UniverseOut"];
         };
         /**
          * BacktestSummaryOut
@@ -1981,6 +2154,14 @@ export interface components {
             close: string;
             /** Volume */
             volume: number;
+            /** Source */
+            source?: string | null;
+            /** Adjustment Semantics */
+            adjustment_semantics?: string | null;
+            /** Sessions */
+            sessions?: number | null;
+            /** Partial */
+            partial?: boolean | null;
         };
         /**
          * BaseCurrencyIn
@@ -2301,6 +2482,7 @@ export interface components {
              */
             created_at: string;
             summary: components["schemas"]["BacktestSummaryOut"];
+            universe: components["schemas"]["UniverseOut"];
             /** Result */
             result?: {
                 [key: string]: unknown;
@@ -2554,6 +2736,13 @@ export interface components {
             warmup_bars: number;
             /** Window Start */
             window_start?: string | null;
+            /**
+             * Interval
+             * @default 1d
+             */
+            interval: string;
+            /** Partial Bar Excluded */
+            partial_bar_excluded?: string | null;
         };
         /** JobStatusOut */
         JobStatusOut: {
@@ -4535,12 +4724,58 @@ export interface components {
             /** Sell Above */
             sell_above: number;
         };
+        /** RuleCheckIn */
+        RuleCheckIn: {
+            /** Rule */
+            rule: string;
+        };
+        /**
+         * RuleCheckOut
+         * @description ``POST /v1/rules/check``: the canonical form of a valid rule, or where it
+         *     went wrong. Always 200, so an editor can show either.
+         */
+        RuleCheckOut: {
+            /** Valid */
+            valid: boolean;
+            /** Canonical */
+            canonical?: string | null;
+            /** Hash */
+            hash?: string | null;
+            /** Type */
+            type?: string | null;
+            /** Warmup Bars */
+            warmup_bars?: number | null;
+            /**
+             * Warmup Whole History
+             * @default false
+             */
+            warmup_whole_history: boolean;
+            /** Uses */
+            uses?: string[];
+            error?: components["schemas"]["RuleErrorOut"] | null;
+        };
+        /** RuleErrorOut */
+        RuleErrorOut: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "syntax" | "type";
+            /** Message */
+            message: string;
+            /** Line */
+            line?: number | null;
+            /** Column */
+            column?: number | null;
+        };
         /** SavedScreenIn */
         SavedScreenIn: {
             /** Name */
             name: string;
             /** Query */
             query: string;
+            /** Setup Version Id */
+            setup_version_id?: number | null;
         };
         /** SavedScreenOut */
         SavedScreenOut: {
@@ -4550,6 +4785,8 @@ export interface components {
             name: string;
             /** Query */
             query: string;
+            /** Setup Version Id */
+            setup_version_id?: number | null;
             /**
              * Created At
              * Format: date-time
@@ -4571,6 +4808,8 @@ export interface components {
             offset: number;
             /** Limit */
             limit: number;
+            universe?: components["schemas"]["UniverseOut"] | null;
+            rule?: components["schemas"]["ScreenerRuleOut"] | null;
         };
         /**
          * ScreenerResultOut
@@ -4681,6 +4920,54 @@ export interface components {
             debt_to_equity?: number | null;
             /** Revenue Growth */
             revenue_growth?: number | null;
+            /** Rule Result */
+            rule_result?: ("met" | "not_met" | "unknown") | null;
+            /** Rule Reason */
+            rule_reason?: string | null;
+            /** Rule Bar Date */
+            rule_bar_date?: string | null;
+        };
+        /** ScreenerRuleCountsOut */
+        ScreenerRuleCountsOut: {
+            /** Met */
+            met: number;
+            /** Not Met */
+            not_met: number;
+            /** Unknown */
+            unknown: number;
+        };
+        /**
+         * ScreenerRuleOut
+         * @description The rule a screen ran (A2.2), and how it went over every candidate.
+         */
+        ScreenerRuleOut: {
+            /** Text */
+            text: string;
+            /** Canonical */
+            canonical: string;
+            /** Hash */
+            hash: string;
+            /** Setup Version Id */
+            setup_version_id?: number | null;
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "met_only" | "all";
+            /** As Of */
+            as_of?: string | null;
+            /** Sessions */
+            sessions: {
+                [key: string]: string;
+            };
+            counts: components["schemas"]["ScreenerRuleCountsOut"];
+            /** Evaluated */
+            evaluated: number;
+            /**
+             * Cached
+             * @default false
+             */
+            cached: boolean;
         };
         /** SectorAllocationOut */
         SectorAllocationOut: {
@@ -4722,6 +5009,135 @@ export interface components {
              * @default 0
              */
             rolling_7d_article_count: number;
+        };
+        /** SetupDetailOut */
+        SetupDetailOut: {
+            /** Id */
+            id: number;
+            /** Name */
+            name: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "screen" | "alert" | "strategy" | "checklist";
+            /** Description */
+            description?: string | null;
+            /** Is Preset */
+            is_preset: boolean;
+            /** Owned */
+            owned: boolean;
+            /** Forked From Version Id */
+            forked_from_version_id?: number | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Archived At */
+            archived_at?: string | null;
+            latest_version: components["schemas"]["SetupVersionOut"];
+            /** Version Count */
+            version_count: number;
+            /** Versions */
+            versions: components["schemas"]["SetupVersionOut"][];
+        };
+        /** SetupForkIn */
+        SetupForkIn: {
+            /** Name */
+            name?: string | null;
+            /** Version Id */
+            version_id?: number | null;
+        };
+        /** SetupIn */
+        SetupIn: {
+            /** Name */
+            name: string;
+            /**
+             * Kind
+             * @default screen
+             * @enum {string}
+             */
+            kind: "screen" | "alert" | "strategy" | "checklist";
+            /** Description */
+            description?: string | null;
+            /** Rule */
+            rule: string;
+            /** Notes */
+            notes?: string | null;
+            /**
+             * Timeframe
+             * @default daily
+             * @constant
+             */
+            timeframe: "daily";
+        };
+        /** SetupOut */
+        SetupOut: {
+            /** Id */
+            id: number;
+            /** Name */
+            name: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "screen" | "alert" | "strategy" | "checklist";
+            /** Description */
+            description?: string | null;
+            /** Is Preset */
+            is_preset: boolean;
+            /** Owned */
+            owned: boolean;
+            /** Forked From Version Id */
+            forked_from_version_id?: number | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Archived At */
+            archived_at?: string | null;
+            latest_version: components["schemas"]["SetupVersionOut"];
+            /** Version Count */
+            version_count: number;
+        };
+        /** SetupVersionIn */
+        SetupVersionIn: {
+            /** Rule */
+            rule: string;
+            /** Notes */
+            notes?: string | null;
+            /**
+             * Timeframe
+             * @default daily
+             * @constant
+             */
+            timeframe: "daily";
+        };
+        /** SetupVersionOut */
+        SetupVersionOut: {
+            /** Id */
+            id: number;
+            /** Setup Id */
+            setup_id: number;
+            /** Version */
+            version: number;
+            /** Rule Text */
+            rule_text: string;
+            /** Canonical Text */
+            canonical_text: string;
+            /** Rule Hash */
+            rule_hash: string;
+            /** Timeframe */
+            timeframe: string;
+            /** Notes */
+            notes?: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
         };
         /**
          * SmaCrossoverStrategy
@@ -4858,6 +5274,68 @@ export interface components {
             /** Is Active */
             is_active: boolean;
         };
+        /** ThesisCloseIn */
+        ThesisCloseIn: {
+            /**
+             * Status
+             * @default closed
+             * @enum {string}
+             */
+            status: "closed" | "invalidated";
+        };
+        /** ThesisIn */
+        ThesisIn: {
+            /** Ticker */
+            ticker: string;
+            /** Title */
+            title: string;
+            /** Body */
+            body: string;
+            /** Kill Rule */
+            kill_rule?: string | null;
+        };
+        /** ThesisOut */
+        ThesisOut: {
+            /** Id */
+            id: number;
+            /** Ticker */
+            ticker: string | null;
+            /** Title */
+            title: string;
+            /** Body */
+            body: string;
+            /** Kill Rule Text */
+            kill_rule_text?: string | null;
+            /** Kill Rule Hash */
+            kill_rule_hash?: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "open" | "invalidated" | "closed";
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /**
+         * ThesisPatch
+         * @description Only the fields sent change; ``kill_rule: null`` removes the kill rule.
+         */
+        ThesisPatch: {
+            /** Title */
+            title?: string | null;
+            /** Body */
+            body?: string | null;
+            /** Kill Rule */
+            kill_rule?: string | null;
+        };
         /** TopMoverOut */
         TopMoverOut: {
             /** Ticker */
@@ -4967,6 +5445,23 @@ export interface components {
             vega_per_point: number;
             /** Rho Per Point */
             rho_per_point: number;
+        };
+        /**
+         * UniverseOut
+         * @description The universe a backtest ran on and whether it is point in time (A1.4a,
+         *     M1.5). ``survivorship_biased`` is true when names that were delisted are
+         *     missing from it, so results look better than an investor could have done.
+         *     Set in one place: ``services/backtest/universe.py``.
+         */
+        UniverseOut: {
+            /** Name */
+            name: string;
+            /** Point In Time */
+            point_in_time: boolean;
+            /** Survivorship Biased */
+            survivorship_biased: boolean;
+            /** Note */
+            note: string;
         };
         /** UnreadCountOut */
         UnreadCountOut: {
@@ -5312,8 +5807,16 @@ export interface operations {
                 dir?: string;
                 offset?: number;
                 limit?: number;
+                /** @description A Rule DSL condition */
+                rule?: string | null;
+                setup_version_id?: number | null;
+                rule_mode?: "met_only" | "all";
+                /** @description Judge the rule on this date */
+                as_of?: string | null;
             };
-            header?: never;
+            header?: {
+                authorization?: string | null;
+            };
             path?: never;
             cookie?: never;
         };
@@ -5424,6 +5927,416 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    check_v1_rules_check_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RuleCheckIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RuleCheckOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_presets_v1_setups_presets_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SetupOut"][];
+                };
+            };
+        };
+    };
+    list_setups_v1_setups_get: {
+        parameters: {
+            query?: {
+                include_archived?: boolean;
+            };
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SetupOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_setup_v1_setups_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetupIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SetupDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_setup_v1_setups__setup_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                setup_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SetupDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    add_version_v1_setups__setup_id__versions_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                setup_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetupVersionIn"];
+            };
+        };
+        responses: {
+            /** @description The rule is already a version of this setup */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SetupVersionOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    archive_setup_v1_setups__setup_id__archive_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                setup_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SetupDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    fork_setup_v1_setups__setup_id__fork_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                setup_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["SetupForkIn"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SetupDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_theses_v1_theses_get: {
+        parameters: {
+            query?: {
+                status?: ("open" | "invalidated" | "closed") | null;
+            };
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ThesisOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_thesis_v1_theses_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ThesisIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ThesisOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_thesis_v1_theses__thesis_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                thesis_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ThesisPatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ThesisOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    close_thesis_v1_theses__thesis_id__close_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                thesis_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ThesisCloseIn"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ThesisOut"];
+                };
             };
             /** @description Validation Error */
             422: {
