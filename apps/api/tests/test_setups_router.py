@@ -115,9 +115,7 @@ def test_create_get_and_list(session: Session, client: TestClient) -> None:
 
 def test_create_refuses_a_rule_that_does_not_compile(session: Session, client: TestClient) -> None:
     uid = _user(session, "a@x.dev")
-    res = client.post(
-        "/v1/setups", json={"name": "Bad", "rule": "close >"}, headers=_auth(uid)
-    )
+    res = client.post("/v1/setups", json={"name": "Bad", "rule": "close >"}, headers=_auth(uid))
     assert res.status_code == 422
     assert res.json()["detail"]["kind"] == "syntax"
     assert res.json()["detail"]["column"] is not None
@@ -233,9 +231,7 @@ def test_fork_a_chosen_version_with_a_name(session: Session, client: TestClient)
     ).json()
     assert forked["name"] == "Copy" and forked["latest_version"]["rule_text"] == "close > open"
     assert forked["forked_from_version_id"] == v1["id"]
-    wrong = client.post(
-        f"/v1/setups/{sid}/fork", json={"version_id": 99999}, headers=_auth(uid)
-    )
+    wrong = client.post(f"/v1/setups/{sid}/fork", json={"version_id": 99999}, headers=_auth(uid))
     assert wrong.status_code == 404
 
 

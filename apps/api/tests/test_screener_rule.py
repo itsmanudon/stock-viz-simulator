@@ -116,9 +116,7 @@ def test_all_mode_shows_every_row_with_reasons(session: Session, client: TestCli
     assert by["MSFT"]["rule_reason"] is None
 
 
-def test_filters_prefilter_and_paging_after_the_rule(
-    session: Session, client: TestClient
-) -> None:
+def test_filters_prefilter_and_paging_after_the_rule(session: Session, client: TestClient) -> None:
     _seed(session)
     india = _get(client, rule=RULE, rule_mode="all", market="IN")
     assert [r["ticker"] for r in india["rows"]] == ["INFY.NS"]
@@ -179,9 +177,7 @@ def test_setup_version_id_presets_public_private_for_owner(
     ).json()["latest_version"]["id"]
     anon = client.get("/v1/screener", params={"setup_version_id": mine})
     assert anon.status_code == 404
-    theirs = client.get(
-        "/v1/screener", params={"setup_version_id": mine}, headers=_auth(other.id)
-    )
+    theirs = client.get("/v1/screener", params={"setup_version_id": mine}, headers=_auth(other.id))
     assert theirs.status_code == 404
     owner = client.get(
         "/v1/screener",

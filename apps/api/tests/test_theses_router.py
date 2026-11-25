@@ -105,5 +105,7 @@ def test_unknown_symbol_and_other_users(session: Session, client: TestClient) ->
         "/v1/theses", json={"ticker": "AAPL", "title": "t", "body": "b"}, headers=_auth(a)
     ).json()["id"]
     assert client.get("/v1/theses", headers=_auth(b)).json() == []
-    assert client.patch(f"/v1/theses/{tid}", json={"title": "x"}, headers=_auth(b)).status_code == 404
+    assert (
+        client.patch(f"/v1/theses/{tid}", json={"title": "x"}, headers=_auth(b)).status_code == 404
+    )
     assert client.post(f"/v1/theses/{tid}/close", headers=_auth(b)).status_code == 404
