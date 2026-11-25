@@ -146,6 +146,16 @@ CLI subcommands (`python -m stockviz.cli <cmd>`): `seed`, `backfill`,
 `consume-trade-activity [--once]`, `consume-market-ingest [--once]`,
 `consume-market-analytics [--once]`.
 
+**Bars on closed days (A0, audit MD-9).** `stockviz.cli non-session-bars
+[tickers]` (`services/ingest/non_session_bars.py`) lists, per ticker, the
+daily bars dated on a day its venue did not trade: weekend and
+weekday-holiday counts, how many repeat the previous bar's prices, the span
+and the sources. It is read-only by default. `--apply TICKERS` deletes the
+**weekend** bars of the tickers named, in one transaction (no all-tickers
+delete; holiday bars are never deleted by it); run `metrics` after. A
+weekend Muhurat session is not modelled and would be listed, so read the
+dates first. Production deletions are the owner's call.
+
 **Pending orders and alerts when hosted (audits P0-1, P0-2).** The Railway
 cron has no scheduler, so `settle-orders` and `evaluate-alerts` run in its
 chain after `fx` and before `snapshot-portfolios`, against

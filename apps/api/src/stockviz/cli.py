@@ -196,6 +196,47 @@ def _cmd_earnings_duplicates(_args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_non_session_bars(args: argparse.Namespace) -> int:
+    """MD-9 (A0): daily bars dated on a day their venue was closed.
+
+    Lists by default. ``--apply`` deletes the weekend ones for the tickers
+    named (there is no all-tickers delete), in one transaction.
+    """
+    from stockviz.services.ingest.non_session_bars import (
+        delete_weekend_bars,
+        find_non_session_bars,
+    )
+
+    tickers = [t.upper() for t in args.tickers]
+    if args.apply and not tickers:
+        print("--apply needs the tickers to clean, e.g. RELIANCE.NS INFY.NS")
+        return 2
+    with Session(engine) as session:
+        reports = find_non_session_bars(session, tickers or None)
+        if not reports:
+            print("no daily bars on closed days")
+            return 0
+        for r in reports:
+            sources = ", ".join(f"{s} {n}" for s, n in r.sources.most_common())
+            span = f"{min(r.weekend + r.holiday)} to {max(r.weekend + r.holiday)}"
+            print(
+                f"{r.ticker} ({r.venue}): weekend {len(r.weekend)}, holiday {len(r.holiday)}, "
+                f"repeat the previous bar {r.repeats}; {span}; sources: {sources}"
+            )
+        weekend = sum(len(r.weekend) for r in reports)
+        holiday = sum(len(r.holiday) for r in reports)
+        print(f"{len(reports)} ticker(s): {weekend} weekend bar(s), {holiday} holiday bar(s)")
+        if not args.apply:
+            print("dry run: nothing deleted (--apply TICKERS deletes the weekend bars)")
+            return 0
+        deleted = delete_weekend_bars(session, tickers)
+        session.commit()
+    for ticker, n in deleted.items():
+        print(f"deleted {ticker}: {n}")
+    print(f"deleted {sum(deleted.values())} weekend bar(s); run `metrics` next")
+    return 0
+
+
 def _cmd_corporate_actions(args: argparse.Namespace) -> int:
     """Record splits for ledger tickers, then rebase the ledger for due ones (#65).
 
@@ -1443,6 +1484,15 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser(
         "outbox-dead", help="List outbox events that exhausted their publish attempts (OP-12)"
     ).set_defaults(fn=_cmd_outbox_dead)
+    p_nsb = sub.add_parser(
+        "non-session-bars",
+        help="List daily bars dated on a closed day (MD-9); --apply deletes the weekend ones",
+    )
+    p_nsb.add_argument("tickers", nargs="*", help="Tickers to check (all when empty)")
+    p_nsb.add_argument(
+        "--apply", action="store_true", help="Delete the weekend bars of the tickers named"
+    )
+    p_nsb.set_defaults(fn=_cmd_non_session_bars)
     sub.add_parser(
         "earnings-duplicates",
         help="List upcoming earnings dates that look like one report stored twice (read-only)",
