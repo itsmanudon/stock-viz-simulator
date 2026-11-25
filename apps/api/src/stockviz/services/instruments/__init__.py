@@ -5,7 +5,6 @@ TICKER_TABLES = (
     "corporate_actions",
     "dividends",
     "earnings_events",
-    "news_articles",
     "options_positions",
     "pending_orders",
     "portfolio_dividends",

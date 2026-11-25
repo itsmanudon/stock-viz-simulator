@@ -835,8 +835,8 @@ class ScreenerResultOut(BaseModel):
     momentum_days: int | None = None
     high_52w: Decimal
     low_52w: Decimal
-    # Rolling 7-day mean news sentiment in [-1, 1]. None when the symbol has no
-    # scored headlines (or sentiment scoring is disabled).
+    # Rolling 7-day mean Aegis news sentiment in [-1, 1]. None when the symbol
+    # has no scored Aegis documents in the week.
     sentiment_7d: float | None = None
 
 

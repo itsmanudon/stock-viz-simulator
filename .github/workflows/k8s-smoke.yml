@@ -38,7 +38,7 @@ jobs:
           test -s /tmp/kind-scale.yaml
           test -s /tmp/kafka.yaml
           # Bootstrap (applied before migrate) must not create application workloads.
-          if grep -E '^  name: stockviz-(api|web|scheduler|outbox-publisher|trade-activity|market-ingest|market-analytics|news-ingest|news-sentiment|sentiment-aggregate)$' /tmp/kind-bootstrap.yaml; then
+          if grep -E '^  name: stockviz-(api|web|scheduler|outbox-publisher|trade-activity|market-ingest|market-analytics)$' /tmp/kind-bootstrap.yaml; then
             echo "bootstrap overlay must not include application Deployments"
             exit 1
           fi

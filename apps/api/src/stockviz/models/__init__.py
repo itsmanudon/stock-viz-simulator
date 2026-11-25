@@ -27,7 +27,6 @@ from stockviz.models.instrument import Instrument, InstrumentIdentifier
 from stockviz.models.job_run import JobRun
 from stockviz.models.market import (
     FxRate,
-    NewsArticle,
     PriceBar,
     QuarantinedPriceBar,
     Symbol,
@@ -63,7 +62,6 @@ from stockviz.models.replay import (
 )
 from stockviz.models.risk_limit import RiskLimit
 from stockviz.models.screen import SavedScreen
-from stockviz.models.sentiment import NewsSentiment
 from stockviz.models.user import User
 from stockviz.models.watchlist import Watchlist, WatchlistItem
 
@@ -95,8 +93,6 @@ __all__ = [
     "Instrument",
     "InstrumentIdentifier",
     "JobRun",
-    "NewsArticle",
-    "NewsSentiment",
     "Notification",
     "NotificationCategory",
     "OptionChainQuote",

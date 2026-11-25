@@ -52,9 +52,6 @@ APP_DEPLOYS=(
   stockviz-trade-activity
   stockviz-market-ingest
   stockviz-market-analytics
-  stockviz-news-ingest
-  stockviz-news-sentiment
-  stockviz-sentiment-aggregate
 )
 
 # On a fresh cluster, application Deployments must not exist until after

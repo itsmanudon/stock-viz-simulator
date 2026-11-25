@@ -31,10 +31,7 @@ for deploy in \
   stockviz-outbox-publisher \
   stockviz-trade-activity \
   stockviz-market-ingest \
-  stockviz-market-analytics \
-  stockviz-news-ingest \
-  stockviz-news-sentiment \
-  stockviz-sentiment-aggregate
+  stockviz-market-analytics
 do
   check "${deploy} available" kubectl -n "${NAMESPACE}" wait --for=condition=available "deploy/${deploy}" --timeout=60s
 done
@@ -64,7 +61,7 @@ check "GET web /api/health" bash -c 'code=$(curl -s --max-time 10 -o /tmp/stockv
 check "GET web /" bash -c 'code=$(curl -s --max-time 30 -o /tmp/stockviz-web.html -w "%{http_code}" http://127.0.0.1:13000/); test "$code" = "200"'
 
 if kubectl -n "${NAMESPACE}" get kafkatopic stockviz-trades-v1 >/dev/null 2>&1; then
-  for t in stockviz-trades-v1 stockviz-market-v1 stockviz-news-v1; do
+  for t in stockviz-trades-v1 stockviz-market-v1; do
     check "topic ${t}" kubectl -n "${NAMESPACE}" get kafkatopic "${t}"
   done
 else
@@ -72,7 +69,7 @@ else
   kafka_pod="$(kubectl -n "${NAMESPACE}" get pods -l strimzi.io/cluster=stockviz,strimzi.io/kind=Kafka -o jsonpath='{.items[0].metadata.name}')"
   topics="$(kubectl -n "${NAMESPACE}" exec "${kafka_pod}" -c kafka -- \
     bin/kafka-topics.sh --bootstrap-server localhost:9092 --list)"
-  for t in stockviz.trades.v1 stockviz.market.v1 stockviz.news.v1; do
+  for t in stockviz.trades.v1 stockviz.market.v1; do
     check "topic ${t}" bash -c "printf '%s\n' \"${topics}\" | grep -qx '${t}'"
   done
 fi

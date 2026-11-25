@@ -22,24 +22,14 @@ from stockviz._time import utcnow
 from stockviz.events.contracts import (
     EVENT_TYPE_MARKET_BARS_REFRESHED,
     EVENT_TYPE_MARKET_REFRESH_REQUESTED,
-    EVENT_TYPE_NEWS_ARTICLE_INGESTED,
-    EVENT_TYPE_NEWS_REFRESH_REQUESTED,
-    EVENT_TYPE_NEWS_SENTIMENT_SCORED,
     EVENT_TYPE_TRADE_EXECUTED,
     MARKET_TOPIC,
-    NEWS_TOPIC,
     SCHEMA_VERSION_V1,
     TRADES_TOPIC,
     MarketBarsRefreshedEvent,
     MarketBarsRefreshedPayload,
     MarketRefreshRequestedEvent,
     MarketRefreshRequestedPayload,
-    NewsArticleIngestedEvent,
-    NewsArticleIngestedPayload,
-    NewsRefreshRequestedEvent,
-    NewsRefreshRequestedPayload,
-    NewsSentimentScoredEvent,
-    NewsSentimentScoredPayload,
     TradeExecutedEvent,
     TradeExecutedPayload,
     decimal_str,
@@ -254,21 +244,6 @@ def parse_market_bars_refreshed(payload: dict) -> MarketBarsRefreshedEvent:
     return MarketBarsRefreshedEvent.model_validate(payload)
 
 
-def parse_news_refresh_requested(payload: dict) -> NewsRefreshRequestedEvent:
-    _require_v1(payload, EVENT_TYPE_NEWS_REFRESH_REQUESTED)
-    return NewsRefreshRequestedEvent.model_validate(payload)
-
-
-def parse_news_article_ingested(payload: dict) -> NewsArticleIngestedEvent:
-    _require_v1(payload, EVENT_TYPE_NEWS_ARTICLE_INGESTED)
-    return NewsArticleIngestedEvent.model_validate(payload)
-
-
-def parse_news_sentiment_scored(payload: dict) -> NewsSentimentScoredEvent:
-    _require_v1(payload, EVENT_TYPE_NEWS_SENTIMENT_SCORED)
-    return NewsSentimentScoredEvent.model_validate(payload)
-
-
 def enqueue_market_refresh_requested(
     session: Session,
     *,
@@ -325,112 +300,6 @@ def enqueue_market_bars_refreshed(
         ),
     )
     return enqueue_envelope(session, envelope, topic=MARKET_TOPIC, partition_key=ticker)
-
-
-def build_news_refresh_requested(
-    *,
-    ticker: str,
-    company_name: str,
-    reason: str = "scheduled",
-    requested_at: datetime | None = None,
-) -> NewsRefreshRequestedEvent:
-    """Build a ``news.refresh.requested`` envelope without staging an outbox row.
-
-    Shared by :func:`enqueue_news_refresh_requested` (the scheduled Kafka path)
-    and the ``stockviz.cli news`` manual twin, which feeds the envelope straight
-    to the consumer handler instead of going through a broker. Both therefore
-    hand the ingest path a byte-identical event.
-    """
-    occurred_at = requested_at or utcnow()
-    ticker = ticker.strip().upper()
-    return NewsRefreshRequestedEvent(
-        event_id=uuid4(),
-        occurred_at=occurred_at,
-        aggregate_id=ticker,
-        payload=NewsRefreshRequestedPayload(
-            ticker=ticker,
-            company_name=company_name,
-            reason=reason,  # type: ignore[arg-type]
-            requested_at=occurred_at,
-        ),
-    )
-
-
-def enqueue_news_refresh_requested(
-    session: Session,
-    *,
-    ticker: str,
-    company_name: str,
-    reason: str = "scheduled",
-    requested_at: datetime | None = None,
-) -> OutboxEvent:
-    envelope = build_news_refresh_requested(
-        ticker=ticker,
-        company_name=company_name,
-        reason=reason,
-        requested_at=requested_at,
-    )
-    return enqueue_envelope(
-        session, envelope, topic=NEWS_TOPIC, partition_key=envelope.payload.ticker
-    )
-
-
-def enqueue_news_article_ingested(
-    session: Session,
-    *,
-    article_id: int,
-    ticker: str,
-    url: str,
-    published_at: datetime,
-    source: str | None,
-    occurred_at: datetime | None = None,
-) -> OutboxEvent:
-    occurred_at = occurred_at or utcnow()
-    event_id = uuid4()
-    ticker = ticker.strip().upper()
-    envelope = NewsArticleIngestedEvent(
-        event_id=event_id,
-        occurred_at=occurred_at,
-        aggregate_id=ticker,
-        payload=NewsArticleIngestedPayload(
-            article_id=article_id,
-            ticker=ticker,
-            url=url,
-            published_at=published_at,
-            source=source,
-        ),
-    )
-    return enqueue_envelope(session, envelope, topic=NEWS_TOPIC, partition_key=ticker)
-
-
-def enqueue_news_sentiment_scored(
-    session: Session,
-    *,
-    article_id: int,
-    ticker: str,
-    model: str,
-    label: str,
-    score: Decimal,
-    confidence: Decimal | None,
-    occurred_at: datetime | None = None,
-) -> OutboxEvent:
-    occurred_at = occurred_at or utcnow()
-    event_id = uuid4()
-    ticker = ticker.strip().upper()
-    envelope = NewsSentimentScoredEvent(
-        event_id=event_id,
-        occurred_at=occurred_at,
-        aggregate_id=ticker,
-        payload=NewsSentimentScoredPayload(
-            article_id=article_id,
-            ticker=ticker,
-            model=model,
-            label=label,
-            score=decimal_str(score),
-            confidence=None if confidence is None else decimal_str(confidence),
-        ),
-    )
-    return enqueue_envelope(session, envelope, topic=NEWS_TOPIC, partition_key=ticker)
 
 
 def publish_batch(

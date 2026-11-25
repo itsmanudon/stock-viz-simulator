@@ -3,7 +3,6 @@
     uv run python -m stockviz.cli seed
     uv run python -m stockviz.cli backfill
     uv run python -m stockviz.cli ingest AAPL [MSFT ...]
-    uv run python -m stockviz.cli news AAPL [MSFT ...]
 
 Kept argparse-only so we don't add another dep. The scheduler covers the
 recurring path; this module is for manual setup and debugging.
@@ -70,7 +69,6 @@ from stockviz.services.ingest.shadow_report import ShadowRun, write_shadow_repor
 from stockviz.services.instruments import instrument_of
 from stockviz.services.metrics import refresh_symbol_metrics
 from stockviz.services.recommend import MAX_SCORE, score_universe
-from stockviz.services.sentiment.store import backfill_unscored
 from stockviz.services.trading import credit_due_dividends, snapshot_user_navs
 from stockviz.settings import get_settings
 
@@ -109,14 +107,6 @@ def _cmd_metadata(args: argparse.Namespace) -> int:
     print(f"metadata backfilled: {counts}")
     for ticker, status in sorted(statuses.items()):
         print(f"  {ticker}: {status}")
-    return 0
-
-
-def _cmd_score_sentiment(args: argparse.Namespace) -> int:
-    since = date.fromisoformat(args.since) if args.since else None
-    with Session(engine) as session:
-        written = backfill_unscored(session, since=since, limit=args.limit)
-    print(f"scored {written} article(s)")
     return 0
 
 
@@ -750,24 +740,6 @@ def _cmd_consume_market_analytics(args: argparse.Namespace) -> int:
     return consumer_main(["--once"] if args.once else [])
 
 
-def _cmd_consume_news_ingest(args: argparse.Namespace) -> int:
-    from stockviz.workers.news_ingest_consumer import main as consumer_main
-
-    return consumer_main(["--once"] if args.once else [])
-
-
-def _cmd_consume_news_sentiment(args: argparse.Namespace) -> int:
-    from stockviz.workers.news_sentiment_consumer import main as consumer_main
-
-    return consumer_main(["--once"] if args.once else [])
-
-
-def _cmd_consume_sentiment_aggregate(args: argparse.Namespace) -> int:
-    from stockviz.workers.sentiment_aggregate_consumer import main as consumer_main
-
-    return consumer_main(["--once"] if args.once else [])
-
-
 def _cmd_fx(args: argparse.Namespace) -> int:
     currencies = (
         [c.upper() for c in args.currencies] if args.currencies else _default_fx_currencies()
@@ -809,74 +781,6 @@ def _default_fx_currencies() -> list[str]:
             )
         )
     return [r for r in rows if r]
-
-
-def _cmd_news(args: argparse.Namespace) -> int:
-    """Manual twin of the news-ingest Kafka consumer.
-
-    Builds the same ``news.refresh.requested`` envelope the scheduler enqueues
-    and hands it to the consumer's own ``process_payload``. Provider I/O,
-    de-duplication, the ``news.article.ingested`` outbox rows and the inbox
-    receipt are therefore the worker's code, not a second copy of it — the only
-    thing this skips is the trip through Kafka.
-    """
-    from sqlmodel import select
-
-    from stockviz.events.outbox import build_news_refresh_requested
-    from stockviz.models import Symbol
-    from stockviz.scheduler import company_name_map
-    from stockviz.workers.news_ingest_consumer import process_payload
-
-    settings = get_settings()
-    if not settings.newsdata_key:
-        print(
-            "news: NEWSDATA_KEY is not set — the provider cannot be called, so "
-            "this would silently ingest nothing. Refusing to run.",
-            file=sys.stderr,
-        )
-        return 2
-
-    if args.tickers:
-        tickers = [t.strip().upper() for t in args.tickers]
-    else:
-        with Session(engine) as session:
-            tickers = list(session.exec(select(Symbol.ticker).where(Symbol.is_active)).all())
-    if not tickers:
-        print("news: no tickers to refresh")
-        return 0
-
-    names = company_name_map()
-    total = 0
-    for ticker in tickers:
-        query = names.get(ticker, ticker)
-        envelope = build_news_refresh_requested(
-            ticker=ticker,
-            company_name=query,
-            reason="manual",
-        )
-        before = _news_article_count(ticker)
-        result = process_payload(envelope.model_dump(mode="json"))
-        inserted = _news_article_count(ticker) - before
-        total += inserted
-        print(f"  {ticker}: {inserted} new ({result}, query={query!r})")
-    print(f"ingested {total} new article(s) across {len(tickers)} ticker(s)")
-    return 0
-
-
-def _news_article_count(ticker: str) -> int:
-    from sqlalchemy import func
-    from sqlmodel import select
-
-    from stockviz.models import NewsArticle
-
-    with Session(engine) as session:
-        return int(
-            session.exec(
-                select(func.count())
-                .select_from(NewsArticle)
-                .where(NewsArticle.instrument_id == instrument_of(ticker))
-            ).one()
-        )
 
 
 def _latest_daily_bar_date(ticker: str) -> date | None:
@@ -1362,8 +1266,6 @@ RECORDED_JOBS = frozenset(
         "prune-events",
         "earnings",
         "metadata",
-        "news",
-        "score-sentiment",
         "sentiment-aggregate",
     }
 )
@@ -1479,13 +1381,6 @@ def main(argv: list[str] | None = None) -> int:
     )
     p_quar.set_defaults(fn=_cmd_ingest_quarantine)
 
-    p_news = sub.add_parser(
-        "news",
-        help="Fetch and store news for tickers (manual twin of the news-ingest worker)",
-    )
-    p_news.add_argument("tickers", nargs="*", help="Defaults to every active symbol")
-    p_news.set_defaults(fn=_cmd_news)
-
     new_york_today = datetime.now(ZoneInfo("America/New_York")).date()
     p_shadow = sub.add_parser(
         "market-shadow",
@@ -1521,17 +1416,9 @@ def main(argv: list[str] | None = None) -> int:
         "metrics", help="Recompute the screener's precomputed per-symbol metrics"
     ).set_defaults(fn=_cmd_metrics)
 
-    p_sent = sub.add_parser(
-        "score-sentiment",
-        help="Score news articles that have no result yet for the active model",
-    )
-    p_sent.add_argument("--since", help="Only score articles published on/after this ISO date")
-    p_sent.add_argument("--limit", type=int, help="Maximum articles to score in this run")
-    p_sent.set_defaults(fn=_cmd_score_sentiment)
-
     sub.add_parser(
         "sentiment-aggregate",
-        help="Roll per-article sentiment into the per-symbol trailing average",
+        help="Roll Aegis News sentiment into the per-symbol trailing average",
     ).set_defaults(fn=_cmd_sentiment_aggregate)
 
     sub.add_parser(
@@ -1706,21 +1593,6 @@ def main(argv: list[str] | None = None) -> int:
             "consume-market-analytics",
             "Consume stockviz.market.v1 market.bars.refreshed",
             _cmd_consume_market_analytics,
-        ),
-        (
-            "consume-news-ingest",
-            "Consume stockviz.news.v1 news.refresh.requested",
-            _cmd_consume_news_ingest,
-        ),
-        (
-            "consume-news-sentiment",
-            "Consume stockviz.news.v1 news.article.ingested",
-            _cmd_consume_news_sentiment,
-        ),
-        (
-            "consume-sentiment-aggregate",
-            "Consume stockviz.news.v1 news.sentiment.scored",
-            _cmd_consume_sentiment_aggregate,
         ),
     ):
         p = sub.add_parser(name, help=help_text)

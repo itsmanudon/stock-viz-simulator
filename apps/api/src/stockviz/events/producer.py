@@ -184,12 +184,10 @@ def ensure_trades_topic(*, bootstrap_servers: str, topic: str, partitions: int) 
 
 
 def ensure_event_topics(*, bootstrap_servers: str) -> None:
-    """Create the local development topics (trades, market, news)."""
+    """Create the local development topics (trades, market)."""
     from stockviz.events.contracts import (
         MARKET_TOPIC,
         MARKET_TOPIC_PARTITIONS,
-        NEWS_TOPIC,
-        NEWS_TOPIC_PARTITIONS,
         TRADES_TOPIC,
         TRADES_TOPIC_PARTITIONS,
     )
@@ -203,9 +201,4 @@ def ensure_event_topics(*, bootstrap_servers: str) -> None:
         bootstrap_servers=bootstrap_servers,
         topic=MARKET_TOPIC,
         partitions=MARKET_TOPIC_PARTITIONS,
-    )
-    ensure_topic(
-        bootstrap_servers=bootstrap_servers,
-        topic=NEWS_TOPIC,
-        partitions=NEWS_TOPIC_PARTITIONS,
     )

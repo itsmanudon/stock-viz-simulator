@@ -126,8 +126,7 @@ with engine.connect() as conn:
             "price_bars",
             "positions",
             "portfolio_snapshots",
-            "news_articles",
-            "news_sentiment",
+            "aegis_documents",
             "options_positions",
         )
     }
