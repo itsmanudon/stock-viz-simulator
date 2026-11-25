@@ -1,5 +1,15 @@
 # Sentiment scoring
 
+> **Retired in A0 (25 Nov 2026).** StockViz no longer scores sentiment, fetches
+> news or stores article text: the providers below (`services/sentiment/`), the
+> NewsData.io ingest, the `news` and `score-sentiment` commands and the Kafka
+> news workers were removed, and the `news_articles` and `news_sentiment`
+> tables moved to the `archive` schema (migration `ea0040711437`). Sentiment now
+> comes from Aegis News as a raw label (`positive`, `neutral`, `negative`,
+> `mixed`) on each synced document (`aegis_analyses`); `refresh_aegis_sentiment`
+> (`services/aegis/read.py`) rolls it into `symbol_metrics.sentiment_7d`. See
+> "Aegis News sync" in `apps/api/CLAUDE.md`. The rest of this page is history.
+
 How StockViz gets a sentiment reading for a news article, and how to plug a
 separate sentiment-analysis service into it.
 

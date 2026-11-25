@@ -31,13 +31,13 @@ src/stockviz/
 ├── routers/         # HTTP endpoints, one module per resource
 ├── models/          # SQLModel models (DB tables)
 ├── services/        # business logic, called by routers
-│   ├── ingest/      # yfinance (primary) / Alpha Vantage (fallback) / Newsdata
+│   ├── ingest/      # yfinance (primary) / Alpha Vantage (fallback)
 │   ├── indicators/  # SMA, EMA, RSI, MACD
 │   ├── recommend/   # daily scoring
 │   ├── trading/     # fills, orders, FX, dividends, analytics
 │   ├── options/     # Black-Scholes + long options book
 │   ├── backtest/    # historical strategy replay
-│   └── sentiment/   # optional headline scoring
+│   └── aegis/       # Aegis News read sync and readers
 └── scheduler.py     # APScheduler job definitions
 ```
 

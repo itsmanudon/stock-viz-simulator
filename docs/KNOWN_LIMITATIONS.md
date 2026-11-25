@@ -5,7 +5,7 @@ These are the current, code-verified boundaries of StockViz. They are not commit
 ## Market data and analytics
 
 - **End-of-day data, not an exchange feed.** yfinance is the primary daily OHLCV source and Alpha Vantage is a fallback when configured. Quotes, charts, fills, backtests, and alerts use cached daily closes.
-- **Provider quality and freshness.** yfinance and Newsdata.io can be delayed, unavailable, or rate-limited. Seed/backfill data is historical and does not prove a hosted feed is current.
+- **Provider quality and freshness.** yfinance can be delayed, unavailable, or rate-limited, and news is only as current as the last `aegis-sync` from Aegis News. Seed/backfill data is historical and does not prove a hosted feed is current.
 - **Massive is evaluation-only.** The adapter is a private, nonpersistent
   shadow. Live semantic statistics and fractional-volume database precision
   still require a local credentialed run. An Individual subscription is not
@@ -13,7 +13,7 @@ These are the current, code-verified boundaries of StockViz. They are not commit
   licensing approval are separate gates. Massive must not be the primary
   provider yet. See [market-data semantics](./MARKET_DATA.md).
 - **Small seeded universe.** The demo data contains a few dozen symbols. Symbol-search API support exists, but the header does not expose typeahead.
-- **Rule-based recommendations.** Technical votes and optional article sentiment produce explainable scores; this is not a predictive model.
+- **Rule-based recommendations.** Technical votes and the Aegis News sentiment vote produce explainable scores; this is not a predictive model.
 
 ## Trading and quantitative models
 

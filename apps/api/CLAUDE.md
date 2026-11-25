@@ -13,28 +13,21 @@ src/stockviz/
   limiter.py        slowapi rate limiter, keyed per-user then per-IP
   scheduler.py      APScheduler jobs (see below) — also run as a dedicated process
   cli.py            argparse one-shot commands mirroring the scheduler jobs;
-                    `earnings` refreshes the idempotent yfinance calendar;
-                    `news` is the manual twin of the news-ingest worker —
-                    it builds the same `news.refresh.requested` envelope the
-                    scheduler enqueues and calls the consumer's own
-                    `process_payload`, so provider I/O, de-dup, the inbox
-                    receipt and the `news.article.ingested` fan-out are the
-                    worker's code and not a second copy
+                    `earnings` refreshes the idempotent yfinance calendar
                     (+ `run-scheduler` for the Kubernetes singleton)
   schemas.py        shared Pydantic response models
   observability.py  Sentry bootstrap (no-op without DSN)
   models/           SQLModel tables (market, portfolio, user, order, option, dividend,
-                    earnings, alert, recommendation, watchlist, metrics, sentiment,
+                    earnings, alert, recommendation, watchlist, metrics,
                     events — outbox, consumer inbox, derived trade activity,
                     execution — SimulatedExecution provenance,
                     replay — ReplaySession / ReplayPosition / ReplayFill /
                     ReplayJournal, aegis — read-only Aegis News copies)
-  events/           versioned contracts (trades/market/news), outbox/inbox,
+  events/           versioned contracts (trades/market), outbox/inbox,
                     dispatcher, domain handlers, Kafka producer wrappers
                     (not imported by FastAPI startup)
   workers/          outbox_publisher, scheduler (dedicated APScheduler process),
-                    plus trade-activity, market ingest/analytics, news
-                    ingest/sentiment, and sentiment-aggregate consumers
+                    plus trade-activity and market ingest/analytics consumers
   benchmarks/       Kafka consumer-group scaling experiment (not domain logic).
                     Runs isolate by seek-to-end + run_id; throughput is
                     min(produced_at)→max(consumed_at), not collector wall-clock.
@@ -47,7 +40,7 @@ src/stockviz/
                     (isolated ReplaySession), health
                     (`GET /live` liveness, `GET /health` readiness + DB)
   services/
-    ingest/         External-API fetchers (yfinance primary, Alpha Vantage fallback, Newsdata);
+    ingest/         External-API fetchers (yfinance primary, Alpha Vantage fallback);
                     earnings ingestion is available through `stockviz earnings`
     indicators/     engine.py (Phase 6.1): one OHLCV indicator registry
                     (about 20: SMA, EMA, WMA, VWAP, Supertrend, ADX, RSI,
@@ -117,11 +110,8 @@ src/stockviz/
     aegis/          Aegis News read sync (Phase 2): contract.py (lenient
                     feed models), token.py (EdDSA feed:read token), client.py
                     (the one client: timeouts, bounded retries), sync.py
-                    (run_sync), read.py (documents_for_ticker)
-    sentiment/      provider abstraction + store
-      base.py         SentimentProvider protocol, SentimentScore/Input
-      anthropic_provider.py, http_provider.py, null_provider.py
-      store.py        persist scores, backfill, per-symbol rolling aggregate
+                    (run_sync), read.py (documents_for_ticker, news_items,
+                    daily_sentiment, refresh_aegis_sentiment)
 migrations/         Alembic versions/
 tests/              pytest, asyncio mode=auto, ~300 tests today
 Dockerfile          Multi-stage build with uv. Default CMD is
@@ -147,15 +137,14 @@ separately; Render still uses `/health` as `healthCheckPath`.
 
 CLI subcommands (`python -m stockviz.cli <cmd>`): `seed`, `backfill`,
 `metadata`, `ingest <tickers>`, `ingest-quarantine [--ticker T] [--release ID ...]`,
-`news [tickers]`, `fx`, `metrics`, `fundamentals [--source yfinance|edgar]`,
-`score-sentiment`, `sentiment-aggregate`, `recommend`, `snapshot-portfolios`,
+`fx`, `metrics`, `fundamentals [--source yfinance|edgar]`,
+`sentiment-aggregate`, `recommend`, `snapshot-portfolios`,
 `dividends`, `credit-dividends`, `settle-options`, `run-scheduler`,
 `prune-events [--days N] [--include-unpublished]`, `aegis-sync [--max-pages N]`,
 `settle-orders [--session-date YYYY-MM-DD]`, `evaluate-alerts`, `revalidate-web`,
 `publish-outbox [--once]`,
 `consume-trade-activity [--once]`, `consume-market-ingest [--once]`,
-`consume-market-analytics [--once]`, `consume-news-ingest [--once]`,
-`consume-news-sentiment [--once]`, `consume-sentiment-aggregate [--once]`.
+`consume-market-analytics [--once]`.
 
 **Pending orders and alerts when hosted (audits P0-1, P0-2).** The Railway
 cron has no scheduler, so `settle-orders` and `evaluate-alerts` run in its
@@ -482,8 +471,8 @@ these run in the request. Both are stored as runs (`kind` `walk_forward` /
 `outbox_events` or `consumer_inbox`. `prune-events` deletes published outbox
 rows and inbox receipts older than 30 days; `--include-unpublished` also
 deletes old unsent rows, for hosts where no publisher runs. The Railway cron
-runs it with that flag and sets `EVENTS_OUTBOX_ENABLED=false`, which makes the
-news ingest skip its `news.article.ingested` fan-out (nothing would publish it). It also deletes
+runs it with that flag and sets `EVENTS_OUTBOX_ENABLED=false`, which nothing
+reads since A0 (the legacy news fan-out was its only reader). It also deletes
 sign-in counters (`auth_rate_limits`, written by the web server's
 `lib/rate-limit.ts`; audit OP-8) whose window ended more than a day ago.
 
@@ -515,8 +504,7 @@ the workspace repository and `aegis-news/docs/feed.md`. Rules:
 - Tests use recorded responses in `tests/fixtures/aegis/`, validated against
   Aegis's own models; see the README there before changing them.
 - **Readers (Phase 2 task 5).** `/v1/news`, `/v1/symbols/{ticker}/news` and
-  `/v1/symbols/{ticker}/sentiment` read the `aegis_*` tables, not
-  `news_articles`. `/v1/news` lists only documents linked to a StockViz
+  `/v1/symbols/{ticker}/sentiment` read the `aegis_*` tables. `/v1/news` lists only documents linked to a StockViz
   symbol; `?scope=market` lists the rest (documents linked to no symbol:
   general market headlines), and refuses `tickers` (400). Whether a
   document links depends on Aegis resolving its entities to a seeded
@@ -525,10 +513,7 @@ the workspace repository and `aegis-news/docs/feed.md`. Rules:
   screener's sentiment filter) is written by `refresh_aegis_sentiment`, run at
   the end of every `aegis-sync` (also after a failed sync) and by the
   `sentiment-aggregate` CLI and scheduler job (audit AG-14). The legacy
-  `news`, `score-sentiment` and `sentiment-aggregate` steps are off the
-  Railway cron; the legacy tables stay until the Aegis path is verified. The
-  Kafka sentiment-aggregate consumer (events lab only) still writes the
-  legacy aggregate: retiring the news workers is Phase 2 task 7.
+  pipeline is gone since A0 (see "Sentiment" below).
 - **Signals maximum (audit SR-9).** Each stored vote carries `available`; the
   sentiment vote is unavailable when no scored Aegis news falls in the week.
   `RecommendationOut.max_score` counts available votes (7, or 6). The pass
@@ -540,8 +525,7 @@ Kafka workers (same image, different command; broker optional for the API):
 pnpm events:up   # compose profile "events" — KRaft Kafka + topic init
 pnpm events:publisher
 pnpm events:market-ingest
-pnpm events:news-ingest
-# also: events:market-analytics, events:news-sentiment, events:sentiment-aggregate
+# also: events:market-analytics
 ```
 
 ## Quality gates
@@ -568,12 +552,12 @@ America/New_York, weekdays unless noted):
   active symbol; no provider I/O in-process)
 - 16:45 — `fx_refresh` and `pending_orders_settlement` (fill limit/stop orders against the new close)
 - 16:50 — `symbol_metrics_refresh` (RSI / 52w range the screener reads)
-- 16:55 — `sentiment_aggregate_refresh` (rolling per-symbol news sentiment)
+- 16:55 — `sentiment_aggregate_refresh` (rolling per-symbol Aegis News sentiment)
 - 17:00 — `recommendations_refresh`
 - 17:15 — `portfolio_snapshots_refresh` (daily NAV snapshot per user)
 - 17:30 — `options_expiry_refresh` (settle expired option positions)
-- Every 4h at :15 (all days) — `news_refresh` (enqueue `news.refresh.requested`;
-  skipped if `NEWSDATA_KEY` empty; sentiment is a Kafka worker)
+
+No job fetches news: Aegis News owns it (`aegis-sync`; A0 removed `news_refresh`).
 
 `symbol_metrics_refresh` and `sentiment_aggregate_refresh` remain
 full-universe **reconciliation** jobs. Kafka consumers are the incremental
@@ -606,7 +590,6 @@ users ─┬─ portfolios ─┬─ positions           (qty + native-currency 
        ├─ alerts
 
 symbols ─┬─ price_bars          (EOD OHLCV; everything prices off the latest 1d close)
-         ├─ news_articles ── news_sentiment   (one row per article+model)
          ├─ recommendations
          ├─ symbol_metrics      (precomputed RSI / 52w / rolling sentiment)
          └─ dividends           (declared payouts per symbol)
@@ -1038,12 +1021,9 @@ Price ingest uses **yfinance first** (no key). Alpha Vantage is attempted
 only when `ALPHA_VANTAGE_KEY` is set and yfinance returned no rows. Massive is
 private/nonpersistent shadow only: `MASSIVE_SHADOW_ENABLED=true` requires
 `MASSIVE_API_KEY`, and candidate bars never enter persistence, events, or APIs.
-An explicit `NEWS_PROVIDER=newsdata` requires `NEWSDATA_KEY`; an explicit
-Anthropic/HTTP sentiment provider similarly requires its credential/endpoint.
-Blank selections retain legacy key-based resolution. `stockviz.cli news` also
-exits 2 rather than silently ingesting nothing.
+StockViz fetches no news (A0): Aegis News owns it.
 
-**Keys stay out of logs.** Alpha Vantage and NewsData.io take the key as
+**Keys stay out of logs.** Alpha Vantage takes the key as
 `apikey=` in the query string. Every process entry point (CLI, workers,
 scheduler) calls `logging_setup.configure_logging()`, which keeps httpx and
 httpcore at WARNING (their INFO lines are request URLs) and puts
@@ -1078,12 +1058,6 @@ counts/close from accepted bars only. Any new write path must go through
 `PriceBar` insert. See
 [market-data semantics](../../docs/database/market-data.md#plausibility-screening).
 
-The newsdata.io query string is the **company name**, resolved by
-`scheduler.company_name_map()`: `symbols.name` from the database, with
-`seed-data/companies.json` layered on top. Before the database layer existed
-the query silently degraded to the bare ticker ("AMZN" rather than
-"Amazon.com Inc.").
-
 **Universe (12 Nov 2026).** `seed-data/companies.json` (shipped in the API
 image) holds 161 symbols: the original 32 plus 53 NSE and 76 US large caps
 drawn from recent NIFTY 50 and S&P 100 membership, each checked against
@@ -1101,24 +1075,22 @@ Don't introduce real-network calls in tests — mock the httpx layer.
 
 ## Sentiment
 
-Scoring goes through a `SentimentProvider` (`services/sentiment/base.py`);
-`SENTIMENT_PROVIDER` picks the implementation — `none` (default), `anthropic`,
-or `http` (a standalone service). Blank resolves to `anthropic` when
-`ANTHROPIC_API_KEY` is set, else `none`.
+**Removed in A0 (25 Nov 2026).** StockViz no longer scores sentiment: the
+`services/sentiment/` providers (Anthropic, HTTP, null), the NewsData.io
+ingest (`services/ingest/news.py`), the `news` and `score-sentiment` commands,
+the `news_refresh` scheduler job, the news event contracts and the three Kafka
+news workers are gone, with `NEWS_PROVIDER`, `NEWSDATA_KEY`,
+`ANTHROPIC_API_KEY` and `SENTIMENT_*` (still set on a host, they are ignored)
+and the `anthropic` dependency. Migration `ea0040711437` moves `news_articles`
+and `news_sentiment` to the `archive` schema (rows, primary and unique keys and
+the key between them kept; the keys to `symbols` and `instruments` and the
+instrument trigger dropped, restored by the downgrade); dropping them is the
+owner's call.
 
-Results land in `news_sentiment`, one row per `(article_id, model)`, carrying
-label + continuous score + optional confidence. Labels are `positive`,
-`neutral`, `negative`, or `mixed` (strong signals both ways, emitted by Aegis
-News; audit AG-4). `mixed` is stored as sent; StockViz's own providers and
-`label_from_score` never produce it. `news_articles.sentiment` stays
-as the denormalized "current best" label the badge reads. A provider never
-raises for one document: unscorable inputs come back `None` and are stored as
-NULL so `stockviz.cli score-sentiment` can retry them.
-
-The legacy `refresh_symbol_sentiment` no longer feeds the hosted app: since
-Phase 2, `symbol_metrics.sentiment_7d` comes from Aegis
-(`services/aegis/read.py::refresh_aegis_sentiment`; see "Aegis News sync"
-above). This section describes the legacy scoring pipeline, kept until it is
-retired.
-
-Full wire contract for the `http` provider: [`docs/SENTIMENT.md`](../../docs/SENTIMENT.md).
+Sentiment is Aegis's label, stored as sent in `aegis_analyses.label`. The label
+set (`positive`, `neutral`, `negative`, `mixed`; AG-4) is the
+`NewsArticleOut.sentiment` literal in `schemas.py`; news alert rules take
+`alerts/rules.py::NEWS_SENTIMENTS` (no `neutral`). `refresh_aegis_sentiment`
+(see "Aegis News sync") writes `symbol_metrics.sentiment_7d`, and the
+`sentiment-aggregate` command and scheduler job run it.
+`docs/SENTIMENT.md` is kept as history.

@@ -30,16 +30,19 @@ Beyond the original markets/charts/news/recommendations pages, the app now
 includes: paper trading with **pending limit/stop orders** and **options**
 (pricing, positions, expiry settlement), **dividends** and **multi-currency
 FX**, **backtesting** (`/backtest`), **screener**, **watchlists**, **price
-alerts** and **AI sentiment** (Anthropic, optional). A0 hygiene (25 Nov 2026)
+alerts** and **news sentiment** from Aegis News. A0 hygiene (25 Nov 2026)
 removed the leaderboard, per-ticker comments (the table is archived in the
-`archive` schema) and the simulated random-walk quote stream: prices show the
-latest close with its date. Remaining product/ops constraints:
+`archive` schema), the simulated random-walk quote stream (prices show the
+latest close with its date) and the legacy news and sentiment pipeline (its
+`news_articles` and `news_sentiment` tables are archived too). Remaining product/ops constraints:
 [`docs/KNOWN_LIMITATIONS.md`](./docs/KNOWN_LIMITATIONS.md).
 
-News sentiment runs through a pluggable provider (Anthropic, an external HTTP
-service, or off) and feeds a screener filter, a recommendation vote, and a
-per-ticker series at `/v1/symbols/{ticker}/sentiment` — see
-[`docs/SENTIMENT.md`](./docs/SENTIMENT.md). Compare, Backtest, and Signals
+News and its sentiment come from Aegis News: `stockviz.cli aegis-sync` copies
+the feed into the `aegis_*` tables, and the sentiment label on each document
+feeds a screener filter, a recommendation vote, and a per-ticker series at
+`/v1/symbols/{ticker}/sentiment`. StockViz never fetches news, scores
+sentiment or stores article text (see "Aegis News sync" in
+`apps/api/CLAUDE.md`). Compare, Backtest, and Signals
 form the Research workspace; see [`docs/RESEARCH.md`](./docs/RESEARCH.md).
 Trade, Orders, Watchlist, and Alerts form the operational trading loop; see
 [`docs/OPERATIONAL_TRADING.md`](./docs/OPERATIONAL_TRADING.md). All live
@@ -53,9 +56,9 @@ buy-and-hold excess, and a first-fill-locked journal from replay-visible
 bars only. See
 [`docs/SIMULATION.md`](./docs/SIMULATION.md).
 
-Market and news ingest are **event-driven**. APScheduler enqueues durable
-outbox requests; Kafka workers fetch providers and write Postgres. Metrics
-and sentiment-aggregate jobs remain full-universe reconciliation. Trading
+Market ingest is **event-driven**. APScheduler enqueues durable outbox
+requests; Kafka workers fetch providers and write Postgres. Metrics and
+sentiment-aggregate (Aegis-based) jobs remain full-universe reconciliation. Trading
 still commits the ledger in FastAPI. See
 [`docs/EVENT_DRIVEN_ARCHITECTURE.md`](./docs/EVENT_DRIVEN_ARCHITECTURE.md).
 
@@ -174,9 +177,9 @@ current architecture guidance.
 ## Running the whole thing in Docker
 
 Compose does **not** read `apps/api/.env`. Provider credentials
-(`NEWSDATA_KEY`, `ANTHROPIC_API_KEY`, `SENTIMENT_*`, `ALPHA_VANTAGE_KEY`) must be
-set in `infra/.env` or they never reach the container, and news ingest and
-sentiment scoring silently no-op. See `infra/.env.example`.
+(`ALPHA_VANTAGE_KEY`, `MASSIVE_*`) must be set in `infra/.env` or they never
+reach the container, and the fallback they enable silently no-ops. See
+`infra/.env.example`.
 
 `pnpm stack:up` builds and starts `api` (:8000) and `web` (:3100) alongside
 Postgres, using the **`app` compose profile** — so plain `pnpm db:up` stays a
@@ -293,12 +296,8 @@ Full lists live in `apps/web/.env.example` and `apps/api/.env.example`
 | `WEB_REVALIDATE_URL`                                     | cron                         | the web's `POST /api/revalidate` (Phase 6.6, RS-9), called last in the nightly chain with an HMAC of `INTERNAL_API_TOKEN`, so the web's cached market data refreshes together. Blank skips it (exit 2); a rejected key fails the job. Set in `.railway/railway.ts` from the web's domain |
 | `KITE_API_KEY`, `KITE_API_SECRET`                      | api                          | optional Kite Connect app for on-demand NSE/BSE history snapshots (`ingest-history --provider kite`); blank turns Kite off (exit 2). Never used nightly; the login is manual every day |
 | `MASSIVE_SHADOW_ENABLED`, `MASSIVE_API_KEY`             | api                          | Massive is private/nonpersistent shadow only; explicit enablement without its key fails validation |
-| `NEWS_PROVIDER`, `NEWSDATA_KEY`                         | api                          | explicit `newsdata` requires its key; blank retains legacy key-based resolution, and `none` disables news |
-| `ANTHROPIC_API_KEY`                                     | api                          | explicit `SENTIMENT_PROVIDER=anthropic` requires its key; blank provider retains legacy key-based resolution |
-| `SENTIMENT_PROVIDER`                                     | api                          | `none` (default) \| `anthropic` \| `http`. Blank resolves to `anthropic` when `ANTHROPIC_API_KEY` is set. See [`docs/SENTIMENT.md`](./docs/SENTIMENT.md)                                                                     |
-| `SENTIMENT_SERVICE_URL`, `SENTIMENT_SERVICE_TOKEN`       | api                          | only read when `SENTIMENT_PROVIDER=http` — the standalone scoring service. `HttpProvider` posts to `{URL}/score`, so include any path prefix the service uses (e.g. `.../v1`) |
 | `KAFKA_BOOTSTRAP_SERVERS`                                | api workers                  | defaults to `localhost:9092`; workers run inside compose need `kafka:29092`. The API never produces to Kafka, so the compose `api` service does not set it |
-| `EVENTS_OUTBOX_ENABLED`                                  | api, cron                    | default `true`. `false` where no outbox publisher runs (the Railway cron): the news ingest skips its `news.article.ingested` fan-out. Old rows go with `stockviz.cli prune-events` |
+| `EVENTS_OUTBOX_ENABLED`                                  | api, cron                    | default `true`; the Railway cron sets `false`. Unread since A0 (its only reader, the legacy news fan-out, is gone); kept until the outbox batch. Old rows go with `stockviz.cli prune-events` |
 | `AEGIS_BASE_URL`, `AEGIS_SERVICE_TOKEN_KEY`, `AEGIS_ISSUER`, `AEGIS_AUDIENCE`, `AEGIS_KEY_ID` | api, cron              | the Aegis News read sync (`stockviz.cli aegis-sync`). Off, exit 2, until the first four are set. The key is the Ed25519 private PEM Aegis trusts as `stockviz-sync-2026-11` (Doppler `stock-viz-simulator/prd`); never commit it. The other values are in `.railway/railway.ts`. See `apps/api/CLAUDE.md` |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`               | web                          | Google OAuth sign-in                                                                                                                                                                                                         |
 | `NEXTAUTH_JWT_SECRET`                                    | api                          | **legacy** — still in `settings.py` but no longer read by the auth bridge                                                                                                                                                    |

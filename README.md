@@ -14,7 +14,7 @@ StockViz combines a usable Next.js financial application with a deliberately spl
 - **Deterministic backtesting.** Strategies replay stored daily bars with explicit commission, slippage, and a buy-and-hold benchmark without using future data.
 - **Transactional outbox.** A committed trade cannot lose its event because publication is retried independently after the financial transaction.
 - **At-least-once Kafka processing.** Consumer inbox rows make duplicate delivery safe; application keys retain useful portfolio/ticker ordering.
-- **Event-driven ingestion.** The scheduler emits durable market/news requests; dedicated workers call providers, persist results, and publish downstream domain events.
+- **Event-driven ingestion.** The scheduler emits durable market refresh requests; dedicated workers call providers, persist results, and publish downstream domain events. News comes from Aegis News through a read sync; StockViz fetches no news and scores no sentiment.
 - **Plausibility-screened ingest.** Every price bar passes structural checks (positive, finite, `low ≤ open,close ≤ high`) before it reaches `price_bars`; implausible bars (huge intrabar range or day-over-day move) are quarantined for review, never dropped, so a bad provider row can't flow into fills, NAV, or backtests.
 - **Multi-currency universe.** US, Indian (NSE equities + NIFTY indices), and European tickers plus USD commodities, each priced in its native currency with FX-aware conversion to the USD ledger.
 - **Kubernetes orchestration.** API, web, migration, scheduler, publisher, and consumers have distinct workloads, probes, disruption policies, and appropriate scaling limits.
@@ -72,7 +72,7 @@ sequenceDiagram
 
 The outbox closes the database/Kafka dual-write gap: application state and the event intent commit together, and a publisher retries until the broker acknowledges. A crash after Kafka acknowledgement but before `published_at` can publish a duplicate, so consumers atomically insert a durable inbox key with their derived writes before committing the Kafka offset.
 
-Trades are keyed by `portfolio_id`; market and news events are keyed by `ticker`. Kafka ordering is partition-local, so these keys keep each portfolio or ticker ordered without promising global order.
+Trades are keyed by `portfolio_id`; market events are keyed by `ticker`. Kafka ordering is partition-local, so these keys keep each portfolio or ticker ordered without promising global order.
 
 ```mermaid
 flowchart LR
@@ -80,21 +80,17 @@ flowchart LR
   Outbox --> Publisher[Outbox publisher]
   Publisher --> Kafka[Kafka]
   Kafka --> MarketIngest[Market ingestion]
-  Kafka --> NewsIngest[News ingestion]
   MarketIngest -->|bars + domain event, atomic| PG[(PostgreSQL)]
-  NewsIngest -->|articles + domain event, atomic| PG
   PG --> MarketEvent[market.bars.refreshed]
-  PG --> NewsEvent[news.article.ingested]
   MarketEvent --> Analytics[Market analytics]
-  NewsEvent --> Sentiment[News sentiment]
   Analytics --> PG
-  Sentiment --> PG
+  Aegis[Aegis News feed] -->|aegis-sync| PG
   Reconcile[Scheduled metrics / sentiment reconciliation] -. repairs drift .-> PG
 ```
 
 ## Kubernetes lab
 
-The kind reference separates the FastAPI and Next.js Deployments from a singleton scheduler, one-shot migration Job, outbox publisher, trade-activity consumer, market/news ingestion and analytics workers, and sentiment workers. Strimzi runs Kafka 3.9.0. Readiness can depend on PostgreSQL; `/live` is process liveness and deliberately does not. The market-ingest HPA caps at three replicas because its domain topic has three partitions.
+The kind reference separates the FastAPI and Next.js Deployments from a singleton scheduler, one-shot migration Job, outbox publisher, trade-activity consumer, and market ingestion and analytics workers. Strimzi runs Kafka 3.9.0. Readiness can depend on PostgreSQL; `/live` is process liveness and deliberately does not. The market-ingest HPA caps at three replicas because its domain topic has three partitions.
 
 This is a locally and CI-validated deployment reference—not a cloud, multi-zone, or production-capacity claim.
 
@@ -121,7 +117,7 @@ All four runs collected exactly 100,000 current-run records, counted zero foreig
 - FX-aware equity paper trading, pending limit/stop/take-profit orders, dividends, and portfolio analytics
 - Long-only Black-Scholes options priced with a historical-volatility proxy
 - Configurable, look-ahead-safe strategy backtesting
-- Rule-based technical and optional sentiment recommendations
+- Rule-based technical and Aegis News sentiment recommendations
 
 ## Tech stack
 
@@ -129,7 +125,7 @@ All four runs collected exactly 100,000 current-run records, counted zero foreig
 | ------------- | ---------------------------------------------------------------------------- |
 | Web           | Next.js 16, React 19, TypeScript, Tailwind CSS, NextAuth, lightweight-charts |
 | API           | FastAPI, SQLModel, Alembic, APScheduler, Pyright, Ruff                       |
-| Data          | PostgreSQL 16, yfinance, Alpha Vantage fallback, Newsdata.io, F-011 plausibility screening |
+| Data          | PostgreSQL 16, yfinance, Alpha Vantage fallback, Aegis News (read sync), F-011 plausibility screening |
 | Events        | Kafka 3.9, transactional outbox, idempotent consumer inbox                   |
 | Orchestration | Kubernetes, kind, Strimzi, Kustomize, HPA/PDB/probes                         |
 | Deployment    | Railway (whole stack, TypeScript IaC), Vercel (web), Render (API + DB)       |
@@ -162,8 +158,6 @@ pnpm events:publisher       # separate terminals
 uv --directory apps/api run python -m stockviz.workers.trade_activity_consumer
 pnpm events:market-ingest
 pnpm events:market-analytics
-pnpm events:news-ingest
-pnpm events:news-sentiment
 ```
 
 ### 3. Full Kubernetes lab: kind + Strimzi
