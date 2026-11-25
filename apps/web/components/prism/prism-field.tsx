@@ -3,7 +3,7 @@
 /**
  * PrismField: the hero's light. One full-screen fragment shader (three.js,
  * loaded on demand) that draws slow iridescent ribbons of the brand's
- * violet, plasma and ion, bending toward the pointer.
+ * steel, champagne and silver (liquid chrome), bending toward the pointer.
  *
  * It carries one fact as colour, like the Aurora "market weather" it
  * replaces: `share` (the fraction of tracked symbols that closed up at the
@@ -151,9 +151,9 @@ export function PrismField({ share, className }: { share?: number | null; classN
         uTime: { value: 12 },
         uRes: { value: new THREE.Vector2(1, 1) },
         uPointer: { value: new THREE.Vector2(0.3, 0.1) },
-        uA: { value: srgb(cssColor("--brand-gradient-from", "#7c5cff")) },
-        uB: { value: srgb(cssColor("--brand-gradient-via", "#ff5fd2")) },
-        uC: { value: srgb(cssColor("--brand-gradient-to", "#5ee7ff")) },
+        uA: { value: srgb(cssColor("--brand-gradient-from", "#8d9bb0")) },
+        uB: { value: srgb(cssColor("--brand-gradient-via", "#f0dfba")) },
+        uC: { value: srgb(cssColor("--brand-gradient-to", "#d6dbe2")) },
         uMood: {
           value: srgb(
             moodShare >= 0.5

@@ -20,18 +20,18 @@
   --popover-foreground: #0b1220;
   --primary: #0b1220;
   --primary-foreground: #ffffff;
-  /* Aqua fails contrast on white, so light mode carries the blue end of the
-     brand for text, focus and selection. The gradient stops stay the same in
+  /* Champagne fails contrast on white, so light mode carries a dark bronze
+     for brand text, focus and selection. The gradient stops stay the same in
      both themes because the paper card always sits on its own dark ground. */
-  --brand: #5b3fe0;
-  --brand-muted: #ebe6ff;
-  --brand-gradient-from: #7c5cff;
-  --brand-gradient-via: #ff5fd2;
-  --brand-gradient-to: #5ee7ff;
+  --brand: #6f5526;
+  --brand-muted: #f0e8d8;
+  --brand-gradient-from: #8d9bb0;
+  --brand-gradient-via: #f0dfba;
+  --brand-gradient-to: #d6dbe2;
   /* Stops for gradient display text. Kept dark enough in light mode that the
      lightest stop still clears 3:1 for large text on the canvas. */
-  --brand-text-from: #5b3fe0;
-  --brand-text-to: #a3339a;
+  --brand-text-from: #6f5526;
+  --brand-text-to: #3f5068;
   --secondary: #e9edf3;
   --secondary-foreground: #172033;
   --muted: #e9edf3;
@@ -42,7 +42,7 @@
   --destructive-foreground: #ffffff;
   --border: #cdd4df;
   --input: #b7c0ce;
-  --ring: #5b3fe0;
+  --ring: #6f5526;
   --surface-elevated: #ffffff;
   --surface-secondary: #e9edf3;
   --surface-hover: #e1e6ee;
@@ -82,42 +82,44 @@
 }
 
 .dark {
-  /* PRISM (Nov 2026 redesign). Near-black with a violet cast, an iridescent
-     violet → plasma → ion brand, and the same strict rule as Aurora: the brand
-     is identity, focus and selection only; gain and loss keep their own hues. */
-  --background: #050507;
-  --foreground: #f4f2ff;
-  --card: #0b0b11;
-  --card-foreground: #f4f2ff;
-  --popover: #12121a;
-  --popover-foreground: #f4f2ff;
-  --primary: #f4f2ff;
-  --primary-foreground: #050507;
-  --brand: #a796ff;
-  --brand-muted: #1d1838;
-  --brand-gradient-from: #7c5cff;
-  --brand-gradient-via: #ff5fd2;
-  --brand-gradient-to: #5ee7ff;
-  --brand-text-from: #d7ccff;
-  --brand-text-to: #7fe9ff;
-  --secondary: #121219;
-  --secondary-foreground: #dcd9ec;
-  --muted: #121219;
+  /* PRISM, liquid chrome (Nov 2026 redesign, second palette). Neutral ink
+     black, warm pearl text, and a polished-metal brand: steel → champagne →
+     silver. The same strict rule as Aurora holds: the brand is identity, focus
+     and selection only; gain and loss keep their own green and red, which the
+     colourless metal never competes with. */
+  --background: #070708;
+  --foreground: #f2eee6;
+  --card: #0d0d0f;
+  --card-foreground: #f2eee6;
+  --popover: #141416;
+  --popover-foreground: #f2eee6;
+  --primary: #f2eee6;
+  --primary-foreground: #070708;
+  --brand: #dcc49a;
+  --brand-muted: #231e15;
+  --brand-gradient-from: #8d9bb0;
+  --brand-gradient-via: #f0dfba;
+  --brand-gradient-to: #d6dbe2;
+  --brand-text-from: #f7f2e8;
+  --brand-text-to: #9fadc0;
+  --secondary: #131315;
+  --secondary-foreground: #dcd8d0;
+  --muted: #131315;
   --muted-foreground: var(--text-secondary);
-  --accent: #1b1a26;
-  --accent-foreground: #f4f2ff;
+  --accent: #1c1c1f;
+  --accent-foreground: #f2eee6;
   --destructive: #ff6b7f;
   --destructive-foreground: #2d0c10;
-  --border: #25242f;
-  --input: #64627a;
-  --ring: #a796ff;
+  --border: #27272a;
+  --input: #67645e;
+  --ring: #dcc49a;
   /* One step above --card so overlays separate from the tiles they sit on. */
-  --surface-elevated: #101017;
-  --surface-secondary: #13131b;
-  --surface-hover: #1b1a26;
-  --border-muted: #18171f;
-  --text-secondary: #b4b1c6;
-  --text-tertiary: #8f8ca3;
+  --surface-elevated: #111113;
+  --surface-secondary: #141416;
+  --surface-hover: #1c1c1f;
+  --border-muted: #19191b;
+  --text-secondary: #b7b2a8;
+  --text-tertiary: #8e8a82;
   --positive: #3ee59a;
   --positive-foreground: #04281a;
   --financial-tint-1: 6%;
@@ -133,13 +135,13 @@
   --negative-soft-foreground: #ffa3af;
   --warning-soft: #33270f;
   --warning-soft-foreground: #f8d48a;
-  --neutral-soft: #1b1a26;
-  --neutral-soft-foreground: #b4b1c6;
+  --neutral-soft: #1c1c1f;
+  --neutral-soft-foreground: #b7b2a8;
 
-  --marketing-panel: #0a0a10;
-  --marketing-panel-border: #24232e;
+  --marketing-panel: #0b0b0d;
+  --marketing-panel-border: #252528;
   --marketing-glow: color-mix(in oklab, var(--brand-gradient-from) 55%, transparent);
-  --grid-line: #14131c;
+  --grid-line: #151517;
 }
 
 @theme inline {
@@ -300,8 +302,8 @@ html[data-density="compact"] .workspace-main .density-workspace {
 
   .dark .panel-inset {
     /* A shade above --card so nested tiles still separate from the panel. */
-    --surface-elevated: #141b29;
-    --border-muted: #1a2232;
+    --surface-elevated: #161618;
+    --border-muted: #1d1d20;
     border-color: var(--marketing-panel-border);
     background-color: var(--marketing-panel);
     color-scheme: dark;
@@ -416,25 +418,23 @@ html[data-density="compact"] .workspace-main .density-workspace {
     overflow: hidden;
     aspect-ratio: 1.586;
     border-radius: 1rem;
-    color: #ffffff;
+    color: #f7f2e8;
+    /* Black titanium: dark brushed metal with a champagne glint in one corner
+       and a steel one in the other, so it reads as the metal brand without
+       putting light text on a light fill. */
     background: radial-gradient(
-        120% 90% at 85% 110%,
-        color-mix(in oklab, var(--brand-gradient-to) 85%, white) 0%,
-        transparent 45%
+        110% 80% at 90% 110%,
+        color-mix(in oklab, var(--brand-gradient-via) 38%, transparent) 0%,
+        transparent 55%
       ),
       radial-gradient(
-        90% 120% at 10% 0%,
-        color-mix(in oklab, var(--brand-gradient-from) 90%, black) 0%,
+        90% 110% at 0% 0%,
+        color-mix(in oklab, var(--brand-gradient-from) 45%, transparent) 0%,
         transparent 60%
-      ),
-      linear-gradient(
-        120deg,
-        var(--brand-gradient-from),
-        var(--brand-gradient-via) 60%,
-        var(--brand-gradient-to)
-      );
-    box-shadow: 0 18px 40px -14px color-mix(in oklab, var(--brand-gradient-from) 60%, transparent),
-      inset 0 0 0 1px rgb(255 255 255 / 0.25);
+      ), repeating-linear-gradient(90deg, rgb(255 255 255 / 0.025) 0 1px, transparent 1px 3px),
+      linear-gradient(125deg, #3a3c41, #141518 42%, #2a2b2f 68%, #0b0b0d);
+    box-shadow: 0 18px 40px -14px color-mix(in oklab, var(--brand-gradient-from) 45%, transparent),
+      inset 0 0 0 1px rgb(255 255 255 / 0.18), inset 0 1px 0 rgb(255 255 255 / 0.22);
   }
 
   .paper-card::before {
@@ -869,13 +869,19 @@ body::after {
 @layer components {
   /* Iridescent text for one or two words of a headline. */
   .text-prism {
+    /* Polished metal: alternating bright and dark bands, so the shift reads
+       as light sliding across chrome rather than a colour fade. */
     background-image: linear-gradient(
       100deg,
-      var(--brand-text-from),
-      color-mix(in oklab, var(--brand-gradient-via) 70%, white) 45%,
-      var(--brand-text-to)
+      var(--brand-text-from) 0%,
+      var(--brand-text-to) 18%,
+      #ffffff 34%,
+      var(--brand) 50%,
+      var(--brand-text-from) 66%,
+      var(--brand-text-to) 84%,
+      var(--brand-text-from) 100%
     );
-    background-size: 200% 100%;
+    background-size: 220% 100%;
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
@@ -1252,8 +1258,8 @@ body::after {
     background: linear-gradient(
       105deg,
       transparent 35%,
-      rgb(124 92 255 / 0.28) 48%,
-      rgb(94 231 255 / 0.28) 55%,
+      rgb(240 223 186 / 0.45) 48%,
+      rgb(214 219 226 / 0.35) 55%,
       transparent 68%
     );
     transform: translateX(-120%);

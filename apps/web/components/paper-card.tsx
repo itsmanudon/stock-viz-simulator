@@ -45,7 +45,7 @@ export function PaperCard({
           </div>
           <div className="flex items-end justify-between gap-[4cqw] font-mono text-[4cqw] leading-[1.45] font-medium tracking-[0.06em]">
             <span>{label}</span>
-            <span className="relative h-[7.2cqw] w-[10cqw] rounded-[1.8cqw] bg-linear-to-br from-[#e7ecf5] to-[#9aa6bb] shadow-[inset_0_0_0_1px_rgb(0_0_0/0.2)]" />
+            <span className="relative h-[7.2cqw] w-[10cqw] rounded-[1.8cqw] bg-linear-to-br from-[#f3e6c9] to-[#a8916a] shadow-[inset_0_0_0_1px_rgb(0_0_0/0.2)]" />
           </div>
         </div>
       </div>
@@ -65,7 +65,7 @@ export function PaperCard({
       </div>
       <div className="flex items-end justify-between gap-3 font-mono text-2xs font-medium tracking-[0.06em]">
         <span>{label}</span>
-        <span className="relative h-5 w-7 rounded-[5px] bg-linear-to-br from-[#e7ecf5] to-[#9aa6bb] shadow-[inset_0_0_0_1px_rgb(0_0_0/0.2)]" />
+        <span className="relative h-5 w-7 rounded-[5px] bg-linear-to-br from-[#f3e6c9] to-[#a8916a] shadow-[inset_0_0_0_1px_rgb(0_0_0/0.2)]" />
       </div>
     </div>
   );

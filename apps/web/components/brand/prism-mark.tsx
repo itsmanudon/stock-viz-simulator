@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 
 /**
  * The PRISM mark: a faceted triangle whose three faces catch the brand's
- * violet, plasma and ion light, with a rising price line refracted through
+ * steel, champagne and silver light, with a rising price line refracted through
  * it. Decorative, so the wordmark beside it carries the name.
  */
 export function PrismMark({ className }: { className?: string }) {
@@ -29,7 +29,7 @@ export function PrismMark({ className }: { className?: string }) {
       </defs>
       <path d="M16 3 L29 27 H3 Z" fill={`url(#${id}-a)`} opacity="0.95" />
       <path d="M16 3 L29 27 L16 20 Z" fill={`url(#${id}-b)`} opacity="0.9" />
-      <path d="M3 27 L16 20 L29 27 Z" fill="#050507" opacity="0.35" />
+      <path d="M3 27 L16 20 L29 27 Z" fill="#070708" opacity="0.35" />
       <path
         d="M6 22 L12 17 L16 19 L22 11 L27 8"
         fill="none"

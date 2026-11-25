@@ -274,8 +274,8 @@ export function MarketTerrain({
         uTime: { value: 0 },
         uUp: { value: srgb(cssColor("--positive", "#3ee59a")) },
         uDown: { value: srgb(cssColor("--negative", "#ff6b7f")) },
-        uFlat: { value: srgb(cssColor("--brand-gradient-from", "#7c5cff")) },
-        uFront: { value: srgb(cssColor("--brand-gradient-to", "#5ee7ff")) },
+        uFlat: { value: srgb(cssColor("--brand-gradient-from", "#8d9bb0")) },
+        uFront: { value: srgb(cssColor("--brand-gradient-via", "#f0dfba")) },
         uCells: { value: new THREE.Vector2((cols - 1) / width, (rows - 1) / depth) },
       };
       const material = new THREE.ShaderMaterial({

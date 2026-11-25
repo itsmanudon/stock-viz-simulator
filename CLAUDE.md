@@ -56,8 +56,8 @@ buy-and-hold excess, and a first-fill-locked journal from replay-visible
 bars only. See
 [`docs/SIMULATION.md`](./docs/SIMULATION.md).
 
-The web app's look is the **PRISM** redesign (Nov 2026): near-black with a
-violet → plasma → ion brand, a WebGL hero light, a 3D "market terrain" with
+The web app's look is the **PRISM** redesign (Nov 2026): ink black with a
+liquid-chrome brand (steel → champagne → silver), a WebGL hero light, a 3D "market terrain" with
 time as the fourth axis (landing and dashboard), and opt-in synthesised
 interface sound. See "PRISM layer" and "Sound" in `apps/web/CLAUDE.md`.
 
