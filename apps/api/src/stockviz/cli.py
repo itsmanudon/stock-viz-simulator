@@ -763,6 +763,62 @@ def _cmd_export_parquet(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_rule_check(args: argparse.Namespace) -> int:
+    """Parse, type-check and judge a Rule DSL rule (A2.1, M4.1). Read-only.
+
+    Prints the canonical form and its hash, then for each ticker met /
+    not_met / unknown (with the reason) at ``--date`` or, by default, the
+    latest completed session of the ticker's venue, judged on the latest
+    stored bar on or before it. Exit 2 on a syntax or type error, 1 when a
+    ticker is unknown or has no bar.
+    """
+    from stockviz.models import Symbol
+    from stockviz.services.dsl import RuleError, compile_rule, evaluate_at, load_symbol
+    from stockviz.services.markets.calendar import latest_completed_session, venue_for_ticker
+
+    try:
+        rule = compile_rule(args.rule)
+    except RuleError as exc:
+        print(exc.pretty())
+        return 2
+    print(f"canonical: {rule.canonical_text}")
+    print(f"hash:      {rule.hash}")
+    warm = "the whole history" if rule.lookback is None else f"{rule.lookback} daily bars"
+    print(f"type:      {rule.type}; warm-up {warm}")
+    code = 0
+    with Session(engine) as session:
+        for raw in args.tickers:
+            ticker = raw.upper()
+            if session.get(Symbol, ticker) is None:
+                print(f"{ticker}: unknown symbol")
+                code = 1
+                continue
+            venue = venue_for_ticker(ticker)
+            target = (
+                date.fromisoformat(args.date)
+                if args.date
+                else latest_completed_session(datetime.now(UTC), venue)
+            )
+            data = load_symbol(
+                session, ticker, end=target, start=target, lookback=rule.lookback,
+                needs=rule.needs,
+            )  # fmt: skip
+            if data.bars.empty:
+                print(f"{ticker}: no daily bars on or before {target.isoformat()}")
+                code = 1
+                continue
+            bar = data.dates[-1]
+            stale = "" if bar == target else f" (latest bar; session {target.isoformat()})"
+            outcome, rows = evaluate_at(rule, data, bar, explain=args.explain)
+            print(f"{ticker} {bar.isoformat()}{stale}: {outcome.status}")
+            for reason in outcome.reasons:
+                print(f"  unknown because {reason}")
+            for row in rows:
+                tf = "" if row.timeframe == "daily" else f" [{row.timeframe}]"
+                print(f"  {row.text}{tf} = {row.value}")
+    return code
+
+
 def _cmd_nse_files(args: argparse.Namespace) -> int:
     """List the most recent ``data_files`` rows (A1.1). Read-only."""
     from sqlmodel import col, select
@@ -1732,6 +1788,18 @@ def main(argv: list[str] | None = None) -> int:
         "--tables", nargs="+", choices=TABLE_NAMES, default=None, help="Default: all"
     )
     p_export.set_defaults(fn=_cmd_export_parquet)
+
+    p_rule = sub.add_parser(
+        "rule-check",
+        help="Parse and type-check a Rule DSL rule and judge it for tickers (A2.1)",
+    )
+    p_rule.add_argument("rule", help='e.g. "close > sma(close, 200) and rsi(14) < 70"')
+    p_rule.add_argument("tickers", nargs="*", help="Symbols to judge the rule for")
+    p_rule.add_argument(
+        "--date", default=None, help="YYYY-MM-DD; default: the latest completed session"
+    )
+    p_rule.add_argument("--explain", action="store_true", help="Print every sub-expression's value")
+    p_rule.set_defaults(fn=_cmd_rule_check)
 
     p_aegis = sub.add_parser(
         "aegis-sync",
