@@ -113,6 +113,9 @@ src/stockviz/
                     (header detection), parse.py (+ date check), archive.py
                     (`NSE_ARCHIVE_DIR`, `data_files`), load.py (`eod_raw`,
                     `eod_extras`, ISIN identifiers), process.py (one file)
+    export/         A1.6 Parquet export for the laptop's `lab/` package:
+                    tables.py (what is exported), parquet.py (partitions,
+                    manifest, atomic writes)
     aegis/          Aegis News read sync (Phase 2): contract.py (lenient
                     feed models), token.py (EdDSA feed:read token), client.py
                     (the one client: timeouts, bounded retries), sync.py
@@ -151,7 +154,8 @@ CLI subcommands (`python -m stockviz.cli <cmd>`): `seed`, `backfill`,
 `publish-outbox [--once]`,
 `consume-trade-activity [--once]`, `consume-market-ingest [--once]`,
 `consume-market-analytics [--once]`, `nse-load PATH ... [--apply]`,
-`nse-files [--limit N]`.
+`nse-files [--limit N]`,
+`export-parquet --out DIR [--since YYYY-MM-DD] [--tables T ...]`.
 
 **NSE files (A1.1).** `services/nse/` parses NSE end-of-day files **placed
 by hand**. Nothing downloads from NSE yet (that is A1.2, after the owner's
@@ -180,6 +184,35 @@ created. Not in `RECORDED_JOBS` or the cron. `price_bars` is untouched
 until A1.3. `nse-files` lists recent `data_files` rows. Tests use synthetic
 files in `tests/fixtures/nse/` (real headers, invented numbers; never
 commit real NSE data).
+
+**Parquet export (A1.6, M1.8).** `stockviz.cli export-parquet --out DIR`
+(`services/export/`) writes `price_bars` (`1d` only), `eod_raw`,
+`eod_extras`, `corporate_actions`, `fundamental_facts` and `fx_rates` as one
+zstd Parquet file per calendar month of their date column
+(`<table>/year=YYYY/month=MM/part.parquet`; `ts`, `session_date`, `ex_date`,
+`available_at`, `date`), and `instruments`, `instrument_identifiers` and
+`data_files` (metadata only, never the raw files) whole as
+`<table>/part.parquet`. It only reads the database. Rules: `Numeric(p, s)`
+is Parquet `decimal(p, s)`, never float; timestamps naive UTC; rows stream
+in chunks of `CHUNK_ROWS` (50,000), one month at a time, ordered by
+instrument then date; each file goes to a hidden temporary name and is
+renamed into place, the manifest last, so a failure never leaves a partial
+file. `manifest.json` holds `schema_version` (`EXPORT_SCHEMA_VERSION`, 1;
+bump it when the layout or columns change), `exported_at`, `source_commit`
+(`RAILWAY_GIT_COMMIT_SHA`, else `git rev-parse HEAD`, else `unknown`), and per
+partition rows, bytes, SHA-256 and min/max date. An empty table is skipped
+and listed in `empty_tables`. `--since` rewrites only months on or after its
+month and keeps older partitions untouched with their entries (a row added
+later with an older date needs a full export); a manifest of another schema
+version, or a table whose columns changed, gets a full export. Files the old
+manifest listed and this run did not write are deleted; nothing else in
+`DIR` is. `--tables` exports a subset and keeps the other tables' entries.
+It refuses an `--out` inside the work tree that git would not ignore (exports
+hold exchange data; use `lab/data/`, ignored, or a path outside the repo).
+`pyarrow` is an API dependency for this; DuckDB and Polars are in `lab/`
+only. Not in `RECORDED_JOBS` or the cron yet; where the export lives for the
+laptop to pull is an open owner question. `tests/test_export_parquet.py`;
+the reader is `lab/` (see `lab/README.md`).
 
 **Weekly and monthly bars (A1.4a, M2.2 first half).** Resampled on read,
 never stored (`services/bars/resample.py`). `GET /v1/symbols/{t}/bars` and
