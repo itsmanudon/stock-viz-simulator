@@ -80,9 +80,14 @@ DEFAULT_SHADOW_OUTPUT = Path("artifacts/private/massive-shadow")
 
 
 def _cmd_seed(_args: argparse.Namespace) -> int:
+    from stockviz.services.setups.presets import seed_presets
+
     with Session(engine) as session:
         n = seed_symbols(session)
+        presets = seed_presets(session)  # A2.2: the read-only system setups
     print(f"seeded {n} symbols")
+    for key, state in presets.items():
+        print(f"preset {key}: {state}")
     return 0
 
 
@@ -1558,7 +1563,9 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="stockviz", description="StockViz API operator commands.")
     sub = parser.add_subparsers(dest="cmd", required=True)
 
-    sub.add_parser("seed", help="Seed symbols from companies.json").set_defaults(fn=_cmd_seed)
+    sub.add_parser(
+        "seed", help="Seed symbols from companies.json and the rule presets"
+    ).set_defaults(fn=_cmd_seed)
     p_backfill = sub.add_parser(
         "backfill", help="Load the seed CSVs into price_bars (run once after seed)"
     )

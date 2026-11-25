@@ -43,3 +43,17 @@ def require_user_id(
 
 
 UserIdDep = Annotated[int, Depends(require_user_id)]
+
+
+def optional_user_id(
+    authorization: Annotated[str | None, Header()] = None,
+) -> int | None:
+    """For a public endpoint that shows more to its owner (A2.2: the screener
+    runs a private setup version for the user who owns it). No header is
+    anonymous; a header that does not verify is still a 401."""
+    if not authorization:
+        return None
+    return require_user_id(authorization)
+
+
+OptionalUserIdDep = Annotated[int | None, Depends(optional_user_id)]

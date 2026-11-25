@@ -33,6 +33,7 @@ import pytest
 from stockviz.services.dsl import ast, compile_rule, point, vector
 from stockviz.services.dsl.functions import FUNCTIONS
 from stockviz.services.dsl.pit import Fact, Fundamentals, News, NewsDoc
+from stockviz.services.setups.presets import PRESETS
 from tests.dsl_fixtures import universe
 
 CORPUS: tuple[str, ...] = (
@@ -95,6 +96,8 @@ CORPUS: tuple[str, ...] = (
     "close > open or delivery_pct > 70",
     "not (rsi(14) > 70) and deliverable_qty > sma(deliverable_qty, 20)",
     "bars_since(delivery_pct > 80) < 3",
+    # A2.2: every shipped preset
+    *(preset.rule for preset in PRESETS),
 )
 
 NUMERIC: tuple[str, ...] = (
@@ -152,6 +155,7 @@ def _tasks() -> list[tuple[str, str]]:
 
 def test_corpus_covers_every_function_and_is_large_enough() -> None:
     assert len(CORPUS) >= 40
+    assert {p.rule for p in PRESETS} <= set(CORPUS)  # presets must conform (A2.2)
     compiled = [compile_rule(r) for r in CORPUS]  # all type-check as conditions
     used = {n.name for c in compiled for n in ast.walk(c.canonical) if isinstance(n, ast.Call)}
     kinds = {type(n).__name__ for c in compiled for n in ast.walk(c.canonical)}

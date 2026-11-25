@@ -13,12 +13,18 @@ One query path for ``/v1/screener`` (paged) and the original
 
 The universe is a few hundred symbols, so steps 2-3 run in memory. Values
 stay ``None`` when unknown; nothing is reported as 0 (RS-4).
+
+A2.2: a Rule DSL rule refines the SQL filters. Between steps 2 and 3 the
+rule is judged for every remaining candidate (``services/screener_rule.py``);
+``rule_mode="met_only"`` keeps the rows it met, ``"all"`` keeps every row
+with its result. Sorting and paging then run on what is left, so ``total``
+counts the rows the rule kept.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from typing import Any
 
@@ -26,6 +32,7 @@ from sqlmodel import Session, col, select
 
 from stockviz.models import Symbol, SymbolMetrics
 from stockviz.models.instrument import Instrument
+from stockviz.services.dsl import CompiledRule
 from stockviz.services.instruments import instrument_of
 from stockviz.services.recent_bars import recent_closes
 
@@ -91,6 +98,11 @@ class ScreenQuery:
     descending: bool = False
     offset: int = 0
     limit: int = 50
+    # A2.2: a compiled Rule DSL condition, judged after the SQL filters.
+    rule: CompiledRule | None = None
+    rule_mode: str = "met_only"  # met_only | all
+    as_of: date | None = None
+    now: datetime | None = None  # the clock (tests pin it)
 
 
 @dataclass
@@ -128,6 +140,9 @@ class ScreenRow:
     roe: float | None = None
     debt_to_equity: float | None = None
     revenue_growth: float | None = None
+    rule_result: str | None = None
+    rule_reason: str | None = None
+    rule_bar_date: date | None = None
 
     def get(self, key: str) -> Any:
         return getattr(self, key)
@@ -152,8 +167,22 @@ def _momentum(session: Session, tickers: list[str], days: int) -> dict[str, floa
     return out
 
 
+@dataclass
+class ScreenResult:
+    rows: list[ScreenRow]  # the requested page
+    total: int  # every row kept, before paging
+    rule_run: Any = None  # screener_rule.RuleRun when a rule ran
+    counts: dict[str, int] = field(default_factory=dict)  # rule status -> candidates
+
+
 def run_screen(session: Session, q: ScreenQuery) -> tuple[list[ScreenRow], int]:
     """Rows on the requested page, and how many matched in all."""
+    result = run_screen_full(session, q)
+    return result.rows, result.total
+
+
+def run_screen_full(session: Session, q: ScreenQuery) -> ScreenResult:
+    """:func:`run_screen` with the rule's run and counts (A2.2)."""
     stmt = (
         select(SymbolMetrics, Symbol, Instrument)
         .join(Symbol, col(Symbol.ticker) == col(SymbolMetrics.ticker))
@@ -249,10 +278,34 @@ def run_screen(session: Session, q: ScreenQuery) -> tuple[list[ScreenRow], int]:
             )
         )
 
+    run = None
+    counts: dict[str, int] = {}
+    if q.rule is not None:
+        from stockviz.services.screener_rule import evaluate_rule
+
+        run = evaluate_rule(
+            session,
+            q.rule,
+            [r.ticker for r in rows],
+            as_of=q.as_of,
+            now=q.now or datetime.now(UTC),
+        )
+        counts = {"met": 0, "not_met": 0, "unknown": 0}
+        for row in rows:
+            judged = run.results[row.ticker]
+            row.rule_result, row.rule_reason, row.rule_bar_date = (
+                judged.status,
+                judged.reason,
+                judged.bar_date,
+            )
+            counts[judged.status] += 1
+        if q.rule_mode != "all":
+            rows = [r for r in rows if r.rule_result == "met"]
+
     key = q.sort if q.sort in SORT_KEYS else "ticker"
     present = [r for r in rows if r.get(key) is not None]
     missing = [r for r in rows if r.get(key) is None]
     present.sort(key=lambda r: (r.get(key), r.ticker), reverse=q.descending)
     missing.sort(key=lambda r: r.ticker)
     ordered = present + missing  # missing values last, whatever the direction
-    return ordered[q.offset : q.offset + q.limit], len(ordered)
+    return ScreenResult(ordered[q.offset : q.offset + q.limit], len(ordered), run, counts)

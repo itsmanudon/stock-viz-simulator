@@ -85,3 +85,14 @@ def _orders_placed_before_seeded_bars(request, monkeypatch):
         monkeypatch.setattr(
             "stockviz.services.alerts.engine.known_at_arming", lambda _alert: date.min
         )
+
+
+@pytest.fixture(autouse=True)
+def _fresh_screener_rule_cache():
+    """The screener's rule results are cached in process (A2.2); a test's
+    bars must never be judged from another test's results."""
+    from stockviz.services.screener_rule import CACHE
+
+    CACHE.clear()
+    yield
+    CACHE.clear()
