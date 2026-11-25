@@ -1,5 +1,6 @@
 "use client";
 
+import { feesSuffix } from "@/lib/fees";
 import Link from "next/link";
 import { useActionState, useId, useState } from "react";
 
@@ -148,7 +149,7 @@ export function ContextualTradeTicket({
   const marketSuccess = marketState.success;
   const successMessage =
     orderMode === "market" && marketSuccess
-      ? `Filled ${marketSuccess.side.toUpperCase()} ${marketSuccess.quantity} ${marketSuccess.ticker} at ${formatMoney(Number(marketSuccess.price), marketSuccess.currency)}`
+      ? `Filled ${marketSuccess.side.toUpperCase()} ${marketSuccess.quantity} ${marketSuccess.ticker} at ${formatMoney(Number(marketSuccess.price), marketSuccess.currency)}${feesSuffix(marketSuccess, formatMoney)}`
       : orderMode !== "market"
         ? orderState.success
         : undefined;

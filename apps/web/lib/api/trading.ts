@@ -40,6 +40,9 @@ export type Portfolio = {
   /** Lifetime realized P&L; closes with no stored realization are counted, not estimated. */
   realized_pl: string;
   realized_pl_unavailable: number;
+  /** A4.2, net first: fees paid on equity fills and realized P&L after them. */
+  fees_paid: string;
+  realized_pl_net: string;
   /** Mark-to-model value of open option contracts, included in total_value. */
   options_market_value: string;
   positions: Position[];
@@ -120,8 +123,24 @@ export type TradeRow = {
   /** Phase 4.8: the account's base currency and the trade's amount in it. */
   base_currency: string;
   total_base: string;
-  /** Gain/loss in the base currency vs. the average cost. Sells only. */
+  /** Gain/loss in the base currency vs. the average cost. Sells only. Gross of fees. */
   realized_pnl: string | null;
+  /** A4.2: fees on this fill (native currency); null on fills before A4.2. */
+  fees?: string | null;
+  fee_schedule?: string | null;
+  fee_lines: TradeFeeLine[];
+  /** Native cash effect after fees: buy value + fees, sell value - fees. */
+  net_native?: string | null;
+  realized_pnl_net?: string | null;
+};
+
+export type TradeFeeLine = {
+  key: string;
+  label: string;
+  amount: string;
+  rate: string;
+  effective_from?: string | null;
+  source_url?: string | null;
 };
 
 export type TradeInput = {

@@ -48,6 +48,9 @@ export type TradeFormState = {
     currency: string;
     total_native: string;
     total_usd: string;
+    /** A4.2: fees on the fill and the amount after them (null: none charged). */
+    fees?: string | null;
+    net_native?: string | null;
   };
 };
 
@@ -91,6 +94,8 @@ export async function placeTradeAction(
         currency: trade.currency,
         total_native: trade.total_native,
         total_usd: trade.total_usd,
+        fees: trade.fees ?? null,
+        net_native: trade.net_native ?? null,
       },
     };
   } catch (err) {

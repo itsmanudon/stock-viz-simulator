@@ -13,6 +13,7 @@
  * server refuse a post that skipped the review (lib/order-review.ts).
  */
 
+import { feesSuffix } from "@/lib/fees";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useActionState, useEffect, useMemo, useState } from "react";
@@ -141,7 +142,7 @@ export function OrderTicket({
   const orderSuccess = mode === "market" ? undefined : orderState.success;
   const activeState = mode === "market" ? marketState : orderState;
   const successMessage = marketSuccess
-    ? `Filled ${marketSuccess.side.toUpperCase()} ${marketSuccess.quantity} ${marketSuccess.ticker} @ ${formatCurrency(marketSuccess.price, marketSuccess.currency)}`
+    ? `Filled ${marketSuccess.side.toUpperCase()} ${marketSuccess.quantity} ${marketSuccess.ticker} @ ${formatCurrency(marketSuccess.price, marketSuccess.currency)}${feesSuffix(marketSuccess, (v, c) => formatCurrency(String(v), c))}`
     : orderSuccess;
   const confirmed = Boolean(successMessage) && !pending && activeState !== dismissed;
   const label = `${orderTypeLabel(mode).toLowerCase()} ${effectiveSide}`;

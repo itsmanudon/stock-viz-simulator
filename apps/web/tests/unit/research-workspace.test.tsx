@@ -62,6 +62,10 @@ const success: BacktestResult = {
     benchmark_final_nav: "109000",
     excess_return: 3,
     total_costs: "25.50",
+    gross_return: 0.12,
+    gross_final_nav: "112025.50",
+    total_fees: "25.50",
+    price_costs: "0",
   },
 };
 
@@ -87,7 +91,7 @@ describe("BacktestForm", () => {
     );
 
     expect(screen.getByRole("heading", { name: "No experiment yet" })).toBeVisible();
-    expect(screen.queryByText("Strategy return")).not.toBeInTheDocument();
+    expect(screen.queryByText("Net return")).not.toBeInTheDocument();
     expect(screen.getByText(/look-ahead bias/i)).toBeVisible();
     expect(screen.getByLabelText("Commission (bps)")).toBeVisible();
     expect(screen.getByLabelText("Slippage (bps)")).toBeVisible();
@@ -146,7 +150,8 @@ describe("BacktestForm", () => {
     await waitFor(() => {
       expect(screen.getByRole("heading", { name: "Equity curve" })).toBeVisible();
     });
-    expect(screen.getByText("Strategy return")).toBeVisible();
+    expect(screen.getByText("Net return")).toBeVisible();
+    expect(screen.getByText("Gross return")).toBeVisible();
     expect(screen.getByText("Benchmark return")).toBeVisible();
     expect(screen.getByText("Excess return")).toBeVisible();
     expect(screen.getByText("$25.50")).toBeVisible();
@@ -160,7 +165,9 @@ describe("BacktestForm", () => {
         slippage_bps: 0,
         fill_rule: "next_open",
         spread_bps: 0,
-        fee_schedule: "none",
+        fee_schedule: "auto",
+        brokerage: "zerodha",
+        adv_cap_pct: 10,
       }),
     );
   });

@@ -66,15 +66,28 @@ export function PortfolioMetrics({ portfolio, analytics }: Props) {
     });
   }
   const missing = portfolio.realized_pl_unavailable ?? 0;
-  if (Number(portfolio.realized_pl ?? 0) !== 0 || missing > 0) {
+  // A4.2, net first: realized P&L after every fee paid (buys too), then gross.
+  // A response cached before A4.2 lacks the net figures, so fall back.
+  const fees = Number(portfolio.fees_paid ?? 0);
+  const realizedNet = portfolio.realized_pl_net ?? portfolio.realized_pl ?? 0;
+  if (Number(portfolio.realized_pl ?? 0) !== 0 || missing > 0 || fees > 0) {
+    const parts = [
+      "Lifetime",
+      ...(fees > 0
+        ? [
+            `after ${formatCurrency(String(fees), currency)} of fees`,
+            `gross ${formatSignedCurrency(portfolio.realized_pl ?? 0, currency)}`,
+          ]
+        : []),
+      ...(missing > 0
+        ? [`${missing} close${missing === 1 ? "" : "s"} with no recorded figure left out`]
+        : []),
+    ];
     metrics.push({
-      label: "Realized P&L",
-      value: formatSignedCurrency(portfolio.realized_pl ?? 0, currency),
-      tone: toneFor(Number(portfolio.realized_pl ?? 0)),
-      detail:
-        missing > 0
-          ? `Lifetime · ${missing} close${missing === 1 ? "" : "s"} with no recorded figure left out`
-          : "Lifetime",
+      label: fees > 0 ? "Realized P&L, net" : "Realized P&L",
+      value: formatSignedCurrency(realizedNet, currency),
+      tone: toneFor(Number(realizedNet)),
+      detail: parts.join(" · "),
     });
   }
 

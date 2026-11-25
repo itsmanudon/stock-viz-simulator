@@ -150,4 +150,21 @@ test.describe("research pages on a phone", () => {
     await expect(main.getByTestId("strategy-chart-caption")).toContainText("AAPL:");
     await expect(main.getByRole("heading", { name: "Equity curve" })).toBeVisible();
   });
+
+  test("a rule backtest lists its costs and the ADV cap (A4.2)", async ({ page }) => {
+    // stockviz_e2e holds US bars only: a US symbol defaults to no fees, and
+    // the disclosure still states the schedule, the cap and its link.
+    await page.goto("/backtest?mode=rule&ticker=AAPL");
+    const main = page.locator("#main");
+    await expect(main.getByTestId("rule-ok")).toHaveCount(2);
+    await main.getByRole("button", { name: "Run strategy" }).click();
+    await expect(main.getByRole("heading", { name: "Performance, net of costs" })).toBeVisible({
+      timeout: 30_000,
+    });
+    const costs = main.getByTestId("costs-disclosure");
+    await expect(costs).toContainText("No fees");
+    await costs.locator("summary").click();
+    await expect(costs.getByTestId("liquidity-note")).toContainText("20-day average traded value");
+    await expect(costs.getByRole("link", { name: "Costs and fees" })).toBeVisible();
+  });
 });

@@ -10,3 +10,4 @@ export { getIndicatorCatalog, getIndicators } from "./indicators";
 export { type ChecklistParams, getChecklist, getSymbolChecklist } from "./checklist";
 export { type ScreenerPage, type ScreenerRow, getScreenerPage, screenSymbols } from "./screener";
 export { runBacktest } from "./backtest";
+export { getFeeEstimate, getFeeSchedules } from "./fees";
