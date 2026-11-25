@@ -116,6 +116,11 @@ src/stockviz/
     export/         A1.6 Parquet export for the laptop's `lab/` package:
                     tables.py (what is exported), parquet.py (partitions,
                     manifest, atomic writes)
+    dsl/            A2.1 Rule DSL: grammar.lark (Lark, LALR), parser.py, ast.py,
+                    printer.py, canonical.py (canonical form, SHA-256 hash),
+                    check.py (types), functions.py, bindings.py, pit.py
+                    (fundamentals, news), timeframes.py, data.py (SymbolData,
+                    load_symbol), evaluate.py (vector, point, evaluate_at)
     aegis/          Aegis News read sync (Phase 2): contract.py (lenient
                     feed models), token.py (EdDSA feed:read token), client.py
                     (the one client: timeouts, bounded retries), sync.py
@@ -155,7 +160,8 @@ CLI subcommands (`python -m stockviz.cli <cmd>`): `seed`, `backfill`,
 `consume-trade-activity [--once]`, `consume-market-ingest [--once]`,
 `consume-market-analytics [--once]`, `nse-load PATH ... [--apply]`,
 `nse-files [--limit N]`,
-`export-parquet --out DIR [--since YYYY-MM-DD] [--tables T ...]`.
+`export-parquet --out DIR [--since YYYY-MM-DD] [--tables T ...]`,
+`rule-check "<rule>" [TICKER ...] [--date YYYY-MM-DD] [--explain]`.
 
 **NSE files (A1.1).** `services/nse/` parses NSE end-of-day files **placed
 by hand**. Nothing downloads from NSE yet (that is A1.2, after the owner's
@@ -213,6 +219,82 @@ hold exchange data; use `lab/data/`, ignored, or a path outside the repo).
 only. Not in `RECORDED_JOBS` or the cron yet; where the export lives for the
 laptop to pull is an open owner question. `tests/test_export_parquet.py`;
 the reader is `lab/` (see `lab/README.md`).
+
+**Rule DSL (A2.1, M4.1).** One rule language, `services/dsl/`, for the
+screens, alerts and setups A2.2 onwards builds. User reference:
+`docs/rule-dsl.md`. No route, table or web code yet.
+
+- **Surface** (`grammar.lark`, Lark LALR, MIT, pinned in `uv.lock`):
+  numbers, the series `open high low close volume delivery_pct
+  deliverable_qty`, calls with positional and keyword arguments,
+  `+ - * /`, `< <= > >= = !=` (`==` is `=`; comparisons never chain),
+  `and or not`, parentheses, `crosses_above` / `crosses_below`, `[n]`
+  offsets, `weekly.` / `monthly.` prefixes, `fundamental.<metric>`,
+  `news.count(days, sentiment="...", event_type="...")`, `#` comments.
+  Strings only as keyword values; names lowercase. Errors are
+  `RuleError(kind, message, line, column)` (`pretty()` adds a caret).
+- **Tree, canonical form, hash.** `ast.py` frozen dataclasses (`pos` is not
+  compared); `parse(to_text(tree)) == tree`. `canonicalize`: arguments by
+  position with defaults written out (`rsi()` is `rsi(14)`), default
+  outputs dropped, `news.count` keywords sorted, `and`/`or` flattened and
+  sorted by canonical text (Kleene `and`/`or` commute). Comparisons, `+` and
+  `*` are never reordered. Hash = SHA-256 of the canonical text.
+- **Types** (`check.py`): value `number` | `boolean`, kind `const` |
+  `series` | `pit`. `fundamental.*` and `news.*` are point-in-time values:
+  fine in arithmetic and comparisons, but anything built from them has no
+  bar history (no `[n]`, windowed function, crossing or prefix). A rule must
+  be a condition. Errors carry the column.
+- **Functions** (`functions.py`): the 21 registry indicators run on the
+  timeframe's bar frame with the registry's parameters, defaults and bounds
+  (`rsi atr hv cci roc willr mfi rvol wma vwap obv ad adx macd stoch
+  supertrend bb donchian keltner`); outputs by `.name` (`macd().signal`;
+  `macd adx stoch supertrend` default to `macd adx k line`; `bb donchian
+  keltner` must name one). The registry's `sma`/`ema` are the primitives
+  on `close`. Primitives: `sma ema highest lowest sum change pct_change abs
+  min max count_true bars_since rs`. `rs(n)` is 100 x ((stock n-bar
+  return + 1) / (index n-bar return + 1) - 1) against
+  `event_study.BENCHMARK_BY_VENUE` (`^GSPC`, `^NSEI`), index closes
+  forward-filled at most 5 bars. Each function declares its lookback;
+  `CompiledRule.lookback` is the rule's warm-up in daily bars (`None` for
+  `bars_since`, `obv`, `ad`: whole history), and `load_symbol` loads that
+  many bars before the window. A new function must join the conformance
+  corpus before it is registered.
+- **Three-valued logic.** Values are float arrays, conditions 1/0/NaN. A
+  comparison with a missing input is unknown; `and`/`or`/`not` are
+  Kleene's. `vector` returns a pandas nullable `boolean` Series (`pd.NA`
+  unknown); `evaluate_at` gives `met | not_met | unknown` with reasons (the
+  missing binding, or the function short of history).
+- **Timeframes** (`timeframes.py`): A1.4a's periods. A period is closed on
+  the venue's last session in it (Thursday before a Friday holiday); a
+  weekly/monthly value on a daily bar is the last *closed* period at or
+  before it, never the partial one. Prefixes do not nest; fundamentals,
+  news and delivery are daily only.
+- **Bindings, point in time** (`pit.py`, `data.py`): bars by instrument;
+  fundamentals equal `valuation(ticker, bar date)` (facts with
+  `available_at <=` the date, close converted at the FX rate on or before
+  it; `tests/test_dsl_data.py`), computed once per known state; delivery
+  from `eod_extras` (EQ first; "no delivery data" until NSE files load);
+  news counts documents linked to the ticker with `available_at` in the
+  days up to the session's close (calendar close), sentiment and event type
+  as available by then; bars before the first Aegis document held are
+  unknown.
+- **Two modes, one evaluator.** `vector(rule, data)` over the whole frame;
+  `point(rule, data, t)` = the same code on `data.cut(t)` (bars to `t`,
+  facts to its date, news to its close). `tests/test_dsl_conformance.py`
+  asserts `point(t) == vector[t]` for every bar of three seeded 10-year
+  histories (split step, NSE holidays, partial last week, delivery gaps,
+  USD-reporting INR listing, a bar hole) over 52 rules and 7 numeric
+  expressions (444,683 point evaluations over 7,537 bars, a process pool, about a
+  minute), plus a test that perturbs everything after `t` and finds no
+  value up to `t` changed. Vector mode: about 1.3 ms for a 5-condition rule
+  over 10 years, 0.2 s for 163 symbols (synthetic, local).
+- **CLI.** `stockviz.cli rule-check "<rule>" [TICKER ...] [--date]
+  [--explain]` prints the canonical text, hash, type and warm-up, then per
+  ticker the status at the latest stored bar on or before the date
+  (default: the venue's latest completed session; a stale bar is flagged)
+  with reasons; `--explain` lists each sub-expression's value. Exit 2 on a
+  syntax or type error, 1 for an unknown ticker or no bars. Read-only, not
+  in the cron.
 
 **Weekly and monthly bars (A1.4a, M2.2 first half).** Resampled on read,
 never stored (`services/bars/resample.py`). `GET /v1/symbols/{t}/bars` and
