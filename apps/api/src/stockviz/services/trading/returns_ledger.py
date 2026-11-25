@@ -35,6 +35,8 @@ class RealizedTotals:
     """Base currency: equity sells plus option closes and expiries."""
     unavailable: int
     """Closes with no stored realization (or USD option closes in a non-USD account)."""
+    fees: Decimal = Decimal(0)
+    """A4.2: fees paid on every equity fill (base currency, at each fill's rate)."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -69,7 +71,15 @@ def realized_totals(session: Session, portfolio: Portfolio) -> RealizedTotals:
             unavailable += 1
         else:
             total += realized
-    return RealizedTotals(total, unavailable)
+    fees = Decimal(0)
+    for fee, rate in session.exec(
+        select(col(Trade.fees), col(Trade.fx_rate)).where(
+            Trade.portfolio_id == portfolio.id, col(Trade.fees).is_not(None)
+        )
+    ).all():
+        if fee is not None:
+            fees += fee * (rate if rate is not None else Decimal(1))
+    return RealizedTotals(total, unavailable, fees.quantize(Decimal("0.000001")))
 
 
 def _to_base(session: Session, amount: Decimal, currency: str, base: str) -> Decimal | None:

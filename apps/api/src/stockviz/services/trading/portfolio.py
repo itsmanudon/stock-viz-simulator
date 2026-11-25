@@ -132,6 +132,11 @@ class PortfolioValuation:
     # many closes have no stored realization and are left out of it.
     realized_pl: Decimal = Decimal(0)
     realized_pl_unavailable: int = 0
+    # A4.2, net first: fees paid on equity fills, and realized P&L net of
+    # them (Zerodha Console's "net realised P&L" convention: realised minus
+    # all charges, buys included).
+    fees_paid: Decimal = Decimal(0)
+    realized_pl_net: Decimal = Decimal(0)
     # Empty when every figure was priced; otherwise the total is incomplete.
     warnings: list[ValuationWarning] = field(default_factory=list)
     # Cash per currency, base first. ``cash_balance`` is their display total;
@@ -321,6 +326,8 @@ def compute_portfolio(
         unrealized_pl_options=options_pl,
         realized_pl=_to_display(realized.amount, base_ccy),
         realized_pl_unavailable=realized.unavailable,
+        fees_paid=_to_display(realized.fees, base_ccy),
+        realized_pl_net=_to_display(realized.amount - realized.fees, base_ccy),
         warnings=warnings,
         cash_by_currency=cash_by_currency,
     )

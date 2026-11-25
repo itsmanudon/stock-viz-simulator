@@ -69,7 +69,7 @@ def test_a_planted_effect_grades_a() -> None:
     assert result.t_stat is not None and result.t_stat >= 3
     assert result.grade == "A"
     assert result.hit_rate is not None and result.hit_rate > 0.7
-    assert result.fee_schedules == {"us_equity_2026": result.n}
+    assert result.fee_schedules == {"us_equity": result.n}
     assert all(START <= e.day <= END for e in result.events)
 
 
@@ -103,7 +103,7 @@ def test_fees_are_charged_on_the_round_trip() -> None:
     assert nse > 0.002 > round_trip_cost(US_EQUITY_2026, 50.0, 50.0)
     indian = replace(flat, ticker="FLAT.NS", venue="XNSE")
     assert study([indian], SPIKE, start=START, end=END).fee_schedules == {
-        "in_delivery_nse_2026": result.n
+        "in_equity_delivery_nse": result.n
     }
 
 

@@ -96,6 +96,8 @@ def portfolio_response(
         unrealized_pl_options=snap.unrealized_pl_options,
         realized_pl=snap.realized_pl,
         realized_pl_unavailable=snap.realized_pl_unavailable,
+        fees_paid=snap.fees_paid,
+        realized_pl_net=snap.realized_pl_net,
         positions=[
             PositionOut(
                 ticker=p.ticker,

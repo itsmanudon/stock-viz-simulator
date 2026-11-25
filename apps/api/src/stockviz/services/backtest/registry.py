@@ -30,6 +30,7 @@ from stockviz.services.backtest.strategy_run import (
     request_json,
 )
 from stockviz.services.backtest.walkforward import Computed, sweep, walk_forward
+from stockviz.services.fee_view import resolve_fee_schedule
 
 MAX_RUNS_PER_USER = 500
 """A run stores its whole equity curve; this bounds one user's storage."""
@@ -130,7 +131,18 @@ def _check_room(session: Session, user_id: int, experiment_id: int | None) -> No
             raise LookupError(f"Experiment {experiment_id} not found")
 
 
+def as_saved(request: dict[str, Any]) -> dict[str, Any]:
+    """A stored request as it ran. A4.2 added the ADV cap with a 10% default;
+    a request saved before then has no ``adv_cap_pct`` and ran uncapped, so it
+    reruns uncapped. (Its ``fee_schedule`` was always stored by name; the new
+    ``auto`` default never applies to it.)"""
+    if "adv_cap_pct" in request:
+        return request
+    return {**request, "adv_cap_pct": None}
+
+
 def _compute(session: Session, kind: str, request: dict[str, Any]) -> Computed:
+    request = {**request, "backtest": as_saved(request["backtest"])}
     body = BacktestIn.model_validate(request["backtest"])
     grid = request.get("grid")
     if kind == "walk_forward":
@@ -168,7 +180,7 @@ def save_study(
         ticker=body.ticker.upper(),
         request=request,
         execution_profile=f"{profile.name}/{profile.model_version}",
-        fee_schedule=body.fee_schedule,
+        fee_schedule=resolve_fee_schedule(body.fee_schedule, body.ticker.upper()),
         code_version=code_version(),
         dataset_fingerprint=computed.fingerprint,
         bar_count=computed.bar_count,
@@ -182,20 +194,45 @@ def save_study(
     return row
 
 
-STAMPS_ADDED_LATER = frozenset({"universe"})
-"""Result fields added after runs were first stored (A1.4a). A stored result
-that lacks one is not "different" for it: the field describes the run, it is
-not a figure the code recomputed differently."""
+STAMPS_ADDED_LATER = frozenset(
+    {
+        "universe",
+        # A4.2: the costs disclosure and liquidity stamp, the template
+        # summary's gross figures, and per-trade liquidity fields.
+        "costs",
+        "liquidity",
+        "gross_return",
+        "gross_final_nav",
+        "total_fees",
+        "price_costs",
+        "requested_shares",
+        "requested_quantity",
+        "exit_adv_pct",
+    }
+)
+"""Result fields added after runs were first stored (A1.4a, A4.2), at any
+depth. A stored result that lacks one is not "different" for it: the field
+describes the run or restates its figures, it is not a figure the code
+recomputed differently. Everything the stored result does hold is compared."""
+
+
+def _strip_added(stored: Any, fresh: Any) -> Any:
+    if isinstance(stored, dict) and isinstance(fresh, dict):
+        return {
+            k: _strip_added(stored.get(k), v)
+            for k, v in fresh.items()
+            if k in stored or k not in STAMPS_ADDED_LATER
+        }
+    if isinstance(stored, list) and isinstance(fresh, list) and len(stored) == len(fresh):
+        return [_strip_added(a, b) for a, b in zip(stored, fresh, strict=True)]
+    return fresh
 
 
 def result_differences(stored: dict[str, Any], fresh: dict[str, Any]) -> list[str]:
     """Top-level fields whose values differ, skipping later stamps the stored
     result never had."""
-    return sorted(
-        k
-        for k in set(fresh) | set(stored)
-        if fresh.get(k) != stored.get(k) and not (k in STAMPS_ADDED_LATER and k not in stored)
-    )
+    fresh = _strip_added(stored, fresh)
+    return sorted(k for k in set(fresh) | set(stored) if fresh.get(k) != stored.get(k))
 
 
 @dataclass
@@ -211,11 +248,11 @@ def rerun(session: Session, row: ExperimentRun) -> RerunReport:
         computed = _compute(session, row.kind, row.request)
         current_fp, fresh = computed.fingerprint, computed.result
     elif row.kind == "strategy":
-        body = StrategyBacktestIn.model_validate(row.request)
+        body = StrategyBacktestIn.model_validate(as_saved(row.request))
         strategy = execute_strategy(session, body, user_id=row.user_id)
         current_fp, fresh = strategy.fingerprint, strategy.out.model_dump(mode="json")
     else:
-        run = execute_backtest(session, BacktestIn.model_validate(row.request))
+        run = execute_backtest(session, BacktestIn.model_validate(as_saved(row.request)))
         current_fp, fresh = run.fingerprint, _result(run)
     if current_fp != row.dataset_fingerprint:
         return RerunReport("data_changed", row.dataset_fingerprint, current_fp)

@@ -29,6 +29,7 @@ from sqlmodel import Session, select
 from stockviz._time import utcnow
 from stockviz.models import PendingOrder, Portfolio, Symbol, TradeSide
 from stockviz.models.order import OrderStatus, OrderType
+from stockviz.services.fee_view import fee_date
 from stockviz.services.ingest.bar_semantics import latest_completed_session
 from stockviz.services.simulation import (
     LIVE_PAPER_EXECUTION_PROFILE,
@@ -426,6 +427,7 @@ def _fill(
             currency=priced.currency,
             fx_rate=priced.fx_rate,
             exclude_order_id=order.id,
+            fee_on=fee_date(order.ticker, provenance.evaluated_at),
         )
     except TradeExecutionError as exc:
         _cancel(session, order, str(exc))

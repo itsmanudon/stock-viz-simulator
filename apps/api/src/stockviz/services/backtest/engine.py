@@ -69,6 +69,8 @@ class BacktestTrade:
     # Phase 5.3: the price before spread/slippage, and each fee by name.
     reference_price: Decimal | None = None
     fees: tuple[tuple[str, Decimal], ...] = ()
+    # A4.2: shares the all-in sizing asked for when the ADV cap bought fewer.
+    requested_shares: Decimal | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -100,6 +102,14 @@ class BacktestResult:
     summary: BacktestSummary = field(
         default_factory=lambda: BacktestSummary(0.0, 0.0, 0.0, Decimal(0))
     )
+    # A4.2: fills per fee-schedule version (by effective_from), fills before
+    # the schedule's confirmed coverage, fees and the spread/slippage cost.
+    fee_versions: dict[date, int] = field(default_factory=dict)
+    fills_before_coverage: int = 0
+    total_fees: Decimal = Decimal(0)
+    price_costs: Decimal = Decimal(0)
+    adv_unknown: int = 0
+    adv_skipped: int = 0
 
 
 class BacktestError(Exception):
@@ -279,6 +289,9 @@ def run_backtest(
     fill_rule: str = "next_close",
     spread_bps: float = 0.0,
     fee_schedule: str = "none",
+    volumes: dict[datetime, Decimal] | None = None,
+    adv_cap_pct: float | None = None,
+    brokerage: str = "zerodha",
 ) -> BacktestResult:
     """Replay ``bars`` through ``strategy_type`` and return trades + equity curve.
 
@@ -301,6 +314,12 @@ def run_backtest(
     trader inside the kernel; ``commission_bps`` and the ``fee_schedule`` are
     fees booked beside each fill. ``total_costs`` is fees plus the price
     cost of spread and slippage.
+
+    A4.2: fees use the schedule version in force on each fill's date. With
+    ``adv_cap_pct`` (and ``volumes``), a buy spends at most that share of the
+    20-day average traded value (close x volume of the 20 bars before the
+    fill bar); the rest stays in cash and the trade carries
+    ``requested_shares``. Sells are not capped.
     """
 
     if initial_cash <= 0:
@@ -340,6 +359,27 @@ def run_backtest(
     equity_curve: list[EquityPoint] = []
     price_costs = Decimal(0)
     paid = dividends or {}
+    vol_of = volumes or {}
+    fee_versions: dict[date, int] = {}
+    counters = {"before": 0, "adv_unknown": 0, "adv_skipped": 0}
+
+    def note(fees) -> None:
+        if fees.version is not None:
+            key = fees.version.effective_from
+            fee_versions[key] = fee_versions.get(key, 0) + 1
+        if fees.before_coverage:
+            counters["before"] += 1
+
+    def adv_at(index: int) -> Decimal | None:
+        if index < 20:
+            return None
+        values = []
+        for ts_, close_ in bars[index - 20 : index]:
+            volume = vol_of.get(ts_)
+            if volume is None:
+                return None
+            values.append(close_ * volume)
+        return sum(values, Decimal(0)) / 20
 
     def held() -> Decimal:
         position = ledger.positions.get(LEDGER_TICKER)
@@ -362,20 +402,43 @@ def run_backtest(
             ref = open_ if profile is NEXT_OPEN else close
             est = cost_adjusted(ref, OrderSide.BUY, costs) * (Decimal(1) + commission / 10_000)
             quantity = (ledger.cash / est).quantize(MICROS, rounding=ROUND_DOWN)
+            requested: Decimal | None = None
+            if adv_cap_pct is not None:
+                avg = adv_at(index)
+                if avg is None:
+                    counters["adv_unknown"] += 1
+                else:
+                    most = (avg * Decimal(repr(adv_cap_pct)) / 100 / est).quantize(
+                        MICROS, rounding=ROUND_DOWN
+                    )
+                    if most < quantity:
+                        requested, quantity = quantity, most
+                        if most <= 0:
+                            counters["adv_skipped"] += 1
             while quantity > 0:
                 filled = _kernel_fill(OrderSide.BUY, quantity, ts, open_, close, profile, costs)
                 if filled is None:
                     break
                 price, reference = filled
-                fees = schedule.fees(OrderSide.BUY, quantity, price, commission_bps=commission)
+                fees = schedule.fees(
+                    OrderSide.BUY,
+                    quantity,
+                    price,
+                    commission_bps=commission,
+                    on=ts.date(),
+                    brokerage=brokerage,
+                )
                 try:
                     ledger.apply(OrderSide.BUY, LEDGER_TICKER, quantity, price, fees=fees.total)
                 except SimInsufficientCash:  # rounding at the last micro-units
                     quantity -= MICROS
                     continue
+                note(fees)
                 price_costs += (price - reference) * quantity
                 trades.append(
-                    BacktestTrade(ts.date(), "buy", price, quantity, reference, fees.components)
+                    BacktestTrade(
+                        ts.date(), "buy", price, quantity, reference, fees.components, requested
+                    )
                 )
                 break
         elif signal == "sell" and held() > 0:
@@ -383,8 +446,16 @@ def run_backtest(
             filled = _kernel_fill(OrderSide.SELL, quantity, ts, open_, close, profile, costs)
             if filled is not None:
                 price, reference = filled
-                fees = schedule.fees(OrderSide.SELL, quantity, price, commission_bps=commission)
+                fees = schedule.fees(
+                    OrderSide.SELL,
+                    quantity,
+                    price,
+                    commission_bps=commission,
+                    on=ts.date(),
+                    brokerage=brokerage,
+                )
                 ledger.apply(OrderSide.SELL, LEDGER_TICKER, quantity, price, fees=fees.total)
+                note(fees)
                 price_costs += (reference - price) * quantity
                 trades.append(
                     BacktestTrade(ts.date(), "sell", price, quantity, reference, fees.components)
@@ -424,4 +495,14 @@ def run_backtest(
         excess_return=(total_return - benchmark_return) * 100,
         total_costs=(ledger.fees_paid + price_costs).quantize(MICROS),
     )
-    return BacktestResult(trades=trades, equity_curve=equity_curve, summary=summary)
+    return BacktestResult(
+        trades=trades,
+        equity_curve=equity_curve,
+        summary=summary,
+        fee_versions=dict(sorted(fee_versions.items())),
+        fills_before_coverage=counters["before"],
+        total_fees=ledger.fees_paid.quantize(MICROS),
+        price_costs=price_costs.quantize(MICROS),
+        adv_unknown=counters["adv_unknown"],
+        adv_skipped=counters["adv_skipped"],
+    )

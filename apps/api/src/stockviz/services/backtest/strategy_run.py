@@ -54,6 +54,7 @@ from stockviz.services.backtest.strategy import (
 from stockviz.services.backtest.universe import universe_for
 from stockviz.services.bars.resample import bar_date
 from stockviz.services.dsl import CompiledRule, Needs, compile_rule, load_symbol, vector
+from stockviz.services.fee_view import costs_out, is_indian, liquidity_out, resolve_fee_schedule
 from stockviz.services.instruments import instrument_of, is_index_ticker
 from stockviz.services.markets.calendar import NEW_YORK_VENUE, venue_for_ticker
 from stockviz.services.setups import store
@@ -160,6 +161,12 @@ def _strategy_hash(body: StrategyBacktestIn, rules: list[_Rule], tickers: list[s
         "direction": body.direction,
         "shortable": sorted({t.upper() for t in body.shortable}),
     }
+    # A4.2 settings join the hash only when they differ from what a run saved
+    # before A4.2 implied, so those runs keep their hash.
+    if body.adv_cap_pct is not None:
+        payload["adv_cap_pct"] = body.adv_cap_pct
+    if body.brokerage != "zerodha":
+        payload["brokerage"] = body.brokerage
     return hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()
 
 
@@ -214,8 +221,15 @@ def execute_strategy(
             f"A basket must trade in one currency (got {listed}); split it by market or currency"
         )
     currency = currencies[tickers[0]]
+    defaults = {resolve_fee_schedule(body.fee_schedule, t) for t in tickers}
+    if len(defaults) > 1:
+        raise StrategyError(
+            "The basket spans markets with different default fee schedules "
+            f"({', '.join(sorted(defaults))}); choose one fee schedule"
+        )
+    schedule_name = defaults.pop()
     try:
-        check_fee_currency(body.fee_schedule, currency)
+        check_fee_currency(schedule_name, currency)
     except BacktestError as exc:
         raise StrategyError(str(exc)) from exc
 
@@ -338,9 +352,11 @@ def execute_strategy(
         sizing=sizing,
         profile=profile,
         costs=costs,
-        schedule=get_fee_schedule(body.fee_schedule),
+        schedule=get_fee_schedule(schedule_name),
         commission_bps=Decimal(str(body.commission_bps)),
         short=short,
+        brokerage=body.brokerage,
+        adv_cap_pct=body.adv_cap_pct,
     ) if inputs else None  # fmt: skip
 
     rules_out = [
@@ -366,7 +382,8 @@ def execute_strategy(
         notes.append(f"No bars in the range for: {', '.join(missing)}.")
     if result is not None and result.skip_reasons:
         words = {"no_slot": "no free slot", "no_cash": "not enough cash for one share",
-                 "atr_unknown": "ATR unknown at the signal bar"}  # fmt: skip
+                 "atr_unknown": "ATR unknown at the signal bar",
+                 "adv_cap": "the ADV cap allowed no whole share"}  # fmt: skip
         notes.append(
             "Entries skipped: "
             + ", ".join(f"{n} ({words[k]})" for k, n in result.skip_reasons.items())
@@ -407,6 +424,8 @@ def execute_strategy(
                 initial_stop=t.initial_stop,
                 initial_risk=t.initial_risk,
                 r_multiple=t.r_multiple,
+                requested_quantity=t.requested_quantity,
+                exit_adv_pct=t.exit_adv_pct,
             )
             for t in result.trades
         ]
@@ -449,7 +468,7 @@ def execute_strategy(
         currency=currency,
         price_basis=None if not bases else bases.pop() if len(bases) == 1 else "mixed",
         execution_profile=f"{profile.name}/{profile.model_version}",
-        fee_schedule=body.fee_schedule,
+        fee_schedule=schedule_name if body.fee_schedule == "auto" else body.fee_schedule,
         direction=body.direction,
         rules=rules_out,
         stops=body.stops,
@@ -476,6 +495,21 @@ def execute_strategy(
         strategy_hash=_strategy_hash(body, rules, tickers),
         data_fingerprint=digest.hexdigest(),
         notes=notes,
+        costs=costs_out(
+            requested=body.fee_schedule,
+            resolved=schedule_name,
+            brokerage=body.brokerage,
+            commission_bps=body.commission_bps,
+            fee_versions=result.fee_versions if result is not None else {},
+            fills_before_coverage=result.fills_before_coverage if result is not None else 0,
+            indian=any(is_indian(t) for t in tickers),
+        ),
+        liquidity=liquidity_out(
+            body.adv_cap_pct,
+            partial=result.partial_entries if result is not None else 0,
+            skipped=result.skip_reasons.get("adv_cap", 0) if result is not None else 0,
+            unknown=result.adv_unknown if result is not None else 0,
+        ),
     )
     return StrategyRun(
         out=out,

@@ -337,6 +337,10 @@ class PortfolioOut(BaseModel):
     # in ``realized_pl_unavailable`` and left out, never estimated.
     realized_pl: Decimal = Decimal(0)
     realized_pl_unavailable: int = 0
+    # A4.2, net first: fees paid on equity fills (display currency) and
+    # realized P&L after them.
+    fees_paid: Decimal = Decimal(0)
+    realized_pl_net: Decimal = Decimal(0)
     positions: list[PositionOut]
     option_positions: list[PortfolioOptionOut] = []
     # Empty when the total is complete; otherwise what it leaves out (LG-13).
@@ -402,7 +406,26 @@ class TradeOut(BaseModel):
     total_base: Decimal = Decimal(0)
     # USD gain/loss against the position's weighted-average cost basis.
     # Set on sells; None on buys and on rows written before this was tracked.
+    # Gross of fees (the price gain); ``realized_pnl_net`` takes this sell's
+    # fees off.
     realized_pnl: Decimal | None = None
+    # A4.2: fees on this fill in the native currency (null: a fill made
+    # before A4.2, never recalculated), the schedule and each component.
+    fees: Decimal | None = None
+    fee_schedule: str | None = None
+    fee_lines: list[TradeFeeLineOut] = []
+    # Native cash effect net of fees: a buy's value + fees, a sell's value - fees.
+    net_native: Decimal | None = None
+    realized_pnl_net: Decimal | None = None
+
+
+class TradeFeeLineOut(BaseModel):
+    key: str
+    label: str
+    amount: Decimal
+    rate: str = ""
+    effective_from: date | None = None
+    source_url: str | None = None
 
 
 class ReplaySessionCreateIn(BaseModel):
@@ -1894,6 +1917,21 @@ StrategySpec = Annotated[
 ]
 
 
+FeeScheduleName = Literal[
+    "auto",
+    "none",
+    "us_equity",
+    "us_equity_2026",
+    "in_equity_delivery_nse",
+    "in_delivery_nse_2026",
+    "in_equity_delivery_bse",
+    "in_delivery_bse_2026",
+]
+"""A4.2: backtests trade cash equity on daily bars, so the intraday and F&O
+schedules are listed (GET /v1/fees/schedules) but not offered here."""
+BrokerageName = Literal["zerodha", "zero"]
+
+
 class BacktestIn(BaseModel):
     """Request body for POST /v1/backtest.
 
@@ -1920,10 +1958,15 @@ class BacktestIn(BaseModel):
     spread_bps: float = Field(default=0.0, ge=0, le=1000)
     # Regulatory fees per fill; commission_bps is charged on top.
     # Phase 5.6 adds Indian delivery (NSE, BSE); a schedule must match the
-    # symbol's currency.
-    fee_schedule: Literal[
-        "none", "us_equity_2026", "in_delivery_nse_2026", "in_delivery_bse_2026"
-    ] = "none"
+    # symbol's currency. A4.2: date-versioned, and "auto" (the default) picks
+    # the symbol's market: NSE/BSE delivery for Indian listings, none for the
+    # rest (see services/fee_view.py::resolve_fee_schedule).
+    fee_schedule: FeeScheduleName = "auto"
+    # A4.2: the broker model for Indian brokerage ("zerodha" delivery is free).
+    brokerage: BrokerageName = "zerodha"
+    # A4.2: at most this % of the 20-day average traded value per buy; null
+    # turns the cap off (runs saved before A4.2 rerun without it).
+    adv_cap_pct: float | None = Field(default=10.0, gt=0, le=100)
 
     model_config = ConfigDict(populate_by_name=True)
 
@@ -1931,6 +1974,133 @@ class BacktestIn(BaseModel):
 class BacktestFeeOut(BaseModel):
     name: str
     amount: Decimal
+
+
+class FeeSourceOut(BaseModel):
+    url: str
+    title: str
+    date: str
+    """The document's own date (ISO), or ``undated page``."""
+    read_on: date
+
+
+class FeeComponentOut(BaseModel):
+    key: str
+    label: str
+    kind: Literal["value", "per_share", "flat", "gst"]
+    rate: Decimal
+    rate_text: str
+    side: Literal["buy", "sell", "both"]
+    cap: Decimal | None = None
+    gst_on: list[str] = []
+    per_scrip_day: bool = False
+    note: str = ""
+    source: FeeSourceOut
+
+
+class FeeVersionOut(BaseModel):
+    effective_from: date
+    effective_to: date | None = None
+    start_confirmed: bool = True
+    components: list[FeeComponentOut]
+    notes: list[str] = []
+    fills: int | None = None
+    """In a run's ``costs``: the fills priced under this version."""
+
+
+class BrokerageOut(BaseModel):
+    key: str
+    label: str
+    rate_text: str
+    source: FeeSourceOut | None = None
+
+
+class FeeScheduleOut(BaseModel):
+    name: str
+    aliases: list[str] = []
+    label: str
+    currency: str | None = None
+    market: str = ""
+    segment: str = ""
+    venue: str | None = None
+    coverage_from: date | None = None
+    brokerage: list[BrokerageOut] = []
+    versions: list[FeeVersionOut] = []
+    notes: list[str] = []
+    default_for: list[str] = []
+    """Venues (MIC) whose symbols get this schedule by default."""
+
+
+class FeeSchedulesOut(BaseModel):
+    """GET /v1/fees/schedules (A4.2)."""
+
+    schedules: list[FeeScheduleOut]
+    defaults: dict[str, str]
+    """Venue (MIC) -> the schedule live fills, replay and backtests use by default."""
+    default_other: str = "none"
+    brokerage_models: list[str]
+    notes: list[str] = []
+
+
+class CostsOut(BaseModel):
+    """A4.2: the costs a run applied, each component with its rate and source."""
+
+    schedule: str
+    """The resolved family name."""
+    requested: str
+    label: str
+    currency: str | None = None
+    segment: str = ""
+    brokerage: BrokerageOut | None = None
+    commission_bps: float = 0.0
+    coverage_from: date | None = None
+    fills_before_coverage: int = 0
+    versions: list[FeeVersionOut] = []
+    notes: list[str] = []
+    price_bands_checked: bool = False
+    price_bands_note: str | None = None
+
+
+class LiquidityOut(BaseModel):
+    """A4.2: the ADV participation cap."""
+
+    adv_cap_pct: float | None = None
+    adv_bars: int = 20
+    partial_entries: int = 0
+    skipped_entries: int = 0
+    not_capped: int = 0
+    """Entries with fewer than 20 earlier bars: not capped."""
+    note: str
+
+
+class FeeEstimateLineOut(BaseModel):
+    key: str
+    label: str
+    amount: Decimal
+    rate_text: str
+    source: FeeSourceOut | None = None
+
+
+class FeeEstimateOut(BaseModel):
+    """GET /v1/fees/estimate (A4.2): the order review's costs."""
+
+    ticker: str
+    side: Literal["buy", "sell"]
+    quantity: Decimal
+    price: Decimal
+    currency: str
+    schedule: str
+    label: str
+    on: date
+    effective_from: date | None = None
+    before_coverage: bool = False
+    brokerage: BrokerageOut | None = None
+    notional: Decimal
+    total: Decimal
+    net_amount: Decimal
+    """Buy: value + fees (what is paid). Sell: value - fees (what is received)."""
+    lines: list[FeeEstimateLineOut]
+    dp_note: str | None = None
 
 
 class BacktestTradeOut(BaseModel):
@@ -1941,6 +2111,8 @@ class BacktestTradeOut(BaseModel):
     # Phase 5.3: the price before spread and slippage, and each fee charged.
     reference_price: Decimal | None = None
     fees: list[BacktestFeeOut] = []
+    # A4.2: the shares asked for when the ADV cap bought fewer (null: not capped).
+    requested_shares: Decimal | None = None
 
 
 class EquityPointOut(BaseModel):
@@ -1963,6 +2135,12 @@ class BacktestSummaryOut(BaseModel):
     benchmark_final_nav: Decimal = Decimal(0)
     excess_return: float = 0.0
     total_costs: Decimal = Decimal(0)
+    # A4.2, net first: everything above is after costs; gross adds back the
+    # fees and the spread/slippage price cost.
+    gross_return: float = 0.0
+    gross_final_nav: Decimal = Decimal(0)
+    total_fees: Decimal = Decimal(0)
+    price_costs: Decimal = Decimal(0)
 
 
 class UniverseOut(BaseModel):
@@ -1994,11 +2172,12 @@ class BacktestOut(BaseModel):
     summary: BacktestSummaryOut
     # A1.4a: which universe the symbol came from and its survivorship flag.
     universe: UniverseOut
+    # A4.2: each cost component with its rate and source, and the ADV cap.
+    costs: CostsOut | None = None
+    liquidity: LiquidityOut | None = None
 
 
 # --- A4.1: backtests on the Rule DSL -------------------------------------
-
-FeeScheduleName = Literal["none", "us_equity_2026", "in_delivery_nse_2026", "in_delivery_bse_2026"]
 
 
 class StrategyRuleIn(BaseModel):
@@ -2097,7 +2276,9 @@ class StrategyBacktestIn(BaseModel):
     to: date
     initial_cash: Decimal = Field(gt=0)
     fill_rule: Literal["next_open", "next_close"] = "next_open"
-    fee_schedule: FeeScheduleName = "none"
+    fee_schedule: FeeScheduleName = "auto"
+    brokerage: BrokerageName = "zerodha"
+    adv_cap_pct: float | None = Field(default=10.0, gt=0, le=100)
     commission_bps: float = Field(default=0.0, ge=0, le=1000)
     slippage_bps: float = Field(default=0.0, ge=0, le=1000)
     spread_bps: float = Field(default=0.0, ge=0, le=1000)
@@ -2144,6 +2325,11 @@ class StrategyTradeOut(BaseModel):
     initial_stop: Decimal | None = None
     initial_risk: Decimal | None = None
     r_multiple: float | None = None
+    requested_quantity: Decimal | None = None
+    """A4.2: shares the sizing asked for when the ADV cap filled fewer."""
+    exit_adv_pct: float | None = None
+    """A4.2: the exit's value as % of the 20-day ADV, when above the cap
+    (exits are not capped)."""
 
 
 class StrategySummaryOut(BacktestSummaryOut):
@@ -2215,6 +2401,8 @@ class StrategyBacktestOut(BaseModel):
     strategy_hash: str
     data_fingerprint: str
     notes: list[str] = []
+    costs: CostsOut | None = None
+    liquidity: LiquidityOut | None = None
 
 
 class ExperimentIn(BaseModel):

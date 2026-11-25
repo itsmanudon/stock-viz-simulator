@@ -40,6 +40,18 @@ close's mark. **R** = the trade's net P&L / its initial risk (quantity x
 
 Positions still open at the end are marked at the last close
 (``end_of_data``, ``open``), not sold.
+
+**Costs (A4.2).** Each fill's fees come from the schedule's version in force
+on the fill bar's date; the DP charge is once per scrip per day.
+
+**Liquidity (A4.2).** With ``adv_cap_pct`` set (the API default is 10), an
+entry buys (or shorts) at most that share of the 20-day average traded value
+(close x volume over the 20 bars before the fill bar, so nothing from the
+fill bar itself). The rest is not filled and the trade says so
+(``requested_quantity``); an entry capped to zero shares is skipped
+(``adv_cap``), and one with fewer than 20 earlier bars is not capped
+(``adv_unknown`` counts it). Exits are never capped: an exit over the cap is
+flagged with its share of the ADV (``exit_adv_pct``).
 """
 
 from __future__ import annotations
@@ -71,6 +83,7 @@ from stockviz.services.simulation import (
 )
 
 MICROS = Decimal("0.000001")
+ADV_BARS = 20
 STOP_KINDS = ("stop_fixed", "stop_atr", "trail")
 
 STOP_PRIORITY = (
@@ -158,6 +171,10 @@ class StrategyTrade:
     initial_stop: Decimal | None
     initial_risk: Decimal | None
     r_multiple: float | None
+    requested_quantity: Decimal | None = None
+    """Shares the sizing asked for when the ADV cap filled fewer."""
+    exit_adv_pct: float | None = None
+    """The exit's value as % of the 20-day ADV, when above the cap."""
 
 
 @dataclass
@@ -185,6 +202,11 @@ class StrategyResult:
     symbols: list[SymbolStats]
     ignored_entry_signals: int
     skip_reasons: dict[str, int]
+    fee_versions: dict[date, int] = field(default_factory=dict)
+    """Fills priced under each schedule version (by ``effective_from``)."""
+    fills_before_coverage: int = 0
+    partial_entries: int = 0
+    adv_unknown: int = 0
 
     @property
     def gross_final_nav(self) -> Decimal:
@@ -206,6 +228,7 @@ class _Position:
     entry_date: date
     entry_ts: datetime
     entry: BookedFill
+    requested: Decimal | None
     fixed: Decimal | None
     atr_stop: Decimal | None
     trail: Decimal | None
@@ -246,6 +269,8 @@ def run_strategy(
     commission_bps: Decimal = Decimal(0),
     short: bool = False,
     risk_free_rate: float = DEFAULT_RISK_FREE_RATE,
+    brokerage: str = "zerodha",
+    adv_cap_pct: float | None = None,
 ) -> StrategyResult:
     if initial_cash <= 0:
         raise StrategyError("initial_cash must be positive")
@@ -266,8 +291,33 @@ def run_strategy(
         SymbolStats(s.ticker, bars=len(s.dates) - s.first, warmup_bars=s.first) for s in symbols
     ]
     trades: list[StrategyTrade] = []
-    skips = {"no_slot": 0, "no_cash": 0, "atr_unknown": 0}
+    skips = {"no_slot": 0, "no_cash": 0, "atr_unknown": 0, "adv_cap": 0}
     ignored = 0
+    dp_seen: set[tuple[str, date]] = set()
+    fee_versions: dict[date, int] = {}
+    counters = {"before": 0, "partial": 0, "adv_unknown": 0}
+
+    def note_fees(fill: BookedFill) -> None:
+        version = fill.fees.version
+        if version is not None:
+            fee_versions[version.effective_from] = fee_versions.get(version.effective_from, 0) + 1
+        if fill.fees.before_coverage:
+            counters["before"] += 1
+
+    def adv(s: SymbolInput, i: int) -> Decimal | None:
+        if i < ADV_BARS:
+            return None
+        window = range(i - ADV_BARS, i)
+        return sum((s.close[j] * s.volume[j] for j in window), Decimal(0)) / ADV_BARS
+
+    def booked(s: SymbolInput, i: int, order: OrderIntent, **kw) -> BookedFill | None:
+        fill = book(ledger, order, snapshot(s, i), profile, costs=costs, schedule=schedule,
+                    commission_bps=commission_bps, short=short, on=s.dates[i],
+                    brokerage=brokerage, dp_seen=dp_seen, **kw)  # fmt: skip
+        if fill is not None:
+            note_fees(fill)
+        return fill
+
     price_costs = Decimal(0)
     equity_mark = initial_cash
     curve: list[tuple[date, Decimal]] = []
@@ -314,8 +364,15 @@ def run_strategy(
         pos = st.position
         assert pos is not None
         price_costs += abs(fill.price - fill.reference) * pos.quantity
+        over: float | None = None
+        if adv_cap_pct is not None:
+            avg = adv(s, i)
+            share = (fill.price * pos.quantity / avg * 100) if avg else None
+            if share is not None and share > Decimal(repr(adv_cap_pct)):
+                over = round(float(share), 4)
         trades.append(_trade(s.ticker, pos, s.dates[i], fill.price, fill.reference,
-                             fill.fees.total, reason, gap, open_=False))  # fmt: skip
+                             fill.fees.total, reason, gap, open_=False,
+                             exit_adv_pct=over))  # fmt: skip
         stats[k].trades += 1
         st.position = None
         st.pending = None
@@ -331,8 +388,7 @@ def run_strategy(
             quantity=pos.quantity,
             submitted_at=s.ts[st.signal_index],
         )
-        fill = book(ledger, order, snapshot(s, i), profile, costs=costs, schedule=schedule,
-                    commission_bps=commission_bps, short=short)  # fmt: skip
+        fill = booked(s, i, order)
         assert fill is not None, "a market exit always fills"
         record_exit(s, k, i, fill, reason, gap=False)
 
@@ -355,8 +411,7 @@ def run_strategy(
             submitted_at=min(pos.entry_ts, s.ts[i]),
             limit_price=level,
         )
-        fill = book(ledger, order, bar, profile, costs=costs, schedule=schedule,
-                    commission_bps=commission_bps, range_stop=True, short=short)  # fmt: skip
+        fill = booked(s, i, order, range_stop=True)
         if fill is None:
             return False
         record_exit(s, k, i, fill, kind, gap=gapped(level, bar.open))
@@ -413,9 +468,30 @@ def run_strategy(
             risk = equity_mark * _dec(sizing.risk_pct) / 100
             by_risk = (risk / abs(expected - initial)).to_integral_value(rounding=ROUND_FLOOR)
             quantity = min(quantity, by_risk)
+        requested: Decimal | None = None
+        if adv_cap_pct is not None and quantity > 0:
+            avg = adv(s, i)
+            if avg is None:
+                counters["adv_unknown"] += 1
+            else:
+                most = (avg * Decimal(repr(adv_cap_pct)) / 100 / expected).to_integral_value(
+                    rounding=ROUND_FLOOR
+                )
+                if most < quantity:
+                    if most <= 0:
+                        skips["adv_cap"] += 1
+                        return
+                    requested, quantity = quantity, most
         # Fees come out of the same cash: shave whole shares until it fits.
         while quantity > 0:
-            fee = schedule.fees(entry_side, quantity, expected, commission_bps=commission_bps).total
+            fee = schedule.fees(
+                entry_side,
+                quantity,
+                expected,
+                commission_bps=commission_bps,
+                on=s.dates[i],
+                brokerage=brokerage,
+            ).total
             if (expected * quantity + fee) <= cash:
                 break
             short_by = (expected * quantity + fee - cash) / expected
@@ -431,19 +507,21 @@ def run_strategy(
             submitted_at=s.ts[j],
         )
         try:
-            fill = book(ledger, order, snapshot(s, i), profile, costs=costs, schedule=schedule,
-                        commission_bps=commission_bps, short=short)  # fmt: skip
+            fill = booked(s, i, order)
         except SimInsufficientCash:
             skips["no_cash"] += 1
             return
         assert fill is not None, "a market entry always fills"
         price_costs += abs(fill.price - fill.reference) * quantity
+        if requested is not None:
+            counters["partial"] += 1
         st.position = _Position(
             quantity=quantity,
             entry_index=i,
             entry_date=s.dates[i],
             entry_ts=s.ts[i],
             entry=fill,
+            requested=requested,
             fixed=fixed,
             atr_stop=atr_stop,
             trail=trail,
@@ -565,6 +643,10 @@ def run_strategy(
         symbols=stats,
         ignored_entry_signals=ignored,
         skip_reasons={k: v for k, v in skips.items() if v},
+        fee_versions=dict(sorted(fee_versions.items())),
+        fills_before_coverage=counters["before"],
+        partial_entries=counters["partial"],
+        adv_unknown=counters["adv_unknown"],
     )
 
 
@@ -579,6 +661,7 @@ def _trade(
     gap: bool,
     *,
     open_: bool,
+    exit_adv_pct: float | None = None,
 ) -> StrategyTrade:
     short = pos.entry.fill.side is OrderSide.SELL
     entry_price = pos.entry.price
@@ -612,6 +695,8 @@ def _trade(
         initial_stop=pos.initial_stop,
         initial_risk=risk,
         r_multiple=float(pnl / risk) if risk else None,
+        requested_quantity=pos.requested,
+        exit_adv_pct=exit_adv_pct,
     )
 
 

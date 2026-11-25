@@ -14,6 +14,7 @@ Pure: no Session, clock or I/O.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import date
 from decimal import Decimal
 
 from stockviz.services.simulation import (
@@ -78,15 +79,33 @@ def book(
     commission_bps: Decimal = Decimal(0),
     range_stop: bool = False,
     short: bool = False,
+    on: date | None = None,
+    brokerage: str = "zerodha",
+    dp_seen: set[tuple[str, date]] | None = None,
 ) -> BookedFill | None:
     """Decide ``order`` on ``market`` and book it in ``ledger``; None when the
     kernel does not fill it. ``short`` books a short sale (``SELL``) or a cover
-    (``BUY``) instead of a long trade. Ledger refusals propagate unchanged."""
+    (``BUY``) instead of a long trade. Ledger refusals propagate unchanged.
+
+    A4.2: fees come from the schedule's version in force on ``on`` (the fill
+    bar's venue date; default the snapshot's ``observed_at`` date). A DP
+    charge is due once per scrip per day: ``dp_seen`` remembers the sells."""
     decision = decide(order, market, profile, costs, range_stop=range_stop)
     if decision.status is not FillStatus.FILLED or decision.fill_price is None:
         return None
     quantity = decision.fill_quantity
-    fees = schedule.fees(order.side, quantity, decision.fill_price, commission_bps=commission_bps)
+    fill_date = on if on is not None else market.observed_at.date()
+    key = (order.ticker, fill_date)
+    dp_due = dp_seen is None or key not in dp_seen
+    fees = schedule.fees(
+        order.side,
+        quantity,
+        decision.fill_price,
+        commission_bps=commission_bps,
+        on=fill_date,
+        brokerage=brokerage,
+        dp_due=dp_due,
+    )
     before = ledger.cash
     if short:
         fill = ledger.apply_short(
@@ -96,6 +115,8 @@ def book(
         fill = ledger.apply(
             order.side, order.ticker, quantity, decision.fill_price, fees=fees.total
         )
+    if dp_seen is not None and order.side is OrderSide.SELL:
+        dp_seen.add(key)
     return BookedFill(decision, fees, fill, ledger.cash - before)
 
 

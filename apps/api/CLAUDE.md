@@ -87,14 +87,17 @@ src/stockviz/
                     `next_close` = `legacy_close`); `spread_bps` and
                     `slippage_bps` are a kernel `CostModel` that moves the
                     fill price against the trader; `commission_bps` and
-                    `fee_schedule` (`services/simulation/fees.py`: `none`,
-                    `us_equity_2026` = SEC $20.60/M and FINRA TAF on sales;
-                    5.6: `in_delivery_nse_2026` / `in_delivery_bse_2026` =
-                    STT, exchange charge, SEBI, stamp, GST, DP per Zerodha's
-                    page read 12 Nov 2026; a schedule's currency must match
-                    the symbol's, else 400)
+                    `fee_schedule` (`services/simulation/fees.py`; A4.2:
+                    date-versioned families, `auto` by default = the
+                    symbol's market (NSE/BSE delivery for Indian listings,
+                    `none` elsewhere); old names `us_equity_2026`,
+                    `in_delivery_nse_2026`, `in_delivery_bse_2026` map to
+                    `us_equity`, `in_equity_delivery_nse/_bse`; see
+                    "Date-versioned costs (A4.2)"; a schedule's currency
+                    must match the symbol's, else 400)
                     are fees per fill, listed per trade. Live trading passes
-                    no cost model and stays on `legacy_close`. The router loads warm-up bars before
+                    no cost model and stays on `legacy_close` (it pays the
+                    default fee schedule since A4.2). The router loads warm-up bars before
                     `from` (SMA: long window + 1; RSI: 250) that signals see
                     but nothing trades on, and the equity curve and benchmark
                     start at `from` (SR-3). Responses carry `currency`
@@ -897,6 +900,59 @@ shortable or not US-listed 400.
 - Tests: `test_range_stop.py`, `test_strategy_engine.py`,
   `test_strategy_backtest.py`, `test_kernel_three_way.py`.
 
+**Date-versioned costs (A4.2, M7.2).** No migration for the schedules:
+they are a typed table in `services/simulation/fees.py` (families,
+versions with `effective_from`/`effective_to`, components each citing
+`Source` URL, title, document date and `read_on`); the rules, rates and
+rerun behaviour are in `docs/SIMULATION.md` ("Costs: date-versioned fee
+schedules") and every figure with its source in the workspace note
+`docs/a4-cost-sources.md`. `services/fee_view.py`: the default per venue
+(`DEFAULT_BY_VENUE`: XNSE/XBOM delivery, else `none`),
+`resolve_fee_schedule` (`auto`), `fee_date` (the venue date of an instant)
+and the API shapes (`CostsOut`, `LiquidityOut`, `FeeSchedulesOut`).
+
+- **Routes** (`routers/fees.py`, public, 60/min): `GET /v1/fees/schedules`
+  -> `{schedules: [{name, aliases, label, currency, market, segment, venue,
+  coverage_from, brokerage, versions: [{effective_from, effective_to,
+  start_confirmed, components: [{key, label, kind, rate, rate_text, side,
+  cap, gst_on, per_scrip_day, note, source {url, title, date, read_on}}],
+  notes}], notes, default_for}], defaults, default_other, brokerage_models,
+  notes}`; `GET /v1/fees/estimate?ticker&side&quantity&price?&on?` (the
+  order review): the ticker's default schedule on `on` (default today on its
+  venue), `{schedule, label, on, effective_from, before_coverage,
+  brokerage, notional, total, net_amount, lines [{key, label, amount,
+  rate_text, source}], dp_note}`; 404 unknown symbol, 422 no close.
+- **Backtests** (`BacktestIn`, `StrategyBacktestIn`): `fee_schedule`
+  default `auto`, `brokerage` `zerodha`|`zero`, `adv_cap_pct` (default 10,
+  null off). Results add `costs` and `liquidity`; the template summary adds
+  `gross_return`, `gross_final_nav`, `total_fees`, `price_costs`; trades
+  add `requested_shares` / `requested_quantity` and `exit_adv_pct`;
+  `skip_reasons` may hold `adv_cap`. The template fingerprint hashes volume
+  only when the cap is on, and the strategy hash adds `adv_cap_pct` /
+  `brokerage` only when set, so runs saved before A4.2 keep both.
+  `registry.as_saved` reruns a stored request without `adv_cap_pct`
+  uncapped; `STAMPS_ADDED_LATER` (any depth) skips the new fields a stored
+  result lacks.
+- **Live paper trading.** Migration `c4f2a8e91b07` (additive, nullable):
+  `trades.fees` (native currency), `fee_schedule`, `fee_lines` (JSON:
+  key, label, amount, rate, effective_from, source_url). `apply_fill`
+  charges `execute.fill_fees` (default schedule, version on `fee_on`, DP
+  once per scrip per venue day): buys pay value + fees, sells receive value
+  - fees (refused when fees exceed the value); `realized_pnl` stays the
+  price gain. `charge_fees=False` books none. `buy_reservation` adds the
+  estimated fees at the limit. `TradeOut` adds `fees`, `fee_schedule`,
+  `fee_lines`, `net_native`, `realized_pnl_net`; `PortfolioOut` adds
+  `fees_paid` and `realized_pl_net` (realized minus every fee paid, in the
+  display currency). Rows before A4.2 keep NULL fees.
+- **Checklist and indicator evidence** price round trips with the newest
+  version of each venue's schedule (no date); `fee_schedules` keys are the
+  family names now (`us_equity`, `in_equity_delivery_nse`, ...).
+- Tests: `test_dated_fees.py` (version boundaries, the F&O series across
+  1 Apr 2026 with sources, Zerodha calculator examples, GST base, stamp and
+  STT sides, DP per scrip per day, US dates, the routes, live fills,
+  reservations, defaults, the ADV cap, rerun honesty),
+  `test_kernel_three_way.py`, `test_rupee_portfolios.py`.
+
 **Survivorship stamp (A1.4a, part of M1.5).** Every backtest result carries
 `universe: {name, point_in_time, survivorship_biased, note}`: the public
 `POST /v1/backtest` (`BacktestOut.universe`), stored single runs, and
@@ -1486,6 +1542,10 @@ intraday fills anywhere in the app:
   positions, dividends or foreign cash, else 409. It restates the opening
   NAV and the account's snapshots and sets the display currency to match.
   `PortfolioOut` carries `base_currency` and `base_currency_locked`.
+- **Fees (A4.2).** Indian symbols pay their venue's equity delivery
+  schedule on every live fill (see "Date-versioned costs (A4.2)"); other
+  markets pay none. Cash moves net of fees; realized P&L on the trade row is
+  gross, `realized_pnl_net` / `realized_pl_net` are after fees.
 - **Market orders** fill immediately at the latest close. Buys recompute the
   position's weighted-average `avg_cost`; sells never touch `avg_cost`, and a
   position sold to zero is **deleted**, not kept at qty 0.

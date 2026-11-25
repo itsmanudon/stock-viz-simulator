@@ -120,7 +120,9 @@ def test_an_nse_trade_runs_end_to_end_in_rupees(session: Session, trader: int) -
     )
     assert buy.fx_rate == 1 and buy.base_currency == "INR"
     assert buy.base_cost == Decimal("250000")
-    assert _portfolio(session, trader).cash_balance == CRORE - Decimal("250000")
+    # A4.2: the NSE delivery schedule's fees are paid on top (default on).
+    assert buy.fees > 0
+    assert _portfolio(session, trader).cash_balance == CRORE - Decimal("250000") - buy.fees
     assert session.exec(select(FxConversion)).first() is None  # nothing converted
 
     bar = session.exec(select(PriceBar).where(PriceBar.ticker == "RELIANCE.NS")).one()
@@ -130,8 +132,10 @@ def test_an_nse_trade_runs_end_to_end_in_rupees(session: Session, trader: int) -
     sell = execute_trade(
         session, user_id=trader, ticker="RELIANCE.NS", side=TradeSide.SELL, quantity=Decimal(100)
     )
-    assert sell.realized_pnl == Decimal("10000")  # 100 x ₹100, in rupees
-    assert _portfolio(session, trader).cash_balance == CRORE + Decimal("10000")
+    assert sell.realized_pnl == Decimal("10000")  # 100 x ₹100, in rupees (gross of fees)
+    assert _portfolio(session, trader).cash_balance == (
+        CRORE + Decimal("10000") - buy.fees - sell.fees
+    )
 
 
 def test_a_us_buy_converts_rupees_through_the_dollar(session: Session, trader: int) -> None:
