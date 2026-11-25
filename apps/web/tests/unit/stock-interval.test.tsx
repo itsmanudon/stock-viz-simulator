@@ -13,22 +13,7 @@ import {
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
 vi.mock("next-themes", () => ({ useTheme: () => ({ resolvedTheme: "dark" }) }));
-vi.mock("lightweight-charts", () => ({
-  CandlestickSeries: "CandlestickSeries",
-  HistogramSeries: "HistogramSeries",
-  LineSeries: "LineSeries",
-  createSeriesMarkers: vi.fn(),
-  createChart: () => ({
-    addSeries: () => ({
-      setData: vi.fn(),
-      createPriceLine: vi.fn(),
-      priceScale: () => ({ applyOptions: vi.fn() }),
-    }),
-    priceScale: () => ({ applyOptions: vi.fn() }),
-    timeScale: () => ({ fitContent: vi.fn(), width: () => 0, setVisibleLogicalRange: vi.fn() }),
-    remove: vi.fn(),
-  }),
-}));
+vi.mock("lightweight-charts", async () => (await import("../stubs/lightweight-charts")).lwc);
 
 const bar = (ts: string, close: string, partial?: boolean) => ({
   ts,

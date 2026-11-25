@@ -20,6 +20,10 @@ export type ChartPalette = {
   text: string;
   grid: string;
   axis: string;
+  /** A3.1: the line and area chart types' stroke, and the area's fill stops. */
+  line: string;
+  areaTop: string;
+  areaBottom: string;
   /** Categorical colours for indicator overlays, in assignment order. */
   overlays: readonly string[];
 };
@@ -32,6 +36,9 @@ const FALLBACK: ChartPalette = {
   text: "#808080",
   grid: "rgba(222, 222, 222, 0.9)",
   axis: "#dedede",
+  line: "#0b1220",
+  areaTop: "rgba(11, 18, 32, 0.18)",
+  areaBottom: "rgba(11, 18, 32, 0)",
   /* Categorical ramp deliberately excludes the blue brand and P&L colors so
      an overlay is never mistaken for an action or a gain. */
   overlays: ["#8277e8", "#4baebd", "#d36f9b", "#e59152", "#6287b9"],
@@ -59,6 +66,7 @@ function readPalette(): ChartPalette {
   const positive = readToken(styles, "--positive", FALLBACK.positive);
   const negative = readToken(styles, "--negative", FALLBACK.negative);
   const border = readToken(styles, "--border-muted", FALLBACK.axis);
+  const line = readToken(styles, "--foreground", FALLBACK.line);
 
   return {
     positive,
@@ -68,6 +76,9 @@ function readPalette(): ChartPalette {
     text: readToken(styles, "--text-tertiary", FALLBACK.text),
     grid: withAlpha(border, 0.9),
     axis: border,
+    line,
+    areaTop: withAlpha(line, 0.18),
+    areaBottom: withAlpha(line, 0),
     overlays: FALLBACK.overlays,
   };
 }
@@ -78,7 +89,8 @@ function sameColors(a: ChartPalette, b: ChartPalette): boolean {
     a.negative === b.negative &&
     a.text === b.text &&
     a.grid === b.grid &&
-    a.axis === b.axis
+    a.axis === b.axis &&
+    a.line === b.line
   );
 }
 

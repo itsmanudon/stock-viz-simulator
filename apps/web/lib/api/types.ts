@@ -35,6 +35,8 @@ export type Quote = {
 
 export type SymbolDetail = Symbol & {
   latest: Quote | null;
+  /** A3.1: raw exchange prices are stored, so the chart can offer `adjustment=raw`. */
+  has_raw?: boolean;
 };
 
 export type EarningsEvent = {
