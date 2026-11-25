@@ -628,7 +628,7 @@ def _benchmark(
         price = cost_adjusted(s.close[s.first], OrderSide.BUY, costs)
         shares = share / (price * (Decimal(1) + commission_bps / 10_000))
         final += shares * s.close[-1]
-    return float((final - cash) / cash), final
+    return float((final - cash) / cash), final.quantize(MICROS)
 
 
 __all__ = [

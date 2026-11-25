@@ -136,4 +136,18 @@ test.describe("research pages on a phone", () => {
     await main.getByRole("button", { name: "Run backtest" }).click();
     await expect(main.getByRole("heading", { name: "Equity curve" })).toBeVisible();
   });
+
+  test("backtest's rule strategy mode runs and marks trades on the chart (A4.1)", async ({
+    page,
+  }) => {
+    await page.goto("/backtest?mode=rule&ticker=AAPL");
+    const main = page.locator("#main");
+    await expect(main.getByTestId("rule-ok")).toHaveCount(2);
+    await main.getByRole("button", { name: "Run strategy" }).click();
+    await expect(main.getByRole("heading", { name: "Performance, net of costs" })).toBeVisible({
+      timeout: 30_000,
+    });
+    await expect(main.getByTestId("strategy-chart-caption")).toContainText("AAPL:");
+    await expect(main.getByRole("heading", { name: "Equity curve" })).toBeVisible();
+  });
 });

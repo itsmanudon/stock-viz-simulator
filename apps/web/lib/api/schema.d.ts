@@ -1583,6 +1583,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/backtest/strategy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Post Strategy Backtest
+         * @description A4.1: the strategy mode of the backtester. A Rule DSL entry (and
+         *     optional exit) rule, stops, sizing and a universe (one ticker, a
+         *     watchlist of yours, or up to 50 tickers). Public: a watchlist, your own
+         *     setup version or a rule that reads drawings need a Bearer token.
+         */
+        post: operations["post_strategy_backtest_v1_backtest_strategy_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/experiments": {
         parameters: {
             query?: never;
@@ -2296,6 +2319,20 @@ export interface components {
             paused?: boolean | null;
             /** Setup Version Id */
             setup_version_id?: number | null;
+        };
+        /**
+         * AtrStopIn
+         * @description Entry price minus ``multiple`` x ATR(``period``) at the signal bar
+         *     (plus, for a short). Fixed for the trade.
+         */
+        AtrStopIn: {
+            /** Multiple */
+            multiple: number;
+            /**
+             * Period
+             * @default 14
+             */
+            period: number;
         };
         /** AvwapOut */
         AvwapOut: {
@@ -3243,10 +3280,12 @@ export interface components {
         };
         /**
          * ExperimentRunIn
-         * @description Save a backtest (Phase 5.4): the same body as POST /v1/backtest.
+         * @description Save a backtest (Phase 5.4): the same body as POST /v1/backtest, or
+         *     (A4.1) a Rule DSL strategy, the body of POST /v1/backtest/strategy.
          */
         ExperimentRunIn: {
-            backtest: components["schemas"]["BacktestIn"];
+            backtest?: components["schemas"]["BacktestIn"] | null;
+            strategy?: components["schemas"]["StrategyBacktestIn"] | null;
             /** Experiment Id */
             experiment_id?: number | null;
         };
@@ -6340,6 +6379,401 @@ export interface components {
             /** Dead Outbox Events */
             dead_outbox_events: number;
         };
+        /**
+         * StrategyBacktestIn
+         * @description POST /v1/backtest/strategy (A4.1): a Rule DSL strategy.
+         *
+         *     Signals come from the rule's vector mode on each completed bar; orders
+         *     fill on the next bar under ``fill_rule`` through the execution kernel and
+         *     ``SimLedger``. Long only unless ``direction`` is ``short``, which needs
+         *     every symbol listed in ``shortable`` and US-listed (Indian shorts wait for
+         *     the F&O-eligible list).
+         */
+        StrategyBacktestIn: {
+            entry: components["schemas"]["StrategyRuleIn"];
+            exit?: components["schemas"]["StrategyRuleIn"] | null;
+            stops?: components["schemas"]["StrategyStopsIn"];
+            sizing?: components["schemas"]["StrategySizingIn"];
+            universe: components["schemas"]["StrategyUniverseIn"];
+            /**
+             * From
+             * Format: date
+             */
+            from: string;
+            /**
+             * To
+             * Format: date
+             */
+            to: string;
+            /** Initial Cash */
+            initial_cash: number | string;
+            /**
+             * Fill Rule
+             * @default next_open
+             * @enum {string}
+             */
+            fill_rule: "next_open" | "next_close";
+            /**
+             * Fee Schedule
+             * @default none
+             * @enum {string}
+             */
+            fee_schedule: "none" | "us_equity_2026" | "in_delivery_nse_2026" | "in_delivery_bse_2026";
+            /**
+             * Commission Bps
+             * @default 0
+             */
+            commission_bps: number;
+            /**
+             * Slippage Bps
+             * @default 0
+             */
+            slippage_bps: number;
+            /**
+             * Spread Bps
+             * @default 0
+             */
+            spread_bps: number;
+            /**
+             * Direction
+             * @default long
+             * @enum {string}
+             */
+            direction: "long" | "short";
+            /** Shortable */
+            shortable?: string[];
+        };
+        /** StrategyBacktestOut */
+        StrategyBacktestOut: {
+            /**
+             * Mode
+             * @default strategy
+             * @constant
+             */
+            mode: "strategy";
+            /** Tickers */
+            tickers: string[];
+            /** Currency */
+            currency: string;
+            /** Price Basis */
+            price_basis?: string | null;
+            /** Execution Profile */
+            execution_profile: string;
+            /** Fee Schedule */
+            fee_schedule: string;
+            /**
+             * Direction
+             * @default long
+             * @enum {string}
+             */
+            direction: "long" | "short";
+            /** Rules */
+            rules: components["schemas"]["StrategyRuleOut"][];
+            stops: components["schemas"]["StrategyStopsIn"];
+            sizing: components["schemas"]["StrategySizingIn"];
+            /** Stop Priority */
+            stop_priority: string;
+            /** Trades */
+            trades: components["schemas"]["StrategyTradeOut"][];
+            /** Equity Curve */
+            equity_curve: components["schemas"]["EquityPointOut"][];
+            summary: components["schemas"]["StrategySummaryOut"];
+            benchmark: components["schemas"]["StrategyBenchmarkOut"];
+            source: components["schemas"]["StrategyUniverseSourceOut"];
+            universe: components["schemas"]["UniverseOut"];
+            /**
+             * Warmup Bars
+             * @default 0
+             */
+            warmup_bars: number;
+            /**
+             * Unknown Entry Bars
+             * @default 0
+             */
+            unknown_entry_bars: number;
+            /**
+             * Unknown Exit Bars
+             * @default 0
+             */
+            unknown_exit_bars: number;
+            /**
+             * Ignored Entry Signals
+             * @default 0
+             */
+            ignored_entry_signals: number;
+            /**
+             * Skipped Entries
+             * @default 0
+             */
+            skipped_entries: number;
+            /**
+             * Skip Reasons
+             * @default {}
+             */
+            skip_reasons: {
+                [key: string]: number;
+            };
+            /** Symbols */
+            symbols: components["schemas"]["StrategySymbolOut"][];
+            /** Strategy Hash */
+            strategy_hash: string;
+            /** Data Fingerprint */
+            data_fingerprint: string;
+            /**
+             * Notes
+             * @default []
+             */
+            notes: string[];
+        };
+        /**
+         * StrategyBenchmarkOut
+         * @description Buy and hold over the window: the symbol, or an equal-weight basket.
+         */
+        StrategyBenchmarkOut: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "buy_and_hold" | "equal_weight_buy_and_hold";
+            /** Tickers */
+            tickers: string[];
+            /** Total Return */
+            total_return: number;
+            /** Final Nav */
+            final_nav: string;
+        };
+        /**
+         * StrategyRuleIn
+         * @description A rule: a setup version (yours or a preset's) or inline Rule DSL text.
+         *     Inline text is saved as a setup version owned by the user when the run is
+         *     saved, so a saved run always points at a version.
+         */
+        StrategyRuleIn: {
+            /** Setup Version Id */
+            setup_version_id?: number | null;
+            /** Rule */
+            rule?: string | null;
+        };
+        /** StrategyRuleOut */
+        StrategyRuleOut: {
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "entry" | "exit";
+            /** Text */
+            text: string;
+            /** Canonical */
+            canonical: string;
+            /** Hash */
+            hash: string;
+            /** Setup Version Id */
+            setup_version_id?: number | null;
+            /** Warmup Bars */
+            warmup_bars?: number | null;
+        };
+        /**
+         * StrategySizingIn
+         * @description ``all_in``: all free cash (a basket splits it over the free slots);
+         *     ``fixed_fraction``: ``fraction`` of equity per entry; ``fixed_risk``:
+         *     ``risk_pct`` % of equity lost if the initial stop is hit (stop distance
+         *     x quantity), which needs a fixed, ATR or trailing stop. Whole shares;
+         *     never more than the free cash.
+         */
+        StrategySizingIn: {
+            /**
+             * Kind
+             * @default all_in
+             * @enum {string}
+             */
+            kind: "all_in" | "fixed_fraction" | "fixed_risk";
+            /** Fraction */
+            fraction?: number | null;
+            /** Risk Pct */
+            risk_pct?: number | null;
+            /** Max Positions */
+            max_positions?: number | null;
+        };
+        /**
+         * StrategyStopsIn
+         * @description Any combination; the first hit wins (see ``StrategyBacktestOut.stop_priority``).
+         */
+        StrategyStopsIn: {
+            /** Fixed Pct */
+            fixed_pct?: number | null;
+            atr?: components["schemas"]["AtrStopIn"] | null;
+            trailing?: components["schemas"]["TrailingStopIn"] | null;
+            /** Time Bars */
+            time_bars?: number | null;
+        };
+        /**
+         * StrategySummaryOut
+         * @description Net first (every figure above is after costs), gross second: the same
+         *     trades with the fees and the spread/slippage price cost added back.
+         */
+        StrategySummaryOut: {
+            /** Total Return */
+            total_return: number;
+            /** Sharpe */
+            sharpe: number;
+            /** Max Drawdown */
+            max_drawdown: number;
+            /** Final Nav */
+            final_nav: string;
+            /**
+             * Benchmark Return
+             * @default 0
+             */
+            benchmark_return: number;
+            /**
+             * Benchmark Final Nav
+             * @default 0
+             */
+            benchmark_final_nav: string;
+            /**
+             * Excess Return
+             * @default 0
+             */
+            excess_return: number;
+            /**
+             * Total Costs
+             * @default 0
+             */
+            total_costs: string;
+            /**
+             * Gross Return
+             * @default 0
+             */
+            gross_return: number;
+            /**
+             * Gross Final Nav
+             * @default 0
+             */
+            gross_final_nav: string;
+            /**
+             * Total Fees
+             * @default 0
+             */
+            total_fees: string;
+            /**
+             * Price Costs
+             * @default 0
+             */
+            price_costs: string;
+            /**
+             * Trade Count
+             * @default 0
+             */
+            trade_count: number;
+        };
+        /** StrategySymbolOut */
+        StrategySymbolOut: {
+            /** Ticker */
+            ticker: string;
+            /** Bars */
+            bars: number;
+            /** Warmup Bars */
+            warmup_bars: number;
+            /** Unknown Entry Bars */
+            unknown_entry_bars: number;
+            /** Unknown Exit Bars */
+            unknown_exit_bars: number;
+            /** Trades */
+            trades: number;
+        };
+        /**
+         * StrategyTradeOut
+         * @description One round trip. ``pnl`` is net of both legs' fees; ``r_multiple`` is
+         *     ``pnl`` over the initial risk (quantity x distance from the entry fill to
+         *     the initial stop), null without a price stop. ``open``: still held at the
+         *     end, marked at the last close (``reason`` ``end_of_data``, no exit fees).
+         */
+        StrategyTradeOut: {
+            /** Ticker */
+            ticker: string;
+            /**
+             * Direction
+             * @enum {string}
+             */
+            direction: "long" | "short";
+            /**
+             * Entry Date
+             * Format: date
+             */
+            entry_date: string;
+            /** Entry Price */
+            entry_price: string;
+            /** Entry Reference Price */
+            entry_reference_price: string;
+            /**
+             * Exit Date
+             * Format: date
+             */
+            exit_date: string;
+            /** Exit Price */
+            exit_price: string;
+            /** Exit Reference Price */
+            exit_reference_price: string;
+            /** Quantity */
+            quantity: string;
+            /** Entry Fees */
+            entry_fees: string;
+            /** Exit Fees */
+            exit_fees: string;
+            /** Pnl */
+            pnl: string;
+            /** Return Pct */
+            return_pct: number;
+            /**
+             * Reason
+             * @enum {string}
+             */
+            reason: "exit_rule" | "stop_fixed" | "stop_atr" | "trail" | "time" | "end_of_data";
+            /**
+             * Gap
+             * @default false
+             */
+            gap: boolean;
+            /**
+             * Open
+             * @default false
+             */
+            open: boolean;
+            /** Bars Held */
+            bars_held: number;
+            /** Initial Stop */
+            initial_stop?: string | null;
+            /** Initial Risk */
+            initial_risk?: string | null;
+            /** R Multiple */
+            r_multiple?: number | null;
+        };
+        /**
+         * StrategyUniverseIn
+         * @description One ticker, one of your watchlists, or up to 50 tickers.
+         */
+        StrategyUniverseIn: {
+            /** Ticker */
+            ticker?: string | null;
+            /** Watchlist Id */
+            watchlist_id?: number | null;
+            /** Tickers */
+            tickers?: string[] | null;
+        };
+        /** StrategyUniverseSourceOut */
+        StrategyUniverseSourceOut: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "ticker" | "watchlist" | "list";
+            /** Watchlist Id */
+            watchlist_id?: number | null;
+            /** Name */
+            name?: string | null;
+            /** Tickers */
+            tickers: string[];
+        };
         /** StressDriverOut */
         StressDriverOut: {
             /** Ticker */
@@ -6649,6 +7083,26 @@ export interface components {
             total_base: string;
             /** Realized Pnl */
             realized_pnl?: string | null;
+        };
+        /**
+         * TrailingStopIn
+         * @description Ratchets with the highest high since entry (lowest low for a short):
+         *     ``pct`` below it, or ``value`` x ATR(``period``) below it. Updated after
+         *     each bar's close, used from the next bar.
+         */
+        TrailingStopIn: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "atr" | "pct";
+            /** Value */
+            value: number;
+            /**
+             * Period
+             * @default 14
+             */
+            period: number;
         };
         /** UnderlyingGreeksOut */
         UnderlyingGreeksOut: {
@@ -10385,6 +10839,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BacktestOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    post_strategy_backtest_v1_backtest_strategy_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StrategyBacktestIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StrategyBacktestOut"];
                 };
             };
             /** @description Validation Error */

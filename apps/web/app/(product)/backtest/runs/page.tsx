@@ -77,7 +77,9 @@ export default async function SavedBacktestsPage() {
                         ? "walk-forward"
                         : run.kind === "sweep"
                           ? "sweep"
-                          : "backtest"}
+                          : run.kind === "strategy"
+                            ? "rule strategy"
+                            : "backtest"}
                     </span>
                     {run.universe ? (
                       <span
