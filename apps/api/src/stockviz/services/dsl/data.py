@@ -25,6 +25,7 @@ from sqlalchemy import func
 from sqlmodel import Session, col, select
 
 from stockviz.services.bars.resample import bar_date
+from stockviz.services.dsl.drawings import DrawingRef, Drawings
 from stockviz.services.dsl.pit import Fact, Fundamentals, News, NewsDoc, to_ns
 from stockviz.services.markets.calendar import (
     COMPLETE_AFTER_CLOSE,
@@ -62,6 +63,10 @@ class SymbolData:
     news: News | None = None
     delivery_loaded: bool = False
     """Whether ``eod_extras`` held any row for this instrument."""
+    drawings: Drawings | None = None
+    """A3.3: the rule owner's drawings on this symbol; None without an owner.
+    Kept whole by ``cut``: a drawing is geometry, and its values on a bar
+    read only its anchors and bars up to that bar."""
 
     @property
     def dates(self) -> list[date]:
@@ -106,6 +111,8 @@ class Needs:
     fundamentals: bool = False
     news: bool = False
     delivery: bool = False
+    drawings: bool = False
+    """A3.3: the rule reads the owner's drawings (user-scoped)."""
 
 
 def _daily_rows(
@@ -235,6 +242,29 @@ def _news(session: Session, ticker: str, since: datetime, cutoff: datetime) -> N
     return News(docs, to_ns(start) if start is not None else None)
 
 
+def load_drawings(session: Session, user_id: int, instrument_id: int) -> Drawings:
+    """The user's drawings on one instrument (A3.3), for ``drawing()`` / ``avwap()``."""
+    from stockviz.models.drawing import Drawing
+
+    rows = session.exec(
+        select(Drawing)
+        .where(col(Drawing.user_id) == user_id, col(Drawing.instrument_id) == instrument_id)
+        .order_by(col(Drawing.id))
+    ).all()
+    items = []
+    for row in rows:
+        assert row.id is not None
+        points = tuple(
+            (
+                date.fromisoformat(p["ts"]) if p.get("ts") else None,
+                float(p["price"]) if p.get("price") is not None else None,
+            )
+            for p in row.points
+        )
+        items.append(DrawingRef(row.id, row.kind, row.label, points))
+    return Drawings(user_id, tuple(items))
+
+
 def load_symbol(
     session: Session,
     ticker: str,
@@ -243,9 +273,12 @@ def load_symbol(
     start: date | None = None,
     lookback: int | None = None,
     needs: Needs = Needs(),  # noqa: B008
+    user_id: int | None = None,
 ) -> SymbolData:
     """A symbol's data up to ``end``: bars from ``start`` plus ``lookback``
-    bars before it (all history when either is None)."""
+    bars before it (all history when either is None). ``user_id`` is the
+    rule's owner: a rule that reads drawings (A3.3) sees that user's, and
+    without one its drawing values are unknown."""
     from stockviz.services.event_study import benchmark_for
     from stockviz.services.instruments import instrument_ids
 
@@ -287,6 +320,14 @@ def load_symbol(
     if needs.fundamentals:
         data = replace(data, fundamentals=_fundamentals(session, ticker, instrument_id, end))
 
+    if needs.drawings and user_id is not None:
+        data = replace(
+            data,
+            drawings=load_drawings(session, user_id, instrument_id)
+            if instrument_id is not None
+            else Drawings(user_id),
+        )
+
     if needs.news:
         cutoff = datetime.fromtimestamp(session_close_ns(end, venue) / 1e9, UTC)
         since = datetime.combine(first - timedelta(days=400), time.min, tzinfo=UTC)
@@ -294,4 +335,12 @@ def load_symbol(
     return data
 
 
-__all__ = ["BAR_COLUMNS", "Needs", "SymbolData", "bars_frame", "load_symbol", "session_close_ns"]
+__all__ = [
+    "BAR_COLUMNS",
+    "Needs",
+    "SymbolData",
+    "bars_frame",
+    "load_drawings",
+    "load_symbol",
+    "session_close_ns",
+]

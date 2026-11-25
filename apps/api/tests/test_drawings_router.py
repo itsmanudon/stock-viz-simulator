@@ -99,7 +99,13 @@ def test_crud_round_trip(session: Session, client: TestClient) -> None:
         {"ts": "2025-03-10", "price": "100.5"},
         {"ts": "2025-04-07", "price": "120"},
     ]
-    assert body["style"] == {"colour": "violet", "width": 2, "dash": "dashed", "fill_opacity": 0.12}
+    assert body["style"] == {
+        "colour": "violet",
+        "width": 2,
+        "dash": "dashed",
+        "fill_opacity": 0.12,
+        "bands": 0,
+    }
     assert body["label"] == "Support" and body["locked"] is False and body["position"] is None
 
     did = body["id"]

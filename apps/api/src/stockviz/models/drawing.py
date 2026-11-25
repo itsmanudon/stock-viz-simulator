@@ -35,6 +35,7 @@ DRAWING_KINDS = (
     "text",
     "position_long",
     "position_short",
+    "avwap",
 )
 
 DRAWING_COLOURS = ("aqua", "blue", "violet", "pink", "amber", "lime", "slate", "foreground")
@@ -65,7 +66,8 @@ class Drawing(SQLModel, table=True):
         )
     )
     kind: str = Field(max_length=24)
-    # [{ts: "YYYY-MM-DD" | null, price: "<decimal>"}], in the kind's order.
+    # [{ts: "YYYY-MM-DD" | null, price: "<decimal>" | null}], in the kind's order.
+    # An avwap (A3.3) is one point {ts: anchor date, price: null}.
     points: list[dict[str, Any]] = Field(
         default_factory=list, sa_column=Column(_JSON, nullable=False)
     )

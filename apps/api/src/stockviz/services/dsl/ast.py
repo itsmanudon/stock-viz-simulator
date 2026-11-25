@@ -78,6 +78,19 @@ class Fundamental(Node):
 
 
 @dataclass(frozen=True)
+class Ref(Node):
+    """A3.3: a reference to one of the rule owner's chart drawings.
+
+    ``drawing("label").price`` (``.top`` / ``.bottom`` for a rectangle) or
+    ``avwap("label")`` (``.upper1 .lower1 .upper2 .lower2`` for its bands).
+    User-scoped: it resolves only with the owner's drawings loaded."""
+
+    kind: str  # "drawing" | "avwap"
+    label: str
+    output: str | None = None
+
+
+@dataclass(frozen=True)
 class Offset(Node):
     """``expr[n]``: the value ``n`` bars ago at the expression's own timeframe."""
 
@@ -185,6 +198,7 @@ __all__ = [
     "Offset",
     "Or",
     "Pos",
+    "Ref",
     "Str",
     "Timeframe",
     "walk",

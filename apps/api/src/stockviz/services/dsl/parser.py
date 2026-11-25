@@ -17,6 +17,9 @@ from stockviz.services.dsl import ast
 
 GRAMMAR_PATH = Path(__file__).with_name("grammar.lark")
 MAX_RULE_LENGTH = 4000
+REF_KINDS = ("drawing", "avwap")
+"""A3.3: the calls that take a drawing's label as a string."""
+REF_LABEL_MAX = 80
 
 _FRIENDLY = {
     "NAME": "a name",
@@ -144,6 +147,8 @@ class _Build(Transformer):
     @v_args(meta=True)
     def output(self, meta, items):
         expr, name = items
+        if isinstance(expr, ast.Ref) and expr.output is None:
+            return ast.Ref(expr.kind, expr.label, str(name), pos=expr.pos)
         if isinstance(expr, ast.Name) and expr.name in ("weekly", "monthly"):
             raise RuleError("syntax", "timeframe prefixes do not nest", *(expr.pos or (None, None)))
         if not isinstance(expr, ast.Call) or expr.output is not None:
@@ -166,6 +171,29 @@ class _Build(Transformer):
         token = items[0]
         args, kwargs = items[1] if len(items) > 1 else ((), ())
         return ast.Call(str(token), args, kwargs, pos=_tpos(token))
+
+    def ref(self, items):
+        token, label = items
+        name = str(token)
+        if name not in REF_KINDS:
+            raise RuleError(
+                "syntax",
+                'a string is allowed only as a keyword value, e.g. sentiment="negative", '
+                'or as the label in drawing("label") and avwap("label")',
+                *(_tpos(label) or (None, None)),
+            )
+        text = str(label)[1:-1]
+        if not text.strip():
+            raise RuleError(
+                "syntax", f"{name}() needs a drawing's label", *(_tpos(label) or (None, None))
+            )
+        if len(text) > REF_LABEL_MAX:
+            raise RuleError(
+                "syntax",
+                f"a drawing label is at most {REF_LABEL_MAX} characters",
+                *(_tpos(label) or (None, None)),
+            )
+        return ast.Ref(name, text, pos=_tpos(token))
 
     @v_args(meta=True)
     def fundamental(self, meta, items):
@@ -226,7 +254,10 @@ def _syntax_error(text: str, exc: UnexpectedInput) -> RuleError:
             lines = text.splitlines() or [""]
             line, column = len(lines), len(lines[-1]) + 1
         elif token.type == "STRING":
-            message = 'a string is allowed only as a keyword value, e.g. sentiment="negative"'
+            message = (
+                'a string is allowed only as a keyword value, e.g. sentiment="negative", '
+                'or as the label in drawing("label") and avwap("label")'
+            )
         elif token.type in ("COMP_OP", "CROSS_OP") and "_AND" in exc.expected:
             message = "comparisons cannot be chained; join them with and"
         else:
@@ -269,4 +300,4 @@ def parse(text: str) -> ast.Node:
     return node
 
 
-__all__ = ["GRAMMAR_PATH", "RuleError", "parse"]
+__all__ = ["GRAMMAR_PATH", "REF_KINDS", "REF_LABEL_MAX", "RuleError", "parse"]

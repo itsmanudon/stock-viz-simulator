@@ -12,10 +12,17 @@ the evaluator must handle:
   fundamentals reported in USD for an INR listing (the FX path); ^NSEI.
 - ``SYNC`` (XNYS): starts in 2016, a two-week hole in its bars, no
   fundamentals, no news and no benchmark (every such binding is unknown).
+
+A3.3: each symbol also carries its owner's drawings (``_drawings``), read by
+``drawing("...")`` and ``avwap("...")``: lines and zones anchored mid-history
+(so many bars lie before their first anchor), a leftward ray, a weekend
+anchor, an AVWAP anchored inside SYNC's hole, and on SYNC an ambiguous label
+and a label on a kind ``drawing()`` cannot read.
 """
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from functools import lru_cache
@@ -24,6 +31,7 @@ import numpy as np
 import pandas as pd
 
 from stockviz.services.dsl.data import SymbolData, bars_frame
+from stockviz.services.dsl.drawings import DrawingRef, Drawings
 from stockviz.services.dsl.pit import Fact, Fundamentals, News, NewsDoc, to_ns
 from stockviz.services.markets.calendar import is_session
 
@@ -162,7 +170,38 @@ def universe() -> dict[str, SymbolData]:
     c_days = [d for d in us if d >= date(2016, 3, 1)]
     c_days = [d for d in c_days if not date(2019, 7, 8) <= d <= date(2019, 7, 19)]
     sync = SymbolData("SYNC", "XNYS", _bars(rng, c_days, 30.0))
-    return {s.ticker: s for s in (syna, synb, sync)}
+    return {s.ticker: replace(s, drawings=_drawings(s)) for s in (syna, synb, sync)}
+
+
+def _drawings(data: SymbolData) -> Drawings:
+    """Synthetic drawings near the symbol's own prices (A3.3)."""
+    days = data.dates
+    close = data.bars["close"].to_numpy(dtype=float)
+    n = len(days)
+
+    def at(i: int) -> tuple[date, float]:
+        return days[i], round(float(close[i]), 2)
+
+    a, b, c = n // 3, n // 2, (2 * n) // 3
+    items = [
+        DrawingRef(1, "hline", "Support", ((None, round(float(np.median(close)), 2)),)),
+        DrawingRef(2, "trendline", "trend", (at(c), at(a))),  # anchors given right to left
+        DrawingRef(3, "ray", "ray up", (at(a), at(b))),
+        DrawingRef(4, "ray", "Ray  Left", (at(b), at(a))),  # leftward, double space
+        DrawingRef(5, "rectangle", "zone", ((days[b], float(close[b:c].max())),
+                                            (days[c], float(close[b:c].min())))),
+        DrawingRef(6, "avwap", "swing", ((days[a], None),)),
+        DrawingRef(7, "avwap", "late", ((days[n - 30], None),)),
+        DrawingRef(8, "text", "note", ((days[a], float(close[a])),)),
+    ]  # fmt: skip
+    if data.ticker == "SYNB.NS":
+        sat = days[b] + timedelta(days=(5 - days[b].weekday()) % 7 or 7)
+        items.append(DrawingRef(9, "trendline", "weekend", ((sat, float(close[b])), at(c))))
+    if data.ticker == "SYNC":
+        items.append(DrawingRef(10, "hline", "support", ((None, float(close[a])),)))  # ambiguous
+        items.append(DrawingRef(11, "channel", "chan", (at(a), at(b), at(c))))
+        items.append(DrawingRef(12, "avwap", "hole", ((date(2019, 7, 10), None),)))
+    return Drawings(1, tuple(items))
 
 
 def many(count: int) -> list[SymbolData]:

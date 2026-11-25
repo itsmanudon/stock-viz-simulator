@@ -570,7 +570,7 @@ def _evaluate_rule_alerts(
             starts.append(alert.last_fired_bar_date)
         data = load_symbol(
             session, alert.ticker, end=newest, start=max(min(starts), date(1900, 1, 1)),
-            lookback=rule.lookback, needs=rule.needs,
+            lookback=rule.lookback, needs=rule.needs, user_id=alert.user_id,
         )  # fmt: skip
         if data.bars.empty or data.dates[-1] != newest:
             continue

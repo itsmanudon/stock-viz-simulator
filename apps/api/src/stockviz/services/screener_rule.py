@@ -17,6 +17,11 @@ and the screen never mixes two nights on one venue.
 date) for ``CACHE_SECONDS``, bounded at ``CACHE_MAX`` entries (LRU). A new
 session is a new key, so the nightly ingest needs no invalidation; a same-day
 data repair shows after the TTL.
+
+**User-scoped rules (A3.3).** A rule that reads drawings (``drawing()``,
+``avwap()``) is judged on ``user_id``'s drawings (the signed-in caller, or a
+saved screen's owner) and never cached: drawings change at any time, and one
+user's result must never reach another.
 """
 
 from __future__ import annotations
@@ -120,10 +125,13 @@ def venue_sessions(session: Session, targets: dict[str, date]) -> dict[str, date
     return out
 
 
-def _judge(session: Session, rule: CompiledRule, ticker: str, day: date) -> RowRule:
+def _judge(
+    session: Session, rule: CompiledRule, ticker: str, day: date, user_id: int | None = None
+) -> RowRule:
     data = load_symbol(
-        session, ticker, end=day, start=day, lookback=rule.lookback, needs=rule.needs
-    )
+        session, ticker, end=day, start=day, lookback=rule.lookback, needs=rule.needs,
+        user_id=user_id,
+    )  # fmt: skip
     if data.bars.empty:
         return RowRule("unknown", f"no daily bars on or before {day.isoformat()}", None)
     last = data.dates[-1]
@@ -144,8 +152,11 @@ def evaluate_rule(
     as_of: date | None,
     now: datetime,
     use_cache: bool = True,
+    user_id: int | None = None,
 ) -> RuleRun:
-    """The rule's result for each ticker, on its venue's session."""
+    """The rule's result for each ticker, on its venue's session. ``user_id``
+    owns the drawings a user-scoped rule reads (A3.3)."""
+    use_cache = use_cache and not rule.user_scoped
     venues = {venue_for_ticker(t) for t in tickers}
     sessions = venue_sessions(session, target_dates(venues, as_of=as_of, now=now))
     results: dict[str, RowRule] = {}
@@ -161,7 +172,7 @@ def evaluate_rule(
         hit = CACHE.get(key) if use_cache else None
         if hit is None:
             all_cached = False
-            hit = _judge(session, rule, ticker, day)
+            hit = _judge(session, rule, ticker, day, user_id)
             if use_cache:
                 CACHE.put(key, hit)
         results[ticker] = hit

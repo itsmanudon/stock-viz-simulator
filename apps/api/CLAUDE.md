@@ -45,7 +45,7 @@ src/stockviz/
                     (display currency), earnings, replay
                     (isolated ReplaySession), rules / setups / theses
                     (A2.2), notification_channels (A2.3), drawings
-                    (A3.2), health
+                    (A3.2), avwap (A3.3), health
                     (`GET /live` liveness, `GET /health` readiness + DB)
   services/
     ingest/         External-API fetchers (yfinance primary, Alpha Vantage fallback);
@@ -130,7 +130,8 @@ src/stockviz/
                     printer.py, canonical.py (canonical form, SHA-256 hash),
                     check.py (types), functions.py, bindings.py, pit.py
                     (fundamentals, news), timeframes.py, data.py (SymbolData,
-                    load_symbol), evaluate.py (vector, point, evaluate_at)
+                    load_symbol), evaluate.py (vector, point, evaluate_at),
+                    drawings.py (A3.3: drawing()/avwap() values, user-scoped)
     setups/         A2.2 spine: store.py (setups and immutable versions),
                     presets.py (seeded system setups), rules.py (rule check)
     screener_rule.py  A2.2: judges a rule for every screener candidate
@@ -140,6 +141,7 @@ src/stockviz/
                     transport.py (the network edges tests stub)
     theses.py       A2.2: thesis reads (the router writes)
     drawings.py     A3.2: drawing rules per kind, position figures
+    avwap.py        A3.3: anchored VWAP and its bands (pure, numpy)
     aegis/          Aegis News read sync (Phase 2): contract.py (lenient
                     feed models), token.py (EdDSA feed:read token), client.py
                     (the one client: timeouts, bounded retries), sync.py
@@ -181,7 +183,7 @@ CLI subcommands (`python -m stockviz.cli <cmd>`): `seed`, `backfill`,
 `consume-market-analytics [--once]`, `nse-load PATH ... [--apply]`,
 `nse-files [--limit N]`,
 `export-parquet --out DIR [--since YYYY-MM-DD] [--tables T ...]`,
-`rule-check "<rule>" [TICKER ...] [--date YYYY-MM-DD] [--explain]`,
+`rule-check "<rule>" [TICKER ...] [--date YYYY-MM-DD] [--explain] [--user-id N]`,
 `screen-runs`, `deliver-notifications [--channel webhook|email|telegram] [--limit N]`.
 `seed` also writes the rule presets (A2.2) and the checklist dimension setups
 (A2.4).
@@ -316,7 +318,8 @@ section).
   value up to `t` changed. Vector mode: about 1.3 ms for a 5-condition rule
   over 10 years, 0.2 s for 163 symbols (synthetic, local).
 - **CLI.** `stockviz.cli rule-check "<rule>" [TICKER ...] [--date]
-  [--explain]` prints the canonical text, hash, type and warm-up, then per
+  [--explain] [--user-id N]` (A3.3: whose drawings `drawing()`/`avwap()`
+  read) prints the canonical text, hash, type and warm-up, then per
   ticker the status at the latest stored bar on or before the date
   (default: the venue's latest completed session; a stale bar is flagged)
   with reasons; `--explain` lists each sub-expression's value. Exit 2 on a
@@ -616,6 +619,64 @@ maps it onto weekly/monthly bars. Rules (`services/drawings.py`):
   reward_risk, stop_pct, target_pct}` for position tools.
 - Tests: `test_drawings_router.py` (CRUD, validation per kind, isolation,
   limit, lock), `test_drawings_migration.py` (PostgreSQL up/down/up).
+
+**Anchored VWAP and drawing references (A3.3, M2.5).** Migration
+`b8d4e6f1a3c7` (additive): `ck_drawings_kind` adds `avwap`; the downgrade
+deletes avwap rows, then restores the A3.2 check.
+
+- **The kind.** One point `{ts: anchor date, price: null}` (`DrawingPoint.price`
+  is nullable now; every other kind still needs a price, 422 "needs a
+  price"), a label required (rules name it), the anchor within the stored
+  bars. `DrawingStyle.bands` (0-2, default 0; other kinds ignore it) says
+  which bands the chart draws.
+- **Maths** (`services/avwap.py`, pure): from the first daily bar on or
+  after the anchor, cumulative typical price ((H+L+C)/3) x volume over
+  cumulative volume, float64 `cumsum` in bar order; bands = +-1/+-2
+  volume-weighted standard deviation `sqrt(sum(v tp^2)/sum(v) - vwap^2)`
+  (clamped at 0). A bar with a missing price or volume adds nothing; no
+  value until the summed volume is above 0. A value never changes when a
+  later bar arrives (tested on prefixes).
+- **API.** `GET /v1/symbols/{t}/avwap?anchor=YYYY-MM-DD&interval=1d|1wk|1mo&bands=0|1|2`
+  (`routers/avwap.py`, public, 60/min) -> `{ticker, anchor, anchor_bar,
+  interval, bands, computed_from: "daily", decimals: 4, points: [{ts, vwap,
+  upper1, lower1, upper2, lower2}]}` (bands null unless asked; values
+  rounded to 4 decimals). Always from daily adjusted bars; on `1wk`/`1mo`
+  each point is the daily AVWAP at the period's last stored session, which is
+  the resampled bar's `ts`. 404 unknown symbol; 422 an anchor outside the
+  stored daily bars, bad `bands` or `interval`.
+- **DSL bindings** (`services/dsl/drawings.py`; grammar `NAME "(" STRING ")"`
+  -> `ast.Ref(kind, label, output)`): `drawing("label").price` (hline: its
+  price; trendline: linear by weekdays, `numpy.busday_count`, only between
+  its anchors; ray: from its first point towards the second, extended;
+  rectangle `.top`/`.bottom` from its left edge on) and `avwap("label")`
+  (`.upper1 .lower1 .upper2 .lower2`), daily only (a prefix is a type
+  error), kind `series`. Canonical: label trimmed, spaces collapsed,
+  lowercased; `avwap("x").vwap` is `avwap("x")`. Lookback: a line 0, an
+  AVWAP `None` (whole history). Unknown, with the reason, for: no owner
+  loaded, no drawing with that label ("drawing 'x' not found", which is what
+  a deleted or renamed drawing gives), two with it, a kind the binding cannot
+  read, both anchors on one day, before the start / after a trendline's end,
+  before the AVWAP's anchor. `SymbolData.drawings` is kept whole by `cut`
+  (geometry, not data), so point = vector and the perturb test hold; the
+  conformance corpus has 10 rules and 3 expressions over synthetic drawings
+  (`tests/dsl_fixtures.py::_drawings`: anchors mid-history, a leftward ray, a
+  weekend anchor, an AVWAP anchored in SYNC's hole, an ambiguous label).
+- **User scoping.** `Needs.drawings` / `CompiledRule.user_scoped`.
+  `load_symbol(..., user_id=)` loads that user's drawings on the
+  instrument; without it the values are unknown. Consumers: `POST
+  /v1/rules/check` returns `user_scoped` (and `uses` has `drawings`);
+  `SetupVersionOut.user_scoped`; the screener refuses a user-scoped rule
+  signed out (401) and judges it on the caller's drawings without the cache
+  (`ScreenQuery.rule_user_id`, `ScreenerRuleOut.user_scoped`); rule alerts
+  read `alert.user_id`'s; `screen-runs` reads the setup owner's;
+  `rule-check --user-id N`. `store.UserScopedRule`: `add_version` refuses
+  one on a preset (so `seed_setups` too), `fork` refuses another user's (403;
+  their setup is 404 first anyway).
+- Tests: `test_avwap.py` (hand-computed example with bands, weekend anchor,
+  prefixes, weekly/monthly sampling, the route, the kind's validation),
+  `test_avwap_migration.py` (PostgreSQL up/down/up), `test_dsl_drawings.py`
+  (parse/type/canonical, every kind, reasons, owner-only, presets, fork,
+  screener, deleted/renamed drawing and its alert, `rule-check`).
 
 **A2 done-when (one rule, three consumers).** `tests/test_one_rule_three_consumers.py`
 saves one rule as a setup version and checks, over seeded random walks for
@@ -1191,7 +1252,7 @@ filters receive no request; `tests/test_rate_limit_web_server.py` pins it.
 
 Current budget: **60/min** on the public reads
 (symbols, bars, quotes, news, indicators, checklist, rule check,
-setup presets), **30/min**
+setup presets, AVWAP), **30/min**
 screener, **20/min** backtest. Authenticated routers are deliberately *not*
 slowapi-limited — every authed request arrives from the Next.js server, so a
 per-IP limit would be one global bucket for all users. Where per-user

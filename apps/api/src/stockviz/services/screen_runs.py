@@ -223,8 +223,16 @@ def run_screen_runs(session: Session, *, now: datetime | None = None) -> ScreenR
             # A version saved under an older grammar: logged, not a failed night.
             logger.warning("screen-runs: version %s does not compile: %s", version_id, exc)
             continue
+        # A3.3: a rule that reads drawings reads its setup owner's (only the
+        # owner's own screens can point at it).
+        owner = None
+        if rule.user_scoped:
+            setup_row = session.get(Setup, version.setup_id)
+            owner = setup_row.user_id if setup_row is not None else None
         try:
-            run = evaluate_rule(session, rule, tickers, as_of=None, now=aware, use_cache=False)
+            run = evaluate_rule(
+                session, rule, tickers, as_of=None, now=aware, use_cache=False, user_id=owner
+            )
         except Exception:  # one bad version never stops the rest
             logger.exception("screen-runs: version %s failed", version_id)
             session.rollback()
