@@ -29,8 +29,8 @@ import { HeroPanel } from "@/components/marketing/hero-panel";
 import { loadPhoneScreens } from "@/components/marketing/hero-phone-screens";
 import { HeroStage } from "@/components/marketing/hero-stage";
 import { describeBreadth, loadBreadth } from "@/components/marketing/proofs/breadth";
+import { LiquidChrome } from "@/components/prism/liquid-chrome";
 import { Magnetic } from "@/components/prism/magnetic";
-import { PrismField } from "@/components/prism/prism-field";
 import { Button } from "@/components/ui/button";
 import { listSymbols } from "@/lib/api";
 
@@ -86,10 +86,10 @@ export async function Hero() {
 
   const lead = (
     <div className="mx-auto flex w-full max-w-4xl flex-col items-center px-4 pt-14 text-center sm:px-6 sm:pt-20 lg:pt-24">
-      {/* PRISM light (WebGL), leaning green or red with the session's
+      {/* Liquid Chrome (WebGL), its mid-tones tinted green or red by the session's
           breadth. Full-bleed: the hero copy is transformed by its entrance
           motion, which makes it this canvas's positioning box. */}
-      <PrismField
+      <LiquidChrome
         share={breadth?.share ?? null}
         className="top-0 left-1/2 h-[46rem] w-screen -translate-x-1/2"
       />

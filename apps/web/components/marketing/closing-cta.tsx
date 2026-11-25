@@ -17,15 +17,15 @@ import Link from "next/link";
 
 import { describeBreadth, loadBreadth } from "@/components/marketing/proofs/breadth";
 import { Reveal } from "@/components/marketing/reveal";
+import { LiquidChrome } from "@/components/prism/liquid-chrome";
 import { Magnetic } from "@/components/prism/magnetic";
-import { PrismField } from "@/components/prism/prism-field";
 import { Button } from "@/components/ui/button";
 
 export async function ClosingCta() {
   const breadth = await loadBreadth();
   return (
     <section className="relative isolate overflow-hidden border-y border-border-muted bg-surface-secondary">
-      <PrismField share={breadth?.share ?? null} className="inset-0" />
+      <LiquidChrome share={breadth?.share ?? null} className="inset-0" />
       <span
         aria-hidden
         className="brand-glow top-1/2 left-1/2 -z-10 h-80 w-[48rem] -translate-x-1/2 -translate-y-1/2 opacity-70"

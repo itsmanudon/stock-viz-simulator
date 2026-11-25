@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { PrismWordmark } from "@/components/brand/prism-mark";
+import { StockVizWordmark } from "@/components/brand/stockviz-mark";
 
 /**
  * Website footer for the public pages.
@@ -83,7 +83,7 @@ export function SiteFooter() {
         <div className="grid gap-10 lg:grid-cols-[1fr_2.4fr]">
           <div className="max-w-xs">
             <Link href="/" className="inline-flex rounded-sm">
-              <PrismWordmark />
+              <StockVizWordmark />
             </Link>
             <p className="mt-3 text-sm leading-6 text-text-secondary">
               A research and paper-trading workspace built on end-of-day market data.

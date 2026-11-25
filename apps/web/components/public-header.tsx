@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { PrismWordmark } from "@/components/brand/prism-mark";
+import { StockVizWordmark } from "@/components/brand/stockviz-mark";
 
 import { auth } from "@/auth";
 import { AccountMenu } from "@/components/account-menu";
@@ -30,7 +30,7 @@ export async function PublicHeader() {
         href="/"
         className="flex items-center gap-2.5 rounded-sm font-semibold tracking-tight focus-visible:ring-2 focus-visible:ring-ring"
       >
-        <PrismWordmark />
+        <StockVizWordmark />
       </Link>
 
       <nav aria-label="Public" className="ml-8 hidden items-center gap-6 md:flex">

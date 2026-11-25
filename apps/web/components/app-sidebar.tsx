@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { PrismWordmark } from "@/components/brand/prism-mark";
+import { StockVizWordmark } from "@/components/brand/stockviz-mark";
 
 import { AppNavigation, SimulatedDataTag } from "@/components/app-navigation";
 import { homeHref } from "@/lib/app-navigation";
@@ -13,7 +13,7 @@ export function AppSidebar({ signedIn }: { signedIn: boolean }) {
           href={homeHref(signedIn)}
           className="flex items-center gap-2.5 rounded-sm font-semibold tracking-tight focus-visible:ring-2 focus-visible:ring-ring"
         >
-          <PrismWordmark />
+          <StockVizWordmark />
         </Link>
         <SimulatedDataTag />
       </div>

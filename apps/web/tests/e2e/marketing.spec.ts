@@ -136,7 +136,9 @@ test.describe("reduced motion", () => {
 test.describe("theme", () => {
   // Dark only for now (`forcedTheme="dark"` in components/providers.tsx): a
   // "light" choice saved before the lock must still render dark, with the
-  // Aurora navy marketing panel (`--marketing-panel: #0b101b`).
+  // dark marketing panel. The panel is compared with the dark
+  // `--marketing-panel` token rather than a literal, so a palette change
+  // doesn't break the test (the Aurora navy literal outlived two palettes).
   test("a saved light choice still renders the dark theme", async ({ page }) => {
     await page.addInitScript(() => {
       window.localStorage.setItem("theme", "light");
@@ -146,11 +148,16 @@ test.describe("theme", () => {
     await expect(page.locator("html")).toHaveClass(/\bdark\b/);
     await expect(page.getByRole("button", { name: "Toggle color theme" })).toHaveCount(0);
 
-    const panel = await page.evaluate(() => {
+    const { panel, token } = await page.evaluate(() => {
       const el = document.querySelector(".panel-inset") as HTMLElement;
-      return getComputedStyle(el).backgroundColor;
+      const probe = document.createElement("div");
+      probe.style.backgroundColor = "var(--marketing-panel)";
+      document.documentElement.append(probe);
+      const token = getComputedStyle(probe).backgroundColor;
+      probe.remove();
+      return { panel: getComputedStyle(el).backgroundColor, token };
     });
-    expect(panel).toBe("rgb(11, 16, 27)");
+    expect(panel).toBe(token);
 
     const overflows = await page.evaluate(
       () => document.documentElement.scrollWidth > document.documentElement.clientWidth,

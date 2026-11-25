@@ -3,7 +3,7 @@
 import { Menu, X } from "lucide-react";
 import Link from "next/link";
 
-import { PrismWordmark } from "@/components/brand/prism-mark";
+import { StockVizWordmark } from "@/components/brand/stockviz-mark";
 import { Dialog } from "radix-ui";
 import { useState } from "react";
 
@@ -38,7 +38,7 @@ export function AppMobileNav({ signedIn }: { signedIn: boolean }) {
               onClick={() => setOpen(false)}
               className="flex items-center gap-2.5 rounded-sm font-semibold tracking-tight focus-visible:ring-2 focus-visible:ring-ring"
             >
-              <PrismWordmark />
+              <StockVizWordmark />
             </Link>
             <SimulatedDataTag />
             <Dialog.Close asChild>

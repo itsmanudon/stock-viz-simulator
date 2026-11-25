@@ -102,9 +102,9 @@ components/
                    `departure-board.tsx` went with the leaderboard in A0).
                    Batch 3 adds
                    `market-weather.tsx` (faint aurora coloured by `breadth.ts`;
-                   unused since the PRISM redesign put `prism/prism-field.tsx`
-                   behind the hero and closing CTA, which carries the same
-                   breadth lean; the hero chips and the CTA state the figure),
+                   unused since the PRISM redesign put a WebGL light (now
+                   `prism/liquid-chrome.tsx`) behind the hero and closing
+                   CTA, which carries the same breadth lean; the hero chips and the CTA state the figure),
                    `decode-text.tsx` (Moving today figures resolve digit by
                    digit; sr-only real text), `exploded-candle.tsx` (one stored
                    bar taken apart beside the FAQ) and `loupe-chart.tsx` (the
@@ -309,25 +309,31 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   loaded), so there is no ₹ fallback face any more.
 - **PRISM layer (Nov 2026 redesign)** sits on top of the Aurora rules below,
   which still hold (brand is identity/focus/selection only, gain and loss keep
-  their own hues). The palette is **Solar** (owner's default, 25 Nov 2026,
-  after violet/pink/cyan, liquid chrome and Volt passes): warm ember black
-  `#0a0806`, warm paper text `#f6efe6`, and one hot brand, solar orange
-  `#ff8a2a` (`--brand`), with a gradient from flare `#ff4d00` through
-  `#ff9a1f` to amber gold `#ffd36e`. Gains are aqua (`#34e6b0`) and losses a
-  cool rose (`#ff4f8b`) so neither reads as the orange brand; warnings are
-  yellow (`#ffe14d`), not amber, for the same reason.
-  `--input` is `#6b6158` so field borders clear 3:1 (WCAG 1.4.11). The paper
-  card is black titanium lit by the brand. The terrain's flat colour is
+  their own hues). The palette is **Liquid Chrome** (owner's pick, 25 Nov
+  2026, after violet/pink/cyan, Volt and Solar passes): neutral ink black
+  `#070708`, warm pearl text `#f2eee6`, and a polished-metal brand, champagne
+  `#dcc49a` (`--brand`, also focus and selection), with a gradient from steel
+  `#8d9bb0` through champagne `#f0dfba` to silver `#d6dbe2`. The metal has no
+  hue of its own, so gain green (`#3ee59a`) and loss red (`#ff6b7f`) stay the
+  only colours that mean something. `--input` is `#67645e` so field borders
+  clear 3:1 (WCAG 1.4.11). The primary CTA (`.prism-cta`) is a polished-metal
+  pill with ink text. The paper card is black titanium. The terrain's flat colour is
   `--text-tertiary`, never the brand, so up/down stays readable. Don't
   reintroduce navy or violet literals. Instrument
   Serif italic (`font-editorial`, `--font-editorial`) is for one or two words
   of a display headline only, usually with `text-prism` (animated light-band
   text); never for UI text, figures or tickers. The logo is
-  `components/brand/prism-mark.tsx` (`PrismWordmark` in every header and the
-  footer). `components/prism/`:
-  - `prism-field.tsx`: hero/closing-CTA WebGL light (three.js, dynamic
-    import), leans green/red with session breadth; replaced `MarketWeather`
-    there (the canvas component is kept for its other users).
+  `components/brand/stockviz-mark.tsx` (`StockVizWordmark` in every header and
+  the footer): one chrome candle, a single stored close, in a black-titanium
+  tile, with a glint that crosses it on hover. `app/icon.svg` is the same
+  drawing as the favicon; change both together. `components/prism/`:
+  - `liquid-chrome.tsx` + `liquid-chrome.glsl.ts`: hero/closing-CTA WebGL
+    light (three.js, dynamic import): a pouring sheet of polished metal whose
+    key light follows the pointer, drawn at 0.6x device pixels. Its mid-tones
+    tint green/red with session breadth (`moodAmount`, at most 0.35); the
+    hero chips state the figure. Keep GLSL in the `.glsl.ts` module. It
+    replaced PRISM's `prism-field.tsx` ribbons, which had replaced
+    `MarketWeather` (that canvas component is kept for its other users).
   - `market-terrain.tsx` + `terrain-data.ts` + `terrain-section.tsx`: the
     "time is the fourth axis" 3D surface from real stored closes (symbols
     with a full 120-session window ending on the same newest date). Landing
