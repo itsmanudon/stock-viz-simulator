@@ -159,6 +159,7 @@ def test_channels_the_server_cannot_send_stage_nothing(session: Session, user: U
 def test_the_webhook_is_signed_and_pinned(session: Session, user: User, wire: Wire) -> None:
     _webhook(session, user)
     note = _notify(session, user)
+    assert note is not None
     result = delivery.drain(session, now=NOW + timedelta(days=30))
     assert result.sent == 1
     (request,) = wire.requests
