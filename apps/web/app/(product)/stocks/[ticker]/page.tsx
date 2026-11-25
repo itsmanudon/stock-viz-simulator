@@ -40,7 +40,7 @@ import {
   getPortfolio,
   listOrders,
 } from "@/lib/api/trading";
-import { listWatchlist } from "@/lib/api/watchlist";
+import { type WatchlistList, listWatchlists } from "@/lib/api/watchlist";
 import {
   STOCK_TIMEFRAMES,
   type StockIndicator,
@@ -180,16 +180,19 @@ export default async function StockPage({
   let portfolio: Portfolio | null = null;
   let tickerOrders: PendingOrder[] | null = null;
   let inWatchlist = false;
+  let watchlists: WatchlistList[] = [];
 
   if (signedIn) {
     const [portfolioResult, ordersResult, watchlistResult] = await Promise.all([
       getPortfolio().catch(() => null),
       listOrders("pending").catch(() => null),
-      listWatchlist().catch(() => []),
+      // A2.5: every list, each saying whether it holds this ticker.
+      listWatchlists(ticker).catch(() => [] as WatchlistList[]),
     ]);
     portfolio = portfolioResult;
     tickerOrders = ordersResult?.filter((order) => order.ticker === ticker) ?? null;
-    inWatchlist = watchlistResult.some((item) => item.ticker === ticker);
+    watchlists = watchlistResult;
+    inWatchlist = watchlistResult.some((list) => list.is_default && list.contains);
   }
 
   const rawPosition = portfolio?.positions.find((position) => position.ticker === ticker) ?? null;
@@ -248,6 +251,7 @@ export default async function StockPage({
         periodStart={bars[0]?.ts ?? null}
         signedIn={signedIn}
         inWatchlist={inWatchlist}
+        watchlists={watchlists}
         hasPosition={position !== null}
         callbackUrl={activeStockUrl}
       />

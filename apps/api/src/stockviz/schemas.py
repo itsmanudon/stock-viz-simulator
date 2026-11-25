@@ -764,6 +764,116 @@ class WatchlistItemOut(BaseModel):
     closes: list[Decimal] = []
 
 
+# A2.5 (M4.6): many lists, notes, tags, column sets. These literals equal
+# models/watchlist.WATCHLIST_COLOURS and services/watchlists.COLUMN_KEYS
+# (tests/test_watchlists_router.py checks).
+WatchlistColour = Literal["aqua", "blue", "violet", "pink", "amber", "lime", "slate"]
+ColumnKey = Literal[
+    "close",
+    "change_pct",
+    "rsi_14",
+    "pct_from_52w_high",
+    "sma_50_gap_pct",
+    "sma_200_gap_pct",
+    "atr_pct_14",
+    "hv_20",
+    "volume_ratio",
+    "avg_volume_20",
+    "pe",
+    "pb",
+    "market_cap_usd",
+    "dividend_yield",
+    "roe",
+    "sentiment_7d",
+    "delivery_pct",
+    "checklist_met",
+    "sector",
+]
+
+
+class WatchlistOut(BaseModel):
+    id: int
+    name: str
+    colour: WatchlistColour
+    position: int
+    is_default: bool
+    column_set_id: int | None
+    item_count: int
+    # Only with ?contains=TICKER: whether that ticker is on the list.
+    contains: bool | None = None
+    created_at: datetime
+
+
+class WatchlistIn(BaseModel):
+    name: str = Field(min_length=1, max_length=64)
+    colour: WatchlistColour = "aqua"
+
+
+class WatchlistPatch(BaseModel):
+    """Only the fields sent change. ``column_set_id: null`` clears it;
+    ``is_default`` takes ``true`` only (make another list the default)."""
+
+    name: str | None = Field(default=None, min_length=1, max_length=64)
+    colour: WatchlistColour | None = None
+    is_default: bool | None = None
+    column_set_id: int | None = None
+
+
+class WatchlistOrderIn(BaseModel):
+    ids: list[int] = Field(min_length=1, max_length=50)
+
+
+class WatchlistRowOut(WatchlistItemOut):
+    note: str | None = None
+    tags: list[str] = []
+    # The requested columns' values; null when there is no data. With
+    # checklist_met, checklist_evaluated rides along.
+    values: dict[str, float | int | str | None] = {}
+
+
+class WatchlistItemsOut(BaseModel):
+    watchlist: WatchlistOut
+    columns: list[ColumnKey]
+    column_set_id: int | None
+    items: list[WatchlistRowOut]
+
+
+class WatchlistBulkIn(BaseModel):
+    tickers: list[str] = Field(min_length=1, max_length=100)
+
+
+class WatchlistBulkOut(BaseModel):
+    added: list[str]
+    already_listed: list[str]
+    unknown: list[str]
+    item_count: int
+
+
+class WatchlistItemPatch(BaseModel):
+    """``note: null`` or blank clears it; ``tags`` replaces the tags."""
+
+    note: str | None = Field(default=None, max_length=2000)
+    tags: list[str] | None = Field(default=None, max_length=20)
+
+
+class ColumnSetIn(BaseModel):
+    name: str = Field(min_length=1, max_length=64)
+    columns: list[ColumnKey] = Field(min_length=1, max_length=19)
+
+
+class ColumnSetPatch(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=64)
+    columns: list[ColumnKey] | None = Field(default=None, min_length=1, max_length=19)
+
+
+class ColumnSetOut(BaseModel):
+    id: int
+    name: str
+    columns: list[ColumnKey]
+    created_at: datetime
+    updated_at: datetime
+
+
 # ---------------------------------------------------------------------------
 # Pending orders (advanced order types)
 # ---------------------------------------------------------------------------

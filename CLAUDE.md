@@ -31,7 +31,9 @@ Beyond the original markets/charts/news pages, the app now
 includes: paper trading with **pending limit/stop orders** and **options**
 (pricing, positions, expiry settlement), **dividends** and **multi-currency
 FX**, **backtesting** (`/backtest`), **screener** (with Rule DSL rules and
-saved **setups** and presets since A2.2, `/setups`), **watchlists**, **price
+saved **setups** and presets since A2.2, `/setups`), **watchlists** (A2.5:
+many lists with colour tags, notes, tags, column sets, bulk add from the
+screener, news per list), **price
 alerts** (and, since A2.3, alerts on saved Rule DSL setups, nightly saved-screen
 entry/exit notifications and delivery to a signed webhook, email or Telegram,
 set in Settings), the **Checklist** (`/checklist`, A2.4: six Rule DSL

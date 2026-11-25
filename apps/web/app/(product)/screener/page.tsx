@@ -21,6 +21,7 @@ import { auth } from "@/auth";
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import { BulkAddToWatchlist, type ListChoice } from "@/components/add-to-list";
 import { ClickableRow } from "@/components/clickable-row";
 import { DataTableFrame, NumericCell, SortableHead } from "@/components/data-table";
 import { RangeBar, rangePositionPct } from "@/components/range-bar";
@@ -50,6 +51,7 @@ import {
 } from "@/lib/api";
 import { type SavedScreen, listSavedScreens } from "@/lib/api/screens";
 import { listPresets } from "@/lib/api/setups";
+import { listWatchlists } from "@/lib/api/watchlist";
 import { buildCompareHref } from "@/lib/compare-workspace";
 import { formatCurrency } from "@/lib/portfolio-view-model";
 import {
@@ -163,12 +165,15 @@ export default async function ScreenerPage({
   const session = await auth();
   const signedIn = Boolean(session?.user?.id);
   let savedScreens: SavedScreen[] = [];
+  // A2.5: the lists the bulk "Add to list" offers (signed in only).
+  let watchlists: ListChoice[] = [];
   if (signedIn) {
-    try {
-      savedScreens = await listSavedScreens();
-    } catch {
-      savedScreens = [];
-    }
+    const [screensResult, listsResult] = await Promise.all([
+      listSavedScreens().catch(() => [] as SavedScreen[]),
+      listWatchlists().catch(() => []),
+    ]);
+    savedScreens = screensResult;
+    watchlists = listsResult.map((list) => ({ id: list.id, name: list.name, colour: list.colour }));
   }
   // A sector column of dashes says nothing (UI audit S3).
   const hasSector = results.some((row) => row.sector);
@@ -548,6 +553,15 @@ export default async function ScreenerPage({
                   direction={dir}
                 />
               </div>
+              {signedIn ? (
+                <div className="mb-3 lg:hidden">
+                  <BulkAddToWatchlist
+                    lists={watchlists}
+                    mode="all"
+                    tickers={results.map((row) => row.ticker)}
+                  />
+                </div>
+              ) : null}
               <SymbolCardList
                 className="lg:hidden"
                 rows={results.map(
@@ -608,11 +622,17 @@ export default async function ScreenerPage({
                 aria-label="Compare selected symbols"
               >
                 <input type="hidden" name="tf" value="1Y" />
-                <div className="mb-2 flex items-center justify-between gap-3 text-xs text-text-secondary">
-                  <span>Tick up to six rows, then compare them on one shared window.</span>
-                  <Button type="submit" size="sm" variant="outline">
-                    Compare selected
-                  </Button>
+                <div className="mb-2 flex flex-wrap items-center justify-between gap-3 text-xs text-text-secondary">
+                  <span>
+                    Tick up to six rows, then compare them on one shared window
+                    {signedIn ? ", or add any number to a watchlist" : ""}.
+                  </span>
+                  <span className="flex flex-wrap items-center gap-3">
+                    {signedIn ? <BulkAddToWatchlist lists={watchlists} mode="selected" /> : null}
+                    <Button type="submit" size="sm" variant="outline">
+                      Compare selected
+                    </Button>
+                  </span>
                 </div>
                 <DataTableFrame>
                   <Table>

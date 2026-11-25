@@ -368,6 +368,40 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
 - `/watchlist` draws sparklines from each row's `closes` (RS-12, one API
   call instead of one per item), and the add form is a searchable input with
   a datalist of symbols (UX-7), nothing preselected.
+- `/watchlist` lists (A2.5, M4.6; `lib/api/watchlist.ts` over
+  `/v1/watchlists` and `/v1/column-sets`, actions in
+  `app/(product)/(authed)/watchlist/actions.ts`): `?list=<id>` opens a list
+  (default: the default list), `?tag=` filters its rows. `ListTabs`
+  (`components/watchlist-lists.tsx`) is a row of links with each list's
+  colour dot, a star on the default and its count; `ListManager` has New
+  list, Edit (name, colour radios), Move left / Move right buttons (the
+  keyboard path for reordering; no drag), Make default and a two-step
+  delete that names the symbols going and what becomes the default.
+  Colours are `--list-<name>` tokens in globals.css through
+  `listColourVar()` (`lib/watchlist-columns.ts`): dots and a list's left
+  edge only, never a gain or loss. Rows show the list's column set
+  (`COLUMN_META` labels and `formatColumnValue`, an em dash for no data):
+  `ColumnSetPicker` saves which set the list shows, `ColumnSetEditor`
+  (in a `<details>`) ticks columns and orders them with Up/Down buttons,
+  then saves over the set, as a new set, or deletes it. Each row's note and
+  tags edit in place (`components/watchlist-row-editors.tsx`: Escape
+  cancels, Ctrl/Cmd+Enter saves; tags as removable chips plus an input that
+  takes "a, b"). Cards under `md` carry the same columns. News under the
+  table is the open list's symbols. A failed lists call shows an error
+  state; a failed rows call says the list could not be loaded. The add form
+  and row remove post `watchlist_id`; without it `toggleWatchlistAction`
+  uses the default list through the old `/v1/watchlist` routes.
+- The stock page keeps the one-click star (default list, "Add AAPL to
+  watchlist") and adds `AddToListMenu` (`components/add-to-list.tsx`,
+  "Add to list…"): a disclosure with one checkbox per list from
+  `listWatchlists(ticker)` (`contains`), ticking adds and unticking removes
+  at once; Escape closes it. The screener's Compare form adds
+  `BulkAddToWatchlist` for signed-in users: it reads the ticked `tickers`
+  boxes (any number, up to 100) and adds them to a chosen list or a new one
+  through `bulkAddAction`, reporting added / already listed / unknown with a
+  link to the list; below `lg`, where cards have no checkboxes, it adds the
+  page's results. The dashboard widget shows the default list (the old
+  route), so "Make default" picks which list it shows.
 - The stock page's Financials tab (`components/fundamentals-panel.tsx`,
   Phase 6.4) shows key multiples as of today with their reasons when null,
   the P/E percentile over five years of month-ends, and annual/quarterly
