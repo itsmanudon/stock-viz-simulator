@@ -336,6 +336,19 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   beside MACD; indicator values come warmed up from the API (Phase 6.1), so
   they do not change with the timeframe. The change pill is labelled
   "<tf> return since <first bar>" (UX-10).
+- The stock page has a bar interval control (A1.4a: Daily / Weekly /
+  Monthly, `?interval=1d|1wk|1mo`, default daily and left out of daily links)
+  beside the lookback ranges, which stay ranges: `barsForLookback()` turns a
+  range's trading days into weeks of five or months of 21 for the `limit`.
+  The API resamples; the chart draws its candles and, when the newest bar is
+  `partial`, a caption from `partialBarLabel()` ("Latest week so far
+  (partial)...", also in the chart's text summary). Indicators follow the
+  interval (the API leaves the partial bar out and the page says so); the
+  metrics strip's RSI and 52-week range stay daily.
+- Backtest results, saved runs (list and detail) show the run's `universe`
+  stamp through `components/universe-note.tsx` (A1.4a): one neutral line,
+  "Pinned symbol list, not point in time: survivorship-biased." plus the
+  API's note. Not red: it describes every run today.
 - Chart indicators come from the API registry (Phase 6.6): `STOCK_INDICATORS`
   in `lib/stock-workspace.ts` lists names with a menu `section`, and
   `chartLayers()` splits the bundle by each indicator's `meta.pane`: price

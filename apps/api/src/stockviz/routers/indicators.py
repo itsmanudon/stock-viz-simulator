@@ -5,6 +5,12 @@ any indicator in ``services/indicators/engine.REGISTRY`` with its parameters
 joined by ``_`` (defaults when omitted). ``/v1/indicators/catalog`` lists them.
 The router fetches the bar series once, runs each requested indicator, and
 returns a single bundle so the chart only has to make one round-trip.
+
+``interval=1wk|1mo`` (A1.4a) runs the same registry on bars resampled from
+the daily ones, with the same warm-up rule counted in output bars. A partial
+newest bar (its week or month not over at the venue) is left out of the
+inputs: no indicator value is computed on a period still running, and the
+response names the bar it left out in ``partial_bar_excluded``.
 """
 
 from __future__ import annotations
@@ -19,6 +25,7 @@ from stockviz.db import get_session
 from stockviz.limiter import limiter
 from stockviz.models import PriceBar, Symbol
 from stockviz.schemas import IndicatorCatalogItemOut, IndicatorsOut
+from stockviz.services.bars.load import load_resampled
 from stockviz.services.indicator_view import compute_bundle
 from stockviz.services.indicators import engine
 from stockviz.services.instruments import instrument_of
@@ -78,7 +85,7 @@ def get_indicators(
     ticker: str,
     session: SessionDep,
     names: Annotated[str, Query(description="e.g. sma_20,rsi_14,macd,bb_20_2")],
-    interval: Annotated[str, Query(pattern=r"^(1d|1h)$")] = "1d",
+    interval: Annotated[str, Query(pattern=r"^(1d|1wk|1mo)$")] = "1d",
     from_: Annotated[datetime | None, Query(alias="from")] = None,
     to: Annotated[datetime | None, Query()] = None,
     limit: Annotated[int, Query(ge=1, le=MAX_BARS)] = 1000,
@@ -94,6 +101,8 @@ def get_indicators(
         raise HTTPException(status_code=404, detail=f"Symbol {ticker!r} not found")
 
     parsed = _parse_names(names)
+    if interval != "1d":
+        return _resampled_indicators(session, ticker, interval, parsed, from_, to, limit)
 
     stmt = select(PriceBar).where(
         PriceBar.instrument_id == instrument_of(ticker), PriceBar.interval == interval
@@ -133,3 +142,47 @@ def get_indicators(
         window_start=window_start,
         warmup_bars=len(warmup),
     )
+
+
+def _resampled_indicators(
+    session: Session,
+    ticker: str,
+    interval: str,
+    parsed: list[engine.Request],
+    from_: datetime | None,
+    to: datetime | None,
+    limit: int,
+) -> IndicatorsOut:
+    lookback = max(r.lookback for r in parsed)
+    bars = load_resampled(
+        session,
+        ticker,
+        interval,
+        bars_wanted=limit + lookback,
+        to=to.date() if to is not None else None,
+    )
+    excluded = None
+    if bars and bars[-1].partial:
+        excluded = bars[-1].ts
+        bars = bars[:-1]
+    in_range = [
+        i
+        for i, b in enumerate(bars)
+        if (from_ is None or b.ts.date() >= from_.date())
+        and (to is None or b.ts.date() <= to.date())
+    ][-limit:]
+    if in_range:
+        first, last = in_range[0], in_range[-1]
+        rows, warmup = bars[first : last + 1], bars[max(0, first - lookback) : first]
+    else:
+        rows, warmup = [], []
+    ohlcv = [(r.ts, r.open, r.high, r.low, r.close, r.volume) for r in warmup + rows]
+    bundle = compute_bundle(
+        ticker,
+        interval,
+        parsed,
+        ohlcv,
+        window_start=rows[0].ts if rows else None,
+        warmup_bars=len(warmup),
+    )
+    return bundle.model_copy(update={"interval": interval, "partial_bar_excluded": excluded})

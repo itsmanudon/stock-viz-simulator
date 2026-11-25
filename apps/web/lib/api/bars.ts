@@ -2,7 +2,8 @@ import { apiGet } from "./client";
 import type { Bar } from "./types";
 
 export type BarsParams = {
-  interval?: "1d" | "1h";
+  /** A1.4a: weekly and monthly bars are resampled from the daily ones. */
+  interval?: "1d" | "1wk" | "1mo";
   from?: string;
   to?: string;
   limit?: number;

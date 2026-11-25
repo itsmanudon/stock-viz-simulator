@@ -50,6 +50,7 @@ from stockviz.services.backtest.run import (
     price_basis_of,
     strategy_of,
 )
+from stockviz.services.backtest.universe import universe_json
 
 MAX_SETTINGS = 50
 SCORES = ("sharpe", "total_return")
@@ -258,6 +259,7 @@ def walk_forward(
         "windows": out_windows,
         "equity_curve": stitched,
         "summary": _summary(navs, body.initial_cash, bench, costs),
+        "universe": universe_json(body.ticker.upper()),
     }
     return _computed(result, data)
 
@@ -300,6 +302,7 @@ def sweep(
         "tried": len(runs),
         "runs": runs,
         "summary": runs[0]["summary"],
+        "universe": universe_json(body.ticker.upper()),
     }
     return _computed(result, data)
 

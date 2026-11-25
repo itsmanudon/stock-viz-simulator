@@ -33,6 +33,7 @@ from stockviz.services.backtest.engine import (
     run_backtest,
     warmup_bars_for,
 )
+from stockviz.services.backtest.universe import universe_for
 from stockviz.services.instruments import instrument_of
 from stockviz.services.simulation import get_fee_schedule
 
@@ -208,6 +209,7 @@ def execute_backtest(session: Session, body: BacktestIn) -> BacktestRun:
             excess_return=result.summary.excess_return,
             total_costs=result.summary.total_costs,
         ),
+        universe=universe_for(ticker),
     )
     return BacktestRun(
         out=out,
