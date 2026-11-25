@@ -48,6 +48,7 @@ export function hover(time: number | undefined): void {
 function createChart() {
   lwcCalls.charts += 1;
   const mine: RecordedSeries[] = [];
+  const apis: { pane: number; api: unknown }[] = [];
   let range = { from: 0, to: 10 };
   const chart = {
     addSeries(type: string, options: Record<string, unknown> = {}, pane = 0) {
@@ -61,7 +62,7 @@ function createChart() {
       };
       lwcCalls.series.push(record);
       mine.push(record);
-      return {
+      const api = {
         setData: (data: unknown[]) => {
           record.data = data;
         },
@@ -70,12 +71,15 @@ function createChart() {
           applyOptions: (o: Record<string, unknown>) => record.scaleOptions.push(o),
         }),
       };
+      apis.push({ pane, api });
+      return api;
     },
     panes() {
       const count = mine.reduce((n, s) => Math.max(n, s.pane + 1), 1);
-      return Array.from({ length: count }, () => ({
+      return Array.from({ length: count }, (_, index) => ({
         setStretchFactor: (n: number) => lwcCalls.stretch.push(n),
         getHeight: () => 100,
+        getSeries: () => apis.filter((a) => a.pane === index).map((a) => a.api),
       }));
     },
     priceScale: () => ({ applyOptions: vi.fn() }),

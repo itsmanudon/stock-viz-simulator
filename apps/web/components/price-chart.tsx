@@ -370,6 +370,13 @@ export function PriceChart({
     });
     chart.panes().forEach((pane, i) => {
       pane.setStretchFactor(heights[i] ?? 1);
+      // Log and percent belong to the price pane only. Without this the
+      // volume and indicator panes followed it and weekly volume drew flat.
+      if (i > 0) {
+        for (const series of pane.getSeries()) {
+          series.priceScale().applyOptions({ mode: PriceScaleMode.Normal });
+        }
+      }
     });
 
     // Keep the zoom across a rebuild of the same bars (a collapse, a type change).

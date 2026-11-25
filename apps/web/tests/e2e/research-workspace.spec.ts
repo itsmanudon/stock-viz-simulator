@@ -115,8 +115,14 @@ test.describe("research pages on a phone", () => {
 
   test("checklist cards keep the company name readable (audit D2)", async ({ page }) => {
     await page.goto("/checklist");
-    const card = page.locator('[data-testid^="checklist-row-"]').first();
+    // Scoped to #main: `next start` can briefly keep a second, hidden copy of
+    // the page tree, and an unscoped match can pick a card with no box.
+    const main = page.locator("#main");
+    // count() does not wait: let the page render before deciding to skip.
+    await expect(main.getByRole("heading", { name: "Checklist", exact: true })).toBeVisible();
+    const card = main.locator('[data-testid^="checklist-row-"]').first();
     if ((await card.count()) === 0) test.skip(true, "No stored checklist scores");
+    await expect(card).toBeVisible();
     const box = await card.locator("summary").boundingBox();
     expect(box && box.width > 300).toBe(true);
   });

@@ -276,6 +276,10 @@ describe("the one chart", () => {
     resetLwc();
     render(<PriceChart bars={BARS} scale="percent" />);
     expect(lwcCalls.series[0].scaleOptions).toEqual([{ mode: 2 }]);
+    // Log and percent stay on the price pane: the volume pane is set back to
+    // normal (in a real browser it followed the price pane and drew flat).
+    const volume = lwcCalls.series.find((s) => s.pane > 0);
+    expect(volume?.scaleOptions).toEqual([{ mode: 0 }]);
     expect(screen.getAllByRole("img")[0].getAttribute("aria-label")).toContain("Percent scale");
   });
 
