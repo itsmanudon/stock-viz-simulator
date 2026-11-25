@@ -51,7 +51,7 @@ def _rewind(consumer: BrokerConsumer, msg: object) -> None:
     advances the consumer position regardless of commits, so the next poll
     returns the *following* message; if that one succeeds, its commit moves
     the committed offset past the failed record and it is never redelivered.
-    For market bars, news, and trade activity that is silent data loss, so we
+    For market bars and trade activity that is silent data loss, so we
     rewind and let the same record be retried.
 
     The consequence is the documented one: a genuinely poison record stalls

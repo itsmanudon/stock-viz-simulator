@@ -50,26 +50,19 @@ def test_massive_shadow_lookback_must_be_positive() -> None:
         Settings(massive_shadow_lookback_days=0)
 
 
-def test_explicit_newsdata_provider_requires_key() -> None:
-    with pytest.raises(ValidationError, match="NEWSDATA_KEY"):
-        Settings(news_provider="newsdata", newsdata_key="")
-
-
-def test_blank_news_provider_preserves_key_based_compatibility() -> None:
-    assert Settings(news_provider="", newsdata_key="k").resolved_news_provider == "newsdata"
-    assert Settings(news_provider="", newsdata_key="").resolved_news_provider == "none"
-
-
-def test_unknown_news_provider_is_rejected() -> None:
-    with pytest.raises(ValidationError, match="NEWS_PROVIDER"):
-        Settings(news_provider="unknown")
-
-
-def test_explicit_anthropic_provider_requires_key() -> None:
-    with pytest.raises(ValidationError, match="ANTHROPIC_API_KEY"):
-        Settings(sentiment_provider="anthropic", anthropic_api_key="")
-
-
-def test_explicit_http_sentiment_requires_url() -> None:
-    with pytest.raises(ValidationError, match="SENTIMENT_SERVICE_URL"):
-        Settings(sentiment_provider="http", sentiment_service_url="")
+def test_retired_news_and_sentiment_variables_are_ignored(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A0: the legacy pipeline's variables may still be set on a host; they
+    must neither fail validation nor reach the settings object."""
+    for name, value in {
+        "NEWS_PROVIDER": "newsdata",
+        "NEWSDATA_KEY": "",
+        "ANTHROPIC_API_KEY": "",
+        "SENTIMENT_PROVIDER": "anthropic",
+        "SENTIMENT_SERVICE_URL": "",
+    }.items():
+        monkeypatch.setenv(name, value)
+    settings = Settings()
+    for field in ("news_provider", "newsdata_key", "anthropic_api_key", "sentiment_provider"):
+        assert not hasattr(settings, field)

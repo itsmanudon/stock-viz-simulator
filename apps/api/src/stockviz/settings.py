@@ -103,27 +103,6 @@ class Settings(BaseSettings):
     massive_api_key: str = ""
     massive_shadow_lookback_days: int = 90
 
-    # Blank preserves the original key-based behavior. Explicit selection is
-    # validated so a requested live provider cannot silently become a no-op.
-    news_provider: str = ""
-    newsdata_key: str = ""
-    anthropic_api_key: str = ""
-
-    # --- Sentiment scoring ---
-    # "none" (default) | "anthropic" | "http". Left blank, it resolves to
-    # "anthropic" when ANTHROPIC_API_KEY is set, else "none" — so deployments
-    # that predate the provider abstraction keep their behaviour.
-    sentiment_provider: str = ""
-    # Used when sentiment_provider == "http": a standalone scoring service.
-    # See docs/SENTIMENT.md for the wire contract.
-    sentiment_service_url: str = ""
-    sentiment_service_token: str = ""
-    # Label recorded against scores when the service doesn't name its model.
-    sentiment_model_hint: str = "external"
-    # Ceiling on documents scored per ingest/backfill run, so a runaway job
-    # can't quietly burn an API budget.
-    sentiment_daily_document_cap: int = 2000
-
     # Off by default so tests, CLI, and horizontally scaled API pods do not
     # all fire jobs. Render sets true (in-process). Kubernetes API pods leave
     # this false; the singleton ``stockviz.workers.scheduler`` process runs the
@@ -150,11 +129,10 @@ class Settings(BaseSettings):
     # constants on the event contracts, not env vars.
     kafka_poll_timeout_seconds: float = 1.0
     kafka_retry_backoff_seconds: float = 2.0
-    # False where no outbox publisher runs (the Railway cron). The news ingest
-    # then skips its ``news.article.ingested`` fan-out, which nothing would
-    # ever publish or prune, and which a publisher attached later would replay
-    # in full (audit OP-11). On by default so compose and Kubernetes keep the
-    # event-driven path.
+    # False where no outbox publisher runs (the Railway cron). Since A0
+    # (25 Nov 2026) nothing reads it: its only reader was the legacy news
+    # ingest's ``news.article.ingested`` fan-out (audit OP-11), now removed.
+    # Kept while the Railway cron still sets it; the outbox batch retires it.
     events_outbox_enabled: bool = True
 
     # Aegis News read sync (`stockviz.cli aegis-sync`, Phase 2). The sync is
@@ -182,13 +160,6 @@ class Settings(BaseSettings):
             and self.aegis_issuer.strip()
             and self.aegis_audience.strip()
         )
-
-    @property
-    def resolved_news_provider(self) -> str:
-        value = self.news_provider.strip().lower()
-        if value:
-            return value
-        return "newsdata" if self.newsdata_key.strip() else "none"
 
     @model_validator(mode="after")
     def _validate_runtime_configuration(self) -> Settings:
@@ -239,20 +210,6 @@ class Settings(BaseSettings):
             raise ValueError("MASSIVE_SHADOW_ENABLED requires MASSIVE_API_KEY")
         if self.massive_shadow_lookback_days <= 0:
             raise ValueError("MASSIVE_SHADOW_LOOKBACK_DAYS must be > 0")
-
-        news_provider = self.resolved_news_provider
-        if news_provider not in {"none", "newsdata"}:
-            raise ValueError("NEWS_PROVIDER must be none or newsdata")
-        if self.news_provider.strip().lower() == "newsdata" and not self.newsdata_key.strip():
-            raise ValueError("NEWS_PROVIDER=newsdata requires NEWSDATA_KEY")
-
-        sentiment_provider = self.sentiment_provider.strip().lower()
-        if sentiment_provider not in {"", "none", "anthropic", "http"}:
-            raise ValueError("SENTIMENT_PROVIDER must be none, anthropic, or http")
-        if sentiment_provider == "anthropic" and not self.anthropic_api_key.strip():
-            raise ValueError("SENTIMENT_PROVIDER=anthropic requires ANTHROPIC_API_KEY")
-        if sentiment_provider == "http" and not self.sentiment_service_url.strip():
-            raise ValueError("SENTIMENT_PROVIDER=http requires SENTIMENT_SERVICE_URL")
 
         if self.environment.strip().lower() not in _PRODUCTION_ENVIRONMENTS:
             return self
