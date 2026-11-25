@@ -60,6 +60,30 @@ test("guest can research a stock and retain shareable chart state", async ({ pag
   await period.fill("21");
   await period.press("Enter");
   await expect(page).toHaveURL(/indicators=rsi_21/);
+  await page.keyboard.press("Escape");
+
+  // A3.5: one switch per event type (no fills signed out), URL state, and
+  // the "Chart events" list as the keyboard path to the markers.
+  const region = page.getByRole("region", { name: "AAPL price chart" }).first();
+  const toggles = region.getByRole("navigation", { name: "Chart events" });
+  await expect(toggles.getByRole("switch")).toHaveCount(4);
+  await expect(region.getByTestId("chart-events")).toContainText("Chart events (");
+  await toggles.getByRole("switch", { name: "Hide news on the chart" }).click();
+  await expect(page).toHaveURL(/events=earnings%2Cdividend%2Csplit/);
+  await expect(toggles.getByRole("switch", { name: "Show news on the chart" })).toHaveAttribute(
+    "aria-checked",
+    "false",
+  );
+  await expect(page).toHaveURL(/indicators=rsi_21/);
+
+  // A3.5: the regime badge in the top bar opens its rules and inputs.
+  await page.getByTestId("regime-badge-US").first().click();
+  const regime = page.getByTestId("regime-popover-US");
+  await expect(regime).toContainText("Rules, read in order");
+  await expect(regime.getByTestId("regime-rule")).toHaveCount(3);
+  await expect(regime).toContainText("Not advice.");
+  await page.keyboard.press("Escape");
+  await expect(regime).toHaveCount(0);
 });
 
 test("mobile research opens trading as an intentional bottom sheet", async ({ page }) => {
@@ -100,6 +124,14 @@ test("authenticated stock workspace exposes account-aware actions", async ({ pag
   await page.goto("/stocks/AAPL");
 
   const ticket = page.locator('aside[aria-label="Paper trade AAPL"]').first();
+  // A3.5: signed in, the event toggles add the viewer's fills.
+  await expect(
+    page
+      .locator("#main")
+      .getByRole("navigation", { name: "Chart events" })
+      .first()
+      .getByRole("switch"),
+  ).toHaveCount(5);
   await expect(ticket.getByRole("heading", { name: "Paper trade" })).toBeVisible();
   await expect(ticket.getByLabel("Quantity").first()).toBeVisible();
   await expect(page.getByRole("button", { name: "Add AAPL to watchlist" })).toBeVisible();

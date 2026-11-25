@@ -39,7 +39,7 @@ import {
   createChart,
   createSeriesMarkers,
 } from "lightweight-charts";
-import { ChevronDown, ChevronUp } from "lucide-react";
+import { ChevronDown, ChevronUp, X } from "lucide-react";
 import {
   type KeyboardEvent,
   type PointerEvent as ReactPointerEvent,
@@ -54,6 +54,14 @@ import {
 
 import type { Bar, IndicatorPoint, MACDPoint } from "@/lib/api";
 import { barTimeToUtcSeconds } from "@/lib/api-time";
+import {
+  type ChartEvent,
+  EVENT_LETTER,
+  eventKey,
+  eventSummary,
+  eventsByBar,
+  legendEvents,
+} from "@/lib/chart-events";
 import { buildLegendModel, legendAt, legendText } from "@/lib/chart-legend";
 import {
   PRICE_PANE,
@@ -81,6 +89,7 @@ import {
   indicatorLabel,
   partialBarLabel,
   splitSeriesKey,
+  studyFor,
 } from "@/lib/stock-workspace";
 
 export type PriceChartMarker = {
@@ -131,6 +140,14 @@ type Props = {
   macdKey?: string;
   /** A3.4: evidence badges by chart key, shown beside each study in the legend. */
   badges?: Record<string, IndicatorBadge>;
+  /**
+   * A3.5: chart events already filtered to the shown types (news, earnings,
+   * dividends, splits, the viewer's fills): markers on the price pane, a
+   * popover on click (or Enter), the legend and the "Chart events" list.
+   */
+  events?: ChartEvent[];
+  /** The symbol's currency, for dividend amounts. */
+  currency?: string;
 };
 
 const DRAG_THRESHOLD_PX = 4;
@@ -236,6 +253,8 @@ export function PriceChart({
   rsiKey,
   macdKey,
   badges,
+  events,
+  currency,
 }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -314,6 +333,70 @@ export function PriceChart({
     [candles],
   );
 
+  // A3.5: events per bar (the drawings' period rule), and their markers.
+  const byBar = useMemo(
+    () =>
+      eventsByBar(
+        events ?? [],
+        interval,
+        bars.map((b) => b.ts),
+      ),
+    [events, interval, bars],
+  );
+  const allMarkers = useMemo<SeriesMarker<Time>[]>(() => {
+    const colour: Record<ChartEvent["type"], string> = {
+      news: palette.drawing.violet,
+      earnings: palette.drawing.amber,
+      dividend: palette.drawing.lime,
+      split: palette.drawing.blue,
+      fill: palette.drawing.foreground,
+    };
+    const out: SeriesMarker<Time>[] = (markers ?? []).map((marker) => ({
+      time: toUtcSeconds(marker.time),
+      position: marker.position,
+      color: marker.color,
+      shape: marker.shape,
+      text: marker.text,
+    }));
+    for (const [index, list] of byBar) {
+      const time = candles[index]?.time;
+      if (time === undefined) continue;
+      const seen = new Set<string>();
+      for (const event of list) {
+        if (event.type === "fill") {
+          out.push({
+            id: `event:${index}:fill:${event.ts}`,
+            time,
+            position: event.side === "sell" ? "aboveBar" : "belowBar",
+            color: colour.fill,
+            shape: event.side === "sell" ? "arrowDown" : "arrowUp",
+            text: event.side === "sell" ? "S" : "B",
+          });
+          continue;
+        }
+        if (seen.has(event.type)) continue;
+        seen.add(event.type);
+        const newsCount = list
+          .filter((e) => e.type === "news")
+          .reduce((n, e) => n + (e.type === "news" ? e.count : 0), 0);
+        out.push({
+          id: `event:${index}:${event.type}`,
+          time,
+          position: "aboveBar",
+          color: colour[event.type],
+          shape: "circle",
+          text: event.type === "news" ? String(newsCount) : EVENT_LETTER[event.type],
+        });
+      }
+    }
+    return out.sort((a, b) => (a.time as number) - (b.time as number));
+  }, [markers, byBar, candles, palette]);
+  const [openEvents, setOpenEvents] = useState<{ index: number; x: number } | null>(null);
+  const openEventsRef = useRef(setOpenEvents);
+  openEventsRef.current = setOpenEvents;
+  const byBarRef = useRef(byBar);
+  byBarRef.current = byBar;
+
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
   const [keyIndex, setKeyIndex] = useState<number | null>(null);
   const keyIndexRef = useRef<number | null>(null);
@@ -375,20 +458,7 @@ export function PriceChart({
             main.series.attachPrimitive(primitive);
             primitiveRef.current = primitive;
           }
-          if (markers?.length) {
-            createSeriesMarkers(
-              main.series,
-              markers.map(
-                (marker): SeriesMarker<Time> => ({
-                  time: toUtcSeconds(marker.time),
-                  position: marker.position,
-                  color: marker.color,
-                  shape: marker.shape,
-                  text: marker.text,
-                }),
-              ),
-            );
-          }
+          if (allMarkers.length) createSeriesMarkers(main.series, allMarkers);
         } else if (spec.kind === "volume") {
           const volume = chart.addSeries(
             HistogramSeries,
@@ -470,6 +540,18 @@ export function PriceChart({
       setHoverIndex(indexByTime.get(param.time as number) ?? null);
     };
     chart.subscribeCrosshairMove(onMove);
+    // A3.5: a click on a bar with events opens its list (not while placing a drawing).
+    const onClick = (param: MouseEventParams<Time>) => {
+      if (layerRef.current?.placingKind) return;
+      const index = param.time === undefined ? undefined : indexByTime.get(param.time as number);
+      if (index === undefined || !byBarRef.current.has(index)) {
+        openEventsRef.current(null);
+        return;
+      }
+      const x = chart.timeScale().timeToCoordinate(param.time as Time) ?? 0;
+      openEventsRef.current({ index, x });
+    };
+    chart.subscribeClick(onClick);
     const frame =
       typeof requestAnimationFrame === "function" ? requestAnimationFrame(measurePanes) : 0;
 
@@ -478,6 +560,7 @@ export function PriceChart({
       const range = chart.timeScale().getVisibleLogicalRange?.();
       rangeRef.current = range ? { count: candles.length, range } : null;
       chart.unsubscribeCrosshairMove(onMove);
+      chart.unsubscribeClick(onClick);
       chart.remove();
       chartRef.current = null;
       mainRef.current = null;
@@ -487,7 +570,7 @@ export function PriceChart({
     candles,
     bars,
     visible,
-    markers,
+    allMarkers,
     palette,
     chartType,
     scale,
@@ -746,6 +829,12 @@ export function PriceChart({
     else if (event.key === "-" || event.key === "_") zoom(1 / ZOOM_STEP);
     else if (event.key === "0" && chart) {
       fitWithLabelRoom(chart, candles.length, (containerRef.current?.clientWidth ?? 0) - 64);
+    } else if (event.key === "Enter" && byBar.has(current)) {
+      const time = candles[current]?.time;
+      const x = time === undefined ? 0 : (chart?.timeScale().timeToCoordinate(time) ?? 0);
+      setOpenEvents({ index: current, x });
+    } else if (event.key === "Escape" && openEvents) {
+      setOpenEvents(null);
     } else if (event.key === "Escape") {
       setKeyIndex(null);
       setHoverIndex(null);
@@ -755,6 +844,7 @@ export function PriceChart({
   };
 
   const legend = legendAt(legendModel, hoverIndex);
+  const legendEventText = legend ? legendEvents(byBar.get(legend.index) ?? []) : "";
 
   // The legend in words, announced politely and at most every ANNOUNCE_EVERY_MS,
   // only while the chart has keyboard focus.
@@ -795,14 +885,18 @@ export function PriceChart({
     const markerText = markers?.length
       ? ` Trade markers: ${markers.map((marker) => `${marker.text} on ${formatCloseDate(marker.time) ?? marker.time}`).join("; ")}.`
       : "";
+    const eventCount = [...byBar.values()].reduce((n, list) => n + list.length, 0);
+    const eventText = eventCount
+      ? ` ${eventCount} chart ${eventCount === 1 ? "event" : "events"} marked; see the Chart events list.`
+      : "";
     return (
       `${TYPE_WORDS[chartType]} price chart covering ${bars.length} bars from ` +
       `${formatCloseDate(first.ts) ?? first.ts} to ` +
       `${formatCloseDate(last.ts) ?? last.ts}. ` +
       `Closed at ${close.toFixed(2)}, ${direction} ${Math.abs(changePct).toFixed(2)} percent ` +
-      `over the period.${scaleText}${withOverlays}${paneText}${markerText}${partialText}`
+      `over the period.${scaleText}${withOverlays}${paneText}${markerText}${eventText}${partialText}`
     );
-  }, [bars, overlays, markers, partialLabel, visible, chartType, scale]);
+  }, [bars, overlays, markers, byBar, partialLabel, visible, chartType, scale]);
 
   const helpId = useId();
 
@@ -924,7 +1018,22 @@ export function PriceChart({
                   ))}
                 </div>
               ) : null}
+              {legendEventText ? (
+                <div className="mt-0.5 font-sans text-text-secondary" data-testid="legend-events">
+                  Events: <span className="text-foreground">{legendEventText}</span>
+                </div>
+              ) : null}
             </div>
+          ) : null}
+          {openEvents && byBar.get(openEvents.index) ? (
+            <EventPopover
+              date={bars[openEvents.index]?.ts ?? ""}
+              events={byBar.get(openEvents.index) ?? []}
+              x={openEvents.x}
+              currency={currency}
+              interval={interval}
+              onClose={() => setOpenEvents(null)}
+            />
           ) : null}
           {visible.map((pane, i) =>
             pane.kind === PRICE_PANE ? null : (
@@ -964,6 +1073,7 @@ export function PriceChart({
           {partialLabel}
         </p>
       ) : null}
+      {events !== undefined ? <ChartEventsList events={events} currency={currency} /> : null}
       <details className="px-1 text-2xs text-text-tertiary">
         <summary className="cursor-pointer select-none hover:text-text-secondary">
           Chart keys and panes
@@ -973,6 +1083,8 @@ export function PriceChart({
           and last bar, + and − zoom, 0 fits every bar, Escape clears the crosshair. The legend
           reads the bar under the crosshair, or the last bar. Drag the line between two panes to
           resize them; heights are remembered in this browser. Collapse a pane with its arrow.
+          Markers above the bars are events (N news with its count, E earnings, D ex-dividend, S
+          split; B and S arrows are your fills): click one, or press Enter on its bar, to list them.
         </p>
       </details>
     </div>
@@ -1032,7 +1144,8 @@ export function groupLegend(indicators: { key: string; label: string; value: str
     const [base, output] = splitSeriesKey(ind.key);
     let group = groups.find((g) => g.base === base);
     if (!group) {
-      group = { base, label: indicatorLabel(base), items: [] };
+      // A3.5: a pane that is not a registry study (delivery) keeps its own label.
+      group = { base, label: studyFor(base) ? indicatorLabel(base) : ind.label, items: [] };
       groups.push(group);
     }
     group.items.push({
@@ -1060,5 +1173,124 @@ function LegendBadge({ badge }: { badge: IndicatorBadge }) {
       {badge.graded ? `Grade ${badge.text}` : badge.text}
       <span className="sr-only"> {badge.title}</span>
     </span>
+  );
+}
+
+/** A3.5: the events on one bar, opened by a click on its marker (or Enter). */
+function EventPopover({
+  date,
+  events,
+  x,
+  currency,
+  interval,
+  onClose,
+}: {
+  date: string;
+  events: ChartEvent[];
+  x: number;
+  currency?: string;
+  interval: StockInterval;
+  onClose: () => void;
+}) {
+  const ref = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    ref.current?.focus();
+  }, []);
+  const period = interval === "1wk" ? "Week of" : interval === "1mo" ? "Month of" : "";
+  return (
+    <div
+      ref={ref}
+      // biome-ignore lint/a11y/useSemanticElements: a non-modal popover over the canvas, not a modal <dialog>.
+      role="dialog"
+      aria-label={`Chart events on ${formatCloseDate(date) ?? date}`}
+      tabIndex={-1}
+      onKeyDown={(event) => {
+        if (event.key === "Escape") {
+          event.stopPropagation();
+          onClose();
+        }
+      }}
+      className="absolute top-10 z-20 w-72 max-w-[calc(100%-1rem)] rounded-md border border-border bg-surface-elevated p-3 text-xs shadow-lg outline-none"
+      style={{ left: `clamp(0.5rem, calc(${Math.round(x)}px - 9rem), calc(100% - 18.5rem))` }}
+      data-testid="event-popover"
+    >
+      <div className="flex items-start justify-between gap-2">
+        <p className="font-medium text-foreground">
+          {period ? `${period} ` : ""}
+          {formatCloseDate(date) ?? date}
+        </p>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close chart events"
+          className="inline-flex size-6 items-center justify-center rounded-sm text-text-tertiary hover:bg-surface-hover hover:text-foreground"
+        >
+          <X className="size-3.5" aria-hidden />
+        </button>
+      </div>
+      <ul className="mt-1.5 space-y-2">
+        {events.map((event, i) => (
+          <EventItem key={eventKey(event, i)} event={event} currency={currency} />
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+/** One event: a line, and for news its headlines (date, source, link; no text). */
+function EventItem({ event, currency }: { event: ChartEvent; currency?: string }) {
+  return (
+    <li data-testid="event-item" data-type={event.type}>
+      <p className="text-text-secondary">
+        <span className="text-text-tertiary">{formatCloseDate(event.date) ?? event.date} · </span>
+        {eventSummary(event, currency)}
+      </p>
+      {event.type === "news" && event.headlines.length ? (
+        <ul className="mt-1 space-y-1 border-l border-border-muted pl-2">
+          {event.headlines.map((h) => (
+            <li key={h.id} className="leading-4">
+              {h.url ? (
+                <a
+                  href={h.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-foreground hover:underline"
+                >
+                  {h.title}
+                </a>
+              ) : (
+                <span className="text-foreground">{h.title}</span>
+              )}
+              <span className="text-text-tertiary"> · {h.source ?? "Unknown source"}</span>
+            </li>
+          ))}
+          {event.count > event.headlines.length ? (
+            <li className="text-text-tertiary">
+              and {event.count - event.headlines.length} more in the News tab
+            </li>
+          ) : null}
+        </ul>
+      ) : null}
+    </li>
+  );
+}
+
+/** A3.5: the keyboard and screen-reader path to every marker: the same items as a list. */
+function ChartEventsList({ events, currency }: { events: ChartEvent[]; currency?: string }) {
+  return (
+    <details className="px-1 text-2xs text-text-tertiary" data-testid="chart-events">
+      <summary className="cursor-pointer select-none hover:text-text-secondary">
+        Chart events ({events.length})
+      </summary>
+      {events.length ? (
+        <ul className="mt-1.5 max-h-72 space-y-2 overflow-y-auto text-xs">
+          {[...events].reverse().map((event, i) => (
+            <EventItem key={eventKey(event, i)} event={event} currency={currency} />
+          ))}
+        </ul>
+      ) : (
+        <p className="mt-1">No events of the shown types in this range.</p>
+      )}
+    </details>
   );
 }

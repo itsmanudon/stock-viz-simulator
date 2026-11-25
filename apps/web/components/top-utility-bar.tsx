@@ -3,6 +3,7 @@ import { AlertsBell } from "@/components/alerts-bell";
 import { AppMobileNav } from "@/components/app-mobile-nav";
 import { GlobalTickerSearch } from "@/components/global-ticker-search";
 import { DataDateChip } from "@/components/marketing/market-status";
+import { RegimeBadges } from "@/components/regime-badge";
 
 export function TopUtilityBar({ signedIn }: { signedIn: boolean }) {
   return (
@@ -12,8 +13,11 @@ export function TopUtilityBar({ signedIn }: { signedIn: boolean }) {
         <GlobalTickerSearch />
       </div>
       <div className="ml-auto flex shrink-0 items-center gap-1">
-        <span className="mr-2">
+        <span className="mr-1">
           <DataDateChip />
+        </span>
+        <span className="mr-1">
+          <RegimeBadges />
         </span>
         <AlertsBell enabled={signedIn} />
         <AccountMenu />

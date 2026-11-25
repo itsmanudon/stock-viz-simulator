@@ -46,7 +46,8 @@ src/stockviz/
                     (display currency), earnings, replay
                     (isolated ReplaySession), rules / setups / theses
                     (A2.2), notification_channels (A2.3), drawings
-                    (A3.2), avwap (A3.3), health
+                    (A3.2), avwap (A3.3), events, strength (RS
+                    percentile, delivery) and regime (A3.5), health
                     (`GET /live` liveness, `GET /health` readiness + DB)
   services/
     ingest/         External-API fetchers (yfinance primary, Alpha Vantage fallback);
@@ -143,6 +144,11 @@ src/stockviz/
     theses.py       A2.2: thesis reads (the router writes)
     drawings.py     A3.2: drawing rules per kind, position figures
     avwap.py        A3.3: anchored VWAP and its bands (pure, numpy)
+    symbol_events.py  A3.5: the chart's merged event list (news clusters,
+                    earnings, dividends, splits, the caller's fills)
+    relative_strength.py  A3.5: RS percentile within a market, 52-week distance
+    delivery_pct.py A3.5: delivery % and its 20-session average (eod_extras)
+    regime.py       A3.5: rule-based market regime per market
     aegis/          Aegis News read sync (Phase 2): contract.py (lenient
                     feed models), token.py (EdDSA feed:read token), client.py
                     (the one client: timeouts, bounded retries), sync.py
@@ -626,6 +632,72 @@ and the `recommend` command, scheduler job and cron step are removed.
   universe equal to the study run directly, catalog shape, bounds 400 and
   DSL errors, the RS line on the route), `test_indicator_evidence_migration.py`
   (PostgreSQL up/down/up).
+
+**Chart events, relative strength, delivery and the regime (A3.5, M2.7,
+M2.8, M3.1).** Migration `bb2ee29c23d3` (additive): `symbol_metrics`
+gains `return_1m/3m/6m/12m` (percent return over 21/63/126/252 sessions),
+written by the nightly `metrics` job (`services/metrics.py::_returns`).
+
+- **Events** `GET /v1/symbols/{t}/events?from&to&types=` (`routers/events.py`,
+  public, 60/min, `auth.OptionalUserIdDep`) -> `{ticker, from, to, types,
+  fills_included, news_rule, events: [...]}`, a discriminated union by
+  `type`: `news {date, count, sources, headlines [{id, title, source, url,
+  available_at, published_at}] (up to 20 a day)}`, `earnings {date,
+  report_time, fiscal_period, eps_estimate, eps_actual, surprise_pct}`,
+  `dividend {date (ex-date), amount, currency}`, `split {date, ratio_from,
+  ratio_to}`, `fill {date, ts, side, quantity, price, r_multiple (null until
+  A5)}`; oldest first, then in type order. Default range: the last 365
+  days; at most 25 years (400); unknown type 400; `from > to` 400. **News
+  clusters** by the UTC date of `available_at` (the field `/news` orders
+  by; never `published_at`), so a day's count equals the `/news` items that
+  day (tested). Titles, sources and links only: no article text.
+  **Fills**: default types add `fill` only with a verified Bearer token,
+  and the query joins trades to `portfolios.user_id` = the token's user;
+  anonymous callers never see fills (an explicit `types=fill` returns
+  none), a bad token is 401 (`services/symbol_events.py`).
+- **Relative strength** `GET /v1/symbols/{t}/relative-strength`
+  (`routers/strength.py`, public, 60/min): per period `{period, sessions,
+  return_pct, percentile}`, `distance_from_high_52w_pct` (last close over
+  the 252-session high), `universe {market, size, as_of, point_in_time:
+  false, survivorship_biased: true, note}`, `method`, `reason`. Universe:
+  the active non-index symbols sharing the venue index
+  (`BENCHMARK_BY_VENUE`: US `^GSPC`, India `^NSEI`), on the market's newest
+  metrics date (a stale symbol is not ranked). Percentile = `100 x (below +
+  0.5 x tied) / (n - 1)`, null under 5 members. Ranking returns within a
+  market ranks the RS line's change (same index divides every member). No
+  DSL binding: an `rs_pct(n)` series would need the whole universe's
+  history per bar (not cheap, not point/vector-safe today).
+  `SymbolDetailOut` adds `market` (`US`/`IN`), `benchmark`,
+  `benchmark_name`, `is_indian`.
+- **Delivery** `GET /v1/symbols/{t}/delivery?interval=1d|1wk|1mo&from&to`
+  (public, 60/min): `{applicable (NSE/BSE), has_data, avg_sessions: 20,
+  points [{ts, delivery_pct, avg_20}], note}`. One value per session, EQ
+  first (the DSL's order); `avg_20` = mean of the last 20 sessions holding
+  a value, null before 20; weekly/monthly = the period's mean, the average
+  at its last session. Empty with "No delivery data yet" until NSE files
+  load (the backfill is deferred).
+- **Regime** `GET /v1/regime` (public, 60/min, `Cache-Control: public,
+  max-age=600`, in-process cache 10 minutes, `regime.clear_cache()`):
+  per market (US `^GSPC`, India `^NSEI`) `{state, reason, as_of, inputs
+  [{name, value, description}], rules [{state, rule, description, met}],
+  breadth_count, breadth_universe, breadth_as_of, vol_window_sessions,
+  hv_20}`, plus `method` and `disclaimer`. Inputs: `index_close`,
+  `index_sma_200` (200-session SMA), `breadth_200` (% of the market's
+  symbols on its newest metrics date with close > `sma_200`), `vol_pct_20`
+  (percentile of the index's 20-session realised volatility, `engine.hv`,
+  among its last 1,260 sessions; needs 252). Rules (`REGIME_RULES`, data,
+  so the text shown is the text evaluated), read in order with Kleene
+  logic: **High-vol down** `index_close < index_sma_200 and vol_pct_20 >=
+  80`; **Calm trend** `index_close > index_sma_200 and breadth_200 >= 50
+  and vol_pct_20 < 60`; **Choppy** otherwise. An unknown rule before a met
+  one leaves the state null ("Not enough data: ... unknown"). No VIX (not
+  ingested), no HMM (A9). Neutral wording; a test bans buy/sell words.
+- Tests: `test_a35_chart_context.py` (merge, types, range, clustering,
+  news parity, fill isolation, percentile and 52-week distance, delivery
+  average and empty state, each regime state on synthetic inputs and
+  series, the route), `test_a35_metrics_migration.py` (PostgreSQL
+  up/down/up). On `stockviz_e2e` (no index bars) both regimes are unknown
+  (US breadth 12%, 3 of 25).
 
 **Weekly and monthly bars (A1.4a, M2.2 first half).** Resampled on read,
 never stored (`services/bars/resample.py`). `GET /v1/symbols/{t}/bars` and
@@ -1327,7 +1399,7 @@ filters receive no request; `tests/test_rate_limit_web_server.py` pins it.
 
 Current budget: **60/min** on the public reads
 (symbols, bars, quotes, news, indicators, checklist, rule check,
-setup presets, AVWAP), **30/min**
+setup presets, AVWAP, events, relative strength, delivery, regime), **30/min**
 screener, **20/min** backtest. Authenticated routers are deliberately *not*
 slowapi-limited — every authed request arrives from the Next.js server, so a
 per-IP limit would be one global bucket for all users. Where per-user

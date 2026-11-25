@@ -548,6 +548,49 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   draws it with `avwapShapes`: one `path` shape per line (the VWAP, then
   dashed bands; one path so dashes run on), a tick at the anchor, the label
   and last value at the right end; a drag moves the anchor in time only.
+- **Events, RS, delivery and the regime (A3.5, M2.7, M2.8, M3.1).**
+  `lib/chart-events.ts` (pure): types from the API schema, `?events=` URL
+  state (`parseEventsParam`, `resolveEventTypes`, `toggleEventsParam`;
+  absent = news, earnings, dividends, splits, plus fills signed in; `""` =
+  none; kept in `ChartView.events`, so every chart link carries it), and
+  placement `eventBarIndex`/`eventsByBar`: weekly/monthly use the drawings'
+  containing-period rule (`anchorBar`); daily the bar on the date, else the
+  next bar (a Saturday headline shows on Monday); after the last bar, no
+  marker (the list keeps it). The stock page fetches public events
+  (`lib/api/chart-context.ts::getSymbolEvents`, cached an hour, tags
+  `bars`/`news`) from the first bar to today and, signed in with fills
+  shown, the viewer's fills server-side (`lib/api/events-server.ts`,
+  authed, uncached; the API returns only the token's user's trades), then
+  `mergeEvents`. `PriceChart` takes `events` and `currency`: one marker per
+  type per bar on the price series (`createSeriesMarkers`; news shows the
+  day's count, E/D/S letters, fills B/S arrows; colours from
+  `palette.drawing` violet/amber/lime/blue/foreground, the toolbar dots use
+  the same `--list-*` tokens); a click on a bar with events (not while
+  placing a drawing) or Enter on the keyboard crosshair opens
+  `EventPopover` (`role="dialog"`, Escape closes; news headlines with
+  source and a link to the original, no text); the legend adds "Events:
+  2 news, ex-dividend" (`legend-events`); `ChartEventsList` ("Chart events
+  (N)" disclosure, newest first) is the keyboard path. The toolbar's
+  `EventToggles` is a row of `role="switch"` links (`data-event-type`).
+  The RS line (`rsline`, opt-in in the Indicators menu) is relabelled "RS
+  line vs S&P 500 (^GSPC)" from `symbol.benchmark_name`; with no index
+  closes its pane is not drawn (empty lines are dropped in `allPanes`) and
+  `rs-empty` says so. `RelativeStrengthStrip` under the metrics strip
+  (`relative-strength`): RS rank 1M/3M/6M/12M as ordinals with the return,
+  "From 52-week high", and the universe stamp (`rs-universe`). Delivery:
+  for `symbol.is_indian` the page loads `getDelivery()` and mounts a
+  "Delivery %" pane (delivery and "20-day avg", `ChartPane.outputLabels`;
+  points placed with `eventBarIndex`); without data a dashed
+  `delivery-empty` line says "No delivery data yet", never an empty pane.
+  Regime: `RegimeBadges` (async server component, `getRegime()` cached 10
+  minutes) in `TopUtilityBar` beside the data-date chip, one
+  `RegimePopover` per market (`regime-badge-<US|IN>`, `data-state`; the
+  state word from `md`, a dot by state): state, index and as-of, the rules
+  in order with met / not met / unknown, the inputs' values (breadth with
+  "n of N"), the method and the disclaimer. Shell unit tests mock
+  `@/components/regime-badge`. Tests: `tests/unit/chart-events.test.tsx`;
+  the stub records markers (`lwcCalls.markers`) and click handlers
+  (`clickAt`).
 - **User-scoped rules (A3.3).** The rule panel says "Uses your drawings;
   only you can run it." (`data-testid="rule-user-scoped"`) when
   `/v1/rules/check` returns `user_scoped` (signed out: sign in to run it).

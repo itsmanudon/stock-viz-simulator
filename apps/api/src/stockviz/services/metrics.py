@@ -32,6 +32,20 @@ sessions (audit RS-14). The stock page computes the same thing from bars."""
 
 RSI_PERIOD = 14
 
+RETURN_SESSIONS = {"return_1m": 21, "return_3m": 63, "return_6m": 126, "return_12m": 252}
+"""A3.5 (M2.7): the RS percentile's horizons, in sessions (one, three, six
+and twelve months of 21 sessions)."""
+
+
+def _returns(closes: list) -> dict[str, float | None]:
+    """Percent return over each horizon; None without enough history."""
+    out: dict[str, float | None] = {}
+    last = float(closes[-1])
+    for name, n in RETURN_SESSIONS.items():
+        base = float(closes[-1 - n]) if len(closes) > n else None
+        out[name] = (last / base - 1) * 100 if base else None
+    return out
+
 
 def _last(series) -> float | None:
     value = series.iloc[-1] if len(series) else None
@@ -101,6 +115,7 @@ def compute_for_ticker(session: Session, ticker: str) -> SymbolMetrics | None:
     rsi_points = compute_rsi([(b.ts, b.close) for b in bars], period=RSI_PERIOD)
     rsi = rsi_points[-1].value if rsi_points else None
     snap = _snapshot(bars)
+    returns = _returns(closes)
 
     row = SymbolMetrics(
         ticker=ticker,
@@ -115,6 +130,10 @@ def compute_for_ticker(session: Session, ticker: str) -> SymbolMetrics | None:
         atr_pct_14=snap["atr_pct_14"],
         hv_20=snap["hv_20"],
         avg_volume_20=snap["avg_volume_20"],
+        return_1m=returns["return_1m"],
+        return_3m=returns["return_3m"],
+        return_6m=returns["return_6m"],
+        return_12m=returns["return_12m"],
     )
     for name, value in _fundamentals(session, ticker, bars[-1].ts.date()).items():
         setattr(row, name, value)
@@ -165,6 +184,10 @@ def _upsert(session: Session, row: SymbolMetrics) -> None:
         "atr_pct_14": row.atr_pct_14,
         "hv_20": row.hv_20,
         "avg_volume_20": row.avg_volume_20,
+        "return_1m": row.return_1m,
+        "return_3m": row.return_3m,
+        "return_6m": row.return_6m,
+        "return_12m": row.return_12m,
         "pe": row.pe,
         "pb": row.pb,
         "ps": row.ps,

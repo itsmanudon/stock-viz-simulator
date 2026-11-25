@@ -21,6 +21,7 @@ from stockviz.routers import (
     column_sets,
     drawings,
     earnings,
+    events,
     experiments,
     fundamentals,
     health,
@@ -34,6 +35,7 @@ from stockviz.routers import (
     orders,
     profile,
     quotes,
+    regime,
     replay,
     research,
     rules,
@@ -42,6 +44,7 @@ from stockviz.routers import (
     sentiment,
     setups,
     status,
+    strength,
     symbols,
     theses,
     trading,
@@ -124,6 +127,9 @@ def create_app() -> FastAPI:
     app.include_router(checklist.router)
     app.include_router(drawings.router)
     app.include_router(avwap.router)
+    app.include_router(events.router)
+    app.include_router(strength.router)
+    app.include_router(regime.router)
     app.include_router(trading.router)
     app.include_router(alerts.router)
     app.include_router(watchlist.router)
