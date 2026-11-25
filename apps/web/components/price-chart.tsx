@@ -73,11 +73,14 @@ import type { DrawingPoint } from "@/lib/drawings/kinds";
 import { DrawingsPrimitive } from "@/lib/drawings/primitive";
 import { type SceneDrawing, hitScene } from "@/lib/drawings/scene";
 import { heikinAshi } from "@/lib/heikin-ashi";
+import type { IndicatorBadge } from "@/lib/indicator-badge";
 import {
   type ChartPane,
   type StockInterval,
   formatCloseDate,
+  indicatorLabel,
   partialBarLabel,
+  splitSeriesKey,
 } from "@/lib/stock-workspace";
 
 export type PriceChartMarker = {
@@ -123,6 +126,11 @@ type Props = {
   scale?: ChartScale;
   showVolume?: boolean;
   drawingLayer?: ChartDrawingLayer;
+  /** A3.4: the chart keys drawn in the RSI and MACD panes (`rsi_21`, `macd_8_21_5`). */
+  rsiKey?: string;
+  macdKey?: string;
+  /** A3.4: evidence badges by chart key, shown beside each study in the legend. */
+  badges?: Record<string, IndicatorBadge>;
 };
 
 const DRAG_THRESHOLD_PX = 4;
@@ -225,6 +233,9 @@ export function PriceChart({
   scale = "linear",
   showVolume = true,
   drawingLayer,
+  rsiKey,
+  macdKey,
+  badges,
 }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -249,10 +260,33 @@ export function PriceChart({
   const collapsedSet = useMemo(() => new Set(layout?.collapsed ?? []), [layout]);
 
   const { visible, collapsed } = useMemo(
-    () => assemblePanes({ overlays, rsi, macd, panes, showVolume }, collapsedSet),
-    [overlays, rsi, macd, panes, showVolume, collapsedSet],
+    () => assemblePanes({ overlays, rsi, macd, panes, showVolume, rsiKey, macdKey }, collapsedSet),
+    [overlays, rsi, macd, panes, showVolume, rsiKey, macdKey, collapsedSet],
   );
   const legendModel = useMemo(() => buildLegendModel(bars, visible), [bars, visible]);
+  const priceKeys = useMemo(
+    () =>
+      new Set(
+        visible
+          .filter((pane) => pane.kind === PRICE_PANE)
+          .flatMap((pane) => pane.series.map((spec) => ("key" in spec ? spec.key : ""))),
+      ),
+    [visible],
+  );
+  // A3.4: each study's badge once, on its first series in the legend.
+  const badgeKeys = useMemo(() => {
+    const map = new Map<string, IndicatorBadge>();
+    const seen = new Set<string>();
+    for (const ind of legendModel.indicators) {
+      const base = splitSeriesKey(ind.key)[0];
+      const badge = badges?.[base];
+      if (badge && !seen.has(base)) {
+        seen.add(base);
+        map.set(ind.key, badge);
+      }
+    }
+    return map;
+  }, [legendModel, badges]);
   const seriesColour = useMemo(() => {
     const map = new Map<string, string>();
     for (const pane of visible) {
@@ -377,6 +411,10 @@ export function PriceChart({
               lineWidth: 2,
               priceLineVisible: false,
               lastValueVisible: pane.kind !== PRICE_PANE,
+              // A3.4: Parabolic SAR is a row of dots, not a line.
+              ...(spec.dots
+                ? { lineVisible: false, pointMarkersVisible: true, pointMarkersRadius: 1.5 }
+                : {}),
             },
             paneIndex,
           );
@@ -849,19 +887,39 @@ export function PriceChart({
                   className="mt-0.5 flex flex-wrap gap-x-2.5 font-mono"
                   data-testid="chart-legend-indicators"
                 >
-                  {legend.indicators.map((ind) => (
-                    <span key={ind.key}>
-                      <span
-                        className="font-sans"
-                        style={
-                          seriesColour.get(ind.key)
-                            ? { color: seriesColour.get(ind.key) }
-                            : undefined
-                        }
-                      >
-                        {ind.label}
-                      </span>{" "}
-                      <span className="text-foreground">{ind.value}</span>
+                  {groupLegend(legend.indicators).map((group) => (
+                    <span
+                      key={group.base}
+                      // On a phone the legend keeps to the price pane's own
+                      // studies; a lower pane's values are on its axis.
+                      className={
+                        priceKeys.has(group.items[0].key)
+                          ? "inline-flex flex-wrap items-baseline gap-x-1"
+                          : "hidden flex-wrap items-baseline gap-x-1 sm:inline-flex"
+                      }
+                      data-testid="legend-study"
+                    >
+                      {group.items.length > 1 ? (
+                        <span className="font-sans text-text-secondary">{group.label}</span>
+                      ) : null}
+                      {group.items.map((ind) => (
+                        <span key={ind.key} className="inline-flex items-baseline gap-1">
+                          <span
+                            className="font-sans"
+                            style={
+                              seriesColour.get(ind.key)
+                                ? { color: seriesColour.get(ind.key) }
+                                : undefined
+                            }
+                          >
+                            {group.items.length > 1 ? ind.short : ind.label}
+                          </span>{" "}
+                          <span className="text-foreground">{ind.value}</span>
+                        </span>
+                      ))}
+                      {badgeKeys.get(group.items[0].key) ? (
+                        <LegendBadge badge={badgeKeys.get(group.items[0].key) as IndicatorBadge} />
+                      ) : null}
                     </span>
                   ))}
                 </div>
@@ -945,5 +1003,62 @@ function PaneHeader({
         <ChevronUp className="size-3" aria-hidden />
       </button>
     </div>
+  );
+}
+
+/** Short names for a study's outputs in the legend (A3.4). */
+const OUTPUT_SHORT: Record<string, string> = {
+  senkou_a: "span A",
+  senkou_b: "span B",
+  plus_di: "+DI",
+  minus_di: "−DI",
+  plus: "+VI",
+  minus: "−VI",
+  histogram: "hist",
+};
+
+/**
+ * The legend's values grouped by study (A3.4): a study with several outputs
+ * (Ichimoku, Bollinger, MACD) is one entry with its label once, so the
+ * legend stays short enough to leave the price pane readable on a phone.
+ */
+export function groupLegend(indicators: { key: string; label: string; value: string }[]) {
+  const groups: {
+    base: string;
+    label: string;
+    items: { key: string; label: string; short: string; value: string }[];
+  }[] = [];
+  for (const ind of indicators) {
+    const [base, output] = splitSeriesKey(ind.key);
+    let group = groups.find((g) => g.base === base);
+    if (!group) {
+      group = { base, label: indicatorLabel(base), items: [] };
+      groups.push(group);
+    }
+    group.items.push({
+      ...ind,
+      short: output ? (OUTPUT_SHORT[output] ?? output.replace(/_/g, " ")) : "",
+    });
+  }
+  return groups;
+}
+
+/** A3.4: a study's evidence grade in the legend; the whole story in its title. */
+function LegendBadge({ badge }: { badge: IndicatorBadge }) {
+  return (
+    <span
+      // Hidden on phones, where the legend has to leave the pane readable;
+      // the Indicators menu shows every badge there.
+      className={
+        badge.graded
+          ? "hidden whitespace-nowrap rounded-sm border border-border px-1 font-sans text-3xs text-foreground sm:inline"
+          : "hidden whitespace-nowrap rounded-sm border border-border-muted px-1 font-sans text-3xs text-text-tertiary sm:inline"
+      }
+      title={badge.title}
+      data-testid="legend-badge"
+    >
+      {badge.graded ? `Grade ${badge.text}` : badge.text}
+      <span className="sr-only"> {badge.title}</span>
+    </span>
   );
 }

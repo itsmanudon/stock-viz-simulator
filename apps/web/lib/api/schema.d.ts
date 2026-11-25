@@ -571,7 +571,9 @@ export interface paths {
         };
         /**
          * Get Catalog
-         * @description Every indicator the engine offers, with its parameters and defaults.
+         * @description Every indicator the engine offers, with its parameters (names,
+         *     defaults, bounds) and, for studies with a canonical signal, the signal
+         *     rule and its latest evidence grade (A3.4).
          */
         get: operations["get_catalog_v1_indicators_catalog_get"];
         put?: never;
@@ -3327,6 +3329,30 @@ export interface components {
             pane: "price" | "separate";
             /** Group */
             group: string;
+            /** Parameters */
+            parameters?: components["schemas"]["IndicatorParamOut"][];
+            /**
+             * Default Key
+             * @default
+             */
+            default_key: string;
+            /**
+             * Anchored
+             * @default none
+             * @enum {string}
+             */
+            anchored: "none" | "start";
+            /**
+             * Description
+             * @default
+             */
+            description: string;
+            /**
+             * Source
+             * @default
+             */
+            source: string;
+            signal?: components["schemas"]["IndicatorSignalOut"] | null;
         };
         /** IndicatorMetaOut */
         IndicatorMetaOut: {
@@ -3354,6 +3380,35 @@ export interface components {
              */
             anchored: "none" | "start";
         };
+        /**
+         * IndicatorParamOut
+         * @description One study parameter and its bounds (A3.4). Whole numbers from ``min``
+         *     to ``max``; decimals above ``min`` (``min_exclusive``) up to ``max``.
+         *     ``choices`` names the values 1..n when the parameter picks an option.
+         */
+        IndicatorParamOut: {
+            /** Name */
+            name: string;
+            /** Label */
+            label: string;
+            /**
+             * Type
+             * @enum {string}
+             */
+            type: "int" | "float";
+            /** Default */
+            default: number;
+            /** Min */
+            min: number;
+            /** Max */
+            max: number;
+            /** Min Exclusive */
+            min_exclusive: boolean;
+            /** Step */
+            step: number;
+            /** Choices */
+            choices?: string[];
+        };
         /** IndicatorPointOut */
         IndicatorPointOut: {
             /**
@@ -3363,6 +3418,26 @@ export interface components {
             ts: string;
             /** Value */
             value: number;
+        };
+        /**
+         * IndicatorSignalOut
+         * @description A study's canonical signal as a Rule DSL rule, on its default
+         *     parameters, with the latest evidence grade (A3.4) or null before the
+         *     ``indicator-evidence`` job has run.
+         */
+        IndicatorSignalOut: {
+            /** Rule */
+            rule: string;
+            /** Hash */
+            hash: string;
+            /** Description */
+            description: string;
+            /**
+             * Source
+             * @default
+             */
+            source: string;
+            evidence?: components["schemas"]["ChecklistEvidenceOut"] | null;
         };
         /**
          * IndicatorsOut

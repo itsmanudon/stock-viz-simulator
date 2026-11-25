@@ -27,6 +27,7 @@ import {
   type SymbolChecklist,
   type SymbolDetail,
   getBars,
+  getIndicatorCatalog,
   getIndicators,
   getNewsForTicker,
   getSymbol,
@@ -42,9 +43,11 @@ import {
   getPortfolio,
   listOrders,
 } from "@/lib/api/trading";
+import type { Indicators } from "@/lib/api/types";
 import { type WatchlistList, listWatchlists } from "@/lib/api/watchlist";
 import { parseChartView } from "@/lib/chart-view";
 import type { DrawingsResponse } from "@/lib/drawings/kinds";
+import { badgesFor } from "@/lib/indicator-badge";
 import {
   STOCK_TIMEFRAMES,
   type StockIndicator,
@@ -57,8 +60,10 @@ import {
   chartLayers,
   deriveTrailingBarMetrics,
   formatCloseDate,
+  macdSeries,
   parseStockIndicators,
   parseStockInterval,
+  studyFor,
 } from "@/lib/stock-workspace";
 import { checkVisitorLimit } from "@/lib/visitor-limit";
 
@@ -123,7 +128,13 @@ export default async function StockPage({
   }
   const ticker = rawTicker.toUpperCase();
   const timeframe = parseTimeframe(query.tf);
-  const selectedIndicators = parseStockIndicators(query.indicators);
+  // A3.4: the catalog's parameter bounds validate the URL's keys (a failed
+  // call keeps the studies at most at their parameter count, unbounded).
+  const catalog = await getIndicatorCatalog().catch(() => null);
+  const selectedIndicators = parseStockIndicators(
+    query.indicators,
+    catalog ? Object.fromEntries(catalog.map((c) => [c.key, c.parameters])) : null,
+  );
   const timeframeDays = TIMEFRAME_DAYS[timeframe];
   // A1.4a: the bar interval (daily, weekly, monthly) is separate from the
   // lookback; the limit counts bars of that interval.
@@ -162,7 +173,7 @@ export default async function StockPage({
     names: requestedIndicators,
     interval,
     limit: chartLimit,
-  });
+  }).catch(() => ({ ticker, series: {}, macd: null, meta: {} }) as Indicators);
   const dailyRsiPromise =
     interval === "1d"
       ? indicatorsPromise
@@ -247,7 +258,13 @@ export default async function StockPage({
   const firstClose = bars[0] ? Number(bars[0].close) : null;
   const periodReturnPct = calculatePeriodReturnPct(firstClose, latestClose);
   const metrics = deriveTrailingBarMetrics(rangeBars);
-  const rsiSeries = indicatorBundle.series.rsi_14;
+  // A3.4: the first RSI and MACD on the chart get their own panes, whatever
+  // their parameters; another instance draws in a pane of its own.
+  const rsiKey = selectedIndicators.find((k) => studyFor(k)?.key === "rsi");
+  const macdKey = selectedIndicators.find((k) => studyFor(k)?.key === "macd");
+  const rsiSeries = rsiKey ? indicatorBundle.series[rsiKey] : undefined;
+  const macdPoints = macdKey ? macdSeries(indicatorBundle, macdKey) : null;
+  const badges = badgesFor(selectedIndicators, catalog);
   const latestRsi = dailyRsiBundle?.series.rsi_14?.at(-1)?.value ?? null;
   const partialExcluded =
     interval !== "1d" && selectedIndicators.length > 0 && indicatorBundle.partial_bar_excluded;
@@ -255,8 +272,8 @@ export default async function StockPage({
   const { overlays: overlaySeries, panes: indicatorPanes } = chartLayers(
     indicatorBundle,
     selectedIndicators,
+    [rsiKey, macdKey],
   );
-  const showMacd = selectedIndicators.includes("macd");
   // A raw request that failed falls back to the adjusted bars, and says so.
   const rawFailed = view.adjustment === "raw" && rawChartBars === null;
   const showingRaw = view.adjustment === "raw" && rawChartBars !== null;
@@ -306,6 +323,7 @@ export default async function StockPage({
               interval={interval}
               view={showingRaw ? view : { ...view, adjustment: "adjusted" }}
               hasRaw={hasRaw}
+              catalog={catalog}
             />
             <div className="p-1.5 sm:p-3">
               {chartBars.length && !showingRaw ? (
@@ -316,8 +334,11 @@ export default async function StockPage({
                   callbackUrl={activeStockUrl}
                   bars={chartBars}
                   overlays={overlaySeries}
-                  macd={showMacd ? indicatorBundle.macd : null}
-                  rsi={selectedIndicators.includes("rsi_14") ? (rsiSeries ?? null) : null}
+                  macd={macdPoints}
+                  rsi={rsiSeries ?? null}
+                  rsiKey={rsiKey}
+                  macdKey={macdKey}
+                  badges={badges}
                   panes={indicatorPanes}
                   interval={interval}
                   chartType={view.type}
@@ -329,8 +350,11 @@ export default async function StockPage({
                   // Overlays and drawings are on adjusted prices: on raw
                   // prices they would jump at every split, so they are left off.
                   overlays={{}}
-                  macd={showMacd ? indicatorBundle.macd : null}
-                  rsi={selectedIndicators.includes("rsi_14") ? (rsiSeries ?? null) : null}
+                  macd={macdPoints}
+                  rsi={rsiSeries ?? null}
+                  rsiKey={rsiKey}
+                  macdKey={macdKey}
+                  badges={badges}
                   panes={indicatorPanes}
                   interval={interval}
                   chartType={view.type}

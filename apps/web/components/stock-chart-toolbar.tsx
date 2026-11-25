@@ -1,10 +1,10 @@
 "use client";
 
-import { Check, ChevronDown, SlidersHorizontal } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { DropdownMenu } from "radix-ui";
 
+import { IndicatorMenu } from "@/components/indicator-menu";
+import type { IndicatorCatalogItem } from "@/lib/api/types";
 import {
   CHART_SCALES,
   CHART_TYPES,
@@ -15,7 +15,6 @@ import {
   RAW_UNAVAILABLE_NOTE,
 } from "@/lib/chart-view";
 import {
-  STOCK_INDICATORS,
   STOCK_INTERVALS,
   STOCK_TIMEFRAMES,
   type StockIndicator,
@@ -31,6 +30,7 @@ export function StockChartToolbar({
   interval = "1d",
   view = DEFAULT_CHART_VIEW,
   hasRaw = false,
+  catalog = null,
 }: {
   ticker: string;
   timeframe: StockTimeframe;
@@ -40,15 +40,10 @@ export function StockChartToolbar({
   view?: ChartView;
   /** Whether raw exchange prices are stored for this symbol. */
   hasRaw?: boolean;
+  /** A3.4: the studies' parameters and evidence badges (null when the call failed). */
+  catalog?: IndicatorCatalogItem[] | null;
 }) {
   const router = useRouter();
-
-  function toggleIndicator(indicator: StockIndicator) {
-    const next = new Set(indicators);
-    if (next.has(indicator)) next.delete(indicator);
-    else next.add(indicator);
-    router.push(buildStockChartHref(ticker, timeframe, Array.from(next), interval, view));
-  }
 
   const hrefWith = (patch: Partial<ChartView>) =>
     buildStockChartHref(ticker, timeframe, indicators, interval, { ...view, ...patch });
@@ -175,59 +170,13 @@ export function StockChartToolbar({
         </nav>
       </div>
 
-      <DropdownMenu.Root>
-        <DropdownMenu.Trigger asChild>
-          <button
-            type="button"
-            className="inline-flex h-8 items-center gap-2 rounded-md border border-border-muted px-2.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground data-[state=open]:bg-surface-hover data-[state=open]:text-foreground"
-            aria-label={`Indicators, ${indicators.length} selected`}
-          >
-            <SlidersHorizontal className="size-3.5" aria-hidden />
-            Indicators
-            {indicators.length ? (
-              <span className="font-mono text-3xs text-brand">{indicators.length}</span>
-            ) : null}
-            <ChevronDown className="size-3" aria-hidden />
-          </button>
-        </DropdownMenu.Trigger>
-        <DropdownMenu.Portal>
-          <DropdownMenu.Content
-            align="end"
-            sideOffset={6}
-            className="z-50 min-w-48 rounded-md border border-border-muted bg-popover p-1"
-          >
-            <DropdownMenu.Label className="px-2 py-1.5 text-3xs font-semibold uppercase tracking-[0.12em] text-text-tertiary">
-              Technical indicators
-            </DropdownMenu.Label>
-            {STOCK_INDICATORS.map((indicator, index) => [
-              index === 0 || STOCK_INDICATORS[index - 1].section !== indicator.section ? (
-                <DropdownMenu.Label
-                  key={`label-${indicator.section}`}
-                  className="px-2 pt-2 pb-1 text-3xs text-text-tertiary"
-                >
-                  {indicator.section === "price" ? "On the price chart" : "Below the chart"}
-                </DropdownMenu.Label>
-              ) : null,
-              <DropdownMenu.CheckboxItem
-                key={indicator.value}
-                checked={indicators.includes(indicator.value)}
-                onSelect={(event) => {
-                  event.preventDefault();
-                  toggleIndicator(indicator.value);
-                }}
-                className="relative flex h-8 cursor-default select-none items-center rounded-sm py-1 pl-8 pr-2 text-xs text-muted-foreground outline-none data-[highlighted]:bg-surface-hover data-[highlighted]:text-foreground"
-              >
-                <span className="absolute left-2 inline-flex size-4 items-center justify-center text-brand">
-                  <DropdownMenu.ItemIndicator>
-                    <Check className="size-3.5" aria-hidden />
-                  </DropdownMenu.ItemIndicator>
-                </span>
-                {indicator.label}
-              </DropdownMenu.CheckboxItem>,
-            ])}
-          </DropdownMenu.Content>
-        </DropdownMenu.Portal>
-      </DropdownMenu.Root>
+      <IndicatorMenu
+        indicators={indicators}
+        catalog={catalog}
+        onChange={(next) =>
+          router.push(buildStockChartHref(ticker, timeframe, next, interval, view))
+        }
+      />
     </div>
   );
 }

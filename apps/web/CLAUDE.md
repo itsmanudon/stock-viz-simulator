@@ -354,11 +354,43 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   "Pinned symbol list, not point in time: survivorship-biased." plus the
   API's note. Not red: it describes every run today.
 - Chart indicators come from the API registry (Phase 6.6): `STOCK_INDICATORS`
-  in `lib/stock-workspace.ts` lists names with a menu `section`, and
-  `chartLayers()` splits the bundle by each indicator's `meta.pane`: price
-  overlays (Supertrend's `.direction` output is left out) and one pane per
-  separate-pane indicator, all panes of the one chart (below). RSI and MACD
-  keep their own panes. A new indicator needs only a menu entry.
+  in `lib/stock-workspace.ts` lists every study once (`key`, default-key
+  `value`, label, `section`, group, parameter count), and `chartLayers()`
+  splits the bundle by each indicator's `meta.pane`: price overlays
+  (`.direction` outputs of Supertrend and Parabolic SAR are left out) and
+  one pane per separate-pane indicator, all panes of the one chart (below).
+  The first RSI and MACD keep their own panes whatever their parameters
+  (`rsiKey`/`macdKey` on `PriceChart`; a non-default MACD's three outputs
+  are zipped by `macdSeries`). A new study needs a menu entry; its
+  parameters and badge come from the catalog.
+- **Editable studies and evidence badges (A3.4, M2.6).** A chart key is the
+  API's grammar (`rsi_21`, `bb_20_2.5`, `psar_0.02_0.2`; `macd` stays
+  `macd` at its defaults). The stock page loads `getIndicatorCatalog()`
+  (`/v1/indicators/catalog`, cached an hour, tag `bars`) first and
+  `parseStockIndicators(raw, bounds)` keeps only known studies with
+  parameters in bounds, written in full; without the catalog a key needs a
+  known study and no more parameters than it takes, and a failed
+  indicators call draws the chart without them. A decimal parameter has a
+  dot, so split series keys with `splitSeriesKey()`, never on the first
+  `.`. The toolbar's Indicators control is `IndicatorMenu`
+  (`components/indicator-menu.tsx`, a Radix popover, so its inputs take
+  typing and Escape closes it): each selected study is a `StudyEditor`
+  form (number inputs with the catalog's min/max/step, a select for a
+  `choices` parameter such as the pivot basis, an inline error for a value
+  out of bounds, Enter or Apply pushes the new key, Reset puts the
+  defaults back, Remove), then "Add a study" with a filter. Badges
+  (`lib/indicator-badge.ts::indicatorBadge`): `Grade A-D`, "Too few",
+  "Not graded" (job not run) or "No grade" (no canonical signal; never made
+  up); the title says the signal and rule, the sample, horizon, figures, the
+  universe stamp and "Association, not cause; not advice", and that a
+  re-parametrised study shows its default's grade. `PriceChart` takes
+  `badges` (by chart key) and shows each once in the legend
+  (`legend-badge`, hidden on phones, where the menu carries them). The
+  legend groups a study's outputs (`groupLegend`: "Ichimoku Cloud 9, 26, 52,
+  26 tenkan … span A …") and on phones lists only the price pane's
+  studies. Parabolic SAR's `.sar` draws as dots (`LineSpec.dots`). Ichimoku
+  draws the cloud lines only on stored bars (no forward cloud). Tests:
+  `tests/unit/indicator-params.test.tsx`.
 - `POST /api/revalidate` (audit RS-9, Phase 6.6) is called by the nightly
   cron's last step with `x-stockviz-revalidate` (HMAC of a fixed label under
   `INTERNAL_API_TOKEN`, `lib/revalidate-key.ts`) and drops every tag in
