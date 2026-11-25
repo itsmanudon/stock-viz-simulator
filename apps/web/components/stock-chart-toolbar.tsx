@@ -6,6 +6,12 @@ import { useRouter } from "next/navigation";
 import { IndicatorMenu } from "@/components/indicator-menu";
 import type { IndicatorCatalogItem } from "@/lib/api/types";
 import {
+  EVENT_LABELS,
+  EVENT_TYPES,
+  resolveEventTypes,
+  toggleEventsParam,
+} from "@/lib/chart-events";
+import {
   CHART_SCALES,
   CHART_TYPES,
   type ChartType,
@@ -31,6 +37,7 @@ export function StockChartToolbar({
   view = DEFAULT_CHART_VIEW,
   hasRaw = false,
   catalog = null,
+  signedIn = false,
 }: {
   ticker: string;
   timeframe: StockTimeframe;
@@ -42,6 +49,8 @@ export function StockChartToolbar({
   hasRaw?: boolean;
   /** A3.4: the studies' parameters and evidence badges (null when the call failed). */
   catalog?: IndicatorCatalogItem[] | null;
+  /** A3.5: fills are offered (and on by default) only when signed in. */
+  signedIn?: boolean;
 }) {
   const router = useRouter();
 
@@ -177,6 +186,75 @@ export function StockChartToolbar({
           router.push(buildStockChartHref(ticker, timeframe, next, interval, view))
         }
       />
+
+      {/* A3.5: one toggle per event type; the choice is URL state (?events=). */}
+      <EventToggles
+        hrefFor={(events) =>
+          buildStockChartHref(ticker, timeframe, indicators, interval, { ...view, events })
+        }
+        param={view.events}
+        signedIn={signedIn}
+      />
     </div>
   );
 }
+
+export function EventToggles({
+  hrefFor,
+  param,
+  signedIn,
+}: {
+  hrefFor: (events: string | undefined) => string;
+  param: string | undefined;
+  signedIn: boolean;
+}) {
+  const shown = new Set(resolveEventTypes(param, signedIn));
+  const types = EVENT_TYPES.filter((t) => t !== "fill" || signedIn);
+  return (
+    <nav
+      aria-label="Chart events"
+      className="flex w-full flex-wrap items-center gap-1"
+      data-testid="event-toggles"
+    >
+      <span className="mr-1 text-2xs text-text-tertiary">Events</span>
+      {types.map((type) => {
+        const on = shown.has(type);
+        return (
+          <Link
+            key={type}
+            href={hrefFor(toggleEventsParam(param, type, signedIn))}
+            scroll={false}
+            role="switch"
+            aria-checked={on}
+            aria-label={`${on ? "Hide" : "Show"} ${EVENT_LABELS[type].toLowerCase()} on the chart`}
+            data-event-type={type}
+            className={`inline-flex h-6 items-center gap-1.5 rounded-full border px-2 text-2xs font-medium transition-colors ${
+              on
+                ? "border-border bg-surface-hover text-foreground"
+                : "border-border-muted text-text-tertiary hover:text-foreground"
+            }`}
+          >
+            <span
+              aria-hidden
+              className="size-1.5 rounded-full"
+              style={{
+                background: on ? `var(${EVENT_TOKEN[type]})` : "transparent",
+                outline: "1px solid currentColor",
+              }}
+            />
+            {EVENT_LABELS[type]}
+          </Link>
+        );
+      })}
+    </nav>
+  );
+}
+
+/** The CSS token each marker type is drawn in (the chart reads the same tokens). */
+const EVENT_TOKEN = {
+  news: "--list-violet",
+  earnings: "--list-amber",
+  dividend: "--list-lime",
+  split: "--list-blue",
+  fill: "--foreground",
+} as const;

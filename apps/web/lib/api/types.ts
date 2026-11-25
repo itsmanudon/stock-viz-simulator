@@ -37,6 +37,11 @@ export type SymbolDetail = Symbol & {
   latest: Quote | null;
   /** A3.1: raw exchange prices are stored, so the chart can offer `adjustment=raw`. */
   has_raw?: boolean;
+  /** A3.5: the market and venue index (RS pane label), and NSE/BSE (delivery pane). */
+  market?: "US" | "IN" | null;
+  benchmark?: string | null;
+  benchmark_name?: string | null;
+  is_indian?: boolean;
 };
 
 export type EarningsEvent = {

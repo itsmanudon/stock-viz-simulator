@@ -30,6 +30,9 @@ export const lwcCalls = {
   visibleRanges: [] as { from: number; to: number }[],
   /** A3.2: series primitives attached (the drawings host). */
   primitives: [] as unknown[],
+  /** A3.5: click handlers, and every series-markers call's markers. */
+  clickHandlers: [] as Handler[],
+  markers: [] as unknown[][],
 };
 
 export function resetLwc(): void {
@@ -41,6 +44,13 @@ export function resetLwc(): void {
   lwcCalls.handlers = [];
   lwcCalls.visibleRanges = [];
   lwcCalls.primitives = [];
+  lwcCalls.clickHandlers = [];
+  lwcCalls.markers = [];
+}
+
+/** A3.5: fire the newest chart's click handlers, as a click on a bar would. */
+export function clickAt(time: number | undefined): void {
+  for (const handler of lwcCalls.clickHandlers) handler({ time });
 }
 
 /** Fire the newest chart's crosshair handler, as a hover would. */
@@ -100,6 +110,7 @@ function createChart() {
       width: () => 0,
       // A3.2: ten pixels a bar.
       logicalToCoordinate: (logical: number) => logical * 10,
+      timeToCoordinate: () => 50,
       coordinateToLogical: (x: number) => x / 10,
       getVisibleLogicalRange: () => range,
       setVisibleLogicalRange: (r: { from: number; to: number }) => {
@@ -110,6 +121,10 @@ function createChart() {
     subscribeCrosshairMove: (h: Handler) => lwcCalls.handlers.push(h),
     unsubscribeCrosshairMove: (h: Handler) => {
       lwcCalls.handlers = lwcCalls.handlers.filter((x) => x !== h);
+    },
+    subscribeClick: (h: Handler) => lwcCalls.clickHandlers.push(h),
+    unsubscribeClick: (h: Handler) => {
+      lwcCalls.clickHandlers = lwcCalls.clickHandlers.filter((x) => x !== h);
     },
     setCrosshairPosition: (price: number, time: number) => lwcCalls.crosshair.push({ price, time }),
     clearCrosshairPosition: vi.fn(),
@@ -128,6 +143,8 @@ export const lwc = {
   LineSeries: "LineSeries",
   CrosshairMode: { Normal: 0, Magnet: 1 },
   PriceScaleMode: { Normal: 0, Logarithmic: 1, Percentage: 2, IndexedTo100: 3 },
-  createSeriesMarkers: vi.fn(),
+  createSeriesMarkers: vi.fn((_series: unknown, markers: unknown[]) => {
+    lwcCalls.markers.push(markers);
+  }),
   createChart,
 };

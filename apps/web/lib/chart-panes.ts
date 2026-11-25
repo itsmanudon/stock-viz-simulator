@@ -159,13 +159,18 @@ export function allPanes({
     });
   }
   for (const pane of panes ?? []) {
-    const series: SeriesSpec[] = Object.entries(pane.lines).map(([key, points], index) => ({
-      kind: "line",
-      key,
-      label: splitSeriesKey(key)[1] ? `${pane.label} ${splitSeriesKey(key)[1]}` : pane.label,
-      points,
-      colorIndex: index,
-    }));
+    // A3.5: a line with no points (the RS line without index closes) draws nothing.
+    const series: SeriesSpec[] = Object.entries(pane.lines)
+      .filter(([, points]) => points.length > 0)
+      .map(([key, points], index) => ({
+        kind: "line",
+        key,
+        label:
+          pane.outputLabels?.[key] ??
+          (splitSeriesKey(key)[1] ? `${pane.label} ${splitSeriesKey(key)[1]}` : pane.label),
+        points,
+        colorIndex: index,
+      }));
     if (!series.length) continue;
     out.push({
       kind: pane.name,

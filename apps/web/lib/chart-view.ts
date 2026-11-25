@@ -4,6 +4,8 @@
  * (`?type=`, `?scale=`, `?adjustment=`), left out of links at their defaults.
  */
 
+import { parseEventsParam } from "@/lib/chart-events";
+
 export const CHART_TYPES = [
   { value: "candles", label: "Candles" },
   { value: "hollow", label: "Hollow candles" },
@@ -30,7 +32,16 @@ export type PriceAdjustment = (typeof PRICE_ADJUSTMENTS)[number]["value"];
 
 export const RAW_UNAVAILABLE_NOTE = "Only adjusted prices are stored for this symbol";
 
-export type ChartView = { type: ChartType; scale: ChartScale; adjustment: PriceAdjustment };
+export type ChartView = {
+  type: ChartType;
+  scale: ChartScale;
+  adjustment: PriceAdjustment;
+  /**
+   * A3.5: the event markers shown, normalised (`lib/chart-events.ts`), or
+   * undefined for the default set; "" shows none.
+   */
+  events?: string;
+};
 
 export const DEFAULT_CHART_VIEW: ChartView = {
   type: "candles",
@@ -50,12 +61,16 @@ export function parseChartView(query: {
   type?: string;
   scale?: string;
   adjustment?: string;
+  events?: string;
 }): ChartView {
-  return {
+  const view: ChartView = {
     type: pick(CHART_TYPES, query.type, DEFAULT_CHART_VIEW.type),
     scale: pick(CHART_SCALES, query.scale, DEFAULT_CHART_VIEW.scale),
     adjustment: pick(PRICE_ADJUSTMENTS, query.adjustment, DEFAULT_CHART_VIEW.adjustment),
   };
+  const events = parseEventsParam(query.events);
+  if (events !== undefined) view.events = events;
+  return view;
 }
 
 /** Adds the non-default parts of `view` to `params`, in a fixed order. */
@@ -63,6 +78,7 @@ export function setChartViewParams(params: URLSearchParams, view: ChartView): vo
   if (view.type !== DEFAULT_CHART_VIEW.type) params.set("type", view.type);
   if (view.scale !== DEFAULT_CHART_VIEW.scale) params.set("scale", view.scale);
   if (view.adjustment !== DEFAULT_CHART_VIEW.adjustment) params.set("adjustment", view.adjustment);
+  if (view.events !== undefined) params.set("events", view.events);
 }
 
 export function chartTypeLabel(type: ChartType): string {

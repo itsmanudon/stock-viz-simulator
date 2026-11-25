@@ -677,6 +677,74 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/symbols/{ticker}/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Events For Symbol */
+        get: operations["events_for_symbol_v1_symbols__ticker__events_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/symbols/{ticker}/relative-strength": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Relative Strength */
+        get: operations["get_relative_strength_v1_symbols__ticker__relative_strength_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/symbols/{ticker}/delivery": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Delivery */
+        get: operations["get_delivery_v1_symbols__ticker__delivery_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/regime": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Regime */
+        get: operations["get_regime_v1_regime_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/portfolio": {
         parameters: {
             query?: never;
@@ -2714,6 +2782,38 @@ export interface components {
             /** Value */
             value: string;
         };
+        /** DeliveryOut */
+        DeliveryOut: {
+            /** Ticker */
+            ticker: string;
+            /**
+             * Interval
+             * @enum {string}
+             */
+            interval: "1d" | "1wk" | "1mo";
+            /** Applicable */
+            applicable: boolean;
+            /** Has Data */
+            has_data: boolean;
+            /** Avg Sessions */
+            avg_sessions: number;
+            /** Points */
+            points: components["schemas"]["DeliveryPointOut"][];
+            /** Note */
+            note?: string | null;
+        };
+        /** DeliveryPointOut */
+        DeliveryPointOut: {
+            /**
+             * Ts
+             * Format: date
+             */
+            ts: string;
+            /** Delivery Pct */
+            delivery_pct: number;
+            /** Avg 20 */
+            avg_20?: number | null;
+        };
         /** DividendCreditOut */
         DividendCreditOut: {
             /** Ticker */
@@ -2734,6 +2834,23 @@ export interface components {
              * Format: date-time
              */
             credited_at: string;
+        };
+        /** DividendEventOut */
+        DividendEventOut: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "dividend";
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Amount */
+            amount: string;
+            /** Currency */
+            currency: string;
         };
         /** DividendSummaryOut */
         DividendSummaryOut: {
@@ -2916,6 +3033,29 @@ export interface components {
              * Format: date-time
              */
             fetched_at: string;
+        };
+        /** EarningsMarkerOut */
+        EarningsMarkerOut: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "earnings";
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Report Time */
+            report_time?: string | null;
+            /** Fiscal Period */
+            fiscal_period?: string | null;
+            /** Eps Estimate */
+            eps_estimate?: string | null;
+            /** Eps Actual */
+            eps_actual?: string | null;
+            /** Surprise Pct */
+            surprise_pct?: string | null;
         };
         /** EquityPointOut */
         EquityPointOut: {
@@ -3198,6 +3338,32 @@ export interface components {
             dimension: string;
             /** Buckets */
             buckets: components["schemas"]["ExposureBucketOut"][];
+        };
+        /** FillEventOut */
+        FillEventOut: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "fill";
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /**
+             * Ts
+             * Format: date-time
+             */
+            ts: string;
+            /** Side */
+            side: string;
+            /** Quantity */
+            quantity: string;
+            /** Price */
+            price: string;
+            /** R Multiple */
+            r_multiple?: number | null;
         };
         /** FundamentalRowOut */
         FundamentalRowOut: {
@@ -3761,6 +3927,40 @@ export interface components {
             /** Histogram */
             histogram: number;
         };
+        /** MarketRegimeOut */
+        MarketRegimeOut: {
+            /**
+             * Market
+             * @enum {string}
+             */
+            market: "US" | "IN";
+            /** Name */
+            name: string;
+            /** Index */
+            index: string;
+            /** Index Name */
+            index_name: string;
+            /** As Of */
+            as_of?: string | null;
+            /** State */
+            state?: ("Calm trend" | "Choppy" | "High-vol down") | null;
+            /** Reason */
+            reason?: string | null;
+            /** Inputs */
+            inputs: components["schemas"]["RegimeInputOut"][];
+            /** Rules */
+            rules: components["schemas"]["RegimeRuleOut"][];
+            /** Breadth Count */
+            breadth_count: number;
+            /** Breadth Universe */
+            breadth_universe: number;
+            /** Breadth As Of */
+            breadth_as_of?: string | null;
+            /** Vol Window Sessions */
+            vol_window_sessions: number;
+            /** Hv 20 */
+            hv_20?: number | null;
+        };
         /** MarketStatusOut */
         MarketStatusOut: {
             /** Country */
@@ -3873,6 +4073,43 @@ export interface components {
             sentiment_model?: string | null;
             /** Topic */
             topic?: string | null;
+        };
+        /** NewsEventOut */
+        NewsEventOut: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "news";
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Count */
+            count: number;
+            /** Sources */
+            sources: string[];
+            /** Headlines */
+            headlines: components["schemas"]["NewsHeadlineOut"][];
+        };
+        /** NewsHeadlineOut */
+        NewsHeadlineOut: {
+            /** Id */
+            id: string;
+            /** Title */
+            title: string;
+            /** Source */
+            source?: string | null;
+            /** Url */
+            url?: string | null;
+            /**
+             * Available At
+             * Format: date-time
+             */
+            available_at: string;
+            /** Published At */
+            published_at?: string | null;
         };
         /**
          * NotificationCategory
@@ -4925,6 +5162,99 @@ export interface components {
             ts: string;
             /** Close */
             close: string;
+        };
+        /** RegimeInputOut */
+        RegimeInputOut: {
+            /** Name */
+            name: string;
+            /** Value */
+            value?: number | null;
+            /** Description */
+            description: string;
+        };
+        /** RegimeOut */
+        RegimeOut: {
+            /** Markets */
+            markets: components["schemas"]["MarketRegimeOut"][];
+            /** Method */
+            method: string;
+            /** Disclaimer */
+            disclaimer: string;
+        };
+        /** RegimeRuleOut */
+        RegimeRuleOut: {
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "Calm trend" | "Choppy" | "High-vol down";
+            /** Rule */
+            rule: string;
+            /** Description */
+            description: string;
+            /** Met */
+            met?: boolean | null;
+        };
+        /** RelativeStrengthOut */
+        RelativeStrengthOut: {
+            /** Ticker */
+            ticker: string;
+            /** Market */
+            market?: ("US" | "IN") | null;
+            /** Benchmark */
+            benchmark?: string | null;
+            /** Benchmark Name */
+            benchmark_name?: string | null;
+            /** As Of */
+            as_of?: string | null;
+            /** Periods */
+            periods: components["schemas"]["RelativeStrengthPeriodOut"][];
+            /** Method */
+            method: string;
+            universe: components["schemas"]["RelativeStrengthUniverseOut"];
+            /** High 52W */
+            high_52w?: number | null;
+            /** Last Close */
+            last_close?: number | null;
+            /** Distance From High 52W Pct */
+            distance_from_high_52w_pct?: number | null;
+            /** Reason */
+            reason?: string | null;
+        };
+        /** RelativeStrengthPeriodOut */
+        RelativeStrengthPeriodOut: {
+            /**
+             * Period
+             * @enum {string}
+             */
+            period: "1m" | "3m" | "6m" | "12m";
+            /** Sessions */
+            sessions: number;
+            /** Return Pct */
+            return_pct?: number | null;
+            /** Percentile */
+            percentile?: number | null;
+        };
+        /** RelativeStrengthUniverseOut */
+        RelativeStrengthUniverseOut: {
+            /** Market */
+            market?: ("US" | "IN") | null;
+            /** Size */
+            size: number;
+            /** As Of */
+            as_of?: string | null;
+            /**
+             * Point In Time
+             * @default false
+             */
+            point_in_time: boolean;
+            /**
+             * Survivorship Biased
+             * @default true
+             */
+            survivorship_biased: boolean;
+            /** Note */
+            note: string;
         };
         /** ReplayAvailabilityOut */
         ReplayAvailabilityOut: {
@@ -5980,6 +6310,23 @@ export interface components {
             /** Long Window */
             long_window: number;
         };
+        /** SplitEventOut */
+        SplitEventOut: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "split";
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Ratio From */
+            ratio_from: string;
+            /** Ratio To */
+            ratio_to: string;
+        };
         /** StatusOut */
         StatusOut: {
             /** Jobs */
@@ -6097,6 +6444,40 @@ export interface components {
              * @default false
              */
             has_raw: boolean;
+            /** Market */
+            market?: ("US" | "IN") | null;
+            /** Benchmark */
+            benchmark?: string | null;
+            /** Benchmark Name */
+            benchmark_name?: string | null;
+            /**
+             * Is Indian
+             * @default false
+             */
+            is_indian: boolean;
+        };
+        /** SymbolEventsOut */
+        SymbolEventsOut: {
+            /** Ticker */
+            ticker: string;
+            /**
+             * From
+             * Format: date
+             */
+            from: string;
+            /**
+             * To
+             * Format: date
+             */
+            to: string;
+            /** Types */
+            types: ("news" | "earnings" | "dividend" | "split" | "fill")[];
+            /** Fills Included */
+            fills_included: boolean;
+            /** News Rule */
+            news_rule: string;
+            /** Events */
+            events: (components["schemas"]["NewsEventOut"] | components["schemas"]["EarningsMarkerOut"] | components["schemas"]["DividendEventOut"] | components["schemas"]["SplitEventOut"] | components["schemas"]["FillEventOut"])[];
         };
         /** SymbolOut */
         SymbolOut: {
@@ -8057,6 +8438,130 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    events_for_symbol_v1_symbols__ticker__events_get: {
+        parameters: {
+            query?: {
+                from?: string | null;
+                to?: string | null;
+                /** @description Comma-separated: news, earnings, dividend, split, fill. Default: every public type, plus fill with a Bearer token. fill needs a token. */
+                types?: string | null;
+            };
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                ticker: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SymbolEventsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_relative_strength_v1_symbols__ticker__relative_strength_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ticker: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RelativeStrengthOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_delivery_v1_symbols__ticker__delivery_get: {
+        parameters: {
+            query?: {
+                interval?: "1d" | "1wk" | "1mo";
+                from?: string | null;
+                to?: string | null;
+            };
+            header?: never;
+            path: {
+                ticker: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeliveryOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_regime_v1_regime_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RegimeOut"];
                 };
             };
         };

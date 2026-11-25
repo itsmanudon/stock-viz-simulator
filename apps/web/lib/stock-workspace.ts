@@ -149,7 +149,13 @@ export function indicatorLabel(key: string): string {
   return parsed.values.length ? `${study.label} ${parsed.values.join(", ")}` : study.label;
 }
 
-export type ChartPane = { name: string; label: string; lines: Record<string, IndicatorPoint[]> };
+export type ChartPane = {
+  name: string;
+  label: string;
+  lines: Record<string, IndicatorPoint[]>;
+  /** A3.5: a legend label per line key, for panes that are not registry studies. */
+  outputLabels?: Record<string, string>;
+};
 
 /**
  * Split an indicator bundle into price-chart overlays and separate panes by
