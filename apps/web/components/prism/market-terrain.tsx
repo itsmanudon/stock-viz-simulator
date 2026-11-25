@@ -272,10 +272,10 @@ export function MarketTerrain({
         uProgress: { value: progressRef.current },
         uScale: { value: 3.4 },
         uTime: { value: 0 },
-        uUp: { value: srgb(cssColor("--positive", "#3ee59a")) },
+        uUp: { value: srgb(cssColor("--positive", "#34e6b0")) },
         uDown: { value: srgb(cssColor("--negative", "#ff6b7f")) },
-        uFlat: { value: srgb(cssColor("--brand-gradient-from", "#8d9bb0")) },
-        uFront: { value: srgb(cssColor("--brand-gradient-via", "#f0dfba")) },
+        uFlat: { value: srgb(cssColor("--text-tertiary", "#8c9186")) },
+        uFront: { value: srgb(cssColor("--brand-gradient-via", "#d4ff3a")) },
         uCells: { value: new THREE.Vector2((cols - 1) / width, (rows - 1) / depth) },
       };
       const material = new THREE.ShaderMaterial({
