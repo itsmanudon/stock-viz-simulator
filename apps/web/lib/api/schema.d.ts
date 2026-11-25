@@ -1021,7 +1021,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List Watchlist */
+        /**
+         * List Watchlist
+         * @deprecated
+         */
         get: operations["list_watchlist_v1_watchlist_get"];
         put?: never;
         post?: never;
@@ -1040,13 +1043,144 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Add Watchlist Item */
+        /**
+         * Add Watchlist Item
+         * @deprecated
+         */
         post: operations["add_watchlist_item_v1_watchlist__ticker__post"];
-        /** Remove Watchlist Item */
+        /**
+         * Remove Watchlist Item
+         * @deprecated
+         */
         delete: operations["remove_watchlist_item_v1_watchlist__ticker__delete"];
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/v1/watchlists": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Watchlists */
+        get: operations["list_watchlists_v1_watchlists_get"];
+        put?: never;
+        /** Create Watchlist */
+        post: operations["create_watchlist_v1_watchlists_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/watchlists/reorder": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reorder Watchlists */
+        post: operations["reorder_watchlists_v1_watchlists_reorder_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/watchlists/{watchlist_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Watchlist */
+        delete: operations["delete_watchlist_v1_watchlists__watchlist_id__delete"];
+        options?: never;
+        head?: never;
+        /** Update Watchlist */
+        patch: operations["update_watchlist_v1_watchlists__watchlist_id__patch"];
+        trace?: never;
+    };
+    "/v1/watchlists/{watchlist_id}/items": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Items */
+        get: operations["list_items_v1_watchlists__watchlist_id__items_get"];
+        put?: never;
+        /** Add Items */
+        post: operations["add_items_v1_watchlists__watchlist_id__items_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/watchlists/{watchlist_id}/items/{ticker}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove Item */
+        delete: operations["remove_item_v1_watchlists__watchlist_id__items__ticker__delete"];
+        options?: never;
+        head?: never;
+        /** Update Item */
+        patch: operations["update_item_v1_watchlists__watchlist_id__items__ticker__patch"];
+        trace?: never;
+    };
+    "/v1/column-sets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Column Sets */
+        get: operations["list_column_sets_v1_column_sets_get"];
+        put?: never;
+        /** Create Column Set */
+        post: operations["create_column_set_v1_column_sets_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/column-sets/{set_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Column Set */
+        delete: operations["delete_column_set_v1_column_sets__set_id__delete"];
+        options?: never;
+        head?: never;
+        /** Update Column Set */
+        patch: operations["update_column_set_v1_column_sets__set_id__patch"];
         trace?: never;
     };
     "/v1/orders": {
@@ -2424,6 +2558,39 @@ export interface components {
             /** Conditions */
             conditions: components["schemas"]["ChecklistConditionDefOut"][];
             evidence?: components["schemas"]["ChecklistEvidenceOut"] | null;
+        };
+        /** ColumnSetIn */
+        ColumnSetIn: {
+            /** Name */
+            name: string;
+            /** Columns */
+            columns: ("close" | "change_pct" | "rsi_14" | "pct_from_52w_high" | "sma_50_gap_pct" | "sma_200_gap_pct" | "atr_pct_14" | "hv_20" | "volume_ratio" | "avg_volume_20" | "pe" | "pb" | "market_cap_usd" | "dividend_yield" | "roe" | "sentiment_7d" | "delivery_pct" | "checklist_met" | "sector")[];
+        };
+        /** ColumnSetOut */
+        ColumnSetOut: {
+            /** Id */
+            id: number;
+            /** Name */
+            name: string;
+            /** Columns */
+            columns: ("close" | "change_pct" | "rsi_14" | "pct_from_52w_high" | "sma_50_gap_pct" | "sma_200_gap_pct" | "atr_pct_14" | "hv_20" | "volume_ratio" | "avg_volume_20" | "pe" | "pb" | "market_cap_usd" | "dividend_yield" | "roe" | "sentiment_7d" | "delivery_pct" | "checklist_met" | "sector")[];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** ColumnSetPatch */
+        ColumnSetPatch: {
+            /** Name */
+            name?: string | null;
+            /** Columns */
+            columns?: ("close" | "change_pct" | "rsi_14" | "pct_from_52w_high" | "sma_50_gap_pct" | "sma_200_gap_pct" | "atr_pct_14" | "hv_20" | "volume_ratio" | "avg_volume_20" | "pe" | "pb" | "market_cap_usd" | "dividend_yield" | "roe" | "sentiment_7d" | "delivery_pct" | "checklist_met" | "sector")[] | null;
         };
         /**
          * CurrencyCashOut
@@ -5935,6 +6102,33 @@ export interface components {
             /** Experiment Id */
             experiment_id?: number | null;
         };
+        /** WatchlistBulkIn */
+        WatchlistBulkIn: {
+            /** Tickers */
+            tickers: string[];
+        };
+        /** WatchlistBulkOut */
+        WatchlistBulkOut: {
+            /** Added */
+            added: string[];
+            /** Already Listed */
+            already_listed: string[];
+            /** Unknown */
+            unknown: string[];
+            /** Item Count */
+            item_count: number;
+        };
+        /** WatchlistIn */
+        WatchlistIn: {
+            /** Name */
+            name: string;
+            /**
+             * Colour
+             * @default aqua
+             * @enum {string}
+             */
+            colour: "aqua" | "blue" | "violet" | "pink" | "amber" | "lime" | "slate";
+        };
         /**
          * WatchlistItemOut
          * @description One ticker on the authenticated user's default watchlist.
@@ -5965,6 +6159,115 @@ export interface components {
              * @default []
              */
             closes: string[];
+        };
+        /**
+         * WatchlistItemPatch
+         * @description ``note: null`` or blank clears it; ``tags`` replaces the tags.
+         */
+        WatchlistItemPatch: {
+            /** Note */
+            note?: string | null;
+            /** Tags */
+            tags?: string[] | null;
+        };
+        /** WatchlistItemsOut */
+        WatchlistItemsOut: {
+            watchlist: components["schemas"]["WatchlistOut"];
+            /** Columns */
+            columns: ("close" | "change_pct" | "rsi_14" | "pct_from_52w_high" | "sma_50_gap_pct" | "sma_200_gap_pct" | "atr_pct_14" | "hv_20" | "volume_ratio" | "avg_volume_20" | "pe" | "pb" | "market_cap_usd" | "dividend_yield" | "roe" | "sentiment_7d" | "delivery_pct" | "checklist_met" | "sector")[];
+            /** Column Set Id */
+            column_set_id: number | null;
+            /** Items */
+            items: components["schemas"]["WatchlistRowOut"][];
+        };
+        /** WatchlistOrderIn */
+        WatchlistOrderIn: {
+            /** Ids */
+            ids: number[];
+        };
+        /** WatchlistOut */
+        WatchlistOut: {
+            /** Id */
+            id: number;
+            /** Name */
+            name: string;
+            /**
+             * Colour
+             * @enum {string}
+             */
+            colour: "aqua" | "blue" | "violet" | "pink" | "amber" | "lime" | "slate";
+            /** Position */
+            position: number;
+            /** Is Default */
+            is_default: boolean;
+            /** Column Set Id */
+            column_set_id: number | null;
+            /** Item Count */
+            item_count: number;
+            /** Contains */
+            contains?: boolean | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
+        /**
+         * WatchlistPatch
+         * @description Only the fields sent change. ``column_set_id: null`` clears it;
+         *     ``is_default`` takes ``true`` only (make another list the default).
+         */
+        WatchlistPatch: {
+            /** Name */
+            name?: string | null;
+            /** Colour */
+            colour?: ("aqua" | "blue" | "violet" | "pink" | "amber" | "lime" | "slate") | null;
+            /** Is Default */
+            is_default?: boolean | null;
+            /** Column Set Id */
+            column_set_id?: number | null;
+        };
+        /** WatchlistRowOut */
+        WatchlistRowOut: {
+            /** Ticker */
+            ticker: string;
+            /** Name */
+            name: string;
+            /** Sector */
+            sector: string | null;
+            /**
+             * Added At
+             * Format: date-time
+             */
+            added_at: string;
+            /** Last Close */
+            last_close: string | null;
+            /** Last Close At */
+            last_close_at?: string | null;
+            /**
+             * Currency
+             * @default USD
+             */
+            currency: string;
+            /**
+             * Closes
+             * @default []
+             */
+            closes: string[];
+            /** Note */
+            note?: string | null;
+            /**
+             * Tags
+             * @default []
+             */
+            tags: string[];
+            /**
+             * Values
+             * @default {}
+             */
+            values: {
+                [key: string]: number | string | null;
+            };
         };
         /**
          * XirrOut
@@ -8032,6 +8335,454 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_watchlists_v1_watchlists_get: {
+        parameters: {
+            query?: {
+                contains?: string | null;
+            };
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WatchlistOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_watchlist_v1_watchlists_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WatchlistIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WatchlistOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reorder_watchlists_v1_watchlists_reorder_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WatchlistOrderIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WatchlistOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_watchlist_v1_watchlists__watchlist_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                watchlist_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_watchlist_v1_watchlists__watchlist_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                watchlist_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WatchlistPatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WatchlistOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_items_v1_watchlists__watchlist_id__items_get: {
+        parameters: {
+            query?: {
+                column_set_id?: number | null;
+                columns?: string | null;
+            };
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                watchlist_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WatchlistItemsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    add_items_v1_watchlists__watchlist_id__items_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                watchlist_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WatchlistBulkIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WatchlistBulkOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    remove_item_v1_watchlists__watchlist_id__items__ticker__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                watchlist_id: number;
+                ticker: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_item_v1_watchlists__watchlist_id__items__ticker__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                watchlist_id: number;
+                ticker: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WatchlistItemPatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WatchlistRowOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_column_sets_v1_column_sets_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ColumnSetOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_column_set_v1_column_sets_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ColumnSetIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ColumnSetOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_column_set_v1_column_sets__set_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                set_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_column_set_v1_column_sets__set_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                set_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ColumnSetPatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ColumnSetOut"];
+                };
             };
             /** @description Validation Error */
             422: {
