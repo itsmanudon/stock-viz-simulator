@@ -69,6 +69,10 @@ class Alert(SQLModel, table=True):
     target_price: Decimal | None = Field(
         default=None, sa_column=Column(Numeric(18, 6), nullable=True)
     )
+    # A2.2: the setup version this rule came from (A2.3 judges `rule` alerts).
+    setup_version_id: int | None = Field(
+        default=None, foreign_key="setup_versions.id", index=True, nullable=True
+    )
     # Per-kind settings, validated by ``services/alerts/rules.py``.
     params: dict | None = Field(default=None, sa_column=Column(_JSON, nullable=True))
     repeat: AlertRepeat = Field(

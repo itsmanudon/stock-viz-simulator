@@ -107,3 +107,62 @@ It prints the canonical text, the hash and the warm-up the rule needs, then
 met / not_met / unknown per ticker at the latest completed session (or
 `--date`), with the reasons and, with `--explain`, every part's value. A
 syntax or type error prints its line and column and exits 2.
+
+## In the screener
+
+`/screener` has a Rule panel above the results. The filters on the left
+narrow the list first; the rule then judges each remaining symbol and the
+page is sorted and paged after that. Choose **Met only** (the default) or
+**Show all with result** to see every symbol with met, not met or unknown and
+why. The rule is in the address (`?rule=...`), so a screen with a rule can be
+shared as a link or saved as a screen.
+
+Each market is judged on one session: the newest stored close on or before
+its latest completed session. A symbol whose own data stops before that day
+is unknown ("no bar for 2026-11-24; latest 2026-11-20"), not judged on old
+prices. The API takes `as_of=YYYY-MM-DD` to judge an earlier session; the
+symbol list is today's, so a past date shows only today's survivors.
+
+API: `GET /v1/screener?rule=<text>&rule_mode=met_only|all[&as_of=]`, or
+`setup_version_id=<id>` for a saved version. `POST /v1/rules/check` with
+`{"rule": "..."}` returns the canonical text, hash and warm-up, or the error
+with its line and column.
+
+## Setups
+
+A **setup** is a saved rule. Signed in, "Save as setup" stores the rule as
+version 1; a changed rule is a new version, and an old version never changes,
+so anything that names a version keeps its exact rule. Saving a rule a setup
+already has (same canonical text) returns that version. `/setups` lists your
+setups and the presets.
+
+## Presets
+
+Read-only setups shipped with StockViz, using only data it holds. Fork one to
+change it. Each one's page says where its formula comes from and what it
+leaves out.
+
+| Preset | Rule |
+| --- | --- |
+| Minervini trend template | `close > sma(close, 150) and close > sma(close, 200) and sma(close, 150) > sma(close, 200) and sma(close, 200) > sma(close, 200)[21] and sma(close, 50) > sma(close, 150) and sma(close, 50) > sma(close, 200) and close > sma(close, 50) and close >= 1.3 * lowest(low, 252) and close >= 0.75 * highest(high, 252) and rs(252) > 0` |
+| 52-week-high breakout on rising volume | `close > highest(high, 252)[1] and volume >= 1.5 * sma(volume, 50) and sma(volume, 10) > sma(volume, 50)` |
+| RSI pullback in an uptrend | `close > sma(close, 200) and sma(close, 50) > sma(close, 200) and rsi(2) < 10` |
+| Piotroski-style quality screen | `fundamental.roa > 0 and fundamental.p_fcf > 0 and fundamental.debt_to_equity < 1 and fundamental.current_ratio > 1` |
+
+- **Minervini** (Trade Like a Stock Market Wizard, 2013): all eight points;
+  the eighth, an IBD relative-strength rating of 70 or more, is approximated
+  by `rs(252) > 0` (the 12-month return beat the market index).
+- **Breakout** (Darvas; O'Neil): a close above the previous 252 sessions'
+  high on volume at least 1.5 times its 50-day average, with the 10-day
+  average volume above the 50-day. The 1.5x is a convention.
+- **RSI pullback** (Connors and Alvarez, Short Term Trading Strategies That
+  Work, 2008): RSI(2) under 10 above the 200-day average, plus the 50-day
+  above the 200-day. Entry condition only.
+- **Piotroski-style** (Piotroski, 2000): F1 (ROA above zero) exactly; F2
+  (operating cash flow above zero) by positive free cash flow, stricter, and
+  unknown when free cash flow is negative; F5 and F6 replaced by levels (debt
+  to equity under 1, current ratio above 1). F3, F4, F7, F8 and F9 need
+  year-over-year history the DSL does not read yet.
+
+Every preset is in the conformance suite, so its scan and its bar-by-bar
+results are proven equal. None is a recommendation.

@@ -64,6 +64,7 @@ from stockviz.models.replay import (
 )
 from stockviz.models.risk_limit import RiskLimit
 from stockviz.models.screen import SavedScreen
+from stockviz.models.setup import Setup, SetupVersion, Thesis
 from stockviz.models.user import User
 from stockviz.models.watchlist import Watchlist, WatchlistItem
 
@@ -126,11 +127,14 @@ __all__ = [
     "ReplaySessionStatus",
     "RiskLimit",
     "SavedScreen",
+    "Setup",
+    "SetupVersion",
     "SimulatedExecution",
     "StrategyKind",
     "StrategyStatus",
     "Symbol",
     "SymbolMetrics",
+    "Thesis",
     "Trade",
     "TradeSide",
     "User",

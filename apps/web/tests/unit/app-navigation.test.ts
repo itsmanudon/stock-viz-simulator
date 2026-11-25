@@ -49,6 +49,7 @@ describe("getActiveNavigation", () => {
     expect(research?.href).toBe("/screener");
     expect(research?.items?.map((item) => item.label)).toEqual([
       "Screener",
+      "Setups",
       "Signals",
       "Compare",
       "Backtest",

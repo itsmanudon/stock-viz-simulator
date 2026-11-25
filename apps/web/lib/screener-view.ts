@@ -33,6 +33,9 @@ export type ScreenerParams = {
   near_52w_low?: string;
   sort?: string;
   dir?: string;
+  /** A2.2: a Rule DSL condition that refines the filters, and what to show. */
+  rule?: string;
+  rule_mode?: string;
 };
 
 const PARAM_KEYS = [
@@ -57,6 +60,8 @@ const PARAM_KEYS = [
   "sort",
   "dir",
   "page",
+  "rule",
+  "rule_mode",
 ] as const satisfies readonly (keyof ScreenerParams)[];
 
 export type ScreenerSortKey =
@@ -214,6 +219,15 @@ export function activeFilterChips(params: ScreenerParams): FilterChip[] {
       removeHref: href(params, ["near_52w_low"]),
     });
   }
+  const rule = params.rule?.trim();
+  if (rule) {
+    const short = rule.replace(/\s+/g, " ");
+    chips.push({
+      id: "rule",
+      label: `Rule: ${short.length > 40 ? `${short.slice(0, 39)}…` : short}`,
+      removeHref: href(params, ["rule", "rule_mode"]),
+    });
+  }
   return chips;
 }
 
@@ -221,6 +235,103 @@ export function activeFilterChips(params: ScreenerParams): FilterChip[] {
 export function clearFiltersHref(params: ScreenerParams): string {
   return href({ sort: params.sort, dir: params.dir });
 }
+
+// --- A2.2: the rule ----------------------------------------------------------
+
+export type RuleMode = "met_only" | "all";
+
+/** The rule in the URL, trimmed; undefined when there is none. */
+export function activeRule(params: ScreenerParams): string | undefined {
+  const rule = params.rule?.trim();
+  return rule ? rule : undefined;
+}
+
+/** "met_only" (only rows the rule met) unless the URL asks for every row. */
+export function parseRuleMode(params: ScreenerParams): RuleMode {
+  return params.rule_mode === "all" ? "all" : "met_only";
+}
+
+/** The same screen without its rule (the filters and sort stay). */
+export function clearRuleHref(params: ScreenerParams): string {
+  return href(params, ["rule", "rule_mode"]);
+}
+
+/** The same screen with the rule's other mode. */
+export function ruleModeHref(params: ScreenerParams, mode: RuleMode): string {
+  return href({ ...params, rule_mode: mode === "all" ? "all" : undefined });
+}
+
+/**
+ * Hidden fields that carry the rest of the screen through a GET form: the
+ * rule form keeps the filters and sort, the filter form keeps the rule. The
+ * page is never carried, so any change starts again from page 1.
+ */
+export function carriedFields(
+  params: ScreenerParams,
+  omit: readonly (keyof ScreenerParams)[],
+): [string, string][] {
+  const out: [string, string][] = [];
+  for (const key of PARAM_KEYS) {
+    const value = params[key];
+    if (value && key !== "page" && !omit.includes(key)) out.push([key, value]);
+  }
+  return out;
+}
+
+export type RuleErrorDetail = {
+  kind: "syntax" | "type";
+  message: string;
+  line?: number | null;
+  column?: number | null;
+};
+
+/**
+ * The rule error inside an API error message ("API 422 /v1/screener?...:
+ * {"detail": {...}}"), or null when the message carries none.
+ */
+export function ruleErrorFromMessage(message: string): RuleErrorDetail | null {
+  const start = message.indexOf("{");
+  if (start < 0) return null;
+  try {
+    const body = JSON.parse(message.slice(start)) as { detail?: unknown };
+    const detail = body.detail as Partial<RuleErrorDetail> | undefined;
+    if (
+      detail &&
+      typeof detail === "object" &&
+      (detail.kind === "syntax" || detail.kind === "type") &&
+      typeof detail.message === "string"
+    ) {
+      return {
+        kind: detail.kind,
+        message: detail.message,
+        line: detail.line ?? null,
+        column: detail.column ?? null,
+      };
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+/** "Syntax error at line 1, column 25: unexpected 'andd'". */
+export function describeRuleError(error: RuleErrorDetail): string {
+  const where = error.line && error.column ? ` at line ${error.line}, column ${error.column}` : "";
+  return `${error.kind === "syntax" ? "Syntax" : "Type"} error${where}: ${error.message}`;
+}
+
+/** How many daily bars the rule needs before it can be judged, in words. */
+export function warmupLabel(bars: number | null | undefined, wholeHistory: boolean): string {
+  if (wholeHistory || bars === null || bars === undefined) return "Reads the whole history";
+  if (bars === 0) return "Needs no warm-up";
+  return `Needs ${bars} daily bar${bars === 1 ? "" : "s"} of warm-up`;
+}
+
+export const RULE_RESULT_LABEL: Record<"met" | "not_met" | "unknown", string> = {
+  met: "Met",
+  not_met: "Not met",
+  unknown: "Unknown",
+};
 
 /** The sort the URL asks for, falling back to ticker A-Z when it is invalid. */
 export function parseScreenerSort(params: ScreenerParams): {
@@ -329,6 +440,11 @@ export function screenerApiQuery(params: ScreenerParams, pageSize: number): URLS
   }
   if (present(params.roe_min)) q.set("roe_min", params.roe_min);
   if (present(params.de_max)) q.set("debt_to_equity_max", params.de_max);
+  const rule = activeRule(params);
+  if (rule) {
+    q.set("rule", rule);
+    q.set("rule_mode", parseRuleMode(params));
+  }
   const { sort, dir } = parseScreenerSort(params);
   q.set("sort", API_SORT[sort]);
   q.set("dir", dir);

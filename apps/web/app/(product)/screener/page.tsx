@@ -9,6 +9,10 @@
  * Phase 6.2: reads /v1/screener, which filters every symbol before paging
  * (audit RS-5), sorts on the server and covers both markets (market,
  * currency, trend and volatility filters). Signed-in users can save screens.
+ *
+ * A2.2: a Rule DSL rule (`?rule=`, `?rule_mode=met_only|all`) refines the
+ * filters. The API judges it on every candidate before paging; rows carry
+ * met / not met / unknown with the reason, and every page the universe stamp.
  */
 
 import { X } from "lucide-react";
@@ -21,6 +25,7 @@ import { ClickableRow } from "@/components/clickable-row";
 import { DataTableFrame, NumericCell, SortableHead } from "@/components/data-table";
 import { RangeBar, rangePositionPct } from "@/components/range-bar";
 import { ResearchPageHeader } from "@/components/research-page-header";
+import { RulePanel, type RulePreset } from "@/components/rule-panel";
 import { SavedScreens } from "@/components/saved-screens";
 import { CardSortBar, type SymbolCardData, SymbolCardList } from "@/components/symbol-card-list";
 import { Button } from "@/components/ui/button";
@@ -34,19 +39,35 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { UniverseNote } from "@/components/universe-note";
 import { VisitorLimitNotice } from "@/components/visitor-limit-notice";
-import { ApiError, type ScreenerRow, getScreenerPage, listSymbols } from "@/lib/api";
+import {
+  ApiError,
+  type ScreenerPage as ScreenerPageData,
+  type ScreenerRow,
+  getScreenerPage,
+  listSymbols,
+} from "@/lib/api";
 import { type SavedScreen, listSavedScreens } from "@/lib/api/screens";
+import { listPresets } from "@/lib/api/setups";
 import { buildCompareHref } from "@/lib/compare-workspace";
 import { formatCurrency } from "@/lib/portfolio-view-model";
 import {
   MARKET_LABEL,
+  RULE_RESULT_LABEL,
   type ScreenerParams,
   type ScreenerSortKey,
   activeFilterChips,
+  activeRule,
+  carriedFields,
   clearFiltersHref,
+  clearRuleHref,
+  describeRuleError,
+  parseRuleMode,
   parseScreenerPage,
   parseScreenerSort,
+  ruleErrorFromMessage,
+  ruleModeHref,
   savedScreenQuery,
   screenerApiQuery,
   screenerPageHref,
@@ -106,19 +127,35 @@ export default async function ScreenerPage({
     new Set(allSymbols.map((s) => s.sector).filter((s): s is string => Boolean(s))),
   ).sort();
 
+  const rule = activeRule(params);
+  const ruleMode = parseRuleMode(params);
   let results: ScreenerRow[] = [];
   let total = 0;
   let errorMessage: string | null = null;
+  let screen: ScreenerPageData | null = null;
   try {
-    const page = await getScreenerPage(screenerApiQuery(params, PAGE_SIZE));
-    results = page.rows;
-    total = page.total;
+    screen = await getScreenerPage(screenerApiQuery(params, PAGE_SIZE));
+    results = screen.rows;
+    total = screen.total;
   } catch (err) {
     if (err instanceof ApiError) {
-      errorMessage = err.message;
+      const ruleError = rule ? ruleErrorFromMessage(err.message) : null;
+      errorMessage = ruleError ? `Rule: ${describeRuleError(ruleError)}` : err.message;
     } else {
       throw err;
     }
+  }
+  const ruleRun = screen?.rule ?? null;
+  let presets: RulePreset[] = [];
+  try {
+    presets = (await listPresets()).map((p) => ({
+      id: p.id,
+      name: p.name,
+      description: p.description ?? null,
+      rule: p.latest_version.rule_text,
+    }));
+  } catch {
+    presets = [];
   }
   const pageNumber = parseScreenerPage(params);
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
@@ -172,6 +209,9 @@ export default async function ScreenerPage({
           {/* Applying filters keeps the chosen sort. */}
           {params.sort ? <input type="hidden" name="sort" value={sort} /> : null}
           {params.sort ? <input type="hidden" name="dir" value={dir} /> : null}
+          {/* Applying filters keeps the rule (A2.2). */}
+          {rule ? <input type="hidden" name="rule" value={rule} /> : null}
+          {rule && ruleMode === "all" ? <input type="hidden" name="rule_mode" value="all" /> : null}
           <div className="flex items-start justify-between gap-3 border-b border-border-muted pb-3">
             <div>
               <p className="text-2xs font-semibold tracking-[0.12em] text-text-tertiary uppercase">
@@ -412,6 +452,14 @@ export default async function ScreenerPage({
         </form>
 
         <section>
+          <RulePanel
+            rule={rule ?? ""}
+            mode={ruleMode}
+            carried={carriedFields(params, ["rule", "rule_mode"])}
+            presets={presets}
+            signedIn={signedIn}
+            clearHref={rule ? clearRuleHref(params) : null}
+          />
           <div className="mb-3 grid gap-3">
             <div className="flex flex-wrap items-baseline justify-between gap-2 text-sm">
               <span className="text-text-secondary">
@@ -420,6 +468,25 @@ export default async function ScreenerPage({
                   : `${total} match${total === 1 ? "" : "es"}${
                       pageCount > 1 ? ` · page ${pageNumber} of ${pageCount}` : ""
                     }`}
+                {ruleRun ? (
+                  <span className="block text-xs text-text-tertiary" data-testid="rule-counts">
+                    Rule on {ruleRun.evaluated} filtered symbol
+                    {ruleRun.evaluated === 1 ? "" : "s"}: {ruleRun.counts.met} met,{" "}
+                    {ruleRun.counts.not_met} not met, {ruleRun.counts.unknown} unknown
+                    {Object.keys(ruleRun.sessions).length
+                      ? ` · judged on ${Object.entries(ruleRun.sessions)
+                          .map(([venue, day]) => `${formatCloseDate(day)} (${venue})`)
+                          .join(", ")}`
+                      : ""}
+                    .{" "}
+                    <Link
+                      href={ruleModeHref(params, ruleMode === "all" ? "met_only" : "all")}
+                      className="underline"
+                    >
+                      {ruleMode === "all" ? "Show met only" : "Show all with result"}
+                    </Link>
+                  </span>
+                ) : null}
               </span>
               <span className="flex items-center gap-3 text-xs">
                 {activeFilterCount ? null : <span className="text-text-tertiary">All symbols</span>}
@@ -463,8 +530,9 @@ export default async function ScreenerPage({
 
           {results.length === 0 && !errorMessage ? (
             <p className="rounded-lg border bg-card p-6 text-sm text-muted-foreground">
-              No symbols match the current filters. Try widening the RSI band or removing the
-              52-week constraint.
+              {ruleRun
+                ? "No symbol met the rule on its latest session. Show all rows to see each result and why a symbol is unknown."
+                : "No symbols match the current filters. Try widening the RSI band or removing the 52-week constraint."}
             </p>
           ) : (
             <>
@@ -518,6 +586,16 @@ export default async function ScreenerPage({
                         label: "52w High",
                         value: formatCurrency(row.high_52w ?? null, row.currency),
                       },
+                      ...(ruleRun && row.rule_result
+                        ? [
+                            {
+                              label: "Rule",
+                              value: row.rule_reason
+                                ? `${RULE_RESULT_LABEL[row.rule_result]}: ${row.rule_reason}`
+                                : RULE_RESULT_LABEL[row.rule_result],
+                            },
+                          ]
+                        : []),
                     ],
                   }),
                 )}
@@ -601,6 +679,7 @@ export default async function ScreenerPage({
                           />
                         ) : null}
                         <TableHead className="hidden xl:table-cell">52-week range</TableHead>
+                        {ruleRun ? <TableHead>Rule</TableHead> : null}
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -652,6 +731,11 @@ export default async function ScreenerPage({
                           <TableCell className="hidden xl:table-cell">
                             <ScreenerRange row={row} />
                           </TableCell>
+                          {ruleRun ? (
+                            <TableCell className="max-w-[220px]">
+                              <RuleResult row={row} />
+                            </TableCell>
+                          ) : null}
                         </ClickableRow>
                       ))}
                     </TableBody>
@@ -677,9 +761,31 @@ export default async function ScreenerPage({
               ) : null}
             </>
           )}
+          <UniverseNote universe={screen?.universe ?? null} className="mt-4" />
         </section>
       </div>
     </div>
+  );
+}
+
+/** A row's rule result (A2.2): met, not met, or unknown with why. */
+function RuleResult({ row }: { row: ScreenerRow }) {
+  if (!row.rule_result) return <span className="text-text-tertiary">—</span>;
+  const tone =
+    row.rule_result === "met"
+      ? "text-positive"
+      : row.rule_result === "unknown"
+        ? "text-warning"
+        : "text-text-secondary";
+  return (
+    <span className="block text-xs">
+      <span className={`font-medium ${tone}`}>{RULE_RESULT_LABEL[row.rule_result]}</span>
+      {row.rule_reason ? (
+        <span className="block truncate text-2xs text-text-tertiary" title={row.rule_reason}>
+          {row.rule_reason}
+        </span>
+      ) : null}
+    </span>
   );
 }
 

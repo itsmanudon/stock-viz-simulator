@@ -50,4 +50,8 @@ class ExperimentRun(SQLModel, table=True):
     first_bar_at: datetime | None = None
     last_bar_at: datetime | None = None
     result: dict[str, Any] = Field(sa_column=Column(JSON_TYPE, nullable=False))
+    # A2.2: the setup version a rule backtest ran (A4); null for templates.
+    setup_version_id: int | None = Field(
+        default=None, foreign_key="setup_versions.id", index=True, nullable=True
+    )
     created_at: datetime = Field(default_factory=utcnow, nullable=False, index=True)

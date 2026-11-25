@@ -959,6 +959,35 @@ class ScreenerRowOut(BaseModel):
     roe: float | None = None
     debt_to_equity: float | None = None
     revenue_growth: float | None = None
+    # A2.2: the rule's result on this row, when the screen ran one. A row is
+    # "unknown" when data the rule needs is missing; ``rule_reason`` says what.
+    rule_result: Literal["met", "not_met", "unknown"] | None = None
+    rule_reason: str | None = None
+    rule_bar_date: date | None = None  # the bar the rule was judged on
+
+
+class ScreenerRuleCountsOut(BaseModel):
+    met: int
+    not_met: int
+    unknown: int
+
+
+class ScreenerRuleOut(BaseModel):
+    """The rule a screen ran (A2.2), and how it went over every candidate."""
+
+    text: str
+    canonical: str
+    hash: str
+    setup_version_id: int | None = None
+    mode: Literal["met_only", "all"]
+    as_of: date | None = None  # the date asked for; null = latest completed session
+    # Venue (MIC) -> the session the rule was judged on there: the newest
+    # stored bar on or before the target, so every symbol of a venue is judged
+    # on one date. A symbol with no bar that day is unknown.
+    sessions: dict[str, date]
+    counts: ScreenerRuleCountsOut  # over every candidate the filters let through
+    evaluated: int
+    cached: bool = False  # true when every result came from the in-process cache
 
 
 class ScreenerPageOut(BaseModel):
@@ -966,18 +995,145 @@ class ScreenerPageOut(BaseModel):
     total: int  # every match, before paging (audit RS-5)
     offset: int
     limit: int
+    # A2.2: the screened universe and its survivorship flag, on every page.
+    universe: UniverseOut | None = None
+    rule: ScreenerRuleOut | None = None
 
 
 class SavedScreenIn(BaseModel):
     name: str = Field(min_length=1, max_length=80)
     # The screener URL's query string, e.g. "market=IN&rsi_max=30&sort=rsi_14".
     query: str = Field(max_length=2000)
+    # A2.2: the setup version the screen runs (yours or a preset's).
+    setup_version_id: int | None = None
 
 
 class SavedScreenOut(BaseModel):
     id: int
     name: str
     query: str
+    setup_version_id: int | None = None
+    created_at: datetime
+    updated_at: datetime
+
+
+# ---------------------------------------------------------------------------
+# Rules, setups and theses (A2.2)
+# ---------------------------------------------------------------------------
+
+RULE_MAX_LENGTH = 4000
+
+
+class RuleErrorOut(BaseModel):
+    kind: Literal["syntax", "type"]
+    message: str
+    line: int | None = None  # from 1
+    column: int | None = None  # from 1
+
+
+class RuleCheckIn(BaseModel):
+    rule: str = Field(min_length=1, max_length=RULE_MAX_LENGTH)
+
+
+class RuleCheckOut(BaseModel):
+    """``POST /v1/rules/check``: the canonical form of a valid rule, or where it
+    went wrong. Always 200, so an editor can show either."""
+
+    valid: bool
+    canonical: str | None = None
+    hash: str | None = None
+    type: str | None = None  # e.g. "boolean series"
+    # Daily bars a rule needs before its first judged bar; null with
+    # ``warmup_whole_history`` when it reads the whole history.
+    warmup_bars: int | None = None
+    warmup_whole_history: bool = False
+    # What it reads besides bars: "benchmark", "fundamentals", "news", "delivery".
+    uses: list[str] = Field(default_factory=list)
+    error: RuleErrorOut | None = None
+
+
+SetupKind = Literal["screen", "alert", "strategy", "checklist"]
+
+
+class SetupVersionOut(BaseModel):
+    id: int
+    setup_id: int
+    version: int
+    rule_text: str
+    canonical_text: str
+    rule_hash: str
+    timeframe: str
+    notes: str | None = None
+    created_at: datetime
+
+
+class SetupOut(BaseModel):
+    id: int
+    name: str
+    kind: SetupKind
+    description: str | None = None
+    is_preset: bool
+    # True when the caller owns it (false for presets).
+    owned: bool
+    forked_from_version_id: int | None = None
+    created_at: datetime
+    archived_at: datetime | None = None
+    latest_version: SetupVersionOut
+    version_count: int
+
+
+class SetupDetailOut(SetupOut):
+    versions: list[SetupVersionOut]  # newest first
+
+
+class SetupIn(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    kind: SetupKind = "screen"
+    description: str | None = Field(default=None, max_length=2000)
+    rule: str = Field(min_length=1, max_length=RULE_MAX_LENGTH)
+    notes: str | None = Field(default=None, max_length=2000)
+    timeframe: Literal["daily"] = "daily"
+
+
+class SetupVersionIn(BaseModel):
+    rule: str = Field(min_length=1, max_length=RULE_MAX_LENGTH)
+    notes: str | None = Field(default=None, max_length=2000)
+    timeframe: Literal["daily"] = "daily"
+
+
+class SetupForkIn(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=120)
+    # The version to copy; default the source's newest.
+    version_id: int | None = None
+
+
+class ThesisIn(BaseModel):
+    ticker: str = Field(min_length=1, max_length=16)
+    title: str = Field(min_length=1, max_length=160)
+    body: str = Field(min_length=1, max_length=10000)
+    kill_rule: str | None = Field(default=None, min_length=1, max_length=RULE_MAX_LENGTH)
+
+
+class ThesisPatch(BaseModel):
+    """Only the fields sent change; ``kill_rule: null`` removes the kill rule."""
+
+    title: str | None = Field(default=None, min_length=1, max_length=160)
+    body: str | None = Field(default=None, min_length=1, max_length=10000)
+    kill_rule: str | None = Field(default=None, min_length=1, max_length=RULE_MAX_LENGTH)
+
+
+class ThesisCloseIn(BaseModel):
+    status: Literal["closed", "invalidated"] = "closed"
+
+
+class ThesisOut(BaseModel):
+    id: int
+    ticker: str | None
+    title: str
+    body: str
+    kill_rule_text: str | None = None
+    kill_rule_hash: str | None = None
+    status: Literal["open", "invalidated", "closed"]
     created_at: datetime
     updated_at: datetime
 

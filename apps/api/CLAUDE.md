@@ -22,7 +22,8 @@ src/stockviz/
                     events — outbox, consumer inbox, derived trade activity,
                     execution — SimulatedExecution provenance,
                     replay — ReplaySession / ReplayPosition / ReplayFill /
-                    ReplayJournal, aegis — read-only Aegis News copies)
+                    ReplayJournal, aegis — read-only Aegis News copies,
+                    setup — A2.2 Setup / SetupVersion / Thesis)
   events/           versioned contracts (trades/market), outbox/inbox,
                     dispatcher, domain handlers, Kafka producer wrappers
                     (not imported by FastAPI startup)
@@ -37,7 +38,8 @@ src/stockviz/
                     experiments (saved backtests, Phase 5.4),
                     screener, sentiment, watchlist, alerts, profile
                     (display currency), earnings, replay
-                    (isolated ReplaySession), health
+                    (isolated ReplaySession), rules / setups / theses
+                    (A2.2), health
                     (`GET /live` liveness, `GET /health` readiness + DB)
   services/
     ingest/         External-API fetchers (yfinance primary, Alpha Vantage fallback);
@@ -121,6 +123,10 @@ src/stockviz/
                     check.py (types), functions.py, bindings.py, pit.py
                     (fundamentals, news), timeframes.py, data.py (SymbolData,
                     load_symbol), evaluate.py (vector, point, evaluate_at)
+    setups/         A2.2 spine: store.py (setups and immutable versions),
+                    presets.py (seeded system setups), rules.py (rule check)
+    screener_rule.py  A2.2: judges a rule for every screener candidate
+    theses.py       A2.2: thesis reads (the router writes)
     aegis/          Aegis News read sync (Phase 2): contract.py (lenient
                     feed models), token.py (EdDSA feed:read token), client.py
                     (the one client: timeouts, bounded retries), sync.py
@@ -162,6 +168,7 @@ CLI subcommands (`python -m stockviz.cli <cmd>`): `seed`, `backfill`,
 `nse-files [--limit N]`,
 `export-parquet --out DIR [--since YYYY-MM-DD] [--tables T ...]`,
 `rule-check "<rule>" [TICKER ...] [--date YYYY-MM-DD] [--explain]`.
+`seed` also writes the rule presets (A2.2).
 
 **NSE files (A1.1).** `services/nse/` parses NSE end-of-day files **placed
 by hand**. Nothing downloads from NSE yet (that is A1.2, after the owner's
@@ -222,7 +229,8 @@ the reader is `lab/` (see `lab/README.md`).
 
 **Rule DSL (A2.1, M4.1).** One rule language, `services/dsl/`, for the
 screens, alerts and setups A2.2 onwards builds. User reference:
-`docs/rule-dsl.md`. No route, table or web code yet.
+`docs/rule-dsl.md`. A2.2 added the routes, tables and web editor (next
+section).
 
 - **Surface** (`grammar.lark`, Lark LALR, MIT, pinned in `uv.lock`):
   numbers, the series `open high low close volume delivery_pct
@@ -284,7 +292,7 @@ screens, alerts and setups A2.2 onwards builds. User reference:
   asserts `point(t) == vector[t]` for every bar of three seeded 10-year
   histories (split step, NSE holidays, partial last week, delivery gaps,
   USD-reporting INR listing, a bar hole) over 52 rules and 7 numeric
-  expressions (444,683 point evaluations over 7,537 bars, a process pool, about a
+  expressions (A2.2 adds the four presets; 444,683 point evaluations over 7,537 bars before them, a process pool, about a
   minute), plus a test that perturbs everything after `t` and finds no
   value up to `t` changed. Vector mode: about 1.3 ms for a 5-condition rule
   over 10 years, 0.2 s for 163 symbols (synthetic, local).
@@ -295,6 +303,72 @@ screens, alerts and setups A2.2 onwards builds. User reference:
   with reasons; `--explain` lists each sub-expression's value. Exit 2 on a
   syntax or type error, 1 for an unknown ticker or no bars. Read-only, not
   in the cron.
+
+**Setups, theses and the screener rule (A2.2, M4.1 consumers, M4.3).** The
+spine: migration `e6364eff4e51` (additive) adds `setups`, `setup_versions`,
+`theses` (`models/setup.py`) and a nullable `setup_version_id` on
+`saved_screens`, `alerts` and `experiment_runs` (nothing writes the last two
+yet: A2.3 rule alerts, A4 rule backtests).
+
+- **Versions are immutable.** No code path updates a `setup_versions` row;
+  `services/setups/store.py::add_version` writes n+1, or returns the version
+  that already has the rule (unique `(setup_id, rule_hash)` on the canonical
+  hash, so spacing, comments, default arguments and `and` order do not make a
+  new version). A concurrent save of the same rule loses the race and gets
+  the winner's row. Caps: 200 setups a user, 500 versions a setup.
+- **Presets** are setups with `user_id` null, `is_preset` (check
+  `ck_setups_preset_owner`) and a unique `preset_key`. `stockviz.cli seed`
+  runs `services/setups/presets.py::seed_presets` after the symbols:
+  idempotent; name, kind and description follow the code; a changed rule
+  becomes a new version. Four today (Minervini trend template,
+  52-week-high breakout on rising volume, RSI(2) pullback in an uptrend,
+  Piotroski-style quality); each description states its source and limits,
+  and every preset rule is in the conformance corpus
+  (`test_corpus_covers_every_function_and_is_large_enough` checks). The
+  cron does not run `seed`, so a new preset reaches a host with a manual
+  `seed` run or the next deploy that runs it.
+- **API.** `POST /v1/rules/check` (public, 60/min; always 200: `valid`,
+  `canonical`, `hash`, `type`, `warmup_bars`, `warmup_whole_history`,
+  `uses`, or `error {kind, message, line, column}`). `/v1/setups` (authed):
+  list (yours and presets, `include_archived`), create (rule = version 1),
+  get (versions newest first), `POST /{id}/versions` (201 new, 200 when the
+  rule is already a version), `POST /{id}/archive`, `POST /{id}/fork`
+  (`{name?, version_id?}`; presets and your own; `forked_from_version_id`).
+  `GET /v1/setups/presets` is public (60/min). Presets are 403 on versions
+  and archive; another user's setup is 404; an archived setup takes no
+  version (409); a rule that does not compile is 422 with the error object
+  as `detail` (`services/setups/rules.py::compile_or_422`, shared by every
+  writer). `/v1/theses` (authed): list (`status=`), create (`ticker`,
+  `title`, `body`, optional `kill_rule`, which must compile; stores its text
+  and hash), `PATCH` while open (`kill_rule: null` removes it), `POST
+  /{id}/close` (`closed` | `invalidated`, final). Theses key on
+  `instrument_id` (no ticker column, so no identity trigger); reads map it
+  back through the `yahoo` identifier. Nothing evaluates kill rules yet.
+  `/v1/screens` takes and returns `setup_version_id` (yours or a preset's,
+  else 404); saving by name replaces it with what was sent.
+- **Screener rule.** `GET /v1/screener?rule=` (or `setup_version_id=`: a
+  preset's for anyone, your own with a Bearer token through
+  `auth.OptionalUserIdDep`; not both, 400) runs after the SQL filters, which
+  still pre-filter. `services/screener_rule.py` judges every remaining
+  candidate (`dsl.load_symbol` + `evaluate_at`), then the screener sorts and
+  pages what is left: `rule_mode=met_only` (default) keeps met rows and
+  `total` counts them; `all` keeps every row. Each venue has one session:
+  the newest stored daily bar of its active symbols on or before the target
+  (`as_of=`, capped at the venue's latest completed session, else that
+  session). A symbol without a bar that day is `unknown` ("no bar for D;
+  latest D'"), never judged on stale prices. Rows add `rule_result`,
+  `rule_reason` (unknown only: the evaluator's reasons) and `rule_bar_date`;
+  the page adds `rule {text, canonical, hash, setup_version_id, mode, as_of,
+  sessions, counts, evaluated, cached}` and, on every page, `universe`
+  (`backtest/universe.py::screen_universe`: pinned, survivorship-biased).
+  Latency, 5-condition rule (`rs` included) over 161 symbols x 10 years,
+  in-memory SQLite on the laptop: 0.72 s cold. Results are cached in
+  process per (rule hash, ticker, session) for 15 minutes, 50,000 entries
+  LRU (`CACHE`; a new session is a new key): 5-30 ms warm. Each API process
+  has its own cache. Tests: `tests/test_screener_rule.py`,
+  `test_setups_router.py`, `test_theses_router.py`,
+  `test_setups_migration.py` (PostgreSQL up/down/up); `conftest.py` clears
+  the cache around every test.
 
 **Weekly and monthly bars (A1.4a, M2.2 first half).** Resampled on read,
 never stored (`services/bars/resample.py`). `GET /v1/symbols/{t}/bars` and
@@ -826,7 +900,8 @@ overrides slowapi's private `_check_request_limit`, because its request
 filters receive no request; `tests/test_rate_limit_web_server.py` pins it.
 
 Current budget: **60/min** on the public reads
-(symbols, bars, quotes, news, indicators, recommendations), **30/min**
+(symbols, bars, quotes, news, indicators, recommendations, rule check,
+setup presets), **30/min**
 screener, **20/min** backtest. Authenticated routers are deliberately *not*
 slowapi-limited — every authed request arrives from the Next.js server, so a
 per-IP limit would be one global bucket for all users. Where per-user

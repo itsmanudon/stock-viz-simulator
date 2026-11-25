@@ -23,5 +23,10 @@ class SavedScreen(SQLModel, table=True):
     user_id: int = Field(foreign_key="users.id", index=True)
     name: str = Field(max_length=80)
     query: str = Field(sa_column=Column(Text, nullable=False))
+    # A2.2: the setup version the screen runs, if any (the query still holds
+    # the filters; a screen saved before A2.2 has none).
+    setup_version_id: int | None = Field(
+        default=None, foreign_key="setup_versions.id", index=True, nullable=True
+    )
     created_at: datetime = Field(default_factory=utcnow, nullable=False)
     updated_at: datetime = Field(default_factory=utcnow, nullable=False)

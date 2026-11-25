@@ -3,6 +3,12 @@
 - ``GET /v1/screener``: the unified screener. Market (country), exchange
   (MIC) and currency filters for both markets, technical filters from the
   nightly snapshot, server-side sort and offset paging with a total.
+- A2.2: ``rule=`` (Rule DSL text) or ``setup_version_id=`` (a preset's, or
+  your own with a Bearer token) refines the filters: the rule is judged on
+  every candidate at its venue's latest completed session (or ``as_of``),
+  then rows are sorted and paged. ``rule_mode=met_only`` (default) keeps the
+  met rows; ``all`` keeps every row with ``rule_result`` and, when unknown,
+  ``rule_reason``. Every page carries the universe stamp.
 - ``GET /v1/symbols/screen``: the original list endpoint, kept for its
   callers (screener-era pages, the landing page's proofs). Same query path,
   so momentum is now applied before the limit too (audit RS-5).
@@ -13,21 +19,34 @@ rescanning ``price_bars``; see ``services/screener.py``.
 
 from __future__ import annotations
 
-from typing import Annotated
+from datetime import date
+from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlmodel import Session
 
+from stockviz.auth import OptionalUserIdDep
 from stockviz.db import get_session
 from stockviz.limiter import limiter
-from stockviz.schemas import ScreenerPageOut, ScreenerResultOut, ScreenerRowOut
+from stockviz.schemas import (
+    RULE_MAX_LENGTH,
+    ScreenerPageOut,
+    ScreenerResultOut,
+    ScreenerRowOut,
+    ScreenerRuleCountsOut,
+    ScreenerRuleOut,
+)
+from stockviz.services.backtest.universe import screen_universe
 from stockviz.services.screener import (
     MAX_MOMENTUM_DAYS,
     NEAR_52W_THRESHOLD,  # noqa: F401  (re-exported for older imports)
     SORT_KEYS,
     ScreenQuery,
     run_screen,
+    run_screen_full,
 )
+from stockviz.services.setups import store as setups
+from stockviz.services.setups.rules import compile_or_422
 
 router = APIRouter(prefix="/v1/symbols", tags=["screener"])
 page_router = APIRouter(prefix="/v1", tags=["screener"])
@@ -90,8 +109,28 @@ def screener(
     dir: Annotated[str, Query(pattern="^(asc|desc)$")] = "asc",
     offset: Annotated[int, Query(ge=0)] = 0,
     limit: Annotated[int, Query(ge=1, le=MAX_PAGE)] = 50,
+    rule: Annotated[
+        str | None,
+        Query(max_length=RULE_MAX_LENGTH, description="A Rule DSL condition"),
+    ] = None,
+    setup_version_id: Annotated[int | None, Query(ge=1)] = None,
+    rule_mode: Annotated[Literal["met_only", "all"], Query()] = "met_only",
+    as_of: Annotated[date | None, Query(description="Judge the rule on this date")] = None,
+    user_id: OptionalUserIdDep = None,
 ) -> ScreenerPageOut:
-    rows, total = run_screen(
+    if rule is not None and setup_version_id is not None:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Send rule or setup_version_id, not both")
+    rule_text = rule.strip() if rule and rule.strip() else None
+    if setup_version_id is not None:
+        try:
+            version = setups.visible_version(session, setup_version_id, user_id)
+        except setups.SetupNotFound as exc:
+            raise HTTPException(
+                status.HTTP_404_NOT_FOUND, f"Setup version {setup_version_id} not found"
+            ) from exc
+        rule_text = version.rule_text
+    compiled = compile_or_422(rule_text) if rule_text else None
+    result = run_screen_full(
         session,
         ScreenQuery(
             markets=_csv(market),
@@ -129,13 +168,32 @@ def screener(
             descending=dir == "desc",
             offset=offset,
             limit=limit,
+            rule=compiled,
+            rule_mode=rule_mode,
+            as_of=as_of,
         ),
     )
+    rule_out = None
+    if compiled is not None and result.rule_run is not None:
+        rule_out = ScreenerRuleOut(
+            text=compiled.text,
+            canonical=compiled.canonical_text,
+            hash=compiled.hash,
+            setup_version_id=setup_version_id,
+            mode=rule_mode,
+            as_of=as_of,
+            sessions=result.rule_run.sessions,
+            counts=ScreenerRuleCountsOut(**result.counts),
+            evaluated=sum(result.counts.values()),
+            cached=result.rule_run.cached,
+        )
     return ScreenerPageOut(
-        rows=[ScreenerRowOut.model_validate(r, from_attributes=True) for r in rows],
-        total=total,
+        rows=[ScreenerRowOut.model_validate(r, from_attributes=True) for r in result.rows],
+        total=result.total,
         offset=offset,
         limit=limit,
+        universe=screen_universe(),
+        rule=rule_out,
     )
 
 

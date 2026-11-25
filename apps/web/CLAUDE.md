@@ -10,7 +10,7 @@ app/
                    concise public header and traditional website footer
   (product)/       guest-capable research routes plus the workstation shell
     (authed)/      dashboard, portfolio, trade, trades, orders, watchlist,
-                   alerts, settings, earnings — protected by proxy.ts. `/dashboard` is
+                   alerts, settings, earnings, setups — protected by proxy.ts. `/dashboard` is
                    the signed-in home: a bento grid of portfolio widgets fed by
                    `lib/dashboard-data.ts` (every widget but the portfolio hero
                    degrades to its own empty state if its request fails).
@@ -498,6 +498,35 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   series to the days all symbols traded (`alignToSharedDates`, audit RS-7)
   and shows fundamentals side by side (`components/compare-fundamentals.tsx`,
   market cap in each company's reporting currency).
+- `/screener` Rule panel (A2.2, `components/rule-panel.tsx`): a Rule DSL
+  condition refines the filters. The panel is a GET form to `/screener`, so
+  the rule is URL state (`?rule=`, `?rule_mode=met_only|all`; default met
+  only) and a screen with a rule is a link; it carries the filters and sort
+  as hidden fields (`carriedFields`), and the filter form carries the rule
+  back. The rule also shows as a removable chip and stays in a saved
+  screen's query. As the user types, `checkRule()` (`lib/api/rules.ts`, a
+  browser `apiPost` to the public `/v1/rules/check`, 400 ms debounce, the
+  previous request aborted) shows an error with its line and a caret under
+  its column, or the canonical form, warm-up and what it reads; Run is
+  disabled while the rule is invalid; Ctrl/Cmd+Enter runs it. Presets come
+  from the public `listPresets()` (`lib/api/setups.ts`, cached an hour):
+  pick one to read its source and limits, Load it into the editor, or Fork
+  it (signed in). "Save as setup" (signed in, enabled only for a valid
+  rule) and Fork are server actions in `app/(product)/screener/actions.ts`
+  over `lib/api/setups-server.ts`. With a rule the table adds a Rule column
+  (met / not met / unknown with the reason) and cards a Rule figure; the
+  count line says how many filtered symbols the rule judged, the counts and
+  the session per venue, with a link to the other mode; a 422 shows the
+  rule's error. Every page ends with `UniverseNote` (the screen's
+  survivorship stamp).
+- `/setups` (A2.2, protected, Research nav after Screener): your setups and
+  the presets, each with its rule, "Open in screener"
+  (`screenerHrefForRule`, `lib/setups-view.ts`), Fork, Archive (yours), and
+  `?open=<id>` to list one setup's versions (one extra call); `?archived=1`
+  shows archived ones. Actions in `app/(product)/(authed)/setups/actions.ts`.
+  There is no editor for a setup's next version yet: open it in the
+  screener and save it again (a new setup); `POST /v1/setups/{id}/versions`
+  exists for A2.3.
 - `/screener` keeps filters and sort in the URL (`lib/screener-view.ts`, UI
   audit UX-1). Each applied filter shows as a removable chip; RSI bounds share
   a chip, and the momentum bounds belong to the window's chip because the API
