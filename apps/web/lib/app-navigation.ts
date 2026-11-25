@@ -61,12 +61,6 @@ export const APP_NAVIGATION: readonly NavigationGroup[] = [
       { label: "Trade history", href: "/trades", matches: ["/trades"] },
     ],
   },
-  {
-    label: "Community",
-    href: "/leaderboard",
-    matches: ["/leaderboard"],
-    items: [{ label: "Leaderboard", href: "/leaderboard", matches: ["/leaderboard"] }],
-  },
 ] as const;
 
 /** Account settings: protected by proxy.ts, so the sidebar shows it only when signed in. */

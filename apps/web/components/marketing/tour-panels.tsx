@@ -1,5 +1,5 @@
 /**
- * The four panels behind the product tour.
+ * The three panels behind the product tour.
  *
  * Each one is a live recreation of a real workspace surface, not a screenshot:
  * every number comes from a public `/v1` endpoint at render time. That keeps
@@ -14,10 +14,9 @@
 import { Check, X } from "lucide-react";
 
 import { Sparkline } from "@/components/sparkline";
-import type { LeaderboardEntry } from "@/lib/api/leaderboard";
 import type { BacktestResult, Recommendation, ScreenerResult } from "@/lib/api/types";
 
-/** For values the API already expresses in percent (momentum, leaderboard return). */
+/** For values the API already expresses in percent (momentum). */
 function pct(n: number): string {
   return `${n > 0 ? "+" : ""}${n.toFixed(2)}%`;
 }
@@ -33,19 +32,11 @@ function fracPct(fraction: number): string {
   return `${value > 0 ? "+" : ""}${value.toFixed(2)}%`;
 }
 
-function money(raw: string | number): string {
-  return Number(raw).toLocaleString("en-US", {
-    style: "currency",
-    currency: "USD",
-    maximumFractionDigits: 0,
-  });
-}
-
 function toneFor(n: number): string {
   return n >= 0 ? "text-positive" : "text-negative";
 }
 
-/** Shared column shell so all four panels sit on the same internal grid. */
+/** Shared column shell so all three panels sit on the same internal grid. */
 function PanelBody({ children }: { children: React.ReactNode }) {
   return <div className="min-h-[19rem] p-4 sm:min-h-[21rem] sm:p-5">{children}</div>;
 }
@@ -247,37 +238,6 @@ export function SimulatePanel({ result }: { result: BacktestResult }) {
           </div>
         ))}
       </dl>
-    </PanelBody>
-  );
-}
-
-// --- 04 Track --------------------------------------------------------------
-
-export function TrackPanel({ rows }: { rows: LeaderboardEntry[] }) {
-  return (
-    <PanelBody>
-      <PanelHeading
-        eyebrow="Leaderboard · opted-in accounts"
-        title="The scoreboard for the decisions you actually made."
-      />
-      <ul className="divide-y divide-border-muted/60">
-        {rows.map((row) => (
-          <li key={row.handle} className="flex items-center gap-3 py-2.5">
-            <span className="w-6 shrink-0 font-mono text-2xs text-text-tertiary tabular-nums">
-              {String(row.rank).padStart(2, "0")}
-            </span>
-            <span className="min-w-0 flex-1 truncate text-xs">{row.username}</span>
-            <span className="font-mono text-xs text-text-secondary tabular-nums">
-              {money(row.portfolio_value)}
-            </span>
-            <span
-              className={`w-20 text-right font-mono text-xs tabular-nums ${toneFor(row.return_pct)}`}
-            >
-              {pct(row.return_pct)}
-            </span>
-          </li>
-        ))}
-      </ul>
     </PanelBody>
   );
 }

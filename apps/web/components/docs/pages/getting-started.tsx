@@ -77,11 +77,7 @@ export function GettingStarted() {
           <Term name="Alerts">
             {"Price, technical, news and portfolio rules, judged after each night."}
           </Term>
-          <Term name="Settings">
-            {
-              "Display currency, account currency, risk limits, your public name on the leaderboard."
-            }
-          </Term>
+          <Term name="Settings">{"Display currency, account currency and risk limits."}</Term>
           <Term name="Status">
             {"When each nightly job last ran, and the newest close for each market."}
           </Term>

@@ -126,7 +126,6 @@ test("operational trading loop from ticket to orders, watchlist, alerts, and rep
     const url = request.url();
     if (url.includes("/v1/symbols/")) leaked.push(url);
     if (url.includes("/v1/quotes")) leaked.push(url);
-    if (url.includes("/v1/stream/quotes")) leaked.push(url);
     if (url.includes("/v1/news")) leaked.push(url);
   });
 

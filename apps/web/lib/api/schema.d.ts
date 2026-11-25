@@ -849,41 +849,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/v1/leaderboard": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Leaderboard */
-        get: operations["get_leaderboard_v1_leaderboard_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/profile": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Profile */
-        get: operations["get_profile_v1_profile_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        /** Patch Profile */
-        patch: operations["patch_profile_v1_profile_patch"];
-        trace?: never;
-    };
     "/v1/orders": {
         parameters: {
             query?: never;
@@ -919,59 +884,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/v1/stream/quotes/{ticker}": {
+    "/v1/profile": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /**
-         * Stream Quotes
-         * @description SSE: simulated quote (random walk from last close), ~3 s, 15 min cap.
-         */
-        get: operations["stream_quotes_v1_stream_quotes__ticker__get"];
+        /** Get Profile */
+        get: operations["get_profile_v1_profile_get"];
         put?: never;
         post?: never;
         delete?: never;
         options?: never;
         head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/symbols/{ticker}/comments": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Comments */
-        get: operations["list_comments_v1_symbols__ticker__comments_get"];
-        put?: never;
-        /** Create Comment */
-        post: operations["create_comment_v1_symbols__ticker__comments_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/comments/{comment_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        /** Delete Comment */
-        delete: operations["delete_comment_v1_comments__comment_id__delete"];
-        options?: never;
-        head?: never;
-        patch?: never;
+        /** Patch Profile */
+        patch: operations["patch_profile_v1_profile_patch"];
         trace?: never;
     };
     "/v1/options/quote": {
@@ -2063,50 +1991,6 @@ export interface components {
             base_currency: string;
         };
         /**
-         * CommentIn
-         * @description Request body for POST /v1/symbols/{ticker}/comments.
-         */
-        CommentIn: {
-            /** Body */
-            body: string;
-            /** Parent Id */
-            parent_id?: number | null;
-        };
-        /**
-         * CommentOut
-         * @description One comment in API responses.
-         *
-         *     ``replies`` is populated by the GET endpoint when the comment is a
-         *     top-level post — it contains its immediate children in chronological
-         *     order. For deeper threads the UI is expected to render any further
-         *     nesting by following ``parent_id``, but in v1 we only present a single
-         *     level of indentation.
-         */
-        CommentOut: {
-            /** Id */
-            id: number;
-            /** User Id */
-            user_id: number;
-            /** User Name */
-            user_name?: string | null;
-            /** Ticker */
-            ticker: string;
-            /** Body */
-            body: string;
-            /** Parent Id */
-            parent_id?: number | null;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /**
-             * Replies
-             * @default []
-             */
-            replies: components["schemas"]["CommentOut"][];
-        };
-        /**
          * CurrencyCashOut
          * @description Cash held in one currency: ``amount`` native, ``value`` in display currency.
          */
@@ -2899,41 +2783,6 @@ export interface components {
             /** End */
             end: string;
             stats: components["schemas"]["JournalStatsOut"];
-        };
-        /**
-         * LeaderboardEntryOut
-         * @description One row of the public leaderboard.
-         *
-         *     ``ranked`` is False for accounts with too little history to compare
-         *     fairly — they still show, sorted below everyone who qualifies, so the UI
-         *     can label them rather than pretending a two-day return is a track record.
-         */
-        LeaderboardEntryOut: {
-            /** Rank */
-            rank: number;
-            /** Handle */
-            handle: string;
-            /** Username */
-            username: string;
-            /** Return Pct */
-            return_pct: number;
-            /** Portfolio Value */
-            portfolio_value: string;
-            /**
-             * Currency
-             * @default USD
-             */
-            currency: string;
-            /**
-             * Days Tracked
-             * @default 0
-             */
-            days_tracked: number;
-            /**
-             * Ranked
-             * @default true
-             */
-            ranked: boolean;
         };
         /** LimitCheckOut */
         LimitCheckOut: {
@@ -3990,36 +3839,26 @@ export interface components {
              */
             available_quantity: string;
         };
-        /** ProfileOut */
+        /**
+         * ProfileOut
+         * @description The caller's display settings (`/v1/profile`).
+         */
         ProfileOut: {
             /** User Id */
             user_id: number;
-            /** Public Profile */
-            public_profile: boolean;
             /**
              * Display Currency
              * @default USD
              */
             display_currency: string;
-            /** Public Handle */
-            public_handle?: string | null;
-            /** Display Name */
-            display_name?: string | null;
         };
         /**
          * ProfilePatchIn
-         * @description All fields are optional — patch sends only what changes.
-         *
-         *     ``display_name`` is shown on the public leaderboard: 2 to 40 characters,
-         *     no "@" (it must not look like an email); an empty string clears it.
+         * @description Fields are optional: a patch sends only what changes.
          */
         ProfilePatchIn: {
-            /** Public Profile */
-            public_profile?: boolean | null;
             /** Display Currency */
             display_currency?: string | null;
-            /** Display Name */
-            display_name?: string | null;
         };
         /** ProjectedDividendOut */
         ProjectedDividendOut: {
@@ -6908,92 +6747,6 @@ export interface operations {
             };
         };
     };
-    get_leaderboard_v1_leaderboard_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["LeaderboardEntryOut"][];
-                };
-            };
-        };
-    };
-    get_profile_v1_profile_get: {
-        parameters: {
-            query?: never;
-            header?: {
-                authorization?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ProfileOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    patch_profile_v1_profile_patch: {
-        parameters: {
-            query?: never;
-            header?: {
-                authorization?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ProfilePatchIn"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ProfileOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     list_orders_v1_orders_get: {
         parameters: {
             query?: {
@@ -7093,127 +6846,60 @@ export interface operations {
             };
         };
     };
-    stream_quotes_v1_stream_quotes__ticker__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                ticker: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    list_comments_v1_symbols__ticker__comments_get: {
-        parameters: {
-            query?: {
-                limit?: number;
-                offset?: number;
-            };
-            header?: never;
-            path: {
-                ticker: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CommentOut"][];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    create_comment_v1_symbols__ticker__comments_post: {
+    get_profile_v1_profile_get: {
         parameters: {
             query?: never;
             header?: {
                 authorization?: string | null;
             };
-            path: {
-                ticker: string;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProfileOut"];
+                };
             };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    patch_profile_v1_profile_patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
             cookie?: never;
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["CommentIn"];
+                "application/json": components["schemas"]["ProfilePatchIn"];
             };
         };
         responses: {
             /** @description Successful Response */
-            201: {
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["CommentOut"];
+                    "application/json": components["schemas"]["ProfileOut"];
                 };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    delete_comment_v1_comments__comment_id__delete: {
-        parameters: {
-            query?: never;
-            header?: {
-                authorization?: string | null;
-            };
-            path: {
-                comment_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
             };
             /** @description Validation Error */
             422: {

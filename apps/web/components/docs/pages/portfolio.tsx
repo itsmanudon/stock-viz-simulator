@@ -65,19 +65,9 @@ export function Portfolio() {
       <DocSection title="Daily history">
         <P>
           Each night StockViz records your account&apos;s value, dated by the session its prices
-          come from. That history draws the value chart, the returns and the leaderboard. Returns
-          need at least two days of it.
+          come from. That history draws the value chart and the returns. Returns need at least two
+          days of it.
         </P>
-      </DocSection>
-
-      <DocSection title="Leaderboard">
-        <List>
-          <Li>The leaderboard ranks accounts that chose to appear, by return since they opened.</Li>
-          <Li>
-            You appear under a random handle (like <code>trader-7f3a9c</code>) unless you set a
-            public name in Settings. Your email and sign-up name are never shown.
-          </Li>
-        </List>
       </DocSection>
     </>
   );

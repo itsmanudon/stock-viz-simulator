@@ -1,4 +1,10 @@
-import { ArrowLeftRight, ArrowUpRight, ChartCandlestick, SearchCode, Users } from "lucide-react";
+import {
+  ArrowLeftRight,
+  ArrowUpRight,
+  BriefcaseBusiness,
+  ChartCandlestick,
+  SearchCode,
+} from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 
@@ -18,7 +24,7 @@ const SHORTCUTS = [
   { label: "Markets", href: "/markets", icon: ChartCandlestick },
   { label: "Research", href: "/compare", icon: SearchCode },
   { label: "Trade", href: "/trade", icon: ArrowLeftRight },
-  { label: "Leaderboard", href: "/leaderboard", icon: Users },
+  { label: "Portfolio", href: "/portfolio", icon: BriefcaseBusiness },
 ] as const;
 
 export default async function DashboardPage() {

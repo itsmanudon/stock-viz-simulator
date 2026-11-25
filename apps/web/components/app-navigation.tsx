@@ -17,7 +17,6 @@ import {
   RotateCcw,
   Settings,
   Star,
-  Trophy,
   Wallet,
 } from "lucide-react";
 import Link from "next/link";
@@ -49,7 +48,6 @@ const ICONS: Record<string, LucideIcon> = {
   "/watchlist": Star,
   "/alerts": Bell,
   "/trades": History,
-  "/leaderboard": Trophy,
   "/settings": Settings,
 };
 

@@ -17,7 +17,6 @@ import {
   FillSteps,
   LandingFaq,
   MovingToday,
-  Rankings,
   SessionTiles,
   StatementBand,
   StorySection,
@@ -103,7 +102,6 @@ export default function HomePage() {
         <StorySection />
         <FillSteps />
         <StatementBand />
-        <Rankings />
 
         <section aria-labelledby="surfaces-heading" className="border-y border-border-muted">
           <div className="mx-auto w-full max-w-6xl px-4 py-14 sm:px-6 sm:py-20">

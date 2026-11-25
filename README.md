@@ -118,7 +118,7 @@ All four runs collected exactly 100,000 current-run records, counted zero foreig
 - Public marketing site (the **ATLAS** identity: warm paper, restrained gold) with a live product tour driven by the real API — no screenshots
 - Markets dashboard, ticker charts, indicators, comparison, screener, news, watchlists, and in-app price alerts across a multi-currency universe (USD / INR / EUR / …)
 - Email/password authentication with optional Google OAuth
-- FX-aware equity paper trading, pending limit/stop/take-profit orders, dividends, portfolio analytics, and leaderboard
+- FX-aware equity paper trading, pending limit/stop/take-profit orders, dividends, and portfolio analytics
 - Long-only Black-Scholes options priced with a historical-volatility proxy
 - Configurable, look-ahead-safe strategy backtesting
 - Rule-based technical and optional sentiment recommendations
