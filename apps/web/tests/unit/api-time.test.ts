@@ -7,7 +7,6 @@ import {
   parseApiTimestamp,
 } from "@/lib/api-time";
 import { formatReplayDate } from "@/lib/replay";
-import { formatSignalDateTime } from "@/lib/signals-workspace";
 
 // Run under TZ=Asia/Tokyo, TZ=America/Los_Angeles and TZ=UTC: the answers must
 // not move. `new Date("2025-04-04T00:00:00")` gave 2025-04-03T15:00Z in Tokyo.
@@ -31,10 +30,6 @@ describe("API timestamps (audit RS-2)", () => {
   it("returns an invalid date for unreadable input", () => {
     expect(Number.isNaN(apiTimestampMs("not a date"))).toBe(true);
     expect(Number.isNaN(parseApiTimestamp("").getTime())).toBe(true);
-  });
-
-  it("shows a zone-less fill time as the UTC time it was stored at", () => {
-    expect(formatSignalDateTime("2025-04-04T20:00:00")).toMatch(/Apr 4, 2025.*08:00 PM UTC/);
   });
 
   it("dates a replay bar by its stored day", () => {

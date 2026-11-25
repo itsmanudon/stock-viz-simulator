@@ -132,9 +132,17 @@ PRESETS: tuple[Preset, ...] = (MINERVINI, BREAKOUT, RSI_PULLBACK, PIOTROSKI)
 
 
 def seed_presets(session: Session) -> dict[str, str]:
-    """Create or update every preset. Returns key -> "created" | "new version" | "unchanged"."""
+    """Create or update every screen preset. Returns key -> "created" | "new
+    version" | "unchanged". The A2.4 checklist dimensions are system setups
+    too, seeded by ``services/checklist/dimensions.py::seed_dimensions``."""
+    return seed_setups(session, PRESETS)
+
+
+def seed_setups(session: Session, presets: tuple[Preset, ...]) -> dict[str, str]:
+    """Create or update the given system setups, idempotently (see the module
+    docstring). Returns key -> "created" | "new version" | "unchanged"."""
     report: dict[str, str] = {}
-    for preset in PRESETS:
+    for preset in presets:
         rule = compile_rule(preset.rule)
         setup = session.exec(select(Setup).where(col(Setup.preset_key) == preset.key)).first()
         status = "unchanged"
@@ -169,4 +177,4 @@ def seed_presets(session: Session) -> dict[str, str]:
     return report
 
 
-__all__ = ["PRESETS", "Preset", "seed_presets"]
+__all__ = ["PRESETS", "Preset", "seed_presets", "seed_setups"]

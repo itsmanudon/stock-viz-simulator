@@ -372,8 +372,8 @@ const FAQ = [
     a: `${describeFillRule("market")}. ${describeFillRule("limit")}.`,
   },
   {
-    q: "Are the signals advice?",
-    a: "No. Signals are a seven-rule vote you can read line by line, including the rules that failed.",
+    q: "Is the checklist advice?",
+    a: "No. The checklist counts six published conditions per symbol, each with its formula and how it graded in the past, including the ones not met or unknown.",
   },
 ];
 

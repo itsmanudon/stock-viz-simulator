@@ -4,7 +4,7 @@ export default function Loading() {
       <div className="h-8 w-32 animate-pulse bg-surface-secondary" />
       <div className="mt-3 h-4 w-96 max-w-full animate-pulse bg-surface-secondary" />
       <div className="mt-8 h-64 animate-pulse bg-surface-secondary" />
-      <span className="sr-only">Loading signals workspace…</span>
+      <span className="sr-only">Loading the checklist…</span>
     </div>
   );
 }

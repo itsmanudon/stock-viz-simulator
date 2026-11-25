@@ -22,7 +22,6 @@ from stockviz.models import (
     OptionStatus,
     OptionType,
     PortfolioSnapshot,
-    Recommendation,
     Symbol,
     Trade,
     TradeSide,
@@ -488,18 +487,6 @@ def test_closing_time_recommendation_is_not_misrepresented_as_entry_signal(
     user_id = _make_user(session, "signal@stockviz.dev")
     portfolio = ensure_default_portfolio(session, user_id)
     assert portfolio.id is not None
-    session.add_all(
-        [
-            Recommendation(
-                ticker="AAPL", score=Decimal(5), computed_at=datetime(2026, 8, 18, 21, 0)
-            ),
-            # Computed after the fill — must never be attached.
-            Recommendation(
-                ticker="AAPL", score=Decimal(7), computed_at=datetime(2026, 8, 19, 23, 0)
-            ),
-        ]
-    )
-    session.commit()
     _add_trade(session, portfolio_id=portfolio.id, ts=datetime(2026, 8, 19, 18), realized="12.00")
 
     body = client.get(
@@ -563,10 +550,6 @@ def test_no_signal_is_shown_when_none_was_computed_before_the_fill(
     user_id = _make_user(session, "nosignal@stockviz.dev")
     portfolio = ensure_default_portfolio(session, user_id)
     assert portfolio.id is not None
-    session.add(
-        Recommendation(ticker="AAPL", score=Decimal(6), computed_at=datetime(2026, 8, 20, 21, 0))
-    )
-    session.commit()
     _add_trade(session, portfolio_id=portfolio.id, ts=datetime(2026, 8, 19, 18), realized="12.00")
 
     body = client.get(

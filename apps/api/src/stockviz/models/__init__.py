@@ -16,6 +16,7 @@ from stockviz.models.aegis import (
 )
 from stockviz.models.alert import Alert, AlertDirection, AlertEvent, AlertKind, AlertRepeat
 from stockviz.models.auth_rate_limit import AuthRateLimit
+from stockviz.models.checklist import ChecklistEvidence, ChecklistScore
 from stockviz.models.corporate_action import CorporateAction, CorporateActionApplication
 from stockviz.models.data_file import DataFile
 from stockviz.models.delivery import (
@@ -60,7 +61,6 @@ from stockviz.models.portfolio import (
     Trade,
     TradeSide,
 )
-from stockviz.models.recommendation import Recommendation
 from stockviz.models.replay import (
     ReplayFill,
     ReplayJournal,
@@ -90,6 +90,8 @@ __all__ = [
     "AuthRateLimit",
     "CashBalance",
     "ChannelKind",
+    "ChecklistEvidence",
+    "ChecklistScore",
     "ConsumerInbox",
     "CorporateAction",
     "CorporateActionApplication",
@@ -129,7 +131,6 @@ __all__ = [
     "Position",
     "PriceBar",
     "QuarantinedPriceBar",
-    "Recommendation",
     "ReplayFill",
     "ReplayJournal",
     "ReplayPosition",

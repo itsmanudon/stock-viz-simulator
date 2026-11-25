@@ -34,9 +34,9 @@ describe("RangeBar", () => {
 });
 
 describe("StrengthDots", () => {
-  it("fills one dot per supporting vote and prints the count", () => {
-    const { container } = render(<StrengthDots score={4} max={7} />);
-    expect(screen.getByText("4/7")).toBeVisible();
+  it("fills one dot per counted item and prints the count", () => {
+    const { container } = render(<StrengthDots score={4} max={6} />);
+    expect(screen.getByText("4/6")).toBeVisible();
     expect(container.querySelectorAll(".bg-foreground")).toHaveLength(4);
   });
 });

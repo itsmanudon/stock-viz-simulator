@@ -582,15 +582,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/v1/recommendations": {
+    "/v1/checklist": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** List Recommendations */
-        get: operations["list_recommendations_v1_recommendations_get"];
+        /**
+         * List Checklist
+         * @description Every active symbol's latest checklist, most dimensions met first.
+         */
+        get: operations["list_checklist_v1_checklist_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/symbols/{ticker}/checklist": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Symbol Checklist
+         * @description One symbol's latest checklist with every dimension's formula and grade.
+         */
+        get: operations["symbol_checklist_v1_symbols__ticker__checklist_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2217,6 +2240,190 @@ export interface components {
         BaseCurrencyIn: {
             /** Base Currency */
             base_currency: string;
+        };
+        /** ChecklistConditionDefOut */
+        ChecklistConditionDefOut: {
+            /** Label */
+            label: string;
+            /** Rule */
+            rule: string;
+        };
+        /** ChecklistConditionOut */
+        ChecklistConditionOut: {
+            /** Label */
+            label: string;
+            /** Rule */
+            rule: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "met" | "not_met" | "unknown";
+            /** Reason */
+            reason?: string | null;
+        };
+        /** ChecklistDimensionOut */
+        ChecklistDimensionOut: {
+            /** Key */
+            key: string;
+            /** Name */
+            name: string;
+            /** Summary */
+            summary: string;
+            /** Source */
+            source: string;
+            /** Variants */
+            variants: components["schemas"]["ChecklistVariantOut"][];
+        };
+        /**
+         * ChecklistEvidenceOut
+         * @description The latest evidence study of one dimension setup version: the forward
+         *     20-session return after the rule turned true, net of fees, against the
+         *     base rate (``services/checklist/evidence.py``). Association, not advice.
+         */
+        ChecklistEvidenceOut: {
+            /**
+             * Grade
+             * @enum {string}
+             */
+            grade: "A" | "B" | "C" | "D" | "insufficient";
+            /** N Events */
+            n_events: number;
+            /** Symbols */
+            symbols: number;
+            /** Horizon */
+            horizon: number;
+            /**
+             * Window Start
+             * Format: date
+             */
+            window_start: string;
+            /**
+             * Window End
+             * Format: date
+             */
+            window_end: string;
+            /** Mean Excess */
+            mean_excess?: number | null;
+            /** T Stat */
+            t_stat?: number | null;
+            /** Hit Rate */
+            hit_rate?: number | null;
+            /** Mean Net Return */
+            mean_net_return?: number | null;
+            /** Base Rate */
+            base_rate?: number | null;
+            /**
+             * Overlapping Skipped
+             * @default 0
+             */
+            overlapping_skipped: number;
+            /** Fee Schedules */
+            fee_schedules?: {
+                [key: string]: number;
+            };
+            universe: components["schemas"]["UniverseOut"];
+            /**
+             * Computed At
+             * Format: date-time
+             */
+            computed_at: string;
+        };
+        /** ChecklistOut */
+        ChecklistOut: {
+            /** Dimensions */
+            dimensions: components["schemas"]["ChecklistDimensionOut"][];
+            /** Rows */
+            rows: components["schemas"]["ChecklistRowOut"][];
+            /** Total */
+            total: number;
+            universe: components["schemas"]["UniverseOut"];
+            /** Disclaimer */
+            disclaimer: string;
+        };
+        /** ChecklistResultOut */
+        ChecklistResultOut: {
+            /** Key */
+            key: string;
+            /**
+             * Scope
+             * @enum {string}
+             */
+            scope: "all" | "india" | "other";
+            /** Setup Version Id */
+            setup_version_id?: number | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "met" | "not_met" | "unknown";
+            /** Reason */
+            reason?: string | null;
+            /** Conditions */
+            conditions?: components["schemas"]["ChecklistConditionOut"][];
+        };
+        /**
+         * ChecklistRowOut
+         * @description One symbol's checklist on its venue session. ``met`` of ``total`` (6)
+         *     dimensions met; ``evaluated`` judged met or not met (the rest unknown).
+         *     Neutral wording only: a count of conditions, never a call to buy or sell.
+         */
+        ChecklistRowOut: {
+            /** Ticker */
+            ticker: string;
+            /** Name */
+            name: string;
+            /** Sector */
+            sector?: string | null;
+            /** Currency */
+            currency?: string | null;
+            /**
+             * Session Date
+             * Format: date
+             */
+            session_date: string;
+            /** Met */
+            met: number;
+            /** Evaluated */
+            evaluated: number;
+            /** Total */
+            total: number;
+            /** Results */
+            results: components["schemas"]["ChecklistResultOut"][];
+            /**
+             * Computed At
+             * Format: date-time
+             */
+            computed_at: string;
+            /**
+             * Stale
+             * @default false
+             */
+            stale: boolean;
+        };
+        /**
+         * ChecklistVariantOut
+         * @description One setup of a dimension: ``all`` listings, or ``india`` / ``other``.
+         */
+        ChecklistVariantOut: {
+            /**
+             * Scope
+             * @enum {string}
+             */
+            scope: "all" | "india" | "other";
+            /** Setup Id */
+            setup_id: number;
+            /** Setup Version Id */
+            setup_version_id: number;
+            /** Version */
+            version: number;
+            /** Canonical */
+            canonical: string;
+            /** Hash */
+            hash: string;
+            /** Conditions */
+            conditions: components["schemas"]["ChecklistConditionDefOut"][];
+            evidence?: components["schemas"]["ChecklistEvidenceOut"] | null;
         };
         /**
          * CurrencyCashOut
@@ -4209,66 +4416,6 @@ export interface components {
             /** Close */
             close: string;
         };
-        /**
-         * RecommendationOut
-         * @description One row from the ``recommendations`` table, joined with the symbol name.
-         *
-         *     ``votes`` is the full seven-check evidence list. ``rationale`` remains the
-         *     passing phrases only so older clients keep working. ``sentiment_7d`` is the
-         *     trailing-week mean from ``symbol_metrics`` when present.
-         */
-        RecommendationOut: {
-            /** Ticker */
-            ticker: string;
-            /** Name */
-            name: string;
-            /** Sector */
-            sector?: string | null;
-            /** Score */
-            score: number;
-            /**
-             * Max Score
-             * @default 7
-             */
-            max_score: number;
-            /** Rationale */
-            rationale: string[];
-            /** Votes */
-            votes?: components["schemas"]["RecommendationVoteOut"][];
-            /** Sentiment 7D */
-            sentiment_7d?: number | null;
-            /**
-             * Computed At
-             * Format: date-time
-             */
-            computed_at: string;
-            /** Bar Date */
-            bar_date?: string | null;
-            /**
-             * Stale
-             * @default false
-             */
-            stale: boolean;
-        };
-        /**
-         * RecommendationVoteOut
-         * @description One of the seven deterministic recommendation checks.
-         */
-        RecommendationVoteOut: {
-            /** Id */
-            id: string;
-            /** Label */
-            label: string;
-            /** Passed */
-            passed: boolean;
-            /** Detail */
-            detail: string;
-            /**
-             * Available
-             * @default true
-             */
-            available: boolean;
-        };
         /** ReplayAvailabilityOut */
         ReplayAvailabilityOut: {
             /** Ticker */
@@ -5387,6 +5534,17 @@ export interface components {
             score: "sharpe" | "total_return";
             /** Experiment Id */
             experiment_id?: number | null;
+        };
+        /** SymbolChecklistOut */
+        SymbolChecklistOut: {
+            /** Ticker */
+            ticker: string;
+            /** Dimensions */
+            dimensions: components["schemas"]["ChecklistDimensionOut"][];
+            row?: components["schemas"]["ChecklistRowOut"] | null;
+            universe: components["schemas"]["UniverseOut"];
+            /** Disclaimer */
+            disclaimer: string;
         };
         /**
          * SymbolDetailOut
@@ -6997,11 +7155,15 @@ export interface operations {
             };
         };
     };
-    list_recommendations_v1_recommendations_get: {
+    list_checklist_v1_checklist_get: {
         parameters: {
             query?: {
-                min_score?: number;
+                min_met?: number;
+                /** @description Only symbols that meet this dimension (its key) */
+                dimension?: string | null;
+                sort?: "met" | "ticker";
                 limit?: number;
+                offset?: number;
             };
             header?: never;
             path?: never;
@@ -7015,7 +7177,38 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["RecommendationOut"][];
+                    "application/json": components["schemas"]["ChecklistOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    symbol_checklist_v1_symbols__ticker__checklist_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ticker: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SymbolChecklistOut"];
                 };
             };
             /** @description Validation Error */

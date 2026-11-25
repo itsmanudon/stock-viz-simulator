@@ -9,7 +9,7 @@
  *
  * Batch 2 adds:
  * - Compare: two symbols in two currencies spring onto one index.
- * - Signals: a sonar sweep over real Signals rows.
+ * - Checklist: a sonar sweep over real checklist rows (dimensions met of six).
  * - Portfolio: an example account's split, drifting with real closes.
  *
  * Every row states its figures in text beside the animation, so the canvas is
@@ -33,7 +33,7 @@ import { type SonarBlip, SonarSweep } from "@/components/marketing/proofs/sonar-
 import {
   ApiError,
   getBars,
-  getRecommendations,
+  getChecklist,
   listSymbols,
   runBacktest,
   screenSymbols,
@@ -49,7 +49,7 @@ export type ProofKey =
   | "replay"
   | "fill"
   | "compare"
-  | "signals"
+  | "checklist"
   | "portfolio"
   | "chart";
 
@@ -244,15 +244,16 @@ async function loadCompare(): Promise<CompareProof | null> {
   return null;
 }
 
-type SignalsProof = { blips: SonarBlip[]; computedAt: string | null };
+type ChecklistProof = { blips: SonarBlip[]; session: string | null };
 
-async function loadSignals(): Promise<SignalsProof | null> {
-  const rows = await safe(() => getRecommendations({ limit: 10, revalidateSeconds: CACHE_S }));
-  const usable = (rows ?? []).filter((row) => row.max_score > 0);
+/** The ten symbols with the most dimensions met (only rows judged at all). */
+async function loadChecklist(): Promise<ChecklistProof | null> {
+  const page = await safe(() => getChecklist({ limit: 10, revalidateSeconds: CACHE_S }));
+  const usable = (page?.rows ?? []).filter((row) => row.evaluated > 0 && row.total > 0);
   if (usable.length < 3) return null;
   return {
-    blips: usable.map((row) => ({ ticker: row.ticker, score: row.score, max: row.max_score })),
-    computedAt: usable[0].computed_at,
+    blips: usable.map((row) => ({ ticker: row.ticker, score: row.met, max: row.total })),
+    session: usable[0].session_date,
   };
 }
 
@@ -368,12 +369,12 @@ export async function ProofSection({
   only?: ProofKey[];
 }) {
   const want = new Set(only);
-  const [backtest, screener, bars, compare, signals, portfolio] = await Promise.all([
+  const [backtest, screener, bars, compare, checklist, portfolio] = await Promise.all([
     want.has("backtest") ? loadBacktest().catch(() => null) : null,
     want.has("screener") ? loadScreener() : null,
     want.has("replay") || want.has("fill") || want.has("chart") ? loadBars() : null,
     want.has("compare") ? loadCompare() : null,
-    want.has("signals") ? loadSignals() : null,
+    want.has("checklist") ? loadChecklist() : null,
     want.has("portfolio") ? loadPortfolio() : null,
   ]);
 
@@ -548,26 +549,26 @@ export async function ProofSection({
         </Row>,
       );
     }
-    if (key === "signals" && signals) {
+    if (key === "checklist" && checklist) {
       rows.push(
         <Row
           key={key}
           flip={flip}
-          eyebrow="Signals"
-          title="Seven rules, read on every pass."
+          eyebrow="Checklist"
+          title="Six published conditions, read on every pass."
           facts={
             <>
-              {signals.blips.map((b) => `${b.ticker} ${b.score}/${b.max}`).join(" · ")}
-              {signals.computedAt ? `, computed ${formatCloseDate(signals.computedAt)}` : ""}. Not
+              {checklist.blips.map((b) => `${b.ticker} ${b.score} of ${b.max} met`).join(" · ")}
+              {checklist.session ? `, session ${formatCloseDate(checklist.session)}` : ""}. Not
               investment advice.
             </>
           }
-          href="/recommendations"
-          cta="Read the signals"
-          stage={<SonarSweep blips={signals.blips} />}
+          href="/checklist"
+          cta="Read the checklist"
+          stage={<SonarSweep blips={checklist.blips} />}
         >
-          Each symbol is scored by a vote of simple rules you can read one by one. The more rules
-          pass, the nearer the centre it sits.
+          Each symbol is checked against six dimensions you can read formula by formula, each with
+          how it graded in the past. The more it meets, the nearer the centre it sits.
         </Row>,
       );
     }

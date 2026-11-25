@@ -4,7 +4,7 @@
 
 - Charts and quotes show an old date; "latest close" stops moving.
 - Price alerts stop firing.
-- Screener/recommendation values look frozen.
+- Screener/checklist values look frozen.
 - Pending orders stay `PENDING` through a settlement window.
 
 ## Impact
@@ -81,7 +81,7 @@ kubectl exec -n stockviz deploy/stockviz-api -- python -m stockviz.cli ingest AA
 
 # Then rebuild what derives from bars
 kubectl exec -n stockviz deploy/stockviz-api -- python -m stockviz.cli metrics
-kubectl exec -n stockviz deploy/stockviz-api -- python -m stockviz.cli recommend
+kubectl exec -n stockviz deploy/stockviz-api -- python -m stockviz.cli checklist
 ```
 
 Every scheduled job has a CLI twin precisely for this. Re-running is safe:

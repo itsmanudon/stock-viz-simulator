@@ -30,6 +30,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from stockviz.services.checklist.dimensions import CHECKLIST_PRESETS
 from stockviz.services.dsl import ast, compile_rule, point, vector
 from stockviz.services.dsl.functions import FUNCTIONS
 from stockviz.services.dsl.pit import Fact, Fundamentals, News, NewsDoc
@@ -98,9 +99,15 @@ CORPUS: tuple[str, ...] = (
     "bars_since(delivery_pct > 80) < 3",
     # A2.2: every shipped preset
     *(preset.rule for preset in PRESETS),
+    # A2.4: the venue index binding, and every checklist dimension setup
+    "index_close > sma(index_close, 200)",
+    "index_close crosses_above sma(index_close, 50) and close > open",
+    "weekly.index_close > weekly.index_close[4]",
+    *(preset.rule for preset in CHECKLIST_PRESETS),
 )
 
 NUMERIC: tuple[str, ...] = (
+    "index_close / sma(index_close, 20)",
     "ema(rsi(14), 10)",
     "wma(10) - vwap(20)",
     "weekly.macd(12, 26, 9).signal",
@@ -156,6 +163,7 @@ def _tasks() -> list[tuple[str, str]]:
 def test_corpus_covers_every_function_and_is_large_enough() -> None:
     assert len(CORPUS) >= 40
     assert {p.rule for p in PRESETS} <= set(CORPUS)  # presets must conform (A2.2)
+    assert {p.rule for p in CHECKLIST_PRESETS} <= set(CORPUS)  # checklist dimensions (A2.4)
     compiled = [compile_rule(r) for r in CORPUS]  # all type-check as conditions
     used = {n.name for c in compiled for n in ast.walk(c.canonical) if isinstance(n, ast.Call)}
     kinds = {type(n).__name__ for c in compiled for n in ast.walk(c.canonical)}

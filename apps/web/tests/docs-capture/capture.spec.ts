@@ -120,7 +120,7 @@ test("capture the docs screenshots", async ({ page }) => {
   await create.getByRole("button", { name: "Create alert" }).click();
   await expect(create.getByText("Alert set.")).toBeVisible();
 
-  // Alerts, the portfolio, compare and signals: the top of each page.
+  // Alerts, the portfolio, compare and the checklist: the top of each page.
   await go(page, "/alerts");
   await expect(main.getByRole("list", { name: "Alert rules" })).toContainText("AAPL");
   await topOf(page, `${OUT}/alerts.png`, 700);
@@ -130,9 +130,9 @@ test("capture the docs screenshots", async ({ page }) => {
   await go(page, "/compare?tickers=AAPL&tickers=MSFT&tickers=NVDA&tf=1Y");
   await page.waitForLoadState("networkidle");
   await topOf(page, `${OUT}/compare.png`);
-  await go(page, "/recommendations");
+  await go(page, "/checklist");
   await page.waitForLoadState("networkidle");
-  await topOf(page, `${OUT}/signals.png`, 760);
+  await topOf(page, `${OUT}/checklist.png`, 760);
 
   // A replay session after one buy.
   await go(page, "/replay");

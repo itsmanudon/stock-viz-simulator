@@ -227,7 +227,8 @@ timezone `America/New_York`) are:
 - **16:45 ET weekdays** — `fx_refresh` and `pending_orders_settlement`.
 - **16:50 ET weekdays** — `symbol_metrics_refresh`.
 - **16:55 ET weekdays** — `sentiment_aggregate_refresh`.
-- **17:00 ET weekdays** — `recommendations_refresh`.
+- **17:00 ET weekdays** — `checklist_refresh` (A2.4; replaced `recommendations_refresh`).
+- **18:00 ET Fridays** — `checklist_evidence_refresh` (the weekly evidence grades).
 - **17:15 ET weekdays** — `portfolio_snapshots_refresh`.
 - **17:30 ET weekdays** — `options_expiry_refresh`.
 - **Every 4h at :15** — `news_refresh` (skipped if `NEWSDATA_KEY` is empty).
@@ -251,7 +252,7 @@ service to `infra/render.yaml`:
   dockerfilePath: apps/api/Dockerfile
   plan: starter # verify current Render plan availability and pricing
   schedule: "30 21 * * 1-5" # 21:30 UTC = 16:30 ET, weekdays
-  dockerCommand: sh -c "python -m stockviz.cli ingest AAPL MSFT GOOGL && python -m stockviz.cli recommend"
+  dockerCommand: sh -c "python -m stockviz.cli ingest AAPL MSFT GOOGL && python -m stockviz.cli checklist"
   envVars:
     - key: DATABASE_URL
       fromDatabase:
@@ -319,7 +320,8 @@ Browser ─▶ web (Next.js, sleeps on idle) ─▶ api (FastAPI, sleeps on idle
 - **`cron`** is the same `apps/api` image with a `cronSchedule`; its start
   command runs the end-of-day `stockviz.cli` job twins (`ingest`, `fx`,
   `news`, `score-sentiment`, `sentiment-aggregate`, `metrics`, `dividends`,
-  `credit-dividends`, `settle-options`, `recommend`, `snapshot-portfolios`)
+  `credit-dividends`, `settle-options`, `checklist` (and `checklist-evidence` on
+  Fridays), `snapshot-portfolios`)
   **synchronously** — no Kafka broker. The full event-driven stack still
   lives in `docker-compose --profile events` and `infra/k8s/`.
   The run **fails when a step fails**: a failed migration or ticker lookup
@@ -357,7 +359,7 @@ railway ssh --service api "python -m stockviz.cli backfill"
 railway ssh --service api "python -m stockviz.cli metadata"
 railway ssh --service api "python -m stockviz.cli fx"
 railway ssh --service api "python -m stockviz.cli metrics"
-railway ssh --service api "python -m stockviz.cli recommend"
+railway ssh --service api "python -m stockviz.cli checklist"
 ```
 
 Demo accounts (`apps/web/scripts/seed-demo.mjs`) need direct DB access; run

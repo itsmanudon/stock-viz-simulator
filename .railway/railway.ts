@@ -89,7 +89,7 @@ const EOD_REFRESH = [
   job("python -m stockviz.cli settle-orders"),
   job("python -m stockviz.cli evaluate-alerts"),
   // Aegis News copy (Phase 2). Exit 2 means it is not configured yet: skip.
-  // It also refreshes the rolling sentiment the signals and screener read,
+  // It also refreshes the rolling sentiment the screener reads,
   // which replaced the legacy news, score-sentiment and sentiment-aggregate
   // steps (audit AG-14).
   "python -m stockviz.cli aegis-sync || [ $? -eq 2 ] || rc=1",
@@ -109,7 +109,15 @@ const EOD_REFRESH = [
   job("python -m stockviz.cli dividends"),
   job("python -m stockviz.cli credit-dividends"),
   job("python -m stockviz.cli settle-options"),
-  job("python -m stockviz.cli recommend"),
+  // A2.4: the six checklist dimensions on tonight's session (replaced the
+  // 7-vote `recommend`). After metrics and Friday's fundamentals (Quality
+  // reads them), so every binding holds tonight's data.
+  job("python -m stockviz.cli checklist"),
+  // A2.4: the evidence grades, weekly. The cron runs on weekdays only (no
+  // Sunday run), so Friday, after the week's last session and Friday's
+  // fundamentals, like `fundamentals` itself. A grade moves by one week of a
+  // ten-year window, so nightly would only cost time.
+  'if [ "$(date -u +%u)" = 5 ]; then python -m stockviz.cli checklist-evidence || rc=1; fi',
   job("python -m stockviz.cli snapshot-portfolios"),
   // A2.3: send the night's notifications on users' webhook, email and
   // Telegram channels, after every step that writes one (orders, alerts,

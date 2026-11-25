@@ -1,6 +1,8 @@
 import { expect, test } from "@playwright/test";
 
-test("research navigation keeps compare, backtest, and signals as one domain", async ({ page }) => {
+test("research navigation keeps compare, backtest, and the checklist as one domain", async ({
+  page,
+}) => {
   await page.goto("/compare");
 
   const product = page.getByRole("navigation", { name: "Product" });
@@ -17,9 +19,9 @@ test("research navigation keeps compare, backtest, and signals as one domain", a
     "href",
     "/backtest",
   );
-  await expect(product.getByRole("link", { name: "Signals" })).toHaveAttribute(
+  await expect(product.getByRole("link", { name: "Checklist" })).toHaveAttribute(
     "href",
-    "/recommendations",
+    "/checklist",
   );
 
   const subnav = page.getByRole("navigation", { name: "Research tools" });
@@ -59,32 +61,34 @@ test("backtest is an experiment workspace with visible assumptions", async ({ pa
   ).toBeVisible();
 });
 
-test("signals page exposes explainable evidence rather than an AI buy list", async ({ page }) => {
-  await page.goto("/recommendations");
+test("the checklist shows each dimension with its formula, not a buy list", async ({ page }) => {
+  await page.goto("/checklist");
   const main = page.locator("#main");
-  await expect(main.getByRole("heading", { name: "Signals", exact: true })).toBeVisible();
-  await expect(main.getByText(/not an AI recommendation/i)).toBeVisible();
-  await expect(main.locator('select[name="signal"]')).toBeVisible();
-  await expect(main.getByRole("region", { name: "Signals list" })).toBeVisible();
+  await expect(main.getByRole("heading", { name: "Checklist", exact: true })).toBeVisible();
+  await expect(main.getByText(/not a recommendation/i).first()).toBeVisible();
+  await expect(main.getByRole("heading", { name: "The six dimensions" })).toBeVisible();
+  await main.getByTestId("dimension-trend").locator("summary").click();
+  await expect(
+    main.getByTestId("dimension-trend").getByText("close > sma(close, 200)"),
+  ).toBeVisible();
+  await expect(main).not.toContainText(/\b(bullish|bearish|strong buy)\b/i);
 });
 
-test("signals selection opens a shareable master-detail evidence workspace", async ({ page }) => {
-  await page.goto("/recommendations?sort=ticker&dir=asc");
+test("an old Signals link lands on the checklist with its ticker search", async ({ page }) => {
+  await page.goto("/recommendations?q=AAPL");
+  await expect(page).toHaveURL(/\/checklist\?q=AAPL$/);
   const main = page.locator("#main");
+  await expect(main.getByRole("heading", { name: "Checklist", exact: true })).toBeVisible();
+});
 
-  const apple = main.getByRole("button", { name: /AAPL, Apple/i });
-  await expect(apple).toBeVisible();
-  await apple.click();
-
-  await expect(page).toHaveURL(/\/recommendations\?sort=ticker&dir=asc&selected=AAPL/);
-  await expect(main.getByRole("heading", { name: "Seven vote checks" })).toBeVisible();
-  await expect(main.getByRole("link", { name: "Open AAPL workspace" })).toBeVisible();
-  await expect(main.locator("details")).toHaveCount(0);
-
-  await page.setViewportSize({ width: 390, height: 844 });
-  await expect(main.getByRole("button", { name: "Back to signals" })).toBeVisible();
-  await main.getByRole("button", { name: "Back to signals" }).click();
-  await expect(page).toHaveURL(/\/recommendations\?sort=ticker&dir=asc$/);
+test("checklist filters are shareable links", async ({ page }) => {
+  await page.goto("/checklist?min=2&sort=ticker");
+  const main = page.locator("#main");
+  await expect(main.getByRole("link", { name: "At least 2 of 6" })).toHaveAttribute(
+    "aria-current",
+    "true",
+  );
+  await expect(main.getByRole("link", { name: "Ticker" })).toHaveAttribute("aria-current", "true");
 });
 
 test.describe("research pages on a phone", () => {
@@ -109,13 +113,12 @@ test.describe("research pages on a phone", () => {
     expect(small).toEqual([]);
   });
 
-  test("signals give the company name the free width (audit D2)", async ({ page }) => {
-    await page.goto("/recommendations");
-    const row = page.locator("[data-signal-ticker]").first();
-    if ((await row.count()) === 0) test.skip(true, "No stored signals");
-    const name = row.locator("span.truncate").first();
-    const box = await name.boundingBox();
-    expect(box && box.width > 150).toBe(true);
+  test("checklist cards keep the company name readable (audit D2)", async ({ page }) => {
+    await page.goto("/checklist");
+    const card = page.locator('[data-testid^="checklist-row-"]').first();
+    if ((await card.count()) === 0) test.skip(true, "No stored checklist scores");
+    const box = await card.locator("summary").boundingBox();
+    expect(box && box.width > 300).toBe(true);
   });
 
   test("backtest's default run produces a result (audit F1)", async ({ page }) => {

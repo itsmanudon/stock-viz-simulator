@@ -82,18 +82,21 @@ export const PRODUCT_PAGES: ProductPageSpec[] = [
     title: "Find it, test it,",
     soft: "before you trade it.",
     summary:
-      "Screener, compare, signals and backtests run on the same stored daily history your paper trades fill against.",
+      "Screener, compare, the checklist and backtests run on the same stored daily history your paper trades fill against.",
     primary: { href: "/screener", label: "Open the screener" },
     secondary: { href: "/compare", label: "Compare symbols" },
     art: { kind: "phone", screen: "stock" },
     facts: [
       ["Screener", "Filter the tracked universe by the measures you care about."],
-      ["Signals", "A seven-rule vote per symbol, shown line by line. Not investment advice."],
+      [
+        "Checklist",
+        "Six published conditions per symbol, each with its formula and evidence grade. Not investment advice.",
+      ],
       ["Backtest", "Run a strategy over stored daily history and read the equity curve."],
     ],
     sections: (
       <>
-        <ProofSection only={["backtest", "screener", "compare", "signals", "chart"]} />
+        <ProofSection only={["backtest", "screener", "compare", "checklist", "chart"]} />
         <MovingToday />
         <SessionTiles />
       </>

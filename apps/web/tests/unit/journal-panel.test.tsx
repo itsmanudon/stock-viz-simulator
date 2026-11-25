@@ -303,7 +303,7 @@ describe("trading journal panel", () => {
 
     expect(within(dialog).getByRole("heading", { name: "August 19, 2026" })).toBeVisible();
     expect(within(dialog).getByText("+$272.00")).toBeVisible();
-    expect(within(dialog).getByText("5 / 7 votes")).toBeVisible();
+    expect(within(dialog).getByText("5 / 7 met")).toBeVisible();
     // The option leg keeps option nomenclature rather than borrowing the
     // equity fields.
     expect(within(dialog).getByText(/LONG CALL 250\.00/)).toBeVisible();

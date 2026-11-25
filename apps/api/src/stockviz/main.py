@@ -16,6 +16,7 @@ from stockviz.routers import (
     alerts,
     backtest,
     bars,
+    checklist,
     earnings,
     experiments,
     fundamentals,
@@ -30,7 +31,6 @@ from stockviz.routers import (
     orders,
     profile,
     quotes,
-    recommendations,
     replay,
     research,
     rules,
@@ -117,7 +117,7 @@ def create_app() -> FastAPI:
     app.include_router(indicators.router)
     app.include_router(fundamentals.router)
     app.include_router(indicators.catalog_router)
-    app.include_router(recommendations.router)
+    app.include_router(checklist.router)
     app.include_router(trading.router)
     app.include_router(alerts.router)
     app.include_router(watchlist.router)

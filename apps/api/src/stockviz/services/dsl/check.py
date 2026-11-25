@@ -30,6 +30,7 @@ from stockviz.services.dsl import ast
 from stockviz.services.dsl.bindings import (
     DELIVERY_SERIES,
     FUNDAMENTAL_METRICS,
+    INDEX_SERIES,
     NEWS_FUNCTIONS,
     NEWS_MAX_DAYS,
     NEWS_SENTIMENTS,
@@ -105,7 +106,7 @@ class _Checker:
         raise _err(node, "a string is allowed only as a keyword value")
 
     def _name(self, node: ast.Name, tf: str) -> Type:
-        if node.name in PRICE_SERIES:
+        if node.name in PRICE_SERIES or node.name in INDEX_SERIES:
             return Type("number", "series")
         if node.name in DELIVERY_SERIES:
             if tf != "daily":

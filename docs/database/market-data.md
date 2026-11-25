@@ -61,7 +61,7 @@ The seed CSVs follow the same basis. They are rebuilt from yfinance by
 trading days on consecutive calendar days and left splits in (feature audit
 MD-1). A database loaded from those still holds the wrong rows, because upsert
 never deletes: run `python -m stockviz.cli backfill --replace`, then `metrics`
-and `recommend`.
+and `checklist`.
 
 `dividends` are modelled separately as declared payouts per symbol and
 credited to portfolios by a scheduled job; they are **not** folded into

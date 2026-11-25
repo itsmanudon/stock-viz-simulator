@@ -24,7 +24,7 @@ rs(126) > 0 and bars_since(close crosses_above sma(close, 50)) <= 5
 
 | Part | Form |
 | --- | --- |
-| Bar series | `open high low close volume`; `delivery_pct deliverable_qty` (NSE, daily only) |
+| Bar series | `open high low close volume`; `delivery_pct deliverable_qty` (NSE, daily only); `index_close`, the venue index's close (A2.4) |
 | Arithmetic | `+ - * /` and unary `-`; division by zero is unknown |
 | Comparison | `< <= > >= = !=` (`==` also means `=`). One per condition: write `a < b and b < c` |
 | Logic | `and`, `or`, `not`, parentheses |
@@ -34,6 +34,13 @@ rs(126) > 0 and bars_since(close crosses_above sma(close, 50)) <= 5
 | Fundamentals | `fundamental.<metric>` |
 | News | `news.count(days, sentiment="...", event_type="...")` |
 | Comments | `# to the end of the line` |
+
+`index_close` is the close of the listing's market index on each bar's date:
+`^GSPC` for US listings, `^NSEI` for Indian ones, forward-filled at most 5
+bars (the series `rs()` reads). A bar never sees a later index close. On
+`weekly.` and `monthly.` it is the period's last index close. Without a stored
+index series it is unknown. `index_close > sma(index_close, 200)` is the
+market-regime test the Checklist uses.
 
 Names are lowercase. Strings appear only as keyword values. Arguments go by
 position or by name: `bb(20, k=2.5)`. Defaults may be left out: `rsi()` is
@@ -166,3 +173,52 @@ leaves out.
 
 Every preset is in the conformance suite, so its scan and its bar-by-bar
 results are proven equal. None is a recommendation.
+
+
+## The Checklist
+
+The Checklist (`/checklist`, A2.4) replaced the 7-vote Signals. It judges six
+dimensions, each a short list of conditions written in this language and
+stored as a read-only system setup of kind `checklist` (versioned and hashed
+like any preset; `/v1/setups/presets` lists them). A dimension is **met**
+when all its conditions are met, **unknown** when an input is missing and no
+condition failed, and **not met** otherwise: Kleene's `and`, exactly what the
+DSL gives the conjunction. The page reads "N of 6 met". It never says buy or
+sell.
+
+| Dimension | Conditions | Source |
+| --- | --- | --- |
+| Trend | `close > sma(close, 200)`; `sma(close, 50) > sma(close, 200)` | trend-following's 200-day filter; points of Minervini's template |
+| Momentum / relative strength | `rs(126) > 0`; `rsi(14) >= 50`; `rsi(14) <= 70` | Jegadeesh and Titman (1993) 6-month momentum; Wilder's RSI, the 50-70 bull range (Cardwell, Brown) |
+| Volume / delivery | `volume > sma(volume, 50)`; on NSE and BSE listings also `delivery_pct > 50` | O'Neil's volume test; NSE/BSE delivery data. US listings have no delivery figure, so they are judged on volume (a separate setup). Indian delivery is unknown until NSE files load (A1) |
+| Market regime | `index_close > sma(index_close, 200)` | Faber (2007): the index above its 10-month (here 200-day) average |
+| Quality | `fundamental.roe > 15`; `fundamental.debt_to_equity < 1` | common ROE cut-off; Graham's defensive balance-sheet test. Unknown before fundamentals were collected |
+| Risk / reward | `close >= 0.75 * highest(high, 252)`; `atr(14) < 0.04 * close` | Minervini's "within 25% of the high"; Wilder's ATR, a 4% bound (a convention) |
+
+**Nightly.** `stockviz.cli checklist` (cron, after `metrics`) judges every
+active symbol's six dimensions at its venue's latest stored session (a symbol
+without that day's bar is unknown, never judged stale) into
+`checklist_scores`. `GET /v1/checklist` and `GET /v1/symbols/{t}/checklist`
+return the results with each dimension's formula, grade and sample.
+
+**Evidence grade.** `stockviz.cli checklist-evidence` (Fridays) studies each
+dimension setup on the stored history (default: the last 10 years):
+
+- an **event** is the first bar the rule is true after a bar it was false
+  (vector mode, conformance-proven, so no value depends on a later bar);
+- its **outcome** is the forward 20-session close-to-close return, minus the
+  venue's round-trip fees (`us_equity_2026`, `in_delivery_nse_2026` or
+  `in_delivery_bse_2026` on a 100,000 position; dividends not added);
+- its **excess** is that minus the **base rate**: the mean forward 20-session
+  return, before costs, of every symbol in the same universe and market on the
+  same date;
+- events on one symbol within 20 bars of the last counted one are skipped, so
+  windows on a symbol never overlap (windows on different symbols still can);
+- the grade: **A** when t >= 3 and the mean excess >= 1%, **B** when t >= 2,
+  **C** when t >= 1, **D** otherwise, **insufficient** under 30 events.
+
+Every grade carries its sample (events, symbols, window, horizon) and the
+universe stamp: the pinned symbol list with today's provider history, so the
+study sees only survivors and is **survivorship-biased** until A1.4b's
+point-in-time universes. Grades describe past association net of modelled
+costs, not a forecast, and are not advice.
