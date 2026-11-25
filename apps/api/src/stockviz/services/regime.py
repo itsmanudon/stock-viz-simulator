@@ -151,12 +151,17 @@ class MarketRegime:
 def classify(
     values: Mapping[str, float | None],
 ) -> tuple[str | None, list[tuple[RegimeRule, bool | None]]]:
-    """The state for a set of inputs, and each rule's result (Kleene)."""
+    """The state for a set of inputs, and each rule's result (Kleene).
+
+    The fallback rule (no clauses) is met only when it is reached; once an
+    earlier rule decided, it reads false (a state) or unknown (no state)."""
     results: list[tuple[RegimeRule, bool | None]] = []
     state: str | None = None
     decided = False
     for rule in REGIME_RULES:
         result = rule.evaluate(values)
+        if not rule.clauses and decided:
+            result = False if state is not None else None
         results.append((rule, result))
         if decided:
             continue

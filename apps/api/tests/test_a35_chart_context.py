@@ -360,6 +360,9 @@ def test_classify_each_state_and_unknown() -> None:
     # Calm trend cannot be decided, so the state is unknown.
     state, results = regime.classify(_values(110, 100, 70, None))
     assert state is None and results[0][1] is False and results[1][1] is None
+    assert results[2][1] is None  # the fallback is not "met" when the state is unknown
+    _, decided = regime.classify(_values(110, 100, 70, 30))
+    assert [r for _, r in decided] == [False, True, False]
     # Kleene: a false clause decides even with another input unknown.
     assert regime.classify(_values(110, 100, None, 90))[0] == "Choppy"
 
