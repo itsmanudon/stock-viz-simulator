@@ -3,14 +3,21 @@ import { describe, expect, it } from "vitest";
 import type { ScreenerResult } from "@/lib/api/types";
 import {
   activeFilterChips,
+  carriedFields,
   clearFiltersHref,
+  clearRuleHref,
+  describeRuleError,
+  parseRuleMode,
   parseScreenerPage,
   parseScreenerSort,
+  ruleErrorFromMessage,
+  ruleModeHref,
   savedScreenQuery,
   screenerApiQuery,
   screenerPageHref,
   screenerSortHref,
   sortScreenerRows,
+  warmupLabel,
 } from "@/lib/screener-view";
 
 function row(ticker: string, over: Partial<ScreenerResult> = {}): ScreenerResult {
@@ -149,5 +156,71 @@ describe("Phase 6.2: markets, trend, paging and the API query", () => {
       savedScreenQuery({ market: "IN", rsi_max: "30", sort: "rsi", dir: "asc", page: "2" }),
     ).toBe("market=IN&rsi_max=30&sort=rsi&dir=asc");
     expect(savedScreenQuery({})).toBe("");
+  });
+});
+
+describe("the rule in the URL (A2.2)", () => {
+  const params = { market: "US", sort: "rsi", dir: "desc", rule: "close > open", page: "3" };
+
+  it("sends the rule and its mode to the API, default met only", () => {
+    const q = screenerApiQuery(params, 50);
+    expect(q.get("rule")).toBe("close > open");
+    expect(q.get("rule_mode")).toBe("met_only");
+    expect(screenerApiQuery({ ...params, rule_mode: "all" }, 50).get("rule_mode")).toBe("all");
+    expect(screenerApiQuery({ rule: "   " }, 50).has("rule")).toBe(false);
+  });
+
+  it("shows the rule as a removable chip that keeps the filters", () => {
+    const chip = activeFilterChips(params).find((c) => c.id === "rule");
+    expect(chip?.label).toBe("Rule: close > open");
+    expect(chip?.removeHref).toBe("/screener?market=US&sort=rsi&dir=desc");
+    const long = activeFilterChips({ rule: "x".repeat(60) }).find((c) => c.id === "rule");
+    expect(long?.label.endsWith("…")).toBe(true);
+  });
+
+  it("parses the mode, clears the rule and switches the mode", () => {
+    expect(parseRuleMode({})).toBe("met_only");
+    expect(parseRuleMode({ rule_mode: "all" })).toBe("all");
+    expect(parseRuleMode({ rule_mode: "bogus" })).toBe("met_only");
+    expect(clearRuleHref({ ...params, rule_mode: "all" })).toBe(
+      "/screener?market=US&sort=rsi&dir=desc",
+    );
+    expect(ruleModeHref(params, "all")).toBe(
+      "/screener?market=US&sort=rsi&dir=desc&rule=close+%3E+open&rule_mode=all",
+    );
+    expect(ruleModeHref({ ...params, rule_mode: "all" }, "met_only")).toBe(
+      "/screener?market=US&sort=rsi&dir=desc&rule=close+%3E+open",
+    );
+  });
+
+  it("carries the rest of the screen through a form, never the page", () => {
+    expect(carriedFields(params, ["rule", "rule_mode"])).toEqual([
+      ["market", "US"],
+      ["sort", "rsi"],
+      ["dir", "desc"],
+    ]);
+  });
+
+  it("keeps the rule in a saved screen's query", () => {
+    expect(savedScreenQuery(params)).toBe("market=US&sort=rsi&dir=desc&rule=close+%3E+open");
+  });
+
+  it("reads a rule error out of an API error message", () => {
+    const message =
+      'API 422 /v1/screener?rule=x: {"detail":{"kind":"syntax","message":"unexpected \'andd\'","line":1,"column":25}}';
+    const error = ruleErrorFromMessage(message);
+    expect(error).toEqual({ kind: "syntax", message: "unexpected 'andd'", line: 1, column: 25 });
+    expect(describeRuleError(error as NonNullable<typeof error>)).toBe(
+      "Syntax error at line 1, column 25: unexpected 'andd'",
+    );
+    expect(ruleErrorFromMessage("API 500 /v1/screener: boom")).toBeNull();
+    expect(ruleErrorFromMessage('API 404 x: {"detail":"Setup version 9 not found"}')).toBeNull();
+  });
+
+  it("says how much warm-up a rule needs", () => {
+    expect(warmupLabel(199, false)).toBe("Needs 199 daily bars of warm-up");
+    expect(warmupLabel(1, false)).toBe("Needs 1 daily bar of warm-up");
+    expect(warmupLabel(0, false)).toBe("Needs no warm-up");
+    expect(warmupLabel(null, true)).toBe("Reads the whole history");
   });
 });

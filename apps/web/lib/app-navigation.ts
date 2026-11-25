@@ -23,6 +23,7 @@ export const APP_NAVIGATION: readonly NavigationGroup[] = [
     href: "/screener",
     matches: [
       "/screener",
+      "/setups",
       "/compare",
       "/recommendations",
       "/news",
@@ -33,6 +34,7 @@ export const APP_NAVIGATION: readonly NavigationGroup[] = [
     ],
     items: [
       { label: "Screener", href: "/screener", matches: ["/screener"] },
+      { label: "Setups", href: "/setups", matches: ["/setups"] },
       { label: "Signals", href: "/recommendations", matches: ["/recommendations"] },
       { label: "Compare", href: "/compare", matches: ["/compare"] },
       { label: "Backtest", href: "/backtest", matches: ["/backtest"] },
