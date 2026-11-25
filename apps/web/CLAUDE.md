@@ -629,6 +629,29 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   default grid on the server and store the study; `/backtest/runs/[runId]`
   shows a walk-forward's windows (chosen setting, scored year) or a sweep's
   ranked settings ("best of N").
+- **Costs (A4.2, M7.2).** `lib/fees.ts` (types from the schema,
+  `FEE_SCHEDULE_OPTIONS` with `auto` first, `BROKERAGE_OPTIONS`,
+  `advCapValue`, `partialLabel`, `versionRange`, `sourceDated`,
+  `feesSuffix`) and `lib/api/fees.ts` (`getFeeEstimate`, a browser call to
+  the public `/v1/fees/estimate`; `getFeeSchedules`). Both `/backtest` modes
+  send `fee_schedule` (default `auto`), `brokerage` and `adv_cap_pct`
+  (default 10; empty is off) and show `CostsDisclosure`
+  (`components/costs-disclosure.tsx`, `data-testid="costs-disclosure"`:
+  each dated version's components with rate, side and a link to the source,
+  fills before the confirmed date, the price-band and ADV notes, a link to
+  `/docs/costs`). Results are net first ("Net return", then "Gross
+  return"); a capped entry says "partial: N of M shares"
+  (`partial-fill`). The order review (`OrderReview`) fetches the estimate:
+  the headline and "Estimated total, after fees" are net, "Value before
+  fees" second, and a "Costs" `<details>` (`order-costs`) lists each fee
+  with its source. Fill confirmations append fees and the net amount;
+  `/trades` shows the net total (value and fees under it) and net realized
+  P&L with gross under it; `PortfolioMetrics` shows "Realized P&L, net"
+  with fees and gross in the detail. `/backtest/runs` labels "Net return"
+  with gross under it when stored. `/docs/costs` (its own dynamic route,
+  `app/(public)/docs/costs/page.tsx`, outside `[slug]`'s static params)
+  renders `components/docs/costs-schedules.tsx` from the API: Indian
+  schedules first, the version in force today open.
 - `/backtest?mode=rule` (A4.1, M7.1): the Rule strategy mode beside the
   templates (`ModeTabs` links, `data-testid="backtest-mode"`). The page
   loads the public presets and, signed in, `listSetups()` and

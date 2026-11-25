@@ -294,13 +294,19 @@ trigger, a STOP_LOSS sell) and fills each through three production paths:
 (`create_replay_session` + `submit_replay_order`) and **backtest**
 (`fills.book`). It compares fill or no fill, fill price, quantity, cash
 change and (USD) realised P&L, for every fee schedule of the symbol's
-currency. Live and replay book no fees, so the backtest's cash change must
-equal theirs less exactly the schedule's fee on that same fill.
+currency. Since A4.2 live fills pay the ticker's default schedule (Indian
+symbols: the venue's equity delivery schedule, version in force on the
+fill's venue date; US: none) and replay books none (USD only). Under the
+live default schedule the backtest's fees and cash change equal live's to
+the cent; under any other schedule the backtest's cash change equals the
+path's cash change before its own fees, less exactly that schedule's fees on
+the same fill and date (`test_three_way_inr_default_fees` is the headline
+for rupees).
 
 | Path / profile | `legacy_close` (= `next_close`) | `next_open` |
 | --- | --- | --- |
-| live, USD (`none`, `us_equity_2026`) | compared | skipped: live is pinned to `legacy_close` |
-| live, INR (`none`, `in_delivery_nse_2026`, `in_delivery_bse_2026`) | compared | skipped: same |
+| live, USD (`none`, `us_equity_2026`, `us_equity`) | compared | skipped: live is pinned to `legacy_close` |
+| live, INR (`none`, `in_delivery_nse_2026`, `in_equity_delivery_nse` (the live default: equal to the cent), `in_delivery_bse_2026`) | compared | skipped: same |
 | replay, USD | compared | skipped: replay sessions are pinned to `legacy_close` |
 | replay, INR | skipped: replay is USD-only until A4.6 | skipped |
 | backtest | compared (the reference) | its fill must equal the kernel's own decision: the open for market orders, `ineligible` for limit and stop (`test_next_open_backtest_path`) |
@@ -308,6 +314,82 @@ equal theirs less exactly the schedule's fee on that same fill.
 `test_three_way_market_buy_headline` asserts the three fills of one market
 buy are equal objects. Range stops are backtest-only and are pinned by
 `tests/test_range_stop.py`.
+
+## Costs: date-versioned fee schedules (A4.2, M7.2)
+
+`services/simulation/fees.py` holds every schedule as a typed table in code
+(no database table): a **family** (`FeeSchedule`) is a list of versions
+(`FeeVersion`, `effective_from` / `effective_to` inclusive), each a list of
+components (`Component`: key, label, kind `value` / `per_share` / `flat` /
+`gst`, rate, side, cap, GST base, per-scrip-per-day flag) and each component
+names its `Source` (URL, title, the document's date, read on 26 Nov 2026).
+Every rate and its source: the workspace note `docs/a4-cost-sources.md`.
+
+- **A fill pays the version in force on its fill date**: the bar's venue
+  date in backtests (`fills.book(on=...)`, the template engine's bar date),
+  the venue date of the evaluation instant for live market and pending
+  fills (`fee_view.fee_date`). Rates change at the venue's midnight.
+- **Before the first confirmed date** (`coverage_from`, the first date every
+  rate in the family is confirmed): the earliest version prices the fill
+  and the breakdown says `before_coverage`; results count those fills. NSE
+  families start on 1 Oct 2024 (NSE/FA/64232), BSE on 1 Dec 2022, US on
+  14 May 2025 (its first version, $27.80 SEC fee, has no confirmed start).
+- **Families**: `in_equity_delivery_nse` / `_bse` (aliases
+  `in_delivery_nse_2026` / `in_delivery_bse_2026`), `in_equity_intraday_nse`
+  / `_bse`, `in_futures_nse`, `in_options_nse` (premium-based), `us_equity`
+  (alias `us_equity_2026`), `none`. BSE F&O is left out (the sources read
+  disagree on the BSE options charge). STT on exercised options is not
+  modelled.
+- **The F&O change**: STT on futures sales 0.02% to 0.05%, options sales
+  0.10% to 0.15% of premium, from 1 Apr 2026 (Finance Act 2026, NSE/FATAX/73524).
+  NSE folded IPFT into the transaction charge from 1 Mar 2026 (NSE/FA/73061;
+  the all-in rate did not change), so a fill before then pays
+  `exchange_transaction` + `ipft` separately.
+- **Brokerage**: a broker model per run, `zerodha` (delivery free; intraday
+  and futures 0.03% or Rs 20 per executed order, whichever is lower; options
+  Rs 20) or `zero`; `commission_bps` is added to it. GST is 18% of brokerage
+  + exchange charge + SEBI fee (+ IPFT). STT rounds to the rupee per fill,
+  everything else to the paisa (cent).
+- **DP charge** once per scrip per day on sells (`book(dp_seen=...)`, live
+  looks for an earlier sell of the scrip that venue day).
+- **Default on for Indian symbols** (`services/fee_view.py`): live paper
+  fills and backtests (`fee_schedule: "auto"`, the new default) use the
+  venue's delivery schedule; other markets `none` (US `us_equity` stays an
+  opt-in for backtests, so live US cash maths is unchanged). Replay is
+  USD-only, so it books none until A4.6 adds INR replay, which must use the
+  same default. Existing trades are never recalculated (`trades.fees` NULL).
+- **Live ledger**: a buy pays value + fees (a non-base buy converts the
+  shortfall including fees), a sell credits value - fees (refused when the
+  fees exceed the value); `realized_pnl` stays the price gain and
+  `TradeOut.realized_pnl_net` takes the sell's fees off; the portfolio's
+  `realized_pl_net` = `realized_pl` - every fee paid (Zerodha Console's net
+  realised P&L). A pending buy reserves its estimated fees too.
+- **ADV participation cap** (backtests only; replay is manual one-bar
+  orders): a buy (or a short) fills at most `adv_cap_pct` (default 10) % of
+  the 20-day average traded value, close x volume of the 20 bars before the
+  fill bar. The rest is not filled (`requested_quantity` /
+  `requested_shares`, "partial: N of M shares"); zero shares is a skip
+  (`adv_cap`); fewer than 20 earlier bars is not capped (`not_capped`).
+  Exits are not capped; an exit over the cap reports `exit_adv_pct`.
+  Runs saved before A4.2 have no `adv_cap_pct` and rerun uncapped.
+- **Not checked**: price bands (circuit limits) and the T2T, ASM and F&O
+  ban lists: exchange data StockViz does not hold. Indian results say so
+  (`costs.price_bands_note`).
+- **Results** carry `costs` (schedule, brokerage, the versions used with
+  their fill counts, components and sources, fills before coverage, the
+  price-band note) and `liquidity`; net figures first, gross second
+  (`gross_return`, `gross_final_nav`, `total_fees`, `price_costs` on the
+  template summary too).
+- **Rerun honesty**: `registry.result_differences` skips the A4.2 fields a
+  stored result lacks (`STAMPS_ADDED_LATER`, at any depth) and compares
+  everything it holds. A stored run whose fees fall on dates where a rate
+  is now date-correct reruns `different` on `summary`/`trades`/
+  `equity_curve`: US runs saved with `us_equity_2026` with a sale before
+  4 Apr 2026 (SEC fee $27.80 to 13 May 2025, $0 to 3 Apr 2026, where the
+  old flat schedule charged $20.60) or a sale in Jan-Sep 2025 (TAF
+  $0.000166/$8.30) or 1 Oct-31 Dec 2026 (TAF paused); NSE runs with a fill
+  before 1 Mar 2026 only when the split IPFT rounding moves a paisa. BSE
+  delivery runs and NSE runs on or after 1 Mar 2026 rerun `identical`.
 
 ## Future execution profiles (not implemented)
 
@@ -510,7 +592,7 @@ Kernel unit tests pin `legacy_close` itself. Live MARKET tests live in
 `test_replay_forensics.py` and `test_replay_forensics_router.py`. Phase 5:
 `test_sim_ledger.py` (ledger parity with `apply_fill`),
 `test_backtest_window.py` (warm-up, currency, basis), `test_cost_models.py`,
-`test_india_fees.py`, `test_experiment_registry.py` (identical reruns) and
+`test_india_fees.py`, `test_dated_fees.py` (A4.2), `test_experiment_registry.py` (identical reruns) and
 `test_walk_forward.py`. A4.1: `test_range_stop.py` (range stop, shorts
 ledger), `test_strategy_engine.py` (stops, priority, sizing, R, baskets,
 unknown signals, warm-up, no look-ahead), `test_strategy_backtest.py` (the
