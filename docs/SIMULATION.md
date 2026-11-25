@@ -386,10 +386,14 @@ Every rate and its source: the workspace note `docs/a4-cost-sources.md`.
   is now date-correct reruns `different` on `summary`/`trades`/
   `equity_curve`: US runs saved with `us_equity_2026` with a sale before
   4 Apr 2026 (SEC fee $27.80 to 13 May 2025, $0 to 3 Apr 2026, where the
-  old flat schedule charged $20.60) or a sale in Jan-Sep 2025 (TAF
-  $0.000166/$8.30) or 1 Oct-31 Dec 2026 (TAF paused); NSE runs with a fill
-  before 1 Mar 2026 only when the split IPFT rounding moves a paisa. BSE
-  delivery runs and NSE runs on or after 1 Mar 2026 rerun `identical`.
+  old flat schedule charged $20.60), a sale in 2025 (TAF $0.000166/$8.30)
+  or a sale 1 Oct-31 Dec 2026 (TAF paused). NSE runs with a fill before
+  1 Mar 2026: a template run's per-trade fee list now names `ipft`
+  separately (`trades` differs even where the total is the same); a rule
+  strategy run differs only where the split rounding moves a paisa. BSE
+  delivery runs, `none` runs, US runs with sales only from 4 Apr to 30 Sep
+  2026 and NSE runs with every fill on or after 1 Mar 2026 rerun
+  `identical`.
 
 ## Future execution profiles (not implemented)
 
