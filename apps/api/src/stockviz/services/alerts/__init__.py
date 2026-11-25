@@ -25,6 +25,13 @@ def on_alert_fired(session: Session, alert: Alert, event: AlertEvent) -> None:
         body=event.message,
         link=f"/alerts?rule={alert.id}",
         source_key=f"alert_event:{event.dedupe_key}",
+        data={
+            "alert_id": alert.id,
+            "kind": str(alert.kind),
+            "ticker": alert.ticker,
+            "bar_date": event.bar_date.isoformat() if event.bar_date else None,
+            "setup_version_id": alert.setup_version_id,
+        },
     )
 
 

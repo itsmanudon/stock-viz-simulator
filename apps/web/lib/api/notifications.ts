@@ -1,6 +1,7 @@
 import "server-only";
 
-import { authedGet, authedPost } from "./server";
+import type { components } from "./schema";
+import { authedGet, authedPost, authedPut } from "./server";
 
 export type NotificationCategory =
   | "alert"
@@ -8,6 +9,7 @@ export type NotificationCategory =
   | "dividend"
   | "corporate_action"
   | "option"
+  | "screen"
   | "system";
 
 /** One in-app notification (Phase 7.2). */
@@ -20,6 +22,8 @@ export type AppNotification = {
   link: string | null;
   created_at: string;
   read_at: string | null;
+  /** A2.3: structured detail, e.g. a screen's `entries` and `exits`. */
+  data?: Record<string, unknown> | null;
 };
 
 export function listNotifications(
@@ -44,4 +48,26 @@ export function markNotificationRead(id: number): Promise<AppNotification> {
 
 export function markAllNotificationsRead(): Promise<{ unread: number }> {
   return authedPost<{ unread: number }>("/v1/notifications/read-all");
+}
+
+/** A2.3: delivery channels (webhook, email, Telegram). The secret is write-only. */
+export type NotificationChannel = components["schemas"]["NotificationChannelOut"];
+export type NotificationChannels = components["schemas"]["NotificationChannelsOut"];
+export type NotificationChannelInput = components["schemas"]["NotificationChannelIn"];
+export type ChannelTestResult = components["schemas"]["NotificationChannelTestOut"];
+
+export function listNotificationChannels(): Promise<NotificationChannels> {
+  return authedGet<NotificationChannels>("/v1/notifications/channels");
+}
+
+export function putNotificationChannel(
+  change: NotificationChannelInput,
+): Promise<NotificationChannels> {
+  return authedPut<NotificationChannels>("/v1/notifications/channels", { channels: [change] });
+}
+
+export function testNotificationChannel(
+  channel: NotificationChannel["channel"],
+): Promise<ChannelTestResult> {
+  return authedPost<ChannelTestResult>(`/v1/notifications/channels/${channel}/test`);
 }

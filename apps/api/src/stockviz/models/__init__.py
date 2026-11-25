@@ -18,6 +18,12 @@ from stockviz.models.alert import Alert, AlertDirection, AlertEvent, AlertKind, 
 from stockviz.models.auth_rate_limit import AuthRateLimit
 from stockviz.models.corporate_action import CorporateAction, CorporateActionApplication
 from stockviz.models.data_file import DataFile
+from stockviz.models.delivery import (
+    ChannelKind,
+    DeliveryAttempt,
+    DeliveryStatus,
+    NotificationChannel,
+)
 from stockviz.models.dividend import Dividend, PortfolioDividend
 from stockviz.models.earnings import EarningsEvent
 from stockviz.models.eod import EodExtras, EodRaw
@@ -63,7 +69,7 @@ from stockviz.models.replay import (
     ReplaySessionStatus,
 )
 from stockviz.models.risk_limit import RiskLimit
-from stockviz.models.screen import SavedScreen
+from stockviz.models.screen import SavedScreen, ScreenRun
 from stockviz.models.setup import Setup, SetupVersion, Thesis
 from stockviz.models.user import User
 from stockviz.models.watchlist import Watchlist, WatchlistItem
@@ -83,10 +89,13 @@ __all__ = [
     "AlertRepeat",
     "AuthRateLimit",
     "CashBalance",
+    "ChannelKind",
     "ConsumerInbox",
     "CorporateAction",
     "CorporateActionApplication",
     "DataFile",
+    "DeliveryAttempt",
+    "DeliveryStatus",
     "Dividend",
     "EarningsEvent",
     "EodExtras",
@@ -101,6 +110,7 @@ __all__ = [
     "JobRun",
     "Notification",
     "NotificationCategory",
+    "NotificationChannel",
     "OptionChainQuote",
     "OptionCover",
     "OptionSide",
@@ -127,6 +137,7 @@ __all__ = [
     "ReplaySessionStatus",
     "RiskLimit",
     "SavedScreen",
+    "ScreenRun",
     "Setup",
     "SetupVersion",
     "SimulatedExecution",

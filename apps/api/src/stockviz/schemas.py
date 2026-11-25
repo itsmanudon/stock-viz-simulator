@@ -714,18 +714,22 @@ class AlertIn(BaseModel):
     """
 
     ticker: str | None = None
-    kind: Literal["price", "technical", "news", "portfolio"] = "price"
+    kind: Literal["price", "technical", "news", "portfolio", "rule"] = "price"
     direction: Literal["above", "below"] | None = None
     target_price: Decimal | None = None
     params: dict[str, Any] | None = None
+    # A2.3: required for kind "rule" (your setup's version or a preset's).
+    setup_version_id: int | None = Field(default=None, ge=1)
     repeat: Literal["once", "every_cross"] = "once"
     cooldown_sessions: int = Field(default=1, ge=1, le=250)
 
 
 class AlertPatch(BaseModel):
-    """``PATCH /v1/alerts/{id}``: pause or resume a rule."""
+    """``PATCH /v1/alerts/{id}``: pause or resume a rule; point a rule alert at
+    another setup version (A2.3: it re-arms from now)."""
 
-    paused: bool
+    paused: bool | None = None
+    setup_version_id: int | None = Field(default=None, ge=1)
 
 
 class AlertOut(BaseModel):
@@ -739,6 +743,7 @@ class AlertOut(BaseModel):
     direction: Literal["above", "below"] | None
     target_price: Decimal | None
     params: dict[str, Any] | None = None
+    setup_version_id: int | None = None
     repeat: str = "once"
     cooldown_sessions: int = 1
     paused: bool = False
@@ -1006,6 +1011,14 @@ class SavedScreenIn(BaseModel):
     query: str = Field(max_length=2000)
     # A2.2: the setup version the screen runs (yours or a preset's).
     setup_version_id: int | None = None
+    # A2.3: notify when the rule's members change. Null keeps the saved value.
+    notify_on_change: bool | None = None
+
+
+class SavedScreenPatch(BaseModel):
+    """``PATCH /v1/screens/{id}`` (A2.3)."""
+
+    notify_on_change: bool
 
 
 class SavedScreenOut(BaseModel):
@@ -1013,6 +1026,7 @@ class SavedScreenOut(BaseModel):
     name: str
     query: str
     setup_version_id: int | None = None
+    notify_on_change: bool = False
     created_at: datetime
     updated_at: datetime
 
@@ -2149,10 +2163,61 @@ class NotificationOut(BaseModel):
     link: str | None
     created_at: datetime
     read_at: datetime | None
+    # A2.3: structured detail, e.g. a screen's {"entries": [...], "exits": [...]}.
+    data: dict[str, Any] | None = None
 
 
 class UnreadCountOut(BaseModel):
     unread: int
+
+
+ChannelName = Literal["webhook", "email", "telegram"]
+
+
+class NotificationChannelOut(BaseModel):
+    """One delivery channel (A2.3). The webhook secret is never returned."""
+
+    channel: ChannelName
+    enabled: bool = False
+    # False when the server lacks the channel's config (SMTP_*, TELEGRAM_BOT_TOKEN).
+    available: bool
+    # The user's part is filled in (webhook URL and secret, Telegram chat id).
+    configured: bool = False
+    url: str | None = None  # webhook
+    secret_set: bool = False  # webhook
+    address: str | None = None  # email; null = the account email
+    chat_id: str | None = None  # telegram
+    muted_categories: list[str] = []
+    updated_at: datetime | None = None
+
+
+class NotificationChannelsOut(BaseModel):
+    channels: list[NotificationChannelOut]
+    # Categories a channel can mute.
+    categories: list[str]
+
+
+class NotificationChannelIn(BaseModel):
+    """A change to one channel. Fields left null are unchanged."""
+
+    channel: ChannelName
+    enabled: bool | None = None
+    url: str | None = Field(default=None, max_length=500)
+    # Write-only. An empty string removes it.
+    secret: str | None = Field(default=None, max_length=256)
+    address: str | None = Field(default=None, max_length=320)
+    chat_id: str | None = Field(default=None, max_length=64)
+    muted_categories: list[str] | None = None
+
+
+class NotificationChannelsIn(BaseModel):
+    channels: list[NotificationChannelIn] = Field(min_length=1, max_length=3)
+
+
+class NotificationChannelTestOut(BaseModel):
+    channel: ChannelName
+    ok: bool
+    detail: str
 
 
 # ---------------------------------------------------------------------------

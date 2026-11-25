@@ -2,7 +2,8 @@
 
 A rule has a ``kind``: ``price`` (close above/below ``target_price``, or a
 session move of ``params.pct``), ``technical`` (a registry indicator against
-a number or another series), ``news`` and ``portfolio`` (Phase 7.2). Rules
+a number or another series), ``news`` and ``portfolio`` (Phase 7.2), and
+``rule`` (A2.3: a Rule DSL setup version, judged in point mode). Rules
 are judged once per completed session and fire on a **crossing** (audit
 RS-8): the condition was false at the last evaluation and is true now. Each
 firing writes an ``AlertEvent`` whose ``dedupe_key`` is unique, so a rerun of
@@ -35,6 +36,7 @@ class AlertKind(enum.StrEnum):
     TECHNICAL = "technical"
     NEWS = "news"
     PORTFOLIO = "portfolio"
+    RULE = "rule"
 
 
 class AlertRepeat(enum.StrEnum):
@@ -50,6 +52,10 @@ class Alert(SQLModel, table=True):
     __table_args__ = (
         CheckConstraint(
             "kind = 'portfolio' OR ticker IS NOT NULL", name="ck_alerts_ticker_unless_portfolio"
+        ),
+        # A2.3: a rule alert names the setup version it judges.
+        CheckConstraint(
+            "kind <> 'rule' OR setup_version_id IS NOT NULL", name="ck_alerts_rule_has_version"
         ),
     )
 
@@ -69,7 +75,7 @@ class Alert(SQLModel, table=True):
     target_price: Decimal | None = Field(
         default=None, sa_column=Column(Numeric(18, 6), nullable=True)
     )
-    # A2.2: the setup version this rule came from (A2.3 judges `rule` alerts).
+    # A2.2: the setup version this rule came from; required for `rule` (A2.3).
     setup_version_id: int | None = Field(
         default=None, foreign_key="setup_versions.id", index=True, nullable=True
     )

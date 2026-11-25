@@ -32,7 +32,9 @@ includes: paper trading with **pending limit/stop orders** and **options**
 (pricing, positions, expiry settlement), **dividends** and **multi-currency
 FX**, **backtesting** (`/backtest`), **screener** (with Rule DSL rules and
 saved **setups** and presets since A2.2, `/setups`), **watchlists**, **price
-alerts** and **news sentiment** from Aegis News. A0 hygiene (25 Nov 2026)
+alerts** (and, since A2.3, alerts on saved Rule DSL setups, nightly saved-screen
+entry/exit notifications and delivery to a signed webhook, email or Telegram,
+set in Settings) and **news sentiment** from Aegis News. A0 hygiene (25 Nov 2026)
 removed the leaderboard, per-ticker comments (the table is archived in the
 `archive` schema), the simulated random-walk quote stream (prices show the
 latest close with its date) and the legacy news and sentiment pipeline (its
@@ -306,6 +308,8 @@ Full lists live in `apps/web/.env.example` and `apps/api/.env.example`
 | `EVENTS_OUTBOX_ENABLED`                                  | api, cron                    | default `false` (A0). `true` only in the Kubernetes events lab: the scheduler's price jobs then enqueue `market.refresh.requested` for the Kafka workers instead of refreshing in-process. Old rows go with `stockviz.cli prune-events` |
 | `AEGIS_BASE_URL`, `AEGIS_SERVICE_TOKEN_KEY`, `AEGIS_ISSUER`, `AEGIS_AUDIENCE`, `AEGIS_KEY_ID` | api, cron              | the Aegis News read sync (`stockviz.cli aegis-sync`). Off, exit 2, until the first four are set. The key is the Ed25519 private PEM Aegis trusts as `stockviz-sync-2026-11` (Doppler `stock-viz-simulator/prd`); never commit it. The other values are in `.railway/railway.ts`. See `apps/api/CLAUDE.md` |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`               | web                          | Google OAuth sign-in                                                                                                                                                                                                         |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM` | api, cron | A2.3 email delivery through any SMTP provider (STARTTLS, or TLS on 465). Off (`deliver-notifications --channel email` exits 2; Settings says "not available on this server") until all five are set. The owner picks the provider and sets the key; never commit it |
+| `TELEGRAM_BOT_TOKEN`                                     | api, cron                    | A2.3 Telegram delivery (`sendMessage` to each user's chat id). Off until set; the owner creates the bot. Never logged (it sits in the request URL) |
 | `NEXTAUTH_JWT_SECRET`                                    | api                          | **legacy** — still in `settings.py` but no longer read by the auth bridge                                                                                                                                                    |
 
 ## Sentry

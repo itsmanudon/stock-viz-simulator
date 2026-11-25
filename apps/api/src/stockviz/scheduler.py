@@ -295,6 +295,33 @@ def options_expiry_refresh() -> None:
     logger.info("options_expiry_refresh: settled %d option(s) as of %s", settled, today)
 
 
+@single_instance("screen_runs_refresh")
+def screen_runs_refresh() -> None:
+    """Store screened setup versions' members tonight and notify diffs (A2.3)."""
+    from stockviz.services.screen_runs import run_screen_runs
+
+    with _session_scope() as session:
+        result = run_screen_runs(session)
+    logger.info(
+        "screen_runs_refresh: %d run(s), %d notification(s) for %s",
+        result.runs, result.notifications, result.session_date,
+    )  # fmt: skip
+
+
+@single_instance("notifications_delivery")
+def notifications_delivery() -> None:
+    """Send due webhook, email and Telegram deliveries (A2.3), retries included."""
+    from stockviz.services.delivery import drain
+
+    with _session_scope() as session:
+        result = drain(session)
+    if result.sent or result.retrying or result.dead:
+        logger.info(
+            "notifications_delivery: sent %d, retrying %d, dead %d",
+            result.sent, result.retrying, result.dead,
+        )  # fmt: skip
+
+
 def build_scheduler() -> BackgroundScheduler:
     """Construct (but don't start) the scheduler. Caller owns lifecycle."""
 
@@ -394,6 +421,23 @@ def build_scheduler() -> BackgroundScheduler:
         options_expiry_refresh,
         trigger=CronTrigger(day_of_week="mon-fri", hour=17, minute=30),
         id="options_expiry_refresh",
+        replace_existing=True,
+    )
+
+    # 5:05pm ET on weekdays — after prices, metrics and sentiment (A2.3).
+    scheduler.add_job(
+        screen_runs_refresh,
+        trigger=CronTrigger(day_of_week="mon-fri", hour=17, minute=5),
+        id="screen_runs_refresh",
+        replace_existing=True,
+    )
+
+    # Every 15 minutes — send staged notification deliveries; retries wait
+    # for their backoff, so this is also the retry loop (A2.3).
+    scheduler.add_job(
+        notifications_delivery,
+        trigger=CronTrigger(minute="*/15"),
+        id="notifications_delivery",
         replace_existing=True,
     )
 

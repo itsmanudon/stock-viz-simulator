@@ -2,7 +2,7 @@ import "server-only";
 
 import { authedDelete, authedGet, authedPatch, authedPost } from "./server";
 
-export type AlertKind = "price" | "technical" | "news" | "portfolio";
+export type AlertKind = "price" | "technical" | "news" | "portfolio" | "rule";
 
 /** One alert rule (Phase 7.1): its kind, settings and evaluation state. */
 export type Alert = {
@@ -14,6 +14,8 @@ export type Alert = {
   direction: "above" | "below" | null;
   target_price: string | null;
   params?: Record<string, unknown> | null;
+  /** A2.3: the setup version a `rule` alert judges. */
+  setup_version_id?: number | null;
   repeat?: "once" | "every_cross";
   cooldown_sessions?: number;
   paused?: boolean;
@@ -52,6 +54,8 @@ export type AlertInput = {
   direction?: "above" | "below";
   target_price?: string;
   params?: Record<string, unknown>;
+  /** Required for kind "rule": your setup's version or a preset's. */
+  setup_version_id?: number;
   repeat?: "once" | "every_cross";
   cooldown_sessions?: number;
 };
