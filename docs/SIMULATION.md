@@ -25,6 +25,7 @@ runs on the weekday EOD schedule.
 | Shared simulated ledger | ✅ Phase 5.1 — `SimLedger` for replay and backtests, held equal to `apply_fill` |
 | Experiment registry | ✅ Phase 5.4 — stored runs with a dataset fingerprint; reruns report identical / different / data changed |
 | Walk-forward and sweeps | ✅ Phase 5.5 — rolling in-sample choice, out-of-sample score; capped grids |
+| Backtester on the Rule DSL | ✅ A4.1 — vector-mode signals, stops (range stop in the kernel), sizing, R, baskets; three-way kernel equality test |
 | Replay sessions | ✅ SIM-05 — frozen ticker/start/end, next-bar clock, server-owned 1d bars |
 | Replay Lab UI | ✅ SIM-06 — launcher, blind chart, MARKET ticket, next-session, summary |
 | Replay forensics | ✅ SIM-07 — episodes, MAE/MFE, buy-and-hold excess, concentration, journal |
@@ -240,6 +241,74 @@ historical pending-order EOD rules. Future replay/backtest profiles may use
 **next-bar** OHLC under explicit, documented assumptions. They must not
 silently replace live EOD settlement.
 
+## Range stops and the DSL backtester (A4.1)
+
+The DSL backtester (`services/backtest/strategy.py`, `POST
+/v1/backtest/strategy`) books **every** fill through
+`services/backtest/fills.py::book`: the kernel decides, the fee schedule
+prices, `SimLedger` books. Entries and exit-rule / time exits are MARKET
+orders on the bar after the signal under the run's profile (`next_open` by
+default, `next_close` = `legacy_close`).
+
+Protective stops are a resting order, so they are judged on the bar's
+range by a separate pure kernel function,
+`evaluate_range_stop(order, market, profile, costs)` (STOP_LOSS orders
+only; `ineligible` otherwise):
+
+- sell stop (protects a long): open <= stop fills at the **open** (a gap
+  through the stop, flagged `gap` on the trade); else low <= stop fills at
+  the stop; else not triggered;
+- buy stop (protects a short): open >= stop fills at the open (gap); else
+  high >= stop fills at the stop.
+
+This is not the live rule: live STOP_LOSS stays close-only in
+`evaluate_order` (see "Why same-day OHLC touches are not used"); a backtest
+stop rests from its entry fill, so the bar's range after the open is fair
+game. The open is always first, so a gap never fills at a price the bar did
+not trade. The profile is recorded as provenance; the rule is the same under
+both profiles.
+
+**Priority within one daily bar** (`strategy.STOP_PRIORITY`): (1) a stop the
+open gapped through, at the open; (2) under `next_open`, a pending exit
+order at the open; (3) the price stop nearest the open (highest for a
+long, lowest for a short; ties fixed, then ATR, then trailing) at its level
+when the low (high) reaches it; (4) under `next_close`, a pending exit
+order at the close. After a `next_open` entry the entry bar's range can
+already hit the stop; after a `next_close` entry stops start the next bar.
+Trailing stops ratchet after each close and apply from the next bar.
+
+**Shorts.** `SimLedger.apply_short` (A4.1) opens (SELL, credits the proceeds
+less fees, re-averages) and covers (BUY, debits cost plus fees, realises
+`(avg - price) x qty`) short positions in a separate `shorts` book;
+`market_value` subtracts them. A cover is never refused for cash. `apply`
+(long trades, the `apply_fill` twin) is unchanged. Only the DSL backtester
+shorts, only symbols a run declares shortable, only US listings.
+
+### The three-way kernel equality test (A4's done-when)
+
+`tests/test_kernel_three_way.py` fixes one daily bar and a set of orders
+(market buy and sell, limit buy and sell, a limit buy that does not
+trigger, a STOP_LOSS sell) and fills each through three production paths:
+**live** (`execute_trade`, or `create_pending_order` +
+`settle_pending_orders`, so `apply_fill` books it), **replay**
+(`create_replay_session` + `submit_replay_order`) and **backtest**
+(`fills.book`). It compares fill or no fill, fill price, quantity, cash
+change and (USD) realised P&L, for every fee schedule of the symbol's
+currency. Live and replay book no fees, so the backtest's cash change must
+equal theirs less exactly the schedule's fee on that same fill.
+
+| Path / profile | `legacy_close` (= `next_close`) | `next_open` |
+| --- | --- | --- |
+| live, USD (`none`, `us_equity_2026`) | compared | skipped: live is pinned to `legacy_close` |
+| live, INR (`none`, `in_delivery_nse_2026`, `in_delivery_bse_2026`) | compared | skipped: same |
+| replay, USD | compared | skipped: replay sessions are pinned to `legacy_close` |
+| replay, INR | skipped: replay is USD-only until A4.6 | skipped |
+| backtest | compared (the reference) | its fill must equal the kernel's own decision: the open for market orders, `ineligible` for limit and stop (`test_next_open_backtest_path`) |
+
+`test_three_way_market_buy_headline` asserts the three fills of one market
+buy are equal objects. Range stops are backtest-only and are pinned by
+`tests/test_range_stop.py`.
+
 ## Future execution profiles (not implemented)
 
 These names are reserved for later SIM work. They are **not** implemented
@@ -442,4 +511,8 @@ Kernel unit tests pin `legacy_close` itself. Live MARKET tests live in
 `test_sim_ledger.py` (ledger parity with `apply_fill`),
 `test_backtest_window.py` (warm-up, currency, basis), `test_cost_models.py`,
 `test_india_fees.py`, `test_experiment_registry.py` (identical reruns) and
-`test_walk_forward.py`.
+`test_walk_forward.py`. A4.1: `test_range_stop.py` (range stop, shorts
+ledger), `test_strategy_engine.py` (stops, priority, sizing, R, baskets,
+unknown signals, warm-up, no look-ahead), `test_strategy_backtest.py` (the
+route, watchlists, shorts refused, rerun identical) and
+`test_kernel_three_way.py`.

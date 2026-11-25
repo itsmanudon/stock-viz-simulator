@@ -19,7 +19,7 @@ from stockviz.services.simulation.contracts import (
     OrderSide,
     SimulationOrderType,
 )
-from stockviz.services.simulation.engine import cost_adjusted, evaluate_order
+from stockviz.services.simulation.engine import cost_adjusted, evaluate_order, evaluate_range_stop
 from stockviz.services.simulation.fees import (
     FEE_SCHEDULES,
     FeeBreakdown,
@@ -79,6 +79,7 @@ __all__ = [
     "UnknownFeeScheduleError",
     "cost_adjusted",
     "evaluate_order",
+    "evaluate_range_stop",
     "get_execution_profile",
     "get_fee_schedule",
     "is_legacy_close",

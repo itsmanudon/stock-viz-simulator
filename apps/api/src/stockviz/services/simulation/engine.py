@@ -111,6 +111,73 @@ def evaluate_order(
     return _filled(order, market, profile, reason=_filled_reason(order), costs=costs)
 
 
+def evaluate_range_stop(
+    order: OrderIntent,
+    market: MarketSnapshot,
+    profile: ExecutionProfile,
+    costs: CostModel = NO_COSTS,
+) -> FillDecision:
+    """A protective stop judged on the bar's range (A4.1, the DSL backtester).
+
+    ``evaluate_order``'s ``STOP_LOSS`` is live trading's close-only rule. A
+    backtest's stop is resting all day, so it is judged on the daily bar's
+    open, high and low:
+
+    - **sell stop** (protects a long): the open at or below the stop fills
+      at the open (a gap through the stop); else a low at or below it fills
+      at the stop; else not triggered;
+    - **buy stop** (protects a short): the open at or above the stop fills at
+      the open (gap); else a high at or above it fills at the stop.
+
+    The bar's open always comes first, so a gap is never filled at a price
+    the bar did not trade. ``costs`` move the fill against the trader as
+    for any fill. ``profile`` is the run's profile, recorded as provenance:
+    the rule is the same under ``next_open`` and ``next_close``.
+    """
+
+    if is_legacy_close(profile):
+        profile = LEGACY_CLOSE
+    elif is_next_open(profile):
+        profile = NEXT_OPEN
+    else:
+        return _ineligible(
+            order,
+            profile,
+            reason=f"Execution profile {profile.name!r} {profile.model_version!r} is not implemented",
+        )
+    if order.order_type is not SimulationOrderType.STOP_LOSS:
+        return _ineligible(order, profile, reason="Range stops take stop_loss orders only")
+    if _norm_ticker(order.ticker) != _norm_ticker(market.ticker):
+        return _ineligible(
+            order, profile, reason="Order ticker does not match market snapshot ticker"
+        )
+    if market.observed_at < order.submitted_at:
+        return _ineligible(
+            order, profile, reason="Market snapshot observed_at precedes order submitted_at"
+        )
+    assert order.limit_price is not None
+    stop = order.limit_price
+    if order.side is OrderSide.SELL:
+        if market.open <= stop:
+            reference, reason = market.open, "Gap through sell stop: fills at the bar's open"
+        elif market.low <= stop:
+            reference, reason = stop, "Sell stop touched by the bar's low: fills at the stop"
+        else:
+            return _not_triggered(
+                order, market, profile, reason="Sell stop not reached by the bar's low"
+            )
+    else:
+        if market.open >= stop:
+            reference, reason = market.open, "Gap through buy stop: fills at the bar's open"
+        elif market.high >= stop:
+            reference, reason = stop, "Buy stop touched by the bar's high: fills at the stop"
+        else:
+            return _not_triggered(
+                order, market, profile, reason="Buy stop not reached by the bar's high"
+            )
+    return _filled(order, market, profile, reason=reason, reference=reference, costs=costs)
+
+
 def cost_adjusted(price: Decimal, side: OrderSide, costs: CostModel) -> Decimal:
     """``price`` moved against the trader by half the spread plus slippage."""
     if costs.is_free:

@@ -100,7 +100,11 @@ src/stockviz/
                     start at `from` (SR-3). Responses carry `currency`
                     (SR-11), `price_basis` (or `mixed`) and `return_mode`;
                     `return_mode: "total"` credits dividends to shares held
-                    into each ex-date, strategy and benchmark alike (SR-7)
+                    into each ex-date, strategy and benchmark alike (SR-7).
+                    A4.1: strategy.py (pure DSL backtester: stops, sizing,
+                    R, baskets), strategy_run.py (loads rules, universe and
+                    data; hash and fingerprint), fills.py (`book`: the one
+                    backtest fill path through the kernel and SimLedger)
     alerts.py       price-alert evaluation
     metrics.py      precomputed per-symbol snapshot the screener reads: RSI,
                     52-week range, and (Phase 6.2) SMA 50/200, ATR %,
@@ -832,6 +836,66 @@ rule alerts armed the session before (`evaluate_pending_alerts` after the
 target bar arrives) and the vector series (symbols turning true on that
 date) name the same symbols on the same session. The rule is a crossing, so
 "met on the date" and "turned true on the date" are the same set.
+
+**Backtester on the Rule DSL (A4.1, M7.1).** `POST /v1/backtest/strategy`
+(`routers/backtest.py`, public, 20/min, `auth.OptionalUserIdDep`) takes
+`StrategyBacktestIn`: `entry` and optional `exit` (each `{setup_version_id}`
+(yours or a preset's) or `{rule}` text), `stops {fixed_pct, atr {multiple,
+period}, trailing {kind atr|pct, value, period}, time_bars}` (any
+combination), `sizing {kind all_in|fixed_fraction|fixed_risk, fraction,
+risk_pct, max_positions}`, `universe {ticker | watchlist_id | tickers (<=
+50)}`, `from`, `to`, `initial_cash`, `fill_rule` (default `next_open`),
+`fee_schedule`, `commission_bps`, `slippage_bps`, `spread_bps`,
+`direction long|short`, `shortable`. Errors: unknown symbol, setup version
+or someone else's watchlist 404; a watchlist or a drawings rule signed out
+401; a rule that does not compile 422 (the rules error object); a basket in
+two currencies, a fee schedule of another currency, fixed-risk sizing
+without a price stop, an index, or a short on a symbol not declared
+shortable or not US-listed 400.
+
+- **Engine** (`services/backtest/strategy.py`, pure): signals are each
+  rule's vector mode on the symbol's `load_symbol` data (lookback = the
+  rules' and ATRs' warm-up; `atr(n)` itself is a DSL expression); fills use
+  the `Decimal` `price_bars` rows of the same dates. Replay over the union
+  of the symbols' dates; an order fills on the symbol's next bar. Unknown =
+  no action, counted (`unknown_entry_bars` while flat in the window,
+  `unknown_exit_bars` while held; the last bar never acts). Entry while held
+  is ignored (counted); a basket takes entries in universe order while a
+  slot is free (`skip_reasons`: `no_slot`, `no_cash`, `atr_unknown`).
+  Stops and their priority: `docs/SIMULATION.md` ("Range stops and the DSL
+  backtester"); `STOP_PRIORITY` is returned on every result. Sizing in
+  whole shares, never above free cash with fees: all-in (a basket: cash /
+  (max positions - held)), fraction of the previous close's equity, or
+  fixed risk (`risk_pct` of equity / |expected fill - tightest initial
+  stop|). Trade `pnl` is net of both legs' fees; `r_multiple` = pnl /
+  (qty x |entry fill - initial stop|) whenever a price stop existed. Open
+  positions at the end are marked (`end_of_data`, `open`), not sold.
+  Benchmark: buy and hold, equal-weight for a basket. Summary: the template
+  summary (net) plus `gross_return`/`gross_final_nav` (fees and price costs
+  added back), `total_fees`, `price_costs`, `trade_count`. Price return only.
+- **Identity.** `strategy_hash` = SHA-256 of the rule hashes (canonical, so
+  inline text and its version hash the same), stops, sizing, tickers,
+  dates and costs; `data_fingerprint` = SHA-256 of every `price_bars` row
+  read (warm-up included, volume too), delivery columns, benchmark closes,
+  facts, news and drawings the rules loaded.
+- **Registry.** `POST /v1/experiments/runs` takes `{strategy: ...}` instead
+  of `{backtest: ...}` (exactly one, else 422). `save_strategy_run` refuses
+  a failing run first, then turns inline text into a version of the user's
+  "Rules from backtests" setup (kind `strategy`, one version per distinct
+  rule), stores the request naming versions (`kind` `strategy`, `ticker`
+  `AAPL` or `AAPL+4`, `setup_version_id` = the entry's) and the full
+  `StrategyBacktestOut`; rerun runs it as its owner. No migration.
+  The acceptance (`test_saved_strategy_reruns_identical`): entry, exit, an
+  ATR stop and fixed-risk sizing rerun `identical`, and a changed bar gives
+  `data_changed`.
+- **Kernel.** `simulation.evaluate_range_stop` and `SimLedger.apply_short`
+  are new; `evaluate_order` and `apply` are unchanged. The three-way
+  equality test (live `apply_fill`, replay, backtest `fills.book`):
+  `tests/test_kernel_three_way.py`, matrix in `docs/SIMULATION.md`.
+- The two templates stay as they were (fractional all-in shares, total
+  return, their own warm-up): not trivially equivalent to DSL strategies.
+- Tests: `test_range_stop.py`, `test_strategy_engine.py`,
+  `test_strategy_backtest.py`, `test_kernel_three_way.py`.
 
 **Survivorship stamp (A1.4a, part of M1.5).** Every backtest result carries
 `universe: {name, point_in_time, survivorship_biased, note}`: the public

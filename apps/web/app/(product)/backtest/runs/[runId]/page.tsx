@@ -15,6 +15,7 @@ import { RerunBacktestRun } from "@/components/backtest-run-actions";
 import { DataTableFrame } from "@/components/data-table";
 import { FigureStrip } from "@/components/figure-strip";
 import { MetaChip, PageHeader } from "@/components/page-header";
+import { RuleStrategyResults } from "@/components/rule-strategy/rule-strategy-results";
 import {
   Table,
   TableBody,
@@ -32,6 +33,7 @@ import {
   getExperimentRun,
 } from "@/lib/api/experiments";
 import { AuthedApiError } from "@/lib/api/server";
+import type { StrategyResult } from "@/lib/rule-strategy";
 
 export const metadata: Metadata = { title: "Saved backtest" };
 
@@ -50,6 +52,7 @@ const KIND_LABEL: Record<string, string> = {
   single: "Backtest",
   walk_forward: "Walk-forward",
   sweep: "Sweep",
+  strategy: "Rule strategy",
 };
 
 export default async function SavedRunPage({ params }: { params: Promise<{ runId: string }> }) {
@@ -74,27 +77,34 @@ export default async function SavedRunPage({ params }: { params: Promise<{ runId
         meta={<MetaChip>Saved {formatUtcDateTime(run.created_at)}</MetaChip>}
         actions={<RerunBacktestRun runId={run.id} />}
       />
-      <UniverseNote universe={run.universe} />
-      <FigureStrip
-        label="Run result"
-        figures={[
-          {
-            label: kind === "sweep" ? "Best return" : "Return",
-            value: pct(run.summary.total_return),
-          },
-          { label: "Buy and hold", value: pct(run.summary.benchmark_return) },
-          {
-            label: "Excess",
-            value: `${run.summary.excess_return >= 0 ? "+" : ""}${run.summary.excess_return.toFixed(2)} pts`,
-          },
-          { label: "Sharpe", value: run.summary.sharpe.toFixed(2) },
-          { label: "Max drawdown", value: pct(run.summary.max_drawdown) },
-        ]}
-      />
+      {kind !== "strategy" ? (
+        <>
+          <UniverseNote universe={run.universe} />
+          <FigureStrip
+            label="Run result"
+            figures={[
+              {
+                label: kind === "sweep" ? "Best return" : "Return",
+                value: pct(run.summary.total_return),
+              },
+              { label: "Buy and hold", value: pct(run.summary.benchmark_return) },
+              {
+                label: "Excess",
+                value: `${run.summary.excess_return >= 0 ? "+" : ""}${run.summary.excess_return.toFixed(2)} pts`,
+              },
+              { label: "Sharpe", value: run.summary.sharpe.toFixed(2) },
+              { label: "Max drawdown", value: pct(run.summary.max_drawdown) },
+            ]}
+          />
+        </>
+      ) : null}
       {kind === "walk_forward" && result ? (
         <WalkForwardTable result={result as WalkForwardResult} />
       ) : null}
       {kind === "sweep" && result ? <SweepTable result={result as SweepResult} /> : null}
+      {kind === "strategy" && result ? (
+        <RuleStrategyResults result={result as StrategyResult} />
+      ) : null}
       <p className="text-xs text-text-tertiary">
         Data fingerprint <span className="font-mono">{run.dataset_fingerprint}</span> · code{" "}
         {run.code_version.slice(0, 12)}. <Link href="/backtest/runs">All saved runs</Link>

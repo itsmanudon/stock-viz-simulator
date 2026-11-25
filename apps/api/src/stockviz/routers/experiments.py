@@ -15,6 +15,7 @@ from sqlmodel import Session, col, func, select
 from stockviz.auth import UserIdDep
 from stockviz.db import get_session
 from stockviz.models import Experiment, ExperimentRun
+from stockviz.routers.backtest import STRATEGY_ERRORS, strategy_http_error
 from stockviz.schemas import (
     BacktestSummaryOut,
     ExperimentIn,
@@ -27,7 +28,13 @@ from stockviz.schemas import (
     WalkForwardIn,
 )
 from stockviz.services.backtest import BacktestError
-from stockviz.services.backtest.registry import RunLimitReached, rerun, save_run, save_study
+from stockviz.services.backtest.registry import (
+    RunLimitReached,
+    rerun,
+    save_run,
+    save_strategy_run,
+    save_study,
+)
 from stockviz.services.backtest.run import BadRange, UnknownSymbol
 from stockviz.services.backtest.universe import universe_for
 
@@ -110,6 +117,19 @@ def list_experiments(session: SessionDep, user_id: UserIdDep) -> list[Experiment
 
 @router.post("/runs", response_model=ExperimentRunOut, status_code=status.HTTP_201_CREATED)
 def post_run(body: ExperimentRunIn, session: SessionDep, user_id: UserIdDep) -> ExperimentRunOut:
+    if body.strategy is not None:
+        try:
+            row = save_strategy_run(
+                session, user_id=user_id, body=body.strategy, experiment_id=body.experiment_id
+            )
+        except RunLimitReached as exc:
+            raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
+        except STRATEGY_ERRORS as exc:
+            raise strategy_http_error(exc) from exc
+        except LookupError as exc:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+        return _run_out(row, full=True)
+    assert body.backtest is not None
     try:
         row = save_run(
             session, user_id=user_id, body=body.backtest, experiment_id=body.experiment_id
@@ -180,7 +200,7 @@ def post_rerun(run_id: int, session: SessionDep, user_id: UserIdDep) -> Experime
     row = _own_run(session, run_id, user_id)
     try:
         report = rerun(session, row)
-    except (UnknownSymbol, BadRange, BacktestError) as exc:
+    except (UnknownSymbol, BadRange, BacktestError, *STRATEGY_ERRORS) as exc:
         raise HTTPException(status.HTTP_409_CONFLICT, f"Cannot rerun: {exc}") from exc
     return ExperimentRerunOut(
         status=report.status,  # type: ignore[arg-type]

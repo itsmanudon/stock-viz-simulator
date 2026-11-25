@@ -10,7 +10,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class SymbolOut(BaseModel):
@@ -1996,6 +1996,227 @@ class BacktestOut(BaseModel):
     universe: UniverseOut
 
 
+# --- A4.1: backtests on the Rule DSL -------------------------------------
+
+FeeScheduleName = Literal["none", "us_equity_2026", "in_delivery_nse_2026", "in_delivery_bse_2026"]
+
+
+class StrategyRuleIn(BaseModel):
+    """A rule: a setup version (yours or a preset's) or inline Rule DSL text.
+    Inline text is saved as a setup version owned by the user when the run is
+    saved, so a saved run always points at a version."""
+
+    setup_version_id: int | None = None
+    rule: str | None = Field(default=None, min_length=1, max_length=4000)
+
+    @model_validator(mode="after")
+    def _one(self) -> StrategyRuleIn:
+        if (self.setup_version_id is None) == (self.rule is None):
+            raise ValueError("give exactly one of setup_version_id or rule")
+        return self
+
+
+class AtrStopIn(BaseModel):
+    """Entry price minus ``multiple`` x ATR(``period``) at the signal bar
+    (plus, for a short). Fixed for the trade."""
+
+    multiple: float = Field(gt=0, le=20)
+    period: int = Field(default=14, ge=1, le=250)
+
+
+class TrailingStopIn(BaseModel):
+    """Ratchets with the highest high since entry (lowest low for a short):
+    ``pct`` below it, or ``value`` x ATR(``period``) below it. Updated after
+    each bar's close, used from the next bar."""
+
+    kind: Literal["atr", "pct"]
+    value: float = Field(gt=0, le=50)
+    period: int = Field(default=14, ge=1, le=250)
+
+
+class StrategyStopsIn(BaseModel):
+    """Any combination; the first hit wins (see ``StrategyBacktestOut.stop_priority``)."""
+
+    fixed_pct: float | None = Field(default=None, gt=0, le=90)
+    atr: AtrStopIn | None = None
+    trailing: TrailingStopIn | None = None
+    time_bars: int | None = Field(default=None, ge=1, le=2000)
+
+
+class StrategySizingIn(BaseModel):
+    """``all_in``: all free cash (a basket splits it over the free slots);
+    ``fixed_fraction``: ``fraction`` of equity per entry; ``fixed_risk``:
+    ``risk_pct`` % of equity lost if the initial stop is hit (stop distance
+    x quantity), which needs a fixed, ATR or trailing stop. Whole shares;
+    never more than the free cash."""
+
+    kind: Literal["all_in", "fixed_fraction", "fixed_risk"] = "all_in"
+    fraction: float | None = Field(default=None, gt=0, le=1)
+    risk_pct: float | None = Field(default=None, gt=0, le=10)
+    max_positions: int | None = Field(default=None, ge=1, le=50)
+
+    @model_validator(mode="after")
+    def _params(self) -> StrategySizingIn:
+        if self.kind == "fixed_fraction" and self.fraction is None:
+            raise ValueError("fixed_fraction sizing needs fraction")
+        if self.kind == "fixed_risk" and self.risk_pct is None:
+            raise ValueError("fixed_risk sizing needs risk_pct")
+        return self
+
+
+class StrategyUniverseIn(BaseModel):
+    """One ticker, one of your watchlists, or up to 50 tickers."""
+
+    ticker: str | None = Field(default=None, min_length=1, max_length=16)
+    watchlist_id: int | None = None
+    tickers: list[str] | None = Field(default=None, min_length=1, max_length=50)
+
+    @model_validator(mode="after")
+    def _one(self) -> StrategyUniverseIn:
+        given = [v is not None for v in (self.ticker, self.watchlist_id, self.tickers)]
+        if sum(given) != 1:
+            raise ValueError("give exactly one of ticker, watchlist_id or tickers")
+        return self
+
+
+class StrategyBacktestIn(BaseModel):
+    """POST /v1/backtest/strategy (A4.1): a Rule DSL strategy.
+
+    Signals come from the rule's vector mode on each completed bar; orders
+    fill on the next bar under ``fill_rule`` through the execution kernel and
+    ``SimLedger``. Long only unless ``direction`` is ``short``, which needs
+    every symbol listed in ``shortable`` and US-listed (Indian shorts wait for
+    the F&O-eligible list)."""
+
+    entry: StrategyRuleIn
+    exit: StrategyRuleIn | None = None
+    stops: StrategyStopsIn = Field(default_factory=StrategyStopsIn)
+    sizing: StrategySizingIn = Field(default_factory=StrategySizingIn)
+    universe: StrategyUniverseIn
+    from_: date = Field(alias="from")
+    to: date
+    initial_cash: Decimal = Field(gt=0)
+    fill_rule: Literal["next_open", "next_close"] = "next_open"
+    fee_schedule: FeeScheduleName = "none"
+    commission_bps: float = Field(default=0.0, ge=0, le=1000)
+    slippage_bps: float = Field(default=0.0, ge=0, le=1000)
+    spread_bps: float = Field(default=0.0, ge=0, le=1000)
+    direction: Literal["long", "short"] = "long"
+    shortable: list[str] = Field(default_factory=list, max_length=50)
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class StrategyRuleOut(BaseModel):
+    role: Literal["entry", "exit"]
+    text: str
+    canonical: str
+    hash: str
+    setup_version_id: int | None = None
+    warmup_bars: int | None = None
+    """Daily bars the rule needs before its first value; null: whole history."""
+
+
+class StrategyTradeOut(BaseModel):
+    """One round trip. ``pnl`` is net of both legs' fees; ``r_multiple`` is
+    ``pnl`` over the initial risk (quantity x distance from the entry fill to
+    the initial stop), null without a price stop. ``open``: still held at the
+    end, marked at the last close (``reason`` ``end_of_data``, no exit fees)."""
+
+    ticker: str
+    direction: Literal["long", "short"]
+    entry_date: date
+    entry_price: Decimal
+    entry_reference_price: Decimal
+    exit_date: date
+    exit_price: Decimal
+    exit_reference_price: Decimal
+    quantity: Decimal
+    entry_fees: Decimal
+    exit_fees: Decimal
+    pnl: Decimal
+    return_pct: float
+    reason: Literal["exit_rule", "stop_fixed", "stop_atr", "trail", "time", "end_of_data"]
+    gap: bool = False
+    """The bar opened through the stop, so it filled at the open, not the stop."""
+    open: bool = False
+    bars_held: int
+    initial_stop: Decimal | None = None
+    initial_risk: Decimal | None = None
+    r_multiple: float | None = None
+
+
+class StrategySummaryOut(BacktestSummaryOut):
+    """Net first (every figure above is after costs), gross second: the same
+    trades with the fees and the spread/slippage price cost added back."""
+
+    gross_return: float = 0.0
+    gross_final_nav: Decimal = Decimal(0)
+    total_fees: Decimal = Decimal(0)
+    price_costs: Decimal = Decimal(0)
+    trade_count: int = 0
+
+
+class StrategySymbolOut(BaseModel):
+    ticker: str
+    bars: int
+    warmup_bars: int
+    unknown_entry_bars: int
+    unknown_exit_bars: int
+    trades: int
+
+
+class StrategyBenchmarkOut(BaseModel):
+    """Buy and hold over the window: the symbol, or an equal-weight basket."""
+
+    kind: Literal["buy_and_hold", "equal_weight_buy_and_hold"]
+    tickers: list[str]
+    total_return: float
+    final_nav: Decimal
+
+
+class StrategyUniverseSourceOut(BaseModel):
+    kind: Literal["ticker", "watchlist", "list"]
+    watchlist_id: int | None = None
+    name: str | None = None
+    tickers: list[str]
+
+
+class StrategyBacktestOut(BaseModel):
+    mode: Literal["strategy"] = "strategy"
+    tickers: list[str]
+    currency: str
+    price_basis: str | None = None
+    execution_profile: str
+    fee_schedule: str
+    direction: Literal["long", "short"] = "long"
+    rules: list[StrategyRuleOut]
+    stops: StrategyStopsIn
+    sizing: StrategySizingIn
+    stop_priority: str
+    trades: list[StrategyTradeOut]
+    equity_curve: list[EquityPointOut]
+    summary: StrategySummaryOut
+    benchmark: StrategyBenchmarkOut
+    source: StrategyUniverseSourceOut
+    universe: UniverseOut
+    warmup_bars: int = 0
+    unknown_entry_bars: int = 0
+    """Window bars (all symbols) whose entry signal was unknown: no action."""
+    unknown_exit_bars: int = 0
+    """Bars in a position whose exit signal was unknown: no action."""
+    ignored_entry_signals: int = 0
+    """Entry signals while already in that symbol (no pyramiding)."""
+    skipped_entries: int = 0
+    """Entry signals not taken: no free slot, no cash for one share, or the
+    ATR a stop needs unknown at the signal bar."""
+    skip_reasons: dict[str, int] = {}
+    symbols: list[StrategySymbolOut]
+    strategy_hash: str
+    data_fingerprint: str
+    notes: list[str] = []
+
+
 class ExperimentIn(BaseModel):
     name: str = Field(min_length=1, max_length=120)
     hypothesis: str | None = Field(default=None, max_length=4000)
@@ -2010,10 +2231,18 @@ class ExperimentOut(BaseModel):
 
 
 class ExperimentRunIn(BaseModel):
-    """Save a backtest (Phase 5.4): the same body as POST /v1/backtest."""
+    """Save a backtest (Phase 5.4): the same body as POST /v1/backtest, or
+    (A4.1) a Rule DSL strategy, the body of POST /v1/backtest/strategy."""
 
-    backtest: BacktestIn
+    backtest: BacktestIn | None = None
+    strategy: StrategyBacktestIn | None = None
     experiment_id: int | None = None
+
+    @model_validator(mode="after")
+    def _one(self) -> ExperimentRunIn:
+        if (self.backtest is None) == (self.strategy is None):
+            raise ValueError("give exactly one of backtest or strategy")
+        return self
 
 
 class WalkForwardIn(BaseModel):

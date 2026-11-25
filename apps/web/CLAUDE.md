@@ -629,6 +629,34 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   default grid on the server and store the study; `/backtest/runs/[runId]`
   shows a walk-forward's windows (chosen setting, scored year) or a sweep's
   ranked settings ("best of N").
+- `/backtest?mode=rule` (A4.1, M7.1): the Rule strategy mode beside the
+  templates (`ModeTabs` links, `data-testid="backtest-mode"`). The page
+  loads the public presets and, signed in, `listSetups()` and
+  `listWatchlists()`; `RuleStrategyForm`
+  (`components/rule-strategy/rule-strategy-form.tsx`): entry and exit
+  `RuleFieldEditor` (`rule-field.tsx`: `checkRule()` debounced as on the
+  screener, `rule-ok` / `rule-error`; "Load a setup…" sends that version by
+  id until the text is edited), universe radios (one symbol, watchlist
+  (signed in), ticker list), dates, stops, sizing, costs, direction and
+  shortable list. Run is disabled while a rule is invalid or `formProblem()`
+  says why; Ctrl/Cmd+Enter runs from any field. Pure helpers in
+  `lib/rule-strategy.ts` (`buildStrategyRequest`, `tradeMarkers`,
+  `REASON_LABEL`/`REASON_CODE`, `formatR`). Runs go through
+  `app/(product)/backtest/strategy-actions.ts::runStrategyAction` (authed
+  when signed in, else public with `checkVisitorLimit("strategy")`, 20 a
+  minute), not the browser. `RuleStrategyResults` (`rule-strategy-results.tsx`):
+  "Performance, net of costs" (net return first), then gross, costs,
+  Sharpe, drawdown, trades and mean R; the unknown / ignored / skipped
+  counts (`strategy-counts`); the notes and stop priority in a "How this
+  run was simulated" disclosure; Save run (`SaveStrategyRun`, kind
+  `strategy` through `saveBacktestRunAction`); `StrategyTradesChart`
+  (`PriceChart` with `markers`: B/S entries, exits coded X/SL/ATR/TS/T and
+  "gap", colours from `useChartPalette()`; a basket picks a symbol; bars
+  through `strategyBarsAction`); the equity curve; the trades table
+  (`strategy-trades`, reason and `gap-flag`, R; on phones reason and R sit
+  under the P&L; 50 rows, then "Show all"). `/backtest/runs/[runId]` shows
+  a `strategy` run with the same component (no Save). Tests:
+  `tests/unit/rule-strategy.test.tsx`, the e2e in `research-workspace.spec.ts`.
 - The `/trade` option ticket (`components/option-trade-form.tsx`) quotes
   before it buys (audit LG-7): `getOptionQuote()` (`lib/api/option-quote.ts`,
   a browser call to the public `/v1/options/quote`) shows spot with its close

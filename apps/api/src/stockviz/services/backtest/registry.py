@@ -22,8 +22,13 @@ from typing import Any
 from sqlmodel import Session, col, func, select
 
 from stockviz.models import Experiment, ExperimentRun
-from stockviz.schemas import BacktestIn
+from stockviz.schemas import BacktestIn, StrategyBacktestIn
 from stockviz.services.backtest.run import BacktestRun, execute_backtest
+from stockviz.services.backtest.strategy_run import (
+    execute_strategy,
+    materialize_rules,
+    request_json,
+)
 from stockviz.services.backtest.walkforward import Computed, sweep, walk_forward
 
 MAX_RUNS_PER_USER = 500
@@ -70,6 +75,42 @@ def save_run(
         first_bar_at=run.first_bar_at,
         last_bar_at=run.last_bar_at,
         result=_result(run),
+    )
+    session.add(row)
+    session.commit()
+    session.refresh(row)
+    return row
+
+
+def save_strategy_run(
+    session: Session,
+    *,
+    user_id: int,
+    body: StrategyBacktestIn,
+    experiment_id: int | None = None,
+) -> ExperimentRun:
+    """A4.1: run a Rule DSL strategy and store it (``kind`` ``strategy``).
+    Inline rules are saved as setup versions first, so the stored request
+    names versions and its rerun reads the same immutable rules. Commits."""
+    _check_room(session, user_id, experiment_id)
+    execute_strategy(session, body, user_id=user_id)  # refuse before writing a version
+    body = materialize_rules(session, body, user_id)
+    run = execute_strategy(session, body, user_id=user_id)
+    row = ExperimentRun(
+        user_id=user_id,
+        experiment_id=experiment_id,
+        kind="strategy",
+        ticker=run.label,
+        request=request_json(body),
+        execution_profile=run.out.execution_profile,
+        fee_schedule=run.out.fee_schedule,
+        code_version=code_version(),
+        dataset_fingerprint=run.fingerprint,
+        bar_count=run.bar_count,
+        first_bar_at=run.first_bar_at,
+        last_bar_at=run.last_bar_at,
+        result=run.out.model_dump(mode="json"),
+        setup_version_id=run.entry_version_id,
     )
     session.add(row)
     session.commit()
@@ -169,6 +210,10 @@ def rerun(session: Session, row: ExperimentRun) -> RerunReport:
     if row.kind in ("walk_forward", "sweep"):
         computed = _compute(session, row.kind, row.request)
         current_fp, fresh = computed.fingerprint, computed.result
+    elif row.kind == "strategy":
+        body = StrategyBacktestIn.model_validate(row.request)
+        strategy = execute_strategy(session, body, user_id=row.user_id)
+        current_fp, fresh = strategy.fingerprint, strategy.out.model_dump(mode="json")
     else:
         run = execute_backtest(session, BacktestIn.model_validate(row.request))
         current_fp, fresh = run.fingerprint, _result(run)
