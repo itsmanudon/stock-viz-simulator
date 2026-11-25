@@ -1,0 +1,70 @@
+// Rule DSL grammar (A2.1). LALR(1), parsed by Lark; see parser.py for the AST.
+//
+// Precedence, loosest first: or, and, not, comparison and crossing (one per
+// level, never chained), + -, * /, unary minus and timeframe prefixes, then
+// postfix bar offsets [n] and indicator outputs .name.
+
+?start: expr
+
+?expr: or_expr
+
+?or_expr: and_expr
+        | or_expr _OR and_expr        -> or_
+
+?and_expr: not_expr
+         | and_expr _AND not_expr     -> and_
+
+?not_expr: comparison
+         | _NOT not_expr              -> not_
+
+?comparison: sum
+           | sum COMP_OP sum          -> compare
+           | sum CROSS_OP sum         -> cross
+
+?sum: product
+    | sum ADD_OP product              -> binop
+
+?product: unary
+        | product MUL_OP unary        -> binop
+
+?unary: postfix
+      | "-" unary                     -> neg
+      | TIMEFRAME "." postfix         -> timeframe
+
+?postfix: primary
+        | postfix "[" INT "]"         -> offset
+        | postfix "." NAME            -> output
+
+?primary: NUMBER                      -> number
+        | NAME                        -> name
+        | NAME "(" [args] ")"         -> call
+        | _FUNDAMENTAL "." NAME       -> fundamental
+        | _NEWS "." NAME "(" [args] ")" -> news
+        | "(" expr ")"
+
+args: arg ("," arg)*
+
+?arg: expr
+    | NAME "=" (expr | STRING)        -> kwarg
+
+// Keywords are whole words: "weekly_high" or "order" stay names.
+_OR.2: /or(?![a-z0-9_])/
+_AND.2: /and(?![a-z0-9_])/
+_NOT.2: /not(?![a-z0-9_])/
+_FUNDAMENTAL.2: /fundamental(?![a-z0-9_])/
+_NEWS.2: /news(?![a-z0-9_])/
+TIMEFRAME.2: /(weekly|monthly)(?![a-z0-9_])/
+CROSS_OP.2: /(crosses_above|crosses_below)(?![a-z0-9_])/
+COMP_OP: "<=" | ">=" | "!=" | "==" | "<" | ">" | "="
+ADD_OP: "+" | "-"
+MUL_OP: "*" | "/"
+
+NAME: /[a-z_][a-z0-9_]*/
+NUMBER: /[0-9]+(\.[0-9]+)?/
+INT: /[0-9]+/
+STRING: /"[^"\n]*"/
+
+COMMENT: /#[^\n]*/
+%import common.WS
+%ignore WS
+%ignore COMMENT
