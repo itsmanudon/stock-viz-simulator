@@ -10,5 +10,3 @@ resources:
 - secret-db.yaml
 - secret-auth.yaml
 - secret-market.yaml
-- secret-news.yaml
-- secret-sentiment.yaml

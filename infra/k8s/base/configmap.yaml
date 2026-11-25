@@ -17,4 +17,3 @@ data:
   NEXT_PUBLIC_API_URL: http://localhost:8000
   AUTH_TRUST_HOST: 'true'
   AUTH_URL: http://localhost:3000
-  SENTIMENT_PROVIDER: none

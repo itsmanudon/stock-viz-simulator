@@ -71,11 +71,9 @@ try {
     Invoke-VerifyCompose run --rm --no-deps api-tests pytest -q `
         tests/test_settings.py `
         tests/test_ingest_prices.py `
-        tests/test_market_news_pipeline.py `
         tests/test_outbox.py `
-        tests/test_event_contracts_market_news.py `
-        tests/test_kafka_integration.py::test_market_event_pipeline_roundtrip `
-        tests/test_kafka_integration.py::test_news_sentiment_event_pipeline_roundtrip
+        tests/test_event_contracts_market.py `
+        tests/test_kafka_integration.py::test_market_event_pipeline_roundtrip
 
     $apiHealth = Invoke-WebRequest -UseBasicParsing -Uri "http://127.0.0.1:18000/live" -TimeoutSec 10
     $webHealth = Invoke-WebRequest -UseBasicParsing -Uri "http://127.0.0.1:13100/api/health" -TimeoutSec 10

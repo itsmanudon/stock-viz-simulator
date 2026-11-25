@@ -19,9 +19,6 @@ APP_DEPLOY_FILES = {
     "trade-activity-deployment.yaml": {"stockviz-db"},
     "market-ingest-deployment.yaml": {"stockviz-db", "stockviz-market-provider"},
     "market-analytics-deployment.yaml": {"stockviz-db"},
-    "news-ingest-deployment.yaml": {"stockviz-db", "stockviz-news-provider"},
-    "news-sentiment-deployment.yaml": {"stockviz-db", "stockviz-sentiment-provider"},
-    "sentiment-aggregate-deployment.yaml": {"stockviz-db"},
 }
 
 
@@ -113,10 +110,9 @@ def test_each_workload_receives_only_its_secrets() -> None:
         assert _secret_names(text) == allowed
         if filename != "market-ingest-deployment.yaml":
             assert "ALPHA_VANTAGE_KEY" not in text
-        if filename != "news-ingest-deployment.yaml":
-            assert "NEWSDATA_KEY" not in text
-        if filename != "news-sentiment-deployment.yaml":
-            assert "ANTHROPIC_API_KEY" not in text
+        # A0 retired the news and sentiment workers and their provider keys.
+        assert "NEWSDATA_KEY" not in text
+        assert "ANTHROPIC_API_KEY" not in text
         if filename not in {"api-deployment.yaml", "web-deployment.yaml"}:
             assert "INTERNAL_API_TOKEN" not in text
             assert "AUTH_SECRET" not in text
@@ -129,9 +125,15 @@ def test_kind_secrets_are_marked_local_only() -> None:
         "secret-db.yaml",
         "secret-auth.yaml",
         "secret-market.yaml",
-        "secret-news.yaml",
-        "secret-sentiment.yaml",
     ):
         text = (K8S / "overlays" / "kind" / "bootstrap" / name).read_text(encoding="utf-8")
         assert "kind-dev-only" in text
         assert "stockviz.io/warning" in text
+
+
+def test_every_app_deployment_is_listed() -> None:
+    """A0: no news or sentiment worker remains in the app layer."""
+    on_disk = {p.name for p in (K8S / "base" / "app").glob("*-deployment.yaml")}
+    assert on_disk == set(APP_DEPLOY_FILES)
+    kustomization = (K8S / "base" / "app" / "kustomization.yaml").read_text(encoding="utf-8")
+    assert "news" not in kustomization and "sentiment" not in kustomization

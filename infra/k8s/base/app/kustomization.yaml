@@ -10,6 +10,3 @@ resources:
 - trade-activity-deployment.yaml
 - market-ingest-deployment.yaml
 - market-analytics-deployment.yaml
-- news-ingest-deployment.yaml
-- news-sentiment-deployment.yaml
-- sentiment-aggregate-deployment.yaml

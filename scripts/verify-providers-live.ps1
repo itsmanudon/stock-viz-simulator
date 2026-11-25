@@ -36,32 +36,12 @@ function Config-Value([string]$Name) {
 
 $massiveEnabled = (Config-Value "MASSIVE_SHADOW_ENABLED").ToLowerInvariant()
 $massiveKey = Config-Value "MASSIVE_API_KEY"
-$newsProvider = (Config-Value "NEWS_PROVIDER").ToLowerInvariant()
-$newsdataKey = Config-Value "NEWSDATA_KEY"
-$sentimentProvider = (Config-Value "SENTIMENT_PROVIDER").ToLowerInvariant()
-$anthropicKey = Config-Value "ANTHROPIC_API_KEY"
-$sentimentUrl = Config-Value "SENTIMENT_SERVICE_URL"
 
 if ($massiveEnabled -ne "true") {
     throw "MASSIVE_SHADOW_ENABLED=true is required for private Massive verification."
 }
 if (-not $massiveKey) {
     throw "MASSIVE_SHADOW_ENABLED=true requires MASSIVE_API_KEY."
-}
-if ($newsProvider -notin @("", "none", "newsdata")) {
-    throw "NEWS_PROVIDER must be none or newsdata."
-}
-if ($newsProvider -eq "newsdata" -and -not $newsdataKey) {
-    throw "NEWS_PROVIDER=newsdata requires NEWSDATA_KEY."
-}
-if ($sentimentProvider -notin @("", "none", "anthropic", "http")) {
-    throw "SENTIMENT_PROVIDER must be none, anthropic, or http."
-}
-if ($sentimentProvider -eq "anthropic" -and -not $anthropicKey) {
-    throw "SENTIMENT_PROVIDER=anthropic requires ANTHROPIC_API_KEY."
-}
-if ($sentimentProvider -eq "http" -and -not $sentimentUrl) {
-    throw "SENTIMENT_PROVIDER=http requires SENTIMENT_SERVICE_URL."
 }
 
 $baseCompose = (Resolve-Path -LiteralPath (Join-Path $repoRoot "infra/docker-compose.yml")).Path
@@ -80,14 +60,7 @@ if (-not $runDir.StartsWith($privateRoot, [System.StringComparison]::OrdinalIgno
 
 $providerNames = @(
     "MASSIVE_SHADOW_ENABLED",
-    "MASSIVE_API_KEY",
-    "NEWS_PROVIDER",
-    "NEWSDATA_KEY",
-    "SENTIMENT_PROVIDER",
-    "ANTHROPIC_API_KEY",
-    "SENTIMENT_SERVICE_URL",
-    "SENTIMENT_SERVICE_TOKEN",
-    "SENTIMENT_MODEL_HINT"
+    "MASSIVE_API_KEY"
 )
 $previousEnvironment = @{}
 foreach ($name in $providerNames) {
@@ -138,7 +111,7 @@ function Invoke-LiveCompose {
 function Invoke-LiveApi {
     param([Parameter(ValueFromRemainingArguments = $true)][string[]]$CommandArgs)
 
-    # Values are copied from the process by name only: -e MASSIVE_API_KEY -e NEWSDATA_KEY.
+    # Values are copied from the process by name only: -e MASSIVE_API_KEY.
     $arguments = @(
         "run", "--rm", "--no-deps",
         "--volume", "${runDir}:/private-artifacts"
@@ -166,9 +139,6 @@ try {
         Invoke-LiveApi alembic upgrade head
         Invoke-LiveApi python -m stockviz.cli seed
         Invoke-LiveApi python -m stockviz.cli ingest AAPL MSFT NVDA AMZN META TSLA JPM
-        if ($newsProvider -eq "newsdata") {
-            Invoke-LiveApi python -m stockviz.cli news AAPL
-        }
     }
     Invoke-LiveApi python -m stockviz.cli market-shadow AAPL MSFT NVDA AMZN META TSLA JPM --output-dir /private-artifacts/massive-shadow
 

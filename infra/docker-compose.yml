@@ -99,9 +99,7 @@ services:
           --topic stockviz.trades.v1 --partitions 3 --replication-factor 1
         /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --create --if-not-exists \
           --topic stockviz.market.v1 --partitions 3 --replication-factor 1
-        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --create --if-not-exists \
-          --topic stockviz.news.v1 --partitions 3 --replication-factor 1
-        echo "created stockviz.trades.v1 stockviz.market.v1 stockviz.news.v1 (3 partitions, RF=1)"
+        echo "created stockviz.trades.v1 stockviz.market.v1 (3 partitions, RF=1)"
 
   # --- Application stack ---------------------------------------------------
   # Behind the "app" profile so `pnpm db:up` stays a fast Postgres-only start
@@ -142,13 +140,6 @@ services:
       MASSIVE_SHADOW_ENABLED: ${MASSIVE_SHADOW_ENABLED:-false}
       MASSIVE_API_KEY: ${MASSIVE_API_KEY:-}
       MASSIVE_SHADOW_LOOKBACK_DAYS: ${MASSIVE_SHADOW_LOOKBACK_DAYS:-90}
-      NEWS_PROVIDER: ${NEWS_PROVIDER:-}
-      NEWSDATA_KEY: ${NEWSDATA_KEY:-}
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
-      SENTIMENT_PROVIDER: ${SENTIMENT_PROVIDER:-}
-      SENTIMENT_SERVICE_URL: ${SENTIMENT_SERVICE_URL:-}
-      SENTIMENT_SERVICE_TOKEN: ${SENTIMENT_SERVICE_TOKEN:-}
-      SENTIMENT_MODEL_HINT: ${SENTIMENT_MODEL_HINT:-}
     ports:
       - "8000:8000"
     healthcheck:
