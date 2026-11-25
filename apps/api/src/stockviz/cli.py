@@ -717,6 +717,52 @@ def _cmd_nse_load(args: argparse.Namespace) -> int:
     return 1 if failed else 0
 
 
+def _cmd_export_parquet(args: argparse.Namespace) -> int:
+    """Write the spine tables as monthly zstd Parquet with a manifest (A1.6, M1.8).
+
+    For the laptop's ``lab/`` package. Read-only on the database. ``--since``
+    re-exports only months on or after it. Refuses an ``--out`` inside the git
+    work tree that git would not ignore: exports hold exchange data.
+    """
+    from stockviz.services.export.parquet import (
+        ExportError,
+        export_parquet,
+        inside_unignored_worktree,
+    )
+
+    out = Path(args.out)
+    if inside_unignored_worktree(out):
+        print(
+            f"refusing {out}: it is inside the repository and not git-ignored. "
+            "Exports hold exchange data and are never committed; use a path outside "
+            "the repository or under lab/data/."
+        )
+        return 1
+    since = date.fromisoformat(args.since) if args.since else None
+    try:
+        report = export_parquet(engine, out, since=since, tables=args.tables)
+    except ExportError as exc:
+        print(f"export failed: {exc}")
+        return 1
+    for t in report.tables:
+        if t.status == "empty":
+            print(f"{t.name}: empty, skipped")
+            continue
+        mode = "full" if t.full else f"since {report.manifest['since']}"
+        entry = report.manifest["tables"][t.name]
+        print(
+            f"{t.name} ({mode}): wrote {t.partitions_written} partition(s), "
+            f"{t.rows_written} rows; kept {t.partitions_kept}, removed {t.partitions_removed}; "
+            f"{entry['rows']} rows in {len(entry['partitions'])} partition(s) in total"
+        )
+    m = report.manifest
+    print(
+        f"manifest {out / 'manifest.json'} (schema {m['schema_version']}, "
+        f"commit {m['source_commit']}, exported {m['exported_at']})"
+    )
+    return 0
+
+
 def _cmd_nse_files(args: argparse.Namespace) -> int:
     """List the most recent ``data_files`` rows (A1.1). Read-only."""
     from sqlmodel import col, select
@@ -1671,6 +1717,21 @@ def main(argv: list[str] | None = None) -> int:
     p_nse_files = sub.add_parser("nse-files", help="List recent recorded NSE files")
     p_nse_files.add_argument("--limit", type=int, default=20)
     p_nse_files.set_defaults(fn=_cmd_nse_files)
+
+    from stockviz.services.export.tables import TABLE_NAMES
+
+    p_export = sub.add_parser(
+        "export-parquet",
+        help="Write the spine tables as monthly Parquet partitions with a manifest (A1.6)",
+    )
+    p_export.add_argument("--out", required=True, help="Export directory")
+    p_export.add_argument(
+        "--since", default=None, help="YYYY-MM-DD; re-export only months on or after it"
+    )
+    p_export.add_argument(
+        "--tables", nargs="+", choices=TABLE_NAMES, default=None, help="Default: all"
+    )
+    p_export.set_defaults(fn=_cmd_export_parquet)
 
     p_aegis = sub.add_parser(
         "aegis-sync",

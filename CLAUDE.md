@@ -14,6 +14,7 @@ for the remaining honest gaps.
 ```
 apps/web/    Next.js 16 (App Router, React 19, TS, Tailwind v4, NextAuth v5) + Playwright e2e
 apps/api/    FastAPI + SQLModel + Alembic + APScheduler (Python 3.12, uv)
+lab/         research node, laptop only (A1.6): own uv project (duckdb, polars, pyarrow); `lab verify|catalog|query` over the API's `export-parquet` output. Not in any image
 infra/       docker-compose (local Postgres; Kafka via `--profile events`) + render.yaml
              k8s/ (Kustomize layers: bootstrap → migrate → app → scale; Strimzi)
 .railway/    railway.ts — Railway TypeScript IaC (lean 4-resource topology; named partial `stockviz`, Aegis owns the `aegis` partial)
