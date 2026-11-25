@@ -97,6 +97,10 @@ class Settings(BaseSettings):
     web_revalidate_url: str = ""
     kite_api_key: str = ""
     kite_api_secret: str = ""
+    # A1.1: where `stockviz.cli nse-load --apply` keeps raw NSE files, laid
+    # out <source>/<yyyy>/<file name>. Relative paths are from the working
+    # directory. Never committed (gitignored), never served.
+    nse_archive_dir: str = "var/nse-archive"
     # yfinance remains the persisted/default provider. Massive is an optional,
     # private shadow comparison only and must never be exposed by an API path.
     massive_shadow_enabled: bool = False

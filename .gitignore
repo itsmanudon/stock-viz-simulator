@@ -58,6 +58,8 @@ htmlcov/
 
 # Private provider-derived evidence (never publish or copy into images)
 artifacts/private/
+# Raw NSE files (A1.1, NSE_ARCHIVE_DIR); exchange data, never committed
+**/var/nse-archive/
 
 # Logs
 *.log

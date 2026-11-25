@@ -107,6 +107,10 @@ src/stockviz/
                     growth), each a `<column>_min`/`_max` filter and a sort
     markets/        calendar.py — exchange calendars and completed sessions (Phase 4.1);
                     india_holidays.py — the maintained NSE/BSE holiday table (A0)
+    nse/            A1.1 NSE end-of-day files placed by hand: formats.py
+                    (header detection), parse.py (+ date check), archive.py
+                    (`NSE_ARCHIVE_DIR`, `data_files`), load.py (`eod_raw`,
+                    `eod_extras`, ISIN identifiers), process.py (one file)
     aegis/          Aegis News read sync (Phase 2): contract.py (lenient
                     feed models), token.py (EdDSA feed:read token), client.py
                     (the one client: timeouts, bounded retries), sync.py
@@ -144,7 +148,36 @@ CLI subcommands (`python -m stockviz.cli <cmd>`): `seed`, `backfill`,
 `settle-orders [--session-date YYYY-MM-DD]`, `evaluate-alerts`, `revalidate-web`,
 `publish-outbox [--once]`,
 `consume-trade-activity [--once]`, `consume-market-ingest [--once]`,
-`consume-market-analytics [--once]`.
+`consume-market-analytics [--once]`, `nse-load PATH ... [--apply]`,
+`nse-files [--limit N]`.
+
+**NSE files (A1.1).** `services/nse/` parses NSE end-of-day files **placed
+by hand**. Nothing downloads from NSE yet (that is A1.2, after the owner's
+legal question). Formats are detected from the header (any order, case and
+spaces ignored), never the file name: the CM bhavcopy in UDiFF
+(`nse_cm_udiff`, since 8 Jul 2024) and legacy (`nse_cm_legacy`) layouts, and
+`sec_bhavdata_full` (`nse_sec_full`); a `.zip` must hold one CSV. Values
+are `Decimal`; empty or `-` is None; turnover is stored in rupees
+(`TURNOVER_LACS` x 100,000). Every row must carry one date, equal to the
+file name's date when it has one, and an XNSE session (special sessions
+count); otherwise the file is `date_mismatch` and nothing loads.
+`stockviz.cli nse-load PATH ...` is a dry run (format, date, rows, matched,
+unmatched, would load; nothing written, not even the archive); `--apply`
+copies each file to `NSE_ARCHIVE_DIR` (`<source>/<yyyy>/<file name>`),
+writes a `data_files` row (SHA-256 unique: a file already recorded is a
+no-op; status `parsed`, `date_mismatch`, `unrecognised` or `failed`) and
+loads it in one transaction. Exit 1 if any file was not `parsed`. Series
+`EQ BE BZ SM ST` (`load.LOAD_SERIES`) go to `eod_raw` (CM, raw exchange
+numbers, never adjusted) and `eod_extras` (delivery), keyed by
+(instrument, session, series), upserted, so a rerun changes nothing. Rows
+match by the current `isin` identifier, else the Yahoo ticker
+`<SYMBOL>.NS`; a ticker match records the ISIN (scheme `isin`, once). A
+ticker match whose instrument holds a different current ISIN is counted as
+a conflict and skipped. Unmatched rows are counted; no instruments are
+created. Not in `RECORDED_JOBS` or the cron. `price_bars` is untouched
+until A1.3. `nse-files` lists recent `data_files` rows. Tests use synthetic
+files in `tests/fixtures/nse/` (real headers, invented numbers; never
+commit real NSE data).
 
 **Bars on closed days (A0, audit MD-9).** `stockviz.cli non-session-bars
 [tickers]` (`services/ingest/non_session_bars.py`) lists, per ticker, the

@@ -17,8 +17,10 @@ from stockviz.models.aegis import (
 from stockviz.models.alert import Alert, AlertDirection, AlertEvent, AlertKind, AlertRepeat
 from stockviz.models.auth_rate_limit import AuthRateLimit
 from stockviz.models.corporate_action import CorporateAction, CorporateActionApplication
+from stockviz.models.data_file import DataFile
 from stockviz.models.dividend import Dividend, PortfolioDividend
 from stockviz.models.earnings import EarningsEvent
+from stockviz.models.eod import EodExtras, EodRaw
 from stockviz.models.events import ConsumerInbox, OutboxEvent, PortfolioTradeActivity
 from stockviz.models.execution import SimulatedExecution
 from stockviz.models.experiment import Experiment, ExperimentRun
@@ -83,8 +85,11 @@ __all__ = [
     "ConsumerInbox",
     "CorporateAction",
     "CorporateActionApplication",
+    "DataFile",
     "Dividend",
     "EarningsEvent",
+    "EodExtras",
+    "EodRaw",
     "Experiment",
     "ExperimentRun",
     "FundamentalFact",
