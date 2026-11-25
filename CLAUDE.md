@@ -27,14 +27,17 @@ Each app has its own `CLAUDE.md` with deeper notes. Skim those before editing.
 
 ## Feature surface
 
-Beyond the original markets/charts/news/recommendations pages, the app now
+Beyond the original markets/charts/news pages, the app now
 includes: paper trading with **pending limit/stop orders** and **options**
 (pricing, positions, expiry settlement), **dividends** and **multi-currency
 FX**, **backtesting** (`/backtest`), **screener** (with Rule DSL rules and
 saved **setups** and presets since A2.2, `/setups`), **watchlists**, **price
 alerts** (and, since A2.3, alerts on saved Rule DSL setups, nightly saved-screen
 entry/exit notifications and delivery to a signed webhook, email or Telegram,
-set in Settings) and **news sentiment** from Aegis News. A0 hygiene (25 Nov 2026)
+set in Settings), the **Checklist** (`/checklist`, A2.4: six Rule DSL
+dimensions, "N of 6 met", with weekly evidence grades; it replaced the 7-vote
+Signals, whose `recommendations` table is archived) and **news sentiment**
+from Aegis News. A0 hygiene (25 Nov 2026)
 removed the leaderboard, per-ticker comments (the table is archived in the
 `archive` schema), the simulated random-walk quote stream (prices show the
 latest close with its date) and the legacy news and sentiment pipeline (its
@@ -43,10 +46,10 @@ latest close with its date) and the legacy news and sentiment pipeline (its
 
 News and its sentiment come from Aegis News: `stockviz.cli aegis-sync` copies
 the feed into the `aegis_*` tables, and the sentiment label on each document
-feeds a screener filter, a recommendation vote, and a per-ticker series at
+feeds a screener filter, the `news.*` Rule DSL bindings, and a per-ticker series at
 `/v1/symbols/{ticker}/sentiment`. StockViz never fetches news, scores
 sentiment or stores article text (see "Aegis News sync" in
-`apps/api/CLAUDE.md`). Compare, Backtest, and Signals
+`apps/api/CLAUDE.md`). Compare, Backtest, and the Checklist (A2.4, which replaced the 7-vote Signals)
 form the Research workspace; see [`docs/RESEARCH.md`](./docs/RESEARCH.md).
 Trade, Orders, Watchlist, and Alerts form the operational trading loop; see
 [`docs/OPERATIONAL_TRADING.md`](./docs/OPERATIONAL_TRADING.md). All live
@@ -223,7 +226,7 @@ is derived from today's close rather than read from history.
 The bundled seed CSVs hold split-adjusted daily bars on real trading dates,
 rebuilt from yfinance by `apps/api/scripts/regenerate_seed_csvs.py`. A database
 loaded before 11 Nov 2026 has the old misdated rows: reload it with
-`python -m stockviz.cli backfill --replace`, then run `metrics` and `recommend`.
+`python -m stockviz.cli backfill --replace`, then run `metrics` and `checklist`.
 
 ## Common gotchas (Windows dev)
 
@@ -270,7 +273,7 @@ gh issue close <n> --repo itsmanudon/stock-viz-simulator
 `pnpm lint && pnpm typecheck && pnpm build && uv --directory apps/api run pytest` — run
 these locally before merging into `dev`; nothing runs them for you there. CI
 runs them on the `dev` → `main` pull request, plus a full-stack **e2e job**
-(migrate + seed + backfill + recommend against a real Postgres, start the API,
+(migrate + seed + backfill + metrics + checklist against a real Postgres, start the API,
 build the web app, run Playwright). Don't bypass with `--no-verify` etc.
 
 ## Auth bridge (web ↔ api)

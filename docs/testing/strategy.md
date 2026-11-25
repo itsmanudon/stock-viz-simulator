@@ -119,7 +119,7 @@ A mock asserting "seek was called" would not have caught the original bug.
 | `events-integration` | Postgres + Kafka tiers in isolation |
 | `security` | `pnpm audit --audit-level high --prod` and `pip-audit` on the locked set |
 | `docker` | Both images build |
-| `e2e` | Migrate + seed + backfill + recommend, start API, build web, run Playwright |
+| `e2e` | Migrate + seed + backfill + metrics + checklist, start API, build web, run Playwright |
 
 Two of these are drift guards rather than tests, and they exist because of
 real incidents:

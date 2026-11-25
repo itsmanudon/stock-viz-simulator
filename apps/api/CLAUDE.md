@@ -18,7 +18,8 @@ src/stockviz/
   schemas.py        shared Pydantic response models
   observability.py  Sentry bootstrap (no-op without DSN)
   models/           SQLModel tables (market, portfolio, user, order, option, dividend,
-                    earnings, alert, recommendation, watchlist, metrics,
+                    earnings, alert, watchlist, metrics, checklist
+                    (A2.4 ChecklistScore / ChecklistEvidence),
                     events — outbox, consumer inbox, derived trade activity,
                     execution — SimulatedExecution provenance,
                     replay — ReplaySession / ReplayPosition / ReplayFill /
@@ -36,7 +37,7 @@ src/stockviz/
                     min(produced_at)→max(consumed_at), not collector wall-clock.
   routers/          /v1 endpoints, one file per resource — symbols, quotes, bars,
                     markets (one-call /markets summary), indicators, news,
-                    recommendations, trading, orders, options, backtest,
+                    checklist (A2.4), trading, orders, options, backtest,
                     experiments (saved backtests, Phase 5.4),
                     screener, sentiment, watchlist, alerts, profile
                     (display currency), earnings, replay
@@ -57,7 +58,8 @@ src/stockviz/
                     engine, so the screener, backtests and chart share one
                     RSI. `symbol_metrics` 52-week range = high/low of the
                     last 252 sessions (RS-14)
-    recommend/      7-vote scorer; API now returns structured votes + rationale
+    checklist/      A2.4: dimensions.py (the six DSL dimensions as system
+                    setups), score.py (nightly scores), evidence.py (grades)
     trading/        execute, orders (pending limit/stop + derived reservations),
                     simulation_adapter (PriceBar / PendingOrder → kernel types),
                     execution_provenance (SimulatedExecution writer),
@@ -164,7 +166,8 @@ separately; Render still uses `/health` as `healthCheckPath`.
 CLI subcommands (`python -m stockviz.cli <cmd>`): `seed`, `backfill`,
 `metadata`, `ingest <tickers>`, `ingest-quarantine [--ticker T] [--release ID ...]`,
 `fx`, `metrics`, `fundamentals [--source yfinance|edgar]`,
-`sentiment-aggregate`, `recommend`, `snapshot-portfolios`,
+`sentiment-aggregate`, `checklist`,
+`checklist-evidence [--start D] [--end D] [--horizon N]`, `snapshot-portfolios`,
 `dividends`, `credit-dividends`, `settle-options`, `run-scheduler`,
 `prune-events [--days N] [--include-unpublished]`, `aegis-sync [--max-pages N]`,
 `settle-orders [--session-date YYYY-MM-DD]`, `evaluate-alerts`, `revalidate-web`,
@@ -175,7 +178,8 @@ CLI subcommands (`python -m stockviz.cli <cmd>`): `seed`, `backfill`,
 `export-parquet --out DIR [--since YYYY-MM-DD] [--tables T ...]`,
 `rule-check "<rule>" [TICKER ...] [--date YYYY-MM-DD] [--explain]`,
 `screen-runs`, `deliver-notifications [--channel webhook|email|telegram] [--limit N]`.
-`seed` also writes the rule presets (A2.2).
+`seed` also writes the rule presets (A2.2) and the checklist dimension setups
+(A2.4).
 
 **NSE files (A1.1).** `services/nse/` parses NSE end-of-day files **placed
 by hand**. Nothing downloads from NSE yet (that is A1.2, after the owner's
@@ -241,7 +245,9 @@ section).
 
 - **Surface** (`grammar.lark`, Lark LALR, MIT, pinned in `uv.lock`):
   numbers, the series `open high low close volume delivery_pct
-  deliverable_qty`, calls with positional and keyword arguments,
+  deliverable_qty` and (A2.4) `index_close` (the venue index's close, as `rs`
+  reads it: forward-filled at most 5 bars; on weekly/monthly the period's last;
+  unknown without an index series), calls with positional and keyword arguments,
   `+ - * /`, `< <= > >= = !=` (`==` is `=`; comparisons never chain),
   `and or not`, parentheses, `crosses_above` / `crosses_below`, `[n]`
   offsets, `weekly.` / `monthly.` prefixes, `fundamental.<metric>`,
@@ -299,7 +305,8 @@ section).
   asserts `point(t) == vector[t]` for every bar of three seeded 10-year
   histories (split step, NSE holidays, partial last week, delivery gaps,
   USD-reporting INR listing, a bar hole) over 52 rules and 7 numeric
-  expressions (A2.2 adds the four presets; 444,683 point evaluations over 7,537 bars before them, a process pool, about a
+  expressions (A2.2 adds the four presets; A2.4 adds three `index_close` rules,
+  one `index_close` expression and the seven checklist dimension setups; 444,683 point evaluations over 7,537 bars before them, a process pool, about a
   minute), plus a test that perturbs everything after `t` and finds no
   value up to `t` changed. Vector mode: about 1.3 ms for a 5-condition rule
   over 10 years, 0.2 s for 163 symbols (synthetic, local).
@@ -473,6 +480,69 @@ which older code cannot word): `screen_runs`, `notification_channels`,
   owner's. Tests: `test_rule_alerts.py`, `test_screen_runs.py`,
   `test_delivery.py` (stubbed transports), `test_a2_delivery_migration.py`,
   `test_railway_cron.py`, `test_cron_chain.py`.
+
+**The Checklist (A2.4, M4.4).** Replaces the 7-vote Signals. Migration
+`65fc5117cbf1`: `checklist_scores` and `checklist_evidence`, and
+`recommendations` moved to the `archive` schema (rows, primary key, indexes
+kept; its keys to `symbols`/`instruments` and its instrument trigger dropped,
+restored by the downgrade, keys NOT VALID; dropping it is the owner's call).
+`services/recommend/`, `routers/recommendations.py`, `/v1/recommendations`
+and the `recommend` command, scheduler job and cron step are removed.
+
+- **Dimensions** (`services/checklist/dimensions.py`): Trend, Momentum/RS,
+  Volume/Delivery, Market regime, Quality, Risk/Reward, each a few named
+  Rule DSL conditions with a cited source (rule text in `docs/rule-dsl.md`).
+  Each is a system setup of kind `checklist` (`preset_key`
+  `checklist-<key>`; seeded by `seed_dimensions`, which `seed`, both jobs and
+  the first API read call, since the cron never runs `seed`); its rule is the
+  `and` of its conditions, so a changed formula is a new version and
+  `load_variants` finds the version by the current rule's hash. Delivery is
+  an NSE/BSE figure, so Volume/Delivery has two setups: `india` (XNSE, XBOM:
+  volume and `delivery_pct > 50`) and `other` (volume only); 7 setups in all.
+  A dimension is met / unknown / not met by Kleene `and` (`aggregate`, tested
+  equal to the DSL conjunction). Wording is neutral ("N of 6 met"); a test
+  bans buy/sell words in every label and description.
+- **Nightly** `stockviz.cli checklist` (recorded; scheduler `checklist_refresh`
+  17:00 ET; cron after `screen-runs`, so after `metrics`, `aegis-sync` and
+  Friday's `fundamentals`): every active non-index symbol on its venue's
+  session (`screener_rule.venue_sessions`: the newest stored bar of the
+  venue's symbols on or before its latest completed session); no bar that day
+  = every dimension `unknown` ("no bar for D; latest D'"). One `load_symbol`
+  per symbol with the union of needs, then `evaluate_at` (point mode) for the
+  dimension rule and each condition. Upsert on (instrument, session date), so
+  a rerun replaces the night. Rows: `dimensions` JSON `[{key, scope,
+  setup_version_id, status, reason, conditions: [{label, rule, status,
+  reason}]}]`, `met_count`, `evaluated_count`.
+- **Evidence** (`services/checklist/evidence.py`, `stockviz.cli
+  checklist-evidence`, recorded; Fridays in the cron, scheduler 18:00 ET
+  Fridays): per dimension setup version, over the last 10 years to the latest
+  New York session: event = first bar true after a bar false (vector mode;
+  unknown before is not an event); outcome = forward 20-session close return
+  minus the round-trip fees of the venue's schedule (`us_equity_2026`,
+  `in_delivery_nse_2026`, `in_delivery_bse_2026`; 100,000 position;
+  dividends not added); excess = outcome minus the same-date mean forward
+  return (before costs) of every in-scope symbol of the same market; events
+  within 20 bars of the last counted one on a symbol are skipped. Grade A (t
+  >= 3 and mean excess >= 1%), B (t >= 2), C (t >= 1), D, or `insufficient`
+  under 30 events. Data is cut at the window's end first (a test perturbs
+  every later bar). Upsert on (version, universe, window, horizon). The stamp
+  is `backtest/universe.py::evidence_universe` (pinned, survivorship-biased).
+- **API** (public, 60/min): `GET /v1/checklist?min_met=&dimension=&sort=met|ticker&limit=&offset=`
+  -> `{dimensions: [{key, name, summary, source, variants: [{scope,
+  setup_id, setup_version_id, version, canonical, hash, conditions, evidence
+  {grade, n_events, symbols, horizon, window_start, window_end, mean_excess,
+  t_stat, hit_rate, mean_net_return, base_rate, overlapping_skipped,
+  fee_schedules, universe, computed_at} | null}]}], rows: [{ticker, name,
+  sector, currency, session_date, met, evaluated, total, results, computed_at,
+  stale}], total, universe, disclaimer}` (latest row per instrument; `stale`
+  = more than 5 days behind the venue's newest checklist session; unknown
+  dimension key 400). `GET /v1/symbols/{t}/checklist` -> `{ticker,
+  dimensions, row | null, universe, disclaimer}` (404 unknown or index).
+- Tests: `test_checklist.py`, `test_checklist_evidence.py` (planted effect
+  grades A, noise D, fees, no look-ahead, overlap), `test_checklist_migration.py`
+  (PostgreSQL up/down/up with an archived row), the conformance corpus (every
+  checklist setup and `index_close` rules), `test_railway_cron.py`,
+  `test_cron_chain.py`.
 
 **Weekly and monthly bars (A1.4a, M2.2 first half).** Resampled on read,
 never stored (`services/bars/resample.py`). `GET /v1/symbols/{t}/bars` and
@@ -679,9 +749,9 @@ unreported upcoming row the provider no longer lists to the nearest newly
 listed date within 45 days (`previous_date` keeps the old one); rows left
 by earlier moves are listed by `stockviz.cli earnings-duplicates`
 (read-only; removing them is the owner's call). SR-8: `recommendations.bar_date`
-is the newest bar behind the votes; `/v1/recommendations` adds `bar_date`
-and `stale` (more than five days behind the newest signal bar in the same
-currency). OP-9: the API calls `configure_logging()`; every log line carries
+was the newest bar behind the votes, with `bar_date` and `stale` on
+`/v1/recommendations` (both retired in A2.4; the Checklist rows carry their
+session date and `stale` the same way). OP-9: the API calls `configure_logging()`; every log line carries
 `[request id]` (`logging_setup.REQUEST_ID`, `RequestIdFilter`);
 `request_id.py` middleware takes a valid `X-Request-ID` (the web sends one
 per call) or makes one, tags Sentry and returns it. OP-12: a failed outbox
@@ -888,15 +958,13 @@ the workspace repository and `aegis-news/docs/feed.md`. Rules:
   general market headlines), and refuses `tickers` (400). Whether a
   document links depends on Aegis resolving its entities to a seeded
   `stockviz:` mapping (Aegis `data/instruments/stockviz.json`, all 161
-  symbols since 16 Nov 2026). `symbol_metrics.sentiment_7d` (the 7th signals vote and the
-  screener's sentiment filter) is written by `refresh_aegis_sentiment`, run at
+  symbols since 16 Nov 2026). `symbol_metrics.sentiment_7d` (the screener's
+  sentiment filter; it was also the 7th Signals vote until A2.4) is written by `refresh_aegis_sentiment`, run at
   the end of every `aegis-sync` (also after a failed sync) and by the
   `sentiment-aggregate` CLI and scheduler job (audit AG-14). The legacy
   pipeline is gone since A0 (see "Sentiment" below).
-- **Signals maximum (audit SR-9).** Each stored vote carries `available`; the
-  sentiment vote is unavailable when no scored Aegis news falls in the week.
-  `RecommendationOut.max_score` counts available votes (7, or 6). The pass
-  threshold stays 4.
+- **Signals (SR-8, SR-9) are retired (A2.4).** The 7-vote engine, its router
+  and the `recommend` step are gone; see "The Checklist (A2.4)".
 
 Kafka workers (same image, different command; broker optional for the API):
 
@@ -921,7 +989,7 @@ owns line length). Pyright is `basic`.
 
 ## Scheduler
 
-`scheduler.py::build_scheduler` registers thirteen cron jobs (timezone
+`scheduler.py::build_scheduler` registers its cron jobs (timezone
 America/New_York, weekdays unless noted):
 
 - 09:30 — `dividend_credit_refresh` (credit due dividends to portfolios)
@@ -939,7 +1007,8 @@ logged and the rest run. With `EVENTS_OUTBOX_ENABLED=true` (set only in
 - 16:45 — `fx_refresh` and `pending_orders_settlement` (fill limit/stop orders against the new close)
 - 16:50 — `symbol_metrics_refresh` (RSI / 52w range the screener reads)
 - 16:55 — `sentiment_aggregate_refresh` (rolling per-symbol Aegis News sentiment)
-- 17:00 — `recommendations_refresh`
+- 17:00 — `checklist_refresh` (A2.4: the six dimensions for every active symbol)
+- 18:00 Fridays — `checklist_evidence_refresh` (A2.4: the weekly evidence grades)
 - 17:15 — `portfolio_snapshots_refresh` (daily NAV snapshot per user)
 - 17:30 — `options_expiry_refresh` (settle expired option positions)
 - 17:05 — `screen_runs_refresh` (A2.3: screened setup versions' members, diffs)
@@ -949,7 +1018,7 @@ No job fetches news: Aegis News owns it (`aegis-sync`; A0 removed `news_refresh`
 
 `symbol_metrics_refresh` and `sentiment_aggregate_refresh` remain
 full-universe **reconciliation** jobs. In the events lab the Kafka consumers
-are the incremental path. Pending orders, options, dividends, FX, snapshots, and recommendations
+are the incremental path. Pending orders, options, dividends, FX, snapshots, and the checklist
 stay on APScheduler.
 
 Every job is wrapped in `@single_instance(...)`, which takes a Postgres
@@ -978,7 +1047,7 @@ users ─┬─ portfolios ─┬─ positions           (qty + native-currency 
        ├─ alerts
 
 symbols ─┬─ price_bars          (EOD OHLCV; everything prices off the latest 1d close)
-         ├─ recommendations
+         ├─ checklist_scores    (A2.4, by instrument and session)
          ├─ symbol_metrics      (precomputed RSI / 52w / rolling sentiment)
          └─ dividends           (declared payouts per symbol)
 fx_rates                        (currency + date, USD-per-unit)
@@ -1006,7 +1075,7 @@ overrides slowapi's private `_check_request_limit`, because its request
 filters receive no request; `tests/test_rate_limit_web_server.py` pins it.
 
 Current budget: **60/min** on the public reads
-(symbols, bars, quotes, news, indicators, recommendations, rule check,
+(symbols, bars, quotes, news, indicators, checklist, rule check,
 setup presets), **30/min**
 screener, **20/min** backtest. Authenticated routers are deliberately *not*
 slowapi-limited — every authed request arrives from the Next.js server, so a
@@ -1348,7 +1417,7 @@ Reads go by instrument: filter `X.instrument_id == instrument_of(ticker)` (or
 correlates through LATERAL joins; `resolve_symbol()` turns a public symbol
 into an `Instrument`. 4.4a moved every `price_bars` read (index
 `ix_price_bars_instrument_interval_ts`); 4.4b moved the ledger, alerts,
-dividends, comments, earnings, news and recommendations reads. Still on
+dividends, comments, earnings, news and (now retired) recommendations reads. Still on
 `ticker`, on purpose: the ingest dedupe lookups for dividends, earnings and
 splits (they mirror unique keys that stay on `ticker` until 4.6),
 `redate-bars` (scoped by source), `replay_positions` (no foreign key, so no
