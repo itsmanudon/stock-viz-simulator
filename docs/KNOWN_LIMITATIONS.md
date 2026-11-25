@@ -45,4 +45,6 @@ These are the current, code-verified boundaries of StockViz. They are not commit
 
 - Google OAuth needs valid provider credentials; email/password signup remains available without them.
 - There is no email verification, password reset, or change-password flow.
-- Alerts are in-app only. They are evaluated by incremental market analytics after refreshed bars and are not email/push notifications.
+- Alerts and notifications are end of day: judged after the nightly refresh, never in real time. Since A2.3 they also go to a user's signed webhook, email (only when the server has every `SMTP_*` value) or Telegram (only with `TELEGRAM_BOT_TOKEN`); hosted, the cron sends them once a night, so a failed send retries the next night unless the in-process scheduler runs.
+- **TODO (A2.3): browser push.** Not built. It needs a VAPID key pair (a server secret the owner sets), a service worker and per-browser subscriptions; it would be one more channel behind `services/delivery`.
+- The webhook signing secret is stored in plain text in `notification_channels.secret` (write-only through the API, never logged). Encrypting it at rest needs a server key that does not exist yet.

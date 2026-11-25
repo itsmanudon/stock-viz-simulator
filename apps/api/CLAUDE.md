@@ -23,7 +23,9 @@ src/stockviz/
                     execution — SimulatedExecution provenance,
                     replay — ReplaySession / ReplayPosition / ReplayFill /
                     ReplayJournal, aegis — read-only Aegis News copies,
-                    setup — A2.2 Setup / SetupVersion / Thesis)
+                    setup — A2.2 Setup / SetupVersion / Thesis,
+                    screen — saved screens + A2.3 ScreenRun, delivery —
+                    A2.3 NotificationChannel / DeliveryAttempt)
   events/           versioned contracts (trades/market), outbox/inbox,
                     dispatcher, domain handlers, Kafka producer wrappers
                     (not imported by FastAPI startup)
@@ -39,7 +41,7 @@ src/stockviz/
                     screener, sentiment, watchlist, alerts, profile
                     (display currency), earnings, replay
                     (isolated ReplaySession), rules / setups / theses
-                    (A2.2), health
+                    (A2.2), notification_channels (A2.3), health
                     (`GET /live` liveness, `GET /health` readiness + DB)
   services/
     ingest/         External-API fetchers (yfinance primary, Alpha Vantage fallback);
@@ -126,6 +128,10 @@ src/stockviz/
     setups/         A2.2 spine: store.py (setups and immutable versions),
                     presets.py (seeded system setups), rules.py (rule check)
     screener_rule.py  A2.2: judges a rule for every screener candidate
+    screen_runs.py  A2.3: nightly members per screened setup version, diffs
+    delivery/       A2.3: deliver() (outbox staging), drain(), channels.py
+                    (signed webhook + SSRF rules, SMTP email, Telegram),
+                    transport.py (the network edges tests stub)
     theses.py       A2.2: thesis reads (the router writes)
     aegis/          Aegis News read sync (Phase 2): contract.py (lenient
                     feed models), token.py (EdDSA feed:read token), client.py
@@ -167,7 +173,8 @@ CLI subcommands (`python -m stockviz.cli <cmd>`): `seed`, `backfill`,
 `consume-market-analytics [--once]`, `nse-load PATH ... [--apply]`,
 `nse-files [--limit N]`,
 `export-parquet --out DIR [--since YYYY-MM-DD] [--tables T ...]`,
-`rule-check "<rule>" [TICKER ...] [--date YYYY-MM-DD] [--explain]`.
+`rule-check "<rule>" [TICKER ...] [--date YYYY-MM-DD] [--explain]`,
+`screen-runs`, `deliver-notifications [--channel webhook|email|telegram] [--limit N]`.
 `seed` also writes the rule presets (A2.2).
 
 **NSE files (A1.1).** `services/nse/` parses NSE end-of-day files **placed
@@ -370,6 +377,103 @@ yet: A2.3 rule alerts, A4 rule backtests).
   `test_setups_migration.py` (PostgreSQL up/down/up); `conftest.py` clears
   the cache around every test.
 
+**Rule alerts, screen runs and delivery (A2.3, M4.5 end of day).**
+Migration `6e6c8aed50fb` (additive; its downgrade deletes `rule` alerts,
+which older code cannot word): `screen_runs`, `notification_channels`,
+`delivery_attempts`, `saved_screens.notify_on_change` (default false),
+`notifications.data` (JSON) and check `ck_alerts_rule_has_version`.
+
+- **Rule alerts.** `alerts.kind = 'rule'` with `setup_version_id` (your
+  setup's or a preset's; another user's 404, an archived setup 409, a rule
+  that no longer compiles 422) and a ticker (400 without; account-wide rule
+  alerts are not in A2.3). `services/alerts/engine.py::_evaluate_rule_alerts`
+  runs inside `evaluate_pending_alerts`: once per new daily bar of the
+  ticker, `dsl.point` on that bar (bars, facts and news as known at its
+  close). Same rules as price/technical: fires on not-true -> true,
+  `known_at_arming` gives the starting state, `once` / `every_cross` +
+  `cooldown_sessions`, `alert_events` keyed `<rule>:<bar date>`. **Unknown
+  never fires and never counts as true**: it is stored as `last_state =
+  false`, so true -> unknown -> true fires on the second true. `params`
+  holds a copy of the setup's name, version, canonical text, hash and
+  `preset` (written by the router, never the caller), so `describe` reads
+  "AAPL: Name v2 becomes true (canonical)" without a lookup and the firing
+  message names the rule. `PATCH /v1/alerts/{id}` takes `setup_version_id`
+  (rule alerts only; re-arms) and `paused`, both optional. Alert
+  notifications carry `data {alert_id, kind, ticker, bar_date,
+  setup_version_id}`. Note: `evaluate-alerts` runs before `aegis-sync` in
+  the cron, so a `news.*` rule alert sees the previous night's Aegis copy.
+- **Screen runs.** `stockviz.cli screen-runs` (recorded; scheduler twin
+  `screen_runs_refresh` 17:05 ET) takes every setup version a saved screen
+  points at, judges it over the whole active universe with
+  `screener_rule.evaluate_rule` (no cache; each venue on its latest
+  completed session) and upserts `screen_runs` (unique `(setup_version_id,
+  session_date)`, the job's New York session; a rerun replaces the day):
+  `members` = instrument ids that were `met`, `not_evaluated` = unknown
+  count (never members), `sessions` per venue, `universe` (the pinned
+  stamp's name), venue `all`. Against the version's previous stored run,
+  entries and exits become one `screen` notification per saved screen with
+  `notify_on_change` (`source_key` `<screen id>:<session date>`, `data
+  {screen_id, screen_name, setup_version_id, session_date, entries,
+  exits}`), filtered by the screen query's `market`/`exchange`/`currency`
+  only. A version's first run records state only. A version that no longer
+  compiles is logged and skipped; an evaluation error fails the job (exit
+  1) after the other versions run. `/v1/screens` takes `notify_on_change`
+  (null keeps it; true needs a setup version, else 400) and `PATCH
+  /v1/screens/{id}` `{notify_on_change}`.
+- **Delivery (outbox).** `notify()` now calls
+  `services/delivery.deliver`, which stages one `delivery_attempts` row
+  (unique `(notification_id, channel)`) per channel the user enabled, the
+  server can send and whose `muted_categories` lack the category, in the
+  notification's transaction. `stockviz.cli deliver-notifications`
+  (recorded; scheduler twin `notifications_delivery` every 15 min) drains
+  due `pending` rows oldest first, one row per commit, the row locked
+  `FOR UPDATE SKIP LOCKED` on PostgreSQL. Retry: retryable errors (timeout,
+  connection, 408, 429, 5xx, SMTP errors) wait 1 min, 5 min, 30 min, 2 h,
+  6 h (`BACKOFF_SECONDS`); attempt `MAX_ATTEMPTS` (6) or a permanent error
+  (refused address, redirect, other 4xx, missing config) marks `dead` with
+  `dead_at`. A row whose channel was turned off or lost its server config
+  is `skipped`. It exits 0 unless it crashes (failed sends are row state);
+  `--channel email|telegram` exits 2 when that channel is off here.
+  Payload: `{id, category, title, body, created_at, data}`; receivers
+  should de-duplicate on `id`.
+- **Channels** (`services/delivery/channels.py`). Webhook: POST the
+  compact, key-sorted JSON with `X-StockViz-Signature: sha256=<hex
+  HMAC-SHA256 of the body under the user's secret>` and
+  `X-StockViz-Timestamp` (Unix seconds), 5 s timeout, never following a
+  redirect. SSRF rules on every send: https only (`http` for `localhost`,
+  `127.0.0.1`, `::1` outside production only, and only those may resolve
+  to loopback); no credentials in the URL; every resolved address must be
+  global (private, loopback, link-local incl. 169.254.169.254, CGNAT,
+  multicast, reserved refused; IPv4-mapped unwrapped); the request goes to
+  the checked IP with the host in `Host` and TLS SNI, so a second DNS
+  answer cannot swap it. Email: `SmtpSender` (STARTTLS, or TLS on 465)
+  behind the `EmailSender` protocol, on only when `SMTP_HOST`, `SMTP_PORT`,
+  `SMTP_USER`, `SMTP_PASSWORD` and `SMTP_FROM` are all set; to the
+  channel's address or the account email. Telegram: `sendMessage` with
+  `TELEGRAM_BOT_TOKEN` to the user's chat id. Errors never carry the
+  secret, the token or a URL (httpx messages are replaced). Browser push
+  is not built (needs a VAPID key pair; see `docs/KNOWN_LIMITATIONS.md`).
+- **API.** `GET /v1/notifications/channels` → `{channels: [{channel,
+  enabled, available, configured, url, secret_set, address, chat_id,
+  muted_categories, updated_at}], categories}`; the secret is write-only.
+  `PUT` `{channels: [{channel, enabled?, url?, secret?, address?,
+  chat_id?, muted_categories?}]}` (null = unchanged; `secret: ""` removes
+  it; at least 16 characters; URL checked without DNS; enabling a channel
+  the server cannot send is 409, an unfilled one 422). `POST
+  /{channel}/test` sends a test through the same sender (409 off here, 422
+  not filled in, 429 past 5 a minute per channel; else 200 `{channel, ok,
+  detail}`); nothing is stored. The webhook secret is stored in plain text
+  in `notification_channels.secret` (not encrypted: no server key exists
+  for it yet) and never returned or logged.
+- **Cron.** `screen-runs` after `metrics` (so after `ingest`,
+  `corporate-actions`, `aegis-sync` and Friday's `fundamentals`: every
+  binding a rule reads holds tonight's data); `deliver-notifications` after
+  `snapshot-portfolios` (after every notifying step) and before
+  `prune-events` / `revalidate-web`. `railway config plan`/`apply` is the
+  owner's. Tests: `test_rule_alerts.py`, `test_screen_runs.py`,
+  `test_delivery.py` (stubbed transports), `test_a2_delivery_migration.py`,
+  `test_railway_cron.py`, `test_cron_chain.py`.
+
 **Weekly and monthly bars (A1.4a, M2.2 first half).** Resampled on read,
 never stored (`services/bars/resample.py`). `GET /v1/symbols/{t}/bars` and
 `/indicators` take `interval=1d|1wk|1mo` (`1h` was never written or sent and
@@ -551,8 +655,8 @@ writer's transaction): alert firings (`on_alert_fired`), settlement fills,
 cancellations and expiries, dividend credits, split rebasing and option
 expiry. `/v1/notifications` (list with `category`, `unread`, `before_id`),
 `/unread-count`, `/{id}/read`, `/read-all`. `prune-events` deletes read
-notifications over 180 days old. In-app only (owner, Phase 7). Migration
-`4d4accec26be`.
+notifications over 180 days old. In-app only in Phase 7; A2.3 adds
+delivery channels (see "Rule alerts, screen runs and delivery (A2.3)"). Migration `4d4accec26be`.
 
 **Index benchmarks and news event studies (Phase 7.4).** `^GSPC` (S&P 500,
 USD) and `^NSEI` (NIFTY 50, INR) are seeded index instruments (a `^` ticker
@@ -817,7 +921,7 @@ owns line length). Pyright is `basic`.
 
 ## Scheduler
 
-`scheduler.py::build_scheduler` registers eleven cron jobs (timezone
+`scheduler.py::build_scheduler` registers thirteen cron jobs (timezone
 America/New_York, weekdays unless noted):
 
 - 09:30 — `dividend_credit_refresh` (credit due dividends to portfolios)
@@ -838,6 +942,8 @@ logged and the rest run. With `EVENTS_OUTBOX_ENABLED=true` (set only in
 - 17:00 — `recommendations_refresh`
 - 17:15 — `portfolio_snapshots_refresh` (daily NAV snapshot per user)
 - 17:30 — `options_expiry_refresh` (settle expired option positions)
+- 17:05 — `screen_runs_refresh` (A2.3: screened setup versions' members, diffs)
+- every 15 min, every day — `notifications_delivery` (A2.3: send due deliveries, retries)
 
 No job fetches news: Aegis News owns it (`aegis-sync`; A0 removed `news_refresh`).
 

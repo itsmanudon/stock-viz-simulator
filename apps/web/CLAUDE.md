@@ -622,7 +622,28 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   five newest) every 60 s; RS-11: a failed poll keeps the last count and says
   so in its title, and polling stops while the tab is hidden.
   `/notifications` (protected) lists everything by category with paging and
-  mark read / mark all read. In-app only.
+  mark read / mark all read.
+- A2.3: `AlertForm` adds "Rule (saved setup)" (`kind: "rule"`): a picker
+  of the setups' newest versions in two groups (yours, presets) from the
+  `setups` prop (`AlertSetup`; `/alerts` loads `listSetups()`, the stock
+  page's popover passes none and links to `/setups`), the chosen rule's
+  canonical text, and a preview saying missing data counts as not met. The
+  action posts `setup_version_id`. Saved screens (`components/saved-screens.tsx`)
+  with a rule show `NotifyToggle` ("Notify me when members change",
+  `toggleScreenNotifyAction`): a screen whose rule is only URL text first
+  gets a setup (your own with the same rule hash, else a new one named after
+  the screen) and is re-saved with its version; re-saving a screen with the
+  same rule keeps its version and flag. `/notifications` has a Screens tab
+  and shows a screen item's entries and exits as ticker links
+  (`components/screen-changes.tsx`, from the notification's `data`).
+  Settings has a Notifications panel (`components/notification-channels-panel.tsx`,
+  actions in `app/(product)/(authed)/settings/notification-actions.ts`,
+  `lib/api/notifications.ts`): webhook URL and secret (write-only: blank
+  keeps it, the field says "set"), email address (blank = the account
+  email), Telegram chat id with a one-line how-to, a "Send" checkbox per
+  category (unticked = muted on that channel), an enable box, Save and Send
+  test; a channel whose server config is missing reads "Not available on
+  this server.", not an error. Browser push is not built.
 - `/news-reactions` (Phase 7.4, Research subnav, public, 20 views a minute
   per visitor): an event study from the URL (`tickers`, `sentiment`,
   `event_type`, `pre`, `post`) through `getEventStudy()` (`lib/api/research.ts`,
