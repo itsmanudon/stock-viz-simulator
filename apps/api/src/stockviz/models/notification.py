@@ -10,8 +10,10 @@ from __future__ import annotations
 
 import enum
 from datetime import datetime
+from typing import Any
 
-from sqlalchemy import Index
+from sqlalchemy import JSON, Column, Index
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Field, SQLModel
 
 from stockviz._time import utcnow
@@ -23,6 +25,7 @@ class NotificationCategory(enum.StrEnum):
     DIVIDEND = "dividend"
     CORPORATE_ACTION = "corporate_action"
     OPTION = "option"
+    SCREEN = "screen"
     SYSTEM = "system"
 
 
@@ -38,5 +41,10 @@ class Notification(SQLModel, table=True):
     # A path inside the app, e.g. "/orders?status=filled".
     link: str | None = Field(default=None, max_length=300)
     source_key: str = Field(max_length=160, unique=True)
+    # A2.3: structured detail (a screen's entries and exits, an alert's ids),
+    # shown by the page and sent as `data` by the delivery channels.
+    data: dict[str, Any] | None = Field(
+        default=None, sa_column=Column(JSON().with_variant(JSONB(), "postgresql"), nullable=True)
+    )
     created_at: datetime = Field(default_factory=utcnow, nullable=False, index=True)
     read_at: datetime | None = Field(default=None, nullable=True)

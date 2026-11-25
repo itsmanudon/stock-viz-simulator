@@ -104,3 +104,25 @@ def test_orders_and_alerts_run_between_fx_and_the_snapshot() -> None:
         for name in ("fx", "settle-orders", "evaluate-alerts", "snapshot-portfolios")
     ]
     assert order == sorted(order)
+
+
+def test_screen_runs_follow_their_data_and_delivery_follows_the_notifiers() -> None:
+    """A2.3: screen runs read tonight's bars, news and fundamentals; delivery
+    sends what every notifying step wrote."""
+    steps = _eod_refresh(_code(_source()))
+    assert 'job("python -m stockviz.cli screen-runs")' in steps
+    assert 'job("python -m stockviz.cli deliver-notifications")' in steps
+    at = steps.index
+    for before in ("ingest", "corporate-actions", "aegis-sync", "fundamentals", "metrics"):
+        assert at(f"stockviz.cli {before}") < at("stockviz.cli screen-runs"), before
+    notifiers = (
+        "corporate-actions",
+        "settle-orders",
+        "evaluate-alerts",
+        "screen-runs",
+        "credit-dividends",
+        "settle-options",
+    )
+    for notifier in notifiers:
+        assert at(f"stockviz.cli {notifier}") < at("stockviz.cli deliver-notifications"), notifier
+    assert at("stockviz.cli deliver-notifications") < at("stockviz.cli revalidate-web")

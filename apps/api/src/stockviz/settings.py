@@ -165,6 +165,40 @@ class Settings(BaseSettings):
             and self.aegis_audience.strip()
         )
 
+    # A2.3 notification delivery. Email (any SMTP provider) is off until all
+    # five SMTP_* values are set; Telegram is off until the bot token is.
+    # The signed webhook needs no server secret. Never log these.
+    smtp_host: str = ""
+    # A string so an empty SMTP_PORT= line is "unset", not a parse error.
+    smtp_port: str = ""
+    smtp_user: str = ""
+    smtp_password: SecretStr = SecretStr("")
+    smtp_from: str = ""
+    telegram_bot_token: SecretStr = SecretStr("")
+
+    @property
+    def email_configured(self) -> bool:
+        return bool(
+            self.smtp_host.strip()
+            and self.smtp_port_number > 0
+            and self.smtp_user.strip()
+            and self.smtp_password.get_secret_value().strip()
+            and self.smtp_from.strip()
+        )
+
+    @property
+    def smtp_port_number(self) -> int:
+        text = self.smtp_port.strip()
+        return int(text) if text.isdigit() and 0 < int(text) < 65536 else 0
+
+    @property
+    def telegram_configured(self) -> bool:
+        return bool(self.telegram_bot_token.get_secret_value().strip())
+
+    @property
+    def is_production(self) -> bool:
+        return self.environment.strip().lower() in _PRODUCTION_ENVIRONMENTS
+
     @model_validator(mode="after")
     def _validate_runtime_configuration(self) -> Settings:
         """Fail closed for selected providers and unsafe production secrets.

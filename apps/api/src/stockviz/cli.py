@@ -929,6 +929,39 @@ def _cmd_evaluate_alerts(_args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_screen_runs(_args: argparse.Namespace) -> int:
+    """Store tonight's members of every screened setup version; notify diffs (A2.3)."""
+    from stockviz.services.screen_runs import run_screen_runs
+
+    with Session(engine) as session:
+        result = run_screen_runs(session)
+    print(
+        f"screen-runs: {result.runs} run(s) of {result.versions} version(s) for "
+        f"{result.session_date}, {result.notifications} notification(s)"
+        + (f", {len(result.failed)} failed: {result.failed}" if result.failed else "")
+    )
+    return 1 if result.failed else 0
+
+
+def _cmd_deliver_notifications(args: argparse.Namespace) -> int:
+    """Send pending notification deliveries (webhook, email, Telegram; A2.3)."""
+    from stockviz.services.delivery import drain, server_available
+
+    channel = args.channel
+    if channel is not None and not server_available(channel):
+        print(f"deliver-notifications: {channel} is not configured on this server; skipped")
+        return 2
+    off = [c for c in ("email", "telegram") if not server_available(c)]
+    with Session(engine) as session:
+        result = drain(session, channel=channel, limit=args.limit)
+    print(
+        f"deliver-notifications: sent {result.sent}, retrying {result.retrying}, "
+        f"dead {result.dead}, skipped {result.skipped}"
+        + (f" (off on this server: {', '.join(off)})" if off and channel is None else "")
+    )
+    return 0
+
+
 def _cmd_run_scheduler(_args: argparse.Namespace) -> int:
     from stockviz.workers.scheduler import main as scheduler_main
 
@@ -1474,6 +1507,8 @@ RECORDED_JOBS = frozenset(
         "fx",
         "settle-orders",
         "evaluate-alerts",
+        "screen-runs",
+        "deliver-notifications",
         "aegis-sync",
         "metrics",
         "dividends",
@@ -1831,6 +1866,19 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser(
         "evaluate-alerts", help="Trigger price alerts the latest stored close has crossed"
     ).set_defaults(fn=_cmd_evaluate_alerts)
+
+    sub.add_parser(
+        "screen-runs",
+        help="Store every screened setup version's members tonight; notify entries and exits",
+    ).set_defaults(fn=_cmd_screen_runs)
+
+    p_deliver = sub.add_parser(
+        "deliver-notifications",
+        help="Send pending notification deliveries (webhook, email, Telegram)",
+    )
+    p_deliver.add_argument("--channel", choices=["webhook", "email", "telegram"], default=None)
+    p_deliver.add_argument("--limit", type=int, default=500)
+    p_deliver.set_defaults(fn=_cmd_deliver_notifications)
 
     sub.add_parser(
         "run-scheduler",

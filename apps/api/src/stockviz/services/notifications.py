@@ -3,11 +3,16 @@
 ``notify`` stages a row in the caller's transaction and never commits, so a
 notification exists exactly when the change it reports does. A repeated
 ``source_key`` is ignored: reruns of the nightly jobs add nothing.
+
+A2.3: a new row also stages its sends on the user's enabled delivery
+channels (``services/delivery.deliver``) in the same transaction; the
+``deliver-notifications`` job sends them after commit.
 """
 
 from __future__ import annotations
 
 from datetime import timedelta
+from typing import Any
 
 from sqlalchemy import delete
 from sqlmodel import Session, col, select
@@ -28,6 +33,7 @@ def notify(
     body: str,
     source_key: str,
     link: str | None = None,
+    data: dict[str, Any] | None = None,
 ) -> Notification | None:
     """Stage one notification unless ``source_key`` exists. Does not commit."""
     if session.exec(select(Notification.id).where(Notification.source_key == source_key)).first():
@@ -42,8 +48,12 @@ def notify(
         body=body[:1000],
         link=link,
         source_key=source_key[:160],
+        data=data,
     )
     session.add(row)
+    from stockviz.services.delivery import deliver
+
+    deliver(session, row)
     return row
 
 
