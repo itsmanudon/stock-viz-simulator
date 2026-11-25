@@ -1,5 +1,6 @@
-import { LineChart } from "lucide-react";
 import Link from "next/link";
+
+import { PrismWordmark } from "@/components/brand/prism-mark";
 
 /**
  * Website footer for the public pages.
@@ -81,11 +82,8 @@ export function SiteFooter() {
       <div className="mx-auto w-full max-w-7xl px-4 pt-14 sm:px-6">
         <div className="grid gap-10 lg:grid-cols-[1fr_2.4fr]">
           <div className="max-w-xs">
-            <Link href="/" className="flex items-center gap-2.5 font-semibold tracking-tight">
-              <span className="flex size-7 items-center justify-center rounded-md border border-brand/40 bg-brand/10 text-brand">
-                <LineChart className="size-4" aria-hidden />
-              </span>
-              StockViz
+            <Link href="/" className="inline-flex rounded-sm">
+              <PrismWordmark />
             </Link>
             <p className="mt-3 text-sm leading-6 text-text-secondary">
               A research and paper-trading workspace built on end-of-day market data.

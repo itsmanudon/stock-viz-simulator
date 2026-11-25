@@ -33,7 +33,7 @@ export function DataTableFrame({
   return (
     <div
       className={cn(
-        "min-w-0 overflow-x-auto rounded-md border border-border-muted bg-card [&_thead]:bg-surface-secondary/60",
+        "min-w-0 overflow-x-auto rounded-xl border border-border-muted bg-card [&_thead]:bg-surface-secondary/60",
         className,
       )}
     >

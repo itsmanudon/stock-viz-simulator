@@ -16,6 +16,7 @@ import {
   useHydrated,
 } from "@/components/order-review";
 import { OrderSideToggle } from "@/components/order-side-toggle";
+import { useOutcomeSound } from "@/components/sound/sound-provider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -153,6 +154,11 @@ export function ContextualTradeTicket({
         ? orderState.success
         : undefined;
   const confirmed = Boolean(successMessage) && !pending && activeState !== dismissed;
+  useOutcomeSound(
+    successMessage,
+    error,
+    orderMode === "market" && marketSuccess ? "fill" : "success",
+  );
 
   const buyingPower = account
     ? formatMoney(account.availableCash, account.displayCurrency)

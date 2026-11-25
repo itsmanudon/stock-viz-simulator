@@ -8,23 +8,24 @@
  * oversized-wordmark trick applied to the number the copy is actually about.
  * It is decorative and `aria-hidden`; the figure is already in the heading.
  *
- * Behind both, the market weather (motion batch 3) colours the sky by the last
- * session's breadth; the line under the buttons states that figure.
+ * Behind both, the PRISM light leans green or red with the last session's
+ * breadth; the line under the buttons states that figure.
  */
 
 import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 
 import { describeBreadth, loadBreadth } from "@/components/marketing/proofs/breadth";
-import { MarketWeather } from "@/components/marketing/proofs/market-weather";
 import { Reveal } from "@/components/marketing/reveal";
+import { Magnetic } from "@/components/prism/magnetic";
+import { PrismField } from "@/components/prism/prism-field";
 import { Button } from "@/components/ui/button";
 
 export async function ClosingCta() {
   const breadth = await loadBreadth();
   return (
     <section className="relative isolate overflow-hidden border-y border-border-muted bg-surface-secondary">
-      {breadth ? <MarketWeather share={breadth.share} strength={0.08} /> : null}
+      <PrismField share={breadth?.share ?? null} className="inset-0" />
       <span
         aria-hidden
         className="brand-glow top-1/2 left-1/2 -z-10 h-80 w-[48rem] -translate-x-1/2 -translate-y-1/2 opacity-70"
@@ -38,20 +39,23 @@ export async function ClosingCta() {
 
       <div className="mx-auto w-full max-w-3xl px-4 py-20 text-center sm:px-6 sm:py-28">
         <Reveal>
-          <h2 className="text-3xl font-semibold tracking-tight text-balance sm:text-4xl lg:text-5xl">
-            Start with $100,000 that isn&rsquo;t real
+          <h2 className="text-4xl font-medium tracking-[-0.045em] text-balance sm:text-6xl lg:text-7xl">
+            Start with $100,000 that{" "}
+            <span className="font-editorial text-prism pr-1">isn&rsquo;t</span> real
           </h2>
           <p className="mx-auto mt-4 max-w-xl text-base leading-7 text-text-secondary text-pretty">
             Make the expensive mistakes here instead. Your portfolio, orders, and alerts are saved
             to your account.
           </p>
           <div className="mt-9 flex flex-wrap items-center justify-center gap-3">
-            <Button asChild size="lg" className="rounded-full px-6">
-              <Link href="/signup" className="gap-2">
-                Create free account
-                <ArrowRight className="size-4" aria-hidden />
-              </Link>
-            </Button>
+            <Magnetic>
+              <Button asChild size="lg" className="prism-cta h-12 rounded-full px-7 text-base">
+                <Link href="/signup" className="gap-2">
+                  Create free account
+                  <ArrowRight className="size-4" aria-hidden />
+                </Link>
+              </Button>
+            </Magnetic>
             <Button asChild size="lg" variant="outline" className="glass rounded-full px-6">
               <Link href="/markets">See the markets</Link>
             </Button>

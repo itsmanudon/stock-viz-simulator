@@ -101,9 +101,10 @@ components/
                    /product/paper-trading (the landing Rankings section and its
                    `departure-board.tsx` went with the leaderboard in A0).
                    Batch 3 adds
-                   `market-weather.tsx` (faint aurora behind the hero and
-                   closing CTA, coloured by `breadth.ts`: share of symbols that
-                   closed up; the hero chips and the CTA state the figure),
+                   `market-weather.tsx` (faint aurora coloured by `breadth.ts`;
+                   unused since the PRISM redesign put `prism/prism-field.tsx`
+                   behind the hero and closing CTA, which carries the same
+                   breadth lean; the hero chips and the CTA state the figure),
                    `decode-text.tsx` (Moving today figures resolve digit by
                    digit; sr-only real text), `exploded-candle.tsx` (one stored
                    bar taken apart beside the FAQ) and `loupe-chart.tsx` (the
@@ -306,6 +307,51 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   `tracking-[-0.025em]`, like the stock page's company name; marketing
   headlines stay 500. Geist Mono draws its own ₹ (its `latin-ext` subset is
   loaded), so there is no ₹ fallback face any more.
+- **PRISM layer (Nov 2026 redesign)** sits on top of the Aurora rules below,
+  which still hold (brand is identity/focus/selection only, gain and loss keep
+  their own hues). Dark tokens are now near-black with a violet cast; the
+  brand gradient is violet `#7c5cff` → plasma `#ff5fd2` → ion `#5ee7ff`;
+  `--input` is `#64627a` so field borders clear 3:1 (WCAG 1.4.11). Instrument
+  Serif italic (`font-editorial`, `--font-editorial`) is for one or two words
+  of a display headline only, usually with `text-prism` (animated iridescent
+  text); never for UI text, figures or tickers. The logo is
+  `components/brand/prism-mark.tsx` (`PrismWordmark` in every header and the
+  footer). `components/prism/`:
+  - `prism-field.tsx`: hero/closing-CTA WebGL light (three.js, dynamic
+    import), leans green/red with session breadth; replaced `MarketWeather`
+    there (the canvas component is kept for its other users).
+  - `market-terrain.tsx` + `terrain-data.ts` + `terrain-section.tsx`: the
+    "time is the fourth axis" 3D surface from real stored closes (symbols
+    with a full 120-session window ending on the same newest date). Landing
+    variant `scroll` pins and scrubs time with scroll; dashboard variant
+    `compact` autoplays while on screen. Both have a real range slider, text
+    stats beside the canvas, a reduced-motion still frame and a 2D fallback.
+    Never put DOM gradient overlays on top of its canvas; fade with
+    `mask-image` on the host (an overlay made some compositors drop the
+    WebGL layer).
+  - `prism-cursor.tsx`, `magnetic.tsx`: public pages only, fine pointers,
+    motion allowed. `tilt-card.tsx`: 3D tilt + glare around `PaperCard`.
+    `spotlight-tracker.tsx`: one listener feeding `.spotlight` tiles their
+    border light (border only, never behind a figure). `rolling-figure.tsx`:
+    odometer roll on the headline portfolio value, plain text before and
+    after the roll. `kinetic-marquee.tsx`: the oversized verb band.
+  - three.js is allowed in `components/prism/` only, always dynamically
+    imported inside an effect, rendering only while on screen. GSAP stays
+    marketing-only.
+  - `app/(product)/template.tsx` gives every workspace navigation the
+    `.page-enter` rise; `[data-stagger]` children follow in sequence.
+  - Use `mediaMatches()` (`lib/media.ts`), not `window.matchMedia`, in
+    client effects: jsdom has no matchMedia.
+- **Sound** (`lib/sound/engine.ts`, `components/sound/`): every sound is
+  synthesised with Web Audio, no files. Off by default and remembered per
+  browser (`localStorage["stockviz:sound"]`); the switch (`SoundToggle`, a
+  real `role="switch"`) is in the workspace top bar and the public header.
+  `SoundProvider` (in `providers.tsx`) gives buttons/links/tabs a tap, nav
+  hover a tick and route changes a sweep. Forms call
+  `useOutcomeSound(success, error, "fill" | "success")`; anything else can
+  `emitSound(name)`. Mark a control `data-sound="none"` to silence it or
+  `data-sound="<name>"` to pick its sound. A sound must never be the only
+  signal: each one accompanies a visible change.
 - **Dark only for now** (owner, 12 Nov 2026): `components/providers.tsx`
   sets `forcedTheme="dark"`, and the theme toggles are gone from the top bar,
   the public header, the footer and Settings. The light tokens stay in

@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Activity,
   ArrowLeftRight,
   Bell,
   CalendarDays,
@@ -42,6 +43,7 @@ const ICONS: Record<string, LucideIcon> = {
   "/backtest": FlaskConical,
   "/replay": RotateCcw,
   "/news": Newspaper,
+  "/news-reactions": Activity,
   "/trade": ArrowLeftRight,
   "/orders": ListOrdered,
   "/portfolio": Wallet,
@@ -70,13 +72,18 @@ function NavLink({
       onClick={onNavigate}
       className={cn(
         "relative flex h-9 items-center gap-3 rounded-md px-3 text-sm text-text-secondary transition-colors hover:bg-surface-hover hover:text-foreground focus-visible:z-10",
-        active && "bg-surface-secondary font-medium text-foreground",
+        active && "bg-linear-to-r from-brand/12 to-transparent font-medium text-foreground",
       )}
     >
       {active ? (
-        <span className="absolute inset-y-2 left-0 w-0.5 rounded-full bg-brand" aria-hidden />
+        <span className="nav-active-bar absolute inset-y-2 left-0 w-0.5 rounded-full" aria-hidden />
       ) : null}
-      {Icon ? <Icon className="size-4 shrink-0" aria-hidden /> : null}
+      {Icon ? (
+        <Icon
+          className={cn("size-4 shrink-0 transition-colors", active && "text-brand")}
+          aria-hidden
+        />
+      ) : null}
       <span>{item.label}</span>
     </Link>
   );

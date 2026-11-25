@@ -1,11 +1,13 @@
-import { LineChart } from "lucide-react";
 import Link from "next/link";
+
+import { PrismWordmark } from "@/components/brand/prism-mark";
 
 import { auth } from "@/auth";
 import { AccountMenu } from "@/components/account-menu";
 import { FloatingHeader } from "@/components/marketing/floating-header";
 import { MarketStatus } from "@/components/marketing/market-status";
 import { MobileNav } from "@/components/mobile-nav";
+import { SoundToggle } from "@/components/sound/sound-toggle";
 import { Button } from "@/components/ui/button";
 
 // The three product pages, as SolCard's header lists its products, then the docs. Markets
@@ -28,10 +30,7 @@ export async function PublicHeader() {
         href="/"
         className="flex items-center gap-2.5 rounded-sm font-semibold tracking-tight focus-visible:ring-2 focus-visible:ring-ring"
       >
-        <span className="flex size-7 items-center justify-center rounded-md border border-brand/40 bg-brand/10 text-brand">
-          <LineChart className="size-4" aria-hidden />
-        </span>
-        <span>StockViz</span>
+        <PrismWordmark />
       </Link>
 
       <nav aria-label="Public" className="ml-8 hidden items-center gap-6 md:flex">
@@ -50,6 +49,8 @@ export async function PublicHeader() {
 
       <div className="ml-auto flex items-center gap-1 sm:gap-2">
         <MarketStatus />
+        <SoundToggle showLabel className="hidden md:inline-flex" />
+        <SoundToggle className="md:hidden" />
         <Button asChild size="sm" className="hidden rounded-full sm:inline-flex">
           <Link href={signedIn ? "/dashboard" : "/signup"}>
             {signedIn ? "Open workspace" : "Create account"}

@@ -164,252 +164,259 @@ export default async function ScreenerPage({
       />
 
       <div className="mt-5 grid gap-5 lg:grid-cols-[240px_minmax(0,1fr)] lg:gap-7">
-        <form
-          method="GET"
-          action="/screener"
-          className="space-y-4 rounded-md border border-border-muted bg-card p-4 text-sm"
-        >
-          {/* Applying filters keeps the chosen sort. */}
-          {params.sort ? <input type="hidden" name="sort" value={sort} /> : null}
-          {params.sort ? <input type="hidden" name="dir" value={dir} /> : null}
-          <div className="flex items-start justify-between gap-3 border-b border-border-muted pb-3">
-            <div>
-              <p className="text-2xs font-semibold tracking-[0.12em] text-text-tertiary uppercase">
-                Filters
-              </p>
-              <p className="mt-1 text-xs text-text-secondary">Combine with AND logic</p>
+        <div className="space-y-4">
+          <form
+            method="GET"
+            action="/screener"
+            className="space-y-4 rounded-md border border-border-muted bg-card p-4 text-sm"
+          >
+            {/* Applying filters keeps the chosen sort. */}
+            {params.sort ? <input type="hidden" name="sort" value={sort} /> : null}
+            {params.sort ? <input type="hidden" name="dir" value={dir} /> : null}
+            <div className="flex items-start justify-between gap-3 border-b border-border-muted pb-3">
+              <div>
+                <p className="text-2xs font-semibold tracking-[0.12em] text-text-tertiary uppercase">
+                  Filters
+                </p>
+                <p className="mt-1 text-xs text-text-secondary">Combine with AND logic</p>
+              </div>
+              {activeFilterCount ? (
+                <span className="rounded-md bg-brand-muted px-2 py-1 text-2xs font-semibold text-brand">
+                  {activeFilterCount} active
+                </span>
+              ) : null}
             </div>
-            {activeFilterCount ? (
-              <span className="rounded-md bg-brand-muted px-2 py-1 text-2xs font-semibold text-brand">
-                {activeFilterCount} active
-              </span>
-            ) : null}
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="market">Market</Label>
-            <select
-              id="market"
-              name="market"
-              defaultValue={params.market ?? ""}
-              className="h-9 w-full rounded-md border border-input bg-transparent px-3 py-1.5 text-sm focus-visible:border-ring focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30"
-            >
-              <option value="">All markets</option>
-              {Object.entries(MARKET_LABEL).map(([code, label]) => (
-                <option key={code} value={code}>
-                  {label}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="sector">Sector</Label>
-            <select
-              id="sector"
-              name="sector"
-              defaultValue={sector ?? ""}
-              className="h-9 w-full rounded-md border border-input bg-transparent px-3 py-1.5 text-sm focus-visible:border-ring focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30"
-            >
-              <option value="">All sectors</option>
-              {sectors.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
-          </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="market">Market</Label>
+              <select
+                id="market"
+                name="market"
+                defaultValue={params.market ?? ""}
+                className="h-9 w-full rounded-md border border-input bg-transparent px-3 py-1.5 text-sm focus-visible:border-ring focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30"
+              >
+                <option value="">All markets</option>
+                {Object.entries(MARKET_LABEL).map(([code, label]) => (
+                  <option key={code} value={code}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="sector">Sector</Label>
+              <select
+                id="sector"
+                name="sector"
+                defaultValue={sector ?? ""}
+                className="h-9 w-full rounded-md border border-input bg-transparent px-3 py-1.5 text-sm focus-visible:border-ring focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30"
+              >
+                <option value="">All sectors</option>
+                {sectors.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-          <details className="group rounded-md border border-border-muted/70 px-3 py-2 lg:border-0 lg:px-0 lg:py-0">
-            <summary className="cursor-pointer list-none text-xs font-semibold uppercase tracking-[0.1em] text-text-secondary marker:hidden [&::-webkit-details-marker]:hidden">
-              RSI (14)
-            </summary>
-            <fieldset className="mt-2 space-y-1.5">
-              <legend className="sr-only">RSI (14)</legend>
-              <div className="flex gap-2">
-                <Input
-                  type="number"
-                  name="rsi_min"
-                  aria-label="Minimum RSI"
-                  placeholder="Min"
-                  min={0}
-                  max={100}
-                  step="0.1"
-                  defaultValue={params.rsi_min ?? ""}
-                />
-                <Input
-                  type="number"
-                  name="rsi_max"
-                  aria-label="Maximum RSI"
-                  placeholder="Max"
-                  min={0}
-                  max={100}
-                  step="0.1"
-                  defaultValue={params.rsi_max ?? ""}
-                />
-              </div>
-            </fieldset>
-          </details>
-
-          <details className="group rounded-md border border-border-muted/70 px-3 py-2 lg:border-0 lg:px-0 lg:py-0">
-            <summary className="cursor-pointer list-none text-xs font-semibold uppercase tracking-[0.1em] text-text-secondary marker:hidden [&::-webkit-details-marker]:hidden">
-              Momentum
-            </summary>
-            <fieldset className="mt-2 space-y-1.5">
-              <legend className="sr-only">Momentum</legend>
-              <Input
-                type="number"
-                name="momentum_days"
-                aria-label="Momentum window in days"
-                placeholder="Window (days)"
-                min={1}
-                max={252}
-                defaultValue={params.momentum_days ?? ""}
-              />
-              <div className="flex gap-2">
-                <Input
-                  type="number"
-                  name="momentum_min"
-                  aria-label="Minimum momentum percent"
-                  placeholder="Min %"
-                  step="0.1"
-                  defaultValue={params.momentum_min ?? ""}
-                />
-                <Input
-                  type="number"
-                  name="momentum_max"
-                  aria-label="Maximum momentum percent"
-                  placeholder="Max %"
-                  step="0.1"
-                  defaultValue={params.momentum_max ?? ""}
-                />
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Min/Max apply only when a window is set.
-              </p>
-            </fieldset>
-          </details>
-
-          <details className="group rounded-md border border-border-muted/70 px-3 py-2 lg:border-0 lg:px-0 lg:py-0">
-            <summary className="cursor-pointer list-none text-xs font-semibold uppercase tracking-[0.1em] text-text-secondary marker:hidden [&::-webkit-details-marker]:hidden">
-              Fundamentals
-            </summary>
-            <fieldset className="mt-2 grid grid-cols-2 gap-2">
-              <legend className="sr-only">Fundamentals</legend>
-              {(
-                [
-                  ["pe_max", "Max P/E", "1"],
-                  ["dividend_yield_min", "Min yield %", "0.1"],
-                  ["mcap_min_bn", "Min cap, USD bn", "1"],
-                  ["roe_min", "Min ROE %", "1"],
-                  ["de_max", "Max debt/equity", "0.1"],
-                ] as const
-              ).map(([name, label, step]) => (
-                <Input
-                  key={name}
-                  type="number"
-                  name={name}
-                  aria-label={label}
-                  placeholder={label}
-                  step={step}
-                  defaultValue={params[name] ?? ""}
-                />
-              ))}
-              <p className="col-span-2 text-xs text-muted-foreground">
-                As known on the latest close. Market cap is in USD so both markets compare.
-              </p>
-            </fieldset>
-          </details>
-
-          <details className="group rounded-md border border-border-muted/70 px-3 py-2 lg:border-0 lg:px-0 lg:py-0">
-            <summary className="cursor-pointer list-none text-xs font-semibold uppercase tracking-[0.1em] text-text-secondary marker:hidden [&::-webkit-details-marker]:hidden">
-              Trend and volatility
-            </summary>
-            <fieldset className="mt-2 space-y-2">
-              <legend className="sr-only">Trend and volatility</legend>
-              {(
-                [
-                  ["above_sma_50", "50-day average"],
-                  ["above_sma_200", "200-day average"],
-                ] as const
-              ).map(([name, label]) => (
-                <div key={name} className="space-y-1">
-                  <Label htmlFor={name} className="text-xs">
-                    Close vs {label}
-                  </Label>
-                  <select
-                    id={name}
-                    name={name}
-                    defaultValue={params[name] ?? ""}
-                    className="h-9 w-full rounded-md border border-input bg-transparent px-3 py-1.5 text-sm"
-                  >
-                    <option value="">Either</option>
-                    <option value="true">Above</option>
-                    <option value="false">Below</option>
-                  </select>
+            <details className="group rounded-md border border-border-muted/70 px-3 py-2 lg:border-0 lg:px-0 lg:py-0">
+              <summary className="cursor-pointer list-none text-xs font-semibold uppercase tracking-[0.1em] text-text-secondary marker:hidden [&::-webkit-details-marker]:hidden">
+                RSI (14)
+              </summary>
+              <fieldset className="mt-2 space-y-1.5">
+                <legend className="sr-only">RSI (14)</legend>
+                <div className="flex gap-2">
+                  <Input
+                    type="number"
+                    name="rsi_min"
+                    aria-label="Minimum RSI"
+                    placeholder="Min"
+                    min={0}
+                    max={100}
+                    step="0.1"
+                    defaultValue={params.rsi_min ?? ""}
+                  />
+                  <Input
+                    type="number"
+                    name="rsi_max"
+                    aria-label="Maximum RSI"
+                    placeholder="Max"
+                    min={0}
+                    max={100}
+                    step="0.1"
+                    defaultValue={params.rsi_max ?? ""}
+                  />
                 </div>
-              ))}
-              <Input
-                type="number"
-                name="hv_max"
-                aria-label="Maximum 20-day volatility percent"
-                placeholder="Max volatility %"
-                min={0}
-                step="1"
-                defaultValue={params.hv_max ?? ""}
-              />
-              <p className="text-xs text-muted-foreground">
-                Volatility is the annualised 20-day historical volatility.
-              </p>
-            </fieldset>
-          </details>
+              </fieldset>
+            </details>
 
-          <details className="group rounded-md border border-border-muted/70 px-3 py-2 lg:border-0 lg:px-0 lg:py-0">
-            <summary className="cursor-pointer list-none text-xs font-semibold uppercase tracking-[0.1em] text-text-secondary marker:hidden [&::-webkit-details-marker]:hidden">
-              52-week range
-            </summary>
-            <fieldset className="mt-2 space-y-2">
-              <legend className="sr-only">52-week range</legend>
-              <label className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  name="near_52w_high"
-                  value="true"
-                  defaultChecked={near52wHigh}
-                  className="h-4 w-4 accent-brand"
+            <details className="group rounded-md border border-border-muted/70 px-3 py-2 lg:border-0 lg:px-0 lg:py-0">
+              <summary className="cursor-pointer list-none text-xs font-semibold uppercase tracking-[0.1em] text-text-secondary marker:hidden [&::-webkit-details-marker]:hidden">
+                Momentum
+              </summary>
+              <fieldset className="mt-2 space-y-1.5">
+                <legend className="sr-only">Momentum</legend>
+                <Input
+                  type="number"
+                  name="momentum_days"
+                  aria-label="Momentum window in days"
+                  placeholder="Window (days)"
+                  min={1}
+                  max={252}
+                  defaultValue={params.momentum_days ?? ""}
                 />
-                <span>Near 52-week high (within 5%)</span>
-              </label>
-              <label className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  name="near_52w_low"
-                  value="true"
-                  defaultChecked={near52wLow}
-                  className="h-4 w-4 accent-brand"
-                />
-                <span>Near 52-week low (within 5%)</span>
-              </label>
-            </fieldset>
-          </details>
+                <div className="flex gap-2">
+                  <Input
+                    type="number"
+                    name="momentum_min"
+                    aria-label="Minimum momentum percent"
+                    placeholder="Min %"
+                    step="0.1"
+                    defaultValue={params.momentum_min ?? ""}
+                  />
+                  <Input
+                    type="number"
+                    name="momentum_max"
+                    aria-label="Maximum momentum percent"
+                    placeholder="Max %"
+                    step="0.1"
+                    defaultValue={params.momentum_max ?? ""}
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Min/Max apply only when a window is set.
+                </p>
+              </fieldset>
+            </details>
 
-          <div className="flex gap-2 pt-2">
-            <Button type="submit" className="flex-1">
-              Apply
-            </Button>
-            <Button type="button" variant="outline" asChild>
-              <a href="/screener">Reset</a>
-            </Button>
-          </div>
+            <details className="group rounded-md border border-border-muted/70 px-3 py-2 lg:border-0 lg:px-0 lg:py-0">
+              <summary className="cursor-pointer list-none text-xs font-semibold uppercase tracking-[0.1em] text-text-secondary marker:hidden [&::-webkit-details-marker]:hidden">
+                Fundamentals
+              </summary>
+              <fieldset className="mt-2 grid grid-cols-2 gap-2">
+                <legend className="sr-only">Fundamentals</legend>
+                {(
+                  [
+                    ["pe_max", "Max P/E", "1"],
+                    ["dividend_yield_min", "Min yield %", "0.1"],
+                    ["mcap_min_bn", "Min cap, USD bn", "1"],
+                    ["roe_min", "Min ROE %", "1"],
+                    ["de_max", "Max debt/equity", "0.1"],
+                  ] as const
+                ).map(([name, label, step]) => (
+                  <Input
+                    key={name}
+                    type="number"
+                    name={name}
+                    aria-label={label}
+                    placeholder={label}
+                    step={step}
+                    defaultValue={params[name] ?? ""}
+                  />
+                ))}
+                <p className="col-span-2 text-xs text-muted-foreground">
+                  As known on the latest close. Market cap is in USD so both markets compare.
+                </p>
+              </fieldset>
+            </details>
+
+            <details className="group rounded-md border border-border-muted/70 px-3 py-2 lg:border-0 lg:px-0 lg:py-0">
+              <summary className="cursor-pointer list-none text-xs font-semibold uppercase tracking-[0.1em] text-text-secondary marker:hidden [&::-webkit-details-marker]:hidden">
+                Trend and volatility
+              </summary>
+              <fieldset className="mt-2 space-y-2">
+                <legend className="sr-only">Trend and volatility</legend>
+                {(
+                  [
+                    ["above_sma_50", "50-day average"],
+                    ["above_sma_200", "200-day average"],
+                  ] as const
+                ).map(([name, label]) => (
+                  <div key={name} className="space-y-1">
+                    <Label htmlFor={name} className="text-xs">
+                      Close vs {label}
+                    </Label>
+                    <select
+                      id={name}
+                      name={name}
+                      defaultValue={params[name] ?? ""}
+                      className="h-9 w-full rounded-md border border-input bg-transparent px-3 py-1.5 text-sm"
+                    >
+                      <option value="">Either</option>
+                      <option value="true">Above</option>
+                      <option value="false">Below</option>
+                    </select>
+                  </div>
+                ))}
+                <Input
+                  type="number"
+                  name="hv_max"
+                  aria-label="Maximum 20-day volatility percent"
+                  placeholder="Max volatility %"
+                  min={0}
+                  step="1"
+                  defaultValue={params.hv_max ?? ""}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Volatility is the annualised 20-day historical volatility.
+                </p>
+              </fieldset>
+            </details>
+
+            <details className="group rounded-md border border-border-muted/70 px-3 py-2 lg:border-0 lg:px-0 lg:py-0">
+              <summary className="cursor-pointer list-none text-xs font-semibold uppercase tracking-[0.1em] text-text-secondary marker:hidden [&::-webkit-details-marker]:hidden">
+                52-week range
+              </summary>
+              <fieldset className="mt-2 space-y-2">
+                <legend className="sr-only">52-week range</legend>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    name="near_52w_high"
+                    value="true"
+                    defaultChecked={near52wHigh}
+                    className="h-4 w-4 accent-brand"
+                  />
+                  <span>Near 52-week high (within 5%)</span>
+                </label>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    name="near_52w_low"
+                    value="true"
+                    defaultChecked={near52wLow}
+                    className="h-4 w-4 accent-brand"
+                  />
+                  <span>Near 52-week low (within 5%)</span>
+                </label>
+              </fieldset>
+            </details>
+
+            <div className="flex gap-2 pt-2">
+              <Button type="submit" className="flex-1">
+                Apply
+              </Button>
+              <Button type="button" variant="outline" asChild>
+                <a href="/screener">Reset</a>
+              </Button>
+            </div>
+          </form>
+          {/* Outside the filter form: SavedScreens holds forms of its own,
+              and a form inside a form is invalid HTML (UI audit: it threw a
+              hydration error on every screener load). */}
           {signedIn ? (
-            <SavedScreens screens={savedScreens} query={savedScreenQuery(params)} />
+            <div className="rounded-md border border-border-muted bg-card p-4 text-sm">
+              <SavedScreens screens={savedScreens} query={savedScreenQuery(params)} />
+            </div>
           ) : (
-            <p className="border-t border-border-muted pt-4 text-xs text-text-tertiary">
+            <p className="rounded-md border border-border-muted bg-card p-4 text-xs text-text-tertiary">
               <Link href="/login?callbackUrl=/screener" className="underline">
                 Sign in
               </Link>{" "}
               to save screens.
             </p>
           )}
-        </form>
+        </div>
 
         <section>
           <div className="mb-3 grid gap-3">
