@@ -93,6 +93,9 @@ def test_endpoints_store_and_rerun_identically(session: Session, client: TestCli
     assert wf.status_code == 201, wf.text
     run = wf.json()
     assert run["kind"] == "walk_forward" and run["result"]["result_kind"] == "walk_forward"
+    # A1.4a: studies carry the survivorship stamp too.
+    assert run["result"]["universe"]["survivorship_biased"] is True
+    assert run["universe"] == run["result"]["universe"]
     rerun = client.post(f"/v1/experiments/runs/{run['id']}/rerun", headers=headers).json()
     assert rerun["status"] == "identical"
 
@@ -104,6 +107,7 @@ def test_endpoints_store_and_rerun_identically(session: Session, client: TestCli
     ).json()
     returns = [r["summary"]["total_return"] for r in sw["result"]["runs"]]
     assert sw["result"]["tried"] == 3 and returns == sorted(returns, reverse=True)
+    assert sw["result"]["universe"]["name"] == "pinned"
     assert (
         client.post(f"/v1/experiments/runs/{sw['id']}/rerun", headers=headers).json()["status"]
         == "identical"

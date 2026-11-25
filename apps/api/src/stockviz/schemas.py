@@ -33,6 +33,15 @@ class BarOut(BaseModel):
     low: Decimal
     close: Decimal
     volume: int
+    # The stored bar's provenance (A1.4a); a resampled bar says "mixed" when
+    # its daily bars disagree.
+    source: str | None = None
+    adjustment_semantics: str | None = None
+    # Resampled intervals only (``1wk``, ``1mo``; A1.4a): the daily bars in
+    # the period, and whether the period is not over at the venue. A partial
+    # bar is "so far", never a closed bar. Null on ``1d``.
+    sessions: int | None = None
+    partial: bool | None = None
 
 
 class QuoteOut(BaseModel):
@@ -148,6 +157,11 @@ class IndicatorsOut(BaseModel):
     # on where the data starts (audit RS-1); no value before this is returned.
     warmup_bars: int = 0
     window_start: datetime | None = None
+    # A1.4a: the bar interval the indicators ran on. On ``1wk``/``1mo`` a
+    # partial newest bar (its week or month not over) is left out of the
+    # inputs, so no value is computed on it; this is its timestamp.
+    interval: str = "1d"
+    partial_bar_excluded: datetime | None = None
 
 
 class RecommendationVoteOut(BaseModel):
@@ -1656,6 +1670,18 @@ class BacktestSummaryOut(BaseModel):
     total_costs: Decimal = Decimal(0)
 
 
+class UniverseOut(BaseModel):
+    """The universe a backtest ran on and whether it is point in time (A1.4a,
+    M1.5). ``survivorship_biased`` is true when names that were delisted are
+    missing from it, so results look better than an investor could have done.
+    Set in one place: ``services/backtest/universe.py``."""
+
+    name: str
+    point_in_time: bool
+    survivorship_biased: bool
+    note: str
+
+
 class BacktestOut(BaseModel):
     ticker: str
     # Phase 5.2: every amount is in the symbol's currency (audit SR-11).
@@ -1671,6 +1697,8 @@ class BacktestOut(BaseModel):
     trades: list[BacktestTradeOut]
     equity_curve: list[EquityPointOut]
     summary: BacktestSummaryOut
+    # A1.4a: which universe the symbol came from and its survivorship flag.
+    universe: UniverseOut
 
 
 class ExperimentIn(BaseModel):
@@ -1729,6 +1757,9 @@ class ExperimentRunOut(BaseModel):
     last_bar_at: datetime | None
     created_at: datetime
     summary: BacktestSummaryOut
+    # A1.4a: the stored result's universe stamp; runs saved before it existed
+    # get the stamp that held for them (the pinned list, survivorship-biased).
+    universe: UniverseOut
     # Full stored result; omitted from list responses. A BacktestOut for
     # ``single`` runs; for ``walk_forward`` and ``sweep`` runs, the shape their
     # ``result_kind`` names (windows + stitched curve, or ranked settings).

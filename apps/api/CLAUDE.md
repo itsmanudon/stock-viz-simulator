@@ -105,6 +105,8 @@ src/stockviz/
                     run (P/E, P/B, P/S, EV/EBITDA, dividend yield, market
                     cap in USD, net margin, ROE, debt/equity, revenue
                     growth), each a `<column>_min`/`_max` filter and a sort
+    bars/           A1.4a: resample.py (pure: daily -> 1wk/1mo, the partial
+                    rule) and load.py (loads enough daily bars for n output bars)
     markets/        calendar.py — exchange calendars and completed sessions (Phase 4.1);
                     india_holidays.py — the maintained NSE/BSE holiday table (A0)
     nse/            A1.1 NSE end-of-day files placed by hand: formats.py
@@ -178,6 +180,40 @@ created. Not in `RECORDED_JOBS` or the cron. `price_bars` is untouched
 until A1.3. `nse-files` lists recent `data_files` rows. Tests use synthetic
 files in `tests/fixtures/nse/` (real headers, invented numbers; never
 commit real NSE data).
+
+**Weekly and monthly bars (A1.4a, M2.2 first half).** Resampled on read,
+never stored (`services/bars/resample.py`). `GET /v1/symbols/{t}/bars` and
+`/indicators` take `interval=1d|1wk|1mo` (`1h` was never written or sent and
+is refused now). A week is the ISO week (Monday to Sunday) and a month the
+calendar month, by the bar's venue date; open is the first session's open,
+high/low the extremes, close the last session's close, volume the sum, all
+`Decimal`; `ts` is the period's last stored session, `sessions` the daily
+bars in it, and `source` / `adjustment_semantics` the daily bars' own or
+`mixed`. Only the newest bar can be `partial`: when the venue calendar still
+has a session in its period after the last stored one, or that session is
+not complete at now (`session_complete_at`). Older bars have a later bar, so
+their period is over (a gap in old data is not "so far"). `limit` counts
+output bars; `load_resampled` reads `(n + 1) x 7` (weeks) or `x 31` (months)
+daily rows and drops the oldest period when that cap was hit. `from`/`to`
+select bars by their `ts`, and every bar covers its whole period. Indicators
+on `1wk`/`1mo` run the same registry on resampled bars with the warm-up
+counted in output bars, and leave a partial newest bar out of the inputs:
+`IndicatorsOut.partial_bar_excluded` names it, `interval` says what they ran
+on. `BarOut` adds `source` and `adjustment_semantics` on every interval
+(null `sessions`/`partial` on `1d`). Tests: `tests/test_resample.py`,
+`tests/test_bars_interval.py` (clock patched through `bars.load.now_utc`).
+
+**Survivorship stamp (A1.4a, part of M1.5).** Every backtest result carries
+`universe: {name, point_in_time, survivorship_biased, note}`: the public
+`POST /v1/backtest` (`BacktestOut.universe`), stored single runs, and
+walk-forward and sweep results; `ExperimentRunOut.universe` gives list rows
+the stamp. One helper sets it, `services/backtest/universe.py::universe_for`:
+today every run is `pinned` (the seed list with provider history),
+`point_in_time: false`, `survivorship_biased: true`, because delisted names
+are missing. A1.4b changes that function. Runs stored before the stamp read
+back with the pinned stamp, and `registry.result_differences` skips a field
+in `STAMPS_ADDED_LATER` that the stored result lacks, so their rerun is
+still `identical` (`tests/test_backtest_universe.py`).
 
 **Bars on closed days (A0, audit MD-9).** `stockviz.cli non-session-bars
 [tickers]` (`services/ingest/non_session_bars.py`) lists, per ticker, the

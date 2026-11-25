@@ -141,6 +141,22 @@ def save_study(
     return row
 
 
+STAMPS_ADDED_LATER = frozenset({"universe"})
+"""Result fields added after runs were first stored (A1.4a). A stored result
+that lacks one is not "different" for it: the field describes the run, it is
+not a figure the code recomputed differently."""
+
+
+def result_differences(stored: dict[str, Any], fresh: dict[str, Any]) -> list[str]:
+    """Top-level fields whose values differ, skipping later stamps the stored
+    result never had."""
+    return sorted(
+        k
+        for k in set(fresh) | set(stored)
+        if fresh.get(k) != stored.get(k) and not (k in STAMPS_ADDED_LATER and k not in stored)
+    )
+
+
 @dataclass
 class RerunReport:
     status: str  # identical | different | data_changed
@@ -159,9 +175,7 @@ def rerun(session: Session, row: ExperimentRun) -> RerunReport:
     if current_fp != row.dataset_fingerprint:
         return RerunReport("data_changed", row.dataset_fingerprint, current_fp)
     run_fp = current_fp
-    differences = sorted(
-        k for k in set(fresh) | set(row.result) if fresh.get(k) != row.result.get(k)
-    )
+    differences = result_differences(row.result, fresh)
     return RerunReport(
         "identical" if not differences else "different",
         row.dataset_fingerprint,
