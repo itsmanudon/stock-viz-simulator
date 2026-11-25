@@ -468,6 +468,38 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   header return and metrics stay adjusted), hides the price overlays (they
   are computed on adjusted prices and would jump at splits) and says so; a
   failed raw call falls back to adjusted, also said.
+- **Drawings (A3.2, M2.4).** The stock page renders `ChartWorkbench`
+  (`components/drawings/chart-workbench.tsx`): `DrawingToolbar` beside the
+  chart (a row on phones, two columns from `sm`; every tool a named button
+  with `aria-pressed`, then undo, redo, lock, delete), `PriceChart` with a
+  `drawingLayer`, and `DrawingsList` under it. `PriceChart` attaches one
+  series primitive to the price series (`lib/drawings/primitive.ts`), which
+  draws every drawing; geometry, hit-testing and painting are pure in
+  `lib/drawings/scene.ts` (labels kept inside the pane by `fitLabel`, crowded
+  Fibonacci labels dropped), maths in `math.ts` (Fibonacci levels, ruler,
+  position R), kinds in `kinds.ts`. **Anchors are bar dates and prices**
+  (`lib/drawings/anchor.ts`): on weekly/monthly bars an anchor sits on the
+  bar whose ISO week or calendar month contains its date (the API
+  resampler's periods, so a holiday week's bar is its Thursday); a date with
+  no bar is interpolated in time, outside the loaded bars extrapolated.
+  Placing snaps to the bar under the pointer, clamped to the loaded bars.
+  Pointer: with a tool, one click per anchor (Escape cancels); without one,
+  a click selects (hit test), and the selected drawing's handles or body
+  drag (`drag.ts`; mouse/touch starts are stopped in the capture phase so
+  the chart does not pan). Keys inside the workbench: Delete/Backspace,
+  Ctrl/Cmd+Z, Ctrl/Cmd+Shift+Z (or Y). Undo/redo is session-only
+  (`history.ts`; undoing a delete re-creates with a new id, `remapId`).
+  Saves go through `app/(product)/stocks/[ticker]/drawing-actions.ts` over
+  `lib/api/drawings.ts` (server-only); signed out the tools are disabled
+  with a "Sign in to save drawings" link; a failed load turns the tools off,
+  not the chart. The list adds and edits any kind by typing dates and
+  prices (the keyboard and phone path) and shows each position's R:R and
+  risk per share. Raw prices hide the drawings (they are on adjusted
+  prices). Colours are `useChartPalette().drawing` (`--list-<name>` tokens
+  and the foreground). The wrapper exposes `data-drawing-count` and
+  `data-drawing-tool`; list items `data-testid="drawing-item"` and
+  `data-kind`. The test stub records attached primitives
+  (`lwcCalls.primitives`) and maps price to `200 - y`, ten pixels a bar.
 - Other `PriceChart` users (`/trade`, `/replay/[id]` with fill markers on the
   price pane) get price and volume panes and the legend; they pass no
   indicators. Unit tests mock the library with

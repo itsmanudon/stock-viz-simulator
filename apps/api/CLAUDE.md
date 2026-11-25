@@ -26,7 +26,8 @@ src/stockviz/
                     ReplayJournal, aegis — read-only Aegis News copies,
                     setup — A2.2 Setup / SetupVersion / Thesis,
                     screen — saved screens + A2.3 ScreenRun, delivery —
-                    A2.3 NotificationChannel / DeliveryAttempt)
+                    A2.3 NotificationChannel / DeliveryAttempt,
+                    drawing — A3.2 chart drawings)
   events/           versioned contracts (trades/market), outbox/inbox,
                     dispatcher, domain handlers, Kafka producer wrappers
                     (not imported by FastAPI startup)
@@ -43,7 +44,8 @@ src/stockviz/
                     deprecated), watchlists + column_sets (A2.5), alerts, profile
                     (display currency), earnings, replay
                     (isolated ReplaySession), rules / setups / theses
-                    (A2.2), notification_channels (A2.3), health
+                    (A2.2), notification_channels (A2.3), drawings
+                    (A3.2), health
                     (`GET /live` liveness, `GET /health` readiness + DB)
   services/
     ingest/         External-API fetchers (yfinance primary, Alpha Vantage fallback);
@@ -137,6 +139,7 @@ src/stockviz/
                     (signed webhook + SSRF rules, SMTP email, Telegram),
                     transport.py (the network edges tests stub)
     theses.py       A2.2: thesis reads (the router writes)
+    drawings.py     A3.2: drawing rules per kind, position figures
     aegis/          Aegis News read sync (Phase 2): contract.py (lenient
                     feed models), token.py (EdDSA feed:read token), client.py
                     (the one client: timeouts, bounded retries), sync.py
@@ -583,6 +586,36 @@ lookup) tells the web whether to offer the toggle. Nothing adjusts raw rows
 or fills their gaps, and indicators always run on adjusted bars. Until the
 NSE backfill loads files, `has_raw` is false everywhere. Tests:
 `tests/test_bars_raw.py`.
+
+**Chart drawings (A3.2, M2.4).** Migration `f3bb96a753c6` (additive):
+`drawings` (`models/drawing.py`): user (cascade), instrument (cascade, no
+ticker column, like theses), `kind` (check `ck_drawings_kind`), `points`
+JSON `[{ts: "YYYY-MM-DD" | null, price: "<decimal>"}]`, `style` JSON
+`{colour, width 1-4, dash solid|dashed|dotted, fill_opacity 0-0.5}`
+(colours `DRAWING_COLOURS`: the list palette plus `foreground`, each a web
+token), `label` (80), `locked`, created/updated; index (user, instrument).
+An anchor is a daily bar's venue date and a price, never a pixel; the web
+maps it onto weekly/monthly bars. Rules (`services/drawings.py`):
+
+- Points per kind (`POINT_COUNTS`): trendline, ray, rectangle, ruler,
+  fib_retracement 2; channel, fib_extension, position_long, position_short
+  3; hline, text 1. Prices > 0 (schema, up to 6 decimals).
+- Dates must lie between the instrument's first and last stored daily bar
+  (`bar_range`); nothing is anchored in the future (a ray extends on its
+  own). An hline's `ts` may be null; a position's stop and target are prices
+  only (`ts` must be null). Long: stop < entry < target; short: target <
+  entry < stop. Fib: the first two prices differ. Text needs a label.
+- 200 per user and instrument (409). A locked drawing refuses edits and
+  deletes (409) unless the same PATCH sets `locked: false`.
+- **API** (authed; another user's drawing is 404). `GET
+  /v1/drawings?ticker=` -> `{ticker, drawings, limit, first_bar, last_bar}`
+  (oldest first); `POST {ticker, kind, points, style?, label?, locked?}`
+  (201); `PATCH /{id} {points?, style?, label?, locked?}` (`label: null`
+  clears; re-validated); `DELETE /{id}` (204). `DrawingOut.position` carries
+  `{side, entry, stop, target, risk_per_share, reward_per_share,
+  reward_risk, stop_pct, target_pct}` for position tools.
+- Tests: `test_drawings_router.py` (CRUD, validation per kind, isolation,
+  limit, lock), `test_drawings_migration.py` (PostgreSQL up/down/up).
 
 **A2 done-when (one rule, three consumers).** `tests/test_one_rule_three_consumers.py`
 saves one rule as a setup version and checks, over seeded random walks for
@@ -1126,6 +1159,7 @@ users ─┬─ portfolios ─┬─ positions           (qty + native-currency 
        ├─ watchlists ── watchlist_items   (A2.5: many lists, one default; notes, tags)
        ├─ column_sets           (A2.5: saved watchlist columns)
        ├─ alerts
+       ├─ drawings              (A3.2: per instrument; anchors are bar dates + prices)
 
 symbols ─┬─ price_bars          (EOD OHLCV; everything prices off the latest 1d close)
          ├─ checklist_scores    (A2.4, by instrument and session)
