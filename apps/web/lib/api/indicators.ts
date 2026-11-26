@@ -1,5 +1,5 @@
 import { apiGet } from "./client";
-import type { Indicators } from "./types";
+import type { IndicatorCatalogItem, Indicators } from "./types";
 
 export type IndicatorsParams = {
   names: string[];
@@ -21,4 +21,15 @@ export function getIndicators(ticker: string, params: IndicatorsParams): Promise
     `/v1/symbols/${encodeURIComponent(ticker)}/indicators?${q.toString()}`,
     { revalidateSeconds: 3600, tags: ["bars"] },
   );
+}
+
+/**
+ * A3.4: every study with its parameters, bounds and evidence badge. Cached
+ * an hour with the bars (the nightly revalidation refreshes it with them).
+ */
+export function getIndicatorCatalog(): Promise<IndicatorCatalogItem[]> {
+  return apiGet<IndicatorCatalogItem[]>("/v1/indicators/catalog", {
+    revalidateSeconds: 3600,
+    tags: ["bars"],
+  });
 }

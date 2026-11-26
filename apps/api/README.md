@@ -33,7 +33,7 @@ src/stockviz/
 ├── services/        # business logic, called by routers
 │   ├── ingest/      # yfinance (primary) / Alpha Vantage (fallback)
 │   ├── indicators/  # SMA, EMA, RSI, MACD
-│   ├── recommend/   # daily scoring
+│   ├── checklist/   # six DSL dimensions, nightly scores, evidence grades
 │   ├── trading/     # fills, orders, FX, dividends, analytics
 │   ├── options/     # Black-Scholes + long options book
 │   ├── backtest/    # historical strategy replay

@@ -242,7 +242,7 @@ export AUTH_TRUST_HOST=true
 pnpm db:up && pnpm api:migrate
 uv --directory apps/api run python -m stockviz.cli seed
 uv --directory apps/api run python -m stockviz.cli backfill
-uv --directory apps/api run python -m stockviz.cli recommend
+uv --directory apps/api run python -m stockviz.cli checklist
 pnpm api:dev &             # same shell, so the API signs with the same token
 pnpm --filter @stockviz/web build
 pnpm e2e                   # all suites, Chromium, headless

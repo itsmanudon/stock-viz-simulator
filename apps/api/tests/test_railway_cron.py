@@ -45,9 +45,15 @@ def test_every_cli_job_records_its_failure() -> None:
     wrapped = set(re.findall(r'job\("python -m stockviz\.cli ([a-z-]+)', steps))
     # Not wrapped in job(): `aegis-sync` tolerates exit code 2 (Aegis not
     # configured), `metadata` runs on Mondays only and `fundamentals` (Phase
-    # 6.3) on Fridays only; `revalidate-web` (6.6) tolerates exit 2 (no URL).
-    # All still record rc.
-    assert set(jobs) - wrapped == {"aegis-sync", "metadata", "fundamentals", "revalidate-web"}
+    # 6.3) and `checklist-evidence` (A2.4) on Fridays only; `revalidate-web`
+    # (6.6) tolerates exit 2 (no URL). All still record rc.
+    assert set(jobs) - wrapped == {
+        "aegis-sync",
+        "metadata",
+        "fundamentals",
+        "checklist-evidence",
+        "revalidate-web",
+    }
     assert "stockviz.cli revalidate-web || [ $? -eq 2 ] || rc=1" in steps
     assert "stockviz.cli aegis-sync || [ $? -eq 2 ] || rc=1" in steps
     assert 'if [ "$(date -u +%u)" = 1 ]; then python -m stockviz.cli metadata || rc=1; fi' in steps
@@ -104,3 +110,42 @@ def test_orders_and_alerts_run_between_fx_and_the_snapshot() -> None:
         for name in ("fx", "settle-orders", "evaluate-alerts", "snapshot-portfolios")
     ]
     assert order == sorted(order)
+
+
+def test_screen_runs_follow_their_data_and_delivery_follows_the_notifiers() -> None:
+    """A2.3: screen runs read tonight's bars, news and fundamentals; delivery
+    sends what every notifying step wrote."""
+    steps = _eod_refresh(_code(_source()))
+    assert 'job("python -m stockviz.cli screen-runs")' in steps
+    assert 'job("python -m stockviz.cli deliver-notifications")' in steps
+    at = steps.index
+    for before in ("ingest", "corporate-actions", "aegis-sync", "fundamentals", "metrics"):
+        assert at(f"stockviz.cli {before}") < at("stockviz.cli screen-runs"), before
+    notifiers = (
+        "corporate-actions",
+        "settle-orders",
+        "evaluate-alerts",
+        "screen-runs",
+        "credit-dividends",
+        "settle-options",
+    )
+    for notifier in notifiers:
+        assert at(f"stockviz.cli {notifier}") < at("stockviz.cli deliver-notifications"), notifier
+    assert at("stockviz.cli deliver-notifications") < at("stockviz.cli revalidate-web")
+
+
+def test_the_checklist_replaced_recommend_and_grades_weekly() -> None:
+    """A2.4: `checklist` after its data (bars, metrics, Friday's fundamentals);
+    `checklist-evidence` on Fridays only; the 7-vote `recommend` is gone."""
+    steps = _eod_refresh(_code(_source()))
+    assert "stockviz.cli recommend" not in steps
+    assert 'job("python -m stockviz.cli checklist")' in steps
+    assert (
+        'if [ "$(date -u +%u)" = 5 ]; then python -m stockviz.cli checklist-evidence || rc=1; fi'
+        in steps
+    )
+    at = steps.index
+    for before in ("ingest", "corporate-actions", "aegis-sync", "fundamentals", "metrics"):
+        assert at(f"stockviz.cli {before}") < at('stockviz.cli checklist"'), before
+    assert at('stockviz.cli checklist"') < at("stockviz.cli checklist-evidence")
+    assert at("stockviz.cli checklist-evidence") < at("stockviz.cli revalidate-web")

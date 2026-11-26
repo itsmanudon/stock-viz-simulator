@@ -21,7 +21,7 @@ describe("getActiveNavigation", () => {
     ["/stocks/AAPL", "/screener", null],
     ["/compare?tickers=AAPL", "/screener", "/compare"],
     ["/backtest?ticker=AAPL", "/screener", "/backtest"],
-    ["/recommendations", "/screener", "/recommendations"],
+    ["/checklist", "/screener", "/checklist"],
     ["/replay/42", "/screener", "/replay"],
     ["/orders/42", "/trade", "/orders"],
     ["/watchlist", "/portfolio", "/watchlist"],
@@ -50,11 +50,13 @@ describe("getActiveNavigation", () => {
     expect(research?.items?.map((item) => item.label)).toEqual([
       "Screener",
       "Setups",
-      "Signals",
+      "Checklist",
       "Compare",
       "Backtest",
       "Replay",
+      "Drills",
       "News",
+      "Event study",
       "News reactions",
     ]);
     const trade = APP_NAVIGATION.find((group) => group.label === "Trade");

@@ -385,7 +385,7 @@ jobs:
         working-directory: apps/api
         run: uv sync --frozen
 
-      - name: Migrate + seed + backfill + metrics + recommend
+      - name: Migrate + seed + backfill + metrics + checklist
         working-directory: apps/api
         env:
           DATABASE_URL: postgresql+psycopg://stockviz:stockviz_dev@localhost:5432/stockviz
@@ -395,7 +395,8 @@ jobs:
           uv run python -m stockviz.cli backfill
           # The screener reads RSI and the 52-week range from symbol_metrics.
           uv run python -m stockviz.cli metrics
-          uv run python -m stockviz.cli recommend
+          # The Checklist page reads checklist_scores (A2.4; replaced recommend).
+          uv run python -m stockviz.cli checklist
 
       - name: Start API
         working-directory: apps/api

@@ -15,6 +15,7 @@ from sqlmodel import Session, col, func, select
 from stockviz.auth import UserIdDep
 from stockviz.db import get_session
 from stockviz.models import Experiment, ExperimentRun
+from stockviz.routers.backtest import STRATEGY_ERRORS, strategy_http_error
 from stockviz.schemas import (
     BacktestSummaryOut,
     ExperimentIn,
@@ -27,7 +28,15 @@ from stockviz.schemas import (
     WalkForwardIn,
 )
 from stockviz.services.backtest import BacktestError
-from stockviz.services.backtest.registry import RunLimitReached, rerun, save_run, save_study
+from stockviz.services.backtest.checks import stored_checks
+from stockviz.services.backtest.registry import (
+    RunLimitReached,
+    rerun,
+    save_rotation_run,
+    save_run,
+    save_strategy_run,
+    save_study,
+)
 from stockviz.services.backtest.run import BadRange, UnknownSymbol
 from stockviz.services.backtest.universe import universe_for
 
@@ -36,7 +45,7 @@ router = APIRouter(prefix="/v1/experiments", tags=["experiments"])
 SessionDep = Annotated[Session, Depends(get_session)]
 
 
-def _run_out(row: ExperimentRun, *, full: bool) -> ExperimentRunOut:
+def _run_out(row: ExperimentRun, *, full: bool, session: Session | None = None) -> ExperimentRunOut:
     assert row.id is not None
     return ExperimentRunOut(
         id=row.id,
@@ -60,6 +69,7 @@ def _run_out(row: ExperimentRun, *, full: bool) -> ExperimentRunOut:
             else universe_for(row.ticker)
         ),
         result=row.result if full else None,
+        checks=stored_checks(session, row) if full and session is not None else None,
     )
 
 
@@ -110,6 +120,25 @@ def list_experiments(session: SessionDep, user_id: UserIdDep) -> list[Experiment
 
 @router.post("/runs", response_model=ExperimentRunOut, status_code=status.HTTP_201_CREATED)
 def post_run(body: ExperimentRunIn, session: SessionDep, user_id: UserIdDep) -> ExperimentRunOut:
+    if body.strategy is not None or body.rotation is not None:
+        try:
+            if body.rotation is not None:
+                row = save_rotation_run(
+                    session, user_id=user_id, body=body.rotation, experiment_id=body.experiment_id
+                )
+            else:
+                assert body.strategy is not None
+                row = save_strategy_run(
+                    session, user_id=user_id, body=body.strategy, experiment_id=body.experiment_id
+                )
+        except RunLimitReached as exc:
+            raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
+        except STRATEGY_ERRORS as exc:
+            raise strategy_http_error(exc) from exc
+        except LookupError as exc:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+        return _run_out(row, full=True, session=session)
+    assert body.backtest is not None
     try:
         row = save_run(
             session, user_id=user_id, body=body.backtest, experiment_id=body.experiment_id
@@ -122,7 +151,7 @@ def post_run(body: ExperimentRunIn, session: SessionDep, user_id: UserIdDep) -> 
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
     except RunLimitReached as exc:
         raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
-    return _run_out(row, full=True)
+    return _run_out(row, full=True, session=session)
 
 
 def _study(
@@ -140,7 +169,7 @@ def _study(
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
     except RunLimitReached as exc:
         raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
-    return _run_out(row, full=True)
+    return _run_out(row, full=True, session=session)
 
 
 @router.post("/walk-forward", response_model=ExperimentRunOut, status_code=status.HTTP_201_CREATED)
@@ -172,7 +201,7 @@ def list_runs(
 
 @router.get("/runs/{run_id}", response_model=ExperimentRunOut)
 def get_run(run_id: int, session: SessionDep, user_id: UserIdDep) -> ExperimentRunOut:
-    return _run_out(_own_run(session, run_id, user_id), full=True)
+    return _run_out(_own_run(session, run_id, user_id), full=True, session=session)
 
 
 @router.post("/runs/{run_id}/rerun", response_model=ExperimentRerunOut)
@@ -180,7 +209,7 @@ def post_rerun(run_id: int, session: SessionDep, user_id: UserIdDep) -> Experime
     row = _own_run(session, run_id, user_id)
     try:
         report = rerun(session, row)
-    except (UnknownSymbol, BadRange, BacktestError) as exc:
+    except (UnknownSymbol, BadRange, BacktestError, *STRATEGY_ERRORS) as exc:
         raise HTTPException(status.HTTP_409_CONFLICT, f"Cannot rerun: {exc}") from exc
     return ExperimentRerunOut(
         status=report.status,  # type: ignore[arg-type]

@@ -12,7 +12,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import { AlertForm, type AlertSymbol } from "@/components/alert-form";
+import { AlertForm, type AlertSetup, type AlertSymbol } from "@/components/alert-form";
 import { CountBadge } from "@/components/count-badge";
 import {
   AlertStatusBadge,
@@ -27,6 +27,8 @@ import { distanceToTargetPct, matchesAlertView } from "@/lib/alert-rules";
 import { getMarketsSummary } from "@/lib/api";
 import { formatUtcDateTime } from "@/lib/api-time";
 import { type Alert, type AlertEvent, listAlertEvents, listAlerts } from "@/lib/api/alerts";
+import type { Setup } from "@/lib/api/setups";
+import { listSetups } from "@/lib/api/setups-server";
 import {
   type AlertView,
   buildAlertsHref,
@@ -128,11 +130,20 @@ export default async function AlertsPage({
   const view = parseAlertView(params.view);
   const createTicker = parseAlertTicker(params.ticker);
   const ruleId = Number(params.rule);
-  const [alerts, summary, events] = await Promise.all([
+  const [alerts, summary, events, savedSetups] = await Promise.all([
     listAlerts(),
     getMarketsSummary().catch(() => ({ rows: [], sectors: [] })),
     listAlertEvents(100).catch(() => [] as AlertEvent[]),
+    listSetups().catch(() => [] as Setup[]),
   ]);
+  // A2.3: rule alerts judge a setup's newest version (yours, or a preset).
+  const setups: AlertSetup[] = savedSetups.map((s) => ({
+    versionId: s.latest_version.id,
+    name: s.name,
+    version: s.latest_version.version,
+    canonical: s.latest_version.canonical_text,
+    preset: s.is_preset,
+  }));
   const rows = new Map(summary.rows.map((r) => [r.ticker, r]));
   const symbols: AlertSymbol[] = summary.rows.map((r) => ({
     ticker: r.ticker,
@@ -159,7 +170,7 @@ export default async function AlertsPage({
       <OperationalPageHeader
         eyebrow="Portfolio"
         title="Alerts"
-        description="Rules on prices, indicators, Aegis news and your portfolio, judged on stored daily closes after each nightly run. In-app notifications, not real-time monitoring."
+        description="Rules on prices, indicators, saved setups, Aegis news and your portfolio, judged on stored daily closes after each nightly run. Notified in the app and on any channel set in Settings; not real-time monitoring."
         meta={
           <span className="flex flex-wrap items-center gap-2">
             <span>{counts.active} active</span>
@@ -185,6 +196,7 @@ export default async function AlertsPage({
             lastCloseAt={created?.last_close_at ?? null}
             currency={created?.currency}
             symbols={symbols}
+            setups={setups}
             variant="inline"
           />
         </div>

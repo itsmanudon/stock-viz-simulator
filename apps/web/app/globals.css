@@ -23,6 +23,14 @@
      brand for text, focus and selection. The gradient stops stay the same in
      both themes because the paper card always sits on its own dark ground. */
   --brand: #2f4be0;
+  /* A2.5: watchlist colour tags (dots and edges only, never a gain or loss). */
+  --list-aqua: #0e7490;
+  --list-blue: #2563eb;
+  --list-violet: #7c3aed;
+  --list-pink: #db2777;
+  --list-amber: #b45309;
+  --list-lime: #4d7c0f;
+  --list-slate: #64748b;
   --brand-muted: #e3e9ff;
   --brand-gradient-from: #5b6cff;
   --brand-gradient-via: #38c8f0;
@@ -90,6 +98,14 @@
   --primary: #eef2f8;
   --primary-foreground: #06080f;
   --brand: #38c8f0;
+  /* A2.5: watchlist colour tags (dots and edges only, never a gain or loss). */
+  --list-aqua: #22d3ee;
+  --list-blue: #60a5fa;
+  --list-violet: #a78bfa;
+  --list-pink: #f472b6;
+  --list-amber: #fbbf24;
+  --list-lime: #a3e635;
+  --list-slate: #94a3b8;
   --brand-muted: #0d2a3a;
   --brand-text-from: #a6f0ff;
   --brand-text-to: #5b8cff;

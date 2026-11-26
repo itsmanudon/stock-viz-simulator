@@ -12,9 +12,15 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { RerunBacktestRun } from "@/components/backtest-run-actions";
+import { CostsDisclosure } from "@/components/costs-disclosure";
 import { DataTableFrame } from "@/components/data-table";
 import { FigureStrip } from "@/components/figure-strip";
 import { MetaChip, PageHeader } from "@/components/page-header";
+import { OverfittingChecks } from "@/components/report-card/overfitting-checks";
+import { ReportCard } from "@/components/report-card/report-card";
+import { PboPanel, PlateauHeatmap } from "@/components/report-card/sweep-checks";
+import { RotationResults } from "@/components/rotation/rotation-results";
+import { RuleStrategyResults } from "@/components/rule-strategy/rule-strategy-results";
 import {
   Table,
   TableBody,
@@ -32,6 +38,9 @@ import {
   getExperimentRun,
 } from "@/lib/api/experiments";
 import { AuthedApiError } from "@/lib/api/server";
+import type { BacktestRequest, BacktestResult } from "@/lib/api/types";
+import type { RotationRequest, RotationResult } from "@/lib/rotation";
+import type { StrategyRequest, StrategyResult } from "@/lib/rule-strategy";
 
 export const metadata: Metadata = { title: "Saved backtest" };
 
@@ -50,6 +59,8 @@ const KIND_LABEL: Record<string, string> = {
   single: "Backtest",
   walk_forward: "Walk-forward",
   sweep: "Sweep",
+  strategy: "Rule strategy",
+  rotation: "Rotation",
 };
 
 export default async function SavedRunPage({ params }: { params: Promise<{ runId: string }> }) {
@@ -74,30 +85,99 @@ export default async function SavedRunPage({ params }: { params: Promise<{ runId
         meta={<MetaChip>Saved {formatUtcDateTime(run.created_at)}</MetaChip>}
         actions={<RerunBacktestRun runId={run.id} />}
       />
-      <UniverseNote universe={run.universe} />
-      <FigureStrip
-        label="Run result"
-        figures={[
-          {
-            label: kind === "sweep" ? "Best return" : "Return",
-            value: pct(run.summary.total_return),
-          },
-          { label: "Buy and hold", value: pct(run.summary.benchmark_return) },
-          {
-            label: "Excess",
-            value: `${run.summary.excess_return >= 0 ? "+" : ""}${run.summary.excess_return.toFixed(2)} pts`,
-          },
-          { label: "Sharpe", value: run.summary.sharpe.toFixed(2) },
-          { label: "Max drawdown", value: pct(run.summary.max_drawdown) },
-        ]}
-      />
+      {kind !== "strategy" && kind !== "rotation" ? (
+        <>
+          <UniverseNote universe={run.universe} />
+          <FigureStrip
+            label="Run result"
+            figures={[
+              {
+                label: kind === "sweep" ? "Best net return" : "Net return",
+                value: pct(run.summary.total_return),
+              },
+              // A4.2: gross second, when the stored summary has it (runs saved
+              // before A4.2 stored the net figures only).
+              ...(Number(run.summary.gross_final_nav ?? 0) > 0
+                ? [
+                    {
+                      label: "Gross return",
+                      value: pct(run.summary.gross_return ?? 0),
+                      note: "before costs",
+                    },
+                  ]
+                : []),
+              { label: "Buy and hold", value: pct(run.summary.benchmark_return) },
+              {
+                label: "Excess",
+                value: `${run.summary.excess_return >= 0 ? "+" : ""}${run.summary.excess_return.toFixed(2)} pts`,
+              },
+              { label: "Sharpe", value: run.summary.sharpe.toFixed(2) },
+              { label: "Max drawdown", value: pct(run.summary.max_drawdown) },
+            ]}
+          />
+        </>
+      ) : null}
+      {kind === "single" && result ? (
+        <CostsDisclosure
+          costs={(result as BacktestResult).costs}
+          liquidity={(result as BacktestResult).liquidity}
+        />
+      ) : null}
+      {kind === "single" && result && (result as BacktestResult).window ? (
+        <p className="text-xs text-text-tertiary" data-testid="run-window">
+          {(result as BacktestResult).window?.note}
+        </p>
+      ) : null}
+      {kind === "single" && result && (result as BacktestResult).report ? (
+        <ReportCard
+          report={(result as BacktestResult).report as NonNullable<BacktestResult["report"]>}
+          currency={(result as BacktestResult).currency ?? "USD"}
+        />
+      ) : null}
+      {kind === "single" && run.checks ? (
+        <OverfittingChecks
+          checks={run.checks}
+          report={(result as BacktestResult | null)?.report}
+          request={{ backtest: run.request as BacktestRequest }}
+        />
+      ) : null}
       {kind === "walk_forward" && result ? (
         <WalkForwardTable result={result as WalkForwardResult} />
       ) : null}
-      {kind === "sweep" && result ? <SweepTable result={result as SweepResult} /> : null}
+      {kind === "sweep" && result ? (
+        <>
+          <SweepTable result={result as SweepResult} />
+          {(result as SweepResult).window ? (
+            <p className="text-xs text-text-tertiary">{(result as SweepResult).window?.note}</p>
+          ) : null}
+          {"pbo" in (result as SweepResult) ? (
+            <PboPanel
+              pbo={(result as SweepResult).pbo}
+              reason={(result as SweepResult).pbo_reason}
+            />
+          ) : null}
+          {(result as SweepResult).plateau ? (
+            <PlateauHeatmap plateaus={(result as SweepResult).plateau ?? {}} />
+          ) : null}
+        </>
+      ) : null}
+      {kind === "strategy" && result ? (
+        <RuleStrategyResults
+          result={result as StrategyResult}
+          checks={run.checks}
+          unlockRequest={run.request as unknown as StrategyRequest}
+        />
+      ) : null}
+      {kind === "rotation" && result ? (
+        <RotationResults
+          result={result as unknown as RotationResult}
+          checks={run.checks}
+          unlockRequest={run.request as unknown as RotationRequest}
+        />
+      ) : null}
       <p className="text-xs text-text-tertiary">
-        Data fingerprint <span className="font-mono">{run.dataset_fingerprint}</span> · code{" "}
-        {run.code_version.slice(0, 12)}. <Link href="/backtest/runs">All saved runs</Link>
+        Data fingerprint <span className="font-mono break-all">{run.dataset_fingerprint}</span> ·
+        code {run.code_version.slice(0, 12)}. <Link href="/backtest/runs">All saved runs</Link>
       </p>
     </div>
   );

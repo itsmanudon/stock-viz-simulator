@@ -18,13 +18,15 @@ fundamental.pe < 25 and fundamental.roe > 15
 delivery_pct > 60 and close > open
 news.count(7, sentiment="negative") = 0
 rs(126) > 0 and bars_since(close crosses_above sma(close, 50)) <= 5
+close crosses_above drawing("support").price
+close > avwap("swing") and close < avwap("swing").upper2
 ```
 
 ## The language
 
 | Part | Form |
 | --- | --- |
-| Bar series | `open high low close volume`; `delivery_pct deliverable_qty` (NSE, daily only) |
+| Bar series | `open high low close volume`; `delivery_pct deliverable_qty` (NSE, daily only); `index_close`, the venue index's close (A2.4) |
 | Arithmetic | `+ - * /` and unary `-`; division by zero is unknown |
 | Comparison | `< <= > >= = !=` (`==` also means `=`). One per condition: write `a < b and b < c` |
 | Logic | `and`, `or`, `not`, parentheses |
@@ -33,9 +35,18 @@ rs(126) > 0 and bars_since(close crosses_above sma(close, 50)) <= 5
 | Timeframe | `weekly.x`, `monthly.x`, `weekly.(close > open)` |
 | Fundamentals | `fundamental.<metric>` |
 | News | `news.count(days, sentiment="...", event_type="...")` |
+| Your drawings (A3.3) | `drawing("label").price`, `.top`, `.bottom`; `avwap("label")` and `.upper1 .lower1 .upper2 .lower2` |
 | Comments | `# to the end of the line` |
 
-Names are lowercase. Strings appear only as keyword values. Arguments go by
+`index_close` is the close of the listing's market index on each bar's date:
+`^GSPC` for US listings, `^NSEI` for Indian ones, forward-filled at most 5
+bars (the series `rs()` reads). A bar never sees a later index close. On
+`weekly.` and `monthly.` it is the period's last index close. Without a stored
+index series it is unknown. `index_close > sma(index_close, 200)` is the
+market-regime test the Checklist uses.
+
+Names are lowercase. Strings appear only as keyword values and as a
+drawing's label in `drawing("...")` and `avwap("...")`. Arguments go by
 position or by name: `bb(20, k=2.5)`. Defaults may be left out: `rsi()` is
 `rsi(14)`.
 
@@ -50,6 +61,41 @@ timeframe): `rsi(n=14)`, `macd(fast=12, slow=26, signal=9)` with outputs
 `.upper`, `.middle`, `.lower` (one must be named); `atr(14)`, `hv(20)`,
 `cci(20)`, `roc(12)`, `willr(14)`, `mfi(14)`, `rvol(20)`, `wma(20)`,
 `vwap(20)`, `obv()`, `ad()`.
+
+**Added in A3.4** (each with its parameters' bounds from the registry; out
+of bounds is a type error, as on the chart and the API):
+
+- Moving averages: `hma(n=20)`, `dema(n=20)`, `tema(n=20)`,
+  `kama(n=10, fast=2, slow=30)`.
+- `psar(step=0.02, max=0.2)` `.sar` (default; the stop in force on the bar,
+  from the bars before it), `.direction` (1 up, -1 down, after the bar's
+  reversal check).
+- `ichimoku(tenkan=9, kijun=26, senkou=52, shift=26)` with `.tenkan`,
+  `.kijun`, `.senkou_a`, `.senkou_b` (one must be named). A leading span on
+  a bar is the span *drawn on that bar*, computed `shift` bars earlier, so a
+  rule never reads a later bar; there is no lagging span (it would put a
+  later close on an earlier bar).
+- `pivots(basis=3)` `.pp` (default), `.r1`, `.r2`, `.s1`, `.s2`: classic
+  floor pivots from the prior bar (1), week (2), month (3) or year (4).
+- Trend and momentum: `aroon(n=25)` `.up` / `.down`; `vortex(n=14)` `.plus`
+  / `.minus`; `elder(n=13)` `.bull` / `.bear`; `chop(14)`, `trix(15)`,
+  `cmo(9)`, `uo(short=7, mid=14, long=28)`, `coppock(long=14, short=11,
+  n=10)`; `tsi(long=25, short=13, signal=7)` `.tsi` (default), `.signal`;
+  `ppo(12, 26, 9)` `.ppo` (default), `.signal`, `.histogram`;
+  `stochrsi(rsi_n=14, n=14, k=3, d=3)` `.k` (default), `.d` (0-100).
+- Volatility: `natr(14)` (ATR % of close), `massi(n=9, total=25)`,
+  `rmv(n=5, lookback=50)` (StockViz's range tightness: 0 = the tightest
+  n-bar range of `lookback` bars, 100 the widest).
+- Volume: `cmf(20)`, `chaikin(fast=3, slow=10)`, `force(13)`, `eom(14)`.
+- `rsline()`: the close over the venue index's close (`^GSPC`, `^NSEI`),
+  the index forward-filled at most 5 bars; unknown without an index.
+
+Each study's **canonical signal**, graded on the chart's evidence badge,
+is a rule in this language; the list is
+`apps/api/src/stockviz/services/indicators/signals.py` (for example `rsi(14)
+crosses_above 30`, `psar(0.02, 0.2).direction crosses_above 0`, `close
+crosses_above max(ichimoku(9, 26, 52, 26).senkou_a, ichimoku(9, 26, 52,
+26).senkou_b)`).
 
 **On any series:** `sma(x, n)`, `ema(x, n)`, `highest(x, n)`,
 `lowest(x, n)`, `sum(x, n)`, `change(x, n=1)`, `pct_change(x, n=1)`
@@ -69,6 +115,52 @@ Indian ones).
 `roic_pretax`, `debt_to_equity`, `current_ratio`, `payout_ratio`,
 `revenue_growth`, `net_income_growth`. Margins, returns and growth are
 percentages. Each is the valuation page's figure as known on the bar's date.
+
+## Your drawings and anchored VWAPs (A3.3)
+
+A rule can read the chart drawings you saved on a symbol, by their label
+(labels match ignoring case and extra spaces). On a daily bar dated `d`:
+
+| Binding | Drawing | Value |
+| --- | --- | --- |
+| `drawing("x").price` | horizontal line | its price, on every bar |
+| `drawing("x").price` | trend line | linear between its two anchors, by weekdays (Monday to Friday); only from the earlier anchor's date to the later one's, inclusive. Before or after: unknown. It is not extended; draw a ray for that |
+| `drawing("x").price` | ray | linear through its two anchors and extended past the second. It runs from its first point towards the second: drawn to the right, it has a value on every bar from the first point on; drawn to the left, on every bar up to it |
+| `drawing("x").top`, `.bottom` | rectangle | its higher and lower price, on every bar from its left edge on (a zone keeps its level after it is drawn); unknown before |
+| `avwap("x")` | anchored VWAP | the VWAP from its anchor date over the daily bars up to each bar; unknown before the anchor. `.upper1 .lower1 .upper2 .lower2` are the bands at one and two volume-weighted standard deviations |
+
+- **Weekdays, not sessions.** The daily chart draws a line straight through
+  its bars, so it is linear in sessions; a rule reads it linear in weekdays,
+  which differ only by the exchange holidays between the anchors (a few
+  sessions of slope at most). Weekdays are known in advance, so a line's
+  value on a bar never depends on bars that come later.
+- **No look-ahead.** A drawing's value on a bar reads only its anchors, and an
+  AVWAP only bars up to that bar. A line that starts after a bar is unknown
+  on it. A drawing you drew later is still applied to earlier bars: it is
+  your geometry, not data. The conformance suite checks both modes and the
+  perturb-the-future test with drawings in its test data.
+- **Daily only.** `weekly.drawing(...)` is an error. On a weekly or monthly
+  chart, the AVWAP is the daily one sampled at each bar's last session.
+- **Unknown, never a crash.** A label with no drawing ("drawing 'x' not
+  found"), two drawings with one label, a kind the binding cannot read (a
+  Fibonacci, a text note; `.price` on a rectangle), or a deleted or renamed
+  drawing all make the value unknown with the reason. An alert on such a
+  rule stays quiet (unknown never fires).
+- **Yours only.** These rules are *user-scoped*: they resolve only for their
+  owner. `POST /v1/rules/check` says `user_scoped: true` (and `uses`
+  includes `drawings`); the rule editor notes "Uses your drawings; only you
+  can run it". The screener runs such a rule for the signed-in user only
+  (signed out it is refused, 401), and never caches it; a rule alert reads
+  the alert owner's drawings; a nightly saved-screen run reads the setup
+  owner's. A preset cannot hold one, and another user cannot fork a setup
+  that uses one. `rule-check` reads `--user-id N`'s drawings; without it the
+  values are unknown.
+
+An anchored VWAP is a drawing of kind `avwap` (one date, a label, its bands).
+On the stock page pick the "Anchored VWAP" tool and click the anchor bar,
+or anchor at the highest high or lowest low of the loaded bars or the last
+earnings date, or add one by typing a date in the Drawings list. The chart
+reads `GET /v1/symbols/{t}/avwap?anchor=YYYY-MM-DD&interval=1d|1wk|1mo&bands=0|1|2`.
 
 ## Rules that keep it honest
 
@@ -106,7 +198,8 @@ uv --directory apps/api run python -m stockviz.cli rule-check \
 It prints the canonical text, the hash and the warm-up the rule needs, then
 met / not_met / unknown per ticker at the latest completed session (or
 `--date`), with the reasons and, with `--explain`, every part's value. A
-syntax or type error prints its line and column and exits 2.
+syntax or type error prints its line and column and exits 2. A rule that
+reads drawings needs `--user-id N` (whose drawings it reads).
 
 ## In the screener
 
@@ -126,7 +219,23 @@ symbol list is today's, so a past date shows only today's survivors.
 API: `GET /v1/screener?rule=<text>&rule_mode=met_only|all[&as_of=]`, or
 `setup_version_id=<id>` for a saved version. `POST /v1/rules/check` with
 `{"rule": "..."}` returns the canonical text, hash and warm-up, or the error
-with its line and column.
+with its line and column. With `"expect": "number"` (A4.4) it checks a
+numeric expression instead, such as a rotation's ranking
+(`pct_change(close, 126)`); a condition is then an error.
+
+## Rotations and event studies (A4)
+
+- **Rotation ranking** (`/backtest?mode=rotation`): any numeric expression,
+  higher ranks first, read at each rebalance session's close; unknown values
+  are not ranked. The optional cash filter is a condition on the market
+  index, written with `index_close` (e.g. `index_close < sma(index_close,
+  200)`).
+- **Event study** (`/event-study`): any condition is a trigger; an event is
+  the session it turns true after a session it was false. News and delivery
+  triggers are rules: `news.count(1) >= 1`, `news.count(1,
+  sentiment="negative") >= 1`, `delivery_pct > 60`, `delivery_pct > 1.5 *
+  sma(delivery_pct, 20)`. "Run event study" on the screener's rule panel and
+  on a setup opens it with the rule.
 
 ## Setups
 
@@ -166,3 +275,52 @@ leaves out.
 
 Every preset is in the conformance suite, so its scan and its bar-by-bar
 results are proven equal. None is a recommendation.
+
+
+## The Checklist
+
+The Checklist (`/checklist`, A2.4) replaced the 7-vote Signals. It judges six
+dimensions, each a short list of conditions written in this language and
+stored as a read-only system setup of kind `checklist` (versioned and hashed
+like any preset; `/v1/setups/presets` lists them). A dimension is **met**
+when all its conditions are met, **unknown** when an input is missing and no
+condition failed, and **not met** otherwise: Kleene's `and`, exactly what the
+DSL gives the conjunction. The page reads "N of 6 met". It never says buy or
+sell.
+
+| Dimension | Conditions | Source |
+| --- | --- | --- |
+| Trend | `close > sma(close, 200)`; `sma(close, 50) > sma(close, 200)` | trend-following's 200-day filter; points of Minervini's template |
+| Momentum / relative strength | `rs(126) > 0`; `rsi(14) >= 50`; `rsi(14) <= 70` | Jegadeesh and Titman (1993) 6-month momentum; Wilder's RSI, the 50-70 bull range (Cardwell, Brown) |
+| Volume / delivery | `volume > sma(volume, 50)`; on NSE and BSE listings also `delivery_pct > 50` | O'Neil's volume test; NSE/BSE delivery data. US listings have no delivery figure, so they are judged on volume (a separate setup). Indian delivery is unknown until NSE files load (A1) |
+| Market regime | `index_close > sma(index_close, 200)` | Faber (2007): the index above its 10-month (here 200-day) average |
+| Quality | `fundamental.roe > 15`; `fundamental.debt_to_equity < 1` | common ROE cut-off; Graham's defensive balance-sheet test. Unknown before fundamentals were collected |
+| Risk / reward | `close >= 0.75 * highest(high, 252)`; `atr(14) < 0.04 * close` | Minervini's "within 25% of the high"; Wilder's ATR, a 4% bound (a convention) |
+
+**Nightly.** `stockviz.cli checklist` (cron, after `metrics`) judges every
+active symbol's six dimensions at its venue's latest stored session (a symbol
+without that day's bar is unknown, never judged stale) into
+`checklist_scores`. `GET /v1/checklist` and `GET /v1/symbols/{t}/checklist`
+return the results with each dimension's formula, grade and sample.
+
+**Evidence grade.** `stockviz.cli checklist-evidence` (Fridays) studies each
+dimension setup on the stored history (default: the last 10 years):
+
+- an **event** is the first bar the rule is true after a bar it was false
+  (vector mode, conformance-proven, so no value depends on a later bar);
+- its **outcome** is the forward 20-session close-to-close return, minus the
+  venue's round-trip fees (`us_equity_2026`, `in_delivery_nse_2026` or
+  `in_delivery_bse_2026` on a 100,000 position; dividends not added);
+- its **excess** is that minus the **base rate**: the mean forward 20-session
+  return, before costs, of every symbol in the same universe and market on the
+  same date;
+- events on one symbol within 20 bars of the last counted one are skipped, so
+  windows on a symbol never overlap (windows on different symbols still can);
+- the grade: **A** when t >= 3 and the mean excess >= 1%, **B** when t >= 2,
+  **C** when t >= 1, **D** otherwise, **insufficient** under 30 events.
+
+Every grade carries its sample (events, symbols, window, horizon) and the
+universe stamp: the pinned symbol list with today's provider history, so the
+study sees only survivors and is **survivorship-biased** until A1.4b's
+point-in-time universes. Grades describe past association net of modelled
+costs, not a forecast, and are not advice.

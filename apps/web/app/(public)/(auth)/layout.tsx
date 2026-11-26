@@ -19,7 +19,7 @@ const POINTS = [
   {
     icon: TrendingUp,
     title: "The full research loop",
-    body: "Screener, comparison, signals, and backtesting on end-of-day data.",
+    body: "Screener, comparison, checklist, and backtesting on end-of-day data.",
   },
   {
     icon: ShieldCheck,

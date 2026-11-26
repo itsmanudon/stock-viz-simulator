@@ -17,26 +17,73 @@ test("guest can research a stock and retain shareable chart state", async ({ pag
 
   await expect(page.getByRole("heading", { level: 1, name: /Apple Inc\./ })).toBeVisible();
   await expect(page.getByText("Latest close", { exact: false }).first()).toBeVisible();
-  await expect(page.getByRole("region", { name: "AAPL price chart" }).first()).toBeVisible();
+  const chartRegion = page.getByRole("region", { name: "AAPL price chart" }).first();
+  await expect(chartRegion).toBeVisible();
   await expect(
     page.locator("aside").getByRole("link", { name: "Sign in to trade AAPL" }),
   ).toBeVisible();
+  // A3.1: one chart instance; price and volume are panes of it, and the
+  // legend reads the last bar until the cursor moves.
+  await expect(chartRegion.getByTestId("price-chart")).toHaveCount(1);
+  await expect(chartRegion.getByTestId("price-chart")).toHaveAttribute("data-pane-count", "2");
+  const legend = chartRegion.getByTestId("chart-legend");
+  await expect(legend).toHaveAttribute("data-last", "true");
+  await expect(legend).toContainText(/C \d/);
 
   await page.getByRole("link", { name: "5Y" }).click();
   await expect(page).toHaveURL(/\/stocks\/AAPL\?tf=5Y&indicators=sma_50/);
 
+  // A3.4: the Indicators control is a popover with one editor per study.
   await page.getByRole("button", { name: /Indicators, 1 selected/ }).click();
-  await page.getByRole("menuitemcheckbox", { name: "SMA 50" }).click();
+  const menu = page.getByTestId("indicator-menu");
+  await menu.getByRole("button", { name: "Remove SMA 50" }).click();
   await expect(page).toHaveURL(/tf=5Y&indicators=$/);
-  await expect(page.getByRole("menu", { name: /Indicators, 0 selected/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Indicators, 0 selected/ })).toBeVisible();
 
-  await page.getByRole("menuitemcheckbox", { name: "RSI 14" }).click();
+  await menu.getByRole("button", { name: "Add RSI" }).click();
   await expect(page).toHaveURL(/tf=5Y/);
   await expect(page).toHaveURL(/indicators=rsi_14/);
   await page.keyboard.press("Escape");
   await expect(
+    page.getByRole("region", { name: "AAPL price chart" }).first().getByTestId("price-chart"),
+  ).toHaveAttribute("data-panes", "price,volume,rsi");
+  await expect(
     page.locator("aside").getByRole("link", { name: "Sign in to trade AAPL" }),
   ).toHaveAttribute("href", "/login?callbackUrl=%2Fstocks%2FAAPL%3Ftf%3D5Y%26indicators%3Drsi_14");
+
+  // Editing a parameter rewrites the key in the URL.
+  await page.getByRole("button", { name: /Indicators, 1 selected/ }).click();
+  const rsiForm = page
+    .getByTestId("indicator-menu")
+    .getByRole("form", { name: "RSI 14 parameters" });
+  const period = rsiForm.getByRole("spinbutton").first();
+  await period.fill("21");
+  await period.press("Enter");
+  await expect(page).toHaveURL(/indicators=rsi_21/);
+  await page.keyboard.press("Escape");
+
+  // A3.5: one switch per event type (no fills signed out), URL state, and
+  // the "Chart events" list as the keyboard path to the markers.
+  const region = page.getByRole("region", { name: "AAPL price chart" }).first();
+  const toggles = region.getByRole("navigation", { name: "Chart events" });
+  await expect(toggles.getByRole("switch")).toHaveCount(4);
+  await expect(region.getByTestId("chart-events")).toContainText("Chart events (");
+  await toggles.getByRole("switch", { name: "Hide news on the chart" }).click();
+  await expect(page).toHaveURL(/events=earnings%2Cdividend%2Csplit/);
+  await expect(toggles.getByRole("switch", { name: "Show news on the chart" })).toHaveAttribute(
+    "aria-checked",
+    "false",
+  );
+  await expect(page).toHaveURL(/indicators=rsi_21/);
+
+  // A3.5: the regime badge in the top bar opens its rules and inputs.
+  await page.getByTestId("regime-badge-US").first().click();
+  const regime = page.getByTestId("regime-popover-US");
+  await expect(regime).toContainText("Rules, read in order");
+  await expect(regime.getByTestId("regime-rule")).toHaveCount(3);
+  await expect(regime).toContainText("Not advice.");
+  await page.keyboard.press("Escape");
+  await expect(regime).toHaveCount(0);
 });
 
 test("mobile research opens trading as an intentional bottom sheet", async ({ page }) => {
@@ -77,11 +124,40 @@ test("authenticated stock workspace exposes account-aware actions", async ({ pag
   await page.goto("/stocks/AAPL");
 
   const ticket = page.locator('aside[aria-label="Paper trade AAPL"]').first();
+  // A3.5: signed in, the event toggles add the viewer's fills.
+  await expect(
+    page
+      .locator("#main")
+      .getByRole("navigation", { name: "Chart events" })
+      .first()
+      .getByRole("switch"),
+  ).toHaveCount(5);
   await expect(ticket.getByRole("heading", { name: "Paper trade" })).toBeVisible();
   await expect(ticket.getByLabel("Quantity").first()).toBeVisible();
   await expect(page.getByRole("button", { name: "Add AAPL to watchlist" })).toBeVisible();
   await page.getByRole("button", { name: "Alert", exact: true }).click();
   await expect(page.getByLabel("Set an alert for AAPL")).toBeVisible();
+  await page.keyboard.press("Escape");
+
+  // A3.2: a horizontal line added by typing survives a reload and shows on
+  // weekly bars (canvas pixels are not assertable: the list and the chart's
+  // drawing count are).
+  const main = page.locator("#main");
+  const list = main.getByTestId("drawings-list").first();
+  await list.getByTestId("drawing-add-toggle").click();
+  await list.getByTestId("drawing-price-0").fill("150");
+  await list.getByTestId("drawing-label").fill("E2E level");
+  await list.getByTestId("drawing-submit").click();
+  await expect(list.getByTestId("drawing-item")).toHaveCount(1);
+  await page.reload();
+  await expect(main.getByTestId("drawing-item").first()).toContainText(
+    'Horizontal line "E2E level", at 150',
+  );
+  await page.goto("/stocks/AAPL?interval=1wk");
+  const weekly = main.getByTestId("drawings-list").first();
+  await expect(weekly.getByTestId("drawing-item")).toHaveCount(1);
+  await expect(weekly.getByTestId("drawing-item").first()).toHaveAttribute("data-kind", "hline");
+  await expect(main.getByTestId("price-chart").first()).toHaveAttribute("data-drawing-count", "1");
 });
 
 test("the statistics strip shows every label and price in full (audit D1)", async ({ page }) => {

@@ -10,7 +10,8 @@ app/
                    concise public header and traditional website footer
   (product)/       guest-capable research routes plus the workstation shell
     (authed)/      dashboard, portfolio, trade, trades, orders, watchlist,
-                   alerts, settings, earnings, setups — protected by proxy.ts. `/dashboard` is
+                   alerts, settings, earnings, setups, replay, drills (A4.7) —
+                   protected by proxy.ts. `/dashboard` is
                    the signed-in home: a bento grid of portfolio widgets fed by
                    `lib/dashboard-data.ts` (every widget but the portfolio hero
                    degrades to its own empty state if its request fails).
@@ -26,7 +27,8 @@ app/
   compare/         Research workspace: normalized multi-ticker comparison
   screener/        filterable symbol screener
   backtest/        Research workspace: strategy experiment + equity curve
-  recommendations/ Research workspace titled Signals (route unchanged)
+  checklist/       Research workspace: the six-dimension Checklist (A2.4; replaced
+                   Signals, and `/recommendations` permanently redirects here)
   news/
   sign-in-required/  redirect target for unauthenticated access
   layout.tsx       document providers + skip link only; route groups own chrome
@@ -94,8 +96,9 @@ components/
                    with `only`. No GSAP inside them. Batch 2 adds
                    `rebase-snap.tsx` (compare: two symbols spring onto one
                    index; a US/India pair, else a same-currency fallback, and
-                   the copy says which), `sonar-sweep.tsx` (signals: distance
-                   from the centre is the vote share) and
+                   the copy says which), `sonar-sweep.tsx` (checklist: distance
+                   from the centre is the share of the six dimensions met, real
+                   `/v1/checklist` rows) and
                    `liquid-allocation.tsx` (an example account's split at two
                    real closes, SVG goo), on /product/research and
                    /product/paper-trading (the landing Rankings section and its
@@ -127,8 +130,9 @@ components/
                    (Aurora board v3); /markets breadth and /backtest results use it
   range-bar.tsx    RangeBar + rangePositionPct: a price's place in a range as a
                    marker on a monochrome track (screener 52-week, compare)
-  strength-dots.tsx StrengthDots: one dot per signal vote plus the count
-                   (`dotsFrom="md"` keeps phone rows wide enough for names)
+  strength-dots.tsx StrengthDots: a count out of a fixed number as dots plus
+                   "n/max" (the Checklist's dimensions met of six; the dots are
+                   aria-hidden, so callers also state the count in words)
   count-badge.tsx  CountBadge: the rounded count beside a tab label (Portfolio
                    tabs; reuse for any tab that counts its rows)
   status-badge.tsx one tone-mapped chip behind the order/alert badges
@@ -251,7 +255,7 @@ $env:AUTH_TRUST_HOST = "true"         # prod builds don't trust the host by defa
 pnpm db:up && pnpm api:migrate
 uv --directory apps/api run python -m stockviz.cli seed
 uv --directory apps/api run python -m stockviz.cli backfill
-uv --directory apps/api run python -m stockviz.cli recommend
+uv --directory apps/api run python -m stockviz.cli checklist
 pnpm api:dev                          # another terminal, same INTERNAL_API_TOKEN
 pnpm --filter @stockviz/web build
 pnpm e2e
@@ -333,9 +337,10 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   sign→token mapping and the em-dash fallback — never write `text-green-500`
   or `text-red-500`, which are not the `--positive`/`--negative` tokens.
 - The stock page chart draws RSI in its own pane with 70/30 guides (#73),
-  beside MACD; indicator values come warmed up from the API (Phase 6.1), so
-  they do not change with the timeframe. The change pill is labelled
-  "<tf> return since <first bar>" (UX-10).
+  and MACD (lines plus a sign-coloured histogram) in another; indicator
+  values come warmed up from the API (Phase 6.1), so they do not change with
+  the timeframe. The change pill is labelled "<tf> return since <first bar>"
+  (UX-10).
 - The stock page has a bar interval control (A1.4a: Daily / Weekly /
   Monthly, `?interval=1d|1wk|1mo`, default daily and left out of daily links)
   beside the lookback ranges, which stay ranges: `barsForLookback()` turns a
@@ -350,11 +355,43 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   "Pinned symbol list, not point in time: survivorship-biased." plus the
   API's note. Not red: it describes every run today.
 - Chart indicators come from the API registry (Phase 6.6): `STOCK_INDICATORS`
-  in `lib/stock-workspace.ts` lists names with a menu `section`, and
-  `chartLayers()` splits the bundle by each indicator's `meta.pane`: price
-  overlays (Supertrend's `.direction` output is left out) and one small
-  `IndicatorPane` per separate-pane indicator under the chart. RSI and MACD
-  keep their own panes. A new indicator needs only a menu entry.
+  in `lib/stock-workspace.ts` lists every study once (`key`, default-key
+  `value`, label, `section`, group, parameter count), and `chartLayers()`
+  splits the bundle by each indicator's `meta.pane`: price overlays
+  (`.direction` outputs of Supertrend and Parabolic SAR are left out) and
+  one pane per separate-pane indicator, all panes of the one chart (below).
+  The first RSI and MACD keep their own panes whatever their parameters
+  (`rsiKey`/`macdKey` on `PriceChart`; a non-default MACD's three outputs
+  are zipped by `macdSeries`). A new study needs a menu entry; its
+  parameters and badge come from the catalog.
+- **Editable studies and evidence badges (A3.4, M2.6).** A chart key is the
+  API's grammar (`rsi_21`, `bb_20_2.5`, `psar_0.02_0.2`; `macd` stays
+  `macd` at its defaults). The stock page loads `getIndicatorCatalog()`
+  (`/v1/indicators/catalog`, cached an hour, tag `bars`) first and
+  `parseStockIndicators(raw, bounds)` keeps only known studies with
+  parameters in bounds, written in full; without the catalog a key needs a
+  known study and no more parameters than it takes, and a failed
+  indicators call draws the chart without them. A decimal parameter has a
+  dot, so split series keys with `splitSeriesKey()`, never on the first
+  `.`. The toolbar's Indicators control is `IndicatorMenu`
+  (`components/indicator-menu.tsx`, a Radix popover, so its inputs take
+  typing and Escape closes it): each selected study is a `StudyEditor`
+  form (number inputs with the catalog's min/max/step, a select for a
+  `choices` parameter such as the pivot basis, an inline error for a value
+  out of bounds, Enter or Apply pushes the new key, Reset puts the
+  defaults back, Remove), then "Add a study" with a filter. Badges
+  (`lib/indicator-badge.ts::indicatorBadge`): `Grade A-D`, "Too few",
+  "Not graded" (job not run) or "No grade" (no canonical signal; never made
+  up); the title says the signal and rule, the sample, horizon, figures, the
+  universe stamp and "Association, not cause; not advice", and that a
+  re-parametrised study shows its default's grade. `PriceChart` takes
+  `badges` (by chart key) and shows each once in the legend
+  (`legend-badge`, hidden on phones, where the menu carries them). The
+  legend groups a study's outputs (`groupLegend`: "Ichimoku Cloud 9, 26, 52,
+  26 tenkan … span A …") and on phones lists only the price pane's
+  studies. Parabolic SAR's `.sar` draws as dots (`LineSpec.dots`). Ichimoku
+  draws the cloud lines only on stored bars (no forward cloud). Tests:
+  `tests/unit/indicator-params.test.tsx`.
 - `POST /api/revalidate` (audit RS-9, Phase 6.6) is called by the nightly
   cron's last step with `x-stockviz-revalidate` (HMAC of a fixed label under
   `INTERNAL_API_TOKEN`, `lib/revalidate-key.ts`) and drops every tag in
@@ -365,40 +402,279 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
 - `/watchlist` draws sparklines from each row's `closes` (RS-12, one API
   call instead of one per item), and the add form is a searchable input with
   a datalist of symbols (UX-7), nothing preselected.
+- `/watchlist` lists (A2.5, M4.6; `lib/api/watchlist.ts` over
+  `/v1/watchlists` and `/v1/column-sets`, actions in
+  `app/(product)/(authed)/watchlist/actions.ts`): `?list=<id>` opens a list
+  (default: the default list), `?tag=` filters its rows. `ListTabs`
+  (`components/watchlist-lists.tsx`) is a row of links with each list's
+  colour dot, a star on the default and its count; `ListManager` has New
+  list, Edit (name, colour radios), Move left / Move right buttons (the
+  keyboard path for reordering; no drag), Make default and a two-step
+  delete that names the symbols going and what becomes the default.
+  Colours are `--list-<name>` tokens in globals.css through
+  `listColourVar()` (`lib/watchlist-columns.ts`): dots and a list's left
+  edge only, never a gain or loss. Rows show the list's column set
+  (`COLUMN_META` labels and `formatColumnValue`, an em dash for no data):
+  `ColumnSetPicker` saves which set the list shows, `ColumnSetEditor`
+  (in a `<details>`) ticks columns and orders them with Up/Down buttons,
+  then saves over the set, as a new set, or deletes it. Each row's note and
+  tags edit in place (`components/watchlist-row-editors.tsx`: Escape
+  cancels, Ctrl/Cmd+Enter saves; tags as removable chips plus an input that
+  takes "a, b"). Cards under `md` carry the same columns. News under the
+  table is the open list's symbols. A failed lists call shows an error
+  state; a failed rows call says the list could not be loaded. The add form
+  and row remove post `watchlist_id`; without it `toggleWatchlistAction`
+  uses the default list through the old `/v1/watchlist` routes.
+- The stock page keeps the one-click star (default list, "Add AAPL to
+  watchlist") and adds `AddToListMenu` (`components/add-to-list.tsx`,
+  "Add to list…"): a disclosure with one checkbox per list from
+  `listWatchlists(ticker)` (`contains`), ticking adds and unticking removes
+  at once; Escape closes it. The screener's Compare form adds
+  `BulkAddToWatchlist` for signed-in users: it reads the ticked `tickers`
+  boxes (any number, up to 100) and adds them to a chosen list or a new one
+  through `bulkAddAction`, reporting added / already listed / unknown with a
+  link to the list; below `lg`, where cards have no checkboxes, it adds the
+  page's results. The dashboard widget shows the default list (the old
+  route), so "Make default" picks which list it shows.
 - The stock page's Financials tab (`components/fundamentals-panel.tsx`,
   Phase 6.4) shows key multiples as of today with their reasons when null,
   the P/E percentile over five years of month-ends, and annual/quarterly
   statements labelled by period end and unit. It says when figures are not
   point-in-time (yfinance) and when the reporting currency differs from the
   trading currency. A failed financials call hides the panel, not the page.
-- Charts use `lightweight-charts` v5. The wrapper lives in
-  `components/price-chart.tsx`; reuse it rather than instantiating a chart inline.
-  Compare and backtest charts live in `compare-chart.tsx` and `equity-curve.tsx`.
-  Canvas can't read CSS vars, so all three take their colours from
-  `useChartPalette()` (`lib/chart-theme.ts`), which reads the tokens off the
-  document and re-reads on theme change — never hard-code chart colours. The
-  hook keeps its object identity stable while colours are unchanged because
-  callers pass it to `useEffect`, and a new identity forces a full chart
-  rebuild. Fit the time axis with `fitWithLabelRoom()` (`lib/chart-range.ts`),
-  not `timeScale().fitContent()`: it leaves room for the outermost date label,
-  which lightweight-charts otherwise clips ("ug", "25"; UI audit P4). A volume
-  series on the price pane sets `lastValueVisible: false` and
-  `priceLineVisible: false`, or its tag sits on the price labels.
+- Charts use `lightweight-charts`, pinned at **5.3.0** (A3.1; exact pin,
+  upgrade deliberately). The wrapper lives in `components/price-chart.tsx`;
+  reuse it rather than instantiating a chart inline. Compare and backtest
+  charts live in `compare-chart.tsx` and `equity-curve.tsx`. Canvas can't
+  read CSS vars, so all three take their colours from `useChartPalette()`
+  (`lib/chart-theme.ts`; `line`/`areaTop`/`areaBottom` come from
+  `--foreground`), which reads the tokens off the document and re-reads on
+  theme change — never hard-code chart colours. The hook keeps its object
+  identity stable while colours are unchanged because callers pass it to
+  `useEffect`, and a new identity forces a full chart rebuild. Fit the time
+  axis with `fitWithLabelRoom()` (`lib/chart-range.ts`), not
+  `timeScale().fitContent()`: it leaves room for the outermost date label,
+  which lightweight-charts otherwise clips ("ug", "25"; UI audit P4). Bar
+  times go through `barTimeToUtcSeconds()` (5.3 throws on unpadded
+  business-day strings; we never pass strings).
+- **One chart, many panes (A3.1, M2.1).** `PriceChart` is one `createChart`
+  with native panes (series `paneIndex`, `chart.panes()`), so every pane
+  shares one time scale, crosshair, zoom and pan; there are no other chart
+  instances under it. `lib/chart-panes.ts::allPanes`/`assemblePanes` decide
+  what goes where, in a fixed order: price (main series + overlays), volume
+  (its own pane; `lastValueVisible`/`priceLineVisible` off), RSI (70/30
+  guides), MACD, then each `chartLayers()` pane. Heights are stretch factors
+  from `DEFAULT_PANE_HEIGHTS` (price 300, 240 on a phone; volume 80; RSI 110;
+  MACD 130; others 100); the container's height is their sum plus the time
+  axis. Separators drag (`layout.panes.enableResize`); on pointer-up each
+  pane's height is saved per pane kind in localStorage
+  (`stockviz:chart-panes`, `readPaneLayout`/`writePaneLayout`, try/catch, a
+  convenience only) without a rebuild. Every pane but price has a header
+  with a collapse arrow; a collapsed pane leaves the chart (rebuilt, the
+  visible range kept) and shows as "Show <pane>" under it. The wrapper
+  exposes `data-testid="price-chart"`, `data-pane-count` and `data-panes`.
+- **Crosshair legend.** `lib/chart-legend.ts` (`buildLegendModel`,
+  `legendAt`, `legendText`): top-left of the price pane, the hovered bar's
+  date (`formatCloseDate`), O/H/L/C, change against the previous close,
+  compact volume and every drawn indicator's value on that bar ("—" when it
+  has none); with no bar hovered it reads the last bar (`data-last`).
+  Values are matched by UTC seconds. It always reads the stored bar, also
+  under Heikin-Ashi. Keyboard: the chart wrapper is focusable; arrows step
+  the crosshair a bar (`setCrosshairPosition`, scrolling it into view),
+  Home/End, `+`/`-` zoom around it, `0` fits, Escape clears; while it is
+  keyboard-driven the legend sentence goes to an `aria-live="polite"` region
+  at most every 600 ms. The keys are written in the "Chart keys and panes"
+  disclosure under the chart (the wrapper's `aria-describedby`).
+- **Chart types and scales (A3.1, M2.3).** `lib/chart-view.ts`: types
+  candles, hollow candles, OHLC bars, line, area and "Heikin-Ashi (derived)"
+  (`lib/heikin-ashi.ts`, pure, computed from the stored bars); scales linear,
+  log, percent (`PriceScaleMode` on the price series' scale). URL state on
+  the stock page: `?type=`, `?scale=`, `?adjustment=`, each left out at its
+  default (candles, linear, adjusted) by `buildStockChartHref(..., view)`,
+  so old links are unchanged. The toolbar adds a native "Chart type" select
+  (pushes the URL), a "Price scale" segment and a "Price adjustment" segment.
+- **Adjusted vs raw.** `symbol.has_raw` (API) says whether `eod_raw` holds
+  rows; without it the Raw control is a focusable, inert `aria-disabled`
+  button titled "Only adjusted prices are stored for this symbol", and a
+  `?adjustment=raw` URL falls back to adjusted with a note. With it the page
+  fetches `getBars(..., { adjustment: "raw" })` for the chart only (the
+  header return and metrics stay adjusted), hides the price overlays (they
+  are computed on adjusted prices and would jump at splits) and says so; a
+  failed raw call falls back to adjusted, also said.
+- **Drawings (A3.2, M2.4).** The stock page renders `ChartWorkbench`
+  (`components/drawings/chart-workbench.tsx`): `DrawingToolbar` beside the
+  chart (a row on phones, two columns from `sm`; every tool a named button
+  with `aria-pressed`, then undo, redo, lock, delete), `PriceChart` with a
+  `drawingLayer`, and `DrawingsList` under it. `PriceChart` attaches one
+  series primitive to the price series (`lib/drawings/primitive.ts`), which
+  draws every drawing; geometry, hit-testing and painting are pure in
+  `lib/drawings/scene.ts` (labels kept inside the pane by `fitLabel`, crowded
+  Fibonacci labels dropped), maths in `math.ts` (Fibonacci levels, ruler,
+  position R), kinds in `kinds.ts`. **Anchors are bar dates and prices**
+  (`lib/drawings/anchor.ts`): on weekly/monthly bars an anchor sits on the
+  bar whose ISO week or calendar month contains its date (the API
+  resampler's periods, so a holiday week's bar is its Thursday); a date with
+  no bar is interpolated in time, outside the loaded bars extrapolated.
+  Placing snaps to the bar under the pointer, clamped to the loaded bars.
+  Pointer: with a tool, one click per anchor (Escape cancels); without one,
+  a click selects (hit test), and the selected drawing's handles or body
+  drag (`drag.ts`; mouse/touch starts are stopped in the capture phase so
+  the chart does not pan). Keys inside the workbench: Delete/Backspace,
+  Ctrl/Cmd+Z, Ctrl/Cmd+Shift+Z (or Y). Undo/redo is session-only
+  (`history.ts`; undoing a delete re-creates with a new id, `remapId`).
+  Saves go through `app/(product)/stocks/[ticker]/drawing-actions.ts` over
+  `lib/api/drawings.ts` (server-only); signed out the tools are disabled
+  with a "Sign in to save drawings" link; a failed load turns the tools off,
+  not the chart. The list adds and edits any kind by typing dates and
+  prices (the keyboard and phone path) and shows each position's R:R and
+  risk per share. Raw prices hide the drawings (they are on adjusted
+  prices). Colours are `useChartPalette().drawing` (`--list-<name>` tokens
+  and the foreground). The wrapper exposes `data-drawing-count` and
+  `data-drawing-tool`; list items `data-testid="drawing-item"` and
+  `data-kind`. The test stub records attached primitives
+  (`lwcCalls.primitives`) and maps price to `200 - y`, ten pixels a bar.
+- **Anchored VWAP (A3.3, M2.5).** A drawing of kind `avwap`
+  (`KIND_SPECS`: one date-only point, `dateOnly`, `needsLabel`): its
+  `price` is `""` in the web's `DrawingPoint` and null on the API
+  (`lib/api/drawings.ts::toApiPoints`); `style.bands` (0-2) picks the bands.
+  The toolbar's "Anchored VWAP" tool places it with one click on a bar, with
+  an "AVWAP label" field (default `avwap <date>`), a Bands select and quick
+  anchors (highest high and lowest low of the loaded bars, the last earnings
+  date through `lastEarningsDateAction`); the list adds and edits one by
+  date, label and bands. `ChartWorkbench` fetches each one's line through
+  `app/(product)/stocks/[ticker]/avwap-actions.ts` (`lib/api/avwap.ts`,
+  `GET /v1/symbols/{t}/avwap`), keyed by `avwapKey` (id, anchor, interval,
+  bands), so a new interval, anchor or band count fetches again; the API
+  computes it from daily bars and samples weekly/monthly bars. The scene
+  draws it with `avwapShapes`: one `path` shape per line (the VWAP, then
+  dashed bands; one path so dashes run on), a tick at the anchor, the label
+  and last value at the right end; a drag moves the anchor in time only.
+- **Events, RS, delivery and the regime (A3.5, M2.7, M2.8, M3.1).**
+  `lib/chart-events.ts` (pure): types from the API schema, `?events=` URL
+  state (`parseEventsParam`, `resolveEventTypes`, `toggleEventsParam`;
+  absent = news, earnings, dividends, splits, plus fills signed in; `""` =
+  none; kept in `ChartView.events`, so every chart link carries it), and
+  placement `eventBarIndex`/`eventsByBar`: weekly/monthly use the drawings'
+  containing-period rule (`anchorBar`); daily the bar on the date, else the
+  next bar (a Saturday headline shows on Monday); after the last bar, no
+  marker (the list keeps it). The stock page fetches public events
+  (`lib/api/chart-context.ts::getSymbolEvents`, cached an hour, tags
+  `bars`/`news`) from the first bar to today and, signed in with fills
+  shown, the viewer's fills server-side (`lib/api/events-server.ts`,
+  authed, uncached; the API returns only the token's user's trades), then
+  `mergeEvents`. `PriceChart` takes `events` and `currency`: one marker per
+  type per bar on the price series (`createSeriesMarkers`; news shows the
+  day's count, E/D/S letters, fills B/S arrows; colours from
+  `palette.drawing` violet/amber/lime/blue/foreground, the toolbar dots use
+  the same `--list-*` tokens); a click on a bar with events (not while
+  placing a drawing) or Enter on the keyboard crosshair opens
+  `EventPopover` (`role="dialog"`, Escape closes; news headlines with
+  source and a link to the original, no text); the legend adds "Events:
+  2 news, ex-dividend" (`legend-events`); `ChartEventsList` ("Chart events
+  (N)" disclosure, newest first) is the keyboard path. The toolbar's
+  `EventToggles` is a row of `role="switch"` links (`data-event-type`).
+  The RS line (`rsline`, opt-in in the Indicators menu) is relabelled "RS
+  line vs S&P 500 (^GSPC)" from `symbol.benchmark_name`; with no index
+  closes its pane is not drawn (empty lines are dropped in `allPanes`) and
+  `rs-empty` says so. `RelativeStrengthStrip` under the metrics strip
+  (`relative-strength`): RS rank 1M/3M/6M/12M as ordinals with the return,
+  "From 52-week high", and the universe stamp (`rs-universe`). Delivery:
+  for `symbol.is_indian` the page loads `getDelivery()` and mounts a
+  "Delivery %" pane (delivery and "20-day avg", `ChartPane.outputLabels`;
+  points placed with `eventBarIndex`); without data a dashed
+  `delivery-empty` line says "No delivery data yet", never an empty pane.
+  Regime: `RegimeBadges` (async server component, `getRegime()` cached 10
+  minutes) in `TopUtilityBar` beside the data-date chip, one
+  `RegimePopover` per market (`regime-badge-<US|IN>`, `data-state`; the
+  state word from `md`, a dot by state): state, index and as-of, the rules
+  in order with met / not met / unknown, the inputs' values (breadth with
+  "n of N"), the method and the disclaimer. Shell unit tests mock
+  `@/components/regime-badge`. Tests: `tests/unit/chart-events.test.tsx`;
+  the stub records markers (`lwcCalls.markers`) and click handlers
+  (`clickAt`).
+- **User-scoped rules (A3.3).** The rule panel says "Uses your drawings;
+  only you can run it." (`data-testid="rule-user-scoped"`) when
+  `/v1/rules/check` returns `user_scoped` (signed out: sign in to run it).
+  `/screener` runs any rule as the signed-in user
+  (`lib/api/screener-server.ts::getScreenerPageAsUser`, authed), so
+  `drawing()`/`avwap()` resolve on their drawings; signed out the API
+  refuses such a rule and the page says to sign in.
+- **Replay chart (A4.6, M9.1).** `/replay/[id]` renders `ReplayChart`
+  (`components/replay-chart.tsx`): `IndicatorMenu` (`?indicators=`, none by
+  default; `replayIndicatorsHref` keeps the other params) above
+  `ChartWorkbench` with `actions` (the session's own drawing actions,
+  `replay/[sessionId]/drawing-actions.ts`) and `kinds`
+  (`REPLAY_DRAWING_KINDS`: no anchored VWAP). `ChartWorkbench` takes
+  `actions`/`kinds` (default: the live `/v1/drawings` actions, every kind);
+  `DrawingToolbar` and `DrawingsList` take `kinds`. Indicators come from
+  `getReplayIndicators` (`/v1/replay/sessions/{id}/indicators`, cut at the
+  clock), events from `getReplayEvents` (news known by the clock and the
+  session's fills), drawings from `listReplayDrawings`; the page never calls
+  the live bars, indicators, events or drawings routes (the catalog is
+  public metadata). Amounts format in `session.currency`. The ticket
+  (`ReplayTradeTicket`) has an order type select (`replay-order-type`:
+  market, limit, stop-loss, take-profit; stops sell-only), a price field
+  (`replay-limit-price`) and says the order is checked from the next bar;
+  an index session shows `replay-not-tradable`. `ReplayOrders`
+  (`components/replay-orders.tsx`, `replay-order` with `data-status`,
+  Cancel through `cancelReplayOrderAction`) lists resting orders; fills show
+  fees (`replay-fill-fees`). The launcher lists every symbol with its
+  currency, cash presets per currency (`replayCashPresets`), the lag note
+  (`replay-lag-note`) and caps the end date at `max_end`. Tests:
+  `tests/unit/replay-a46.test.tsx`.
+- **Drills (A4.7, M9.3).** `/drills` (protected in `proxy.ts`, Research nav
+  and subnav after Replay): decks (`drill-deck`) with the rule, universe,
+  range, K of the eligible triggers (found, lag-skipped), N, M, seed and
+  anonymisation; the process score line (`deck-score`, `deckScoreLine`);
+  one `drill-row` per drill (`data-status`: not started, in progress,
+  revealed; the label "Stock A" and no date while anonymised); a two-step
+  delete (`DeleteDeckButton`, `deck-delete` then `deck-delete-confirm`).
+  `/drills/new` is the launch form (`DrillLaunchForm`, a page rather than a
+  modal: rule through `RuleFieldEditor` with setups, universe market /
+  ticker list / watchlist, from, to, K (`drill-k`), N, M, seed, name, the
+  anonymise box (`drill-anonymised`, on by default), Ctrl/Cmd+Enter
+  creates; `createDeckAction` redirects to `/drills?deck=<id>`). Entry
+  points link there through `drillLaunchHref` (`lib/drills.ts`): the
+  screener rule panel (`rule-drill`, signed in, valid rule), each setup on
+  `/setups` (`setup-drill`), a strategy backtest's "Rules as run"
+  (`strategy-drill`: the entry rule, the run's tickers and range) and the
+  event study (`study-drill`, signed in: trigger, universe, range).
+  `/drills/[id]` uses only `/v1/drills` (`lib/api/drills.ts`): `DrillChart`
+  (A4.6's `ReplayChart` with `basePath` and the drill's drawing actions),
+  the shared `ReplayTradeTicket`, `ReplayMobileSheet`, `ReplayOrders` and
+  `ReplayAdvanceControls` with `target="drill"` (a hidden `target` field;
+  `replay/actions.ts` then calls the drill routes and revalidates
+  `/drills`), `DrillPlanForm` (`drill-plan`, `plan-entry`/`plan-stop`/
+  `plan-size`, planned risk; the ticket stays hidden until a plan exists;
+  read-only once locked), `DrillRevealButton` (one step when finished, two
+  to end early: `drill-end-early`, `drill-reveal`) and
+  `DrillRevealPanel` (`drill-reveal-panel`: ticker, company, real and shown
+  dates, `drill-after` returns, `drill-check` per check, `drill-r` with "not
+  the score"). The page title is "Drill" and the URL holds ids only, so
+  nothing names the symbol or a real date while anonymised; types come from
+  the schema (`lib/drills.ts`). Tests: `tests/unit/drills.test.tsx`, guest
+  e2e in `replay.spec.ts`.
+- Other `PriceChart` users (`/trade`) get price and volume panes and the
+  legend; they pass no indicators. Unit tests mock the library with
+  `tests/stubs/lightweight-charts.ts` (records series, panes, price lines,
+  crosshair calls): `vi.mock("lightweight-charts", async () => (await
+  import("../stubs/lightweight-charts")).lwc)`.
 - Server components by default — only mark `"use client"` when you need state,
   effects, or interactivity.
-- Research (`/compare`, `/backtest`, `/recommendations`, `/replay`) is one
+- Research (`/compare`, `/backtest`, `/checklist`, `/replay`) is one
   domain. See [`docs/RESEARCH.md`](../../docs/RESEARCH.md). Keep URL state
-  shareable (`tickers`/`tf`, `ticker`, `min`/`signal`/`q`). Do not present
-  Signals as AI advice; the engine is a seven-vote rule set. Replay Lab is
+  shareable (`tickers`/`tf`, `ticker`, `min`/`dimension`/`sort`/`q`). Replay Lab is
   future-blind historical simulation; never fetch live bars or
-  news into `/replay/[id]`. Forensics (`?view=forensics`) may call session
+  news into `/replay/[id]` (A4.6: its indicators, events and drawings come
+  from the session's own routes, cut at the clock). Forensics (`?view=forensics`) may call session
   `/forensics`, `/journal`, `/history`, `/summary`, and `/fills` only.
 - `/backtest` starts on the first symbol with stored closes and ends its
   range at that symbol's latest close (`lib/backtest-defaults.ts`, UI audit
   F1), using `last_close_at` from the markets summary. The range follows the
-  chosen symbol until the dates are edited by hand. The run is a browser
-  call to the API, so a dev server on a port other than 3000 needs that
-  origin in the API's `CORS_ORIGINS`, or the run fails with "Failed to fetch".
+  chosen symbol until the dates are edited by hand. Since A4.3 a template run
+  goes through `app/(product)/backtest/holdout-actions.ts::runTemplateAction`
+  (authed when signed in, so it lands in the user's trial ledger; signed out
+  public with `checkVisitorLimit("strategy")`), not the browser.
 - `/backtest` (Phase 5.2-5.4) sends `fill_rule` (default `next_open`),
   `spread_bps`, `fee_schedule` and `return_mode`, formats amounts in the
   run's `currency`, and states the basis, return mode, warm-up and profile
@@ -410,6 +686,122 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   default grid on the server and store the study; `/backtest/runs/[runId]`
   shows a walk-forward's windows (chosen setting, scored year) or a sweep's
   ranked settings ("best of N").
+- **Costs (A4.2, M7.2).** `lib/fees.ts` (types from the schema,
+  `FEE_SCHEDULE_OPTIONS` with `auto` first, `BROKERAGE_OPTIONS`,
+  `advCapValue`, `partialLabel`, `versionRange`, `sourceDated`,
+  `feesSuffix`) and `lib/api/fees.ts` (`getFeeEstimate`, a browser call to
+  the public `/v1/fees/estimate`; `getFeeSchedules`). Both `/backtest` modes
+  send `fee_schedule` (default `auto`), `brokerage` and `adv_cap_pct`
+  (default 10; empty is off) and show `CostsDisclosure`
+  (`components/costs-disclosure.tsx`, `data-testid="costs-disclosure"`:
+  each dated version's components with rate, side and a link to the source,
+  fills before the confirmed date, the price-band and ADV notes, a link to
+  `/docs/costs`). Results are net first ("Net return", then "Gross
+  return"); a capped entry says "partial: N of M shares"
+  (`partial-fill`). The order review (`OrderReview`) fetches the estimate:
+  the headline and "Estimated total, after fees" are net, "Value before
+  fees" second, and a "Costs" `<details>` (`order-costs`) lists each fee
+  with its source. Fill confirmations append fees and the net amount;
+  `/trades` shows the net total (value and fees under it) and net realized
+  P&L with gross under it; `PortfolioMetrics` shows "Realized P&L, net"
+  with fees and gross in the detail. `/backtest/runs` labels "Net return"
+  with gross under it when stored. `/docs/costs` (its own dynamic route,
+  `app/(public)/docs/costs/page.tsx`, outside `[slug]`'s static params)
+  renders `components/docs/costs-schedules.tsx` from the API: Indian
+  schedules first, the version in force today open.
+- `/backtest?mode=rule` (A4.1, M7.1): the Rule strategy mode beside the
+  templates (`ModeTabs` links, `data-testid="backtest-mode"`). The page
+  loads the public presets and, signed in, `listSetups()` and
+  `listWatchlists()`; `RuleStrategyForm`
+  (`components/rule-strategy/rule-strategy-form.tsx`): entry and exit
+  `RuleFieldEditor` (`rule-field.tsx`: `checkRule()` debounced as on the
+  screener, `rule-ok` / `rule-error`; "Load a setup…" sends that version by
+  id until the text is edited), universe radios (one symbol, watchlist
+  (signed in), ticker list), dates, stops, sizing, costs, direction and
+  shortable list. Run is disabled while a rule is invalid or `formProblem()`
+  says why; Ctrl/Cmd+Enter runs from any field. Pure helpers in
+  `lib/rule-strategy.ts` (`buildStrategyRequest`, `tradeMarkers`,
+  `REASON_LABEL`/`REASON_CODE`, `formatR`). Runs go through
+  `app/(product)/backtest/strategy-actions.ts::runStrategyAction` (authed
+  when signed in, else public with `checkVisitorLimit("strategy")`, 20 a
+  minute), not the browser. `RuleStrategyResults` (`rule-strategy-results.tsx`):
+  "Performance, net of costs" (net return first), then gross, costs,
+  Sharpe, drawdown, trades and mean R; the unknown / ignored / skipped
+  counts (`strategy-counts`); the notes and stop priority in a "How this
+  run was simulated" disclosure; Save run (`SaveStrategyRun`, kind
+  `strategy` through `saveBacktestRunAction`); `StrategyTradesChart`
+  (`PriceChart` with `markers`: B/S entries, exits coded X/SL/ATR/TS/T and
+  "gap", colours from `useChartPalette()`; a basket picks a symbol; bars
+  through `strategyBarsAction`); the equity curve; the trades table
+  (`strategy-trades`, reason and `gap-flag`, R; on phones reason and R sit
+  under the P&L; 50 rows, then "Show all"). `/backtest/runs/[runId]` shows
+  a `strategy` run with the same component (no Save). Tests:
+  `tests/unit/rule-strategy.test.tsx`, the e2e in `research-workspace.spec.ts`.
+- `/backtest?mode=rotation` (A4.4): `RotationForm`
+  (`components/rotation/rotation-form.tsx`): the ranking is a
+  `RuleFieldEditor` checked with `checkNumber()` (`/v1/rules/check` with
+  `expect: "number"`), top N, schedule, buffer, weighting, an optional cash
+  filter rule (setups loadable), universe (ticker list with "All US (n)" /
+  "All India (n)" quick fills from `marketTickers()`, or a watchlist signed
+  in), dates (ten years to the latest close by default), costs and holdout.
+  Helpers in `lib/rotation.ts` (`buildRotationRequest`, `rotationProblem`,
+  `rebalanceSummary`, `symbolMarket`). Runs through
+  `app/(product)/backtest/rotation-actions.ts::runRotationAction` (authed or
+  public with `checkVisitorLimit("strategy")`). `RotationResults`
+  (`rotation-results.tsx`, `rotation-results`): net first, then gross,
+  costs, Sharpe, drawdown, turnover a year and a rebalance; report card,
+  overfitting checks (unlock sends `{rotation}`), Save run
+  (`SaveStrategyRun kind="rotation"`); "Holdings by rebalance"
+  (`rotation-rebalances`, newest first, 24 then all: held after, in, out in
+  neutral colours, turnover, a "Ranking" disclosure with the values and the
+  unranked; on phones in/out and turnover sit under the holdings); the
+  equity curve; round trips linked to stock pages. Saved `rotation` runs
+  render the same component. Tests: `tests/unit/rotation.test.tsx`, e2e in
+  `research-workspace.spec.ts`.
+- `/event-study` (A4.5, Research nav and subnav, public): a GET form
+  (`components/event-study/event-study-form.tsx`): trigger
+  `RuleFieldEditor` with setups, news and delivery preset buttons
+  (`TRIGGER_PRESETS`), universe (market, ticker list, watchlist signed in),
+  from, to, cooldown. URL state parsed by `lib/event-study.ts`
+  (`parseStudyParams`, `studyRequest`, `eventStudyHref`); the page runs the
+  study on the server (`runScanEventStudyAsUser` in
+  `lib/api/research-server.ts` signed in, else `runScanEventStudy` with
+  `checkVisitorLimit("eventStudy")`, 10 a minute). `ScanStudyView`
+  (`scan-study-view.tsx`, server-renderable): trigger and sample line, the
+  disclaimer (`scan-disclaimer`), one `scan-horizon` card per horizon (n,
+  incomplete, overlapping; mean and median net and excess, base rate, hit
+  rates, t and clustered t, percentiles, an inline SVG histogram) or
+  "Too few events" (`scan-too-few`) under the minimum; the method, the
+  universe stamp; events (`scan-events`, 25 then a disclosure) linked to
+  `/stocks/[t]`. "Run event study" links: the screener's rule panel
+  (`rule-event-study`, valid rules) and each setup on `/setups`
+  (`setup-event-study`). `/news-reactions` is unchanged. Tests:
+  `tests/unit/event-study.test.tsx`, e2e in `research-workspace.spec.ts`.
+- **Report card and overfitting checks (A4.3, M7.4).** `lib/report-card.ts`
+  (types from the schema, `HOLDOUT_OPTIONS`, `formatMetric`,
+  `probabilityWords`, `heatShare`, `templateRoundTrips`).
+  `components/report-card/report-card.tsx`: `ReportCard` (`report-card`:
+  every metric on a `FigureStrip`, net, each with `FormulaTip`, an "i" button
+  (`formula-tip`, Enter/click toggles, Escape closes) that shows the formula
+  inline; a null value shows its reason), `McFan` (`mc-fan`: drawdown
+  percentiles, inline SVG band 5-95 and median, the seed) and `RegimeTable`
+  (`regime-split`, sessions, return, Sharpe, exposure, entries; on phones
+  Sharpe sits under the return). `overfitting-checks.tsx`:
+  `OverfittingChecks` (`overfitting-checks`: N (`trials-n`), PSR, DSR
+  (`dsr-value`) with the API's meaning sentence, the best-of-N bar, the
+  variant definition) and the holdout panel (`holdout-panel`,
+  `data-status`): locked shows "Unlock holdout…" then a warning and "Unlock
+  once, now" (`holdout-unlock`, `holdout-confirm`; a two-step confirm through
+  `unlockHoldoutAction`); seen shows the unlock time and the holdout's
+  result. `sweep-checks.tsx`: `PboPanel` (`pbo-panel`, logit histogram) and
+  `PlateauHeatmap` (`plateau`, Net Sharpe / Net return radios, the best cell
+  outlined, `plateau-isolated` warning). Both `/backtest` forms have a
+  Holdout select (last 20% locked, default; or none) and show the run's
+  window note (`run-window`); the template result also draws its trades on
+  the price chart (`StrategyTradesChart` with `templateRoundTrips`). Saved
+  runs: `single` shows the report card and live `checks`, `strategy` passes
+  `checks` to `RuleStrategyResults`, `sweep` shows PBO and the heatmap.
+  Tests: `tests/unit/report-card.test.tsx`.
 - The `/trade` option ticket (`components/option-trade-form.tsx`) quotes
   before it buys (audit LG-7): `getOptionQuote()` (`lib/api/option-quote.ts`,
   a browser call to the public `/v1/options/quote`) shows spot with its close
@@ -462,7 +854,8 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   `components/order-review.tsx` (amount, reference close with its date, fees,
   fill rule from `describeFillRule()`, buying power after) and only the
   review's button submits; the shared `OrderConfirmation` replaces the form
-  after success. The Replay ticket is separate and still single-step.
+  after success. The Replay ticket is separate and still single-step (A4.6:
+  with limit and stop orders that rest across steps).
   Server actions post without JavaScript, so the ticket sends
   `review_step=draft|confirmed` and `placeTradeAction`/`placeOrderAction`
   refuse a `draft` post (`lib/order-review.ts`); the review button also stays
@@ -597,8 +990,7 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   `tickers`, `available_at`, an optional `url` and `published_at`, and no
   summary or image. Date a headline with `newsDateLabel()`
   (`components/news-list.tsx`): the publisher's date, else "Collected <date>"
-  (GDELT sends none, audit AG-12). Signals print `row.maxScore`, not a fixed
-  7: the sentiment vote is unavailable without scored news (audit SR-9).
+  (GDELT sends none, audit AG-12).
   News for a set of symbols is one call, `getNewsForTickers()` (`/v1/news?tickers=`):
   `/watchlist` lists it under the table, and `/portfolio?tab=news` loads it
   for the holdings only while that tab is open, as Journal does. `/news` has
@@ -622,7 +1014,52 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   five newest) every 60 s; RS-11: a failed poll keeps the last count and says
   so in its title, and polling stops while the tab is hidden.
   `/notifications` (protected) lists everything by category with paging and
-  mark read / mark all read. In-app only.
+  mark read / mark all read.
+- A2.3: `AlertForm` adds "Rule (saved setup)" (`kind: "rule"`): a picker
+  of the setups' newest versions in two groups (yours, presets) from the
+  `setups` prop (`AlertSetup`; `/alerts` loads `listSetups()`, the stock
+  page's popover passes none and links to `/setups`), the chosen rule's
+  canonical text, and a preview saying missing data counts as not met. The
+  action posts `setup_version_id`. Saved screens (`components/saved-screens.tsx`)
+  with a rule show `NotifyToggle` ("Notify me when members change",
+  `toggleScreenNotifyAction`): a screen whose rule is only URL text first
+  gets a setup (your own with the same rule hash, else a new one named after
+  the screen) and is re-saved with its version; re-saving a screen with the
+  same rule keeps its version and flag. `/notifications` has a Screens tab
+  and shows a screen item's entries and exits as ticker links
+  (`components/screen-changes.tsx`, from the notification's `data`).
+  Settings has a Notifications panel (`components/notification-channels-panel.tsx`,
+  actions in `app/(product)/(authed)/settings/notification-actions.ts`,
+  `lib/api/notifications.ts`): webhook URL and secret (write-only: blank
+  keeps it, the field says "set"), email address (blank = the account
+  email), Telegram chat id with a one-line how-to, a "Send" checkbox per
+  category (unticked = muted on that channel), an enable box, Save and Send
+  test; a channel whose server config is missing reads "Not available on
+  this server.", not an error. Browser push is not built.
+- `/checklist` (A2.4, M4.4, Research nav and subnav, public): the
+  Checklist that replaced the 7-vote Signals. `getChecklist()` /
+  `getSymbolChecklist()` (`lib/api/checklist.ts`, public) read
+  `/v1/checklist` and `/v1/symbols/{t}/checklist`; helpers in
+  `lib/checklist-view.ts`. The page (server component) shows "The six
+  dimensions" (`DimensionGuide`: summary, each setup's canonical formula per
+  scope (Volume / delivery has an NSE/BSE setup and an outside-India one),
+  the grade badge, its sample and survivorship note, the source), then one
+  native `<details>` card per symbol (`ChecklistSymbol` in
+  `components/checklist/checklist-view.tsx`): six statuses in words, "N of 6
+  met" with how many were judged, and on expand each condition's label,
+  formula, status and unknown reason with the grade of the setup that judged
+  it (`variantFor`: by `setup_version_id`, else scope). URL state: `min`
+  (at least N met), `dimension` (must be met), `sort=met|ticker`, `q` (an
+  exact ticker opens its card). It ends with `UniverseNote` and the API's
+  disclaimer. The stock page's Overview tab adds `ChecklistPanel`
+  (`components/checklist/checklist-panel.tsx`), dropped when the call fails.
+  Neutral wording only: met / not met / unknown and "N of 6 met", never buy
+  or sell words (SEBI note; `tests/unit/checklist.test.tsx` checks). The
+  marketing tour's Research panel, the numbers band, the footer, the home
+  tiles and /docs/checklist read the same data or describe it. `/recommendations`
+  is a `permanentRedirect` to `/checklist` (keeping `q`); `lib/api/recommendations.ts`,
+  `signals-table.tsx` and `signals-workspace.ts` are gone. The revalidate tag is
+  `checklist`.
 - `/news-reactions` (Phase 7.4, Research subnav, public, 20 views a minute
   per visitor): an event study from the URL (`tickers`, `sentiment`,
   `event_type`, `pre`, `post`) through `getEventStudy()` (`lib/api/research.ts`,

@@ -11,7 +11,6 @@ from stockviz.models import Symbol
 from stockviz.services.replay import (
     DEFAULT_REPLAY_CASH,
     ReplaySymbolNotFound,
-    ReplayUnsupportedCurrency,
     advance_replay_session,
     cancel_replay_session,
     compute_replay_summary,
@@ -33,13 +32,13 @@ def test_availability_returns_stored_range(session: Session) -> None:
     assert count == 4
 
 
-def test_availability_rejects_missing_and_non_usd(session: Session) -> None:
+def test_availability_rejects_missing_accepts_non_usd(session: Session) -> None:
     session.add(Symbol(ticker="BARC.L", name="Barclays", currency="GBP"))
     session.commit()
     session.add_all([_bar("BARC.L", DAY1, Decimal("10")), _bar("BARC.L", DAY2, Decimal("11"))])
     session.commit()
-    with pytest.raises(ReplayUnsupportedCurrency):
-        get_replay_availability(session, ticker="BARC.L")
+    symbol, _first, _last, count = get_replay_availability(session, ticker="BARC.L")
+    assert symbol.currency == "GBP" and count == 2
     with pytest.raises(ReplaySymbolNotFound):
         get_replay_availability(session, ticker="MSFT")
 

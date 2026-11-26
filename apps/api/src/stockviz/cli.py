@@ -68,7 +68,6 @@ from stockviz.services.ingest.shadow import (
 from stockviz.services.ingest.shadow_report import ShadowRun, write_shadow_report
 from stockviz.services.instruments import instrument_of
 from stockviz.services.metrics import refresh_symbol_metrics
-from stockviz.services.recommend import MAX_SCORE, score_universe
 from stockviz.services.trading import credit_due_dividends, snapshot_user_navs
 from stockviz.settings import get_settings
 
@@ -80,11 +79,13 @@ DEFAULT_SHADOW_OUTPUT = Path("artifacts/private/massive-shadow")
 
 
 def _cmd_seed(_args: argparse.Namespace) -> int:
+    from stockviz.services.checklist.dimensions import seed_dimensions
     from stockviz.services.setups.presets import seed_presets
 
     with Session(engine) as session:
         n = seed_symbols(session)
         presets = seed_presets(session)  # A2.2: the read-only system setups
+        presets |= seed_dimensions(session)  # A2.4: the checklist dimensions
     print(f"seeded {n} symbols")
     for key, state in presets.items():
         print(f"preset {key}: {state}")
@@ -133,13 +134,35 @@ def _cmd_metrics(_args: argparse.Namespace) -> int:
     return 0
 
 
-def _cmd_recommend(_args: argparse.Namespace) -> int:
+def _cmd_checklist(_args: argparse.Namespace) -> int:
+    """Judge the six checklist dimensions for every active symbol (A2.4)."""
+    from stockviz.services.checklist.score import run_checklist
+
     with Session(engine) as session:
-        results = score_universe(session, persist=True)
-    print(f"scored {len(results)} tickers")
-    for r in sorted(results, key=lambda x: x.score, reverse=True):
-        flag = "BUY" if r.recommend else "    "
-        print(f"  {flag} {r.ticker:6s} score={r.score}/{MAX_SCORE}")
+        run = run_checklist(session)
+    spread = ", ".join(f"{k} met: {v}" for k, v in sorted(run.met_histogram.items(), reverse=True))
+    sessions = ", ".join(f"{v} {d.isoformat()}" for v, d in sorted(run.sessions.items()))
+    print(f"checklist: {run.symbols} symbols ({sessions or 'no sessions'}); {spread or 'none'}")
+    return 0
+
+
+def _cmd_checklist_evidence(args: argparse.Namespace) -> int:
+    """Grade every checklist dimension on the stored history (A2.4)."""
+    from stockviz.services.checklist.evidence import run_evidence
+
+    with Session(engine) as session:
+        run = run_evidence(session, end=args.end, start=args.start, horizon=args.horizon)
+        print(f"checklist-evidence: window {run.start} to {run.end}")
+        for row in run.rows:
+            excess = f"{row.mean_excess:+.4f}" if row.mean_excess is not None else "n/a"
+            t = f"{row.t_stat:.2f}" if row.t_stat is not None else "n/a"
+            hit = f"{row.hit_rate:.2f}" if row.hit_rate is not None else "n/a"
+            print(
+                f"  {row.dimension}/{row.scope} (setup version {row.setup_version_id}): grade {row.grade}, "
+                f"n={row.n_events} over {row.symbols} symbols, mean excess {excess}, t {t}, "
+                f"hit {hit}, universe {row.universe}"
+                + (" (survivorship-biased)" if row.survivorship_biased else "")
+            )
     return 0
 
 
@@ -351,6 +374,19 @@ def _cmd_settle_options(_args: argparse.Namespace) -> int:
     with Session(engine) as session:
         n = settle_expired_options(session, settle_date=today)
     print(f"settled {n} expired option position(s) as of {today}")
+    return 0
+
+
+def _cmd_prune_trials(args: argparse.Namespace) -> int:
+    """A4.3: delete trial-ledger rows not run for ``--days`` (not scheduled)."""
+    from stockviz.services.backtest.trials import prune_trials
+
+    if args.days < 1:
+        print("--days must be at least 1")
+        return 2
+    with Session(engine) as session:
+        n = prune_trials(session, days=args.days)
+    print(f"pruned {n} backtest trial(s) not run for {args.days} day(s)")
     return 0
 
 
@@ -775,7 +811,8 @@ def _cmd_rule_check(args: argparse.Namespace) -> int:
     not_met / unknown (with the reason) at ``--date`` or, by default, the
     latest completed session of the ticker's venue, judged on the latest
     stored bar on or before it. Exit 2 on a syntax or type error, 1 when a
-    ticker is unknown or has no bar.
+    ticker is unknown or has no bar. A rule that reads drawings (A3.3) reads
+    ``--user-id``'s; without it those values are unknown.
     """
     from stockviz.models import Symbol
     from stockviz.services.dsl import RuleError, compile_rule, evaluate_at, load_symbol
@@ -790,6 +827,9 @@ def _cmd_rule_check(args: argparse.Namespace) -> int:
     print(f"hash:      {rule.hash}")
     warm = "the whole history" if rule.lookback is None else f"{rule.lookback} daily bars"
     print(f"type:      {rule.type}; warm-up {warm}")
+    if rule.user_scoped:
+        owner = f"user {args.user_id}" if args.user_id is not None else "nobody (pass --user-id)"
+        print(f"scope:     user-scoped (reads drawings); judged for {owner}")
     code = 0
     with Session(engine) as session:
         for raw in args.tickers:
@@ -806,7 +846,7 @@ def _cmd_rule_check(args: argparse.Namespace) -> int:
             )
             data = load_symbol(
                 session, ticker, end=target, start=target, lookback=rule.lookback,
-                needs=rule.needs,
+                needs=rule.needs, user_id=args.user_id,
             )  # fmt: skip
             if data.bars.empty:
                 print(f"{ticker}: no daily bars on or before {target.isoformat()}")
@@ -926,6 +966,39 @@ def _cmd_evaluate_alerts(_args: argparse.Namespace) -> int:
     with Session(engine) as session:
         triggered = evaluate_pending_alerts(session)
     print(f"evaluate-alerts: triggered {triggered} alert(s)")
+    return 0
+
+
+def _cmd_screen_runs(_args: argparse.Namespace) -> int:
+    """Store tonight's members of every screened setup version; notify diffs (A2.3)."""
+    from stockviz.services.screen_runs import run_screen_runs
+
+    with Session(engine) as session:
+        result = run_screen_runs(session)
+    print(
+        f"screen-runs: {result.runs} run(s) of {result.versions} version(s) for "
+        f"{result.session_date}, {result.notifications} notification(s)"
+        + (f", {len(result.failed)} failed: {result.failed}" if result.failed else "")
+    )
+    return 1 if result.failed else 0
+
+
+def _cmd_deliver_notifications(args: argparse.Namespace) -> int:
+    """Send pending notification deliveries (webhook, email, Telegram; A2.3)."""
+    from stockviz.services.delivery import drain, server_available
+
+    channel = args.channel
+    if channel is not None and not server_available(channel):
+        print(f"deliver-notifications: {channel} is not configured on this server; skipped")
+        return 2
+    off = [c for c in ("email", "telegram") if not server_available(c)]
+    with Session(engine) as session:
+        result = drain(session, channel=channel, limit=args.limit)
+    print(
+        f"deliver-notifications: sent {result.sent}, retrying {result.retrying}, "
+        f"dead {result.dead}, skipped {result.skipped}"
+        + (f" (off on this server: {', '.join(off)})" if off and channel is None else "")
+    )
     return 0
 
 
@@ -1465,8 +1538,35 @@ def _cmd_ingest_quarantine(args: argparse.Namespace) -> int:
         return 0
 
 
+def _cmd_indicator_evidence(args: argparse.Namespace) -> int:
+    """Grade each study's canonical signal on the stored history (A3.4)."""
+    from stockviz.services.indicators.evidence import run_indicator_evidence
+    from stockviz.services.indicators.signals import SIGNALS
+
+    unknown = [k for k in args.only or [] if k not in SIGNALS]
+    if unknown:
+        print(f"indicator-evidence: no canonical signal for {', '.join(unknown)}", file=sys.stderr)
+        return 2
+    with Session(engine) as session:
+        run = run_indicator_evidence(
+            session, end=args.end, start=args.start, horizon=args.horizon, only=args.only or None
+        )
+        print(f"indicator-evidence: window {run.start} to {run.end}")
+        for row in run.rows:
+            excess = f"{row.mean_excess:+.4f}" if row.mean_excess is not None else "n/a"
+            t = f"{row.t_stat:.2f}" if row.t_stat is not None else "n/a"
+            print(
+                f"  {row.indicator}: grade {row.grade}, n={row.n_events} over {row.symbols} "
+                f"symbols, mean excess {excess}, t {t}, universe {row.universe}"
+                + (" (survivorship-biased)" if row.survivorship_biased else "")
+                + f"  [{row.rule}]"
+            )
+        return 0
+
+
 RECORDED_JOBS = frozenset(
     {
+        "indicator-evidence",
         "ingest",
         "fundamentals",
         "revalidate-web",
@@ -1474,13 +1574,16 @@ RECORDED_JOBS = frozenset(
         "fx",
         "settle-orders",
         "evaluate-alerts",
+        "screen-runs",
+        "deliver-notifications",
         "aegis-sync",
         "metrics",
         "dividends",
         "credit-dividends",
         "settle-options",
         "options-snapshot",
-        "recommend",
+        "checklist",
+        "checklist-evidence",
         "snapshot-portfolios",
         "prune-events",
         "earnings",
@@ -1643,8 +1746,27 @@ def main(argv: list[str] | None = None) -> int:
     ).set_defaults(fn=_cmd_sentiment_aggregate)
 
     sub.add_parser(
-        "recommend", help="Recompute recommendations for every active symbol"
-    ).set_defaults(fn=_cmd_recommend)
+        "checklist", help="Judge the six checklist dimensions for every active symbol (A2.4)"
+    ).set_defaults(fn=_cmd_checklist)
+
+    p_evidence = sub.add_parser(
+        "checklist-evidence",
+        help="Grade each checklist dimension: forward returns net of fees vs the base rate",
+    )
+    p_evidence.add_argument("--start", type=date.fromisoformat, default=None)
+    p_evidence.add_argument("--end", type=date.fromisoformat, default=None)
+    p_evidence.add_argument("--horizon", type=int, default=20)
+    p_evidence.set_defaults(fn=_cmd_checklist_evidence)
+
+    p_ind = sub.add_parser(
+        "indicator-evidence",
+        help="Grade each indicator's canonical signal (A3.4): the checklist's evidence study",
+    )
+    p_ind.add_argument("--start", type=date.fromisoformat, default=None)
+    p_ind.add_argument("--end", type=date.fromisoformat, default=None)
+    p_ind.add_argument("--horizon", type=int, default=20)
+    p_ind.add_argument("--only", nargs="*", default=None, help="study keys (default: all)")
+    p_ind.set_defaults(fn=_cmd_indicator_evidence)
 
     sub.add_parser(
         "snapshot-portfolios", help="Upsert today's NAV snapshot for every user"
@@ -1709,6 +1831,15 @@ def main(argv: list[str] | None = None) -> int:
         help="Also delete old unpublished outbox rows. Only where no publisher runs, like the Railway cron",
     )
     p_prune.set_defaults(fn=_cmd_prune_events)
+
+    p_trials = sub.add_parser(
+        "prune-trials",
+        help="Delete backtest trial-ledger rows not run for --days (A4.3; not scheduled)",
+    )
+    p_trials.add_argument(
+        "--days", type=int, default=365, help="Keep rows run within this many days (default 365)"
+    )
+    p_trials.set_defaults(fn=_cmd_prune_trials)
 
     p_redate = sub.add_parser(
         "redate-bars",
@@ -1806,6 +1937,12 @@ def main(argv: list[str] | None = None) -> int:
         "--date", default=None, help="YYYY-MM-DD; default: the latest completed session"
     )
     p_rule.add_argument("--explain", action="store_true", help="Print every sub-expression's value")
+    p_rule.add_argument(
+        "--user-id",
+        type=int,
+        default=None,
+        help="Whose drawings drawing()/avwap() read (A3.3); without it they are unknown",
+    )
     p_rule.set_defaults(fn=_cmd_rule_check)
 
     p_aegis = sub.add_parser(
@@ -1831,6 +1968,19 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser(
         "evaluate-alerts", help="Trigger price alerts the latest stored close has crossed"
     ).set_defaults(fn=_cmd_evaluate_alerts)
+
+    sub.add_parser(
+        "screen-runs",
+        help="Store every screened setup version's members tonight; notify entries and exits",
+    ).set_defaults(fn=_cmd_screen_runs)
+
+    p_deliver = sub.add_parser(
+        "deliver-notifications",
+        help="Send pending notification deliveries (webhook, email, Telegram)",
+    )
+    p_deliver.add_argument("--channel", choices=["webhook", "email", "telegram"], default=None)
+    p_deliver.add_argument("--limit", type=int, default=500)
+    p_deliver.set_defaults(fn=_cmd_deliver_notifications)
 
     sub.add_parser(
         "run-scheduler",

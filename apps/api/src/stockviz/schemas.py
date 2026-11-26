@@ -10,7 +10,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class SymbolOut(BaseModel):
@@ -85,6 +85,15 @@ class SymbolDetailOut(BaseModel):
     currency: str = "USD"
     is_active: bool
     latest: QuoteOut | None = None
+    # A3.1: whether raw exchange prices (``eod_raw``) are stored, so the chart
+    # can offer ``/bars?adjustment=raw``. False means adjusted prices only.
+    has_raw: bool = False
+    # A3.5: the symbol's market (``US`` or ``IN``) and venue index, when its
+    # venue has one; ``is_indian`` mounts the delivery pane.
+    market: Literal["US", "IN"] | None = None
+    benchmark: str | None = None
+    benchmark_name: str | None = None
+    is_indian: bool = False
 
 
 class EarningsEventOut(BaseModel):
@@ -128,6 +137,34 @@ class IndicatorMetaOut(BaseModel):
     anchored: Literal["none", "start"] = "none"
 
 
+class IndicatorParamOut(BaseModel):
+    """One study parameter and its bounds (A3.4). Whole numbers from ``min``
+    to ``max``; decimals above ``min`` (``min_exclusive``) up to ``max``.
+    ``choices`` names the values 1..n when the parameter picks an option."""
+
+    name: str
+    label: str
+    type: Literal["int", "float"]
+    default: float
+    min: float
+    max: float
+    min_exclusive: bool
+    step: float
+    choices: list[str] = Field(default_factory=list)
+
+
+class IndicatorSignalOut(BaseModel):
+    """A study's canonical signal as a Rule DSL rule, on its default
+    parameters, with the latest evidence grade (A3.4) or null before the
+    ``indicator-evidence`` job has run."""
+
+    rule: str  # canonical text
+    hash: str
+    description: str
+    source: str = ""
+    evidence: ChecklistEvidenceOut | None = None
+
+
 class IndicatorCatalogItemOut(BaseModel):
     key: str
     label: str
@@ -136,6 +173,14 @@ class IndicatorCatalogItemOut(BaseModel):
     outputs: list[str]
     pane: Literal["price", "separate"]
     group: str
+    # A3.4: parameter schemas, the all-defaults key, and the evidence badge.
+    parameters: list[IndicatorParamOut] = Field(default_factory=list)
+    default_key: str = ""
+    anchored: Literal["none", "start"] = "none"
+    description: str = ""
+    source: str = ""
+    # Null: no canonical signal, so "No grade" (never a made-up one).
+    signal: IndicatorSignalOut | None = None
 
 
 class IndicatorsOut(BaseModel):
@@ -162,44 +207,6 @@ class IndicatorsOut(BaseModel):
     # inputs, so no value is computed on it; this is its timestamp.
     interval: str = "1d"
     partial_bar_excluded: datetime | None = None
-
-
-class RecommendationVoteOut(BaseModel):
-    """One of the seven deterministic recommendation checks."""
-
-    id: str
-    label: str
-    passed: bool
-    detail: str
-    # False when the vote's input is missing, e.g. no scored news this week.
-    available: bool = True
-
-
-class RecommendationOut(BaseModel):
-    """One row from the ``recommendations`` table, joined with the symbol name.
-
-    ``votes`` is the full seven-check evidence list. ``rationale`` remains the
-    passing phrases only so older clients keep working. ``sentiment_7d`` is the
-    trailing-week mean from ``symbol_metrics`` when present.
-    """
-
-    model_config = ConfigDict(from_attributes=True)
-
-    ticker: str
-    name: str
-    sector: str | None = None
-    score: int
-    # Votes that could have passed: 7, or 6 when the symbol has no scored
-    # Aegis news in the trailing week (audit SR-9). The threshold stays 4.
-    max_score: int = 7
-    rationale: list[str]
-    votes: list[RecommendationVoteOut] = Field(default_factory=list)
-    sentiment_7d: float | None = None
-    computed_at: datetime
-    # SR-8: the newest bar behind the votes, and whether it trails the newest
-    # signal bar in the same currency by more than five days.
-    bar_date: date | None = None
-    stale: bool = False
 
 
 # ---------------------------------------------------------------------------
@@ -330,6 +337,10 @@ class PortfolioOut(BaseModel):
     # in ``realized_pl_unavailable`` and left out, never estimated.
     realized_pl: Decimal = Decimal(0)
     realized_pl_unavailable: int = 0
+    # A4.2, net first: fees paid on equity fills (display currency) and
+    # realized P&L after them.
+    fees_paid: Decimal = Decimal(0)
+    realized_pl_net: Decimal = Decimal(0)
     positions: list[PositionOut]
     option_positions: list[PortfolioOptionOut] = []
     # Empty when the total is complete; otherwise what it leaves out (LG-13).
@@ -395,7 +406,26 @@ class TradeOut(BaseModel):
     total_base: Decimal = Decimal(0)
     # USD gain/loss against the position's weighted-average cost basis.
     # Set on sells; None on buys and on rows written before this was tracked.
+    # Gross of fees (the price gain); ``realized_pnl_net`` takes this sell's
+    # fees off.
     realized_pnl: Decimal | None = None
+    # A4.2: fees on this fill in the native currency (null: a fill made
+    # before A4.2, never recalculated), the schedule and each component.
+    fees: Decimal | None = None
+    fee_schedule: str | None = None
+    fee_lines: list[TradeFeeLineOut] = []
+    # Native cash effect net of fees: a buy's value + fees, a sell's value - fees.
+    net_native: Decimal | None = None
+    realized_pnl_net: Decimal | None = None
+
+
+class TradeFeeLineOut(BaseModel):
+    key: str
+    label: str
+    amount: Decimal
+    rate: str = ""
+    effective_from: date | None = None
+    source_url: str | None = None
 
 
 class ReplaySessionCreateIn(BaseModel):
@@ -404,6 +434,9 @@ class ReplaySessionCreateIn(BaseModel):
     ``start_at`` snaps to the first 1d bar at-or-after the request.
     ``end_at`` snaps to the last 1d bar at-or-before the request (or the latest
     stored bar at creation if omitted). Profile is server-pinned.
+
+    A4.6: ``starting_cash`` is in the symbol's currency; omitted, it is the
+    currency's default ($100,000; ₹10,00,000; else 100,000 units).
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -411,11 +444,14 @@ class ReplaySessionCreateIn(BaseModel):
     ticker: str
     start_at: datetime
     end_at: datetime | None = None
-    starting_cash: Decimal = Field(default=Decimal("100000.00"))
+    starting_cash: Decimal | None = None
 
 
 class ReplayOrderIn(BaseModel):
-    """Intent only. Prices come from the session's current stored bar."""
+    """Intent only. A market order fills at the session's current stored
+    close; a limit / stop-loss / take-profit order (A4.6) rests, priced by
+    ``limit_price`` (the limit or the trigger), and is judged from the next
+    bar on."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -450,6 +486,27 @@ class ReplayFillOut(BaseModel):
     order_type: str
     evaluated_at: datetime
     created_at: datetime
+    # A4.6: fees in the session currency (0 before A4.6 and on USD symbols).
+    fees: Decimal = Decimal(0)
+    fee_lines: list[TradeFeeLineOut] = []
+    order_id: int | None = None
+
+
+class ReplayOrderOut(BaseModel):
+    """A4.6: a resting order. ``status`` open | filled | cancelled |
+    rejected | expired; ``reason`` says why it left ``open``."""
+
+    id: int
+    session_id: int
+    ticker: str
+    side: Literal["buy", "sell"]
+    order_type: Literal["limit", "stop_loss", "take_profit"]
+    quantity: Decimal
+    limit_price: Decimal
+    status: Literal["open", "filled", "cancelled", "rejected", "expired"]
+    placed_at: datetime
+    resolved_at: datetime | None = None
+    reason: str | None = None
 
 
 class ReplaySessionListOut(BaseModel):
@@ -465,6 +522,7 @@ class ReplaySessionListOut(BaseModel):
     cash_balance: Decimal
     has_next: bool
     created_at: datetime
+    currency: str = "USD"
 
 
 class ReplaySessionOut(BaseModel):
@@ -483,6 +541,14 @@ class ReplaySessionOut(BaseModel):
     created_at: datetime
     updated_at: datetime
     positions: list[ReplayPositionOut] = []
+    # A4.6: the book's currency, the fee schedule its fills pay, whether the
+    # owner's override let it end inside the lag, and whether it can trade
+    # (an index session is watch-only).
+    currency: str = "USD"
+    fee_schedule: str = "none"
+    lag_override: bool = False
+    tradable: bool = True
+    open_orders: int = 0
 
 
 class ReplayAvailabilityOut(BaseModel):
@@ -491,6 +557,15 @@ class ReplayAvailabilityOut(BaseModel):
     first_bar: datetime
     last_bar: datetime
     bars_count: int
+    # A4.6: the lag (days; 0 = none), the last end date it allows (null: no
+    # lag, or waived for the caller), the default starting cash in the
+    # currency, the fee schedule fills pay, and whether it can be traded.
+    lag_days: int = 0
+    max_end: date | None = None
+    lag_waived: bool = False
+    default_starting_cash: Decimal = Decimal("100000.00")
+    fee_schedule: str = "none"
+    tradable: bool = True
 
 
 class ReplaySummaryOut(BaseModel):
@@ -512,6 +587,9 @@ class ReplaySummaryOut(BaseModel):
     has_next: bool
     visible_high: Decimal
     visible_low: Decimal
+    # A4.6: amounts above are in ``currency``; ``fees_paid`` is already out of cash.
+    currency: str = "USD"
+    fees_paid: Decimal = Decimal(0)
 
 
 class ReplayBarOut(BaseModel):
@@ -548,9 +626,13 @@ class ReplayDecisionOut(BaseModel):
 
 
 class ReplaySubmitOut(BaseModel):
+    """A market order carries the kernel's ``decision`` (and ``fill``); a
+    resting order (A4.6) carries ``order`` and no decision yet."""
+
     session: ReplaySessionOut
-    decision: ReplayDecisionOut
+    decision: ReplayDecisionOut | None = None
     fill: ReplayFillOut | None = None
+    order: ReplayOrderOut | None = None
 
 
 class ReplayEpisodeFillOut(BaseModel):
@@ -573,6 +655,7 @@ class ReplayEpisodeFillOut(BaseModel):
     created_at: datetime
     equity_after: Decimal | None = None
     concentration_pct: Decimal | None = None
+    fees: Decimal = Decimal(0)
 
 
 class ReplayEpisodeForensicsOut(BaseModel):
@@ -604,6 +687,8 @@ class ReplayEpisodeForensicsOut(BaseModel):
     entry_equity: Decimal | None = None
     peak_exposure: Decimal
     fills: list[ReplayEpisodeFillOut] = []
+    # A4.6: the episode's fees; ``realized_pnl`` is net of them.
+    fees: Decimal = Decimal(0)
 
 
 class ReplayForensicsOut(BaseModel):
@@ -625,6 +710,7 @@ class ReplayForensicsOut(BaseModel):
     closed_episodes_count: int
     open_episodes_count: int
     episodes: list[ReplayEpisodeForensicsOut] = []
+    currency: str = "USD"
 
 
 class ReplayJournalIn(BaseModel):
@@ -714,18 +800,22 @@ class AlertIn(BaseModel):
     """
 
     ticker: str | None = None
-    kind: Literal["price", "technical", "news", "portfolio"] = "price"
+    kind: Literal["price", "technical", "news", "portfolio", "rule"] = "price"
     direction: Literal["above", "below"] | None = None
     target_price: Decimal | None = None
     params: dict[str, Any] | None = None
+    # A2.3: required for kind "rule" (your setup's version or a preset's).
+    setup_version_id: int | None = Field(default=None, ge=1)
     repeat: Literal["once", "every_cross"] = "once"
     cooldown_sessions: int = Field(default=1, ge=1, le=250)
 
 
 class AlertPatch(BaseModel):
-    """``PATCH /v1/alerts/{id}``: pause or resume a rule."""
+    """``PATCH /v1/alerts/{id}``: pause or resume a rule; point a rule alert at
+    another setup version (A2.3: it re-arms from now)."""
 
-    paused: bool
+    paused: bool | None = None
+    setup_version_id: int | None = Field(default=None, ge=1)
 
 
 class AlertOut(BaseModel):
@@ -739,6 +829,7 @@ class AlertOut(BaseModel):
     direction: Literal["above", "below"] | None
     target_price: Decimal | None
     params: dict[str, Any] | None = None
+    setup_version_id: int | None = None
     repeat: str = "once"
     cooldown_sessions: int = 1
     paused: bool = False
@@ -795,6 +886,116 @@ class WatchlistItemOut(BaseModel):
     # The last 30 daily closes, oldest first, for the row's sparkline (RS-12:
     # the page used to fetch bars once per item).
     closes: list[Decimal] = []
+
+
+# A2.5 (M4.6): many lists, notes, tags, column sets. These literals equal
+# models/watchlist.WATCHLIST_COLOURS and services/watchlists.COLUMN_KEYS
+# (tests/test_watchlists_router.py checks).
+WatchlistColour = Literal["aqua", "blue", "violet", "pink", "amber", "lime", "slate"]
+ColumnKey = Literal[
+    "close",
+    "change_pct",
+    "rsi_14",
+    "pct_from_52w_high",
+    "sma_50_gap_pct",
+    "sma_200_gap_pct",
+    "atr_pct_14",
+    "hv_20",
+    "volume_ratio",
+    "avg_volume_20",
+    "pe",
+    "pb",
+    "market_cap_usd",
+    "dividend_yield",
+    "roe",
+    "sentiment_7d",
+    "delivery_pct",
+    "checklist_met",
+    "sector",
+]
+
+
+class WatchlistOut(BaseModel):
+    id: int
+    name: str
+    colour: WatchlistColour
+    position: int
+    is_default: bool
+    column_set_id: int | None
+    item_count: int
+    # Only with ?contains=TICKER: whether that ticker is on the list.
+    contains: bool | None = None
+    created_at: datetime
+
+
+class WatchlistIn(BaseModel):
+    name: str = Field(min_length=1, max_length=64)
+    colour: WatchlistColour = "aqua"
+
+
+class WatchlistPatch(BaseModel):
+    """Only the fields sent change. ``column_set_id: null`` clears it;
+    ``is_default`` takes ``true`` only (make another list the default)."""
+
+    name: str | None = Field(default=None, min_length=1, max_length=64)
+    colour: WatchlistColour | None = None
+    is_default: bool | None = None
+    column_set_id: int | None = None
+
+
+class WatchlistOrderIn(BaseModel):
+    ids: list[int] = Field(min_length=1, max_length=50)
+
+
+class WatchlistRowOut(WatchlistItemOut):
+    note: str | None = None
+    tags: list[str] = []
+    # The requested columns' values; null when there is no data. With
+    # checklist_met, checklist_evaluated rides along.
+    values: dict[str, float | int | str | None] = {}
+
+
+class WatchlistItemsOut(BaseModel):
+    watchlist: WatchlistOut
+    columns: list[ColumnKey]
+    column_set_id: int | None
+    items: list[WatchlistRowOut]
+
+
+class WatchlistBulkIn(BaseModel):
+    tickers: list[str] = Field(min_length=1, max_length=100)
+
+
+class WatchlistBulkOut(BaseModel):
+    added: list[str]
+    already_listed: list[str]
+    unknown: list[str]
+    item_count: int
+
+
+class WatchlistItemPatch(BaseModel):
+    """``note: null`` or blank clears it; ``tags`` replaces the tags."""
+
+    note: str | None = Field(default=None, max_length=2000)
+    tags: list[str] | None = Field(default=None, max_length=20)
+
+
+class ColumnSetIn(BaseModel):
+    name: str = Field(min_length=1, max_length=64)
+    columns: list[ColumnKey] = Field(min_length=1, max_length=19)
+
+
+class ColumnSetPatch(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=64)
+    columns: list[ColumnKey] | None = Field(default=None, min_length=1, max_length=19)
+
+
+class ColumnSetOut(BaseModel):
+    id: int
+    name: str
+    columns: list[ColumnKey]
+    created_at: datetime
+    updated_at: datetime
 
 
 # ---------------------------------------------------------------------------
@@ -987,6 +1188,8 @@ class ScreenerRuleOut(BaseModel):
     sessions: dict[str, date]
     counts: ScreenerRuleCountsOut  # over every candidate the filters let through
     evaluated: int
+    # A3.3: judged on the signed-in caller's drawings (never cached).
+    user_scoped: bool = False
     cached: bool = False  # true when every result came from the in-process cache
 
 
@@ -1006,6 +1209,14 @@ class SavedScreenIn(BaseModel):
     query: str = Field(max_length=2000)
     # A2.2: the setup version the screen runs (yours or a preset's).
     setup_version_id: int | None = None
+    # A2.3: notify when the rule's members change. Null keeps the saved value.
+    notify_on_change: bool | None = None
+
+
+class SavedScreenPatch(BaseModel):
+    """``PATCH /v1/screens/{id}`` (A2.3)."""
+
+    notify_on_change: bool
 
 
 class SavedScreenOut(BaseModel):
@@ -1013,6 +1224,7 @@ class SavedScreenOut(BaseModel):
     name: str
     query: str
     setup_version_id: int | None = None
+    notify_on_change: bool = False
     created_at: datetime
     updated_at: datetime
 
@@ -1033,6 +1245,9 @@ class RuleErrorOut(BaseModel):
 
 class RuleCheckIn(BaseModel):
     rule: str = Field(min_length=1, max_length=RULE_MAX_LENGTH)
+    # A4.4: ``number`` checks a numeric expression (a rotation's ranking)
+    # instead of a condition.
+    expect: Literal["condition", "number"] = "condition"
 
 
 class RuleCheckOut(BaseModel):
@@ -1047,8 +1262,12 @@ class RuleCheckOut(BaseModel):
     # ``warmup_whole_history`` when it reads the whole history.
     warmup_bars: int | None = None
     warmup_whole_history: bool = False
-    # What it reads besides bars: "benchmark", "fundamentals", "news", "delivery".
+    # What it reads besides bars: "benchmark", "fundamentals", "news",
+    # "delivery", "drawings" (A3.3).
     uses: list[str] = Field(default_factory=list)
+    # A3.3: it reads the owner's drawings (drawing(), avwap()), so only its
+    # owner can run it; it cannot be a preset or forked by another user.
+    user_scoped: bool = False
     error: RuleErrorOut | None = None
 
 
@@ -1065,6 +1284,8 @@ class SetupVersionOut(BaseModel):
     timeframe: str
     notes: str | None = None
     created_at: datetime
+    # A3.3: the rule reads its owner's drawings (only the owner can run it).
+    user_scoped: bool = False
 
 
 class SetupOut(BaseModel):
@@ -1755,6 +1976,28 @@ StrategySpec = Annotated[
 ]
 
 
+FeeScheduleName = Literal[
+    "auto",
+    "none",
+    "us_equity",
+    "us_equity_2026",
+    "in_equity_delivery_nse",
+    "in_delivery_nse_2026",
+    "in_equity_delivery_bse",
+    "in_delivery_bse_2026",
+]
+"""A4.2: backtests trade cash equity on daily bars, so the intraday and F&O
+schedules are listed (GET /v1/fees/schedules) but not offered here."""
+BrokerageName = Literal["zerodha", "zero"]
+
+
+HoldoutMode = Literal["last_20pct", "none"]
+"""A4.3: ``last_20pct`` (the default) holds out the last 20% of the requested
+range: the run, sweeps and walk-forwards see only the first 80% until the
+family's holdout is unlocked. ``none`` is an explicit choice, stamped on the
+result."""
+
+
 class BacktestIn(BaseModel):
     """Request body for POST /v1/backtest.
 
@@ -1781,17 +2024,318 @@ class BacktestIn(BaseModel):
     spread_bps: float = Field(default=0.0, ge=0, le=1000)
     # Regulatory fees per fill; commission_bps is charged on top.
     # Phase 5.6 adds Indian delivery (NSE, BSE); a schedule must match the
-    # symbol's currency.
-    fee_schedule: Literal[
-        "none", "us_equity_2026", "in_delivery_nse_2026", "in_delivery_bse_2026"
-    ] = "none"
+    # symbol's currency. A4.2: date-versioned, and "auto" (the default) picks
+    # the symbol's market: NSE/BSE delivery for Indian listings, none for the
+    # rest (see services/fee_view.py::resolve_fee_schedule).
+    fee_schedule: FeeScheduleName = "auto"
+    # A4.2: the broker model for Indian brokerage ("zerodha" delivery is free).
+    brokerage: BrokerageName = "zerodha"
+    # A4.2: at most this % of the 20-day average traded value per buy; null
+    # turns the cap off (runs saved before A4.2 rerun without it).
+    adv_cap_pct: float | None = Field(default=10.0, gt=0, le=100)
+    # A4.3: the last 20% of the range is held out unless "none" is chosen.
+    holdout: HoldoutMode = "last_20pct"
 
     model_config = ConfigDict(populate_by_name=True)
+
+
+# --- A4.3: the report card and overfitting checks ------------------------
+
+
+class RunWindowOut(BaseModel):
+    """The range a run actually used (A4.3). With the default holdout the
+    in-sample range ends the day before ``holdout_from``."""
+
+    requested_from: date
+    requested_to: date
+    from_date: date
+    to_date: date
+    holdout: HoldoutMode
+    holdout_pct: float | None = None
+    holdout_from: date | None = None
+    holdout_to: date | None = None
+    note: str
+
+
+class ReportMetricOut(BaseModel):
+    key: str
+    label: str
+    value: float | None = None
+    unit: Literal["pct", "ratio", "money", "r", "days", "count"]
+    formula: str
+    note: str | None = None
+    """Why ``value`` is null."""
+
+
+class SharpeStatsOut(BaseModel):
+    """Bailey and López de Prado's inputs: per-day Sharpe of the net excess
+    returns, their skewness and kurtosis (not excess), and the PSR."""
+
+    observations: int
+    sharpe: float
+    """Per day: mean / sample standard deviation of daily excess returns."""
+    sharpe_annual: float
+    skewness: float | None = None
+    kurtosis: float | None = None
+    risk_free_rate: float
+    psr: float | None = None
+    """PSR(0): the probability the true Sharpe is above 0."""
+    benchmark_sharpe: float = 0.0
+    formula: str
+
+
+class FanPointOut(BaseModel):
+    date: date
+    p5: float
+    p50: float
+    p95: float
+
+
+class PercentilesOut(BaseModel):
+    p5: float
+    p50: float
+    p95: float
+
+
+class MonteCarloFanOut(BaseModel):
+    """A4.3: the Phase 8 stationary block bootstrap of the run's daily net
+    returns, as many sessions as the run had. Seeded: the same run gives the
+    same fan."""
+
+    method: str
+    paths: int
+    mean_block: int
+    seed: int
+    horizon_days: int
+    max_drawdown: PercentilesOut
+    final_nav: PercentilesOut
+    prob_loss: float
+    fan: list[FanPointOut]
+    actual_max_drawdown: float
+
+
+class RegimeRowOut(BaseModel):
+    state: str | None = None
+    """``Calm trend``, ``Choppy``, ``High-vol down``; null: not enough data."""
+    sessions: int
+    share: float
+    total_return: float
+    sharpe: float | None = None
+    exposure: float
+    trades_entered: int
+
+
+class RegimeSplitOut(BaseModel):
+    market: str | None = None
+    index: str | None = None
+    rows: list[RegimeRowOut] = []
+    index_sessions: int = 0
+    breadth_sessions: int = 0
+    method: str
+    reason: str | None = None
+
+
+class ReportCardOut(BaseModel):
+    """A4.3 (M7.4): everything here is net of costs and depends only on the
+    run (it is stored with a saved run and compared on rerun)."""
+
+    metrics: list[ReportMetricOut]
+    sharpe: SharpeStatsOut
+    monte_carlo: MonteCarloFanOut | None = None
+    monte_carlo_reason: str | None = None
+    regimes: RegimeSplitOut
+
+
+class TrialsOut(BaseModel):
+    family_key: str
+    family_label: str
+    definition: str
+    scope: Literal["user", "anonymous"]
+    n: int
+    """Distinct variants (strategy hashes) of the family in the ledger."""
+    runs: int
+    sharpe_variance: float | None = None
+    """Variance of the variants' per-day Sharpes (null under 2 variants)."""
+    sharpe_annual_values: list[float] = []
+
+
+class DsrOut(BaseModel):
+    n: int
+    sharpe: float
+    sharpe_annual: float
+    observations: int
+    skewness: float | None = None
+    kurtosis: float | None = None
+    variance: float | None = None
+    expected_max_sharpe: float
+    expected_max_sharpe_annual: float
+    value: float | None = None
+    formula: str
+    note: str
+    meaning: str
+
+
+class HoldoutResultOut(BaseModel):
+    from_date: date
+    to_date: date
+    total_return: float
+    sharpe: float
+    max_drawdown: float
+    psr: float | None = None
+    trades: int
+
+
+class HoldoutStatusOut(BaseModel):
+    mode: HoldoutMode
+    status: Literal["locked", "seen", "none"]
+    holdout_from: date | None = None
+    holdout_to: date | None = None
+    unlocked_at: datetime | None = None
+    can_unlock: bool = False
+    result: HoldoutResultOut | None = None
+    note: str
+
+
+class OverfittingChecksOut(BaseModel):
+    """A4.3: what the trial ledger says about this run. Read at response time
+    from the ledger and holdout unlocks, so it is never stored with a saved
+    run and never part of a rerun's comparison."""
+
+    trials: TrialsOut
+    dsr: DsrOut
+    holdout: HoldoutStatusOut
 
 
 class BacktestFeeOut(BaseModel):
     name: str
     amount: Decimal
+
+
+class FeeSourceOut(BaseModel):
+    url: str
+    title: str
+    date: str
+    """The document's own date (ISO), or ``undated page``."""
+    read_on: date
+
+
+class FeeComponentOut(BaseModel):
+    key: str
+    label: str
+    kind: Literal["value", "per_share", "flat", "gst"]
+    rate: Decimal
+    rate_text: str
+    side: Literal["buy", "sell", "both"]
+    cap: Decimal | None = None
+    gst_on: list[str] = []
+    per_scrip_day: bool = False
+    note: str = ""
+    source: FeeSourceOut
+
+
+class FeeVersionOut(BaseModel):
+    effective_from: date
+    effective_to: date | None = None
+    start_confirmed: bool = True
+    components: list[FeeComponentOut]
+    notes: list[str] = []
+    fills: int | None = None
+    """In a run's ``costs``: the fills priced under this version."""
+
+
+class BrokerageOut(BaseModel):
+    key: str
+    label: str
+    rate_text: str
+    source: FeeSourceOut | None = None
+
+
+class FeeScheduleOut(BaseModel):
+    name: str
+    aliases: list[str] = []
+    label: str
+    currency: str | None = None
+    market: str = ""
+    segment: str = ""
+    venue: str | None = None
+    coverage_from: date | None = None
+    brokerage: list[BrokerageOut] = []
+    versions: list[FeeVersionOut] = []
+    notes: list[str] = []
+    default_for: list[str] = []
+    """Venues (MIC) whose symbols get this schedule by default."""
+
+
+class FeeSchedulesOut(BaseModel):
+    """GET /v1/fees/schedules (A4.2)."""
+
+    schedules: list[FeeScheduleOut]
+    defaults: dict[str, str]
+    """Venue (MIC) -> the schedule live fills, replay and backtests use by default."""
+    default_other: str = "none"
+    brokerage_models: list[str]
+    notes: list[str] = []
+
+
+class CostsOut(BaseModel):
+    """A4.2: the costs a run applied, each component with its rate and source."""
+
+    schedule: str
+    """The resolved family name."""
+    requested: str
+    label: str
+    currency: str | None = None
+    segment: str = ""
+    brokerage: BrokerageOut | None = None
+    commission_bps: float = 0.0
+    coverage_from: date | None = None
+    fills_before_coverage: int = 0
+    versions: list[FeeVersionOut] = []
+    notes: list[str] = []
+    price_bands_checked: bool = False
+    price_bands_note: str | None = None
+
+
+class LiquidityOut(BaseModel):
+    """A4.2: the ADV participation cap."""
+
+    adv_cap_pct: float | None = None
+    adv_bars: int = 20
+    partial_entries: int = 0
+    skipped_entries: int = 0
+    not_capped: int = 0
+    """Entries with fewer than 20 earlier bars: not capped."""
+    note: str
+
+
+class FeeEstimateLineOut(BaseModel):
+    key: str
+    label: str
+    amount: Decimal
+    rate_text: str
+    source: FeeSourceOut | None = None
+
+
+class FeeEstimateOut(BaseModel):
+    """GET /v1/fees/estimate (A4.2): the order review's costs."""
+
+    ticker: str
+    side: Literal["buy", "sell"]
+    quantity: Decimal
+    price: Decimal
+    currency: str
+    schedule: str
+    label: str
+    on: date
+    effective_from: date | None = None
+    before_coverage: bool = False
+    brokerage: BrokerageOut | None = None
+    notional: Decimal
+    total: Decimal
+    net_amount: Decimal
+    """Buy: value + fees (what is paid). Sell: value - fees (what is received)."""
+    lines: list[FeeEstimateLineOut]
+    dp_note: str | None = None
 
 
 class BacktestTradeOut(BaseModel):
@@ -1802,6 +2346,8 @@ class BacktestTradeOut(BaseModel):
     # Phase 5.3: the price before spread and slippage, and each fee charged.
     reference_price: Decimal | None = None
     fees: list[BacktestFeeOut] = []
+    # A4.2: the shares asked for when the ADV cap bought fewer (null: not capped).
+    requested_shares: Decimal | None = None
 
 
 class EquityPointOut(BaseModel):
@@ -1824,6 +2370,12 @@ class BacktestSummaryOut(BaseModel):
     benchmark_final_nav: Decimal = Decimal(0)
     excess_return: float = 0.0
     total_costs: Decimal = Decimal(0)
+    # A4.2, net first: everything above is after costs; gross adds back the
+    # fees and the spread/slippage price cost.
+    gross_return: float = 0.0
+    gross_final_nav: Decimal = Decimal(0)
+    total_fees: Decimal = Decimal(0)
+    price_costs: Decimal = Decimal(0)
 
 
 class UniverseOut(BaseModel):
@@ -1855,6 +2407,525 @@ class BacktestOut(BaseModel):
     summary: BacktestSummaryOut
     # A1.4a: which universe the symbol came from and its survivorship flag.
     universe: UniverseOut
+    # A4.2: each cost component with its rate and source, and the ADV cap.
+    costs: CostsOut | None = None
+    liquidity: LiquidityOut | None = None
+    # A4.3: the window used (holdout), the report card, and the ledger's
+    # checks (response time only, never stored).
+    window: RunWindowOut | None = None
+    report: ReportCardOut | None = None
+    checks: OverfittingChecksOut | None = None
+
+
+# --- A4.1: backtests on the Rule DSL -------------------------------------
+
+
+class StrategyRuleIn(BaseModel):
+    """A rule: a setup version (yours or a preset's) or inline Rule DSL text.
+    Inline text is saved as a setup version owned by the user when the run is
+    saved, so a saved run always points at a version."""
+
+    setup_version_id: int | None = None
+    rule: str | None = Field(default=None, min_length=1, max_length=4000)
+
+    @model_validator(mode="after")
+    def _one(self) -> StrategyRuleIn:
+        if (self.setup_version_id is None) == (self.rule is None):
+            raise ValueError("give exactly one of setup_version_id or rule")
+        return self
+
+
+class AtrStopIn(BaseModel):
+    """Entry price minus ``multiple`` x ATR(``period``) at the signal bar
+    (plus, for a short). Fixed for the trade."""
+
+    multiple: float = Field(gt=0, le=20)
+    period: int = Field(default=14, ge=1, le=250)
+
+
+class TrailingStopIn(BaseModel):
+    """Ratchets with the highest high since entry (lowest low for a short):
+    ``pct`` below it, or ``value`` x ATR(``period``) below it. Updated after
+    each bar's close, used from the next bar."""
+
+    kind: Literal["atr", "pct"]
+    value: float = Field(gt=0, le=50)
+    period: int = Field(default=14, ge=1, le=250)
+
+
+class StrategyStopsIn(BaseModel):
+    """Any combination; the first hit wins (see ``StrategyBacktestOut.stop_priority``)."""
+
+    fixed_pct: float | None = Field(default=None, gt=0, le=90)
+    atr: AtrStopIn | None = None
+    trailing: TrailingStopIn | None = None
+    time_bars: int | None = Field(default=None, ge=1, le=2000)
+
+
+class StrategySizingIn(BaseModel):
+    """``all_in``: all free cash (a basket splits it over the free slots);
+    ``fixed_fraction``: ``fraction`` of equity per entry; ``fixed_risk``:
+    ``risk_pct`` % of equity lost if the initial stop is hit (stop distance
+    x quantity), which needs a fixed, ATR or trailing stop. Whole shares;
+    never more than the free cash."""
+
+    kind: Literal["all_in", "fixed_fraction", "fixed_risk"] = "all_in"
+    fraction: float | None = Field(default=None, gt=0, le=1)
+    risk_pct: float | None = Field(default=None, gt=0, le=10)
+    max_positions: int | None = Field(default=None, ge=1, le=50)
+
+    @model_validator(mode="after")
+    def _params(self) -> StrategySizingIn:
+        if self.kind == "fixed_fraction" and self.fraction is None:
+            raise ValueError("fixed_fraction sizing needs fraction")
+        if self.kind == "fixed_risk" and self.risk_pct is None:
+            raise ValueError("fixed_risk sizing needs risk_pct")
+        return self
+
+
+class StrategyUniverseIn(BaseModel):
+    """One ticker, one of your watchlists, or up to 50 tickers."""
+
+    ticker: str | None = Field(default=None, min_length=1, max_length=16)
+    watchlist_id: int | None = None
+    tickers: list[str] | None = Field(default=None, min_length=1, max_length=50)
+
+    @model_validator(mode="after")
+    def _one(self) -> StrategyUniverseIn:
+        given = [v is not None for v in (self.ticker, self.watchlist_id, self.tickers)]
+        if sum(given) != 1:
+            raise ValueError("give exactly one of ticker, watchlist_id or tickers")
+        return self
+
+
+class StrategyBacktestIn(BaseModel):
+    """POST /v1/backtest/strategy (A4.1): a Rule DSL strategy.
+
+    Signals come from the rule's vector mode on each completed bar; orders
+    fill on the next bar under ``fill_rule`` through the execution kernel and
+    ``SimLedger``. Long only unless ``direction`` is ``short``, which needs
+    every symbol listed in ``shortable`` and US-listed (Indian shorts wait for
+    the F&O-eligible list)."""
+
+    entry: StrategyRuleIn
+    exit: StrategyRuleIn | None = None
+    stops: StrategyStopsIn = Field(default_factory=StrategyStopsIn)
+    sizing: StrategySizingIn = Field(default_factory=StrategySizingIn)
+    universe: StrategyUniverseIn
+    from_: date = Field(alias="from")
+    to: date
+    initial_cash: Decimal = Field(gt=0)
+    fill_rule: Literal["next_open", "next_close"] = "next_open"
+    fee_schedule: FeeScheduleName = "auto"
+    brokerage: BrokerageName = "zerodha"
+    adv_cap_pct: float | None = Field(default=10.0, gt=0, le=100)
+    commission_bps: float = Field(default=0.0, ge=0, le=1000)
+    slippage_bps: float = Field(default=0.0, ge=0, le=1000)
+    spread_bps: float = Field(default=0.0, ge=0, le=1000)
+    direction: Literal["long", "short"] = "long"
+    shortable: list[str] = Field(default_factory=list, max_length=50)
+    holdout: HoldoutMode = "last_20pct"
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class StrategyRuleOut(BaseModel):
+    role: Literal["entry", "exit"]
+    text: str
+    canonical: str
+    hash: str
+    setup_version_id: int | None = None
+    warmup_bars: int | None = None
+    """Daily bars the rule needs before its first value; null: whole history."""
+
+
+class StrategyTradeOut(BaseModel):
+    """One round trip. ``pnl`` is net of both legs' fees; ``r_multiple`` is
+    ``pnl`` over the initial risk (quantity x distance from the entry fill to
+    the initial stop), null without a price stop. ``open``: still held at the
+    end, marked at the last close (``reason`` ``end_of_data``, no exit fees)."""
+
+    ticker: str
+    direction: Literal["long", "short"]
+    entry_date: date
+    entry_price: Decimal
+    entry_reference_price: Decimal
+    exit_date: date
+    exit_price: Decimal
+    exit_reference_price: Decimal
+    quantity: Decimal
+    entry_fees: Decimal
+    exit_fees: Decimal
+    pnl: Decimal
+    return_pct: float
+    reason: Literal["exit_rule", "stop_fixed", "stop_atr", "trail", "time", "end_of_data"]
+    gap: bool = False
+    """The bar opened through the stop, so it filled at the open, not the stop."""
+    open: bool = False
+    bars_held: int
+    initial_stop: Decimal | None = None
+    initial_risk: Decimal | None = None
+    r_multiple: float | None = None
+    requested_quantity: Decimal | None = None
+    """A4.2: shares the sizing asked for when the ADV cap filled fewer."""
+    exit_adv_pct: float | None = None
+    """A4.2: the exit's value as % of the 20-day ADV, when above the cap
+    (exits are not capped)."""
+
+
+class StrategySummaryOut(BacktestSummaryOut):
+    """Net first (every figure above is after costs), gross second: the same
+    trades with the fees and the spread/slippage price cost added back."""
+
+    gross_return: float = 0.0
+    gross_final_nav: Decimal = Decimal(0)
+    total_fees: Decimal = Decimal(0)
+    price_costs: Decimal = Decimal(0)
+    trade_count: int = 0
+
+
+class StrategySymbolOut(BaseModel):
+    ticker: str
+    bars: int
+    warmup_bars: int
+    unknown_entry_bars: int
+    unknown_exit_bars: int
+    trades: int
+
+
+class StrategyBenchmarkOut(BaseModel):
+    """Buy and hold over the window: the symbol, or an equal-weight basket."""
+
+    kind: Literal["buy_and_hold", "equal_weight_buy_and_hold"]
+    tickers: list[str]
+    total_return: float
+    final_nav: Decimal
+
+
+class StrategyUniverseSourceOut(BaseModel):
+    kind: Literal["ticker", "watchlist", "list"]
+    watchlist_id: int | None = None
+    name: str | None = None
+    tickers: list[str]
+
+
+class StrategyBacktestOut(BaseModel):
+    mode: Literal["strategy"] = "strategy"
+    tickers: list[str]
+    currency: str
+    price_basis: str | None = None
+    execution_profile: str
+    fee_schedule: str
+    direction: Literal["long", "short"] = "long"
+    rules: list[StrategyRuleOut]
+    stops: StrategyStopsIn
+    sizing: StrategySizingIn
+    stop_priority: str
+    trades: list[StrategyTradeOut]
+    equity_curve: list[EquityPointOut]
+    summary: StrategySummaryOut
+    benchmark: StrategyBenchmarkOut
+    source: StrategyUniverseSourceOut
+    universe: UniverseOut
+    warmup_bars: int = 0
+    unknown_entry_bars: int = 0
+    """Window bars (all symbols) whose entry signal was unknown: no action."""
+    unknown_exit_bars: int = 0
+    """Bars in a position whose exit signal was unknown: no action."""
+    ignored_entry_signals: int = 0
+    """Entry signals while already in that symbol (no pyramiding)."""
+    skipped_entries: int = 0
+    """Entry signals not taken: no free slot, no cash for one share, or the
+    ATR a stop needs unknown at the signal bar."""
+    skip_reasons: dict[str, int] = {}
+    symbols: list[StrategySymbolOut]
+    strategy_hash: str
+    data_fingerprint: str
+    notes: list[str] = []
+    costs: CostsOut | None = None
+    liquidity: LiquidityOut | None = None
+    window: RunWindowOut | None = None
+    report: ReportCardOut | None = None
+    checks: OverfittingChecksOut | None = None
+
+
+# --- A4.4: cross-sectional rotation ---------------------------------------
+
+
+class RotationBacktestIn(BaseModel):
+    """POST /v1/backtest/rotation (A4.4): hold the top ``top_n`` symbols of a
+    universe by a numeric Rule DSL expression, rebalanced weekly or monthly
+    on the venue calendar. ``cash_filter`` is an optional condition judged on
+    the market index (``^GSPC`` / ``^NSEI``) at each rebalance close: met
+    means hold cash. Long only."""
+
+    ranking: str = Field(min_length=1, max_length=4000)
+    """A numeric expression; higher ranks first (e.g. ``pct_change(close, 126)``)."""
+    top_n: int = Field(default=5, ge=1, le=50)
+    schedule: Literal["weekly", "monthly"] = "monthly"
+    weighting: Literal["equal", "inverse_volatility"] = "equal"
+    buffer: int = Field(default=0, ge=0, le=50)
+    """Hysteresis: a holding is kept while its rank is at most top_n + buffer."""
+    cash_filter: StrategyRuleIn | None = None
+    universe: StrategyUniverseIn
+    from_: date = Field(alias="from")
+    to: date
+    initial_cash: Decimal = Field(gt=0)
+    fill_rule: Literal["next_open", "next_close"] = "next_open"
+    fee_schedule: FeeScheduleName = "auto"
+    brokerage: BrokerageName = "zerodha"
+    adv_cap_pct: float | None = Field(default=10.0, gt=0, le=100)
+    commission_bps: float = Field(default=0.0, ge=0, le=1000)
+    slippage_bps: float = Field(default=0.0, ge=0, le=1000)
+    spread_bps: float = Field(default=0.0, ge=0, le=1000)
+    holdout: HoldoutMode = "last_20pct"
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class RotationRankOut(BaseModel):
+    ticker: str
+    value: float
+    rank: int
+
+
+class RotationUnrankedOut(BaseModel):
+    ticker: str
+    reason: Literal["no_bar", "unknown", "volatility_unknown"]
+
+
+class RotationRebalanceOut(BaseModel):
+    """One rebalance: ranked on ``signal_date``'s close, traded on each
+    symbol's next bar (``trade_dates``)."""
+
+    signal_date: date
+    trade_dates: list[date] = []
+    equity: Decimal
+    cash_filter: bool | None = None
+    """The cash filter at this close (null: no filter, or unknown)."""
+    skipped: str | None = None
+    ranked: list[RotationRankOut] = []
+    unranked: list[RotationUnrankedOut] = []
+    held_before: list[str] = []
+    held_after: list[str] = []
+    entered: list[str] = []
+    exited: list[str] = []
+    weights: dict[str, float] = {}
+    """Target weight of every name held after (fraction of the equity)."""
+    bought: Decimal = Decimal(0)
+    sold: Decimal = Decimal(0)
+    turnover: float = 0.0
+    replaced_orders: int = 0
+    not_filled: dict[str, int] = {}
+
+
+class RotationTradeOut(BaseModel):
+    ticker: str
+    entry_date: date
+    entry_price: Decimal
+    entry_reference_price: Decimal
+    exit_date: date
+    exit_price: Decimal
+    exit_reference_price: Decimal
+    quantity: Decimal
+    entry_fees: Decimal
+    exit_fees: Decimal
+    pnl: Decimal
+    return_pct: float
+    reason: Literal["rebalance", "resize", "cash_filter", "end_of_data"]
+    """``resize``: shares trimmed back to the target weight (entry at the
+    holding's average price)."""
+    open: bool = False
+    bars_held: int
+    requested_quantity: Decimal | None = None
+    exit_adv_pct: float | None = None
+
+
+class RotationRuleOut(BaseModel):
+    role: Literal["ranking", "cash_filter"]
+    text: str
+    canonical: str
+    hash: str
+    setup_version_id: int | None = None
+    warmup_bars: int | None = None
+
+
+class RotationTurnoverOut(BaseModel):
+    """One-way turnover: (bought + sold) / 2 / equity at the rebalance close."""
+
+    rebalances: int
+    mean_per_rebalance: float
+    total: float
+    annualised: float
+    definition: str
+
+
+class RotationBacktestOut(BaseModel):
+    mode: Literal["rotation"] = "rotation"
+    tickers: list[str]
+    currency: str
+    price_basis: str | None = None
+    execution_profile: str
+    fee_schedule: str
+    rules: list[RotationRuleOut]
+    top_n: int
+    schedule: Literal["weekly", "monthly"]
+    weighting: Literal["equal", "inverse_volatility"]
+    buffer: int = 0
+    venue: str
+    cash_filter_index: str | None = None
+    timing: str
+    rebalances: list[RotationRebalanceOut]
+    trades: list[RotationTradeOut]
+    equity_curve: list[EquityPointOut]
+    summary: StrategySummaryOut
+    benchmark: StrategyBenchmarkOut
+    turnover: RotationTurnoverOut
+    source: StrategyUniverseSourceOut
+    universe: UniverseOut
+    warmup_bars: int = 0
+    cash_filter_unknown: int = 0
+    unfilled_at_end: int = 0
+    skip_reasons: dict[str, int] = {}
+    strategy_hash: str
+    data_fingerprint: str
+    notes: list[str] = []
+    costs: CostsOut | None = None
+    liquidity: LiquidityOut | None = None
+    window: RunWindowOut | None = None
+    report: ReportCardOut | None = None
+    checks: OverfittingChecksOut | None = None
+
+
+# --- A4.5: scan event study ------------------------------------------------
+
+
+class ScanUniverseIn(BaseModel):
+    """Up to 50 tickers, one of your watchlists, or a whole market
+    (``US`` or ``IN``: its active non-index symbols)."""
+
+    tickers: list[str] | None = Field(default=None, min_length=1, max_length=50)
+    watchlist_id: int | None = None
+    market: Literal["US", "IN"] | None = None
+
+    @model_validator(mode="after")
+    def _one(self) -> ScanUniverseIn:
+        given = [v is not None for v in (self.tickers, self.watchlist_id, self.market)]
+        if sum(given) != 1:
+            raise ValueError("give exactly one of tickers, watchlist_id or market")
+        return self
+
+
+class ScanEventStudyIn(BaseModel):
+    """POST /v1/research/scan-event-study (A4.5): what happened after a Rule
+    DSL condition turned true. ``trigger`` is a setup version or inline text
+    (news and delivery triggers are rules too: ``news.count(1) >= 1``,
+    ``delivery_pct > 60``)."""
+
+    trigger: StrategyRuleIn
+    universe: ScanUniverseIn
+    from_: date | None = Field(default=None, alias="from")
+    to: date | None = None
+    horizons: list[int] = Field(default_factory=lambda: [5, 20, 60], min_length=1, max_length=5)
+    cooldown: int = Field(default=0, ge=0, le=250)
+    """Sessions after an event during which a new event on the symbol is skipped."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    @model_validator(mode="after")
+    def _horizons(self) -> ScanEventStudyIn:
+        if any(h < 1 or h > 250 for h in self.horizons):
+            raise ValueError("each horizon must be between 1 and 250 sessions")
+        self.horizons = sorted(set(self.horizons))
+        return self
+
+
+class ScanTriggerOut(BaseModel):
+    text: str
+    canonical: str
+    hash: str
+    setup_version_id: int | None = None
+    uses: list[str] = []
+    warmup_bars: int | None = None
+
+
+class ScanUniverseSourceOut(BaseModel):
+    kind: Literal["list", "watchlist", "market"]
+    name: str | None = None
+    watchlist_id: int | None = None
+    market: str | None = None
+    tickers: int
+
+
+class ScanPercentilesOut(BaseModel):
+    p5: float
+    p25: float
+    p50: float
+    p75: float
+    p95: float
+
+
+class HistogramOut(BaseModel):
+    """Counts of net returns in equal bins from the 1st to the 99th
+    percentile; values beyond fall in the end bins."""
+
+    edges: list[float]
+    counts: list[int]
+
+
+class ScanHorizonOut(BaseModel):
+    """One forward horizon. Returns are fractions (0.01 = 1%). Under
+    ``min_events`` only the counts are given."""
+
+    horizon: int
+    n: int
+    symbols: int
+    incomplete: int
+    overlapping: int
+    enough: bool
+    base_rate: float | None = None
+    mean_net: float | None = None
+    median_net: float | None = None
+    mean_excess: float | None = None
+    median_excess: float | None = None
+    hit_rate: float | None = None
+    """Share of events with a net return above zero."""
+    hit_rate_excess: float | None = None
+    """Share of events whose net return beat the base rate."""
+    t_stat: float | None = None
+    t_stat_clustered: float | None = None
+    clusters: int = 0
+    net_percentiles: ScanPercentilesOut | None = None
+    excess_percentiles: ScanPercentilesOut | None = None
+    histogram: HistogramOut | None = None
+    fee_schedules: dict[str, int] = {}
+
+
+class ScanEventOut(BaseModel):
+    ticker: str
+    date: date
+    net: dict[str, float | None]
+    """Net forward return per horizon (key: sessions), null if incomplete."""
+    excess: dict[str, float | None]
+
+
+class ScanEventStudyOut(BaseModel):
+    trigger: ScanTriggerOut
+    source: ScanUniverseSourceOut
+    from_: date = Field(serialization_alias="from")
+    to: date
+    cooldown: int
+    horizons: list[ScanHorizonOut]
+    min_events: int
+    events_found: int
+    events_skipped_cooldown: int
+    events: list[ScanEventOut]
+    events_shown: int
+    method: dict[str, str]
+    universe: UniverseOut
+    disclaimer: str
+
+    model_config = ConfigDict(populate_by_name=True)
 
 
 class ExperimentIn(BaseModel):
@@ -1871,10 +2942,21 @@ class ExperimentOut(BaseModel):
 
 
 class ExperimentRunIn(BaseModel):
-    """Save a backtest (Phase 5.4): the same body as POST /v1/backtest."""
+    """Save a backtest (Phase 5.4): the same body as POST /v1/backtest, or
+    (A4.1) a Rule DSL strategy, the body of POST /v1/backtest/strategy."""
 
-    backtest: BacktestIn
+    backtest: BacktestIn | None = None
+    strategy: StrategyBacktestIn | None = None
+    rotation: RotationBacktestIn | None = None
+    """A4.4: a rotation, the body of POST /v1/backtest/rotation."""
     experiment_id: int | None = None
+
+    @model_validator(mode="after")
+    def _one(self) -> ExperimentRunIn:
+        given = [v is not None for v in (self.backtest, self.strategy, self.rotation)]
+        if sum(given) != 1:
+            raise ValueError("give exactly one of backtest, strategy or rotation")
+        return self
 
 
 class WalkForwardIn(BaseModel):
@@ -1920,6 +3002,8 @@ class ExperimentRunOut(BaseModel):
     # ``single`` runs; for ``walk_forward`` and ``sweep`` runs, the shape their
     # ``result_kind`` names (windows + stitched curve, or ranked settings).
     result: dict[str, Any] | None = None
+    # A4.3: the ledger's checks for this run, read now (full reads only).
+    checks: OverfittingChecksOut | None = None
 
 
 class ExperimentRerunOut(BaseModel):
@@ -2149,10 +3233,61 @@ class NotificationOut(BaseModel):
     link: str | None
     created_at: datetime
     read_at: datetime | None
+    # A2.3: structured detail, e.g. a screen's {"entries": [...], "exits": [...]}.
+    data: dict[str, Any] | None = None
 
 
 class UnreadCountOut(BaseModel):
     unread: int
+
+
+ChannelName = Literal["webhook", "email", "telegram"]
+
+
+class NotificationChannelOut(BaseModel):
+    """One delivery channel (A2.3). The webhook secret is never returned."""
+
+    channel: ChannelName
+    enabled: bool = False
+    # False when the server lacks the channel's config (SMTP_*, TELEGRAM_BOT_TOKEN).
+    available: bool
+    # The user's part is filled in (webhook URL and secret, Telegram chat id).
+    configured: bool = False
+    url: str | None = None  # webhook
+    secret_set: bool = False  # webhook
+    address: str | None = None  # email; null = the account email
+    chat_id: str | None = None  # telegram
+    muted_categories: list[str] = []
+    updated_at: datetime | None = None
+
+
+class NotificationChannelsOut(BaseModel):
+    channels: list[NotificationChannelOut]
+    # Categories a channel can mute.
+    categories: list[str]
+
+
+class NotificationChannelIn(BaseModel):
+    """A change to one channel. Fields left null are unchanged."""
+
+    channel: ChannelName
+    enabled: bool | None = None
+    url: str | None = Field(default=None, max_length=500)
+    # Write-only. An empty string removes it.
+    secret: str | None = Field(default=None, max_length=256)
+    address: str | None = Field(default=None, max_length=320)
+    chat_id: str | None = Field(default=None, max_length=64)
+    muted_categories: list[str] | None = None
+
+
+class NotificationChannelsIn(BaseModel):
+    channels: list[NotificationChannelIn] = Field(min_length=1, max_length=3)
+
+
+class NotificationChannelTestOut(BaseModel):
+    channel: ChannelName
+    ok: bool
+    detail: str
 
 
 # ---------------------------------------------------------------------------
@@ -2203,3 +3338,614 @@ class EventStudyOut(BaseModel):
     windows: list[EventStudyWindowOut]
     path: list[EventStudyPointOut]
     events: list[EventStudyEventOut]
+
+
+# ---------------------------------------------------------------------------
+# Checklist (A2.4, M4.4)
+# ---------------------------------------------------------------------------
+
+ChecklistStatus = Literal["met", "not_met", "unknown"]
+ChecklistGrade = Literal["A", "B", "C", "D", "insufficient"]
+
+
+class ChecklistEvidenceOut(BaseModel):
+    """The latest evidence study of one dimension setup version: the forward
+    20-session return after the rule turned true, net of fees, against the
+    base rate (``services/checklist/evidence.py``). Association, not advice."""
+
+    grade: ChecklistGrade
+    n_events: int
+    symbols: int
+    horizon: int
+    window_start: date
+    window_end: date
+    mean_excess: float | None = None
+    t_stat: float | None = None
+    hit_rate: float | None = None
+    mean_net_return: float | None = None
+    base_rate: float | None = None
+    overlapping_skipped: int = 0
+    fee_schedules: dict[str, int] = Field(default_factory=dict)
+    universe: UniverseOut
+    computed_at: datetime
+
+
+class ChecklistConditionDefOut(BaseModel):
+    label: str
+    rule: str  # canonical text
+
+
+class ChecklistVariantOut(BaseModel):
+    """One setup of a dimension: ``all`` listings, or ``india`` / ``other``."""
+
+    scope: Literal["all", "india", "other"]
+    setup_id: int
+    setup_version_id: int
+    version: int
+    canonical: str
+    hash: str
+    conditions: list[ChecklistConditionDefOut]
+    evidence: ChecklistEvidenceOut | None = None
+
+
+class ChecklistDimensionOut(BaseModel):
+    key: str
+    name: str
+    summary: str
+    source: str
+    variants: list[ChecklistVariantOut]
+
+
+class ChecklistConditionOut(BaseModel):
+    label: str
+    rule: str
+    status: ChecklistStatus
+    reason: str | None = None
+
+
+class ChecklistResultOut(BaseModel):
+    key: str
+    scope: Literal["all", "india", "other"]
+    setup_version_id: int | None = None
+    status: ChecklistStatus
+    reason: str | None = None
+    conditions: list[ChecklistConditionOut] = Field(default_factory=list)
+
+
+class ChecklistRowOut(BaseModel):
+    """One symbol's checklist on its venue session. ``met`` of ``total`` (6)
+    dimensions met; ``evaluated`` judged met or not met (the rest unknown).
+    Neutral wording only: a count of conditions, never a call to buy or sell."""
+
+    ticker: str
+    name: str
+    sector: str | None = None
+    currency: str | None = None
+    session_date: date
+    met: int
+    evaluated: int
+    total: int
+    results: list[ChecklistResultOut]
+    computed_at: datetime
+    # The session trails the newest checklist session of the same venue by
+    # more than five days (a stalled symbol).
+    stale: bool = False
+
+
+class ChecklistOut(BaseModel):
+    dimensions: list[ChecklistDimensionOut]
+    rows: list[ChecklistRowOut]
+    total: int
+    universe: UniverseOut
+    disclaimer: str
+
+
+class SymbolChecklistOut(BaseModel):
+    ticker: str
+    dimensions: list[ChecklistDimensionOut]
+    row: ChecklistRowOut | None = None
+    universe: UniverseOut
+    disclaimer: str
+
+
+# ---------------------------------------------------------------------------
+# Chart drawings (A3.2, M2.4)
+# ---------------------------------------------------------------------------
+
+DrawingKind = Literal[
+    "trendline",
+    "ray",
+    "hline",
+    "rectangle",
+    "channel",
+    "fib_retracement",
+    "fib_extension",
+    "ruler",
+    "text",
+    "position_long",
+    "position_short",
+    "avwap",
+]
+DrawingColour = Literal["aqua", "blue", "violet", "pink", "amber", "lime", "slate", "foreground"]
+
+
+class DrawingPoint(BaseModel):
+    """An anchor: a daily bar's venue date and a price. ``ts`` is null only
+    where the kind takes a price alone (an hline, a position's stop and
+    target). ``price`` is null only for an anchored VWAP (A3.3), whose one
+    point is its anchor date."""
+
+    ts: date | None = None
+    price: Decimal | None = Field(default=None, gt=0, max_digits=18, decimal_places=6)
+
+
+class DrawingStyle(BaseModel):
+    colour: DrawingColour = "aqua"
+    width: int = Field(default=1, ge=1, le=4)
+    dash: Literal["solid", "dashed", "dotted"] = "solid"
+    fill_opacity: float = Field(default=0.12, ge=0, le=0.5)
+    # A3.3: an anchored VWAP's bands (0 none, 1 = +-1, 2 = +-1 and +-2
+    # standard deviations); other kinds ignore it.
+    bands: int = Field(default=0, ge=0, le=2)
+
+
+class DrawingIn(BaseModel):
+    ticker: str = Field(min_length=1, max_length=16)
+    kind: DrawingKind
+    points: list[DrawingPoint] = Field(min_length=1, max_length=3)
+    style: DrawingStyle = Field(default_factory=DrawingStyle)
+    label: str | None = Field(default=None, max_length=80)
+    locked: bool = False
+
+
+class DrawingPatch(BaseModel):
+    """Only the fields sent change; ``label: null`` clears it. A locked
+    drawing takes only ``locked`` (409 otherwise)."""
+
+    points: list[DrawingPoint] | None = Field(default=None, min_length=1, max_length=3)
+    style: DrawingStyle | None = None
+    label: str | None = Field(default=None, max_length=80)
+    locked: bool | None = None
+
+
+class PositionMetricsOut(BaseModel):
+    """The position tool's figures, per share, in the symbol's currency."""
+
+    side: Literal["long", "short"]
+    entry: Decimal
+    stop: Decimal
+    target: Decimal
+    risk_per_share: Decimal
+    reward_per_share: Decimal
+    # reward / risk: the target is this many R from the entry.
+    reward_risk: Decimal
+    stop_pct: Decimal
+    target_pct: Decimal
+
+
+class DrawingOut(BaseModel):
+    id: int
+    ticker: str
+    kind: DrawingKind
+    points: list[DrawingPoint]
+    style: DrawingStyle
+    label: str | None
+    locked: bool
+    position: PositionMetricsOut | None = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class DrawingsOut(BaseModel):
+    ticker: str
+    drawings: list[DrawingOut]
+    limit: int
+    # The stored daily bar range anchors must fall in (null: no bars).
+    first_bar: date | None
+    last_bar: date | None
+
+
+# ---------------------------------------------------------------------------
+# Anchored VWAP (A3.3, M2.5)
+# ---------------------------------------------------------------------------
+
+
+class AvwapPointOut(BaseModel):
+    """One bar's anchored VWAP. ``ts`` is the bar's time as the bars route
+    gives it (on weekly/monthly the period's last stored session). Bands are
+    null unless asked for."""
+
+    ts: datetime
+    vwap: float
+    upper1: float | None = None
+    lower1: float | None = None
+    upper2: float | None = None
+    lower2: float | None = None
+
+
+class AvwapOut(BaseModel):
+    ticker: str
+    anchor: date
+    # The first stored daily bar on or after ``anchor``: where the sums start.
+    anchor_bar: date
+    interval: Literal["1d", "1wk", "1mo"]
+    bands: int
+    # Always "daily": weekly/monthly values are the daily AVWAP sampled at each
+    # period's last stored session.
+    computed_from: Literal["daily"] = "daily"
+    decimals: int
+    points: list[AvwapPointOut]
+
+
+# ---------------------------------------------------------------------------
+# A3.5: relative strength, delivery, chart events, market regime
+# ---------------------------------------------------------------------------
+
+
+class RelativeStrengthPeriodOut(BaseModel):
+    period: Literal["1m", "3m", "6m", "12m"]
+    sessions: int
+    return_pct: float | None = None
+    percentile: float | None = None
+
+
+class RelativeStrengthUniverseOut(BaseModel):
+    market: Literal["US", "IN"] | None = None
+    size: int
+    as_of: date | None = None
+    point_in_time: bool = False
+    survivorship_biased: bool = True
+    note: str
+
+
+class RelativeStrengthOut(BaseModel):
+    ticker: str
+    market: Literal["US", "IN"] | None = None
+    benchmark: str | None = None
+    benchmark_name: str | None = None
+    as_of: date | None = None
+    periods: list[RelativeStrengthPeriodOut]
+    method: str
+    universe: RelativeStrengthUniverseOut
+    high_52w: float | None = None
+    last_close: float | None = None
+    distance_from_high_52w_pct: float | None = None
+    reason: str | None = None
+
+
+class DeliveryPointOut(BaseModel):
+    ts: date
+    delivery_pct: float
+    avg_20: float | None = None
+
+
+class DeliveryOut(BaseModel):
+    ticker: str
+    interval: Literal["1d", "1wk", "1mo"]
+    applicable: bool
+    has_data: bool
+    avg_sessions: int
+    points: list[DeliveryPointOut]
+    note: str | None = None
+
+
+class NewsHeadlineOut(BaseModel):
+    id: str
+    title: str
+    source: str | None = None
+    url: str | None = None
+    available_at: datetime
+    published_at: datetime | None = None
+
+
+class NewsEventOut(BaseModel):
+    type: Literal["news"] = "news"
+    date: date
+    count: int
+    sources: list[str]
+    headlines: list[NewsHeadlineOut]
+
+
+class EarningsMarkerOut(BaseModel):
+    type: Literal["earnings"] = "earnings"
+    date: date
+    report_time: str | None = None
+    fiscal_period: str | None = None
+    eps_estimate: Decimal | None = None
+    eps_actual: Decimal | None = None
+    surprise_pct: Decimal | None = None
+
+
+class DividendEventOut(BaseModel):
+    type: Literal["dividend"] = "dividend"
+    date: date
+    amount: Decimal
+    currency: str
+
+
+class SplitEventOut(BaseModel):
+    type: Literal["split"] = "split"
+    date: date
+    ratio_from: Decimal
+    ratio_to: Decimal
+
+
+class FillEventOut(BaseModel):
+    type: Literal["fill"] = "fill"
+    date: date
+    ts: datetime
+    side: str
+    quantity: Decimal
+    price: Decimal
+    # A5 adds trade plans; until then the R-multiple is unknown.
+    r_multiple: float | None = None
+
+
+SymbolEventOut = Annotated[
+    NewsEventOut | EarningsMarkerOut | DividendEventOut | SplitEventOut | FillEventOut,
+    Field(discriminator="type"),
+]
+
+
+class SymbolEventsOut(BaseModel):
+    ticker: str
+    from_date: date = Field(serialization_alias="from")
+    to_date: date = Field(serialization_alias="to")
+    types: list[Literal["news", "earnings", "dividend", "split", "fill"]]
+    fills_included: bool
+    news_rule: str
+    events: list[SymbolEventOut]
+
+
+class RegimeInputOut(BaseModel):
+    name: str
+    value: float | None = None
+    description: str
+
+
+class RegimeRuleOut(BaseModel):
+    state: Literal["Calm trend", "Choppy", "High-vol down"]
+    rule: str
+    description: str
+    met: bool | None = None
+
+
+class MarketRegimeOut(BaseModel):
+    market: Literal["US", "IN"]
+    name: str
+    index: str
+    index_name: str
+    as_of: date | None = None
+    state: Literal["Calm trend", "Choppy", "High-vol down"] | None = None
+    reason: str | None = None
+    inputs: list[RegimeInputOut]
+    rules: list[RegimeRuleOut]
+    breadth_count: int
+    breadth_universe: int
+    breadth_as_of: date | None = None
+    vol_window_sessions: int
+    hv_20: float | None = None
+
+
+class RegimeOut(BaseModel):
+    markets: list[MarketRegimeOut]
+    method: str
+    disclaimer: str
+
+
+class HoldoutUnlockIn(BaseModel):
+    """A4.3: unlock a strategy family's holdout, once: the request of the run on screen."""
+
+    backtest: BacktestIn | None = None
+    strategy: StrategyBacktestIn | None = None
+    rotation: RotationBacktestIn | None = None
+
+    @model_validator(mode="after")
+    def _one(self) -> HoldoutUnlockIn:
+        given = [v is not None for v in (self.backtest, self.strategy, self.rotation)]
+        if sum(given) != 1:
+            raise ValueError("give exactly one of backtest, strategy or rotation")
+        return self
+
+
+# ---------------------------------------------------------------------------
+# Replay chart context (A4.6)
+# ---------------------------------------------------------------------------
+
+
+class ReplayEventsOut(BaseModel):
+    """A4.6: the replay chart's markers, cut at the session clock: news whose
+    ``available_at`` is at or before ``current_at`` and the session's fills."""
+
+    session_id: int
+    ticker: str
+    current_at: datetime
+    news_rule: str
+    events: list[Annotated[NewsEventOut | FillEventOut, Field(discriminator="type")]]
+
+
+class ReplayDrawingIn(BaseModel):
+    """A4.6: a session drawing (A3.2's shape, no ticker: the session's)."""
+
+    kind: DrawingKind
+    points: list[DrawingPoint] = Field(min_length=1, max_length=3)
+    style: DrawingStyle = Field(default_factory=DrawingStyle)
+    label: str | None = Field(default=None, max_length=80)
+    locked: bool = False
+
+
+# ---------------------------------------------------------------------------
+# Drills and decks (A4.7, M9.3)
+# ---------------------------------------------------------------------------
+
+
+class DrillDeckIn(BaseModel):
+    """POST /v1/drills/decks: K drills from a rule's real false-to-true
+    triggers. ``rule`` is a setup version or inline text (saved as a version
+    of your "Rules from drills" setup)."""
+
+    name: str | None = Field(default=None, max_length=120)
+    rule: StrategyRuleIn
+    universe: ScanUniverseIn
+    from_: date | None = Field(default=None, alias="from")
+    to: date | None = None
+    k: int = Field(default=10, ge=1, le=25)
+    """Drills in the deck (sampled at random from the eligible triggers)."""
+    lead_bars: int = Field(default=60, ge=5, le=250)
+    """N: bars of lead-in shown before the trigger bar."""
+    follow_bars: int = Field(default=40, ge=5, le=250)
+    """M: the session ends this many bars after the trigger (clamped to data)."""
+    seed: int | None = Field(default=None, ge=0, le=2**31 - 1)
+    anonymised: bool = True
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class DrillRuleOut(BaseModel):
+    text: str
+    canonical: str
+    hash: str
+    setup_version_id: int
+
+
+class DrillCheckOut(BaseModel):
+    key: Literal["entry", "stop", "size"]
+    label: str
+    status: Literal["passed", "failed", "not_applicable"]
+    detail: str
+
+
+class DrillScoreOut(BaseModel):
+    """Process, not profit: did the trade follow the plan."""
+
+    checks: list[DrillCheckOut]
+    passed: int
+    applicable: int
+    followed_plan: bool | None
+    """True when every applicable check passed; null with no trade."""
+    traded: bool
+    r_achieved: float | None
+    """Total P&L over the planned risk. Shown beside the score; it is not the score."""
+    r_note: str
+    total_pnl: Decimal
+    rules: dict[str, str]
+
+
+class DrillPlanIn(BaseModel):
+    planned_entry: Decimal = Field(gt=0, max_digits=18, decimal_places=6)
+    planned_stop: Decimal = Field(gt=0, max_digits=18, decimal_places=6)
+    planned_size: Decimal = Field(gt=0, max_digits=20, decimal_places=6)
+    note: str | None = Field(default=None, max_length=2000)
+
+    @model_validator(mode="after")
+    def _long(self) -> DrillPlanIn:
+        if self.planned_stop >= self.planned_entry:
+            raise ValueError("a long plan's stop must be below its entry")
+        return self
+
+
+class DrillPlanOut(BaseModel):
+    side: Literal["long"] = "long"
+    planned_entry: Decimal
+    planned_stop: Decimal
+    planned_size: Decimal
+    planned_risk: Decimal
+    """(entry - stop) x size, in the session's currency."""
+    note: str | None
+    locked: bool
+    locked_at: datetime | None
+
+
+class DrillRevealHorizonOut(BaseModel):
+    bars: int
+    date: date | None
+    close: Decimal | None
+    return_pct: float | None
+    """From the trigger bar's close; null when the data ends first."""
+
+
+class DrillRevealOut(BaseModel):
+    ticker: str
+    name: str | None
+    sector: str | None
+    currency: str
+    trigger_date: date
+    session_start: date
+    session_end: date
+    shown_trigger_date: date
+    date_offset_weeks: int
+    after: list[DrillRevealHorizonOut]
+    next_bars: list[ReplayBarOut]
+    """Stored daily bars after the session's last one (up to 60)."""
+
+
+class DrillRowOut(BaseModel):
+    id: int
+    position: int
+    label: str
+    status: Literal["not_started", "in_progress", "revealed"]
+    ticker: str | None
+    """Null while the drill is anonymised and not revealed."""
+    trigger_date: date | None
+    score: DrillScoreOut | None
+
+
+class DrillDeckSummaryOut(BaseModel):
+    drills: int
+    not_started: int
+    in_progress: int
+    revealed: int
+    traded: int
+    followed_plan: int
+    checks_passed: int
+    checks_applicable: int
+
+
+class DrillDeckOut(BaseModel):
+    id: int
+    name: str
+    rule: DrillRuleOut
+    universe: dict[str, Any]
+    from_: date = Field(alias="from")
+    to: date
+    k: int
+    lead_bars: int
+    follow_bars: int
+    seed: int
+    anonymised: bool
+    triggers_found: int
+    triggers_eligible: int
+    lag_skipped: int
+    created_at: datetime
+    drills: list[DrillRowOut]
+    summary: DrillDeckSummaryOut
+    method: dict[str, str]
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class DrillOut(BaseModel):
+    """One drill. While ``anonymised`` the symbol is ``label`` everywhere and
+    every date is shifted by whole weeks; nothing names the real ticker,
+    company or dates (``reveal`` is null)."""
+
+    id: int
+    deck_id: int
+    deck_name: str
+    position: int
+    label: str
+    status: Literal["not_started", "in_progress", "revealed"]
+    anonymised: bool
+    date_note: str | None
+    news_note: str
+    trigger_at: datetime
+    session: ReplaySessionOut
+    summary: ReplaySummaryOut
+    bar: ReplayBarOut
+    history: list[ReplayBarOut]
+    orders: list[ReplayOrderOut]
+    fills: list[ReplayFillOut]
+    plan: DrillPlanOut | None
+    needs_plan: bool
+    score: DrillScoreOut | None
+    reveal: DrillRevealOut | None

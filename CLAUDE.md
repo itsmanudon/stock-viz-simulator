@@ -27,12 +27,19 @@ Each app has its own `CLAUDE.md` with deeper notes. Skim those before editing.
 
 ## Feature surface
 
-Beyond the original markets/charts/news/recommendations pages, the app now
+Beyond the original markets/charts/news pages, the app now
 includes: paper trading with **pending limit/stop orders** and **options**
 (pricing, positions, expiry settlement), **dividends** and **multi-currency
 FX**, **backtesting** (`/backtest`), **screener** (with Rule DSL rules and
-saved **setups** and presets since A2.2, `/setups`), **watchlists**, **price
-alerts** and **news sentiment** from Aegis News. A0 hygiene (25 Nov 2026)
+saved **setups** and presets since A2.2, `/setups`), **watchlists** (A2.5:
+many lists with colour tags, notes, tags, column sets, bulk add from the
+screener, news per list), **price
+alerts** (and, since A2.3, alerts on saved Rule DSL setups, nightly saved-screen
+entry/exit notifications and delivery to a signed webhook, email or Telegram,
+set in Settings), the **Checklist** (`/checklist`, A2.4: six Rule DSL
+dimensions, "N of 6 met", with weekly evidence grades; it replaced the 7-vote
+Signals, whose `recommendations` table is archived) and **news sentiment**
+from Aegis News. A0 hygiene (25 Nov 2026)
 removed the leaderboard, per-ticker comments (the table is archived in the
 `archive` schema), the simulated random-walk quote stream (prices show the
 latest close with its date) and the legacy news and sentiment pipeline (its
@@ -41,10 +48,10 @@ latest close with its date) and the legacy news and sentiment pipeline (its
 
 News and its sentiment come from Aegis News: `stockviz.cli aegis-sync` copies
 the feed into the `aegis_*` tables, and the sentiment label on each document
-feeds a screener filter, a recommendation vote, and a per-ticker series at
+feeds a screener filter, the `news.*` Rule DSL bindings, and a per-ticker series at
 `/v1/symbols/{ticker}/sentiment`. StockViz never fetches news, scores
 sentiment or stores article text (see "Aegis News sync" in
-`apps/api/CLAUDE.md`). Compare, Backtest, and Signals
+`apps/api/CLAUDE.md`). Compare, Backtest, and the Checklist (A2.4, which replaced the 7-vote Signals)
 form the Research workspace; see [`docs/RESEARCH.md`](./docs/RESEARCH.md).
 Trade, Orders, Watchlist, and Alerts form the operational trading loop; see
 [`docs/OPERATIONAL_TRADING.md`](./docs/OPERATIONAL_TRADING.md). All live
@@ -52,10 +59,16 @@ equity paper fills (MARKET, LIMIT, STOP_LOSS, TAKE_PROFIT) go through a
 pure execution kernel (`legacy_close`); cash/positions still mutate in
 `apply_fill`. Successful live fills persist versioned execution provenance.
 Replay sessions (`/replay`) are an isolated book over a frozen 1d
-historical range; the server owns PriceBar selection. Replay Lab is
+historical range in the symbol's currency (A4.6: INR and others, Indian
+sessions end 30 days before today, fees from the dated schedules, resting
+limit and stop orders, A3's chart with indicators, session-only drawings and
+news gated by `available_at`); the server owns PriceBar selection. Replay Lab is
 future-blind. Post-trade forensics reconstruct episodes, MAE/MFE,
 buy-and-hold excess, and a first-fill-locked journal from replay-visible
-bars only. See
+bars only. Drills (`/drills`, A4.7) are decks of replays seeded from a
+rule's real false-to-true triggers, anonymised by default (Stock A, dates
+shifted by whole weeks, headlines hidden) and scored on whether the trader
+followed a plan written before the first order, not on profit. See
 [`docs/SIMULATION.md`](./docs/SIMULATION.md).
 
 Market ingest runs **in-process by default** (A0): the Railway cron's `ingest`
@@ -221,7 +234,7 @@ is derived from today's close rather than read from history.
 The bundled seed CSVs hold split-adjusted daily bars on real trading dates,
 rebuilt from yfinance by `apps/api/scripts/regenerate_seed_csvs.py`. A database
 loaded before 11 Nov 2026 has the old misdated rows: reload it with
-`python -m stockviz.cli backfill --replace`, then run `metrics` and `recommend`.
+`python -m stockviz.cli backfill --replace`, then run `metrics` and `checklist`.
 
 ## Common gotchas (Windows dev)
 
@@ -268,7 +281,7 @@ gh issue close <n> --repo itsmanudon/stock-viz-simulator
 `pnpm lint && pnpm typecheck && pnpm build && uv --directory apps/api run pytest` — run
 these locally before merging into `dev`; nothing runs them for you there. CI
 runs them on the `dev` → `main` pull request, plus a full-stack **e2e job**
-(migrate + seed + backfill + recommend against a real Postgres, start the API,
+(migrate + seed + backfill + metrics + checklist against a real Postgres, start the API,
 build the web app, run Playwright). Don't bypass with `--no-verify` etc.
 
 ## Auth bridge (web ↔ api)
@@ -306,6 +319,9 @@ Full lists live in `apps/web/.env.example` and `apps/api/.env.example`
 | `EVENTS_OUTBOX_ENABLED`                                  | api, cron                    | default `false` (A0). `true` only in the Kubernetes events lab: the scheduler's price jobs then enqueue `market.refresh.requested` for the Kafka workers instead of refreshing in-process. Old rows go with `stockviz.cli prune-events` |
 | `AEGIS_BASE_URL`, `AEGIS_SERVICE_TOKEN_KEY`, `AEGIS_ISSUER`, `AEGIS_AUDIENCE`, `AEGIS_KEY_ID` | api, cron              | the Aegis News read sync (`stockviz.cli aegis-sync`). Off, exit 2, until the first four are set. The key is the Ed25519 private PEM Aegis trusts as `stockviz-sync-2026-11` (Doppler `stock-viz-simulator/prd`); never commit it. The other values are in `.railway/railway.ts`. See `apps/api/CLAUDE.md` |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`               | web                          | Google OAuth sign-in                                                                                                                                                                                                         |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM` | api, cron | A2.3 email delivery through any SMTP provider (STARTTLS, or TLS on 465). Off (`deliver-notifications --channel email` exits 2; Settings says "not available on this server") until all five are set. The owner picks the provider and sets the key; never commit it |
+| `TELEGRAM_BOT_TOKEN`                                     | api, cron                    | A2.3 Telegram delivery (`sendMessage` to each user's chat id). Off until set; the owner creates the bot. Never logged (it sits in the request URL) |
+| `REPLAY_MIN_LAG_DAYS`, `REPLAY_LAG_OVERRIDE_USER_IDS`    | api                          | A4.6: an NSE/BSE replay session must end this many days (default 30; 0 off) before today. The override lists user ids allowed inside it, empty by default: the owner's switch, server-side only |
 | `NEXTAUTH_JWT_SECRET`                                    | api                          | **legacy** — still in `settings.py` but no longer read by the auth bridge                                                                                                                                                    |
 
 ## Sentry

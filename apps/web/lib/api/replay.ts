@@ -1,6 +1,16 @@
 import "server-only";
 
-import { authedGet, authedPost, authedPut } from "./server";
+import type {
+  Drawing,
+  DrawingKind,
+  DrawingPoint,
+  DrawingStyle,
+  DrawingsResponse,
+} from "@/lib/drawings/kinds";
+
+import { toApiPoints } from "./drawings";
+import { authedDelete, authedGet, authedPatch, authedPost, authedPut } from "./server";
+import type { Indicators } from "./types";
 
 export type ReplaySessionList = {
   id: number;
@@ -13,6 +23,8 @@ export type ReplaySessionList = {
   cash_balance: string;
   has_next: boolean;
   created_at: string;
+  /** A4.6: the book's currency (the symbol's). */
+  currency: string;
 };
 
 export type ReplayPosition = {
@@ -27,6 +39,11 @@ export type ReplaySession = ReplaySessionList & {
   completed_at: string | null;
   updated_at: string;
   positions: ReplayPosition[];
+  fee_schedule: string;
+  lag_override: boolean;
+  /** False for an index session: watch, draw and study, no orders. */
+  tradable: boolean;
+  open_orders: number;
 };
 
 export type ReplayBar = {
@@ -67,6 +84,26 @@ export type ReplayFill = {
   order_type: string;
   evaluated_at: string;
   created_at: string;
+  /** A4.6: fees in the session currency ("0" on USD and before A4.6). */
+  fees: string;
+  fee_lines: Array<{ key: string; label: string; amount: string; rate: string }>;
+  order_id: number | null;
+};
+
+export type ReplayOrderType = "limit" | "stop_loss" | "take_profit";
+
+export type ReplayOrder = {
+  id: number;
+  session_id: number;
+  ticker: string;
+  side: "buy" | "sell";
+  order_type: ReplayOrderType;
+  quantity: string;
+  limit_price: string;
+  status: "open" | "filled" | "cancelled" | "rejected" | "expired";
+  placed_at: string;
+  resolved_at: string | null;
+  reason: string | null;
 };
 
 export type ReplayDecision = {
@@ -83,8 +120,10 @@ export type ReplayDecision = {
 
 export type ReplaySubmit = {
   session: ReplaySession;
-  decision: ReplayDecision;
+  /** Null for a resting order, which the kernel judges from the next bar. */
+  decision: ReplayDecision | null;
   fill: ReplayFill | null;
+  order: ReplayOrder | null;
 };
 
 export type ReplaySummary = {
@@ -104,6 +143,8 @@ export type ReplaySummary = {
   has_next: boolean;
   visible_high: string;
   visible_low: string;
+  currency: string;
+  fees_paid: string;
 };
 
 export type ReplayAvailability = {
@@ -112,6 +153,13 @@ export type ReplayAvailability = {
   first_bar: string;
   last_bar: string;
   bars_count: number;
+  lag_days: number;
+  /** The last end date the 30-day lag allows (null: no lag or waived). */
+  max_end: string | null;
+  lag_waived: boolean;
+  default_starting_cash: string;
+  fee_schedule: string;
+  tradable: boolean;
 };
 
 export type ReplayCreateInput = {
@@ -123,11 +171,13 @@ export type ReplayCreateInput = {
 
 export type ReplayOrderInput = {
   side: "buy" | "sell";
-  order_type?: "market";
+  order_type?: "market" | ReplayOrderType;
   quantity: string;
+  /** The limit or trigger price; required for a resting order. */
+  limit_price?: string;
 };
 
-export type ReplayEpisodeFill = ReplayFill & {
+export type ReplayEpisodeFill = Omit<ReplayFill, "fee_lines" | "order_id"> & {
   equity_after: string | null;
   concentration_pct: string | null;
 };
@@ -159,6 +209,8 @@ export type ReplayEpisodeForensics = {
   entry_equity: string | null;
   peak_exposure: string;
   fills: ReplayEpisodeFill[];
+  /** A4.6: the episode's fees; realized_pnl is net of them. */
+  fees: string;
 };
 
 export type ReplayForensics = {
@@ -178,6 +230,7 @@ export type ReplayForensics = {
   closed_episodes_count: number;
   open_episodes_count: number;
   episodes: ReplayEpisodeForensics[];
+  currency: string;
 };
 
 export type ReplayJournal = {
@@ -251,11 +304,105 @@ export function submitReplayOrder(
   sessionId: number,
   body: ReplayOrderInput,
 ): Promise<ReplaySubmit> {
+  const orderType = body.order_type ?? "market";
   return authedPost(`/v1/replay/sessions/${sessionId}/orders`, {
     side: body.side,
-    order_type: body.order_type ?? "market",
+    order_type: orderType,
     quantity: body.quantity,
+    ...(orderType === "market" ? {} : { limit_price: body.limit_price }),
   });
+}
+
+/** A4.6: the session's resting orders (every status), oldest first. */
+export function getReplayOrders(sessionId: number): Promise<ReplayOrder[]> {
+  return authedGet(`/v1/replay/sessions/${sessionId}/orders`);
+}
+
+export function cancelReplayOrder(sessionId: number, orderId: number): Promise<ReplayOrder> {
+  return authedPost(`/v1/replay/sessions/${sessionId}/orders/${orderId}/cancel`);
+}
+
+/**
+ * A4.6: indicators computed by the API from the session's bars up to its
+ * clock (warm-up from earlier stored bars). Never the public indicators route.
+ */
+export function getReplayIndicators(sessionId: number, names: string[]): Promise<Indicators> {
+  const q = new URLSearchParams({ names: names.join(",") });
+  return authedGet(`/v1/replay/sessions/${sessionId}/indicators?${q.toString()}`);
+}
+
+export type ReplayNewsEvent = {
+  type: "news";
+  date: string;
+  count: number;
+  sources: string[];
+  headlines: Array<{
+    id: string;
+    title: string;
+    source: string | null;
+    url: string | null;
+    available_at: string;
+    published_at: string | null;
+  }>;
+};
+
+export type ReplayFillEvent = {
+  type: "fill";
+  date: string;
+  ts: string;
+  side: string;
+  quantity: string;
+  price: string;
+  r_multiple: number | null;
+};
+
+export type ReplayEvents = {
+  session_id: number;
+  ticker: string;
+  current_at: string;
+  news_rule: string;
+  events: Array<ReplayNewsEvent | ReplayFillEvent>;
+};
+
+/** A4.6: news known by the replay clock and the session's fills. */
+export function getReplayEvents(sessionId: number): Promise<ReplayEvents> {
+  return authedGet(`/v1/replay/sessions/${sessionId}/events`);
+}
+
+/** A4.6: drawings made inside this session only. */
+export function listReplayDrawings(sessionId: number): Promise<DrawingsResponse> {
+  return authedGet(`/v1/replay/sessions/${sessionId}/drawings`);
+}
+
+export type ReplayDrawingInput = {
+  kind: DrawingKind;
+  points: DrawingPoint[];
+  style?: DrawingStyle;
+  label?: string | null;
+  locked?: boolean;
+};
+
+export function createReplayDrawing(
+  sessionId: number,
+  input: ReplayDrawingInput,
+): Promise<Drawing> {
+  return authedPost(`/v1/replay/sessions/${sessionId}/drawings`, {
+    ...input,
+    points: toApiPoints(input.points),
+  });
+}
+
+export function updateReplayDrawing(
+  sessionId: number,
+  id: number,
+  changes: Partial<Omit<ReplayDrawingInput, "kind">>,
+): Promise<Drawing> {
+  const body = changes.points ? { ...changes, points: toApiPoints(changes.points) } : changes;
+  return authedPatch(`/v1/replay/sessions/${sessionId}/drawings/${id}`, body);
+}
+
+export function deleteReplayDrawing(sessionId: number, id: number): Promise<void> {
+  return authedDelete(`/v1/replay/sessions/${sessionId}/drawings/${id}`);
 }
 
 export function getReplayAvailability(ticker: string): Promise<ReplayAvailability> {

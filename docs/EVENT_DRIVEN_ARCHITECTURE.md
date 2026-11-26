@@ -64,7 +64,7 @@ One `market.bars.refreshed` is emitted per successful ticker refresh, not per OH
 
 `daily_price_refresh`, `hourly_top_movers`, and `news_refresh` insert control events into the outbox and commit. They do not call providers or publish directly to Kafka. If Kafka is unavailable, these durable requests remain in PostgreSQL.
 
-Financial jobs—FX, pending-order settlement, dividends, option expiry, portfolio snapshots—and universe-wide recommendations remain scheduled/PostgreSQL operations by design. Symbol-metrics and sentiment-aggregate schedules remain reconciliation paths.
+Financial jobs—FX, pending-order settlement, dividends, option expiry, portfolio snapshots—and the universe-wide checklist remain scheduled/PostgreSQL operations by design. Symbol-metrics and sentiment-aggregate schedules remain reconciliation paths.
 
 On Kubernetes the scheduler runs as its own one-replica Deployment; API pods set `ENABLE_SCHEDULER=false`. Other environments may enable the same scheduler in the API process. PostgreSQL advisory locks prevent overlapping money-moving jobs.
 

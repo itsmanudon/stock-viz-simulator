@@ -33,6 +33,9 @@ const fill: ReplayFill = {
   order_type: "market",
   evaluated_at: "2024-06-03T00:00:00Z",
   created_at: "2024-06-03T00:00:00Z",
+  fees: "0",
+  fee_lines: [],
+  order_id: null,
 };
 
 describe("Replay Lab presentation", () => {
@@ -121,6 +124,7 @@ describe("Replay Lab presentation", () => {
       episodes_count: 1,
       closed_episodes_count: 0,
       open_episodes_count: 1,
+      currency: "USD",
       episodes: [
         {
           index: 1,
@@ -148,6 +152,7 @@ describe("Replay Lab presentation", () => {
           max_position_pct: "10.0000",
           entry_equity: "100000",
           peak_exposure: "100",
+          fees: "0",
           fills: [
             {
               ...fill,

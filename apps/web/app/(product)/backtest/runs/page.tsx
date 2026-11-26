@@ -56,7 +56,7 @@ export default async function SavedBacktestsPage() {
                 <TableHead>Saved</TableHead>
                 <TableHead>Symbol</TableHead>
                 <TableHead className="hidden md:table-cell">Rules</TableHead>
-                <TableHead className="text-right">Return</TableHead>
+                <TableHead className="text-right">Net return</TableHead>
                 <TableHead className="hidden text-right sm:table-cell">vs hold</TableHead>
                 <TableHead className="hidden md:table-cell">Data</TableHead>
                 <TableHead>Check</TableHead>
@@ -77,7 +77,11 @@ export default async function SavedBacktestsPage() {
                         ? "walk-forward"
                         : run.kind === "sweep"
                           ? "sweep"
-                          : "backtest"}
+                          : run.kind === "strategy"
+                            ? "rule strategy"
+                            : run.kind === "rotation"
+                              ? "rotation"
+                              : "backtest"}
                     </span>
                     {run.universe ? (
                       <span
@@ -94,6 +98,11 @@ export default async function SavedBacktestsPage() {
                   </TableCell>
                   <TableCell className="text-right font-mono" data-financial>
                     {pct(run.summary.total_return)}
+                    {Number(run.summary.gross_final_nav ?? 0) > 0 ? (
+                      <span className="block text-2xs text-text-tertiary">
+                        gross {pct(run.summary.gross_return ?? 0)}
+                      </span>
+                    ) : null}
                   </TableCell>
                   <TableCell className="hidden text-right font-mono sm:table-cell" data-financial>
                     {run.summary.excess_return >= 0 ? "+" : ""}

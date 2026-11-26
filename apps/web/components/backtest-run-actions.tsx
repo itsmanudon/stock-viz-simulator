@@ -11,6 +11,8 @@ import {
 } from "@/app/(product)/backtest/actions";
 import { Button } from "@/components/ui/button";
 import type { BacktestRequest } from "@/lib/api/types";
+import type { RotationRequest } from "@/lib/rotation";
+import type { StrategyRequest } from "@/lib/rule-strategy";
 
 const STUDIES = [
   { study: "single", label: "Save run" },
@@ -45,6 +47,45 @@ export function SaveBacktestRun({ request }: { request: BacktestRequest }) {
       <p className="text-xs leading-5 text-text-tertiary">
         Walk-forward picks the best setting on each 3-year period and scores it on the next year;
         only those scored years count. A sweep ranks every setting over the whole range.
+      </p>
+      {state.runId !== undefined ? (
+        <output className="block text-sm">
+          Stored as run {state.runId}. <Link href={`/backtest/runs/${state.runId}`}>Open it</Link>
+        </output>
+      ) : null}
+      {state.error ? (
+        <p role="alert" className="text-sm text-negative">
+          {state.error}
+        </p>
+      ) : null}
+    </form>
+  );
+}
+
+/** A4.1: save a Rule strategy run. Inline rules become setup versions. */
+export function SaveStrategyRun({
+  request,
+  kind = "strategy",
+}: {
+  request: StrategyRequest | RotationRequest;
+  /** A4.4: ``rotation`` saves a rotation run. */
+  kind?: "strategy" | "rotation";
+}) {
+  const [state, save, saving] = useActionState<SaveRunState, FormData>(saveBacktestRunAction, {});
+  return (
+    <form action={save} className="space-y-2">
+      <input type="hidden" name="kind" value={kind} />
+      <input type="hidden" name="request" value={JSON.stringify(request)} />
+      <div className="flex flex-wrap items-center gap-2">
+        <Button type="submit" variant="outline" disabled={saving}>
+          Save run
+        </Button>
+        {saving ? <output className="text-sm">Working…</output> : null}
+      </div>
+      <p className="text-xs leading-5 text-text-tertiary">
+        {kind === "rotation"
+          ? "Saving stores the request as it ran; Rerun then says identical, different or data changed."
+          : "Saving stores typed rules as versions of your “Rules from backtests” setup, so the saved run always points at the same rules; Rerun then says identical, different or data changed."}
       </p>
       {state.runId !== undefined ? (
         <output className="block text-sm">

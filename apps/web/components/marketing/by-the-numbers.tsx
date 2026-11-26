@@ -13,7 +13,7 @@
  */
 
 import { Reveal } from "@/components/marketing/reveal";
-import { ApiError, getBars, getMarketsSummary, getRecommendations } from "@/lib/api";
+import { ApiError, getBars, getChecklist, getMarketsSummary } from "@/lib/api";
 
 // Matches the tour's backtest ticker so the copy ("the window every backtest
 // reads") stays literally true, and picks one with deep *and* fresh stored
@@ -47,10 +47,10 @@ function count(n: number): string {
 }
 
 export async function ByTheNumbers() {
-  const [markets, bars, recs] = await Promise.all([
+  const [markets, bars, checklist] = await Promise.all([
     safe(() => getMarketsSummary()),
     safe(() => getBars(HISTORY_TICKER, { limit: HISTORY_LIMIT })),
-    safe(() => getRecommendations({ limit: 1, revalidateSeconds: 3600 })),
+    safe(() => getChecklist({ limit: 1, revalidateSeconds: 3600 })),
   ]);
 
   const stats: Stat[] = [];
@@ -67,18 +67,18 @@ export async function ByTheNumbers() {
     const saturated = bars.length >= HISTORY_LIMIT;
     stats.push({
       value: `${count(bars.length)}${saturated ? "+" : ""}`,
-      label: `sessions of stored daily history on ${HISTORY_TICKER} — the window every backtest and signal actually reads.`,
+      label: `sessions of stored daily history on ${HISTORY_TICKER} — the window every backtest and checklist actually reads.`,
     });
   }
 
-  // Read the rule set's size off a real recommendation rather than hardcoding
-  // seven, so the copy can't drift if a vote is ever added or removed.
-  const voteCount = recs?.[0]?.votes.length ?? 0;
-  if (voteCount > 0) {
+  // Read the checklist's size off the API rather than hardcoding six, so the
+  // copy can't drift if a dimension is ever added or removed.
+  const dimensionCount = checklist?.dimensions.length ?? 0;
+  if (dimensionCount > 0) {
     stats.push({
-      value: count(voteCount),
+      value: count(dimensionCount),
       label:
-        "rule votes scored for every symbol, each one shown with its reasoning — including the votes that fail.",
+        "checklist dimensions judged for every symbol, each with its formula and evidence grade — including the ones not met.",
     });
   }
 

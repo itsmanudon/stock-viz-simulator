@@ -14,22 +14,30 @@ from stockviz.observability import init_sentry
 from stockviz.request_id import request_id_middleware
 from stockviz.routers import (
     alerts,
+    avwap,
     backtest,
     bars,
+    checklist,
+    column_sets,
+    drawings,
+    drills,
     earnings,
+    events,
     experiments,
+    fees,
     fundamentals,
     health,
     indicators,
     journal,
     markets,
     news,
+    notification_channels,
     notifications,
     options,
     orders,
     profile,
     quotes,
-    recommendations,
+    regime,
     replay,
     research,
     rules,
@@ -38,10 +46,12 @@ from stockviz.routers import (
     sentiment,
     setups,
     status,
+    strength,
     symbols,
     theses,
     trading,
     watchlist,
+    watchlists,
 )
 from stockviz.scheduler import build_scheduler
 from stockviz.settings import get_settings
@@ -116,20 +126,30 @@ def create_app() -> FastAPI:
     app.include_router(indicators.router)
     app.include_router(fundamentals.router)
     app.include_router(indicators.catalog_router)
-    app.include_router(recommendations.router)
+    app.include_router(checklist.router)
+    app.include_router(drawings.router)
+    app.include_router(avwap.router)
+    app.include_router(events.router)
+    app.include_router(strength.router)
+    app.include_router(regime.router)
     app.include_router(trading.router)
     app.include_router(alerts.router)
     app.include_router(watchlist.router)
+    app.include_router(watchlists.router)
+    app.include_router(column_sets.router)
     app.include_router(orders.router)
     app.include_router(profile.router)
     app.include_router(options.router)
     app.include_router(backtest.router)
     app.include_router(experiments.router)
     app.include_router(replay.router)
+    app.include_router(drills.router)
     app.include_router(earnings.router)
     app.include_router(journal.router)
+    app.include_router(notification_channels.router)
     app.include_router(notifications.router)
     app.include_router(research.router)
+    app.include_router(fees.router)
     app.include_router(status.router)
 
     return app

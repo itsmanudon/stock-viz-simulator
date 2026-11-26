@@ -89,7 +89,7 @@ const EOD_REFRESH = [
   job("python -m stockviz.cli settle-orders"),
   job("python -m stockviz.cli evaluate-alerts"),
   // Aegis News copy (Phase 2). Exit 2 means it is not configured yet: skip.
-  // It also refreshes the rolling sentiment the signals and screener read,
+  // It also refreshes the rolling sentiment the screener reads,
   // which replaced the legacy news, score-sentiment and sentiment-aggregate
   // steps (audit AG-14).
   "python -m stockviz.cli aegis-sync || [ $? -eq 2 ] || rc=1",
@@ -102,11 +102,27 @@ const EOD_REFRESH = [
   // (not point-in-time). EDGAR joins when SEC_USER_AGENT is set (exit 2 = off).
   'if [ "$(date -u +%u)" = 5 ]; then python -m stockviz.cli fundamentals || rc=1; fi',
   job("python -m stockviz.cli metrics"),
+  // A2.3: saved screens' rule members tonight, with entry/exit notifications.
+  // After ingest (bars), aegis-sync (news.* bindings) and Friday's
+  // fundamentals, so every binding a rule can read holds tonight's data.
+  job("python -m stockviz.cli screen-runs"),
   job("python -m stockviz.cli dividends"),
   job("python -m stockviz.cli credit-dividends"),
   job("python -m stockviz.cli settle-options"),
-  job("python -m stockviz.cli recommend"),
+  // A2.4: the six checklist dimensions on tonight's session (replaced the
+  // 7-vote `recommend`). After metrics and Friday's fundamentals (Quality
+  // reads them), so every binding holds tonight's data.
+  job("python -m stockviz.cli checklist"),
+  // A2.4: the evidence grades, weekly. The cron runs on weekdays only (no
+  // Sunday run), so Friday, after the week's last session and Friday's
+  // fundamentals, like `fundamentals` itself. A grade moves by one week of a
+  // ten-year window, so nightly would only cost time.
+  'if [ "$(date -u +%u)" = 5 ]; then python -m stockviz.cli checklist-evidence || rc=1; fi',
   job("python -m stockviz.cli snapshot-portfolios"),
+  // A2.3: send the night's notifications on users' webhook, email and
+  // Telegram channels, after every step that writes one (orders, alerts,
+  // splits, screens, dividends, options). A failed send retries next run.
+  job("python -m stockviz.cli deliver-notifications"),
   // No publisher runs here, so unpublished outbox rows are never sent: clear
   // them after 30 days with the old inbox receipts (audit OP-11).
   job("python -m stockviz.cli prune-events --include-unpublished"),

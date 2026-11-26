@@ -117,7 +117,7 @@ All four runs collected exactly 100,000 current-run records, counted zero foreig
 - FX-aware equity paper trading, pending limit/stop/take-profit orders, dividends, and portfolio analytics
 - Long-only Black-Scholes options priced with a historical-volatility proxy
 - Configurable, look-ahead-safe strategy backtesting
-- Rule-based technical and Aegis News sentiment recommendations
+- A transparent six-dimension Checklist (Rule DSL conditions, "N of 6 met", evidence grades with their sample and survivorship stamp)
 
 ## Tech stack
 

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
-from decimal import Decimal
 
 from fastapi.testclient import TestClient
 from sqlmodel import Session
@@ -15,12 +14,10 @@ from stockviz.models import (
     AegisDocument,
     AegisDocumentEntity,
     AegisMapping,
-    Recommendation,
     Symbol,
 )
 from stockviz.services.aegis.read import refresh_aegis_sentiment
 from stockviz.services.metrics import metrics_for
-from stockviz.services.recommend.engine import max_score, score_ticker
 
 ENTITY = {"AAPL": "ent_apple", "MSFT": "ent_msft"}
 
@@ -258,46 +255,6 @@ def test_rolling_sentiment_comes_from_aegis_inside_the_week(session: Session) ->
     assert tsla.sentiment_7d is None and tsla.sentiment_article_count == 0
 
 
-def test_the_sentiment_vote_is_unavailable_without_scored_news() -> None:
-    bars = [(Decimal(100 + i), 1_000 + i) for i in range(30)]
-    without = score_ticker("AAPL", bars)
-    with_news = score_ticker("AAPL", bars, sentiment_7d=0.5, sentiment_article_count=3)
-    assert without is not None and with_news is not None
-    assert max_score(without.votes) == 6
-    assert max_score(with_news.votes) == 7
-    vote = next(v for v in without.votes if v.id == "positive_sentiment")
-    assert vote.available is False and vote.as_dict()["available"] is False
-
-
-def test_recommendations_report_the_maximum_that_could_pass(
-    session: Session, client: TestClient
-) -> None:
-    _symbols(session)
-    bars = [(Decimal(100 + i), 1_000 + i) for i in range(30)]
-    result = score_ticker("AAPL", bars)
-    assert result is not None
-    session.add(
-        Recommendation(
-            ticker="AAPL",
-            score=Decimal(result.score),
-            rationale="; ".join(result.rationale) or None,
-            votes=[v.as_dict() for v in result.votes],
-        )
-    )
-    # A row written before the flag existed reads as seven available votes.
-    old_votes = [v.as_dict() for v in result.votes]
-    for vote in old_votes:
-        vote.pop("available")
-    session.add(Recommendation(ticker="MSFT", score=Decimal(3), rationale=None, votes=old_votes))
-    session.commit()
-
-    rows = {r["ticker"]: r for r in client.get("/v1/recommendations").json()}
-    assert rows["AAPL"]["max_score"] == 6
-    assert rows["MSFT"]["max_score"] == 7
-    sentiment_vote = next(v for v in rows["AAPL"]["votes"] if v["id"] == "positive_sentiment")
-    assert sentiment_vote["available"] is False
-
-
 def test_cli_sentiment_aggregate_uses_aegis(engine, monkeypatch, capsys) -> None:
     monkeypatch.setattr(cli, "engine", engine)
     with Session(engine) as session:
@@ -342,3 +299,12 @@ def test_the_legacy_news_tables_are_gone_from_the_live_schema() -> None:
 
     assert "news_articles" not in SQLModel.metadata.tables
     assert "news_sentiment" not in SQLModel.metadata.tables
+
+
+def test_signals_are_retired_and_their_table_archived() -> None:
+    """A2.4: the 7-vote Signals engine is gone; ``recommendations`` is archived."""
+    from sqlmodel import SQLModel
+
+    import stockviz.models  # noqa: F401  (registers every table)
+
+    assert "recommendations" not in SQLModel.metadata.tables

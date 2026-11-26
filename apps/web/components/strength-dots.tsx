@@ -1,9 +1,10 @@
 import { cn } from "@/lib/utils";
 
 /**
- * Signal strength as one dot per vote (Aurora board v3), filled for each
- * supporting check, with the count beside it. The dots match the seven checks
- * the detail panel lists, so the two read as the same thing.
+ * A count out of a fixed number as one dot each (Aurora board v3), filled for
+ * each one counted, with "n/max" beside it. The Checklist (A2.4) uses it for
+ * how many of its six dimensions are met; the dots are aria-hidden, so the
+ * caller states the count in words too.
  */
 export function StrengthDots({
   score,

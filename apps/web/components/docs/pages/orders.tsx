@@ -27,7 +27,13 @@ export function Orders() {
           </Term>
           <Term name="Your limit or trigger">{"For a pending order, the price you set."}</Term>
           <Term name="Estimated value">{"Quantity times the price, in the stock's currency."}</Term>
-          <Term name="Fees">{"None in the simulator."}</Term>
+          <Term name="Fees">
+            Indian stocks pay the NSE or BSE equity delivery charges in force on the fill date (STT,
+            exchange charge, SEBI fee, stamp duty on buys, GST and the DP charge on the first sale
+            of a stock each day); other markets pay none. The review lists each one with its rate
+            and source before you place the order. See{" "}
+            <DocLink href="/docs/costs">Costs and fees</DocLink>.
+          </Term>
           <Term name="Buying power after">
             {
               "For a buy, what is left to spend once it fills (or the cash a pending buy holds back)."

@@ -1,4 +1,5 @@
-"""Names a rule can read (A2.1): bar series, fundamentals and news."""
+"""Names a rule can read (A2.1): bar series, the venue index (A2.4),
+fundamentals and news."""
 
 from __future__ import annotations
 
@@ -9,7 +10,14 @@ DELIVERY_SERIES = ("delivery_pct", "deliverable_qty")
 """Daily only, from ``eod_extras`` (NSE). Missing ("no data", never false)
 until A1's NSE files are loaded."""
 
-SERIES = PRICE_SERIES + DELIVERY_SERIES
+INDEX_SERIES = ("index_close",)
+"""The venue index's daily close on each bar (A2.4): ``^GSPC`` for US
+listings, ``^NSEI`` for Indian ones (``event_study.BENCHMARK_BY_VENUE``),
+forward-filled at most 5 bars, as ``rs()`` reads it. Point in time: a bar
+sees the index close of its own date or earlier. On ``weekly.`` /
+``monthly.`` it is the period's last index close."""
+
+SERIES = PRICE_SERIES + DELIVERY_SERIES + INDEX_SERIES
 
 FUNDAMENTAL_METRICS = (
     "market_cap",
@@ -40,12 +48,24 @@ NEWS_FUNCTIONS = ("count",)
 NEWS_SENTIMENTS = ("positive", "neutral", "negative", "mixed")
 NEWS_MAX_DAYS = 365
 
+DRAWING_OUTPUTS = ("price", "top", "bottom")
+"""A3.3 ``drawing("label").<output>``: ``price`` for an hline, trendline or
+ray; ``top`` / ``bottom`` for a rectangle. The kind is the user's data, so a
+mismatch is unknown at evaluation, not a type error."""
+
+AVWAP_OUTPUTS = ("vwap", "upper1", "lower1", "upper2", "lower2")
+"""A3.3 ``avwap("label")``: the anchored VWAP (default) or a band at +-1 / +-2
+volume-weighted standard deviations."""
+
 TIMEFRAMES = ("weekly", "monthly")
 INTERVAL_BY_TIMEFRAME = {"weekly": "1wk", "monthly": "1mo"}
 
 __all__ = [
+    "AVWAP_OUTPUTS",
     "DELIVERY_SERIES",
+    "DRAWING_OUTPUTS",
     "FUNDAMENTAL_METRICS",
+    "INDEX_SERIES",
     "INTERVAL_BY_TIMEFRAME",
     "NEWS_FUNCTIONS",
     "NEWS_MAX_DAYS",

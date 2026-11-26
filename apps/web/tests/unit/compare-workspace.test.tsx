@@ -100,7 +100,7 @@ describe("compare presentation", () => {
 });
 
 describe("research chrome", () => {
-  it("exposes Compare, Backtest, and Signals in a local research subnav", () => {
+  it("exposes Compare, Backtest, and Checklist in a local research subnav", () => {
     render(
       <>
         <ResearchPageHeader title="Compare" description="How do these assets compare?" />
@@ -120,9 +120,9 @@ describe("research chrome", () => {
       "href",
       "/backtest",
     );
-    expect(within(nav).getByRole("link", { name: "Signals" })).toHaveAttribute(
+    expect(within(nav).getByRole("link", { name: "Checklist" })).toHaveAttribute(
       "href",
-      "/recommendations",
+      "/checklist",
     );
     expect(screen.getByRole("heading", { name: "Select symbols to compare" })).toBeVisible();
   });

@@ -13,8 +13,11 @@ import { buildAlertsHref, buildTradeHref } from "@/lib/operational-trading";
 
 export function AddWatchlistForm({
   symbols,
+  watchlistId,
 }: {
   symbols: Array<{ ticker: string; name: string }>;
+  /** A2.5: the open list; without it the add goes to the default list. */
+  watchlistId?: number;
 }) {
   const [state, action, pending] = useActionState<WatchlistActionState, FormData>(
     toggleWatchlistAction,
@@ -30,6 +33,9 @@ export function AddWatchlistForm({
   return (
     <form action={action} className="flex flex-wrap items-end gap-2">
       <input type="hidden" name="intent" value="add" />
+      {watchlistId !== undefined ? (
+        <input type="hidden" name="watchlist_id" value={watchlistId} />
+      ) : null}
       <label className="min-w-[12rem] flex-1 text-xs">
         <span className="mb-1 block font-medium text-text-secondary">Add symbol</span>
         {/* UX-7 (Phase 6.6): type to search by ticker or name instead of
@@ -69,7 +75,14 @@ const ROW_ACTION =
  * in place of a "more" menu: research, trade, create an alert, remove. Each
  * has a spoken name and a tooltip, since the icon alone is not a label.
  */
-export function WatchlistRowActions({ ticker }: { ticker: string }) {
+export function WatchlistRowActions({
+  ticker,
+  watchlistId,
+}: {
+  ticker: string;
+  /** A2.5: remove from this list; without it, from the default list. */
+  watchlistId?: number;
+}) {
   const [, action, pending] = useActionState<WatchlistActionState, FormData>(
     toggleWatchlistAction,
     {},
@@ -104,6 +117,9 @@ export function WatchlistRowActions({ ticker }: { ticker: string }) {
       <form action={action}>
         <input type="hidden" name="ticker" value={ticker} />
         <input type="hidden" name="intent" value="remove" />
+        {watchlistId !== undefined ? (
+          <input type="hidden" name="watchlist_id" value={watchlistId} />
+        ) : null}
         <button
           type="submit"
           disabled={pending}
