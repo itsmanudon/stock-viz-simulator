@@ -10,19 +10,23 @@ States:
   is its fixed summary (e.g. "Alpaca: auth error on 3 symbol(s)"), never a
   key or the provider's text.
 
-Streaming states (``streaming``, ``closed``) arrive with A6.5/A6.6.
+Streams (A6.5, :func:`stream_statuses`): one row per stream the worker has
+run (``feed_streams``): ``streaming``, ``closed`` or ``error``. A
+``streaming`` row not updated for :data:`STREAM_STALE` is reported
+``closed`` (the worker stopped without saying so). ``live`` is false for the
+``simulated`` replay, which is never called live.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Literal
 
 from sqlmodel import Session, col, select
 
 from stockviz._time import utcnow
-from stockviz.models import JobRun
+from stockviz.models import FeedStream, JobRun
 from stockviz.services.brokers import FEED_BACKFILL_JOBS, OFFLINE_WINDOW
 from stockviz.services.feeds.base import Capabilities
 from stockviz.services.feeds.registry import FEED_CLASSES, KEY_ENV_VARS, build_feed
@@ -89,6 +93,51 @@ def feed_statuses(
                 last_success_at=ok_at,
                 last_failure_at=bad_at,
                 last_error=bad.error if bad is not None and state == "error" else None,
+            )
+        )
+    return out
+
+
+STREAM_STALE = timedelta(minutes=5)
+
+
+@dataclass(frozen=True)
+class StreamStatus:
+    name: str
+    label: str
+    live: bool
+    state: str
+    stale: bool
+    symbols: tuple[str, ...]
+    started_at: datetime
+    stopped_at: datetime | None
+    last_tick_at: datetime | None
+    last_bar_at: datetime | None
+    bars_written: int
+    alerts_fired: int
+    error: str | None
+
+
+def stream_statuses(session: Session, *, now: datetime | None = None) -> list[StreamStatus]:
+    moment = now or utcnow()
+    out: list[StreamStatus] = []
+    for row in session.exec(select(FeedStream).order_by(col(FeedStream.name))).all():
+        stale = row.state == "streaming" and moment - row.updated_at > STREAM_STALE
+        out.append(
+            StreamStatus(
+                name=row.name,
+                label=row.label,
+                live=row.name != "simulated",
+                state="closed" if stale else row.state,
+                stale=stale,
+                symbols=tuple(row.symbols or ()),
+                started_at=row.started_at,
+                stopped_at=row.stopped_at,
+                last_tick_at=row.last_tick_at,
+                last_bar_at=row.last_bar_at,
+                bars_written=row.bars_written,
+                alerts_fired=row.alerts_fired,
+                error=row.error,
             )
         )
     return out

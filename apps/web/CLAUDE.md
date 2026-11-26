@@ -481,6 +481,21 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   is `intraday-empty` ("No minute bars for this symbol in this range").
   `getBars` caches intraday responses 60 s. Tests:
   `tests/unit/intraday-chart.test.tsx` (the stub records `chartOptions`).
+  **Live bars (A6.5).** The stock page passes `liveTicker` on an intraday
+  interval (not on a past `?to=` window); `PriceChart` then runs
+  `useLiveBars` (`components/use-live-bars.ts`): one browser `EventSource`
+  to the API's `/v1/stream/bars?tickers=` (`BROWSER_BASE` from
+  `lib/api/client.ts`), each `bar` event merged by `lib/live-bars.ts::
+  mergeLiveBar` (only the chart's own feed; 1m appends or replaces; coarser
+  intervals fold the minute into the newest bar while it falls inside it,
+  skipping minutes the server's bar already holds, else open the next
+  bucket from its close, or a new session's at the minute's time; the
+  length is kept). New server bars reset the merge. `chart-live-status`
+  (`data-status` connecting | waiting | live | offline, `liveStatusText`)
+  sits in the source row; a replayed stream says "Replayed stream, not
+  live" and its badge is "Replayed" (`sourceBadgeLabel`). Indicators do not
+  update live (a reload does). Tests: `tests/unit/a65-live-bars.test.tsx`
+  (a fake `EventSource`).
 - Backtest results, saved runs (list and detail) show the run's `universe`
   stamp through `components/universe-note.tsx` (A1.4a): one neutral line,
   "Pinned symbol list, not point in time: survivorship-biased." plus the

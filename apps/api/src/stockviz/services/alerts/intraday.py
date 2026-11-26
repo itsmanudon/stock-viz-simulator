@@ -110,12 +110,18 @@ def judge_bar(
     bar_at: datetime,
     *,
     now: datetime | None = None,
+    recorded_at: datetime | None = None,
 ) -> Judged | None:
     """Judge ``alert`` on the closed bar opening at ``bar_at``. ``data`` holds
     that bar (and the warm-up before it; later bars are ignored: point mode
     cuts at the bar). None when the bar was judged already or is not closed
-    at ``now``. Mutates the alert's state; no commit."""
+    at ``now``. Mutates the alert's state; no commit.
+
+    ``recorded_at`` is the firing's wall-clock time (default ``now``): the
+    A6.5 stream worker judges a replayed bar at its own close but records
+    the firing when it happened."""
     now = now or utcnow()
+    recorded = recorded_at or now
     now_ns = int(instant(now).value)
     i = _bar_index(data, bar_at)
     assert data.closed_at is not None
@@ -157,7 +163,9 @@ def judge_bar(
             message=message(alert, data, i),
             source="bar",
             dedupe_key=dedupe_key(alert, bar),
-            now=now if now.tzinfo is None else now.astimezone(UTC).replace(tzinfo=None),
+            now=recorded
+            if recorded.tzinfo is None
+            else recorded.astimezone(UTC).replace(tzinfo=None),
             bar_at=bar,
             feed=data.feed,
         )

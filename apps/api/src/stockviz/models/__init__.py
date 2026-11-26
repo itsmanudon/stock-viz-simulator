@@ -34,6 +34,7 @@ from stockviz.models.eod import EodExtras, EodRaw
 from stockviz.models.events import ConsumerInbox, OutboxEvent, PortfolioTradeActivity
 from stockviz.models.execution import SimulatedExecution
 from stockviz.models.experiment import Experiment, ExperimentRun
+from stockviz.models.feed_stream import FeedStream
 from stockviz.models.fundamentals import FundamentalFact
 from stockviz.models.indicator_evidence import IndicatorEvidence
 from stockviz.models.instrument import Instrument, InstrumentIdentifier
@@ -125,6 +126,7 @@ __all__ = [
     "EodRaw",
     "Experiment",
     "ExperimentRun",
+    "FeedStream",
     "FundamentalFact",
     "FxConversion",
     "FxRate",

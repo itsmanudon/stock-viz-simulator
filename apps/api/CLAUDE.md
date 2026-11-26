@@ -36,11 +36,14 @@ src/stockviz/
                     intraday — A6.1 IntradayBar / IntradayFile)
   (services/feeds/  A6.3: FeedProvider/BrokerProvider, SimulatedFeed, Alpaca,
                     Tiingo, Massive, Finnhub stub, intraday-backfill, feed status)
+  (services/stream/ A6.5: the stream worker: minute bars from ticks, NOTIFY and
+                    the SSE hub, per-bar alert judging, the SimulatedFeed replay)
   events/           versioned contracts (trades/market), outbox/inbox,
                     dispatcher, domain handlers, Kafka producer wrappers
                     (not imported by FastAPI startup)
   workers/          outbox_publisher, scheduler (dedicated APScheduler process),
-                    plus trade-activity and market ingest/analytics consumers
+                    plus trade-activity and market ingest/analytics consumers,
+                    and stream (A6.5, the intraday stream worker; laptop only)
   benchmarks/       Kafka consumer-group scaling experiment (not domain logic).
                     Runs isolate by seek-to-end + run_id; throughput is
                     min(produced_at)→max(consumed_at), not collector wall-clock.
@@ -1033,7 +1036,7 @@ numbers; never replace them with real responses).
   symbol; `start_at` skips earlier bars; `speed` x real time (0 = no
   waiting) through an injected async sleep; `mode="bars"` yields each bar at
   its close. Labelled "Replayed", never live. For tests and A6.5.
-- **Adapters** (history only; streams are A6.5/A6.6, `stream()` raises
+- **Adapters** (history only; the live stream is A6.6, `stream()` raises
   `NotSupported` with that reason). Each is off until its key is set.
   - **Alpaca** (`alpaca.py`, feed `iex`, or `sip`; source `alpaca_iex` /
     `alpaca_sip`): `GET https://data.alpaca.markets/v2/stocks/{symbol}/bars`,
@@ -1136,6 +1139,66 @@ numbers; never replace them with real responses).
   without requests, idempotent apply and `job_runs`, auth stop, network
   skip, US-only refusal, not in the cron, feed states and the route, status
   and health; PostgreSQL partitions and idempotency).
+
+**The stream worker (A6.5, M1.6, M4.5 intraday).** `services/stream/`,
+`workers/stream.py`, `routers/stream.py`; design: workspace
+`docs/a6-design-note.md` ("Stream worker"). Migration `c8d3e5f7a9b2`:
+`intraday_bars.feed` may be `replayed`, and `feed_streams` (model
+`feed_stream.py`).
+
+- **Run it** (laptop only during A6; nothing on Railway starts it):
+  `python -m stockviz.workers.stream --replay --from-feed file --symbols
+  TCS.NS --start 2026-01-05 --end 2026-01-10 [--speed 60] [--no-deliver]`.
+  Symbols default to the watched ones (`replay.watched`: intraday alert
+  symbols, then watchlists, capped at 30). `--feed alpaca` exits 2 (no key:
+  "Offline"; with a key: the live stream is A6.6). Exit 2 also for no
+  window, no symbols or no stored minutes in it.
+- **Loop** (`worker.py::StreamWorker.run`): a pump task feeds an
+  `asyncio.Queue` (never `wait_for` on an async generator: a timeout would
+  close it). `bars.py::MinuteBarBuilder` builds 1m bars per symbol: a later
+  minute's tick closes the open bar, a tick for a closed minute is `late`
+  and dropped, `due(now)` closes bars a `grace` (5 s) after their minute on
+  a wall-clock feed (`StreamSpec.wall_clock`), `flush()` at the end, a
+  provider `FeedBar` closes at once. Replayed ticks rebuild the stored bars
+  exactly (OHLCV).
+- **Per closed bar** (`close_bar`, one transaction): off-session bars
+  (venue calendar) are counted, not stored; otherwise `write_rows` (ON
+  CONFLICT DO NOTHING) with the stream's feed (`replayed`, source
+  `replay_<feed>`), `available_at` = close clipped at the session close;
+  if inserted, `hub.notify_bar` (`pg_notify('intraday_bar', json)`,
+  delivered at commit; no-op on SQLite); then every active intraday rule
+  alert of the symbol whose version feed is in `StreamSpec.version_feeds`
+  (`auto` and the replayed source feed) is judged with A6.4's `judge_bar`
+  on each bar of its timeframe that this minute closed (`now` = the
+  minute's close, `recorded_at` = the wall clock), only bars opening at or
+  after `judge_from` (the stream's first bar: warm-up is context, never a
+  firing). Rules compile once per version. Then `feed_streams` is updated.
+  After the commit a firing drains deliveries at once (`delivery.drain`).
+- **Replay** (`replay.py::plan_replay`): copies the source feed's bars of
+  the sessions before the window into `replayed` unjudged (warm-up:
+  `warmup_sessions`, the longest alert rule's lookback, at least 2), then
+  loads the window into `SimulatedFeed`. Replayed bars sit beside the real
+  ones and `FEED_RANK` reads them last; firings carry `feed = replayed` and
+  say "Replayed from stored bars, not live".
+- **Server-sent events**: `GET /v1/stream/bars?tickers=A,B` (public, 30 a
+  minute, at most 10 tickers): `: connected`, then `event: bar` per stored
+  minute (`hub.BarEvent`: ticker, feed, badge, interval `1m`, `ts` = open,
+  `closed_at`, OHLCV strings, `replayed`) and a keep-alive comment every
+  15 s. `hub.BarHub` LISTENs on its own autocommit psycopg connection in a
+  thread started by the first subscriber and stopped after the last, so an
+  API with no open intraday chart holds no connection; each subscriber
+  has a 256-event queue that drops its oldest when full; at most 200.
+- **Status**: `/v1/broker/feeds` adds `streams` (`feeds/status.py::
+  stream_statuses`): name, label, `live` (false for `simulated`), state
+  `streaming|closed|error`, `stale` (streaming but silent 5 minutes: shown
+  closed), symbols, last tick and bar, counters, a fixed error summary.
+- **Tests**: `tests/test_a65_stream_worker.py` (synthetic NSE minutes; the
+  replayed done-when: firings equal A6.4's stored-bar judgement, a rerun
+  adds nothing), `tests/test_a65_stream_migration.py` (PostgreSQL: up,
+  down, up; a real LISTEN/NOTIFY round trip). Locally on the owner's TCS
+  5m January 2026 minutes (rolled back): 25 replayed firings, the same bars
+  as the stored path and the backtest.
+
 
 **Raw prices on the bars route (A3.1, M2.3).** `GET /v1/symbols/{t}/bars`
 takes `adjustment=adjusted|raw` (default `adjusted`, the split-adjusted
