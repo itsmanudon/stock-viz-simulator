@@ -2215,6 +2215,18 @@ sessions grouped beat/miss/no surprise; average absolute reaction vs the
 average day). `services/seasonality.py` is pure on closes. Web: a Research
 tab on the stock page. Tests: `tests/test_a91_seasonality.py`.
 
+**Forecasts scored against a random walk (A9.2, M8.2, M8.3).** `GET
+/v1/symbols/{t}/forecast` (`routers/research_views.py`, public, 30/min;
+`services/forecasts.py`, pure numpy): HAR-RV (Corsi) on Parkinson daily
+variance, fitted by OLS on earlier days only (refit every 20), scored over
+the last 250 sessions against the random walk by MSE and QLIKE (skill = 1 -
+loss ratio; above 0 beats it), plus the next session's annualised vol; and
+split-conformal price cones around a zero-drift random walk at 1/5/20
+sessions and 80/95% from the previous 250 completed moves, each with its
+realised coverage over the last 250 sessions. The phase's done-when. Web: the
+forecast card on the Research tab (coverage under its level shown in warning).
+Tests: `tests/test_a92_forecasts.py`.
+
 **Survivorship stamp (A1.4a, part of M1.5).** Every backtest result carries
 `universe: {name, point_in_time, survivorship_biased, note}`: the public
 `POST /v1/backtest` (`BacktestOut.universe`), stored single runs, and

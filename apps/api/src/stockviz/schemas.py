@@ -5386,3 +5386,37 @@ class EarningsDriftOut(BaseModel):
     events: list[DriftEventOut]
     groups: list[DriftGroupOut]
     note: str
+
+
+class VolForecastOut(BaseModel):
+    test_days: int
+    har_mse: float | None = None
+    rw_mse: float | None = None
+    har_qlike: float | None = None
+    rw_qlike: float | None = None
+    skill_mse: float | None = None
+    skill_qlike: float | None = None
+    next_day_vol: float | None = None
+    coefficients: list[float] | None = None
+    reason: str | None = None
+
+
+class ConeOut(BaseModel):
+    horizon: int
+    level: float
+    lower: float | None = None
+    upper: float | None = None
+    realised_coverage: float | None = None
+    test_days: int
+
+
+class ForecastOut(BaseModel):
+    """A9.2 (M8.2, M8.3): HAR-RV against a random walk; conformal cones with coverage."""
+
+    ticker: str
+    last_date: date | None = None
+    last_close: float | None = None
+    volatility: VolForecastOut
+    cones: list[ConeOut]
+    cones_reason: str | None = None
+    method: dict[str, str]

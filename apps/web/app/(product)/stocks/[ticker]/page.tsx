@@ -61,7 +61,7 @@ import {
 import { getOptionExposure } from "@/lib/api/option-exposure";
 import { planPickerOptions } from "@/lib/api/plans";
 import { getEventStudy } from "@/lib/api/research";
-import { getEarningsDrift, getSeasonality } from "@/lib/api/research-views";
+import { getEarningsDrift, getForecast, getSeasonality } from "@/lib/api/research-views";
 import {
   type PendingOrder,
   type Portfolio,
@@ -269,6 +269,7 @@ export default async function StockPage({
     exposure,
     seasonality,
     earningsDrift,
+    forecast,
   ] = await Promise.all([
     barsPromise,
     chartBarsPromise,
@@ -298,6 +299,8 @@ export default async function StockPage({
     // A9.1: seasonality and the earnings drift; failures drop the Research tab.
     getSeasonality(ticker).catch(() => null),
     getEarningsDrift(ticker).catch(() => null),
+    // A9.2: forecasts scored against a random walk.
+    getForecast(ticker).catch(() => null),
   ]);
 
   // A6.2: an intraday lookback is whole sessions ("1D" is the last session,
@@ -666,7 +669,11 @@ export default async function StockPage({
           }
           research={
             seasonality || earningsDrift?.events.length ? (
-              <SeasonalityView seasonality={seasonality} drift={earningsDrift} />
+              <SeasonalityView
+                seasonality={seasonality}
+                drift={earningsDrift}
+                forecast={forecast}
+              />
             ) : undefined
           }
           news={
