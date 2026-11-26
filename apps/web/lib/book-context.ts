@@ -1,17 +1,7 @@
 import "server-only";
 
-import { cookies } from "next/headers";
-import { redirect } from "next/navigation";
-
 import { type Book, listBooks } from "@/lib/api/books";
-import {
-  BOOK_COOKIE,
-  type BookRef,
-  allowsAllBooks,
-  parseBookParam,
-  tradeBlockReason,
-  withBookHref,
-} from "@/lib/book-url";
+import { type BookRef, allowsAllBooks, parseBookParam, tradeBlockReason } from "@/lib/book-url";
 
 /**
  * The book a page shows (A5.2), from `?book=`, the user's default when absent.
@@ -39,25 +29,20 @@ export type BookContext = {
 export async function loadBookContext(
   raw: string | string[] | undefined,
   pathname: string,
-  query: Record<string, string | string[] | undefined> = {},
+  // Kept for callers: the remembered-book redirect that needed it moved to proxy.ts.
+  _query: Record<string, string | string[] | undefined> = {},
 ): Promise<BookContext> {
   const list = await listBooks().catch(() => null);
   const books = list?.books ?? [];
   const defaultBook = books.find((b) => b.is_default) ?? books[0] ?? null;
   let ref = parseBookParam(raw);
 
-  if (raw === undefined && list) {
-    const remembered = parseBookParam((await cookies()).get(BOOK_COOKIE)?.value);
-    const usable =
-      remembered === "all"
-        ? allowsAllBooks(pathname) && books.length > 1
-        : remembered != null && books.some((b) => b.id === remembered);
-    if (usable && remembered !== defaultBook?.id) {
-      redirect(withBookHref(hrefWith(pathname, query), remembered));
-    }
-  }
-
-  if (ref === "all" && (!allowsAllBooks(pathname) || !list)) ref = null;
+  // The remembered book (the `sv_book` cookie) is applied by proxy.ts as a
+  // real redirect before the page renders. A redirect from here came too
+  // late: these pages stream, so Next turned it into a client-side
+  // navigation after load, which showed the default book first and raced
+  // the next navigation (the trade e2e's ERR_ABORTED on CI, 26 Nov 2026).
+  if (ref === "all" && (!allowsAllBooks(pathname) || !list || books.length < 2)) ref = null;
   if (typeof ref === "number" && !books.some((b) => b.id === ref)) ref = null;
 
   const isAll = ref === "all";
@@ -71,14 +56,4 @@ export async function loadBookContext(
     tradeBlock: tradeBlockReason(isAll ? "all" : selected),
     limit: list?.limit ?? 20,
   };
-}
-
-function hrefWith(pathname: string, query: Record<string, string | string[] | undefined>): string {
-  const params = new URLSearchParams();
-  for (const [key, value] of Object.entries(query)) {
-    if (value === undefined || key === "book") continue;
-    for (const v of Array.isArray(value) ? value : [value]) params.append(key, v);
-  }
-  const qs = params.toString();
-  return `${pathname}${qs ? `?${qs}` : ""}`;
 }

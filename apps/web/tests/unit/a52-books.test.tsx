@@ -32,9 +32,14 @@ const { BookSwitcher, switchHref } = await import("@/components/book-switcher");
 const { BooksPanel } = await import("@/components/books-panel");
 const { OrderTicket } = await import("@/components/order-ticket");
 const { BookLink } = await import("@/components/book-link");
-const { bookIdFromForm, holderText, parseBookParam, tradeBlockReason, withBookHref } = await import(
-  "@/lib/book-url"
-);
+const {
+  bookIdFromForm,
+  holderText,
+  parseBookParam,
+  rememberedBookRedirect,
+  tradeBlockReason,
+  withBookHref,
+} = await import("@/lib/book-url");
 const { calculateNavChange } = await import("@/lib/portfolio-view-model");
 
 type Summary = Parameters<typeof tradeBlockReason>[0] & object;
@@ -193,12 +198,20 @@ describe("BookSwitcher", () => {
     expect(button).toHaveFocus();
   });
 
-  it("offers no All books with a single book and remembers a choice in a cookie", () => {
+  it("offers no All books with a single book and clears the cookie for the default book", () => {
+    document.cookie = "sv_book=2; path=/";
     render(<BookSwitcher books={[usd]} limit={20} />);
     fireEvent.click(screen.getByRole("button", { name: /Book: Default/ }));
     expect(screen.queryByText("All books")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("link", { name: /Default/ }));
-    expect(document.cookie).toContain("sv_book=1");
+    expect(document.cookie).not.toContain("sv_book=");
+  });
+
+  it("remembers a non-default book in a cookie for proxy.ts to redirect to", () => {
+    render(<BookSwitcher books={[usd, inr]} limit={20} />);
+    fireEvent.click(screen.getByRole("button", { name: /Book: Default/ }));
+    fireEvent.click(screen.getByRole("link", { name: /India growth/ }));
+    expect(document.cookie).toContain("sv_book=2");
   });
 
   it("reads All books from the URL", () => {
@@ -341,5 +354,20 @@ describe("All books change over a range", () => {
     ]);
     expect(change?.absolute).toBe(10);
     expect(change?.percent).toBeCloseTo(10, 9);
+  });
+});
+
+describe("rememberedBookRedirect (proxy.ts)", () => {
+  it("redirects a book page without ?book= to the remembered book", () => {
+    expect(rememberedBookRedirect("/orders", false, "2")).toBe(2);
+    expect(rememberedBookRedirect("/portfolio", false, "all")).toBe("all");
+  });
+
+  it("leaves the page alone otherwise", () => {
+    expect(rememberedBookRedirect("/orders", true, "2")).toBeNull();
+    expect(rememberedBookRedirect("/watchlist", false, "2")).toBeNull();
+    expect(rememberedBookRedirect("/orders", false, undefined)).toBeNull();
+    expect(rememberedBookRedirect("/orders", false, "nonsense")).toBeNull();
+    expect(rememberedBookRedirect("/settings", false, "all")).toBeNull();
   });
 });
