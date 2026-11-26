@@ -23,6 +23,8 @@ export type PlanFilters = {
   status?: TradePlan["status"];
   source?: TradePlan["source"];
   setupVersionId?: number;
+  /** A6.7: one ticker's plans (the chart's plan lines). */
+  ticker?: string;
 };
 
 /** One book's plans (a numeric book), or every plan of the user (null). */
@@ -31,6 +33,7 @@ export function listPlans(book?: BookRef | null, filters: PlanFilters = {}): Pro
   if (filters.status) params.set("status", filters.status);
   if (filters.source) params.set("source", filters.source);
   if (filters.setupVersionId) params.set("setup_version_id", String(filters.setupVersionId));
+  if (filters.ticker) params.set("ticker", filters.ticker);
   const qs = params.toString();
   return authedGet<TradePlans>(
     withBook(`/v1/plans${qs ? `?${qs}` : ""}`, book === "all" ? null : book),

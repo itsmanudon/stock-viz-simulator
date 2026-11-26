@@ -58,6 +58,7 @@ from stockviz.routers import (
     symbols,
     theses,
     trading,
+    volume_profile,
     watchlist,
     watchlists,
 )
@@ -165,6 +166,7 @@ def create_app() -> FastAPI:
     app.include_router(checklist.router)
     app.include_router(drawings.router)
     app.include_router(avwap.router)
+    app.include_router(volume_profile.router)
     app.include_router(events.router)
     app.include_router(strength.router)
     app.include_router(regime.router)

@@ -35,6 +35,10 @@ export const lwcCalls = {
   markers: [] as unknown[][],
   /** A6.2: each createChart call's options (the time axis formatters). */
   chartOptions: [] as Record<string, unknown>[],
+  /** A6.7: visible-range listeners, and price lines moved or removed. */
+  rangeHandlers: [] as (() => void)[],
+  movedLines: [] as { from: number; to: number }[],
+  removedLines: [] as number[],
 };
 
 export function resetLwc(): void {
@@ -49,6 +53,14 @@ export function resetLwc(): void {
   lwcCalls.clickHandlers = [];
   lwcCalls.markers = [];
   lwcCalls.chartOptions = [];
+  lwcCalls.rangeHandlers = [];
+  lwcCalls.movedLines = [];
+  lwcCalls.removedLines = [];
+}
+
+/** A6.7: fire the visible-range listeners, as a pan or zoom would. */
+export function panChart(): void {
+  for (const handler of lwcCalls.rangeHandlers) handler();
 }
 
 /** A3.5: fire the newest chart's click handlers, as a click on a bar would. */
@@ -83,7 +95,24 @@ function createChart(_el?: unknown, options: Record<string, unknown> = {}) {
         setData: (data: unknown[]) => {
           record.data = data;
         },
-        createPriceLine: ({ price }: { price: number }) => record.priceLines.push(price),
+        // A6.7: a price line can be moved (applyOptions) and removed.
+        createPriceLine: (options: { price: number }) => {
+          record.priceLines.push(options.price);
+          const line = {
+            price: options.price,
+            options: () => ({ ...options, price: line.price }),
+            applyOptions: (o: { price?: number }) => {
+              if (o.price !== undefined) {
+                lwcCalls.movedLines.push({ from: line.price, to: o.price });
+                line.price = o.price;
+              }
+            },
+          };
+          return line;
+        },
+        removePriceLine: (line: { price: number }) => {
+          lwcCalls.removedLines.push(line.price);
+        },
         priceScale: () => ({
           applyOptions: (o: Record<string, unknown>) => record.scaleOptions.push(o),
         }),
@@ -120,6 +149,10 @@ function createChart(_el?: unknown, options: Record<string, unknown> = {}) {
       setVisibleLogicalRange: (r: { from: number; to: number }) => {
         range = r;
         lwcCalls.visibleRanges.push(r);
+      },
+      subscribeVisibleLogicalRangeChange: (h: () => void) => lwcCalls.rangeHandlers.push(h),
+      unsubscribeVisibleLogicalRangeChange: (h: () => void) => {
+        lwcCalls.rangeHandlers = lwcCalls.rangeHandlers.filter((x) => x !== h);
       },
     }),
     subscribeCrosshairMove: (h: Handler) => lwcCalls.handlers.push(h),

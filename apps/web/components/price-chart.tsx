@@ -144,6 +144,27 @@ export type ChartDrawingLayer = {
   onMoved: (id: string, points: DrawingPoint[]) => void;
 };
 
+/**
+ * A6.7: the built chart's parts, for tools that live outside this file (the
+ * volume profile, the context menu, plan lines). Handed to `onChartReady`
+ * each time the chart is built.
+ */
+export type PriceChartHandle = {
+  chart: IChartApi;
+  /** The price series (primitives and price lines attach to it). */
+  series: ISeriesApi<SeriesType>;
+  /** The focusable chart group (pointer and key events). */
+  root: HTMLElement;
+  /** The canvas container: price-pane coordinates start at its top-left. */
+  container: HTMLElement;
+  bars: Bar[];
+  /** The saved drawing under a price-pane point, if any. */
+  drawingAt: (x: number, y: number) => SceneDrawing | null;
+  drawings: () => readonly SceneDrawing[];
+  /** A6.5's stream is delivering bars (not replayed ones). */
+  streaming: () => boolean;
+};
+
 type Props = {
   bars: Bar[];
   overlays?: Record<string, IndicatorPoint[]>;
@@ -187,6 +208,8 @@ type Props = {
    * in (server-sent events from the stream worker); null keeps the chart still.
    */
   liveTicker?: string | null;
+  /** A6.7: called with the chart's parts each time it is built; may return a cleanup. */
+  onChartReady?: (handle: PriceChartHandle) => (() => void) | undefined;
 };
 
 const DRAG_THRESHOLD_PX = 4;
@@ -298,11 +321,18 @@ export function PriceChart({
   timeZone = "UTC",
   sourceFeed,
   liveTicker = null,
+  onChartReady,
 }: Props) {
   const intraday = isIntradayInterval(interval);
   const live = useLiveBars(intraday ? liveTicker : null, serverBars, interval, timeZone);
   const bars = live.bars;
   const containerRef = useRef<HTMLDivElement | null>(null);
+  // A6.7: the chart's parts go to tools outside this file (`onChartReady`).
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const readyRef = useRef(onChartReady);
+  readyRef.current = onChartReady;
+  const streamingRef = useRef(false);
+  streamingRef.current = live.status === "live" && !live.replayed;
   const chartRef = useRef<IChartApi | null>(null);
   const mainRef = useRef<{ series: ISeriesApi<SeriesType>; closes: number[] } | null>(null);
   const rangeRef = useRef<{ count: number; range: LogicalRange } | null>(null);
@@ -667,6 +697,24 @@ export function PriceChart({
       openEventsRef.current({ index, x });
     };
     chart.subscribeClick(onClick);
+    const main = mainRef.current;
+    const detach =
+      main && rootRef.current
+        ? readyRef.current?.({
+            chart,
+            series: main.series,
+            root: rootRef.current,
+            container: el,
+            bars,
+            drawingAt: (x, y) => {
+              const hit = primitiveRef.current ? hitScene(primitiveRef.current.shapes, x, y) : null;
+              if (!hit || hit.id === "draft") return null;
+              return layerRef.current?.drawings.find((d) => d.id === hit.id) ?? null;
+            },
+            drawings: () => layerRef.current?.drawings ?? [],
+            streaming: () => streamingRef.current,
+          })
+        : undefined;
     const frame =
       typeof requestAnimationFrame === "function" ? requestAnimationFrame(measurePanes) : 0;
 
@@ -676,6 +724,7 @@ export function PriceChart({
       rangeRef.current = range ? { count: candles.length, range } : null;
       chart.unsubscribeCrosshairMove(onMove);
       chart.unsubscribeClick(onClick);
+      detach?.();
       chart.remove();
       chartRef.current = null;
       mainRef.current = null;
@@ -1069,6 +1118,7 @@ export function PriceChart({
       <figure className="m-0">
         {/* Focusable for the keyboard path; pointer-up saves dragged pane heights. */}
         <div
+          ref={rootRef}
           // biome-ignore lint/a11y/useSemanticElements: a fieldset is for form controls; this is a canvas widget.
           role="group"
           // biome-ignore lint/a11y/noNoninteractiveTabindex: the chart takes keys (arrows, +, -, 0).

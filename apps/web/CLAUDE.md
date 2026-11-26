@@ -496,6 +496,51 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   live" and its badge is "Replayed" (`sourceBadgeLabel`). Indicators do not
   update live (a reload does). Tests: `tests/unit/a65-live-bars.test.tsx`
   (a fake `EventSource`).
+  **Chart tools (A6.7, M2.9, M2.11).** The stock page renders
+  `components/chart-tools.tsx::ChartWithTools` (it wraps `ChartWorkbench`;
+  `isIndex` from `SymbolDetail.is_index`). Everything binds to the built chart
+  through `PriceChart`'s one hook, `onChartReady(handle)` (the price series,
+  the focusable `root`, the canvas `container`, the bars, `drawingAt(x, y)`,
+  `drawings()`, `streaming()`; it may return a cleanup, run before the chart
+  is removed). Keep new chart features behind that hook rather than in
+  `price-chart.tsx`.
+  - **Volume profile:** the toolbar's `VolumeProfileToggle`
+    (`components/volume-profile-toggle.tsx`, shown only with the drawings'
+    chart, disabled on an index) writes `?vp=visible|fixed` with
+    `history.replaceState` (no server render; other toolbar links drop it).
+    Visible: the bars on screen (`rangeOfBars`), fetched again 400 ms after
+    the last pan or zoom (`subscribeVisibleLogicalRangeChange`). Fixed: each
+    `volume_profile` drawing (a date-only kind, two sessions, in the drawing
+    toolbar; not in replay) is fetched once per pair of sessions. Fetches go
+    through `stocks/[ticker]/chart-tools-actions.ts::volumeProfileAction`.
+    One primitive draws them (`lib/drawings/volume-profile-primitive.ts`,
+    under the candles; geometry `lib/volume-profile.ts::profileGeometry`);
+    `volume-profile-info` shows the badges, POC, value area and the
+    approximation note, or the API's 409 reason.
+  - **Context menu** (`components/chart-context-menu.tsx`): right-click, a
+    550 ms touch long press, or Menu / Shift+F10 on the focused chart (at the
+    last crosshair point). Items from `lib/chart-menu.ts`: the price, study
+    and rule alerts build the alert form's own field names and go through
+    `alerts/actions.ts::createAlertAction` (the test compares both bodies);
+    "Alert on this drawing" first saves a Rule DSL setup (kind `alert`,
+    `drawing("label").price|top|bottom` or `avwap("label")`), and needs a
+    labelled hline, trendline, ray, rectangle or AVWAP. Signed out: a
+    sign-in link. The note: judged on the next stored bar unless A6.5's
+    stream is live.
+  - **Plan a trade here** opens `ChartPlanEditor` (long, the default book;
+    entry at the crosshair, stop at the nearest drawing level below or 2 x
+    ATR(14) at the last bar, target at the nearest level above or 2R;
+    `planFigures` checks it) and saves through `createChartPlanAction`.
+  - **Plan lines** (`components/plan-lines.ts::PlanLinesController`): the
+    ticker's open and active paper/imported plans as price lines. Drafts are
+    dashed and draggable (capture listeners on `root` stop the chart
+    panning); a release saves the new prices 600 ms later
+    (`updatePlanLinesAction`), a refused save (409, the lock) snaps back.
+    Locked or written-after-entry plans are dotted, titled "(Locked)", and a
+    press says why. Tests: `tests/unit/a67-chart-tools.test.tsx`,
+    `tests/unit/a67-chart-menu.test.tsx` (the stub's price lines move and
+    remove, and `panChart()` fires range listeners); e2e
+    `tests/e2e/chart-tools.spec.ts`.
 - Backtest results, saved runs (list and detail) show the run's `universe`
   stamp through `components/universe-note.tsx` (A1.4a): one neutral line,
   "Pinned symbol list, not point in time: survivorship-biased." plus the
@@ -750,7 +795,7 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   default; `replayIndicatorsHref` keeps the other params) above
   `ChartWorkbench` with `actions` (the session's own drawing actions,
   `replay/[sessionId]/drawing-actions.ts`) and `kinds`
-  (`REPLAY_DRAWING_KINDS`: no anchored VWAP). `ChartWorkbench` takes
+  (`REPLAY_DRAWING_KINDS`: no anchored VWAP and, A6.7, no volume profile). `ChartWorkbench` takes
   `actions`/`kinds` (default: the live `/v1/drawings` actions, every kind);
   `DrawingToolbar` and `DrawingsList` take `kinds`. Indicators come from
   `getReplayIndicators` (`/v1/replay/sessions/{id}/indicators`, cut at the

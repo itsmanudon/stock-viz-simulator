@@ -80,6 +80,14 @@ export const KIND_SPECS: readonly KindSpec[] = [
     dateOnly: true,
     needsLabel: true,
   },
+  // A6.7: a fixed-range volume profile, from its first session to its last.
+  {
+    kind: "volume_profile",
+    label: "Fixed-range volume profile",
+    points: 2,
+    steps: ["the first session", "the last session"],
+    dateOnly: true,
+  },
 ];
 
 const BY_KIND = new Map(KIND_SPECS.map((s) => [s.kind, s]));
@@ -130,7 +138,10 @@ export function describeDrawing(
   let body: string;
   if (drawing.kind === "hline") body = `at ${points[0]?.price}`;
   else if (drawing.kind === "avwap") body = `from ${points[0]?.ts}`;
-  else if (drawing.kind === "position_long" || drawing.kind === "position_short") {
+  else if (drawing.kind === "volume_profile") {
+    const [a, b] = [points[0]?.ts ?? "", points[1]?.ts ?? ""].sort();
+    body = `from ${a} to ${b}`;
+  } else if (drawing.kind === "position_long" || drawing.kind === "position_short") {
     body = `entry ${at(points[0])}, stop ${points[1]?.price}, target ${points[2]?.price}`;
   } else if (points.length === 1) body = `at ${at(points[0])}`;
   else body = points.map(at).join(" to ");

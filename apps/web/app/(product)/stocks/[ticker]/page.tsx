@@ -3,13 +3,13 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { auth } from "@/auth";
+import { ChartWithTools } from "@/components/chart-tools";
 import { ChecklistPanel } from "@/components/checklist/checklist-panel";
 import {
   ContextualTradeTicket,
   type TicketPosition,
   type TradeTicketAccount,
 } from "@/components/contextual-trade-ticket";
-import { ChartWorkbench } from "@/components/drawings/chart-workbench";
 import { NewsReactions } from "@/components/event-study-view";
 import { FundamentalsPanel } from "@/components/fundamentals-panel";
 import { MobileTradeSheet } from "@/components/mobile-trade-sheet";
@@ -458,10 +458,15 @@ export default async function StockPage({
               catalog={catalog}
               signedIn={signedIn}
               intradayIntervals={intradayOffered}
+              // A6.7: the profile goes with the drawings' chart (adjusted prices).
+              volumeProfile={
+                chartBars.length && !showingRaw ? { offered: !symbol.is_index } : undefined
+              }
             />
             <div className="p-1.5 sm:p-3">
               {chartBars.length && !showingRaw ? (
-                <ChartWorkbench
+                <ChartWithTools
+                  isIndex={Boolean(symbol.is_index)}
                   ticker={ticker}
                   signedIn={signedIn}
                   initial={drawings}
