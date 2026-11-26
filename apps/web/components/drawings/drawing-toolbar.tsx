@@ -60,6 +60,8 @@ type Props = {
   onToggleLock: () => void;
   onDelete: () => void;
   busy: boolean;
+  /** The tools offered (default every kind). */
+  kinds?: readonly DrawingKind[];
 };
 
 function ToolButton({
@@ -113,6 +115,7 @@ export function DrawingToolbar({
   onToggleLock,
   onDelete,
   busy,
+  kinds,
 }: Props) {
   return (
     <div
@@ -128,7 +131,7 @@ export function DrawingToolbar({
         disabled={!enabled}
         onClick={() => onTool(null)}
       />
-      {KIND_SPECS.map((spec) => (
+      {KIND_SPECS.filter((spec) => !kinds || kinds.includes(spec.kind)).map((spec) => (
         <ToolButton
           key={spec.kind}
           label={spec.label}

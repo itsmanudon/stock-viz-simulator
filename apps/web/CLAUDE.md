@@ -598,9 +598,31 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   (`lib/api/screener-server.ts::getScreenerPageAsUser`, authed), so
   `drawing()`/`avwap()` resolve on their drawings; signed out the API
   refuses such a rule and the page says to sign in.
-- Other `PriceChart` users (`/trade`, `/replay/[id]` with fill markers on the
-  price pane) get price and volume panes and the legend; they pass no
-  indicators. Unit tests mock the library with
+- **Replay chart (A4.6, M9.1).** `/replay/[id]` renders `ReplayChart`
+  (`components/replay-chart.tsx`): `IndicatorMenu` (`?indicators=`, none by
+  default; `replayIndicatorsHref` keeps the other params) above
+  `ChartWorkbench` with `actions` (the session's own drawing actions,
+  `replay/[sessionId]/drawing-actions.ts`) and `kinds`
+  (`REPLAY_DRAWING_KINDS`: no anchored VWAP). `ChartWorkbench` takes
+  `actions`/`kinds` (default: the live `/v1/drawings` actions, every kind);
+  `DrawingToolbar` and `DrawingsList` take `kinds`. Indicators come from
+  `getReplayIndicators` (`/v1/replay/sessions/{id}/indicators`, cut at the
+  clock), events from `getReplayEvents` (news known by the clock and the
+  session's fills), drawings from `listReplayDrawings`; the page never calls
+  the live bars, indicators, events or drawings routes (the catalog is
+  public metadata). Amounts format in `session.currency`. The ticket
+  (`ReplayTradeTicket`) has an order type select (`replay-order-type`:
+  market, limit, stop-loss, take-profit; stops sell-only), a price field
+  (`replay-limit-price`) and says the order is checked from the next bar;
+  an index session shows `replay-not-tradable`. `ReplayOrders`
+  (`components/replay-orders.tsx`, `replay-order` with `data-status`,
+  Cancel through `cancelReplayOrderAction`) lists resting orders; fills show
+  fees (`replay-fill-fees`). The launcher lists every symbol with its
+  currency, cash presets per currency (`replayCashPresets`), the lag note
+  (`replay-lag-note`) and caps the end date at `max_end`. Tests:
+  `tests/unit/replay-a46.test.tsx`.
+- Other `PriceChart` users (`/trade`) get price and volume panes and the
+  legend; they pass no indicators. Unit tests mock the library with
   `tests/stubs/lightweight-charts.ts` (records series, panes, price lines,
   crosshair calls): `vi.mock("lightweight-charts", async () => (await
   import("../stubs/lightweight-charts")).lwc)`.
@@ -610,7 +632,8 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   domain. See [`docs/RESEARCH.md`](../../docs/RESEARCH.md). Keep URL state
   shareable (`tickers`/`tf`, `ticker`, `min`/`dimension`/`sort`/`q`). Replay Lab is
   future-blind historical simulation; never fetch live bars or
-  news into `/replay/[id]`. Forensics (`?view=forensics`) may call session
+  news into `/replay/[id]` (A4.6: its indicators, events and drawings come
+  from the session's own routes, cut at the clock). Forensics (`?view=forensics`) may call session
   `/forensics`, `/journal`, `/history`, `/summary`, and `/fills` only.
 - `/backtest` starts on the first symbol with stored closes and ends its
   range at that symbol's latest close (`lib/backtest-defaults.ts`, UI audit
@@ -798,7 +821,8 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   `components/order-review.tsx` (amount, reference close with its date, fees,
   fill rule from `describeFillRule()`, buying power after) and only the
   review's button submits; the shared `OrderConfirmation` replaces the form
-  after success. The Replay ticket is separate and still single-step.
+  after success. The Replay ticket is separate and still single-step (A4.6:
+  with limit and stop orders that rest across steps).
   Server actions post without JavaScript, so the ticket sends
   `review_step=draft|confirmed` and `placeTradeAction`/`placeOrderAction`
   refuse a `draft` post (`lib/order-review.ts`); the review button also stays

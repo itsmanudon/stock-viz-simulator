@@ -93,9 +93,11 @@ function PointsForm({
   onSubmit,
   onCancel,
   busy,
+  kinds,
 }: {
   initial: PointsDraft;
   kindLocked: boolean;
+  kinds?: readonly DrawingKind[];
   bounds: Bounds;
   submitLabel: string;
   onSubmit: (draft: PointsDraft) => void;
@@ -142,7 +144,7 @@ function PointsForm({
               }}
               data-testid="drawing-add-kind"
             >
-              {KIND_SPECS.map((s) => (
+              {KIND_SPECS.filter((s) => !kinds || kinds.includes(s.kind)).map((s) => (
                 <option key={s.kind} value={s.kind}>
                   {s.label}
                 </option>
@@ -254,6 +256,8 @@ type ListProps = {
   busy: boolean;
   bounds: Bounds;
   limit: number;
+  /** The kinds offered when adding (default every kind). */
+  kinds?: readonly DrawingKind[];
 };
 
 export function DrawingsList({
@@ -268,6 +272,7 @@ export function DrawingsList({
   busy,
   bounds,
   limit,
+  kinds,
 }: ListProps) {
   const [editing, setEditing] = useState<number | null>(null);
   const [adding, setAdding] = useState(false);
@@ -304,6 +309,7 @@ export function DrawingsList({
               colour: DEFAULT_STYLE.colour,
             }}
             kindLocked={false}
+            kinds={kinds}
             bounds={bounds}
             submitLabel="Add drawing"
             busy={busy}

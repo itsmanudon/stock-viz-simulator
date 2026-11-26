@@ -11,9 +11,22 @@ import { ResearchSectionHeader } from "@/components/research-page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { REPLAY_CASH_PRESETS, REPLAY_DEFAULT_CASH, REPLAY_PROFILE_LABEL } from "@/lib/replay";
+import { formatCurrency } from "@/lib/portfolio-view-model";
+import { REPLAY_DEFAULT_CASH, REPLAY_PROFILE_LABEL, replayCashPresets } from "@/lib/replay";
 
-type SymbolOption = { ticker: string; name: string };
+type SymbolOption = { ticker: string; name: string; currency?: string };
+
+type Range = {
+  first: string;
+  last: string;
+  bars: number;
+  currency: string;
+  lagDays: number;
+  /** The last end the 30-day lag allows (Indian sessions), or null. */
+  maxEnd: string | null;
+  feeSchedule: string;
+  tradable: boolean;
+};
 
 export function ReplayLauncher({
   symbols,
@@ -30,7 +43,7 @@ export function ReplayLauncher({
   const [start, setStart] = useState("");
   const [end, setEnd] = useState("");
   const [cash, setCash] = useState(REPLAY_DEFAULT_CASH);
-  const [range, setRange] = useState<{ first: string; last: string; bars: number } | null>(null);
+  const [range, setRange] = useState<Range | null>(null);
   const [rangeError, setRangeError] = useState<string | null>(null);
   const [state, action, pending] = useActionState<ReplayActionState, FormData>(
     createReplayAction,
@@ -49,10 +62,21 @@ export function ReplayLauncher({
         return;
       }
       const first = result.first;
-      const last = result.last;
-      setRange({ first, last, bars: result.bars ?? 0 });
-      setStart((current) => (current && current >= first ? current : first));
-      setEnd((current) => (current && current <= last ? current : last));
+      const maxEnd = result.maxEnd ?? null;
+      const last = maxEnd && maxEnd < result.last ? maxEnd : result.last;
+      setRange({
+        first,
+        last,
+        bars: result.bars ?? 0,
+        currency: result.currency ?? "USD",
+        lagDays: result.lagDays ?? 0,
+        maxEnd,
+        feeSchedule: result.feeSchedule ?? "none",
+        tradable: result.tradable ?? true,
+      });
+      setCash(result.defaultCash ?? REPLAY_DEFAULT_CASH);
+      setStart((current) => (current && current >= first && current < last ? current : first));
+      setEnd((current) => (current && current <= last && current > first ? current : last));
     });
     return () => {
       cancelled = true;
@@ -83,6 +107,7 @@ export function ReplayLauncher({
               {symbols.map((symbol) => (
                 <option key={symbol.ticker} value={symbol.ticker}>
                   {symbol.ticker} — {symbol.name}
+                  {symbol.currency && symbol.currency !== "USD" ? ` (${symbol.currency})` : ""}
                 </option>
               ))}
             </select>
@@ -120,11 +145,22 @@ export function ReplayLauncher({
               Stored daily bars for {ticker}: {range.first} → {range.last} ({range.bars} bars).
             </p>
           ) : null}
+          {range?.maxEnd ? (
+            <p className="text-xs leading-5 text-text-secondary" data-testid="replay-lag-note">
+              Indian sessions must end at least {range.lagDays} days before today, so the latest end
+              is {range.maxEnd}.
+            </p>
+          ) : null}
+          {range && !range.tradable ? (
+            <p className="text-xs leading-5 text-text-secondary">
+              {ticker} is an index: you can replay its chart, but not trade it.
+            </p>
+          ) : null}
           {rangeError ? <p className="text-sm text-negative">{rangeError}</p> : null}
         </div>
         <div className="space-y-4">
           <div className="space-y-1.5">
-            <Label htmlFor={`${fieldId}-cash`}>Starting cash (USD)</Label>
+            <Label htmlFor={`${fieldId}-cash`}>Starting cash ({range?.currency ?? "USD"})</Label>
             <Input
               id={`${fieldId}-cash`}
               name="starting_cash"
@@ -136,14 +172,14 @@ export function ReplayLauncher({
               onChange={(event) => setCash(event.target.value)}
             />
             <div className="flex flex-wrap gap-1.5">
-              {REPLAY_CASH_PRESETS.map((preset) => (
+              {replayCashPresets(range?.currency ?? "USD").map((preset) => (
                 <button
                   key={preset}
                   type="button"
                   onClick={() => setCash(preset)}
                   className="h-7 rounded-md border border-border-muted px-2 text-xs text-text-secondary hover:text-foreground"
                 >
-                  ${Number(preset).toLocaleString("en-US")}
+                  {formatCurrency(preset, range?.currency ?? "USD").replace(/\.00$/, "")}
                 </button>
               ))}
             </div>
@@ -154,6 +190,11 @@ export function ReplayLauncher({
               <span className="font-medium text-foreground">{REPLAY_PROFILE_LABEL}</span>
             </p>
             <p className="mt-1">Daily-bar simulation. No future data. No spread or slippage.</p>
+            {range && range.feeSchedule !== "none" ? (
+              <p className="mt-1">
+                Fills pay the exchange&apos;s delivery charges in force on each date.
+              </p>
+            ) : null}
             <p className="mt-1">Replay cash is isolated from your live paper portfolio.</p>
           </div>
           {state.error ? (

@@ -6,6 +6,7 @@ import { z } from "zod";
 
 import {
   advanceReplaySession,
+  cancelReplayOrder,
   cancelReplaySession,
   createReplaySession,
   getReplayAvailability,
@@ -24,6 +25,10 @@ export type ReplayActionState = {
   fillPrice?: string;
   quantity?: string;
   side?: "buy" | "sell";
+  /** A4.6: a resting order was placed (judged from the next bar). */
+  placed?: boolean;
+  orderType?: string;
+  limitPrice?: string;
 };
 
 function mapError(err: unknown): ReplayActionState {
@@ -86,6 +91,12 @@ export async function loadReplayAvailabilityAction(ticker: string): Promise<{
   first?: string;
   last?: string;
   bars?: number;
+  currency?: string;
+  lagDays?: number;
+  maxEnd?: string | null;
+  defaultCash?: string;
+  feeSchedule?: string;
+  tradable?: boolean;
 }> {
   try {
     const available = await getReplayAvailability(ticker);
@@ -93,6 +104,12 @@ export async function loadReplayAvailabilityAction(ticker: string): Promise<{
       first: available.first_bar.slice(0, 10),
       last: available.last_bar.slice(0, 10),
       bars: available.bars_count,
+      currency: available.currency,
+      lagDays: available.lag_days,
+      maxEnd: available.max_end,
+      defaultCash: String(Math.round(Number(available.default_starting_cash))),
+      feeSchedule: available.fee_schedule,
+      tradable: available.tradable,
     };
   } catch (err) {
     if (err instanceof AuthedApiError) {
@@ -142,14 +159,29 @@ export async function cancelReplayAction(
   }
 }
 
-const OrderSchema = z.object({
-  session_id: z.string().regex(/^\d+$/),
-  side: z.enum(["buy", "sell"]),
-  quantity: z
-    .string()
-    .min(1, "Quantity is required")
-    .refine((value) => Number(value) > 0, "Quantity must be positive"),
-});
+const OrderSchema = z
+  .object({
+    session_id: z.string().regex(/^\d+$/),
+    side: z.enum(["buy", "sell"]),
+    order_type: z.enum(["market", "limit", "stop_loss", "take_profit"]).default("market"),
+    quantity: z
+      .string()
+      .min(1, "Quantity is required")
+      .refine((value) => Number(value) > 0, "Quantity must be positive"),
+    limit_price: z.string().optional(),
+  })
+  .refine(
+    (value) =>
+      value.order_type === "market" ||
+      (value.limit_price !== undefined && Number(value.limit_price) > 0),
+    { message: "Enter a positive price for a limit or stop order", path: ["limit_price"] },
+  )
+  .refine(
+    (value) =>
+      !(value.order_type === "stop_loss" || value.order_type === "take_profit") ||
+      value.side === "sell",
+    { message: "Stop-loss and take-profit orders are sell-only", path: ["side"] },
+  );
 
 export async function submitReplayOrderAction(
   _prev: ReplayActionState,
@@ -158,7 +190,9 @@ export async function submitReplayOrderAction(
   const parsed = OrderSchema.safeParse({
     session_id: formData.get("session_id"),
     side: formData.get("side"),
+    order_type: formData.get("order_type") ?? undefined,
     quantity: formData.get("quantity"),
+    limit_price: formData.get("limit_price") || undefined,
   });
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
@@ -167,12 +201,22 @@ export async function submitReplayOrderAction(
   try {
     const result = await submitReplayOrder(sessionId, {
       side: parsed.data.side,
-      order_type: "market",
+      order_type: parsed.data.order_type,
       quantity: parsed.data.quantity,
+      limit_price: parsed.data.limit_price,
     });
     revalidatePath("/replay");
     revalidatePath(`/replay/${sessionId}`);
-    if (result.decision.status === "filled" && result.fill) {
+    if (result.order) {
+      return {
+        placed: true,
+        side: parsed.data.side,
+        quantity: result.order.quantity,
+        orderType: result.order.order_type,
+        limitPrice: result.order.limit_price,
+      };
+    }
+    if (result.decision?.status === "filled" && result.fill) {
       return {
         filled: true,
         fillPrice: result.fill.fill_price,
@@ -181,6 +225,24 @@ export async function submitReplayOrderAction(
       };
     }
     return { error: "The order did not fill at this session's close." };
+  } catch (err) {
+    return mapError(err);
+  }
+}
+
+export async function cancelReplayOrderAction(
+  _prev: ReplayActionState,
+  formData: FormData,
+): Promise<ReplayActionState> {
+  const sessionId = Number(formData.get("session_id"));
+  const orderId = Number(formData.get("order_id"));
+  if (!Number.isInteger(sessionId) || sessionId <= 0 || !Number.isInteger(orderId)) {
+    return { error: "Invalid replay order." };
+  }
+  try {
+    const order = await cancelReplayOrder(sessionId, orderId);
+    revalidatePath(`/replay/${sessionId}`);
+    return { status: order.status };
   } catch (err) {
     return mapError(err);
   }

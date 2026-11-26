@@ -2,7 +2,11 @@
  * /replay/[sessionId] — blind historical Replay Lab workspace.
  *
  * Chart, quote, and metrics come only from replay-scoped APIs. No live
- * quotes, SSE, news, comments, or generic bar history.
+ * quotes, SSE, comments, or generic bar history. A4.6: A3's multi-pane chart
+ * with the Indicators menu (computed by the API from bars up to the clock),
+ * the session's own drawings, its fills and the news whose `available_at`
+ * has passed the clock (the replay events route, never the live one); amounts
+ * in the session's currency; limit and stop orders that rest across steps.
  */
 
 import { Lock } from "lucide-react";
@@ -13,33 +17,42 @@ import { notFound } from "next/navigation";
 import { FigureStrip } from "@/components/figure-strip";
 import { PageFrame } from "@/components/page-frame";
 import { MetaChip } from "@/components/page-header";
-import { PriceChart } from "@/components/price-chart";
+import { ReplayChart } from "@/components/replay-chart";
 import { ReplayAdvanceControls } from "@/components/replay-controls";
 import { ReplayFillTable } from "@/components/replay-fills";
 import { ReplayForensicsPanel, ReplayScorecard } from "@/components/replay-forensics";
 import { ReplayJournalForm } from "@/components/replay-journal";
 import { ReplayMobileSheet } from "@/components/replay-mobile-sheet";
+import { ReplayOrders } from "@/components/replay-orders";
 import { ReplayTradeTicket } from "@/components/replay-trade-ticket";
 import { ResearchEmptyState, ResearchSectionHeader } from "@/components/research-page-header";
+import { getIndicatorCatalog } from "@/lib/api";
 import {
+  getReplayEvents,
   getReplayFills,
   getReplayForensics,
   getReplayHistory,
+  getReplayIndicators,
   getReplayJournal,
   getReplayMarket,
+  getReplayOrders,
   getReplaySession,
   getReplaySummary,
+  listReplayDrawings,
 } from "@/lib/api/replay";
 import { AuthedApiError } from "@/lib/api/server";
+import type { Indicators } from "@/lib/api/types";
+import type { ChartEvent } from "@/lib/chart-events";
+import { badgesFor } from "@/lib/indicator-badge";
 import { formatCurrency, formatQuantity, formatSignedCurrency } from "@/lib/portfolio-view-model";
 import {
   REPLAY_PROFILE_LABEL,
   datesDiffer,
   formatReplayDate,
   replayBarsToChart,
-  replayFillMarkers,
   replayStatusLabel,
 } from "@/lib/replay";
+import { chartLayers, macdSeries, parseStockIndicators, studyFor } from "@/lib/stock-workspace";
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Replay session" };
@@ -49,7 +62,12 @@ export default async function ReplaySessionPage({
   searchParams,
 }: {
   params: Promise<{ sessionId: string }>;
-  searchParams: Promise<{ requestedStart?: string; requestedEnd?: string; view?: string }>;
+  searchParams: Promise<{
+    requestedStart?: string;
+    requestedEnd?: string;
+    view?: string;
+    indicators?: string;
+  }>;
 }) {
   const { sessionId: rawId } = await params;
   const sessionId = Number(rawId);
@@ -57,6 +75,19 @@ export default async function ReplaySessionPage({
 
   const requested = await searchParams;
   const view = requested.view === "forensics" ? "forensics" : "replay";
+
+  // A4.6: the replay chart starts with no studies; the menu adds them (URL state).
+  const catalog = view === "replay" ? await getIndicatorCatalog().catch(() => null) : null;
+  const selectedIndicators = parseStockIndicators(
+    requested.indicators ?? "",
+    catalog ? Object.fromEntries(catalog.map((c) => [c.key, c.parameters])) : null,
+  );
+  const carried = new URLSearchParams();
+  for (const key of ["requestedStart", "requestedEnd"] as const) {
+    const value = requested[key];
+    if (value) carried.set(key, value);
+  }
+  if (selectedIndicators.length) carried.set("indicators", selectedIndicators.join(","));
 
   try {
     const [session, market, history, summary, fills, forensics, journal] = await Promise.all([
@@ -68,6 +99,31 @@ export default async function ReplaySessionPage({
       getReplayForensics(sessionId),
       getReplayJournal(sessionId),
     ]);
+    // Everything on the chart is replay-scoped and cut at the clock by the API.
+    const [orders, drawings, replayEvents, indicatorBundle] =
+      view === "replay"
+        ? await Promise.all([
+            getReplayOrders(sessionId).catch(() => []),
+            listReplayDrawings(sessionId).catch(() => null),
+            getReplayEvents(sessionId).catch(() => null),
+            selectedIndicators.length
+              ? getReplayIndicators(sessionId, selectedIndicators).catch(() => null)
+              : Promise.resolve(null),
+          ])
+        : [[], null, null, null];
+    const currency = session.currency ?? "USD";
+    const money = (value: string | number) => formatCurrency(value, currency);
+    const bundle: Indicators = indicatorBundle ?? {
+      ticker: session.ticker,
+      series: {},
+      macd: null,
+      meta: {},
+    };
+    const rsiKey = selectedIndicators.find((k) => studyFor(k)?.key === "rsi");
+    const macdKey = selectedIndicators.find((k) => studyFor(k)?.key === "macd");
+    const { overlays, panes } = chartLayers(bundle, selectedIndicators, [rsiKey, macdKey]);
+    const chartEvents = (replayEvents?.events ?? []) as ChartEvent[];
+    const newsCount = chartEvents.filter((e) => e.type === "news").length;
 
     const readOnly = session.status !== "active";
     const position = session.positions[0] ?? null;
@@ -108,8 +164,12 @@ export default async function ReplaySessionPage({
         <p className="mt-4 flex items-start gap-2.5 rounded-xl border border-border-muted bg-card px-4 py-3 text-sm text-text-secondary">
           <Lock className="mt-0.5 size-4 shrink-0 text-text-tertiary" aria-hidden />
           <span>
-            Blind session: you see bars up to the replay date only, with no news. Fills use that
-            day&apos;s stored close, with no spread and no slippage.
+            Blind session: you see bars, indicators and news up to the replay date only. Fills use
+            that day&apos;s stored close, with no spread and no slippage
+            {session.fee_schedule && session.fee_schedule !== "none"
+              ? ", and pay the exchange's charges in force on that date"
+              : ""}
+            . Amounts are in {currency}.
           </span>
         </p>
 
@@ -155,8 +215,8 @@ export default async function ReplaySessionPage({
               label="Replay summary"
               className="mt-4"
               figures={[
-                { label: "Starting equity", value: formatCurrency(summary.starting_cash) },
-                { label: "Final equity", value: formatCurrency(summary.equity) },
+                { label: "Starting equity", value: money(summary.starting_cash) },
+                { label: "Final equity", value: money(summary.equity) },
                 {
                   label: "Total return",
                   value: (
@@ -170,7 +230,7 @@ export default async function ReplaySessionPage({
                   label: "Realized P&L",
                   value: (
                     <Signed raw={summary.realized_pnl}>
-                      {formatSignedCurrency(summary.realized_pnl)}
+                      {formatSignedCurrency(summary.realized_pnl, currency)}
                     </Signed>
                   ),
                 },
@@ -178,7 +238,7 @@ export default async function ReplaySessionPage({
                   label: "Unrealized P&L",
                   value: (
                     <Signed raw={summary.unrealized_pnl}>
-                      {formatSignedCurrency(summary.unrealized_pnl)}
+                      {formatSignedCurrency(summary.unrealized_pnl, currency)}
                     </Signed>
                   ),
                 },
@@ -259,6 +319,9 @@ export default async function ReplaySessionPage({
                   cash={summary.cash}
                   quantityHeld={position?.quantity ?? "0"}
                   readOnly={readOnly}
+                  currency={currency}
+                  tradable={session.tradable ?? true}
+                  feeSchedule={session.fee_schedule}
                 />
                 <section
                   aria-label={`${session.ticker} replay price chart`}
@@ -269,17 +332,40 @@ export default async function ReplaySessionPage({
                       <p className="text-[11px] font-semibold tracking-[0.14em] text-text-tertiary uppercase">
                         Replay close
                       </p>
-                      <p className="font-mono text-2xl tabular-nums">
-                        {formatCurrency(market.bar.close)}
-                      </p>
+                      <p className="font-mono text-2xl tabular-nums">{money(market.bar.close)}</p>
                     </div>
                     <p className="text-xs text-text-tertiary">
-                      Visible high {formatCurrency(summary.visible_high)} · low{" "}
-                      {formatCurrency(summary.visible_low)}
+                      Visible high {money(summary.visible_high)} · low {money(summary.visible_low)}
+                      {replayEvents
+                        ? ` · ${newsCount} news day${newsCount === 1 ? "" : "s"} so far`
+                        : ""}
                     </p>
                   </div>
-                  <div className="px-2 pb-4">
-                    <PriceChart bars={chartBars} markers={replayFillMarkers(fills)} />
+                  <div className="pb-4">
+                    <ReplayChart
+                      sessionId={session.id}
+                      ticker={session.ticker}
+                      search={carried.toString()}
+                      indicators={selectedIndicators}
+                      catalog={catalog}
+                      initial={drawings}
+                      bars={chartBars}
+                      overlays={overlays}
+                      rsi={rsiKey ? (bundle.series[rsiKey] ?? null) : null}
+                      macd={macdKey ? macdSeries(bundle, macdKey) : null}
+                      rsiKey={rsiKey}
+                      macdKey={macdKey}
+                      panes={panes}
+                      badges={badgesFor(selectedIndicators, catalog)}
+                      interval="1d"
+                      events={chartEvents}
+                      currency={currency}
+                    />
+                    {selectedIndicators.length && indicatorBundle === null ? (
+                      <p className="px-3 pt-2 text-xs text-text-tertiary">
+                        The indicators could not be loaded; the chart shows the bars only.
+                      </p>
+                    ) : null}
                   </div>
                 </section>
                 <p className="sr-only">
@@ -288,7 +374,7 @@ export default async function ReplaySessionPage({
                     ? "No trade markers."
                     : `Trade markers: ${fills.map((fill) => `${fill.side.toUpperCase()} on ${formatReplayDate(fill.evaluated_at)}`).join("; ")}.`}
                 </p>
-                <ReplayMetrics summary={summary} />
+                <ReplayMetrics summary={summary} currency={currency} />
                 {session.status === "active" && fills.length === 0 ? (
                   <p className="text-sm text-text-secondary">
                     <Link
@@ -313,6 +399,9 @@ export default async function ReplaySessionPage({
                   cash={summary.cash}
                   quantityHeld={position?.quantity ?? "0"}
                   readOnly={readOnly}
+                  currency={currency}
+                  tradable={session.tradable ?? true}
+                  feeSchedule={session.fee_schedule}
                 />
               </aside>
             </div>
@@ -323,8 +412,15 @@ export default async function ReplaySessionPage({
                 position={position}
                 close={market.bar.close}
                 unrealized={summary.unrealized_pnl}
+                currency={currency}
               />
-              <ReplayFillTable fills={fills} />
+              <ReplayOrders
+                sessionId={session.id}
+                orders={orders}
+                currency={currency}
+                readOnly={readOnly}
+              />
+              <ReplayFillTable fills={fills} currency={currency} />
               <ReplayAdvanceControls
                 sessionId={session.id}
                 currentAt={session.current_at}
@@ -362,6 +458,7 @@ function signedClass(raw: string): string {
 
 function ReplayMetrics({
   summary,
+  currency,
 }: {
   summary: {
     cash: string;
@@ -369,17 +466,20 @@ function ReplayMetrics({
     total_pnl: string;
     return_pct: string;
     current_close: string;
+    fees_paid?: string;
   };
+  currency: string;
 }) {
   const items = [
-    ["Replay close", formatCurrency(summary.current_close)],
-    ["Cash", formatCurrency(summary.cash)],
-    ["Equity", formatCurrency(summary.equity)],
-    ["Total P&L", formatSignedCurrency(summary.total_pnl)],
+    ["Replay close", formatCurrency(summary.current_close, currency)],
+    ["Cash", formatCurrency(summary.cash, currency)],
+    ["Equity", formatCurrency(summary.equity, currency)],
+    ["Total P&L, net", formatSignedCurrency(summary.total_pnl, currency)],
+    ["Fees paid", formatCurrency(summary.fees_paid ?? "0", currency)],
     ["Return", `${Number(summary.return_pct).toFixed(2)}%`],
   ] as const;
   return (
-    <dl className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-5">
+    <dl className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-6">
       {items.map(([label, value]) => (
         <div key={label}>
           <dt className="text-xs text-text-tertiary">{label}</dt>
@@ -395,10 +495,12 @@ function ReplayPositionCard({
   close,
   unrealized,
   position,
+  currency,
 }: {
   ticker: string;
   close: string;
   unrealized: string;
+  currency: string;
   position: { ticker: string; quantity: string; avg_cost: string } | null;
 }) {
   if (!position || Number(position.quantity) === 0) {
@@ -427,16 +529,16 @@ function ReplayPositionCard({
         </div>
         <div>
           <dt className="text-xs text-text-tertiary">Average cost</dt>
-          <dd className="font-mono tabular-nums">{formatCurrency(position.avg_cost)}</dd>
+          <dd className="font-mono tabular-nums">{formatCurrency(position.avg_cost, currency)}</dd>
         </div>
         <div>
           <dt className="text-xs text-text-tertiary">Market value</dt>
-          <dd className="font-mono tabular-nums">{formatCurrency(marketValue)}</dd>
+          <dd className="font-mono tabular-nums">{formatCurrency(marketValue, currency)}</dd>
         </div>
         <div>
           <dt className="text-xs text-text-tertiary">Unrealized P&amp;L</dt>
           <dd className={cn("font-mono tabular-nums", signedClass(unrealized))}>
-            {formatSignedCurrency(unrealized)}
+            {formatSignedCurrency(unrealized, currency)}
           </dd>
         </div>
       </dl>
@@ -452,6 +554,13 @@ function ReplayAssumptions() {
       </summary>
       <ul className="mt-2 space-y-1">
         <li>Execution model: {REPLAY_PROFILE_LABEL}</li>
+        <li>
+          Limit and stop orders: checked against each later close as you step, filled at that close;
+          nothing reserved
+        </li>
+        <li>Indicators: computed from bars up to the replay date (warm-up from earlier bars)</li>
+        <li>News: shown once its publication time is at or before the replay date</li>
+        <li>Drawings: this session&apos;s own; live-chart drawings are not shown</li>
         <li>Data: stored 1d bars</li>
         <li>Fill model: current observable close</li>
         <li>Spread: not modelled</li>
