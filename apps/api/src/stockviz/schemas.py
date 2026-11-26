@@ -1189,6 +1189,9 @@ class RuleErrorOut(BaseModel):
 
 class RuleCheckIn(BaseModel):
     rule: str = Field(min_length=1, max_length=RULE_MAX_LENGTH)
+    # A4.4: ``number`` checks a numeric expression (a rotation's ranking)
+    # instead of a condition.
+    expect: Literal["condition", "number"] = "condition"
 
 
 class RuleCheckOut(BaseModel):
@@ -2590,6 +2593,151 @@ class StrategyBacktestOut(BaseModel):
     checks: OverfittingChecksOut | None = None
 
 
+# --- A4.4: cross-sectional rotation ---------------------------------------
+
+
+class RotationBacktestIn(BaseModel):
+    """POST /v1/backtest/rotation (A4.4): hold the top ``top_n`` symbols of a
+    universe by a numeric Rule DSL expression, rebalanced weekly or monthly
+    on the venue calendar. ``cash_filter`` is an optional condition judged on
+    the market index (``^GSPC`` / ``^NSEI``) at each rebalance close: met
+    means hold cash. Long only."""
+
+    ranking: str = Field(min_length=1, max_length=4000)
+    """A numeric expression; higher ranks first (e.g. ``pct_change(close, 126)``)."""
+    top_n: int = Field(default=5, ge=1, le=50)
+    schedule: Literal["weekly", "monthly"] = "monthly"
+    weighting: Literal["equal", "inverse_volatility"] = "equal"
+    buffer: int = Field(default=0, ge=0, le=50)
+    """Hysteresis: a holding is kept while its rank is at most top_n + buffer."""
+    cash_filter: StrategyRuleIn | None = None
+    universe: StrategyUniverseIn
+    from_: date = Field(alias="from")
+    to: date
+    initial_cash: Decimal = Field(gt=0)
+    fill_rule: Literal["next_open", "next_close"] = "next_open"
+    fee_schedule: FeeScheduleName = "auto"
+    brokerage: BrokerageName = "zerodha"
+    adv_cap_pct: float | None = Field(default=10.0, gt=0, le=100)
+    commission_bps: float = Field(default=0.0, ge=0, le=1000)
+    slippage_bps: float = Field(default=0.0, ge=0, le=1000)
+    spread_bps: float = Field(default=0.0, ge=0, le=1000)
+    holdout: HoldoutMode = "last_20pct"
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class RotationRankOut(BaseModel):
+    ticker: str
+    value: float
+    rank: int
+
+
+class RotationUnrankedOut(BaseModel):
+    ticker: str
+    reason: Literal["no_bar", "unknown", "volatility_unknown"]
+
+
+class RotationRebalanceOut(BaseModel):
+    """One rebalance: ranked on ``signal_date``'s close, traded on each
+    symbol's next bar (``trade_dates``)."""
+
+    signal_date: date
+    trade_dates: list[date] = []
+    equity: Decimal
+    cash_filter: bool | None = None
+    """The cash filter at this close (null: no filter, or unknown)."""
+    skipped: str | None = None
+    ranked: list[RotationRankOut] = []
+    unranked: list[RotationUnrankedOut] = []
+    held_before: list[str] = []
+    held_after: list[str] = []
+    entered: list[str] = []
+    exited: list[str] = []
+    weights: dict[str, float] = {}
+    bought: Decimal = Decimal(0)
+    sold: Decimal = Decimal(0)
+    turnover: float = 0.0
+    replaced_orders: int = 0
+    not_filled: dict[str, int] = {}
+
+
+class RotationTradeOut(BaseModel):
+    ticker: str
+    entry_date: date
+    entry_price: Decimal
+    entry_reference_price: Decimal
+    exit_date: date
+    exit_price: Decimal
+    exit_reference_price: Decimal
+    quantity: Decimal
+    entry_fees: Decimal
+    exit_fees: Decimal
+    pnl: Decimal
+    return_pct: float
+    reason: Literal["rebalance", "cash_filter", "end_of_data"]
+    open: bool = False
+    bars_held: int
+    requested_quantity: Decimal | None = None
+    exit_adv_pct: float | None = None
+
+
+class RotationRuleOut(BaseModel):
+    role: Literal["ranking", "cash_filter"]
+    text: str
+    canonical: str
+    hash: str
+    setup_version_id: int | None = None
+    warmup_bars: int | None = None
+
+
+class RotationTurnoverOut(BaseModel):
+    """One-way turnover: (bought + sold) / 2 / equity at the rebalance close."""
+
+    rebalances: int
+    mean_per_rebalance: float
+    total: float
+    annualised: float
+    definition: str
+
+
+class RotationBacktestOut(BaseModel):
+    mode: Literal["rotation"] = "rotation"
+    tickers: list[str]
+    currency: str
+    price_basis: str | None = None
+    execution_profile: str
+    fee_schedule: str
+    rules: list[RotationRuleOut]
+    top_n: int
+    schedule: Literal["weekly", "monthly"]
+    weighting: Literal["equal", "inverse_volatility"]
+    buffer: int = 0
+    venue: str
+    cash_filter_index: str | None = None
+    timing: str
+    rebalances: list[RotationRebalanceOut]
+    trades: list[RotationTradeOut]
+    equity_curve: list[EquityPointOut]
+    summary: StrategySummaryOut
+    benchmark: StrategyBenchmarkOut
+    turnover: RotationTurnoverOut
+    source: StrategyUniverseSourceOut
+    universe: UniverseOut
+    warmup_bars: int = 0
+    cash_filter_unknown: int = 0
+    unfilled_at_end: int = 0
+    skip_reasons: dict[str, int] = {}
+    strategy_hash: str
+    data_fingerprint: str
+    notes: list[str] = []
+    costs: CostsOut | None = None
+    liquidity: LiquidityOut | None = None
+    window: RunWindowOut | None = None
+    report: ReportCardOut | None = None
+    checks: OverfittingChecksOut | None = None
+
+
 class ExperimentIn(BaseModel):
     name: str = Field(min_length=1, max_length=120)
     hypothesis: str | None = Field(default=None, max_length=4000)
@@ -2609,12 +2757,15 @@ class ExperimentRunIn(BaseModel):
 
     backtest: BacktestIn | None = None
     strategy: StrategyBacktestIn | None = None
+    rotation: RotationBacktestIn | None = None
+    """A4.4: a rotation, the body of POST /v1/backtest/rotation."""
     experiment_id: int | None = None
 
     @model_validator(mode="after")
     def _one(self) -> ExperimentRunIn:
-        if (self.backtest is None) == (self.strategy is None):
-            raise ValueError("give exactly one of backtest or strategy")
+        given = [v is not None for v in (self.backtest, self.strategy, self.rotation)]
+        if sum(given) != 1:
+            raise ValueError("give exactly one of backtest, strategy or rotation")
         return self
 
 
@@ -3397,9 +3548,11 @@ class HoldoutUnlockIn(BaseModel):
 
     backtest: BacktestIn | None = None
     strategy: StrategyBacktestIn | None = None
+    rotation: RotationBacktestIn | None = None
 
     @model_validator(mode="after")
     def _one(self) -> HoldoutUnlockIn:
-        if (self.backtest is None) == (self.strategy is None):
-            raise ValueError("give exactly one of backtest or strategy")
+        given = [v is not None for v in (self.backtest, self.strategy, self.rotation)]
+        if sum(given) != 1:
+            raise ValueError("give exactly one of backtest, strategy or rotation")
         return self

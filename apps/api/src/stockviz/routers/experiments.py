@@ -32,6 +32,7 @@ from stockviz.services.backtest.checks import stored_checks
 from stockviz.services.backtest.registry import (
     RunLimitReached,
     rerun,
+    save_rotation_run,
     save_run,
     save_strategy_run,
     save_study,
@@ -119,11 +120,17 @@ def list_experiments(session: SessionDep, user_id: UserIdDep) -> list[Experiment
 
 @router.post("/runs", response_model=ExperimentRunOut, status_code=status.HTTP_201_CREATED)
 def post_run(body: ExperimentRunIn, session: SessionDep, user_id: UserIdDep) -> ExperimentRunOut:
-    if body.strategy is not None:
+    if body.strategy is not None or body.rotation is not None:
         try:
-            row = save_strategy_run(
-                session, user_id=user_id, body=body.strategy, experiment_id=body.experiment_id
-            )
+            if body.rotation is not None:
+                row = save_rotation_run(
+                    session, user_id=user_id, body=body.rotation, experiment_id=body.experiment_id
+                )
+            else:
+                assert body.strategy is not None
+                row = save_strategy_run(
+                    session, user_id=user_id, body=body.strategy, experiment_id=body.experiment_id
+                )
         except RunLimitReached as exc:
             raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
         except STRATEGY_ERRORS as exc:

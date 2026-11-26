@@ -7,10 +7,12 @@ import {
   runSweep,
   runWalkForward,
   saveExperimentRun,
+  saveRotationRun,
   saveStrategyRun,
 } from "@/lib/api/experiments";
 import { AuthedApiError, UnauthenticatedError } from "@/lib/api/server";
 import type { BacktestRequest } from "@/lib/api/types";
+import type { RotationRequest } from "@/lib/rotation";
 import type { StrategyRequest } from "@/lib/rule-strategy";
 
 export type SaveRunState = { runId?: number; error?: string };
@@ -44,10 +46,14 @@ export async function saveBacktestRunAction(
   _prev: SaveRunState,
   formData: FormData,
 ): Promise<SaveRunState> {
-  if (formData.get("kind") === "strategy") {
+  const kind = formData.get("kind");
+  if (kind === "strategy" || kind === "rotation") {
     try {
-      const strategy = JSON.parse(String(formData.get("request") ?? "")) as StrategyRequest;
-      const run = await saveStrategyRun(strategy);
+      const raw = JSON.parse(String(formData.get("request") ?? ""));
+      const run =
+        kind === "rotation"
+          ? await saveRotationRun(raw as RotationRequest)
+          : await saveStrategyRun(raw as StrategyRequest);
       revalidatePath("/backtest/runs");
       return { runId: run.id };
     } catch (err) {

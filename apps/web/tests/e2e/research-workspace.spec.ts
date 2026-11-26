@@ -151,6 +151,22 @@ test.describe("research pages on a phone", () => {
     await expect(main.getByRole("heading", { name: "Equity curve" })).toBeVisible();
   });
 
+  test("backtest's rotation mode holds the top N and lists each rebalance (A4.4)", async ({
+    page,
+  }) => {
+    await page.goto("/backtest?mode=rotation");
+    const main = page.locator("#main");
+    await expect(main.getByTestId("rule-ok")).toHaveCount(1);
+    await main.getByRole("button", { name: "Run rotation" }).click();
+    const results = main.getByTestId("rotation-results");
+    await expect(results).toBeVisible({ timeout: 60_000 });
+    await expect(results.getByRole("heading", { name: "Performance, net of costs" })).toBeVisible();
+    const rows = results.getByTestId("rotation-rebalances").locator("tbody tr");
+    expect(await rows.count()).toBeGreaterThan(1);
+    await expect(results.getByTestId("report-card")).toBeVisible();
+    await expect(results.getByRole("heading", { name: "Equity curve" })).toBeVisible();
+  });
+
   test("a rule backtest lists its costs and the ADV cap (A4.2)", async ({ page }) => {
     // stockviz_e2e holds US bars only: a US symbol defaults to no fees, and
     // the disclosure still states the schedule, the cap and its link.

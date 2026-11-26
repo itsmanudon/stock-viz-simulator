@@ -22,7 +22,9 @@ from typing import Any
 from sqlmodel import Session, col, func, select
 
 from stockviz.models import Experiment, ExperimentRun
-from stockviz.schemas import BacktestIn, StrategyBacktestIn
+from stockviz.schemas import BacktestIn, RotationBacktestIn, StrategyBacktestIn
+from stockviz.services.backtest.rotation_run import execute_rotation
+from stockviz.services.backtest.rotation_run import request_json as rotation_request_json
 from stockviz.services.backtest.run import BacktestRun, execute_backtest
 from stockviz.services.backtest.strategy_run import (
     execute_strategy,
@@ -123,6 +125,45 @@ def save_strategy_run(
     from stockviz.services.backtest.checks import strategy_checks
 
     strategy_checks(session, body, run, user_id=user_id, source="saved", read=False)
+    return row
+
+
+def save_rotation_run(
+    session: Session,
+    *,
+    user_id: int,
+    body: RotationBacktestIn,
+    experiment_id: int | None = None,
+) -> ExperimentRun:
+    """A4.4: run a rotation and store it (``kind`` ``rotation``). The ranking
+    is inline text (a number, never a setup version) and the cash filter is
+    stored as sent: the stored request is itself immutable, so the rerun
+    reads the same rules. Commits."""
+    _check_room(session, user_id, experiment_id)
+    run = execute_rotation(session, body, user_id=user_id)
+    cash = next((r for r in run.out.rules if r.role == "cash_filter"), None)
+    row = ExperimentRun(
+        user_id=user_id,
+        experiment_id=experiment_id,
+        kind="rotation",
+        ticker=run.label,
+        request=rotation_request_json(body),
+        execution_profile=run.out.execution_profile,
+        fee_schedule=run.out.fee_schedule,
+        code_version=code_version(),
+        dataset_fingerprint=run.fingerprint,
+        bar_count=run.bar_count,
+        first_bar_at=run.first_bar_at,
+        last_bar_at=run.last_bar_at,
+        result=run.out.model_dump(mode="json", exclude={"checks"}),
+        setup_version_id=cash.setup_version_id if cash is not None else None,
+    )
+    session.add(row)
+    session.commit()
+    session.refresh(row)
+    from stockviz.services.backtest.checks import rotation_checks
+
+    rotation_checks(session, body, run, user_id=user_id, source="saved", read=False)
     return row
 
 
@@ -274,6 +315,11 @@ def rerun(session: Session, row: ExperimentRun) -> RerunReport:
         strategy = execute_strategy(session, body, user_id=row.user_id)
         current_fp = strategy.fingerprint
         fresh = strategy.out.model_dump(mode="json", exclude={"checks"})
+    elif row.kind == "rotation":
+        body_r = RotationBacktestIn.model_validate(row.request)
+        rotation = execute_rotation(session, body_r, user_id=row.user_id)
+        current_fp = rotation.fingerprint
+        fresh = rotation.out.model_dump(mode="json", exclude={"checks"})
     else:
         run = execute_backtest(session, BacktestIn.model_validate(as_saved(row.request)))
         current_fp, fresh = run.fingerprint, _result(run)

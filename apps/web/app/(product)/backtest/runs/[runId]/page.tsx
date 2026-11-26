@@ -19,6 +19,7 @@ import { MetaChip, PageHeader } from "@/components/page-header";
 import { OverfittingChecks } from "@/components/report-card/overfitting-checks";
 import { ReportCard } from "@/components/report-card/report-card";
 import { PboPanel, PlateauHeatmap } from "@/components/report-card/sweep-checks";
+import { RotationResults } from "@/components/rotation/rotation-results";
 import { RuleStrategyResults } from "@/components/rule-strategy/rule-strategy-results";
 import {
   Table,
@@ -38,6 +39,7 @@ import {
 } from "@/lib/api/experiments";
 import { AuthedApiError } from "@/lib/api/server";
 import type { BacktestRequest, BacktestResult } from "@/lib/api/types";
+import type { RotationRequest, RotationResult } from "@/lib/rotation";
 import type { StrategyRequest, StrategyResult } from "@/lib/rule-strategy";
 
 export const metadata: Metadata = { title: "Saved backtest" };
@@ -58,6 +60,7 @@ const KIND_LABEL: Record<string, string> = {
   walk_forward: "Walk-forward",
   sweep: "Sweep",
   strategy: "Rule strategy",
+  rotation: "Rotation",
 };
 
 export default async function SavedRunPage({ params }: { params: Promise<{ runId: string }> }) {
@@ -82,7 +85,7 @@ export default async function SavedRunPage({ params }: { params: Promise<{ runId
         meta={<MetaChip>Saved {formatUtcDateTime(run.created_at)}</MetaChip>}
         actions={<RerunBacktestRun runId={run.id} />}
       />
-      {kind !== "strategy" ? (
+      {kind !== "strategy" && kind !== "rotation" ? (
         <>
           <UniverseNote universe={run.universe} />
           <FigureStrip
@@ -163,6 +166,13 @@ export default async function SavedRunPage({ params }: { params: Promise<{ runId
           result={result as StrategyResult}
           checks={run.checks}
           unlockRequest={run.request as unknown as StrategyRequest}
+        />
+      ) : null}
+      {kind === "rotation" && result ? (
+        <RotationResults
+          result={result as unknown as RotationResult}
+          checks={run.checks}
+          unlockRequest={run.request as unknown as RotationRequest}
         />
       ) : null}
       <p className="text-xs text-text-tertiary">

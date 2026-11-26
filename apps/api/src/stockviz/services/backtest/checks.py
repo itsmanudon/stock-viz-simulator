@@ -18,11 +18,14 @@ from stockviz.schemas import (
     BacktestIn,
     HoldoutResultOut,
     OverfittingChecksOut,
+    RotationBacktestIn,
+    RotationBacktestOut,
     RunWindowOut,
     StrategyBacktestIn,
     StrategyBacktestOut,
 )
 from stockviz.services.backtest import report, report_card, trials
+from stockviz.services.backtest.rotation_run import RotationRun, execute_rotation
 from stockviz.services.backtest.run import BacktestRun, execute_backtest
 from stockviz.services.backtest.strategy_run import StrategyRun, execute_strategy
 
@@ -64,6 +67,30 @@ def _strategy_holdout(
         held = body.model_copy(update={"from_": window.holdout_from, "holdout": "none"})
         try:
             out = execute_strategy(session, held, user_id=user_id).out
+        except Exception:
+            return None
+        return report_card.holdout_result(
+            start=window.holdout_from,
+            end=window.holdout_to,
+            total_return=out.summary.total_return,
+            sharpe=out.summary.sharpe,
+            max_drawdown=out.summary.max_drawdown,
+            navs=[p.nav for p in out.equity_curve],
+            trades=len(out.trades),
+        )
+
+    return run
+
+
+def _rotation_holdout(
+    session: Session, body: RotationBacktestIn, window: RunWindowOut, user_id: int | None
+) -> Callable[[], HoldoutResultOut | None]:
+    def run() -> HoldoutResultOut | None:
+        if window.holdout_from is None or window.holdout_to is None:
+            return None
+        held = body.model_copy(update={"from_": window.holdout_from, "holdout": "none"})
+        try:
+            out = execute_rotation(session, held, user_id=user_id).out
         except Exception:
             return None
         return report_card.holdout_result(
@@ -154,6 +181,44 @@ def strategy_checks(
     )
 
 
+def rotation_checks(
+    session: Session,
+    body: RotationBacktestIn,
+    run: RotationRun,
+    *,
+    user_id: int | None,
+    source: str | None,
+    read: bool = True,
+) -> OverfittingChecksOut | None:
+    """A4.4: the rotation's trial and checks, like a rule strategy's."""
+    out = run.out
+    family = trials.rotation_family(out)
+    stats = run.stats or _stats_of([p.nav for p in out.equity_curve])
+    if source is not None:
+        trials.record_trial(
+            session,
+            user_id=user_id,
+            family=family,
+            source=source,
+            strategy_hash=out.strategy_hash,
+            fingerprint=run.fingerprint,
+            label=trials.rotation_label(out),
+            stats=stats,
+            total_return=out.summary.total_return,
+        )
+    if not read:
+        return None
+    window = out.window or trials.split_window(body.from_, body.to, body.holdout)
+    return trials.checks(
+        session,
+        user_id=user_id,
+        family=family,
+        stats=stats,
+        window=window,
+        holdout_result=_rotation_holdout(session, body, window, user_id),
+    )
+
+
 def record_members(
     session: Session, *, user_id: int, kind: str, members: list[Any], fingerprint: str
 ) -> None:
@@ -210,6 +275,18 @@ def stored_checks(session: Session, row: ExperimentRun) -> OverfittingChecksOut 
             window=window,
             holdout_result=_strategy_holdout(session, body, window, row.user_id),
         )
+    if row.kind == "rotation":
+        body = RotationBacktestIn.model_validate(row.request)
+        out = RotationBacktestOut.model_validate(result)
+        window = _window_of(result, body.from_, body.to, body.holdout)
+        return trials.checks(
+            session,
+            user_id=row.user_id,
+            family=trials.rotation_family(out),
+            stats=stats,
+            window=window,
+            holdout_result=_rotation_holdout(session, body, window, row.user_id),
+        )
     return None
 
 
@@ -219,6 +296,7 @@ def unlock_family(
     user_id: int,
     backtest: BacktestIn | None,
     strategy: StrategyBacktestIn | None,
+    rotation: RotationBacktestIn | None = None,
 ) -> OverfittingChecksOut:
     """The one-time unlock: run it, record the unlock, return the checks with
     the holdout's result. Raises ``trials.NoHoldout`` / ``AlreadyUnlocked``
@@ -232,6 +310,15 @@ def unlock_family(
         checked = template_checks(session, backtest, run, user_id=user_id, source=None)
         assert checked is not None
         return checked
+    if rotation is not None:
+        rrun = execute_rotation(session, rotation, user_id=user_id)
+        window = rrun.out.window or trials.split_window(
+            rotation.from_, rotation.to, rotation.holdout
+        )
+        trials.unlock(session, user_id, trials.rotation_family(rrun.out), window)
+        checked = rotation_checks(session, rotation, rrun, user_id=user_id, source=None)
+        assert checked is not None
+        return checked
     assert strategy is not None
     srun = execute_strategy(session, strategy, user_id=user_id)
     window = srun.out.window or trials.split_window(strategy.from_, strategy.to, strategy.holdout)
@@ -243,6 +330,7 @@ def unlock_family(
 
 __all__ = [
     "record_members",
+    "rotation_checks",
     "stored_checks",
     "strategy_checks",
     "template_checks",
