@@ -1120,6 +1120,10 @@ body::after {
     line-height: 0.9;
     letter-spacing: -0.05em;
     font-weight: 600;
+    /* At line-height 0.9 the glyphs' descenders hang below the line box, and
+       the row's overflow: hidden (.marquee) cut the tails off "y" and "p".
+       The padding puts them back inside the row. */
+    padding-bottom: 0.1em;
   }
 
   /* Custom cursor (components/prism/prism-cursor.tsx), public pages only,
