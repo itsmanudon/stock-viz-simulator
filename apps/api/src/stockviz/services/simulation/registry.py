@@ -70,11 +70,12 @@ LIVE_PAPER_EXECUTION_PROFILE = get_execution_profile(LEGACY_CLOSE_NAME, LEGACY_C
 
 def replay_profile(name: str | None) -> ExecutionProfile:
     """The replay profile called ``name`` (its one registered version), or the
-    default ``legacy_close`` when None. Anything outside ``REPLAY_PROFILES``
+    default ``intrabar_ohlc`` when None (owner, 27 Nov 2026; sessions opened
+    before keep the profile frozen on them). Anything outside ``REPLAY_PROFILES``
     is :class:`UnknownExecutionProfileError`."""
 
     if name is None:
-        return get_execution_profile(LEGACY_CLOSE_NAME, LEGACY_CLOSE_MODEL_VERSION)
+        return get_execution_profile(INTRABAR_OHLC_NAME, INTRABAR_OHLC_MODEL_VERSION)
     for profile_name, version in REPLAY_PROFILES:
         if profile_name == name:
             return get_execution_profile(profile_name, version)

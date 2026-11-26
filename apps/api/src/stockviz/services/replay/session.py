@@ -197,8 +197,8 @@ def create_replay_session(
 ) -> ReplaySession:
     """Open an isolated book over a frozen stored range.
 
-    ``profile`` is a replay profile (``REPLAY_PROFILES``: ``legacy_close``, the
-    default, or A6.9's ``intrabar_ohlc``), frozen on the session. ``end_at``
+    ``profile`` is a replay profile (``REPLAY_PROFILES``: ``intrabar_ohlc``, the
+    default since 27 Nov 2026, or ``legacy_close``), frozen on the session. ``end_at``
     is resolved once at creation; later ingest cannot extend the horizon.
 
     A6.9: ``interval`` ``1m``/``5m``/``15m``/``60m`` builds the bars from the

@@ -58,7 +58,14 @@ def _seed(session: Session) -> None:
 
 
 def _create(client: TestClient, headers: dict[str, str], **extra):
-    payload = {"ticker": "AAPL", "start_at": DAY1, "end_at": DAY3, **extra}
+    # Written for close fills: pinned to legacy_close (intrabar_ohlc is the default).
+    payload = {
+        "ticker": "AAPL",
+        "start_at": DAY1,
+        "end_at": DAY3,
+        "profile": "legacy_close",
+        **extra,
+    }
     return client.post("/v1/replay/sessions", headers=headers, json=payload)
 
 
