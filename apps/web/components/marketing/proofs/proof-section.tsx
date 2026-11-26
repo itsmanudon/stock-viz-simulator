@@ -41,6 +41,7 @@ import {
 import type { Bar } from "@/lib/api/types";
 import { formatCurrency } from "@/lib/portfolio-view-model";
 import { formatCloseDate } from "@/lib/stock-workspace";
+import { titleCase } from "@/lib/title-case";
 import { cn } from "@/lib/utils";
 
 export type ProofKey =
@@ -341,7 +342,9 @@ function Row({
   return (
     <li data-motion-item className="grid items-center gap-8 md:grid-cols-2 md:gap-12">
       <div className={cn("grid gap-3", flip && "md:order-2")}>
-        <span className="font-mono text-2xs tracking-[0.14em] text-brand uppercase">{eyebrow}</span>
+        <span className="font-mono text-2xs tracking-[0.02em] text-brand">
+          {titleCase(eyebrow)}
+        </span>
         <h3 className="text-2xl font-medium tracking-[-0.02em] text-balance sm:text-3xl">
           {title}
         </h3>
@@ -484,7 +487,7 @@ export async function ProofSection({
       const last = bars.bars[bars.bars.length - 1];
       const currency = bars.currency;
       const date = formatCloseDate(last.ts) ?? "";
-      const short = date.replace(/,? \d{4}$/, "").toUpperCase();
+      const short = date.replace(/,? \d{4}$/, "");
       const price = Number(last.close);
       rows.push(
         <Row
@@ -502,7 +505,7 @@ export async function ProofSection({
           cta="How paper trading works"
           stage={
             <PrintStamp
-              heading={`EXAMPLE · BUY 10 ${bars.ticker}`}
+              heading={`Example · Buy 10 ${bars.ticker}`}
               lines={[
                 ["Type", "Market"],
                 ["Fills at", "Next stored close"],
@@ -511,7 +514,7 @@ export async function ProofSection({
                 ["Fees", "None"],
                 ["Total", formatCurrency(price * 10, currency)],
               ]}
-              stamp={`FILLED · ${short}`}
+              stamp={`Filled · ${short}`}
             />
           }
         >

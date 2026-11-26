@@ -129,12 +129,12 @@ describe("TableToolbar", () => {
 describe("StatusBadge", () => {
   it("applies the tone's token classes", () => {
     render(<StatusBadge label="filled" tone="positive" />);
-    expect(screen.getByText("filled")).toHaveClass("bg-positive/15", "text-positive");
+    expect(screen.getByText("Filled")).toHaveClass("bg-positive/15", "text-positive");
   });
 
   it("defaults to the neutral tone", () => {
     render(<StatusBadge label="cancelled" />);
-    expect(screen.getByText("cancelled")).toHaveClass("bg-surface-secondary");
+    expect(screen.getByText("Cancelled")).toHaveClass("bg-surface-secondary");
   });
 });
 
@@ -158,10 +158,10 @@ describe("order and alert badges", () => {
 
     const scope = within(container);
     // The side of an order is not a gain or a loss (Aurora board v3).
-    expect(scope.getByText("buy").parentElement).toHaveClass("text-text-secondary");
-    expect(scope.getByText("sell").parentElement).not.toHaveClass("text-negative");
-    expect(scope.getByText("filled")).toHaveClass("text-positive");
-    expect(scope.getByText("pending")).toHaveClass("text-warning");
+    expect(scope.getByText("Buy").parentElement).toHaveClass("text-text-secondary");
+    expect(scope.getByText("Sell").parentElement).not.toHaveClass("text-negative");
+    expect(scope.getByText("Filled")).toHaveClass("text-positive");
+    expect(scope.getByText("Pending")).toHaveClass("text-warning");
     expect(scope.getByText("Active")).toHaveClass("text-text-secondary");
     expect(scope.getByText("Triggered")).toHaveClass("text-positive");
     expect(scope.getByText("Dismissed")).toHaveClass("text-text-secondary");

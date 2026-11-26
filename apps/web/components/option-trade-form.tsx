@@ -33,6 +33,7 @@ import {
 } from "@/lib/api/option-quote";
 import { newClientOrderId } from "@/lib/order-review";
 import { formatCloseDate } from "@/lib/stock-workspace";
+import { titleCase } from "@/lib/title-case";
 
 type SymbolOption = { ticker: string; name: string };
 
@@ -272,7 +273,7 @@ export function OptionTradeForm({ options }: { options: SymbolOption[] }) {
         {state.success ? (
           <output className="block text-sm text-positive">
             {state.success.side === "short" ? "Wrote" : "Bought"} {state.success.quantity}{" "}
-            {state.success.ticker} {state.success.option_type.toUpperCase()} @ $
+            {state.success.ticker} {titleCase(state.success.option_type)} @ $
             {Number(state.success.strike).toFixed(2)}{" "}
             {state.success.side === "short" ? "and received" : "for"} $
             {Number(state.success.premium_paid).toFixed(2)}

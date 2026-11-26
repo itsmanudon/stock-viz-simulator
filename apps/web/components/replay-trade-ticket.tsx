@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { formatCurrency, formatQuantity } from "@/lib/portfolio-view-model";
 import { REPLAY_PROFILE_LABEL } from "@/lib/replay";
+import { titleCase } from "@/lib/title-case";
 import { cn } from "@/lib/utils";
 
 type Side = "buy" | "sell";
@@ -48,9 +49,7 @@ export function ReplayTradeTicket({
   return (
     <section aria-labelledby={`${fieldId}-title`} className="space-y-5">
       <div>
-        <p className="text-[11px] font-semibold tracking-[0.14em] text-brand uppercase">
-          Replay order
-        </p>
+        <p className="text-[11px] font-semibold tracking-[0.02em] text-brand">Replay Order</p>
         <h2 id={`${fieldId}-title`} className="mt-1 text-sm font-semibold">
           {ticker} market ticket
         </h2>
@@ -144,7 +143,7 @@ export function ReplayTradeTicket({
           ) : null}
           {state.filled ? (
             <output className="block text-sm text-positive">
-              Filled {state.side?.toUpperCase()} {state.quantity} {ticker} @{" "}
+              Filled {titleCase(state.side)} {state.quantity} {ticker} @{" "}
               {formatCurrency(state.fillPrice ?? "0")}
             </output>
           ) : null}

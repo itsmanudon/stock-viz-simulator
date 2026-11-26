@@ -101,6 +101,19 @@ export function chartLayers(
   return { overlays, panes };
 }
 
+/**
+ * The chart's label for an overlay line: the indicator's menu label, plus
+ * the output in Title Case for multi-line indicators ("Bollinger Bands 20, 2
+ * · Upper"). Abbreviations such as SMA and VWAP keep their capitals.
+ */
+export function overlayTitle(key: string): string {
+  const [name, output] = key.split(".", 2);
+  const base = STOCK_INDICATORS.find((indicator) => indicator.value === name)?.label ?? name;
+  if (!output) return base;
+  const part = output.replaceAll("_", " ");
+  return `${base} · ${part.charAt(0).toUpperCase()}${part.slice(1)}`;
+}
+
 export type StockTimeframe = (typeof STOCK_TIMEFRAMES)[number];
 export type StockIndicator = (typeof STOCK_INDICATORS)[number]["value"];
 

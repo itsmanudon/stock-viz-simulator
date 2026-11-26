@@ -43,8 +43,8 @@ export default async function DashboardPage() {
     <PageFrame width="workstation" className="py-6 lg:py-8">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="min-w-0">
-          <p className="text-xs font-medium tracking-[0.12em] text-text-secondary uppercase">
-            StockViz workspace
+          <p className="text-xs font-medium tracking-[0.02em] text-text-secondary">
+            StockViz Workspace
           </p>
           <h1 className="mt-1.5 text-3xl font-semibold tracking-[-0.035em] sm:text-4xl">
             Today&rsquo;s{" "}

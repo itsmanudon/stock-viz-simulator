@@ -40,6 +40,7 @@ import {
   replayFillMarkers,
   replayStatusLabel,
 } from "@/lib/replay";
+import { titleCase } from "@/lib/title-case";
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Replay session" };
@@ -80,9 +81,9 @@ export default async function ReplaySessionPage({
       <PageFrame width="workstation" className="py-6 sm:py-8">
         <header className="flex flex-col gap-3 border-b border-border-muted pb-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="text-2xs font-medium tracking-[0.12em] text-text-secondary uppercase">
-              {session.status === "completed" ? "Replay Review" : "Replay"} · Historical session ·
-              Daily data
+            <p className="text-2xs font-medium tracking-[0.02em] text-text-secondary">
+              {session.status === "completed" ? "Replay Review" : "Replay"} · Historical Session ·
+              Daily Data
             </p>
             <h1 className="mt-1.5 text-3xl font-semibold tracking-[-0.025em]">{session.ticker}</h1>
             <div className="mt-2.5 flex flex-wrap items-center gap-2 text-xs text-text-tertiary">
@@ -266,8 +267,8 @@ export default async function ReplaySessionPage({
                 >
                   <div className="flex flex-wrap items-end justify-between gap-3 px-4 py-3">
                     <div>
-                      <p className="text-[11px] font-semibold tracking-[0.14em] text-text-tertiary uppercase">
-                        Replay close
+                      <p className="text-[11px] font-semibold tracking-[0.02em] text-text-tertiary">
+                        Replay Close
                       </p>
                       <p className="font-mono text-2xl tabular-nums">
                         {formatCurrency(market.bar.close)}
@@ -286,7 +287,7 @@ export default async function ReplaySessionPage({
                   Chart dataset high {chartHigh}. Future prices are not included.{" "}
                   {fills.length === 0
                     ? "No trade markers."
-                    : `Trade markers: ${fills.map((fill) => `${fill.side.toUpperCase()} on ${formatReplayDate(fill.evaluated_at)}`).join("; ")}.`}
+                    : `Trade markers: ${fills.map((fill) => `${titleCase(fill.side)} on ${formatReplayDate(fill.evaluated_at)}`).join("; ")}.`}
                 </p>
                 <ReplayMetrics summary={summary} />
                 {session.status === "active" && fills.length === 0 ? (

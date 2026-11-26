@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import type { JournalExecution } from "@/lib/api/journal";
 import { JOURNAL_TIMEZONE } from "@/lib/journal-view-model";
 import { formatCurrency, formatQuantity } from "@/lib/portfolio-view-model";
+import { titleCase } from "@/lib/title-case";
 import { cn } from "@/lib/utils";
 
 /**
@@ -113,11 +114,11 @@ function describeEquity(execution: JournalExecution): string {
 }
 
 function describeOption(execution: JournalExecution): string {
-  const type = execution.option_type === "put" ? "PUT" : "CALL";
+  const type = execution.option_type === "put" ? "Put" : "Call";
   const strike = execution.strike === null ? "" : ` ${Number(execution.strike).toFixed(2)}`;
   const expiry = execution.expiry ? ` exp ${execution.expiry}` : "";
   const contracts = execution.contracts ?? 0;
-  return `LONG ${type}${strike}${expiry} · ${contracts} ${contracts === 1 ? "contract" : "contracts"}`;
+  return `Long ${type}${strike}${expiry} · ${contracts} ${contracts === 1 ? "contract" : "contracts"}`;
 }
 
 function money(raw: string | null, currency: string): string {
@@ -127,7 +128,7 @@ function money(raw: string | null, currency: string): string {
 function Field({ label, value }: { label: string; value: string }) {
   return (
     <div className="min-w-0">
-      <dt className="truncate text-3xs uppercase tracking-wide text-text-tertiary">{label}</dt>
+      <dt className="truncate text-3xs tracking-[0.02em] text-text-tertiary">{titleCase(label)}</dt>
       <dd data-financial className="truncate font-mono text-xs">
         {value}
       </dd>

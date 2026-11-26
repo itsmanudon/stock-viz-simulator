@@ -279,7 +279,7 @@ function SignalsList({
           <SignalSortLinks sort={sort} dir={dir} sortHrefs={sortHrefs} compact />
         </div>
       ) : (
-        <table className="hidden w-full table-fixed border-b border-border-muted text-left text-3xs font-semibold tracking-[0.12em] text-text-tertiary uppercase md:table">
+        <table className="hidden w-full table-fixed border-b border-border-muted text-left text-3xs font-semibold tracking-[0.02em] text-text-tertiary md:table">
           <thead>
             <tr>
               <SignalColumnHeader
@@ -305,7 +305,7 @@ function SignalsList({
                 className="w-[11%]"
               />
               <th scope="col" className="w-[13%] px-3 py-2.5">
-                Supporting votes
+                Supporting Votes
               </th>
               <SignalColumnHeader
                 label="Sentiment"
@@ -361,9 +361,7 @@ function SignalSortLinks({
       aria-label="Signal sorting"
       className={cn("flex flex-wrap items-center gap-1.5", compact && "gap-1")}
     >
-      <span className="text-3xs font-semibold tracking-[0.1em] text-text-tertiary uppercase">
-        Sort
-      </span>
+      <span className="text-3xs font-semibold tracking-[0.02em] text-text-tertiary">Sort</span>
       {options.map((key) => (
         <Link
           key={key}
@@ -500,7 +498,7 @@ function SignalBadge({ signal }: { signal: SignalRow["signal"] }) {
   return (
     <span
       className={cn(
-        "inline-flex items-center rounded-sm px-1.5 py-0.5 text-2xs font-semibold tracking-wide uppercase",
+        "inline-flex items-center rounded-sm px-1.5 py-0.5 text-2xs font-semibold tracking-[0.02em]",
         signal === "bullish"
           ? "bg-positive/15 text-positive"
           : "bg-surface-secondary text-text-secondary",
@@ -525,9 +523,7 @@ function SignalDetail({ row, onClose }: { row: SignalRow; onClose: () => void })
       className="animate-in fade-in-0 flex h-full min-h-0 min-w-0 flex-col border border-border-muted bg-card duration-200 motion-reduce:animate-none"
     >
       <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border-muted px-4 py-3 sm:px-6">
-        <p className="text-3xs font-semibold tracking-[0.14em] text-text-tertiary uppercase">
-          Signal detail
-        </p>
+        <p className="text-3xs font-semibold tracking-[0.02em] text-text-tertiary">Signal Detail</p>
         <button
           type="button"
           onClick={onClose}
@@ -559,7 +555,7 @@ function SignalDetail({ row, onClose }: { row: SignalRow; onClose: () => void })
 
         <dl className="mt-6 grid grid-cols-2 divide-x divide-border-muted border-y border-border-muted sm:grid-cols-3">
           <div className="py-3 pr-3 sm:pr-5">
-            <dt className="text-3xs font-semibold tracking-[0.1em] text-text-tertiary uppercase">
+            <dt className="text-3xs font-semibold tracking-[0.02em] text-text-tertiary">
               Strength
             </dt>
             <dd className="mt-1 font-mono text-xl font-semibold tabular-nums">
@@ -567,16 +563,16 @@ function SignalDetail({ row, onClose }: { row: SignalRow; onClose: () => void })
             </dd>
           </div>
           <div className="border-t border-border-muted py-3 pl-3 sm:border-t-0 sm:px-5">
-            <dt className="text-3xs font-semibold tracking-[0.1em] text-text-tertiary uppercase">
-              Supporting votes
+            <dt className="text-3xs font-semibold tracking-[0.02em] text-text-tertiary">
+              Supporting Votes
             </dt>
             <dd className="mt-1 font-mono text-xl font-semibold tabular-nums">
               {row.supportingVotes}/{row.maxScore}
             </dd>
           </div>
           <div className="col-span-2 border-t border-border-muted py-3 sm:col-span-1 sm:border-t-0 sm:pl-5">
-            <dt className="text-3xs font-semibold tracking-[0.1em] text-text-tertiary uppercase">
-              7-day sentiment
+            <dt className="text-3xs font-semibold tracking-[0.02em] text-text-tertiary">
+              7-Day Sentiment
             </dt>
             <dd className="mt-1 font-mono text-xl font-semibold tabular-nums">
               {row.sentiment7d === null

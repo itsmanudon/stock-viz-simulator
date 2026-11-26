@@ -104,8 +104,8 @@ export function StockChartToolbar({
             sideOffset={6}
             className="z-50 min-w-48 rounded-md border border-border-muted bg-popover p-1"
           >
-            <DropdownMenu.Label className="px-2 py-1.5 text-3xs font-semibold uppercase tracking-[0.12em] text-text-tertiary">
-              Technical indicators
+            <DropdownMenu.Label className="px-2 py-1.5 text-3xs font-semibold tracking-[0.02em] text-text-tertiary">
+              Technical Indicators
             </DropdownMenu.Label>
             {STOCK_INDICATORS.map((indicator, index) => [
               index === 0 || STOCK_INDICATORS[index - 1].section !== indicator.section ? (

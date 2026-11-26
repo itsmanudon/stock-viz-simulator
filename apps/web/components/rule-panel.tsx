@@ -107,7 +107,7 @@ export function RulePanel({
         <div>
           <h2
             id={`${id}-title`}
-            className="text-2xs font-semibold tracking-[0.12em] text-text-tertiary uppercase"
+            className="text-2xs font-semibold tracking-[0.02em] text-text-tertiary"
           >
             Rule
           </h2>

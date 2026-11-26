@@ -17,6 +17,7 @@ import {
   splitMonthKey,
   tintScale,
 } from "@/lib/journal-view-model";
+import { titleCase } from "@/lib/title-case";
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -194,14 +195,14 @@ export function PnlCalendar({
               {WEEKDAYS.map((label) => (
                 <span
                   key={label}
-                  className="px-1 font-mono text-3xs uppercase tracking-wide text-text-tertiary"
+                  className="px-1 font-mono text-3xs tracking-[0.02em] text-text-tertiary"
                 >
-                  <span className="sm:hidden">{label.slice(0, 1)}</span>
-                  <span className="hidden sm:inline">{label}</span>
+                  <span className="sm:hidden">{titleCase(label.slice(0, 1))}</span>
+                  <span className="hidden sm:inline">{titleCase(label)}</span>
                 </span>
               ))}
             </div>
-            <span className="journal-week-column px-1 font-mono text-3xs uppercase tracking-wide text-text-tertiary">
+            <span className="journal-week-column px-1 font-mono text-3xs tracking-[0.02em] text-text-tertiary">
               Week
             </span>
           </div>

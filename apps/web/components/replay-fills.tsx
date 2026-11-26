@@ -12,6 +12,7 @@ import {
 import type { ReplayFill } from "@/lib/api/replay";
 import { formatCurrency, formatQuantity } from "@/lib/portfolio-view-model";
 import { formatReplayShortDate } from "@/lib/replay";
+import { titleCase } from "@/lib/title-case";
 
 export function ReplayFillTable({ fills }: { fills: ReplayFill[] }) {
   if (fills.length === 0) {
@@ -61,7 +62,7 @@ function ReplayFillRows({ fill }: { fill: ReplayFill }) {
       <TableRow>
         <TableCell>{formatReplayShortDate(fill.evaluated_at)}</TableCell>
         <TableCell>{fill.ticker}</TableCell>
-        <TableCell className="uppercase">{fill.side}</TableCell>
+        <TableCell>{titleCase(fill.side)}</TableCell>
         <TableCell className="text-right font-mono tabular-nums">
           {formatQuantity(fill.quantity)}
         </TableCell>
@@ -71,7 +72,7 @@ function ReplayFillRows({ fill }: { fill: ReplayFill }) {
         <TableCell className="text-right font-mono tabular-nums">
           {fill.realized_pnl === null ? "—" : formatCurrency(fill.realized_pnl)}
         </TableCell>
-        <TableCell className="uppercase">{fill.order_type.replaceAll("_", " ")}</TableCell>
+        <TableCell>{titleCase(fill.order_type.replaceAll("_", " "))}</TableCell>
         <TableCell>
           {fill.profile_name} {fill.model_version}
         </TableCell>

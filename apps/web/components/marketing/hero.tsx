@@ -95,9 +95,9 @@ export async function Hero() {
       />
       <Link
         href="/trade"
-        className="glass inline-flex items-center gap-2 rounded-full py-1 pr-2.5 pl-3 font-mono text-2xs tracking-[0.12em] text-text-secondary uppercase transition-colors hover:text-foreground"
+        className="glass inline-flex items-center gap-2 rounded-full py-1 pr-2.5 pl-3 font-mono text-2xs tracking-[0.02em] text-text-secondary transition-colors hover:text-foreground"
       >
-        Options settlement
+        Options Settlement
         <ArrowRight className="size-3" aria-hidden />
       </Link>
 

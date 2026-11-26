@@ -582,9 +582,7 @@ export function MarketTerrain({
 
         <div className="pointer-events-none relative z-10 mx-auto flex h-full w-full max-w-7xl flex-col justify-between px-4 pt-24 pb-6 sm:px-6 sm:pt-28 sm:pb-10">
           <div className="max-w-xl [text-shadow:0_0_24px_var(--background),0_0_8px_var(--background)]">
-            <p className="font-mono text-2xs tracking-[0.18em] text-brand uppercase">
-              The fourth axis
-            </p>
+            <p className="font-mono text-2xs tracking-[0.02em] text-brand">The Fourth Axis</p>
             <h2
               id={headingId}
               className="mt-4 text-4xl font-medium tracking-[-0.035em] text-balance sm:text-6xl"

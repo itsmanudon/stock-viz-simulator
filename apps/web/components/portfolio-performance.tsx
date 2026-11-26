@@ -45,8 +45,8 @@ export function PortfolioPerformance({ portfolio, history, range, tab }: Props) 
     <section aria-labelledby="portfolio-heading" className="border-b border-border-muted pb-5">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
-            Paper portfolio
+          <p className="text-xs font-medium tracking-[0.02em] text-muted-foreground">
+            Paper Portfolio
           </p>
           <h1
             id="portfolio-heading"

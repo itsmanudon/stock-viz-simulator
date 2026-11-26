@@ -366,7 +366,7 @@ describe("SignalsTable", () => {
       "aria-pressed",
       "true",
     );
-    const detail = screen.getByText("Signal detail").closest("section");
+    const detail = screen.getByText("Signal Detail").closest("section");
     expect(detail).toHaveClass("h-full", "min-h-0", "animate-in", "fade-in-0");
     expect(detail).not.toHaveClass("slide-in-from-left-1", "slide-in-from-right-1");
     expect(detail?.parentElement).toHaveClass("transition-opacity");
@@ -378,11 +378,11 @@ describe("SignalsTable", () => {
     renderSignals();
 
     fireEvent.click(screen.getByRole("button", { name: /AAPL, Apple Inc\./ }));
-    const firstDetail = screen.getByText("Signal detail").closest("section");
+    const firstDetail = screen.getByText("Signal Detail").closest("section");
     expect(firstDetail).not.toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: /MSFT, Microsoft/ }));
-    const switchedDetail = screen.getByText("Signal detail").closest("section");
+    const switchedDetail = screen.getByText("Signal Detail").closest("section");
     expect(screen.getByRole("heading", { name: "Microsoft" })).toBeVisible();
     expect(switchedDetail).not.toHaveClass("slide-in-from-left-1", "slide-in-from-right-1");
     expect(switchedDetail).toHaveClass("animate-in", "fade-in-0");
@@ -393,7 +393,7 @@ describe("SignalsTable", () => {
     await waitFor(() => {
       expect(screen.getByRole("heading", { name: "Microsoft" })).toBeVisible();
     });
-    expect(screen.getByText("Signal detail").closest("section")).toBe(switchedDetail);
+    expect(screen.getByText("Signal Detail").closest("section")).toBe(switchedDetail);
   });
 
   it("preserves current filters and sort state when selecting and closing", () => {
@@ -411,7 +411,7 @@ describe("SignalsTable", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Back to signals" }));
-    const closingWrapper = screen.getByText("Signal detail").closest("section")?.parentElement;
+    const closingWrapper = screen.getByText("Signal Detail").closest("section")?.parentElement;
     expect(closingWrapper).toHaveClass("opacity-0");
     expect(closingWrapper).not.toHaveClass("hidden");
     expect(replace).not.toHaveBeenCalled();

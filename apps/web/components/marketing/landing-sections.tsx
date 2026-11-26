@@ -196,7 +196,7 @@ export function SessionTiles() {
       body: "Every order opens a review first: price, its date, cost and the fill rule.",
       art: (
         <div className="landing-slide-up grid w-[85%] gap-1.5 rounded-t-2xl border border-b-0 border-border bg-surface-secondary p-3 text-left">
-          <span className="text-3xs tracking-[0.14em] text-text-tertiary">REVIEW ORDER</span>
+          <span className="text-3xs tracking-[0.02em] text-text-tertiary">Review Order</span>
           <span className="h-3 w-2/3 rounded-full bg-foreground/80" />
           <span className="flex justify-between text-3xs text-text-tertiary">
             Reference close <span className="h-1.5 w-12 self-center rounded-full bg-border" />

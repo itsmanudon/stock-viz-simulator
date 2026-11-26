@@ -19,6 +19,7 @@ import { BriefcaseBusiness, ChartCandlestick, ListFilter, Signal } from "lucide-
 import { Sparkline } from "@/components/sparkline";
 import { ApiError, getBars, listSymbols } from "@/lib/api";
 import type { Bar } from "@/lib/api/types";
+import { titleCase } from "@/lib/title-case";
 
 // Tried in order; the first with enough stored history wins. A cold database
 // that has only backfilled part of the universe still gets a chart. Liquid
@@ -175,8 +176,8 @@ export async function HeroPanel() {
           { label: "Vol", value: fmtVolume(latest.volume) },
         ].map((stat) => (
           <div key={stat.label} className="px-4 py-3">
-            <dt className="font-mono text-3xs tracking-[0.12em] text-text-tertiary uppercase">
-              {stat.label}
+            <dt className="font-mono text-3xs tracking-[0.02em] text-text-tertiary">
+              {titleCase(stat.label)}
             </dt>
             <dd className="mt-1 font-mono text-xs tabular-nums">{stat.value}</dd>
           </div>

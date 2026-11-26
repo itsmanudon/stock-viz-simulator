@@ -23,7 +23,7 @@ test("authenticated user can move from a paper trade into the Portfolio workspac
   await page.getByRole("button", { name: /Review market buy/i }).click();
   await page.getByRole("button", { name: /Place market buy/i }).click();
   await expect(page.getByRole("region", { name: "Order ticket" }).locator("output")).toContainText(
-    "Filled BUY",
+    "Filled Buy",
     { timeout: 10_000 },
   );
   await expect(page.getByRole("table", { name: "Recent paper fills" })).toContainText("AAPL");

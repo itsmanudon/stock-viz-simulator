@@ -36,8 +36,8 @@ export function SoundToggle({
         <i />
       </span>
       {showLabel ? (
-        <span className="font-mono text-3xs tracking-[0.14em] uppercase">
-          {enabled ? "Sound on" : "Sound off"}
+        <span className="font-mono text-3xs tracking-[0.02em]">
+          {enabled ? "Sound On" : "Sound Off"}
         </span>
       ) : null}
     </button>

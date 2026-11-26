@@ -4,6 +4,7 @@ import { cancelOrderAction } from "@/app/(product)/(authed)/orders/actions";
 import { Button } from "@/components/ui/button";
 import type { PendingOrder } from "@/lib/api/trading";
 import { formatQuantity } from "@/lib/stock-workspace";
+import { titleCase } from "@/lib/title-case";
 
 function money(value: string, currency: string): string {
   const number = Number(value);
@@ -51,12 +52,13 @@ export function TickerOrders({
                   order.side === "buy" ? "text-positive" : "text-negative"
                 }`}
               >
-                {order.side.toUpperCase()} {order.order_type.replace("_", " ").toUpperCase()}
+                {titleCase(order.side)}{" "}
+                {titleCase(order.order_type.replace("_", " ").toLowerCase())}
               </span>
               <span className="min-w-0 flex-1 font-mono text-sm tabular-nums">
                 {formatQuantity(order.quantity)} {ticker} @ {money(order.limit_price, currency)}
               </span>
-              <span className="rounded-sm bg-surface-secondary px-2 py-1 text-3xs font-semibold uppercase tracking-[0.1em] text-text-tertiary">
+              <span className="rounded-sm bg-surface-secondary px-2 py-1 text-3xs font-semibold tracking-[0.02em] text-text-tertiary">
                 Pending
               </span>
               <form action={cancelOrderAction}>

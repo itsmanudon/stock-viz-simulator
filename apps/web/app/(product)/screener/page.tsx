@@ -217,7 +217,7 @@ export default async function ScreenerPage({
             ) : null}
             <div className="flex items-start justify-between gap-3 border-b border-border-muted pb-3">
               <div>
-                <p className="text-2xs font-semibold tracking-[0.12em] text-text-tertiary uppercase">
+                <p className="text-2xs font-semibold tracking-[0.02em] text-text-tertiary">
                   Filters
                 </p>
                 <p className="mt-1 text-xs text-text-secondary">Combine with AND logic</p>
@@ -262,7 +262,7 @@ export default async function ScreenerPage({
             </div>
 
             <details className="group rounded-md border border-border-muted/70 px-3 py-2 lg:border-0 lg:px-0 lg:py-0">
-              <summary className="cursor-pointer list-none text-xs font-semibold uppercase tracking-[0.1em] text-text-secondary marker:hidden [&::-webkit-details-marker]:hidden">
+              <summary className="cursor-pointer list-none text-xs font-semibold tracking-[0.02em] text-text-secondary marker:hidden [&::-webkit-details-marker]:hidden">
                 RSI (14)
               </summary>
               <fieldset className="mt-2 space-y-1.5">
@@ -293,7 +293,7 @@ export default async function ScreenerPage({
             </details>
 
             <details className="group rounded-md border border-border-muted/70 px-3 py-2 lg:border-0 lg:px-0 lg:py-0">
-              <summary className="cursor-pointer list-none text-xs font-semibold uppercase tracking-[0.1em] text-text-secondary marker:hidden [&::-webkit-details-marker]:hidden">
+              <summary className="cursor-pointer list-none text-xs font-semibold tracking-[0.02em] text-text-secondary marker:hidden [&::-webkit-details-marker]:hidden">
                 Momentum
               </summary>
               <fieldset className="mt-2 space-y-1.5">
@@ -332,7 +332,7 @@ export default async function ScreenerPage({
             </details>
 
             <details className="group rounded-md border border-border-muted/70 px-3 py-2 lg:border-0 lg:px-0 lg:py-0">
-              <summary className="cursor-pointer list-none text-xs font-semibold uppercase tracking-[0.1em] text-text-secondary marker:hidden [&::-webkit-details-marker]:hidden">
+              <summary className="cursor-pointer list-none text-xs font-semibold tracking-[0.02em] text-text-secondary marker:hidden [&::-webkit-details-marker]:hidden">
                 Fundamentals
               </summary>
               <fieldset className="mt-2 grid grid-cols-2 gap-2">
@@ -363,8 +363,8 @@ export default async function ScreenerPage({
             </details>
 
             <details className="group rounded-md border border-border-muted/70 px-3 py-2 lg:border-0 lg:px-0 lg:py-0">
-              <summary className="cursor-pointer list-none text-xs font-semibold uppercase tracking-[0.1em] text-text-secondary marker:hidden [&::-webkit-details-marker]:hidden">
-                Trend and volatility
+              <summary className="cursor-pointer list-none text-xs font-semibold tracking-[0.02em] text-text-secondary marker:hidden [&::-webkit-details-marker]:hidden">
+                Trend and Volatility
               </summary>
               <fieldset className="mt-2 space-y-2">
                 <legend className="sr-only">Trend and volatility</legend>
@@ -406,8 +406,8 @@ export default async function ScreenerPage({
             </details>
 
             <details className="group rounded-md border border-border-muted/70 px-3 py-2 lg:border-0 lg:px-0 lg:py-0">
-              <summary className="cursor-pointer list-none text-xs font-semibold uppercase tracking-[0.1em] text-text-secondary marker:hidden [&::-webkit-details-marker]:hidden">
-                52-week range
+              <summary className="cursor-pointer list-none text-xs font-semibold tracking-[0.02em] text-text-secondary marker:hidden [&::-webkit-details-marker]:hidden">
+                52-Week Range
               </summary>
               <fieldset className="mt-2 space-y-2">
                 <legend className="sr-only">52-week range</legend>
@@ -628,7 +628,7 @@ export default async function ScreenerPage({
                     <TableHeader>
                       <TableRow>
                         <TableHead className="w-8">
-                          <span className="sr-only">Select to compare</span>
+                          <span className="sr-only">Select to Compare</span>
                         </TableHead>
                         <SortableHead
                           href={screenerSortHref("ticker", params)}
@@ -687,7 +687,7 @@ export default async function ScreenerPage({
                             align="right"
                           />
                         ) : null}
-                        <TableHead className="hidden xl:table-cell">52-week range</TableHead>
+                        <TableHead className="hidden xl:table-cell">52-Week Range</TableHead>
                         {ruleRun ? <TableHead>Rule</TableHead> : null}
                       </TableRow>
                     </TableHeader>

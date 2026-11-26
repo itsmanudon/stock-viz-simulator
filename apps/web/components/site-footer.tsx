@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { StockVizWordmark } from "@/components/brand/stockviz-mark";
+import { titleCase } from "@/lib/title-case";
 
 /**
  * Website footer for the public pages.
@@ -93,8 +94,8 @@ export function SiteFooter() {
           <div className="grid gap-8 sm:grid-cols-3 lg:grid-cols-5">
             {COLUMNS.map((column) => (
               <nav key={column.heading} aria-label={column.heading}>
-                <h2 className="font-mono text-2xs font-semibold tracking-[0.12em] text-text-tertiary uppercase">
-                  {column.heading}
+                <h2 className="font-mono text-2xs font-semibold tracking-[0.02em] text-text-tertiary">
+                  {titleCase(column.heading)}
                 </h2>
                 <ul className="mt-3 space-y-2">
                   {column.links.map((link) =>

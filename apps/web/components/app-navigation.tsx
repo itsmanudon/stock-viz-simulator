@@ -30,6 +30,7 @@ import {
   getActiveNavigation,
   homeHref,
 } from "@/lib/app-navigation";
+import { titleCase } from "@/lib/title-case";
 import { cn } from "@/lib/utils";
 
 /** One icon per destination, keyed by href so a label change can't drop it. */
@@ -135,11 +136,11 @@ export function AppNavigation({
                 id={headingId}
                 data-active={groupActive ? "true" : undefined}
                 className={cn(
-                  "px-3 pb-1.5 text-3xs font-medium tracking-[0.12em] text-text-tertiary uppercase",
+                  "px-3 pb-1.5 text-3xs font-medium tracking-[0.02em] text-text-tertiary",
                   groupActive && "text-foreground",
                 )}
               >
-                {group.label}
+                {titleCase(group.label)}
               </p>
               <div className="space-y-0.5">
                 {group.items.map((item) => (
@@ -172,7 +173,7 @@ export function AppNavigation({
 }
 
 /**
- * The "EOD · SIMULATED" tag beside the wordmark. Warning tone, because the
+ * The "EOD · Simulated" tag beside the wordmark. Warning tone, because the
  * token rules reserve it for stale or simulated data, and both apply here:
  * prices are stored end-of-day closes and every fill is paper.
  */
@@ -182,7 +183,7 @@ export function SimulatedDataTag() {
       className="inline-flex shrink-0 items-center rounded-full border border-warning/40 px-1.5 py-0.5 font-mono text-3xs whitespace-nowrap text-warning"
       title="Prices are stored end-of-day closes. Every order is a paper trade."
     >
-      EOD · SIMULATED
+      EOD · Simulated
     </span>
   );
 }

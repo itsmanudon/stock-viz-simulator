@@ -1,3 +1,4 @@
+import { titleCase } from "@/lib/title-case";
 import { cn } from "@/lib/utils";
 
 export type BadgeTone = "positive" | "negative" | "brand" | "warning" | "neutral";
@@ -19,7 +20,7 @@ const DOT_CLASSES: Record<BadgeTone, string> = {
 };
 
 /**
- * Small uppercase status chip used in table cells.
+ * Small Title Case status chip used in table cells.
  *
  * Order side, order type, order status, and alert status were four separate
  * components with the same markup and diverging colour maps. This is the one
@@ -41,13 +42,13 @@ export function StatusBadge({
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-2xs font-semibold tracking-wide whitespace-nowrap uppercase",
+        "inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-2xs font-semibold tracking-[0.02em] whitespace-nowrap",
         TONE_CLASSES[tone],
         className,
       )}
     >
       <span aria-hidden className={cn("size-1.5 shrink-0 rounded-full", DOT_CLASSES[tone])} />
-      {label}
+      {titleCase(label)}
     </span>
   );
 }

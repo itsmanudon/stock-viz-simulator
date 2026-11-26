@@ -14,7 +14,7 @@ export function PortfolioEmptyState({
       aria-labelledby="portfolio-empty-heading"
       className="border-y border-border-muted bg-surface-secondary/45 px-5 py-10 sm:px-8 sm:py-12"
     >
-      <p className="text-xs font-medium uppercase tracking-[0.14em] text-brand">Start here</p>
+      <p className="text-xs font-medium tracking-[0.02em] text-brand">Start Here</p>
       <h2 id="portfolio-empty-heading" className="mt-2 text-xl font-semibold tracking-tight">
         Your portfolio is ready
       </h2>

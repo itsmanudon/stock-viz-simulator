@@ -109,7 +109,7 @@ describe("ContextualTradeTicket", () => {
     fireEvent.change(screen.getByLabelText("Quantity"), { target: { value: "3" } });
     fireEvent.click(screen.getByRole("button", { name: "Review order" }));
 
-    expect(screen.getByText("Review order")).toBeVisible();
+    expect(screen.getByText("Review Order")).toBeVisible();
     expect(screen.getByText("Market buy 3 AAPL")).toBeVisible();
     expect(screen.getByText("$25.00 · close of Apr 4, 2025")).toBeVisible();
     expect(screen.getByText("None in the simulator")).toBeVisible();
@@ -160,7 +160,7 @@ describe("ContextualTradeTicket", () => {
     fireEvent.click(screen.getByRole("button", { name: "Place buy order" }));
 
     expect(await screen.findByText("Your order was filled")).toBeVisible();
-    expect(screen.getByText("Filled BUY 1 AAPL at $25.00")).toBeVisible();
+    expect(screen.getByText("Filled Buy 1 AAPL at $25.00")).toBeVisible();
     expect(placeTradeAction).toHaveBeenCalledTimes(1);
 
     fireEvent.click(screen.getByRole("button", { name: "New order" }));

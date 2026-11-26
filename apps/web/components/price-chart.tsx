@@ -31,6 +31,7 @@ import {
   type ChartPane,
   type StockInterval,
   formatCloseDate,
+  overlayTitle,
   partialBarLabel,
 } from "@/lib/stock-workspace";
 
@@ -149,7 +150,7 @@ export function PriceChart({ bars, overlays, macd, rsi, panes, markers, interval
         color: palette.overlays[colorIdx % palette.overlays.length],
         lineWidth: 2,
         priceLineVisible: false,
-        title: name.toUpperCase(),
+        title: overlayTitle(name),
       });
       line.setData(points.map((p) => ({ time: toUtcSeconds(p.ts), value: p.value })));
       colorIdx += 1;

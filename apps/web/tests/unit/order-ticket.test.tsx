@@ -196,6 +196,6 @@ describe("OrderTicket", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /Place market buy/i }));
     expect(await screen.findByText("Your order was filled")).toBeVisible();
-    expect(screen.getByText("Filled BUY 2 AAPL @ $188.38")).toBeVisible();
+    expect(screen.getByText("Filled Buy 2 AAPL @ $188.38")).toBeVisible();
   });
 });

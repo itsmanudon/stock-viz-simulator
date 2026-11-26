@@ -13,6 +13,7 @@ import {
 import { parseApiTimestamp } from "@/lib/api-time";
 import type { PendingOrder } from "@/lib/api/trading";
 import { formatQuantity } from "@/lib/portfolio-view-model";
+import { titleCase } from "@/lib/title-case";
 
 export function PortfolioOrders({ orders }: { orders: PendingOrder[] | null }) {
   if (orders === null) {
@@ -55,7 +56,7 @@ export function PortfolioOrders({ orders }: { orders: PendingOrder[] | null }) {
               <TableHead>Side</TableHead>
               <TableHead>Type</TableHead>
               <TableHead className="text-right">Quantity</TableHead>
-              <TableHead className="text-right">Native quote</TableHead>
+              <TableHead className="text-right">Native Quote</TableHead>
               <TableHead>Created</TableHead>
               <TableHead>Status</TableHead>
               <TableHead className="w-20" />
@@ -139,7 +140,7 @@ function SideLabel({ side }: { side: PendingOrder["side"] }) {
         side === "buy" ? "bg-positive/10 text-positive" : "bg-negative/10 text-negative"
       }`}
     >
-      {side.toUpperCase()}
+      {titleCase(side)}
     </span>
   );
 }

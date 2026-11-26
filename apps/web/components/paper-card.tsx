@@ -27,7 +27,7 @@ export function PaperCard({
 }) {
   const number = accountId === undefined ? null : String(accountId).padStart(4, "0").slice(-4);
 
-  const label = number ? `•••• ${number} · ${currency}` : `PAPER ACCOUNT · ${currency}`;
+  const label = number ? `•••• ${number} · ${currency}` : `Paper Account · ${currency}`;
 
   if (fluid) {
     // Proportions taken from the card at 278px wide (the hero phone), where
