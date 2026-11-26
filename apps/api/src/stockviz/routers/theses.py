@@ -6,7 +6,8 @@ rule in the Rule DSL. Authed, private to the owner.
   after). ``kill_rule: null`` removes it.
 - ``POST /{id}/close``: ``closed`` or ``invalidated``; final.
 
-The kill rule must compile (422 with line and column). Nothing evaluates it
+The kill rule must compile (422 with line and column). A7.5: it is judged
+nightly as a linked rule alert (``services/thesis_kill.py``). Before A7.5 nothing evaluated it
 yet: that is A2.3 / A5.
 """
 
@@ -30,6 +31,7 @@ from stockviz.services.theses import (
     tickers_for,
     touch,
 )
+from stockviz.services.thesis_kill import kill_state, sync_kill_alert
 
 router = APIRouter(prefix="/v1/theses", tags=["theses"])
 
@@ -37,7 +39,8 @@ SessionDep = Annotated[Session, Depends(get_session)]
 
 
 def _out(session: Session, row: Thesis) -> ThesisOut:
-    return thesis_out(row, tickers_for(session, [row.instrument_id]).get(row.instrument_id))
+    ticker = tickers_for(session, [row.instrument_id]).get(row.instrument_id)
+    return thesis_out(row, ticker, kill_state(session, row))
 
 
 def _owned(session: Session, thesis_id: int, user_id: int) -> Thesis:
@@ -78,6 +81,8 @@ def create_thesis(body: ThesisIn, session: SessionDep, user_id: UserIdDep) -> Th
         kill_rule_hash=rule.hash if rule else None,
     )
     session.add(row)
+    session.flush()
+    sync_kill_alert(session, row)  # A7.5: the kill switch follows the rule and status
     session.commit()
     session.refresh(row)
     return _out(session, row)
@@ -105,6 +110,8 @@ def update_thesis(
         row.kill_rule_hash = rule.hash if rule else None
     touch(row)
     session.add(row)
+    session.flush()
+    sync_kill_alert(session, row)  # A7.5: the kill switch follows the rule and status
     session.commit()
     session.refresh(row)
     return _out(session, row)
@@ -123,6 +130,8 @@ def close_thesis(
     row.status = (body or ThesisCloseIn()).status
     touch(row)
     session.add(row)
+    session.flush()
+    sync_kill_alert(session, row)  # A7.5: the kill switch follows the rule and status
     session.commit()
     session.refresh(row)
     return _out(session, row)

@@ -1314,6 +1314,18 @@ price reconciliation. `Valuation` now carries `revenue_ttm`, `fcf_ttm`,
 bands line under P/E and a Reverse DCF card (inputs re-solve through the
 public route) on the Financials tab. Tests: `tests/test_a74_reverse_dcf.py`.
 
+**Thesis kill switches (A7.5, M5.6).** A thesis with a kill rule owns one
+rule alert (`services/thesis_kill.py`): `alerts.params["thesis_id"]` links it;
+its setup version is a version of the user's "Thesis kill switches" setup
+(`strategy_run.inline_rule_version`). `POST /v1/theses`, `PATCH` and `/close`
+call `sync_kill_alert`: a new or changed rule points the alert at its version
+and re-arms it, removing the rule deletes the alert, a closed or invalidated
+thesis pauses it. A2.3's engine judges it nightly (fires once, notifies,
+stages delivery); a firing never changes the thesis. `ThesisOut` adds
+`kill_alert_id`, `kill_state` (none|armed|paused|fired), `kill_fired_at`,
+`kill_fired_on`. No migration. Web: `/theses` (create, close, invalidate,
+remove the rule). Tests: `tests/test_a75_thesis_kill.py`.
+
 **Raw prices on the bars route (A3.1, M2.3).** `GET /v1/symbols/{t}/bars`
 takes `adjustment=adjusted|raw` (default `adjusted`, the split-adjusted
 `price_bars`). `raw` reads `eod_raw` (A1.1) through `services/bars/raw.py`:

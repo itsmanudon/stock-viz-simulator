@@ -1733,6 +1733,11 @@ class ThesisOut(BaseModel):
     status: Literal["open", "invalidated", "closed"]
     created_at: datetime
     updated_at: datetime
+    # A7.5 (M5.6): the kill switch, a rule alert judged nightly (A2.3's engine).
+    kill_alert_id: int | None = None
+    kill_state: Literal["none", "armed", "paused", "fired"] = "none"
+    kill_fired_at: datetime | None = None
+    kill_fired_on: date | None = None
 
 
 # ---------------------------------------------------------------------------
