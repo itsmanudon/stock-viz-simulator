@@ -5,9 +5,9 @@ test("guest replay routes require sign-in", async ({ page }) => {
   await expect(page).toHaveURL(/sign-in-required/);
 });
 
-test("research subnav includes Replay", async ({ page }) => {
-  await page.goto("/compare");
-  const subnav = page.getByRole("navigation", { name: "Research tools" });
+test("the Quant Lab subnav includes Replay", async ({ page }) => {
+  await page.goto("/backtest");
+  const subnav = page.getByRole("navigation", { name: "Quant Lab tools" });
   await expect(subnav.getByRole("link", { name: "Replay" })).toHaveAttribute("href", "/replay");
 });
 
@@ -18,8 +18,8 @@ test("guest drill routes require sign-in (A4.7)", async ({ page }) => {
   }
 });
 
-test("research subnav includes Drills", async ({ page }) => {
-  await page.goto("/compare");
-  const subnav = page.getByRole("navigation", { name: "Research tools" });
+test("the Quant Lab subnav includes Drills", async ({ page }) => {
+  await page.goto("/backtest");
+  const subnav = page.getByRole("navigation", { name: "Quant Lab tools" });
   await expect(subnav.getByRole("link", { name: "Drills" })).toHaveAttribute("href", "/drills");
 });

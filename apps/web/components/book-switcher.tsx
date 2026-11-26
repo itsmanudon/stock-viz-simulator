@@ -29,6 +29,7 @@ import {
   selectionLabel,
   withBookHref,
 } from "@/lib/book-url";
+import { OPEN_BOOK_SWITCHER_EVENT } from "@/lib/command-palette";
 import { titleCase } from "@/lib/title-case";
 import { cn } from "@/lib/utils";
 
@@ -73,6 +74,23 @@ export function BookSwitcher({ books, limit }: { books: BookSummary[]; limit: nu
   const buttonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => setRemembered(readRemembered()), []);
+
+  // A3.6: the command palette's "Switch book…" opens this panel with focus
+  // on the first book.
+  const focusFirstRef = useRef(false);
+  useEffect(() => {
+    function onOpenRequest() {
+      focusFirstRef.current = true;
+      setOpen(true);
+    }
+    window.addEventListener(OPEN_BOOK_SWITCHER_EVENT, onOpenRequest);
+    return () => window.removeEventListener(OPEN_BOOK_SWITCHER_EVENT, onOpenRequest);
+  }, []);
+  useEffect(() => {
+    if (!open || !focusFirstRef.current) return;
+    focusFirstRef.current = false;
+    rootRef.current?.querySelector<HTMLElement>("[data-book-item]")?.focus();
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;

@@ -101,10 +101,14 @@ describe("compare presentation", () => {
 });
 
 describe("research chrome", () => {
-  it("exposes Compare, Backtest, and Checklist in a local research subnav", () => {
+  it("exposes the Workbench routes in the workspace subnav and eyebrow (A3.6)", () => {
     render(
       <>
-        <ResearchPageHeader title="Compare" description="How do these assets compare?" />
+        <ResearchPageHeader
+          path="/compare"
+          title="Compare"
+          description="How do these assets compare?"
+        />
         <ResearchSubnav current="/compare" />
         <ResearchEmptyState title="Select symbols to compare">
           <p>Add a ticker to begin.</p>
@@ -112,15 +116,18 @@ describe("research chrome", () => {
       </>,
     );
 
-    const nav = screen.getByRole("navigation", { name: "Research tools" });
+    expect(screen.getByText("Workbench")).toBeVisible();
+    const nav = screen.getByRole("navigation", { name: "Workbench tools" });
     expect(within(nav).getByRole("link", { name: "Compare" })).toHaveAttribute(
       "aria-current",
       "page",
     );
-    expect(within(nav).getByRole("link", { name: "Backtest" })).toHaveAttribute(
+    expect(within(nav).getByRole("link", { name: "Event study" })).toHaveAttribute(
       "href",
-      "/backtest",
+      "/event-study",
     );
+    // Backtest moved to Quant Lab's subnav.
+    expect(within(nav).queryByRole("link", { name: "Backtest" })).not.toBeInTheDocument();
     expect(within(nav).getByRole("link", { name: "Checklist" })).toHaveAttribute(
       "href",
       "/checklist",

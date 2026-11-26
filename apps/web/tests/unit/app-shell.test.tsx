@@ -52,37 +52,67 @@ describe("AppSidebar", () => {
     pathname = "/compare";
   });
 
-  it("names each section and marks both the active section and route", () => {
+  it("shows the six workspaces and marks both the active workspace and route", () => {
     render(<AppSidebar signedIn />);
     const nav = screen.getByRole("navigation", { name: "Product" });
 
-    const research = within(nav).getByRole("group", { name: "Research" });
-    expect(within(nav).getByText("Research")).toHaveAttribute("data-active", "true");
-    expect(within(research).getByRole("link", { name: "Compare" })).toHaveAttribute(
+    for (const name of [
+      "Today",
+      "Markets",
+      "Workbench",
+      "Quant Lab",
+      "Portfolio & Tax",
+      "AI Copilot",
+    ]) {
+      expect(within(nav).getByRole("group", { name })).toBeVisible();
+    }
+    const workbench = within(nav).getByRole("group", { name: "Workbench" });
+    expect(workbench).toHaveAttribute("data-active", "true");
+    expect(within(workbench).getByRole("link", { name: "Compare" })).toHaveAttribute(
       "aria-current",
       "page",
     );
-    expect(within(nav).getByText("Trade")).not.toHaveAttribute("data-active");
+    expect(within(nav).getByRole("group", { name: "Quant Lab" })).not.toHaveAttribute(
+      "data-active",
+    );
     expect(screen.getByText("EOD · Simulated")).toBeVisible();
   });
 
-  it("lights the Research section on a stock page without marking an item", () => {
+  it("lights Workbench on a stock page without marking an item", () => {
     pathname = "/stocks/AAPL";
     render(<AppSidebar signedIn />);
     const nav = screen.getByRole("navigation", { name: "Product" });
 
-    expect(within(nav).getByText("Research")).toHaveAttribute("data-active", "true");
+    expect(within(nav).getByRole("group", { name: "Workbench" })).toHaveAttribute(
+      "data-active",
+      "true",
+    );
     expect(within(nav).queryAllByRole("link", { current: "page" })).toHaveLength(0);
   });
 
-  it("shows Settings to signed-in users only", () => {
+  it("marks the AI Copilot placeholder with its plan phase", () => {
+    pathname = "/copilot";
+    render(<AppSidebar signedIn />);
+    const copilot = screen.getByRole("group", { name: "AI Copilot" });
+    expect(within(copilot).getByRole("link", { name: /Copilot/ })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    expect(within(copilot).getByText("A8")).toBeVisible();
+  });
+
+  it("shows Settings and the Books shortcut to signed-in users only; Status to all", () => {
     pathname = "/settings";
     const { unmount } = render(<AppSidebar signedIn />);
     expect(screen.getByRole("link", { name: "Settings" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("link", { name: "Books" })).toHaveAttribute("href", "/settings#books");
+    expect(screen.getByRole("link", { name: "Status" })).toBeVisible();
     unmount();
 
     render(<AppSidebar signedIn={false} />);
     expect(screen.queryByRole("link", { name: "Settings" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Books" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Status" })).toBeVisible();
   });
 });
 
@@ -138,7 +168,7 @@ describe("AppShell", () => {
     );
 
     expect(screen.getByRole("main")).toHaveAttribute("id", "main");
-    expect(screen.getByRole("combobox", { name: "Search tickers and companies" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Search symbols, pages and actions" })).toBeVisible();
     expect(screen.getByRole("button", { name: "Alerts" })).toBeVisible();
     expect(screen.getByText("EOD data · latest close Nov 7, 2026")).toBeInTheDocument();
     expect(screen.queryByRole("contentinfo")).not.toBeInTheDocument();

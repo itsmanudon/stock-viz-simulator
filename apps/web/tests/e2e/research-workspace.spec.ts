@@ -1,13 +1,13 @@
 import { expect, test } from "@playwright/test";
 
-test("research navigation keeps compare, backtest, and the checklist as one domain", async ({
+test("the Workbench workspace keeps compare and the checklist together (A3.6)", async ({
   page,
 }) => {
   await page.goto("/compare");
 
   const product = page.getByRole("navigation", { name: "Product" });
-  // Section headings are labels, not links (Aurora app shell, UI batch A).
-  await expect(product.getByText("Research", { exact: true })).toHaveAttribute(
+  // Workspace headings are labels, not links; the group lights up (A3.6).
+  await expect(product.getByRole("group", { name: "Workbench" })).toHaveAttribute(
     "data-active",
     "true",
   );
@@ -24,7 +24,7 @@ test("research navigation keeps compare, backtest, and the checklist as one doma
     "/checklist",
   );
 
-  const subnav = page.getByRole("navigation", { name: "Research tools" });
+  const subnav = page.getByRole("navigation", { name: "Workbench tools" });
   await expect(subnav.getByRole("link", { name: "Compare" })).toHaveAttribute(
     "aria-current",
     "page",
