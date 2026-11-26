@@ -142,6 +142,8 @@ class ReplayEpisode:
     fills: tuple[FillSnapshot, ...]
     fees: Decimal = ZERO
     """A4.6: the episode's fees; ``realized_pnl`` is net of them."""
+    side: str = "long"
+    """``short`` (27 Nov 2026): opened by a short sale and closed by buys."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -232,8 +234,8 @@ def annotate_fill_economics(
         position_notional = _q_money(qty * fill.fill_price)
         equity = _q_money(cash + position_notional)
         concentration: Decimal | None = None
-        if equity > 0 and qty > 0:
-            concentration = _q_pct(position_notional / equity * HUNDRED)
+        if equity > 0 and qty != 0:
+            concentration = _q_pct(abs(position_notional) / equity * HUNDRED)
         elif equity > 0:
             concentration = ZERO
         out.append(
@@ -277,6 +279,12 @@ class _OpenEpisode:
     fees: Decimal = ZERO
     peak_exposure: Decimal = ZERO
     entry_equity: Decimal | None = None
+    side: str = "long"
+    # The opening side's (buys for a long, sells for a short) and closing
+    # side's quantities and notionals.
+    open_notional: Decimal = ZERO
+    close_qty: Decimal = ZERO
+    close_notional: Decimal = ZERO
     # The ledger's average cost of the shares held (SimLedger / apply_fill):
     # a buy re-averages it, a sell leaves it (audit SR-6, Phase 5.1).
     avg_cost: Decimal = ZERO
@@ -289,24 +297,36 @@ def _reaverage(avg: Decimal, held: Decimal, quantity: Decimal, price: Decimal) -
 
 
 def reconstruct_episodes(fills: Sequence[FillSnapshot]) -> list[_OpenEpisode]:
-    """Group fills into long-only episodes. Does not mutate ledger state."""
+    """Group fills into episodes, flat to flat. A buy while flat opens a long
+    episode; a sell while flat (only a short sale reaches the replay ledger,
+    27 Nov 2026) opens a short one. Does not mutate ledger state."""
 
     episodes: list[_OpenEpisode] = []
     current: _OpenEpisode | None = None
     for fill in fills:
         if current is None:
-            if fill.side != "buy":
-                continue
-            current = _OpenEpisode(ticker=fill.ticker, opened_at=fill.evaluated_at, fills=[])
+            current = _OpenEpisode(
+                ticker=fill.ticker,
+                opened_at=fill.evaluated_at,
+                fills=[],
+                side="long" if fill.side == "buy" else "short",
+            )
         current.fills.append(fill)
         current.fees += fill.fees
+        notional = _q_money(fill.quantity * fill.fill_price)
         if fill.side == "buy":
+            current.buy_qty += fill.quantity
+            current.buy_notional += notional
+        else:
+            current.sell_qty += fill.quantity
+            current.sell_notional += notional
+        opening = fill.side == ("buy" if current.side == "long" else "sell")
+        if opening:
             current.avg_cost = _reaverage(
                 current.avg_cost, current.qty, fill.quantity, fill.fill_price
             )
             current.qty += fill.quantity
-            current.buy_qty += fill.quantity
-            current.buy_notional += _q_money(fill.quantity * fill.fill_price)
+            current.open_notional += notional
             if current.qty > current.peak_qty:
                 current.peak_qty = current.qty
             exposure = _q_money(current.qty * fill.fill_price)
@@ -316,8 +336,8 @@ def reconstruct_episodes(fills: Sequence[FillSnapshot]) -> list[_OpenEpisode]:
                 current.entry_equity = fill.equity_after
         else:
             current.qty -= fill.quantity
-            current.sell_qty += fill.quantity
-            current.sell_notional += _q_money(fill.quantity * fill.fill_price)
+            current.close_qty += fill.quantity
+            current.close_notional += notional
             if fill.realized_pnl is not None:
                 current.realized += fill.realized_pnl
             if current.qty <= 0:
@@ -350,6 +370,7 @@ def _mae_mfe(
     bars: Sequence[_BarLike],
     opened_at: datetime,
     holding_end: datetime,
+    side: str = "long",
 ) -> tuple[Decimal | None, Decimal | None, Decimal | None, Decimal | None]:
     """Price-based MAE/MFE against the ledger's average cost (audits SR-2, SR-6).
 
@@ -372,7 +393,10 @@ def _mae_mfe(
 
     def _mark(low: Decimal, high: Decimal, cost: Decimal) -> None:
         nonlocal worst, best
-        adverse, favorable = low - cost, high - cost
+        if side == "short":  # adverse is the price going up
+            adverse, favorable = cost - high, cost - low
+        else:
+            adverse, favorable = low - cost, high - cost
         if worst is None or adverse < worst[0]:
             worst = (adverse, adverse / cost * HUNDRED)
         if best is None or favorable > best[0]:
@@ -384,8 +408,9 @@ def _mae_mfe(
         if qty > 0 and avg > 0:
             _mark(bar.low, bar.high, avg)
         todays = fills_by_ts.get(bar.ts, [])
+        opening = "buy" if side == "long" else "sell"
         for fill in todays:
-            if fill.side == "buy":
+            if fill.side == opening:
                 avg = _reaverage(avg, qty, fill.quantity, fill.fill_price)
                 qty += fill.quantity
             else:
@@ -457,18 +482,22 @@ def finish_episodes(
         holding_end = closed_at if closed_at is not None else analysis_at
         # The ledger's average cost (SR-6), not all buys / all bought.
         weighted_entry = episode.avg_cost
-        weighted_exit = episode.sell_notional / episode.sell_qty if episode.sell_qty > 0 else None
+        weighted_exit = (
+            episode.close_notional / episode.close_qty if episode.close_qty > 0 else None
+        )
+        short = episode.side == "short"
         holding = _bars_in(bars, episode.opened_at, holding_end)
         holding_bars = len(holding)
         remaining_qty = episode.qty
         unrealized: Decimal | None = None
         if not closed:
-            unrealized = _q_money((mark_close - weighted_entry) * remaining_qty)
+            move = weighted_entry - mark_close if short else mark_close - weighted_entry
+            unrealized = _q_money(move * remaining_qty)
         realized_net = episode.realized - episode.fees  # A4.6: net of every fee
         total_result = realized_net + (unrealized or ZERO)
         return_pct = (
-            _q_pct(total_result / episode.buy_notional * HUNDRED)
-            if episode.buy_notional > 0
+            _q_pct(total_result / episode.open_notional * HUNDRED)
+            if episode.open_notional > 0
             else None
         )
         mae_amount, mae_pct, mfe_amount, mfe_pct = _mae_mfe(
@@ -476,6 +505,7 @@ def finish_episodes(
             bars=bars,
             opened_at=episode.opened_at,
             holding_end=holding_end,
+            side=episode.side,
         )
         entry_close = _close_at(bars, episode.opened_at) or episode.fills[0].fill_price
         exit_close = _close_at(bars, holding_end) or (
@@ -484,7 +514,8 @@ def finish_episodes(
         benchmark = _pct_change(entry_close, exit_close)
         excess = None
         if return_pct is not None and benchmark is not None:
-            excess = _q_pct(return_pct - benchmark)
+            # A short gains what the price loses: its benchmark is the move's opposite.
+            excess = _q_pct(return_pct + benchmark if short else return_pct - benchmark)
         conc_values = [
             fill.concentration_pct for fill in episode.fills if fill.concentration_pct is not None
         ]
@@ -518,6 +549,7 @@ def finish_episodes(
                 peak_exposure=_q_money(episode.peak_exposure),
                 fills=tuple(episode.fills),
                 fees=_q_money(episode.fees),
+                side=episode.side,
             )
         )
     return finished

@@ -80,6 +80,7 @@ from stockviz.services.simulation import (
 )
 
 BRACKET = "bracket"
+Direction = Literal["long", "short"]
 ACTIVE_STATUSES = (ReplayOrderStatus.OPEN.value, ReplayOrderStatus.PENDING.value)
 EntryType = Literal["market", "limit"]
 
@@ -239,19 +240,27 @@ def validate_bracket(
     entry_price: Decimal | None,
     stop_price: Decimal | None,
     target_price: Decimal | None,
+    direction: Direction = "long",
 ) -> tuple[Decimal, Decimal]:
-    """(stop, target) for a long bracket, or :class:`ReplayOrderError`.
+    """(stop, target) for a bracket, or :class:`ReplayOrderError`.
 
     ``entry_price`` is the limit of a limit entry, or the current close a
-    market entry fills at: the stop must be below it and the target above."""
+    market entry fills at. Long: the stop below it and the target above.
+    Short (owner, 27 Nov 2026): the stop above it and the target below."""
     if quantity <= 0:
         raise ReplayOrderError("quantity must be greater than 0")
     if stop_price is None or stop_price <= 0 or target_price is None or target_price <= 0:
         raise ReplayOrderError("A bracket needs a positive stop and a positive target")
     if entry_type == "limit" and (entry_price is None or entry_price <= 0):
         raise ReplayOrderError("A limit entry needs a positive limit price")
-    if entry_price is not None and not (stop_price < entry_price < target_price):
-        where = "limit" if entry_type == "limit" else "current close"
+    where = "limit" if entry_type == "limit" else "current close"
+    if direction == "short":
+        if entry_price is not None and not (target_price < entry_price < stop_price):
+            raise ReplayOrderError(
+                f"A short bracket's stop must be above the {where} ({entry_price}) and its "
+                "target below it"
+            )
+    elif entry_price is not None and not (stop_price < entry_price < target_price):
         raise ReplayOrderError(
             f"A bracket's stop must be below the {where} ({entry_price}) and its target above it"
         )
@@ -268,6 +277,7 @@ def place_replay_bracket(
     stop_price: Decimal,
     target_price: Decimal,
     entry_fill: ReplayFill | None = None,
+    direction: Direction = "long",
 ) -> tuple[ReplayOrder, ReplayOrder, ReplayOrder]:
     """Stage a bracket (``replay`` is locked): (entry, stop, target). Does not commit.
 
@@ -282,7 +292,8 @@ def place_replay_bracket(
     entry = ReplayOrder(
         session_id=replay.id,
         ticker=replay.ticker,
-        side=OrderSide.BUY.value,
+        # A short bracket's entry is a short sale and its children buys that cover.
+        side=(OrderSide.SELL if direction == "short" else OrderSide.BUY).value,
         order_type=BRACKET,
         quantity=quantity,
         limit_price=entry_price,
@@ -311,7 +322,7 @@ def place_replay_bracket(
         child = ReplayOrder(
             session_id=replay.id,
             ticker=replay.ticker,
-            side=OrderSide.SELL.value,
+            side=(OrderSide.BUY if direction == "short" else OrderSide.SELL).value,
             order_type=kind.value,
             quantity=quantity,
             limit_price=price,
@@ -397,9 +408,11 @@ class _Judge:
                 evaluated_at_naive=at,
                 fees=fees,
                 order_id=order.id,
+                # A bracket entry that sells is a short sale.
+                open_short=order.order_type == BRACKET and side is OrderSide.SELL,
             )
             self.db.flush()
-        except (ReplayInsufficientCash, ReplayInsufficientPosition) as exc:
+        except (ReplayInsufficientCash, ReplayInsufficientPosition, ReplayOrderError) as exc:
             _resolve(order, ReplayOrderStatus.REJECTED, at, str(exc))
             self.db.add(order)
             return None

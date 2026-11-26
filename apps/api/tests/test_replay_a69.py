@@ -247,7 +247,7 @@ def test_cancel_unfilled_entry_cancels_its_children(session: Session, client: Te
         ({"stop_price": "101"}, "stop must be below"),
         ({"target_price": "99"}, "stop must be below"),
         ({"target_price": None}, "positive stop and a positive target"),
-        ({"side": "sell"}, "long entry"),
+        ({"side": "sell"}, "long bracket's entry is a buy"),
         ({"entry_type": "limit", "limit_price": "94"}, "stop must be below the limit"),
         ({"entry_type": "limit"}, "limit entry needs a positive limit"),
     ],
@@ -527,3 +527,113 @@ def test_new_sessions_default_to_intrabar_ohlc(session: Session, client: TestCli
     headers = _headers(_user(session))
     created = _create(client, headers, profile=None)
     assert created["profile_name"] == "intrabar_ohlc"
+
+
+# Short brackets (owner, 27 Nov 2026): US-listed only; the entry sells short,
+# the stop above and the target below are buys that cover.
+def _short(client, headers, sid, **extra):
+    return _bracket(client, headers, sid, side="sell", direction="short", stop_price="105",
+                    target_price="95", **extra)  # fmt: skip
+
+
+def test_short_market_bracket_target_covers(session: Session, client: TestClient) -> None:
+    _daily(session, {D1: FLAT, D2: ("100", "101", "94", "96"), D3: FLAT})
+    headers = _headers(_user(session))
+    sid = _create(client, headers)["id"]
+    placed = _short(client, headers, sid)
+    assert placed.status_code == 200, placed.text
+    body = placed.json()
+    assert body["order"]["side"] == "sell" and body["fill"]["side"] == "sell"
+    assert {c["side"] for c in body["children"]} == {"buy"}
+    held = client.get(f"/v1/replay/sessions/{sid}", headers=headers).json()
+    assert held["positions"][0]["quantity"] == "-10.000000"
+    moved = _advance(client, headers, sid, body["session"]["current_at"])
+    assert moved.status_code == 200, moved.text
+    orders = _orders(client, headers, sid)
+    assert orders["take_profit"]["status"] == "filled"
+    assert orders["stop_loss"]["status"] == "cancelled"
+    fill = session.exec(
+        select(ReplayFill).where(ReplayFill.order_id == orders["take_profit"]["id"])
+    ).one()
+    assert fill.side == "buy" and fill.fill_price == D("95")
+    assert fill.realized_pnl == D("50")  # (100 - 95) x 10
+    assert moved.json()["positions"] == []
+
+
+def test_short_market_bracket_stop_covers_at_a_loss(session: Session, client: TestClient) -> None:
+    _daily(session, {D1: FLAT, D2: ("100", "106", "99", "104"), D3: FLAT})
+    headers = _headers(_user(session))
+    sid = _create(client, headers)["id"]
+    body = _short(client, headers, sid).json()
+    _advance(client, headers, sid, body["session"]["current_at"])
+    orders = _orders(client, headers, sid)
+    assert orders["stop_loss"]["status"] == "filled"
+    fill = session.exec(
+        select(ReplayFill).where(ReplayFill.order_id == orders["stop_loss"]["id"])
+    ).one()
+    assert fill.fill_price == D("105") and fill.realized_pnl == D("-50")
+
+
+def test_short_limit_bracket_rests_then_sells(session: Session, client: TestClient) -> None:
+    _daily(session, {D1: FLAT, D2: ("100", "103", "99", "101"), D3: ("101", "102", "94", "95")})
+    headers = _headers(_user(session))
+    sid = _create(client, headers)["id"]
+    body = _short(client, headers, sid, entry_type="limit", limit_price="102").json()
+    assert body["order"]["status"] == "open"
+    assert {c["status"] for c in body["children"]} == {"pending"}
+    day2 = _advance(client, headers, sid, body["session"]["current_at"]).json()
+    assert _orders(client, headers, sid)["bracket"]["status"] == "filled"
+    assert day2["positions"][0]["quantity"] == "-10.000000"
+    _advance(client, headers, sid, day2["current_at"])
+    assert _orders(client, headers, sid)["take_profit"]["status"] == "filled"
+
+
+@pytest.mark.parametrize(
+    ("extra", "message"),
+    [
+        ({"stop_price": "95", "target_price": "105"}, "stop must be above"),
+        ({"side": "buy"}, "entry is a sell"),
+    ],
+)
+def test_short_bracket_validation(session: Session, client: TestClient, extra, message) -> None:
+    _daily(session, {D1: FLAT, D2: FLAT, D3: FLAT})
+    headers = _headers(_user(session))
+    sid = _create(client, headers)["id"]
+    body = {"side": "sell", "order_type": "bracket", "quantity": "10", "entry_type": "market",
+            "direction": "short", "stop_price": "105", "target_price": "95", **extra}  # fmt: skip
+    response = client.post(f"/v1/replay/sessions/{sid}/orders", headers=headers, json=body)
+    assert response.status_code == 400 and message in response.text
+
+
+def test_short_bracket_refused_on_an_indian_listing(session: Session, client: TestClient) -> None:
+    _daily(session, {D1: FLAT, D2: FLAT, D3: FLAT}, ticker="TCS.NS")
+    headers = _headers(_user(session))
+    sid = _create(client, headers, ticker="TCS.NS")["id"]
+    response = _short(client, headers, sid)
+    assert response.status_code == 400 and "US only" in response.text
+
+
+def test_short_round_trip_reads_back(session: Session, client: TestClient) -> None:
+    """Summary, forensics and the journal read a covered short."""
+    _daily(session, {D1: FLAT, D2: ("100", "101", "94", "96"), D3: FLAT})
+    headers = _headers(_user(session))
+    sid = _create(client, headers)["id"]
+    body = _short(client, headers, sid).json()
+    open_short = client.get(f"/v1/replay/sessions/{sid}/summary", headers=headers).json()
+    assert D(open_short["equity"]) == D("100000")  # cash + proceeds - the shares owed
+    assert D(open_short["positions_market_value"]) == D("-1000")
+    _advance(client, headers, sid, body["session"]["current_at"])
+    after = client.get(f"/v1/replay/sessions/{sid}/summary", headers=headers).json()
+    assert D(after["equity"]) == D("100050") and D(after["realized_pnl"]) == D("50")
+    forensics = client.get(f"/v1/replay/sessions/{sid}/forensics", headers=headers)
+    assert forensics.status_code == 200, forensics.text
+    (episode,) = forensics.json()["episodes"]
+    assert episode["side"] == "short" and episode["status"] == "closed"
+    assert D(episode["weighted_entry_price"]) == D("100")
+    assert D(episode["weighted_exit_price"]) == D("95")
+    assert D(episode["realized_pnl"]) == D("50") and D(episode["return_pct"]) == D("5")
+    journal = client.get("/v1/journal/entries", headers=headers)
+    assert journal.status_code == 200, journal.text
+    (entry,) = journal.json()["entries"]
+    assert entry["side"] == "short" and entry["status"] == "closed"
+    assert D(entry["net_pnl"]) == D("50")

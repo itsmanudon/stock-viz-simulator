@@ -44,7 +44,11 @@ from stockviz.services.replay.intraday import (
 )
 from stockviz.services.replay.journal import freeze_replay_journal
 from stockviz.services.replay.lag import end_inside_lag, lag_days_for, lag_waived_for
-from stockviz.services.replay.ledger import apply_replay_fill, get_replay_position
+from stockviz.services.replay.ledger import (
+    apply_replay_fill,
+    get_replay_position,
+    require_shortable,
+)
 from stockviz.services.replay.market import (
     count_replay_bars,
     get_next_session_bar,
@@ -53,6 +57,7 @@ from stockviz.services.replay.market import (
     resolve_replay_start,
 )
 from stockviz.services.replay.orders import (
+    Direction,
     EntryType,
     close_open_orders,
     evaluate_open_orders,
@@ -412,7 +417,12 @@ def submit_replay_order(
 
 
 def _market_fill(
-    session: Session, locked: ReplaySession, *, side: OrderSide, quantity: Decimal
+    session: Session,
+    locked: ReplaySession,
+    *,
+    side: OrderSide,
+    quantity: Decimal,
+    open_short: bool = False,
 ) -> tuple[FillDecision, ReplayFill | None]:
     """A market order on the current bar (``locked``); stages the fill, no commit."""
     clock = _clock_from_row(locked)
@@ -455,6 +465,7 @@ def _market_fill(
         order_type=SimulationOrderType.MARKET.value,
         evaluated_at_naive=as_naive_utc(clock.instant()),
         fees=fees,
+        open_short=open_short,
     )
     return decision, fill
 
@@ -468,8 +479,11 @@ def submit_replay_bracket(
     stop_price: Decimal | None,
     target_price: Decimal | None,
     limit_price: Decimal | None = None,
+    direction: Direction = "long",
 ) -> ReplaySubmitResult:
-    """A6.9: a long bracket, one cancels the other.
+    """A6.9: a bracket, one cancels the other. ``direction`` ``short`` (owner,
+    27 Nov 2026; US-listed only): the entry is a short sale, the stop above
+    and the target below, the children buys that cover.
 
     A market entry fills now at the current bar's close (as a market order)
     and its stop and target rest from the next bar. A limit entry rests at
@@ -490,9 +504,19 @@ def submit_replay_bracket(
                 entry_price=close,
                 stop_price=stop_price,
                 target_price=target_price,
+                direction=direction,
             )
             require_room(session, locked, 3)
-            decision, fill = _market_fill(session, locked, side=OrderSide.BUY, quantity=quantity)
+            short = direction == "short"
+            if short:
+                require_shortable(locked)
+            decision, fill = _market_fill(
+                session,
+                locked,
+                side=OrderSide.SELL if short else OrderSide.BUY,
+                quantity=quantity,
+                open_short=short,
+            )
             if fill is None:
                 raise ReplayOrderError(
                     f"The bracket's market entry did not fill: {decision.trace.reason}"
@@ -506,6 +530,7 @@ def submit_replay_bracket(
                 stop_price=stop,
                 target_price=target,
                 entry_fill=fill,
+                direction=direction,
             )
             freeze_replay_journal(session, replay=locked, locked_at=locked.current_at)
         else:
@@ -515,19 +540,28 @@ def submit_replay_bracket(
                 entry_price=limit_price,
                 stop_price=stop_price,
                 target_price=target_price,
+                direction=direction,
             )
             assert limit_price is not None
             require_room(session, locked, 3)
-            # Cash is checked as for a limit buy; nothing is reserved.
-            place_replay_order(
-                session,
-                replay=locked,
-                side=OrderSide.BUY,
-                order_type=SimulationOrderType.LIMIT,
-                quantity=quantity,
-                limit_price=limit_price,
-                dry_run=True,
-            )
+            if direction == "short":
+                # A short sale needs no cash; it must be shortable and flat or short.
+                require_shortable(locked)
+                assert locked.id is not None
+                held = get_replay_position(session, session_id=locked.id, ticker=locked.ticker)
+                if held is not None and held.quantity > 0:
+                    raise ReplayOrderError("Sell the long position before selling short")
+            else:
+                # Cash is checked as for a limit buy; nothing is reserved.
+                place_replay_order(
+                    session,
+                    replay=locked,
+                    side=OrderSide.BUY,
+                    order_type=SimulationOrderType.LIMIT,
+                    quantity=quantity,
+                    limit_price=limit_price,
+                    dry_run=True,
+                )
             decision, fill = None, None
             entry, stop_row, target_row = place_replay_bracket(
                 session,
@@ -537,6 +571,7 @@ def submit_replay_bracket(
                 entry_price=limit_price,
                 stop_price=stop,
                 target_price=target,
+                direction=direction,
             )
     except Exception:
         session.rollback()
