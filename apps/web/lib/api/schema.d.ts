@@ -1925,7 +1925,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /**
+         * Get Replay Orders
+         * @description A4.6: every resting order of the session, oldest first.
+         */
+        get: operations["get_replay_orders_v1_replay_sessions__session_id__orders_get"];
         put?: never;
         /**
          * Post Replay Order
@@ -1936,6 +1940,108 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/v1/replay/sessions/{session_id}/orders/{order_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Post Replay Order Cancel
+         * @description A4.6: cancel one open resting order (409 when it is not open).
+         */
+        post: operations["post_replay_order_cancel_v1_replay_sessions__session_id__orders__order_id__cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/replay/sessions/{session_id}/indicators": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Replay Indicators
+         * @description A4.6: indicators over the visible bars only (daily), warmed up on the
+         *     stored bars before ``start_at``. Never reads a bar after ``current_at``.
+         */
+        get: operations["get_replay_indicators_v1_replay_sessions__session_id__indicators_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/replay/sessions/{session_id}/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Replay Events
+         * @description A4.6: news whose ``available_at`` is at or before the clock, and the
+         *     session's fills. The replay chart never calls the live events route.
+         */
+        get: operations["get_replay_events_v1_replay_sessions__session_id__events_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/replay/sessions/{session_id}/drawings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Replay Drawings
+         * @description A4.6: the drawings made in this session only (``first_bar``/``last_bar``
+         *     bound anchors: the session's first bar to its clock).
+         */
+        get: operations["get_replay_drawings_v1_replay_sessions__session_id__drawings_get"];
+        put?: never;
+        /** Post Replay Drawing */
+        post: operations["post_replay_drawing_v1_replay_sessions__session_id__drawings_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/replay/sessions/{session_id}/drawings/{drawing_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Replay Drawing */
+        delete: operations["delete_replay_drawing_v1_replay_sessions__session_id__drawings__drawing_id__delete"];
+        options?: never;
+        head?: never;
+        /** Patch Replay Drawing */
+        patch: operations["patch_replay_drawing_v1_replay_sessions__session_id__drawings__drawing_id__patch"];
         trace?: never;
     };
     "/v1/replay/sessions/{session_id}/fills": {
@@ -5976,6 +6082,33 @@ export interface components {
             last_bar: string;
             /** Bars Count */
             bars_count: number;
+            /**
+             * Lag Days
+             * @default 0
+             */
+            lag_days: number;
+            /** Max End */
+            max_end?: string | null;
+            /**
+             * Lag Waived
+             * @default false
+             */
+            lag_waived: boolean;
+            /**
+             * Default Starting Cash
+             * @default 100000.00
+             */
+            default_starting_cash: string;
+            /**
+             * Fee Schedule
+             * @default none
+             */
+            fee_schedule: string;
+            /**
+             * Tradable
+             * @default true
+             */
+            tradable: boolean;
         };
         /** ReplayBarOut */
         ReplayBarOut: {
@@ -6019,6 +6152,27 @@ export interface components {
             reference_price: string | null;
             /** Assumptions */
             assumptions: string[];
+        };
+        /**
+         * ReplayDrawingIn
+         * @description A4.6: a session drawing (A3.2's shape, no ticker: the session's).
+         */
+        ReplayDrawingIn: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "trendline" | "ray" | "hline" | "rectangle" | "channel" | "fib_retracement" | "fib_extension" | "ruler" | "text" | "position_long" | "position_short" | "avwap";
+            /** Points */
+            points: components["schemas"]["DrawingPoint-Input"][];
+            style?: components["schemas"]["DrawingStyle"];
+            /** Label */
+            label?: string | null;
+            /**
+             * Locked
+             * @default false
+             */
+            locked: boolean;
         };
         /**
          * ReplayEpisodeFillOut
@@ -6065,6 +6219,11 @@ export interface components {
             equity_after?: string | null;
             /** Concentration Pct */
             concentration_pct?: string | null;
+            /**
+             * Fees
+             * @default 0
+             */
+            fees: string;
         };
         /**
          * ReplayEpisodeForensicsOut
@@ -6132,6 +6291,31 @@ export interface components {
              * @default []
              */
             fills: components["schemas"]["ReplayEpisodeFillOut"][];
+            /**
+             * Fees
+             * @default 0
+             */
+            fees: string;
+        };
+        /**
+         * ReplayEventsOut
+         * @description A4.6: the replay chart's markers, cut at the session clock: news whose
+         *     ``available_at`` is at or before ``current_at`` and the session's fills.
+         */
+        ReplayEventsOut: {
+            /** Session Id */
+            session_id: number;
+            /** Ticker */
+            ticker: string;
+            /**
+             * Current At
+             * Format: date-time
+             */
+            current_at: string;
+            /** News Rule */
+            news_rule: string;
+            /** Events */
+            events: (components["schemas"]["NewsEventOut"] | components["schemas"]["FillEventOut"])[];
         };
         /** ReplayFillOut */
         ReplayFillOut: {
@@ -6173,6 +6357,18 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+            /**
+             * Fees
+             * @default 0
+             */
+            fees: string;
+            /**
+             * Fee Lines
+             * @default []
+             */
+            fee_lines: components["schemas"]["TradeFeeLineOut"][];
+            /** Order Id */
+            order_id?: number | null;
         };
         /**
          * ReplayForensicsOut
@@ -6220,6 +6416,11 @@ export interface components {
              * @default []
              */
             episodes: components["schemas"]["ReplayEpisodeForensicsOut"][];
+            /**
+             * Currency
+             * @default USD
+             */
+            currency: string;
         };
         /** ReplayJournalIn */
         ReplayJournalIn: {
@@ -6290,7 +6491,10 @@ export interface components {
         };
         /**
          * ReplayOrderIn
-         * @description Intent only. Prices come from the session's current stored bar.
+         * @description Intent only. A market order fills at the session's current stored
+         *     close; a limit / stop-loss / take-profit order (A4.6) rests, priced by
+         *     ``limit_price`` (the limit or the trigger), and is judged from the next
+         *     bar on.
          */
         ReplayOrderIn: {
             /**
@@ -6309,6 +6513,47 @@ export interface components {
             /** Limit Price */
             limit_price?: number | string | null;
         };
+        /**
+         * ReplayOrderOut
+         * @description A4.6: a resting order. ``status`` open | filled | cancelled |
+         *     rejected | expired; ``reason`` says why it left ``open``.
+         */
+        ReplayOrderOut: {
+            /** Id */
+            id: number;
+            /** Session Id */
+            session_id: number;
+            /** Ticker */
+            ticker: string;
+            /**
+             * Side
+             * @enum {string}
+             */
+            side: "buy" | "sell";
+            /**
+             * Order Type
+             * @enum {string}
+             */
+            order_type: "limit" | "stop_loss" | "take_profit";
+            /** Quantity */
+            quantity: string;
+            /** Limit Price */
+            limit_price: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "open" | "filled" | "cancelled" | "rejected" | "expired";
+            /**
+             * Placed At
+             * Format: date-time
+             */
+            placed_at: string;
+            /** Resolved At */
+            resolved_at?: string | null;
+            /** Reason */
+            reason?: string | null;
+        };
         /** ReplayPositionOut */
         ReplayPositionOut: {
             /** Ticker */
@@ -6325,6 +6570,9 @@ export interface components {
          *     ``start_at`` snaps to the first 1d bar at-or-after the request.
          *     ``end_at`` snaps to the last 1d bar at-or-before the request (or the latest
          *     stored bar at creation if omitted). Profile is server-pinned.
+         *
+         *     A4.6: ``starting_cash`` is in the symbol's currency; omitted, it is the
+         *     currency's default ($100,000; ₹10,00,000; else 100,000 units).
          */
         ReplaySessionCreateIn: {
             /** Ticker */
@@ -6336,11 +6584,8 @@ export interface components {
             start_at: string;
             /** End At */
             end_at?: string | null;
-            /**
-             * Starting Cash
-             * @default 100000.00
-             */
-            starting_cash: number | string;
+            /** Starting Cash */
+            starting_cash?: number | string | null;
         };
         /**
          * ReplaySessionListOut
@@ -6379,6 +6624,11 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+            /**
+             * Currency
+             * @default USD
+             */
+            currency: string;
         };
         /** ReplaySessionOut */
         ReplaySessionOut: {
@@ -6433,12 +6683,42 @@ export interface components {
              * @default []
              */
             positions: components["schemas"]["ReplayPositionOut"][];
+            /**
+             * Currency
+             * @default USD
+             */
+            currency: string;
+            /**
+             * Fee Schedule
+             * @default none
+             */
+            fee_schedule: string;
+            /**
+             * Lag Override
+             * @default false
+             */
+            lag_override: boolean;
+            /**
+             * Tradable
+             * @default true
+             */
+            tradable: boolean;
+            /**
+             * Open Orders
+             * @default 0
+             */
+            open_orders: number;
         };
-        /** ReplaySubmitOut */
+        /**
+         * ReplaySubmitOut
+         * @description A market order carries the kernel's ``decision`` (and ``fill``); a
+         *     resting order (A4.6) carries ``order`` and no decision yet.
+         */
         ReplaySubmitOut: {
             session: components["schemas"]["ReplaySessionOut"];
-            decision: components["schemas"]["ReplayDecisionOut"];
+            decision?: components["schemas"]["ReplayDecisionOut"] | null;
             fill?: components["schemas"]["ReplayFillOut"] | null;
+            order?: components["schemas"]["ReplayOrderOut"] | null;
         };
         /**
          * ReplaySummaryOut
@@ -6480,6 +6760,16 @@ export interface components {
             visible_high: string;
             /** Visible Low */
             visible_low: string;
+            /**
+             * Currency
+             * @default USD
+             */
+            currency: string;
+            /**
+             * Fees Paid
+             * @default 0
+             */
+            fees_paid: string;
         };
         /**
          * ReportCardOut
@@ -12970,6 +13260,39 @@ export interface operations {
             };
         };
     };
+    get_replay_orders_v1_replay_sessions__session_id__orders_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                session_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReplayOrderOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     post_replay_order_v1_replay_sessions__session_id__orders_post: {
         parameters: {
             query?: never;
@@ -12994,6 +13317,249 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ReplaySubmitOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    post_replay_order_cancel_v1_replay_sessions__session_id__orders__order_id__cancel_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                session_id: number;
+                order_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReplayOrderOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_replay_indicators_v1_replay_sessions__session_id__indicators_get: {
+        parameters: {
+            query: {
+                /** @description e.g. sma_20,rsi_14,macd,bb_20_2 */
+                names: string;
+            };
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                session_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IndicatorsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_replay_events_v1_replay_sessions__session_id__events_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                session_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReplayEventsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_replay_drawings_v1_replay_sessions__session_id__drawings_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                session_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DrawingsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    post_replay_drawing_v1_replay_sessions__session_id__drawings_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                session_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReplayDrawingIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DrawingOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_replay_drawing_v1_replay_sessions__session_id__drawings__drawing_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                session_id: number;
+                drawing_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    patch_replay_drawing_v1_replay_sessions__session_id__drawings__drawing_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                session_id: number;
+                drawing_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DrawingPatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DrawingOut"];
                 };
             };
             /** @description Validation Error */

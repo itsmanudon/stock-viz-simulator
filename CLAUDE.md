@@ -59,7 +59,10 @@ equity paper fills (MARKET, LIMIT, STOP_LOSS, TAKE_PROFIT) go through a
 pure execution kernel (`legacy_close`); cash/positions still mutate in
 `apply_fill`. Successful live fills persist versioned execution provenance.
 Replay sessions (`/replay`) are an isolated book over a frozen 1d
-historical range; the server owns PriceBar selection. Replay Lab is
+historical range in the symbol's currency (A4.6: INR and others, Indian
+sessions end 30 days before today, fees from the dated schedules, resting
+limit and stop orders, A3's chart with indicators, session-only drawings and
+news gated by `available_at`); the server owns PriceBar selection. Replay Lab is
 future-blind. Post-trade forensics reconstruct episodes, MAE/MFE,
 buy-and-hold excess, and a first-fill-locked journal from replay-visible
 bars only. See
@@ -315,6 +318,7 @@ Full lists live in `apps/web/.env.example` and `apps/api/.env.example`
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`               | web                          | Google OAuth sign-in                                                                                                                                                                                                         |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM` | api, cron | A2.3 email delivery through any SMTP provider (STARTTLS, or TLS on 465). Off (`deliver-notifications --channel email` exits 2; Settings says "not available on this server") until all five are set. The owner picks the provider and sets the key; never commit it |
 | `TELEGRAM_BOT_TOKEN`                                     | api, cron                    | A2.3 Telegram delivery (`sendMessage` to each user's chat id). Off until set; the owner creates the bot. Never logged (it sits in the request URL) |
+| `REPLAY_MIN_LAG_DAYS`, `REPLAY_LAG_OVERRIDE_USER_IDS`    | api                          | A4.6: an NSE/BSE replay session must end this many days (default 30; 0 off) before today. The override lists user ids allowed inside it, empty by default: the owner's switch, server-side only |
 | `NEXTAUTH_JWT_SECRET`                                    | api                          | **legacy** — still in `settings.py` but no longer read by the auth bridge                                                                                                                                                    |
 
 ## Sentry

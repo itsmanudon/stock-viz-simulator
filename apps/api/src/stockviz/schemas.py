@@ -434,6 +434,9 @@ class ReplaySessionCreateIn(BaseModel):
     ``start_at`` snaps to the first 1d bar at-or-after the request.
     ``end_at`` snaps to the last 1d bar at-or-before the request (or the latest
     stored bar at creation if omitted). Profile is server-pinned.
+
+    A4.6: ``starting_cash`` is in the symbol's currency; omitted, it is the
+    currency's default ($100,000; ₹10,00,000; else 100,000 units).
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -441,11 +444,14 @@ class ReplaySessionCreateIn(BaseModel):
     ticker: str
     start_at: datetime
     end_at: datetime | None = None
-    starting_cash: Decimal = Field(default=Decimal("100000.00"))
+    starting_cash: Decimal | None = None
 
 
 class ReplayOrderIn(BaseModel):
-    """Intent only. Prices come from the session's current stored bar."""
+    """Intent only. A market order fills at the session's current stored
+    close; a limit / stop-loss / take-profit order (A4.6) rests, priced by
+    ``limit_price`` (the limit or the trigger), and is judged from the next
+    bar on."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -480,6 +486,27 @@ class ReplayFillOut(BaseModel):
     order_type: str
     evaluated_at: datetime
     created_at: datetime
+    # A4.6: fees in the session currency (0 before A4.6 and on USD symbols).
+    fees: Decimal = Decimal(0)
+    fee_lines: list[TradeFeeLineOut] = []
+    order_id: int | None = None
+
+
+class ReplayOrderOut(BaseModel):
+    """A4.6: a resting order. ``status`` open | filled | cancelled |
+    rejected | expired; ``reason`` says why it left ``open``."""
+
+    id: int
+    session_id: int
+    ticker: str
+    side: Literal["buy", "sell"]
+    order_type: Literal["limit", "stop_loss", "take_profit"]
+    quantity: Decimal
+    limit_price: Decimal
+    status: Literal["open", "filled", "cancelled", "rejected", "expired"]
+    placed_at: datetime
+    resolved_at: datetime | None = None
+    reason: str | None = None
 
 
 class ReplaySessionListOut(BaseModel):
@@ -495,6 +522,7 @@ class ReplaySessionListOut(BaseModel):
     cash_balance: Decimal
     has_next: bool
     created_at: datetime
+    currency: str = "USD"
 
 
 class ReplaySessionOut(BaseModel):
@@ -513,6 +541,14 @@ class ReplaySessionOut(BaseModel):
     created_at: datetime
     updated_at: datetime
     positions: list[ReplayPositionOut] = []
+    # A4.6: the book's currency, the fee schedule its fills pay, whether the
+    # owner's override let it end inside the lag, and whether it can trade
+    # (an index session is watch-only).
+    currency: str = "USD"
+    fee_schedule: str = "none"
+    lag_override: bool = False
+    tradable: bool = True
+    open_orders: int = 0
 
 
 class ReplayAvailabilityOut(BaseModel):
@@ -521,6 +557,15 @@ class ReplayAvailabilityOut(BaseModel):
     first_bar: datetime
     last_bar: datetime
     bars_count: int
+    # A4.6: the lag (days; 0 = none), the last end date it allows (null: no
+    # lag, or waived for the caller), the default starting cash in the
+    # currency, the fee schedule fills pay, and whether it can be traded.
+    lag_days: int = 0
+    max_end: date | None = None
+    lag_waived: bool = False
+    default_starting_cash: Decimal = Decimal("100000.00")
+    fee_schedule: str = "none"
+    tradable: bool = True
 
 
 class ReplaySummaryOut(BaseModel):
@@ -542,6 +587,9 @@ class ReplaySummaryOut(BaseModel):
     has_next: bool
     visible_high: Decimal
     visible_low: Decimal
+    # A4.6: amounts above are in ``currency``; ``fees_paid`` is already out of cash.
+    currency: str = "USD"
+    fees_paid: Decimal = Decimal(0)
 
 
 class ReplayBarOut(BaseModel):
@@ -578,9 +626,13 @@ class ReplayDecisionOut(BaseModel):
 
 
 class ReplaySubmitOut(BaseModel):
+    """A market order carries the kernel's ``decision`` (and ``fill``); a
+    resting order (A4.6) carries ``order`` and no decision yet."""
+
     session: ReplaySessionOut
-    decision: ReplayDecisionOut
+    decision: ReplayDecisionOut | None = None
     fill: ReplayFillOut | None = None
+    order: ReplayOrderOut | None = None
 
 
 class ReplayEpisodeFillOut(BaseModel):
@@ -603,6 +655,7 @@ class ReplayEpisodeFillOut(BaseModel):
     created_at: datetime
     equity_after: Decimal | None = None
     concentration_pct: Decimal | None = None
+    fees: Decimal = Decimal(0)
 
 
 class ReplayEpisodeForensicsOut(BaseModel):
@@ -634,6 +687,8 @@ class ReplayEpisodeForensicsOut(BaseModel):
     entry_equity: Decimal | None = None
     peak_exposure: Decimal
     fills: list[ReplayEpisodeFillOut] = []
+    # A4.6: the episode's fees; ``realized_pnl`` is net of them.
+    fees: Decimal = Decimal(0)
 
 
 class ReplayForensicsOut(BaseModel):
@@ -655,6 +710,7 @@ class ReplayForensicsOut(BaseModel):
     closed_episodes_count: int
     open_episodes_count: int
     episodes: list[ReplayEpisodeForensicsOut] = []
+    currency: str = "USD"
 
 
 class ReplayJournalIn(BaseModel):
@@ -3690,3 +3746,29 @@ class HoldoutUnlockIn(BaseModel):
         if sum(given) != 1:
             raise ValueError("give exactly one of backtest, strategy or rotation")
         return self
+
+
+# ---------------------------------------------------------------------------
+# Replay chart context (A4.6)
+# ---------------------------------------------------------------------------
+
+
+class ReplayEventsOut(BaseModel):
+    """A4.6: the replay chart's markers, cut at the session clock: news whose
+    ``available_at`` is at or before ``current_at`` and the session's fills."""
+
+    session_id: int
+    ticker: str
+    current_at: datetime
+    news_rule: str
+    events: list[Annotated[NewsEventOut | FillEventOut, Field(discriminator="type")]]
+
+
+class ReplayDrawingIn(BaseModel):
+    """A4.6: a session drawing (A3.2's shape, no ticker: the session's)."""
+
+    kind: DrawingKind
+    points: list[DrawingPoint] = Field(min_length=1, max_length=3)
+    style: DrawingStyle = Field(default_factory=DrawingStyle)
+    label: str | None = Field(default=None, max_length=80)
+    locked: bool = False

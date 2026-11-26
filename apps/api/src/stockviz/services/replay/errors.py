@@ -32,7 +32,24 @@ class ReplayRangeError(ReplayError):
 
 
 class ReplayUnsupportedCurrency(ReplayError):
-    """Replay trading is USD-only until historical FX exists."""
+    """Kept for callers that still import it. Since A4.6 a session trades in
+    its symbol's currency, so nothing raises it."""
+
+
+class ReplayLagError(ReplayError):
+    """A4.6: an Indian session ends inside ``REPLAY_MIN_LAG_DAYS`` of today."""
+
+
+class ReplayNotTradable(ReplayError):
+    """A4.6: an index session can be watched, not traded."""
+
+
+class ReplayOrderNotFound(ReplayError):
+    """The resting order is missing or not in this session."""
+
+
+class ReplayOrderError(ReplayError):
+    """A resting order the session refuses (limit reached, not open, bad price)."""
 
 
 class ReplayNoMarketError(ReplayError):

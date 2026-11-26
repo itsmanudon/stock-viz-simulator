@@ -107,6 +107,22 @@ class Settings(BaseSettings):
     massive_api_key: str = ""
     massive_shadow_lookback_days: int = 90
 
+    # A4.6: an Indian (XNSE/XBOM) replay session must end at least this many
+    # calendar days before today on its venue (SEBI's rule for simulated
+    # trading on recent prices). 0 turns the rule off.
+    replay_min_lag_days: int = 30
+    # A4.6: the owner-only override, off by default: user ids (comma
+    # separated) whose Indian sessions may end inside the lag. Server-side
+    # only; no client flag can set it.
+    replay_lag_override_user_ids: Annotated[list[int], NoDecode] = []
+
+    @field_validator("replay_lag_override_user_ids", mode="before")
+    @classmethod
+    def _parse_override_ids(cls, raw: object) -> object:
+        if not isinstance(raw, str):
+            return raw
+        return [int(item) for item in raw.replace(" ", "").split(",") if item]
+
     # Off by default so tests, CLI, and horizontally scaled API pods do not
     # all fire jobs. Render sets true (in-process). Kubernetes API pods leave
     # this false; the singleton ``stockviz.workers.scheduler`` process runs the

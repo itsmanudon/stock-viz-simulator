@@ -17,13 +17,16 @@ the realised P&L. A4.2: live fills pay the ticker's default schedule
 fill's venue date; US: none). So under the live default the backtest's cash
 change and fees equal live's to the cent; under any other schedule the
 backtest's cash change equals live's before its fees, less exactly that
-schedule's fees on the same fill and date. Replay is USD-only and books no
-fees (USD's default is ``none``).
+schedule's fees on the same fill and date. A4.6: replay trades in the
+symbol's currency and pays the same default (``auto``) on the bar's venue
+date, so the INR replay path is compared like live, fees included. A replay
+limit or stop order rests: it is placed on DAY1 and judged on DAY2, as live
+settles a pending order on DAY2's bar.
 
 What a path does not support is a skip with its reason (never silent):
-live is pinned to ``legacy_close``; replay is pinned to ``legacy_close`` and
-USD-only; ``next_open`` exists only in backtests (it is compared against the
-kernel's own rule in :func:`test_next_open_backtest_path`).
+live and replay are pinned to ``legacy_close``; ``next_open`` exists only
+in backtests (it is compared against the kernel's own rule in
+:func:`test_next_open_backtest_path`).
 """
 
 from __future__ import annotations
@@ -35,7 +38,16 @@ from decimal import Decimal
 import pytest
 from sqlmodel import Session, col, select
 
-from stockviz.models import FxRate, Portfolio, PriceBar, Symbol, Trade, TradeSide, User
+from stockviz.models import (
+    FxRate,
+    Portfolio,
+    PriceBar,
+    ReplayFill,
+    Symbol,
+    Trade,
+    TradeSide,
+    User,
+)
 from stockviz.models.order import OrderType
 from stockviz.services.backtest.fills import book
 from stockviz.services.fee_view import default_schedule_name, fee_date
@@ -179,18 +191,37 @@ def live_fill(session: Session, currency: str, order: Order) -> Fill | None:
 def replay_fill(session: Session, currency: str, order: Order) -> Fill | None:
     ticker = _seed(session, currency)
     uid = _user(session)
+    # A4.6: an Indian session must end 30 days before today; DAY2 is long past.
     replay = create_replay_session(session, user_id=uid, ticker=ticker, start_at=DAY1, end_at=DAY2)
+    assert replay.currency == currency
+    assert replay.fee_schedule == default_schedule_name(ticker)
     if order.side is OrderSide.SELL:
         submit_replay_order(session, replay=replay, side=OrderSide.BUY,
                             order_type=SimulationOrderType.MARKET, quantity=HELD)  # fmt: skip
-    replay = advance_replay_session(session, replay=replay)
-    before = replay.cash_balance
-    result = submit_replay_order(session, replay=replay, side=order.side, order_type=order.kind,
-                                 quantity=QTY, limit_price=order.limit)  # fmt: skip
-    if result.fill is None:
+    if order.kind is SimulationOrderType.MARKET:
+        replay = advance_replay_session(session, replay=replay)
+        before = replay.cash_balance
+        result = submit_replay_order(session, replay=replay, side=order.side,
+                                     order_type=order.kind, quantity=QTY)  # fmt: skip
+        fill = result.fill
+        after = result.replay.cash_balance
+    else:
+        # Resting: placed on DAY1, judged by the kernel when the clock reaches DAY2.
+        placed = submit_replay_order(session, replay=replay, side=order.side,
+                                     order_type=order.kind, quantity=QTY,
+                                     limit_price=order.limit)  # fmt: skip
+        assert placed.fill is None and placed.order is not None
+        before = placed.replay.cash_balance
+        replay = advance_replay_session(session, replay=placed.replay)
+        after = replay.cash_balance
+        fill = session.exec(
+            select(ReplayFill).where(ReplayFill.order_id == placed.order.id)
+        ).first()
+    if fill is None:
         return None
-    return Fill(result.fill.fill_price, result.fill.quantity,
-                result.replay.cash_balance - before, result.fill.realized_pnl)  # fmt: skip
+    assert fill.evaluated_at == DAY2
+    return Fill(fill.fill_price, fill.quantity, after - before,
+                fill.realized_pnl, fill.fees, DAY2.date())  # fmt: skip
 
 
 def backtest_fill(
@@ -243,13 +274,12 @@ def _agree(path: Fill | None, currency: str, order: Order, fee_schedule: str) ->
         assert backtest.realized == path.realized
 
 
-SKIPS = {
+SKIPS: dict[tuple[str, ...], str] = {
     (
         "live",
         "next_open",
     ): "live paper trading is pinned to legacy_close (LIVE_PAPER_EXECUTION_PROFILE)",
     ("replay", "next_open"): "replay sessions are pinned to legacy_close",
-    ("replay", "legacy_close", "INR"): "replay is USD-only until A4.6 (replay in INR)",
 }
 
 
@@ -309,6 +339,29 @@ def test_three_way_inr_default_fees(engine) -> None:
         )
         assert backtest is not None
         assert (backtest.cash_change, fees) == (live.cash_change, live.fees)
+
+
+def test_three_way_inr_replay_equals_live(engine) -> None:
+    """A4.6: an Indian market buy and sell in replay pay the same NSE delivery
+    fees as live on the same date, and the backtest books the same cash
+    change, to the cent."""
+    from sqlmodel import SQLModel
+
+    for order in (ORDERS[0], ORDERS[1], ORDERS[4]):
+        SQLModel.metadata.drop_all(engine)
+        SQLModel.metadata.create_all(engine)
+        with Session(engine) as session:
+            replay = replay_fill(session, "INR", order)
+        assert replay is not None and replay.fees > 0 and replay.fee_on == DAY2.date()
+        backtest, fees = backtest_fill(
+            "INR", order, LEGACY_CLOSE, default_schedule_name("TCS.NS"), on=replay.fee_on
+        )
+        assert backtest is not None
+        assert (backtest.cash_change, fees, backtest.price) == (
+            replay.cash_change,
+            replay.fees,
+            replay.price,
+        )
 
 
 @pytest.mark.parametrize("order", ORDERS, ids=[o.name for o in ORDERS])

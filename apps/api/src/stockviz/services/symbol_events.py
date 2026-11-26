@@ -87,8 +87,18 @@ def _day_bounds(start: date, end: date) -> tuple[datetime, datetime]:
     return datetime.combine(start, time.min), datetime.combine(end + timedelta(days=1), time.min)
 
 
-def news_clusters(session: Session, ticker: str, start: date, end: date) -> list[SymbolEvent]:
+def news_clusters(
+    session: Session,
+    ticker: str,
+    start: date,
+    end: date,
+    *,
+    available_until: datetime | None = None,
+) -> list[SymbolEvent]:
+    """``available_until`` (A4.6, replay): also keep only documents whose
+    ``available_at`` is at or before that instant (naive UTC)."""
     lo, hi = _day_bounds(start, end)
+    cap = [col(AegisDocument.available_at) <= available_until] if available_until else []
     linked = (
         select(AegisDocumentEntity.document_id)
         .join(AegisMapping, col(AegisMapping.entity_id) == col(AegisDocumentEntity.entity_id))
@@ -103,6 +113,7 @@ def news_clusters(session: Session, ticker: str, start: date, end: date) -> list
             col(AegisDocument.document_id).in_(linked),
             col(AegisDocument.available_at) >= lo,
             col(AegisDocument.available_at) < hi,
+            *cap,
         )
         .order_by(col(AegisDocument.available_at).desc(), col(AegisDocument.document_id))
         .limit(MAX_NEWS_DOCUMENTS)

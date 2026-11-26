@@ -1,4 +1,4 @@
-"""Isolated USD cash/position mutations for a ReplaySession.
+"""Isolated cash/position mutations for a ReplaySession (in its currency).
 
 This is not ``apply_fill``: it does not touch ``Portfolio`` / ``Trade``,
 convert FX or enqueue Kafka. Since Phase 5.1 the arithmetic is the shared
@@ -17,6 +17,7 @@ from sqlmodel import Session, select
 from stockviz.models import ReplayFill, ReplayPosition, ReplaySession
 from stockviz.services.replay.errors import ReplayInsufficientCash, ReplayInsufficientPosition
 from stockviz.services.simulation import (
+    FeeBreakdown,
     FillDecision,
     FillStatus,
     OrderSide,
@@ -51,8 +52,14 @@ def apply_replay_fill(
     market_interval: str,
     order_type: str,
     evaluated_at_naive: datetime,
+    fees: FeeBreakdown | None = None,
+    order_id: int | None = None,
 ) -> ReplayFill:
-    """Debit/credit isolated cash and stage a ``ReplayFill``. Does not commit."""
+    """Debit/credit isolated cash and stage a ``ReplayFill``. Does not commit.
+
+    A4.6: ``fees`` (the session schedule's, in the session currency) are
+    charged through ``SimLedger`` as live and backtest fills are: a buy pays
+    value + fees, a sell receives value - fees."""
 
     if replay.id is None:
         raise ValueError("replay session must be flushed before a fill is recorded")
@@ -67,11 +74,18 @@ def apply_replay_fill(
     ledger = SimLedger(cash=replay.cash_balance)
     if position is not None:
         ledger.positions[ticker] = SimPosition(position.quantity, position.avg_cost)
-    try:
-        fill = ledger.apply(side, ticker, quantity, price)
-    except SimInsufficientCash as exc:
+    fee_total = fees.total if fees is not None else Decimal(0)
+    if side is OrderSide.SELL and fee_total > (price * quantity).quantize(MICROS):
         raise ReplayInsufficientCash(
-            f"Replay cash ${replay.cash_balance:.2f}; order requires ${(price * quantity):.2f}."
+            f"Fees of {fee_total:.2f} {replay.currency} exceed the sale's value."
+        )
+    try:
+        fill = ledger.apply(side, ticker, quantity, price, fees=fee_total)
+    except SimInsufficientCash as exc:
+        needed = (price * quantity).quantize(MICROS) + fee_total
+        raise ReplayInsufficientCash(
+            f"Replay cash {replay.cash_balance:.2f} {replay.currency}; order requires "
+            f"{needed:.2f} {replay.currency} including fees."
         ) from exc
     except SimInsufficientPosition as exc:
         held = position.quantity if position is not None else Decimal(0)
@@ -116,6 +130,15 @@ def apply_replay_fill(
         market_interval=market_interval,
         order_type=order_type,
         evaluated_at=evaluated_at_naive,
+        fees=fill.fees,
+        fee_lines=_fee_lines(fees) if fees is not None and fees.components else None,
+        order_id=order_id,
     )
     db.add(row)
     return row
+
+
+def _fee_lines(fees: FeeBreakdown) -> list[dict]:
+    from stockviz.services.trading.execute import fee_lines_json
+
+    return fee_lines_json(fees)

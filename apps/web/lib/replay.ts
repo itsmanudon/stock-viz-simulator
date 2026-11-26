@@ -4,6 +4,28 @@ import type { Bar } from "@/lib/api/types";
 export const REPLAY_PROFILE_LABEL = "legacy_close v1";
 export const REPLAY_DEFAULT_CASH = "100000";
 export const REPLAY_CASH_PRESETS = ["25000", "50000", "100000", "250000"] as const;
+/** A4.6: rupee sessions start at ₹10 lakh by default (API `default_starting_cash`). */
+export const REPLAY_CASH_PRESETS_BY_CURRENCY: Record<string, readonly string[]> = {
+  USD: REPLAY_CASH_PRESETS,
+  INR: ["250000", "500000", "1000000", "2500000"],
+};
+
+export function replayCashPresets(currency: string): readonly string[] {
+  return REPLAY_CASH_PRESETS_BY_CURRENCY[currency] ?? REPLAY_CASH_PRESETS;
+}
+
+export const REPLAY_ORDER_TYPES = [
+  { value: "market", label: "Market" },
+  { value: "limit", label: "Limit" },
+  { value: "stop_loss", label: "Stop-loss" },
+  { value: "take_profit", label: "Take-profit" },
+] as const;
+
+export type ReplayTicketOrderType = (typeof REPLAY_ORDER_TYPES)[number]["value"];
+
+export function replayOrderTypeLabel(value: string): string {
+  return REPLAY_ORDER_TYPES.find((t) => t.value === value)?.label ?? value;
+}
 
 export function isoDate(iso: string): string {
   return iso.slice(0, 10);
@@ -88,6 +110,10 @@ export function replayErrorMessage(status: number, detail?: string): string {
     return "Thesis fields are locked after the first fill. You can still update reflection.";
   }
   if (status === 409) return "This replay is no longer active.";
+  // A4.6: the 30-day lag, an index session and an order the API refuses say why.
+  if (status === 400 && detail && /days before today|index|order|price|sell-only/i.test(detail)) {
+    return detail;
+  }
   if (status === 400) return "That historical range has no stored daily bars.";
   if (status === 422) return "Not enough replay cash or shares for that order.";
   if (status === 401) return "Sign in to use Replay Lab.";

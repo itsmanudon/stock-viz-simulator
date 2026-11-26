@@ -46,7 +46,7 @@ export function ReplayForensicsPanel({
   return (
     <div className="space-y-8">
       <ReplayScorecard forensics={forensics} />
-      <ReplayEpisodeTable episodes={forensics.episodes} />
+      <ReplayEpisodeTable episodes={forensics.episodes} currency={forensics.currency ?? "USD"} />
     </div>
   );
 }
@@ -114,7 +114,13 @@ export function ReplayScorecard({ forensics }: { forensics: ReplayForensics }) {
   );
 }
 
-function ReplayEpisodeTable({ episodes }: { episodes: ReplayEpisodeForensics[] }) {
+function ReplayEpisodeTable({
+  episodes,
+  currency,
+}: {
+  episodes: ReplayEpisodeForensics[];
+  currency: string;
+}) {
   if (episodes.length === 0) {
     return (
       <ResearchEmptyState title="No trade episodes yet.">
@@ -147,7 +153,7 @@ function ReplayEpisodeTable({ episodes }: { episodes: ReplayEpisodeForensics[] }
           </TableHeader>
           <TableBody>
             {episodes.map((episode) => (
-              <ReplayEpisodeRows key={episode.index} episode={episode} />
+              <ReplayEpisodeRows key={episode.index} episode={episode} currency={currency} />
             ))}
           </TableBody>
         </Table>
@@ -156,14 +162,20 @@ function ReplayEpisodeTable({ episodes }: { episodes: ReplayEpisodeForensics[] }
   );
 }
 
-function ReplayEpisodeRows({ episode }: { episode: ReplayEpisodeForensics }) {
+function ReplayEpisodeRows({
+  episode,
+  currency,
+}: {
+  episode: ReplayEpisodeForensics;
+  currency: string;
+}) {
   return (
     <>
       <TableRow>
         <TableCell>
           <div>{formatReplayShortDate(episode.opened_at)}</div>
           <div className="font-mono text-xs tabular-nums text-text-tertiary">
-            {formatCurrency(episode.entry_price)}
+            {formatCurrency(episode.entry_price, currency)}
             {episode.status === "open" ? " · open" : ""}
           </div>
         </TableCell>
@@ -172,7 +184,7 @@ function ReplayEpisodeRows({ episode }: { episode: ReplayEpisodeForensics }) {
             <>
               <div>{formatReplayShortDate(episode.closed_at)}</div>
               <div className="font-mono text-xs tabular-nums text-text-tertiary">
-                {formatCurrency(episode.exit_price)}
+                {formatCurrency(episode.exit_price, currency)}
               </div>
             </>
           ) : (
@@ -222,19 +234,24 @@ function ReplayEpisodeRows({ episode }: { episode: ReplayEpisodeForensics }) {
               Episode {episode.index} detail
             </summary>
             <dl className="mt-3 grid gap-2 text-xs text-text-tertiary sm:grid-cols-2 lg:grid-cols-4">
-              <div>Weighted entry {formatCurrency(episode.weighted_entry_price)}</div>
+              <div>Weighted entry {formatCurrency(episode.weighted_entry_price, currency)}</div>
               <div>
                 Weighted exit{" "}
-                {episode.weighted_exit_price ? formatCurrency(episode.weighted_exit_price) : "—"}
+                {episode.weighted_exit_price
+                  ? formatCurrency(episode.weighted_exit_price, currency)
+                  : "—"}
               </div>
               <div>Peak quantity {formatQuantity(episode.peak_quantity)}</div>
-              <div>Peak exposure {formatCurrency(episode.peak_exposure)}</div>
-              <div>Realized P&amp;L {formatSignedCurrency(episode.realized_pnl)}</div>
+              <div>Peak exposure {formatCurrency(episode.peak_exposure, currency)}</div>
+              <div>
+                Realized P&amp;L, net {formatSignedCurrency(episode.realized_pnl, currency)}
+              </div>
+              <div>Fees {formatCurrency(episode.fees ?? "0", currency)}</div>
               <div>
                 Unrealized{" "}
                 {episode.unrealized_pnl == null
                   ? "—"
-                  : formatSignedCurrency(episode.unrealized_pnl)}
+                  : formatSignedCurrency(episode.unrealized_pnl, currency)}
               </div>
               <div>
                 Position exposure{" "}
@@ -254,7 +271,7 @@ function ReplayEpisodeRows({ episode }: { episode: ReplayEpisodeForensics }) {
                 <li key={fill.id} className="border-t border-border-muted pt-2 text-xs">
                   <p className="text-text-secondary">
                     {formatReplayShortDate(fill.evaluated_at)} {fill.side.toUpperCase()}{" "}
-                    {formatQuantity(fill.quantity)} @ {formatCurrency(fill.fill_price)}
+                    {formatQuantity(fill.quantity)} @ {formatCurrency(fill.fill_price, currency)}
                   </p>
                   <p className="text-text-tertiary">
                     {fill.profile_name} {fill.model_version} · {fill.reason}

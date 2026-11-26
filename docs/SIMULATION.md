@@ -31,7 +31,7 @@ runs on the weekday EOD schedule.
 | Replay forensics | ✅ SIM-07 — episodes, MAE/MFE, buy-and-hold excess, concentration, journal |
 | Blind historical replay | **Done at product surface** (SIM-06 + SIM-07 forensics) |
 | Kafka `trade.executed.v1` | **Unchanged** |
-| Database | Additive `simulated_executions` + `replay_sessions` / `_positions` / `_fills` / `_journals` |
+| Database | Additive `simulated_executions` + `replay_sessions` / `_positions` / `_fills` / `_journals` (A4.6: `_orders`, `_drawings`, currency and fees) |
 | API | Additive execution provenance + `/v1/replay/*`; `TradeOut` unchanged |
 | Frontend | Replay Lab at `/replay` (SIM-06) with forensics/journal (SIM-07); live Trade/Portfolio unchanged |
 
@@ -291,24 +291,27 @@ shorts, only symbols a run declares shortable, only US listings.
 trigger, a STOP_LOSS sell) and fills each through three production paths:
 **live** (`execute_trade`, or `create_pending_order` +
 `settle_pending_orders`, so `apply_fill` books it), **replay**
-(`create_replay_session` + `submit_replay_order`) and **backtest**
+(`create_replay_session` + `submit_replay_order`; a limit or stop order is
+placed on the first bar and judged by `advance_replay_session` on the
+second, as live settles a pending order on that bar) and **backtest**
 (`fills.book`). It compares fill or no fill, fill price, quantity, cash
 change and (USD) realised P&L, for every fee schedule of the symbol's
 currency. Since A4.2 live fills pay the ticker's default schedule (Indian
 symbols: the venue's equity delivery schedule, version in force on the
-fill's venue date; US: none) and replay books none (USD only). Under the
+fill's venue date; US: none); since A4.6 replay pays the same default
+(`auto`, frozen on the session) on the bar's venue date. Under the
 live default schedule the backtest's fees and cash change equal live's to
 the cent; under any other schedule the backtest's cash change equals the
 path's cash change before its own fees, less exactly that schedule's fees on
 the same fill and date (`test_three_way_inr_default_fees` is the headline
-for rupees).
+for rupees; `test_three_way_inr_replay_equals_live` for rupee replay).
 
 | Path / profile | `legacy_close` (= `next_close`) | `next_open` |
 | --- | --- | --- |
 | live, USD (`none`, `us_equity_2026`, `us_equity`) | compared | skipped: live is pinned to `legacy_close` |
 | live, INR (`none`, `in_delivery_nse_2026`, `in_equity_delivery_nse` (the live default: equal to the cent), `in_delivery_bse_2026`) | compared | skipped: same |
 | replay, USD | compared | skipped: replay sessions are pinned to `legacy_close` |
-| replay, INR | skipped: replay is USD-only until A4.6 | skipped |
+| replay, INR (A4.6: the session pays `in_equity_delivery_nse`, equal to the cent) | compared | skipped: replay sessions are pinned to `legacy_close` |
 | backtest | compared (the reference) | its fill must equal the kernel's own decision: the open for market orders, `ineligible` for limit and stop (`test_next_open_backtest_path`) |
 
 `test_three_way_market_buy_headline` asserts the three fills of one market
@@ -355,9 +358,9 @@ Every rate and its source: the workspace note `docs/a4-cost-sources.md`.
 - **Default on for Indian symbols** (`services/fee_view.py`): live paper
   fills and backtests (`fee_schedule: "auto"`, the new default) use the
   venue's delivery schedule; other markets `none` (US `us_equity` stays an
-  opt-in for backtests, so live US cash maths is unchanged). Replay is
-  USD-only, so it books none until A4.6 adds INR replay, which must use the
-  same default. Existing trades are never recalculated (`trades.fees` NULL).
+  opt-in for backtests, so live US cash maths is unchanged). Replay (A4.6)
+  uses the same default, resolved once when the session opens
+  (`replay_sessions.fee_schedule`). Existing trades are never recalculated (`trades.fees` NULL).
 - **Live ledger**: a buy pays value + fees (a non-base buy converts the
   shortfall including fees), a sell credits value - fees (refused when the
   fees exceed the value); `realized_pnl` stays the price gain and
@@ -629,7 +632,8 @@ POST orders (intent only)
 request. `end_at` becomes the last stored 1d bar at-or-before the request, or
 the latest stored 1d bar at creation if omitted. The resolved timestamps are
 persisted; ingesting a later bar does not extend the session. A usable range
-needs at least two 1d bars. Non-USD symbols are rejected (no historical FX).
+needs at least two 1d bars. Since A4.6 any currency is allowed: the book is in
+the symbol's currency (`replay_sessions.currency`), so no FX is needed.
 
 **Current bar.** `current_at` is the `PriceBar.ts` of the currently observable
 stored daily bar. That bar and earlier bars in `[start_at, current_at]` are
@@ -681,8 +685,59 @@ then they lock (`409 ReplayJournalLocked`). Reflection stays editable.
 There is no R-multiple: Replay does not store a stop/invalidation *price*.
 No retrospective LLM and no buy/sell advice.
 
-**Not in SIM-06 / SIM-07.** Intraday, rewind, branching, dataset version
-snapshots, spreads/slippage, historical FX, pending replay orders.
+**Replay in any currency, the lag, the chart and resting orders (A4.6, M9.1,
+M9.2).**
+
+- **Currency and cash.** A session takes its symbol's currency and starts
+  with `starting_cash` in it; omitted, $100,000 (USD), ₹10,00,000 (INR, ten
+  lakh) or 100,000 units of another currency (`DEFAULT_CASH_BY_CURRENCY`).
+  Every amount the replay routes return is in `currency`.
+- **Fees.** The A4.2 default resolver (`auto`, frozen at creation): NSE and
+  BSE symbols pay their equity delivery schedule, the version in force on
+  the bar's venue date, the Zerodha brokerage model and DP once per scrip per
+  day (the first sell at that bar); other venues `none`. Cash moves net,
+  `ReplayFill.fees`/`fee_lines` record them, `realized_pnl` stays the price
+  gain, the summary adds `fees_paid` and forensics nets episode P&L of fees.
+- **Indices** (`^NSEI`, `^GSPC`) can be replayed to watch, study and draw on,
+  not traded (400, `ReplayNotTradable`).
+- **The 30-day lag.** An XNSE or XBOM session must end at least
+  `REPLAY_MIN_LAG_DAYS` (default 30; 0 is off) calendar days before today on
+  the venue (SEBI's rule for simulated trading on recent prices): the
+  resolved end bar's date must be on or before that cut-off, else 400 with
+  the latest allowed date. The owner-only override is server configuration,
+  `REPLAY_LAG_OVERRIDE_USER_IDS` (user ids, comma separated, empty by
+  default); no request field relaxes it, and `lag_override` records a waived
+  session. `GET .../availability` returns `lag_days` and `max_end`. There is no
+  prize or leaderboard anywhere (a test greps replay's code).
+- **Indicators** (`GET .../indicators?names=`) run the registry on the
+  visible bars (`start_at` to `current_at`) warmed up on the stored bars
+  before `start_at`, with index closes cut at `current_at` for the RS line;
+  nothing after the clock is read, and a value equals the live route's with
+  its window cut at the clock (tested at every step with future bars stored).
+- **Events** (`GET .../events`): Aegis news linked to the symbol with
+  `available_at <= current_at` (the bar's timestamp: conservative, a headline
+  published during a session shows from the next bar) and the session's own
+  fills. Earnings, dividends and splits are left out (their figures can be
+  later than the clock). The live events route is never called from replay.
+- **Drawings** (`/sessions/{id}/drawings`, CRUD like A3.2): their own table,
+  `replay_drawings`, so the live chart, `drawing()` rules and other sessions
+  never see them and the session never sees live ones (a live drawing could
+  sit on a later date). Anchors between the first bar and the clock; the
+  anchored VWAP is refused (its line reads every stored bar).
+- **Resting orders.** `POST .../orders` with `limit` (buy or sell),
+  `stop_loss` or `take_profit` (sell only) and `limit_price` places a
+  `replay_orders` row at the clock; it is first judged on the next bar (the
+  trader saw this bar's close, which a market order takes). Every advance
+  runs each open order, oldest first, through `evaluate_order` with the
+  session's profile (`legacy_close`: triggers on that close, fills at it).
+  Nothing is reserved: placement checks the cash at the limit (buy) or the
+  shares (sell), and a fill the book cannot pay or deliver is `rejected` with
+  the reason. `POST .../orders/{id}/cancel`; completing the session expires
+  open orders, cancelling it cancels them; at most 20 open.
+
+**Not in SIM-06 / SIM-07 / A4.6.** Intraday, rewind, branching, dataset version
+snapshots, spreads/slippage, variable autoplay (A6), reservations for resting
+orders.
 Historical bar *corrections* can still change observations; the horizon is
 frozen, the row contents are not.
 
@@ -696,7 +751,11 @@ Authed API and Replay Lab UI:
 - `GET /v1/replay/sessions/{id}/summary` — cash/equity/PnL at current close
 - `GET /v1/replay/sessions/{id}/forensics` — episodes, MAE/MFE, benchmark, concentration
 - `GET` / `PUT /v1/replay/sessions/{id}/journal` — thesis (locks after first fill)
-- `POST /v1/replay/sessions/{id}/orders` — intent only; fill at current close
+- `POST /v1/replay/sessions/{id}/orders` — intent only; a market order fills at
+  the current close, a limit / stop order rests (A4.6)
+- `GET /v1/replay/sessions/{id}/orders`, `POST .../orders/{order_id}/cancel` (A4.6)
+- `GET /v1/replay/sessions/{id}/indicators?names=`, `GET .../events` (A4.6)
+- `GET`/`POST /v1/replay/sessions/{id}/drawings`, `PATCH`/`DELETE .../drawings/{id}` (A4.6)
 - `POST /v1/replay/sessions/{id}/cancel`
 - UI: `/replay`, `/replay/{id}`, `/replay/{id}?view=forensics`
 

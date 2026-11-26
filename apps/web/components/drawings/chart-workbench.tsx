@@ -69,12 +69,38 @@ import { DrawingsList, type PointsDraft } from "./drawings-list";
 
 type ChartProps = Omit<ComponentProps<typeof PriceChart>, "drawingLayer">;
 
+type DrawingResult = { drawing?: Drawing; ok?: boolean; error?: string };
+type DrawingCreate = {
+  kind: DrawingKind;
+  points: ReturnType<typeof toPoints>;
+  style: Drawing["style"];
+  label: string | null;
+  locked: boolean;
+};
+type DrawingChanges = Partial<Pick<Drawing, "style" | "label" | "locked">> & {
+  points?: ReturnType<typeof toPoints>;
+};
+
+/**
+ * Where drawings are saved. Default: the live chart's `/v1/drawings`
+ * (`drawing-actions.ts`). A4.6: a replay session passes its own, so its
+ * drawings live and stay in the session.
+ */
+export type DrawingActions = {
+  create: (input: DrawingCreate) => Promise<DrawingResult>;
+  update: (id: number, changes: DrawingChanges) => Promise<DrawingResult>;
+  remove: (id: number) => Promise<DrawingResult>;
+};
+
 type Props = ChartProps & {
   ticker: string;
   signedIn: boolean;
   /** The user's drawings, or null signed out or when they could not be loaded. */
   initial: DrawingsResponse | null;
   callbackUrl: string;
+  actions?: DrawingActions;
+  /** The tools offered (default every kind). Replay leaves out the anchored VWAP. */
+  kinds?: readonly DrawingKind[];
 };
 
 function toScene(d: Drawing, avwap?: AvwapLine | null): SceneDrawing {
@@ -118,7 +144,24 @@ function isTyping(target: EventTarget | null): boolean {
   );
 }
 
-export function ChartWorkbench({ ticker, signedIn, initial, callbackUrl, ...chart }: Props) {
+export function ChartWorkbench({
+  ticker,
+  signedIn,
+  initial,
+  callbackUrl,
+  actions: given,
+  kinds,
+  ...chart
+}: Props) {
+  const actions = useMemo<DrawingActions>(
+    () =>
+      given ?? {
+        create: (input) => createDrawingAction({ ticker, ...input }),
+        update: (id, changes) => updateDrawingAction(id, changes),
+        remove: (id) => deleteDrawingAction(id),
+      },
+    [given, ticker],
+  );
   const [drawings, setDrawings] = useState<Drawing[]>(initial?.drawings ?? []);
   const [history, setHistory] = useState<History>(EMPTY_HISTORY);
   const [tool, setTool] = useState<DrawingKind | null>(null);
@@ -169,8 +212,7 @@ export function ChartWorkbench({ ticker, signedIn, initial, callbackUrl, ...char
     async (entry: HistoryEntry): Promise<{ ok: boolean; created?: Drawing }> => {
       if (entry.type === "create") {
         const d = entry.drawing;
-        const result = await createDrawingAction({
-          ticker,
+        const result = await actions.create({
           kind: d.kind,
           points: toPoints(d.points),
           style: d.style,
@@ -186,7 +228,7 @@ export function ChartWorkbench({ ticker, signedIn, initial, callbackUrl, ...char
         return { ok: true, created };
       }
       if (entry.type === "delete") {
-        const result = await deleteDrawingAction(entry.drawing.id);
+        const result = await actions.remove(entry.drawing.id);
         if (result.error) {
           setMessage(result.error);
           return { ok: false };
@@ -196,7 +238,7 @@ export function ChartWorkbench({ ticker, signedIn, initial, callbackUrl, ...char
         return { ok: true };
       }
       const target = entry.after;
-      const result = await updateDrawingAction(target.id, {
+      const result = await actions.update(target.id, {
         points: toPoints(target.points),
         style: target.style,
         label: target.label,
@@ -210,7 +252,7 @@ export function ChartWorkbench({ ticker, signedIn, initial, callbackUrl, ...char
       setDrawings((list) => list.map((d) => (d.id === saved.id ? saved : d)));
       return { ok: true };
     },
-    [ticker],
+    [actions],
   );
 
   const run = useCallback(async (work: () => Promise<void>) => {
@@ -225,8 +267,7 @@ export function ChartWorkbench({ ticker, signedIn, initial, callbackUrl, ...char
   const create = useCallback(
     (input: Omit<Drawing, "id" | "ticker" | "created_at" | "updated_at" | "position">) =>
       run(async () => {
-        const result = await createDrawingAction({
-          ticker,
+        const result = await actions.create({
           ...input,
           points: toPoints(input.points),
         });
@@ -240,7 +281,7 @@ export function ChartWorkbench({ ticker, signedIn, initial, callbackUrl, ...char
         setSelectedId(created.id);
         setMessage(`${kindSpec(created.kind).label} saved.`);
       }),
-    [run, ticker],
+    [run, actions],
   );
 
   const update = useCallback(
@@ -413,6 +454,7 @@ export function ChartWorkbench({ ticker, signedIn, initial, callbackUrl, ...char
           onToggleLock={() => selected && void update(selected, { locked: !selected.locked })}
           onDelete={() => selected && void remove(selected)}
           busy={busy}
+          kinds={kinds}
         />
         <div className="min-w-0 flex-1">
           <PriceChart {...chart} drawingLayer={layer} />
@@ -520,6 +562,7 @@ export function ChartWorkbench({ ticker, signedIn, initial, callbackUrl, ...char
           drawings={drawings}
           selectedId={selectedId}
           onSelect={setSelectedId}
+          kinds={kinds}
           enabled={enabled}
           busy={busy}
           bounds={bounds}
