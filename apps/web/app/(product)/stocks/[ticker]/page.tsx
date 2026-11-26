@@ -12,6 +12,7 @@ import {
   type TradeTicketAccount,
 } from "@/components/contextual-trade-ticket";
 import { NewsReactions } from "@/components/event-study-view";
+import { ForensicsCard } from "@/components/forensics-card";
 import { FundamentalsPanel } from "@/components/fundamentals-panel";
 import { MobileTradeSheet } from "@/components/mobile-trade-sheet";
 import { NewsList } from "@/components/news-list";
@@ -47,7 +48,12 @@ import {
 import { getSymbolChecklist } from "@/lib/api/checklist";
 import { listDrawings } from "@/lib/api/drawings";
 import { getMyFills } from "@/lib/api/events-server";
-import { getFundamentals, getValuation, getValuationHistory } from "@/lib/api/fundamentals";
+import {
+  getForensics,
+  getFundamentals,
+  getValuation,
+  getValuationHistory,
+} from "@/lib/api/fundamentals";
 import { planPickerOptions } from "@/lib/api/plans";
 import { getEventStudy } from "@/lib/api/research";
 import {
@@ -252,6 +258,7 @@ export default async function StockPage({
     positiveReactions,
     checklist,
     relativeStrength,
+    forensics,
   ] = await Promise.all([
     barsPromise,
     chartBarsPromise,
@@ -272,6 +279,8 @@ export default async function StockPage({
     getSymbolChecklist(ticker).catch(() => null),
     // A3.5: RS percentiles and the 52-week distance; a failed call drops the strip.
     getRelativeStrength(ticker).catch(() => null as RelativeStrength | null),
+    // A7.3: the forensic scorecard; a failed call drops the card only.
+    getForensics(ticker).catch(() => null),
   ]);
 
   // A6.2: an intraday lookback is whole sessions ("1D" is the last session,
@@ -622,12 +631,15 @@ export default async function StockPage({
             />
           }
           financials={
-            <FundamentalsPanel
-              annual={fundamentalsAnnual}
-              quarterly={fundamentalsQuarterly}
-              valuation={valuationNow}
-              peHistory={peHistory}
-            />
+            <div className="space-y-8">
+              <FundamentalsPanel
+                annual={fundamentalsAnnual}
+                quarterly={fundamentalsQuarterly}
+                valuation={valuationNow}
+                peHistory={peHistory}
+              />
+              <ForensicsCard forensics={forensics} />
+            </div>
           }
           news={
             <div className="space-y-8">

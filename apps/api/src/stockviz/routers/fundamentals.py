@@ -20,6 +20,9 @@ from stockviz.db import get_session
 from stockviz.limiter import limiter
 from stockviz.models import Symbol
 from stockviz.schemas import (
+    ForensicScoreOut,
+    ForensicsOut,
+    ForensicTestOut,
     FundamentalRowOut,
     FundamentalsOut,
     ValuationHistoryOut,
@@ -27,6 +30,7 @@ from stockviz.schemas import (
     ValuationOut,
     ValuationPointOut,
 )
+from stockviz.services.fundamentals import forensics as fx
 from stockviz.services.fundamentals.concepts import CONCEPTS
 from stockviz.services.fundamentals.store import facts_as_of
 from stockviz.services.fundamentals.valuation import history, valuation
@@ -142,3 +146,76 @@ def get_valuation_history(
         points=[ValuationPointOut(date=d, value=v) for d, v in points],
         percentile=percentile,
     )
+
+
+FORENSICS_METHOD = {
+    "piotroski": "Nine pass/fail tests (Piotroski 2000) on fiscal year t against t-1; "
+    "the score counts passes among the tests that could be judged",
+    "altman_z": "Emerging-market Z'' (Altman 2005): 3.25 + 6.56 X1 + 3.26 X2 + 6.72 X3 + "
+    "1.05 X4; safe above 5.85, distress below 4.35",
+    "beneish_m": "Eight-variable M-score (Beneish 1999); flagged above -2.22",
+    "cfo_to_pat": "Operating cash flow / net income, year t",
+    "point_in_time": "Annual facts as known on as_of (filing dates); missing fields are "
+    "named, never guessed",
+}
+
+
+def _score(score: fx.Score) -> ForensicScoreOut:
+    return ForensicScoreOut(value=score.value, zone=score.zone, missing=list(score.missing),
+                            parts=dict(score.parts))  # fmt: skip
+
+
+@router.get("/{ticker}/forensics", response_model=ForensicsOut)
+@limiter.limit("60/minute")
+def get_forensics(
+    request: Request,
+    ticker: str,
+    session: SessionDep,
+    as_of: Annotated[date | None, Query()] = None,
+) -> ForensicsOut:
+    """A7.3 (M5.1, M5.2): Piotroski, Altman Z'' and Beneish on the latest fiscal
+    years known on ``as_of``; financial companies get none of them."""
+    ticker = ticker.upper()
+    symbol = session.get(Symbol, ticker)
+    if symbol is None:
+        raise HTTPException(status_code=404, detail=f"Symbol {ticker!r} not found")
+    day = as_of or utcnow().date()
+    out = ForensicsOut(ticker=ticker, as_of=day, sector=symbol.sector,
+                       financial=fx.is_financial(symbol.sector), method=FORENSICS_METHOD)  # fmt: skip
+    if out.financial:
+        out.financial_note = (
+            "A financial company: Piotroski, Altman and Beneish were built on non-financial "
+            "firms and misread a lender's balance sheet, so they are not shown."
+        )
+        return out
+    instrument_id = instrument_ids(session, [ticker]).get(ticker)
+    known = facts_as_of(session, instrument_id, day, period_types=("annual", "instant")) if (
+        instrument_id is not None) else {}  # fmt: skip
+    ends = sorted({end for (_c, ptype, end) in known if ptype == "annual"}, reverse=True)[:3]
+    if not ends:
+        out.reason = "No annual statements stored for this symbol."
+        return out
+    years: list[dict[str, object]] = []
+    currencies: set[str] = set()
+    for end in ends:
+        year: dict[str, object] = {}
+        for key, concept in CONCEPTS.items():
+            fact = known.get((key, "instant" if concept.kind == "stock" else "annual", end))
+            if fact is not None:
+                year[key] = fact.value
+                if fact.currency:
+                    currencies.add(fact.currency)
+        years.append(year)
+    t, t1, t2 = [*years, None, None][:3]
+    assert t is not None
+    out.fiscal_year_end = ends[0]
+    out.previous_year_end = ends[1] if len(ends) > 1 else None
+    out.currency = next(iter(currencies)) if len(currencies) == 1 else None
+    p = fx.piotroski(t, t1, t2)  # type: ignore[arg-type]
+    out.piotroski_score, out.piotroski_known = p.score, p.known
+    out.piotroski = [ForensicTestOut(key=x.key, label=x.label, result=x.result,  # type: ignore[arg-type]
+                                     detail=x.detail) for x in p.tests]  # fmt: skip
+    out.altman_z = _score(fx.altman_z_em(t))  # type: ignore[arg-type]
+    out.beneish_m = _score(fx.beneish_m(t, t1))  # type: ignore[arg-type]
+    out.cfo_to_pat = _score(fx.cfo_to_pat(t))  # type: ignore[arg-type]
+    return out
