@@ -228,9 +228,9 @@ describe("A6.9 brackets", () => {
     expect(screen.getAllByTestId("replay-order-cancel")).toHaveLength(3);
   });
 
-  it("offers a bracket on the ticket with stop and target, buy only", async () => {
+  it("offers a short bracket on a US ticket, with the levels swapped", async () => {
     const user = userEvent.setup();
-    const { container } = render(
+    render(
       <ReplayTradeTicket
         sessionId={1}
         ticker="AAPL"
@@ -238,6 +238,28 @@ describe("A6.9 brackets", () => {
         cash="100000"
         quantityHeld="0"
         readOnly={false}
+        profileName="intrabar_ohlc"
+        profileVersion="v1"
+      />,
+    );
+    await user.selectOptions(screen.getByTestId("replay-order-type"), "bracket");
+    await user.click(screen.getByRole("button", { name: "Sell" }));
+    expect(screen.getByTestId("replay-bracket-stop")).toHaveValue(105);
+    expect(screen.getByTestId("replay-bracket-target")).toHaveValue(95);
+    expect(screen.getByRole("button", { name: "Place short bracket" })).toBeEnabled();
+  });
+
+  it("offers a bracket on the ticket with stop and target, buy only in rupees", async () => {
+    const user = userEvent.setup();
+    const { container } = render(
+      <ReplayTradeTicket
+        sessionId={1}
+        ticker="TCS.NS"
+        currentClose="100"
+        cash="100000"
+        quantityHeld="0"
+        readOnly={false}
+        currency="INR"
         profileName="intrabar_ohlc"
         profileVersion="v1"
       />,

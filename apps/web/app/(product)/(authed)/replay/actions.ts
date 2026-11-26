@@ -250,6 +250,7 @@ const OrderSchema = z
     entry_type: z.enum(["market", "limit"]).default("market"),
     stop_price: z.string().optional(),
     target_price: z.string().optional(),
+    direction: z.enum(["long", "short"]).default("long"),
   })
   .refine(
     (value) =>
@@ -284,6 +285,7 @@ export async function submitReplayOrderAction(
     entry_type: formData.get("entry_type") ?? undefined,
     stop_price: formData.get("stop_price") || undefined,
     target_price: formData.get("target_price") || undefined,
+    direction: formData.get("direction") ?? undefined,
   });
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
@@ -299,6 +301,7 @@ export async function submitReplayOrderAction(
       entry_type: parsed.data.entry_type,
       stop_price: parsed.data.stop_price,
       target_price: parsed.data.target_price,
+      ...(parsed.data.order_type === "bracket" ? { direction: parsed.data.direction } : {}),
     };
     const result = drill
       ? await submitDrillOrder(sessionId, order)
@@ -308,7 +311,7 @@ export async function submitReplayOrderAction(
       const legs = result.children ?? [];
       return {
         placed: true,
-        side: "buy",
+        side: result.order.side === "sell" ? "sell" : "buy",
         quantity: result.order.quantity,
         orderType: "bracket",
         limitPrice: result.order.limit_price,

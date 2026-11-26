@@ -8982,7 +8982,7 @@ export interface components {
         };
         /**
          * ReplayEpisodeForensicsOut
-         * @description One reconstructed long-only exposure episode.
+         * @description One reconstructed exposure episode, long or (27 Nov 2026) short.
          */
         ReplayEpisodeForensicsOut: {
             /** Index */
@@ -9051,6 +9051,12 @@ export interface components {
              * @default 0
              */
             fees: string;
+            /**
+             * Side
+             * @default long
+             * @enum {string}
+             */
+            side: "long" | "short";
         };
         /**
          * ReplayEventsOut
@@ -9259,6 +9265,8 @@ export interface components {
          *     A6.9: ``bracket`` is a long entry (``entry_type`` market, or limit at
          *     ``limit_price``) with a sell ``stop_price`` below it and a sell
          *     ``target_price`` above it, one cancels the other. ``side`` must be buy.
+         *     Owner, 27 Nov 2026: ``direction: short`` (US-listed only) makes it a short
+         *     sale with a buy stop above and a buy target below; ``side`` is then sell.
          */
         ReplayOrderIn: {
             /**
@@ -9286,6 +9294,12 @@ export interface components {
             stop_price?: number | string | null;
             /** Target Price */
             target_price?: number | string | null;
+            /**
+             * Direction
+             * @default long
+             * @enum {string}
+             */
+            direction: "long" | "short";
         };
         /**
          * ReplayOrderOut
