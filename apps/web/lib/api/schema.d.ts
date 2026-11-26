@@ -464,6 +464,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/news/feed": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** News Feed Page */
+        get: operations["news_feed_page_v1_news_feed_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/news/overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** News Overview */
+        get: operations["news_overview_v1_news_overview_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/quotes": {
         parameters: {
             query?: never;
@@ -6733,6 +6767,27 @@ export interface components {
             /** Topic */
             topic?: string | null;
         };
+        /**
+         * NewsDayOut
+         * @description Documents that became available on one UTC day, by sentiment.
+         */
+        NewsDayOut: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Positive */
+            positive: number;
+            /** Neutral */
+            neutral: number;
+            /** Negative */
+            negative: number;
+            /** Mixed */
+            mixed: number;
+            /** Unscored */
+            unscored: number;
+        };
         /** NewsEventOut */
         NewsEventOut: {
             /**
@@ -6752,6 +6807,61 @@ export interface components {
             /** Headlines */
             headlines: components["schemas"]["NewsHeadlineOut"][];
         };
+        /** NewsFacetOut */
+        NewsFacetOut: {
+            /** Value */
+            value: string;
+            /** Count */
+            count: number;
+        };
+        /** NewsFeedItemOut */
+        NewsFeedItemOut: {
+            /** Id */
+            id: string;
+            /** Tickers */
+            tickers: string[];
+            /** Title */
+            title: string;
+            /** Url */
+            url?: string | null;
+            /** Source */
+            source: string;
+            /** Published At */
+            published_at?: string | null;
+            /**
+             * Available At
+             * Format: date-time
+             */
+            available_at: string;
+            /** Sentiment */
+            sentiment?: ("positive" | "neutral" | "negative" | "mixed") | null;
+            /** Sentiment Model */
+            sentiment_model?: string | null;
+            /** Topic */
+            topic?: string | null;
+            /**
+             * Reactions
+             * @default []
+             */
+            reactions: components["schemas"]["NewsReactionOut"][];
+        };
+        /**
+         * NewsFeedOut
+         * @description ``/v1/news/feed``: one page of the archive, newest-available first.
+         */
+        NewsFeedOut: {
+            /** Items */
+            items: components["schemas"]["NewsFeedItemOut"][];
+            /** Next Cursor */
+            next_cursor?: string | null;
+            /** Total */
+            total: number;
+            /**
+             * Note
+             * @default Headlines, sources, dates and links only: Aegis News stores no article text. Price moves are the session after each headline, an association, not a cause.
+             */
+            note: string;
+        };
         /** NewsHeadlineOut */
         NewsHeadlineOut: {
             /** Id */
@@ -6769,6 +6879,81 @@ export interface components {
             available_at: string;
             /** Published At */
             published_at?: string | null;
+        };
+        /** NewsHeatCellOut */
+        NewsHeatCellOut: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Count */
+            count: number;
+            /** Net */
+            net?: number | null;
+        };
+        /** NewsHeatRowOut */
+        NewsHeatRowOut: {
+            /** Ticker */
+            ticker: string;
+            /** Total */
+            total: number;
+            /** Cells */
+            cells: components["schemas"]["NewsHeatCellOut"][];
+        };
+        /**
+         * NewsOverviewOut
+         * @description ``/v1/news/overview``: the timeline, filter options and coverage heatmap.
+         *
+         *     ``days`` and the heatmap ignore the date filters (they show the whole
+         *     archive); ``total``, ``sentiments``, ``topics`` and ``sources`` honour them.
+         */
+        NewsOverviewOut: {
+            /** Total */
+            total: number;
+            /** First Date */
+            first_date?: string | null;
+            /** Last Date */
+            last_date?: string | null;
+            /** Days */
+            days: components["schemas"]["NewsDayOut"][];
+            /** Sentiments */
+            sentiments: {
+                [key: string]: number;
+            };
+            /** Topics */
+            topics: components["schemas"]["NewsFacetOut"][];
+            /** Sources */
+            sources: components["schemas"]["NewsFacetOut"][];
+            /** Heatmap Days */
+            heatmap_days: string[];
+            /** Heatmap */
+            heatmap: components["schemas"]["NewsHeatRowOut"][];
+        };
+        /**
+         * NewsReactionOut
+         * @description A linked stock's move on the session after a headline (news redesign).
+         *
+         *     The session is the first stored daily bar whose session closed after the
+         *     headline's ``available_at`` (``event_study``'s rule). ``change_pct`` is its
+         *     close against the previous stored close (null for the first bar held).
+         *     ``closes`` holds up to five closes either side, ``reaction_index`` marks
+         *     the session in it. Association, not cause.
+         */
+        NewsReactionOut: {
+            /** Ticker */
+            ticker: string;
+            /**
+             * Session Date
+             * Format: date
+             */
+            session_date: string;
+            /** Change Pct */
+            change_pct?: number | null;
+            /** Closes */
+            closes: number[];
+            /** Reaction Index */
+            reaction_index: number;
         };
         /**
          * NotificationCategory
@@ -12364,6 +12549,100 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["NewsArticleOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    news_feed_page_v1_news_feed_get: {
+        parameters: {
+            query?: {
+                /** @description Words the headline must contain */
+                q?: string | null;
+                /** @description Comma-separated symbols */
+                tickers?: string | null;
+                /** @description Comma-separated: positive, neutral, negative, mixed, unscored */
+                sentiment?: string | null;
+                /** @description Comma-separated Aegis topics */
+                topic?: string | null;
+                /** @description Comma-separated source names */
+                source?: string | null;
+                /** @description symbols (default): linked to a StockViz symbol; market: linked to none; all */
+                scope?: "symbols" | "market" | "all";
+                /** @description UTC date of available_at, inclusive */
+                from?: string | null;
+                /** @description UTC date of available_at, inclusive */
+                to?: string | null;
+                cursor?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NewsFeedOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    news_overview_v1_news_overview_get: {
+        parameters: {
+            query?: {
+                /** @description Words the headline must contain */
+                q?: string | null;
+                /** @description Comma-separated symbols */
+                tickers?: string | null;
+                /** @description Comma-separated: positive, neutral, negative, mixed, unscored */
+                sentiment?: string | null;
+                /** @description Comma-separated Aegis topics */
+                topic?: string | null;
+                /** @description Comma-separated source names */
+                source?: string | null;
+                /** @description symbols (default): linked to a StockViz symbol; market: linked to none; all */
+                scope?: "symbols" | "market" | "all";
+                /** @description UTC date of available_at, inclusive */
+                from?: string | null;
+                /** @description UTC date of available_at, inclusive */
+                to?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NewsOverviewOut"];
                 };
             };
             /** @description Validation Error */

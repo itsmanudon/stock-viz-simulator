@@ -209,7 +209,8 @@ a server action or a route handler — never through the browser.
   `lib/api/client.ts` adds `X-StockViz-Web` on the server, from the key
   `instrumentation.ts` registers (`lib/web-server-key.ts`; never in the
   browser bundle). Instead `/screener`, `/compare` and `/stocks/[ticker]`
-  call `checkVisitorLimit()` (`lib/visitor-limit.ts`) first: 30, 30 and 60
+  call `checkVisitorLimit()` (`lib/visitor-limit.ts`) first (and `/news`,
+  60, since its redesign): 30, 30 and 60
   views a minute per visitor address, in the same `auth_rate_limits`
   counters, failing open. A new query-driven public page should do the same.
 - Sessions are JWT (default). The user.id is persisted via the `jwt` callback
@@ -1310,14 +1311,40 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   (GDELT sends none, audit AG-12).
   News for a set of symbols is one call, `getNewsForTickers()` (`/v1/news?tickers=`):
   `/watchlist` lists it under the table, and `/portfolio?tab=news` loads it
-  for the holdings only while that tab is open, as Journal does. `/news` has
-  two views (`?view=`): listed companies (default, linked documents) and
-  `market` (`getMarketNews()`, `/v1/news?scope=market`: documents linked to no
-  symbol), so a general headline is never shown as news about a symbol. The
+  for the holdings only while that tab is open, as Journal does. The
   dashboard's `NewsWidget` (`components/dashboard/news-widget.tsx`) shows the
   five newest headlines on the holdings and watchlist (`dashboardNewsTickers`
   in `lib/dashboard-news.ts`), loaded after the rest as the page's one second
   call and degrading to its own empty state.
+- **`/news` is the whole archive (26 Nov 2026).** `app/(product)/news/page.tsx`
+  reads `getNewsFeed()` and `getNewsOverview()` (`lib/api/news.ts`, over
+  `/v1/news/feed` and `/v1/news/overview`) in parallel, after
+  `checkVisitorLimit("news")`; each part degrades on its own. URL state is
+  `lib/news-view.ts` (`parseNewsQuery`/`newsHref`; any change drops the
+  cursor): `q`, `tickers`, `sentiment` (incl. `unscored`), `topic`,
+  `source`, `scope` (`symbols` default, `market`, `all`; the old
+  `?view=market` still opens market), `from`, `to`, `cursor`, `lens=mine`
+  (signed in: holdings and watchlist through `dashboardNewsTickers`; none
+  gives an empty state). Components in `components/news/`: `NewsFilters`
+  (server: GET search form `#news-q` with From/To, view links, "For You",
+  tone/topic/source chips with counts as links with `aria-current`,
+  removable ticker and date chips), `NewsTimeline` (client: headlines per
+  day stacked by tone over the whole archive; drag picks `from`/`to`, the
+  date fields are the keyboard path), `CoverageHeatmap` (server: 12 tickers
+  by 30 days, net tone colour, every cell a link with its figures in words;
+  widths from a `<colgroup>`, the header row is sr-only) and `NewsFeed`
+  (client: sticky day headers at `top-14` with a tone bar; stories grouped
+  by `groupStories`: same UTC day, same tickers, headline words Jaccard ≥
+  0.45, "+N more sources"; `ReactionChip` per ticker with a sparkline and
+  the move on the first session after, titled "Association, not cause";
+  "N new since your last visit" from `localStorage["stockviz:news-last-seen"]`,
+  first page only, every access guarded; keys outside a field: j/k move, o
+  opens the original). `NewsSearchShortcut` (mounted with the filters, so
+  also on an empty result) makes `/` focus the search in the capture phase
+  so the palette does not open; ⌘K still does. The palette adds "Search news
+  headlines" and a "News: T" command per matched symbol (`newsCommandsFor`).
+  No article text anywhere. Tests: `tests/unit/news-redesign.test.tsx`, e2e
+  in `markets.spec.ts`.
 - Alerts and notifications (Phase 7.3): `/alerts` lists rules of every kind
   (price level, daily move, technical crossing, Aegis news, portfolio) with
   the rule in words (`description`), the current close and its date from the

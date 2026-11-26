@@ -73,6 +73,86 @@ class NewsArticleOut(BaseModel):
     topic: str | None = None
 
 
+class NewsReactionOut(BaseModel):
+    """A linked stock's move on the session after a headline (news redesign).
+
+    The session is the first stored daily bar whose session closed after the
+    headline's ``available_at`` (``event_study``'s rule). ``change_pct`` is its
+    close against the previous stored close (null for the first bar held).
+    ``closes`` holds up to five closes either side, ``reaction_index`` marks
+    the session in it. Association, not cause.
+    """
+
+    ticker: str
+    session_date: date
+    change_pct: float | None = None
+    closes: list[float]
+    reaction_index: int
+
+
+class NewsFeedItemOut(NewsArticleOut):
+    reactions: list[NewsReactionOut] = []
+
+
+class NewsFeedOut(BaseModel):
+    """``/v1/news/feed``: one page of the archive, newest-available first."""
+
+    items: list[NewsFeedItemOut]
+    next_cursor: str | None = None
+    total: int
+    note: str = (
+        "Headlines, sources, dates and links only: Aegis News stores no article text. "
+        "Price moves are the session after each headline, an association, not a cause."
+    )
+
+
+class NewsDayOut(BaseModel):
+    """Documents that became available on one UTC day, by sentiment."""
+
+    date: date
+    positive: int
+    neutral: int
+    negative: int
+    mixed: int
+    unscored: int
+
+
+class NewsFacetOut(BaseModel):
+    value: str
+    count: int
+
+
+class NewsHeatCellOut(BaseModel):
+    date: date
+    count: int
+    net: float | None = None
+    """(positive - negative) / count, null on a day without coverage."""
+
+
+class NewsHeatRowOut(BaseModel):
+    ticker: str
+    total: int
+    cells: list[NewsHeatCellOut]
+
+
+class NewsOverviewOut(BaseModel):
+    """``/v1/news/overview``: the timeline, filter options and coverage heatmap.
+
+    ``days`` and the heatmap ignore the date filters (they show the whole
+    archive); ``total``, ``sentiments``, ``topics`` and ``sources`` honour them.
+    """
+
+    total: int
+    first_date: date | None = None
+    last_date: date | None = None
+    days: list[NewsDayOut]
+    sentiments: dict[str, int]
+    topics: list[NewsFacetOut]
+    sources: list[NewsFacetOut]
+    heatmap_days: list[date]
+    heatmap: list[NewsHeatRowOut]
+
+
 class SymbolDetailOut(BaseModel):
     """Symbol metadata + most recent close, used on the ticker detail page."""
 
