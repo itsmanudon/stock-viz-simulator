@@ -2099,6 +2099,243 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/drills/decks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Decks */
+        get: operations["get_decks_v1_drills_decks_get"];
+        put?: never;
+        /**
+         * Post Deck
+         * @description Find the rule's false-to-true triggers across the universe, sample K
+         *     with the seed, and open one replay session per drill.
+         */
+        post: operations["post_deck_v1_drills_decks_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/drills/decks/{deck_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Deck */
+        get: operations["get_deck_v1_drills_decks__deck_id__get"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete Deck
+         * @description Deletes the deck, its drills, their plans and their replay sessions.
+         */
+        delete: operations["delete_deck_v1_drills_decks__deck_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/drills/{drill_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Drill */
+        get: operations["get_drill_v1_drills__drill_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/drills/{drill_id}/plan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Put Plan
+         * @description The plan before the first order: planned entry, stop and size (long).
+         *     Editable until the first fill; 409 after.
+         */
+        put: operations["put_plan_v1_drills__drill_id__plan_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/drills/{drill_id}/orders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Post Order
+         * @description As the replay route, after a plan exists (409 without one).
+         */
+        post: operations["post_order_v1_drills__drill_id__orders_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/drills/{drill_id}/orders/{order_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Post Order Cancel */
+        post: operations["post_order_cancel_v1_drills__drill_id__orders__order_id__cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/drills/{drill_id}/advance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Post Advance
+         * @description Next bar; from the last bar, the session completes (then reveal).
+         *     ``expected_current_at`` is the date on screen (shifted, when anonymised).
+         */
+        post: operations["post_advance_v1_drills__drill_id__advance_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/drills/{drill_id}/indicators": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Indicators
+         * @description The replay's indicators (bars up to the clock), masked.
+         */
+        get: operations["get_indicators_v1_drills__drill_id__indicators_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/drills/{drill_id}/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Events
+         * @description News known by the clock and the drill's fills. Anonymised: news markers
+         *     carry the count only (no headlines, sources or links).
+         */
+        get: operations["get_events_v1_drills__drill_id__events_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/drills/{drill_id}/drawings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Drawings */
+        get: operations["get_drawings_v1_drills__drill_id__drawings_get"];
+        put?: never;
+        /** Post Drawing */
+        post: operations["post_drawing_v1_drills__drill_id__drawings_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/drills/{drill_id}/drawings/{drawing_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Drawing */
+        delete: operations["delete_drawing_v1_drills__drill_id__drawings__drawing_id__delete"];
+        options?: never;
+        head?: never;
+        /** Patch Drawing */
+        patch: operations["patch_drawing_v1_drills__drill_id__drawings__drawing_id__patch"];
+        trace?: never;
+    };
+    "/v1/drills/{drill_id}/reveal": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Post Reveal
+         * @description Ends the session if it is still running and reveals the ticker, the
+         *     company, the real dates, what happened next and the process score.
+         */
+        post: operations["post_reveal_v1_drills__drill_id__reveal_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/earnings": {
         parameters: {
             query?: never;
@@ -3348,6 +3585,316 @@ export interface components {
             first_bar: string | null;
             /** Last Bar */
             last_bar: string | null;
+        };
+        /** DrillCheckOut */
+        DrillCheckOut: {
+            /**
+             * Key
+             * @enum {string}
+             */
+            key: "entry" | "stop" | "size";
+            /** Label */
+            label: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "passed" | "failed" | "not_applicable";
+            /** Detail */
+            detail: string;
+        };
+        /**
+         * DrillDeckIn
+         * @description POST /v1/drills/decks: K drills from a rule's real false-to-true
+         *     triggers. ``rule`` is a setup version or inline text (saved as a version
+         *     of your "Rules from drills" setup).
+         */
+        DrillDeckIn: {
+            /** Name */
+            name?: string | null;
+            rule: components["schemas"]["StrategyRuleIn"];
+            universe: components["schemas"]["ScanUniverseIn"];
+            /** From */
+            from?: string | null;
+            /** To */
+            to?: string | null;
+            /**
+             * K
+             * @default 10
+             */
+            k: number;
+            /**
+             * Lead Bars
+             * @default 60
+             */
+            lead_bars: number;
+            /**
+             * Follow Bars
+             * @default 40
+             */
+            follow_bars: number;
+            /** Seed */
+            seed?: number | null;
+            /**
+             * Anonymised
+             * @default true
+             */
+            anonymised: boolean;
+        };
+        /** DrillDeckOut */
+        DrillDeckOut: {
+            /** Id */
+            id: number;
+            /** Name */
+            name: string;
+            rule: components["schemas"]["DrillRuleOut"];
+            /** Universe */
+            universe: {
+                [key: string]: unknown;
+            };
+            /**
+             * From
+             * Format: date
+             */
+            from: string;
+            /**
+             * To
+             * Format: date
+             */
+            to: string;
+            /** K */
+            k: number;
+            /** Lead Bars */
+            lead_bars: number;
+            /** Follow Bars */
+            follow_bars: number;
+            /** Seed */
+            seed: number;
+            /** Anonymised */
+            anonymised: boolean;
+            /** Triggers Found */
+            triggers_found: number;
+            /** Triggers Eligible */
+            triggers_eligible: number;
+            /** Lag Skipped */
+            lag_skipped: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Drills */
+            drills: components["schemas"]["DrillRowOut"][];
+            summary: components["schemas"]["DrillDeckSummaryOut"];
+            /** Method */
+            method: {
+                [key: string]: string;
+            };
+        };
+        /** DrillDeckSummaryOut */
+        DrillDeckSummaryOut: {
+            /** Drills */
+            drills: number;
+            /** Not Started */
+            not_started: number;
+            /** In Progress */
+            in_progress: number;
+            /** Revealed */
+            revealed: number;
+            /** Traded */
+            traded: number;
+            /** Followed Plan */
+            followed_plan: number;
+            /** Checks Passed */
+            checks_passed: number;
+            /** Checks Applicable */
+            checks_applicable: number;
+        };
+        /**
+         * DrillOut
+         * @description One drill. While ``anonymised`` the symbol is ``label`` everywhere and
+         *     every date is shifted by whole weeks; nothing names the real ticker,
+         *     company or dates (``reveal`` is null).
+         */
+        DrillOut: {
+            /** Id */
+            id: number;
+            /** Deck Id */
+            deck_id: number;
+            /** Deck Name */
+            deck_name: string;
+            /** Position */
+            position: number;
+            /** Label */
+            label: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "not_started" | "in_progress" | "revealed";
+            /** Anonymised */
+            anonymised: boolean;
+            /** Date Note */
+            date_note: string | null;
+            /** News Note */
+            news_note: string;
+            /**
+             * Trigger At
+             * Format: date-time
+             */
+            trigger_at: string;
+            session: components["schemas"]["ReplaySessionOut"];
+            summary: components["schemas"]["ReplaySummaryOut"];
+            bar: components["schemas"]["ReplayBarOut"];
+            /** History */
+            history: components["schemas"]["ReplayBarOut"][];
+            /** Orders */
+            orders: components["schemas"]["ReplayOrderOut"][];
+            /** Fills */
+            fills: components["schemas"]["ReplayFillOut"][];
+            plan: components["schemas"]["DrillPlanOut"] | null;
+            /** Needs Plan */
+            needs_plan: boolean;
+            score: components["schemas"]["DrillScoreOut"] | null;
+            reveal: components["schemas"]["DrillRevealOut"] | null;
+        };
+        /** DrillPlanIn */
+        DrillPlanIn: {
+            /** Planned Entry */
+            planned_entry: number | string;
+            /** Planned Stop */
+            planned_stop: number | string;
+            /** Planned Size */
+            planned_size: number | string;
+            /** Note */
+            note?: string | null;
+        };
+        /** DrillPlanOut */
+        DrillPlanOut: {
+            /**
+             * Side
+             * @default long
+             * @constant
+             */
+            side: "long";
+            /** Planned Entry */
+            planned_entry: string;
+            /** Planned Stop */
+            planned_stop: string;
+            /** Planned Size */
+            planned_size: string;
+            /** Planned Risk */
+            planned_risk: string;
+            /** Note */
+            note: string | null;
+            /** Locked */
+            locked: boolean;
+            /** Locked At */
+            locked_at: string | null;
+        };
+        /** DrillRevealHorizonOut */
+        DrillRevealHorizonOut: {
+            /** Bars */
+            bars: number;
+            /** Date */
+            date: string | null;
+            /** Close */
+            close: string | null;
+            /** Return Pct */
+            return_pct: number | null;
+        };
+        /** DrillRevealOut */
+        DrillRevealOut: {
+            /** Ticker */
+            ticker: string;
+            /** Name */
+            name: string | null;
+            /** Sector */
+            sector: string | null;
+            /** Currency */
+            currency: string;
+            /**
+             * Trigger Date
+             * Format: date
+             */
+            trigger_date: string;
+            /**
+             * Session Start
+             * Format: date
+             */
+            session_start: string;
+            /**
+             * Session End
+             * Format: date
+             */
+            session_end: string;
+            /**
+             * Shown Trigger Date
+             * Format: date
+             */
+            shown_trigger_date: string;
+            /** Date Offset Weeks */
+            date_offset_weeks: number;
+            /** After */
+            after: components["schemas"]["DrillRevealHorizonOut"][];
+            /** Next Bars */
+            next_bars: components["schemas"]["ReplayBarOut"][];
+        };
+        /** DrillRowOut */
+        DrillRowOut: {
+            /** Id */
+            id: number;
+            /** Position */
+            position: number;
+            /** Label */
+            label: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "not_started" | "in_progress" | "revealed";
+            /** Ticker */
+            ticker: string | null;
+            /** Trigger Date */
+            trigger_date: string | null;
+            score: components["schemas"]["DrillScoreOut"] | null;
+        };
+        /** DrillRuleOut */
+        DrillRuleOut: {
+            /** Text */
+            text: string;
+            /** Canonical */
+            canonical: string;
+            /** Hash */
+            hash: string;
+            /** Setup Version Id */
+            setup_version_id: number;
+        };
+        /**
+         * DrillScoreOut
+         * @description Process, not profit: did the trade follow the plan.
+         */
+        DrillScoreOut: {
+            /** Checks */
+            checks: components["schemas"]["DrillCheckOut"][];
+            /** Passed */
+            passed: number;
+            /** Applicable */
+            applicable: number;
+            /** Followed Plan */
+            followed_plan: boolean | null;
+            /** Traded */
+            traded: boolean;
+            /** R Achieved */
+            r_achieved: number | null;
+            /** R Note */
+            r_note: string;
+            /** Total Pnl */
+            total_pnl: string;
+            /** Rules */
+            rules: {
+                [key: string]: string;
+            };
         };
         /** DsrOut */
         DsrOut: {
@@ -13696,6 +14243,554 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ReplayJournalOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_decks_v1_drills_decks_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DrillDeckOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    post_deck_v1_drills_decks_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DrillDeckIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DrillDeckOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_deck_v1_drills_decks__deck_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                deck_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DrillDeckOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_deck_v1_drills_decks__deck_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                deck_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_drill_v1_drills__drill_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                drill_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DrillOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    put_plan_v1_drills__drill_id__plan_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                drill_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DrillPlanIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DrillPlanOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    post_order_v1_drills__drill_id__orders_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                drill_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReplayOrderIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReplaySubmitOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    post_order_cancel_v1_drills__drill_id__orders__order_id__cancel_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                drill_id: number;
+                order_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReplayOrderOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    post_advance_v1_drills__drill_id__advance_post: {
+        parameters: {
+            query?: {
+                expected_current_at?: string | null;
+            };
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                drill_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReplaySessionOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_indicators_v1_drills__drill_id__indicators_get: {
+        parameters: {
+            query: {
+                /** @description e.g. sma_20,rsi_14,macd,bb_20_2 */
+                names: string;
+            };
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                drill_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IndicatorsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_events_v1_drills__drill_id__events_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                drill_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReplayEventsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_drawings_v1_drills__drill_id__drawings_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                drill_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DrawingsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    post_drawing_v1_drills__drill_id__drawings_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                drill_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReplayDrawingIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DrawingOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_drawing_v1_drills__drill_id__drawings__drawing_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                drill_id: number;
+                drawing_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    patch_drawing_v1_drills__drill_id__drawings__drawing_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                drill_id: number;
+                drawing_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DrawingPatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DrawingOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    post_reveal_v1_drills__drill_id__reveal_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                drill_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DrillOut"];
                 };
             };
             /** @description Validation Error */

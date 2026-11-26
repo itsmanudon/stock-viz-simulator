@@ -8,6 +8,7 @@
  * /backtest (with Save run) and a saved run's page (without).
  */
 
+import Link from "next/link";
 import { useState } from "react";
 
 import { SaveStrategyRun } from "@/components/backtest-run-actions";
@@ -27,6 +28,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { UniverseNote } from "@/components/universe-note";
+import { drillLaunchHref } from "@/lib/drills";
 import { partialLabel } from "@/lib/fees";
 import type { OverfittingChecks as Checks } from "@/lib/report-card";
 import {
@@ -88,6 +90,7 @@ export function RuleStrategyResults({
       </ResearchEmptyState>
     );
   }
+  const entryRule = result.rules.find((r) => r.role === "entry");
   const withR = result.trades.filter((t) => t.r_multiple !== null && t.r_multiple !== undefined);
   const meanR = withR.length
     ? withR.reduce((sum, t) => sum + (t.r_multiple ?? 0), 0) / withR.length
@@ -338,6 +341,27 @@ export function RuleStrategyResults({
             ) : null}
           </p>
         ))}
+        {entryRule ? (
+          <p>
+            <Link
+              href={drillLaunchHref({
+                ...(entryRule.setup_version_id
+                  ? { setupVersionId: entryRule.setup_version_id }
+                  : { rule: entryRule.text }),
+                tickers: result.tickers,
+                from,
+                to,
+              })}
+              className="text-text-secondary underline hover:text-foreground"
+              data-testid="strategy-drill"
+            >
+              Drill this setup
+            </Link>{" "}
+            <span className="text-text-tertiary">
+              (practise the entry rule on its real triggers in these symbols)
+            </span>
+          </p>
+        ) : null}
         <p className="text-text-tertiary">
           Strategy <span className="font-mono">{result.strategy_hash.slice(0, 12)}</span> · data{" "}
           <span className="font-mono">{result.data_fingerprint.slice(0, 12)}</span>

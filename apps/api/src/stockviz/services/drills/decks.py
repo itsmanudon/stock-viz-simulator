@@ -181,7 +181,7 @@ def create_deck(
     name = body.name.strip() if body.name and body.name.strip() else None
     deck = DrillDeck(
         user_id=user_id,
-        name=name or f"{compiled.canonical_text[:80]} · {source.name or source.kind}",
+        name=name or f"Drills on {source.name or source.kind}",
         setup_version_id=version_id,
         rule_text=compiled.text,
         rule_hash=compiled.hash,

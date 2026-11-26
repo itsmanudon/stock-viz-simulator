@@ -31,7 +31,9 @@ export function ReplayTradeTicket({
   currency = "USD",
   tradable = true,
   feeSchedule = "none",
+  target = "replay",
 }: {
+  /** The replay session's id, or the drill's when `target` is "drill". */
   sessionId: number;
   ticker: string;
   currentClose: string;
@@ -44,6 +46,8 @@ export function ReplayTradeTicket({
   /** False for an index session (watch only). */
   tradable?: boolean;
   feeSchedule?: string;
+  /** A4.7: orders for a drill go through `/v1/drills/{id}/orders`. */
+  target?: "replay" | "drill";
 }) {
   const fieldId = useId();
   const [side, setSide] = useState<Side>(initialSide);
@@ -69,7 +73,7 @@ export function ReplayTradeTicket({
     <section aria-labelledby={`${fieldId}-title`} className="space-y-5">
       <div>
         <p className="text-[11px] font-semibold tracking-[0.14em] text-brand uppercase">
-          Replay order
+          {target === "drill" ? "Drill order" : "Replay order"}
         </p>
         <h2 id={`${fieldId}-title`} className="mt-1 text-sm font-semibold">
           {ticker} replay ticket
@@ -90,11 +94,14 @@ export function ReplayTradeTicket({
         </p>
       ) : readOnly ? (
         <p className="border-y border-border-muted py-4 text-sm text-text-secondary">
-          This replay is read-only. Start another session to trade again.
+          {target === "drill"
+            ? "This drill is finished: reveal it to see what happened."
+            : "This replay is read-only. Start another session to trade again."}
         </p>
       ) : (
         <form action={action} className="space-y-4">
           <input type="hidden" name="session_id" value={sessionId} />
+          <input type="hidden" name="target" value={target} />
           <input type="hidden" name="side" value={effectiveSide} />
           <input type="hidden" name="order_type" value={orderType} />
           <div className="space-y-1.5">

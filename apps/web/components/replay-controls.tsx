@@ -16,12 +16,16 @@ export function ReplayAdvanceControls({
   currentAt,
   hasNext,
   readOnly,
+  target = "replay",
 }: {
   sessionId: number;
   currentAt: string;
   hasNext: boolean;
   readOnly: boolean;
+  /** A4.7: a drill steps through `/v1/drills/{id}/advance` and is ended by its reveal. */
+  target?: "replay" | "drill";
 }) {
+  const drill = target === "drill";
   const [advanceState, advance, advancing] = useActionState<ReplayActionState, FormData>(
     advanceReplayAction,
     {},
@@ -32,6 +36,7 @@ export function ReplayAdvanceControls({
     {},
   );
 
+  if (readOnly && drill) return null;
   if (readOnly) {
     return (
       <div className="flex flex-wrap items-center gap-3 border-y border-border-muted py-4 sm:border-x sm:px-6">
@@ -47,17 +52,28 @@ export function ReplayAdvanceControls({
       <form action={advance}>
         <input type="hidden" name="session_id" value={sessionId} />
         <input type="hidden" name="current_at" value={currentAt} />
+        <input type="hidden" name="target" value={target} />
         <Button
           type="submit"
           disabled={advancing}
-          aria-label={hasNext ? "Advance to next session" : "Finish replay"}
+          aria-label={
+            hasNext ? "Advance to next session" : drill ? "Finish drill" : "Finish replay"
+          }
         >
-          {advancing ? "Advancing…" : hasNext ? "Next session" : "Finish replay"}
+          {advancing
+            ? "Advancing…"
+            : hasNext
+              ? "Next session"
+              : drill
+                ? "Finish drill"
+                : "Finish replay"}
         </Button>
         <p className="mt-2 text-xs leading-5 text-text-tertiary">
           {hasNext
             ? "Moves to the next stored daily bar."
-            : "This is the last bar. You can still trade it; finishing ends the replay."}
+            : drill
+              ? "This is the last bar. You can still trade it; finishing ends the drill."
+              : "This is the last bar. You can still trade it; finishing ends the replay."}
         </p>
       </form>
       {advanceState.from && advanceState.to ? (
@@ -71,7 +87,7 @@ export function ReplayAdvanceControls({
         </p>
       ) : null}
 
-      {confirmCancel ? (
+      {drill ? null : confirmCancel ? (
         <form action={cancel} className="flex flex-wrap items-center gap-2">
           <input type="hidden" name="session_id" value={sessionId} />
           <p className="text-sm text-text-secondary">Cancel this replay? It becomes read-only.</p>

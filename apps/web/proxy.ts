@@ -25,6 +25,7 @@ const PROTECTED_PREFIXES = [
   "/settings",
   "/orders",
   "/replay",
+  "/drills",
   "/earnings",
   "/backtest/runs",
   "/setups",

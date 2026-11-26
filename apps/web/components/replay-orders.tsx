@@ -24,7 +24,15 @@ const STATUS: Record<ReplayOrder["status"], string> = {
   expired: "Expired",
 };
 
-function CancelButton({ sessionId, orderId }: { sessionId: number; orderId: number }) {
+function CancelButton({
+  sessionId,
+  orderId,
+  target,
+}: {
+  sessionId: number;
+  orderId: number;
+  target: "replay" | "drill";
+}) {
   const [state, action, pending] = useActionState<ReplayActionState, FormData>(
     cancelReplayOrderAction,
     {},
@@ -33,6 +41,7 @@ function CancelButton({ sessionId, orderId }: { sessionId: number; orderId: numb
     <form action={action} className="inline">
       <input type="hidden" name="session_id" value={sessionId} />
       <input type="hidden" name="order_id" value={orderId} />
+      <input type="hidden" name="target" value={target} />
       <button
         type="submit"
         disabled={pending}
@@ -55,11 +64,13 @@ export function ReplayOrders({
   orders,
   currency,
   readOnly,
+  target = "replay",
 }: {
   sessionId: number;
   orders: ReplayOrder[];
   currency: string;
   readOnly: boolean;
+  target?: "replay" | "drill";
 }) {
   if (orders.length === 0) return null;
   const newest = [...orders].reverse();
@@ -100,7 +111,7 @@ export function ReplayOrders({
             <div className="flex items-center gap-2">
               <span className="text-xs text-text-secondary">{STATUS[order.status]}</span>
               {order.status === "open" && !readOnly ? (
-                <CancelButton sessionId={sessionId} orderId={order.id} />
+                <CancelButton sessionId={sessionId} orderId={order.id} target={target} />
               ) : null}
             </div>
           </li>

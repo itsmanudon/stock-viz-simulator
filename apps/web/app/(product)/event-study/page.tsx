@@ -12,6 +12,7 @@
  */
 
 import type { Metadata } from "next";
+import Link from "next/link";
 
 import { auth } from "@/auth";
 import { EventStudyForm } from "@/components/event-study/event-study-form";
@@ -27,6 +28,7 @@ import { AuthedApiError } from "@/lib/api/server";
 import { listPresets } from "@/lib/api/setups";
 import { listSetups } from "@/lib/api/setups-server";
 import { listWatchlists } from "@/lib/api/watchlist";
+import { drillLaunchHref } from "@/lib/drills";
 import {
   DEFAULT_TRIGGER,
   type ScanStudy,
@@ -114,7 +116,32 @@ export default async function EventStudyPage({
             {error}
           </p>
         ) : study ? (
-          <ScanStudyView study={study} />
+          <>
+            {signedIn && request ? (
+              <p className="mb-4 text-sm">
+                <Link
+                  href={drillLaunchHref({
+                    ...(request.trigger.setup_version_id
+                      ? { setupVersionId: request.trigger.setup_version_id }
+                      : { rule: request.trigger.rule ?? study.trigger.text }),
+                    tickers: request.universe.tickers ?? undefined,
+                    watchlistId: request.universe.watchlist_id ?? undefined,
+                    market: request.universe.market ?? undefined,
+                    from: study.from,
+                    to: study.to,
+                  })}
+                  className="underline-offset-4 hover:underline"
+                  data-testid="study-drill"
+                >
+                  Drill these triggers
+                </Link>{" "}
+                <span className="text-text-secondary">
+                  — replay a sample of these events yourself, anonymised, and score your process.
+                </span>
+              </p>
+            ) : null}
+            <ScanStudyView study={study} />
+          </>
         ) : (
           <p className="text-sm text-text-secondary">
             Pick a trigger and a universe, then run the study. Each event is a session where the

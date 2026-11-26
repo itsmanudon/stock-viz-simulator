@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 
+import { apiDetailMessage } from "@/lib/api-error-message";
+import { advanceDrill, cancelDrillOrder, submitDrillOrder } from "@/lib/api/drills";
 import {
   advanceReplaySession,
   cancelReplayOrder,
@@ -31,14 +33,33 @@ export type ReplayActionState = {
   limitPrice?: string;
 };
 
-function mapError(err: unknown): ReplayActionState {
+function mapError(err: unknown, drill = false): ReplayActionState {
   if (err instanceof UnauthenticatedError) {
     return { error: replayErrorMessage(401) };
   }
   if (err instanceof AuthedApiError) {
+    // A4.7: a drill's errors are already masked by the API and say why
+    // (the plan gate, cash, a finished drill).
+    if (drill) return { error: apiDetailMessage(err.detail, replayErrorMessage(err.status)) };
     return { error: replayErrorMessage(err.status, err.detail) };
   }
   throw err;
+}
+
+/** A4.7: the ticket, steps and order list also serve a drill (`target=drill`,
+ * `session_id` is then the drill's id). */
+function isDrill(formData: FormData): boolean {
+  return formData.get("target") === "drill";
+}
+
+function revalidateTarget(drill: boolean, id: number): void {
+  if (drill) {
+    revalidatePath("/drills");
+    revalidatePath(`/drills/${id}`);
+  } else {
+    revalidatePath("/replay");
+    revalidatePath(`/replay/${id}`);
+  }
 }
 
 const CreateSchema = z.object({
@@ -131,13 +152,15 @@ export async function advanceReplayAction(
   if (!Number.isInteger(sessionId) || sessionId <= 0) {
     return { error: "Invalid replay session." };
   }
+  const drill = isDrill(formData);
   try {
-    const session = await advanceReplaySession(sessionId, from || undefined);
-    revalidatePath("/replay");
-    revalidatePath(`/replay/${sessionId}`);
+    const session = drill
+      ? await advanceDrill(sessionId, from || undefined)
+      : await advanceReplaySession(sessionId, from || undefined);
+    revalidateTarget(drill, sessionId);
     return { from, to: session.current_at, status: session.status };
   } catch (err) {
-    return mapError(err);
+    return mapError(err, drill);
   }
 }
 
@@ -198,15 +221,18 @@ export async function submitReplayOrderAction(
     return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
   }
   const sessionId = Number(parsed.data.session_id);
+  const drill = isDrill(formData);
   try {
-    const result = await submitReplayOrder(sessionId, {
+    const order = {
       side: parsed.data.side,
       order_type: parsed.data.order_type,
       quantity: parsed.data.quantity,
       limit_price: parsed.data.limit_price,
-    });
-    revalidatePath("/replay");
-    revalidatePath(`/replay/${sessionId}`);
+    };
+    const result = drill
+      ? await submitDrillOrder(sessionId, order)
+      : await submitReplayOrder(sessionId, order);
+    revalidateTarget(drill, sessionId);
     if (result.order) {
       return {
         placed: true,
@@ -226,7 +252,7 @@ export async function submitReplayOrderAction(
     }
     return { error: "The order did not fill at this session's close." };
   } catch (err) {
-    return mapError(err);
+    return mapError(err, drill);
   }
 }
 
@@ -239,12 +265,15 @@ export async function cancelReplayOrderAction(
   if (!Number.isInteger(sessionId) || sessionId <= 0 || !Number.isInteger(orderId)) {
     return { error: "Invalid replay order." };
   }
+  const drill = isDrill(formData);
   try {
-    const order = await cancelReplayOrder(sessionId, orderId);
-    revalidatePath(`/replay/${sessionId}`);
+    const order = drill
+      ? await cancelDrillOrder(sessionId, orderId)
+      : await cancelReplayOrder(sessionId, orderId);
+    revalidateTarget(drill, sessionId);
     return { status: order.status };
   } catch (err) {
-    return mapError(err);
+    return mapError(err, drill);
   }
 }
 

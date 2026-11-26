@@ -55,12 +55,23 @@ type Props = Omit<WorkbenchProps, "actions" | "kinds" | "signedIn" | "callbackUr
   catalog: IndicatorCatalogItem[] | null;
   /** The page's query string (without `?`), so a new study keeps the other params. */
   search: string;
+  /** A4.7: a drill's page path and its own drawing actions (`/v1/drills/{id}/drawings`). */
+  basePath?: string;
+  drawingActions?: DrawingActions;
 };
 
-export function ReplayChart({ sessionId, indicators, catalog, search, ...chart }: Props) {
+export function ReplayChart({
+  sessionId,
+  indicators,
+  catalog,
+  search,
+  basePath,
+  drawingActions,
+  ...chart
+}: Props) {
   const router = useRouter();
-  const pathname = `/replay/${sessionId}`;
-  const actions = useMemo<DrawingActions>(
+  const pathname = basePath ?? `/replay/${sessionId}`;
+  const replayActions = useMemo<DrawingActions>(
     () => ({
       create: (input) => createReplayDrawingAction(sessionId, input),
       update: (id, changes) => updateReplayDrawingAction(sessionId, id, changes),
@@ -68,6 +79,7 @@ export function ReplayChart({ sessionId, indicators, catalog, search, ...chart }
     }),
     [sessionId],
   );
+  const actions = drawingActions ?? replayActions;
   return (
     <div className="space-y-2" data-testid="replay-chart">
       <div className="flex flex-wrap items-center gap-2 px-2">
@@ -87,7 +99,7 @@ export function ReplayChart({ sessionId, indicators, catalog, search, ...chart }
       <ChartWorkbench
         {...chart}
         signedIn
-        callbackUrl={`/replay/${sessionId}`}
+        callbackUrl={pathname}
         actions={actions}
         kinds={REPLAY_DRAWING_KINDS}
       />

@@ -54,6 +54,7 @@ describe("getActiveNavigation", () => {
       "Compare",
       "Backtest",
       "Replay",
+      "Drills",
       "News",
       "Event study",
       "News reactions",
