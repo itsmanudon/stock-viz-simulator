@@ -15,7 +15,7 @@
 
 import { feesSuffix } from "@/lib/fees";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useActionState, useEffect, useMemo, useState } from "react";
 
 import {
@@ -26,13 +26,18 @@ import {
 } from "@/app/(product)/(authed)/trade/actions";
 import { OrderConfirmation, OrderReview, useHydrated } from "@/components/order-review";
 import { OrderSideToggle } from "@/components/order-side-toggle";
+import { useOutcomeSound } from "@/components/sound/sound-provider";
+import { type TicketBook, TicketBookLine } from "@/components/ticket-book-line";
+import { PlanReview, type TicketPlanOptions, TicketPlanSection } from "@/components/ticket-plan";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { compareDecimalStrings, multiplyDecimalStrings } from "@/lib/decimal-math";
 import { type TradeOrderMode, orderTypeLabel } from "@/lib/operational-trading";
+import { emptyPlanForm } from "@/lib/plans";
 import { formatCurrency, formatQuantity } from "@/lib/portfolio-view-model";
 import { formatCloseDate } from "@/lib/stock-workspace";
+import { titleCase } from "@/lib/title-case";
 
 export type OrderTicketSymbol = { ticker: string; name: string; currency: string };
 
@@ -53,6 +58,15 @@ type Props = {
   position: OrderTicketPosition | null;
   availableCash: string;
   displayCurrency: string;
+  /**
+   * A5.2: the book orders go into (posted as `book_id`), or null for the
+   * default book before the book list loads.
+   */
+  book?: TicketBook | null;
+  /** Why this ticket can't trade here (All books, archived, imported); null = it can. */
+  blockedReason?: string | null;
+  /** A5.4: setups and open theses for "Plan this trade" (null: pickers empty). */
+  planOptions?: TicketPlanOptions | null;
 };
 
 function triggerCopy(mode: TradeOrderMode, side: "buy" | "sell"): string {
@@ -79,9 +93,14 @@ export function OrderTicket({
   position,
   availableCash,
   displayCurrency,
+  book = null,
+  blockedReason = null,
+  planOptions = null,
 }: Props) {
   const router = useRouter();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const blocked = Boolean(blockedReason);
   const known = useMemo(() => new Set(symbols.map((item) => item.ticker)), [symbols]);
   const startingTicker =
     initialTicker && known.has(initialTicker) ? initialTicker : (symbols[0]?.ticker ?? "");
@@ -92,6 +111,7 @@ export function OrderTicket({
   const [quantity, setQuantity] = useState("1");
   const [limitPrice, setLimitPrice] = useState("");
   const [reviewing, setReviewing] = useState(false);
+  const [plan, setPlan] = useState(emptyPlanForm);
   // The action state keeps its last success until the next submit, so the
   // confirmation remembers which result was already dismissed.
   const [dismissed, setDismissed] = useState<unknown>(null);
@@ -127,7 +147,11 @@ export function OrderTicket({
   function syncTicker(next: string) {
     setTicker(next);
     setReviewing(false);
-    router.replace(`${pathname}?ticker=${encodeURIComponent(next)}`, { scroll: false });
+    setPlan(emptyPlanForm());
+    // Keep the other parameters (A5.2: `book`).
+    const params = new URLSearchParams(searchParams?.toString() ?? "");
+    params.set("ticker", next);
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
   }
 
   function onModeChange(next: TradeOrderMode) {
@@ -142,15 +166,20 @@ export function OrderTicket({
   const orderSuccess = mode === "market" ? undefined : orderState.success;
   const activeState = mode === "market" ? marketState : orderState;
   const successMessage = marketSuccess
-    ? `Filled ${marketSuccess.side.toUpperCase()} ${marketSuccess.quantity} ${marketSuccess.ticker} @ ${formatCurrency(marketSuccess.price, marketSuccess.currency)}${feesSuffix(marketSuccess, (v, c) => formatCurrency(String(v), c))}`
+    ? `Filled ${titleCase(marketSuccess.side)} ${marketSuccess.quantity} ${marketSuccess.ticker} @ ${formatCurrency(marketSuccess.price, marketSuccess.currency)}${feesSuffix(marketSuccess, (v, c) => formatCurrency(String(v), c))}${marketSuccess.planned ? ". Your plan locked at this fill" : ""}`
     : orderSuccess;
   const confirmed = Boolean(successMessage) && !pending && activeState !== dismissed;
   const label = `${orderTypeLabel(mode).toLowerCase()} ${effectiveSide}`;
+  useOutcomeSound(successMessage, error, marketSuccess ? "fill" : "success");
 
   function startNewOrder() {
     setDismissed(activeState);
     setReviewing(false);
+    setPlan(emptyPlanForm());
   }
+  // A5.4: a plan goes with a buy (market or limit); stops are sells.
+  const canPlan = effectiveSide === "buy" && (mode === "market" || mode === "limit");
+  const activePlan = canPlan ? plan : { ...plan, enabled: false };
 
   return (
     <section
@@ -164,6 +193,7 @@ export function OrderTicket({
         <p className="mt-1 text-xs leading-5 text-text-tertiary">
           Practice trading at stored end-of-day prices. Orders use simulated funds.
         </p>
+        <TicketBookLine book={book} blockedReason={blockedReason} />
       </div>
 
       {confirmed && successMessage ? (
@@ -188,6 +218,7 @@ export function OrderTicket({
           className="space-y-5 p-5"
         >
           {mode !== "market" ? <input type="hidden" name="order_type" value={mode} /> : null}
+          {book ? <input type="hidden" name="book_id" value={book.id} /> : null}
           <input type="hidden" name="side" value={effectiveSide} />
           <input type="hidden" name="ticker" value={ticker} />
           <input type="hidden" name="review_step" value={reviewing ? "confirmed" : "draft"} />
@@ -205,6 +236,14 @@ export function OrderTicket({
               notional={estimate ? Number(estimate) : null}
               account={{ displayCurrency, availableCash: Number(availableCash) }}
               availableQuantity={Number(position?.availableQuantity ?? 0)}
+              plan={
+                <PlanReview
+                  form={activePlan}
+                  currency={currency}
+                  quantity={quantity}
+                  options={planOptions}
+                />
+              }
             />
           ) : (
             <>
@@ -324,9 +363,21 @@ export function OrderTicket({
                 </div>
               ) : null}
 
+              {canPlan ? (
+                <TicketPlanSection
+                  form={plan}
+                  onChange={setPlan}
+                  ticker={ticker}
+                  currency={currency}
+                  referencePrice={referencePrice || null}
+                  quantity={quantity}
+                  options={planOptions}
+                />
+              ) : null}
+
               <p className="rounded-md border border-border-muted bg-surface-secondary/50 p-3 text-sm">
-                <span className="block text-3xs font-semibold tracking-[0.12em] text-text-tertiary uppercase">
-                  {estimateLabel}
+                <span className="block text-3xs font-semibold tracking-[0.02em] text-text-tertiary">
+                  {titleCase(estimateLabel)}
                 </span>
                 <span className="mt-1 block font-mono text-lg tabular-nums">
                   {estimate ? formatCurrency(estimate, currency) : "—"}
@@ -360,14 +411,18 @@ export function OrderTicket({
               >
                 Edit
               </Button>
-              <Button type="submit" disabled={pending || !ticker} className="h-11 rounded-full">
+              <Button
+                type="submit"
+                disabled={pending || !ticker || blocked}
+                className="h-11 rounded-full"
+              >
                 {pending ? "Submitting…" : `Place ${label}`}
               </Button>
             </div>
           ) : (
             <Button
               type="submit"
-              disabled={!ticker || !hydrated}
+              disabled={!ticker || !hydrated || blocked}
               className="h-11 w-full rounded-full"
             >
               Review {label}

@@ -29,8 +29,10 @@ src/stockviz/
                     A2.3 NotificationChannel / DeliveryAttempt,
                     drawing — A3.2 chart drawings, indicator_evidence —
                     A3.4 IndicatorEvidence, trial — A4.3 BacktestTrial /
-                    HoldoutUnlock, drill — A4.7 DrillDeck / Drill /
-                    DrillPlan)
+                    HoldoutUnlock, drill — A4.7 DrillDeck / Drill,
+                    trade_plan — A5.4 TradePlan (absorbed DrillPlan and
+                    ReplayJournal, both archived), journal_entry — A5.5
+                    JournalEntry / JournalEntryFill (round trips))
   events/           versioned contracts (trades/market), outbox/inbox,
                     dispatcher, domain handlers, Kafka producer wrappers
                     (not imported by FastAPI startup)
@@ -50,7 +52,10 @@ src/stockviz/
                     (A2.2), notification_channels (A2.3), drawings
                     (A3.2), avwap (A3.3), events, strength (RS
                     percentile, delivery) and regime (A3.5), drills
-                    (A4.7), health
+                    (A4.7), books (A5.1), plans (A5.4), journal_entries (A5.5:
+                    `/v1/journal/entries`), brokers (A5.7: broker
+                    status), imports (A5.3: `/v1/books/{id}/imports`,
+                    opening lots), health
                     (`GET /live` liveness, `GET /health` readiness + DB)
   services/
     ingest/         External-API fetchers (yfinance primary, Alpha Vantage fallback);
@@ -71,7 +76,20 @@ src/stockviz/
     trading/        execute, orders (pending limit/stop + derived reservations),
                     simulation_adapter (PriceBar / PendingOrder → kernel types),
                     execution_provenance (SimulatedExecution writer),
-                    buying_power, portfolio, analytics, dividends, fx, snapshots
+                    buying_power, portfolio, analytics, dividends, fx, snapshots,
+                    books (A5.1: resolve_book, the default book)
+    books/          A5.1: book create, rename, archive, default, delete
+    imports/        A5.3: Zerodha tradebook CSV: columns (the unconfirmed
+                    map), parse, engine (pure holdings-only ledger, splits,
+                    estimated fees), book (preview, commit, rebuild, delete,
+                    opening lots)
+    journal/        P&L calendar (`__init__`, `query`, `aggregate`; venue
+                    dates since A5.5) and A5.5's round trips: `roundtrips.py`
+                    (pure grouping, figures, R, MAE/MFE), `entries.py` (sync,
+                    reads, news windows, R for chart fills)
+    plans/          A5.4: trade plans: record_fill (the lock), plans on
+                    orders, written after entry, session plans for replay
+                    and drills, outputs
     simulation/     pure deterministic execution kernel + profile registry +
                     SimulationClock. Live MARKET and pending equity fills call
                     evaluate_order with LIVE_PAPER_EXECUTION_PROFILE; apply_fill
@@ -670,8 +688,9 @@ written by the nightly `metrics` job (`services/metrics.py::_returns`).
   available_at, published_at}] (up to 20 a day)}`, `earnings {date,
   report_time, fiscal_period, eps_estimate, eps_actual, surprise_pct}`,
   `dividend {date (ex-date), amount, currency}`, `split {date, ratio_from,
-  ratio_to}`, `fill {date, ts, side, quantity, price, r_multiple (null until
-  A5)}`; oldest first, then in type order. Default range: the last 365
+  ratio_to}`, `fill {date (the venue's date since A5.5), ts, side, quantity,
+  price, r_multiple (A5.5: the entry's R on the fill that closes a journal
+  entry, else null), book_id, journal_entry_id, closes_entry}`; oldest first, then in type order. Default range: the last 365
   days; at most 25 years (400); unknown type 400; `from > to` 400. **News
   clusters** by the UTC date of `available_at` (the field `/news` orders
   by; never `published_at`), so a day's count equals the `/news` items that
@@ -1169,6 +1188,218 @@ cascade; entry, stop, size, long only, `locked_at`). Rules and method in
   deck summary counts statuses, traded, followed the plan and checks.
 - Tests: `test_drills.py`, `test_drills_migration.py`.
 
+**Tradebook import (A5.3, M10.2 CSV part).** Migration `e3a1c5d7f902`
+(additive; downgrade refuses while any `broker_fills` row exists):
+`import_batches` (book, broker, `column_map`, `file_sha256`, row counts,
+`created_at`: never the file, its name or a client id), `broker_fills` (one
+row per trade as traded, or an opening lot: `kind` trade|opening, exchange,
+segment, series, `trade_id`, `order_id`, instrument, ticker, ISIN, raw
+symbol, side, quantity, price, `executed_at` naive UTC, `time_known`,
+`auction`, and per rebuild `status` posted|needs_opening_lot, `product`,
+estimated `fees`/`fee_source`/`fee_lines`, `basis_uncertain`; unique
+`(portfolio_id, broker, exchange, trade_id)`), `trades.broker_fill_id`
+(unique, cascade). Models in `models/broker_import.py`; code in
+`services/imports/`, router `routers/imports.py`.
+
+- **Format:** `columns.ZERODHA_TRADEBOOK_V1`, the one table of fields and
+  aliases, **unconfirmed** (third-party column list, design note question
+  10): `format_status: "unconfirmed"` in every response. Headers match
+  ignoring case, spaces, `_`, `-`, `.`, `/`; required symbol, trade date,
+  exchange, trade type, quantity, price, trade id; optional ISIN, segment,
+  series, auction, order id, order execution time. Dates: ISO, month names,
+  numeric with the day/month order inferred from the file (a part over 12),
+  ambiguous or conflicting rows rejected; IST times to naive UTC; no time =
+  the start of the IST trade date, `time_known` false. NFO/BFO/MCX/CDS and
+  F&O/currency/commodity segments are `segment` problems (A6). Problems
+  carry the row (header = row 1), field and a fixed reason, never a value.
+- **Routes** (authed; another user's book 404, a paper book 409, archived
+  or non-INR 409 for writes): `POST /v1/books/{id}/imports/preview`
+  (`text/csv` body read under 2 MiB, 413 past it, 415 another type; 422 an
+  XLSX or unreadable file; stores nothing) -> `ImportPreviewOut` (columns
+  and unmatched headers, counts, first 20 new trades, up to 300 problems);
+  `POST .../imports/commit?file_sha256=` (the same bytes; 409 another file;
+  200 with `batch: null` when nothing is new; 30 commits an hour per user,
+  429); `GET .../imports` (batches, opening lots, sells waiting per symbol);
+  `DELETE .../imports/{batch_id}`; `POST|DELETE .../opening-lots[/{id}]`.
+  Instruments: ISIN (`instrument_identifiers` scheme `isin`, the row's venue
+  preferred), else symbol + `.NS`/`.BO`; unmatched rows are skipped.
+- **Ledger:** `book.rebuild_book` replays every fill of the book through
+  `engine.replay_fills` and rewrites its `trades` (updated in place, so plan
+  links survive) and `positions` on every commit, batch delete, opening lot
+  and split (`corporate_actions.apply.rebase_book` rebuilds an imported book
+  instead of scaling it; imported books with fills before the cut-off are
+  candidates). Holdings only, `fx_rate` 1, realized P&L on the weighted
+  average; a sell with too few shares is `needs_opening_lot` and does not
+  post; fills on a venue date before a due split's ex-date are restated
+  (qty x r, price / r); `basis_uncertain` when the restated price is outside
+  the day's bar low-2%..high+2%. Fees: the A4.2 schedules on the as-traded
+  numbers, the offsetting part of a scrip's day priced intraday, DP once per
+  scrip-day on delivery sells; `TradeOut.fees_estimated` and
+  `broker_fill_id` mark them.
+- **Plans:** `POST /v1/plans?book=<imported>` makes `source: imported`
+  plans. A posted buy opening a position links the newest open plan for the
+  instrument created at or before its time (`record_fill` locks it); later
+  buys of the position join it; the position back to zero closes it; a plan
+  whose fills are all deleted is closed and stays frozen. Opening lots pair
+  no plan.
+- **Privacy:** nothing in the import path logs; `observability.scrub_event`
+  drops the body, query and frame variables of Sentry events on import
+  routes. `services/trading/account.activity` adds `imports` and `opening
+  lots`; deleting a book deletes its fills and batches.
+- Tests: `test_imports.py` (aliases, date formats, ambiguous dates, bad
+  values, size/type, preview stores nothing, dedupe and overlap, ISIN,
+  isolation, fees and intraday inference, DP, split restatement, basis,
+  later split rebuild, opening lots, batch delete rebuild, book delete,
+  plan lock / written after entry / closed after delete, flows, no cell in
+  logs, Sentry scrub), `test_imports_migration.py` (PostgreSQL up/down/up).
+
+**Trade plans (A5.4, M10.3).** Migration `b5d4a7e1c902`: `trade_plans`
+(`models/trade_plan.py`): user, `portfolio_id` (paper, imported; cascade),
+`replay_session_id` (replay, drill; unique, cascade), `instrument_id`,
+`source` paper|replay|drill|imported, `side` long|short, planned entry,
+stop, target (nullable), size, `setup_version_id`, `thesis_id` (SET NULL),
+`thesis_text`, `why`, `invalidation`, `horizon_bars`, `confidence`,
+`notes`, `tags` (JSON), `status` open|active|closed|cancelled,
+`locked_at`, `first_fill_at`, `written_after_entry`, created/updated;
+checks on each enum, positive prices, the home (`ck_trade_plans_home`) and
+`NOT (written_after_entry AND locked_at)`. `trades.trade_plan_id` and
+`pending_orders.trade_plan_id` (SET NULL). The upgrade copies every
+`drill_plans` / `replay_journals` row into one plan per session
+(idempotent: a session with a plan is skipped) and moves both tables to the
+`archive` schema (keys to `replay_sessions` dropped). Downgrade refuses
+while paper or imported plans exist; otherwise it restores the tables
+(keys NOT VALID) and upserts the replay and drill plans back.
+
+- **The lock** (`services/plans.record_fill`): the first fill a plan meets
+  locks it at that fill's time when the plan was written before it
+  (paper: `created_at <= trade.ts`; replay: the plan existed when the fill
+  happened, `locked_at` = the simulated `evaluated_at`), else
+  `written_after_entry` (never locked). Either way `frozen`: `PATCH`
+  changing entry, stop, target, size, setup, thesis, why, invalidation,
+  horizon or confidence is 409 (`PlanLocked`); notes, tags and status
+  stay editable. A replay plan started after the first fill is written
+  after entry.
+- **Orders.** `POST /v1/trades` and `POST /v1/orders` take `trade_plan_id`
+  (your open or active paper plan in that book, same symbol) or `plan` (a
+  `TradePlanDraft`, created in the same transaction; a refused order writes
+  no plan); buys only (422), not both (422), another user's plan 404, a
+  cancelled or closed plan 409. `apply_fill(trade_plan=)` links the fill;
+  a pending order keeps `trade_plan_id` and links at settlement. A sell
+  that empties a book's position closes its active plans in the symbol.
+  `TradeOut` and `PendingOrderOut` carry `trade_plan_id`. Paper plans are
+  long only (paper trading cannot short).
+- **Routes** (`routers/plans.py`, authed): `GET /v1/plans?book=&status=&
+  source=&setup_version_id=&ticker=` -> `{plans: [TradePlanOut], limit}`
+  (no `book`: every plan of yours; plans of anonymised unrevealed drills
+  are left out and 404 by id); `POST /v1/plans?book=` (201; a writable
+  paper book; `link_open_position: true` links the book's current
+  position's buys, which makes it written after entry; no position 422,
+  one with a plan 409; an index 422); `GET`/`PATCH`/`DELETE /{id}`
+  (`status: closed` an active plan, `cancelled` an open one; delete only
+  before a fill, else 409; replay and drill plans 409 here). `TradePlanOut`
+  adds `ticker`, `currency`, `risk_per_share`, `planned_risk`,
+  `reward_per_share`, `reward_risk`, `setup_label`, `thesis_title`,
+  `locked`, `frozen`, `fills`. Errors map in `main.py` (`PlanNotFound` 404,
+  `PlanError` 422, `PlanConflict`/`PlanLocked` 409). Deleting a book
+  deletes its plans.
+- **Replay and drills** read and write the session's plan:
+  `services/replay/journal.py` (the journal's shape over the plan),
+  `drills/decks.py` (`plan_of` = a session plan with an entry; `put_plan`),
+  `replay/session.py` (fills lock it; completion closes an active plan and
+  cancels an unfilled one).
+- Tests: `test_trade_plans.py` (lock at the fill, 409 after, notes and
+  tags, sell to zero, plan on the ticket, pending order at settlement,
+  written after entry, the rule itself, validation, per user and per book,
+  hidden drill plans), `test_trade_plans_migration.py` (PostgreSQL
+  up/down/up with data: identical drill scores, deck summary and
+  forensics; archive row counts; idempotent copy; downgrade refused with a
+  paper plan). `test_drills_migration.py` and
+  `test_replay_journal_migration.py` now stop at their own revisions.
+
+**Journal entries (A5.5, M10.3).** Migration `c9d2e4f6a8b1` (additive;
+the downgrade refuses while any entry holds notes or tags):
+`journal_entries` (`models/journal_entry.py`: user, `source`
+paper|imported|replay, `portfolio_id` or `replay_session_id` (check
+`ck_journal_entries_home`; both cascade), instrument, `entry_key` (unique per
+user), `plan_id` (SET NULL), `status` open|closed|detached, `opened_at`,
+`closed_at`, and the user's text: `review_notes`, `mistakes`, `lessons`,
+`setup_tags`, `mistake_tags` (JSON)) and `journal_entry_fills` (entry
+cascade; exactly one of `trade_id` / `replay_fill_id`, each unique, both
+cascade). **Only the grouping and the text are stored**; every figure is
+computed on read (`services/journal/`).
+
+- **Grouping** (`roundtrips.group_round_trips`, the replay episode rule):
+  per book and instrument (`trades`, so paper and imported alike) or per
+  replay session (`replay_fills`), in time order, a buy while flat opens an
+  entry and the quantity back to zero closes it; partial sells stay in it, a
+  later buy opens a new one, a sell while flat belongs to none, a position
+  still held is open. Hidden drills (anonymised, unrevealed) are left out.
+- **Sync on read** (`entries.sync`, run by every list and detail read under a
+  `FOR UPDATE` on the user row): each round trip is matched to its row by
+  `entry_key`, a stable name of its first fill (`paper:<book>:t<trade id>`,
+  `imported:<book>:<broker>:<exchange>:<broker trade id>` or
+  `imported:<book>:opening:<id>`, `replay:<session>:f<fill id>`), and
+  `status`, times, `plan_id` and the fill links are rewritten when they
+  differ. An imported book rebuilds its `trades` on every commit, delete,
+  opening lot and split, and the next read follows; nothing to invalidate.
+  A row whose round trip is gone is deleted without text, or kept
+  `detached` (hidden, 404) with it; the same file imported again finds it,
+  notes intact.
+- **Plans:** a paper or imported entry's plan is the one its fills link
+  (`trades.trade_plan_id`: A5.4's ticket, A5.3's import pairing, which locks
+  a plan written before the buy); a replay session's plan pairs with the
+  session's first round trip. `plan.label` is `locked` or
+  `written_after_entry`; only `locked` has `counts_for_adherence`.
+- **Figures** (instrument currency): average entry (buy notional / shares
+  bought), average exit, most shares held, realized ((price - ledger average
+  cost) x qty per sell), fees (estimated for imports, `fees_estimated`), net
+  P&L = realized - fees (+ open shares x (last close - average cost),
+  `as_of_date`/`mark_close`), return, holding days and sessions. **R** = net
+  P&L / (|average entry - plan stop| x most shares held) (the drill's
+  definition), null with `r_reason` without a plan, a stop or a close to mark
+  at. **MAE/MFE** (`excursions`): worst/best (daily low/high - ledger average
+  cost) while held, per share, %, money (x shares held that day), R and the
+  date and price. Basis `exact_close` for replay (forensics' rule and
+  numbers: the entry bar counts from its close) or `approximate_daily` for
+  paper and imported (the entry and exit days count their whole range: the
+  fill's place in the day is unknown; "Daily bars: may include moves before
+  entry or after exit", design note question 6). A venue session (calendar)
+  without a stored bar makes both null with the reason and
+  `missing_sessions`. **Adherence** (`drills/score.score_drill` on venue-date
+  closes) for a plan locked before entry with entry, stop and size; a plan
+  written after entry is shown with a note, never scored.
+- **Venue dates:** a fill's date is its venue's (`venue_for_ticker`, IST for
+  `.NS`/`.BO`; an imported fill without a time is the IST day start). The P&L
+  calendar (`journal/query.py`) reads a window a day wider each side and
+  keeps equity fills by their own venue date, so an NSE fill is never on New
+  York's day; options stay on New York's.
+- **News** (`entries.news_window`): documents linked to the instrument with
+  `available_at` from the start of the third session before the entry day to
+  the end of the entry day, and from the session before the exit day to the
+  end of the session after it (venue time zone; up to 20, headline, source,
+  link, time, venue date). Replay entries are capped at the session's clock.
+  A window ending before the first Aegis document held is
+  `coverage: before_news_copy` ("No news copy for this date").
+- **Routes** (`routers/journal_entries.py`, authed; another user's entry or
+  book 404): `GET /v1/journal/entries?book=<id>|all&status=open|closed&
+  source=&setup_version_id=&tag=&ticker=&from=&to=&limit=&offset=` ->
+  `{entries: [JournalEntrySummaryOut], total, limit, offset, note}` (no
+  `book` or `all`: every book and replay; newest first; `from > to` 400);
+  `GET /{id}` -> `JournalEntryOut` (+ fills, adherence, news at entry and
+  exit, the text); `PATCH /{id}` (`JournalEntryPatch`: text and tags only,
+  extra fields 422, `""` clears, tags de-duplicated ignoring case, at most
+  12 of 32 characters).
+- **Chart markers:** `symbol_events._fills` asks `entries.fill_r_multiples`
+  (the user's books' whole history in the instrument, grouped the same way;
+  read only) for each fill's R, entry id and whether it closes the entry.
+- Tests: `test_journal_entries.py` (the done-when with hand-computed MAE,
+  MFE and R; written after entry; no plan; replay equal to forensics; open
+  paper entry; missing bar; partials and re-entry with markers; the pure
+  rules; delete and re-import keeping notes; venue dates in the journal,
+  the P&L calendar and markers; news windows and "no news copy";
+  isolation; filters and patch rules), `test_journal_entries_migration.py`
+  (PostgreSQL up/down/up).
+
 **Survivorship stamp (A1.4a, part of M1.5).** Every backtest result carries
 `universe: {name, point_in_time, survivorship_biased, note}`: the public
 `POST /v1/backtest` (`BacktestOut.universe`), stored single runs, and
@@ -1251,14 +1482,16 @@ yfinance's split-adjusted series, rewritten every night, so a split divides
 every old close by its ratio. `stockviz.cli corporate-actions` (after
 `ingest`, before `fx` and `settle-orders` in the cron) records splits for the
 tickers the ledger touches (`corporate_actions`, from `yfinance.splits`) and,
-once the ex-date bar is complete on the venue, rebases each user in one
+once the ex-date bar is complete on the venue, rebases each user's candidate
+books (A5.1: each book once) and their price alerts in one
 transaction (`services/corporate_actions/apply.py`): shares bought before the
 cut-off and still held times r with the total cost kept; pending orders, live
 alerts and open options made before the cut-off scaled likewise (options
 carry `shares_per_contract`, 100 until a split changes it; value and
 exercise read it, never `CONTRACT_MULTIPLIER`). Trade rows stay as filled.
-`corporate_action_applications` (unique per action and user) makes it run
-once. Old splits change nothing because no ledger row predates them. The
+`corporate_action_applications` (A5.1: unique per action and book for a
+book's rebase, and per action and user where `portfolio_id` is null for the
+user's alerts) makes each part run once. Old splits change nothing because no ledger row predates them. The
 Alpha Vantage fallback is unadjusted, so `upsert_bars` lets it add only days
 newer than the newest stored daily bar (audit MD-5). Replay sessions read
 the same rescaled bars and are not rebased.
@@ -1698,8 +1931,9 @@ users ─┬─ portfolios ─┬─ positions           (qty + native-currency 
        │              ├─ trades               (fill history)
        │              ├─ pending_orders       (limit / stop_loss / take_profit)
        │              ├─ options_positions    (also carries user_id)
-       │              └─ portfolio_dividends  (credited payouts)
-       ├─ portfolio_snapshots   (daily NAV — powers the equity curve and returns)
+       │              ├─ portfolio_dividends  (credited payouts)
+       │              ├─ portfolio_snapshots  (A5.1: daily NAV per book; also carries user_id)
+       │              └─ risk_limits          (one row per book)
        ├─ watchlists ── watchlist_items   (A2.5: many lists, one default; notes, tags)
        ├─ column_sets           (A2.5: saved watchlist columns)
        ├─ alerts
@@ -1712,7 +1946,9 @@ symbols ─┬─ price_bars          (EOD OHLCV; everything prices off the late
 fx_rates                        (currency + date, USD-per-unit)
 ```
 
-Gotcha: `portfolio_snapshots` hangs off **users**, not portfolios.
+A5.1: a user holds up to 20 portfolios ("books"), exactly one `is_default`.
+`portfolio_snapshots` hangs off the book (`portfolio_id`, unique with the
+date); its `user_id` is kept for the combined view (A5.2).
 
 ## Rate limiting
 
@@ -1750,13 +1986,95 @@ Everything prices off the **latest `1d` close** in `price_bars` — there are no
 intraday fills anywhere in the app:
 
 - New portfolios start with **$100,000** cash (`DEFAULT_STARTING_CASH`,
-  `services/trading/execute.py`), auto-created on the first `/v1/portfolio`
-  call via `ensure_default_portfolio` (idempotent).
+  `services/trading/books.py`), auto-created on the first `/v1/portfolio`
+  call via `ensure_default_portfolio` (idempotent; it finds the default
+  book, `is_default`).
+- **Books (A5.1, M10.1).** Migration `6ad74b7c4b5b`. `portfolios` gains
+  `kind` (`paper` | `imported`), `is_default`, `cash_tracked` (false for
+  imported: holdings only), `broker` (`zerodha` or null), `holder_kind`
+  (`self` | `family` | `huf`), `holder_label` (free text, 60; a PAN-shaped
+  label is 422: no PAN is stored) and `archived_at`. The unique `user_id`
+  index is gone; a partial unique index `uq_portfolios_user_default`
+  (`user_id WHERE is_default`) keeps the first-use race guard, and
+  `(user_id, name)` is unique (the API also refuses names equal ignoring
+  case). Checks: kind, holder kind, broker, `ck_portfolios_default_not_archived`.
+  The upgrade makes every existing portfolio its user's default paper book.
+  **Downgrade refuses** while any user holds more than one book (it names
+  how many; nothing changed), else it folds the split applications back to
+  one per (action, user) and restores the old keys. `alerts.portfolio_id`
+  (nullable, cascade): the book a portfolio rule watches, null = default.
+  **One resolver:** `services/trading/books.py::resolve_book(session,
+  user_id, book_id | None, write=False)`: None = the default book (created
+  on first use); another user's or a missing id raises `BookNotFound`
+  (404, `main.py` handler); `write=True` refuses an archived or imported
+  book (`BookNotWritable`, 409). `owned_book` checks a row's own book
+  (cancel an order, a trade's provenance); `require_writable` guards
+  closes of an option or strategy in its own book. Every book-scoped route
+  takes `?book=<id>` (`routers/book_query.py::BookQuery`): portfolio,
+  overview, analytics, risk, stress, limits (GET/PUT, check), history,
+  dividends, trades (GET/POST), base currency, orders (GET/POST), options
+  trade/positions/strategies/book, the journal, earnings `scope=holdings`
+  (default: every book's holdings) and symbol events (fills from all the
+  caller's books by default; each fill event carries `book_id`).
+  `POST /v1/alerts` takes `book_id` for portfolio rules. Nightly jobs
+  iterate books: snapshots (archived ones too), split rebases, dividend
+  credits (books with `cash_tracked` false get none); pending orders and
+  option expiry were already per book. `tests/test_book_lookup_allowlist.py`
+  fails on any new `Portfolio.user_id ==` / `PortfolioSnapshot.user_id ==`
+  in `src/` outside its allow-list. Risk limits are per book; price alerts,
+  watchlists and the display currency stay per user.
+- **Book CRUD (A5.1).** `services/books/`, `routers/books.py`:
+  `GET /v1/books` -> `{books: [BookOut], limit: 20}` (default first; it
+  creates the default); `POST /v1/books {name, kind?, base_currency?
+  USD|INR, holder_kind?, holder_label?, broker?}` (201; a paper book starts
+  with `STARTING_CASH` in its currency and a day-zero snapshot; an imported
+  one with 0; 409 past 20 or a taken name); `PATCH /v1/books/{id} {name?,
+  holder_kind?, holder_label? (null clears), archived?, is_default: true}`
+  (409: archiving the default, archiving with pending orders, making an
+  archived or imported book the default); `DELETE /v1/books/{id}` (204;
+  409 for the default or last book, and for a book with activity that is
+  not archived; deletes everything in it). `BookOut` carries `writable` and
+  `activity`. Only a paper book can be the default.
+- **All books (A5.2, M10.1).** `routers/book_query.py::BookOrAllQuery`
+  (`?book=<id>|all`, `parse_book`) on `GET /v1/portfolio`, `/portfolio/overview`,
+  `/portfolio/analytics`, `/portfolio/history`, `/v1/trades` and `/v1/orders`;
+  every other book route still takes an id only, so `all` is 422 there.
+  `services/books/combined.py`: `combined_view` values every book with
+  `compute_portfolio` in the user's display currency and merges them
+  (`merge_valuations`: one row per ticker, quantity summed, average cost
+  weighted by quantity; cash per currency summed; `portfolio_id` 0,
+  `base_currency` = display). The series (`book_series` + pure `combine`):
+  each book's points (opening value on `created_at`'s date, its snapshots,
+  today's live value) are in its base currency and convert into the display
+  currency at the rate on or before that point's own date (`RateBook`); a
+  book's value between its points is its last point; a book adds nothing
+  before it opened. Outside flows: a book opening after the first book's
+  opening adds its `opening_nav` on its opening date; an imported book's buys
+  add cost + fees and its sells remove proceeds - fees, at `trades.fx_rate`
+  into its base, then the trade date's display rate (`imported_flows`).
+  Cross-book transfers do not exist yet. TWR = `period_returns` over the sum
+  with those flows; total return, drawdown and Sharpe read `growth_index`
+  (flow-free), XIRR takes `-first value`, `-flows`, `+today`
+  (`combined_xirr_flows`). FX age: `stale_floor(d)` =
+  `previous_session(session_on_or_before(d))` on XNYS (MD-7's fill rule); an
+  older rate is used and reported as `ValuationWarningOut.code =
+  "stale_fx_rate"`; a date with no rate at all is dropped from the series
+  (its flows count on the next date kept) and reported as `no_fx_rate`.
+  `PortfolioOut.combined` lists each book's value, `fx_rule` and
+  `per_book_only`. Per book only: risk, stress, attribution (null),
+  holding XIRRs (empty), limits, dividends, options and the journal.
+  `/portfolio/history?book=all` returns snapshots only, summed, each with
+  `flow` (null on one book's history). `TradeOut.book_id` and
+  `PendingOrderOut.portfolio_id` name each row's book. Tests:
+  `tests/test_books_combined.py` (the hand-worked USD + INR example: TWR
+  4.3133%; imported flows 0.47619%; stale and missing rates; the routes).
 - **Rupee accounts (Phase 4.8).** `PUT /v1/portfolio/base-currency`
-  (`services/trading/account.py`) restarts a **fresh** account in USD
+  (`services/trading/account.py`; A5.1: per book, `?book=`, paper and not
+  archived) restarts a **fresh** book in USD
   ($100,000) or INR (₹1 crore, `STARTING_CASH`): no trades, orders, options,
   positions, dividends or foreign cash, else 409. It restates the opening
-  NAV and the account's snapshots and sets the display currency to match.
+  NAV and that book's snapshots, and sets the display currency to match
+  only when the book is the default.
   `PortfolioOut` carries `base_currency` and `base_currency_locked`.
 - **Fees (A4.2).** Indian symbols pay their venue's equity delivery
   schedule on every live fill (see "Date-versioned costs (A4.2)"); other
@@ -1815,7 +2133,8 @@ intraday fills anywhere in the app:
   row via `lock_portfolio`, which **refreshes** the identity-map instance so
   a stale `cash_balance` cannot overwrite a concurrent debit. Cancel and
   fill re-read `order.status == PENDING` after that lock. First-portfolio
-  creation serializes on the user row; `portfolios.user_id` is unique.
+  creation serializes on the user row; one default book per user is unique
+  (A5.1, `uq_portfolios_user_default`).
   Orders that trigger but fail validation (insufficient available cash/shares)
   are **cancelled** with a `cancel_reason`, never retried. Settlement takes a
   `session_date` and leaves orders pending when the latest bar predates it, so
@@ -2137,6 +2456,50 @@ overlap and the largest close difference against stored bars. Applying also
 records the `kite` identifier (instrument token). TrueData has no adapter
 until its trial. Check a provider's redistribution terms before its bars are
 shown publicly.
+
+**Broker status and graceful degradation (A5.7, M1.7).** No live broker
+connection exists. `GET /v1/broker/status` (`routers/brokers.py`, authed;
+`services/brokers/`) -> `{brokers: [{broker: "zerodha", label, provider:
+"kite", configured, state, live_data: false, imported_books,
+last_imported_at, last_snapshot_at, last_failure_at}], offline_window_hours,
+checked_at}`. `configured` = `KITE_API_KEY` and `KITE_API_SECRET` both set
+(never returned). `state`: `not_configured` (blank keys), `offline` (the
+newest `kite-snapshot` run failed within `OFFLINE_WINDOW`, 3 days),
+`snapshot_only` (a snapshot has succeeded), else `not_connected`.
+`imported_books` counts the caller's active imported Zerodha books;
+`last_imported_at` is the newest `import_batches.created_at` across the
+caller's Zerodha books (A5.3; archived books included). Provider
+health reuses `job_runs`: once `ingest-history --provider kite` reaches Kite
+(keys and a request token set) it writes one `kite-snapshot` row through
+`record_provider_run`: `failed` on a Kite login error or any `KiteError` /
+`httpx.HTTPError` while fetching (a ticker Kite does not list is not one),
+else `succeeded`. The row keeps a fixed summary ("Kite login failed",
+"Kite error on N ticker(s)"), never the token, key or Kite's message.
+`/v1/status` and `/health` leave `kite-snapshot` out (it is not a nightly
+job). The web shows the state on Settings, `/status` (Brokers) and
+imported books. Tests: `tests/test_broker_status.py`.
+
+**Owner note: adding the daily Kite login later (future plan, not built;
+deferred to A6, A5 design note question 8).** What it would take:
+
+- **A paid Kite Connect app.** Kite Connect is ₹500 a month per app
+  (Zerodha support page cited in `docs/a5-design-note.md`, read 26 Nov
+  2026); the free Personal app logs in but carries no historical or live
+  data. That is an ongoing subscription, which the owner does not want
+  today.
+- **A registered redirect URL** on the app, pointing at a new API callback
+  route (for example `/v1/broker/kite/callback`) that receives Zerodha's
+  `request_token`, checks a signed `state` tying it to the signed-in user,
+  and swaps it for the day's access token with `open_session` (the app
+  secret stays server-side).
+- **Encrypted token storage:** a per-user table holding the access token
+  encrypted at rest under a server key kept out of the database and the
+  repo (no such key exists yet), never logged, never returned, deleted on
+  sign-out of the broker.
+- **Daily expiry:** Kite tokens expire every morning (around 06:00 IST); the
+  login stays manual every day (an exchange rule: never automate it). The
+  status would then add a `connected` state until expiry, and a reminder
+  (Telegram) would prompt the next login.
 
 ## Ingestion contract
 

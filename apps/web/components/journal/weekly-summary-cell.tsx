@@ -81,9 +81,7 @@ export function WeeklySummaryCell({
     >
       {column ? (
         <>
-          <span className="font-mono text-3xs uppercase tracking-wide text-text-tertiary">
-            Week
-          </span>
+          <span className="font-mono text-3xs tracking-[0.02em] text-text-tertiary">Week</span>
           <span
             data-financial
             className={cn("mt-0.5 truncate font-mono text-sm font-semibold", tone)}
@@ -97,7 +95,7 @@ export function WeeklySummaryCell({
         </>
       ) : (
         <>
-          <span className="font-mono text-3xs uppercase tracking-wide text-text-tertiary">
+          <span className="font-mono text-3xs tracking-[0.02em] text-text-tertiary">
             Week of {formatRangeLabel(week.start, week.end)}
           </span>
           <span data-financial className={cn("shrink-0 font-mono text-xs font-semibold", tone)}>

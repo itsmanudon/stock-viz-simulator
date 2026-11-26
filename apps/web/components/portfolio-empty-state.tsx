@@ -1,20 +1,53 @@
-import Link from "next/link";
+import { BookLink as Link } from "@/components/book-link";
+import { BrokerStatusLine } from "@/components/brokers/broker-status";
+import type { BrokerStatusLike } from "@/lib/broker-status";
 
 import { formatCurrency } from "@/lib/portfolio-view-model";
 
 export function PortfolioEmptyState({
   availableCash,
   displayCurrency,
+  readOnly = null,
+  broker,
 }: {
   availableCash: string;
   displayCurrency: string;
+  /**
+   * A5.2: why this view takes no trades (an imported or archived book, All
+   * books). It then says it holds nothing yet instead of inviting a trade.
+   */
+  readOnly?: string | null;
+  /**
+   * A5.7: an imported book's broker status, or "unknown" when it could not
+   * be read (the line then says so). Undefined: not an imported book.
+   */
+  broker?: BrokerStatusLike | "unknown";
 }) {
+  if (readOnly) {
+    return (
+      <section
+        aria-labelledby="portfolio-empty-heading"
+        className="border-y border-border-muted bg-surface-secondary/45 px-5 py-10 sm:px-8 sm:py-12"
+      >
+        <h2 id="portfolio-empty-heading" className="text-xl font-semibold tracking-tight">
+          No holdings yet
+        </h2>
+        <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">{readOnly}</p>
+        {broker !== undefined ? (
+          <BrokerStatusLine
+            broker={broker === "unknown" ? null : broker}
+            className="mt-3 max-w-xl"
+          />
+        ) : null}
+      </section>
+    );
+  }
   return (
     <section
       aria-labelledby="portfolio-empty-heading"
       className="border-y border-border-muted bg-surface-secondary/45 px-5 py-10 sm:px-8 sm:py-12"
     >
-      <p className="text-xs font-medium uppercase tracking-[0.14em] text-brand">Start here</p>
+      <p className="text-xs font-medium tracking-[0.02em] text-brand">Start Here</p>
       <h2 id="portfolio-empty-heading" className="mt-2 text-xl font-semibold tracking-tight">
         Your portfolio is ready
       </h2>

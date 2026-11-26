@@ -70,6 +70,27 @@ describe("fmtPct", () => {
 });
 
 describe("compare", () => {
+  it("keeps symbols without a stored close last when sorting by ticker, either way", () => {
+    const rows = [
+      row("AAA", null, null),
+      row("BBB", 10, 1),
+      row("CCC", 20, -1),
+      row("DDD", null, null),
+    ];
+    expect(compare(rows, "ticker", "asc").map((r) => r.ticker)).toEqual([
+      "BBB",
+      "CCC",
+      "AAA",
+      "DDD",
+    ]);
+    expect(compare(rows, "ticker", "desc").map((r) => r.ticker)).toEqual([
+      "CCC",
+      "BBB",
+      "DDD",
+      "AAA",
+    ]);
+  });
+
   const rows = [row("BBB", 50, -1.5), row("AAA", 100, 2.5), row("CCC", 75, 0.5)];
 
   it("sorts by ticker in both directions", () => {

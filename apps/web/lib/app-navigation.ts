@@ -1,70 +1,204 @@
+/**
+ * The product's navigation map (A3.6): every product route belongs to one of
+ * six workspaces, and this file is the only place that says which.
+ *
+ * - The sidebar (`components/app-navigation.tsx`) draws the workspaces and
+ *   their items from `WORKSPACES`.
+ * - The command palette (`lib/command-palette.ts`) turns the same items into
+ *   its "Pages" results.
+ * - Workspace subnavs (`workspaceSubnav`) and page eyebrows
+ *   (`workspaceLabelFor`) read it too.
+ * - `tests/unit/app-navigation.test.ts` walks `app/(product)/**\/page.tsx` and
+ *   fails if a page route is not mapped here.
+ *
+ * To add a route: add its page, then add an item to its workspace (or, for a
+ * route without a sidebar item, add its prefix to the workspace's
+ * `extraMatches`). Settings and Status sit apart in `UTILITY_NAVIGATION`.
+ *
+ * URLs never moved in A3.6: the workspaces group existing routes, so every old
+ * link still works.
+ */
+
+export type WorkspaceId =
+  | "today"
+  | "markets"
+  | "workbench"
+  | "quant-lab"
+  | "portfolio-tax"
+  | "copilot";
+
 export type NavigationItem = {
   label: string;
   href: string;
+  /** Path prefixes that make this item the current page. */
   matches: readonly string[];
+  /** Hidden from guests (the route is behind proxy.ts and has no guest view). */
+  signedInOnly?: boolean;
+  /** A short tag after the label, such as the plan phase of a placeholder. */
+  note?: string;
+  /** Extra words the command palette matches on. */
+  keywords?: readonly string[];
 };
 
-export type NavigationGroup = NavigationItem & {
-  items?: readonly NavigationItem[];
+export type Workspace = {
+  id: WorkspaceId;
+  label: string;
+  /** One line for the palette and assistive tech. */
+  description: string;
+  items: readonly NavigationItem[];
+  /** Prefixes that belong to the workspace without a sidebar item of their own. */
+  extraMatches?: readonly string[];
 };
 
-/**
- * The product sidebar, in the order of the Aurora board (v3, 11 Nov 2026):
- * three top-level pages, then labelled sections. A section heading is not a
- * link; it only lights up while one of its routes is open (`/stocks/*` counts
- * as Research). Settings sits apart at the bottom and only for signed-in users.
- */
-export const APP_NAVIGATION: readonly NavigationGroup[] = [
-  { label: "Home", href: "/dashboard", matches: ["/dashboard"] },
-  { label: "Markets", href: "/markets", matches: ["/markets"] },
-  { label: "Earnings", href: "/earnings", matches: ["/earnings"] },
+export const WORKSPACES: readonly Workspace[] = [
   {
-    label: "Research",
-    href: "/screener",
-    matches: [
-      "/screener",
-      "/setups",
-      "/compare",
-      "/checklist",
-      "/news",
-      "/stocks",
-      "/backtest",
-      "/replay",
-      "/drills",
-      "/news-reactions",
-      "/event-study",
-    ],
+    id: "today",
+    label: "Today",
+    description: "Your dashboard and what the account was told",
     items: [
-      { label: "Screener", href: "/screener", matches: ["/screener"] },
-      { label: "Setups", href: "/setups", matches: ["/setups"] },
-      { label: "Checklist", href: "/checklist", matches: ["/checklist"] },
-      { label: "Compare", href: "/compare", matches: ["/compare"] },
-      { label: "Backtest", href: "/backtest", matches: ["/backtest"] },
-      { label: "Replay", href: "/replay", matches: ["/replay"] },
-      { label: "Drills", href: "/drills", matches: ["/drills"] },
-      { label: "News", href: "/news", matches: ["/news"] },
-      { label: "Event study", href: "/event-study", matches: ["/event-study"] },
-      { label: "News reactions", href: "/news-reactions", matches: ["/news-reactions"] },
+      { label: "Home", href: "/dashboard", matches: ["/dashboard"], keywords: ["dashboard"] },
+      {
+        label: "Notifications",
+        href: "/notifications",
+        matches: ["/notifications"],
+        keywords: ["inbox", "fills", "fired"],
+      },
     ],
   },
   {
-    label: "Trade",
-    href: "/trade",
-    matches: ["/trade", "/orders"],
+    id: "markets",
+    label: "Markets",
+    description: "The market, the calendar, screens and news",
     items: [
-      { label: "Trade ticket", href: "/trade", matches: ["/trade"] },
-      { label: "Orders", href: "/orders", matches: ["/orders"] },
+      {
+        label: "Overview",
+        href: "/markets",
+        matches: ["/markets"],
+        keywords: ["markets", "breadth", "regime", "symbols"],
+      },
+      {
+        label: "Screener",
+        href: "/screener",
+        matches: ["/screener"],
+        keywords: ["screen", "filter", "scan"],
+      },
+      {
+        label: "Earnings",
+        href: "/earnings",
+        matches: ["/earnings"],
+        keywords: ["calendar", "results"],
+      },
+      { label: "News", href: "/news", matches: ["/news"], keywords: ["headlines", "aegis"] },
     ],
   },
   {
-    label: "Portfolio",
-    href: "/portfolio",
-    matches: ["/portfolio", "/watchlist", "/alerts", "/trades"],
+    id: "workbench",
+    label: "Workbench",
+    description: "One stock at a time: the chart, checks and comparisons",
     items: [
-      { label: "Overview", href: "/portfolio", matches: ["/portfolio"] },
-      { label: "Watchlist", href: "/watchlist", matches: ["/watchlist"] },
-      { label: "Alerts", href: "/alerts", matches: ["/alerts"] },
-      { label: "Trade history", href: "/trades", matches: ["/trades"] },
+      { label: "Setups", href: "/setups", matches: ["/setups"], keywords: ["patterns"] },
+      {
+        label: "Checklist",
+        href: "/checklist",
+        matches: ["/checklist", "/recommendations"],
+        keywords: ["signals", "rules"],
+      },
+      { label: "Compare", href: "/compare", matches: ["/compare"], keywords: ["versus", "vs"] },
+      {
+        label: "Event study",
+        href: "/event-study",
+        matches: ["/event-study"],
+        keywords: ["events", "earnings reaction"],
+      },
+    ],
+    // The stock page (chart, drawings, financials) has no item: the palette
+    // and the search open it for a symbol.
+    extraMatches: ["/stocks"],
+  },
+  {
+    id: "quant-lab",
+    label: "Quant Lab",
+    description: "Backtests, saved runs, blind replay and drills",
+    items: [
+      {
+        label: "Backtest",
+        href: "/backtest",
+        matches: ["/backtest"],
+        keywords: ["strategy", "rule", "test"],
+      },
+      {
+        label: "Saved runs",
+        href: "/backtest/runs",
+        matches: ["/backtest/runs"],
+        keywords: ["backtest runs", "results", "experiments"],
+      },
+      { label: "Replay", href: "/replay", matches: ["/replay"], keywords: ["blind", "session"] },
+      { label: "Drills", href: "/drills", matches: ["/drills"], keywords: ["deck", "practice"] },
+      {
+        label: "News reactions",
+        href: "/news-reactions",
+        matches: ["/news-reactions"],
+        keywords: ["news study"],
+      },
+    ],
+  },
+  {
+    id: "portfolio-tax",
+    label: "Portfolio & Tax",
+    description: "Books, holdings, orders, trades, the journal and alerts",
+    items: [
+      {
+        label: "Portfolio",
+        href: "/portfolio",
+        // A5.5: journal entries (`/portfolio/journal/[id]`) belong to the Journal tab.
+        matches: ["/portfolio", "/portfolio/journal"],
+        keywords: ["holdings", "positions", "journal", "risk", "round trips", "mae", "mfe"],
+      },
+      {
+        label: "Trade",
+        href: "/trade",
+        matches: ["/trade"],
+        keywords: ["ticket", "order", "buy", "sell"],
+      },
+      { label: "Orders", href: "/orders", matches: ["/orders"], keywords: ["pending", "blotter"] },
+      {
+        label: "Trade history",
+        href: "/trades",
+        matches: ["/trades"],
+        keywords: ["fills", "trades", "realized"],
+      },
+      {
+        // A5.3: into the selected imported book (the page explains a paper one).
+        label: "Import tradebook",
+        href: "/portfolio/import",
+        matches: ["/portfolio/import"],
+        signedInOnly: true,
+        keywords: ["zerodha", "csv", "import", "broker", "console"],
+      },
+      { label: "Watchlist", href: "/watchlist", matches: ["/watchlist"], keywords: ["lists"] },
+      { label: "Alerts", href: "/alerts", matches: ["/alerts"], keywords: ["price alert"] },
+      {
+        // Books are managed in Settings; the item is a shortcut, never "current".
+        label: "Books",
+        href: "/settings#books",
+        matches: [],
+        signedInOnly: true,
+        keywords: ["accounts", "family", "huf"],
+      },
+    ],
+  },
+  {
+    id: "copilot",
+    label: "AI Copilot",
+    description: "A placeholder: the copilot is planned for A8",
+    items: [
+      {
+        label: "Copilot",
+        href: "/copilot",
+        matches: ["/copilot"],
+        note: "A8",
+        keywords: ["ai", "assistant"],
+      },
     ],
   },
 ] as const;
@@ -74,17 +208,23 @@ export const SETTINGS_NAVIGATION: NavigationItem = {
   label: "Settings",
   href: "/settings",
   matches: ["/settings"],
+  signedInOnly: true,
+  keywords: ["account", "preferences", "risk limits", "channels"],
 };
 
-export const RESEARCH_SUBNAV = [
-  { href: "/compare", label: "Compare" },
-  { href: "/backtest", label: "Backtest" },
-  { href: "/checklist", label: "Checklist" },
-  { href: "/replay", label: "Replay" },
-  { href: "/drills", label: "Drills" },
-  { href: "/event-study", label: "Event study" },
-  { href: "/news-reactions", label: "News reactions" },
-] as const;
+/** Data and service status: public, pinned beside Settings. */
+export const STATUS_NAVIGATION: NavigationItem = {
+  label: "Status",
+  href: "/status",
+  matches: ["/status"],
+  keywords: ["data", "health", "freshness", "pipeline"],
+};
+
+/** The bottom rail: routes that belong to no workspace. */
+export const UTILITY_NAVIGATION: readonly NavigationItem[] = [
+  STATUS_NAVIGATION,
+  SETTINGS_NAVIGATION,
+];
 
 /**
  * Where the logo and the "Home" nav item point.
@@ -96,24 +236,86 @@ export function homeHref(signedIn: boolean): string {
   return signedIn ? "/dashboard" : "/";
 }
 
+function pathOnly(pathname: string): string {
+  return pathname.split(/[?#]/, 1)[0];
+}
+
 export function pathMatches(pathname: string, prefixes: readonly string[]): boolean {
-  const path = pathname.split(/[?#]/, 1)[0];
+  const path = pathOnly(pathname);
   return prefixes.some((prefix) => path === prefix || path.startsWith(`${prefix}/`));
 }
 
+/** The longest prefix of `prefixes` that `pathname` sits under, or 0. */
+function matchLength(pathname: string, prefixes: readonly string[]): number {
+  const path = pathOnly(pathname);
+  let best = 0;
+  for (const prefix of prefixes) {
+    if ((path === prefix || path.startsWith(`${prefix}/`)) && prefix.length > best) {
+      best = prefix.length;
+    }
+  }
+  return best;
+}
+
+export function workspaceMatches(workspace: Workspace): readonly string[] {
+  return [...workspace.items.flatMap((item) => item.matches), ...(workspace.extraMatches ?? [])];
+}
+
+/** The workspace that owns `pathname`, or null (public pages and the bottom rail). */
+export function workspaceForPath(pathname: string): Workspace | null {
+  let best: Workspace | null = null;
+  let bestLength = 0;
+  for (const workspace of WORKSPACES) {
+    const length = matchLength(pathname, workspaceMatches(workspace));
+    if (length > bestLength) {
+      best = workspace;
+      bestLength = length;
+    }
+  }
+  return best;
+}
+
+/** The workspace's label for a page eyebrow, or `fallback`. */
+export function workspaceLabelFor(pathname: string, fallback = "Research"): string {
+  return workspaceForPath(pathname)?.label ?? fallback;
+}
+
+/** The item a path opens: the one with the longest matching prefix. */
+function itemForPath(pathname: string, items: readonly NavigationItem[]): NavigationItem | null {
+  let best: NavigationItem | null = null;
+  let bestLength = 0;
+  for (const item of items) {
+    const length = matchLength(pathname, item.matches);
+    if (length > bestLength) {
+      best = item;
+      bestLength = length;
+    }
+  }
+  return best;
+}
+
 export function getActiveNavigation(pathname: string): {
-  groupHref: string | null;
+  workspaceId: WorkspaceId | null;
   itemHref: string | null;
 } {
-  if (pathMatches(pathname, SETTINGS_NAVIGATION.matches)) {
-    return { groupHref: SETTINGS_NAVIGATION.href, itemHref: SETTINGS_NAVIGATION.href };
-  }
-  const group = APP_NAVIGATION.find((entry) => pathMatches(pathname, entry.matches));
-  if (!group) return { groupHref: null, itemHref: null };
-
-  const item = group.items?.find((entry) => pathMatches(pathname, entry.matches));
+  const utility = itemForPath(pathname, UTILITY_NAVIGATION);
+  if (utility) return { workspaceId: null, itemHref: utility.href };
+  const workspace = workspaceForPath(pathname);
+  if (!workspace) return { workspaceId: null, itemHref: null };
   return {
-    groupHref: group.href,
-    itemHref: item?.href ?? (group.items ? null : group.href),
+    workspaceId: workspace.id,
+    itemHref: itemForPath(pathname, workspace.items)?.href ?? null,
   };
+}
+
+/**
+ * The tabs under a workspace page's header: the workspace's own items,
+ * without shortcuts into other areas (Books opens Settings).
+ */
+export function workspaceSubnav(pathname: string): { href: string; label: string }[] {
+  const workspace = workspaceForPath(pathname);
+  if (!workspace) return [];
+  return workspace.items
+    .filter((item) => item.matches.length > 0)
+    .map((item) => ({ href: item.href, label: item.label }));
 }

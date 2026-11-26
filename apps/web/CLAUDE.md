@@ -104,9 +104,10 @@ components/
                    /product/paper-trading (the landing Rankings section and its
                    `departure-board.tsx` went with the leaderboard in A0).
                    Batch 3 adds
-                   `market-weather.tsx` (faint aurora behind the hero and
-                   closing CTA, coloured by `breadth.ts`: share of symbols that
-                   closed up; the hero chips and the CTA state the figure),
+                   `market-weather.tsx` (faint aurora coloured by `breadth.ts`;
+                   unused since the PRISM redesign put a WebGL light (now
+                   `prism/liquid-chrome.tsx`) behind the hero and closing
+                   CTA, which carries the same breadth lean; the hero chips and the CTA state the figure),
                    `decode-text.tsx` (Moving today figures resolve digit by
                    digit; sr-only real text), `exploded-candle.tsx` (one stored
                    bar taken apart beside the FAQ) and `loupe-chart.tsx` (the
@@ -139,8 +140,20 @@ components/
   order-side-toggle.tsx  buy/sell segmented control shared by both tickets
   ui/              shadcn-generated primitives — don't hand-edit
   site-footer.tsx  public footer: rides `.panel-inset` squared off, so the page
-                   ends dark; disclosures are numbered notes, not buried prose
-  *.tsx            app-shell/sidebar/navigation, global-ticker-search, earnings-calendar,
+                   ends dark; disclosures are numbered notes, not buried prose.
+                   Liquid Chrome (26 Nov 2026): it opens on the close line and
+                   ends on `prism/chrome-wordmark.tsx` (the wordmark filled with
+                   the hero's liquid metal through a text mask; the outline is
+                   the fallback). `footer-market.tsx` holds the two async parts,
+                   each in Suspense and each dropping out without data: the
+                   close line (equal-weight average of the terrain's symbols
+                   over 120 sessions, end dot at the latest close) and the
+                   status strip (symbols tracked, US and India closes, nightly
+                   refresh, `getServiceStatusCached()`, linked to /status);
+                   their maths is in `lib/footer-market.ts`. The version is the
+                   root package's. No source-code link until the project is
+                   public (owner, legal review first)
+  *.tsx            app-shell/sidebar/navigation, command-palette, earnings-calendar,
                    public-header, price-chart, order-ticket, backtest-form, etc.
 lib/
   api/             fetch client for FastAPI, one module per resource
@@ -310,11 +323,85 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   `tracking-[-0.025em]`, like the stock page's company name; marketing
   headlines stay 500. Geist Mono draws its own ₹ (its `latin-ext` subset is
   loaded), so there is no ₹ fallback face any more.
+- **PRISM layer (Nov 2026 redesign)** sits on top of the Aurora rules below,
+  which still hold (brand is identity/focus/selection only, gain and loss keep
+  their own hues). The palette is **Liquid Chrome** (owner's pick, 25 Nov
+  2026, after violet/pink/cyan, Volt and Solar passes): neutral ink black
+  `#070708`, warm pearl text `#f2eee6`, and a polished-metal brand, champagne
+  `#dcc49a` (`--brand`, also focus and selection), with a gradient from steel
+  `#8d9bb0` through champagne `#f0dfba` to silver `#d6dbe2`. The metal has no
+  hue of its own, so gain green (`#3ee59a`) and loss red (`#ff6b7f`) stay the
+  only colours that mean something. `--input` is `#67645e` so field borders
+  clear 3:1 (WCAG 1.4.11). The primary CTA (`.prism-cta`) is a polished-metal
+  pill with ink text. The paper card is black titanium. The terrain's flat colour is
+  `--text-tertiary`, never the brand, so up/down stays readable. Don't
+  reintroduce navy or violet literals. Instrument
+  Serif italic (`font-editorial`, `--font-editorial`) is for one or two words
+  of a display headline only, usually with `text-prism` (animated light-band
+  text); never for UI text, figures or tickers. The logo is
+  `components/brand/stockviz-mark.tsx` (`StockVizWordmark` in every header and
+  the footer): one chrome candle, a single stored close, in a black-titanium
+  tile, with a glint that crosses it on hover. `app/icon.svg` is the same
+  drawing as the favicon; change both together. `components/prism/`:
+  - `liquid-chrome.tsx` + `liquid-chrome.glsl.ts`: hero/closing-CTA WebGL
+    light (three.js, dynamic import): a pouring sheet of polished metal whose
+    key light follows the pointer, drawn at 0.6x device pixels. Its mid-tones
+    tint green/red with session breadth (`moodAmount`, at most 0.35); the
+    hero chips state the figure. Keep GLSL in the `.glsl.ts` module. It
+    replaced PRISM's `prism-field.tsx` ribbons, which had replaced
+    `MarketWeather` (that canvas component is kept for its other users).
+  - `market-terrain.tsx` + `terrain-data.ts` + `terrain-section.tsx`: the
+    "time is the fourth axis" 3D surface from real stored closes (symbols
+    with a full 120-session window ending on the same newest date). Landing
+    variant `scroll` pins and scrubs time with scroll; dashboard variant
+    `compact` autoplays while on screen. Both have a real range slider, text
+    stats beside the canvas, a reduced-motion still frame and a 2D fallback.
+    Never put DOM gradient overlays on top of its canvas; fade with
+    `mask-image` on the host (an overlay made some compositors drop the
+    WebGL layer).
+  - `prism-cursor.tsx`, `magnetic.tsx`: public pages only, fine pointers,
+    motion allowed. `tilt-card.tsx`: 3D tilt + glare around `PaperCard`.
+    `spotlight-tracker.tsx`: one listener feeding `.spotlight` tiles their
+    border light (border only, never behind a figure). `rolling-figure.tsx`:
+    odometer roll on the headline portfolio value, plain text before and
+    after the roll. `kinetic-marquee.tsx`: the oversized verb band.
+  - three.js is allowed in `components/prism/` only, always dynamically
+    imported inside an effect, rendering only while on screen. GSAP stays
+    marketing-only.
+  - `app/(product)/template.tsx` gives every workspace navigation the
+    `.page-enter` rise; `[data-stagger]` children follow in sequence.
+  - Use `mediaMatches()` (`lib/media.ts`), not `window.matchMedia`, in
+    client effects: jsdom has no matchMedia.
+- **Sound** (`lib/sound/engine.ts`, `components/sound/`): every sound is
+  synthesised with Web Audio, no files. Off by default and remembered per
+  browser (`localStorage["stockviz:sound"]`); the switch (`SoundToggle`, a
+  real `role="switch"`) is in the workspace top bar and the public header.
+  `SoundProvider` (in `providers.tsx`) gives buttons/links/tabs a tap, nav
+  hover a tick and route changes a sweep. Forms call
+  `useOutcomeSound(success, error, "fill" | "success")`; anything else can
+  `emitSound(name)`. Mark a control `data-sound="none"` to silence it or
+  `data-sound="<name>"` to pick its sound. A sound must never be the only
+  signal: each one accompanies a visible change.
 - **Dark only for now** (owner, 12 Nov 2026): `components/providers.tsx`
   sets `forcedTheme="dark"`, and the theme toggles are gone from the top bar,
   the public header, the footer and Settings. The light tokens stay in
   `globals.css` and `theme-toggle.tsx` stays in the tree, so the light theme
   can return after its own design pass. Don't design new screens light-first.
+- **Title Case, never capitals** (owner, 26 Nov 2026): labels that used to
+  be set in capitals (eyebrows, table and field labels, badges, chips, stamps)
+  are written in Title Case. Don't use Tailwind `uppercase` or CSS
+  `text-transform: uppercase`, and don't build display text with
+  `toUpperCase()`. Pass dynamic labels through `titleCase()`
+  (`lib/title-case.ts`; anything that isn't a string passes through). Labels
+  use `tracking-[0.02em]`; the wide tracking that capitals needed is gone.
+  Exceptions that keep their capitals, by convention: ticker symbols (and the
+  ticker input boxes, which still upper-case what is typed), exchange codes
+  (NSE, NASDAQ), currency codes (USD, INR), time zones (UTC), financial and
+  indicator abbreviations (P&L, P/E, RSI, MACD, SMA, VWAP, VaR, XIRR, MAE,
+  EOD), account initials in the avatar, and month names written by the date
+  formatters ("Apr 7"). `titleCase()` leaves any all-capital or mixed-case
+  word as written, keeps minor words (of, to, vs, and) lower inside a label,
+  and leaves units such as 30d, bn and bps alone.
 - The type ramp adds `text-3xs` (10px) and `text-2xs` (11px) below Tailwind's
   `text-xs` for dense table meta and column labels. Use them instead of
   arbitrary `text-[10px]` / `text-[11px]`, which bypass the scale.
@@ -758,7 +845,7 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   equity curve; round trips linked to stock pages. Saved `rotation` runs
   render the same component. Tests: `tests/unit/rotation.test.tsx`, e2e in
   `research-workspace.spec.ts`.
-- `/event-study` (A4.5, Research nav and subnav, public): a GET form
+- `/event-study` (A4.5, Workbench nav and subnav, public): a GET form
   (`components/event-study/event-study-form.tsx`): trigger
   `RuleFieldEditor` with setups, news and delivery preset buttons
   (`TRIGGER_PRESETS`), universe (market, ticker list, watchlist signed in),
@@ -843,6 +930,153 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   when `cash_by_currency` (Phase 4.5b) holds a non-base currency: a sale of a
   EUR stock keeps its euros. The portfolio header and the dashboard hero
   show `ValuationNotice` when `valuation_warnings` is not empty (audit LG-13).
+- **Books (A5.1, A5.2).** `lib/api/books.ts` (server-only): `listBooks`,
+  `createBook`, `updateBook`, `deleteBook`, `withBook(path, book)` (appends
+  `book=<id|all>`). Every fetcher in `lib/api/trading.ts`, `options.ts` and
+  `journal.ts` takes an optional book. **URL rule** (`lib/book-url.ts`,
+  client-safe): the book is `?book=<id>` or `?book=all` on `BOOK_PAGES`
+  (dashboard, portfolio, trade, orders, trades, settings); absent = the
+  default book. `all` is allowed on all but settings (`ALL_BOOKS_PAGES`).
+  `lib/book-context.ts::loadBookContext(raw, path, query)` (server) loads the
+  list and returns `{books, book, selected, isAll, tradeBlock, limit}`; an
+  unknown id falls back to the default; with no `?book=` a valid `sv_book`
+  cookie (written by the switcher, a convenience only) redirects to that book.
+  Links: `components/book-link.tsx::BookLink` carries the page's `?book=` to
+  other book pages (portfolio, dashboard and operational components and
+  `PageSubnav` use it); `buildPortfolioHref({book})`; the order ticket keeps
+  it when the symbol changes. **Switcher**: `components/book-switcher.tsx`
+  (client: disclosure + links, arrows/Escape, phone-width panel under the
+  bar), loaded by `book-switcher-slot.tsx` in `TopUtilityBar` (signed in):
+  name, kind badge, currency, holder, archived, All books (2+ books) and
+  Manage books (`/settings#books`). **Tickets**: `ticket-book-line.tsx`
+  ("Trades into X (CUR)"), hidden `book_id` read by the server actions
+  (`bookIdFromForm`); `tradeBlockReason` disables the order ticket, option
+  form and strategy builder in All books, archived and imported books. The
+  stock page's ticket trades into the default book and says so.
+  **Settings → Books** (`components/books-panel.tsx`,
+  `settings/book-actions.ts`): create (name, USD/INR, paper/imported, holder
+  kind and label, no PAN field), rename, make default, archive/unarchive,
+  delete (two steps: what goes, then the name typed back; only empty or
+  archived, never the default); the cap shown. Account currency and risk
+  limits on Settings are the selected book's. **All books** views:
+  `CombinedBooksPanel` (each book's share, the FX rule, what is per book),
+  `PerBookOnly` stands in for journal, income, options Greeks, attribution,
+  risk, stress and rebalancing; trades and orders add a Book column/chip;
+  realized P&L is not totalled across currencies. `calculateNavChange` leaves
+  out All books `flow` (new books, imported buys) and chains the returns.
+  `scripts/seed-demo.mjs` writes snapshots into each demo user's default book.
+- **Broker status (A5.7, M1.7).** No live broker connection. `lib/api/brokers.ts`
+  (server-only, `getBrokerStatusOrNull()` never throws) reads
+  `/v1/broker/status`; `lib/broker-status.ts` (pure) turns each state into
+  words (`brokerCopy`: headline "Zerodha: not connected." / "snapshots
+  only." / "offline.", the detail, e.g. "Live broker data needs a paid Kite
+  Connect app; not set up.", and `IMPORT_LINE` "Imported books update when
+  you upload a tradebook (CSV)."; `brokerLine` for one line).
+  `components/brokers/broker-status.tsx`: `BrokerStatusList`
+  (`broker-status`, one item per broker with `data-state` and a badge; null
+  = "could not be read just now") on Settings (a Brokers panel) and
+  `/status` (a Brokers section, signed in only; signed out it says to sign
+  in), and `BrokerStatusLine` (`broker-status-line`) in an imported book's
+  empty state (the portfolio page fetches the status only for an imported
+  book; `BookStateNotice` adds the line once the book has imports). The
+  switcher adds `IMPORTED_BOOK_NOTE` (`switcher-broker-note`) under imported
+  books, static text, so the top bar makes no extra call. Never an error
+  page. Tests: `tests/unit/a57-broker-status.test.tsx`.
+- **Tradebook import (A5.3, M10.2).** `/portfolio/import?book=<id>`
+  (`app/(product)/(authed)/portfolio/import/`; a book page, so the switcher
+  keeps it; "Import tradebook" in the Portfolio & Tax sidebar group and the
+  palette). A paper book, All books, an archived or a non-INR book get an
+  empty state saying where imports go. `components/tradebook-import.tsx`
+  (client): the format-unconfirmed note ("tell us the header row"), file
+  input -> **Preview** (counts, a "Columns Matched" disclosure with the
+  header each field came from and ignored headers, the first new trades
+  with estimated charges and split restatement, problems by row) ->
+  **Confirm Import**; the file stays in component state between the two
+  calls and commit sends it again with the preview's `file_sha256`. Below:
+  sells waiting for an opening lot, the opening-lot form and list, and
+  Import History (counts per batch, a two-step delete whose outcome is
+  announced by the list, not the deleted row). Server actions in
+  `portfolio/import/actions.ts` check the file (`lib/tradebook-import.ts`:
+  `checkTradebookFile`, 2 MiB, CSV not XLSX; labels `PROBLEM_LABELS`,
+  `countItems`) and post its bytes through `authedPostText` (`lib/api/
+  server.ts`, a raw body with its own content type) via `lib/api/imports.ts`.
+  **Next 16 caps server-action bodies at 1 MB by default**
+  (`node_modules/next/dist/docs/.../serverActions.md`): `next.config.ts`
+  sets `experimental.serverActions.bodySizeLimit: "2200kb"` (2 MiB plus
+  multipart overhead; the API still refuses past 2 MiB). `BookStateNotice`
+  links "Import Tradebook (CSV)" on an imported book that is not archived;
+  Settings → Books creates imported books in INR. Nothing logs the file.
+  Tests: `lib/tradebook-import.test.ts`.
+- **Trade plans (A5.4, M10.3).** Types and the ticket helpers are
+  client-safe in `lib/plans.ts` (`planFigures` risk/reward/R:R and the first
+  problem, `planFormFields` / `planFromForm` (the `plan_*` hidden fields a
+  ticket posts), `splitTags`, `planBadge`); `lib/api/plans.ts` (server-only)
+  has `listPlans(book)`, `createPlan`, `updatePlan`, `deletePlan` and
+  `planPickerOptions()` (your setups' newest versions and presets, your open
+  theses; `/trade` and the stock page load it, a failure leaves the pickers
+  empty). Both paper tickets show `TicketPlanSection`
+  (`components/ticket-plan.tsx`, `ticket-plan`, figures in
+  `ticket-plan-figures`) for a buy (market or limit): a "Plan this trade"
+  checkbox that starts from the order's price and quantity, entry, stop,
+  target, size, setup, a thesis of this ticker, "Thesis (your words)", why
+  now and tags. `OrderReview` takes a `plan` slot: `PlanReview`
+  (`review-plan`: entry, stop, target, size, risk if stopped, reward : risk,
+  setup, the lock sentence) renders the hidden fields, and
+  `placeTradeAction` / `placeOrderAction` send them as the API's `plan`
+  (buys only; an invalid plan returns "Plan: ..."). The fill confirmation
+  adds "Your plan locked at this fill". The Portfolio **Journal** tab shows
+  `TradePlansPanel` (`components/plans/trade-plans-panel.tsx`,
+  `trade-plans`) above the P&L calendar for the selected book
+  (`loadPortfolioData(..., { plansBook })`; not in All books): a status
+  filter, one `plan-row` per plan (`data-status`, `data-badge`;
+  `plan-badge` Locked / Written after entry / Not filled yet / Closed /
+  Cancelled), opening to its details and an editor (notes and tags always;
+  prices and why only while open and unfilled; Cancel plan, Close plan)
+  through `portfolio/plan-actions.ts`; "Plan an open position"
+  (`plan-open-position`) for holdings without an active plan creates one
+  with `link_open_position`, labelled written after entry. The replay
+  journal says when it was written after entry. Tests:
+  `tests/unit/trade-plans.test.tsx`; the signed-in trade e2e plans a buy in
+  the second book (Locked) and an open position in the default one
+  (Written after entry).
+- **Journal entries (A5.5, M10.3).** Types and labels are client-safe in
+  `lib/journal-entries.ts` (`entryPlanBadge` Locked plan / Written after
+  entry / No plan, `BADGE_CLASS`, `rText`, `excursionPct`, `money`,
+  `entryHref`, `splitEntryTags`); `lib/api/journal-entries.ts` (server-only)
+  has `listJournalEntries(book | "all")`, `getJournalEntry`,
+  `patchJournalEntry`. Every figure comes from the API (computed on read);
+  the web never recomputes P&L, R, MAE or MFE. The Portfolio **Journal** tab
+  shows `JournalEntriesPanel` (`components/journal/journal-entries-panel.tsx`,
+  `journal-entries`) above the plans and the P&L calendar
+  (`loadPortfolioData(..., { entriesBook })`; in All books it lists every
+  book and replay session, and plans and the calendar stay per book): status
+  and source chips, one `journal-entry-row` per round trip (`data-status`,
+  `data-source`: symbol, source and plan badges, dates, `entry-r`,
+  `entry-pnl`, `entry-mae`, `entry-mfe`, size), each a link to
+  `/portfolio/journal/[id]` (`?book=` kept; mapped to the Portfolio item
+  through `matches: ["/portfolio", "/portfolio/journal"]`). The entry page
+  (`app/(product)/(authed)/portfolio/journal/[id]/page.tsx`, 404 for
+  another user's) has a `FigureStrip` (net P&L with estimated charges, R
+  with its risk or reason, MAE and MFE with money and date, average entry,
+  exit or the mark, holding), the basis note (`entry-basis`: "Daily bars: may
+  include moves before entry or after exit" for paper and imported),
+  `JournalEntryChart` (`journal-entry-chart`: `PriceChart` with the fills as
+  fill events, the closing one carrying R, MAE/MFE circles as `markers`, and
+  the plan's entry, stop and target as `priceLines`; bars from 21 days
+  before entry to 10 after the exit, a replay entry never past its last
+  fill or mark), the plan with the drill's adherence checks
+  (`entry-adherence`) or the written-after-entry note, the fills, News at
+  Entry / Exit (`news-at-entry`, `news-at-exit`; headline, source, date and
+  link; "No news copy for this date" before the sync's first document) and
+  `JournalReviewForm` (`journal-review-form`: review notes, mistakes,
+  lessons, setup and mistake tags; Ctrl/Cmd+Enter saves; through
+  `portfolio/journal-actions.ts`). `PriceChart` takes `priceLines`
+  (`PriceChartLine`). **R on fill markers:** a fill event with `r_multiple`
+  (the closing fill of a journal entry, from the API) is marked "S +0.97R"
+  and its summary says "closing the trade at +0.97R" (`formatR` in
+  `lib/chart-events.ts`); opening and partial fills stay "B"/"S". The P&L
+  calendar's caption says fills are dated on each exchange's own day.
+  Tests: `tests/unit/journal-entries.test.tsx`.
 - Operational trading (`/trade`, `/orders`, `/watchlist`, `/alerts`) is the
   authenticated execution/monitoring loop. See
   [`docs/OPERATIONAL_TRADING.md`](../../docs/OPERATIONAL_TRADING.md).
@@ -935,15 +1169,62 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   offset (audit RS-2). Use `parseApiTimestamp()` / `barTimeToUtcSeconds()` from
   `lib/api-time.ts`; chart wrappers already do. Test date code under
   `TZ=Asia/Tokyo` as well as UTC.
-- The product sidebar follows the Aurora board v3 (`lib/app-navigation.ts`):
-  Home, Markets and Earnings, then labelled sections (Research, Trade,
-  Portfolio) whose headings are not links but light up while one
-  of their routes is open, including `/stocks/*` for Research. Settings sits
-  apart at the bottom and only for signed-in users (proxy.ts guards it). The
-  wordmark carries the `EOD · SIMULATED` tag, and the top bar shows
+- **The six-workspace shell (A3.6, 26 Nov 2026).** `lib/app-navigation.ts`
+  is the one route → workspace map (`WORKSPACES`); the sidebar, the command
+  palette, the workspace subnavs and the page eyebrows all read it. No URL
+  moved, so old links still work.
+
+  | Workspace | Routes (sidebar items in order) |
+  | --- | --- |
+  | Today | `/dashboard` (Home; `/` for guests), `/notifications` |
+  | Markets | `/markets` (Overview), `/screener`, `/earnings`, `/news` |
+  | Workbench | `/setups`, `/checklist` (+ `/recommendations`, a redirect), `/compare`, `/event-study`; `/stocks/*` belongs here without an item (`extraMatches`) |
+  | Quant Lab | `/backtest`, `/backtest/runs` (Saved runs, + `/runs/[id]`), `/replay` (+ `/[id]`), `/drills` (+ `/new`, `/[id]`), `/news-reactions` |
+  | Portfolio & Tax | `/portfolio` (journal and A5.4 plans are its Journal tab), `/trade`, `/orders`, `/trades`, `/watchlist`, `/alerts`, Books (a signed-in shortcut to `/settings#books`, never "current") |
+  | AI Copilot | `/copilot`: a placeholder page until A8 (no input, no sample answers; it lists what is planned) |
+  | Bottom rail (`UTILITY_NAVIGATION`) | `/status` (everyone), `/settings` (signed in) |
+
+  The sidebar (`components/app-navigation.tsx`) draws each workspace as a
+  labelled group (`role="group"`, `data-workspace`, `data-active`): the
+  heading is not a link and lights up for any of its routes; the item with the
+  longest matching prefix gets `aria-current="page"` (so `/backtest/runs`
+  marks Saved runs, not Backtest). `item.note` renders a small chip (the
+  Copilot's "A8"). Icons are in `components/navigation-icons.ts`
+  (`NAV_ICONS` by href, `WORKSPACE_ICONS` by id), shared with the palette.
+  `ResearchSubnav` lists the current workspace's items ("<Workspace> tools")
+  and `ResearchPageHeader path="/x"` takes its eyebrow from the workspace.
+  **To add a route:** add the page, then an item in its workspace (or a prefix
+  in `extraMatches`), and an icon in `NAV_ICONS`.
+  `tests/unit/app-navigation.test.ts` walks `app/(product)/**/page.tsx` and
+  fails while a page is unmapped; the palette picks the item up by itself.
+  The wordmark carries the `EOD · Simulated` tag, and the top bar shows
   `DataDateChip` (`components/marketing/market-status.tsx`), the newest stored
   bar's date. It is an async server component, so unit tests that render the
   shell mock that module.
+- **Command palette (A3.6)**: `components/command-palette.tsx` (replaced
+  `global-ticker-search.tsx`), data in `lib/command-palette.ts`. ⌘K / Ctrl+K
+  anywhere in the product app (again to close), `/` outside a field, or the
+  top-bar button ("Search tickers, pages and actions": a field from `sm`, an
+  icon on phones). Sources: pages (every sidebar item and the bottom rail),
+  actions (`ACTIONS`: New backtest, Start a blind replay, Create drill deck,
+  New screen, Compare symbols, Place a paper order, Create price alert, Open
+  journal and plans, Switch book…, Manage books; account-only ones hidden from
+  guests), symbols (`searchSymbols`, debounced, newest request wins), recent
+  picks (localStorage `stockviz:palette-recent`, 5, every access guarded).
+  With no query: Recent, Suggested (the current workspace's other pages, then
+  a few actions), Popular Symbols. Ranking (`scoreCommand`): every query word
+  must start a word of the label, workspace or keywords; whole label words
+  and a label prefix rank first. Keyboard and a11y: Radix Dialog ("Command
+  palette", focus trap, page inert); focus stays in the `role="combobox"`
+  input with `aria-activedescendant` into a `role="listbox"` of labelled
+  `role="group"`s; the first option is active; ↑/↓ wrap, Enter opens, Escape
+  closes and focus returns to the trigger; a polite live region counts
+  results. Book pages keep `?book=` (`resolveCommandHref`); a symbol keeps the
+  stock page's `tf` and `indicators`. "Switch book…" dispatches
+  `OPEN_BOOK_SWITCHER_EVENT`, which `book-switcher.tsx` listens for (it opens
+  with focus on the first book). The panel sits near the top (`top-3`, `sm:
+  top-[12vh]`) so results grow downward and the phone keyboard never covers
+  the input.
 - `/dashboard` (Aurora board v3): the hero takes the full width, then
   orders, watchlist and alerts, then movers and allocation. The hero adds the
   last session's move beside the period change once there are three
@@ -1036,7 +1317,7 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   category (unticked = muted on that channel), an enable box, Save and Send
   test; a channel whose server config is missing reads "Not available on
   this server.", not an error. Browser push is not built.
-- `/checklist` (A2.4, M4.4, Research nav and subnav, public): the
+- `/checklist` (A2.4, M4.4, Workbench nav and subnav, public): the
   Checklist that replaced the 7-vote Signals. `getChecklist()` /
   `getSymbolChecklist()` (`lib/api/checklist.ts`, public) read
   `/v1/checklist` and `/v1/symbols/{t}/checklist`; helpers in
@@ -1060,7 +1341,7 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   is a `permanentRedirect` to `/checklist` (keeping `q`); `lib/api/recommendations.ts`,
   `signals-table.tsx` and `signals-workspace.ts` are gone. The revalidate tag is
   `checklist`.
-- `/news-reactions` (Phase 7.4, Research subnav, public, 20 views a minute
+- `/news-reactions` (Phase 7.4, Quant Lab nav and subnav, public, 20 views a minute
   per visitor): an event study from the URL (`tickers`, `sentiment`,
   `event_type`, `pre`, `post`) through `getEventStudy()` (`lib/api/research.ts`,
   cached with `bars`/`news` tags), shown by `components/event-study-view.tsx`
@@ -1105,7 +1386,7 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
 - `/status` (Phase 7.6, public, linked from the footer): each nightly job's
   last result and last success, the newest stored close per market, the
   Aegis sync and undeliverable events, from `/v1/status` (`lib/api/status.ts`,
-  `no-store`). Times in UTC.
+  `no-store`), and (A5.7) a Brokers section. Times in UTC.
 - Watchlist rows carry `last_close_at` and `currency`, and alert rows carry
   `currency` (audit RS-13), so the dashboard no longer loads the symbol list
   to format them. `/alerts` still loads it for the create form.

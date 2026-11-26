@@ -19,6 +19,7 @@ from stockviz.auth import OptionalUserIdDep
 from stockviz.db import get_session
 from stockviz.limiter import limiter
 from stockviz.models import Symbol
+from stockviz.routers.book_query import BookQuery
 from stockviz.schemas import (
     DividendEventOut,
     EarningsMarkerOut,
@@ -29,6 +30,7 @@ from stockviz.schemas import (
     SymbolEventsOut,
 )
 from stockviz.services.symbol_events import EVENT_TYPES, PUBLIC_TYPES, SymbolEvent, symbol_events
+from stockviz.services.trading.books import resolve_book
 
 router = APIRouter(prefix="/v1", tags=["events"])
 
@@ -80,6 +82,9 @@ def _out(event: SymbolEvent):
         quantity=event.quantity,
         price=event.price,
         r_multiple=event.r_multiple,
+        book_id=event.book_id,
+        journal_entry_id=event.journal_entry_id,
+        closes_entry=event.closes_entry,
     )
 
 
@@ -106,8 +111,12 @@ def events_for_symbol(
             ),
         ),
     ] = None,
+    book: BookQuery = None,
 ) -> SymbolEventsOut:
+    """``?book=`` limits fills to one of the caller's books (A5.1); default all books."""
     ticker = ticker.upper()
+    if book is not None and user_id is not None:
+        resolve_book(session, user_id, book)  # 404 unless it is the caller's
     if session.get(Symbol, ticker) is None:
         raise HTTPException(status_code=404, detail=f"Symbol {ticker!r} not found")
     end = to or date.today()
@@ -127,7 +136,9 @@ def events_for_symbol(
                 detail=f"Unknown event type(s): {', '.join(unknown)}. Use {', '.join(EVENT_TYPES)}",
             )
         wanted = tuple(t for t in EVENT_TYPES if t in parts)
-    events = symbol_events(session, ticker, start=start, end=end, types=wanted, user_id=user_id)
+    events = symbol_events(
+        session, ticker, start=start, end=end, types=wanted, user_id=user_id, book_id=book
+    )
     return SymbolEventsOut(
         ticker=ticker,
         from_date=start,

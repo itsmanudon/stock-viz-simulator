@@ -291,10 +291,13 @@ class ValuationWarningOut(BaseModel):
     """A figure the valuation could not price (audit LG-13).
 
     ``code``: ``no_close`` and ``no_option_price`` (valued at 0) or
-    ``no_fx_rate`` (added unconverted). ``subject`` is a ticker or currency.
+    ``no_fx_rate`` (added unconverted; in All books, dates without a rate are
+    left out of the combined history). ``stale_fx_rate`` (A5.2, All books
+    only): a rate older than the session before the date it values was used.
+    ``subject`` is a ticker or currency.
     """
 
-    code: Literal["no_close", "no_option_price", "no_fx_rate"]
+    code: Literal["no_close", "no_option_price", "no_fx_rate", "stale_fx_rate"]
     subject: str
     message: str
 
@@ -352,6 +355,32 @@ class PortfolioOut(BaseModel):
     # fixed (true once the account has any trade, order or option).
     base_currency: str = "USD"
     base_currency_locked: bool = True
+    # A5.2: set only for ``?book=all``: the books summed, each in the display
+    # currency. ``portfolio_id`` is 0 then and ``base_currency`` is the
+    # display currency.
+    combined: CombinedOut | None = None
+
+
+class CombinedBookOut(BaseModel):
+    """One book's share of the All books figure (A5.2)."""
+
+    id: int
+    name: str
+    kind: Literal["paper", "imported"]
+    base_currency: str
+    archived: bool
+    is_default: bool
+    total_value: Decimal
+    """In the display currency at the latest rate."""
+
+
+class CombinedOut(BaseModel):
+    """What ``?book=all`` summed and how (A5.2, M10.1)."""
+
+    books: list[CombinedBookOut]
+    fx_rule: str
+    per_book_only: list[str]
+    """Figures that are per book and absent from All books (risk, stress, ...)."""
 
 
 ClientOrderId = Annotated[
@@ -362,6 +391,141 @@ ClientOrderId = Annotated[
 the same key returns the first order instead of placing a second (#67, LG-10)."""
 
 
+# ---------------------------------------------------------------------------
+# Trade plans (A5.4, M10.3)
+# ---------------------------------------------------------------------------
+
+PlanPrice = Annotated[Decimal, Field(gt=0, max_digits=18, decimal_places=6)]
+PlanSize = Annotated[Decimal, Field(gt=0, max_digits=20, decimal_places=6)]
+PlanTag = Annotated[str, Field(min_length=1, max_length=32)]
+
+
+def _check_plan_prices(
+    side: str, entry: Decimal | None, stop: Decimal | None, target: Decimal | None
+) -> None:
+    if entry is None:
+        return
+    if side == "long":
+        if stop is not None and stop >= entry:
+            raise ValueError("a long plan's stop must be below its entry")
+        if target is not None and target <= entry:
+            raise ValueError("a long plan's target must be above its entry")
+    else:
+        if stop is not None and stop <= entry:
+            raise ValueError("a short plan's stop must be above its entry")
+        if target is not None and target >= entry:
+            raise ValueError("a short plan's target must be below its entry")
+
+
+class TradePlanDraft(BaseModel):
+    """The plan fields a trader writes (A5.4). Entry, stop and size are required."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    side: Literal["long", "short"] = "long"
+    planned_entry: PlanPrice
+    planned_stop: PlanPrice
+    planned_target: PlanPrice | None = None
+    planned_size: PlanSize
+    setup_version_id: int | None = Field(default=None, ge=1)
+    thesis_id: int | None = Field(default=None, ge=1)
+    thesis_text: str | None = Field(default=None, max_length=4000)
+    why: str | None = Field(default=None, max_length=2000)
+    invalidation: str | None = Field(default=None, max_length=4000)
+    horizon_bars: int | None = Field(default=None, ge=1, le=10000)
+    confidence: int | None = Field(default=None, ge=1, le=5)
+    notes: str | None = Field(default=None, max_length=8000)
+    tags: list[PlanTag] = Field(default_factory=list, max_length=12)
+
+    @model_validator(mode="after")
+    def _prices(self) -> TradePlanDraft:
+        _check_plan_prices(self.side, self.planned_entry, self.planned_stop, self.planned_target)
+        return self
+
+
+class TradePlanIn(TradePlanDraft):
+    """``POST /v1/plans``: a plan for ``ticker`` in the ``?book=`` book.
+
+    ``link_open_position`` links the book's open position in the ticker to the
+    plan: its entry fills were made before the plan, so the plan is labelled
+    "written after entry" and never locked.
+    """
+
+    ticker: str = Field(min_length=1, max_length=16)
+    link_open_position: bool = False
+
+
+class TradePlanPatch(BaseModel):
+    """``PATCH /v1/plans/{id}``. Plan fields only before the first fill (else
+    409); ``notes`` and ``tags`` always. ``status`` closes or cancels."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    planned_entry: PlanPrice | None = None
+    planned_stop: PlanPrice | None = None
+    planned_target: PlanPrice | None = None
+    planned_size: PlanSize | None = None
+    setup_version_id: int | None = Field(default=None, ge=1)
+    thesis_id: int | None = Field(default=None, ge=1)
+    thesis_text: str | None = Field(default=None, max_length=4000)
+    why: str | None = Field(default=None, max_length=2000)
+    invalidation: str | None = Field(default=None, max_length=4000)
+    horizon_bars: int | None = Field(default=None, ge=1, le=10000)
+    confidence: int | None = Field(default=None, ge=1, le=5)
+    notes: str | None = Field(default=None, max_length=8000)
+    tags: list[PlanTag] | None = Field(default=None, max_length=12)
+    status: Literal["closed", "cancelled"] | None = None
+
+
+class TradePlanOut(BaseModel):
+    id: int
+    source: Literal["paper", "replay", "drill", "imported"]
+    book_id: int | None
+    replay_session_id: int | None
+    ticker: str | None
+    currency: str
+    side: Literal["long", "short"]
+    planned_entry: Decimal | None
+    planned_stop: Decimal | None
+    planned_target: Decimal | None
+    planned_size: Decimal | None
+    risk_per_share: Decimal | None
+    """|entry - stop|."""
+    planned_risk: Decimal | None
+    """|entry - stop| x size, in ``currency``."""
+    reward_per_share: Decimal | None
+    """|target - entry| (null without a target)."""
+    reward_risk: Decimal | None
+    """reward / risk per share, 2 decimals (null without a target)."""
+    setup_version_id: int | None
+    setup_label: str | None
+    thesis_id: int | None
+    thesis_title: str | None
+    thesis_text: str | None
+    why: str | None
+    invalidation: str | None
+    horizon_bars: int | None
+    confidence: int | None
+    notes: str | None
+    tags: list[str]
+    status: Literal["open", "active", "closed", "cancelled"]
+    locked: bool
+    locked_at: datetime | None
+    first_fill_at: datetime | None
+    written_after_entry: bool
+    frozen: bool
+    """True once a fill is linked: only notes and tags can change."""
+    fills: int
+    """Paper fills linked to the plan (replay and drill plans: 0)."""
+    created_at: datetime
+    updated_at: datetime
+
+
+class TradePlansOut(BaseModel):
+    plans: list[TradePlanOut]
+    limit: int
+
+
 class TradeIn(BaseModel):
     """Request body for POST /v1/trades."""
 
@@ -369,6 +533,10 @@ class TradeIn(BaseModel):
     side: Literal["buy", "sell"]
     quantity: Decimal
     client_order_id: ClientOrderId = None
+    # A5.4: link the fill to a plan (one of the two; buys only).
+    trade_plan_id: int | None = Field(default=None, ge=1)
+    plan: TradePlanDraft | None = None
+    """A new plan written on the ticket, created with the order."""
 
     @field_validator("quantity")
     @classmethod
@@ -417,6 +585,14 @@ class TradeOut(BaseModel):
     # Native cash effect net of fees: a buy's value + fees, a sell's value - fees.
     net_native: Decimal | None = None
     realized_pnl_net: Decimal | None = None
+    # A5.2: the trade's book (always set; the All books list mixes them).
+    book_id: int | None = None
+    # A5.4: the plan the fill is linked to.
+    trade_plan_id: int | None = None
+    # A5.3: the broker fill an imported book's trade posts (null: paper). Its
+    # fees are estimated from the dated schedule (the tradebook has none).
+    broker_fill_id: int | None = None
+    fees_estimated: bool = False
 
 
 class TradeFeeLineOut(BaseModel):
@@ -731,7 +907,11 @@ class ReplayJournalOut(BaseModel):
     confidence: int | None = None
     reflection: str | None = None
     locked: bool
+    """The thesis fields are frozen: locked at the first fill, or (A5.4)
+    written after it."""
     locked_at: datetime | None = None
+    # A5.4: the journal (a trade plan) was started after the first fill.
+    written_after_entry: bool = False
     created_at: datetime
     updated_at: datetime
 
@@ -766,6 +946,10 @@ class PortfolioHistoryPointOut(BaseModel):
 
     date: date
     nav: Decimal
+    # A5.2, ``?book=all`` only: outside money that day in the display
+    # currency (a new book's opening value, an imported book's buys less
+    # sells), so a change over a range can leave it out. Null per book.
+    flow: Decimal | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -808,6 +992,9 @@ class AlertIn(BaseModel):
     setup_version_id: int | None = Field(default=None, ge=1)
     repeat: Literal["once", "every_cross"] = "once"
     cooldown_sessions: int = Field(default=1, ge=1, le=250)
+    # A5.1: the book a portfolio rule watches (yours, else 404); null = the
+    # default book. Portfolio rules only.
+    book_id: int | None = Field(default=None, ge=1)
 
 
 class AlertPatch(BaseModel):
@@ -830,6 +1017,8 @@ class AlertOut(BaseModel):
     target_price: Decimal | None
     params: dict[str, Any] | None = None
     setup_version_id: int | None = None
+    # A5.1: a portfolio rule's book; null = the default book.
+    book_id: int | None = Field(default=None, validation_alias="portfolio_id")
     repeat: str = "once"
     cooldown_sessions: int = 1
     paused: bool = False
@@ -1010,6 +1199,9 @@ class PendingOrderIn(BaseModel):
     quantity: str
     limit_price: str
     client_order_id: ClientOrderId = None
+    # A5.4: the plan the order's fill is linked to (buy limits only).
+    trade_plan_id: int | None = Field(default=None, ge=1)
+    plan: TradePlanDraft | None = None
 
 
 class PendingOrderOut(BaseModel):
@@ -1027,6 +1219,10 @@ class PendingOrderOut(BaseModel):
     fill_price: Decimal | None
     # Populated when a triggered order could not be filled.
     cancel_reason: str | None = None
+    # A5.2: the order's book (the All books list mixes them).
+    portfolio_id: int | None = None
+    # A5.4: the plan its fill will be linked to.
+    trade_plan_id: int | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -3219,6 +3415,62 @@ class BaseCurrencyIn(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Books (A5.1)
+# ---------------------------------------------------------------------------
+
+
+class BookOut(BaseModel):
+    """One book: a paper book trades here; an imported one holds a broker's fills."""
+
+    id: int
+    name: str
+    kind: Literal["paper", "imported"]
+    is_default: bool
+    # False for an imported book: holdings only, cash stays 0.
+    cash_tracked: bool
+    broker: str | None = None
+    holder_kind: Literal["self", "family", "huf"]
+    holder_label: str | None = None
+    base_currency: str
+    archived_at: datetime | None = None
+    created_at: datetime
+    # Paper and not archived: trades, orders and options may land in it.
+    writable: bool
+    # What the book has done (trades, orders, ...); empty = fresh, so its
+    # base currency can still change and it can be deleted outright.
+    activity: list[str] = Field(default_factory=list)
+
+
+class BooksOut(BaseModel):
+    books: list[BookOut]
+    limit: int
+
+
+class BookIn(BaseModel):
+    """``POST /v1/books``."""
+
+    name: str = Field(min_length=1, max_length=60)
+    kind: Literal["paper", "imported"] = "paper"
+    base_currency: Literal["USD", "INR"] = "USD"
+    holder_kind: Literal["self", "family", "huf"] = "self"
+    # Free text ("Mum", "Jariwala HUF"). Never a PAN: a PAN-shaped label is 422.
+    holder_label: str | None = Field(default=None, max_length=60)
+    # Imported books only; default zerodha.
+    broker: Literal["zerodha"] | None = None
+
+
+class BookPatch(BaseModel):
+    """``PATCH /v1/books/{id}``. Absent fields stay; ``holder_label: null`` clears it."""
+
+    name: str | None = Field(default=None, min_length=1, max_length=60)
+    holder_kind: Literal["self", "family", "huf"] | None = None
+    holder_label: str | None = Field(default=None, max_length=60)
+    archived: bool | None = None
+    # Only true: the default moves to this book.
+    is_default: Literal[True] | None = None
+
+
+# ---------------------------------------------------------------------------
 # Notifications (Phase 7.2)
 # ---------------------------------------------------------------------------
 
@@ -3677,8 +3929,14 @@ class FillEventOut(BaseModel):
     side: str
     quantity: Decimal
     price: Decimal
-    # A5 adds trade plans; until then the R-multiple is unknown.
+    # A5.5: the R of the journal entry this fill closes (null on opening and
+    # partial fills, and without a plan stop).
     r_multiple: float | None = None
+    # A5.1: the book the fill landed in.
+    book_id: int | None = None
+    # A5.5: the journal entry the fill belongs to (once the journal was read).
+    journal_entry_id: int | None = None
+    closes_entry: bool = False
 
 
 SymbolEventOut = Annotated[
@@ -3949,3 +4207,319 @@ class DrillOut(BaseModel):
     needs_plan: bool
     score: DrillScoreOut | None
     reveal: DrillRevealOut | None
+
+
+# --- A5.3: broker tradebook imports -----------------------------------------------
+
+
+class ImportColumnOut(BaseModel):
+    """Which header a canonical field was read from (``header`` null: absent)."""
+
+    field: str
+    label: str
+    required: bool
+    header: str | None
+
+
+class ImportTradeOut(BaseModel):
+    """A parsed trade: only the parsed fields, never the raw row."""
+
+    row: int
+    ticker: str
+    symbol: str
+    exchange: str
+    isin: str | None = None
+    side: Literal["buy", "sell"]
+    quantity: Decimal
+    price: Decimal
+    executed_at: datetime
+    time_known: bool = True
+    # Restated for later splits (the as-traded numbers stay on the fill).
+    restated_quantity: Decimal
+    restated_price: Decimal
+    product: Literal["delivery", "intraday", "mixed"] | None = None
+    fees: Decimal
+    fees_estimated: bool = True
+    status: Literal["posted", "needs_opening_lot"]
+    basis_uncertain: bool = False
+
+
+class ImportProblemOut(BaseModel):
+    """One row the import leaves out or flags. Row numbers count the header as
+    row 1. ``reason`` is fixed text: no cell value is ever echoed."""
+
+    row: int
+    kind: Literal[
+        "rejected",
+        "segment",
+        "unmatched",
+        "duplicate_in_file",
+        "already_imported",
+        "needs_opening_lot",
+        "basis_uncertain",
+    ]
+    reason: str
+    field: str | None = None
+    # Parsed fields only, where they help (the symbol of an unmatched row).
+    symbol: str | None = None
+    exchange: str | None = None
+
+
+class ImportCountsOut(BaseModel):
+    rows: int = 0
+    new: int = 0
+    posted: int = 0
+    needs_opening_lot: int = 0
+    duplicate: int = 0
+    unmatched: int = 0
+    skipped_segment: int = 0
+    rejected: int = 0
+    basis_uncertain: int = 0
+    intraday_inferred: int = 0
+
+
+class ImportPreviewOut(BaseModel):
+    """``POST /v1/books/{id}/imports/preview``: nothing is stored."""
+
+    format: str
+    format_status: Literal["unconfirmed", "confirmed"]
+    format_note: str
+    file_sha256: str
+    can_commit: bool
+    message: str | None = None
+    date_order: str
+    columns: list[ImportColumnOut]
+    unmatched_headers: list[str]
+    missing_required: list[str]
+    counts: ImportCountsOut
+    sample: list[ImportTradeOut]
+    problems: list[ImportProblemOut]
+    problems_total: int
+    fees_note: str
+
+
+class ImportBatchOut(BaseModel):
+    id: int
+    created_at: datetime
+    column_map: str
+    format_status: Literal["unconfirmed", "confirmed"]
+    rows_total: int
+    rows_added: int
+    rows_duplicate: int
+    rows_unmatched: int
+    rows_skipped_segment: int
+    rows_rejected: int
+    # Of this batch's fills now in the book.
+    fills: int
+    posted: int
+    needs_opening_lot: int
+    first_trade_at: datetime | None = None
+    last_trade_at: datetime | None = None
+
+
+class ImportCommitOut(BaseModel):
+    """``POST .../imports/commit``. ``batch`` is null when nothing was new."""
+
+    batch: ImportBatchOut | None
+    added: int
+    counts: ImportCountsOut
+
+
+class OpeningLotIn(BaseModel):
+    """An opening lot: shares held before the file's window."""
+
+    ticker: str = Field(min_length=1, max_length=16)
+    on: date
+    quantity: Decimal = Field(gt=0, le=Decimal("1e10"))
+    avg_price: Decimal = Field(gt=0, le=Decimal("1e9"))
+
+
+class OpeningLotOut(BaseModel):
+    id: int
+    ticker: str
+    on: date
+    quantity: Decimal
+    avg_price: Decimal
+    created_at: datetime
+
+
+class NeedsOpeningLotOut(BaseModel):
+    """Sells that wait for an opening lot, per symbol."""
+
+    ticker: str
+    fills: int
+    first_sell_at: datetime
+    # Shares the earliest waiting sell is short by, restated for splits.
+    short_by: Decimal
+
+
+class ImportsOut(BaseModel):
+    """``GET /v1/books/{id}/imports``."""
+
+    book_id: int
+    broker: str | None
+    format: str
+    format_status: Literal["unconfirmed", "confirmed"]
+    format_note: str
+    max_bytes: int
+    batches: list[ImportBatchOut]
+    opening_lots: list[OpeningLotOut]
+    needs_opening_lot: list[NeedsOpeningLotOut]
+    basis_uncertain: int
+    fills: int
+    posted: int
+
+
+# --- A5.5: journal entries (round trips) ------------------------------------------
+
+
+class JournalExcursionOut(BaseModel):
+    """One excursion: the worst (MAE) or best (MFE) bar while shares were held."""
+
+    per_share: Decimal
+    """Daily low (MAE) or high (MFE) minus the ledger's average cost."""
+    pct: Decimal
+    """Per share as a percent of the average cost."""
+    amount: Decimal
+    """Per share x the shares held that day."""
+    shares: Decimal
+    date: date
+    price: Decimal
+    """The low or high itself (where the chart marks it)."""
+    r: float | None = None
+    """Amount over the initial risk; null without a plan stop."""
+
+
+class JournalExcursionsOut(BaseModel):
+    basis: Literal["exact_close", "approximate_daily"]
+    note: str
+    mae: JournalExcursionOut | None = None
+    mfe: JournalExcursionOut | None = None
+    reason: str | None = None
+    """Why MAE and MFE are null (a missing bar, no bars)."""
+    missing_sessions: list[date] = []
+    sessions: int = 0
+
+
+class JournalEntryPlanOut(BaseModel):
+    id: int
+    status: str
+    label: Literal["locked", "written_after_entry"]
+    locked_at: datetime | None = None
+    first_fill_at: datetime | None = None
+    planned_entry: Decimal | None = None
+    planned_stop: Decimal | None = None
+    planned_target: Decimal | None = None
+    planned_size: Decimal | None = None
+    setup_version_id: int | None = None
+    setup_label: str | None = None
+    counts_for_adherence: bool
+    """Only a plan locked before the entry counts in plan-adherence stats."""
+
+
+class JournalEntryFillOut(BaseModel):
+    trade_id: int | None = None
+    replay_fill_id: int | None = None
+    side: Literal["buy", "sell"]
+    quantity: Decimal
+    price: Decimal
+    fees: Decimal
+    fees_estimated: bool
+    at: datetime
+    venue_date: date
+    time_known: bool
+    """False for an imported fill whose file gave a date only (dated at the IST day start)."""
+
+
+class JournalNewsHeadlineOut(BaseModel):
+    id: str
+    title: str
+    source: str | None = None
+    url: str | None = None
+    available_at: datetime
+    date: date
+    """The venue date of ``available_at``."""
+
+
+class JournalNewsWindowOut(BaseModel):
+    from_date: date
+    to_date: date
+    coverage: Literal["covered", "before_news_copy"]
+    """``before_news_copy``: the window ends before the first Aegis document held."""
+    note: str
+    headlines: list[JournalNewsHeadlineOut] = []
+
+
+class JournalEntrySummaryOut(BaseModel):
+    id: int
+    source: Literal["paper", "imported", "replay"]
+    book_id: int | None = None
+    replay_session_id: int | None = None
+    ticker: str | None = None
+    currency: str
+    venue: str
+    status: Literal["open", "closed"]
+    opened_at: datetime
+    closed_at: datetime | None = None
+    entry_date: date
+    exit_date: date | None = None
+    as_of_date: date | None = None
+    """The last close an open entry is marked at."""
+    mark_close: Decimal | None = None
+    avg_entry: Decimal
+    avg_exit: Decimal | None = None
+    quantity: Decimal
+    """Most shares held."""
+    held: Decimal
+    """Shares still held (open entries)."""
+    net_pnl: Decimal
+    """Realized minus every fee, plus the open shares marked at the last close."""
+    realized_pnl: Decimal
+    unrealized_pnl: Decimal | None = None
+    fees: Decimal
+    fees_estimated: bool
+    return_pct: Decimal | None = None
+    holding_days: int
+    holding_sessions: int
+    fills_count: int
+    r_multiple: float | None = None
+    r_reason: str | None = None
+    initial_risk: Decimal | None = None
+    excursions: JournalExcursionsOut
+    plan: JournalEntryPlanOut | None = None
+    setup_tags: list[str] = []
+    mistake_tags: list[str] = []
+    has_notes: bool = False
+
+
+class JournalEntryOut(JournalEntrySummaryOut):
+    fills: list[JournalEntryFillOut]
+    adherence: DrillScoreOut | None = None
+    """The drill's process score against a plan locked before entry."""
+    adherence_note: str | None = None
+    news_at_entry: JournalNewsWindowOut | None = None
+    news_at_exit: JournalNewsWindowOut | None = None
+    review_notes: str | None = None
+    mistakes: str | None = None
+    lessons: str | None = None
+    updated_at: datetime
+
+
+class JournalEntriesOut(BaseModel):
+    entries: list[JournalEntrySummaryOut]
+    total: int
+    limit: int
+    offset: int
+    note: str
+
+
+class JournalEntryPatch(BaseModel):
+    """The user's text. Null leaves a field; ``""`` clears it."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    review_notes: str | None = Field(default=None, max_length=4000)
+    mistakes: str | None = Field(default=None, max_length=4000)
+    lessons: str | None = Field(default=None, max_length=4000)
+    setup_tags: list[str] | None = Field(default=None, max_length=12)
+    mistake_tags: list[str] | None = Field(default=None, max_length=12)

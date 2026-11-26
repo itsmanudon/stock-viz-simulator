@@ -39,6 +39,7 @@ from stockviz.services.journal import (
 from stockviz.services.journal.query import utc_window
 from stockviz.services.trading import ensure_default_portfolio
 from stockviz.settings import get_settings
+from tests.book_helpers import default_book_id
 
 SECRET = get_settings().internal_api_token
 
@@ -354,9 +355,23 @@ def test_return_pct_uses_the_nav_snapshot_before_the_month(
     user_id = _make_user(session, "return@stockviz.dev")
     portfolio = ensure_default_portfolio(session, user_id)
     assert portfolio.id is not None
-    session.add(PortfolioSnapshot(user_id=user_id, date=date(2026, 7, 31), nav=Decimal("100000")))
+    session.add(
+        PortfolioSnapshot(
+            user_id=user_id,
+            portfolio_id=default_book_id(session, user_id),
+            date=date(2026, 7, 31),
+            nav=Decimal("100000"),
+        )
+    )
     # A later snapshot inside the month must not become the denominator.
-    session.add(PortfolioSnapshot(user_id=user_id, date=date(2026, 8, 15), nav=Decimal("50000")))
+    session.add(
+        PortfolioSnapshot(
+            user_id=user_id,
+            portfolio_id=default_book_id(session, user_id),
+            date=date(2026, 8, 15),
+            nav=Decimal("50000"),
+        )
+    )
     session.commit()
     _add_trade(session, portfolio_id=portfolio.id, ts=datetime(2026, 8, 19, 18), realized="5000.00")
 

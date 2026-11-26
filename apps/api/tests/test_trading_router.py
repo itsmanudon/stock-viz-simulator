@@ -145,6 +145,7 @@ def test_portfolio_overview_is_private_and_fresh(session: Session, client: TestC
         session.add(
             PortfolioSnapshot(
                 user_id=snapshot.user_id,
+                portfolio_id=snapshot.portfolio_id,
                 date=snapshot.date + timedelta(days=1),
                 nav=Decimal(110000 if snapshot.user_id == first_id else 200000),
             )

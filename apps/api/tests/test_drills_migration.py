@@ -25,6 +25,8 @@ pytestmark = pytest.mark.skipif(
 
 API_ROOT = Path(__file__).resolve().parents[1]
 BEFORE = "a6c4e2f8b913"
+# A5.4 (b5d4a7e1c902) archives drill_plans; this test checks A4.7's own step.
+AFTER = "6ad74b7c4b5b"
 
 
 @pytest.fixture(autouse=True)
@@ -57,7 +59,7 @@ def test_a47_drills_migration_up_down_up(monkeypatch) -> None:
             config.set_main_option("script_location", str(API_ROOT / "migrations"))
             command.upgrade(config, BEFORE)
             assert not DRILL_TABLES & set(inspect(engine).get_table_names())
-            command.upgrade(config, "head")
+            command.upgrade(config, AFTER)
             assert set(inspect(engine).get_table_names()) >= DRILL_TABLES
             with engine.begin() as conn:
                 conn.execute(
@@ -141,7 +143,7 @@ def test_a47_drills_migration_up_down_up(monkeypatch) -> None:
 
             command.downgrade(config, BEFORE)
             assert not DRILL_TABLES & set(inspect(engine).get_table_names())
-            command.upgrade(config, "head")
+            command.upgrade(config, AFTER)
             assert set(inspect(engine).get_table_names()) >= DRILL_TABLES
         finally:
             engine.dispose()

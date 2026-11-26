@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { BookLink as Link } from "@/components/book-link";
 
 import { DataTableFrame } from "@/components/data-table";
 import {
@@ -47,11 +47,11 @@ export function PortfolioPositions({ positions, displayCurrency, totalValue }: P
         <Table aria-label="Stock positions">
           <TableHeader>
             <TableRow className="hover:bg-transparent">
-              <TableHead>Symbol / company</TableHead>
+              <TableHead>Symbol / Company</TableHead>
               <TableHead className="text-right">Quantity</TableHead>
-              <TableHead className="text-right">Avg cost</TableHead>
+              <TableHead className="text-right">Avg Cost</TableHead>
               <TableHead className="text-right">Last EOD</TableHead>
-              <TableHead className="text-right">Market value</TableHead>
+              <TableHead className="text-right">Market Value</TableHead>
               <TableHead className="text-right">Unrealized P&amp;L</TableHead>
               <TableHead className="text-right">Weight</TableHead>
               <TableHead className="w-16" />

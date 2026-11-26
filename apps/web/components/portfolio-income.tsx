@@ -121,8 +121,8 @@ export function PortfolioIncome({
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
                   <TableHead>Symbol</TableHead>
-                  <TableHead>Ex-date</TableHead>
-                  <TableHead className="text-right">Amount credited · USD</TableHead>
+                  <TableHead>Ex-Date</TableHead>
+                  <TableHead className="text-right">Amount Credited · USD</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>

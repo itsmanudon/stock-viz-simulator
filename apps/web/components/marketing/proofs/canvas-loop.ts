@@ -105,14 +105,14 @@ export function readProofColors(): ProofColors {
   const s = getComputedStyle(document.documentElement);
   const get = (name: string, fallback: string) => s.getPropertyValue(name).trim() || fallback;
   return {
-    fg: get("--foreground", "#eef2f8"),
-    muted: get("--text-tertiary", "#8892a4"),
-    line: get("--border-muted", "#182030"),
-    brand: get("--brand-gradient-via", "#38c8f0"),
-    brandFrom: get("--brand-gradient-from", "#4255ff"),
-    pos: get("--positive", "#3dd68c"),
-    neg: get("--negative", "#ff6b78"),
-    card: get("--card", "#0b101b"),
+    fg: get("--foreground", "#f2eee6"),
+    muted: get("--text-tertiary", "#8e8a82"),
+    line: get("--border-muted", "#19191b"),
+    brand: get("--brand-gradient-via", "#f0dfba"),
+    brandFrom: get("--brand-gradient-from", "#8d9bb0"),
+    pos: get("--positive", "#3ee59a"),
+    neg: get("--negative", "#ff6b7f"),
+    card: get("--card", "#0d0d0f"),
   };
 }
 

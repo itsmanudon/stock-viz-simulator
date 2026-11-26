@@ -9,6 +9,7 @@
  * with a fresh client key per strategy (LG-10). Every leg opens or none do.
  */
 
+import { type TicketBook, TicketBookLine } from "@/components/ticket-book-line";
 import { useActionState, useEffect, useState } from "react";
 
 import {
@@ -72,7 +73,16 @@ function errorText(error: unknown): string {
   return "The strategy could not be priced right now.";
 }
 
-export function StrategyBuilder({ options }: { options: SymbolOption[] }) {
+export function StrategyBuilder({
+  options,
+  book = null,
+  blockedReason = null,
+}: {
+  options: SymbolOption[];
+  /** A5.2: the book the strategy opens in; `blockedReason` disables it. */
+  book?: TicketBook | null;
+  blockedReason?: string | null;
+}) {
   const [state, action, pending] = useActionState<StrategyTradeState, FormData>(
     openStrategyAction,
     {},
@@ -159,7 +169,11 @@ export function StrategyBuilder({ options }: { options: SymbolOption[] }) {
       aria-label="Strategy builder"
       className="overflow-hidden rounded-md border border-border-muted bg-card"
     >
+      <div className="px-5 pt-4">
+        <TicketBookLine book={book} blockedReason={blockedReason} />
+      </div>
       <form action={action} className="space-y-5 p-5">
+        {book ? <input type="hidden" name="book_id" value={book.id} /> : null}
         <input type="hidden" name="review_step" value={reviewing ? "confirmed" : "draft"} />
         {orderKey ? <input type="hidden" name="client_order_id" value={orderKey} /> : null}
         <input type="hidden" name="kind" value={kind} />
@@ -322,7 +336,7 @@ export function StrategyBuilder({ options }: { options: SymbolOption[] }) {
               <Button type="button" variant="outline" onClick={() => setReviewing(false)}>
                 Edit
               </Button>
-              <Button type="submit" disabled={pending || !hydrated}>
+              <Button type="submit" disabled={pending || !hydrated || Boolean(blockedReason)}>
                 {pending ? "Placing…" : `Place ${ready.quote.label.toLowerCase()}`}
               </Button>
             </div>
@@ -331,7 +345,7 @@ export function StrategyBuilder({ options }: { options: SymbolOption[] }) {
           <Button
             type="button"
             className="w-full"
-            disabled={!ready || !hydrated}
+            disabled={!ready || !hydrated || Boolean(blockedReason)}
             onClick={() => setReviewing(true)}
           >
             Review strategy

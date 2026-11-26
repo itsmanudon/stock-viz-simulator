@@ -11,9 +11,10 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { getJournalMonth } from "@/lib/api/journal";
 import { AuthedApiError, UnauthenticatedError } from "@/lib/api/server";
+import { bookIdParam } from "@/lib/book-url";
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ year: string; month: string }> },
 ) {
   const session = await auth();
@@ -36,9 +37,16 @@ export async function GET(
   }
 
   try {
-    return NextResponse.json(await getJournalMonth(parsedYear, parsedMonth), {
-      headers: { "Cache-Control": "private, no-store" },
-    });
+    return NextResponse.json(
+      await getJournalMonth(
+        parsedYear,
+        parsedMonth,
+        bookIdParam(new URL(request.url).searchParams.get("book")),
+      ),
+      {
+        headers: { "Cache-Control": "private, no-store" },
+      },
+    );
   } catch (err) {
     if (err instanceof UnauthenticatedError) {
       return NextResponse.json({ error: "Not signed in" }, { status: 401 });

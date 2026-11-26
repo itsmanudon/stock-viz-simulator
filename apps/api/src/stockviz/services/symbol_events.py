@@ -12,13 +12,14 @@ day, the distinct source names, and up to ``NEWS_ITEMS_PER_DAY`` headlines
 (title, source, URL, times). No article text: StockViz stores none.
 
 **Fills.** Read only for ``user_id``: trades of that user's portfolio on the
-symbol's instrument. ``r_multiple`` is null until A5 adds trade plans.
+symbol's instrument. ``r_multiple`` (A5.5) is the R of the journal entry the
+fill closes; null on opening and partial fills and without a plan stop.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import date, datetime, time, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 from decimal import Decimal
 
 from sqlmodel import Session, col, select
@@ -81,10 +82,25 @@ class SymbolEvent:
     quantity: Decimal | None = None
     price: Decimal | None = None
     r_multiple: float | None = None
+    book_id: int | None = None
+    journal_entry_id: int | None = None
+    closes_entry: bool = False
 
 
 def _day_bounds(start: date, end: date) -> tuple[datetime, datetime]:
     return datetime.combine(start, time.min), datetime.combine(end + timedelta(days=1), time.min)
+
+
+def linked_document_ids(ticker: str):
+    """Subquery: the ids of Aegis documents linked to ``ticker`` (local join, AG-2)."""
+    return (
+        select(AegisDocumentEntity.document_id)
+        .join(AegisMapping, col(AegisMapping.entity_id) == col(AegisDocumentEntity.entity_id))
+        .where(
+            AegisMapping.scheme == STOCKVIZ_SCHEME,
+            AegisMapping.identifier == stockviz_identifier(ticker),
+        )
+    )
 
 
 def news_clusters(
@@ -99,14 +115,7 @@ def news_clusters(
     ``available_at`` is at or before that instant (naive UTC)."""
     lo, hi = _day_bounds(start, end)
     cap = [col(AegisDocument.available_at) <= available_until] if available_until else []
-    linked = (
-        select(AegisDocumentEntity.document_id)
-        .join(AegisMapping, col(AegisMapping.entity_id) == col(AegisDocumentEntity.entity_id))
-        .where(
-            AegisMapping.scheme == STOCKVIZ_SCHEME,
-            AegisMapping.identifier == stockviz_identifier(ticker),
-        )
-    )
+    linked = linked_document_ids(ticker)
     docs = session.exec(
         select(AegisDocument)
         .where(
@@ -195,10 +204,26 @@ def _splits(session: Session, ticker: str, start: date, end: date) -> list[Symbo
 
 
 def _fills(
-    session: Session, ticker: str, start: date, end: date, user_id: int
+    session: Session,
+    ticker: str,
+    start: date,
+    end: date,
+    user_id: int,
+    book_id: int | None = None,
 ) -> list[SymbolEvent]:
-    lo, hi = _day_bounds(start, end)
-    rows = session.exec(
+    """The caller's fills across all their books (A5.1), or one book's.
+
+    A5.5: a fill's ``date`` is its venue's date (an NSE fill at 09:30 IST, or
+    an imported one dated at the IST day start, is that IST day), and the fill
+    that closes a journal entry carries the entry's R (null without a plan
+    stop; opening and partial fills stay null).
+    """
+    from stockviz.services.journal.entries import fill_r_multiples
+    from stockviz.services.markets.calendar import venue_for_ticker, venue_zone
+
+    zone = venue_zone(venue_for_ticker(ticker))
+    lo, hi = _day_bounds(start - timedelta(days=1), end + timedelta(days=1))
+    stmt = (
         select(Trade)
         .join(Portfolio, col(Portfolio.id) == col(Trade.portfolio_id))
         .where(
@@ -207,21 +232,37 @@ def _fills(
             col(Trade.ts) >= lo,
             col(Trade.ts) < hi,
         )
-        .order_by(col(Trade.ts))
-        .limit(MAX_FILLS)
-    ).all()
-    return [
-        SymbolEvent(
-            type="fill",
-            date=r.ts.date(),
-            ts=r.ts,
-            side=str(getattr(r.side, "value", r.side)),
-            quantity=r.quantity,
-            price=r.price,
-            r_multiple=None,
+    )
+    if book_id is not None:
+        stmt = stmt.where(col(Trade.portfolio_id) == book_id)
+    rows = session.exec(stmt.order_by(col(Trade.ts)).limit(MAX_FILLS)).all()
+    instrument_id = rows[0].instrument_id if rows else None
+    r_by_trade = (
+        fill_r_multiples(session, user_id, instrument_id, book_id=book_id)
+        if instrument_id is not None
+        else {}
+    )
+    out: list[SymbolEvent] = []
+    for r in rows:
+        day = r.ts.replace(tzinfo=UTC).astimezone(zone).date()
+        if not start <= day <= end:
+            continue
+        marker = r_by_trade.get(r.id or 0)
+        out.append(
+            SymbolEvent(
+                type="fill",
+                date=day,
+                ts=r.ts,
+                side=str(getattr(r.side, "value", r.side)),
+                quantity=r.quantity,
+                price=r.price,
+                r_multiple=marker.r_multiple if marker else None,
+                book_id=r.portfolio_id,
+                journal_entry_id=marker.journal_entry_id if marker else None,
+                closes_entry=marker.closes_entry if marker else False,
+            )
         )
-        for r in rows
-    ]
+    return out
 
 
 def symbol_events(
@@ -232,6 +273,7 @@ def symbol_events(
     end: date,
     types: tuple[str, ...],
     user_id: int | None,
+    book_id: int | None = None,
 ) -> list[SymbolEvent]:
     """Every wanted event in [start, end], oldest first, then in type order."""
     symbol = session.get(Symbol, ticker)
@@ -246,7 +288,7 @@ def symbol_events(
     if "split" in types:
         out += _splits(session, ticker, start, end)
     if "fill" in types and user_id is not None:
-        out += _fills(session, ticker, start, end, user_id)
+        out += _fills(session, ticker, start, end, user_id, book_id)
     order = {t: i for i, t in enumerate(EVENT_TYPES)}
     out.sort(key=lambda e: (e.date, order[e.type], e.ts or datetime.min))
     return out

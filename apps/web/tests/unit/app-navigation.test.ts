@@ -1,83 +1,125 @@
+import { readdirSync, statSync } from "node:fs";
+import path from "node:path";
+
 import { describe, expect, it } from "vitest";
 
 import {
-  APP_NAVIGATION,
   SETTINGS_NAVIGATION,
+  UTILITY_NAVIGATION,
+  WORKSPACES,
   getActiveNavigation,
   pathMatches,
+  workspaceForPath,
+  workspaceLabelFor,
+  workspaceSubnav,
 } from "@/lib/app-navigation";
 
-describe("pathMatches", () => {
-  it("matches a route and its descendants without matching a sibling prefix", () => {
-    expect(pathMatches("/stocks/AAPL", ["/stocks"])).toBe(true);
-    expect(pathMatches("/marketplace", ["/markets"])).toBe(false);
-  });
-});
+const PRODUCT_DIR = path.resolve(__dirname, "../../app/(product)");
 
-describe("getActiveNavigation", () => {
+/** Every `page.tsx` under app/(product), as a URL with sample values for dynamic segments. */
+function productRoutes(dir = PRODUCT_DIR, segments: string[] = []): string[] {
+  const routes: string[] = [];
+  for (const entry of readdirSync(dir)) {
+    const full = path.join(dir, entry);
+    if (statSync(full).isDirectory()) {
+      // Route groups `(name)` add no URL segment; dynamic `[x]` gets a sample value.
+      const segment = /^\(.*\)$/.test(entry) ? null : entry.replace(/^\[.*\]$/, "sample");
+      routes.push(...productRoutes(full, segment ? [...segments, segment] : segments));
+    } else if (entry === "page.tsx") {
+      routes.push(`/${segments.join("/")}`);
+    }
+  }
+  return routes;
+}
+
+describe("route → workspace map", () => {
+  const routes = productRoutes();
+
+  it("finds the product pages", () => {
+    expect(routes).toEqual(expect.arrayContaining(["/dashboard", "/stocks/sample", "/copilot"]));
+    expect(routes.length).toBeGreaterThan(25);
+  });
+
+  it("maps every product page to exactly one workspace or the bottom rail", () => {
+    const unmapped = routes.filter((route) => {
+      const inRail = UTILITY_NAVIGATION.some((item) => pathMatches(route, item.matches));
+      return !inRail && workspaceForPath(route) === null;
+    });
+    // A new page fails here until it is added to lib/app-navigation.ts.
+    expect(unmapped).toEqual([]);
+  });
+
   it.each([
-    ["/dashboard", "/dashboard", "/dashboard"],
-    ["/markets", "/markets", "/markets"],
-    ["/stocks/AAPL", "/screener", null],
-    ["/compare?tickers=AAPL", "/screener", "/compare"],
-    ["/backtest?ticker=AAPL", "/screener", "/backtest"],
-    ["/checklist", "/screener", "/checklist"],
-    ["/replay/42", "/screener", "/replay"],
-    ["/orders/42", "/trade", "/orders"],
-    ["/watchlist", "/portfolio", "/watchlist"],
-    ["/alerts", "/portfolio", "/alerts"],
-    ["/trades", "/portfolio", "/trades"],
-    ["/settings", "/settings", "/settings"],
-  ])("maps %s to its owning domain", (pathname, groupHref, itemHref) => {
-    expect(getActiveNavigation(pathname)).toEqual({ groupHref, itemHref });
+    ["/dashboard", "today", "/dashboard"],
+    ["/notifications", "today", "/notifications"],
+    ["/markets", "markets", "/markets"],
+    ["/earnings", "markets", "/earnings"],
+    ["/screener", "markets", "/screener"],
+    ["/news", "markets", "/news"],
+    ["/stocks/AAPL", "workbench", null],
+    ["/stocks/RELIANCE.NS?tf=1Y", "workbench", null],
+    ["/compare?tickers=AAPL", "workbench", "/compare"],
+    ["/setups", "workbench", "/setups"],
+    ["/checklist", "workbench", "/checklist"],
+    ["/recommendations", "workbench", "/checklist"],
+    ["/event-study", "workbench", "/event-study"],
+    ["/backtest?ticker=AAPL", "quant-lab", "/backtest"],
+    ["/backtest/runs", "quant-lab", "/backtest/runs"],
+    ["/backtest/runs/12", "quant-lab", "/backtest/runs"],
+    ["/replay/42", "quant-lab", "/replay"],
+    ["/drills/new", "quant-lab", "/drills"],
+    ["/news-reactions", "quant-lab", "/news-reactions"],
+    ["/portfolio?tab=journal", "portfolio-tax", "/portfolio"],
+    ["/portfolio/journal/42", "portfolio-tax", "/portfolio"],
+    ["/trade", "portfolio-tax", "/trade"],
+    ["/orders/42", "portfolio-tax", "/orders"],
+    ["/trades", "portfolio-tax", "/trades"],
+    ["/watchlist", "portfolio-tax", "/watchlist"],
+    ["/alerts", "portfolio-tax", "/alerts"],
+    ["/copilot", "copilot", "/copilot"],
+  ])("maps %s to %s", (pathname, workspaceId, itemHref) => {
+    expect(getActiveNavigation(pathname)).toEqual({ workspaceId, itemHref });
   });
 
-  it("returns no active route for public pages", () => {
-    expect(getActiveNavigation("/login")).toEqual({ groupHref: null, itemHref: null });
+  it("does not confuse sibling prefixes", () => {
+    expect(pathMatches("/marketplace", ["/markets"])).toBe(false);
+    // /trades is not /trade, /news-reactions is not /news.
+    expect(getActiveNavigation("/trades").itemHref).toBe("/trades");
+    expect(getActiveNavigation("/news-reactions").workspaceId).toBe("quant-lab");
   });
 
-  it("orders the sidebar as the Aurora board does", () => {
-    expect(APP_NAVIGATION.map((group) => group.label)).toEqual([
-      "Home",
+  it("keeps Settings and Status in the bottom rail, outside every workspace", () => {
+    expect(getActiveNavigation("/settings")).toEqual({ workspaceId: null, itemHref: "/settings" });
+    expect(getActiveNavigation("/status")).toEqual({ workspaceId: null, itemHref: "/status" });
+    const hrefs = WORKSPACES.flatMap((w) => w.items.map((item) => item.href));
+    expect(hrefs).not.toContain(SETTINGS_NAVIGATION.href);
+    expect(getActiveNavigation("/login")).toEqual({ workspaceId: null, itemHref: null });
+  });
+
+  it("orders the six workspaces as the architecture does", () => {
+    expect(WORKSPACES.map((w) => w.label)).toEqual([
+      "Today",
       "Markets",
-      "Earnings",
-      "Research",
-      "Trade",
-      "Portfolio",
+      "Workbench",
+      "Quant Lab",
+      "Portfolio & Tax",
+      "AI Copilot",
     ]);
-    const research = APP_NAVIGATION.find((group) => group.label === "Research");
-    expect(research?.href).toBe("/screener");
-    expect(research?.items?.map((item) => item.label)).toEqual([
-      "Screener",
-      "Setups",
-      "Checklist",
-      "Compare",
+    const hrefs = WORKSPACES.flatMap((w) => w.items.map((item) => item.href));
+    expect(new Set(hrefs).size).toBe(hrefs.length);
+  });
+
+  it("gives each workspace page its own subnav and eyebrow", () => {
+    expect(workspaceSubnav("/replay").map((item) => item.label)).toEqual([
       "Backtest",
+      "Saved runs",
       "Replay",
       "Drills",
-      "News",
-      "Event study",
       "News reactions",
     ]);
-    const trade = APP_NAVIGATION.find((group) => group.label === "Trade");
-    expect(trade?.items?.map((item) => item.label)).not.toContain("Backtest");
-    const portfolio = APP_NAVIGATION.find((group) => group.label === "Portfolio");
-    expect(portfolio?.items?.map((item) => item.label)).toEqual([
-      "Overview",
-      "Watchlist",
-      "Alerts",
-      "Trade history",
-    ]);
-  });
-});
-
-describe("SETTINGS_NAVIGATION", () => {
-  it("is kept out of the grouped sections", () => {
-    expect(SETTINGS_NAVIGATION.href).toBe("/settings");
-    const hrefs = APP_NAVIGATION.flatMap((group) => [
-      group.href,
-      ...(group.items?.map((item) => item.href) ?? []),
-    ]);
-    expect(hrefs).not.toContain("/settings");
+    // Books opens Settings, so it is not a workspace tab.
+    expect(workspaceSubnav("/portfolio").map((item) => item.label)).not.toContain("Books");
+    expect(workspaceLabelFor("/compare")).toBe("Workbench");
+    expect(workspaceLabelFor("/login")).toBe("Research");
   });
 });

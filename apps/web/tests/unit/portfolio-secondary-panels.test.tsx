@@ -163,10 +163,10 @@ describe("portfolio operational panels", () => {
     render(<PortfolioOrders orders={[order]} />);
 
     const table = screen.getByRole("table", { name: "Pending portfolio orders" });
-    expect(within(table).getByText("Native quote")).toBeVisible();
+    expect(within(table).getByText("Native Quote")).toBeVisible();
     expect(within(table).getByText("180.00")).toBeVisible();
     expect(within(table).queryByText("$180.00")).not.toBeInTheDocument();
-    expect(within(table).getByText("BUY")).toBeVisible();
+    expect(within(table).getByText("Buy")).toBeVisible();
     expect(within(table).getByText("Limit")).toBeVisible();
     expect(
       within(table).getByRole("button", { name: "Cancel AAPL buy limit order" }),

@@ -4,6 +4,7 @@
  * from the notification's `data`; anything else renders nothing.
  */
 
+import { titleCase } from "@/lib/title-case";
 import Link from "next/link";
 
 function tickers(raw: unknown): string[] {
@@ -24,7 +25,7 @@ function Row({ label, items, tone }: { label: string; items: string[]; tone: str
   if (!items.length) return null;
   return (
     <div className="flex flex-wrap items-baseline gap-1.5">
-      <dt className="text-2xs font-medium text-text-tertiary uppercase">{label}</dt>
+      <dt className="text-2xs font-medium text-text-tertiary">{titleCase(label)}</dt>
       <dd className="flex flex-wrap gap-1">
         {items.map((t) => (
           <Link

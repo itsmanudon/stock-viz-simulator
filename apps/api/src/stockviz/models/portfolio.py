@@ -12,7 +12,18 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import JSON, CheckConstraint, Index, Numeric, String, UniqueConstraint
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    CheckConstraint,
+    ForeignKey,
+    Index,
+    Integer,
+    Numeric,
+    String,
+    UniqueConstraint,
+    text,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Column, Field, SQLModel
 
@@ -25,21 +36,93 @@ class TradeSide(enum.StrEnum):
     SELL = "sell"
 
 
+class BookKind(enum.StrEnum):
+    """A5.1: a paper book trades in the simulator; an imported one holds a
+    broker's fills (A5.3) and never trades here."""
+
+    PAPER = "paper"
+    IMPORTED = "imported"
+
+
+class HolderKind(enum.StrEnum):
+    """Whose money a book stands for (A5.1, question 1). A label only: no PAN."""
+
+    SELF = "self"
+    FAMILY = "family"
+    HUF = "huf"
+
+
+MAX_BOOKS_PER_USER = 20
+"""A5.1 cap on books per user, archived ones included (question 1)."""
+
+BOOK_NAME_MAX = 60
+HOLDER_LABEL_MAX = 60
+
+
 class Portfolio(SQLModel, table=True):
+    """One book (A5.1). A user holds up to ``MAX_BOOKS_PER_USER``; exactly one
+    is the default, which every route uses when no ``?book=`` is given."""
+
     __tablename__ = "portfolios"  # pyright: ignore[reportAssignmentType]
-    # Backstop for the portfolio lock (audit LG-11): every writer checks
-    # available cash first, so a negative balance means a lost race.
-    __table_args__ = (CheckConstraint("cash_balance >= 0", name="ck_portfolios_cash_nonnegative"),)
+    __table_args__ = (
+        # Backstop for the portfolio lock (audit LG-11): every writer checks
+        # available cash first, so a negative balance means a lost race.
+        CheckConstraint("cash_balance >= 0", name="ck_portfolios_cash_nonnegative"),
+        CheckConstraint("kind IN ('paper', 'imported')", name="ck_portfolios_kind"),
+        CheckConstraint(
+            "holder_kind IN ('self', 'family', 'huf')", name="ck_portfolios_holder_kind"
+        ),
+        CheckConstraint("broker IS NULL OR broker IN ('zerodha')", name="ck_portfolios_broker"),
+        # The default book is the one writes fall back to: never archived.
+        CheckConstraint(
+            "NOT (is_default AND archived_at IS NOT NULL)",
+            name="ck_portfolios_default_not_archived",
+        ),
+        # One default per user. Two concurrent first requests both try to
+        # INSERT a default; the loser hits this index and re-reads the winner
+        # (the race guard the old unique user_id index gave, kept per book).
+        Index(
+            "uq_portfolios_user_default",
+            "user_id",
+            unique=True,
+            postgresql_where=text("is_default"),
+            sqlite_where=text("is_default"),
+        ),
+        UniqueConstraint("user_id", "name", name="uq_portfolios_user_name"),
+    )
 
     id: int | None = Field(default=None, primary_key=True)
-    # One default paper book per user — concurrent first-use INSERTs collide
-    # on this unique index and retry as a read of the winner's row.
-    user_id: int = Field(foreign_key="users.id", unique=True, index=True)
+    user_id: int = Field(foreign_key="users.id", index=True)
     name: str = Field(default="Default", max_length=128)
+    kind: BookKind = Field(
+        default=BookKind.PAPER,
+        sa_column=Column(String(16), nullable=False, server_default="paper"),
+    )
+    # Python default True: code that builds a lone Portfolio (tests, seeds)
+    # gets the default book, as before A5.1. Book CRUD sets False.
+    is_default: bool = Field(
+        default=True, sa_column=Column(Boolean, nullable=False, server_default=text("false"))
+    )
+    # False for an imported book: holdings only, cash stays 0 (A5.3).
+    cash_tracked: bool = Field(
+        default=True, sa_column=Column(Boolean, nullable=False, server_default=text("true"))
+    )
+    broker: str | None = Field(default=None, sa_column=Column(String(16), nullable=True))
+    holder_kind: HolderKind = Field(
+        default=HolderKind.SELF,
+        sa_column=Column(String(8), nullable=False, server_default="self"),
+    )
+    # Free text ("Mum", "Jariwala HUF"). Never a PAN or account number.
+    holder_label: str | None = Field(
+        default=None, sa_column=Column(String(HOLDER_LABEL_MAX), nullable=True)
+    )
+    # Readable, never tradable, while set.
+    archived_at: datetime | None = Field(default=None, nullable=True)
     # Cash in ``base_currency``. Other currencies live in ``cash_balances``
     # (Phase 4.5b): a sale of SAP.DE credits EUR, and a buy spends EUR first.
     cash_balance: Decimal = Field(sa_column=Column(Numeric(20, 6), nullable=False))
-    # Only USD today; the column exists so an INR-based book can follow.
+    # USD or INR, per book (Phase 4.8; A5.1 made it per book). Fixed once
+    # the book has activity.
     base_currency: str = Field(
         default="USD", sa_column=Column(String(3), nullable=False, server_default="USD")
     )
@@ -178,20 +261,43 @@ class Trade(SQLModel, table=True):
     fee_lines: list[dict[str, Any]] | None = Field(
         default=None, sa_column=Column(JSON().with_variant(JSONB(), "postgresql"), nullable=True)
     )
+    # A5.4: the plan this fill belongs to (``trade_plans``; null = none).
+    trade_plan_id: int | None = Field(
+        default=None,
+        sa_column=Column(
+            Integer, ForeignKey("trade_plans.id", ondelete="SET NULL"), nullable=True, index=True
+        ),
+    )
+    # A5.3: the broker fill (``broker_fills``) an imported book's trade posts.
+    # Null for paper fills. Its quantity and price are restated for splits
+    # after the fill; the broker fill keeps them as traded.
+    broker_fill_id: int | None = Field(
+        default=None,
+        sa_column=Column(
+            Integer,
+            ForeignKey("broker_fills.id", ondelete="CASCADE"),
+            nullable=True,
+            unique=True,
+        ),
+    )
 
 
 class PortfolioSnapshot(SQLModel, table=True):
-    """One row per user per day with the portfolio's net asset value.
+    """One row per book per day with the book's net asset value.
 
     Written by an APScheduler job after the daily price refresh. The
-    ``(user_id, date)`` uniqueness lets the writer use upsert / idempotent
-    re-runs without piling up duplicates.
+    ``(portfolio_id, date)`` uniqueness (A5.1; it was per user) lets the
+    writer use upsert / idempotent re-runs without piling up duplicates.
+    ``user_id`` stays for the combined view across a user's books (A5.2).
     """
 
     __tablename__ = "portfolio_snapshots"  # pyright: ignore[reportAssignmentType]
-    __table_args__ = (UniqueConstraint("user_id", "date", name="uq_portfolio_snapshots_user_date"),)
+    __table_args__ = (
+        UniqueConstraint("portfolio_id", "date", name="uq_portfolio_snapshots_portfolio_date"),
+    )
 
     id: int | None = Field(default=None, primary_key=True)
     user_id: int = Field(foreign_key="users.id", index=True)
+    portfolio_id: int = Field(foreign_key="portfolios.id", index=True)
     date: date_type = Field(nullable=False, index=True)
     nav: Decimal = Field(sa_column=Column(Numeric(20, 6), nullable=False))

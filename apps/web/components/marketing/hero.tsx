@@ -29,7 +29,8 @@ import { HeroPanel } from "@/components/marketing/hero-panel";
 import { loadPhoneScreens } from "@/components/marketing/hero-phone-screens";
 import { HeroStage } from "@/components/marketing/hero-stage";
 import { describeBreadth, loadBreadth } from "@/components/marketing/proofs/breadth";
-import { MarketWeather } from "@/components/marketing/proofs/market-weather";
+import { LiquidChrome } from "@/components/prism/liquid-chrome";
+import { Magnetic } from "@/components/prism/magnetic";
 import { Button } from "@/components/ui/button";
 import { listSymbols } from "@/lib/api";
 
@@ -85,41 +86,50 @@ export async function Hero() {
 
   const lead = (
     <div className="mx-auto flex w-full max-w-4xl flex-col items-center px-4 pt-14 text-center sm:px-6 sm:pt-20 lg:pt-24">
-      {breadth ? (
-        <MarketWeather
-          share={breadth.share}
-          // Full-bleed: the hero copy is transformed by its entrance motion,
-          // which makes it this canvas's positioning box.
-          className="top-0 left-1/2 h-[42rem] w-screen -translate-x-1/2"
-        />
-      ) : null}
+      {/* Liquid Chrome (WebGL), its mid-tones tinted green or red by the session's
+          breadth. Full-bleed: the hero copy is transformed by its entrance
+          motion, which makes it this canvas's positioning box. */}
+      <LiquidChrome
+        share={breadth?.share ?? null}
+        className="-top-[68px] left-1/2 h-[calc(46rem+68px)] w-screen -translate-x-1/2"
+      />
       <Link
         href="/trade"
-        className="glass inline-flex items-center gap-2 rounded-full py-1 pr-2.5 pl-3 font-mono text-2xs tracking-[0.12em] text-text-secondary uppercase transition-colors hover:text-foreground"
+        className="glass inline-flex items-center gap-2 rounded-full py-1 pr-2.5 pl-3 font-mono text-2xs tracking-[0.02em] text-text-secondary transition-colors hover:text-foreground"
       >
-        Options settlement
+        Options Settlement
         <ArrowRight className="size-3" aria-hidden />
       </Link>
 
-      <h1 className="mt-6 text-4xl font-medium tracking-[-0.035em] text-balance sm:text-6xl lg:text-7xl">
-        Learn the market <span className="text-brand-gradient">without risking the money</span>
+      <h1 className="mt-6 text-5xl leading-[0.98] font-medium tracking-[-0.05em] text-balance sm:text-7xl lg:text-[6.5rem]">
+        Learn the market <span className="font-editorial text-prism pr-1">without</span> risking the
+        money
       </h1>
 
-      <p className="mt-6 max-w-xl text-lg leading-8 text-text-secondary text-pretty">
+      <p className="mt-8 max-w-xl text-lg leading-8 text-text-secondary text-pretty">
         Screen it, backtest it, then trade it on paper — and keep score of what your decisions were
         actually worth.
       </p>
 
       <div className="mt-9 flex flex-wrap items-center justify-center gap-3">
-        <Button asChild size="lg" className="rounded-full px-6">
-          <Link href="/signup" className="gap-2">
-            Create free account
-            <ArrowRight className="size-4" aria-hidden />
-          </Link>
-        </Button>
-        <Button asChild size="lg" variant="outline" className="glass rounded-full px-6">
-          <Link href="/markets">Explore markets</Link>
-        </Button>
+        <Magnetic>
+          <Button asChild size="lg" className="prism-cta h-12 rounded-full px-7 text-base">
+            <Link href="/signup" className="gap-2">
+              Create free account
+              <ArrowRight className="size-4" aria-hidden />
+            </Link>
+          </Button>
+        </Magnetic>
+        <Magnetic strength={0.2}>
+          <Button
+            asChild
+            size="lg"
+            variant="outline"
+            className="glass h-12 rounded-full px-7 text-base"
+          >
+            <Link href="/markets">Explore markets</Link>
+          </Button>
+        </Magnetic>
       </div>
 
       <ul className="mt-8 flex flex-wrap items-center justify-center gap-x-5 gap-y-2.5">

@@ -5,8 +5,8 @@
  * Market fills are recorded on /trades; this page is conditional paper orders.
  */
 
+import { BookLink as Link } from "@/components/book-link";
 import type { Metadata } from "next";
-import Link from "next/link";
 
 import { CountBadge } from "@/components/count-badge";
 import {
@@ -19,6 +19,7 @@ import { PageFrame } from "@/components/page-frame";
 import { MetaChip } from "@/components/page-header";
 import { listSymbols } from "@/lib/api";
 import { listOrders } from "@/lib/api/trading";
+import { loadBookContext } from "@/lib/book-context";
 import {
   type OrderStatusFilter,
   buildOrdersHref,
@@ -70,13 +71,18 @@ function emptyCopy(status: OrderStatusFilter): { title: string; body: string } {
 export default async function OrdersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string }>;
+  searchParams: Promise<{ status?: string; book?: string }>;
 }) {
-  const { status: rawStatus } = await searchParams;
-  const status = parseOrdersStatus(rawStatus);
+  const params = await searchParams;
+  const status = parseOrdersStatus(params.status);
+  // A5.2: one book's orders, or every book's (`?book=all`).
+  const books = await loadBookContext(params.book, "/orders", params);
   // One request for every order, so each status tab can show its count
   // (Aurora board v3); the active tab filters the same list.
-  const [allOrders, symbols] = await Promise.all([listOrders(), listSymbols().catch(() => [])]);
+  const [allOrders, symbols] = await Promise.all([
+    listOrders(undefined, books.book),
+    listSymbols().catch(() => []),
+  ]);
   const counts: Record<OrderStatusFilter, number> = {
     pending: allOrders.filter((order) => order.status === "pending").length,
     filled: allOrders.filter((order) => order.status === "filled").length,
@@ -94,7 +100,14 @@ export default async function OrdersPage({
         eyebrow="Trade"
         title="Orders"
         description="Manage conditional paper orders. Pending buys reserve cash; pending sells reserve shares. Settlement uses the stored daily close, not an intraday trigger."
-        meta={<MetaChip>Times in UTC</MetaChip>}
+        meta={
+          <>
+            <MetaChip>
+              {books.isAll ? "All books" : `Book: ${books.selected?.name ?? "Default"}`}
+            </MetaChip>
+            <MetaChip>Times in UTC</MetaChip>
+          </>
+        }
         actions={
           <Link href="/trade" className="text-sm hover:underline">
             Open trade ticket
@@ -155,7 +168,7 @@ export default async function OrdersPage({
                 {status === "all" ? "All paper orders" : `${status} paper orders`}
               </caption>
               <thead>
-                <tr className="border-b border-border-muted text-left text-3xs font-semibold tracking-[0.12em] text-text-tertiary uppercase">
+                <tr className="border-b border-border-muted text-left text-3xs font-semibold tracking-[0.02em] text-text-tertiary">
                   <th scope="col" className="px-3 py-2.5">
                     Ticker
                   </th>
@@ -178,7 +191,7 @@ export default async function OrdersPage({
                     Created
                   </th>
                   <th scope="col" className="hidden px-3 py-2.5 lg:table-cell">
-                    Filled / cancelled
+                    Filled / Cancelled
                   </th>
                   <th scope="col" className="px-3 py-2.5 text-right">
                     Fill

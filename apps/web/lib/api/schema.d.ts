@@ -684,7 +684,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Events For Symbol */
+        /**
+         * Events For Symbol
+         * @description ``?book=`` limits fills to one of the caller's books (A5.1); default all books.
+         */
         get: operations["events_for_symbol_v1_symbols__ticker__events_get"];
         put?: never;
         post?: never;
@@ -824,7 +827,8 @@ export interface paths {
          *
          *     Time-series metrics use every snapshot the user has; the series can be
          *     empty for brand-new accounts (in which case those fields come back as
-         *     ``None`` and the UI hides the relevant cards).
+         *     ``None`` and the UI hides the relevant cards). ``book=all`` (A5.2) sums
+         *     every book in the display currency (``services/books/combined.py``).
          */
         get: operations["get_portfolio_analytics_v1_portfolio_analytics_get"];
         put?: never;
@@ -913,7 +917,7 @@ export interface paths {
         get: operations["get_risk_limits_v1_portfolio_limits_get"];
         /**
          * Put Risk Limits
-         * @description Replace every limit at once; a null clears that limit.
+         * @description Replace every limit at once; a null clears that limit. Per book (A5.1).
          */
         put: operations["put_risk_limits_v1_portfolio_limits_put"];
         post?: never;
@@ -958,6 +962,9 @@ export interface paths {
          *     ``days=None`` (omit query param) returns the full history; otherwise the
          *     last N days. Empty list when the scheduler hasn't written any snapshots
          *     yet for this user — the UI hides the chart in that case.
+         *
+         *     ``book=all`` (A5.2): every book's snapshots summed in the display
+         *     currency at each date's rate, with that date's outside ``flow``.
          */
         get: operations["get_portfolio_history_v1_portfolio_history_get"];
         put?: never;
@@ -1006,6 +1013,172 @@ export interface paths {
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/books": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Books
+         * @description Every book, the default first (created on first use).
+         */
+        get: operations["get_books_v1_books_get"];
+        put?: never;
+        /**
+         * Post Book
+         * @description Create a book (409 past 20 or for a taken name; 422 a PAN-shaped label).
+         *
+         *     A paper book starts with $100,000 or ₹1 crore in its base currency.
+         */
+        post: operations["post_book_v1_books_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/books/{book_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Remove Book
+         * @description Delete a book and everything in it.
+         *
+         *     Only an empty book, or one archived first; never the default (or last) one.
+         */
+        delete: operations["remove_book_v1_books__book_id__delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Patch Book
+         * @description Rename, relabel, archive or unarchive, or make the default (409 on the rules).
+         */
+        patch: operations["patch_book_v1_books__book_id__patch"];
+        trace?: never;
+    };
+    "/v1/books/{book_id}/imports/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Preview Import
+         * @description Parse and check a tradebook. Stores nothing.
+         */
+        post: operations["preview_import_v1_books__book_id__imports_preview_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/books/{book_id}/imports/commit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Commit Import
+         * @description Import the previewed file (the same bytes: its SHA-256 must match).
+         */
+        post: operations["commit_import_v1_books__book_id__imports_commit_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/books/{book_id}/imports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Imports */
+        get: operations["list_imports_v1_books__book_id__imports_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/books/{book_id}/imports/{batch_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Import
+         * @description Delete one import: its fills and trades go, and the book is rebuilt.
+         */
+        delete: operations["delete_import_v1_books__book_id__imports__batch_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/books/{book_id}/opening-lots": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Post Opening Lot
+         * @description Shares held before the file's window; sells waiting for them post.
+         */
+        post: operations["post_opening_lot_v1_books__book_id__opening_lots_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/books/{book_id}/opening-lots/{lot_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Opening Lot */
+        delete: operations["delete_opening_lot_v1_books__book_id__opening_lots__lot_id__delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -1313,7 +1486,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List Orders */
+        /**
+         * List Orders
+         * @description One book's orders, or every book's with ``book=all`` (A5.2; each row names its book).
+         */
         get: operations["list_orders_v1_orders_get"];
         put?: never;
         /** Create Order */
@@ -1416,7 +1592,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Post Options Trade */
+        /**
+         * Post Options Trade
+         * @description Open in ``?book=`` (default book); a close trades in the leg's own book.
+         */
         post: operations["post_options_trade_v1_options_trade_post"];
         delete?: never;
         options?: never;
@@ -1433,7 +1612,7 @@ export interface paths {
         };
         /**
          * List Options Positions
-         * @description Return the user's open options positions, newest first, each priced now.
+         * @description Return the book's open options positions, newest first, each priced now.
          */
         get: operations["list_options_positions_v1_options_positions_get"];
         put?: never;
@@ -1477,7 +1656,7 @@ export interface paths {
         put?: never;
         /**
          * Post Strategy
-         * @description Open every leg of a strategy in one transaction, or none.
+         * @description Open every leg of a strategy in one transaction, or none, in ``?book=``.
          */
         post: operations["post_strategy_v1_options_strategies_post"];
         delete?: never;
@@ -1535,7 +1714,7 @@ export interface paths {
         };
         /**
          * Get Options Book
-         * @description The options book's Greeks and its legs by expiry (Phase 9.5).
+         * @description The options book's Greeks and its legs by expiry (Phase 9.5), per book (A5.1).
          */
         get: operations["get_options_book_v1_options_book_get"];
         put?: never;
@@ -2343,7 +2522,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List Earnings */
+        /**
+         * List Earnings
+         * @description ``scope=holdings`` reads every book's holdings (A5.1), or ``?book=``'s.
+         */
         get: operations["list_earnings_v1_earnings_get"];
         put?: never;
         post?: never;
@@ -2415,6 +2597,41 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/v1/journal/entries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Journal Entries */
+        get: operations["list_journal_entries_v1_journal_entries_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/journal/entries/{entry_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Journal Entry */
+        get: operations["get_journal_entry_v1_journal_entries__entry_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Patch Journal Entry */
+        patch: operations["patch_journal_entry_v1_journal_entries__entry_id__patch"];
         trace?: never;
     };
     "/v1/notifications/channels": {
@@ -2617,6 +2834,60 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/broker/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Broker Status */
+        get: operations["broker_status_v1_broker_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/plans": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Plans */
+        get: operations["list_plans_v1_plans_get"];
+        put?: never;
+        /** Create Plan */
+        post: operations["create_plan_v1_plans_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/plans/{plan_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Plan */
+        get: operations["get_plan_v1_plans__plan_id__get"];
+        put?: never;
+        post?: never;
+        /** Delete Plan */
+        delete: operations["delete_plan_v1_plans__plan_id__delete"];
+        options?: never;
+        head?: never;
+        /** Patch Plan */
+        patch: operations["patch_plan_v1_plans__plan_id__patch"];
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -2693,6 +2964,8 @@ export interface components {
              * @default 1
              */
             cooldown_sessions: number;
+            /** Book Id */
+            book_id?: number | null;
         };
         /**
          * AlertOut
@@ -2718,6 +2991,8 @@ export interface components {
             } | null;
             /** Setup Version Id */
             setup_version_id?: number | null;
+            /** Book Id */
+            book_id?: number | null;
             /**
              * Repeat
              * @default once
@@ -3086,6 +3361,144 @@ export interface components {
             /** Base Currency */
             base_currency: string;
         };
+        /**
+         * BookIn
+         * @description ``POST /v1/books``.
+         */
+        BookIn: {
+            /** Name */
+            name: string;
+            /**
+             * Kind
+             * @default paper
+             * @enum {string}
+             */
+            kind: "paper" | "imported";
+            /**
+             * Base Currency
+             * @default USD
+             * @enum {string}
+             */
+            base_currency: "USD" | "INR";
+            /**
+             * Holder Kind
+             * @default self
+             * @enum {string}
+             */
+            holder_kind: "self" | "family" | "huf";
+            /** Holder Label */
+            holder_label?: string | null;
+            /** Broker */
+            broker?: "zerodha" | null;
+        };
+        /**
+         * BookOut
+         * @description One book: a paper book trades here; an imported one holds a broker's fills.
+         */
+        BookOut: {
+            /** Id */
+            id: number;
+            /** Name */
+            name: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "paper" | "imported";
+            /** Is Default */
+            is_default: boolean;
+            /** Cash Tracked */
+            cash_tracked: boolean;
+            /** Broker */
+            broker?: string | null;
+            /**
+             * Holder Kind
+             * @enum {string}
+             */
+            holder_kind: "self" | "family" | "huf";
+            /** Holder Label */
+            holder_label?: string | null;
+            /** Base Currency */
+            base_currency: string;
+            /** Archived At */
+            archived_at?: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Writable */
+            writable: boolean;
+            /** Activity */
+            activity?: string[];
+        };
+        /**
+         * BookPatch
+         * @description ``PATCH /v1/books/{id}``. Absent fields stay; ``holder_label: null`` clears it.
+         */
+        BookPatch: {
+            /** Name */
+            name?: string | null;
+            /** Holder Kind */
+            holder_kind?: ("self" | "family" | "huf") | null;
+            /** Holder Label */
+            holder_label?: string | null;
+            /** Archived */
+            archived?: boolean | null;
+            /** Is Default */
+            is_default?: true | null;
+        };
+        /** BooksOut */
+        BooksOut: {
+            /** Books */
+            books: components["schemas"]["BookOut"][];
+            /** Limit */
+            limit: number;
+        };
+        /** BrokerStatusItemOut */
+        BrokerStatusItemOut: {
+            /**
+             * Broker
+             * @constant
+             */
+            broker: "zerodha";
+            /** Label */
+            label: string;
+            /**
+             * Provider
+             * @constant
+             */
+            provider: "kite";
+            /** Configured */
+            configured: boolean;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "not_configured" | "not_connected" | "offline" | "snapshot_only";
+            /** Live Data */
+            live_data: boolean;
+            /** Imported Books */
+            imported_books: number;
+            /** Last Imported At */
+            last_imported_at: string | null;
+            /** Last Snapshot At */
+            last_snapshot_at: string | null;
+            /** Last Failure At */
+            last_failure_at: string | null;
+        };
+        /** BrokerStatusOut */
+        BrokerStatusOut: {
+            /** Brokers */
+            brokers: components["schemas"]["BrokerStatusItemOut"][];
+            /** Offline Window Hours */
+            offline_window_hours: number;
+            /**
+             * Checked At
+             * Format: date-time
+             */
+            checked_at: string;
+        };
         /** BrokerageOut */
         BrokerageOut: {
             /** Key */
@@ -3312,6 +3725,41 @@ export interface components {
             name?: string | null;
             /** Columns */
             columns?: ("close" | "change_pct" | "rsi_14" | "pct_from_52w_high" | "sma_50_gap_pct" | "sma_200_gap_pct" | "atr_pct_14" | "hv_20" | "volume_ratio" | "avg_volume_20" | "pe" | "pb" | "market_cap_usd" | "dividend_yield" | "roe" | "sentiment_7d" | "delivery_pct" | "checklist_met" | "sector")[] | null;
+        };
+        /**
+         * CombinedBookOut
+         * @description One book's share of the All books figure (A5.2).
+         */
+        CombinedBookOut: {
+            /** Id */
+            id: number;
+            /** Name */
+            name: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "paper" | "imported";
+            /** Base Currency */
+            base_currency: string;
+            /** Archived */
+            archived: boolean;
+            /** Is Default */
+            is_default: boolean;
+            /** Total Value */
+            total_value: string;
+        };
+        /**
+         * CombinedOut
+         * @description What ``?book=all`` summed and how (A5.2, M10.1).
+         */
+        CombinedOut: {
+            /** Books */
+            books: components["schemas"]["CombinedBookOut"][];
+            /** Fx Rule */
+            fx_rule: string;
+            /** Per Book Only */
+            per_book_only: string[];
         };
         /**
          * CostsOut
@@ -4520,6 +4968,15 @@ export interface components {
             price: string;
             /** R Multiple */
             r_multiple?: number | null;
+            /** Book Id */
+            book_id?: number | null;
+            /** Journal Entry Id */
+            journal_entry_id?: number | null;
+            /**
+             * Closes Entry
+             * @default false
+             */
+            closes_entry: boolean;
         };
         /** FundamentalRowOut */
         FundamentalRowOut: {
@@ -4701,6 +5158,273 @@ export interface components {
             backtest?: components["schemas"]["BacktestIn"] | null;
             strategy?: components["schemas"]["StrategyBacktestIn"] | null;
             rotation?: components["schemas"]["RotationBacktestIn"] | null;
+        };
+        /** ImportBatchOut */
+        ImportBatchOut: {
+            /** Id */
+            id: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Column Map */
+            column_map: string;
+            /**
+             * Format Status
+             * @enum {string}
+             */
+            format_status: "unconfirmed" | "confirmed";
+            /** Rows Total */
+            rows_total: number;
+            /** Rows Added */
+            rows_added: number;
+            /** Rows Duplicate */
+            rows_duplicate: number;
+            /** Rows Unmatched */
+            rows_unmatched: number;
+            /** Rows Skipped Segment */
+            rows_skipped_segment: number;
+            /** Rows Rejected */
+            rows_rejected: number;
+            /** Fills */
+            fills: number;
+            /** Posted */
+            posted: number;
+            /** Needs Opening Lot */
+            needs_opening_lot: number;
+            /** First Trade At */
+            first_trade_at?: string | null;
+            /** Last Trade At */
+            last_trade_at?: string | null;
+        };
+        /**
+         * ImportColumnOut
+         * @description Which header a canonical field was read from (``header`` null: absent).
+         */
+        ImportColumnOut: {
+            /** Field */
+            field: string;
+            /** Label */
+            label: string;
+            /** Required */
+            required: boolean;
+            /** Header */
+            header: string | null;
+        };
+        /**
+         * ImportCommitOut
+         * @description ``POST .../imports/commit``. ``batch`` is null when nothing was new.
+         */
+        ImportCommitOut: {
+            batch: components["schemas"]["ImportBatchOut"] | null;
+            /** Added */
+            added: number;
+            counts: components["schemas"]["ImportCountsOut"];
+        };
+        /** ImportCountsOut */
+        ImportCountsOut: {
+            /**
+             * Rows
+             * @default 0
+             */
+            rows: number;
+            /**
+             * New
+             * @default 0
+             */
+            new: number;
+            /**
+             * Posted
+             * @default 0
+             */
+            posted: number;
+            /**
+             * Needs Opening Lot
+             * @default 0
+             */
+            needs_opening_lot: number;
+            /**
+             * Duplicate
+             * @default 0
+             */
+            duplicate: number;
+            /**
+             * Unmatched
+             * @default 0
+             */
+            unmatched: number;
+            /**
+             * Skipped Segment
+             * @default 0
+             */
+            skipped_segment: number;
+            /**
+             * Rejected
+             * @default 0
+             */
+            rejected: number;
+            /**
+             * Basis Uncertain
+             * @default 0
+             */
+            basis_uncertain: number;
+            /**
+             * Intraday Inferred
+             * @default 0
+             */
+            intraday_inferred: number;
+        };
+        /**
+         * ImportPreviewOut
+         * @description ``POST /v1/books/{id}/imports/preview``: nothing is stored.
+         */
+        ImportPreviewOut: {
+            /** Format */
+            format: string;
+            /**
+             * Format Status
+             * @enum {string}
+             */
+            format_status: "unconfirmed" | "confirmed";
+            /** Format Note */
+            format_note: string;
+            /** File Sha256 */
+            file_sha256: string;
+            /** Can Commit */
+            can_commit: boolean;
+            /** Message */
+            message?: string | null;
+            /** Date Order */
+            date_order: string;
+            /** Columns */
+            columns: components["schemas"]["ImportColumnOut"][];
+            /** Unmatched Headers */
+            unmatched_headers: string[];
+            /** Missing Required */
+            missing_required: string[];
+            counts: components["schemas"]["ImportCountsOut"];
+            /** Sample */
+            sample: components["schemas"]["ImportTradeOut"][];
+            /** Problems */
+            problems: components["schemas"]["ImportProblemOut"][];
+            /** Problems Total */
+            problems_total: number;
+            /** Fees Note */
+            fees_note: string;
+        };
+        /**
+         * ImportProblemOut
+         * @description One row the import leaves out or flags. Row numbers count the header as
+         *     row 1. ``reason`` is fixed text: no cell value is ever echoed.
+         */
+        ImportProblemOut: {
+            /** Row */
+            row: number;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "rejected" | "segment" | "unmatched" | "duplicate_in_file" | "already_imported" | "needs_opening_lot" | "basis_uncertain";
+            /** Reason */
+            reason: string;
+            /** Field */
+            field?: string | null;
+            /** Symbol */
+            symbol?: string | null;
+            /** Exchange */
+            exchange?: string | null;
+        };
+        /**
+         * ImportTradeOut
+         * @description A parsed trade: only the parsed fields, never the raw row.
+         */
+        ImportTradeOut: {
+            /** Row */
+            row: number;
+            /** Ticker */
+            ticker: string;
+            /** Symbol */
+            symbol: string;
+            /** Exchange */
+            exchange: string;
+            /** Isin */
+            isin?: string | null;
+            /**
+             * Side
+             * @enum {string}
+             */
+            side: "buy" | "sell";
+            /** Quantity */
+            quantity: string;
+            /** Price */
+            price: string;
+            /**
+             * Executed At
+             * Format: date-time
+             */
+            executed_at: string;
+            /**
+             * Time Known
+             * @default true
+             */
+            time_known: boolean;
+            /** Restated Quantity */
+            restated_quantity: string;
+            /** Restated Price */
+            restated_price: string;
+            /** Product */
+            product?: ("delivery" | "intraday" | "mixed") | null;
+            /** Fees */
+            fees: string;
+            /**
+             * Fees Estimated
+             * @default true
+             */
+            fees_estimated: boolean;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "posted" | "needs_opening_lot";
+            /**
+             * Basis Uncertain
+             * @default false
+             */
+            basis_uncertain: boolean;
+        };
+        /**
+         * ImportsOut
+         * @description ``GET /v1/books/{id}/imports``.
+         */
+        ImportsOut: {
+            /** Book Id */
+            book_id: number;
+            /** Broker */
+            broker: string | null;
+            /** Format */
+            format: string;
+            /**
+             * Format Status
+             * @enum {string}
+             */
+            format_status: "unconfirmed" | "confirmed";
+            /** Format Note */
+            format_note: string;
+            /** Max Bytes */
+            max_bytes: number;
+            /** Batches */
+            batches: components["schemas"]["ImportBatchOut"][];
+            /** Opening Lots */
+            opening_lots: components["schemas"]["OpeningLotOut"][];
+            /** Needs Opening Lot */
+            needs_opening_lot: components["schemas"]["NeedsOpeningLotOut"][];
+            /** Basis Uncertain */
+            basis_uncertain: number;
+            /** Fills */
+            fills: number;
+            /** Posted */
+            posted: number;
         };
         /** IndicatorCatalogItemOut */
         IndicatorCatalogItemOut: {
@@ -4923,6 +5647,346 @@ export interface components {
             date: string;
             stats: components["schemas"]["JournalStatsOut"];
         };
+        /** JournalEntriesOut */
+        JournalEntriesOut: {
+            /** Entries */
+            entries: components["schemas"]["JournalEntrySummaryOut"][];
+            /** Total */
+            total: number;
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+            /** Note */
+            note: string;
+        };
+        /** JournalEntryFillOut */
+        JournalEntryFillOut: {
+            /** Trade Id */
+            trade_id?: number | null;
+            /** Replay Fill Id */
+            replay_fill_id?: number | null;
+            /**
+             * Side
+             * @enum {string}
+             */
+            side: "buy" | "sell";
+            /** Quantity */
+            quantity: string;
+            /** Price */
+            price: string;
+            /** Fees */
+            fees: string;
+            /** Fees Estimated */
+            fees_estimated: boolean;
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /**
+             * Venue Date
+             * Format: date
+             */
+            venue_date: string;
+            /** Time Known */
+            time_known: boolean;
+        };
+        /** JournalEntryOut */
+        JournalEntryOut: {
+            /** Id */
+            id: number;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "paper" | "imported" | "replay";
+            /** Book Id */
+            book_id?: number | null;
+            /** Replay Session Id */
+            replay_session_id?: number | null;
+            /** Ticker */
+            ticker?: string | null;
+            /** Currency */
+            currency: string;
+            /** Venue */
+            venue: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "open" | "closed";
+            /**
+             * Opened At
+             * Format: date-time
+             */
+            opened_at: string;
+            /** Closed At */
+            closed_at?: string | null;
+            /**
+             * Entry Date
+             * Format: date
+             */
+            entry_date: string;
+            /** Exit Date */
+            exit_date?: string | null;
+            /** As Of Date */
+            as_of_date?: string | null;
+            /** Mark Close */
+            mark_close?: string | null;
+            /** Avg Entry */
+            avg_entry: string;
+            /** Avg Exit */
+            avg_exit?: string | null;
+            /** Quantity */
+            quantity: string;
+            /** Held */
+            held: string;
+            /** Net Pnl */
+            net_pnl: string;
+            /** Realized Pnl */
+            realized_pnl: string;
+            /** Unrealized Pnl */
+            unrealized_pnl?: string | null;
+            /** Fees */
+            fees: string;
+            /** Fees Estimated */
+            fees_estimated: boolean;
+            /** Return Pct */
+            return_pct?: string | null;
+            /** Holding Days */
+            holding_days: number;
+            /** Holding Sessions */
+            holding_sessions: number;
+            /** Fills Count */
+            fills_count: number;
+            /** R Multiple */
+            r_multiple?: number | null;
+            /** R Reason */
+            r_reason?: string | null;
+            /** Initial Risk */
+            initial_risk?: string | null;
+            excursions: components["schemas"]["JournalExcursionsOut"];
+            plan?: components["schemas"]["JournalEntryPlanOut"] | null;
+            /**
+             * Setup Tags
+             * @default []
+             */
+            setup_tags: string[];
+            /**
+             * Mistake Tags
+             * @default []
+             */
+            mistake_tags: string[];
+            /**
+             * Has Notes
+             * @default false
+             */
+            has_notes: boolean;
+            /** Fills */
+            fills: components["schemas"]["JournalEntryFillOut"][];
+            adherence?: components["schemas"]["DrillScoreOut"] | null;
+            /** Adherence Note */
+            adherence_note?: string | null;
+            news_at_entry?: components["schemas"]["JournalNewsWindowOut"] | null;
+            news_at_exit?: components["schemas"]["JournalNewsWindowOut"] | null;
+            /** Review Notes */
+            review_notes?: string | null;
+            /** Mistakes */
+            mistakes?: string | null;
+            /** Lessons */
+            lessons?: string | null;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /**
+         * JournalEntryPatch
+         * @description The user's text. Null leaves a field; ``""`` clears it.
+         */
+        JournalEntryPatch: {
+            /** Review Notes */
+            review_notes?: string | null;
+            /** Mistakes */
+            mistakes?: string | null;
+            /** Lessons */
+            lessons?: string | null;
+            /** Setup Tags */
+            setup_tags?: string[] | null;
+            /** Mistake Tags */
+            mistake_tags?: string[] | null;
+        };
+        /** JournalEntryPlanOut */
+        JournalEntryPlanOut: {
+            /** Id */
+            id: number;
+            /** Status */
+            status: string;
+            /**
+             * Label
+             * @enum {string}
+             */
+            label: "locked" | "written_after_entry";
+            /** Locked At */
+            locked_at?: string | null;
+            /** First Fill At */
+            first_fill_at?: string | null;
+            /** Planned Entry */
+            planned_entry?: string | null;
+            /** Planned Stop */
+            planned_stop?: string | null;
+            /** Planned Target */
+            planned_target?: string | null;
+            /** Planned Size */
+            planned_size?: string | null;
+            /** Setup Version Id */
+            setup_version_id?: number | null;
+            /** Setup Label */
+            setup_label?: string | null;
+            /** Counts For Adherence */
+            counts_for_adherence: boolean;
+        };
+        /** JournalEntrySummaryOut */
+        JournalEntrySummaryOut: {
+            /** Id */
+            id: number;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "paper" | "imported" | "replay";
+            /** Book Id */
+            book_id?: number | null;
+            /** Replay Session Id */
+            replay_session_id?: number | null;
+            /** Ticker */
+            ticker?: string | null;
+            /** Currency */
+            currency: string;
+            /** Venue */
+            venue: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "open" | "closed";
+            /**
+             * Opened At
+             * Format: date-time
+             */
+            opened_at: string;
+            /** Closed At */
+            closed_at?: string | null;
+            /**
+             * Entry Date
+             * Format: date
+             */
+            entry_date: string;
+            /** Exit Date */
+            exit_date?: string | null;
+            /** As Of Date */
+            as_of_date?: string | null;
+            /** Mark Close */
+            mark_close?: string | null;
+            /** Avg Entry */
+            avg_entry: string;
+            /** Avg Exit */
+            avg_exit?: string | null;
+            /** Quantity */
+            quantity: string;
+            /** Held */
+            held: string;
+            /** Net Pnl */
+            net_pnl: string;
+            /** Realized Pnl */
+            realized_pnl: string;
+            /** Unrealized Pnl */
+            unrealized_pnl?: string | null;
+            /** Fees */
+            fees: string;
+            /** Fees Estimated */
+            fees_estimated: boolean;
+            /** Return Pct */
+            return_pct?: string | null;
+            /** Holding Days */
+            holding_days: number;
+            /** Holding Sessions */
+            holding_sessions: number;
+            /** Fills Count */
+            fills_count: number;
+            /** R Multiple */
+            r_multiple?: number | null;
+            /** R Reason */
+            r_reason?: string | null;
+            /** Initial Risk */
+            initial_risk?: string | null;
+            excursions: components["schemas"]["JournalExcursionsOut"];
+            plan?: components["schemas"]["JournalEntryPlanOut"] | null;
+            /**
+             * Setup Tags
+             * @default []
+             */
+            setup_tags: string[];
+            /**
+             * Mistake Tags
+             * @default []
+             */
+            mistake_tags: string[];
+            /**
+             * Has Notes
+             * @default false
+             */
+            has_notes: boolean;
+        };
+        /**
+         * JournalExcursionOut
+         * @description One excursion: the worst (MAE) or best (MFE) bar while shares were held.
+         */
+        JournalExcursionOut: {
+            /** Per Share */
+            per_share: string;
+            /** Pct */
+            pct: string;
+            /** Amount */
+            amount: string;
+            /** Shares */
+            shares: string;
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Price */
+            price: string;
+            /** R */
+            r?: number | null;
+        };
+        /** JournalExcursionsOut */
+        JournalExcursionsOut: {
+            /**
+             * Basis
+             * @enum {string}
+             */
+            basis: "exact_close" | "approximate_daily";
+            /** Note */
+            note: string;
+            mae?: components["schemas"]["JournalExcursionOut"] | null;
+            mfe?: components["schemas"]["JournalExcursionOut"] | null;
+            /** Reason */
+            reason?: string | null;
+            /**
+             * Missing Sessions
+             * @default []
+             */
+            missing_sessions: string[];
+            /**
+             * Sessions
+             * @default 0
+             */
+            sessions: number;
+        };
         /**
          * JournalExecutionOut
          * @description One closing execution — the Journal's definition of a "trade".
@@ -5010,6 +6074,52 @@ export interface components {
              * @default 0
              */
             unavailable_count: number;
+        };
+        /** JournalNewsHeadlineOut */
+        JournalNewsHeadlineOut: {
+            /** Id */
+            id: string;
+            /** Title */
+            title: string;
+            /** Source */
+            source?: string | null;
+            /** Url */
+            url?: string | null;
+            /**
+             * Available At
+             * Format: date-time
+             */
+            available_at: string;
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+        };
+        /** JournalNewsWindowOut */
+        JournalNewsWindowOut: {
+            /**
+             * From Date
+             * Format: date
+             */
+            from_date: string;
+            /**
+             * To Date
+             * Format: date
+             */
+            to_date: string;
+            /**
+             * Coverage
+             * @enum {string}
+             */
+            coverage: "covered" | "before_news_copy";
+            /** Note */
+            note: string;
+            /**
+             * Headlines
+             * @default []
+             */
+            headlines: components["schemas"]["JournalNewsHeadlineOut"][];
         };
         /** JournalPeriodOut */
         JournalPeriodOut: {
@@ -5321,6 +6431,23 @@ export interface components {
             prob_goal?: number | null;
         };
         /**
+         * NeedsOpeningLotOut
+         * @description Sells that wait for an opening lot, per symbol.
+         */
+        NeedsOpeningLotOut: {
+            /** Ticker */
+            ticker: string;
+            /** Fills */
+            fills: number;
+            /**
+             * First Sell At
+             * Format: date-time
+             */
+            first_sell_at: string;
+            /** Short By */
+            short_by: string;
+        };
+        /**
          * NewsArticleOut
          * @description One Aegis News document linked to StockViz symbols (Phase 2).
          *
@@ -5509,6 +6636,44 @@ export interface components {
             data?: {
                 [key: string]: unknown;
             } | null;
+        };
+        /**
+         * OpeningLotIn
+         * @description An opening lot: shares held before the file's window.
+         */
+        OpeningLotIn: {
+            /** Ticker */
+            ticker: string;
+            /**
+             * On
+             * Format: date
+             */
+            on: string;
+            /** Quantity */
+            quantity: number | string;
+            /** Avg Price */
+            avg_price: number | string;
+        };
+        /** OpeningLotOut */
+        OpeningLotOut: {
+            /** Id */
+            id: number;
+            /** Ticker */
+            ticker: string;
+            /**
+             * On
+             * Format: date
+             */
+            on: string;
+            /** Quantity */
+            quantity: string;
+            /** Avg Price */
+            avg_price: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
         };
         /**
          * OptionGreeksOut
@@ -6009,6 +7174,9 @@ export interface components {
             limit_price: string;
             /** Client Order Id */
             client_order_id?: string | null;
+            /** Trade Plan Id */
+            trade_plan_id?: number | null;
+            plan?: components["schemas"]["TradePlanDraft"] | null;
         };
         /** PendingOrderOut */
         PendingOrderOut: {
@@ -6037,6 +7205,10 @@ export interface components {
             fill_price: string | null;
             /** Cancel Reason */
             cancel_reason?: string | null;
+            /** Portfolio Id */
+            portfolio_id?: number | null;
+            /** Trade Plan Id */
+            trade_plan_id?: number | null;
         };
         /** PercentilesOut */
         PercentilesOut: {
@@ -6144,6 +7316,8 @@ export interface components {
             date: string;
             /** Nav */
             nav: string;
+            /** Flow */
+            flow?: string | null;
         };
         /**
          * PortfolioOptionOut
@@ -6294,6 +7468,7 @@ export interface components {
              * @default true
              */
             base_currency_locked: boolean;
+            combined?: components["schemas"]["CombinedOut"] | null;
         };
         /**
          * PortfolioOverviewOut
@@ -7000,6 +8175,11 @@ export interface components {
             locked: boolean;
             /** Locked At */
             locked_at?: string | null;
+            /**
+             * Written After Entry
+             * @default false
+             */
+            written_after_entry: boolean;
             /**
              * Created At
              * Format: date-time
@@ -9232,6 +10412,9 @@ export interface components {
             quantity: number | string;
             /** Client Order Id */
             client_order_id?: string | null;
+            /** Trade Plan Id */
+            trade_plan_id?: number | null;
+            plan?: components["schemas"]["TradePlanDraft"] | null;
         };
         /**
          * TradeOut
@@ -9306,6 +10489,234 @@ export interface components {
             net_native?: string | null;
             /** Realized Pnl Net */
             realized_pnl_net?: string | null;
+            /** Book Id */
+            book_id?: number | null;
+            /** Trade Plan Id */
+            trade_plan_id?: number | null;
+            /** Broker Fill Id */
+            broker_fill_id?: number | null;
+            /**
+             * Fees Estimated
+             * @default false
+             */
+            fees_estimated: boolean;
+        };
+        /**
+         * TradePlanDraft
+         * @description The plan fields a trader writes (A5.4). Entry, stop and size are required.
+         */
+        TradePlanDraft: {
+            /**
+             * Side
+             * @default long
+             * @enum {string}
+             */
+            side: "long" | "short";
+            /** Planned Entry */
+            planned_entry: number | string;
+            /** Planned Stop */
+            planned_stop: number | string;
+            /** Planned Target */
+            planned_target?: number | string | null;
+            /** Planned Size */
+            planned_size: number | string;
+            /** Setup Version Id */
+            setup_version_id?: number | null;
+            /** Thesis Id */
+            thesis_id?: number | null;
+            /** Thesis Text */
+            thesis_text?: string | null;
+            /** Why */
+            why?: string | null;
+            /** Invalidation */
+            invalidation?: string | null;
+            /** Horizon Bars */
+            horizon_bars?: number | null;
+            /** Confidence */
+            confidence?: number | null;
+            /** Notes */
+            notes?: string | null;
+            /** Tags */
+            tags?: string[];
+        };
+        /**
+         * TradePlanIn
+         * @description ``POST /v1/plans``: a plan for ``ticker`` in the ``?book=`` book.
+         *
+         *     ``link_open_position`` links the book's open position in the ticker to the
+         *     plan: its entry fills were made before the plan, so the plan is labelled
+         *     "written after entry" and never locked.
+         */
+        TradePlanIn: {
+            /**
+             * Side
+             * @default long
+             * @enum {string}
+             */
+            side: "long" | "short";
+            /** Planned Entry */
+            planned_entry: number | string;
+            /** Planned Stop */
+            planned_stop: number | string;
+            /** Planned Target */
+            planned_target?: number | string | null;
+            /** Planned Size */
+            planned_size: number | string;
+            /** Setup Version Id */
+            setup_version_id?: number | null;
+            /** Thesis Id */
+            thesis_id?: number | null;
+            /** Thesis Text */
+            thesis_text?: string | null;
+            /** Why */
+            why?: string | null;
+            /** Invalidation */
+            invalidation?: string | null;
+            /** Horizon Bars */
+            horizon_bars?: number | null;
+            /** Confidence */
+            confidence?: number | null;
+            /** Notes */
+            notes?: string | null;
+            /** Tags */
+            tags?: string[];
+            /** Ticker */
+            ticker: string;
+            /**
+             * Link Open Position
+             * @default false
+             */
+            link_open_position: boolean;
+        };
+        /** TradePlanOut */
+        TradePlanOut: {
+            /** Id */
+            id: number;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "paper" | "replay" | "drill" | "imported";
+            /** Book Id */
+            book_id: number | null;
+            /** Replay Session Id */
+            replay_session_id: number | null;
+            /** Ticker */
+            ticker: string | null;
+            /** Currency */
+            currency: string;
+            /**
+             * Side
+             * @enum {string}
+             */
+            side: "long" | "short";
+            /** Planned Entry */
+            planned_entry: string | null;
+            /** Planned Stop */
+            planned_stop: string | null;
+            /** Planned Target */
+            planned_target: string | null;
+            /** Planned Size */
+            planned_size: string | null;
+            /** Risk Per Share */
+            risk_per_share: string | null;
+            /** Planned Risk */
+            planned_risk: string | null;
+            /** Reward Per Share */
+            reward_per_share: string | null;
+            /** Reward Risk */
+            reward_risk: string | null;
+            /** Setup Version Id */
+            setup_version_id: number | null;
+            /** Setup Label */
+            setup_label: string | null;
+            /** Thesis Id */
+            thesis_id: number | null;
+            /** Thesis Title */
+            thesis_title: string | null;
+            /** Thesis Text */
+            thesis_text: string | null;
+            /** Why */
+            why: string | null;
+            /** Invalidation */
+            invalidation: string | null;
+            /** Horizon Bars */
+            horizon_bars: number | null;
+            /** Confidence */
+            confidence: number | null;
+            /** Notes */
+            notes: string | null;
+            /** Tags */
+            tags: string[];
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "open" | "active" | "closed" | "cancelled";
+            /** Locked */
+            locked: boolean;
+            /** Locked At */
+            locked_at: string | null;
+            /** First Fill At */
+            first_fill_at: string | null;
+            /** Written After Entry */
+            written_after_entry: boolean;
+            /** Frozen */
+            frozen: boolean;
+            /** Fills */
+            fills: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /**
+         * TradePlanPatch
+         * @description ``PATCH /v1/plans/{id}``. Plan fields only before the first fill (else
+         *     409); ``notes`` and ``tags`` always. ``status`` closes or cancels.
+         */
+        TradePlanPatch: {
+            /** Planned Entry */
+            planned_entry?: number | string | null;
+            /** Planned Stop */
+            planned_stop?: number | string | null;
+            /** Planned Target */
+            planned_target?: number | string | null;
+            /** Planned Size */
+            planned_size?: number | string | null;
+            /** Setup Version Id */
+            setup_version_id?: number | null;
+            /** Thesis Id */
+            thesis_id?: number | null;
+            /** Thesis Text */
+            thesis_text?: string | null;
+            /** Why */
+            why?: string | null;
+            /** Invalidation */
+            invalidation?: string | null;
+            /** Horizon Bars */
+            horizon_bars?: number | null;
+            /** Confidence */
+            confidence?: number | null;
+            /** Notes */
+            notes?: string | null;
+            /** Tags */
+            tags?: string[] | null;
+            /** Status */
+            status?: ("closed" | "cancelled") | null;
+        };
+        /** TradePlansOut */
+        TradePlansOut: {
+            /** Plans */
+            plans: components["schemas"]["TradePlanOut"][];
+            /** Limit */
+            limit: number;
         };
         /**
          * TrailingStopIn
@@ -9480,14 +10891,17 @@ export interface components {
          * @description A figure the valuation could not price (audit LG-13).
          *
          *     ``code``: ``no_close`` and ``no_option_price`` (valued at 0) or
-         *     ``no_fx_rate`` (added unconverted). ``subject`` is a ticker or currency.
+         *     ``no_fx_rate`` (added unconverted; in All books, dates without a rate are
+         *     left out of the combined history). ``stale_fx_rate`` (A5.2, All books
+         *     only): a rate older than the session before the date it values was used.
+         *     ``subject`` is a ticker or currency.
          */
         ValuationWarningOut: {
             /**
              * Code
              * @enum {string}
              */
-            code: "no_close" | "no_option_price" | "no_fx_rate";
+            code: "no_close" | "no_option_price" | "no_fx_rate" | "stale_fx_rate";
             /** Subject */
             subject: string;
             /** Message */
@@ -11151,6 +12565,8 @@ export interface operations {
                 to?: string | null;
                 /** @description Comma-separated: news, earnings, dividend, split, fill. Default: every public type, plus fill with a Bearer token. fill needs a token. */
                 types?: string | null;
+                /** @description Book id (A5.1). Omit for the default book; another user's book is 404. */
+                book?: number | null;
             };
             header?: {
                 authorization?: string | null;
@@ -11270,7 +12686,10 @@ export interface operations {
     };
     get_portfolio_v1_portfolio_get: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Book id, or `all` for every book summed in the display currency (A5.2). Omit for the default book; another user's book is 404. */
+                book?: string | null;
+            };
             header?: {
                 authorization?: string | null;
             };
@@ -11301,7 +12720,10 @@ export interface operations {
     };
     put_base_currency_v1_portfolio_base_currency_put: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Book id (A5.1). Omit for the default book; another user's book is 404. */
+                book?: number | null;
+            };
             header?: {
                 authorization?: string | null;
             };
@@ -11338,6 +12760,8 @@ export interface operations {
         parameters: {
             query?: {
                 limit?: number;
+                /** @description Book id, or `all` for every book summed in the display currency (A5.2). Omit for the default book; another user's book is 404. */
+                book?: string | null;
             };
             header?: {
                 authorization?: string | null;
@@ -11369,7 +12793,10 @@ export interface operations {
     };
     post_trade_v1_trades_post: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Book id (A5.1). Omit for the default book; another user's book is 404. */
+                book?: number | null;
+            };
             header?: {
                 authorization?: string | null;
             };
@@ -11406,6 +12833,8 @@ export interface operations {
         parameters: {
             query?: {
                 risk_free_rate?: number;
+                /** @description Book id, or `all` for every book summed in the display currency (A5.2). Omit for the default book; another user's book is 404. */
+                book?: string | null;
             };
             header?: {
                 authorization?: string | null;
@@ -11439,6 +12868,8 @@ export interface operations {
         parameters: {
             query?: {
                 risk_free_rate?: number;
+                /** @description Book id, or `all` for every book summed in the display currency (A5.2). Omit for the default book; another user's book is 404. */
+                book?: string | null;
             };
             header?: {
                 authorization?: string | null;
@@ -11472,6 +12903,8 @@ export interface operations {
         parameters: {
             query?: {
                 goal?: number | string | null;
+                /** @description Book id (A5.1). Omit for the default book; another user's book is 404. */
+                book?: number | null;
             };
             header?: {
                 authorization?: string | null;
@@ -11503,7 +12936,10 @@ export interface operations {
     };
     get_portfolio_stress_v1_portfolio_stress_get: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Book id (A5.1). Omit for the default book; another user's book is 404. */
+                book?: number | null;
+            };
             header?: {
                 authorization?: string | null;
             };
@@ -11534,7 +12970,10 @@ export interface operations {
     };
     get_risk_limits_v1_portfolio_limits_get: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Book id (A5.1). Omit for the default book; another user's book is 404. */
+                book?: number | null;
+            };
             header?: {
                 authorization?: string | null;
             };
@@ -11565,7 +13004,10 @@ export interface operations {
     };
     put_risk_limits_v1_portfolio_limits_put: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Book id (A5.1). Omit for the default book; another user's book is 404. */
+                book?: number | null;
+            };
             header?: {
                 authorization?: string | null;
             };
@@ -11603,6 +13045,8 @@ export interface operations {
             query: {
                 ticker: string;
                 quantity: number | string;
+                /** @description Book id (A5.1). Omit for the default book; another user's book is 404. */
+                book?: number | null;
             };
             header?: {
                 authorization?: string | null;
@@ -11636,6 +13080,8 @@ export interface operations {
         parameters: {
             query?: {
                 days?: number | null;
+                /** @description Book id, or `all` for every book summed in the display currency (A5.2). Omit for the default book; another user's book is 404. */
+                book?: string | null;
             };
             header?: {
                 authorization?: string | null;
@@ -11700,7 +13146,10 @@ export interface operations {
     };
     get_portfolio_dividends_v1_portfolio_dividends_get: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Book id (A5.1). Omit for the default book; another user's book is 404. */
+                book?: number | null;
+            };
             header?: {
                 authorization?: string | null;
             };
@@ -11717,6 +13166,350 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["DividendSummaryOut"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_books_v1_books_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BooksOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    post_book_v1_books_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BookIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    remove_book_v1_books__book_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                book_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    patch_book_v1_books__book_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                book_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BookPatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    preview_import_v1_books__book_id__imports_preview_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                book_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "text/csv": string;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportPreviewOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    commit_import_v1_books__book_id__imports_commit_post: {
+        parameters: {
+            query: {
+                file_sha256: string;
+            };
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                book_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "text/csv": string;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportCommitOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_imports_v1_books__book_id__imports_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                book_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_import_v1_books__book_id__imports__batch_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                book_id: number;
+                batch_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    post_opening_lot_v1_books__book_id__opening_lots_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                book_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OpeningLotIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OpeningLotOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_opening_lot_v1_books__book_id__opening_lots__lot_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                book_id: number;
+                lot_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {
@@ -12542,6 +14335,8 @@ export interface operations {
         parameters: {
             query?: {
                 status?: string | null;
+                /** @description Book id, or `all` for every book summed in the display currency (A5.2). Omit for the default book; another user's book is 404. */
+                book?: string | null;
             };
             header?: {
                 authorization?: string | null;
@@ -12573,7 +14368,10 @@ export interface operations {
     };
     create_order_v1_orders_post: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Book id (A5.1). Omit for the default book; another user's book is 404. */
+                book?: number | null;
+            };
             header?: {
                 authorization?: string | null;
             };
@@ -12776,7 +14574,10 @@ export interface operations {
     };
     post_options_trade_v1_options_trade_post: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Book id (A5.1). Omit for the default book; another user's book is 404. */
+                book?: number | null;
+            };
             header?: {
                 authorization?: string | null;
             };
@@ -12811,7 +14612,10 @@ export interface operations {
     };
     list_options_positions_v1_options_positions_get: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Book id (A5.1). Omit for the default book; another user's book is 404. */
+                book?: number | null;
+            };
             header?: {
                 authorization?: string | null;
             };
@@ -12875,7 +14679,10 @@ export interface operations {
     };
     list_strategies_v1_options_strategies_get: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Book id (A5.1). Omit for the default book; another user's book is 404. */
+                book?: number | null;
+            };
             header?: {
                 authorization?: string | null;
             };
@@ -12906,7 +14713,10 @@ export interface operations {
     };
     post_strategy_v1_options_strategies_post: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Book id (A5.1). Omit for the default book; another user's book is 404. */
+                book?: number | null;
+            };
             header?: {
                 authorization?: string | null;
             };
@@ -13007,7 +14817,10 @@ export interface operations {
     };
     get_options_book_v1_options_book_get: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Book id (A5.1). Omit for the default book; another user's book is 404. */
+                book?: number | null;
+            };
             header?: {
                 authorization?: string | null;
             };
@@ -14810,6 +16623,8 @@ export interface operations {
                 from?: string | null;
                 to?: string | null;
                 scope?: "all" | "holdings" | "watchlist";
+                /** @description Book id (A5.1). Omit for the default book; another user's book is 404. */
+                book?: number | null;
             };
             header?: {
                 authorization?: string | null;
@@ -14841,7 +16656,10 @@ export interface operations {
     };
     get_journal_month_v1_portfolio_journal_months__year___month__get: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Book id (A5.1). Omit for the default book; another user's book is 404. */
+                book?: number | null;
+            };
             header?: {
                 authorization?: string | null;
             };
@@ -14878,6 +16696,8 @@ export interface operations {
             query?: {
                 offset?: number;
                 limit?: number;
+                /** @description Book id (A5.1). Omit for the default book; another user's book is 404. */
+                book?: number | null;
             };
             header?: {
                 authorization?: string | null;
@@ -14911,7 +16731,10 @@ export interface operations {
     };
     get_journal_week_v1_portfolio_journal_weeks__start__get: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Book id (A5.1). Omit for the default book; another user's book is 404. */
+                book?: number | null;
+            };
             header?: {
                 authorization?: string | null;
             };
@@ -14929,6 +16752,119 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["JournalWeekOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_journal_entries_v1_journal_entries_get: {
+        parameters: {
+            query?: {
+                /** @description Book id, or `all` for every book summed in the display currency (A5.2). Omit for the default book; another user's book is 404. */
+                book?: string | null;
+                status?: ("open" | "closed") | null;
+                source?: ("paper" | "imported" | "replay") | null;
+                setup_version_id?: number | null;
+                tag?: string | null;
+                ticker?: string | null;
+                from?: string | null;
+                to?: string | null;
+                limit?: number;
+                offset?: number;
+            };
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JournalEntriesOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_journal_entry_v1_journal_entries__entry_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                entry_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JournalEntryOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    patch_journal_entry_v1_journal_entries__entry_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                entry_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["JournalEntryPatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JournalEntryOut"];
                 };
             };
             /** @description Validation Error */
@@ -15313,6 +17249,215 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["StatusOut"];
+                };
+            };
+        };
+    };
+    broker_status_v1_broker_status_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BrokerStatusOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_plans_v1_plans_get: {
+        parameters: {
+            query?: {
+                /** @description Book id (A5.1). Omit for the default book; another user's book is 404. */
+                book?: number | null;
+                status?: ("open" | "active" | "closed" | "cancelled") | null;
+                source?: ("paper" | "replay" | "drill" | "imported") | null;
+                setup_version_id?: number | null;
+                ticker?: string | null;
+                limit?: number;
+            };
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TradePlansOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_plan_v1_plans_post: {
+        parameters: {
+            query?: {
+                /** @description Book id (A5.1). Omit for the default book; another user's book is 404. */
+                book?: number | null;
+            };
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TradePlanIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TradePlanOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_plan_v1_plans__plan_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                plan_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TradePlanOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_plan_v1_plans__plan_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                plan_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    patch_plan_v1_plans__plan_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                plan_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TradePlanPatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TradePlanOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

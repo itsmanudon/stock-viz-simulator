@@ -68,7 +68,14 @@ export function compare(rows: MarketRow[], sort: SortKey, dir: SortDir): MarketR
     };
 
   const sorter: Record<SortKey, (a: MarketRow, b: MarketRow) => number> = {
-    ticker: (a, b) => a.ticker.localeCompare(b.ticker) * factor,
+    // No-data rows sit last here too (UI audit: with 136 of 161 symbols
+    // unpriced, alphabetical order buried every priced row under dashes).
+    ticker: (a, b) => {
+      const aMissing = a.last === null;
+      const bMissing = b.last === null;
+      if (aMissing !== bMissing) return aMissing ? 1 : -1;
+      return a.ticker.localeCompare(b.ticker) * factor;
+    },
     change: numeric((r) => r.changePct),
     price: numeric((r) => r.last),
   };

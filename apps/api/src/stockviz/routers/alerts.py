@@ -42,6 +42,7 @@ from stockviz.schemas import AlertEventOut, AlertIn, AlertOut, AlertPatch
 from stockviz.services.alerts import RuleError, describe, validate_rule
 from stockviz.services.setups import store as setups
 from stockviz.services.setups.rules import compile_or_422
+from stockviz.services.trading.books import resolve_book
 
 router = APIRouter(prefix="/v1/alerts", tags=["alerts"])
 
@@ -169,6 +170,10 @@ def create_alert(body: AlertIn, session: SessionDep, user_id: UserIdDep) -> Aler
         params = _rule_params(session, body.setup_version_id, user_id)
     elif body.setup_version_id is not None:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "setup_version_id is for rule alerts only")
+    if body.book_id is not None:
+        if kind != AlertKind.PORTFOLIO:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "book_id is for portfolio alerts only")
+        resolve_book(session, user_id, body.book_id)  # 404 unless it is yours
 
     active = (
         session.exec(
@@ -201,6 +206,7 @@ def create_alert(body: AlertIn, session: SessionDep, user_id: UserIdDep) -> Aler
         target_price=body.target_price if level else None,
         params=params,
         setup_version_id=body.setup_version_id if kind == AlertKind.RULE else None,
+        portfolio_id=body.book_id,
         repeat=AlertRepeat(body.repeat),
         cooldown_sessions=body.cooldown_sessions,
         created_at=now,

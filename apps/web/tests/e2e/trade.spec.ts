@@ -40,7 +40,7 @@ test("operational trading loop from ticket to orders, watchlist, alerts, and rep
   await main.getByRole("button", { name: /Review market buy/i }).click();
   await main.getByRole("button", { name: /Place market buy/i }).click();
   await expect(main.getByRole("region", { name: "Order ticket" }).locator("output")).toContainText(
-    "Filled BUY",
+    "Filled Buy",
     { timeout: 10_000 },
   );
   await expect(main.getByRole("table", { name: "Recent paper fills" })).toContainText("AAPL");
@@ -62,7 +62,7 @@ test("operational trading loop from ticket to orders, watchlist, alerts, and rep
   await main.getByRole("button", { name: "Put", exact: true }).click();
   await expect(optionQuote).toContainText("Cash held back", { timeout: 10_000 });
   await main.getByRole("button", { name: /Write cash-secured put, receive/ }).click();
-  await expect(main.getByText(/Wrote 1 AAPL PUT .* and received/)).toBeVisible({ timeout: 10_000 });
+  await expect(main.getByText(/Wrote 1 AAPL Put .* and received/)).toBeVisible({ timeout: 10_000 });
   // Phase 9.5: open a bull call spread from the builder, reviewed first.
   await page.goto("/trade?ticker=AAPL");
   const builder = main.getByRole("region", { name: "Strategy builder" });
@@ -180,6 +180,109 @@ test("operational trading loop from ticket to orders, watchlist, alerts, and rep
   await expect(main.getByRole("table", { name: "Replay episodes" })).toBeVisible();
   await expect(main.getByRole("heading", { name: "Decision journal" })).toBeVisible();
   expect(leaked).toEqual([]);
+
+  // A5.2: a second book. Create it in Settings, switch to it in the top bar,
+  // trade in it, see the first book unchanged, then view All books.
+  await page.goto("/settings#books");
+  const newBook = main.getByRole("form", { name: "New book" });
+  await newBook.getByLabel("Name").fill("E2E second");
+  await newBook.getByRole("button", { name: "Create book" }).click();
+  await expect(newBook.getByText("Created E2E second (USD).")).toBeVisible({ timeout: 10_000 });
+
+  await page.goto("/trade?ticker=MSFT");
+  const switcher = page.getByRole("button", { name: /Switch book/ });
+  await switcher.click();
+  await page
+    .getByRole("list", { name: "Books" })
+    .getByRole("link", { name: /E2E second/ })
+    .click();
+  await page.waitForURL(/[?&]book=\d+/);
+  await expect(switcher).toHaveAccessibleName(/Book: E2E second/);
+  await expect(
+    main.getByRole("region", { name: "Order ticket" }).getByTestId("ticket-book"),
+  ).toContainText("Trades into E2E second");
+  await expect(main.getByLabel("Symbol")).toHaveValue("MSFT");
+  await main.getByLabel("Quantity").fill("2");
+  await main.getByRole("button", { name: /Review market buy/i }).click();
+  await main.getByRole("button", { name: /Place market buy/i }).click();
+  await expect(main.getByRole("region", { name: "Order ticket" }).locator("output")).toContainText(
+    /Filled Buy 2(\.0+)? MSFT/,
+    { timeout: 10_000 },
+  );
+
+  // A5.4: plan the next MSFT buy on the ticket. The review shows the plan's
+  // risk and R:R, and the plan locks at the fill.
+  await main.getByRole("button", { name: "New order" }).click();
+  await main.getByLabel("Quantity").fill("3");
+  await main.getByRole("checkbox", { name: /Plan this trade/ }).check();
+  const ticketPlan = main.getByTestId("ticket-plan");
+  await expect(ticketPlan.getByLabel("Size (shares)")).toHaveValue("3");
+  const plannedEntry = Number(await ticketPlan.getByLabel("Planned entry").inputValue());
+  expect(plannedEntry).toBeGreaterThan(5);
+  await ticketPlan.getByLabel("Stop", { exact: true }).fill((plannedEntry - 5).toFixed(2));
+  await ticketPlan.getByLabel("Target (optional)").fill((plannedEntry + 15).toFixed(2));
+  await ticketPlan.getByLabel("Tags").fill("e2e");
+  await main.getByRole("button", { name: /Review market buy/i }).click();
+  const reviewPlan = main.getByTestId("review-plan");
+  await expect(reviewPlan).toContainText("Risk if stopped");
+  await expect(reviewPlan).toContainText("3.00 : 1");
+  await main.getByRole("button", { name: /Place market buy/i }).click();
+  await expect(main.getByRole("region", { name: "Order ticket" }).locator("output")).toContainText(
+    /Filled Buy 3(\.0+)? MSFT/,
+    { timeout: 10_000 },
+  );
+  const secondBook = new URL(page.url()).searchParams.get("book");
+  await page.goto(`/portfolio?tab=journal&book=${secondBook}`);
+  const lockedPlan = main.getByTestId("plan-row").first();
+  await expect(lockedPlan).toContainText("MSFT");
+  await expect(lockedPlan.getByTestId("plan-badge")).toHaveText("Locked");
+  await page.goto(`/trade?ticker=MSFT&book=${secondBook}`);
+
+  // The default book still holds only its own fills.
+  await switcher.click();
+  await page
+    .getByRole("list", { name: "Books" })
+    .getByRole("link", { name: /^Default/ })
+    .click();
+  await expect(switcher).toHaveAccessibleName(/Book: Default/);
+  await page.goto(page.url().replace("/trade?", "/trades?"));
+  await expect(main.getByRole("table")).toContainText("AAPL");
+  await expect(main.getByRole("table")).not.toContainText("MSFT");
+
+  // A5.4: the default book's AAPL was bought without a plan. A plan written
+  // for it now is labelled "written after entry", never locked.
+  const defaultTrades = page.url();
+  await page.goto(defaultTrades.replace("/trades?", "/portfolio?tab=journal&"));
+  const lateForm = main.getByTestId("plan-open-position");
+  await lateForm.locator("summary").click();
+  await lateForm.getByLabel("Position").selectOption("AAPL");
+  const lateEntry = Number(await lateForm.getByLabel("Entry").inputValue());
+  await lateForm.getByLabel("Stop", { exact: true }).fill((lateEntry - 5).toFixed(2));
+  await lateForm.getByRole("button", { name: "Save plan" }).click();
+  // The holding has a plan now, so the form leaves and the row arrives.
+  const latePlan = main.getByTestId("plan-row").filter({ hasText: "AAPL" });
+  await expect(latePlan.getByTestId("plan-badge")).toHaveText("Written after entry", {
+    timeout: 10_000,
+  });
+  await page.goto(defaultTrades);
+
+  // All books: both fills, each naming its book, and the combined portfolio.
+  await switcher.click();
+  await page
+    .getByRole("list", { name: "Books" })
+    .getByRole("link", { name: /All books/ })
+    .click();
+  await page.waitForURL(/[?&]book=all/);
+  await expect(switcher).toHaveAccessibleName(/Book: All books/);
+  await expect(main.getByRole("table")).toContainText("MSFT");
+  await expect(main.getByRole("table")).toContainText("AAPL");
+  await expect(main.getByRole("table")).toContainText("E2E second");
+  await page.goto("/portfolio?book=all");
+  await expect(main.getByRole("heading", { name: /All books · 2 books in USD/ })).toBeVisible();
+  // The ticket takes no orders in All books, and says why.
+  await page.goto("/trade?ticker=AAPL&book=all");
+  await expect(main.getByTestId("ticket-blocked").first()).toContainText("read-only");
+  await expect(main.getByRole("button", { name: /Review market buy/i })).toBeDisabled();
 
   // On a phone, Orders, Watchlist and Alerts lay out as cards instead of a
   // table that scrolls the page sideways (UI audit P1). This account has a

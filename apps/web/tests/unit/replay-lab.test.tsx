@@ -50,7 +50,7 @@ describe("Replay Lab presentation", () => {
         readOnly={false}
       />,
     );
-    expect(screen.getByText("Replay order")).toBeVisible();
+    expect(screen.getByText("Replay Order")).toBeVisible();
     expect(screen.getByRole("button", { name: /Submit market buy/i })).toBeVisible();
     expect(screen.getByText(/Not live paper trading/i)).toBeVisible();
     expect(screen.queryByRole("heading", { name: /^paper trade$/i })).not.toBeInTheDocument();
@@ -185,6 +185,7 @@ describe("Replay Lab presentation", () => {
       reflection: null,
       locked: true,
       locked_at: "2020-01-04T00:00:00Z",
+      written_after_entry: false,
       created_at: "2020-01-04T00:00:00Z",
       updated_at: "2020-01-04T00:00:00Z",
     };

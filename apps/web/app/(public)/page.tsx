@@ -22,6 +22,8 @@ import {
   StorySection,
 } from "@/components/marketing/landing-sections";
 import { ProofSection } from "@/components/marketing/proofs/proof-section";
+import { KineticMarquee } from "@/components/prism/kinetic-marquee";
+import { TerrainSection } from "@/components/prism/terrain-section";
 
 /**
  * Marketing home.
@@ -95,6 +97,8 @@ export default function HomePage() {
     <div>
       <Hero />
 
+      <TerrainSection />
+
       <LandingMotion>
         <MovingToday />
         <SessionTiles />
@@ -102,6 +106,7 @@ export default function HomePage() {
         <StorySection />
         <FillSteps />
         <StatementBand />
+        <KineticMarquee />
 
         <section aria-labelledby="surfaces-heading" className="border-y border-border-muted">
           <div className="mx-auto w-full max-w-6xl px-4 py-14 sm:px-6 sm:py-20">
@@ -117,7 +122,7 @@ export default function HomePage() {
               {SURFACES.map((surface) => (
                 <li
                   key={surface.href}
-                  className="group relative flex min-h-56 snap-start flex-col gap-4 overflow-hidden rounded-2xl border border-border-muted bg-linear-to-b from-card to-background p-5 transition-colors focus-within:ring-2 focus-within:ring-ring hover:border-border"
+                  className="spotlight group relative flex min-h-56 snap-start flex-col gap-4 overflow-hidden rounded-2xl border border-border-muted bg-linear-to-b from-card to-background p-5 transition-[border-color,transform] duration-300 focus-within:ring-2 focus-within:ring-ring hover:-translate-y-1 hover:border-border"
                 >
                   <span className="grid size-10 place-items-center rounded-full border border-border-muted bg-surface-secondary">
                     <surface.icon className="size-4 text-brand" aria-hidden />

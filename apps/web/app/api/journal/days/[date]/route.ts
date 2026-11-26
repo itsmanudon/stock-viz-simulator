@@ -10,6 +10,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { getJournalDay } from "@/lib/api/journal";
 import { AuthedApiError, UnauthenticatedError } from "@/lib/api/server";
+import { bookIdParam } from "@/lib/book-url";
 import { parseDateKey } from "@/lib/journal-view-model";
 
 export async function GET(request: Request, { params }: { params: Promise<{ date: string }> }) {
@@ -25,9 +26,12 @@ export async function GET(request: Request, { params }: { params: Promise<{ date
   }
 
   try {
-    return NextResponse.json(await getJournalDay(date, offset), {
-      headers: { "Cache-Control": "private, no-store" },
-    });
+    return NextResponse.json(
+      await getJournalDay(date, offset, bookIdParam(new URL(request.url).searchParams.get("book"))),
+      {
+        headers: { "Cache-Control": "private, no-store" },
+      },
+    );
   } catch (err) {
     if (err instanceof UnauthenticatedError) {
       return NextResponse.json({ error: "Not signed in" }, { status: 401 });

@@ -29,6 +29,8 @@ from sqlmodel import Session, select
 from stockviz._time import utcnow
 from stockviz.models import PendingOrder, Portfolio, Symbol, TradeSide
 from stockviz.models.order import OrderStatus, OrderType
+from stockviz.models.trade_plan import TradePlan
+from stockviz.schemas import TradePlanDraft
 from stockviz.services.fee_view import fee_date
 from stockviz.services.ingest.bar_semantics import latest_completed_session
 from stockviz.services.simulation import (
@@ -37,6 +39,7 @@ from stockviz.services.simulation import (
     FillStatus,
     evaluate_order,
 )
+from stockviz.services.trading.books import owned_book, resolve_book
 from stockviz.services.trading.buying_power import (
     available_cash,
     available_shares,
@@ -56,7 +59,7 @@ from stockviz.services.trading.execute import (
     SymbolNotFound,
     TradeExecutionError,
     apply_fill,
-    ensure_default_portfolio,
+    order_plan,
     resolve_priced_symbol,
 )
 from stockviz.services.trading.execution_provenance import (
@@ -90,8 +93,14 @@ def create_pending_order(
     quantity: Decimal,
     limit_price: Decimal,
     client_order_id: str | None = None,
+    book_id: int | None = None,
+    trade_plan_id: int | None = None,
+    plan: TradePlanDraft | None = None,
 ) -> PendingOrder:
-    """Validate and persist a new pending order.
+    """Validate and persist a new pending order in ``book_id`` (default book).
+
+    A5.4: ``trade_plan_id`` (an open or active plan in this book) or ``plan``
+    (a new one, written with the order) links the order's fill to a plan.
 
     With a ``client_order_id`` a repeat of the same order returns the first
     one, and a repeat naming a different order raises
@@ -112,7 +121,7 @@ def create_pending_order(
     if order_type in (OrderType.STOP_LOSS, OrderType.TAKE_PROFIT) and side != TradeSide.SELL:
         raise OrderError(f"{order_type} orders must be sell orders")
 
-    portfolio = ensure_default_portfolio(session, user_id)
+    portfolio = resolve_book(session, user_id, book_id, write=True)
     assert portfolio.id is not None
     portfolio_id = portfolio.id
     portfolio = lock_portfolio(session, portfolio_id)
@@ -169,6 +178,10 @@ def create_pending_order(
                 f"{reserved} are reserved by pending orders or covered calls."
             )
 
+    trade_plan = order_plan(
+        session, user_id=user_id, book=portfolio, ticker=ticker, side=side,
+        trade_plan_id=trade_plan_id, draft=plan,
+    )  # fmt: skip
     order = PendingOrder(
         portfolio_id=portfolio_id,
         ticker=ticker,
@@ -177,6 +190,7 @@ def create_pending_order(
         quantity=quantity,
         limit_price=limit_price,
         client_order_id=client_order_id,
+        trade_plan_id=trade_plan.id if trade_plan is not None else None,
     )
     session.add(order)
     session.commit()
@@ -185,22 +199,21 @@ def create_pending_order(
 
 
 def cancel_pending_order(session: Session, *, user_id: int, order_id: int) -> None:
-    """Cancel a pending order, serialized on the portfolio row.
+    """Cancel a pending order, serialized on its book's row.
+
+    Cancelling is allowed in an archived book (it only releases a
+    reservation); archiving refuses a book with pending orders anyway.
 
     Holds the same ``FOR UPDATE`` lock settlement uses, then re-reads
     ``order.status`` so a fill that committed while we waited cannot be
     overwritten back to ``CANCELLED``.
     """
-    portfolio = session.exec(
-        select(Portfolio).where(Portfolio.user_id == user_id).order_by(Portfolio.id)  # type: ignore[arg-type]
-    ).first()
-    if portfolio is None or portfolio.id is None:
+    # A5.1: the order names its own book; it must be one of the user's.
+    order = session.get(PendingOrder, order_id)
+    portfolio = owned_book(session, user_id, order.portfolio_id if order else None)
+    if order is None or portfolio is None or portfolio.id is None:
         raise OrderNotFound("Order not found")
     lock_portfolio(session, portfolio.id)
-
-    order = session.get(PendingOrder, order_id)
-    if order is None or order.portfolio_id != portfolio.id:
-        raise OrderNotFound("Order not found")
     session.refresh(order)
     if order.status != OrderStatus.PENDING:
         raise OrderError("Only pending orders can be cancelled")
@@ -388,6 +401,16 @@ def _require_full_pending_fill(order: PendingOrder, decision: FillDecision) -> D
     return None
 
 
+def _live_plan(session: Session, order: PendingOrder) -> TradePlan | None:
+    """A5.4: the order's plan, if it can still take a fill."""
+    if order.trade_plan_id is None:
+        return None
+    plan = session.get(TradePlan, order.trade_plan_id)
+    if plan is None or plan.status not in ("open", "active"):
+        return None
+    return plan
+
+
 def _fill(
     session: Session,
     order: PendingOrder,
@@ -428,6 +451,7 @@ def _fill(
             fx_rate=priced.fx_rate,
             exclude_order_id=order.id,
             fee_on=fee_date(order.ticker, provenance.evaluated_at),
+            trade_plan=_live_plan(session, order),
         )
     except TradeExecutionError as exc:
         _cancel(session, order, str(exc))

@@ -1,6 +1,9 @@
 "use client";
 
+import { type TicketBook, TicketBookLine } from "@/components/ticket-book-line";
+import { PlanReview, type TicketPlanOptions, TicketPlanSection } from "@/components/ticket-plan";
 import { feesSuffix } from "@/lib/fees";
+import { emptyPlanForm } from "@/lib/plans";
 import Link from "next/link";
 import { useActionState, useId, useState } from "react";
 
@@ -17,6 +20,7 @@ import {
   useHydrated,
 } from "@/components/order-review";
 import { OrderSideToggle } from "@/components/order-side-toggle";
+import { useOutcomeSound } from "@/components/sound/sound-provider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -27,6 +31,7 @@ import {
   getBuyShortcutQuantity,
   getSellShortcutQuantity,
 } from "@/lib/stock-workspace";
+import { titleCase } from "@/lib/title-case";
 
 export type TicketPosition = {
   quantity: number;
@@ -59,6 +64,10 @@ export type ContextualTradeTicketProps = {
   callbackUrl: string;
   initialSide?: Side;
   openOrderCount?: number | null;
+  /** A5.2: the book this ticket trades into (the default book here). */
+  book?: TicketBook | null;
+  /** A5.4: setups and open theses for "Plan this trade". */
+  planOptions?: TicketPlanOptions | null;
 };
 
 const SHORTCUTS = [
@@ -83,6 +92,8 @@ export function ContextualTradeTicket({
   callbackUrl,
   initialSide = "buy",
   openOrderCount = 0,
+  book = null,
+  planOptions = null,
 }: ContextualTradeTicketProps) {
   const fieldId = useId();
   const [side, setSide] = useState<Side>(initialSide);
@@ -92,6 +103,7 @@ export function ContextualTradeTicket({
   // Two-step entry (UI audit UX-4): the form first opens a review of the
   // order, and only the review's button submits it.
   const [reviewing, setReviewing] = useState(false);
+  const [plan, setPlan] = useState(emptyPlanForm);
   // The action state keeps its last success until the next submit, so the
   // confirmation remembers which result was already dismissed.
   const [dismissed, setDismissed] = useState<unknown>(null);
@@ -149,11 +161,16 @@ export function ContextualTradeTicket({
   const marketSuccess = marketState.success;
   const successMessage =
     orderMode === "market" && marketSuccess
-      ? `Filled ${marketSuccess.side.toUpperCase()} ${marketSuccess.quantity} ${marketSuccess.ticker} at ${formatMoney(Number(marketSuccess.price), marketSuccess.currency)}${feesSuffix(marketSuccess, formatMoney)}`
+      ? `Filled ${titleCase(marketSuccess.side)} ${marketSuccess.quantity} ${marketSuccess.ticker} at ${formatMoney(Number(marketSuccess.price), marketSuccess.currency)}${feesSuffix(marketSuccess, formatMoney)}${marketSuccess.planned ? ". Your plan locked at this fill" : ""}`
       : orderMode !== "market"
         ? orderState.success
         : undefined;
   const confirmed = Boolean(successMessage) && !pending && activeState !== dismissed;
+  useOutcomeSound(
+    successMessage,
+    error,
+    orderMode === "market" && marketSuccess ? "fill" : "success",
+  );
 
   const buyingPower = account
     ? formatMoney(account.availableCash, account.displayCurrency)
@@ -187,7 +204,11 @@ export function ContextualTradeTicket({
   function startNewOrder() {
     setDismissed(activeState);
     setReviewing(false);
+    setPlan(emptyPlanForm());
   }
+  // A5.4: a plan goes with a buy (market or limit); protective orders are sells.
+  const canPlan = effectiveSide === "buy" && !isProtective;
+  const activePlan = canPlan ? plan : { ...plan, enabled: false };
 
   if (confirmed && successMessage) {
     return (
@@ -240,6 +261,7 @@ export function ContextualTradeTicket({
         </p>
       ) : null}
 
+      {signedIn && book ? <TicketBookLine book={book} blockedReason={null} /> : null}
       <form
         action={formAction}
         onSubmit={(event) => {
@@ -272,14 +294,22 @@ export function ContextualTradeTicket({
             notional={notional}
             account={account}
             availableQuantity={availableQuantity}
+            plan={
+              <PlanReview
+                form={activePlan}
+                currency={currency}
+                quantity={quantity}
+                options={planOptions}
+              />
+            }
           />
         ) : (
           <>
             <OrderSideToggle side={effectiveSide} onChange={setSide} disabled={isProtective} />
 
             <fieldset className="space-y-2">
-              <legend className="text-xs font-medium uppercase tracking-[0.12em] text-text-tertiary">
-                Order type
+              <legend className="text-xs font-medium tracking-[0.02em] text-text-tertiary">
+                Order Type
               </legend>
               <div className="grid grid-cols-2 gap-2">
                 {(["market", "limit"] as const).map((mode) => (
@@ -378,6 +408,24 @@ export function ContextualTradeTicket({
                   </span>
                 </div>
               </div>
+            ) : null}
+
+            {canPlan ? (
+              <TicketPlanSection
+                form={plan}
+                onChange={setPlan}
+                ticker={ticker}
+                currency={currency}
+                referencePrice={
+                  orderMode === "market"
+                    ? latestClose === null
+                      ? null
+                      : String(latestClose)
+                    : triggerPrice || null
+                }
+                quantity={quantity}
+                options={planOptions}
+              />
             ) : null}
 
             <dl className="space-y-2 border-y border-border-muted py-3 text-xs">
@@ -483,7 +531,7 @@ function TicketHeading({ id, ticker }: { id: string; ticker: string }) {
   return (
     <div className="flex items-start justify-between gap-4">
       <div>
-        <p className="text-2xs font-semibold uppercase tracking-[0.16em] text-brand">Simulation</p>
+        <p className="text-2xs font-semibold tracking-[0.02em] text-brand">Simulation</p>
         <h2 id={id} className="mt-1 text-base font-semibold tracking-tight">
           Paper trade
         </h2>

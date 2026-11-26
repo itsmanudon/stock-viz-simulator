@@ -1,8 +1,9 @@
 from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
@@ -17,6 +18,8 @@ from stockviz.routers import (
     avwap,
     backtest,
     bars,
+    books,
+    brokers,
     checklist,
     column_sets,
     drawings,
@@ -27,14 +30,17 @@ from stockviz.routers import (
     fees,
     fundamentals,
     health,
+    imports,
     indicators,
     journal,
+    journal_entries,
     markets,
     news,
     notification_channels,
     notifications,
     options,
     orders,
+    plans,
     profile,
     quotes,
     regime,
@@ -54,6 +60,8 @@ from stockviz.routers import (
     watchlists,
 )
 from stockviz.scheduler import build_scheduler
+from stockviz.services.plans import PlanConflict, PlanError, PlanLocked, PlanNotFound
+from stockviz.services.trading.books import BookNotFound, BookNotWritable
 from stockviz.settings import get_settings
 
 if TYPE_CHECKING:
@@ -81,6 +89,27 @@ async def lifespan(app: FastAPI):
             scheduler.shutdown(wait=False)
 
 
+async def _book_not_found(request: Request, exc: BookNotFound) -> JSONResponse:
+    """A5.1: another user's book, or no such book, is 404 (ids leak nothing)."""
+    del request
+    return JSONResponse({"detail": str(exc)}, status_code=404)
+
+
+async def _book_not_writable(request: Request, exc: BookNotWritable) -> JSONResponse:
+    """A5.1: an archived or imported book takes no trades (409)."""
+    del request
+    return JSONResponse({"detail": str(exc)}, status_code=409)
+
+
+_PLAN_STATUS = {PlanNotFound: 404, PlanError: 422, PlanConflict: 409, PlanLocked: 409}
+
+
+async def _plan_error(request: Request, exc: Exception) -> JSONResponse:
+    """A5.4: plan errors from any route (orders, trades, plans)."""
+    del request
+    return JSONResponse({"detail": str(exc)}, status_code=_PLAN_STATUS[type(exc)])
+
+
 def create_app() -> FastAPI:
     settings = get_settings()
     init_sentry(settings)
@@ -97,6 +126,10 @@ def create_app() -> FastAPI:
 
     app.state.limiter = limiter
     app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # type: ignore[arg-type]
+    app.add_exception_handler(BookNotFound, _book_not_found)  # type: ignore[arg-type]
+    app.add_exception_handler(BookNotWritable, _book_not_writable)  # type: ignore[arg-type]
+    for plan_exc in _PLAN_STATUS:
+        app.add_exception_handler(plan_exc, _plan_error)
     app.add_middleware(SlowAPIMiddleware)
     app.middleware("http")(request_id_middleware)
     app.add_middleware(
@@ -133,6 +166,8 @@ def create_app() -> FastAPI:
     app.include_router(strength.router)
     app.include_router(regime.router)
     app.include_router(trading.router)
+    app.include_router(books.router)
+    app.include_router(imports.router)
     app.include_router(alerts.router)
     app.include_router(watchlist.router)
     app.include_router(watchlists.router)
@@ -146,11 +181,14 @@ def create_app() -> FastAPI:
     app.include_router(drills.router)
     app.include_router(earnings.router)
     app.include_router(journal.router)
+    app.include_router(journal_entries.router)
     app.include_router(notification_channels.router)
     app.include_router(notifications.router)
     app.include_router(research.router)
     app.include_router(fees.router)
     app.include_router(status.router)
+    app.include_router(brokers.router)
+    app.include_router(plans.router)
 
     return app
 

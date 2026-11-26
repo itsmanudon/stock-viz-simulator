@@ -79,7 +79,7 @@ export default async function SavedRunPage({ params }: { params: Promise<{ runId
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow="Research"
+        eyebrow="Quant Lab"
         title={`${KIND_LABEL[kind] ?? kind} · ${run.ticker}`}
         description={`${run.execution_profile} · fees ${run.fee_schedule} · ${run.bar_count} bars read`}
         meta={<MetaChip>Saved {formatUtcDateTime(run.created_at)}</MetaChip>}
@@ -196,10 +196,10 @@ function WalkForwardTable({ result }: { result: WalkForwardResult }) {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Chosen on</TableHead>
+              <TableHead>Chosen On</TableHead>
               <TableHead>Setting</TableHead>
-              <TableHead>Scored on</TableHead>
-              <TableHead className="text-right">Scored return</TableHead>
+              <TableHead>Scored On</TableHead>
+              <TableHead className="text-right">Scored Return</TableHead>
               <TableHead className="hidden text-right sm:table-cell">Trades</TableHead>
             </TableRow>
           </TableHeader>

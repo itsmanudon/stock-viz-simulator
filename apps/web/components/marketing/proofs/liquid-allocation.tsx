@@ -65,7 +65,7 @@ export function LiquidAllocation({
       const weight = lerp(cash.start, cash.now, k);
       pool?.setAttribute("r", (14 + Math.sqrt(weight) * 44).toFixed(1));
       const poolLabel = svg.querySelector<SVGTextElement>("[data-pool-label]");
-      if (poolLabel) poolLabel.textContent = `CASH ${Math.round(weight * 100)}%`;
+      if (poolLabel) poolLabel.textContent = `Cash ${Math.round(weight * 100)}%`;
       const when = svg.querySelector<SVGTextElement>("[data-when]");
       if (when) when.textContent = k > 0.5 ? nowLabel : startLabel;
     },
@@ -101,7 +101,7 @@ export function LiquidAllocation({
       </g>
       <g fontFamily="var(--font-mono)" fontSize="10.5" textAnchor="middle">
         <text data-pool-label x={CX} y={CY + 4} fill="var(--background)" fontWeight="600">
-          CASH
+          Cash
         </text>
         {drops.map((drop) => (
           <text key={drop.ticker} data-label fill="var(--foreground)" />

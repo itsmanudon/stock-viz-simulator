@@ -14,12 +14,14 @@
  * only underlyings the API accepts.
  */
 
+import { type TicketBook, TicketBookLine } from "@/components/ticket-book-line";
 import { useActionState, useEffect, useState } from "react";
 
 import {
   type OptionTradeState,
   openOptionAction,
 } from "@/app/(product)/(authed)/trade/options-actions";
+import { useOutcomeSound } from "@/components/sound/sound-provider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -32,6 +34,7 @@ import {
 } from "@/lib/api/option-quote";
 import { newClientOrderId } from "@/lib/order-review";
 import { formatCloseDate } from "@/lib/stock-workspace";
+import { titleCase } from "@/lib/title-case";
 
 type SymbolOption = { ticker: string; name: string };
 
@@ -71,8 +74,18 @@ function quoteError(error: unknown): string {
   return "The premium could not be priced right now.";
 }
 
-export function OptionTradeForm({ options }: { options: SymbolOption[] }) {
+export function OptionTradeForm({
+  options,
+  book = null,
+  blockedReason = null,
+}: {
+  options: SymbolOption[];
+  /** A5.2: the book the contract opens in; `blockedReason` disables the form. */
+  book?: TicketBook | null;
+  blockedReason?: string | null;
+}) {
   const [state, action, pending] = useActionState<OptionTradeState, FormData>(openOptionAction, {});
+  useOutcomeSound(state.success, state.error, "fill");
   const [optionType, setOptionType] = useState<"call" | "put">("call");
   const [side, setSide] = useState<"long" | "short">("long");
   const [ticker, setTicker] = useState(options[0]?.ticker ?? "");
@@ -137,7 +150,11 @@ export function OptionTradeForm({ options }: { options: SymbolOption[] }) {
 
   return (
     <div className="overflow-hidden rounded-md border border-border-muted bg-card">
+      <div className="px-5 pt-4">
+        <TicketBookLine book={book} blockedReason={blockedReason} />
+      </div>
       <form action={action} className="space-y-5 p-5">
+        {book ? <input type="hidden" name="book_id" value={book.id} /> : null}
         <fieldset className="space-y-2">
           <legend className="sr-only">Open as</legend>
           <div className="grid grid-cols-2 gap-3">
@@ -270,14 +287,14 @@ export function OptionTradeForm({ options }: { options: SymbolOption[] }) {
         {state.success ? (
           <output className="block text-sm text-positive">
             {state.success.side === "short" ? "Wrote" : "Bought"} {state.success.quantity}{" "}
-            {state.success.ticker} {state.success.option_type.toUpperCase()} @ $
+            {state.success.ticker} {titleCase(state.success.option_type)} @ $
             {Number(state.success.strike).toFixed(2)}{" "}
             {state.success.side === "short" ? "and received" : "for"} $
             {Number(state.success.premium_paid).toFixed(2)}
           </output>
         ) : null}
 
-        <Button type="submit" disabled={pending} className="w-full">
+        <Button type="submit" disabled={pending || Boolean(blockedReason)} className="w-full">
           {pending ? "Placing order…" : submitLabel(side, optionType, ready)}
         </Button>
       </form>

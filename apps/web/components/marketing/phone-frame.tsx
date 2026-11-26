@@ -34,7 +34,7 @@ export function PhoneFrame({
   return (
     <div
       className={cn(
-        "h-[37rem] rounded-[2.9rem] bg-linear-to-b from-[#2a3142] via-[#0d1119] to-[#20283a] p-[7px] shadow-[0_30px_80px_-20px_rgb(0_0_0/0.7),inset_0_0_0_1px_rgb(255_255_255/0.06)]",
+        "h-[37rem] rounded-[2.9rem] bg-linear-to-b from-[#3a3b3f] via-[#121315] to-[#2c2d31] p-[7px] shadow-[0_30px_80px_-20px_rgb(0_0_0/0.7),inset_0_0_0_1px_rgb(255_255_255/0.06)]",
         className,
       )}
     >
@@ -50,6 +50,7 @@ export function PhoneFrame({
           {screens.map((screen, index) => (
             <div
               key={screen.key}
+              data-screen={screen.key}
               data-active={index === active}
               className="absolute inset-0 flex flex-col gap-3.5 overflow-hidden px-3.5 pt-1.5 transition-opacity duration-500 data-[active=false]:pointer-events-none data-[active=false]:opacity-0 [&>*]:shrink-0"
             >

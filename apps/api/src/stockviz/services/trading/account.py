@@ -41,6 +41,8 @@ class AccountNotFresh(Exception):
 
 def activity(session: Session, portfolio: Portfolio) -> list[str]:
     """What the account has done, in words; empty when it is fresh."""
+    from stockviz.models.broker_import import BrokerFill, ImportBatch
+
     assert portfolio.id is not None
     pid = portfolio.id
     checks: list[tuple[str, object]] = [
@@ -48,6 +50,13 @@ def activity(session: Session, portfolio: Portfolio) -> list[str]:
         ("orders", select(PendingOrder.id).where(PendingOrder.portfolio_id == pid)),
         ("options", select(OptionsPosition.id).where(OptionsPosition.portfolio_id == pid)),
         ("positions", select(Position.id).where(Position.portfolio_id == pid)),
+        ("imports", select(ImportBatch.id).where(ImportBatch.portfolio_id == pid)),
+        (
+            "opening lots",
+            select(BrokerFill.id).where(
+                BrokerFill.portfolio_id == pid, BrokerFill.kind == "opening"
+            ),
+        ),
         ("dividends", select(PortfolioDividend.id).where(PortfolioDividend.portfolio_id == pid)),
         (
             "foreign cash",
@@ -59,21 +68,26 @@ def activity(session: Session, portfolio: Portfolio) -> list[str]:
     return [name for name, stmt in checks if session.exec(stmt.limit(1)).first() is not None]  # type: ignore[attr-defined]
 
 
-def set_base_currency(session: Session, *, user_id: int, currency: str) -> Portfolio:
-    """Restart a fresh account in ``currency``. Commits.
+def set_base_currency(
+    session: Session, *, user_id: int, currency: str, book_id: int | None = None
+) -> Portfolio:
+    """Restart a fresh paper book in ``currency``. Commits.
 
-    A repeat with the account's current currency changes nothing. Raises
-    :class:`UnsupportedBaseCurrency` or :class:`AccountNotFresh`.
+    A5.1: the currency is per book (default: the default book), and only
+    that book's snapshots are restated. The user's display currency follows
+    only when the default book is reset. A repeat with the book's current
+    currency changes nothing. Raises :class:`UnsupportedBaseCurrency`,
+    :class:`AccountNotFresh` or ``BookNotWritable`` (archived or imported).
     """
+    from stockviz.services.trading.books import resolve_book
     from stockviz.services.trading.buying_power import lock_portfolio
-    from stockviz.services.trading.execute import ensure_default_portfolio
 
     currency = currency.upper()
     if currency not in STARTING_CASH:
         raise UnsupportedBaseCurrency(
             f"Base currency must be one of {', '.join(sorted(STARTING_CASH))}"
         )
-    portfolio = ensure_default_portfolio(session, user_id)
+    portfolio = resolve_book(session, user_id, book_id, write=True)
     assert portfolio.id is not None
     portfolio = lock_portfolio(session, portfolio.id)
     if (portfolio.base_currency or "USD") == currency:
@@ -95,11 +109,11 @@ def set_base_currency(session: Session, *, user_id: int, currency: str) -> Portf
     # A fresh account's snapshots are its starting cash; restate them in the
     # new currency so the equity curve and returns start from the new opening.
     for snap in session.exec(
-        select(PortfolioSnapshot).where(PortfolioSnapshot.user_id == user_id)
+        select(PortfolioSnapshot).where(PortfolioSnapshot.portfolio_id == portfolio.id)
     ).all():
         snap.nav = start
         session.add(snap)
-    user = session.get(User, user_id)
+    user = session.get(User, user_id) if portfolio.is_default else None
     if user is not None:
         # Show the account in its own currency; Settings can still change it.
         user.display_currency = currency

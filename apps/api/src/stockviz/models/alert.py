@@ -66,6 +66,14 @@ class Alert(SQLModel, table=True):
         default=None, foreign_key="symbols.ticker", index=True, max_length=16, nullable=True
     )
     instrument_id: int | None = Field(default=None, sa_column=instrument_id_column())
+    # A5.1: the book a portfolio rule watches; null means the user's default
+    # book. Deleting the book deletes its rules.
+    portfolio_id: int | None = Field(
+        default=None,
+        sa_column=Column(
+            Integer, ForeignKey("portfolios.id", ondelete="CASCADE"), nullable=True, index=True
+        ),
+    )
     kind: AlertKind = Field(
         default=AlertKind.PRICE,
         sa_column=Column(String(16), nullable=False, server_default="price"),

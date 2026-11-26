@@ -15,6 +15,7 @@ from stockviz.services.trading import (
     execute_trade,
 )
 from stockviz.settings import get_settings
+from tests.book_helpers import default_book_id
 
 SECRET = get_settings().internal_api_token
 
@@ -106,9 +107,17 @@ def test_analytics_computes_return_from_the_opening_value_to_live(
     # 100k -> 110k = +10% total return over the window.
     session.add_all(
         [
-            PortfolioSnapshot(user_id=user_id, date=base_date, nav=Decimal(100_000)),
             PortfolioSnapshot(
-                user_id=user_id, date=base_date + timedelta(days=30), nav=Decimal(110_000)
+                user_id=user_id,
+                portfolio_id=default_book_id(session, user_id),
+                date=base_date,
+                nav=Decimal(100_000),
+            ),
+            PortfolioSnapshot(
+                user_id=user_id,
+                portfolio_id=default_book_id(session, user_id),
+                date=base_date + timedelta(days=30),
+                nav=Decimal(110_000),
             ),
         ]
     )
@@ -137,8 +146,18 @@ def test_return_survives_the_nightly_overwrite_of_the_opening_snapshot(
     session.add_all(
         [
             # The opening day's row now holds the EOD value, not 100k.
-            PortfolioSnapshot(user_id=user_id, date=day, nav=Decimal(102_000)),
-            PortfolioSnapshot(user_id=user_id, date=day + timedelta(days=1), nav=Decimal(104_000)),
+            PortfolioSnapshot(
+                user_id=user_id,
+                portfolio_id=default_book_id(session, user_id),
+                date=day,
+                nav=Decimal(102_000),
+            ),
+            PortfolioSnapshot(
+                user_id=user_id,
+                portfolio_id=default_book_id(session, user_id),
+                date=day + timedelta(days=1),
+                nav=Decimal(104_000),
+            ),
         ]
     )
     session.commit()

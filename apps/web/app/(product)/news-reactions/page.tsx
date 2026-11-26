@@ -81,6 +81,7 @@ export default async function NewsReactionsPage({
   return (
     <PageFrame width="workstation" className="py-5 sm:py-7">
       <ResearchPageHeader
+        path="/news-reactions"
         title="News reactions"
         description="How did prices move against their market index around news of a kind? Market-adjusted returns from the first session that closed after each Aegis item became available."
       />

@@ -1,7 +1,9 @@
-import Link from "next/link";
+import { BookLink as Link } from "@/components/book-link";
 
 import { EquityCurve } from "@/components/equity-curve";
 import { PaperCard } from "@/components/paper-card";
+import { RollingFigure } from "@/components/prism/rolling-figure";
+import { TiltCard } from "@/components/prism/tilt-card";
 import { ValuationNotice } from "@/components/valuation-notice";
 import type { Portfolio, PortfolioHistoryPoint } from "@/lib/api/trading";
 import {
@@ -20,9 +22,11 @@ type Props = {
   history: PortfolioHistoryPoint[] | null;
   range: PortfolioRange;
   tab: PortfolioTab;
+  /** A5.2: the selected book (name, kind) or All books; null before the switcher. */
+  book?: { name: string; kind: "paper" | "imported" | "all" } | null;
 };
 
-export function PortfolioPerformance({ portfolio, history, range, tab }: Props) {
+export function PortfolioPerformance({ portfolio, history, range, tab, book = null }: Props) {
   const hasInvestments = portfolio.positions.length > 0 || portfolio.option_positions.length > 0;
   const change = hasInvestments && history ? calculateNavChange(history) : null;
   const rangeLabel = PORTFOLIO_RANGES.find((item) => item.value === range)?.label ?? "3M";
@@ -43,8 +47,12 @@ export function PortfolioPerformance({ portfolio, history, range, tab }: Props) 
     <section aria-labelledby="portfolio-heading" className="border-b border-border-muted pb-5">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
-            Paper portfolio
+          <p className="text-xs font-medium tracking-[0.02em] text-muted-foreground">
+            {book?.kind === "all"
+              ? "All Books · Combined"
+              : book
+                ? `${book.kind === "imported" ? "Imported" : "Paper"} Book · ${book.name}`
+                : "Paper Portfolio"}
           </p>
           <h1
             id="portfolio-heading"
@@ -66,7 +74,21 @@ export function PortfolioPerformance({ portfolio, history, range, tab }: Props) 
       <div className="mt-6 grid gap-6 md:grid-cols-[13rem_minmax(0,1fr)] md:items-center lg:grid-cols-[13rem_minmax(0,1fr)_auto] lg:items-end">
         <div className="relative isolate hidden md:block">
           <div aria-hidden className="brand-glow -top-10 -left-10 -z-10 h-56 w-80 opacity-70" />
-          <PaperCard accountId={portfolio.portfolio_id} currency={currency} className="w-full" />
+          <TiltCard>
+            <PaperCard
+              accountId={book?.kind === "all" ? undefined : portfolio.portfolio_id}
+              currency={currency}
+              badge={
+                book?.kind === "all"
+                  ? "All Books"
+                  : book?.kind === "imported"
+                    ? "Imported"
+                    : "Paper"
+              }
+              title={book?.kind === "all" ? `All Books · ${currency}` : undefined}
+              className="w-full"
+            />
+          </TiltCard>
         </div>
         <div className="min-w-0">
           <p className="mb-1 flex items-center gap-2 text-xs text-muted-foreground">
@@ -79,8 +101,8 @@ export function PortfolioPerformance({ portfolio, history, range, tab }: Props) 
             className="font-mono text-4xl font-medium tracking-[-0.04em] sm:text-5xl"
             data-financial
           >
-            {major}
-            {minor ? <span className="figure-minor">{minor}</span> : null}
+            <RollingFigure text={major} />
+            {minor ? <RollingFigure text={minor} className="figure-minor" /> : null}
           </p>
           <p className="mt-2 text-xs text-muted-foreground">
             Latest EOD valuation · Display currency {currency}
@@ -158,6 +180,12 @@ export function PortfolioPerformance({ portfolio, history, range, tab }: Props) 
               accessibleLabel={`${rangeLabel} ${portfolio.base_currency || "USD"} NAV chart, ${change.percent >= 0 ? "up" : "down"} ${Math.abs(change.percent).toFixed(2)}% from ${formatDate(change.firstDate)} to ${formatDate(change.lastDate)}.`}
             />
           )}
+          {history?.slice(1).some((point) => Number(point.flow ?? 0) !== 0) ? (
+            <p className="mt-2 text-2xs text-text-tertiary">
+              Steps in the line are money a new book or an imported buy brought in. The change above
+              leaves them out.
+            </p>
+          ) : null}
         </div>
       ) : null}
     </section>

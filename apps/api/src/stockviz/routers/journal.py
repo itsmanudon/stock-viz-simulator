@@ -21,6 +21,7 @@ from sqlmodel import Session
 
 from stockviz.auth import UserIdDep
 from stockviz.db import get_session
+from stockviz.routers.book_query import BookQuery
 from stockviz.schemas import (
     JournalDayOut,
     JournalDaySummaryOut,
@@ -40,16 +41,16 @@ from stockviz.services.journal import (
     month_view,
     week_view,
 )
-from stockviz.services.trading import ensure_default_portfolio
+from stockviz.services.trading.books import resolve_book
 
 router = APIRouter(prefix="/v1/portfolio/journal", tags=["journal"])
 
 SessionDep = Annotated[Session, Depends(get_session)]
 
 
-def _journal_currency(session: Session, user_id: int) -> str:
-    """The account's base currency (Phase 4.8: USD or INR)."""
-    return ensure_default_portfolio(session, user_id).base_currency or "USD"
+def _journal_currency(session: Session, user_id: int, book: int | None) -> str:
+    """The book's base currency (Phase 4.8: USD or INR; per book since A5.1)."""
+    return resolve_book(session, user_id, book).base_currency or "USD"
 
 
 JOURNAL_CURRENCY_NOTE = """Realized P&L is a base-currency ledger quantity captured at fill-time FX.
@@ -115,6 +116,7 @@ def get_journal_month(
     user_id: UserIdDep,
     year: Annotated[int, Path(ge=MIN_YEAR, le=MAX_YEAR)],
     month: Annotated[int, Path(ge=1, le=12)],
+    book: BookQuery = None,
 ) -> JournalMonthOut:
     """Realized P&L for one New York calendar month, by day and by week.
 
@@ -123,7 +125,7 @@ def get_journal_month(
     the whole month so the calendar's summary column lines up with its rows.
     """
 
-    view = month_view(session, user_id=user_id, year=year, month=month)
+    view = month_view(session, user_id=user_id, year=year, month=month, book_id=book)
     first, last = month_bounds(year, month)
 
     return JournalMonthOut(
@@ -133,7 +135,7 @@ def get_journal_month(
             first_day=first.isoformat(),
             last_day=last.isoformat(),
         ),
-        currency=_journal_currency(session, user_id),
+        currency=_journal_currency(session, user_id, book),
         summary=_stats_out(view.month.stats),
         return_pct=view.return_pct,
         start_nav=view.start_nav,
@@ -160,6 +162,7 @@ def get_journal_day(
     day: date_type,
     offset: Annotated[int, Query(ge=0)] = 0,
     limit: Annotated[int, Query(ge=1, le=200)] = 100,
+    book: BookQuery = None,
 ) -> JournalDayOut:
     """Every closing execution attributed to one New York trading session.
 
@@ -170,10 +173,10 @@ def get_journal_day(
     if day.year < MIN_YEAR or day.year > MAX_YEAR:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "date out of range")
 
-    view = day_view(session, user_id=user_id, day=day)
+    view = day_view(session, user_id=user_id, day=day, book_id=book)
     return JournalDayOut(
         date=view.date.isoformat(),
-        currency=_journal_currency(session, user_id),
+        currency=_journal_currency(session, user_id, book),
         stats=_stats_out(view.stats),
         executions=[_execution_out(item) for item in view.executions[offset : offset + limit]],
         offset=offset,
@@ -183,12 +186,14 @@ def get_journal_day(
 
 
 @router.get("/weeks/{start}", response_model=JournalWeekOut)
-def get_journal_week(session: SessionDep, user_id: UserIdDep, start: date_type) -> JournalWeekOut:
+def get_journal_week(
+    session: SessionDep, user_id: UserIdDep, start: date_type, book: BookQuery = None
+) -> JournalWeekOut:
     if not MIN_YEAR <= start.year <= MAX_YEAR or (start.day != 1 and start.weekday() != 0):
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_CONTENT, "Expected a Monday or first day of month"
         )
-    view = week_view(session, user_id=user_id, start=start)
+    view = week_view(session, user_id=user_id, start=start, book_id=book)
     return JournalWeekOut(
         start=view.start.isoformat(),
         end=view.end.isoformat(),

@@ -4,14 +4,21 @@
  * Public by the owner's choice: each nightly job's last run and result, the
  * Aegis sync, the newest stored bar per market and dead outbox events.
  * Names, times and states only. Times are UTC and say so.
+ *
+ * A5.7: a Brokers section. Signed in it reads `/v1/broker/status` (the
+ * server's broker setup and the viewer's imported books); signed out it says
+ * to sign in. A failed read says so; it never fails the page.
  */
 
 import type { Metadata } from "next";
 
+import { auth } from "@/auth";
+import { BrokerStatusList } from "@/components/brokers/broker-status";
 import { PageFrame } from "@/components/page-frame";
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
 import { formatUtcDateTime } from "@/lib/api-time";
+import { type BrokerStatus, getBrokerStatusOrNull } from "@/lib/api/brokers";
 import { type ServiceStatus, getServiceStatus } from "@/lib/api/status";
 import { formatCloseDate } from "@/lib/stock-workspace";
 
@@ -41,6 +48,9 @@ export default async function StatusPage() {
   } catch {
     data = null;
   }
+  const session = await auth().catch(() => null);
+  const signedIn = Boolean(session?.user?.id);
+  const brokers: BrokerStatus | null = signedIn ? await getBrokerStatusOrNull() : null;
   const failing = data?.jobs.filter((j) => j.status === "failed").length ?? 0;
 
   return (
@@ -109,6 +119,22 @@ export default async function StatusPage() {
                   </li>
                 ))}
               </ul>
+            </section>
+            <section
+              aria-labelledby="brokers-heading"
+              className="rounded-md border border-border-muted bg-card p-4"
+            >
+              <h2 id="brokers-heading" className="text-sm font-semibold">
+                Brokers
+              </h2>
+              {signedIn ? (
+                <BrokerStatusList brokers={brokers?.brokers ?? null} className="mt-2" />
+              ) : (
+                <p className="mt-2 text-sm text-text-secondary">
+                  No live broker connection. Sign in to see the broker setup for your imported
+                  books.
+                </p>
+              )}
             </section>
             <section
               aria-labelledby="aegis-heading"

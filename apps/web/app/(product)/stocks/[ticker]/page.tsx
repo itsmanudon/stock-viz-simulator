@@ -22,6 +22,8 @@ import { StockChartToolbar } from "@/components/stock-chart-toolbar";
 import { StockMetricsStrip } from "@/components/stock-metrics-strip";
 import { StockResearchTabs } from "@/components/stock-research-tabs";
 import { TickerOrders } from "@/components/ticker-orders";
+import type { TicketBook } from "@/components/ticket-book-line";
+import type { TicketPlanOptions } from "@/components/ticket-plan";
 import { VisitorLimitNotice } from "@/components/visitor-limit-notice";
 import {
   ApiError,
@@ -33,6 +35,7 @@ import {
   getNewsForTicker,
   getSymbol,
 } from "@/lib/api";
+import { listBooks } from "@/lib/api/books";
 import {
   type Delivery,
   type RelativeStrength,
@@ -44,6 +47,7 @@ import { getSymbolChecklist } from "@/lib/api/checklist";
 import { listDrawings } from "@/lib/api/drawings";
 import { getMyFills } from "@/lib/api/events-server";
 import { getFundamentals, getValuation, getValuationHistory } from "@/lib/api/fundamentals";
+import { planPickerOptions } from "@/lib/api/plans";
 import { getEventStudy } from "@/lib/api/research";
 import {
   type PendingOrder,
@@ -77,6 +81,7 @@ import {
   parseStockInterval,
   studyFor,
 } from "@/lib/stock-workspace";
+import { titleCase } from "@/lib/title-case";
 import { checkVisitorLimit } from "@/lib/visitor-limit";
 
 const TIMEFRAME_DAYS: Record<StockTimeframe, number> = {
@@ -257,16 +262,34 @@ export default async function StockPage({
   let inWatchlist = false;
   let watchlists: WatchlistList[] = [];
   let drawings: DrawingsResponse | null = null;
+  // A5.2: this ticket trades into the default book, and says so.
+  let ticketBook: TicketBook | null = null;
+  let planOptions: TicketPlanOptions | null = null;
 
   if (signedIn) {
-    const [portfolioResult, ordersResult, watchlistResult, drawingsResult] = await Promise.all([
+    const [
+      portfolioResult,
+      ordersResult,
+      watchlistResult,
+      drawingsResult,
+      booksResult,
+      planResult,
+    ] = await Promise.all([
       getPortfolio().catch(() => null),
       listOrders("pending").catch(() => null),
       // A2.5: every list, each saying whether it holds this ticker.
       listWatchlists(ticker).catch(() => [] as WatchlistList[]),
       // A3.2: the user's drawings; a failed call turns the tools off, not the chart.
       listDrawings(ticker).catch(() => null),
+      listBooks().catch(() => null),
+      // A5.4: the ticket's setup and thesis pickers.
+      planPickerOptions().catch(() => null),
     ]);
+    planOptions = planResult;
+    const defaultBook = booksResult?.books.find((b) => b.is_default) ?? null;
+    ticketBook = defaultBook
+      ? { id: defaultBook.id, name: defaultBook.name, currency: defaultBook.base_currency }
+      : null;
     drawings = drawingsResult;
     portfolio = portfolioResult;
     tickerOrders = ordersResult?.filter((order) => order.ticker === ticker) ?? null;
@@ -334,6 +357,8 @@ export default async function StockPage({
   const chartBars = showingRaw ? rawChartBars : bars;
   const activeStockUrl = buildStockChartHref(ticker, timeframe, selectedIndicators, interval, view);
   const ticketProps = {
+    book: ticketBook,
+    planOptions,
     ticker,
     name: symbol.name,
     currency: symbol.currency,
@@ -604,8 +629,8 @@ function Overview({
     <div className="space-y-8">
       <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,0.55fr)]">
         <div>
-          <p className="text-2xs font-semibold uppercase tracking-[0.14em] text-text-tertiary">
-            Security overview
+          <p className="text-2xs font-semibold tracking-[0.02em] text-text-tertiary">
+            Security Overview
           </p>
           <h2 className="mt-2 text-xl font-semibold tracking-tight">{symbol.name}</h2>
           <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">
@@ -642,15 +667,15 @@ function Overview({
         <dl className="grid grid-cols-2 gap-x-6 gap-y-5 border-y border-border-muted py-5">
           {items.map(([label, value]) => (
             <div key={label}>
-              <dt className="text-3xs font-semibold uppercase tracking-[0.12em] text-text-tertiary">
-                {label}
+              <dt className="text-3xs font-semibold tracking-[0.02em] text-text-tertiary">
+                {titleCase(label)}
               </dt>
               <dd className="mt-1 text-sm font-medium">{value}</dd>
             </div>
           ))}
           <div>
-            <dt className="text-3xs font-semibold uppercase tracking-[0.12em] text-text-tertiary">
-              Portfolio status
+            <dt className="text-3xs font-semibold tracking-[0.02em] text-text-tertiary">
+              Portfolio Status
             </dt>
             <dd className="mt-1 text-sm font-medium">
               {positionStatus === "held"

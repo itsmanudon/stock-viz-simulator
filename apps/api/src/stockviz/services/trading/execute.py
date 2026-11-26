@@ -23,10 +23,11 @@ from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import func
-from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, col, select
 
 from stockviz.models import FxConversion, Portfolio, Position, PriceBar, Symbol, Trade, TradeSide
+from stockviz.models.trade_plan import TradePlan
+from stockviz.schemas import TradePlanDraft
 from stockviz.services.instruments import instrument_of, is_index_ticker
 from stockviz.services.simulation import (
     LIVE_PAPER_EXECUTION_PROFILE,
@@ -38,11 +39,19 @@ from stockviz.services.simulation import (
     evaluate_order,
     get_fee_schedule,
 )
+from stockviz.services.trading.books import (
+    DEFAULT_STARTING_CASH as DEFAULT_STARTING_CASH,
+)
+from stockviz.services.trading.books import (
+    ensure_default_portfolio as ensure_default_portfolio,
+)
+from stockviz.services.trading.books import (
+    resolve_book,
+)
 from stockviz.services.trading.buying_power import (
     available_cash,
     available_shares,
     lock_portfolio,
-    lock_user,
     reserved_shares,
 )
 from stockviz.services.trading.cash import base_currency, pay_for_buy, plan_buy
@@ -62,8 +71,6 @@ logger = logging.getLogger(__name__)
 
 EMPTY_FEES = FeeBreakdown(())
 
-DEFAULT_STARTING_CASH = Decimal("100000.00")
-"""Matches the v1 simulator: every new portfolio starts with $100k."""
 
 MICROS = Decimal("0.000001")
 """Quantization step for stored monetary values (matches Numeric(_, 6))."""
@@ -156,87 +163,6 @@ def latest_bar(session: Session, ticker: str) -> PriceBar | None:
 def _latest_close(session: Session, ticker: str) -> Decimal | None:
     bar = latest_bar(session, ticker)
     return bar.close if bar else None
-
-
-def ensure_default_portfolio(session: Session, user_id: int) -> Portfolio:
-    """Return the user's default portfolio, creating it if needed.
-
-    The web app calls this on the first /v1/portfolio request so users see a
-    funded starting balance instead of an empty page. Idempotent — re-running
-    returns the existing portfolio.
-
-    A brand-new portfolio also gets a same-day NAV snapshot seeded at the
-    starting cash, so return-since-inception is measured from the moment the
-    account was funded rather than from whenever the nightly snapshot job
-    first happened to run.
-    """
-
-    existing = session.exec(
-        select(Portfolio).where(Portfolio.user_id == user_id).order_by(Portfolio.id)  # type: ignore[arg-type]
-    ).first()
-    if existing is not None:
-        return existing
-
-    # Serialize first-account creation on the user row. Without this, two
-    # concurrent first /portfolio hits can INSERT two portfolios (user_id
-    # uniqueness is enforced in the DB, but the race still needs a lock so
-    # the loser re-reads instead of erroring out to the client).
-    lock_user(session, user_id)
-    existing = session.exec(
-        select(Portfolio).where(Portfolio.user_id == user_id).order_by(Portfolio.id)  # type: ignore[arg-type]
-    ).first()
-    if existing is not None:
-        return existing
-
-    portfolio = Portfolio(
-        user_id=user_id,
-        name="Default",
-        cash_balance=DEFAULT_STARTING_CASH,
-        opening_nav=DEFAULT_STARTING_CASH,
-    )
-    session.add(portfolio)
-    try:
-        session.commit()
-    except IntegrityError:
-        session.rollback()
-        existing = session.exec(
-            select(Portfolio).where(Portfolio.user_id == user_id).order_by(Portfolio.id)  # type: ignore[arg-type]
-        ).first()
-        if existing is None:
-            raise
-        return existing
-    session.refresh(portfolio)
-    _seed_opening_snapshot(session, user_id=user_id, nav=DEFAULT_STARTING_CASH)
-    return portfolio
-
-
-def _seed_opening_snapshot(session: Session, *, user_id: int, nav: Decimal) -> None:
-    """Write the day-zero NAV snapshot for a freshly created portfolio.
-
-    Imported lazily: ``services.trading.snapshots`` imports ``portfolio``,
-    which imports this module, so a module-level import would cycle.
-    """
-    from stockviz._time import utcnow
-    from stockviz.models import PortfolioSnapshot
-
-    today = utcnow().date()
-    existing = session.exec(
-        select(PortfolioSnapshot).where(
-            PortfolioSnapshot.user_id == user_id,
-            PortfolioSnapshot.date == today,
-        )
-    ).first()
-    if existing is not None:
-        return
-    session.add(PortfolioSnapshot(user_id=user_id, date=today, nav=nav))
-    try:
-        session.commit()
-    except IntegrityError:
-        # The portfolio page fans out several /v1 calls in Promise.all; two of
-        # them can pass the SELECT above and one INSERT then hits
-        # uq_portfolio_snapshots_user_date. The other request already wrote
-        # the row — treat that as success.
-        session.rollback()
 
 
 def get_position(session: Session, *, portfolio_id: int, ticker: str) -> Position | None:
@@ -416,6 +342,7 @@ def apply_fill(
     exclude_option_id: int | None = None,
     fee_on: date | None = None,
     charge_fees: bool = True,
+    trade_plan: TradePlan | None = None,
 ) -> TradeExecution:
     """Mutate cash + position and stage the Trade row for ``portfolio``.
 
@@ -444,6 +371,10 @@ def apply_fill(
     netted from a sell's proceeds, in the symbol's currency. ``realized_pnl``
     stays the price gain; the trade row keeps the fees beside it.
     ``charge_fees=False`` (option exercise and assignment) books none.
+
+    A5.4: ``trade_plan`` links the fill to that plan (its first fill locks
+    it, ``services/plans``); a sell that empties the position closes the
+    book's active plans in the instrument.
     """
 
     assert portfolio.id is not None
@@ -469,6 +400,7 @@ def apply_fill(
     position = get_position(session, portfolio_id=portfolio_id, ticker=ticker)
     realized_pnl: Decimal | None = None
     avg_cost_at_fill: Decimal | None = None
+    flat_instrument: int | None = None
 
     if side == TradeSide.BUY:
         try:
@@ -561,6 +493,7 @@ def apply_fill(
         # the portfolio view stays clean.
         if position.quantity == 0:
             session.delete(position)
+            flat_instrument = position.instrument_id
 
     trade = Trade(
         portfolio_id=portfolio_id,
@@ -584,6 +517,14 @@ def apply_fill(
     if conversion is not None:
         conversion.trade_id = trade.id
         session.add(conversion)
+    if trade_plan is not None:
+        from stockviz.services.plans import link_trade
+
+        link_trade(session, trade_plan, trade)
+    if flat_instrument is not None:
+        from stockviz.services.plans import close_flat_plans
+
+        close_flat_plans(session, portfolio_id=portfolio_id, instrument_id=flat_instrument)
     from stockviz.events.outbox import enqueue_trade_executed
 
     enqueue_trade_executed(
@@ -627,8 +568,11 @@ def execute_trade(
     side: TradeSide,
     quantity: Decimal,
     client_order_id: str | None = None,
+    book_id: int | None = None,
+    trade_plan_id: int | None = None,
+    plan: TradePlanDraft | None = None,
 ) -> TradeExecution:
-    """Execute a market order. Raises a ``TradeExecutionError`` subclass on validation failure.
+    """Execute a market order in ``book_id`` (default: the user's default book). Raises a ``TradeExecutionError`` subclass on validation failure.
 
     The price stored on the Trade row is in the symbol's native currency.
     Cash is debited/credited in the portfolio's base currency (Phase 4.8),
@@ -649,7 +593,7 @@ def execute_trade(
         raise TradeExecutionError("quantity must be positive")
 
     ticker = ticker.upper()
-    portfolio = ensure_default_portfolio(session, user_id)
+    portfolio = resolve_book(session, user_id, book_id, write=True)
     assert portfolio.id is not None
     if client_order_id is not None:
         lock_portfolio(session, portfolio.id)
@@ -667,23 +611,58 @@ def execute_trade(
     provenance = _market_fill_provenance(bar=priced.bar, side=side, quantity=quantity)
     fill_price = provenance.decision.fill_price
     assert fill_price is not None
+    trade_plan = order_plan(
+        session, user_id=user_id, book=portfolio, ticker=ticker, side=side,
+        trade_plan_id=trade_plan_id, draft=plan,
+    )  # fmt: skip
 
-    result = apply_fill(
-        session,
-        portfolio=portfolio,
-        ticker=ticker,
-        side=side,
-        quantity=quantity,
-        price=fill_price,
-        currency=priced.currency,
-        fx_rate=priced.fx_rate,
-        client_order_id=client_order_id,
-        fee_on=_fee_on(ticker, provenance.evaluated_at),
-    )
+    try:
+        result = apply_fill(
+            session,
+            portfolio=portfolio,
+            ticker=ticker,
+            side=side,
+            quantity=quantity,
+            price=fill_price,
+            currency=priced.currency,
+            fx_rate=priced.fx_rate,
+            client_order_id=client_order_id,
+            fee_on=_fee_on(ticker, provenance.evaluated_at),
+            trade_plan=trade_plan,
+        )
+    except Exception:
+        if plan is not None:
+            session.rollback()  # the new plan goes with the refused order
+        raise
     record_execution_provenance(session, trade=result.trade, provenance=provenance)
     session.commit()
     session.refresh(result.trade)
     return result
+
+
+def order_plan(
+    session: Session,
+    *,
+    user_id: int,
+    book: Portfolio,
+    ticker: str,
+    side: TradeSide,
+    trade_plan_id: int | None,
+    draft: TradePlanDraft | None,
+) -> TradePlan | None:
+    """A5.4: the plan an order links to (``services/plans.plan_for_order``)."""
+    if trade_plan_id is None and draft is None:
+        return None
+    from stockviz.services.instruments import resolve_symbol
+    from stockviz.services.plans import plan_for_order
+
+    instrument = resolve_symbol(session, ticker)
+    if instrument is None or instrument.id is None:
+        raise SymbolNotFound(f"Symbol {ticker!r} not found")
+    return plan_for_order(
+        session, user_id=user_id, book=book, instrument_id=instrument.id, side=side,
+        trade_plan_id=trade_plan_id, draft=draft,
+    )  # fmt: skip
 
 
 def _fee_on(ticker: str, instant: datetime) -> date:

@@ -1,5 +1,5 @@
+import { BookLink as Link } from "@/components/book-link";
 import { ArrowUpRight } from "lucide-react";
-import Link from "next/link";
 
 import { cn } from "@/lib/utils";
 
@@ -27,7 +27,7 @@ export function WidgetCard({
     <section
       aria-labelledby={titleId}
       className={cn(
-        "flex min-w-0 flex-col rounded-md border border-border-muted bg-card p-4 sm:p-5",
+        "spotlight flex min-w-0 flex-col rounded-xl border border-border-muted bg-card p-4 transition-colors hover:border-border sm:p-5",
         className,
       )}
     >

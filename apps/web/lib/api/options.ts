@@ -1,5 +1,6 @@
 import "server-only";
 
+import { withBook } from "./books";
 import type { StrategyKind, StrategyRequest } from "./option-strategies";
 import { authedGet, authedPost } from "./server";
 
@@ -57,8 +58,11 @@ export function listOptionsPositions(): Promise<OptionPosition[]> {
   return authedGet<OptionPosition[]>("/v1/options/positions");
 }
 
-export function tradeOption(body: OpenOptionInput | CloseOptionInput): Promise<OptionTradeResult> {
-  return authedPost<OptionTradeResult>("/v1/options/trade", body);
+export function tradeOption(
+  body: OpenOptionInput | CloseOptionInput,
+  book?: number | null,
+): Promise<OptionTradeResult> {
+  return authedPost<OptionTradeResult>(withBook("/v1/options/trade", book), body);
 }
 
 // ---------------------------------------------------------------------------
@@ -114,18 +118,19 @@ export type OptionsBook = {
 
 export function openStrategy(
   body: StrategyRequest & { client_order_id?: string },
+  book?: number | null,
 ): Promise<OptionStrategyTrade> {
-  return authedPost<OptionStrategyTrade>("/v1/options/strategies", body);
+  return authedPost<OptionStrategyTrade>(withBook("/v1/options/strategies", book), body);
 }
 
-export function listStrategies(): Promise<OptionStrategy[]> {
-  return authedGet<OptionStrategy[]>("/v1/options/strategies");
+export function listStrategies(book?: number | null): Promise<OptionStrategy[]> {
+  return authedGet<OptionStrategy[]>(withBook("/v1/options/strategies", book));
 }
 
 export function closeStrategy(id: number): Promise<OptionStrategyTrade> {
   return authedPost<OptionStrategyTrade>(`/v1/options/strategies/${id}/close`, {});
 }
 
-export function getOptionsBook(): Promise<OptionsBook> {
-  return authedGet<OptionsBook>("/v1/options/book");
+export function getOptionsBook(book?: number | null): Promise<OptionsBook> {
+  return authedGet<OptionsBook>(withBook("/v1/options/book", book));
 }

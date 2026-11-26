@@ -36,7 +36,7 @@ describe("loadPhoneScreens", () => {
 
     expect(screens.map((s) => s.key)).toEqual(["portfolio"]);
     render(<div>{screens[0].node}</div>);
-    expect(screen.getByText("EXAMPLE ACCOUNT")).toBeVisible();
+    expect(screen.getByText("Example Account")).toBeVisible();
   });
 
   it("dates the stock and review screens by the real stored close", async () => {

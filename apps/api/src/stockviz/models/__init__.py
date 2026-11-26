@@ -16,6 +16,7 @@ from stockviz.models.aegis import (
 )
 from stockviz.models.alert import Alert, AlertDirection, AlertEvent, AlertKind, AlertRepeat
 from stockviz.models.auth_rate_limit import AuthRateLimit
+from stockviz.models.broker_import import BrokerFill, ImportBatch
 from stockviz.models.checklist import ChecklistEvidence, ChecklistScore
 from stockviz.models.corporate_action import CorporateAction, CorporateActionApplication
 from stockviz.models.data_file import DataFile
@@ -27,7 +28,7 @@ from stockviz.models.delivery import (
 )
 from stockviz.models.dividend import Dividend, PortfolioDividend
 from stockviz.models.drawing import Drawing
-from stockviz.models.drill import Drill, DrillDeck, DrillPlan
+from stockviz.models.drill import Drill, DrillDeck
 from stockviz.models.earnings import EarningsEvent
 from stockviz.models.eod import EodExtras, EodRaw
 from stockviz.models.events import ConsumerInbox, OutboxEvent, PortfolioTradeActivity
@@ -37,6 +38,7 @@ from stockviz.models.fundamentals import FundamentalFact
 from stockviz.models.indicator_evidence import IndicatorEvidence
 from stockviz.models.instrument import Instrument, InstrumentIdentifier
 from stockviz.models.job_run import JobRun
+from stockviz.models.journal_entry import JournalEntry, JournalEntryFill
 from stockviz.models.market import (
     FxRate,
     PriceBar,
@@ -56,8 +58,11 @@ from stockviz.models.option_quote import OptionChainQuote
 from stockviz.models.option_strategy import OptionStrategy, StrategyKind, StrategyStatus
 from stockviz.models.order import OrderStatus, OrderType, PendingOrder
 from stockviz.models.portfolio import (
+    MAX_BOOKS_PER_USER,
+    BookKind,
     CashBalance,
     FxConversion,
+    HolderKind,
     Portfolio,
     PortfolioSnapshot,
     Position,
@@ -67,7 +72,6 @@ from stockviz.models.portfolio import (
 from stockviz.models.replay import (
     ReplayDrawing,
     ReplayFill,
-    ReplayJournal,
     ReplayOrder,
     ReplayOrderStatus,
     ReplayPosition,
@@ -77,11 +81,13 @@ from stockviz.models.replay import (
 from stockviz.models.risk_limit import RiskLimit
 from stockviz.models.screen import SavedScreen, ScreenRun
 from stockviz.models.setup import Setup, SetupVersion, Thesis
+from stockviz.models.trade_plan import TradePlan
 from stockviz.models.trial import BacktestTrial, HoldoutUnlock
 from stockviz.models.user import User
 from stockviz.models.watchlist import ColumnSet, Watchlist, WatchlistItem
 
 __all__ = [
+    "MAX_BOOKS_PER_USER",
     "AegisAnalysis",
     "AegisDocument",
     "AegisDocumentEntity",
@@ -96,6 +102,8 @@ __all__ = [
     "AlertRepeat",
     "AuthRateLimit",
     "BacktestTrial",
+    "BookKind",
+    "BrokerFill",
     "CashBalance",
     "ChannelKind",
     "ChecklistEvidence",
@@ -111,7 +119,6 @@ __all__ = [
     "Drawing",
     "Drill",
     "DrillDeck",
-    "DrillPlan",
     "EarningsEvent",
     "EodExtras",
     "EodRaw",
@@ -120,11 +127,15 @@ __all__ = [
     "FundamentalFact",
     "FxConversion",
     "FxRate",
+    "HolderKind",
     "HoldoutUnlock",
+    "ImportBatch",
     "IndicatorEvidence",
     "Instrument",
     "InstrumentIdentifier",
     "JobRun",
+    "JournalEntry",
+    "JournalEntryFill",
     "Notification",
     "NotificationCategory",
     "NotificationChannel",
@@ -148,7 +159,6 @@ __all__ = [
     "QuarantinedPriceBar",
     "ReplayDrawing",
     "ReplayFill",
-    "ReplayJournal",
     "ReplayOrder",
     "ReplayOrderStatus",
     "ReplayPosition",
@@ -166,6 +176,7 @@ __all__ = [
     "SymbolMetrics",
     "Thesis",
     "Trade",
+    "TradePlan",
     "TradeSide",
     "User",
     "Watchlist",

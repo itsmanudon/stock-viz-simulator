@@ -42,19 +42,6 @@ test.describe("marketing home", () => {
     }
   });
 
-  test("hero phone screens can be switched with the dots", async ({ page }) => {
-    // With motion, scrolling the dots into view starts the pinned hero, whose
-    // panel covers the phone mid-animation by design; on a slow runner the
-    // click raced it and timed out (PR #94). The dots are the same control
-    // without motion, so check them where the hero does not pin.
-    await page.emulateMedia({ reducedMotion: "reduce" });
-    await page.reload();
-    const dots = page.getByRole("button", { name: /^Show the .* screen$/ });
-    if ((await dots.count()) < 2) test.skip(true, "Only one phone screen without stored bars");
-    await dots.nth(1).click();
-    await expect(dots.nth(1)).toHaveAttribute("aria-pressed", "true");
-  });
-
   test("movers link each card to its stock page", async ({ page }) => {
     const research = page.getByRole("link", { name: /^Research / });
     await expect(research.first()).toHaveAttribute("href", /\/stocks\//);
@@ -73,7 +60,8 @@ test.describe("marketing home", () => {
     await expect(footer).toBeVisible();
 
     await expect(footer.getByRole("navigation", { name: "Research" })).toBeVisible();
-    await expect(footer.getByRole("navigation", { name: "Project" })).toBeVisible();
+    // No source-code link while the project is private (owner, legal review first).
+    await expect(footer.getByRole("link", { name: /github/i })).toHaveCount(0);
     await expect(footer.getByText(/Simulated trading only/)).toBeVisible();
     await expect(footer.getByText(/Not investment advice/)).toBeVisible();
   });
@@ -126,17 +114,20 @@ test.describe("reduced motion", () => {
     }
 
     // The hero phone must not change screen on its own.
-    const label = page.locator("[aria-live=polite]").first();
-    const before = await label.textContent();
+    const shown = page.locator('[data-screen][data-active="true"]').first();
+    const before = await shown.getAttribute("data-screen");
+    expect(before).not.toBeNull();
     await page.waitForTimeout(6000);
-    expect(await label.textContent()).toBe(before);
+    expect(await shown.getAttribute("data-screen")).toBe(before);
   });
 });
 
 test.describe("theme", () => {
   // Dark only for now (`forcedTheme="dark"` in components/providers.tsx): a
   // "light" choice saved before the lock must still render dark, with the
-  // Aurora navy marketing panel (`--marketing-panel: #0b101b`).
+  // dark marketing panel. The panel is compared with the dark
+  // `--marketing-panel` token rather than a literal, so a palette change
+  // doesn't break the test (the Aurora navy literal outlived two palettes).
   test("a saved light choice still renders the dark theme", async ({ page }) => {
     await page.addInitScript(() => {
       window.localStorage.setItem("theme", "light");
@@ -146,11 +137,16 @@ test.describe("theme", () => {
     await expect(page.locator("html")).toHaveClass(/\bdark\b/);
     await expect(page.getByRole("button", { name: "Toggle color theme" })).toHaveCount(0);
 
-    const panel = await page.evaluate(() => {
+    const { panel, token } = await page.evaluate(() => {
       const el = document.querySelector(".panel-inset") as HTMLElement;
-      return getComputedStyle(el).backgroundColor;
+      const probe = document.createElement("div");
+      probe.style.backgroundColor = "var(--marketing-panel)";
+      document.documentElement.append(probe);
+      const token = getComputedStyle(probe).backgroundColor;
+      probe.remove();
+      return { panel: getComputedStyle(el).backgroundColor, token };
     });
-    expect(panel).toBe("rgb(11, 16, 27)");
+    expect(panel).toBe(token);
 
     const overflows = await page.evaluate(
       () => document.documentElement.scrollWidth > document.documentElement.clientWidth,

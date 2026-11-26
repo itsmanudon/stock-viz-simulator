@@ -4,6 +4,7 @@ import { ClickableRow } from "@/components/clickable-row";
 import { RangeBar } from "@/components/range-bar";
 import type { CompareInsight, CompareMetrics } from "@/lib/compare-workspace";
 import { formatSignedNumber, formatSignedPct } from "@/lib/compare-workspace";
+import { titleCase } from "@/lib/title-case";
 import { cn } from "@/lib/utils";
 
 function cell(value: string, className?: string) {
@@ -82,7 +83,7 @@ export function CompareMetricsTable({ rows }: { rows: CompareMetrics[] }) {
             Comparison metrics for the selected symbols over the current window.
           </caption>
           <thead>
-            <tr className="border-b border-border-muted text-left text-3xs font-semibold tracking-[0.12em] text-text-tertiary uppercase">
+            <tr className="border-b border-border-muted text-left text-3xs font-semibold tracking-[0.02em] text-text-tertiary">
               <th scope="col" className="px-3 py-2.5">
                 Symbol
               </th>
@@ -90,19 +91,19 @@ export function CompareMetricsTable({ rows }: { rows: CompareMetrics[] }) {
                 Last
               </th>
               <th scope="col" className="px-3 py-2.5 text-right">
-                Window return
+                Window Return
               </th>
               <th scope="col" className="px-3 py-2.5 text-right">
-                Window vol
+                Window Vol
               </th>
               <th scope="col" className="px-3 py-2.5 text-right">
-                Max drawdown
+                Max Drawdown
               </th>
               <th scope="col" className="px-3 py-2.5 text-right">
                 RSI 14
               </th>
               <th scope="col" className="px-3 py-2.5 text-right">
-                52-week position
+                52-Week Position
               </th>
               <th scope="col" className="px-3 py-2.5 text-right">
                 Sentiment
@@ -182,8 +183,8 @@ function CompareMetric({
 }) {
   return (
     <div className="min-w-0">
-      <dt className="truncate text-3xs font-semibold tracking-[0.1em] text-text-tertiary uppercase">
-        {label}
+      <dt className="truncate text-3xs font-semibold tracking-[0.02em] text-text-tertiary">
+        {titleCase(label)}
       </dt>
       <dd className={cn("mt-0.5 truncate font-mono text-xs", tone)} data-financial>
         {value}

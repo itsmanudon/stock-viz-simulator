@@ -71,6 +71,7 @@ export default async function ChecklistPage({
   return (
     <PageFrame width="workstation" className="py-5 sm:py-7">
       <ResearchPageHeader
+        path="/checklist"
         title="Checklist"
         description="Six published conditions per symbol, each met, not met or unknown on its latest stored session, with the formula and how it graded in the past. A count of conditions, not a recommendation and not financial advice."
         meta={latest ? `Latest session ${latest}` : undefined}

@@ -8,6 +8,7 @@ import { JournalSummary } from "@/components/journal/journal-summary";
 import { PnlCalendar } from "@/components/journal/pnl-calendar";
 import { Button } from "@/components/ui/button";
 import type { JournalDay, JournalMonth, JournalWeek } from "@/lib/api/journal";
+import { bookIdParam } from "@/lib/book-url";
 import {
   type MonthKey,
   parseDateKey,
@@ -37,6 +38,9 @@ export function JournalPanel({
   initialError: boolean;
 }) {
   const searchParams = useSearchParams();
+  // A5.2: the journal is per book; the page's `?book=` id goes to every request.
+  const book = bookIdParam(searchParams.get("book"));
+  const bookQuery = book == null ? "" : `book=${book}`;
   const monthKey = parseMonthKey(searchParams.get("month") ?? undefined, initialMonthKey);
   const parsedDate = parseDateKey(searchParams.get("date") ?? undefined);
   const parsedWeek = parseDateKey(searchParams.get("week") ?? undefined);
@@ -87,40 +91,46 @@ export function JournalPanel({
     [searchParams],
   );
 
-  const loadMonth = useCallback(async (key: MonthKey) => {
-    monthRequest.current?.abort();
-    const controller = new AbortController();
-    monthRequest.current = controller;
+  const loadMonth = useCallback(
+    async (key: MonthKey) => {
+      monthRequest.current?.abort();
+      const controller = new AbortController();
+      monthRequest.current = controller;
 
-    const { year, month: monthNumber } = splitMonthKey(key);
-    requestedMonths.current.add(key);
-    setMonthLoading(true);
-    setMonthError(null);
-    try {
-      const res = await fetch(`/api/journal/months/${year}/${monthNumber}`, {
-        signal: controller.signal,
-      });
-      if (!res.ok) throw new Error(`Request failed (${res.status})`);
-      const body = (await res.json()) as JournalMonth;
-      if (controller.signal.aborted) return;
-      // Keep only a small working set; revisiting a month revalidates it.
-      setMonths((current) =>
-        Object.fromEntries([
-          ...Object.entries(current)
-            .filter(([entry]) => entry !== key)
-            .slice(-5),
-          [key, body],
-        ]),
-      );
-    } catch (err) {
-      if (controller.signal.aborted) return;
-      // Let a retry re-request this month.
-      requestedMonths.current.delete(key);
-      setMonthError(err instanceof Error ? err.message : "Request failed");
-    } finally {
-      if (!controller.signal.aborted) setMonthLoading(false);
-    }
-  }, []);
+      const { year, month: monthNumber } = splitMonthKey(key);
+      requestedMonths.current.add(key);
+      setMonthLoading(true);
+      setMonthError(null);
+      try {
+        const res = await fetch(
+          `/api/journal/months/${year}/${monthNumber}${bookQuery ? `?${bookQuery}` : ""}`,
+          {
+            signal: controller.signal,
+          },
+        );
+        if (!res.ok) throw new Error(`Request failed (${res.status})`);
+        const body = (await res.json()) as JournalMonth;
+        if (controller.signal.aborted) return;
+        // Keep only a small working set; revisiting a month revalidates it.
+        setMonths((current) =>
+          Object.fromEntries([
+            ...Object.entries(current)
+              .filter(([entry]) => entry !== key)
+              .slice(-5),
+            [key, body],
+          ]),
+        );
+      } catch (err) {
+        if (controller.signal.aborted) return;
+        // Let a retry re-request this month.
+        requestedMonths.current.delete(key);
+        setMonthError(err instanceof Error ? err.message : "Request failed");
+      } finally {
+        if (!controller.signal.aborted) setMonthLoading(false);
+      }
+    },
+    [bookQuery],
+  );
 
   // Cached months paint immediately while subsequent visits revalidate them.
   useEffect(() => {
@@ -139,29 +149,34 @@ export function JournalPanel({
    * a fast Aug 21 one when the user clicks through a week quickly. The panel
    * is cleared at the same time, so a new title never sits over old numbers.
    */
-  const loadDay = useCallback(async (date: string) => {
-    dayRequest.current?.abort();
-    const controller = new AbortController();
-    dayRequest.current = controller;
+  const loadDay = useCallback(
+    async (date: string) => {
+      dayRequest.current?.abort();
+      const controller = new AbortController();
+      dayRequest.current = controller;
 
-    setDayLoading(true);
-    setDayError(null);
-    setDay(null);
-    setMoreLoading(false);
-    setMoreError(null);
-    try {
-      const res = await fetch(`/api/journal/days/${date}`, { signal: controller.signal });
-      if (!res.ok) throw new Error(`Request failed (${res.status})`);
-      const body = (await res.json()) as JournalDay;
-      if (controller.signal.aborted) return;
-      setDay(body);
-    } catch (err) {
-      if (controller.signal.aborted) return;
-      setDayError(err instanceof Error ? err.message : "Request failed");
-    } finally {
-      if (!controller.signal.aborted) setDayLoading(false);
-    }
-  }, []);
+      setDayLoading(true);
+      setDayError(null);
+      setDay(null);
+      setMoreLoading(false);
+      setMoreError(null);
+      try {
+        const res = await fetch(`/api/journal/days/${date}${bookQuery ? `?${bookQuery}` : ""}`, {
+          signal: controller.signal,
+        });
+        if (!res.ok) throw new Error(`Request failed (${res.status})`);
+        const body = (await res.json()) as JournalDay;
+        if (controller.signal.aborted) return;
+        setDay(body);
+      } catch (err) {
+        if (controller.signal.aborted) return;
+        setDayError(err instanceof Error ? err.message : "Request failed");
+      } finally {
+        if (!controller.signal.aborted) setDayLoading(false);
+      }
+    },
+    [bookQuery],
+  );
 
   const loadMore = useCallback(async () => {
     if (!day || day.date !== dateParam || !day.has_more || moreLoading) return;
@@ -171,9 +186,12 @@ export function JournalPanel({
     setMoreLoading(true);
     setMoreError(null);
     try {
-      const res = await fetch(`/api/journal/days/${day.date}?offset=${day.executions.length}`, {
-        signal: controller.signal,
-      });
+      const res = await fetch(
+        `/api/journal/days/${day.date}?offset=${day.executions.length}${bookQuery ? `&${bookQuery}` : ""}`,
+        {
+          signal: controller.signal,
+        },
+      );
       if (!res.ok) throw new Error("Couldn't load more trades. Try again.");
       const body = (await res.json()) as JournalDay;
       if (controller.signal.aborted) return;
@@ -188,7 +206,7 @@ export function JournalPanel({
     } finally {
       if (!controller.signal.aborted) setMoreLoading(false);
     }
-  }, [day, dateParam, moreLoading]);
+  }, [day, dateParam, moreLoading, bookQuery]);
 
   // Retry changes the resource identity without changing the selected week.
   const weekRequestKey = `${weekParam ?? ""}:${weekRetry}`;
@@ -200,7 +218,9 @@ export function JournalPanel({
     const controller = new AbortController();
     void (async () => {
       try {
-        const res = await fetch(`/api/journal/weeks/${start}`, { signal: controller.signal });
+        const res = await fetch(`/api/journal/weeks/${start}${bookQuery ? `?${bookQuery}` : ""}`, {
+          signal: controller.signal,
+        });
         if (!res.ok) throw new Error("Couldn't load trade highlights.");
         const body = (await res.json()) as JournalWeek;
         if (!controller.signal.aborted) setWeekDetail(body);
@@ -210,7 +230,7 @@ export function JournalPanel({
       }
     })();
     return () => controller.abort();
-  }, [weekRequestKey, dateParam]);
+  }, [weekRequestKey, dateParam, bookQuery]);
 
   useEffect(() => {
     if (!dateParam) {
@@ -284,7 +304,8 @@ export function JournalPanel({
             Trading journal
           </h2>
           <p className="mt-1 text-xs text-muted-foreground">
-            Realized profit and loss by execution date · New York time (ET).
+            Realized profit and loss by execution date, on each exchange's own day (IST for NSE and
+            BSE, New York time otherwise).
           </p>
           <p className="mt-1 text-xs text-muted-foreground">
             One trade is one closing fill or option settlement. Win rate excludes breakeven trades.

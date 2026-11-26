@@ -19,8 +19,16 @@ vi.mock("@/lib/api/options", () => ({
 }));
 vi.mock("@/lib/api/watchlist", () => ({ listWatchlist: vi.fn().mockResolvedValue([]) }));
 
+vi.mock("@/lib/api/plans", () => ({
+  listPlans: vi.fn().mockResolvedValue({ plans: [], limit: 2000 }),
+}));
 vi.mock("@/lib/api/journal", () => ({
   getJournalMonth: vi.fn(),
+}));
+vi.mock("@/lib/api/journal-entries", () => ({
+  listJournalEntries: vi
+    .fn()
+    .mockResolvedValue({ entries: [], total: 0, limit: 100, offset: 0, note: "" }),
 }));
 
 vi.mock("@/lib/api/trading", () => ({
@@ -122,10 +130,10 @@ describe("portfolio server orchestration", () => {
 
     expect(getPortfolioOverview).toHaveBeenCalledTimes(1);
     expect(getPortfolio).not.toHaveBeenCalled();
-    expect(getPortfolioHistory).toHaveBeenCalledWith(365);
+    expect(getPortfolioHistory).toHaveBeenCalledWith(365, null);
     expect(getPortfolioAnalytics).not.toHaveBeenCalled();
     expect(getDividends).toHaveBeenCalledTimes(1);
-    expect(listOrders).toHaveBeenCalledWith("pending");
+    expect(listOrders).toHaveBeenCalledWith("pending", null);
     expect(result.portfolio).toBe(portfolio);
     expect(result.portfolio.option_positions).toEqual([]);
     expect(result.analytics?.risk_free_rate).toBe(0.05);
@@ -137,7 +145,7 @@ describe("portfolio server orchestration", () => {
 
     const result = await loadPortfolioData("all");
 
-    expect(getPortfolioHistory).toHaveBeenCalledWith(null);
+    expect(getPortfolioHistory).toHaveBeenCalledWith(null, null);
     expect(result.history).toBeNull();
     expect(result.orders).toBeNull();
     expect(result.dividends).toEqual({ ytd_income: "0", history: [], projected: [] });
@@ -154,9 +162,22 @@ describe("portfolio server orchestration", () => {
   it("loads the requested journal month alongside the rest of the page", async () => {
     const result = await loadPortfolioData("3m", "2026-08");
 
-    expect(getJournalMonth).toHaveBeenCalledWith(2026, 8);
+    expect(getJournalMonth).toHaveBeenCalledWith(2026, 8, null);
     expect(result.journalMonth).toBe(journalMonth);
     expect(result.journalFailed).toBe(false);
+  });
+
+  it("loads journal entries on the Journal tab only, for one book or all (A5.5)", async () => {
+    const { listJournalEntries } = await import("@/lib/api/journal-entries");
+    vi.mocked(listJournalEntries).mockClear();
+    const skipped = await loadPortfolioData("3m", undefined, { entriesBook: 4 });
+    expect(skipped.journalEntries).toBeNull();
+    expect(listJournalEntries).not.toHaveBeenCalled();
+    const one = await loadPortfolioData("3m", "2026-08", { book: 4, entriesBook: 4 });
+    expect(listJournalEntries).toHaveBeenCalledWith(4);
+    expect(one.journalEntries?.total).toBe(0);
+    await loadPortfolioData("3m", "2026-08", { book: "all", entriesBook: "all" });
+    expect(listJournalEntries).toHaveBeenLastCalledWith("all");
   });
 
   it("reports a failed journal month without taking the rest of the page down", async () => {
@@ -200,5 +221,29 @@ describe("portfolio server orchestration", () => {
     const result = await loadDashboardData();
     expect(result.portfolio).toBe(portfolio);
     expect(result.analytics).toBeNull();
+  });
+
+  it("A5.2: All books asks the combined view and skips every per-book resource", async () => {
+    const result = await loadPortfolioData("3m", "2026-08", {
+      book: "all",
+      risk: true,
+      options: true,
+    });
+    expect(getPortfolioOverview).toHaveBeenCalledWith("all");
+    expect(getPortfolioHistory).toHaveBeenCalledWith(90, "all");
+    expect(listOrders).toHaveBeenCalledWith("pending", "all");
+    expect(getDividends).not.toHaveBeenCalled();
+    expect(getJournalMonth).not.toHaveBeenCalled();
+    expect(result.dividends).toBeNull();
+    expect(result.journalFailed).toBe(false);
+  });
+
+  it("A5.2: one book's id reaches every request", async () => {
+    await loadPortfolioData("3m", "2026-08", { book: 7 });
+    expect(getPortfolioOverview).toHaveBeenCalledWith(7);
+    expect(getDividends).toHaveBeenCalledWith(7);
+    expect(getJournalMonth).toHaveBeenCalledWith(2026, 8, 7);
+    await loadDashboardData(7);
+    expect(listOrders).toHaveBeenLastCalledWith("pending", 7);
   });
 });

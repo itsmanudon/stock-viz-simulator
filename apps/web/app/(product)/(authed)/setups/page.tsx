@@ -52,6 +52,7 @@ export default async function SetupsPage({ searchParams }: { searchParams: Promi
   return (
     <div className="w-full px-4 py-6 sm:px-6 lg:py-7 xl:px-8">
       <ResearchPageHeader
+        path="/setups"
         title="Setups"
         description="Saved rules. Editing a rule adds a version and never changes an old one. Presets are read-only: fork one to make it yours."
         actions={

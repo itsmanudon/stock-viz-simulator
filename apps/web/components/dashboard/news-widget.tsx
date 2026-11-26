@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { BookLink as Link } from "@/components/book-link";
 
 import { WidgetCard, WidgetEmpty } from "@/components/dashboard/widget-card";
 import { newsDateLabel } from "@/components/news-list";

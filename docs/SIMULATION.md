@@ -685,6 +685,31 @@ then they lock (`409 ReplayJournalLocked`). Reflection stays editable.
 There is no R-multiple: Replay does not store a stop/invalidation *price*.
 No retrospective LLM and no buy/sell advice.
 
+**Replay in the journal (A5.5).** Each forensics episode of a replay session
+is also a journal entry (`/v1/journal/entries?source=replay`), grouped by
+the same flat-to-flat rule. Its MAE and MFE use forensics' close rule and
+numbers (`exact_close`); the session's plan pairs with the first episode,
+and R needs the plan's stop (a replay journal without one has no R). News at
+entry and exit and the entry page's bars never pass the session's clock, and
+anonymised drills not yet revealed are left out of the journal.
+
+
+**Trade plans (A5.4, M10.3).** Since migration `b5d4a7e1c902` the replay
+journal and the drill plan are one row in `trade_plans` (`source` `replay`
+or `drill`, keyed on the session: `replay_session_id` unique). The journal's
+thesis is `thesis_text`, expected bars `horizon_bars`, reflection `notes`;
+the drill plan's note is `why`. `drill_plans` and `replay_journals` are
+archived in the `archive` schema with their rows (dropping them is a later
+batch). The routes and their shapes are unchanged; `ReplayJournalOut` adds
+`written_after_entry`. The lock rule is A4.7's: a plan that existed before
+the session's first fill locks at it (`locked_at` = the fill's simulated
+`evaluated_at`); a journal started after the first fill is **written after
+entry**: frozen the same way, never "locked". A session that completes or
+is cancelled closes an active plan and cancels an unfilled one. The
+migration test (`tests/test_trade_plans_migration.py`) plays drills and
+replays, downgrades, adds old-style rows and checks every drill score, the
+deck summary and replay forensics are identical after the copy.
+
 **Replay in any currency, the lag, the chart and resting orders (A4.6, M9.1,
 M9.2).**
 
@@ -812,8 +837,9 @@ A **deck** is K replays seeded from a rule's real historical triggers; a
   watchlist does not). A deck can turn anonymisation off.
 - **Plan and score (process, not profit).** Before the first order the
   drill asks for a plan: planned entry, stop and size, long
-  (`drill_plans`, keyed on the replay session so A5's journal can absorb
-  it). Orders without a plan are 409; the plan locks at the first fill.
+  (since A5.4 a `trade_plans` row with `source = 'drill'`, keyed on the
+  replay session; A4.7's `drill_plans` is archived). Orders without a plan
+  are 409; the plan locks at the first fill.
   After the reveal the score checks: entry (the first buy within 2% of the
   plan), stop (no bar closed at or below the stop with shares still held
   after that bar's fills; fills are at the close, so a resting stop-loss at

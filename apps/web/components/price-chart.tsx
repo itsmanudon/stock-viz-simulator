@@ -60,6 +60,7 @@ import {
   eventKey,
   eventSummary,
   eventsByBar,
+  formatR,
   legendEvents,
 } from "@/lib/chart-events";
 import { buildLegendModel, legendAt, legendText } from "@/lib/chart-legend";
@@ -98,6 +99,14 @@ export type PriceChartMarker = {
   color: string;
   shape: "arrowUp" | "arrowDown" | "circle";
   text: string;
+};
+
+/** A5.5: a horizontal level on the price pane (a plan's entry, stop, target). */
+export type PriceChartLine = {
+  price: number;
+  title: string;
+  color: string;
+  dashed?: boolean;
 };
 
 /**
@@ -148,6 +157,8 @@ type Props = {
   events?: ChartEvent[];
   /** The symbol's currency, for dividend amounts. */
   currency?: string;
+  /** A5.5: labelled levels on the price pane (the journal's plan lines). */
+  priceLines?: PriceChartLine[];
 };
 
 const DRAG_THRESHOLD_PX = 4;
@@ -255,6 +266,7 @@ export function PriceChart({
   badges,
   events,
   currency,
+  priceLines,
 }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -370,7 +382,13 @@ export function PriceChart({
             position: event.side === "sell" ? "aboveBar" : "belowBar",
             color: colour.fill,
             shape: event.side === "sell" ? "arrowDown" : "arrowUp",
-            text: event.side === "sell" ? "S" : "B",
+            // A5.5: the fill that closes a journal entry carries its R.
+            text:
+              event.side === "sell"
+                ? event.r_multiple !== null && event.r_multiple !== undefined
+                  ? `S ${formatR(event.r_multiple)}`
+                  : "S"
+                : "B",
           });
           continue;
         }
@@ -459,6 +477,16 @@ export function PriceChart({
             primitiveRef.current = primitive;
           }
           if (allMarkers.length) createSeriesMarkers(main.series, allMarkers);
+          for (const line of priceLines ?? []) {
+            main.series.createPriceLine({
+              price: line.price,
+              color: line.color,
+              lineWidth: 1,
+              lineStyle: line.dashed ? 2 : 0,
+              axisLabelVisible: true,
+              title: line.title,
+            });
+          }
         } else if (spec.kind === "volume") {
           const volume = chart.addSeries(
             HistogramSeries,
@@ -578,6 +606,7 @@ export function PriceChart({
     indexByTime,
     measurePanes,
     hasLayer,
+    priceLines,
   ]);
 
   // ---- Drawings (A3.2) ----

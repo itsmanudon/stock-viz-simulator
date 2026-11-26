@@ -20,6 +20,7 @@ from stockviz.limiter import limiter
 from stockviz.models import OptionCover, OptionSide, OptionsPosition, OptionStatus, OptionType
 from stockviz.models.option import CONTRACT_MULTIPLIER, position_sign
 from stockviz.models.option_strategy import OptionStrategy, StrategyKind
+from stockviz.routers.book_query import BookQuery
 from stockviz.schemas import (
     ExpiryGroupOut,
     ExpiryItemOut,
@@ -72,6 +73,7 @@ from stockviz.services.options.strategies import (
     strategy_legs,
 )
 from stockviz.services.risk.limits import LimitBreached
+from stockviz.services.trading.books import resolve_book
 from stockviz.services.trading.buying_power import put_collateral_usd
 from stockviz.services.trading.execute import NoFxRateError
 from stockviz.services.trading.portfolio import signed_greeks
@@ -254,8 +256,9 @@ def get_implied_volatility(
 
 @router.post("/trade", response_model=OptionTradeOut, status_code=status.HTTP_201_CREATED)
 def post_options_trade(
-    body: OptionTradeIn, session: SessionDep, user_id: UserIdDep
+    body: OptionTradeIn, session: SessionDep, user_id: UserIdDep, book: BookQuery = None
 ) -> OptionTradeOut:
+    """Open in ``?book=`` (default book); a close trades in the leg's own book."""
     if body.action == "open":
         missing = [
             name
@@ -284,6 +287,7 @@ def post_options_trade(
                 quantity=body.quantity,  # type: ignore[arg-type]
                 client_order_id=body.client_order_id,
                 side=OptionSide(body.side),
+                book_id=book,
             )
         except OptionOrderConflict as exc:
             raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
@@ -320,13 +324,16 @@ def post_options_trade(
 
 
 @router.get("/positions", response_model=list[OptionPositionOut])
-def list_options_positions(session: SessionDep, user_id: UserIdDep) -> list[OptionPositionOut]:
-    """Return the user's open options positions, newest first, each priced now."""
+def list_options_positions(
+    session: SessionDep, user_id: UserIdDep, book: BookQuery = None
+) -> list[OptionPositionOut]:
+    """Return the book's open options positions, newest first, each priced now."""
+    portfolio = resolve_book(session, user_id, book)
     rows = list(
         session.exec(
             select(OptionsPosition)
             .where(
-                OptionsPosition.user_id == user_id,
+                OptionsPosition.portfolio_id == portfolio.id,
                 OptionsPosition.status == OptionStatus.OPEN,
             )
             .order_by(OptionsPosition.opened_at.desc())  # type: ignore[attr-defined]
@@ -441,12 +448,16 @@ def _quote_out(quote: StrategyQuote) -> OptionStrategyQuoteOut:
     "/strategies", response_model=OptionStrategyTradeOut, status_code=status.HTTP_201_CREATED
 )
 def post_strategy(
-    body: OptionStrategyIn, session: SessionDep, user_id: UserIdDep
+    body: OptionStrategyIn, session: SessionDep, user_id: UserIdDep, book: BookQuery = None
 ) -> OptionStrategyTradeOut:
-    """Open every leg of a strategy in one transaction, or none."""
+    """Open every leg of a strategy in one transaction, or none, in ``?book=``."""
     try:
         result = open_strategy(
-            session, user_id=user_id, client_order_id=body.client_order_id, **_strategy_args(body)
+            session,
+            user_id=user_id,
+            client_order_id=body.client_order_id,
+            book_id=book,
+            **_strategy_args(body),
         )
     except _STRATEGY_ERRORS as exc:
         session.rollback()
@@ -457,10 +468,13 @@ def post_strategy(
 
 
 @router.get("/strategies", response_model=list[OptionStrategyOut])
-def list_strategies(session: SessionDep, user_id: UserIdDep) -> list[OptionStrategyOut]:
+def list_strategies(
+    session: SessionDep, user_id: UserIdDep, book: BookQuery = None
+) -> list[OptionStrategyOut]:
+    portfolio = resolve_book(session, user_id, book)
     rows = session.exec(
         select(OptionStrategy)
-        .where(OptionStrategy.user_id == user_id)
+        .where(OptionStrategy.portfolio_id == portfolio.id)
         .order_by(OptionStrategy.opened_at.desc())  # type: ignore[attr-defined]
     ).all()
     return [_strategy_out(session, row) for row in rows]
@@ -506,11 +520,11 @@ def post_strategy_payoff(
 
 
 @router.get("/book", response_model=OptionsBookOut)
-def get_options_book(session: SessionDep, user_id: UserIdDep) -> OptionsBookOut:
-    """The options book's Greeks and its legs by expiry (Phase 9.5)."""
-    from stockviz.services.trading import ensure_default_portfolio
-
-    book = options_book(session, ensure_default_portfolio(session, user_id))
+def get_options_book(
+    session: SessionDep, user_id: UserIdDep, book: BookQuery = None
+) -> OptionsBookOut:
+    """The options book's Greeks and its legs by expiry (Phase 9.5), per book (A5.1)."""
+    greeks = options_book(session, resolve_book(session, user_id, book))
     return OptionsBookOut(
         underlyings=[
             UnderlyingGreeksOut(
@@ -523,12 +537,12 @@ def get_options_book(session: SessionDep, user_id: UserIdDep) -> OptionsBookOut:
                 vega_per_point=round(u.vega_per_point, 2),
                 rho_per_point=round(u.rho_per_point, 2),
             )
-            for u in book.underlyings
+            for u in greeks.underlyings
         ],
-        dollar_delta=round(book.dollar_delta, 2),
-        theta_per_day=round(book.theta_per_day, 2),
-        vega_per_point=round(book.vega_per_point, 2),
-        rho_per_point=round(book.rho_per_point, 2),
+        dollar_delta=round(greeks.dollar_delta, 2),
+        theta_per_day=round(greeks.theta_per_day, 2),
+        vega_per_point=round(greeks.vega_per_point, 2),
+        rho_per_point=round(greeks.rho_per_point, 2),
         expirations=[
             ExpiryGroupOut(
                 expiry=expiry,
@@ -544,9 +558,9 @@ def get_options_book(session: SessionDep, user_id: UserIdDep) -> OptionsBookOut:
                     for i in items
                 ],
             )
-            for expiry, items in book.expirations
+            for expiry, items in greeks.expirations
         ],
-        unpriced=book.unpriced,
+        unpriced=greeks.unpriced,
         method=(
             "Black-Scholes Greeks at the latest close with 30-session historical volatility, "
             "summed over open legs (short legs negated); outcomes assume the stock closes at "

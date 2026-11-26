@@ -78,7 +78,7 @@ export function EventStudyView({
         <table className="w-full text-sm">
           <caption className="sr-only">Cumulative abnormal returns by window</caption>
           <thead>
-            <tr className="text-left text-3xs font-semibold tracking-[0.12em] text-text-tertiary uppercase">
+            <tr className="text-left text-3xs font-semibold tracking-[0.02em] text-text-tertiary">
               <th scope="col" className="py-1.5">
                 Window
               </th>
@@ -86,7 +86,7 @@ export function EventStudyView({
                 Mean CAR
               </th>
               <th scope="col" className="py-1.5 text-right">
-                Std. error
+                Std. Error
               </th>
               <th scope="col" className="py-1.5 text-right">
                 t

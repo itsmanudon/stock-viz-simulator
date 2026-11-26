@@ -17,6 +17,7 @@ import {
   formatSignedPercent,
 } from "@/lib/portfolio-view-model";
 import { formatReplayShortDate } from "@/lib/replay";
+import { titleCase } from "@/lib/title-case";
 import { cn } from "@/lib/utils";
 
 function pct(raw: string | null | undefined): string {
@@ -148,7 +149,7 @@ function ReplayEpisodeTable({
               <TableHead className="text-right">MFE</TableHead>
               <TableHead className="text-right">Benchmark</TableHead>
               <TableHead className="text-right">Excess</TableHead>
-              <TableHead className="text-right">Bars held</TableHead>
+              <TableHead className="text-right">Bars Held</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -270,7 +271,7 @@ function ReplayEpisodeRows({
               {episode.fills.map((fill) => (
                 <li key={fill.id} className="border-t border-border-muted pt-2 text-xs">
                   <p className="text-text-secondary">
-                    {formatReplayShortDate(fill.evaluated_at)} {fill.side.toUpperCase()}{" "}
+                    {formatReplayShortDate(fill.evaluated_at)} {titleCase(fill.side)}{" "}
                     {formatQuantity(fill.quantity)} @ {formatCurrency(fill.fill_price, currency)}
                   </p>
                   <p className="text-text-tertiary">

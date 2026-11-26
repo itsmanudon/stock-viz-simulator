@@ -4,7 +4,8 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  /* AURORA — navy-biased neutrals from the "Fintech Dark" base (#0A0F1E,
+  /* PRISM supersedes AURORA (Nov 2026); see the .dark block. Original note:
+     AURORA — navy-biased neutrals from the "Fintech Dark" base (#0A0F1E,
      #8892A4) with an aqua → electric-blue brand. The brand gradient is for
      brand moments only (the paper card, the hero glow, onboarding); the
      trading workspace stays monochrome and uses colour only for meaning.
@@ -19,10 +20,10 @@
   --popover-foreground: #0b1220;
   --primary: #0b1220;
   --primary-foreground: #ffffff;
-  /* Aqua fails contrast on white, so light mode carries the blue end of the
-     brand for text, focus and selection. The gradient stops stay the same in
+  /* Champagne fails contrast on white, so light mode carries a dark bronze
+     for brand text, focus and selection. The gradient stops stay the same in
      both themes because the paper card always sits on its own dark ground. */
-  --brand: #2f4be0;
+  --brand: #6f5526;
   /* A2.5: watchlist colour tags (dots and edges only, never a gain or loss). */
   --list-aqua: #0e7490;
   --list-blue: #2563eb;
@@ -31,14 +32,14 @@
   --list-amber: #b45309;
   --list-lime: #4d7c0f;
   --list-slate: #64748b;
-  --brand-muted: #e3e9ff;
-  --brand-gradient-from: #5b6cff;
-  --brand-gradient-via: #38c8f0;
-  --brand-gradient-to: #a6f0ff;
+  --brand-muted: #f0e8d8;
+  --brand-gradient-from: #8d9bb0;
+  --brand-gradient-via: #f0dfba;
+  --brand-gradient-to: #d6dbe2;
   /* Stops for gradient display text. Kept dark enough in light mode that the
      lightest stop still clears 3:1 for large text on the canvas. */
-  --brand-text-from: #2f4be0;
-  --brand-text-to: #5b6cff;
+  --brand-text-from: #6f5526;
+  --brand-text-to: #3f5068;
   --secondary: #e9edf3;
   --secondary-foreground: #172033;
   --muted: #e9edf3;
@@ -49,7 +50,7 @@
   --destructive-foreground: #ffffff;
   --border: #cdd4df;
   --input: #b7c0ce;
-  --ring: #2f4be0;
+  --ring: #6f5526;
   --surface-elevated: #ffffff;
   --surface-secondary: #e9edf3;
   --surface-hover: #e1e6ee;
@@ -89,15 +90,20 @@
 }
 
 .dark {
-  --background: #06080f;
-  --foreground: #eef2f8;
-  --card: #0b101b;
-  --card-foreground: #eef2f8;
-  --popover: #111827;
-  --popover-foreground: #eef2f8;
-  --primary: #eef2f8;
-  --primary-foreground: #06080f;
-  --brand: #38c8f0;
+  /* PRISM, liquid chrome (Nov 2026 redesign, second palette). Neutral ink
+     black, warm pearl text, and a polished-metal brand: steel → champagne →
+     silver. The same strict rule as Aurora holds: the brand is identity, focus
+     and selection only; gain and loss keep their own green and red, which the
+     colourless metal never competes with. */
+  --background: #070708;
+  --foreground: #f2eee6;
+  --card: #0d0d0f;
+  --card-foreground: #f2eee6;
+  --popover: #141416;
+  --popover-foreground: #f2eee6;
+  --primary: #f2eee6;
+  --primary-foreground: #070708;
+  --brand: #dcc49a;
   /* A2.5: watchlist colour tags (dots and edges only, never a gain or loss). */
   --list-aqua: #22d3ee;
   --list-blue: #60a5fa;
@@ -106,49 +112,52 @@
   --list-amber: #fbbf24;
   --list-lime: #a3e635;
   --list-slate: #94a3b8;
-  --brand-muted: #0d2a3a;
-  --brand-text-from: #a6f0ff;
-  --brand-text-to: #5b8cff;
-  --secondary: #111827;
-  --secondary-foreground: #d5dce8;
-  --muted: #111827;
+  --brand-muted: #231e15;
+  --brand-gradient-from: #8d9bb0;
+  --brand-gradient-via: #f0dfba;
+  --brand-gradient-to: #d6dbe2;
+  --brand-text-from: #f7f2e8;
+  --brand-text-to: #9fadc0;
+  --secondary: #131315;
+  --secondary-foreground: #dcd8d0;
+  --muted: #131315;
   --muted-foreground: var(--text-secondary);
-  --accent: #1a2233;
-  --accent-foreground: #eef2f8;
-  --destructive: #ff6b78;
+  --accent: #1c1c1f;
+  --accent-foreground: #f2eee6;
+  --destructive: #ff6b7f;
   --destructive-foreground: #2d0c10;
-  --border: #222c3e;
-  --input: #2e3a50;
-  --ring: #38c8f0;
+  --border: #27272a;
+  --input: #67645e;
+  --ring: #dcc49a;
   /* One step above --card so overlays separate from the tiles they sit on. */
-  --surface-elevated: #111827;
-  --surface-secondary: #111827;
-  --surface-hover: #1a2233;
-  --border-muted: #182030;
-  --text-secondary: #a9b3c4;
-  --text-tertiary: #8892a4;
-  --positive: #3dd68c;
-  --positive-foreground: #052a19;
+  --surface-elevated: #111113;
+  --surface-secondary: #141416;
+  --surface-hover: #1c1c1f;
+  --border-muted: #19191b;
+  --text-secondary: #b7b2a8;
+  --text-tertiary: #8e8a82;
+  --positive: #3ee59a;
+  --positive-foreground: #04281a;
   --financial-tint-1: 6%;
   --financial-tint-2: 11%;
   --financial-tint-3: 17%;
-  --negative: #ff6b78;
+  --negative: #ff6b7f;
   --negative-foreground: #2d0c10;
-  --warning: #f5b94a;
+  --warning: #ffc15a;
   --warning-foreground: #271b05;
-  --positive-soft: #0f2e22;
-  --positive-soft-foreground: #7ee6b3;
-  --negative-soft: #3a161d;
-  --negative-soft-foreground: #ff9da5;
+  --positive-soft: #0d2c20;
+  --positive-soft-foreground: #84f0bd;
+  --negative-soft: #38141c;
+  --negative-soft-foreground: #ffa3af;
   --warning-soft: #33270f;
-  --warning-soft-foreground: #f4cd7b;
-  --neutral-soft: #1a2233;
-  --neutral-soft-foreground: #a9b3c4;
+  --warning-soft-foreground: #f8d48a;
+  --neutral-soft: #1c1c1f;
+  --neutral-soft-foreground: #b7b2a8;
 
-  --marketing-panel: #0b101b;
-  --marketing-panel-border: #222c3e;
+  --marketing-panel: #0b0b0d;
+  --marketing-panel-border: #252528;
   --marketing-glow: color-mix(in oklab, var(--brand-gradient-from) 55%, transparent);
-  --grid-line: #141b28;
+  --grid-line: #151517;
 }
 
 @theme inline {
@@ -309,10 +318,12 @@ html[data-density="compact"] .workspace-main .density-workspace {
 
   .dark .panel-inset {
     /* A shade above --card so nested tiles still separate from the panel. */
-    --surface-elevated: #141b29;
-    --border-muted: #1a2232;
+    --surface-elevated: #161618;
+    --border-muted: #1d1d20;
     border-color: var(--marketing-panel-border);
     background-color: var(--marketing-panel);
+    /* Liquid Chrome: light catches the panel's top edge. */
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.07);
     color-scheme: dark;
   }
 
@@ -425,25 +436,23 @@ html[data-density="compact"] .workspace-main .density-workspace {
     overflow: hidden;
     aspect-ratio: 1.586;
     border-radius: 1rem;
-    color: #ffffff;
+    color: #f7f2e8;
+    /* Black titanium: dark brushed metal with a champagne glint in one corner
+       and a steel one in the other, so it reads as the metal brand without
+       putting light text on a light fill. */
     background: radial-gradient(
-        120% 90% at 85% 110%,
-        color-mix(in oklab, var(--brand-gradient-to) 85%, white) 0%,
-        transparent 45%
+        110% 80% at 90% 110%,
+        color-mix(in oklab, var(--brand-gradient-via) 38%, transparent) 0%,
+        transparent 55%
       ),
       radial-gradient(
-        90% 120% at 10% 0%,
-        color-mix(in oklab, var(--brand-gradient-from) 90%, black) 0%,
+        90% 110% at 0% 0%,
+        color-mix(in oklab, var(--brand-gradient-from) 45%, transparent) 0%,
         transparent 60%
-      ),
-      linear-gradient(
-        120deg,
-        var(--brand-gradient-from),
-        var(--brand-gradient-via) 60%,
-        var(--brand-gradient-to)
-      );
-    box-shadow: 0 18px 40px -14px color-mix(in oklab, var(--brand-gradient-from) 60%, transparent),
-      inset 0 0 0 1px rgb(255 255 255 / 0.25);
+      ), repeating-linear-gradient(90deg, rgb(255 255 255 / 0.025) 0 1px, transparent 1px 3px),
+      linear-gradient(125deg, #3a3c41, #141518 42%, #2a2b2f 68%, #0b0b0d);
+    box-shadow: 0 18px 40px -14px color-mix(in oklab, var(--brand-gradient-from) 45%, transparent),
+      inset 0 0 0 1px rgb(255 255 255 / 0.18), inset 0 1px 0 rgb(255 255 255 / 0.22);
   }
 
   .paper-card::before {
@@ -814,4 +823,551 @@ html[data-density="compact"] .workspace-main .density-workspace {
   font-family: var(--font-sans);
   letter-spacing: 0.01em;
   font-variant-numeric: normal;
+}
+
+/* ==========================================================================
+   PRISM layer (Nov 2026 redesign)
+   Motion, grain, light and sound affordances shared by the public site and
+   the workspace. Everything here is decoration: it never carries a figure,
+   it ignores the pointer, and it stops under reduced motion.
+   ========================================================================== */
+
+@theme inline {
+  --font-serif: var(--font-editorial), "Iowan Old Style", Georgia, serif;
+}
+
+::selection {
+  background: color-mix(in oklab, var(--brand) 38%, transparent);
+  color: var(--foreground);
+}
+
+html {
+  scrollbar-color: color-mix(in oklab, var(--text-tertiary) 45%, transparent) transparent;
+}
+
+/* Film grain over the whole document. Fixed, non-interactive, and faint
+   enough that it never lowers a text contrast ratio by a measurable amount. */
+body::after {
+  content: "";
+  position: fixed;
+  inset: -50%;
+  z-index: 90;
+  pointer-events: none;
+  opacity: 0.045;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 .9 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  body::after {
+    animation: prism-grain 1.2s steps(6) infinite;
+  }
+}
+
+@keyframes prism-grain {
+  0% {
+    transform: translate(0, 0);
+  }
+  20% {
+    transform: translate(-3%, 2%);
+  }
+  40% {
+    transform: translate(2%, -4%);
+  }
+  60% {
+    transform: translate(-4%, -1%);
+  }
+  80% {
+    transform: translate(3%, 3%);
+  }
+  100% {
+    transform: translate(0, 0);
+  }
+}
+
+@layer components {
+  /* Iridescent text for one or two words of a headline. */
+  .text-prism {
+    /* Polished metal: alternating bright and dark bands, so the shift reads
+       as light sliding across chrome rather than a colour fade. */
+    background-image: linear-gradient(
+      100deg,
+      var(--brand-text-from) 0%,
+      var(--brand-text-to) 18%,
+      #ffffff 34%,
+      var(--brand) 50%,
+      var(--brand-text-from) 66%,
+      var(--brand-text-to) 84%,
+      var(--brand-text-from) 100%
+    );
+    background-size: 220% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .text-prism {
+      animation: prism-shift 8s ease-in-out infinite alternate;
+    }
+  }
+
+  /* Editorial italic accent used inside display headlines. */
+  .font-editorial {
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-weight: 400;
+    letter-spacing: -0.01em;
+  }
+
+  /* A hairline border that catches the brand light: a gradient ring drawn
+     with a masked pseudo-element so the fill underneath stays the card. */
+  .prism-ring {
+    position: relative;
+  }
+
+  .prism-ring::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    padding: 1px;
+    border-radius: inherit;
+    pointer-events: none;
+    background: conic-gradient(
+      from var(--prism-angle, 0deg),
+      transparent 0deg,
+      color-mix(in oklab, var(--brand-gradient-from) 70%, transparent) 60deg,
+      color-mix(in oklab, var(--brand-gradient-via) 60%, transparent) 120deg,
+      color-mix(in oklab, var(--brand-gradient-to) 60%, transparent) 180deg,
+      transparent 240deg
+    );
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    opacity: 0.85;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .prism-ring::before {
+      animation: prism-spin 9s linear infinite;
+    }
+  }
+
+  /* Pointer spotlight for tiles: the border brightens where the pointer is.
+     `--mx`/`--my` are set by components/prism/spotlight.tsx. Border only, so
+     it never sits behind a figure. */
+  .spotlight {
+    position: relative;
+    isolation: isolate;
+  }
+
+  .spotlight::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1px;
+    pointer-events: none;
+    background: radial-gradient(
+      220px circle at var(--mx, 50%) var(--my, -200px),
+      color-mix(in oklab, var(--brand) 75%, transparent),
+      transparent 70%
+    );
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    opacity: 0;
+    transition: opacity 300ms ease;
+  }
+
+  .spotlight:hover::after,
+  .spotlight:focus-within::after {
+    opacity: 1;
+  }
+
+  /* The sound switch's level meter. */
+  .sound-bars {
+    display: inline-flex;
+    align-items: flex-end;
+    gap: 2px;
+    height: 12px;
+  }
+
+  .sound-bars i {
+    display: block;
+    width: 2px;
+    height: 3px;
+    border-radius: 1px;
+    background: currentColor;
+    transition: height 200ms ease;
+  }
+
+  .sound-bars[data-on] i {
+    background: var(--brand);
+  }
+
+  .sound-bars[data-on] i:nth-child(1) {
+    height: 7px;
+  }
+  .sound-bars[data-on] i:nth-child(2) {
+    height: 12px;
+  }
+  .sound-bars[data-on] i:nth-child(3) {
+    height: 5px;
+  }
+  .sound-bars[data-on] i:nth-child(4) {
+    height: 9px;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .sound-bars[data-on] i {
+      animation: sound-bar 0.9s ease-in-out infinite alternate;
+    }
+    .sound-bars[data-on] i:nth-child(2) {
+      animation-delay: -0.3s;
+    }
+    .sound-bars[data-on] i:nth-child(3) {
+      animation-delay: -0.6s;
+    }
+    .sound-bars[data-on] i:nth-child(4) {
+      animation-delay: -0.15s;
+    }
+  }
+
+  /* Workspace page entrance (app/(product)/template.tsx): content rises out
+     of a short blur on every navigation. Nothing is hidden without motion. */
+  @media (prefers-reduced-motion: no-preference) {
+    .page-enter {
+      animation: page-enter 520ms cubic-bezier(0.16, 1, 0.3, 1) both;
+    }
+
+    .page-enter [data-stagger] > * {
+      animation: page-enter 620ms cubic-bezier(0.16, 1, 0.3, 1) both;
+    }
+
+    .page-enter [data-stagger] > *:nth-child(2) {
+      animation-delay: 50ms;
+    }
+    .page-enter [data-stagger] > *:nth-child(3) {
+      animation-delay: 100ms;
+    }
+    .page-enter [data-stagger] > *:nth-child(4) {
+      animation-delay: 150ms;
+    }
+    .page-enter [data-stagger] > *:nth-child(5) {
+      animation-delay: 200ms;
+    }
+    .page-enter [data-stagger] > *:nth-child(6) {
+      animation-delay: 250ms;
+    }
+    .page-enter [data-stagger] > *:nth-child(n + 7) {
+      animation-delay: 300ms;
+    }
+  }
+
+  /* The ambient light behind the workspace chrome: two very soft orbs pinned
+     to the top-left of the viewport, under the sidebar and header only. */
+  .prism-ambient {
+    position: fixed;
+    inset: 0 auto auto 0;
+    width: min(42rem, 100vw);
+    height: 28rem;
+    pointer-events: none;
+    z-index: 0;
+    background: radial-gradient(
+        40% 50% at 20% 10%,
+        color-mix(in oklab, var(--brand-gradient-from) 22%, transparent),
+        transparent 70%
+      ),
+      radial-gradient(
+        30% 40% at 55% 0%,
+        color-mix(in oklab, var(--brand-gradient-via) 10%, transparent),
+        transparent 70%
+      );
+    filter: blur(20px);
+  }
+
+  /* Sidebar active marker: a short iridescent bar. */
+  .nav-active-bar {
+    background: linear-gradient(
+      180deg,
+      var(--brand-gradient-from),
+      var(--brand-gradient-via),
+      var(--brand-gradient-to)
+    );
+    box-shadow: 0 0 12px color-mix(in oklab, var(--brand-gradient-from) 70%, transparent);
+  }
+
+  /* Oversized outlined marquee type for the public site. */
+  .marquee-display {
+    font-size: clamp(3.5rem, 11vw, 10rem);
+    line-height: 0.9;
+    letter-spacing: -0.05em;
+    font-weight: 600;
+  }
+
+  /* Custom cursor (components/prism/prism-cursor.tsx), public pages only,
+     fine pointers only, never with reduced motion. */
+  .prism-cursor {
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 95;
+    pointer-events: none;
+    width: 36px;
+    height: 36px;
+    margin: -18px 0 0 -18px;
+    border-radius: 9999px;
+    border: 1px solid color-mix(in oklab, var(--foreground) 70%, transparent);
+    mix-blend-mode: difference;
+    transition:
+      width 260ms cubic-bezier(0.16, 1, 0.3, 1), height 260ms cubic-bezier(0.16, 1, 0.3, 1),
+      margin 260ms cubic-bezier(0.16, 1, 0.3, 1), background-color 260ms ease, opacity 200ms ease;
+    will-change: transform;
+  }
+
+  .prism-cursor[data-state="link"] {
+    width: 72px;
+    height: 72px;
+    margin: -36px 0 0 -36px;
+    background-color: #fff;
+    border-color: transparent;
+  }
+
+  .prism-cursor[data-state="text"] {
+    width: 4px;
+    height: 28px;
+    margin: -14px 0 0 -2px;
+    border-radius: 2px;
+    background-color: #fff;
+  }
+
+  .prism-cursor-dot {
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 96;
+    pointer-events: none;
+    width: 5px;
+    height: 5px;
+    margin: -2.5px 0 0 -2.5px;
+    border-radius: 9999px;
+    background: var(--brand);
+  }
+}
+
+@keyframes prism-shift {
+  to {
+    background-position: 100% 0;
+  }
+}
+
+@property --prism-angle {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+
+@keyframes prism-spin {
+  to {
+    --prism-angle: 360deg;
+  }
+}
+
+@keyframes sound-bar {
+  0% {
+    transform: scaleY(0.35);
+  }
+  100% {
+    transform: scaleY(1);
+  }
+}
+
+@keyframes page-enter {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+    filter: blur(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+}
+
+@layer components {
+  /* Range input in PRISM dress: an iridescent filled track and a glowing
+     thumb. 24px tall so the target meets WCAG 2.5.8. */
+  .prism-range {
+    appearance: none;
+    height: 24px;
+    background: transparent;
+    cursor: pointer;
+  }
+
+  .prism-range::-webkit-slider-runnable-track {
+    height: 4px;
+    border-radius: 9999px;
+    background: linear-gradient(
+      90deg,
+      var(--brand-gradient-from),
+      var(--brand-gradient-via),
+      var(--brand-gradient-to)
+    );
+  }
+
+  .prism-range::-moz-range-track {
+    height: 4px;
+    border-radius: 9999px;
+    background: linear-gradient(
+      90deg,
+      var(--brand-gradient-from),
+      var(--brand-gradient-via),
+      var(--brand-gradient-to)
+    );
+  }
+
+  .prism-range::-webkit-slider-thumb {
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    margin-top: -7px;
+    border-radius: 9999px;
+    background: #fff;
+    box-shadow: 0 0 0 4px color-mix(in oklab, var(--brand) 35%, transparent), 0 0 18px
+      color-mix(in oklab, var(--brand-gradient-to) 80%, transparent);
+  }
+
+  .prism-range::-moz-range-thumb {
+    width: 18px;
+    height: 18px;
+    border: 0;
+    border-radius: 9999px;
+    background: #fff;
+    box-shadow: 0 0 0 4px color-mix(in oklab, var(--brand) 35%, transparent), 0 0 18px
+      color-mix(in oklab, var(--brand-gradient-to) 80%, transparent);
+  }
+}
+
+@layer components {
+  .text-prism .split-word {
+    background-image: inherit;
+    background-size: inherit;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  /* The primary call to action: a polished-metal pill (bright top, steel
+     belly), a soft steel halo, and a champagne sheen that crosses it on
+     hover. The label stays ink on the metal, well above 7:1. */
+  .prism-cta {
+    position: relative;
+    overflow: hidden;
+    color: var(--primary-foreground);
+    background-image: linear-gradient(180deg, #f7f8fa, #c9cfd8 55%, #aab3c0);
+    box-shadow:
+      inset 0 1px 0 #ffffff, inset 0 -1px 0 rgb(0 0 0 / 0.25), 0 10px 36px -12px
+      color-mix(in oklab, var(--brand-gradient-to) 55%, transparent), 0 6px 28px -14px
+      color-mix(in oklab, var(--brand-gradient-via) 45%, transparent);
+  }
+
+  .prism-cta:hover {
+    background-image: linear-gradient(180deg, #ffffff, #d6dbe2 55%, #b4bcc8);
+  }
+
+  .prism-cta::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: linear-gradient(
+      105deg,
+      transparent 35%,
+      rgb(240 223 186 / 0.45) 48%,
+      rgb(214 219 226 / 0.35) 55%,
+      transparent 68%
+    );
+    transform: translateX(-120%);
+    transition: transform 700ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .prism-cta:hover::after {
+    transform: translateX(120%);
+  }
+
+  /* The footer's close line (components/footer-market.tsx): it draws itself
+     as it scrolls into view where scroll-driven animations exist, and is
+     simply there everywhere else. The end dot marks the latest close. */
+  .footer-close-dot {
+    position: absolute;
+    right: 0;
+    width: 7px;
+    height: 7px;
+    border-radius: 9999px;
+    background: var(--brand-gradient-via);
+    box-shadow: 0 0 12px color-mix(in oklab, var(--brand-gradient-via) 70%, transparent);
+    transform: translate(50%, -50%);
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .footer-close-dot::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      border: 1px solid var(--brand-gradient-via);
+      animation: footer-close-ring 2.4s ease-out infinite;
+    }
+
+    @supports (animation-timeline: view()) {
+      .footer-close-line {
+        stroke-dasharray: 1;
+        animation: footer-close-draw linear both;
+        animation-timeline: view();
+        /* Done once the line is fully in view: the footer sits at the page's
+           foot, so a range that needs it to travel further never finishes. */
+        animation-range: entry 0% entry 100%;
+      }
+    }
+  }
+
+  /* The logo's glint (components/brand/stockviz-mark.tsx): parked off the
+     tile, it crosses once when the wordmark is hovered or focused. */
+  .stockviz-mark-glint {
+    transform: translateX(-14px) rotate(20deg);
+    transform-box: view-box;
+    transform-origin: 16px 16px;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .stockviz-mark-glint {
+      transition: transform 900ms cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .group\/mark:hover .stockviz-mark-glint,
+    :focus-visible > .group\/mark .stockviz-mark-glint {
+      transform: translateX(26px) rotate(20deg);
+    }
+  }
+}
+
+@keyframes footer-close-ring {
+  from {
+    transform: scale(1);
+    opacity: 0.9;
+  }
+  to {
+    transform: scale(3.2);
+    opacity: 0;
+  }
+}
+
+@keyframes footer-close-draw {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
 }

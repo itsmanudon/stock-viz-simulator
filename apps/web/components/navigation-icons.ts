@@ -1,0 +1,75 @@
+import {
+  Activity,
+  ArrowLeftRight,
+  Atom,
+  Bell,
+  BookCopy,
+  Briefcase,
+  CalendarDays,
+  ChartCandlestick,
+  ChartLine,
+  Filter,
+  FlaskConical,
+  FolderClock,
+  Gauge,
+  Globe,
+  History,
+  House,
+  Inbox,
+  Layers,
+  ListChecks,
+  ListOrdered,
+  type LucideIcon,
+  Newspaper,
+  RotateCcw,
+  ScanSearch,
+  Settings,
+  Sparkles,
+  Star,
+  Sun,
+  Target,
+  Wallet,
+} from "lucide-react";
+
+import type { WorkspaceId } from "@/lib/app-navigation";
+
+/**
+ * One icon per destination, keyed by href so a label change can't drop it.
+ * Shared by the sidebar and the command palette.
+ */
+export const NAV_ICONS: Record<string, LucideIcon> = {
+  "/dashboard": House,
+  "/notifications": Inbox,
+  "/markets": Globe,
+  "/screener": Filter,
+  "/earnings": CalendarDays,
+  "/news": Newspaper,
+  "/setups": ScanSearch,
+  "/checklist": ListChecks,
+  "/compare": ChartLine,
+  "/event-study": Target,
+  "/backtest": FlaskConical,
+  "/backtest/runs": FolderClock,
+  "/replay": RotateCcw,
+  "/drills": Layers,
+  "/news-reactions": Activity,
+  "/portfolio": Wallet,
+  "/trade": ArrowLeftRight,
+  "/orders": ListOrdered,
+  "/trades": History,
+  "/watchlist": Star,
+  "/alerts": Bell,
+  "/settings#books": BookCopy,
+  "/copilot": Sparkles,
+  "/status": Gauge,
+  "/settings": Settings,
+};
+
+export const WORKSPACE_ICONS: Record<WorkspaceId, LucideIcon> = {
+  today: Sun,
+  markets: Globe,
+  workbench: ChartCandlestick,
+  "quant-lab": Atom,
+  "portfolio-tax": Briefcase,
+  copilot: Sparkles,
+};
