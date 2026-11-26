@@ -39,6 +39,8 @@ class ReplaySummary:
     has_next: bool
     visible_high: Decimal
     visible_low: Decimal
+    fees_paid: Decimal = ZERO
+    """A4.6: every fill's fees, in the session currency (already out of cash)."""
 
 
 def compute_replay_summary(session: Session, replay: ReplaySession) -> ReplaySummary:
@@ -55,9 +57,11 @@ def compute_replay_summary(session: Session, replay: ReplaySession) -> ReplaySum
         unrealized += ((close - pos.avg_cost) * pos.quantity).quantize(MICROS)
 
     realized = ZERO
+    fees_paid = ZERO
     for fill in fills:
         if fill.realized_pnl is not None:
             realized += fill.realized_pnl
+        fees_paid += fill.fees or ZERO
 
     cash = replay.cash_balance
     equity = (cash + market_value).quantize(MICROS)
@@ -84,4 +88,5 @@ def compute_replay_summary(session: Session, replay: ReplaySession) -> ReplaySum
         has_next=get_next_session_bar(session, replay) is not None,
         visible_high=max(highs),
         visible_low=min(lows),
+        fees_paid=fees_paid.quantize(MICROS),
     )

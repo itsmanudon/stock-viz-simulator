@@ -23,7 +23,7 @@ src/stockviz/
                     events — outbox, consumer inbox, derived trade activity,
                     execution — SimulatedExecution provenance,
                     replay — ReplaySession / ReplayPosition / ReplayFill /
-                    ReplayJournal, aegis — read-only Aegis News copies,
+                    ReplayJournal (A4.6: ReplayOrder, ReplayDrawing), aegis — read-only Aegis News copies,
                     setup — A2.2 Setup / SetupVersion / Thesis,
                     screen — saved screens + A2.3 ScreenRun, delivery —
                     A2.3 NotificationChannel / DeliveryAttempt,
@@ -80,6 +80,9 @@ src/stockviz/
                     ReplayFill is isolated from Trade / apply_fill / Kafka.
                     SIM-07 forensics.py reconstructs episodes/MAE/MFE;
                     journal.py persists the first-fill-locked thesis.
+                    A4.6: lag.py (30-day rule), orders.py (fees, resting
+                    orders), context.py (indicators and events cut at the
+                    clock), drawings.py (session-only drawings)
     options/        Black-Scholes-style pricing + option trade execution/settlement
     backtest/       engine.py — historical strategy simulation. Since Phase
                     5.2 (SIM-08) fills come from the kernel and book in the
@@ -1068,6 +1071,51 @@ CR1) and `clusters`, `net_percentiles`, `excess_percentiles`, `histogram`
 `disclaimer`. Errors: rule 422, unknown symbol/setup/watchlist 404,
 watchlist signed out 401. Tests: `test_scan_event_study.py`.
 
+**Replay in any currency (A4.6, M9.1, M9.2).** Migration `a6c4e2f8b913`
+(additive): `replay_sessions.currency` (default `USD`), `fee_schedule`
+(default `none`), `lag_override` (default false); `replay_fills.fees`
+(default 0), `fee_lines`, `order_id` (to `replay_orders`, SET NULL); new
+`replay_orders` (checks `ck_replay_orders_type`, `ck_replay_orders_status`)
+and `replay_drawings` (both cascade from the session). Rules and the method
+in `docs/SIMULATION.md` ("Replay in any currency, the lag, the chart and
+resting orders").
+
+- **Currency, cash, fees.** A session takes the symbol's currency;
+  `starting_cash` omitted = `DEFAULT_CASH_BY_CURRENCY` ($100,000, ₹10,00,000,
+  else 100,000). Fees: `resolve_fee_schedule("auto", ticker)` frozen on the
+  session; `orders.replay_fill_fees` prices each fill on the bar's venue date
+  with DP once per bar's sells, booked through `SimLedger` like live and
+  backtests. An index session (`is_index_ticker`) is watch-only:
+  orders 400 `ReplayNotTradable`. `ReplaySessionOut` adds `currency`,
+  `fee_schedule`, `lag_override`, `tradable`, `open_orders`; the list rows
+  `currency`; the summary `currency`, `fees_paid`; fills `fees`, `fee_lines`,
+  `order_id`; forensics `currency` and episode `fees` (`realized_pnl` net).
+- **Lag** (`services/replay/lag.py`): XNSE/XBOM sessions must end
+  `REPLAY_MIN_LAG_DAYS` (30) days before the venue's today, else 400
+  `ReplayLagError` naming the latest allowed end. Owner-only override:
+  `REPLAY_LAG_OVERRIDE_USER_IDS` (empty). Availability adds `lag_days`,
+  `max_end`, `lag_waived`, `default_starting_cash`, `fee_schedule`,
+  `tradable`. `create_replay_session(today=)` for tests.
+- **Routes** (authed, `routers/replay.py`): `GET .../orders`, `POST
+  .../orders/{order_id}/cancel` (404 another session's, 409 not open);
+  `POST .../orders` with a non-market type returns `{session, decision:
+  null, order}`; `GET .../indicators?names=` (`IndicatorsOut`, daily, the
+  registry's grammar; `context.replay_indicators`); `GET .../events`
+  (`ReplayEventsOut`: news with `available_at <= current_at` via
+  `symbol_events.news_clusters(available_until=)`, and the session's fills);
+  `GET`/`POST .../drawings`, `PATCH`/`DELETE .../drawings/{id}` (A3.2's
+  validation with anchors from the first bar to the clock; avwap 422).
+- **Orders** (`services/replay/orders.py`): placed at the clock, judged from
+  the next bar by `evaluate_open_orders` inside `advance_replay_session`
+  (same lock and transaction), fills freeze the journal; rejected with the
+  reason when the book cannot pay or deliver; expired on completion,
+  cancelled with the session; 20 open at most.
+- Tests: `test_replay_a46.py` (the acceptance: rupees, lag refusal and
+  override, indicators and news at every step against future bars and the
+  live route, drawings isolation, resting orders, DP, forensics net, no
+  prize), `test_replay_a46_migration.py` (PostgreSQL up/down/up),
+  `test_kernel_three_way.py` (INR replay compared, skip removed).
+
 **Survivorship stamp (A1.4a, part of M1.5).** Every backtest result carries
 `universe: {name, point_in_time, survivorship_biased, note}`: the public
 `POST /v1/backtest` (`BacktestOut.universe`), stored single runs, and
@@ -1754,8 +1802,9 @@ intraday fills anywhere in the app:
   history never return bars after `current_at`. `GET .../summary` marks
   positions at the current replay close. `GET .../availability` returns the
   stored 1d range for the launcher. List rows omit positions (no N+1).
-  Orders take intent only; fill price is the current bar close. USD
-  symbols only. Cancel is manual. Reaching the last bar keeps the session
+  Orders take intent only; a market order fills at the current bar close
+  (A4.6: limit / stop orders rest, see "Replay in any currency (A4.6)").
+  Any currency since A4.6. Cancel is manual. Reaching the last bar keeps the session
   active, so that bar can be traded; advancing from it marks `completed`
   (the web's "Finish replay"). Cash and positions go through the shared
   `services/simulation/ledger.py::SimLedger` (Phase 5.1), whose arithmetic
@@ -1764,7 +1813,8 @@ intraday fills anywhere in the app:
   ledger throughput (about 140k fills/s locally; `test_kernel_benchmark.py`
   keeps a 10k floor).
   No delete endpoint; child rows cascade if a session row is removed.
-  Replay Lab UI is `/replay` (SIM-06). MARKET-only in the UI.
+  Replay Lab UI is `/replay` (SIM-06); market, limit, stop-loss and
+  take-profit in the UI since A4.6.
   `GET .../forensics` is derived (episodes, MAE/MFE vs active weighted
   entry using stored daily high/low, same-symbol buy-and-hold excess,
   one-ticker concentration). MAE/MFE count a bar's range only for shares
@@ -1960,7 +2010,8 @@ Valuation adds foreign cash at the latest rate into `cash_balance` and
 (4.5c, migration `d61f0a3b8c27`) are paid into their own currency through
 `cash.credit`; each `portfolio_dividends` row keeps `currency` and
 `base_value` (the credit at the ex-date rate), and `ytd_income` sums
-`base_value`. Option premiums stay in the base currency; replay is USD only.
+`base_value`. Option premiums stay in the base currency; replay books are in
+their symbol's currency (A4.6), so they need no FX.
 
 **Instrument identity (Phase 4.3 expand, 4.4 reads).** `instruments` (venue
 MIC, currency, `quote_unit`, asset type) and `instrument_identifiers` (`yahoo`

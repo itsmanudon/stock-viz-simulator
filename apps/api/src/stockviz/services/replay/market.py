@@ -22,7 +22,6 @@ from stockviz.services.replay.errors import (
     ReplayNoMarketError,
     ReplayRangeError,
     ReplaySymbolNotFound,
-    ReplayUnsupportedCurrency,
 )
 from stockviz.services.replay.timeutil import as_aware_utc, as_naive_utc
 from stockviz.services.simulation import MarketSnapshot
@@ -112,6 +111,24 @@ def get_next_session_bar(session: Session, replay: ReplaySession) -> PriceBar | 
     ).first()
 
 
+def get_warmup_bars(session: Session, replay: ReplaySession, n: int) -> list[PriceBar]:
+    """Up to ``n`` stored 1d bars before ``start_at``, oldest first: an
+    indicator's warm-up. All are before the clock, so they leak nothing."""
+
+    if n <= 0:
+        return []
+    rows = list(
+        session.exec(
+            _ticker_bars(replay.ticker)
+            .where(PriceBar.ts < replay.start_at)
+            .order_by(PriceBar.ts.desc())  # type: ignore[attr-defined]
+            .limit(n)
+        ).all()
+    )
+    rows.reverse()
+    return rows
+
+
 def get_visible_replay_history(session: Session, replay: ReplaySession) -> list[PriceBar]:
     """Bars in ``[start_at, current_at]`` clipped to ``end_at``. Never future bars."""
 
@@ -153,17 +170,14 @@ def market_snapshot_for_replay(session: Session, replay: ReplaySession) -> Marke
 def get_replay_availability(
     session: Session, *, ticker: str
 ) -> tuple[Symbol, PriceBar, PriceBar, int]:
-    """Stored 1d range for the launcher. Rejects unknown and non-USD tickers."""
+    """Stored 1d range for the launcher. Rejects unknown tickers.
+
+    A4.6: any currency (the session trades in it); the router adds the lag."""
 
     ticker = ticker.strip().upper()
     symbol = session.get(Symbol, ticker)
     if symbol is None:
         raise ReplaySymbolNotFound(f"Symbol {ticker!r} not found")
-    currency = symbol.currency or "USD"
-    if currency != "USD":
-        raise ReplayUnsupportedCurrency(
-            f"Replay sessions are USD-only until historical FX exists; {ticker!r} is {currency}"
-        )
     first = session.exec(_ticker_bars(ticker).order_by(PriceBar.ts.asc()).limit(1)).first()  # type: ignore[attr-defined]
     last = session.exec(_ticker_bars(ticker).order_by(PriceBar.ts.desc()).limit(1)).first()  # type: ignore[attr-defined]
     if first is None or last is None:

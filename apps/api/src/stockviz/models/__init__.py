@@ -64,8 +64,11 @@ from stockviz.models.portfolio import (
     TradeSide,
 )
 from stockviz.models.replay import (
+    ReplayDrawing,
     ReplayFill,
     ReplayJournal,
+    ReplayOrder,
+    ReplayOrderStatus,
     ReplayPosition,
     ReplaySession,
     ReplaySessionStatus,
@@ -139,8 +142,11 @@ __all__ = [
     "Position",
     "PriceBar",
     "QuarantinedPriceBar",
+    "ReplayDrawing",
     "ReplayFill",
     "ReplayJournal",
+    "ReplayOrder",
+    "ReplayOrderStatus",
     "ReplayPosition",
     "ReplaySession",
     "ReplaySessionStatus",
