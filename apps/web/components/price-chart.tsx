@@ -75,6 +75,7 @@ import {
   writePaneLayout,
 } from "@/lib/chart-panes";
 import { fitWithLabelRoom } from "@/lib/chart-range";
+import { syncedBarIndex } from "@/lib/chart-sync";
 import { type ChartPalette, useChartPalette } from "@/lib/chart-theme";
 import type { ChartScale, ChartType } from "@/lib/chart-view";
 import { sessionDateOf } from "@/lib/drawings/anchor";
@@ -210,6 +211,19 @@ type Props = {
   liveTicker?: string | null;
   /** A6.7: called with the chart's parts each time it is built; may return a cleanup. */
   onChartReady?: (handle: PriceChartHandle) => (() => void) | undefined;
+  /**
+   * A6.8: pane heights by pane kind (a chart template's) over the remembered
+   * ones; read when the chart mounts.
+   */
+  paneHeights?: Record<string, number>;
+  /**
+   * A6.8: a crosshair time (UTC seconds) from a linked chart, shown at this
+   * chart's bar for that time (`lib/chart-sync.ts`); null clears it. Left
+   * undefined, the chart is not synced.
+   */
+  crosshairTime?: number | null;
+  /** A6.8: the hovered bar's time (UTC seconds) as the pointer moves; null when it leaves. */
+  onCrosshairTime?: (time: number | null) => void;
 };
 
 const DRAG_THRESHOLD_PX = 4;
@@ -322,6 +336,9 @@ export function PriceChart({
   sourceFeed,
   liveTicker = null,
   onChartReady,
+  paneHeights,
+  crosshairTime,
+  onCrosshairTime,
 }: Props) {
   const intraday = isIntradayInterval(interval);
   const live = useLiveBars(intraday ? liveTicker : null, serverBars, interval, timeZone);
@@ -357,9 +374,10 @@ export function PriceChart({
   // the chart waits for it so it is built once.
   const [layout, setLayout] = useState<PaneLayout | null>(null);
   const heightsRef = useRef<Record<string, number>>({});
+  // biome-ignore lint/correctness/useExhaustiveDependencies: read once at mount (a new template remounts the chart).
   useEffect(() => {
     const stored = readPaneLayout();
-    heightsRef.current = stored.heights;
+    heightsRef.current = paneHeights ? { ...stored.heights, ...paneHeights } : stored.heights;
     setLayout(stored);
   }, []);
   const collapsedSet = useMemo(() => new Set(layout?.collapsed ?? []), [layout]);
@@ -501,6 +519,8 @@ export function PriceChart({
   byBarRef.current = byBar;
 
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
+  const crosshairOutRef = useRef(onCrosshairTime);
+  crosshairOutRef.current = onCrosshairTime;
   const [keyIndex, setKeyIndex] = useState<number | null>(null);
   const keyIndexRef = useRef<number | null>(null);
   keyIndexRef.current = keyIndex;
@@ -678,6 +698,10 @@ export function PriceChart({
     else fitWithLabelRoom(chart, candles.length, el.clientWidth - 64);
 
     const onMove = (param: MouseEventParams<Time>) => {
+      // A6.8: only the pointer's moves go to linked charts, not a synced position.
+      if (param.sourceEvent && param.time !== undefined) {
+        crosshairOutRef.current?.(param.time as number);
+      }
       if (param.time === undefined) {
         setHoverIndex(keyIndexRef.current);
         return;
@@ -976,6 +1000,31 @@ export function PriceChart({
     [candles],
   );
 
+  // A6.8: a linked chart's crosshair time, shown at this chart's bar for it.
+  useEffect(() => {
+    if (crosshairTime === undefined) return;
+    const chart = chartRef.current;
+    const main = mainRef.current;
+    if (!chart || !main) return;
+    const i =
+      crosshairTime === null
+        ? null
+        : syncedBarIndex(
+            candles.map((c) => c.time as number),
+            crosshairTime,
+            interval,
+          );
+    if (i === null) {
+      if (keyIndexRef.current === null) {
+        chart.clearCrosshairPosition();
+        setHoverIndex(null);
+      }
+      return;
+    }
+    chart.setCrosshairPosition(main.closes[i], candles[i].time, main.series);
+    setHoverIndex(i);
+  }, [crosshairTime, candles, interval]);
+
   const zoom = useCallback((factor: number) => {
     const chart = chartRef.current;
     const range = chart?.timeScale().getVisibleLogicalRange();
@@ -1127,6 +1176,7 @@ export function PriceChart({
           aria-describedby={helpId}
           onKeyDown={onKeyDown}
           onPointerUp={rememberHeights}
+          onPointerLeave={onCrosshairTime ? () => onCrosshairTime(null) : undefined}
           onPointerDownCapture={hasLayer ? onDrawingPointerDown : undefined}
           onMouseDownCapture={hasLayer ? stopIfGrabbed : undefined}
           onTouchStartCapture={hasLayer ? stopIfGrabbed : undefined}

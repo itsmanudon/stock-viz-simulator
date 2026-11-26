@@ -4862,3 +4862,81 @@ class EdgeStatsOut(BaseModel):
     drift: list[EdgeDriftOut]
     imported_fees_estimated: bool
     honesty: list[str]
+
+
+# ---------------------------------------------------------------------------
+# Chart templates and layouts (A6.8, M2.10)
+# ---------------------------------------------------------------------------
+
+ChartTypeKey = Literal["candles", "hollow", "bars", "line", "area", "heikin-ashi"]
+ChartScaleKey = Literal["linear", "log", "percent"]
+ChartIntervalKey = Literal["1d", "1wk", "1mo", "1m", "5m", "15m", "30m", "60m"]
+ChartGridKey = Literal["1", "2v", "2h", "4"]
+LinkColourKey = Literal["aqua", "blue", "violet", "pink", "amber", "lime", "slate"]
+
+
+class ChartTemplateIn(BaseModel):
+    name: str = Field(min_length=1, max_length=64)
+    chart_type: ChartTypeKey = "candles"
+    scale: ChartScaleKey = "linear"
+    indicators: list[str] = Field(default_factory=list, max_length=16)
+    """Indicator registry keys with their parameters (``sma_50``, ``bb_20_2``)."""
+    pane_heights: dict[str, int] = Field(default_factory=dict)
+    """Pixels by pane kind (``price``, ``volume``, ``rsi``...), 48 to 1200."""
+
+
+class ChartTemplatePatch(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=64)
+    chart_type: ChartTypeKey | None = None
+    scale: ChartScaleKey | None = None
+    indicators: list[str] | None = Field(default=None, max_length=16)
+    pane_heights: dict[str, int] | None = None
+
+
+class ChartTemplateOut(BaseModel):
+    id: int
+    name: str
+    chart_type: ChartTypeKey
+    scale: ChartScaleKey
+    indicators: list[str]
+    pane_heights: dict[str, int]
+    created_at: datetime
+    updated_at: datetime
+
+
+class ChartPaneIn(BaseModel):
+    symbol: str = Field(min_length=1, max_length=32)
+    interval: ChartIntervalKey = "1d"
+    template_id: int | None = None
+    link: LinkColourKey | None = None
+    """The link colour; null is unlinked."""
+
+
+class ChartPaneOut(BaseModel):
+    symbol: str
+    interval: ChartIntervalKey
+    template_id: int | None
+    """Null when the pane has the default look or its template was deleted."""
+    link: LinkColourKey | None
+
+
+class ChartLayoutIn(BaseModel):
+    name: str = Field(min_length=1, max_length=64)
+    grid: ChartGridKey = "1"
+    panes: list[ChartPaneIn] = Field(min_length=1, max_length=4)
+    """One per grid cell in reading order: 1, 2 (``2v``, ``2h``) or 4."""
+
+
+class ChartLayoutPatch(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=64)
+    grid: ChartGridKey | None = None
+    panes: list[ChartPaneIn] | None = Field(default=None, min_length=1, max_length=4)
+
+
+class ChartLayoutOut(BaseModel):
+    id: int
+    name: str
+    grid: ChartGridKey
+    panes: list[ChartPaneOut]
+    created_at: datetime
+    updated_at: datetime

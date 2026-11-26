@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { auth } from "@/auth";
+import { SaveTemplateButton } from "@/components/chart-layouts/save-template-button";
 import { ChartWithTools } from "@/components/chart-tools";
 import { ChecklistPanel } from "@/components/checklist/checklist-panel";
 import {
@@ -525,6 +526,14 @@ export default async function StockPage({
                   ) : null}
                 </div>
               )}
+              {signedIn ? (
+                // A6.8: this chart's look as a template for the chart workspace.
+                <SaveTemplateButton
+                  chartType={view.type}
+                  scale={view.scale}
+                  indicators={selectedIndicators}
+                />
+              ) : null}
               {toDate ? (
                 <p className="px-1 pt-1 text-2xs text-text-tertiary" data-testid="intraday-to">
                   Bars through {formatCloseDate(toDate)}.{" "}

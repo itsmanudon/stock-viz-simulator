@@ -20,6 +20,8 @@ from stockviz.routers import (
     bars,
     books,
     brokers,
+    chart_layouts,
+    chart_templates,
     checklist,
     column_sets,
     drawings,
@@ -177,6 +179,8 @@ def create_app() -> FastAPI:
     app.include_router(watchlist.router)
     app.include_router(watchlists.router)
     app.include_router(column_sets.router)
+    app.include_router(chart_templates.router)
+    app.include_router(chart_layouts.router)
     app.include_router(orders.router)
     app.include_router(profile.router)
     app.include_router(options.router)

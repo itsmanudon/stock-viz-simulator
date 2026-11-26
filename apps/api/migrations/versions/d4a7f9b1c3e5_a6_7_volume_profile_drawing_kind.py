@@ -6,7 +6,7 @@ downgrade refuses while a ``volume_profile`` drawing is stored (older code
 cannot read one); delete them first.
 
 Revision ID: d4a7f9b1c3e5
-Revises: c8d3e5f7a9b2
+Revises: d4a8f6c2b1e9
 Create Date: 2026-11-26 18:00:00.000000
 
 """
@@ -17,7 +17,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "d4a7f9b1c3e5"
-down_revision: str | None = "c8d3e5f7a9b2"
+down_revision: str | None = "d4a8f6c2b1e9"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
