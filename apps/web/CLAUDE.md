@@ -965,6 +965,23 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   realized P&L is not totalled across currencies. `calculateNavChange` leaves
   out All books `flow` (new books, imported buys) and chains the returns.
   `scripts/seed-demo.mjs` writes snapshots into each demo user's default book.
+- **Broker status (A5.7, M1.7).** No live broker connection. `lib/api/brokers.ts`
+  (server-only, `getBrokerStatusOrNull()` never throws) reads
+  `/v1/broker/status`; `lib/broker-status.ts` (pure) turns each state into
+  words (`brokerCopy`: headline "Zerodha: not connected." / "snapshots
+  only." / "offline.", the detail, e.g. "Live broker data needs a paid Kite
+  Connect app; not set up.", and `IMPORT_LINE` "Imported books update when
+  you upload a tradebook (CSV)."; `brokerLine` for one line).
+  `components/brokers/broker-status.tsx`: `BrokerStatusList`
+  (`broker-status`, one item per broker with `data-state` and a badge; null
+  = "could not be read just now") on Settings (a Brokers panel) and
+  `/status` (a Brokers section, signed in only; signed out it says to sign
+  in), and `BrokerStatusLine` (`broker-status-line`) in an imported book's
+  empty state (the portfolio page fetches the status only for an imported
+  book; `BookStateNotice` adds the line once the book has imports). The
+  switcher adds `IMPORTED_BOOK_NOTE` (`switcher-broker-note`) under imported
+  books, static text, so the top bar makes no extra call. Never an error
+  page. Tests: `tests/unit/a57-broker-status.test.tsx`.
 - **Trade plans (A5.4, M10.3).** Types and the ticket helpers are
   client-safe in `lib/plans.ts` (`planFigures` risk/reward/R:R and the first
   problem, `planFormFields` / `planFromForm` (the `plan_*` hidden fields a
@@ -1259,7 +1276,7 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
 - `/status` (Phase 7.6, public, linked from the footer): each nightly job's
   last result and last success, the newest stored close per market, the
   Aegis sync and undeliverable events, from `/v1/status` (`lib/api/status.ts`,
-  `no-store`). Times in UTC.
+  `no-store`), and (A5.7) a Brokers section. Times in UTC.
 - Watchlist rows carry `last_close_at` and `currency`, and alert rows carry
   `currency` (audit RS-13), so the dashboard no longer loads the symbol list
   to format them. `/alerts` still loads it for the create form.
