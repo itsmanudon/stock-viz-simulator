@@ -3,8 +3,8 @@
 A **setup** is a named rule a user keeps (a screen, an alert, a strategy or a
 checklist). Its rule lives in **setup versions**: rows that are never updated.
 Editing a setup adds version n+1; saving a rule the setup already has returns
-that version (unique ``(setup_id, rule_hash)``), so a version names exactly
-one rule. Saved screens, alerts and experiment runs carry a nullable
+that version (unique ``(setup_id, rule_hash, timeframe, feed)`` since A6.4),
+so a version names exactly one rule on one timeframe. Saved screens, alerts and experiment runs carry a nullable
 ``setup_version_id``, so later batches (A2.3 alerts, A5 journal) can trace a
 result back to the exact rule.
 
@@ -27,6 +27,7 @@ from sqlalchemy import (
     Column,
     ForeignKey,
     Integer,
+    String,
     Text,
     UniqueConstraint,
 )
@@ -37,8 +38,12 @@ from stockviz._time import utcnow
 
 SETUP_KINDS = ("screen", "alert", "strategy", "checklist")
 THESIS_STATUSES = ("open", "invalidated", "closed")
-TIMEFRAMES = ("daily",)
-"""A rule is judged on daily bars; ``weekly.`` / ``monthly.`` live inside it."""
+TIMEFRAMES = ("daily", "1m", "5m", "15m", "30m", "60m")
+"""The bars a version's rule is judged on (A6.4 adds the intraday ones);
+``daily.`` / ``weekly.`` / ``monthly.`` live inside the rule."""
+SETUP_FEEDS = ("auto", "iex", "sip", "kite", "file")
+"""Which stored intraday feed a version reads; ``auto`` = the best stored
+(``services/bars/intraday.FEED_RANK``). Daily versions keep ``auto``."""
 
 
 class Setup(SQLModel, table=True):
@@ -85,7 +90,17 @@ class SetupVersion(SQLModel, table=True):
     __tablename__ = "setup_versions"  # pyright: ignore[reportAssignmentType]
     __table_args__ = (
         UniqueConstraint("setup_id", "version", name="uq_setup_versions_setup_version"),
-        UniqueConstraint("setup_id", "rule_hash", name="uq_setup_versions_setup_rule_hash"),
+        # A6.4: the same rule on another timeframe or feed is another version.
+        UniqueConstraint(
+            "setup_id", "rule_hash", "timeframe", "feed", name="uq_setup_versions_setup_rule_hash"
+        ),
+        CheckConstraint(
+            "timeframe IN ('daily', '1m', '5m', '15m', '30m', '60m')",
+            name="ck_setup_versions_timeframe",
+        ),
+        CheckConstraint(
+            "feed IN ('auto', 'iex', 'sip', 'kite', 'file')", name="ck_setup_versions_feed"
+        ),
     )
 
     id: int | None = Field(default=None, primary_key=True)
@@ -99,6 +114,9 @@ class SetupVersion(SQLModel, table=True):
     canonical_text: str = Field(sa_column=Column(Text, nullable=False))
     rule_hash: str = Field(max_length=64, index=True)
     timeframe: str = Field(default="daily", max_length=16)
+    feed: str = Field(
+        default="auto", sa_column=Column(String(8), nullable=False, server_default="auto")
+    )
     notes: str | None = Field(default=None, sa_column=Column(Text, nullable=True))
     created_at: datetime = Field(default_factory=utcnow, nullable=False)
 
@@ -121,4 +139,12 @@ class Thesis(SQLModel, table=True):
     updated_at: datetime = Field(default_factory=utcnow, nullable=False)
 
 
-__all__ = ["SETUP_KINDS", "THESIS_STATUSES", "TIMEFRAMES", "Setup", "SetupVersion", "Thesis"]
+__all__ = [
+    "SETUP_FEEDS",
+    "SETUP_KINDS",
+    "THESIS_STATUSES",
+    "TIMEFRAMES",
+    "Setup",
+    "SetupVersion",
+    "Thesis",
+]

@@ -20,4 +20,4 @@ router = APIRouter(prefix="/v1/rules", tags=["rules"])
 @router.post("/check", response_model=RuleCheckOut)
 @limiter.limit("60/minute")
 def check(request: Request, body: RuleCheckIn) -> RuleCheckOut:
-    return check_rule(body.rule, body.expect)
+    return check_rule(body.rule, body.expect, body.timeframe)

@@ -52,6 +52,28 @@ fill bar itself). The rest is not filled and the trade says so
 (``adv_cap``), and one with fewer than 20 earlier bars is not capped
 (``adv_unknown`` counts it). Exits are never capped: an exit over the cap is
 flagged with its share of the ADV (``exit_adv_pct``).
+
+**Intraday (A6.4).** A symbol whose ``sessions`` is set runs on intraday
+bars: ``dates`` are the bars' open instants (``datetime``) and ``sessions``
+their venue session dates. Signals still act on the next bar, but:
+
+- **Entries only inside a session.** An entry signal on a session's last
+  bar is dropped (``skip_reasons["session_end"]``), so no entry ever fills
+  across a night. Exits are not dropped: a position may be held overnight
+  (the default), and an exit signalled at the close fills at the next
+  session's open, where a stop the open gapped through fills first.
+- **Flatten at the close** (``flatten_at_close``): a position still open
+  after a session's last bar is sold at that bar's close through the kernel
+  (``legacy_close`` on that bar), reason ``session_close``.
+- **Same-day round trips** (``same_day_schedule``, the Indian intraday
+  schedule): when the exit falls in the entry's session, both legs are
+  priced on it; the entry's fee booked under the delivery schedule is
+  re-priced and the difference returned to cash.
+- **Fees** use each fill's session date; the curve has one point per bar;
+  ``periods_per_year`` annualises the Sharpe (the venue's bars a year).
+- The ADV cap needs daily volume: an intraday run passes ``adv`` (each bar's
+  20-session average traded value from daily bars, or None) instead of the
+  bars' own volume, which may not be the exchange's.
 """
 
 from __future__ import annotations
@@ -112,6 +134,11 @@ class SymbolInput:
     atr: dict[int, list[float | None]] = field(default_factory=dict)
     first: int = 0
     """Index of the first bar in the window; earlier bars are warm-up."""
+    sessions: list[date] | None = None
+    """A6.4: intraday bars' session dates (``dates`` then holds open instants)."""
+    adv: list[Decimal | None] | None = None
+    """A6.4: per bar, the 20-session average traded value from daily bars
+    (the ADV cap's base on intraday runs); None: not known."""
 
 
 @dataclass(frozen=True)
@@ -207,6 +234,8 @@ class StrategyResult:
     fills_before_coverage: int = 0
     partial_entries: int = 0
     adv_unknown: int = 0
+    same_day_round_trips: int = 0
+    """A6.4: round trips priced on the same-day (intraday) schedule."""
 
     @property
     def gross_final_nav(self) -> Decimal:
@@ -236,6 +265,8 @@ class _Position:
     """Highest high (long) or lowest low (short) since entry."""
     initial_stop: Decimal | None
     bars_held: int = 0
+    entry_fees: Decimal | None = None
+    """A6.4: the entry's fee re-priced on the same-day schedule, when it was."""
 
 
 @dataclass
@@ -271,6 +302,9 @@ def run_strategy(
     risk_free_rate: float = DEFAULT_RISK_FREE_RATE,
     brokerage: str = "zerodha",
     adv_cap_pct: float | None = None,
+    flatten_at_close: bool = False,
+    same_day_schedule: FeeSchedule | None = None,
+    periods_per_year: float | None = None,
 ) -> StrategyResult:
     if initial_cash <= 0:
         raise StrategyError("initial_cash must be positive")
@@ -291,11 +325,21 @@ def run_strategy(
         SymbolStats(s.ticker, bars=len(s.dates) - s.first, warmup_bars=s.first) for s in symbols
     ]
     trades: list[StrategyTrade] = []
-    skips = {"no_slot": 0, "no_cash": 0, "atr_unknown": 0, "adv_cap": 0}
+    skips = {"no_slot": 0, "no_cash": 0, "atr_unknown": 0, "adv_cap": 0, "session_end": 0}
     ignored = 0
     dp_seen: set[tuple[str, date]] = set()
     fee_versions: dict[date, int] = {}
-    counters = {"before": 0, "partial": 0, "adv_unknown": 0}
+    counters = {"before": 0, "partial": 0, "adv_unknown": 0, "same_day": 0}
+
+    def fill_day(s: SymbolInput, i: int) -> date:
+        """The fill's venue date: the session on intraday bars."""
+        return s.sessions[i] if s.sessions is not None else s.dates[i]
+
+    def session_last(s: SymbolInput, i: int) -> bool:
+        """An intraday bar that ends its session (the newest bar included)."""
+        if s.sessions is None:
+            return False
+        return i == len(s.dates) - 1 or s.sessions[i + 1] != s.sessions[i]
 
     def note_fees(fill: BookedFill) -> None:
         version = fill.fees.version
@@ -305,15 +349,28 @@ def run_strategy(
             counters["before"] += 1
 
     def adv(s: SymbolInput, i: int) -> Decimal | None:
+        if s.adv is not None:
+            return s.adv[i]
+        if s.sessions is not None:
+            return None
         if i < ADV_BARS:
             return None
         window = range(i - ADV_BARS, i)
         return sum((s.close[j] * s.volume[j] for j in window), Decimal(0)) / ADV_BARS
 
-    def booked(s: SymbolInput, i: int, order: OrderIntent, **kw) -> BookedFill | None:
-        fill = book(ledger, order, snapshot(s, i), profile, costs=costs, schedule=schedule,
-                    commission_bps=commission_bps, short=short, on=s.dates[i],
-                    brokerage=brokerage, dp_seen=dp_seen, **kw)  # fmt: skip
+    def booked(
+        s: SymbolInput,
+        i: int,
+        order: OrderIntent,
+        *,
+        fill_profile: ExecutionProfile | None = None,
+        fee_schedule: FeeSchedule | None = None,
+        **kw,
+    ) -> BookedFill | None:
+        fill = book(ledger, order, snapshot(s, i), fill_profile or profile, costs=costs,
+                    schedule=fee_schedule or schedule, commission_bps=commission_bps,
+                    short=short, on=fill_day(s, i), brokerage=brokerage, dp_seen=dp_seen,
+                    **kw)  # fmt: skip
         if fill is not None:
             note_fees(fill)
         return fill
@@ -330,7 +387,7 @@ def run_strategy(
         return MarketSnapshot(
             ticker=s.ticker,
             observed_at=s.ts[i],
-            interval="1d",
+            interval="1d" if s.sessions is None else "1m",
             open=s.open[i],
             high=s.high[i],
             low=s.low[i],
@@ -358,11 +415,37 @@ def run_strategy(
     def gapped(level: Decimal, open_: Decimal) -> bool:
         return open_ >= level if short else open_ <= level
 
-    def record_exit(s: SymbolInput, k: int, i: int, fill: BookedFill, reason: str, gap: bool):
+    def exit_schedule(s: SymbolInput, i: int) -> FeeSchedule | None:
+        """The same-day schedule when this exit closes a round trip in its
+        entry's session, else None (the run's schedule)."""
+        pos = states[s.ticker].position
+        if same_day_schedule is None or s.sessions is None or pos is None:
+            return None
+        return same_day_schedule if s.sessions[pos.entry_index] == s.sessions[i] else None
+
+    def reprice_entry(s: SymbolInput, pos: _Position) -> None:
+        """Book the entry leg again on the same-day schedule: the cash and the
+        fees paid move by the difference."""
+        assert same_day_schedule is not None
+        entry = pos.entry
+        fee = same_day_schedule.fees(
+            entry.fill.side, pos.quantity, entry.price, commission_bps=commission_bps,
+            on=fill_day(s, pos.entry_index), brokerage=brokerage, dp_due=False,
+        ).total  # fmt: skip
+        diff = entry.fees.total - fee
+        ledger.cash = (ledger.cash + diff).quantize(MICROS)
+        ledger.fees_paid -= diff
+        pos.entry_fees = fee
+        counters["same_day"] += 1
+
+    def record_exit(s: SymbolInput, k: int, i: int, fill: BookedFill, reason: str, gap: bool,
+                    *, same_day: bool = False):  # fmt: skip
         nonlocal price_costs
         st = states[s.ticker]
         pos = st.position
         assert pos is not None
+        if same_day:
+            reprice_entry(s, pos)
         price_costs += abs(fill.price - fill.reference) * pos.quantity
         over: float | None = None
         if adv_cap_pct is not None:
@@ -377,7 +460,7 @@ def run_strategy(
         st.position = None
         st.pending = None
 
-    def exit_market(s: SymbolInput, k: int, i: int, reason: str) -> None:
+    def exit_market(s: SymbolInput, k: int, i: int, reason: str, *, at_close: bool = False):
         st = states[s.ticker]
         pos = st.position
         assert pos is not None
@@ -386,11 +469,13 @@ def run_strategy(
             side=exit_side,
             order_type=SimulationOrderType.MARKET,
             quantity=pos.quantity,
-            submitted_at=s.ts[st.signal_index],
+            submitted_at=s.ts[i] if at_close else s.ts[st.signal_index],
         )
-        fill = booked(s, i, order)
+        sched = exit_schedule(s, i)
+        fill = booked(s, i, order, fill_profile=LEGACY_CLOSE if at_close else None,
+                      fee_schedule=sched)  # fmt: skip
         assert fill is not None, "a market exit always fills"
-        record_exit(s, k, i, fill, reason, gap=False)
+        record_exit(s, k, i, fill, reason, gap=False, same_day=sched is not None)
 
     def try_stop(s: SymbolInput, k: int, i: int, *, gap_only: bool) -> bool:
         st = states[s.ticker]
@@ -411,10 +496,11 @@ def run_strategy(
             submitted_at=min(pos.entry_ts, s.ts[i]),
             limit_price=level,
         )
-        fill = booked(s, i, order, range_stop=True)
+        sched = exit_schedule(s, i)
+        fill = booked(s, i, order, range_stop=True, fee_schedule=sched)
         if fill is None:
             return False
-        record_exit(s, k, i, fill, kind, gap=gapped(level, bar.open))
+        record_exit(s, k, i, fill, kind, gap=gapped(level, bar.open), same_day=sched is not None)
         return True
 
     def enter(s: SymbolInput, i: int) -> None:
@@ -489,7 +575,7 @@ def run_strategy(
                 quantity,
                 expected,
                 commission_bps=commission_bps,
-                on=s.dates[i],
+                on=fill_day(s, i),
                 brokerage=brokerage,
             ).total
             if (expected * quantity + fee) <= cash:
@@ -566,6 +652,9 @@ def run_strategy(
         if en is None:
             if in_window:
                 stats[k].unknown_entry_bars += 1
+        elif en and session_last(s, i):
+            # A6.4: the next bar opens another session; no entry across a night.
+            skips["session_end"] += 1
         elif en:
             candidates.append(k)
             st.signal_index = i
@@ -607,6 +696,14 @@ def run_strategy(
                 enter(s, i)
                 if st.position is not None and at_open:
                     try_stop(s, k, i, gap_only=False)
+            if (
+                flatten_at_close
+                and st.position is not None
+                and session_last(s, i)
+                and i < len(s.dates) - 1
+            ):
+                st.position.bars_held += 1
+                exit_market(s, k, i, "session_close", at_close=True)
             st.last_close = s.close[i]
             if i < len(s.dates) - 1:
                 signals_at_close(s, k, i, candidates)
@@ -634,7 +731,11 @@ def run_strategy(
         equity_curve=curve,
         final_nav=final,
         total_return=float((final - initial_cash) / initial_cash),
-        sharpe=_sharpe(navs, risk_free_rate=risk_free_rate),
+        sharpe=_sharpe(
+            navs,
+            risk_free_rate=risk_free_rate,
+            **({"periods_per_year": periods_per_year} if periods_per_year else {}),
+        ),
         max_drawdown=_max_drawdown(navs),
         total_fees=ledger.fees_paid.quantize(MICROS),
         price_costs=price_costs.quantize(MICROS),
@@ -647,6 +748,7 @@ def run_strategy(
         fills_before_coverage=counters["before"],
         partial_entries=counters["partial"],
         adv_unknown=counters["adv_unknown"],
+        same_day_round_trips=counters["same_day"],
     )
 
 
@@ -667,7 +769,8 @@ def _trade(
     entry_price = pos.entry.price
     qty = pos.quantity
     gross = (entry_price - exit_price) * qty if short else (exit_price - entry_price) * qty
-    pnl = (gross - pos.entry.fees.total - exit_fees).quantize(MICROS)
+    entry_fees = pos.entry_fees if pos.entry_fees is not None else pos.entry.fees.total
+    pnl = (gross - entry_fees - exit_fees).quantize(MICROS)
     notional = entry_price * qty
     risk = (
         (abs(entry_price - pos.initial_stop) * qty).quantize(MICROS)
@@ -684,7 +787,7 @@ def _trade(
         exit_price=exit_price,
         exit_reference=exit_reference,
         quantity=qty,
-        entry_fees=pos.entry.fees.total,
+        entry_fees=entry_fees,
         exit_fees=exit_fees,
         pnl=pnl,
         return_pct=float(pnl / notional) if notional else 0.0,

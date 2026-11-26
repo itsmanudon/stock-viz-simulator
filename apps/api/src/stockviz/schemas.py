@@ -1560,11 +1560,18 @@ class RuleErrorOut(BaseModel):
     column: int | None = None  # from 1
 
 
+RuleTimeframe = Literal["daily", "1m", "5m", "15m", "30m", "60m"]
+"""A6.4: the bars a rule is judged on."""
+SetupFeed = Literal["auto", "iex", "sip", "kite", "file"]
+
+
 class RuleCheckIn(BaseModel):
     rule: str = Field(min_length=1, max_length=RULE_MAX_LENGTH)
     # A4.4: ``number`` checks a numeric expression (a rotation's ranking)
     # instead of a condition.
     expect: Literal["condition", "number"] = "condition"
+    # A6.4: the bars the rule is judged on (``daily`` or an intraday interval).
+    timeframe: RuleTimeframe = "daily"
 
 
 class RuleCheckOut(BaseModel):
@@ -1586,6 +1593,8 @@ class RuleCheckOut(BaseModel):
     # owner can run it; it cannot be a preset or forked by another user.
     user_scoped: bool = False
     error: RuleErrorOut | None = None
+    # A6.4: the timeframe it was checked for; warm-up counts its bars.
+    timeframe: str | None = None
 
 
 SetupKind = Literal["screen", "alert", "strategy", "checklist"]
@@ -1599,6 +1608,8 @@ class SetupVersionOut(BaseModel):
     canonical_text: str
     rule_hash: str
     timeframe: str
+    # A6.4: the stored intraday feed it reads (``auto`` = the best stored).
+    feed: str = "auto"
     notes: str | None = None
     created_at: datetime
     # A3.3: the rule reads its owner's drawings (only the owner can run it).
@@ -1630,13 +1641,15 @@ class SetupIn(BaseModel):
     description: str | None = Field(default=None, max_length=2000)
     rule: str = Field(min_length=1, max_length=RULE_MAX_LENGTH)
     notes: str | None = Field(default=None, max_length=2000)
-    timeframe: Literal["daily"] = "daily"
+    timeframe: RuleTimeframe = "daily"
+    feed: SetupFeed = "auto"
 
 
 class SetupVersionIn(BaseModel):
     rule: str = Field(min_length=1, max_length=RULE_MAX_LENGTH)
     notes: str | None = Field(default=None, max_length=2000)
-    timeframe: Literal["daily"] = "daily"
+    timeframe: RuleTimeframe = "daily"
+    feed: SetupFeed = "auto"
 
 
 class SetupForkIn(BaseModel):
@@ -2670,6 +2683,9 @@ class BacktestTradeOut(BaseModel):
 class EquityPointOut(BaseModel):
     date: date
     nav: Decimal
+    # A6.4: an intraday run's point is a bar: its open instant (naive UTC);
+    # ``date`` is then its session date.
+    at: datetime | None = None
 
 
 class BacktestSummaryOut(BaseModel):
@@ -2842,6 +2858,13 @@ class StrategyBacktestIn(BaseModel):
     direction: Literal["long", "short"] = "long"
     shortable: list[str] = Field(default_factory=list, max_length=50)
     holdout: HoldoutMode = "last_20pct"
+    # A6.4: the bars signals and fills use. ``from``/``to`` stay session
+    # dates. An intraday run reads one stored feed (``auto``: the best
+    # stored); ``flatten_at_close`` sells a position still open at each
+    # session's last bar, at its close.
+    timeframe: RuleTimeframe = "daily"
+    feed: SetupFeed = "auto"
+    flatten_at_close: bool = False
 
     model_config = ConfigDict(populate_by_name=True)
 
@@ -2875,7 +2898,9 @@ class StrategyTradeOut(BaseModel):
     exit_fees: Decimal
     pnl: Decimal
     return_pct: float
-    reason: Literal["exit_rule", "stop_fixed", "stop_atr", "trail", "time", "end_of_data"]
+    reason: Literal[
+        "exit_rule", "stop_fixed", "stop_atr", "trail", "time", "end_of_data", "session_close"
+    ]
     gap: bool = False
     """The bar opened through the stop, so it filled at the open, not the stop."""
     open: bool = False
@@ -2888,6 +2913,12 @@ class StrategyTradeOut(BaseModel):
     exit_adv_pct: float | None = None
     """A4.2: the exit's value as % of the 20-day ADV, when above the cap
     (exits are not capped)."""
+    entry_at: datetime | None = None
+    """A6.4: an intraday trade's entry and exit bars (open instants, naive
+    UTC); ``entry_date``/``exit_date`` are their session dates."""
+    exit_at: datetime | None = None
+    same_day: bool | None = None
+    """A6.4: priced on the same-day (intraday) schedule; null on daily runs."""
 
 
 class StrategySummaryOut(BacktestSummaryOut):
@@ -2964,6 +2995,13 @@ class StrategyBacktestOut(BaseModel):
     window: RunWindowOut | None = None
     report: ReportCardOut | None = None
     checks: OverfittingChecksOut | None = None
+    # A6.4: intraday runs (null on daily ones).
+    timeframe: str | None = None
+    feed: str | None = None
+    feed_badge: str | None = None
+    flatten_at_close: bool | None = None
+    periods_per_year: float | None = None
+    """Bars a year the Sharpe and Sortino are annualised by."""
 
 
 # --- A4.4: cross-sectional rotation ---------------------------------------

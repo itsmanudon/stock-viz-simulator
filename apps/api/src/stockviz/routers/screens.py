@@ -66,11 +66,17 @@ def save_screen(body: SavedScreenIn, session: SessionDep, user_id: UserIdDep) ->
     """Create a screen, or replace the query (and setup version) of the one with this name."""
     if body.setup_version_id is not None:
         try:
-            setups.visible_version(session, body.setup_version_id, user_id)
+            version = setups.visible_version(session, body.setup_version_id, user_id)
         except setups.SetupNotFound as exc:
             raise HTTPException(
                 status.HTTP_404_NOT_FOUND, f"Setup version {body.setup_version_id} not found"
             ) from exc
+        if version.timeframe != "daily":  # A6.4: screens and screen runs are daily
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST,
+                f"Setup version {version.id} is judged on {version.timeframe} bars; "
+                "a screen reads daily bars",
+            )
     existing = session.exec(
         select(SavedScreen).where(
             col(SavedScreen.user_id) == user_id, col(SavedScreen.name) == body.name

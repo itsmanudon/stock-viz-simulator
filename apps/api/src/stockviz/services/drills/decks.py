@@ -38,6 +38,7 @@ from stockviz.schemas import (
     DrillScoreOut,
 )
 from stockviz.services import plans
+from stockviz.services.backtest.strategy import StrategyError
 from stockviz.services.backtest.strategy_run import _resolve_rule, inline_rule_version
 from stockviz.services.checklist.evidence import WINDOW_YEARS
 from stockviz.services.drills.anonymise import Mask, label_for
@@ -133,7 +134,10 @@ def create_deck(
     ).one()
     if count >= MAX_DECKS_PER_USER:
         raise DrillConflict(f"At most {MAX_DECKS_PER_USER} decks; delete one first")
-    rule = _resolve_rule(session, body.rule, "trigger", user_id)
+    try:
+        rule = _resolve_rule(session, body.rule, "trigger", user_id)
+    except StrategyError as exc:  # A6.4: an intraday version
+        raise DrillError(str(exc)) from exc
     tickers, source = resolve_universe(session, body.universe, user_id)
     now = now or _time.utcnow()
     if now.tzinfo is None:

@@ -1296,13 +1296,48 @@ def _cmd_settle_orders(args: argparse.Namespace) -> int:
     return 0
 
 
-def _cmd_evaluate_alerts(_args: argparse.Namespace) -> int:
-    """Trigger price alerts whose target the latest stored close has crossed (audit P0-2)."""
+def _cmd_evaluate_alerts(args: argparse.Namespace) -> int:
+    """Trigger price alerts whose target the latest stored close has crossed (audit P0-2).
+
+    A6.4: ``--intraday --since T`` judges intraday rule alerts on each closed
+    stored bar from ``T`` on instead (local use; not in the cron);
+    ``--dry-run`` rolls the session back and only prints the firings."""
     from stockviz.services.alerts import evaluate_pending_alerts
 
+    if getattr(args, "intraday", False):
+        return _evaluate_intraday(args)
     with Session(engine) as session:
         triggered = evaluate_pending_alerts(session)
     print(f"evaluate-alerts: triggered {triggered} alert(s)")
+    return 0
+
+
+def _evaluate_intraday(args: argparse.Namespace) -> int:
+    from stockviz.services.alerts.intraday import evaluate_intraday_alerts
+
+    if not args.since:
+        print("evaluate-alerts --intraday needs --since (ISO instant; naive = UTC)")
+        return 1
+    try:
+        since = datetime.fromisoformat(args.since)
+    except ValueError:
+        print(f"evaluate-alerts: --since {args.since!r} is not an ISO date or instant")
+        return 1
+    with Session(engine) as session:
+        run = evaluate_intraday_alerts(
+            session, since=since, ticker=args.ticker, commit=not args.dry_run
+        )
+        for event in run.events or []:
+            print(f"  {event.dedupe_key}  {event.message}")
+        for note in run.skipped or []:
+            print(f"  skipped: {note}")
+        if args.dry_run:
+            session.rollback()
+    word = "would fire" if args.dry_run else "fired"
+    print(
+        f"evaluate-alerts --intraday: {run.alerts} alert(s), {run.bars} bar(s) judged, "
+        f"{word} {run.fired}"
+    )
     return 0
 
 
@@ -2355,9 +2390,20 @@ def main(argv: list[str] | None = None) -> int:
     )
     p_settle.set_defaults(fn=_cmd_settle_orders)
 
-    sub.add_parser(
+    p_alerts = sub.add_parser(
         "evaluate-alerts", help="Trigger price alerts the latest stored close has crossed"
-    ).set_defaults(fn=_cmd_evaluate_alerts)
+    )
+    p_alerts.add_argument(
+        "--intraday",
+        action="store_true",
+        help="A6.4: judge intraday rule alerts on each closed stored bar (local use)",
+    )
+    p_alerts.add_argument("--since", default=None, help="with --intraday: ISO instant, naive = UTC")
+    p_alerts.add_argument("--ticker", default=None, help="with --intraday: one symbol")
+    p_alerts.add_argument(
+        "--dry-run", action="store_true", help="with --intraday: print, write nothing"
+    )
+    p_alerts.set_defaults(fn=_cmd_evaluate_alerts)
 
     sub.add_parser(
         "screen-runs",
@@ -2409,7 +2455,7 @@ def main(argv: list[str] | None = None) -> int:
 
     args = parser.parse_args(argv)
     _start_sentry()
-    if args.cmd not in RECORDED_JOBS:
+    if args.cmd not in RECORDED_JOBS or getattr(args, "intraday", False):
         return args.fn(args)
     return _run_recorded(args.cmd, lambda: args.fn(args))
 

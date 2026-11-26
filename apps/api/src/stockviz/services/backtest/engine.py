@@ -176,18 +176,26 @@ def _sma_crossover_signals(
     return signals
 
 
-def _sharpe(navs: list[Decimal], *, risk_free_rate: float = DEFAULT_RISK_FREE_RATE) -> float:
+def _sharpe(
+    navs: list[Decimal],
+    *,
+    risk_free_rate: float = DEFAULT_RISK_FREE_RATE,
+    periods_per_year: float = TRADING_DAYS_PER_YEAR,
+) -> float:
     """Annualised Sharpe ratio of the daily NAV series.
 
     ``risk_free_rate`` is the annual figure, converted to a per-trading-day
     rate before being subtracted from each daily return. It defaults to the
     same constant the live portfolio analytics use, so a backtest and the
     portfolio page can't report different Sharpes for the same NAV series.
+
+    A6.4: an intraday curve has one NAV per bar; ``periods_per_year`` is then
+    the venue's bars per year (``intraday_periods_per_year``).
     """
 
     if len(navs) < 3:
         return 0.0
-    daily_rf = risk_free_rate / TRADING_DAYS_PER_YEAR
+    daily_rf = risk_free_rate / periods_per_year
     returns: list[float] = []
     for prev, cur in pairwise(navs):
         if prev == 0:
@@ -200,7 +208,7 @@ def _sharpe(navs: list[Decimal], *, risk_free_rate: float = DEFAULT_RISK_FREE_RA
     std = math.sqrt(variance)
     if std == 0:
         return 0.0
-    return (mean / std) * math.sqrt(TRADING_DAYS_PER_YEAR)
+    return (mean / std) * math.sqrt(periods_per_year)
 
 
 def _max_drawdown(navs: list[Decimal]) -> float:

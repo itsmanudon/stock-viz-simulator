@@ -230,6 +230,8 @@ def fire(
     source: str,
     dedupe_key: str,
     now: datetime,
+    bar_at: datetime | None = None,
+    feed: str | None = None,
 ) -> AlertEvent | None:
     """Record one firing, unless ``dedupe_key`` was recorded already. No commit."""
     exists = session.exec(select(AlertEvent.id).where(AlertEvent.dedupe_key == dedupe_key)).first()
@@ -249,11 +251,15 @@ def fire(
         source=source,
         dedupe_key=dedupe_key,
         created_at=now,
+        bar_at=bar_at,
+        feed=feed,
     )
     session.add(event)
     alert.triggered_at = now
     alert.dismissed_at = None
-    if bar_date is not None:
+    if bar_at is not None:
+        alert.last_fired_bar_at = bar_at  # A6.4: intraday state is per bar instant
+    elif bar_date is not None:
         alert.last_fired_bar_date = bar_date
     session.add(alert)
     session.flush()
@@ -553,6 +559,9 @@ def _evaluate_rule_alerts(
             continue
         if version_id not in compiled:
             version = session.get(SetupVersion, version_id)
+            if version is not None and version.timeframe != "daily":
+                compiled[version_id] = None  # A6.4: judged per bar (alerts/intraday.py)
+                continue
             try:
                 compiled[version_id] = compile_rule(version.rule_text) if version else None
             except RuleError as exc:  # a version saved under an older grammar
