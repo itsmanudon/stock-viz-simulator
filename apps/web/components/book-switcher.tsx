@@ -33,6 +33,13 @@ import { OPEN_BOOK_SWITCHER_EVENT } from "@/lib/command-palette";
 import { titleCase } from "@/lib/title-case";
 import { cn } from "@/lib/utils";
 
+/**
+ * A5.7: what an imported book can do, in the switcher. No broker is ever
+ * connected live (the daily Kite login is deferred), so it is the same for
+ * every imported book; Settings and /status give the server's full status.
+ */
+export const IMPORTED_BOOK_NOTE = "Zerodha: not connected · updates from a tradebook (CSV)";
+
 export function rememberBook(book: BookRef): void {
   try {
     document.cookie = `${BOOK_COOKIE}=${book}; path=/; max-age=${BOOK_COOKIE_MAX_AGE}; samesite=lax`;
@@ -211,6 +218,11 @@ export function BookSwitcher({ books, limit }: { books: BookSummary[]; limit: nu
                     </span>
                     <span className="mt-0.5 block text-2xs text-text-tertiary">
                       <span className="font-mono">{book.base_currency}</span> · {holderText(book)}
+                      {book.kind === "imported" ? (
+                        <span className="block" data-testid="switcher-broker-note">
+                          {IMPORTED_BOOK_NOTE}
+                        </span>
+                      ) : null}
                     </span>
                   </span>
                 </Link>

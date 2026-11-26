@@ -12,12 +12,14 @@ import { revalidatePath } from "next/cache";
 
 import { auth } from "@/auth";
 import { BooksPanel } from "@/components/books-panel";
+import { BrokerStatusList } from "@/components/brokers/broker-status";
 import { NotificationChannelsPanel } from "@/components/notification-channels-panel";
 import { PageHeader } from "@/components/page-header";
 import { PaperCard } from "@/components/paper-card";
 import { TiltCard } from "@/components/prism/tilt-card";
 import { RiskLimitsForm } from "@/components/risk-limits-form";
 import { AccountDetails, InterfacePanel, KeyboardShortcuts } from "@/components/settings-workspace";
+import { getBrokerStatusOrNull } from "@/lib/api/brokers";
 import { type NotificationChannels, listNotificationChannels } from "@/lib/api/notifications";
 import { getProfile, patchProfile } from "@/lib/api/profile";
 import { getPortfolio, getRiskLimits, putBaseCurrency, putRiskLimits } from "@/lib/api/trading";
@@ -67,12 +69,14 @@ export default async function SettingsPage({
   // else the default. Books are managed in the Books panel.
   const books = await loadBookContext(params.book, "/settings", params);
   const bookId = books.selected?.id ?? null;
-  const [profile, session, portfolio, limits, channels] = await Promise.all([
+  const [profile, session, portfolio, limits, channels, brokers] = await Promise.all([
     getProfile(),
     auth(),
     getPortfolio(bookId).catch(() => null),
     getRiskLimits(bookId).catch(() => null),
     listNotificationChannels().catch(() => null as NotificationChannels | null),
+    // A5.7: a failed read says so in the panel; it never fails the page.
+    getBrokerStatusOrNull(),
   ]);
   const bookName = books.selected?.name ?? "this book";
   const writable = books.selected?.writable ?? true;
@@ -130,6 +134,14 @@ export default async function SettingsPage({
               <BooksPanel books={books.books} limit={books.limit} />
             </SettingsPanel>
           ) : null}
+
+          <SettingsPanel title="Brokers" id="brokers">
+            <BrokerStatusList brokers={brokers?.brokers ?? null} />
+            <p className="mt-3 text-xs leading-relaxed text-text-tertiary">
+              StockViz has no live broker connection. Prices are end of day from the nightly run,
+              and nothing here places real orders.
+            </p>
+          </SettingsPanel>
 
           {portfolio ? (
             <SettingsPanel title={`Account currency · ${bookName}`} id="base-currency-heading">

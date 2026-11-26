@@ -1,4 +1,6 @@
 import { BookLink as Link } from "@/components/book-link";
+import { BrokerStatusLine } from "@/components/brokers/broker-status";
+import type { BrokerStatusLike } from "@/lib/broker-status";
 
 import { formatCurrency } from "@/lib/portfolio-view-model";
 
@@ -6,6 +8,7 @@ export function PortfolioEmptyState({
   availableCash,
   displayCurrency,
   readOnly = null,
+  broker,
 }: {
   availableCash: string;
   displayCurrency: string;
@@ -14,6 +17,11 @@ export function PortfolioEmptyState({
    * books). It then says it holds nothing yet instead of inviting a trade.
    */
   readOnly?: string | null;
+  /**
+   * A5.7: an imported book's broker status, or "unknown" when it could not
+   * be read (the line then says so). Undefined: not an imported book.
+   */
+  broker?: BrokerStatusLike | "unknown";
 }) {
   if (readOnly) {
     return (
@@ -25,6 +33,12 @@ export function PortfolioEmptyState({
           No holdings yet
         </h2>
         <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">{readOnly}</p>
+        {broker !== undefined ? (
+          <BrokerStatusLine
+            broker={broker === "unknown" ? null : broker}
+            className="mt-3 max-w-xl"
+          />
+        ) : null}
       </section>
     );
   }
