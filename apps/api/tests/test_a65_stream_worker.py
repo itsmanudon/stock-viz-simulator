@@ -437,3 +437,56 @@ def test_broker_status_lists_streams(client: TestClient, session: Session) -> No
     [row] = r.json()["streams"]
     assert row["name"] == "simulated" and row["live"] is False
     assert row["state"] == "closed" and row["stale"] is True and row["symbols"] == [TICKER]
+
+
+# --- A6.6: the live spec ------------------------------------------------------------
+
+
+def test_live_spec_writes_iex_bars_and_stops_at_the_close(session: Session, engine) -> None:
+    from stockviz.services.stream.worker import live_spec
+
+    seed_symbols(session, "AAPL", currency="USD")
+    spec = live_spec()
+    assert (spec.name, spec.bar_feed, spec.source, spec.label) == (
+        "alpaca", "iex", "alpaca_iex_live", "IEX only")  # fmt: skip
+    t0 = datetime(2026, 1, 6, 15, 0, tzinfo=UTC)
+    clock = {"now": t0 + timedelta(minutes=1, seconds=1)}
+    worker = StreamWorker(spec, ["AAPL"], session_factory=lambda: Session(engine),
+                          clock=lambda: clock["now"], deliver=False, publish=Published(),
+                          stop_at=t0 + timedelta(minutes=3))  # fmt: skip
+
+    async def live():
+        bar = FeedBar(symbol="AAPL", ts=t0, open=Decimal(5), high=Decimal(6), low=Decimal(4),
+                      close=Decimal(5), volume=10, feed="iex", source="alpaca_iex_live")  # fmt: skip
+        yield bar
+        clock["now"] = t0 + timedelta(minutes=3, seconds=1)  # past the stop
+        yield replace(bar, ts=t0 + timedelta(minutes=1))
+        await asyncio.sleep(60)  # a live feed never ends: the stop must end the run
+
+    # The run ends at the stop although the feed never does (the wait_for
+    # would raise otherwise). The feed may run ahead of the loop, so the
+    # second bar can arrive after the stop has passed.
+    report = asyncio.run(asyncio.wait_for(worker.run(live()), timeout=10))
+    assert report.bars_written >= 1
+    session.expire_all()
+    assert _count(session, "iex") == report.bars_written
+
+
+def test_live_cli_refuses_when_the_market_is_closed(capsys, monkeypatch) -> None:
+    from stockviz.settings import get_settings
+
+    monkeypatch.setenv("ALPACA_KEY_ID", "not-real")
+    monkeypatch.setenv("ALPACA_SECRET_KEY", "not-real")
+    get_settings.cache_clear()
+    monkeypatch.setattr(stream_cli, "datetime", _FrozenSunday)
+    try:
+        assert stream_cli.main(["--feed", "alpaca", "--symbols", "AAPL"]) == 2
+        assert "closed" in capsys.readouterr().err
+    finally:
+        get_settings.cache_clear()
+
+
+class _FrozenSunday(datetime):
+    @classmethod
+    def now(cls, tz=None):  # type: ignore[override]
+        return datetime(2026, 11, 29, 16, 0, tzinfo=UTC)  # a Sunday
