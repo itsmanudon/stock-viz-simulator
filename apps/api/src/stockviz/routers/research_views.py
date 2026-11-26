@@ -1,6 +1,7 @@
 """A9 research views on stored data (public, 60/min).
 
 - `GET /v1/symbols/{t}/forecast` (A9.2, M8.2, M8.3)
+- `GET /v1/symbols/{a}/pair/{b}` (A9.3, M7.6)
 
 - `GET /v1/symbols/{t}/seasonality` (A9.1, M3.6)
 - `GET /v1/symbols/{t}/earnings-drift` (A9.1, M6.6)
@@ -16,7 +17,7 @@ from sqlmodel import Session
 from stockviz.db import get_session
 from stockviz.limiter import limiter
 from stockviz.models import Symbol
-from stockviz.schemas import EarningsDriftOut, ForecastOut, SeasonalityOut
+from stockviz.schemas import EarningsDriftOut, ForecastOut, PairOut, SeasonalityOut
 from stockviz.services import seasonality as svc
 
 router = APIRouter(prefix="/v1/symbols", tags=["research"])
@@ -94,3 +95,37 @@ def get_forecast(request: Request, ticker: str, session: SessionDep) -> Forecast
         "volatility": vol.__dict__, "cones": [c.__dict__ for c in cones.cones],
         "cones_reason": cones.reason, "method": FORECAST_METHOD,
     })  # fmt: skip
+
+
+PAIR_METHOD = (
+    "Engle-Granger: OLS hedge ratio on log closes over the common sessions, then an ADF "
+    "test (one lag) on the residual against MacKinnon (2010) critical values for two "
+    "variables with a constant. Not rejecting means no evidence of cointegration; a "
+    "cointegrated past is no promise."
+)
+
+
+@router.get("/{ticker}/pair/{other}", response_model=PairOut)
+@limiter.limit("30/minute")
+def get_pair(
+    request: Request, ticker: str, other: str, session: SessionDep, years: int = 3
+) -> PairOut:
+    """A9.3: cointegration, hedge ratio, half-life and the spread's z-score."""
+    from datetime import timedelta
+
+    from stockviz.services.pairs import pair_stats
+
+    del request
+    a, b = _symbol(session, ticker), _symbol(session, other)
+    if a == b:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "pick two different symbols")
+    if not 1 <= years <= 15:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "years is 1 to 15")
+    ca = dict(svc.closes(session, a))
+    cb = dict(svc.closes(session, b))
+    common = sorted(set(ca) & set(cb))
+    if common:
+        cutoff = common[-1] - timedelta(days=365 * years)
+        common = [d for d in common if d >= cutoff]
+    result = pair_stats(a, b, [(d, ca[d], cb[d]) for d in common])
+    return PairOut.model_validate({**result.__dict__, "method": PAIR_METHOD})

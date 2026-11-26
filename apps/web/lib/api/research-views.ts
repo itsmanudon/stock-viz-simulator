@@ -22,3 +22,13 @@ export type Forecast = components["schemas"]["ForecastOut"];
 export function getForecast(ticker: string): Promise<Forecast> {
   return apiGet<Forecast>(`/v1/symbols/${encodeURIComponent(ticker)}/forecast`, CACHE);
 }
+
+export type Pair = components["schemas"]["PairOut"];
+
+/** A9.3: Engle-Granger cointegration of two stored symbols. */
+export function getPair(a: string, b: string, years = 3): Promise<Pair> {
+  return apiGet<Pair>(
+    `/v1/symbols/${encodeURIComponent(a)}/pair/${encodeURIComponent(b)}?years=${years}`,
+    CACHE,
+  );
+}

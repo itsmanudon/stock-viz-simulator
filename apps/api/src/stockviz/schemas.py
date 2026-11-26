@@ -5420,3 +5420,30 @@ class ForecastOut(BaseModel):
     cones: list[ConeOut]
     cones_reason: str | None = None
     method: dict[str, str]
+
+
+class PairPointOut(BaseModel):
+    date: date
+    spread: float | None = None
+    beta: float | None = None
+
+
+class PairOut(BaseModel):
+    """A9.3 (M7.6): Engle-Granger cointegration of two stored symbols."""
+
+    a: str
+    b: str
+    sessions: int
+    first: date | None = None
+    last: date | None = None
+    alpha: float | None = None
+    beta: float | None = None
+    tau: float | None = None
+    critical: dict[str, float] = {}
+    cointegrated_at: str | None = None
+    half_life: float | None = None
+    zscore: float | None = None
+    rolling_beta: list[PairPointOut] = []
+    spread: list[PairPointOut] = []
+    reason: str | None = None
+    method: str
