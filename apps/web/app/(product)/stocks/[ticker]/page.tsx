@@ -21,6 +21,7 @@ import { PositionSummary } from "@/components/position-summary";
 import { PriceChart } from "@/components/price-chart";
 import { RelativeStrengthStrip } from "@/components/relative-strength-strip";
 import { ReverseDcfCard } from "@/components/reverse-dcf-card";
+import { SeasonalityView } from "@/components/seasonality-view";
 import { SecurityHeader } from "@/components/security-header";
 import { StockChartToolbar } from "@/components/stock-chart-toolbar";
 import { StockMetricsStrip } from "@/components/stock-metrics-strip";
@@ -60,6 +61,7 @@ import {
 import { getOptionExposure } from "@/lib/api/option-exposure";
 import { planPickerOptions } from "@/lib/api/plans";
 import { getEventStudy } from "@/lib/api/research";
+import { getEarningsDrift, getSeasonality } from "@/lib/api/research-views";
 import {
   type PendingOrder,
   type Portfolio,
@@ -265,6 +267,8 @@ export default async function StockPage({
     forensics,
     reverseDcf,
     exposure,
+    seasonality,
+    earningsDrift,
   ] = await Promise.all([
     barsPromise,
     chartBarsPromise,
@@ -291,6 +295,9 @@ export default async function StockPage({
     getReverseDcf(ticker).catch(() => null),
     // A7.9: GEX/DEX from the stored US chain; no chain, no Options tab.
     getOptionExposure(ticker).catch(() => null),
+    // A9.1: seasonality and the earnings drift; failures drop the Research tab.
+    getSeasonality(ticker).catch(() => null),
+    getEarningsDrift(ticker).catch(() => null),
   ]);
 
   // A6.2: an intraday lookback is whole sessions ("1D" is the last session,
@@ -655,6 +662,11 @@ export default async function StockPage({
           options={
             exposure && !exposure.reason && exposure.strikes.length ? (
               <OptionExposureCard exposure={exposure} />
+            ) : undefined
+          }
+          research={
+            seasonality || earningsDrift?.events.length ? (
+              <SeasonalityView seasonality={seasonality} drift={earningsDrift} />
             ) : undefined
           }
           news={

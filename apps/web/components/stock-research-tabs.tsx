@@ -7,6 +7,7 @@ export function StockResearchTabs({
   overview,
   financials,
   options,
+  research,
   news,
   positionOrders,
   newsCount = 0,
@@ -17,6 +18,8 @@ export function StockResearchTabs({
   financials?: ReactNode;
   /** A7.9: gamma and delta exposure, when a US chain snapshot exists. */
   options?: ReactNode;
+  /** A9: seasonality, earnings drift and the other research views. */
+  research?: ReactNode;
   news: ReactNode;
   positionOrders: ReactNode;
   newsCount?: number;
@@ -31,12 +34,14 @@ export function StockResearchTabs({
         <Tab value="overview">Overview</Tab>
         {financials ? <Tab value="financials">Financials</Tab> : null}
         {options ? <Tab value="options">Options</Tab> : null}
+        {research ? <Tab value="research">Research</Tab> : null}
         <Tab value="news">News{newsCount ? ` ${newsCount}` : ""}</Tab>
         <Tab value="position-orders">Position &amp; orders{orderCount ? ` ${orderCount}` : ""}</Tab>
       </Tabs.List>
       <TabPanel value="overview">{overview}</TabPanel>
       {financials ? <TabPanel value="financials">{financials}</TabPanel> : null}
       {options ? <TabPanel value="options">{options}</TabPanel> : null}
+      {research ? <TabPanel value="research">{research}</TabPanel> : null}
       <TabPanel value="news">{news}</TabPanel>
       <TabPanel value="position-orders">{positionOrders}</TabPanel>
     </Tabs.Root>

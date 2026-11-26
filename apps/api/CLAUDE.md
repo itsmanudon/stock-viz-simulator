@@ -2204,6 +2204,17 @@ them). `tests/fixtures/rule_builder_operands.json` is the builder's operand
 catalogue: Vitest holds the web list equal to it and
 `tests/test_a81_rule_builder.py` compiles every operand with every comparator.
 
+**Seasonality and earnings drift (A9.1, M3.6, M6.6).** `routers/research_views.py`
+(public, 60/min): `GET /v1/symbols/{t}/seasonality` (month-end over previous
+month-end returns per calendar month, skipping gaps; weekday returns; n,
+mean, median, hit rate, t; months under 10 years `thin`) and `GET
+/v1/symbols/{t}/earnings-drift` (per stored earnings event the reaction
+session: the event day before the open, the next session after the close,
+the event day `assumed` when unknown; reaction and drift at +1/+5/+20
+sessions grouped beat/miss/no surprise; average absolute reaction vs the
+average day). `services/seasonality.py` is pure on closes. Web: a Research
+tab on the stock page. Tests: `tests/test_a91_seasonality.py`.
+
 **Survivorship stamp (A1.4a, part of M1.5).** Every backtest result carries
 `universe: {name, point_in_time, survivorship_biased, note}`: the public
 `POST /v1/backtest` (`BacktestOut.universe`), stored single runs, and
