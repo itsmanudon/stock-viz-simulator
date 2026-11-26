@@ -54,7 +54,7 @@ _AND.2: /and(?![a-z0-9_])/
 _NOT.2: /not(?![a-z0-9_])/
 _FUNDAMENTAL.2: /fundamental(?![a-z0-9_])/
 _NEWS.2: /news(?![a-z0-9_])/
-TIMEFRAME.2: /(weekly|monthly)(?![a-z0-9_])/
+TIMEFRAME.2: /(daily|weekly|monthly)(?![a-z0-9_])/
 CROSS_OP.2: /(crosses_above|crosses_below)(?![a-z0-9_])/
 COMP_OP: "<=" | ">=" | "!=" | "==" | "<" | ">" | "="
 ADD_OP: "+" | "-"

@@ -7,6 +7,17 @@ closes, fundamentals and news. ``cut(t)`` keeps only what was known at bar
 its date, news available by its session close. Point mode evaluates on that
 cut, so it cannot look ahead.
 
+**Intraday (A6.4).** On an intraday timeframe (``1m`` ... ``60m``) the bars
+are indexed by each bar's **open instant** (naive UTC, as ``intraday_bars``
+stores it), and ``closed_at`` holds each bar's close instant, which is when
+it became known. ``cut(t)`` keeps the bars opening at or before ``t``, news
+available by bar ``t``'s close, facts dated before ``t``'s session (a
+date-stamped filing is not known at a given minute of its own day), and the
+daily bars of sessions **strictly before** ``t``'s session, so ``daily.``
+can never read today's daily bar. :func:`load_symbol_intraday` fills one
+from ``intraday_bars`` through ``services/bars/intraday.py`` (closed bars
+only).
+
 :func:`load_symbol` fills one from the database, by instrument (never by
 ticker column): enough daily bars before ``start`` for the rule's lookback
 (the whole history when the lookback is unbounded), and only the bindings
@@ -49,13 +60,18 @@ def session_close_ns(day: date, venue: str) -> int:
     return to_ns(datetime.combine(day + timedelta(days=1), time.min, tzinfo=venue_zone(venue)))
 
 
+DAILY = "daily"
+"""The daily timeframe's name on a setup version (``1d``)."""
+
+
 @dataclass(frozen=True)
 class SymbolData:
     ticker: str
     venue: str
     bars: pd.DataFrame
     """Daily bars indexed by venue date (DatetimeIndex, oldest first), float
-    columns ``BAR_COLUMNS``; delivery columns NaN where there is no data."""
+    columns ``BAR_COLUMNS``; delivery columns NaN where there is no data.
+    Intraday: the timeframe's bars indexed by open instant (naive UTC)."""
     benchmark: pd.Series | None = None
     """The venue index's daily closes by date, or None."""
     benchmark_ticker: str | None = None
@@ -67,13 +83,40 @@ class SymbolData:
     """A3.3: the rule owner's drawings on this symbol; None without an owner.
     Kept whole by ``cut``: a drawing is geometry, and its values on a bar
     read only its anchors and bars up to that bar."""
+    timeframe: str = DAILY
+    """A6.4: ``daily``, or an intraday interval (``1m`` ... ``60m``)."""
+    closed_at: np.ndarray | None = None
+    """Intraday: each bar's close instant (UTC epoch ns), when it became known."""
+    sessions: np.ndarray | None = None
+    """Intraday: each bar's venue session date (``datetime64[D]``)."""
+    daily: pd.DataFrame | None = None
+    """Intraday: the daily bars ``daily.`` / ``weekly.`` / ``monthly.`` read
+    (a daily bar frame), or None when the rule reads none."""
+    feed: str | None = None
+    """Intraday: the stored feed the bars came from (``iex``, ``sip``, ``file`` ...)."""
+
+    @property
+    def intraday(self) -> bool:
+        return self.timeframe != DAILY
 
     @property
     def dates(self) -> list[date]:
+        """Each bar's date: the session date on intraday timeframes."""
+        if self.intraday:
+            assert self.sessions is not None
+            return [d.item() for d in self.sessions]
         return [ts.date() for ts in self.bars.index]
 
+    @property
+    def instants(self) -> list[datetime]:
+        """Intraday: each bar's open instant (naive UTC)."""
+        return [ts.to_pydatetime() for ts in self.bars.index]
+
     def cut(self, day: date) -> SymbolData:
-        """What was known at bar ``day``'s close."""
+        """What was known at bar ``day``'s close (intraday: ``day`` is the
+        bar's open instant)."""
+        if self.intraday:
+            return self._cut_intraday(day)
         end = pd.Timestamp(day)
         cutoff = session_close_ns(day, self.venue)
         return replace(
@@ -84,9 +127,63 @@ class SymbolData:
             news=self.news.cut(cutoff) if self.news is not None else None,
         )
 
+    def _cut_intraday(self, when: date) -> SymbolData:
+        assert self.closed_at is not None and self.sessions is not None
+        end = instant(when)
+        n = int(self.bars.index.searchsorted(end.to_datetime64(), side="right"))
+        if n == 0:
+            return replace(self, bars=self.bars.iloc[:0], closed_at=self.closed_at[:0],
+                           sessions=self.sessions[:0])  # fmt: skip
+        today = self.sessions[n - 1]
+        day_before: date = today.item() - timedelta(days=1)
+        before = pd.Timestamp(day_before)
+        known = int(self.closed_at[n - 1])
+        return replace(
+            self,
+            bars=self.bars.iloc[:n],
+            closed_at=self.closed_at[:n],
+            sessions=self.sessions[:n],
+            daily=self.daily.loc[:before] if self.daily is not None else None,
+            benchmark=self.benchmark.loc[:before] if self.benchmark is not None else None,
+            fundamentals=(
+                self.fundamentals.cut(day_before) if self.fundamentals is not None else None
+            ),
+            news=self.news.cut(known) if self.news is not None else None,
+        )
+
     def cutoffs(self) -> np.ndarray:
-        """Each bar's session close, UTC epoch ns (the news cutoff)."""
+        """Each bar's session close, UTC epoch ns (the news cutoff). Intraday:
+        each bar's own close."""
+        if self.intraday:
+            assert self.closed_at is not None
+            return np.asarray(self.closed_at, dtype=np.int64)
         return np.array([session_close_ns(d, self.venue) for d in self.dates], dtype=np.int64)
+
+
+def instant(when: date | datetime | pd.Timestamp) -> pd.Timestamp:
+    """A bar instant as the intraday index holds it: naive UTC."""
+    ts = pd.Timestamp(when)
+    if ts.tzinfo is not None:
+        ts = ts.tz_convert("UTC").tz_localize(None)
+    return ts  # pyright: ignore[reportReturnType]
+
+
+def intraday_frame(bars: list) -> tuple[pd.DataFrame, np.ndarray, np.ndarray]:
+    """``services/bars/intraday.IntradayOut`` bars -> (bar frame indexed by
+    open instant, close instants in ns, session dates)."""
+    index = pd.DatetimeIndex([pd.Timestamp(b.ts) for b in bars])
+    frame = pd.DataFrame(
+        {
+            name: np.array([float(getattr(b, name)) for b in bars], dtype=float)
+            for name in ("open", "high", "low", "close", "volume")
+        },
+        index=index,
+    )
+    frame["delivery_pct"] = np.nan
+    frame["deliverable_qty"] = np.nan
+    closed = np.array([to_ns(b.closed_at.replace(tzinfo=UTC)) for b in bars], dtype=np.int64)
+    sessions = np.array([np.datetime64(b.session_date, "D") for b in bars], dtype="datetime64[D]")
+    return frame, closed, sessions
 
 
 def bars_frame(rows: list[tuple]) -> pd.DataFrame:
@@ -113,6 +210,8 @@ class Needs:
     delivery: bool = False
     drawings: bool = False
     """A3.3: the rule reads the owner's drawings (user-scoped)."""
+    daily: bool = False
+    """A6.4: an intraday rule reads daily bars (``daily.``, ``weekly.``, ``monthly.``)."""
 
 
 def _daily_rows(
@@ -265,6 +364,36 @@ def load_drawings(session: Session, user_id: int, instrument_id: int) -> Drawing
     return Drawings(user_id, tuple(items))
 
 
+def _fill_delivery(
+    session: Session, instrument_id: int, bars: pd.DataFrame, first: date, end: date
+) -> bool:
+    """Write ``eod_extras`` delivery into daily ``bars`` in place; whether the
+    instrument has any delivery row at all."""
+    chosen, loaded = _delivery(session, instrument_id, first, end)
+    for day, row in chosen.items():
+        ts = pd.Timestamp(day)
+        if ts in bars.index:
+            bars.loc[ts, "delivery_pct"] = (
+                float(row.delivery_pct) if row.delivery_pct is not None else np.nan  # type: ignore[attr-defined]
+            )
+            bars.loc[ts, "deliverable_qty"] = (
+                float(row.deliverable_qty) if row.deliverable_qty is not None else np.nan  # type: ignore[attr-defined]
+            )
+    return loaded
+
+
+def _benchmark(session: Session, bench_ticker: str, first: date, end: date) -> pd.Series:
+    bench_rows = _daily_rows(
+        session, bench_ticker, venue_for_ticker(bench_ticker),
+        start=first - timedelta(days=10), end=end, lookback=0,
+    )  # fmt: skip
+    return pd.Series(
+        [float(r[4]) for r in bench_rows],
+        index=pd.DatetimeIndex([pd.Timestamp(r[0]) for r in bench_rows]),
+        dtype=float,
+    )
+
+
 def load_symbol(
     session: Session,
     ticker: str,
@@ -291,30 +420,14 @@ def load_symbol(
     first = rows[0][0] if rows else end
 
     if needs.delivery and instrument_id is not None:
-        chosen, loaded = _delivery(session, instrument_id, first, end)
-        for day, row in chosen.items():
-            ts = pd.Timestamp(day)
-            if ts in bars.index:
-                bars.loc[ts, "delivery_pct"] = (
-                    float(row.delivery_pct) if row.delivery_pct is not None else np.nan  # type: ignore[attr-defined]
-                )
-                bars.loc[ts, "deliverable_qty"] = (
-                    float(row.deliverable_qty) if row.deliverable_qty is not None else np.nan  # type: ignore[attr-defined]
-                )
-        data = replace(data, delivery_loaded=loaded)
+        data = replace(
+            data, delivery_loaded=_fill_delivery(session, instrument_id, bars, first, end)
+        )
 
     if needs.benchmark:
         bench_ticker = benchmark_for(ticker)
         if bench_ticker is not None:
-            bench_rows = _daily_rows(
-                session, bench_ticker, venue_for_ticker(bench_ticker),
-                start=first - timedelta(days=10), end=end, lookback=0,
-            )  # fmt: skip
-            bench = pd.Series(
-                [float(r[4]) for r in bench_rows],
-                index=pd.DatetimeIndex([pd.Timestamp(r[0]) for r in bench_rows]),
-                dtype=float,
-            )
+            bench = _benchmark(session, bench_ticker, first, end)
             data = replace(data, benchmark=bench, benchmark_ticker=bench_ticker)
 
     if needs.fundamentals:
@@ -335,12 +448,157 @@ def load_symbol(
     return data
 
 
+INTRADAY_ALL = 5_000_000
+"""Bars asked of ``load_intraday`` for "every bar in the range"."""
+
+
+def load_symbol_intraday(
+    session: Session,
+    ticker: str,
+    *,
+    timeframe: str,
+    end: datetime,
+    start: datetime | None = None,
+    lookback: int | None = None,
+    feed: str | None = None,
+    needs: Needs = Needs(),  # noqa: B008
+    user_id: int | None = None,
+    now: datetime | None = None,
+) -> SymbolData:
+    """A6.4: a symbol's closed ``timeframe`` bars opening at or before ``end``
+    (naive UTC): from ``start`` plus ``lookback`` bars before it (all stored
+    bars when either is None). ``feed`` None reads the best stored feed
+    (``intraday.pick_feed``; :class:`intraday.NoIntradayData` when there is
+    none). A partial newest bar is left out: rules judge closed bars only.
+
+    Daily bars (``needs.daily``) are the whole stored daily history up to
+    ``end``'s date, for ``daily.`` / ``weekly.`` / ``monthly.``; the
+    evaluator aligns them to the session before each bar's."""
+    ticker = ticker.upper()
+    chosen, loaded = intraday_bars_for(
+        session, ticker, timeframe=timeframe, end=end, start=start, lookback=lookback,
+        feed=feed, now=now,
+    )  # fmt: skip
+    return intraday_symbol(
+        session, ticker, loaded, timeframe=timeframe, feed=chosen, needs=needs, user_id=user_id,
+        end=end,
+    )  # fmt: skip
+
+
+def intraday_bars_for(
+    session: Session,
+    ticker: str,
+    *,
+    timeframe: str,
+    end: datetime,
+    start: datetime | None = None,
+    lookback: int | None = None,
+    feed: str | None = None,
+    now: datetime | None = None,
+) -> tuple[str, list]:
+    """(feed, closed ``IntradayOut`` bars) as :func:`load_symbol_intraday`
+    reads them; the backtester keeps their ``Decimal`` prices for fills."""
+    from stockviz.services.bars.intraday import (
+        NoIntradayData,
+        coverage,
+        load_intraday,
+        pick_feed,
+    )
+    from stockviz.services.instruments import instrument_ids
+
+    venue = venue_for_ticker(ticker)
+    instrument_id = instrument_ids(session, [ticker]).get(ticker)
+    if instrument_id is None:
+        raise NoIntradayData(f"No intraday bars are stored for {ticker}.")
+    chosen = pick_feed(coverage(session, instrument_id), timeframe, feed, ticker)
+
+    def bars_of(**kw):
+        return load_intraday(
+            session, instrument_id, timeframe, venue=venue, feed=chosen, now=now, **kw
+        )
+
+    end = instant(end).to_pydatetime()
+    if start is None or lookback is None:
+        loaded = bars_of(bars_wanted=INTRADAY_ALL, to=end)
+    else:
+        start = instant(start).to_pydatetime()
+        window = bars_of(bars_wanted=INTRADAY_ALL, from_=start, to=end)
+        warm = (
+            bars_of(bars_wanted=lookback + (0 if window else 1),
+                    to=start - timedelta(microseconds=1))
+            if lookback + (0 if window else 1) > 0
+            else []
+        )  # fmt: skip
+        loaded = [*warm, *window]
+    return chosen, [b for b in loaded if not b.partial]
+
+
+def intraday_symbol(
+    session: Session,
+    ticker: str,
+    loaded: list,
+    *,
+    timeframe: str,
+    feed: str,
+    needs: Needs = Needs(),  # noqa: B008
+    user_id: int | None = None,
+    end: datetime | None = None,
+) -> SymbolData:
+    """A :class:`SymbolData` over loaded intraday bars, with the daily bars,
+    benchmark, facts, news and drawings ``needs`` asks for."""
+    from stockviz.services.event_study import benchmark_for
+    from stockviz.services.instruments import instrument_ids
+
+    venue = venue_for_ticker(ticker)
+    instrument_id = instrument_ids(session, [ticker]).get(ticker)
+    assert instrument_id is not None
+    chosen = feed
+    end = end or (loaded[-1].ts if loaded else datetime(1970, 1, 1))
+    frame, closed, sessions = intraday_frame(loaded)
+    data = SymbolData(
+        ticker, venue, frame, timeframe=timeframe, closed_at=closed, sessions=sessions, feed=chosen
+    )
+    last_day = loaded[-1].session_date if loaded else end.date()
+    first_day = loaded[0].session_date if loaded else end.date()
+    if needs.daily or needs.delivery or needs.benchmark or needs.drawings:
+        rows = _daily_rows(session, ticker, venue, start=None, end=last_day, lookback=None)
+        daily = bars_frame(rows)
+        if needs.delivery:
+            loaded_any = _fill_delivery(
+                session, instrument_id, daily, rows[0][0] if rows else last_day, last_day
+            )
+            data = replace(data, delivery_loaded=loaded_any)
+        data = replace(data, daily=daily)
+        if needs.benchmark:
+            bench_ticker = benchmark_for(ticker)
+            if bench_ticker is not None:
+                bench = _benchmark(session, bench_ticker, rows[0][0] if rows else first_day,
+                                   last_day)  # fmt: skip
+                data = replace(data, benchmark=bench, benchmark_ticker=bench_ticker)
+    if needs.fundamentals:
+        data = replace(data, fundamentals=_fundamentals(session, ticker, instrument_id, last_day))
+    if needs.drawings and user_id is not None:
+        data = replace(data, drawings=load_drawings(session, user_id, instrument_id))
+    if needs.news:
+        cutoff = datetime.fromtimestamp(int(closed[-1]) / 1e9, UTC) if len(closed) else end
+        since = datetime.combine(first_day - timedelta(days=400), time.min, tzinfo=UTC)
+        data = replace(data, news=_news(session, ticker, since, cutoff.replace(tzinfo=UTC)))
+    return data
+
+
 __all__ = [
     "BAR_COLUMNS",
+    "DAILY",
+    "INTRADAY_ALL",
     "Needs",
     "SymbolData",
     "bars_frame",
+    "instant",
+    "intraday_bars_for",
+    "intraday_frame",
+    "intraday_symbol",
     "load_drawings",
     "load_symbol",
+    "load_symbol_intraday",
     "session_close_ns",
 ]

@@ -18,6 +18,16 @@ can only come from an explicit prefix.
 
 A rule must be a condition (``boolean``). Errors are ``RuleError("type",
 ...)`` with the line and column of the offending part.
+
+**Intraday timeframes (A6.4).** A rule checked for ``1m`` ... ``60m`` reads
+that timeframe's bars. ``daily.`` (and ``weekly.`` / ``monthly.``) read the
+daily bars of the session before; ``daily.`` exists only there. Per binding:
+price series and every indicator work on the intraday bars;
+``fundamental.*`` and ``news.*`` are read at each bar (facts dated before
+its session, documents available by its close) and take no prefix;
+``index_close``, ``rs()`` and ``rsline()`` compare with the index's daily
+closes, and delivery data and drawings are daily, so on an intraday
+timeframe they are written under ``daily.``.
 """
 
 from __future__ import annotations
@@ -94,7 +104,14 @@ def bind_call(
     return tuple(slots)
 
 
+_INTRADAY_DAILY_ONLY = "on an intraday timeframe write daily.{text} (the last completed session's)"
+
+
 class _Checker:
+    def __init__(self, base: str = "daily") -> None:
+        self.base = base
+        self.intraday = base != "daily"
+
     def check(self, node: ast.Node, tf: str) -> Type:
         method = getattr(self, f"_{type(node).__name__.lower()}")
         return method(node, tf)
@@ -108,6 +125,17 @@ class _Checker:
         raise _err(node, "a string is allowed only as a keyword value")
 
     def _name(self, node: ast.Name, tf: str) -> Type:
+        if node.name in INDEX_SERIES and self.intraday and tf == self.base:
+            raise _err(
+                node,
+                f"{node.name} is the index's daily close; "
+                + _INTRADAY_DAILY_ONLY.format(text=node.name),
+            )
+        if node.name in DELIVERY_SERIES and self.intraday and tf == self.base:
+            raise _err(
+                node,
+                f"{node.name} is daily data; " + _INTRADAY_DAILY_ONLY.format(text=node.name),
+            )
         if node.name in PRICE_SERIES or node.name in INDEX_SERIES:
             return Type("number", "series")
         if node.name in DELIVERY_SERIES:
@@ -129,14 +157,18 @@ class _Checker:
                 f"unknown fundamental metric {node.metric!r}"
                 f"{_suggest(node.metric, FUNDAMENTAL_METRICS)}",
             )
-        if tf != "daily":
+        if self.intraday and tf == "daily":
+            raise _err(node, "fundamentals are read at each intraday bar: drop the daily. prefix")
+        if tf != self.base:
             raise _err(node, "fundamentals are known by date and have no weekly or monthly form")
         return Type("number", "pit")
 
     def _news(self, node: ast.News, tf: str) -> Type:
         if node.name not in NEWS_FUNCTIONS:
             raise _err(node, f"unknown news function {node.name!r}; news has count(days, ...)")
-        if tf != "daily":
+        if self.intraday and tf == "daily":
+            raise _err(node, "news counts are read at each intraday bar: drop the daily. prefix")
+        if tf != self.base:
             raise _err(node, "news counts are daily only")
         params = (
             Param("days", "period"),
@@ -163,7 +195,15 @@ class _Checker:
     def _ref(self, node: ast.Ref, tf: str) -> Type:
         """A3.3: the owner's drawing or anchored VWAP, one value per daily bar."""
         if tf != "daily":
-            raise _err(node, f"{node.kind}() reads a drawing on daily bars and has no {tf} form")
+            hint = (
+                f'; write daily.{node.kind}("{node.label}")'
+                + (f".{node.output}" if node.output else "")
+                if self.intraday and tf == self.base
+                else ""
+            )
+            raise _err(
+                node, f"{node.kind}() reads a drawing on daily bars and has no {tf} form{hint}"
+            )
         if node.kind == "drawing":
             if node.output is None:
                 raise _err(
@@ -194,6 +234,12 @@ class _Checker:
         if fn is None:
             raise _err(node, f"unknown function {node.name!r}{_suggest(node.name, FUNCTIONS)}")
         self._check_output(node, fn)
+        if fn.needs_benchmark and self.intraday and tf == self.base:
+            raise _err(
+                node,
+                f"{fn.name}() compares with the index's daily closes; "
+                + _INTRADAY_DAILY_ONLY.format(text=f"{fn.name}(...)"),
+            )
         slots = bind_call(node, fn.params, fn.name, variadic=fn.variadic)
         if fn.variadic and len(slots) < 2:
             raise _err(node, f"{fn.name} needs two or more values")
@@ -269,8 +315,14 @@ class _Checker:
         return t
 
     def _timeframe(self, node: ast.Timeframe, tf: str) -> Type:
-        if tf != "daily":
+        if tf != self.base:
             raise _err(node, "timeframe prefixes do not nest")
+        if node.timeframe == "daily" and not self.intraday:
+            raise _err(
+                node,
+                "daily. is for intraday timeframes; on the daily timeframe write the "
+                "expression without it",
+            )
         t = self.check(node.expr, node.timeframe)
         if t.kind == "const":
             raise _err(node, f"{node.timeframe}. needs a series")
@@ -339,9 +391,9 @@ def _constant(node: ast.Node) -> float | None:
     return node.value if isinstance(node, ast.Num) else None
 
 
-def check(node: ast.Node, *, require_condition: bool = True) -> Type:
-    """The type of ``node``; raises ``RuleError("type", ...)``."""
-    t = _Checker().check(node, "daily")
+def check(node: ast.Node, *, require_condition: bool = True, timeframe: str = "daily") -> Type:
+    """The type of ``node`` on ``timeframe``; raises ``RuleError("type", ...)``."""
+    t = _Checker(timeframe).check(node, timeframe)
     if require_condition and t.value != "boolean":
         raise _err(node, "a rule must be a condition (true or false), not a number")
     return t
