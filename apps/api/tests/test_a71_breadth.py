@@ -49,7 +49,13 @@ def test_counts_ad_line_and_mcclellan_by_hand(monkeypatch) -> None:
 
 
 def test_values_do_not_change_when_later_bars_arrive() -> None:
-    days = pd.date_range("2025-01-01", periods=320, freq="B")
+    stamps: list[date] = []
+    day = date(2025, 1, 1)
+    while len(stamps) < 320:
+        if day.weekday() < 5:
+            stamps.append(day)
+        day += timedelta(days=1)
+    days = pd.to_datetime(stamps)
     import numpy as np
 
     rng = np.random.default_rng(7)
@@ -58,7 +64,6 @@ def test_values_do_not_change_when_later_bars_arrive() -> None:
     )
     frames = {"close": close, "high": close * 1.01, "low": close * 0.99}
     short = {k: v.iloc[:300] for k, v in frames.items()}
-    stamps = [d.date() for d in days.to_pydatetime()]
     start, end = stamps[260], stamps[299]
     early = svc.compute(short, start, end)
     late = svc.compute(frames, start, stamps[-1])
