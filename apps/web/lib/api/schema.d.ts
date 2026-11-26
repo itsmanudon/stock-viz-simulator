@@ -2799,6 +2799,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/broker/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Broker Status */
+        get: operations["broker_status_v1_broker_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/plans": {
         parameters: {
             query?: never;
@@ -3402,6 +3419,50 @@ export interface components {
             books: components["schemas"]["BookOut"][];
             /** Limit */
             limit: number;
+        };
+        /** BrokerStatusItemOut */
+        BrokerStatusItemOut: {
+            /**
+             * Broker
+             * @constant
+             */
+            broker: "zerodha";
+            /** Label */
+            label: string;
+            /**
+             * Provider
+             * @constant
+             */
+            provider: "kite";
+            /** Configured */
+            configured: boolean;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "not_configured" | "not_connected" | "offline" | "snapshot_only";
+            /** Live Data */
+            live_data: boolean;
+            /** Imported Books */
+            imported_books: number;
+            /** Last Imported At */
+            last_imported_at: string | null;
+            /** Last Snapshot At */
+            last_snapshot_at: string | null;
+            /** Last Failure At */
+            last_failure_at: string | null;
+        };
+        /** BrokerStatusOut */
+        BrokerStatusOut: {
+            /** Brokers */
+            brokers: components["schemas"]["BrokerStatusItemOut"][];
+            /** Offline Window Hours */
+            offline_window_hours: number;
+            /**
+             * Checked At
+             * Format: date-time
+             */
+            checked_at: string;
         };
         /** BrokerageOut */
         BrokerageOut: {
@@ -16647,6 +16708,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["StatusOut"];
+                };
+            };
+        };
+    };
+    broker_status_v1_broker_status_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BrokerStatusOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

@@ -34,6 +34,7 @@ import type {
 } from "@/lib/api/trading";
 import type { NewsArticle } from "@/lib/api/types";
 import { tradeBlockReason } from "@/lib/book-url";
+import type { BrokerStatusLike } from "@/lib/broker-status";
 import type { TradePlan } from "@/lib/plans";
 import type { PortfolioRange, PortfolioTab } from "@/lib/portfolio-view-model";
 
@@ -64,6 +65,8 @@ type Props = {
   plans?: TradePlan[] | null;
   /** A5.2: the selected book, or All books (per-book panels then say so). */
   bookContext?: { book: number | "all" | null; selected: Book | null; isAll: boolean };
+  /** A5.7: the broker's status for an imported book (null: not loaded or unreadable). */
+  broker?: BrokerStatusLike | null;
 };
 
 export function PortfolioWorkspace({
@@ -85,6 +88,7 @@ export function PortfolioWorkspace({
   strategies = null,
   plans = null,
   bookContext,
+  broker = null,
 }: Props) {
   const isAll = bookContext?.isAll ?? false;
   const selected = bookContext?.selected ?? null;
@@ -110,6 +114,7 @@ export function PortfolioWorkspace({
             ? tradeBlockReason(selected)
             : null
       }
+      broker={selected?.kind === "imported" && !isAll ? (broker ?? "unknown") : undefined}
     />
   );
 
@@ -135,7 +140,7 @@ export function PortfolioWorkspace({
           total={portfolio.total_value}
         />
       ) : (
-        <BookStateNotice book={selected} />
+        <BookStateNotice book={selected} broker={broker} />
       )}
       <PortfolioMetrics portfolio={portfolio} analytics={analytics} />
 

@@ -17,6 +17,7 @@ from sqlmodel import Session, col, select
 from stockviz.db import get_session
 from stockviz.limiter import limiter
 from stockviz.models import AegisSyncRun, Instrument, JobRun, OutboxEvent, PriceBar
+from stockviz.services.brokers import KITE_SNAPSHOT_JOB
 
 router = APIRouter(prefix="/v1", tags=["status"])
 
@@ -47,14 +48,16 @@ class StatusOut(BaseModel):
 @router.get("/status", response_model=StatusOut)
 @limiter.limit("30/minute")
 def status(request: Request, session: SessionDep) -> StatusOut:
-    latest_ids = select(func.max(JobRun.id)).group_by(col(JobRun.job))
+    # A5.7: the by-hand Kite snapshot is reported per user at /v1/broker/status.
+    nightly = col(JobRun.job) != KITE_SNAPSHOT_JOB
+    latest_ids = select(func.max(JobRun.id)).where(nightly).group_by(col(JobRun.job))
     latest = session.exec(
         select(JobRun).where(col(JobRun.id).in_(latest_ids)).order_by(col(JobRun.job))
     ).all()
     successes = dict(
         session.exec(
             select(col(JobRun.job), func.max(JobRun.finished_at))
-            .where(JobRun.status == "succeeded")
+            .where(JobRun.status == "succeeded", nightly)
             .group_by(col(JobRun.job))
         ).all()
     )

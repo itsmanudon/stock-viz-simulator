@@ -34,6 +34,11 @@ ALLOWED: dict[str, tuple[int, str]] = {
         1,
         "the commit throttle counts import batches across all the user's books (A5.3)",
     ),
+    "services/brokers/__init__.py": (
+        2,
+        "broker status counts the caller's imported books for a broker (A5.7; no book chosen) "
+        "and finds their newest import (A5.3)",
+    ),
 }
 
 

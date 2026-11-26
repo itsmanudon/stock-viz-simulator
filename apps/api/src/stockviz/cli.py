@@ -623,6 +623,22 @@ def _cmd_kite_login_url(_args: argparse.Namespace) -> int:
     return 0
 
 
+def _record_kite_run(*, ok: bool, summary: str | None = None) -> None:
+    """One ``job_runs`` row per Kite snapshot attempt (A5.7: broker status).
+
+    Written only once the command reaches Kite (keys and a request token
+    set). Never holds the token, the key or Kite's message text. Recording
+    never changes the command's result.
+    """
+    from stockviz.services.brokers import KITE_SNAPSHOT_JOB, record_provider_run
+
+    try:
+        with Session(engine) as session:
+            record_provider_run(session, KITE_SNAPSHOT_JOB, ok=ok, summary=summary)
+    except Exception:
+        logger.exception("job_runs: could not record the Kite snapshot run")
+
+
 def _cmd_ingest_history(args: argparse.Namespace) -> int:
     """One-off full-history pull from an optional provider (Phase 4.7).
 
@@ -637,6 +653,8 @@ def _cmd_ingest_history(args: argparse.Namespace) -> int:
     if args.provider != "kite":
         print(f"provider {args.provider!r}: no adapter yet (TrueData comes with its trial)")
         return 2
+    import httpx
+
     from stockviz.services.ingest.providers.kite import KiteError, kite_symbol, open_session
 
     settings = get_settings()
@@ -648,28 +666,43 @@ def _cmd_ingest_history(args: argparse.Namespace) -> int:
         return 2
     try:
         client = open_session(settings.kite_api_key, settings.kite_api_secret, args.request_token)
-    except KiteError as exc:
-        print(f"Kite login failed: {exc}")
+    except (KiteError, httpx.HTTPError) as exc:
+        # The message is Kite's error type and text (or httpx's class name):
+        # never the token. The job row keeps a fixed summary only.
+        print(f"Kite login failed: {exc if isinstance(exc, KiteError) else type(exc).__name__}")
+        _record_kite_run(ok=False, summary="Kite login failed")
         return 1
 
     tokens: dict[str, dict[str, int]] = {}
     end = date_type.today()
+    provider_errors = 0
 
     def fetch(ticker: str):
+        nonlocal provider_errors
         venue = kite_symbol(ticker)
         if venue is None:
             raise ValueError("not an NSE or BSE ticker")
         exchange, symbol = venue
-        if exchange not in tokens:
-            tokens[exchange] = client.instrument_tokens(exchange)
-        token = tokens[exchange].get(symbol)
-        if token is None:
-            raise ValueError(f"{exchange}:{symbol} not in Kite's instrument list")
-        return client.daily_bars(ticker, token, end=end), str(token)
+        try:
+            if exchange not in tokens:
+                tokens[exchange] = client.instrument_tokens(exchange)
+            token = tokens[exchange].get(symbol)
+            if token is None:
+                raise ValueError(f"{exchange}:{symbol} not in Kite's instrument list")
+            return client.daily_bars(ticker, token, end=end), str(token)
+        except (KiteError, httpx.HTTPError):
+            # A provider error (not a ticker Kite does not list) marks the
+            # broker offline on /v1/broker/status (A5.7).
+            provider_errors += 1
+            raise
 
     with Session(engine) as session:
         tickers = [t.upper() for t in args.tickers] or indian_tickers(session)
         reports = snapshot(session, tickers, fetch, scheme="kite", apply=args.apply)
+    _record_kite_run(
+        ok=provider_errors == 0,
+        summary=f"Kite error on {provider_errors} ticker(s)" if provider_errors else None,
+    )
     failed = False
     for r in reports:
         if r.error:
