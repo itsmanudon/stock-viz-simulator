@@ -161,7 +161,7 @@ export function ContextualTradeTicket({
   const marketSuccess = marketState.success;
   const successMessage =
     orderMode === "market" && marketSuccess
-      ? `Filled ${titleCase(marketSuccess.side)} ${marketSuccess.quantity} ${marketSuccess.ticker} at ${formatMoney(Number(marketSuccess.price), marketSuccess.currency)}${feesSuffix(marketSuccess, formatMoney)}`
+      ? `Filled ${titleCase(marketSuccess.side)} ${marketSuccess.quantity} ${marketSuccess.ticker} at ${formatMoney(Number(marketSuccess.price), marketSuccess.currency)}${feesSuffix(marketSuccess, formatMoney)}${marketSuccess.planned ? ". Your plan locked at this fill" : ""}`
       : orderMode !== "market"
         ? orderState.success
         : undefined;

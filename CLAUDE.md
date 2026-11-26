@@ -69,7 +69,11 @@ bars only. Drills (`/drills`, A4.7) are decks of replays seeded from a
 rule's real false-to-true triggers, anonymised by default (Stock A, dates
 shifted by whole weeks, headlines hidden) and scored on whether the trader
 followed a plan written before the first order, not on profit. See
-[`docs/SIMULATION.md`](./docs/SIMULATION.md).
+[`docs/SIMULATION.md`](./docs/SIMULATION.md). Trade plans (A5.4,
+`trade_plans`) hold every plan: a paper order's ("Plan this trade" on the
+tickets, listed on the Portfolio Journal tab), a replay journal and a drill
+plan; a plan locks at its first fill, and one written after the entry is
+labelled so, never locked.
 
 The web app's look is the **PRISM** redesign (Nov 2026) in the **Liquid Chrome**
 palette: ink black with a polished-metal brand (steel → champagne → silver), a

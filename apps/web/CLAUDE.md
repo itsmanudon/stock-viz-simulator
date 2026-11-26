@@ -965,6 +965,38 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   realized P&L is not totalled across currencies. `calculateNavChange` leaves
   out All books `flow` (new books, imported buys) and chains the returns.
   `scripts/seed-demo.mjs` writes snapshots into each demo user's default book.
+- **Trade plans (A5.4, M10.3).** Types and the ticket helpers are
+  client-safe in `lib/plans.ts` (`planFigures` risk/reward/R:R and the first
+  problem, `planFormFields` / `planFromForm` (the `plan_*` hidden fields a
+  ticket posts), `splitTags`, `planBadge`); `lib/api/plans.ts` (server-only)
+  has `listPlans(book)`, `createPlan`, `updatePlan`, `deletePlan` and
+  `planPickerOptions()` (your setups' newest versions and presets, your open
+  theses; `/trade` and the stock page load it, a failure leaves the pickers
+  empty). Both paper tickets show `TicketPlanSection`
+  (`components/ticket-plan.tsx`, `ticket-plan`, figures in
+  `ticket-plan-figures`) for a buy (market or limit): a "Plan this trade"
+  checkbox that starts from the order's price and quantity, entry, stop,
+  target, size, setup, a thesis of this ticker, "Thesis (your words)", why
+  now and tags. `OrderReview` takes a `plan` slot: `PlanReview`
+  (`review-plan`: entry, stop, target, size, risk if stopped, reward : risk,
+  setup, the lock sentence) renders the hidden fields, and
+  `placeTradeAction` / `placeOrderAction` send them as the API's `plan`
+  (buys only; an invalid plan returns "Plan: ..."). The fill confirmation
+  adds "Your plan locked at this fill". The Portfolio **Journal** tab shows
+  `TradePlansPanel` (`components/plans/trade-plans-panel.tsx`,
+  `trade-plans`) above the P&L calendar for the selected book
+  (`loadPortfolioData(..., { plansBook })`; not in All books): a status
+  filter, one `plan-row` per plan (`data-status`, `data-badge`;
+  `plan-badge` Locked / Written after entry / Not filled yet / Closed /
+  Cancelled), opening to its details and an editor (notes and tags always;
+  prices and why only while open and unfilled; Cancel plan, Close plan)
+  through `portfolio/plan-actions.ts`; "Plan an open position"
+  (`plan-open-position`) for holdings without an active plan creates one
+  with `link_open_position`, labelled written after entry. The replay
+  journal says when it was written after entry. Tests:
+  `tests/unit/trade-plans.test.tsx`; the signed-in trade e2e plans a buy in
+  the second book (Locked) and an open position in the default one
+  (Written after entry).
 - Operational trading (`/trade`, `/orders`, `/watchlist`, `/alerts`) is the
   authenticated execution/monitoring loop. See
   [`docs/OPERATIONAL_TRADING.md`](../../docs/OPERATIONAL_TRADING.md).

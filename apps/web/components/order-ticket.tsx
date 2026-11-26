@@ -166,7 +166,7 @@ export function OrderTicket({
   const orderSuccess = mode === "market" ? undefined : orderState.success;
   const activeState = mode === "market" ? marketState : orderState;
   const successMessage = marketSuccess
-    ? `Filled ${titleCase(marketSuccess.side)} ${marketSuccess.quantity} ${marketSuccess.ticker} @ ${formatCurrency(marketSuccess.price, marketSuccess.currency)}${feesSuffix(marketSuccess, (v, c) => formatCurrency(String(v), c))}`
+    ? `Filled ${titleCase(marketSuccess.side)} ${marketSuccess.quantity} ${marketSuccess.ticker} @ ${formatCurrency(marketSuccess.price, marketSuccess.currency)}${feesSuffix(marketSuccess, (v, c) => formatCurrency(String(v), c))}${marketSuccess.planned ? ". Your plan locked at this fill" : ""}`
     : orderSuccess;
   const confirmed = Boolean(successMessage) && !pending && activeState !== dismissed;
   const label = `${orderTypeLabel(mode).toLowerCase()} ${effectiveSide}`;

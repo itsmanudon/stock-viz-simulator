@@ -156,8 +156,12 @@ function PlanRow({ plan, writable }: { plan: TradePlan; writable: boolean }) {
             </span>
             <span className="text-2xs text-text-tertiary">{PLAN_STATUS_LABEL[plan.status]}</span>
           </span>
-          <Figure label="Entry" value={money(plan.planned_entry, cur)} />
-          <Figure label="Stop" value={money(plan.planned_stop, cur)} />
+          <Figure
+            label="Entry"
+            value={money(plan.planned_entry, cur)}
+            className="hidden sm:block"
+          />
+          <Figure label="Stop" value={money(plan.planned_stop, cur)} className="hidden sm:block" />
           <Figure
             label="Target"
             value={money(plan.planned_target, cur)}
@@ -168,8 +172,9 @@ function PlanRow({ plan, writable }: { plan: TradePlan; writable: boolean }) {
             label="R:R"
             value={plan.reward_risk ? `${Number(plan.reward_risk).toFixed(2)}` : "—"}
           />
-          <p className="col-span-2 text-2xs text-text-tertiary sm:hidden">
-            Target {money(plan.planned_target, cur)} · risk {money(plan.planned_risk, cur)}
+          <p className="col-span-2 font-mono text-2xs tabular-nums text-text-secondary sm:hidden">
+            Entry {money(plan.planned_entry, cur)} · stop {money(plan.planned_stop, cur)} · target{" "}
+            {money(plan.planned_target, cur)} · risk {money(plan.planned_risk, cur)}
           </p>
         </summary>
 

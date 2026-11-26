@@ -29,8 +29,9 @@ src/stockviz/
                     A2.3 NotificationChannel / DeliveryAttempt,
                     drawing — A3.2 chart drawings, indicator_evidence —
                     A3.4 IndicatorEvidence, trial — A4.3 BacktestTrial /
-                    HoldoutUnlock, drill — A4.7 DrillDeck / Drill /
-                    DrillPlan)
+                    HoldoutUnlock, drill — A4.7 DrillDeck / Drill,
+                    trade_plan — A5.4 TradePlan (absorbed DrillPlan and
+                    ReplayJournal, both archived))
   events/           versioned contracts (trades/market), outbox/inbox,
                     dispatcher, domain handlers, Kafka producer wrappers
                     (not imported by FastAPI startup)
@@ -50,7 +51,7 @@ src/stockviz/
                     (A2.2), notification_channels (A2.3), drawings
                     (A3.2), avwap (A3.3), events, strength (RS
                     percentile, delivery) and regime (A3.5), drills
-                    (A4.7), books (A5.1), health
+                    (A4.7), books (A5.1), plans (A5.4), health
                     (`GET /live` liveness, `GET /health` readiness + DB)
   services/
     ingest/         External-API fetchers (yfinance primary, Alpha Vantage fallback);
@@ -74,6 +75,9 @@ src/stockviz/
                     buying_power, portfolio, analytics, dividends, fx, snapshots,
                     books (A5.1: resolve_book, the default book)
     books/          A5.1: book create, rename, archive, default, delete
+    plans/          A5.4: trade plans: record_fill (the lock), plans on
+                    orders, written after entry, session plans for replay
+                    and drills, outputs
     simulation/     pure deterministic execution kernel + profile registry +
                     SimulationClock. Live MARKET and pending equity fills call
                     evaluate_order with LIVE_PAPER_EXECUTION_PROFILE; apply_fill
@@ -1170,6 +1174,69 @@ cascade; entry, stop, size, long only, `locked_at`). Rules and method in
   peak size within the plan; R achieved beside it, "not the score". The
   deck summary counts statuses, traded, followed the plan and checks.
 - Tests: `test_drills.py`, `test_drills_migration.py`.
+
+**Trade plans (A5.4, M10.3).** Migration `b5d4a7e1c902`: `trade_plans`
+(`models/trade_plan.py`): user, `portfolio_id` (paper, imported; cascade),
+`replay_session_id` (replay, drill; unique, cascade), `instrument_id`,
+`source` paper|replay|drill|imported, `side` long|short, planned entry,
+stop, target (nullable), size, `setup_version_id`, `thesis_id` (SET NULL),
+`thesis_text`, `why`, `invalidation`, `horizon_bars`, `confidence`,
+`notes`, `tags` (JSON), `status` open|active|closed|cancelled,
+`locked_at`, `first_fill_at`, `written_after_entry`, created/updated;
+checks on each enum, positive prices, the home (`ck_trade_plans_home`) and
+`NOT (written_after_entry AND locked_at)`. `trades.trade_plan_id` and
+`pending_orders.trade_plan_id` (SET NULL). The upgrade copies every
+`drill_plans` / `replay_journals` row into one plan per session
+(idempotent: a session with a plan is skipped) and moves both tables to the
+`archive` schema (keys to `replay_sessions` dropped). Downgrade refuses
+while paper or imported plans exist; otherwise it restores the tables
+(keys NOT VALID) and upserts the replay and drill plans back.
+
+- **The lock** (`services/plans.record_fill`): the first fill a plan meets
+  locks it at that fill's time when the plan was written before it
+  (paper: `created_at <= trade.ts`; replay: the plan existed when the fill
+  happened, `locked_at` = the simulated `evaluated_at`), else
+  `written_after_entry` (never locked). Either way `frozen`: `PATCH`
+  changing entry, stop, target, size, setup, thesis, why, invalidation,
+  horizon or confidence is 409 (`PlanLocked`); notes, tags and status
+  stay editable. A replay plan started after the first fill is written
+  after entry.
+- **Orders.** `POST /v1/trades` and `POST /v1/orders` take `trade_plan_id`
+  (your open or active paper plan in that book, same symbol) or `plan` (a
+  `TradePlanDraft`, created in the same transaction; a refused order writes
+  no plan); buys only (422), not both (422), another user's plan 404, a
+  cancelled or closed plan 409. `apply_fill(trade_plan=)` links the fill;
+  a pending order keeps `trade_plan_id` and links at settlement. A sell
+  that empties a book's position closes its active plans in the symbol.
+  `TradeOut` and `PendingOrderOut` carry `trade_plan_id`. Paper plans are
+  long only (paper trading cannot short).
+- **Routes** (`routers/plans.py`, authed): `GET /v1/plans?book=&status=&
+  source=&setup_version_id=&ticker=` -> `{plans: [TradePlanOut], limit}`
+  (no `book`: every plan of yours; plans of anonymised unrevealed drills
+  are left out and 404 by id); `POST /v1/plans?book=` (201; a writable
+  paper book; `link_open_position: true` links the book's current
+  position's buys, which makes it written after entry; no position 422,
+  one with a plan 409; an index 422); `GET`/`PATCH`/`DELETE /{id}`
+  (`status: closed` an active plan, `cancelled` an open one; delete only
+  before a fill, else 409; replay and drill plans 409 here). `TradePlanOut`
+  adds `ticker`, `currency`, `risk_per_share`, `planned_risk`,
+  `reward_per_share`, `reward_risk`, `setup_label`, `thesis_title`,
+  `locked`, `frozen`, `fills`. Errors map in `main.py` (`PlanNotFound` 404,
+  `PlanError` 422, `PlanConflict`/`PlanLocked` 409). Deleting a book
+  deletes its plans.
+- **Replay and drills** read and write the session's plan:
+  `services/replay/journal.py` (the journal's shape over the plan),
+  `drills/decks.py` (`plan_of` = a session plan with an entry; `put_plan`),
+  `replay/session.py` (fills lock it; completion closes an active plan and
+  cancels an unfilled one).
+- Tests: `test_trade_plans.py` (lock at the fill, 409 after, notes and
+  tags, sell to zero, plan on the ticket, pending order at settlement,
+  written after entry, the rule itself, validation, per user and per book,
+  hidden drill plans), `test_trade_plans_migration.py` (PostgreSQL
+  up/down/up with data: identical drill scores, deck summary and
+  forensics; archive row counts; idempotent copy; downgrade refused with a
+  paper plan). `test_drills_migration.py` and
+  `test_replay_journal_migration.py` now stop at their own revisions.
 
 **Survivorship stamp (A1.4a, part of M1.5).** Every backtest result carries
 `universe: {name, point_in_time, survivorship_biased, note}`: the public
