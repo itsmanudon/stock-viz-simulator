@@ -11970,6 +11970,18 @@ export interface components {
              * Format: date-time
              */
             updated_at: string;
+            /** Kill Alert Id */
+            kill_alert_id?: number | null;
+            /**
+             * Kill State
+             * @default none
+             * @enum {string}
+             */
+            kill_state: "none" | "armed" | "paused" | "fired";
+            /** Kill Fired At */
+            kill_fired_at?: string | null;
+            /** Kill Fired On */
+            kill_fired_on?: string | null;
         };
         /**
          * ThesisPatch

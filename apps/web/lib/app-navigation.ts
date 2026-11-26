@@ -185,6 +185,14 @@ export const WORKSPACES: readonly Workspace[] = [
       { label: "Watchlist", href: "/watchlist", matches: ["/watchlist"], keywords: ["lists"] },
       { label: "Alerts", href: "/alerts", matches: ["/alerts"], keywords: ["price alert"] },
       {
+        // A7.5: theses with kill switches.
+        label: "Theses",
+        href: "/theses",
+        matches: ["/theses"],
+        signedInOnly: true,
+        keywords: ["thesis", "memo", "kill rule", "invalidation"],
+      },
+      {
         // Books are managed in Settings; the item is a shortcut, never "current".
         label: "Books",
         href: "/settings#books",
