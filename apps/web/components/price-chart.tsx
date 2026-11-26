@@ -99,6 +99,12 @@ export type PriceChartMarker = {
   color: string;
   shape: "arrowUp" | "arrowDown" | "circle";
   text: string;
+  /**
+   * Fold this label into the fill marker on the same bar and side ("S · MAE
+   * -0.41%") instead of stacking a second marker there. Drawn on its own when
+   * no fill marker sits there.
+   */
+  mergeIntoFill?: boolean;
 };
 
 /** A5.5: a horizontal level on the price pane (a plan's entry, stop, target). */
@@ -363,13 +369,7 @@ export function PriceChart({
       split: palette.drawing.blue,
       fill: palette.drawing.foreground,
     };
-    const out: SeriesMarker<Time>[] = (markers ?? []).map((marker) => ({
-      time: toUtcSeconds(marker.time),
-      position: marker.position,
-      color: marker.color,
-      shape: marker.shape,
-      text: marker.text,
-    }));
+    const out: SeriesMarker<Time>[] = [];
     for (const [index, list] of byBar) {
       const time = candles[index]?.time;
       if (time === undefined) continue;
@@ -384,11 +384,11 @@ export function PriceChart({
             shape: event.side === "sell" ? "arrowDown" : "arrowUp",
             // A5.5: the fill that closes a journal entry carries its R.
             text:
-              event.side === "sell"
-                ? event.r_multiple !== null && event.r_multiple !== undefined
-                  ? `S ${formatR(event.r_multiple)}`
-                  : "S"
-                : "B",
+              event.r_multiple !== null && event.r_multiple !== undefined
+                ? `${event.side === "sell" ? "S" : "B"} ${formatR(event.r_multiple)}`
+                : event.side === "sell"
+                  ? "S"
+                  : "B",
           });
           continue;
         }
@@ -406,6 +406,28 @@ export function PriceChart({
           text: event.type === "news" ? String(newsCount) : EVENT_LETTER[event.type],
         });
       }
+    }
+    for (const marker of markers ?? []) {
+      const time = toUtcSeconds(marker.time);
+      const fill = marker.mergeIntoFill
+        ? out.find(
+            (m) =>
+              m.time === time &&
+              m.position === marker.position &&
+              String(m.id ?? "").includes(":fill:"),
+          )
+        : undefined;
+      if (fill) {
+        fill.text = `${fill.text} · ${marker.text}`;
+        continue;
+      }
+      out.push({
+        time,
+        position: marker.position,
+        color: marker.color,
+        shape: marker.shape,
+        text: marker.text,
+      });
     }
     return out.sort((a, b) => (a.time as number) - (b.time as number));
   }, [markers, byBar, candles, palette]);
