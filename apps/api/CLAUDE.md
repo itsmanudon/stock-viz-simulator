@@ -2012,6 +2012,25 @@ the workspace repository and `aegis-news/docs/feed.md`. Rules:
   the end of every `aegis-sync` (also after a failed sync) and by the
   `sentiment-aggregate` CLI and scheduler job (audit AG-14). The legacy
   pipeline is gone since A0 (see "Sentiment" below).
+- **The news archive (26 Nov 2026).** `GET /v1/news/feed` and
+  `GET /v1/news/overview` (public, 60 a minute; `services/aegis/feed.py`)
+  serve the `/news` page. Feed: keyset paging over `available_at` desc,
+  `document_id` asc (`cursor`, an opaque base64url of both; a bad one is
+  400), `limit` up to 100, `total`; filters `q` (every word in the headline,
+  ILIKE with `%`/`_` escaped, at most 8 words), `tickers`, `sentiment`
+  (`unscored` = no sentiment analysis), `topic`, `source`,
+  `scope=symbols|market|all` (market with tickers is 400) and `from`/`to`
+  (UTC dates on `available_at`, never `published_at`; from > to is 400).
+  Each item carries `reactions` for up to 3 tickers: the first stored daily
+  bar whose session completed after `available_at` (event_study's rule),
+  its change on the previous close and 5 closes either side
+  (`reaction_index`); none without a later bar. Overview: `days` over the
+  whole archive (date filters ignored, so the page's brush can widen again)
+  with tone counts; `total`, sentiment, topic and source counts honour
+  every filter; `heatmap` is the 12 most-covered tickers over the 30 days
+  ending at the newest headline, each cell `count` and `net`
+  ((positive - negative) / count). Headline, source, dates and links only.
+  Tests: `tests/test_news_feed.py`.
 - **Signals (SR-8, SR-9) are retired (A2.4).** The 7-vote engine, its router
   and the `recommend` step are gone; see "The Checklist (A2.4)".
 

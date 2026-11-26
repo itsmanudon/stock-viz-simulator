@@ -36,28 +36,55 @@ test("markets dates its prices by the stored close (audit T1)", async ({ page })
   await expect(main.locator("tbody tr").first()).toContainText(/\d{4}/);
 });
 
-test("news speaks to readers, not operators (audit S1)", async ({ page }) => {
+test("news: views, search, keyboard and phone width (news redesign)", async ({ page }) => {
   await page.goto("/news");
   const main = page.locator("#main");
   await expect(main).not.toContainText("NEWSDATA_KEY");
-  // A pager appears only when there is another page to go to.
-  const pager = main.getByRole("navigation", { name: "News pages" });
-  if ((await main.getByText(/No stored headlines yet/).count()) > 0) {
-    await expect(pager).toHaveCount(0);
-  }
-  // General headlines have their own view, linked from the page.
+  await expect(main.getByRole("heading", { name: "News", exact: true })).toBeVisible();
+
+  // Listed companies is the default view; general headlines have their own.
   const views = main.getByRole("navigation", { name: "News views" });
-  await expect(views.getByRole("link", { name: "Listed companies" })).toHaveAttribute(
+  await expect(views.getByRole("link", { name: "Listed Companies" })).toHaveAttribute(
     "aria-current",
     "page",
   );
-  await views.getByRole("link", { name: "Market headlines" }).click();
-  await expect(page).toHaveURL(/\/news\?view=market$/);
-  await expect(views.getByRole("link", { name: "Market headlines" })).toHaveAttribute(
+  await views.getByRole("link", { name: "Market Headlines" }).click();
+  await expect(page).toHaveURL(/\/news\?scope=market$/);
+  await expect(views.getByRole("link", { name: "Market Headlines" })).toHaveAttribute(
     "aria-current",
     "page",
   );
-  await expect(main).toContainText("name no company StockViz lists");
+  // The old page's market link still opens the market view.
+  await page.goto("/news?view=market");
+  await expect(views.getByRole("link", { name: "Market Headlines" })).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
+
+  // "/" focuses the headline search on this page (the palette keeps ⌘K).
+  await page.goto("/news");
+  await expect(main.getByTestId("news-search-shortcut")).toHaveAttribute("data-ready", "true");
+  await page.locator("body").press("/");
+  await expect(main.getByRole("searchbox", { name: /Search Headlines/ })).toBeFocused();
+  await page.keyboard.type("zzqx-no-such-headline");
+  await page.keyboard.press("Enter");
+  await expect(page).toHaveURL(/q=zzqx-no-such-headline/);
+  await expect(main.getByRole("heading", { name: "No headlines match" })).toBeVisible();
+  // No pager under an empty list (audit S1).
+  await expect(main.getByRole("navigation", { name: "News pages" })).toHaveCount(0);
+  await expect(main.getByTestId("news-active-filters")).toBeVisible();
+
+  // Tone chips are links that toggle; the page fits a phone.
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/news?sentiment=negative");
+  await expect(main.getByRole("link", { name: /^Negative/ })).toHaveAttribute(
+    "aria-current",
+    "true",
+  );
+  const overflows = await page.evaluate(
+    () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
+  );
+  expect(overflows, "/news scrolls sideways at 390px").toBe(false);
 });
 
 test("screener filters show as chips and columns sort (audit UX-1)", async ({ page }) => {
