@@ -1,7 +1,7 @@
 """A6.9 replay: bracket orders and intraday sessions.
 
 Revision ID: e9a4b6c8d0f3
-Revises: c8d3e5f7a9b2
+Revises: d1a6b11c2e40
 Create Date: 2026-11-26 18:00:00.000000
 
 - ``replay_orders`` gains ``parent_id`` (a bracket child's entry, cascade)
@@ -22,7 +22,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "e9a4b6c8d0f3"
-down_revision: str | None = "c8d3e5f7a9b2"
+down_revision: str | None = "d1a6b11c2e40"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

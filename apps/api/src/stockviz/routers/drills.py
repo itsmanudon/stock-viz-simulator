@@ -261,7 +261,7 @@ def post_order(
 
     def work() -> ReplaySubmitOut:
         decks.require_plan(session, ctx)
-        result = replay_routes.submit_order(session, ctx.replay, body)
+        result = replay_routes.submit_replay_ticket(session, ctx.replay, body)
         return replay_routes._submit_out(session, result)
 
     return _mask(mask, _guard(mask, work))

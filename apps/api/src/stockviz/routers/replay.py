@@ -475,7 +475,7 @@ def post_replay_order(
 
     replay = _load(session, session_id, user_id)
     try:
-        result = submit_order(session, replay, body)
+        result = submit_replay_ticket(session, replay, body)
     except (ReplayClosed, ReplayCompleted) as exc:
         raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
     except ReplayLookaheadError as exc:
@@ -491,7 +491,7 @@ def post_replay_order(
     return _submit_out(session, result)
 
 
-def submit_order(session: Session, replay, body: ReplayOrderIn) -> ReplaySubmitResult:
+def submit_replay_ticket(session: Session, replay, body: ReplayOrderIn) -> ReplaySubmitResult:
     """A market or resting order, or (A6.9) a bracket. Shared with drills."""
     if body.order_type == "bracket":
         if body.side != "buy":

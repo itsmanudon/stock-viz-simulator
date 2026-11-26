@@ -1635,7 +1635,7 @@ resting orders").
   bar function returns (daily `PriceBar` or `intraday.IntradaySource`).
 - **Routes.** `ReplaySessionCreateIn.interval`/`profile`; `ReplayOrderIn`
   `bracket` + `entry_type`, `stop_price`, `target_price` (drills share
-  `routers/replay.submit_order`); `ReplayOrderOut.parent_id`, `oco_group`,
+  `routers/replay.submit_replay_ticket`); `ReplayOrderOut.parent_id`, `oco_group`,
   `order_inside_bar_unknown`; `ReplaySubmitOut.children`;
   `ReplaySessionOut.interval`, `feed`, `profile_assumptions`; list rows
   `interval`, `profile_name`; availability `intervals`, `minute_feed`,
