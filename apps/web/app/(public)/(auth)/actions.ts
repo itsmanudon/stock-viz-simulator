@@ -7,6 +7,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 
 import { signIn } from "@/auth";
+import { clientAddress } from "@/lib/client-address";
 import { hit, reset } from "@/lib/rate-limit";
 import { safeRedirect } from "@/lib/redirect";
 import { createUser, findUserByEmail } from "@/lib/users";
@@ -31,11 +32,8 @@ const SIGNUP_LIMIT = 5;
 const SIGNUP_WINDOW_MS = 60 * 60 * 1000;
 
 async function clientIp(): Promise<string> {
-  const h = await headers();
-  // Vercel and most proxies set x-forwarded-for; left-most hop is the client.
-  const forwarded = h.get("x-forwarded-for");
-  if (forwarded) return forwarded.split(",")[0]?.trim() || "unknown";
-  return h.get("x-real-ip") ?? "unknown";
+  // The proxy-added hop, never the client-chosen left-most entry.
+  return clientAddress(await headers());
 }
 
 function throttled(retryAfterSeconds: number): AuthFormState {

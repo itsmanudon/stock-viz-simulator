@@ -2,8 +2,10 @@ import type { Locator, Page } from "@playwright/test";
 import { expect, test } from "@playwright/test";
 
 // A6.8 (M2.10): the chart workspace. Signup is capped at 5 per IP an hour and
-// the other specs use all five, so this spec signs up from its own address
-// (the cap reads x-forwarded-for; nothing else here depends on it).
+// the other specs use all five, so this spec signs up from its own address.
+// The cap reads the hop our proxy adds to x-forwarded-for
+// (`lib/client-address.ts`); with no proxy in front of the test server this
+// header plays the proxy. Nothing else here depends on it.
 test.describe.configure({ retries: 0 });
 test.use({ extraHTTPHeaders: { "x-forwarded-for": "198.51.100.68" } });
 
