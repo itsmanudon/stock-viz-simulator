@@ -88,6 +88,14 @@ class StreamSpec:
     grace: timedelta = DEFAULT_GRACE
 
 
+def live_spec() -> StreamSpec:
+    """A6.6: Alpaca's live IEX minute bars (``source`` ``alpaca_iex_live``)."""
+    return StreamSpec(
+        name="alpaca", label="IEX only", bar_feed="iex", source="alpaca_iex_live",
+        version_feeds=frozenset({"auto", "iex"}), wall_clock=True,
+    )  # fmt: skip
+
+
 def replay_spec(source_feed: str) -> StreamSpec:
     """A ``SimulatedFeed`` replay of stored ``source_feed`` minutes."""
     return StreamSpec(
@@ -124,6 +132,7 @@ class StreamWorker:
         deliver: bool = True,
         publish: Publish = notify_bar,
         judge_from: datetime | None = None,
+        stop_at: datetime | None = None,
     ) -> None:
         self.spec = spec
         self.symbols = sorted({s.upper() for s in symbols})
@@ -141,6 +150,8 @@ class StreamWorker:
         # stream's first bar unless given, so a replay's warm-up (or bars
         # stored before a live start) is context, never a firing.
         self.judge_from = _naive(judge_from) if judge_from is not None else None
+        # A6.6: a live stream stops here (the session's close plus a grace).
+        self.stop_at = stop_at
 
     # --- lifecycle ------------------------------------------------------------
 
@@ -170,6 +181,8 @@ class StreamWorker:
                     item = await asyncio.wait_for(queue.get(), timeout=WAIT_SECONDS)
                 except TimeoutError:
                     self._close_due()
+                    if self._past_stop():
+                        break
                     continue
                 if item is None:
                     break
@@ -180,6 +193,8 @@ class StreamWorker:
                 for bar in self.builder.add(item):
                     self.close_bar(bar)
                 self._close_due()
+                if self._past_stop():
+                    break
             for bar in self.builder.flush():
                 self.close_bar(bar)
         except BaseException as exc:
@@ -190,6 +205,9 @@ class StreamWorker:
         self.report.late_ticks = self.builder.late_ticks
         self._finish("closed", None)
         return self.report
+
+    def _past_stop(self) -> bool:
+        return self.stop_at is not None and self.clock() >= self.stop_at
 
     def _close_due(self) -> None:
         if self.spec.wall_clock:

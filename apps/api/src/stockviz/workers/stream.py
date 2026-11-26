@@ -9,9 +9,10 @@ Its bars are stored as feed ``replayed`` and its firings say "Replayed from
 stored bars, not live". ``--speed 60`` replays a minute a second (0, the
 default, as fast as it can). ``--no-deliver`` keeps firings in the bell only.
 
-The live stream (``--feed alpaca``, the IEX WebSocket) arrives in A6.6; until
-then, and whenever the feed's key is blank, the worker does not start (exit
-2) and live widgets show Offline. During A6 the worker runs on the laptop;
+A6.6: ``--feed alpaca`` streams Alpaca's live IEX minute bars (US symbols,
+at most 30) during the New York session (from 10 minutes before the open)
+and stops 2 minutes after the close. With the key blank, or the market
+closed, the worker does not start (exit 2) and live widgets show Offline. During A6 the worker runs on the laptop;
 nothing on Railway starts it.
 
 Exit codes: 0 done, 1 the stream failed, 2 not available (no key, no
@@ -24,7 +25,8 @@ import argparse
 import asyncio
 import logging
 import sys
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
+from zoneinfo import ZoneInfo
 
 from sqlmodel import Session
 
@@ -33,6 +35,10 @@ from stockviz.logging_setup import configure_logging
 logger = logging.getLogger(__name__)
 
 SOURCE_FEEDS = ("file", "iex", "sip", "kite")
+NEW_YORK = ZoneInfo("America/New_York")
+# A6.6: a live run may start this long before the open and stops this long after the close.
+OPEN_LEAD = timedelta(minutes=10)
+CLOSE_GRACE = timedelta(minutes=2)
 
 
 def _instant(raw: str) -> datetime:
@@ -109,7 +115,13 @@ def run_replay(args: argparse.Namespace) -> int:
 
 
 def run_live(args: argparse.Namespace) -> int:
+    from stockviz.db import engine
+    from stockviz.services.feeds.alpaca import STREAM_SYMBOL_LIMIT
+    from stockviz.services.feeds.base import us_symbol
     from stockviz.services.feeds.registry import build_feed
+    from stockviz.services.markets.calendar import session_minutes
+    from stockviz.services.stream.replay import watched
+    from stockviz.services.stream.worker import StreamWorker, live_spec
     from stockviz.settings import get_settings
 
     feed = build_feed(args.feed, get_settings())
@@ -117,8 +129,50 @@ def run_live(args: argparse.Namespace) -> int:
         print(f"{args.feed}: not configured (its key is blank); live widgets stay Offline",
               file=sys.stderr)  # fmt: skip
         return 2
-    print(f"{args.feed}: the live stream arrives in A6.6; replay with --replay", file=sys.stderr)
-    return 2
+    now = datetime.now(UTC)
+    hours = session_minutes(now.astimezone(NEW_YORK).date())
+    if hours is None or now >= hours.close:
+        print("the US market is closed now; live widgets stay Offline (replay with --replay)",
+              file=sys.stderr)  # fmt: skip
+        return 2
+    if now < hours.open - OPEN_LEAD:
+        print(f"start within {OPEN_LEAD.seconds // 60} minutes of the open "
+              f"({hours.open.isoformat()})", file=sys.stderr)  # fmt: skip
+        return 2
+    with Session(engine) as session:
+        wanted = _tickers(args.symbols) or watched(session)
+    tickers: list[str] = []
+    for ticker in wanted:
+        try:
+            us_symbol(ticker)
+        except ValueError:
+            print(f"skipped {ticker}: the IEX stream is US only", file=sys.stderr)
+            continue
+        tickers.append(ticker)
+    if not tickers:
+        print("no US symbols: name them with --symbols, or add an intraday alert", file=sys.stderr)
+        return 2
+    if len(tickers) > STREAM_SYMBOL_LIMIT:
+        print(f"streaming the first {STREAM_SYMBOL_LIMIT} of {len(tickers)} symbols",
+              file=sys.stderr)  # fmt: skip
+        tickers = tickers[:STREAM_SYMBOL_LIMIT]
+    worker = StreamWorker(
+        live_spec(), tickers, session_factory=lambda: Session(engine),
+        deliver=not args.no_deliver, stop_at=hours.close + CLOSE_GRACE,
+    )  # fmt: skip
+    print(f"{args.feed}: streaming IEX minute bars for {', '.join(tickers)} until "
+          f"{hours.close.isoformat()}")  # fmt: skip
+    try:
+        report = asyncio.run(worker.run(feed.stream(tickers)))
+    except Exception:
+        logger.exception("the live stream stopped")
+        return 1
+    print(
+        f"{args.feed}: {report.bars_closed} bars closed, {report.bars_written} written, "
+        f"{report.bars_off_session} off-session, {report.bars_judged} alert bars judged, "
+        f"{report.fired} fired, {report.delivered} delivered"
+    )
+    return 0
 
 
 def main(argv: list[str] | None = None) -> int:

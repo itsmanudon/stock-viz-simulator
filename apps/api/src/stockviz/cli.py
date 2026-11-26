@@ -970,6 +970,54 @@ def _cmd_intraday_load(args: argparse.Namespace) -> int:
     return 1 if failed else 0
 
 
+def _cmd_intraday_catch_up(args: argparse.Namespace) -> int:
+    """A6.6: the SIP catch-up after a live IEX day.
+
+    The live stream stores IEX bars only (one exchange's trades). After the
+    close, SIP history (every exchange) is free once it is 15 minutes old, so
+    this backfills the watched US symbols' minutes for the latest completed
+    New York session (or ``--date``) as feed ``sip``, beside the IEX bars
+    (``FEED_RANK`` reads SIP first). It is ``intraday-backfill --provider
+    alpaca --feed sip`` with the stream's symbols and day: dry run unless
+    ``--apply``, exit 2 without the key or without symbols. Not in the cron.
+    """
+    from stockviz.db import engine
+    from stockviz.services.feeds.base import us_symbol
+    from stockviz.services.ingest.bar_semantics import latest_completed_session
+    from stockviz.services.stream.replay import watched
+
+    if args.date:
+        try:
+            day = date.fromisoformat(args.date)
+        except ValueError:
+            print("--date takes YYYY-MM-DD")
+            return 1
+    else:
+        day = latest_completed_session(datetime.now(UTC))
+    with Session(engine) as session:
+        wanted = args.symbols or watched(session)
+    symbols: list[str] = []
+    for ticker in wanted:
+        try:
+            us_symbol(ticker)
+        except ValueError:
+            continue  # the catch-up is US only, like the stream
+        symbols.append(ticker.upper())
+    if not symbols:
+        print("no US symbols: name them with --symbols, or add an intraday alert")
+        return 2
+    return _cmd_intraday_backfill(
+        argparse.Namespace(
+            provider="alpaca",
+            symbols=symbols[:30],
+            date_from=day.isoformat(),
+            date_to=day.isoformat(),
+            feed="sip",
+            apply=args.apply,
+        )
+    )
+
+
 def _cmd_intraday_backfill(args: argparse.Namespace) -> int:
     """US minute history from a free feed into ``intraday_bars`` (A6.3).
 
@@ -2334,6 +2382,18 @@ def main(argv: list[str] | None = None) -> int:
     )
     p_iback.add_argument("--apply", action="store_true", help="Fetch and write (default: plan)")
     p_iback.set_defaults(fn=_cmd_intraday_backfill)
+    p_icatch = sub.add_parser(
+        "intraday-catch-up",
+        help="A6.6: SIP minutes for the watched US symbols after a live IEX day (dry run unless --apply)",
+    )
+    p_icatch.add_argument(
+        "--symbols", nargs="+", default=None, help="Default: the stream's symbols"
+    )
+    p_icatch.add_argument(
+        "--date", default=None, help="YYYY-MM-DD (default: the latest US session)"
+    )
+    p_icatch.add_argument("--apply", action="store_true", help="Fetch and write (default: plan)")
+    p_icatch.set_defaults(fn=_cmd_intraday_catch_up)
     p_irec = sub.add_parser(
         "intraday-reconcile",
         help="Compare stored intraday bars, resampled to daily, with daily or 60m bars (A6.1)",

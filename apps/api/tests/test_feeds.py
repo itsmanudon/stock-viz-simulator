@@ -116,8 +116,9 @@ def test_us_symbols_only() -> None:
         feed.minute_bars("TCS.NS", OPEN, CLOSE)
 
 
-def test_streams_are_not_built_yet_with_the_reason() -> None:
-    for feed in (_alpaca(FakeHttp([])), TiingoFeed(key=KEY), MassiveFeed(key=KEY)):
+def test_only_alpaca_streams_with_the_reason_for_the_rest() -> None:
+    # A6.6: Alpaca streams (tests/test_a66_alpaca_stream.py); the others do not.
+    for feed in (TiingoFeed(key=KEY), MassiveFeed(key=KEY)):
         with pytest.raises(NotSupported, match=r"A6\.5"):
             feed.stream(["AAPL"])
     with pytest.raises(NotSupported, match="premium"):
