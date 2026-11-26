@@ -71,7 +71,11 @@ export function ReplayTradeTicket({
   const intrabar = profileName === "intrabar_ohlc";
   const resting = orderType !== "market" && !(bracket && entryType === "market");
   const sellOnly = orderType === "stop_loss" || orderType === "take_profit";
-  const effectiveSide: Side = sellOnly ? "sell" : bracket ? "buy" : side;
+  // Owner, 27 Nov 2026: a bracket can sell short, on US listings only (the
+  // API refuses NSE/BSE sessions the same way).
+  const shortable = currency === "USD";
+  const effectiveSide: Side = sellOnly ? "sell" : bracket && !shortable ? "buy" : side;
+  const shortBracket = bracket && effectiveSide === "sell";
   const checked = intrabar ? "each later bar's range, the open first" : "each later close";
   const [state, action, pending] = useActionState<ReplayActionState, FormData>(
     submitReplayOrderAction,
@@ -80,7 +84,12 @@ export function ReplayTradeTicket({
   useOutcomeSound(state.status, state.error, "fill");
   const close = Number(resting ? price : currentClose);
   const bracketProblem = bracket
-    ? bracketLevelsProblem(resting ? price : currentClose, stop, targetPrice)
+    ? bracketLevelsProblem(
+        resting ? price : currentClose,
+        stop,
+        targetPrice,
+        shortBracket ? "short" : "long",
+      )
     : null;
   const qty = Number(quantity);
   const notional = Number.isFinite(close) && Number.isFinite(qty) ? close * qty : null;
@@ -123,6 +132,9 @@ export function ReplayTradeTicket({
           <input type="hidden" name="side" value={effectiveSide} />
           <input type="hidden" name="order_type" value={orderType} />
           {bracket ? <input type="hidden" name="entry_type" value={entryType} /> : null}
+          {bracket ? (
+            <input type="hidden" name="direction" value={shortBracket ? "short" : "long"} />
+          ) : null}
           <div className="space-y-1.5">
             <Label htmlFor={`${fieldId}-type`}>Order type</Label>
             <select
@@ -142,7 +154,13 @@ export function ReplayTradeTicket({
           <div className="grid grid-cols-2 gap-2">
             <button
               type="button"
-              onClick={() => setSide("buy")}
+              onClick={() => {
+                if (bracket && side === "sell") {
+                  setStop(defaultLevel(currentClose, 0.95));
+                  setTargetPrice(defaultLevel(currentClose, 1.05));
+                }
+                setSide("buy");
+              }}
               aria-pressed={effectiveSide === "buy"}
               disabled={sellOnly}
               className={cn(
@@ -156,9 +174,17 @@ export function ReplayTradeTicket({
             </button>
             <button
               type="button"
-              onClick={() => setSide("sell")}
+              onClick={() => {
+                if (bracket && side !== "sell") {
+                  // A short bracket's stop is above the entry and its target below.
+                  setStop(defaultLevel(currentClose, 1.05));
+                  setTargetPrice(defaultLevel(currentClose, 0.95));
+                }
+                setSide("sell");
+              }}
               aria-pressed={effectiveSide === "sell"}
-              disabled={bracket}
+              disabled={bracket && !shortable}
+              title={bracket && !shortable ? "Short brackets are for US listings only" : undefined}
               className={cn(
                 "h-10 rounded-md border text-sm font-semibold disabled:opacity-40",
                 effectiveSide === "sell"
@@ -309,7 +335,7 @@ export function ReplayTradeTicket({
           {state.placed ? (
             <output className="block text-sm text-foreground" data-testid="replay-order-placed">
               {state.orderType === "bracket"
-                ? `Placed bracket buy ${formatQuantity(state.quantity ?? "0")} ${ticker}: entry ${money(state.limitPrice ?? "0")}, stop ${money(state.stopPrice ?? "0")}, target ${money(state.targetPrice ?? "0")}.`
+                ? `Placed bracket ${state.side === "sell" ? "short" : "buy"} ${formatQuantity(state.quantity ?? "0")} ${ticker}: entry ${money(state.limitPrice ?? "0")}, stop ${money(state.stopPrice ?? "0")}, target ${money(state.targetPrice ?? "0")}.`
                 : `Placed ${replayOrderTypeLabel(state.orderType ?? "").toLowerCase()} ${state.side} ${formatQuantity(state.quantity ?? "0")} ${ticker} at ${money(state.limitPrice ?? "0")}. It is checked from the next bar.`}
             </output>
           ) : null}
@@ -326,7 +352,9 @@ export function ReplayTradeTicket({
             {pending
               ? "Submitting…"
               : bracket
-                ? "Place bracket buy"
+                ? shortBracket
+                  ? "Place short bracket"
+                  : "Place bracket buy"
                 : resting
                   ? `Place ${replayOrderTypeLabel(orderType).toLowerCase()} ${effectiveSide}`
                   : `Submit market ${effectiveSide}`}
@@ -343,12 +371,21 @@ function defaultLevel(close: string, factor: number): string {
 }
 
 /** Why a bracket's levels cannot be placed, or null (the API checks the same). */
-export function bracketLevelsProblem(entry: string, stop: string, target: string): string | null {
+export function bracketLevelsProblem(
+  entry: string,
+  stop: string,
+  target: string,
+  direction: "long" | "short" = "long",
+): string | null {
   const e = Number(entry);
   const s = Number(stop);
   const t = Number(target);
   if (!(s > 0) || !(t > 0)) return "Enter a positive stop and target.";
   if (!(e > 0)) return null;
+  if (direction === "short") {
+    if (!(t < e && e < s)) return "A short's stop must be above the entry and its target below.";
+    return null;
+  }
   if (!(s < e && e < t)) return "The stop must be below the entry and the target above it.";
   return null;
 }

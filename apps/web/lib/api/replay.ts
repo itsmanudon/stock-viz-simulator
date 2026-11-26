@@ -204,6 +204,8 @@ export type ReplayOrderInput = {
   entry_type?: "market" | "limit";
   stop_price?: string;
   target_price?: string;
+  /** 27 Nov 2026: a short bracket (US listings) sells short; its side is sell. */
+  direction?: "long" | "short";
 };
 
 /** The JSON body of an order (shared with the drill routes). */
@@ -211,9 +213,11 @@ export function replayOrderBody(body: ReplayOrderInput): Record<string, string |
   const orderType = body.order_type ?? "market";
   if (orderType === "bracket") {
     const entry = body.entry_type ?? "market";
+    const short = body.direction === "short";
     return {
-      side: "buy",
+      side: short ? "sell" : "buy",
       order_type: "bracket",
+      direction: short ? "short" : "long",
       quantity: body.quantity,
       entry_type: entry,
       stop_price: body.stop_price,
@@ -263,6 +267,8 @@ export type ReplayEpisodeForensics = {
   fills: ReplayEpisodeFill[];
   /** A4.6: the episode's fees; realized_pnl is net of them. */
   fees: string;
+  /** 27 Nov 2026: "short" when a short sale opened the episode. */
+  side: "long" | "short";
 };
 
 export type ReplayForensics = {

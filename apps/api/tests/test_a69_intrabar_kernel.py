@@ -212,3 +212,52 @@ def test_oco_rejects_wrong_legs() -> None:
     limit = intent(SimulationOrderType.LIMIT, "110")
     result = evaluate_oco_exit(STOP, limit, bar("100", "111", "94", "100"), INTRABAR_OHLC)
     assert result.decision.status is FillStatus.INELIGIBLE
+
+
+# Short brackets (owner, 27 Nov 2026): the legs are buys that cover, the stop
+# above the entry and the target below; the long rules mirrored.
+SHORT_STOP = intent(SimulationOrderType.STOP_LOSS, "105", OrderSide.BUY)
+SHORT_TARGET = intent(SimulationOrderType.TAKE_PROFIT, "90", OrderSide.BUY)
+
+
+def test_short_oco_one_leg_and_gaps() -> None:
+    target = evaluate_oco_exit(SHORT_STOP, SHORT_TARGET, bar("100", "104", "89", "92"),
+                               INTRABAR_OHLC)  # fmt: skip
+    assert target.leg == "target" and target.decision.fill_price == D("90")
+    stop = evaluate_oco_exit(SHORT_STOP, SHORT_TARGET, bar("100", "106", "91", "104"),
+                             INTRABAR_OHLC)  # fmt: skip
+    assert stop.leg == "stop" and stop.decision.fill_price == D("105")
+    gap_up = evaluate_oco_exit(SHORT_STOP, SHORT_TARGET, bar("108", "109", "80", "100"),
+                               INTRABAR_OHLC)  # fmt: skip
+    assert gap_up.leg == "stop" and gap_up.decision.fill_price == D("108")
+    gap_down = evaluate_oco_exit(SHORT_STOP, SHORT_TARGET, bar("88", "120", "80", "100"),
+                                 INTRABAR_OHLC)  # fmt: skip
+    assert gap_down.leg == "target" and gap_down.decision.fill_price == D("88")
+    neither = evaluate_oco_exit(SHORT_STOP, SHORT_TARGET, bar("100", "104", "91", "101"),
+                                INTRABAR_OHLC)  # fmt: skip
+    assert neither.leg is None
+
+
+def test_short_oco_both_inside_stop_first_and_minutes_decide() -> None:
+    both = evaluate_oco_exit(SHORT_STOP, SHORT_TARGET, bar("100", "106", "89", "95"),
+                             INTRABAR_OHLC)  # fmt: skip
+    assert both.leg == "stop" and both.basis == "unknown"
+    path = minutes(("100", "101", "89", "90"), ("90", "106", "90", "105"))
+    decided = evaluate_oco_exit(SHORT_STOP, SHORT_TARGET, bar("100", "106", "89", "95"),
+                                INTRABAR_OHLC, path=path)  # fmt: skip
+    assert decided.leg == "target" and decided.basis == "minutes"
+
+
+def test_short_oco_legacy_close() -> None:
+    stop = evaluate_oco_exit(SHORT_STOP, SHORT_TARGET, bar("100", "106", "89", "106"),
+                             LEGACY_CLOSE)  # fmt: skip
+    assert stop.leg == "stop"
+    target = evaluate_oco_exit(SHORT_STOP, SHORT_TARGET, bar("100", "106", "89", "89"),
+                               LEGACY_CLOSE)  # fmt: skip
+    assert target.leg == "target"
+
+
+def test_buy_exits_stay_refused_outside_a_bracket() -> None:
+    """Live paper and plain orders: stop-loss and take-profit are still sell-only."""
+    result = evaluate_order(SHORT_STOP, bar("100", "106", "89", "106"), LEGACY_CLOSE)
+    assert result.status is FillStatus.INELIGIBLE

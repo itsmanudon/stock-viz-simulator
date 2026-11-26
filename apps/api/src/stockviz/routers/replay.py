@@ -494,8 +494,11 @@ def post_replay_order(
 def submit_replay_ticket(session: Session, replay, body: ReplayOrderIn) -> ReplaySubmitResult:
     """A market or resting order, or (A6.9) a bracket. Shared with drills."""
     if body.order_type == "bracket":
-        if body.side != "buy":
-            raise ReplayOrderError("A bracket is a long entry: its side is buy")
+        expected = "sell" if body.direction == "short" else "buy"
+        if body.side != expected:
+            raise ReplayOrderError(
+                f"A {body.direction} bracket's entry is a {expected}: its side is {expected}"
+            )
         return submit_replay_bracket(
             session,
             replay=replay,
@@ -504,6 +507,7 @@ def submit_replay_ticket(session: Session, replay, body: ReplayOrderIn) -> Repla
             limit_price=body.limit_price,
             stop_price=body.stop_price,
             target_price=body.target_price,
+            direction=body.direction,
         )
     return submit_replay_order(
         session,
@@ -729,6 +733,7 @@ def _episode_out(episode) -> ReplayEpisodeForensicsOut:
     return ReplayEpisodeForensicsOut(
         index=episode.index,
         ticker=episode.ticker,
+        side="short" if episode.side == "short" else "long",
         opened_at=as_aware_utc(episode.opened_at),
         closed_at=as_aware_utc(episode.closed_at) if episode.closed_at else None,
         status=episode.status,

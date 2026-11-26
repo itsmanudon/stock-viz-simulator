@@ -287,7 +287,9 @@ def _replay_trips(session: Session, user_id: int) -> list[Trip]:
         replay = by_id[sid]
         assert replay.instrument_id is not None
         plan = plans.get(sid)
-        for index, trip in enumerate(group_round_trips(ledger)):
+        # A replay sell while flat exists only as a short sale (owner, 27 Nov
+        # 2026): the ledger refuses any other.
+        for index, trip in enumerate(group_round_trips(ledger, allow_short=True)):
             paired = plan is not None and plan.first_fill_at is not None and index == 0
             out.append(
                 Trip(

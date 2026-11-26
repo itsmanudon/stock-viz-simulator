@@ -1641,6 +1641,14 @@ resting orders").
   `interval`, `profile_name`; availability `intervals`, `minute_feed`,
   `minute_first`, `minute_last`. Advance (replay and drills) is limited per
   user (`throttle.ADVANCE_THROTTLE`, 429), off when the limiter is off.
+- **Short brackets (27 Nov 2026).** `ReplayOrderIn.direction` `long|short`;
+  short (US-listed only, `ledger.require_shortable`) sells short and its
+  children are buys (stop above, target below). `evaluate_oco_exit` mirrors
+  for buy legs; `evaluate_order(..., covers=)` keeps stop/take-profit
+  sell-only elsewhere. A short is a negative `ReplayPosition.quantity`
+  (`apply_replay_fill(open_short=)`, `SimLedger.apply_short`); forensics
+  episodes and replay journal entries carry `side`. Rules in
+  `docs/SIMULATION.md` ("Short brackets").
 - Tests: `test_a69_intrabar_kernel.py`, `test_replay_a69.py`,
   `test_a69_replay_migration.py` (PostgreSQL), `test_kernel_three_way.py`
   (`intrabar_ohlc` column and the bracket exit).

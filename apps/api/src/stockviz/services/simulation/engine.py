@@ -70,6 +70,8 @@ def evaluate_order(
     market: MarketSnapshot,
     profile: ExecutionProfile,
     costs: CostModel = NO_COSTS,
+    *,
+    covers: bool = False,
 ) -> FillDecision:
     """Decide whether ``order`` fills against ``market`` under ``profile``."""
 
@@ -99,6 +101,7 @@ def evaluate_order(
             SimulationOrderType.TAKE_PROFIT,
         )
         and order.side is not OrderSide.SELL
+        and not covers
     ):
         label = "Stop-loss" if order.order_type is SimulationOrderType.STOP_LOSS else "Take-profit"
         return _ineligible(
@@ -222,6 +225,20 @@ def _range_touch(order: OrderIntent, market: MarketSnapshot) -> tuple[Decimal, s
         if market.low <= level:
             return level, "Buy limit touched by the bar's low: fills at the limit"
         return None
+    if kind is SimulationOrderType.STOP_LOSS and order.side is OrderSide.BUY:
+        # A short's cover stop, above the market.
+        if market.open >= level:
+            return market.open, "Gap through buy stop: fills at the bar's open"
+        if market.high >= level:
+            return level, "Buy stop touched by the bar's high: fills at the stop"
+        return None
+    if kind is SimulationOrderType.TAKE_PROFIT and order.side is OrderSide.BUY:
+        # A short's cover target, below the market.
+        if market.open <= level:
+            return market.open, "Target: the bar opened at or below it, fills at the open"
+        if market.low <= level:
+            return level, "Target touched by the bar's low: fills at the level"
+        return None
     if kind is SimulationOrderType.STOP_LOSS:
         if market.open <= level:
             return market.open, "Gap through sell stop: fills at the bar's open"
@@ -281,8 +298,10 @@ def evaluate_oco_exit(
     path: Sequence[MarketSnapshot] | None = None,
     costs: CostModel = NO_COSTS,
 ) -> OcoDecision:
-    """A long bracket's sell ``stop`` and sell ``target`` (take-profit), one
-    cancels the other, judged on ``market`` (A6.9, M9.4).
+    """A bracket's ``stop`` and ``target`` (take-profit), one cancels the
+    other, judged on ``market`` (A6.9, M9.4). A long bracket's legs are
+    sells (stop below, target above); a short bracket's (27 Nov 2026) are
+    buys that cover (stop above, target below), the same rules mirrored.
 
     ``legacy_close``: each on the close (they cannot both trigger when the
     stop is below the target). ``intrabar_ohlc``: on the range, the open
@@ -312,10 +331,11 @@ def evaluate_oco_exit(
             _ineligible(stop, profile, reason="A bracket exit is a stop-loss and a take-profit"),
             "bar",
         )
+    covers = stop.side is OrderSide.BUY
     if profile is LEGACY_CLOSE:
         legs: tuple[tuple[OcoLeg, OrderIntent], ...] = (("stop", stop), ("target", target))
         for leg, order in legs:
-            decision = evaluate_order(order, market, profile, costs)
+            decision = evaluate_order(order, market, profile, costs, covers=covers)
             if decision.status is not FillStatus.NOT_TRIGGERED:
                 return OcoDecision(leg if decision.status is FillStatus.FILLED else None,
                                    decision, "bar")  # fmt: skip
@@ -323,7 +343,7 @@ def evaluate_oco_exit(
 
     # intrabar_ohlc: validity first (ticker, clock, sell-only), as evaluate_order.
     for order in (stop, target):
-        checked = evaluate_order(order, market, profile, costs)
+        checked = evaluate_order(order, market, profile, costs, covers=covers)
         if checked.status is FillStatus.INELIGIBLE:
             return OcoDecision(None, checked, "bar")
     leg, touch, both = _oco_touch(stop, target, market)
@@ -386,9 +406,18 @@ def _oco_touch(
     """(leg, touch, both inside) for one bar or minute. An open through a
     level decides at once (the open comes first)."""
     assert stop.limit_price is not None and target.limit_price is not None
-    if market.open <= stop.limit_price:
+    if stop.side is OrderSide.BUY:  # a short bracket: stop above, target below
+        if market.open >= stop.limit_price:
+            return "stop", (market.open, "Gap through buy stop: fills at the bar's open"), False
+        if market.open <= target.limit_price:
+            return (
+                "target",
+                (market.open, "Target: the bar opened at or below it, fills at the open"),
+                False,
+            )
+    elif market.open <= stop.limit_price:
         return "stop", (market.open, "Gap through sell stop: fills at the bar's open"), False
-    if market.open >= target.limit_price:
+    elif market.open >= target.limit_price:
         return (
             "target",
             (market.open, "Target: the bar opened at or above it, fills at the open"),
@@ -424,10 +453,11 @@ def _legacy_should_fill(order: OrderIntent, close: Decimal) -> bool:
             if order.side is OrderSide.BUY
             else close >= order.limit_price
         )
+    buy = order.side is OrderSide.BUY  # a short's cover (A6, 27 Nov 2026)
     if order.order_type is SimulationOrderType.STOP_LOSS:
-        return close <= order.limit_price
+        return close >= order.limit_price if buy else close <= order.limit_price
     if order.order_type is SimulationOrderType.TAKE_PROFIT:
-        return close >= order.limit_price
+        return close <= order.limit_price if buy else close >= order.limit_price
     return False
 
 
@@ -521,10 +551,13 @@ def _filled_reason(order: OrderIntent) -> str:
         if order.side is OrderSide.BUY:
             return "Limit buy triggers when close <= limit; fills at close"
         return "Limit sell triggers when close >= limit; fills at close"
+    buy = order.side is OrderSide.BUY
     if order.order_type is SimulationOrderType.STOP_LOSS:
-        return "Stop-loss triggers when close <= trigger; fills at close"
+        op = ">=" if buy else "<="
+        return f"Stop-loss triggers when close {op} trigger; fills at close"
     if order.order_type is SimulationOrderType.TAKE_PROFIT:
-        return "Take-profit triggers when close >= target; fills at close"
+        op = "<=" if buy else ">="
+        return f"Take-profit triggers when close {op} target; fills at close"
     return "Order fills at observable daily close"
 
 
@@ -533,8 +566,9 @@ def _not_triggered_reason(order: OrderIntent) -> str:
         if order.side is OrderSide.BUY:
             return "Limit buy does not trigger when close > limit"
         return "Limit sell does not trigger when close < limit"
+    buy = order.side is OrderSide.BUY
     if order.order_type is SimulationOrderType.STOP_LOSS:
-        return "Stop-loss does not trigger when close > trigger"
+        return f"Stop-loss does not trigger when close {'<' if buy else '>'} trigger"
     if order.order_type is SimulationOrderType.TAKE_PROFIT:
-        return "Take-profit does not trigger when close < target"
+        return f"Take-profit does not trigger when close {'>' if buy else '<'} target"
     return "Order did not trigger against observable daily close"

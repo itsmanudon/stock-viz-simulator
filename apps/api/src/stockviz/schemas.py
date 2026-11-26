@@ -759,7 +759,9 @@ class ReplayOrderIn(BaseModel):
 
     A6.9: ``bracket`` is a long entry (``entry_type`` market, or limit at
     ``limit_price``) with a sell ``stop_price`` below it and a sell
-    ``target_price`` above it, one cancels the other. ``side`` must be buy."""
+    ``target_price`` above it, one cancels the other. ``side`` must be buy.
+    Owner, 27 Nov 2026: ``direction: short`` (US-listed only) makes it a short
+    sale with a buy stop above and a buy target below; ``side`` is then sell."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -770,6 +772,7 @@ class ReplayOrderIn(BaseModel):
     entry_type: Literal["market", "limit"] = "market"
     stop_price: Decimal | None = None
     target_price: Decimal | None = None
+    direction: Literal["long", "short"] = "long"
 
 
 class ReplayPositionOut(BaseModel):
@@ -995,7 +998,7 @@ class ReplayEpisodeFillOut(BaseModel):
 
 
 class ReplayEpisodeForensicsOut(BaseModel):
-    """One reconstructed long-only exposure episode."""
+    """One reconstructed exposure episode, long or (27 Nov 2026) short."""
 
     index: int
     ticker: str
@@ -1025,6 +1028,8 @@ class ReplayEpisodeForensicsOut(BaseModel):
     fills: list[ReplayEpisodeFillOut] = []
     # A4.6: the episode's fees; ``realized_pnl`` is net of them.
     fees: Decimal = Decimal(0)
+    # 27 Nov 2026: ``short`` when a short sale opened it (US replay sessions).
+    side: Literal["long", "short"] = "long"
 
 
 class ReplayForensicsOut(BaseModel):

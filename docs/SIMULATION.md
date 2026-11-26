@@ -633,6 +633,40 @@ user in the API process (`services/replay/throttle.py`: 15 a second, 429
 with `Retry-After`; off when `RATELIMIT_ENABLED=0`), for replay and drill
 advances alike, because the web server's calls are exempt from slowapi.
 
+### Short brackets (27 Nov 2026)
+
+The owner allowed short trades in replay brackets. Rules:
+
+- **Who:** US-listed sessions only (USD and the New York venue), like the DSL
+  backtester's shorts. NSE/BSE delivery cannot be held short overnight, so
+  Indian sessions refuse with a reason.
+- **What:** `POST .../orders` with `order_type: bracket`, `direction: short`
+  and `side: sell`. The entry sells short (at the current close, or a resting
+  sell limit); the stop sits above the entry and the target below, and both
+  are buys that cover. One cancels the other, as for a long bracket.
+- **Kernel:** `evaluate_oco_exit` mirrors the long rules when its legs are
+  buys: a buy stop gaps at the open when the bar opens at or above it, else
+  fills at the stop when the high reaches it; a buy target fills at the open
+  when the bar opens at or below it, else at the target when the low reaches
+  it. Both inside one bar: the stored minutes decide, else the stop first,
+  labelled. `legacy_close` triggers on the close (stop `close >= stop`,
+  target `close <= target`). Outside a bracket, stop-loss and take-profit
+  orders stay sell-only (`evaluate_order(..., covers=False)`), so live paper
+  is unchanged.
+- **Ledger:** a short is a negative `replay_positions.quantity` through
+  `SimLedger.apply_short`: the sale credits cash, a cover debits it and
+  realises `(average short - cover) x quantity`, and a cover is never refused
+  for cash. Only a short bracket opens one; a buy while short covers it, and
+  a plain sell while short is refused. Equity is cash plus quantity x close
+  (negative for a short).
+- **Read back:** forensics episodes carry `side`; a short's return is on the
+  short sale's notional, MAE is the average short minus the highest high,
+  MFE the average short minus the lowest low, and its excess return adds the
+  price move back. Journal entries for replay group shorts as imported books
+  do (`side: short`).
+- **Not done:** short chart trade plans. Paper books cannot sell short, so a
+  short paper plan could never fill.
+
 ## Future execution profiles (not implemented)
 
 These names are reserved for later SIM work. They are **not** implemented

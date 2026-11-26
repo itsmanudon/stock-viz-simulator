@@ -15,7 +15,12 @@ from decimal import Decimal
 from sqlmodel import Session, select
 
 from stockviz.models import ReplayFill, ReplayPosition, ReplaySession
-from stockviz.services.replay.errors import ReplayInsufficientCash, ReplayInsufficientPosition
+from stockviz.services.markets.calendar import NEW_YORK_VENUE, venue_for_ticker
+from stockviz.services.replay.errors import (
+    ReplayInsufficientCash,
+    ReplayInsufficientPosition,
+    ReplayOrderError,
+)
 from stockviz.services.simulation import (
     FeeBreakdown,
     FillDecision,
@@ -28,6 +33,16 @@ from stockviz.services.simulation import (
 )
 
 MICROS = Decimal("0.000001")
+
+
+def require_shortable(replay: ReplaySession) -> None:
+    """Shorts are US-listed only (as the DSL backtester's): NSE/BSE delivery
+    cannot be held short overnight (owner, 27 Nov 2026)."""
+    if replay.currency != "USD" or venue_for_ticker(replay.ticker) != NEW_YORK_VENUE:
+        raise ReplayOrderError(
+            f"{replay.ticker} is not US-listed: replay shorts are US only "
+            "(Indian shorts wait for the F&O-eligible list)"
+        )
 
 
 def get_replay_position(session: Session, *, session_id: int, ticker: str) -> ReplayPosition | None:
@@ -54,6 +69,7 @@ def apply_replay_fill(
     evaluated_at_naive: datetime,
     fees: FeeBreakdown | None = None,
     order_id: int | None = None,
+    open_short: bool = False,
 ) -> ReplayFill:
     """Debit/credit isolated cash and stage a ``ReplayFill``. Does not commit.
 
@@ -71,16 +87,34 @@ def apply_replay_fill(
     session_id = replay.id
     position = get_replay_position(db, session_id=session_id, ticker=ticker)
 
+    held_now = position.quantity if position is not None else Decimal(0)
+    # A short is a negative position (owner, 27 Nov 2026). It opens only when
+    # asked (``open_short``); a buy while short covers it.
+    shorting = held_now < 0 or (open_short and side is OrderSide.SELL)
+    if open_short and held_now > 0:
+        raise ReplayOrderError("Sell the long position before selling short")
+    if open_short and side is not OrderSide.SELL:
+        raise ReplayOrderError("A short sale is a sell")
+    if shorting and held_now < 0 and side is OrderSide.SELL and not open_short:
+        raise ReplayOrderError("Already short: add to it with a short sale, or cover with a buy")
+    if shorting and side is OrderSide.SELL:
+        require_shortable(replay)
+
     ledger = SimLedger(cash=replay.cash_balance)
-    if position is not None:
+    if position is not None and held_now > 0:
         ledger.positions[ticker] = SimPosition(position.quantity, position.avg_cost)
+    if position is not None and held_now < 0:
+        ledger.shorts[ticker] = SimPosition(-position.quantity, position.avg_cost)
     fee_total = fees.total if fees is not None else Decimal(0)
     if side is OrderSide.SELL and fee_total > (price * quantity).quantize(MICROS):
         raise ReplayInsufficientCash(
             f"Fees of {fee_total:.2f} {replay.currency} exceed the sale's value."
         )
     try:
-        fill = ledger.apply(side, ticker, quantity, price, fees=fee_total)
+        if shorting:
+            fill = ledger.apply_short(side, ticker, quantity, price, fees=fee_total)
+        else:
+            fill = ledger.apply(side, ticker, quantity, price, fees=fee_total)
     except SimInsufficientCash as exc:
         needed = (price * quantity).quantize(MICROS) + fee_total
         raise ReplayInsufficientCash(
@@ -88,14 +122,20 @@ def apply_replay_fill(
             f"{needed:.2f} {replay.currency} including fees."
         ) from exc
     except SimInsufficientPosition as exc:
-        held = position.quantity if position is not None else Decimal(0)
+        if shorting:
+            raise ReplayInsufficientPosition(
+                f"Replay short {-held_now} {ticker}; a cover of {quantity} is more than that."
+            ) from exc
         raise ReplayInsufficientPosition(
-            f"Replay position {held} {ticker}; order requires {quantity}."
+            f"Replay position {held_now} {ticker}; order requires {quantity}."
         ) from exc
 
     realized_pnl = fill.realized_pnl
     replay.cash_balance = ledger.cash
     after = ledger.positions.get(ticker)
+    short_after = ledger.shorts.get(ticker)
+    if short_after is not None:
+        after = SimPosition(-short_after.quantity, short_after.avg_cost)
     if after is None:
         if position is not None:
             db.delete(position)

@@ -131,6 +131,7 @@ describe("Replay Lab presentation", () => {
         {
           index: 1,
           ticker: "AAPL",
+          side: "long",
           opened_at: "2020-01-04T00:00:00Z",
           closed_at: null,
           status: "open",
