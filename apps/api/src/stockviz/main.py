@@ -19,6 +19,7 @@ from stockviz.routers import (
     backtest,
     bars,
     books,
+    brokers,
     checklist,
     column_sets,
     drawings,
@@ -182,6 +183,7 @@ def create_app() -> FastAPI:
     app.include_router(research.router)
     app.include_router(fees.router)
     app.include_router(status.router)
+    app.include_router(brokers.router)
     app.include_router(plans.router)
 
     return app

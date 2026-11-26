@@ -74,17 +74,22 @@ def health(session: SessionDep, response: Response) -> HealthResponse:
 def _add_nightly_state(session: Session, out: HealthResponse) -> None:
     """Fill the OP-5 fields. Any failure leaves them empty, never fails /health."""
     from stockviz.models import JobRun, PriceBar
+    from stockviz.services.brokers import KITE_SNAPSHOT_JOB
 
+    # A5.7: a by-hand Kite snapshot is not a nightly job; /v1/broker/status
+    # reports it.
+    nightly = JobRun.job != KITE_SNAPSHOT_JOB
     try:
         newest = session.exec(
             select(func.max(PriceBar.ts)).where(PriceBar.interval == "1d")  # type: ignore[call-overload]
         ).one()
         out.newest_bar = newest.date() if newest is not None else None
         out.last_job_success_at = session.exec(
-            select(func.max(JobRun.finished_at)).where(JobRun.status == "succeeded")  # type: ignore[call-overload]
+            select(func.max(JobRun.finished_at)).where(JobRun.status == "succeeded", nightly)  # type: ignore[call-overload]
         ).one()
         latest_per_job = (
             select(JobRun.job, func.max(JobRun.id).label("latest_id"))
+            .where(nightly)
             .group_by(JobRun.job)  # type: ignore[arg-type]
             .subquery()
         )

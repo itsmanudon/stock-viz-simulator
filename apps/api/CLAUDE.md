@@ -51,7 +51,8 @@ src/stockviz/
                     (A2.2), notification_channels (A2.3), drawings
                     (A3.2), avwap (A3.3), events, strength (RS
                     percentile, delivery) and regime (A3.5), drills
-                    (A4.7), books (A5.1), plans (A5.4), health
+                    (A4.7), books (A5.1), plans (A5.4), brokers (A5.7: broker
+                    status), health
                     (`GET /live` liveness, `GET /health` readiness + DB)
   services/
     ingest/         External-API fetchers (yfinance primary, Alpha Vantage fallback);
@@ -2294,6 +2295,49 @@ overlap and the largest close difference against stored bars. Applying also
 records the `kite` identifier (instrument token). TrueData has no adapter
 until its trial. Check a provider's redistribution terms before its bars are
 shown publicly.
+
+**Broker status and graceful degradation (A5.7, M1.7).** No live broker
+connection exists. `GET /v1/broker/status` (`routers/brokers.py`, authed;
+`services/brokers/`) -> `{brokers: [{broker: "zerodha", label, provider:
+"kite", configured, state, live_data: false, imported_books,
+last_imported_at, last_snapshot_at, last_failure_at}], offline_window_hours,
+checked_at}`. `configured` = `KITE_API_KEY` and `KITE_API_SECRET` both set
+(never returned). `state`: `not_configured` (blank keys), `offline` (the
+newest `kite-snapshot` run failed within `OFFLINE_WINDOW`, 3 days),
+`snapshot_only` (a snapshot has succeeded), else `not_connected`.
+`imported_books` counts the caller's active imported Zerodha books;
+`last_imported_at` stays null until A5.3's tradebook import. Provider
+health reuses `job_runs`: once `ingest-history --provider kite` reaches Kite
+(keys and a request token set) it writes one `kite-snapshot` row through
+`record_provider_run`: `failed` on a Kite login error or any `KiteError` /
+`httpx.HTTPError` while fetching (a ticker Kite does not list is not one),
+else `succeeded`. The row keeps a fixed summary ("Kite login failed",
+"Kite error on N ticker(s)"), never the token, key or Kite's message.
+`/v1/status` and `/health` leave `kite-snapshot` out (it is not a nightly
+job). The web shows the state on Settings, `/status` (Brokers) and
+imported books. Tests: `tests/test_broker_status.py`.
+
+**Owner note: adding the daily Kite login later (future plan, not built;
+deferred to A6, A5 design note question 8).** What it would take:
+
+- **A paid Kite Connect app.** Kite Connect is ₹500 a month per app
+  (Zerodha support page cited in `docs/a5-design-note.md`, read 26 Nov
+  2026); the free Personal app logs in but carries no historical or live
+  data. That is an ongoing subscription, which the owner does not want
+  today.
+- **A registered redirect URL** on the app, pointing at a new API callback
+  route (for example `/v1/broker/kite/callback`) that receives Zerodha's
+  `request_token`, checks a signed `state` tying it to the signed-in user,
+  and swaps it for the day's access token with `open_session` (the app
+  secret stays server-side).
+- **Encrypted token storage:** a per-user table holding the access token
+  encrypted at rest under a server key kept out of the database and the
+  repo (no such key exists yet), never logged, never returned, deleted on
+  sign-out of the broker.
+- **Daily expiry:** Kite tokens expire every morning (around 06:00 IST); the
+  login stays manual every day (an exchange rule: never automate it). The
+  status would then add a `connected` state until expiry, and a reminder
+  (Telegram) would prompt the next login.
 
 ## Ingestion contract
 
