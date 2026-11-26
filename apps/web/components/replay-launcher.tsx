@@ -58,7 +58,7 @@ export function ReplayLauncher({
   const [range, setRange] = useState<Range | null>(null);
   const [rangeError, setRangeError] = useState<string | null>(null);
   const [interval, setBarInterval] = useState<ReplayIntervalValue>("1d");
-  const [profile, setProfile] = useState<ReplayProfileValue>("legacy_close");
+  const [profile, setProfile] = useState<ReplayProfileValue>("intrabar_ohlc");
   const [state, action, pending] = useActionState<ReplayActionState, FormData>(
     createReplayAction,
     {},

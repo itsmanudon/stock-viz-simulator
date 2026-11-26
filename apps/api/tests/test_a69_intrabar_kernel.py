@@ -67,7 +67,8 @@ def test_registry_shares_profiles_and_live_stays_legacy() -> None:
     assert get_execution_profile("intrabar_ohlc", "v1") is INTRABAR_OHLC
     assert ("intrabar_ohlc", "v1") in REPLAY_PROFILES
     assert ("intrabar_ohlc", "v1") in BACKTEST_PROFILES
-    assert replay_profile(None) is LEGACY_CLOSE
+    assert replay_profile(None) is INTRABAR_OHLC  # the replay default since 27 Nov 2026
+    assert replay_profile("legacy_close") is LEGACY_CLOSE
     assert replay_profile("intrabar_ohlc") is INTRABAR_OHLC
     with pytest.raises(UnknownExecutionProfileError):
         replay_profile("next_open")  # backtest-only

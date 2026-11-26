@@ -263,10 +263,10 @@ def test_bracket_validation(session: Session, client: TestClient, extra, message
 
 
 def test_legacy_close_bracket_on_closes(session: Session, client: TestClient) -> None:
-    """Under the default profile the children trigger on the close only."""
+    """Under legacy_close the children trigger on the close only."""
     _daily(session, {D1: FLAT, D2: ("100", "106", "94", "100"), D3: ("100", "106", "100", "106")})
     headers = _headers(_user(session))
-    sid = _create(client, headers, profile=None)["id"]
+    sid = _create(client, headers, profile="legacy_close")["id"]
     body = _bracket(client, headers, sid).json()
     day2 = _advance(client, headers, sid, body["session"]["current_at"]).json()
     assert {o["status"] for o in _orders(client, headers, sid).values()} == {"filled", "open"}
@@ -282,7 +282,12 @@ def test_daily_session_default_is_unchanged(session: Session, client: TestClient
     body = client.post(
         "/v1/replay/sessions",
         headers=headers,
-        json={"ticker": "AAPL", "start_at": D1.isoformat(), "end_at": D3.isoformat()},
+        json={
+            "ticker": "AAPL",
+            "start_at": D1.isoformat(),
+            "end_at": D3.isoformat(),
+            "profile": "legacy_close",
+        },
     ).json()
     assert (body["profile_name"], body["model_version"], body["interval"]) == (
         "legacy_close",
@@ -514,3 +519,11 @@ def test_session_out_names_the_profile(session: Session, client: TestClient) -> 
     assert any("open comes first" in a for a in body["profile_assumptions"])
     stored = session.get(ReplaySession, body["id"])
     assert stored is not None and stored.profile_name == "intrabar_ohlc"
+
+
+def test_new_sessions_default_to_intrabar_ohlc(session: Session, client: TestClient) -> None:
+    """Owner, 27 Nov 2026: a session opened without a profile uses intrabar_ohlc."""
+    _daily(session, {D1: FLAT, D2: FLAT})
+    headers = _headers(_user(session))
+    created = _create(client, headers, profile=None)
+    assert created["profile_name"] == "intrabar_ohlc"

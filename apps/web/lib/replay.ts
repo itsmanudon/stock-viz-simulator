@@ -3,20 +3,21 @@ import type { Bar } from "@/lib/api/types";
 
 export const REPLAY_PROFILE_LABEL = "legacy_close v1";
 
-/** A6.9: the replay profiles (the API's `REPLAY_PROFILES`), default first. */
+/** A6.9: the replay profiles (the API's `REPLAY_PROFILES`), default first
+ * (`intrabar_ohlc` since 27 Nov 2026). */
 export const REPLAY_PROFILES = [
-  {
-    value: "legacy_close",
-    version: "v1",
-    label: "Close only",
-    description: "Resting orders trigger on each later close and fill at it.",
-  },
   {
     value: "intrabar_ohlc",
     version: "v1",
     label: "Bar range",
     description:
       "Resting orders are judged on each bar's open, high and low, the open first. A stop and a target inside one bar: the stored minutes decide, else the stop fills first.",
+  },
+  {
+    value: "legacy_close",
+    version: "v1",
+    label: "Close only",
+    description: "Resting orders trigger on each later close and fill at it.",
   },
 ] as const;
 

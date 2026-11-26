@@ -18,9 +18,11 @@ import { expect, test } from "@playwright/test";
 
 test.describe.configure({ retries: 0 });
 
-// Signup is capped at 5 per client IP an hour (`app/(public)/(auth)/actions.ts`,
-// keyed on x-forwarded-for), and the other specs use those slots. This file's
-// two signups come from their own client address so they take none of them.
+// Signup is capped at 5 per client address an hour (`app/(public)/(auth)/actions.ts`),
+// and the other specs use those slots. The address is the hop our proxy adds to
+// x-forwarded-for (`lib/client-address.ts`); with no proxy in front of the test
+// server, this header stands in for the proxy, so the file's two signups come
+// from their own address. A value a client adds ahead of the proxy's is ignored.
 test.use({ extraHTTPHeaders: { "x-forwarded-for": "10.61.1.1" } });
 
 async function signUp(page: Page, label: string): Promise<void> {

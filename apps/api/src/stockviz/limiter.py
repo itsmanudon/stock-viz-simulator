@@ -11,9 +11,11 @@ after construction so the documented switch actually works.
 **Keying.** ``get_remote_address`` reads ``request.client.host``, which behind
 Render's load balancer is the proxy for every request — one global bucket for
 all users. ``client_key`` prefers the authenticated user id (from the bridge
-JWT), then the left-most ``X-Forwarded-For`` hop, then the socket address.
-Uvicorn must run with ``--proxy-headers`` for the forwarded chain to be
-trusted; the Dockerfile sets that.
+JWT), then the ``X-Forwarded-For`` hop our own proxy added, then the socket
+address. The left-most entry is whatever the client sent, so it is never
+used: the address is taken ``TRUSTED_PROXY_HOPS`` entries from the right
+(default 1, Railway's edge; 0 ignores the header). The web server reads the
+header the same way (``apps/web/lib/client-address.ts``).
 
 **The web server is exempt (audit RS-6, option 1).** On Railway the web
 server reaches the API over the private network with no forwarded address,
@@ -79,13 +81,36 @@ def client_key(request: Request) -> str:
     if user is not None:
         return user
 
-    forwarded = request.headers.get("x-forwarded-for")
+    forwarded = forwarded_client(request.headers.get("x-forwarded-for"))
     if forwarded:
-        # Left-most entry is the original client; the rest are proxy hops.
-        first = forwarded.split(",")[0].strip()
-        if first:
-            return f"ip:{first}"
+        return f"ip:{forwarded}"
     return f"ip:{get_remote_address(request)}"
+
+
+def trusted_proxy_hops(raw: str | None = None) -> int:
+    """``TRUSTED_PROXY_HOPS``: how many proxies of ours append to the chain."""
+    value = os.getenv("TRUSTED_PROXY_HOPS") if raw is None else raw
+    try:
+        hops = int((value or "").strip())
+    except ValueError:
+        return 1
+    return hops if hops >= 0 else 1
+
+
+def forwarded_client(header: str | None, hops: int | None = None) -> str | None:
+    """The chain entry our nearest trusted proxy added, or None.
+
+    Each proxy appends the address it received the request from, so the
+    client-chosen values sit on the left. Counting ``hops`` from the right
+    lands on the address our outermost proxy saw.
+    """
+    hops = trusted_proxy_hops() if hops is None else hops
+    if hops <= 0 or not header:
+        return None
+    chain = [part.strip() for part in header.split(",") if part.strip()]
+    if not chain:
+        return None
+    return chain[max(len(chain) - hops, 0)]
 
 
 WEB_SERVER_HEADER = "x-stockviz-web"

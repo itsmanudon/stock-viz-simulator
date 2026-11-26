@@ -58,6 +58,60 @@ export function studyAlertFields(
   };
 }
 
+/** A6.4 timeframes a rule alert can be judged on; null for daily and longer. */
+export type IntradayTimeframe = "1m" | "5m" | "15m" | "30m" | "60m";
+const INTRADAY: ReadonlySet<string> = new Set(["1m", "5m", "15m", "30m", "60m"]);
+
+/**
+ * Owner, 27 Nov 2026: an alert made from an intraday chart is an intraday
+ * rule alert on the chart's interval (judged per closed bar by the stream
+ * worker), not a daily one.
+ */
+export function intradayTimeframe(interval: string): IntradayTimeframe | null {
+  return INTRADAY.has(interval) ? (interval as IntradayTimeframe) : null;
+}
+
+export type ChartRule = { rule: string; name: string; words: string };
+
+/** The close crossing a price, as a Rule DSL rule (the intraday price alert). */
+export function priceRule(ticker: string, price: number, lastClose: number): ChartRule {
+  const level = roundPrice(price);
+  const up = price >= lastClose;
+  return {
+    rule: `close ${up ? "crosses_above" : "crosses_below"} ${level}`,
+    name: `${ticker} ${up ? "above" : "below"} ${level}`,
+    words: `closes ${up ? "above" : "below"} ${level}`,
+  };
+}
+
+/**
+ * The close crossing a study line, as a Rule DSL rule. The overlay key is the
+ * registry key and its parameters (`sma_50`, `bb_20_2.upper`), which is how
+ * the DSL calls the same study (`sma(50)`, `bb(20, 2).upper`). A key the DSL
+ * cannot read is refused when the setup is saved, and that error is shown.
+ */
+export function studyRule(
+  ticker: string,
+  studyKey: string,
+  studyValue: number,
+  lastClose: number,
+): ChartRule | null {
+  const [base, output] = studyKey.split(".", 2);
+  const [name, ...params] = (base ?? "").split("_");
+  if (!name || !/^[a-z][a-z0-9]*$/.test(name) || params.some((p) => !/^\d+(\.\d+)?$/.test(p))) {
+    return null;
+  }
+  // The DSL's sma/ema are primitives over a series: `sma(close, 50)`.
+  const args = name === "sma" || name === "ema" ? ["close", ...params] : params;
+  const call = `${name}(${args.join(", ")})${output ? `.${output}` : ""}`;
+  const up = lastClose <= studyValue;
+  return {
+    rule: `close ${up ? "crosses_above" : "crosses_below"} ${call}`,
+    name: `${ticker} close ${up ? "above" : "below"} ${call}`,
+    words: `closes ${up ? "above" : "below"} ${call}`,
+  };
+}
+
 export function ruleAlertFields(ticker: string, setupVersionId: number): AlertFields {
   return { kind: "rule", ticker, setup_version_id: String(setupVersionId), repeat: "once" };
 }

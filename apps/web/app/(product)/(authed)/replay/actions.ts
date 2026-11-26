@@ -78,7 +78,7 @@ const CreateSchema = z.object({
     .min(1, "Starting cash is required")
     .refine((value) => Number(value) > 0, "Starting cash must be greater than 0"),
   interval: z.enum(["1d", "1m", "5m", "15m", "60m"]).default("1d"),
-  profile: z.enum(["legacy_close", "intrabar_ohlc"]).default("legacy_close"),
+  profile: z.enum(["legacy_close", "intrabar_ohlc"]).default("intrabar_ohlc"),
 });
 
 export async function createReplayAction(

@@ -39,15 +39,19 @@ import { PlanLinesController } from "@/components/plan-lines";
 import type { PriceChartHandle } from "@/components/price-chart";
 import { previewRule } from "@/lib/alert-rules";
 import {
+  type IntradayTimeframe,
   atrAt,
   drawingLevels,
   drawingRule,
+  intradayTimeframe,
   judgedNote,
   nearestStudy,
   planPrefill,
   priceAlertFields,
+  priceRule,
   ruleAlertFields,
   studyAlertFields,
+  studyRule,
   toFormData,
 } from "@/lib/chart-menu";
 import { useChartPalette } from "@/lib/chart-theme";
@@ -398,9 +402,30 @@ export function ChartWithTools({ isIndex = false, ...workbench }: Props) {
     setMessage(result.error ? result.error : `Alert set. ${words}`);
   }, []);
 
+  /** Saves `rule` as a setup on `timeframe`, then a rule alert on it. */
+  const createRuleAlert = useCallback(
+    (
+      rule: { rule: string; name: string },
+      timeframe: IntradayTimeframe | undefined,
+      words: string,
+    ) => {
+      void chartRuleSetupAction(rule.name, rule.rule, timeframe).then((setup) => {
+        if (!setup.versionId) {
+          setMessage(setup.error ?? "The rule could not be saved.");
+          return;
+        }
+        void createAlert(ruleAlertFields(ticker, setup.versionId), words);
+      });
+    },
+    [ticker, createAlert],
+  );
+
   const items = useMemo<ChartMenuItem[]>(() => {
     if (!menu) return [];
     const handle = handleRef.current;
+    // Owner, 27 Nov 2026: alerts from an intraday chart are intraday rules.
+    const tf = intradayTimeframe(interval) ?? undefined;
+    const tfWords = tf ? `, judged on each closed ${tf} bar` : "";
     const price = Number(roundPrice(menu.price));
     const priceFields = priceAlertFields(ticker, menu.price, lastClose);
     const priceWords = previewRule({
@@ -422,9 +447,15 @@ export function ChartWithTools({ isIndex = false, ...workbench }: Props) {
       {
         id: "price",
         label: "Alert When Price Crosses Here",
-        detail: priceWords,
+        detail: tf
+          ? `When ${ticker} ${priceRule(ticker, menu.price, lastClose).words}, once${tfWords}.`
+          : priceWords,
         disabled: null,
-        onSelect: () => void createAlert(priceFields, priceWords),
+        onSelect: () => {
+          if (!tf) return void createAlert(priceFields, priceWords);
+          const r = priceRule(ticker, menu.price, lastClose);
+          createRuleAlert(r, tf, `When ${ticker} ${r.words}, once${tfWords}.`);
+        },
       },
       {
         id: "drawing",
@@ -438,16 +469,13 @@ export function ChartWithTools({ isIndex = false, ...workbench }: Props) {
             : null,
         onSelect: () => {
           if (!rule || !("rule" in rule)) return;
-          void chartRuleSetupAction(rule.name, rule.rule).then((setup) => {
-            if (!setup.versionId) {
-              setMessage(setup.error ?? "The rule could not be saved.");
-              return;
-            }
-            void createAlert(
-              ruleAlertFields(ticker, setup.versionId),
-              `When ${ticker} ${rule.words}, once (saved as the setup "${rule.name}").`,
-            );
-          });
+          // Drawings are read on daily bars only (the DSL's rule), so this
+          // stays a daily rule on an intraday chart too.
+          createRuleAlert(
+            rule,
+            undefined,
+            `When ${ticker} ${rule.words}, once (saved as the setup "${rule.name}"${tf ? ", judged on daily bars" : ""}).`,
+          );
         },
       },
       {
@@ -465,7 +493,12 @@ export function ChartWithTools({ isIndex = false, ...workbench }: Props) {
           : "",
         disabled: study ? null : "Right-click on a study line on the price pane to alert on it.",
         onSelect: () => {
-          if (!studyFields) return;
+          if (!studyFields || !study) return;
+          const r = tf ? studyRule(ticker, study.key, study.value, lastClose) : null;
+          if (tf && r) {
+            createRuleAlert(r, tf, `When ${ticker} ${r.words}, once${tfWords}.`);
+            return;
+          }
           void createAlert(
             studyFields,
             `When ${ticker} closes ${studyFields.op} ${studyFields.compare_to}, judged on daily bars.`,
@@ -487,7 +520,7 @@ export function ChartWithTools({ isIndex = false, ...workbench }: Props) {
         },
       },
     ];
-  }, [menu, ticker, lastClose, bars, overlays, createAlert]);
+  }, [menu, ticker, lastClose, bars, overlays, createAlert, createRuleAlert, interval]);
 
   const savePlan = useCallback(
     async (values: PlanEditorValues): Promise<string | null> => {

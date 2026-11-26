@@ -745,8 +745,8 @@ class ReplaySessionCreateIn(BaseModel):
     end_at: datetime | None = None
     starting_cash: Decimal | None = None
     # A6.9: the bars (1d, or 1m/5m/15m/60m from stored minutes; an intraday
-    # session needs end_at) and the replay profile (legacy_close, the default,
-    # or intrabar_ohlc).
+    # session needs end_at) and the replay profile (intrabar_ohlc, the default,
+    # or legacy_close).
     interval: Literal["1d", "1m", "5m", "15m", "60m"] = "1d"
     profile: Literal["legacy_close", "intrabar_ohlc"] | None = None
 

@@ -9,6 +9,7 @@ const requestHeaders = new Headers();
 vi.mock("next/headers", () => ({ headers: async () => requestHeaders }));
 
 import { apiGet } from "@/lib/api/client";
+import { clientAddress, trustedProxyHops } from "@/lib/client-address";
 import { clearAll } from "@/lib/rate-limit";
 import { VISITOR_LIMITS, checkVisitorLimit, visitorAddress } from "@/lib/visitor-limit";
 import { WEB_SERVER_KEY_SLOT, registerWebServerKey, webServerKey } from "@/lib/web-server-key";
@@ -52,15 +53,36 @@ describe("web server key", () => {
 });
 
 describe("visitorAddress", () => {
-  it("takes the left-most forwarded address", () => {
-    expect(visitorAddress(new Headers({ "x-forwarded-for": "203.0.113.5, 10.0.0.1" }))).toBe(
-      "203.0.113.5",
+  it("takes the hop our proxy added, not the client-chosen left-most entry", () => {
+    // A client sends "203.0.113.5"; the proxy appends the address it saw.
+    expect(visitorAddress(new Headers({ "x-forwarded-for": "203.0.113.5, 198.51.100.7" }))).toBe(
+      "198.51.100.7",
     );
+    expect(visitorAddress(new Headers({ "x-forwarded-for": "198.51.100.8" }))).toBe("198.51.100.8");
   });
 
-  it("falls back to x-real-ip, then to one shared key", () => {
-    expect(visitorAddress(new Headers({ "x-real-ip": "203.0.113.6" }))).toBe("203.0.113.6");
+  it("ignores x-real-ip and falls back to one shared key", () => {
+    expect(visitorAddress(new Headers({ "x-real-ip": "203.0.113.6" }))).toBe("unknown");
     expect(visitorAddress(new Headers())).toBe("unknown");
+  });
+});
+
+describe("clientAddress hops", () => {
+  const chain = new Headers({ "x-forwarded-for": "203.0.113.1, 10.0.0.2, 10.0.0.3" });
+  it("counts trusted hops from the right", () => {
+    expect(clientAddress(chain, 1)).toBe("10.0.0.3");
+    expect(clientAddress(chain, 2)).toBe("10.0.0.2");
+    expect(clientAddress(chain, 9)).toBe("203.0.113.1");
+  });
+  it("ignores the header with no trusted proxy", () => {
+    expect(clientAddress(chain, 0)).toBe("unknown");
+  });
+  it("reads TRUSTED_PROXY_HOPS, defaulting to one", () => {
+    expect(trustedProxyHops(undefined)).toBe(1);
+    expect(trustedProxyHops("")).toBe(1);
+    expect(trustedProxyHops("2")).toBe(2);
+    expect(trustedProxyHops("0")).toBe(0);
+    expect(trustedProxyHops("junk")).toBe(1);
   });
 });
 

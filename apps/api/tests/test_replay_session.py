@@ -5,6 +5,7 @@ Server-owned market truth, frozen range, next-bar advance, live-ledger isolation
 
 from __future__ import annotations
 
+import functools
 from datetime import UTC, datetime
 from decimal import Decimal
 
@@ -31,13 +32,19 @@ from stockviz.services.replay import (
     ReplaySymbolNotFound,
     advance_replay_session,
     cancel_replay_session,
-    create_replay_session,
     get_next_session_bar,
     get_visible_replay_history,
     submit_replay_order,
 )
+from stockviz.services.replay import (
+    create_replay_session as _create_replay_session,
+)
 from stockviz.services.simulation import FillStatus, OrderSide, SimulationOrderType
 from stockviz.services.trading import DEFAULT_STARTING_CASH, ensure_default_portfolio, execute_trade
+
+# Written for close fills: pinned to legacy_close (intrabar_ohlc is the default
+# since 27 Nov 2026). A test that passes its own profile still overrides it.
+create_replay_session = functools.partial(_create_replay_session, profile="legacy_close")
 
 DAY1 = datetime(2024, 6, 3)
 DAY2 = datetime(2024, 6, 4)
