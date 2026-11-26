@@ -4242,6 +4242,8 @@ class ImportTradeOut(BaseModel):
     fees_estimated: bool = True
     status: Literal["posted", "needs_opening_lot"]
     basis_uncertain: bool = False
+    intraday_short: bool = False
+    """An intraday short sale, or a buy covering one the same day."""
 
 
 class ImportProblemOut(BaseModel):
@@ -4276,6 +4278,8 @@ class ImportCountsOut(BaseModel):
     rejected: int = 0
     basis_uncertain: int = 0
     intraday_inferred: int = 0
+    intraday_short: int = 0
+    """Sells posted as intraday shorts (covered by buys the same day)."""
 
 
 class ImportPreviewOut(BaseModel):
@@ -4377,7 +4381,8 @@ class JournalExcursionOut(BaseModel):
     """One excursion: the worst (MAE) or best (MFE) bar while shares were held."""
 
     per_share: Decimal
-    """Daily low (MAE) or high (MFE) minus the ledger's average cost."""
+    """Daily low (MAE) or high (MFE) minus the ledger's average cost; for a short
+    entry, the average short price minus the daily high (MAE) or low (MFE)."""
     pct: Decimal
     """Per share as a percent of the average cost."""
     amount: Decimal
@@ -4458,6 +4463,8 @@ class JournalEntrySummaryOut(BaseModel):
     ticker: str | None = None
     currency: str
     venue: str
+    side: Literal["long", "short"]
+    """``short``: an imported intraday short (sells opened it, buys closed it)."""
     status: Literal["open", "closed"]
     opened_at: datetime
     closed_at: datetime | None = None

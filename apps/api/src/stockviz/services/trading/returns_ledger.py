@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
 
+from sqlalchemy import or_
 from sqlmodel import Session, col, select
 
 from stockviz.models import (
@@ -52,15 +53,18 @@ def realized_totals(session: Session, portfolio: Portfolio) -> RealizedTotals:
     base = portfolio.base_currency or "USD"
     total = Decimal(0)
     unavailable = 0
-    for realized in session.exec(
-        select(col(Trade.realized_pnl)).where(
-            Trade.portfolio_id == portfolio.id, Trade.side == TradeSide.SELL
+    # Sells realize; so does an imported buy covering an intraday short (A5.3).
+    # An imported sell with no figure opens such a short: nothing to realize yet.
+    for side, realized, broker_fill_id in session.exec(
+        select(col(Trade.side), col(Trade.realized_pnl), col(Trade.broker_fill_id)).where(
+            Trade.portfolio_id == portfolio.id,
+            or_(col(Trade.side) == TradeSide.SELL, col(Trade.realized_pnl).is_not(None)),
         )
     ).all():
-        if realized is None:
-            unavailable += 1
-        else:
+        if realized is not None:
             total += realized
+        elif side == TradeSide.SELL and broker_fill_id is None:
+            unavailable += 1
     for realized in session.exec(
         select(col(OptionsPosition.realized_pnl)).where(
             OptionsPosition.portfolio_id == portfolio.id,

@@ -180,6 +180,14 @@ function EntryRow({ entry, book }: { entry: JournalEntrySummary; book: number | 
             <span className="rounded-full border border-border-muted px-2 py-0.5 text-2xs tracking-[0.02em] text-text-secondary">
               {SOURCE_LABEL[entry.source]}
             </span>
+            {entry.side === "short" ? (
+              <span
+                data-testid="entry-side-short"
+                className="rounded-full border border-border-muted px-2 py-0.5 text-2xs tracking-[0.02em] text-text-secondary"
+              >
+                Intraday Short
+              </span>
+            ) : null}
             <span
               data-testid="entry-plan-badge"
               className={`rounded-full border px-2 py-0.5 text-2xs tracking-[0.02em] ${BADGE_CLASS[badge.tone]}`}

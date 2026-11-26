@@ -1232,7 +1232,18 @@ estimated `fees`/`fee_source`/`fee_lines`, `basis_uncertain`; unique
   instead of scaling it; imported books with fills before the cut-off are
   candidates). Holdings only, `fx_rate` 1, realized P&L on the weighted
   average; a sell with too few shares is `needs_opening_lot` and does not
-  post; fills on a venue date before a due split's ex-date are restated
+  post, except an **intraday short**: a trade sell on an NSE/BSE listing
+  while nothing is held, whose quantity (plus any short already open) the
+  scrip's later buys the same venue day cover, posts (`FillOutcome.short =
+  "open"`, realized null); later buys that day cover it first (`"cover"`,
+  realized = (average short price - buy price) x quantity, `avg_cost_at_fill`
+  the short average), any rest of a covering buy adds to the holding; a
+  short never stays open overnight, and a sell the day's buys do not cover
+  keeps the opening-lot rule. Shorts and covers pair no plan (imported plans
+  are long only). Preview counts `intraday_short`; sample rows carry
+  `intraday_short`. `returns_ledger.realized_totals` and the P&L calendar's
+  `unavailable_realizations` count a covering buy's figure and do not call
+  an imported sell without one "unavailable". Fills on a venue date before a due split's ex-date are restated
   (qty x r, price / r); `basis_uncertain` when the restated price is outside
   the day's bar low-2%..high+2%. Fees: the A4.2 schedules on the as-traded
   numbers, the offsetting part of a scrip's day priced intraday, DP once per
@@ -1253,7 +1264,9 @@ estimated `fees`/`fee_source`/`fee_lines`, `basis_uncertain`; unique
   isolation, fees and intraday inference, DP, split restatement, basis,
   later split rebuild, opening lots, batch delete rebuild, book delete,
   plan lock / written after entry / closed after delete, flows, no cell in
-  logs, Sentry scrub), `test_imports_migration.py` (PostgreSQL up/down/up).
+  logs, Sentry scrub, intraday shorts: posted with intraday fees, rebuilt on
+  batch delete, uncovered sells still waiting), `test_imports_migration.py`
+  (PostgreSQL up/down/up).
 
 **Trade plans (A5.4, M10.3).** Migration `b5d4a7e1c902`: `trade_plans`
 (`models/trade_plan.py`): user, `portfolio_id` (paper, imported; cascade),
@@ -1336,6 +1349,16 @@ computed on read (`services/journal/`).
   entry and the quantity back to zero closes it; partial sells stay in it, a
   later buy opens a new one, a sell while flat belongs to none, a position
   still held is open. Hidden drills (anonymised, unrevealed) are left out.
+  **Imported books** (`allow_short`): a posted sell while flat is always an
+  intraday short, so it opens a `side: "short"` entry that buys close
+  (`JournalEntrySummaryOut.side` long|short). Short figures mirror long:
+  average entry = the sells' average, exit = the buys', realized = (average
+  short - buy price) x quantity, return on the sells' notional; MAE = average
+  short - the highest high (adverse = the price going up), MFE = average short
+  - the lowest low; R is null with `SHORT_NO_PLAN` (no plan pairs: imported
+  plans are long only). A buy that covers and goes long in one trade gives
+  the short entry its covering part only. A5.6 stats count a short as a win
+  or loss by its net P&L like any entry.
 - **Sync on read** (`entries.sync`, run by every list and detail read under a
   `FOR UPDATE` on the user row): each round trip is matched to its row by
   `entry_key`, a stable name of its first fill (`paper:<book>:t<trade id>`,

@@ -5504,6 +5504,11 @@ export interface components {
              * @default 0
              */
             intraday_inferred: number;
+            /**
+             * Intraday Short
+             * @default 0
+             */
+            intraday_short: number;
         };
         /**
          * ImportPreviewOut
@@ -5622,6 +5627,11 @@ export interface components {
              * @default false
              */
             basis_uncertain: boolean;
+            /**
+             * Intraday Short
+             * @default false
+             */
+            intraday_short: boolean;
         };
         /**
          * ImportsOut
@@ -5942,6 +5952,11 @@ export interface components {
             /** Venue */
             venue: string;
             /**
+             * Side
+             * @enum {string}
+             */
+            side: "long" | "short";
+            /**
              * Status
              * @enum {string}
              */
@@ -6097,6 +6112,11 @@ export interface components {
             currency: string;
             /** Venue */
             venue: string;
+            /**
+             * Side
+             * @enum {string}
+             */
+            side: "long" | "short";
             /**
              * Status
              * @enum {string}

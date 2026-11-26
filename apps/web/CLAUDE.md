@@ -1074,7 +1074,21 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   (`PriceChartLine`). **R on fill markers:** a fill event with `r_multiple`
   (the closing fill of a journal entry, from the API) is marked "S +0.97R"
   and its summary says "closing the trade at +0.97R" (`formatR` in
-  `lib/chart-events.ts`); opening and partial fills stay "B"/"S". The P&L
+  `lib/chart-events.ts`); opening and partial fills stay "B"/"S"; a closing
+  buy (a short's cover) reads "B +0.50R" the same way. **MAE/MFE marker
+  rule** (`placeExcursionMarkers` in `lib/journal-entries.ts`): fills keep
+  their side (buys below the bar, sells above); an excursion prefers the side
+  of the extreme it measures (long: MAE below, MFE above; short: the other
+  way round); on a bar where that side holds a fill or the other excursion it
+  moves to the other side if free; if both sides are taken (an intraday round
+  trip) its label joins the fill's (`PriceChartMarker.mergeIntoFill`: "S ·
+  MAE -0.41%"). Markers never stack on one side of a bar, so nothing runs off
+  the pane (the open entry's MAE used to push its "B" off the bottom).
+  **Short entries** (`side: "short"`, imported intraday shorts): an
+  "Intraday Short" chip on the list row (`entry-side-short`) and the page,
+  "Average Short Price" / "Average Cover" figures, and the plan section shows
+  the API's `r_reason` (imported plans are long only, so no R). The import
+  preview counts "Intraday Short" and marks those sample rows. The P&L
   calendar's caption says fills are dated on each exchange's own day.
   Tests: `tests/unit/journal-entries.test.tsx`.
 - **"Is my edge real?" (A5.6, M10.3 stats).** `/portfolio/journal/edge`

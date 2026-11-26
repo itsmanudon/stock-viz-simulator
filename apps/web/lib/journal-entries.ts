@@ -94,3 +94,69 @@ export function splitEntryTags(raw: string): string[] {
 export function entryHref(id: number, book?: number | "all" | null): string {
   return book ? `/portfolio/journal/${id}?book=${book}` : `/portfolio/journal/${id}`;
 }
+
+export type MarkerSide = "aboveBar" | "belowBar";
+
+/** Where the chart draws one excursion (A5 fix): its side of the bar, or folded into a fill. */
+export type ExcursionPlacement = {
+  kind: "mae" | "mfe";
+  date: string;
+  position: MarkerSide;
+  /** Both sides of the bar already hold a marker: the label joins the fill's ("S · MAE -0.41%"). */
+  mergeIntoFill: boolean;
+};
+
+const OTHER: Record<MarkerSide, MarkerSide> = { aboveBar: "belowBar", belowBar: "aboveBar" };
+
+/**
+ * Where MAE and MFE go so they never stack on a fill marker (a stack runs off
+ * the pane and clips the fill's letter, on desktop and phone alike).
+ *
+ * Fill markers keep their side: buys below the bar, sells above. An
+ * excursion prefers the side of the extreme it measures: for a long entry
+ * MAE below (the low) and MFE above (the high); for a short entry the other
+ * way round (adverse = the price going up). On a bar where that side already
+ * holds a fill or the other excursion, it moves to the other side when that
+ * is free; when both sides are taken (an intraday round trip: a buy and a
+ * sell on one bar), its label joins the fill's on its preferred side, or on
+ * the other side if only that one holds a fill.
+ */
+export function placeExcursionMarkers(
+  entry: Pick<JournalEntry, "excursions" | "fills"> & { side?: JournalEntry["side"] },
+): ExcursionPlacement[] {
+  const short = entry.side === "short";
+  const fillSides = new Map<string, Set<MarkerSide>>();
+  for (const f of entry.fills) {
+    const set = fillSides.get(f.venue_date) ?? new Set<MarkerSide>();
+    set.add(f.side === "sell" ? "aboveBar" : "belowBar");
+    fillSides.set(f.venue_date, set);
+  }
+  const placed = new Map<string, Set<MarkerSide>>();
+  const out: ExcursionPlacement[] = [];
+  const items: [ExcursionPlacement["kind"], JournalExcursion | null | undefined, MarkerSide][] = [
+    ["mae", entry.excursions.mae, short ? "aboveBar" : "belowBar"],
+    ["mfe", entry.excursions.mfe, short ? "belowBar" : "aboveBar"],
+  ];
+  for (const [kind, e, preferred] of items) {
+    if (!e) continue;
+    const fills = fillSides.get(e.date) ?? new Set<MarkerSide>();
+    const mine = placed.get(e.date) ?? new Set<MarkerSide>();
+    const free = (side: MarkerSide) => !fills.has(side) && !mine.has(side);
+    let position = preferred;
+    let mergeIntoFill = false;
+    if (!free(preferred)) {
+      if (free(OTHER[preferred])) {
+        position = OTHER[preferred];
+      } else {
+        position = fills.has(preferred) ? preferred : OTHER[preferred];
+        mergeIntoFill = true;
+      }
+    }
+    if (!mergeIntoFill) {
+      mine.add(position);
+      placed.set(e.date, mine);
+    }
+    out.push({ kind, date: e.date, position, mergeIntoFill });
+  }
+  return out;
+}

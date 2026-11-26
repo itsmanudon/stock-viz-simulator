@@ -74,6 +74,7 @@ export default async function JournalEntryPage({
   const badge = entryPlanBadge(entry);
   const back = `/portfolio?tab=journal${book ? `&book=${encodeURIComponent(book)}` : ""}`;
   const exc = entry.excursions;
+  const short = entry.side === "short";
 
   const figures: Figure[] = [
     {
@@ -115,12 +116,12 @@ export default async function JournalEntryPage({
       note: excursionNote(exc.mfe, cur),
     },
     {
-      label: "Average Entry",
+      label: short ? "Average Short Price" : "Average Entry",
       value: money(entry.avg_entry, cur),
-      note: `${Number(entry.quantity).toLocaleString("en-US")} shares at most`,
+      note: `${Number(entry.quantity).toLocaleString("en-US")} shares${short ? " short" : ""} at most`,
     },
     {
-      label: entry.status === "open" ? "Marked At" : "Average Exit",
+      label: entry.status === "open" ? "Marked At" : short ? "Average Cover" : "Average Exit",
       value:
         entry.status === "open"
           ? entry.mark_close
@@ -137,7 +138,7 @@ export default async function JournalEntryPage({
     {
       label: "Holding",
       value: `${entry.holding_days} days`,
-      note: `${entry.holding_sessions} sessions`,
+      note: `${entry.holding_sessions} session${entry.holding_sessions === 1 ? "" : "s"}`,
     },
   ];
 
@@ -162,6 +163,7 @@ export default async function JournalEntryPage({
         meta={
           <span className="flex flex-wrap items-center gap-2">
             <MetaChip>{SOURCE_LABEL[entry.source]}</MetaChip>
+            {short ? <MetaChip>Intraday Short</MetaChip> : null}
             <MetaChip tone={entry.status === "open" ? "warning" : "neutral"}>
               {entry.status === "open" ? "Open" : "Closed"}
             </MetaChip>
@@ -191,7 +193,11 @@ export default async function JournalEntryPage({
         <JournalEntryChart entry={entry} bars={bars} />
         <p className="text-xs text-text-tertiary">
           B and S mark the fills (the closing fill shows the entry&rsquo;s R); circles mark MAE and
-          MFE; the plan&rsquo;s entry, stop and target are the labelled lines.
+          MFE, or join a fill&rsquo;s label when both sides of its bar hold one; the plan&rsquo;s
+          entry, stop and target are the labelled lines.
+          {short
+            ? " A short entry's MAE is the highest high above its average short price, its MFE the lowest low."
+            : ""}
         </p>
       </section>
 
@@ -239,7 +245,9 @@ function PlanSection({ entry }: { entry: JournalEntry }) {
       </h2>
       {!plan ? (
         <p className="text-sm text-text-secondary">
-          No plan was paired with this entry, so it has no R or adherence check.
+          {entry.side === "short" && entry.r_reason
+            ? `${entry.r_reason} No adherence check either.`
+            : "No plan was paired with this entry, so it has no R or adherence check."}
         </p>
       ) : (
         <>

@@ -4,9 +4,17 @@
 reconstruct_episodes``), over any fill: in time order, a buy while flat opens
 an entry, buys and sells add and reduce it, and the entry closes when the
 quantity returns to zero. Partial sells stay in the entry; a buy after the
-close opens a new one. A sell while flat belongs to no entry (paper, imported
-and replay books are long only, and an imported sell without shares never
-posts). An entry still held at the end is open.
+close opens a new one. A sell while flat belongs to no entry (paper and
+replay books are long only, and an imported sell without shares never posts)
+unless ``allow_short``: an imported book posts a sell while flat only as an
+intraday short (the import engine's rule: covered by buys the same venue day),
+so for imported books a sell while flat opens a **short** entry that buys
+close. An entry still held at the end is open.
+
+A short entry mirrors a long one: sells open and add, buys reduce; the entry
+price is the sells' average and the exit the buys'; realized is each buy's
+(average short price - price) x quantity; MAE is the highest high above the
+average short price (adverse = price going up) and MFE the lowest low.
 
 **Figures** (all in the instrument's currency):
 
@@ -75,10 +83,19 @@ class LedgerFill:
     fees_estimated: bool = False
 
 
+Side = Literal["long", "short"]
+
+
 @dataclass
 class RoundTrip:
     fills: list[LedgerFill] = field(default_factory=list)
     closed: bool = False
+    side: Side = "long"
+
+    @property
+    def opening_side(self) -> str:
+        """The fill side that opens and adds: ``buy`` long, ``sell`` short."""
+        return "sell" if self.side == "short" else "buy"
 
     @property
     def key(self) -> str:
@@ -97,19 +114,23 @@ class RoundTrip:
         return self.fills[-1] if self.closed else None
 
 
-def group_round_trips(fills: Iterable[LedgerFill]) -> list[RoundTrip]:
-    """Flat to flat; ``fills`` already in time order (then id)."""
+def group_round_trips(fills: Iterable[LedgerFill], *, allow_short: bool = False) -> list[RoundTrip]:
+    """Flat to flat; ``fills`` already in time order (then id). ``allow_short``
+    (imported books): a sell while flat opens a short entry."""
     trips: list[RoundTrip] = []
     current: RoundTrip | None = None
     qty = ZERO
     for fill in fills:
         if current is None:
-            if fill.side != "buy":
+            if fill.side == "buy":
+                current = RoundTrip()
+            elif allow_short:
+                current = RoundTrip(side="short")
+            else:
                 continue
-            current = RoundTrip()
             qty = ZERO
         current.fills.append(fill)
-        qty += fill.quantity if fill.side == "buy" else -fill.quantity
+        qty += fill.quantity if fill.side == current.opening_side else -fill.quantity
         if qty <= 0:
             current.closed = True
             trips.append(current)
@@ -135,6 +156,7 @@ class TradeFigures:
     peak_quantity: Decimal
     held: Decimal
     buy_notional: Decimal
+    """The opening side's notional: buys for a long entry, sells for a short."""
     realized: Decimal
     fees: Decimal
     unrealized: Decimal | None
@@ -144,40 +166,48 @@ class TradeFigures:
 
 
 def trade_figures(trip: RoundTrip, *, mark_close: Decimal | None = None) -> TradeFigures:
-    avg = held = peak = bought = sold = ZERO
-    buy_notional = sell_notional = realized = fees = ZERO
+    """Long: buys open. Short: sells open, so the entry is the sells' average,
+    realized is (average short price - buy price) x quantity and ``buy_notional``
+    (the return's base) is the sells' notional."""
+    opening = trip.opening_side
+    sign = Decimal(-1) if trip.side == "short" else Decimal(1)
+    avg = held = peak = opened = closed_qty = ZERO
+    open_notional = close_notional = realized = fees = ZERO
     for fill in trip.fills:
         fees += fill.fees
-        if fill.side == "buy":
+        if fill.side == opening:
             avg = reaverage(avg, held, fill.quantity, fill.price)
             held += fill.quantity
-            bought += fill.quantity
-            buy_notional += (fill.quantity * fill.price).quantize(MICROS)
+            opened += fill.quantity
+            open_notional += (fill.quantity * fill.price).quantize(MICROS)
             peak = max(peak, held)
         else:
-            realized += ((fill.price - avg) * fill.quantity).quantize(MICROS)
-            held -= fill.quantity
-            sold += fill.quantity
-            sell_notional += (fill.quantity * fill.price).quantize(MICROS)
+            # A buy covering a short and going long in one trade: the short
+            # entry takes the covering part (the rest is a long holding).
+            q = min(fill.quantity, held) if trip.side == "short" else fill.quantity
+            realized += (sign * (fill.price - avg) * q).quantize(MICROS)
+            held -= q
+            closed_qty += q
+            close_notional += (q * fill.price).quantize(MICROS)
     held = max(held, ZERO)
     unrealized: Decimal | None = None
     if not trip.closed and mark_close is not None and held > 0:
-        unrealized = ((mark_close - avg) * held).quantize(MICROS)
+        unrealized = (sign * (mark_close - avg) * held).quantize(MICROS)
     net = realized - fees + (unrealized or ZERO)
     return TradeFigures(
-        avg_entry=(buy_notional / bought).quantize(MICROS) if bought else ZERO,
-        avg_exit=(sell_notional / sold).quantize(MICROS) if sold else None,
+        avg_entry=(open_notional / opened).quantize(MICROS) if opened else ZERO,
+        avg_exit=(close_notional / closed_qty).quantize(MICROS) if closed_qty else None,
         avg_cost=avg,
-        bought=bought,
-        sold=sold,
+        bought=opened if trip.side == "long" else closed_qty,
+        sold=closed_qty if trip.side == "long" else opened,
         peak_quantity=peak,
         held=held,
-        buy_notional=buy_notional,
+        buy_notional=open_notional,
         realized=realized,
         fees=fees.quantize(MICROS),
         unrealized=unrealized,
         net_pnl=net.quantize(MICROS),
-        return_pct=(net / buy_notional * HUNDRED).quantize(PCT) if buy_notional else None,
+        return_pct=(net / open_notional * HUNDRED).quantize(PCT) if open_notional else None,
         fees_estimated=any(f.fees_estimated for f in trip.fills),
     )
 
@@ -189,11 +219,24 @@ class RResult:
     reason: str | None
 
 
+SHORT_NO_PLAN = (
+    "A short entry: plans for imported books are long only, so no plan or stop "
+    "pairs with it and there is no initial risk."
+)
+
+
 def r_multiple(
-    figures: TradeFigures, *, stop: Decimal | None, has_plan: bool, open_without_mark: bool = False
+    figures: TradeFigures,
+    *,
+    stop: Decimal | None,
+    has_plan: bool,
+    open_without_mark: bool = False,
+    side: Side = "long",
 ) -> RResult:
     """Net P&L / (|average entry - stop| x most shares held)."""
     if not has_plan:
+        if side == "short":
+            return RResult(None, None, SHORT_NO_PLAN)
         return RResult(None, None, "No plan is paired with this entry.")
     if stop is None:
         return RResult(None, None, "The plan has no stop, so there is no initial risk.")
@@ -268,16 +311,23 @@ def excursions(
 
     worst: Excursion | None = None
     best: Excursion | None = None
+    short = trip.side == "short"
+    opening = trip.opening_side
 
     def _mark(day: date, low: Decimal, high: Decimal, cost: Decimal, shares: Decimal) -> None:
         nonlocal worst, best
         if cost <= 0 or shares <= 0:
             return
-        adverse, favourable = low - cost, high - cost
+        if short:  # adverse = the price going up
+            adverse, adverse_at = cost - high, high
+            favourable, favourable_at = cost - low, low
+        else:
+            adverse, adverse_at = low - cost, low
+            favourable, favourable_at = high - cost, high
         if worst is None or adverse < worst.per_share:
-            worst = _excursion(day, low, adverse, cost, shares, initial_risk)
+            worst = _excursion(day, adverse_at, adverse, cost, shares, initial_risk)
         if best is None or favourable > best.per_share:
-            best = _excursion(day, high, favourable, cost, shares, initial_risk)
+            best = _excursion(day, favourable_at, favourable, cost, shares, initial_risk)
 
     qty = avg = ZERO
     for bar in window:
@@ -286,7 +336,7 @@ def excursions(
             if qty > 0:
                 _mark(bar.day, bar.low, bar.high, avg, qty)
             for fill in todays:
-                if fill.side == "buy":
+                if fill.side == opening:
                     avg = reaverage(avg, qty, fill.quantity, fill.price)
                     qty += fill.quantity
                 else:
@@ -296,7 +346,7 @@ def excursions(
         else:
             most = qty
             for fill in todays:
-                if fill.side == "buy":
+                if fill.side == opening:
                     avg = reaverage(avg, qty, fill.quantity, fill.price)
                     qty += fill.quantity
                 else:
@@ -328,6 +378,7 @@ def _excursion(
 __all__ = [
     "APPROXIMATE_NOTE",
     "EXACT_NOTE",
+    "SHORT_NO_PLAN",
     "Bar",
     "Basis",
     "Excursion",
@@ -335,6 +386,7 @@ __all__ = [
     "LedgerFill",
     "RResult",
     "RoundTrip",
+    "Side",
     "TradeFigures",
     "excursions",
     "group_round_trips",
