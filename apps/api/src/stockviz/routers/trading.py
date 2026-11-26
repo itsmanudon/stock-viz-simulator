@@ -220,7 +220,8 @@ def trade_fee_fields(trade: Trade, native: Decimal) -> dict[str, Any]:
     fees = trade.fees
     if fees is None:
         return {"fees": None, "fee_schedule": None, "fee_lines": [], "net_native": None,
-                "realized_pnl_net": None}  # fmt: skip
+                "realized_pnl_net": None, "broker_fill_id": trade.broker_fill_id,
+                "fees_estimated": False}  # fmt: skip
     buy = trade.side == TradeSide.BUY
     net = native + fees if buy else native - fees
     realized_net = None
@@ -233,6 +234,8 @@ def trade_fee_fields(trade: Trade, native: Decimal) -> dict[str, Any]:
         "fee_lines": [TradeFeeLineOut.model_validate(line) for line in trade.fee_lines or []],
         "net_native": net,
         "realized_pnl_net": realized_net,
+        "broker_fill_id": trade.broker_fill_id,
+        "fees_estimated": trade.broker_fill_id is not None,
     }
 
 

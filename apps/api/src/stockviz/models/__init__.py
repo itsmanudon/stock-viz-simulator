@@ -16,6 +16,7 @@ from stockviz.models.aegis import (
 )
 from stockviz.models.alert import Alert, AlertDirection, AlertEvent, AlertKind, AlertRepeat
 from stockviz.models.auth_rate_limit import AuthRateLimit
+from stockviz.models.broker_import import BrokerFill, ImportBatch
 from stockviz.models.checklist import ChecklistEvidence, ChecklistScore
 from stockviz.models.corporate_action import CorporateAction, CorporateActionApplication
 from stockviz.models.data_file import DataFile
@@ -101,6 +102,7 @@ __all__ = [
     "AuthRateLimit",
     "BacktestTrial",
     "BookKind",
+    "BrokerFill",
     "CashBalance",
     "ChannelKind",
     "ChecklistEvidence",
@@ -126,6 +128,7 @@ __all__ = [
     "FxRate",
     "HolderKind",
     "HoldoutUnlock",
+    "ImportBatch",
     "IndicatorEvidence",
     "Instrument",
     "InstrumentIdentifier",

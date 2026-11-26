@@ -18,7 +18,7 @@ from sqlmodel import Session, col, select
 
 from stockviz._time import utcnow
 from stockviz.main import app
-from stockviz.models import BookKind, JobRun, User
+from stockviz.models import BookKind, ImportBatch, JobRun, User
 from stockviz.services.books import create_book, update_book
 from stockviz.services.brokers import (
     KITE_SNAPSHOT_JOB,
@@ -171,15 +171,32 @@ def test_imported_books_are_per_user_and_skip_archived(
     session: Session, client: TestClient, kite_on
 ) -> None:
     alice, bob = _user(session), _user(session)
-    create_book(session, user_id=alice, name="Zerodha main", kind=BookKind.IMPORTED)
+    main = create_book(session, user_id=alice, name="Zerodha main", kind=BookKind.IMPORTED)
     old = create_book(session, user_id=alice, name="Zerodha old", kind=BookKind.IMPORTED)
     assert old.id is not None
     update_book(session, user_id=alice, book_id=old.id, archived=True)
     create_book(session, user_id=alice, name="Paper two")
     a, b = _zerodha(client, alice), _zerodha(client, bob)
     assert a["imported_books"] == 1 and b["imported_books"] == 0
-    # A5.3 fills the import time; nothing imports yet.
+    # Nothing imported yet.
     assert a["last_imported_at"] is None
+    # A5.3: the newest committed upload across the caller's Zerodha books
+    # (the archived one included); another user's uploads never show.
+    for book_id, at in ((main.id, datetime(2026, 11, 20, 9)), (old.id, datetime(2026, 11, 24, 9))):
+        assert book_id is not None
+        session.add(
+            ImportBatch(
+                portfolio_id=book_id,
+                broker="zerodha",
+                column_map="zerodha_tradebook_v1",
+                file_sha256="a" * 64,
+                created_at=at,
+            )
+        )
+    session.commit()
+    a, b = _zerodha(client, alice), _zerodha(client, bob)
+    assert a["last_imported_at"] == "2026-11-24T09:00:00"
+    assert b["last_imported_at"] is None
 
 
 def test_record_provider_run_keeps_a_fixed_summary(session: Session) -> None:

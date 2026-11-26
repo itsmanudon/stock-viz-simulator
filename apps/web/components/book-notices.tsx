@@ -85,7 +85,10 @@ export function BookStateNotice({
     ? `${book.name} is archived: you can read it, but it takes no trades or orders. Unarchive it in Settings to trade in it.`
     : book.activity && book.activity.length > 0
       ? `${book.name} is an imported book: it holds a broker's trades, values holdings only (no cash) and takes no paper orders.`
-      : `${book.name} is an imported book with no imports yet. Uploading a broker tradebook (CSV) comes in a later batch; it takes no paper orders.`;
+      : `${book.name} is an imported book with no imports yet. It takes no paper orders.`;
+  // A5.3: the one place the import is offered on the portfolio; the broker
+  // line (A5.7) says how imported books update, so the link only acts.
+  const canImport = book.kind === "imported" && !book.archived_at;
   // With no imports yet the empty state carries the broker line instead.
   const brokerWords =
     book.kind === "imported" && !book.archived_at && broker && book.activity?.length
@@ -94,13 +97,21 @@ export function BookStateNotice({
   return (
     <p
       role="note"
-      className="mt-4 flex items-start gap-2 rounded-md border border-border-muted bg-surface-secondary/50 px-3 py-2.5 text-xs text-text-secondary"
+      className="mt-4 flex flex-wrap items-start gap-2 rounded-md border border-border-muted bg-surface-secondary/50 px-3 py-2.5 text-xs text-text-secondary"
     >
       <Info className="mt-px size-3.5 shrink-0 text-text-tertiary" aria-hidden />
-      <span>
+      <span className="min-w-0 flex-1">
         {text}
         {brokerWords}
       </span>
+      {canImport ? (
+        <a
+          href={`/portfolio/import?book=${book.id}`}
+          className="shrink-0 font-medium text-text-primary underline underline-offset-4 hover:text-brand"
+        >
+          Import Tradebook (CSV)
+        </a>
+      ) : null}
     </p>
   );
 }

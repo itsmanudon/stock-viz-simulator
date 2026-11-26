@@ -126,6 +126,19 @@ def broker_statuses(
             col(Portfolio.archived_at).is_(None),
         )
     ).one()
+    # A5.3: the newest committed tradebook upload into any of the caller's
+    # Zerodha books (archived ones too: the upload still happened).
+    from stockviz.models.broker_import import ImportBatch
+
+    last_imported = session.exec(
+        select(func.max(ImportBatch.created_at))
+        .join(Portfolio, col(Portfolio.id) == col(ImportBatch.portfolio_id))
+        .where(
+            col(Portfolio.user_id) == user_id,
+            col(Portfolio.broker) == "zerodha",
+            col(ImportBatch.broker) == "zerodha",
+        )
+    ).one()
     return [
         BrokerStatus(
             broker="zerodha",
@@ -134,8 +147,7 @@ def broker_statuses(
             configured=kite_configured(settings),
             state=state,
             imported_books=int(imported or 0),
-            # A5.3 (tradebook CSV import) fills this; nothing imports yet.
-            last_imported_at=None,
+            last_imported_at=last_imported,
             last_snapshot_at=last_ok,
             last_failure_at=last_failed,
         )

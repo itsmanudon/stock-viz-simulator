@@ -589,6 +589,10 @@ class TradeOut(BaseModel):
     book_id: int | None = None
     # A5.4: the plan the fill is linked to.
     trade_plan_id: int | None = None
+    # A5.3: the broker fill an imported book's trade posts (null: paper). Its
+    # fees are estimated from the dated schedule (the tradebook has none).
+    broker_fill_id: int | None = None
+    fees_estimated: bool = False
 
 
 class TradeFeeLineOut(BaseModel):
@@ -4199,3 +4203,164 @@ class DrillOut(BaseModel):
     needs_plan: bool
     score: DrillScoreOut | None
     reveal: DrillRevealOut | None
+
+
+# --- A5.3: broker tradebook imports -----------------------------------------------
+
+
+class ImportColumnOut(BaseModel):
+    """Which header a canonical field was read from (``header`` null: absent)."""
+
+    field: str
+    label: str
+    required: bool
+    header: str | None
+
+
+class ImportTradeOut(BaseModel):
+    """A parsed trade: only the parsed fields, never the raw row."""
+
+    row: int
+    ticker: str
+    symbol: str
+    exchange: str
+    isin: str | None = None
+    side: Literal["buy", "sell"]
+    quantity: Decimal
+    price: Decimal
+    executed_at: datetime
+    time_known: bool = True
+    # Restated for later splits (the as-traded numbers stay on the fill).
+    restated_quantity: Decimal
+    restated_price: Decimal
+    product: Literal["delivery", "intraday", "mixed"] | None = None
+    fees: Decimal
+    fees_estimated: bool = True
+    status: Literal["posted", "needs_opening_lot"]
+    basis_uncertain: bool = False
+
+
+class ImportProblemOut(BaseModel):
+    """One row the import leaves out or flags. Row numbers count the header as
+    row 1. ``reason`` is fixed text: no cell value is ever echoed."""
+
+    row: int
+    kind: Literal[
+        "rejected",
+        "segment",
+        "unmatched",
+        "duplicate_in_file",
+        "already_imported",
+        "needs_opening_lot",
+        "basis_uncertain",
+    ]
+    reason: str
+    field: str | None = None
+    # Parsed fields only, where they help (the symbol of an unmatched row).
+    symbol: str | None = None
+    exchange: str | None = None
+
+
+class ImportCountsOut(BaseModel):
+    rows: int = 0
+    new: int = 0
+    posted: int = 0
+    needs_opening_lot: int = 0
+    duplicate: int = 0
+    unmatched: int = 0
+    skipped_segment: int = 0
+    rejected: int = 0
+    basis_uncertain: int = 0
+    intraday_inferred: int = 0
+
+
+class ImportPreviewOut(BaseModel):
+    """``POST /v1/books/{id}/imports/preview``: nothing is stored."""
+
+    format: str
+    format_status: Literal["unconfirmed", "confirmed"]
+    format_note: str
+    file_sha256: str
+    can_commit: bool
+    message: str | None = None
+    date_order: str
+    columns: list[ImportColumnOut]
+    unmatched_headers: list[str]
+    missing_required: list[str]
+    counts: ImportCountsOut
+    sample: list[ImportTradeOut]
+    problems: list[ImportProblemOut]
+    problems_total: int
+    fees_note: str
+
+
+class ImportBatchOut(BaseModel):
+    id: int
+    created_at: datetime
+    column_map: str
+    format_status: Literal["unconfirmed", "confirmed"]
+    rows_total: int
+    rows_added: int
+    rows_duplicate: int
+    rows_unmatched: int
+    rows_skipped_segment: int
+    rows_rejected: int
+    # Of this batch's fills now in the book.
+    fills: int
+    posted: int
+    needs_opening_lot: int
+    first_trade_at: datetime | None = None
+    last_trade_at: datetime | None = None
+
+
+class ImportCommitOut(BaseModel):
+    """``POST .../imports/commit``. ``batch`` is null when nothing was new."""
+
+    batch: ImportBatchOut | None
+    added: int
+    counts: ImportCountsOut
+
+
+class OpeningLotIn(BaseModel):
+    """An opening lot: shares held before the file's window."""
+
+    ticker: str = Field(min_length=1, max_length=16)
+    on: date
+    quantity: Decimal = Field(gt=0, le=Decimal("1e10"))
+    avg_price: Decimal = Field(gt=0, le=Decimal("1e9"))
+
+
+class OpeningLotOut(BaseModel):
+    id: int
+    ticker: str
+    on: date
+    quantity: Decimal
+    avg_price: Decimal
+    created_at: datetime
+
+
+class NeedsOpeningLotOut(BaseModel):
+    """Sells that wait for an opening lot, per symbol."""
+
+    ticker: str
+    fills: int
+    first_sell_at: datetime
+    # Shares the earliest waiting sell is short by, restated for splits.
+    short_by: Decimal
+
+
+class ImportsOut(BaseModel):
+    """``GET /v1/books/{id}/imports``."""
+
+    book_id: int
+    broker: str | None
+    format: str
+    format_status: Literal["unconfirmed", "confirmed"]
+    format_note: str
+    max_bytes: int
+    batches: list[ImportBatchOut]
+    opening_lots: list[OpeningLotOut]
+    needs_opening_lot: list[NeedsOpeningLotOut]
+    basis_uncertain: int
+    fills: int
+    posted: int

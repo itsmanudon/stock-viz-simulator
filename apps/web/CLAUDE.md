@@ -982,6 +982,31 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   switcher adds `IMPORTED_BOOK_NOTE` (`switcher-broker-note`) under imported
   books, static text, so the top bar makes no extra call. Never an error
   page. Tests: `tests/unit/a57-broker-status.test.tsx`.
+- **Tradebook import (A5.3, M10.2).** `/portfolio/import?book=<id>`
+  (`app/(product)/(authed)/portfolio/import/`; a book page, so the switcher
+  keeps it; "Import tradebook" in the Portfolio & Tax sidebar group and the
+  palette). A paper book, All books, an archived or a non-INR book get an
+  empty state saying where imports go. `components/tradebook-import.tsx`
+  (client): the format-unconfirmed note ("tell us the header row"), file
+  input -> **Preview** (counts, a "Columns Matched" disclosure with the
+  header each field came from and ignored headers, the first new trades
+  with estimated charges and split restatement, problems by row) ->
+  **Confirm Import**; the file stays in component state between the two
+  calls and commit sends it again with the preview's `file_sha256`. Below:
+  sells waiting for an opening lot, the opening-lot form and list, and
+  Import History (counts per batch, a two-step delete whose outcome is
+  announced by the list, not the deleted row). Server actions in
+  `portfolio/import/actions.ts` check the file (`lib/tradebook-import.ts`:
+  `checkTradebookFile`, 2 MiB, CSV not XLSX; labels `PROBLEM_LABELS`,
+  `countItems`) and post its bytes through `authedPostText` (`lib/api/
+  server.ts`, a raw body with its own content type) via `lib/api/imports.ts`.
+  **Next 16 caps server-action bodies at 1 MB by default**
+  (`node_modules/next/dist/docs/.../serverActions.md`): `next.config.ts`
+  sets `experimental.serverActions.bodySizeLimit: "2200kb"` (2 MiB plus
+  multipart overhead; the API still refuses past 2 MiB). `BookStateNotice`
+  links "Import Tradebook (CSV)" on an imported book that is not archived;
+  Settings → Books creates imported books in INR. Nothing logs the file.
+  Tests: `lib/tradebook-import.test.ts`.
 - **Trade plans (A5.4, M10.3).** Types and the ticket helpers are
   client-safe in `lib/plans.ts` (`planFigures` risk/reward/R:R and the first
   problem, `planFormFields` / `planFromForm` (the `plan_*` hidden fields a

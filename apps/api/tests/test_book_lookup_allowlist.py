@@ -30,9 +30,14 @@ ALLOWED: dict[str, tuple[int, str]] = {
         1,
         "chart fill markers join across all the caller's books (A3.5; book filter optional)",
     ),
-    "services/brokers/__init__.py": (
+    "services/imports/book.py": (
         1,
-        "broker status counts the caller's imported books for a broker (A5.7; no book chosen)",
+        "the commit throttle counts import batches across all the user's books (A5.3)",
+    ),
+    "services/brokers/__init__.py": (
+        2,
+        "broker status counts the caller's imported books for a broker (A5.7; no book chosen) "
+        "and finds their newest import (A5.3)",
     ),
 }
 

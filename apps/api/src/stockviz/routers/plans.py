@@ -5,7 +5,8 @@
   ``ticker`` filter. Plans of anonymised drills not yet revealed are left
   out (they name the real symbol and dates).
 - ``POST ""`` (201): a plan for ``ticker`` in the ``?book=`` paper book (the
-  default book when absent; archived and imported books 409). With
+  default book when absent; archived books 409). In an imported book (A5.3)
+  the plan's source is ``imported`` and an imported buy locks it. With
   ``link_open_position`` it links the book's open position in the ticker,
   whose fills came first: the plan is "written after entry".
 - ``GET``/``PATCH``/``DELETE /{id}``. ``PATCH`` changes the plan fields only
@@ -33,7 +34,7 @@ from stockviz.routers.book_query import BookQuery
 from stockviz.schemas import TradePlanIn, TradePlanOut, TradePlanPatch, TradePlansOut
 from stockviz.services import plans as svc
 from stockviz.services.instruments import resolve_symbol
-from stockviz.services.trading.books import resolve_book
+from stockviz.services.trading.books import require_writable, resolve_book
 
 router = APIRouter(prefix="/v1/plans", tags=["plans"])
 
@@ -108,7 +109,12 @@ def list_plans(
 def create_plan(
     body: TradePlanIn, session: SessionDep, user_id: UserIdDep, book: BookQuery = None
 ) -> TradePlanOut:
-    portfolio = resolve_book(session, user_id, book, write=True)
+    portfolio = resolve_book(session, user_id, book)
+    # A5.3: an imported book takes plans too (source imported): its fills
+    # arrive by import, and the first one locks a plan written before it.
+    imported = portfolio.kind == "imported" and portfolio.archived_at is None
+    if not imported:
+        require_writable(portfolio)
     assert portfolio.id is not None
     instrument = resolve_symbol(session, body.ticker)
     if instrument is None or instrument.id is None:
@@ -130,6 +136,7 @@ def create_plan(
         book=portfolio,
         instrument_id=instrument.id,
         draft=body,
+        source="imported" if imported else "paper",
     )
     for trade in entries:
         svc.link_trade(session, plan, trade)

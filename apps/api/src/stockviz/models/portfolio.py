@@ -268,6 +268,18 @@ class Trade(SQLModel, table=True):
             Integer, ForeignKey("trade_plans.id", ondelete="SET NULL"), nullable=True, index=True
         ),
     )
+    # A5.3: the broker fill (``broker_fills``) an imported book's trade posts.
+    # Null for paper fills. Its quantity and price are restated for splits
+    # after the fill; the broker fill keeps them as traded.
+    broker_fill_id: int | None = Field(
+        default=None,
+        sa_column=Column(
+            Integer,
+            ForeignKey("broker_fills.id", ondelete="CASCADE"),
+            nullable=True,
+            unique=True,
+        ),
+    )
 
 
 class PortfolioSnapshot(SQLModel, table=True):

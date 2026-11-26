@@ -166,6 +166,14 @@ export const WORKSPACES: readonly Workspace[] = [
         matches: ["/trades"],
         keywords: ["fills", "trades", "realized"],
       },
+      {
+        // A5.3: into the selected imported book (the page explains a paper one).
+        label: "Import tradebook",
+        href: "/portfolio/import",
+        matches: ["/portfolio/import"],
+        signedInOnly: true,
+        keywords: ["zerodha", "csv", "import", "broker", "console"],
+      },
       { label: "Watchlist", href: "/watchlist", matches: ["/watchlist"], keywords: ["lists"] },
       { label: "Alerts", href: "/alerts", matches: ["/alerts"], keywords: ["price alert"] },
       {
