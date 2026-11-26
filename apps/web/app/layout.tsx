@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono, Instrument_Serif } from "next/font/google";
 
 import { Providers } from "@/components/providers";
@@ -47,6 +47,21 @@ export const metadata: Metadata = {
   },
   description:
     "End-of-day market analytics, strategy backtesting, and paper trading for equities and options.",
+};
+
+/**
+ * `viewport-fit=cover` lets the page run under a phone's floating address bar
+ * and home indicator, so `env(safe-area-inset-*)` reports real values. The
+ * footer and the bottom sheets pad by it; without `cover` it is always 0.
+ */
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  // The theme is forced dark (components/providers.tsx). Said here too so the
+  // browser's own bars are dark before the stylesheet arrives.
+  colorScheme: "dark",
+  themeColor: "#070708",
 };
 
 export default function RootLayout({

@@ -74,7 +74,7 @@ const DISCLOSURES = [
 
 export function SiteFooter() {
   return (
-    <footer className="panel-inset rounded-none border-x-0 border-b-0">
+    <footer className="site-footer panel-inset rounded-none border-x-0 border-b-0 pb-[calc(env(safe-area-inset-bottom)+1.5rem)] sm:pb-0">
       <div className="mx-auto w-full max-w-7xl px-4 pt-10 sm:px-6">
         {/* The page ends on the latest close (stored data; drops out without it). */}
         <Suspense fallback={null}>
@@ -152,8 +152,11 @@ export function SiteFooter() {
       {/* Closing graphic: the wordmark as display type filled with the hero's
           liquid metal (ChromeWordmark), clipped by the footer's own overflow
           so it reads as a watermark rather than a title. Decorative only —
-          the real wordmark is the link above. */}
-      <ChromeWordmark className="mt-6 -mb-[calc(0.18*clamp(4rem,17vw,15rem))]" />
+          the real wordmark is the link above. On phones it is not cropped and
+          the footer pads below it by the safe area: a phone browser's floating
+          address bar covers the page's last strip, and a flush wordmark ended
+          behind it. */}
+      <ChromeWordmark className="mt-6 sm:-mb-[calc(0.18*clamp(4rem,17vw,15rem))]" />
     </footer>
   );
 }
