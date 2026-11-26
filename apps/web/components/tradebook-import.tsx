@@ -310,6 +310,7 @@ function PreviewPanel({
                           restated
                             ? `Split-adjusted ${Number(t.restated_quantity)} @ ${money(t.restated_price)}`
                             : null,
+                          t.intraday_short ? "Intraday short" : null,
                           t.status === "needs_opening_lot" ? "Needs opening lot" : null,
                           t.basis_uncertain ? "Basis uncertain" : null,
                         ]

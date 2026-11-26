@@ -4242,6 +4242,8 @@ class ImportTradeOut(BaseModel):
     fees_estimated: bool = True
     status: Literal["posted", "needs_opening_lot"]
     basis_uncertain: bool = False
+    intraday_short: bool = False
+    """An intraday short sale, or a buy covering one the same day."""
 
 
 class ImportProblemOut(BaseModel):
@@ -4276,6 +4278,8 @@ class ImportCountsOut(BaseModel):
     rejected: int = 0
     basis_uncertain: int = 0
     intraday_inferred: int = 0
+    intraday_short: int = 0
+    """Sells posted as intraday shorts (covered by buys the same day)."""
 
 
 class ImportPreviewOut(BaseModel):
@@ -4377,7 +4381,8 @@ class JournalExcursionOut(BaseModel):
     """One excursion: the worst (MAE) or best (MFE) bar while shares were held."""
 
     per_share: Decimal
-    """Daily low (MAE) or high (MFE) minus the ledger's average cost."""
+    """Daily low (MAE) or high (MFE) minus the ledger's average cost; for a short
+    entry, the average short price minus the daily high (MAE) or low (MFE)."""
     pct: Decimal
     """Per share as a percent of the average cost."""
     amount: Decimal
@@ -4458,6 +4463,8 @@ class JournalEntrySummaryOut(BaseModel):
     ticker: str | None = None
     currency: str
     venue: str
+    side: Literal["long", "short"]
+    """``short``: an imported intraday short (sells opened it, buys closed it)."""
     status: Literal["open", "closed"]
     opened_at: datetime
     closed_at: datetime | None = None
@@ -4523,3 +4530,129 @@ class JournalEntryPatch(BaseModel):
     lessons: str | None = Field(default=None, max_length=4000)
     setup_tags: list[str] | None = Field(default=None, max_length=12)
     mistake_tags: list[str] | None = Field(default=None, max_length=12)
+
+
+# --- A5.6: "Is my edge real?" (services/journal/edge.py) ---------------------------------
+
+
+class EdgeIntervalOut(BaseModel):
+    """A seeded bootstrap interval of the mean (``level`` 0.9: 5th to 95th percentile)."""
+
+    low: float
+    high: float
+    level: float
+
+
+class EdgeGroupOut(BaseModel):
+    """One group's figures over its closed journal entries.
+
+    ``counts_only`` under ``min_closed`` (A2.4's 30): only ``n``, ``wins``,
+    ``losses`` and ``breakeven``, with ``counts_only_reason``; every other
+    figure is null. Money figures are null when the group mixes currencies
+    (``money_note``); R figures need 30 entries with R (``r_note``)."""
+
+    key: str
+    label: str
+    kind: Literal["overall", "setup", "setup_tag", "mistake_tag", "source"]
+    setup_version_id: int | None = None
+    n: int
+    wins: int
+    losses: int
+    breakeven: int
+    counts_only: bool
+    counts_only_reason: str | None = None
+    includes_imported: bool = False
+    currencies: list[str] = []
+    currency: str | None = None
+    win_rate: float | None = None
+    avg_win: float | None = None
+    avg_loss: float | None = None
+    payoff: float | None = None
+    profit_factor: float | None = None
+    expectancy: float | None = None
+    """Mean net P&L per trade, fees included (estimated for imports)."""
+    expectancy_interval: EdgeIntervalOut | None = None
+    n_r: int = 0
+    expectancy_r: float | None = None
+    expectancy_r_interval: EdgeIntervalOut | None = None
+    r_note: str | None = None
+    adherence_rate: float | None = None
+    """Share of scored plans (locked before entry) that were followed."""
+    adherence_n: int = 0
+    avg_holding_days: float | None = None
+    total_net_pnl: float | None = None
+    money_note: str | None = None
+
+
+class EdgeBacktestOut(BaseModel):
+    """The newest saved A4.1 strategy run whose entry is the setup version."""
+
+    run_id: int
+    created_at: datetime
+    ticker: str
+    closed_trades: int
+    n_r: int
+    expectancy_r: float | None = None
+    win_rate: float | None = None
+    avg_holding_days: float | None = None
+    report_expectancy_r: float | None = None
+    holdout: str
+    sample: Literal["in_sample", "holdout_seen"]
+    sample_note: str
+    unlocked_at: datetime | None = None
+
+
+EdgeDriftStatus = Literal[
+    "consistent",
+    "outside_interval",
+    "too_few_live_trades",
+    "too_few_backtest_trades",
+    "no_backtest",
+    "backtest_no_r",
+]
+
+
+class EdgeDriftOut(BaseModel):
+    """Live (journal) against backtest, per trade, for one setup version."""
+
+    setup_version_id: int
+    label: str
+    status: EdgeDriftStatus
+    text: str
+    live_n: int
+    live_n_r: int
+    live_expectancy_r: float | None = None
+    live_interval: EdgeIntervalOut | None = None
+    live_win_rate: float | None = None
+    live_avg_holding_days: float | None = None
+    backtest: EdgeBacktestOut | None = None
+    diff_expectancy_r: float | None = None
+    """Live minus backtest; only when the two can be compared."""
+    diff_win_rate: float | None = None
+    diff_avg_holding_days: float | None = None
+
+
+class EdgeStatsOut(BaseModel):
+    book_id: int | None = None
+    source: Literal["paper", "imported", "replay", "all"] | None = None
+    sources_included: list[str]
+    setup_version_id: int | None = None
+    tag: str | None = None
+    date_from: date | None = None
+    date_to: date | None = None
+    min_closed: int
+    seed: int
+    resamples: int
+    mean_block: int
+    interval_level: float
+    method: str
+    open_excluded: int
+    """Open entries under these filters: counted here, never in the figures."""
+    overall: EdgeGroupOut
+    by_setup: list[EdgeGroupOut]
+    by_setup_tag: list[EdgeGroupOut]
+    by_mistake_tag: list[EdgeGroupOut]
+    by_source: list[EdgeGroupOut]
+    drift: list[EdgeDriftOut]
+    imported_fees_estimated: bool
+    honesty: list[str]

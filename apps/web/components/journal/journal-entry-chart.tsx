@@ -4,7 +4,8 @@
  * The journal entry's chart (A5.5): A3's `PriceChart` with the entry's fills
  * as fill markers (the closing fill carries the entry's R, as on the stock
  * page), the plan's entry, stop and target as labelled lines, and MAE / MFE
- * marked on the bars where they happened.
+ * marked on the bars where they happened, placed by `placeExcursionMarkers`
+ * so they never stack on a fill marker.
  */
 
 import { useMemo } from "react";
@@ -13,7 +14,7 @@ import { PriceChart, type PriceChartLine, type PriceChartMarker } from "@/compon
 import type { Bar } from "@/lib/api";
 import type { ChartEvent } from "@/lib/chart-events";
 import { useChartPalette } from "@/lib/chart-theme";
-import { type JournalEntry, excursionPct } from "@/lib/journal-entries";
+import { type JournalEntry, excursionPct, placeExcursionMarkers } from "@/lib/journal-entries";
 
 export function JournalEntryChart({ entry, bars }: { entry: JournalEntry; bars: Bar[] }) {
   const palette = useChartPalette();
@@ -34,29 +35,21 @@ export function JournalEntryChart({ entry, bars }: { entry: JournalEntry; bars: 
       })),
     [entry, closing],
   );
-  const markers = useMemo<PriceChartMarker[]>(() => {
-    const out: PriceChartMarker[] = [];
-    const { mae, mfe } = entry.excursions;
-    if (mae) {
-      out.push({
-        time: `${mae.date}T00:00:00`,
-        position: "belowBar",
-        color: palette.negative,
-        shape: "circle",
-        text: `MAE ${excursionPct(mae)}`,
-      });
-    }
-    if (mfe) {
-      out.push({
-        time: `${mfe.date}T00:00:00`,
-        position: "aboveBar",
-        color: palette.positive,
-        shape: "circle",
-        text: `MFE ${excursionPct(mfe)}`,
-      });
-    }
-    return out;
-  }, [entry.excursions, palette]);
+  const markers = useMemo<PriceChartMarker[]>(
+    () =>
+      placeExcursionMarkers(entry).map((place) => {
+        const e = place.kind === "mae" ? entry.excursions.mae : entry.excursions.mfe;
+        return {
+          time: `${place.date}T00:00:00`,
+          position: place.position,
+          color: place.kind === "mae" ? palette.negative : palette.positive,
+          shape: "circle" as const,
+          text: `${place.kind === "mae" ? "MAE" : "MFE"} ${excursionPct(e)}`,
+          mergeIntoFill: place.mergeIntoFill,
+        };
+      }),
+    [entry, palette],
+  );
   const lines = useMemo<PriceChartLine[]>(() => {
     const plan = entry.plan;
     if (!plan) return [];

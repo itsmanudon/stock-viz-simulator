@@ -53,7 +53,8 @@ src/stockviz/
                     (A3.2), avwap (A3.3), events, strength (RS
                     percentile, delivery) and regime (A3.5), drills
                     (A4.7), books (A5.1), plans (A5.4), journal_entries (A5.5:
-                    `/v1/journal/entries`), brokers (A5.7: broker
+                    `/v1/journal/entries`), journal_stats (A5.6:
+                    `/v1/journal/stats`), brokers (A5.7: broker
                     status), imports (A5.3: `/v1/books/{id}/imports`,
                     opening lots), health
                     (`GET /live` liveness, `GET /health` readiness + DB)
@@ -86,7 +87,8 @@ src/stockviz/
     journal/        P&L calendar (`__init__`, `query`, `aggregate`; venue
                     dates since A5.5) and A5.5's round trips: `roundtrips.py`
                     (pure grouping, figures, R, MAE/MFE), `entries.py` (sync,
-                    reads, news windows, R for chart fills)
+                    reads, news windows, R for chart fills), `edge.py` (A5.6:
+                    stats, bootstrap, drift)
     plans/          A5.4: trade plans: record_fill (the lock), plans on
                     orders, written after entry, session plans for replay
                     and drills, outputs
@@ -1230,7 +1232,18 @@ estimated `fees`/`fee_source`/`fee_lines`, `basis_uncertain`; unique
   instead of scaling it; imported books with fills before the cut-off are
   candidates). Holdings only, `fx_rate` 1, realized P&L on the weighted
   average; a sell with too few shares is `needs_opening_lot` and does not
-  post; fills on a venue date before a due split's ex-date are restated
+  post, except an **intraday short**: a trade sell on an NSE/BSE listing
+  while nothing is held, whose quantity (plus any short already open) the
+  scrip's later buys the same venue day cover, posts (`FillOutcome.short =
+  "open"`, realized null); later buys that day cover it first (`"cover"`,
+  realized = (average short price - buy price) x quantity, `avg_cost_at_fill`
+  the short average), any rest of a covering buy adds to the holding; a
+  short never stays open overnight, and a sell the day's buys do not cover
+  keeps the opening-lot rule. Shorts and covers pair no plan (imported plans
+  are long only). Preview counts `intraday_short`; sample rows carry
+  `intraday_short`. `returns_ledger.realized_totals` and the P&L calendar's
+  `unavailable_realizations` count a covering buy's figure and do not call
+  an imported sell without one "unavailable". Fills on a venue date before a due split's ex-date are restated
   (qty x r, price / r); `basis_uncertain` when the restated price is outside
   the day's bar low-2%..high+2%. Fees: the A4.2 schedules on the as-traded
   numbers, the offsetting part of a scrip's day priced intraday, DP once per
@@ -1251,7 +1264,9 @@ estimated `fees`/`fee_source`/`fee_lines`, `basis_uncertain`; unique
   isolation, fees and intraday inference, DP, split restatement, basis,
   later split rebuild, opening lots, batch delete rebuild, book delete,
   plan lock / written after entry / closed after delete, flows, no cell in
-  logs, Sentry scrub), `test_imports_migration.py` (PostgreSQL up/down/up).
+  logs, Sentry scrub, intraday shorts: posted with intraday fees, rebuilt on
+  batch delete, uncovered sells still waiting), `test_imports_migration.py`
+  (PostgreSQL up/down/up).
 
 **Trade plans (A5.4, M10.3).** Migration `b5d4a7e1c902`: `trade_plans`
 (`models/trade_plan.py`): user, `portfolio_id` (paper, imported; cascade),
@@ -1334,6 +1349,16 @@ computed on read (`services/journal/`).
   entry and the quantity back to zero closes it; partial sells stay in it, a
   later buy opens a new one, a sell while flat belongs to none, a position
   still held is open. Hidden drills (anonymised, unrevealed) are left out.
+  **Imported books** (`allow_short`): a posted sell while flat is always an
+  intraday short, so it opens a `side: "short"` entry that buys close
+  (`JournalEntrySummaryOut.side` long|short). Short figures mirror long:
+  average entry = the sells' average, exit = the buys', realized = (average
+  short - buy price) x quantity, return on the sells' notional; MAE = average
+  short - the highest high (adverse = the price going up), MFE = average short
+  - the lowest low; R is null with `SHORT_NO_PLAN` (no plan pairs: imported
+  plans are long only). A buy that covers and goes long in one trade gives
+  the short entry its covering part only. A5.6 stats count a short as a win
+  or loss by its net P&L like any entry.
 - **Sync on read** (`entries.sync`, run by every list and detail read under a
   `FOR UPDATE` on the user row): each round trip is matched to its row by
   `entry_key`, a stable name of its first fill (`paper:<book>:t<trade id>`,
@@ -1399,6 +1424,49 @@ computed on read (`services/journal/`).
   the P&L calendar and markers; news windows and "no news copy";
   isolation; filters and patch rules), `test_journal_entries_migration.py`
   (PostgreSQL up/down/up).
+
+**"Is my edge real?" (A5.6, M10.3 stats).** No migration; nothing stored.
+`GET /v1/journal/stats?book=<id>|all&source=paper|imported|replay|all&
+setup_version_id=&tag=&from=&to=` (`routers/journal_stats.py`, authed;
+another user's book 404; `from > to` 400) -> `EdgeStatsOut`
+(`services/journal/edge.py`, which reads `entries.sync` and the entry
+figures: same net P&L, R and adherence as the entry pages).
+
+- **Sources:** no `source` = paper and imported (replay never pooled by
+  default); `all` pools the three; the by-source groups ignore `source`.
+  Dates filter the entry's venue date. Open entries are `open_excluded`.
+- **Groups** (`EdgeGroupOut`): `overall`, `by_setup` (plan's setup
+  version, "No setup" last), `by_setup_tag`, `by_mistake_tag` (case
+  ignored), `by_source`. Each: `n`, `wins` (net > 0), `losses`,
+  `breakeven`, `n_r`, then win rate, average win/loss, payoff, profit factor,
+  `expectancy` (mean net P&L) with `expectancy_interval`, `expectancy_r`
+  (over entries with R) with `expectancy_r_interval`, `adherence_rate`
+  (`followed_plan` of plans locked before entry), `avg_holding_days`,
+  `total_net_pnl`. Mixed currencies: money null with `money_note`.
+- **Under 30** (`checklist/evidence.MIN_EVENTS`): `counts_only` with
+  `counts_only_reason`, every other figure null; R figures also need 30
+  entries with R (`r_note`).
+- **Interval:** `bootstrap_interval`: the values in closing order, 5,000
+  resamples of `risk.engine.stationary_indices` (mean block 3; 1 is iid),
+  5th-95th percentile of the means, `numpy.random.default_rng(SEED)`,
+  `SEED` 20261126 returned as `seed`.
+- **Drift** (`EdgeDriftOut`, per setup version in `by_setup`): the newest
+  `experiment_runs` row of yours with `kind = 'strategy'` and that
+  `setup_version_id`; closed trades from the stored result (open left out):
+  expectancy in R, win rate, average holding (calendar days); differences
+  live - backtest. Status: `no_backtest`, `backtest_no_r`,
+  `too_few_live_trades` (n_r < 30), `too_few_backtest_trades`, else
+  `consistent` (inside the live R interval, ends included) or
+  `outside_interval`. `backtest.sample`: `in_sample` (window note) or
+  `holdout_seen` (a `holdout_unlocks` row for the run's
+  `trials.strategy_family`).
+- **Honesty:** `honesty` lists the notes (recorded trades, survivorship
+  N/A, small samples, association, not advice) plus the imported-fees note
+  when imported entries are included (`imported_fees_estimated`).
+- Tests: `test_journal_edge.py` (each metric by hand, breakeven, 29 counts
+  only / 30 an identical interval, R needs 30, currencies, bootstrap by seed,
+  drift cases, the route with filters, All books, isolation, open entries,
+  the imported flag, newest backtest and holdout seen).
 
 **Survivorship stamp (A1.4a, part of M1.5).** Every backtest result carries
 `universe: {name, point_in_time, survivorship_biased, note}`: the public

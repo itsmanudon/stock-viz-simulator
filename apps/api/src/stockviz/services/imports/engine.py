@@ -16,6 +16,15 @@ Rules (design note, "Import"; questions 2-4):
 - **A sell with too few shares held** (bought before the file's window) does
   not post: it is ``needs_opening_lot`` until the user enters an opening lot
   (date, quantity, average price) that covers it.
+- **Intraday shorts.** A trade sell on an NSE/BSE equity listing while nothing
+  is held, whose quantity (plus any short already open that day) the same
+  scrip's later buys on the same venue day cover, is an intraday short: it
+  posts (``short = "open"``) instead of waiting for an opening lot. Later buys
+  that day cover it first (``short = "cover"``), realising
+  ``(average short price - buy price) x quantity``; any rest of a covering buy
+  adds to a long holding. A short never stays open overnight: a sell the day's
+  buys do not cover keeps the opening-lot rule. Its fees are already intraday
+  (the day's offsetting quantity), with no DP.
 - **Splits.** A fill on a venue date before a recorded split's ex-date is
   restated (quantity x ratio, price / ratio) so it matches the split-adjusted
   bars; the broker fill keeps its as-traded numbers.
@@ -88,6 +97,8 @@ class FillOutcome:
     fee_schedule: str | None = None
     fee_lines: list[dict[str, Any]] = field(default_factory=list)
     basis_uncertain: bool = False
+    short: str | None = None
+    """``open`` (an intraday short sale), ``cover`` (a buy covering it) or None."""
 
     @property
     def posted(self) -> bool:
@@ -144,6 +155,22 @@ def _intraday_allocation(fills: list[LedgerFill]) -> dict[int, Decimal]:
     return out
 
 
+def _later_buys(fills: list[LedgerFill]) -> dict[int, Decimal]:
+    """Per trade fill (in order): the same scrip's buy quantity after it that venue day."""
+    days: dict[tuple[int, date], list[LedgerFill]] = defaultdict(list)
+    for f in fills:
+        if f.kind != FILL_OPENING:
+            days[(f.instrument_id, f.venue_date)].append(f)
+    out: dict[int, Decimal] = {}
+    for day_fills in days.values():
+        after = Decimal(0)
+        for f in reversed(day_fills):  # already in order
+            out[f.key] = after
+            if f.side == "buy":
+                after += f.quantity
+    return out
+
+
 def _label(lines: list[dict[str, Any]], prefix: str) -> list[dict[str, Any]]:
     return [{**line, "label": f"{prefix} {line['label'].lower()}"} for line in lines]
 
@@ -196,9 +223,12 @@ def replay_fills(
     day_ranges = day_ranges or {}
     ordered = sorted(fills, key=_order_key)
     intraday = _intraday_allocation(ordered)
+    later_buys = _later_buys(ordered)
     dp_seen: set[tuple[int, date]] = set()
     held: dict[int, Decimal] = defaultdict(Decimal)
     avg: dict[int, Decimal] = defaultdict(Decimal)
+    short: dict[int, Decimal] = defaultdict(Decimal)  # open intraday short, restated
+    short_avg: dict[int, Decimal] = defaultdict(Decimal)
     tickers: dict[int, str] = {}
     outcomes: dict[int, FillOutcome] = {}
 
@@ -228,16 +258,39 @@ def replay_fills(
                 out.basis_uncertain = not (
                     low * (1 - BASIS_TOLERANCE) <= price <= high * (1 + BASIS_TOLERANCE)
                 )
+        iid = f.instrument_id
         if f.side == "buy":
-            total = avg[f.instrument_id] * before + price * qty
-            held[f.instrument_id] = before + qty
-            avg[f.instrument_id] = (total / held[f.instrument_id]).quantize(MICROS)
+            rest = qty
+            if short[iid] > 0 and f.kind != FILL_OPENING:
+                cover = min(qty, short[iid])
+                out.short = "cover"
+                out.avg_cost_at_fill = short_avg[iid]
+                out.realized_pnl = ((short_avg[iid] - price) * cover).quantize(MICROS)
+                short[iid] -= cover
+                if short[iid] == 0:
+                    short_avg[iid] = Decimal(0)
+                rest = qty - cover
+            if rest > 0:
+                total = avg[iid] * before + price * rest
+                held[iid] = before + rest
+                avg[iid] = (total / held[iid]).quantize(MICROS)
         elif before >= qty:
-            out.avg_cost_at_fill = avg[f.instrument_id]
-            out.realized_pnl = ((price - avg[f.instrument_id]) * qty).quantize(MICROS)
-            held[f.instrument_id] = before - qty
-            if held[f.instrument_id] == 0:
-                avg[f.instrument_id] = Decimal(0)
+            out.avg_cost_at_fill = avg[iid]
+            out.realized_pnl = ((price - avg[iid]) * qty).quantize(MICROS)
+            held[iid] = before - qty
+            if held[iid] == 0:
+                avg[iid] = Decimal(0)
+        elif (
+            before == 0
+            and f.kind != FILL_OPENING
+            and f.venue in INTRADAY
+            and (later_buys.get(f.key, Decimal(0)) * factor).quantize(MICROS) >= short[iid] + qty
+        ):
+            out.short = "open"
+            short_avg[iid] = (
+                (short_avg[iid] * short[iid] + price * qty) / (short[iid] + qty)
+            ).quantize(MICROS)
+            short[iid] += qty
         else:
             out.status = STATUS_NEEDS_OPENING_LOT
         outcomes[f.key] = out

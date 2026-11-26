@@ -258,6 +258,8 @@ def unavailable_realizations(
                 Trade.ts >= wide_start,
                 Trade.ts < wide_end,
                 col(Trade.realized_pnl).is_(None),
+                # An imported sell without a figure opens an intraday short (A5.3).
+                col(Trade.broker_fill_id).is_(None),
             )
         ).all()
         if first <= _ticker_session_date(ts, ticker) <= last

@@ -9,6 +9,7 @@ import {
   entryHref,
   entryPlanBadge,
   excursionPct,
+  placeExcursionMarkers,
   rText,
   splitEntryTags,
 } from "@/lib/journal-entries";
@@ -33,6 +34,7 @@ function summary(overrides: Partial<JournalEntrySummary> = {}): JournalEntrySumm
     ticker: "RELIANCE.NS",
     currency: "INR",
     venue: "XNSE",
+    side: "long",
     status: "closed",
     opened_at: "2025-05-05T04:00:00",
     closed_at: "2025-05-08T04:45:00",
@@ -273,5 +275,131 @@ describe("journal entry chart (A5.5)", () => {
     );
     const markers = lwcCalls.markers.at(-1) as { text: string }[];
     expect(markers.map((m) => m.text)).toEqual(["B"]);
+  });
+});
+
+describe("MAE / MFE marker placement (A5 fix)", () => {
+  const fill = (side: "buy" | "sell", day: string, trade_id: number) => ({
+    trade_id,
+    replay_fill_id: null,
+    side,
+    quantity: "10",
+    price: "1200",
+    fees: "1",
+    fees_estimated: true,
+    at: `${day}T04:00:00`,
+    venue_date: day,
+    time_known: true,
+  });
+  const exc = (date: string, pct: string) => ({
+    per_share: "1",
+    pct,
+    amount: "10",
+    shares: "10",
+    date,
+    price: "1200",
+    r: null,
+  });
+
+  it("keeps each excursion on its own side when the bar is free", () => {
+    const entry = detail({
+      fills: [fill("buy", "2025-05-05", 1), fill("sell", "2025-05-08", 2)],
+      excursions: {
+        ...detail().excursions,
+        mae: exc("2025-05-06", "-1"),
+        mfe: exc("2025-05-07", "2"),
+      },
+    });
+    expect(placeExcursionMarkers(entry)).toEqual([
+      { kind: "mae", date: "2025-05-06", position: "belowBar", mergeIntoFill: false },
+      { kind: "mfe", date: "2025-05-07", position: "aboveBar", mergeIntoFill: false },
+    ]);
+  });
+
+  it("moves MAE above the bar when the buy's B sits below it (the open entry case)", () => {
+    const entry = detail({
+      status: "open",
+      fills: [fill("buy", "2025-05-05", 1)],
+      excursions: {
+        ...detail().excursions,
+        mae: exc("2025-05-05", "-1.66"),
+        mfe: exc("2025-05-08", "11"),
+      },
+    });
+    const [mae, mfe] = placeExcursionMarkers(entry);
+    expect(mae).toEqual({
+      kind: "mae",
+      date: "2025-05-05",
+      position: "aboveBar",
+      mergeIntoFill: false,
+    });
+    expect(mfe.position).toBe("aboveBar");
+    render(<JournalEntryChart entry={entry} bars={BARS} />);
+    const markers = lwcCalls.markers.at(-1) as { time: number; position: string; text: string }[];
+    const day = markers.filter((m) => m.time === markers.find((x) => x.text === "B")?.time);
+    // One marker per side of the bar: B below, MAE above; nothing stacks.
+    expect(day.map((m) => [m.position, m.text])).toEqual([
+      ["belowBar", "B"],
+      ["aboveBar", "MAE -1.66%"],
+    ]);
+  });
+
+  it("flips sides for a short and joins the fills' labels on an intraday round trip", () => {
+    const entry = detail({
+      side: "short",
+      plan: null,
+      r_multiple: null,
+      fills: [fill("sell", "2025-05-05", 1), fill("buy", "2025-05-05", 2)],
+      excursions: {
+        ...detail().excursions,
+        mae: exc("2025-05-05", "-0.4132"),
+        mfe: exc("2025-05-05", "2.0661"),
+      },
+    });
+    expect(placeExcursionMarkers(entry)).toEqual([
+      { kind: "mae", date: "2025-05-05", position: "aboveBar", mergeIntoFill: true },
+      { kind: "mfe", date: "2025-05-05", position: "belowBar", mergeIntoFill: true },
+    ]);
+    render(<JournalEntryChart entry={entry} bars={BARS} />);
+    const markers = lwcCalls.markers.at(-1) as { position: string; text: string }[];
+    expect(markers.map((m) => [m.position, m.text])).toEqual([
+      ["aboveBar", "S · MAE -0.41%"],
+      ["belowBar", "B · MFE +2.07%"],
+    ]);
+  });
+
+  it("puts a short's MAE above a free bar and its MFE below", () => {
+    const entry = detail({
+      side: "short",
+      fills: [fill("sell", "2025-05-05", 1), fill("buy", "2025-05-08", 2)],
+      excursions: {
+        ...detail().excursions,
+        mae: exc("2025-05-06", "-1"),
+        mfe: exc("2025-05-07", "2"),
+      },
+    });
+    expect(placeExcursionMarkers(entry).map((p) => p.position)).toEqual(["aboveBar", "belowBar"]);
+  });
+
+  it("shows R on a closing buy (a short's cover)", () => {
+    render(
+      <PriceChart
+        bars={BARS}
+        events={[
+          {
+            type: "fill",
+            date: "2025-05-05",
+            ts: "2025-05-05T08:00:00",
+            side: "buy",
+            quantity: "10",
+            price: "1200",
+            r_multiple: 0.5,
+            closes_entry: true,
+          },
+        ]}
+      />,
+    );
+    const markers = lwcCalls.markers.at(-1) as { text: string }[];
+    expect(markers.map((m) => m.text)).toEqual(["B +0.50R"]);
   });
 });

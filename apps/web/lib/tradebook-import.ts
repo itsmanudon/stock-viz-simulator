@@ -67,6 +67,8 @@ export type ImportCounts = {
   rejected: number;
   basis_uncertain: number;
   intraday_inferred: number;
+  /** Sells posted as intraday shorts: covered by buys of the scrip the same day. */
+  intraday_short?: number;
 };
 
 /** The preview's summary line, in reading order; zero counts after `new` are left out. */
@@ -81,6 +83,7 @@ export function countItems(c: ImportCounts): { label: string; value: number }[] 
     { label: "Rejected", value: c.rejected },
     { label: "Basis Uncertain", value: c.basis_uncertain },
     { label: "Intraday (Inferred)", value: c.intraday_inferred },
+    { label: "Intraday Short", value: c.intraday_short ?? 0 },
   ];
   return items.filter((i) => i.keep || i.value > 0).map(({ label, value }) => ({ label, value }));
 }

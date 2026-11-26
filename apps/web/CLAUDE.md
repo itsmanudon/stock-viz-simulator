@@ -1074,9 +1074,45 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   (`PriceChartLine`). **R on fill markers:** a fill event with `r_multiple`
   (the closing fill of a journal entry, from the API) is marked "S +0.97R"
   and its summary says "closing the trade at +0.97R" (`formatR` in
-  `lib/chart-events.ts`); opening and partial fills stay "B"/"S". The P&L
+  `lib/chart-events.ts`); opening and partial fills stay "B"/"S"; a closing
+  buy (a short's cover) reads "B +0.50R" the same way. **MAE/MFE marker
+  rule** (`placeExcursionMarkers` in `lib/journal-entries.ts`): fills keep
+  their side (buys below the bar, sells above); an excursion prefers the side
+  of the extreme it measures (long: MAE below, MFE above; short: the other
+  way round); on a bar where that side holds a fill or the other excursion it
+  moves to the other side if free; if both sides are taken (an intraday round
+  trip) its label joins the fill's (`PriceChartMarker.mergeIntoFill`: "S ·
+  MAE -0.41%"). Markers never stack on one side of a bar, so nothing runs off
+  the pane (the open entry's MAE used to push its "B" off the bottom).
+  **Short entries** (`side: "short"`, imported intraday shorts): an
+  "Intraday Short" chip on the list row (`entry-side-short`) and the page,
+  "Average Short Price" / "Average Cover" figures, and the plan section shows
+  the API's `r_reason` (imported plans are long only, so no R). The import
+  preview counts "Intraday Short" and marks those sample rows. The P&L
   calendar's caption says fills are dated on each exchange's own day.
   Tests: `tests/unit/journal-entries.test.tsx`.
+- **"Is my edge real?" (A5.6, M10.3 stats).** `/portfolio/journal/edge`
+  (`app/(product)/(authed)/portfolio/journal/edge/page.tsx`; a sub-view of the
+  Journal tab, mapped to the Portfolio item by the `/portfolio/journal`
+  prefix; protected by `/portfolio` in `proxy.ts`), linked from
+  `JournalEntriesPanel` (`edge-link`, keeps `?book=`). URL state: `book` (an
+  id, else every book and replay), `source` (absent = paper and imported;
+  `paper`, `imported`, `replay`, `all`), `tag`, `setup`, `from`, `to`
+  (`edgeHref`). Types and formatters client-safe in `lib/journal-edge.ts`
+  (`pct`, `rValue`/`rInterval` round first so nothing reads "-0.00R",
+  `edgeMoney`, `DRIFT_LABEL`, `edgeQuery`); `lib/api/journal-edge.ts`
+  (server-only) `getJournalStats`. `components/journal/edge-view.tsx`
+  (server-renderable): `EdgeHonesty` (`edge-honesty`), `EdgeOverview`
+  (`edge-overall`, `data-counts-only`; a `FigureStrip` four wide from `lg`,
+  or the counts and the reason in `edge-counts-only`), `EdgeGroupsTable`
+  (`edge-group-row` with `data-counts-only`, a counts-only row spans the
+  figures with the reason; `edge-group-card` under `md`) and
+  `EdgeDriftCard` (`edge-drift-card`, `data-status`, `edge-drift-status`:
+  live / backtest / difference per trade, the live interval, the run's
+  in-sample note and a link to `/backtest/runs/[id]`). Source chips are
+  links (`edge-source`, `aria-current`). Intervals are neutral text; only
+  "Outside the Interval" takes the warning tone. Every figure comes from the
+  API. Tests: `tests/unit/journal-edge.test.tsx`.
 - Operational trading (`/trade`, `/orders`, `/watchlist`, `/alerts`) is the
   authenticated execution/monitoring loop. See
   [`docs/OPERATIONAL_TRADING.md`](../../docs/OPERATIONAL_TRADING.md).
