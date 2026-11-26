@@ -391,6 +391,141 @@ ClientOrderId = Annotated[
 the same key returns the first order instead of placing a second (#67, LG-10)."""
 
 
+# ---------------------------------------------------------------------------
+# Trade plans (A5.4, M10.3)
+# ---------------------------------------------------------------------------
+
+PlanPrice = Annotated[Decimal, Field(gt=0, max_digits=18, decimal_places=6)]
+PlanSize = Annotated[Decimal, Field(gt=0, max_digits=20, decimal_places=6)]
+PlanTag = Annotated[str, Field(min_length=1, max_length=32)]
+
+
+def _check_plan_prices(
+    side: str, entry: Decimal | None, stop: Decimal | None, target: Decimal | None
+) -> None:
+    if entry is None:
+        return
+    if side == "long":
+        if stop is not None and stop >= entry:
+            raise ValueError("a long plan's stop must be below its entry")
+        if target is not None and target <= entry:
+            raise ValueError("a long plan's target must be above its entry")
+    else:
+        if stop is not None and stop <= entry:
+            raise ValueError("a short plan's stop must be above its entry")
+        if target is not None and target >= entry:
+            raise ValueError("a short plan's target must be below its entry")
+
+
+class TradePlanDraft(BaseModel):
+    """The plan fields a trader writes (A5.4). Entry, stop and size are required."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    side: Literal["long", "short"] = "long"
+    planned_entry: PlanPrice
+    planned_stop: PlanPrice
+    planned_target: PlanPrice | None = None
+    planned_size: PlanSize
+    setup_version_id: int | None = Field(default=None, ge=1)
+    thesis_id: int | None = Field(default=None, ge=1)
+    thesis_text: str | None = Field(default=None, max_length=4000)
+    why: str | None = Field(default=None, max_length=2000)
+    invalidation: str | None = Field(default=None, max_length=4000)
+    horizon_bars: int | None = Field(default=None, ge=1, le=10000)
+    confidence: int | None = Field(default=None, ge=1, le=5)
+    notes: str | None = Field(default=None, max_length=8000)
+    tags: list[PlanTag] = Field(default_factory=list, max_length=12)
+
+    @model_validator(mode="after")
+    def _prices(self) -> TradePlanDraft:
+        _check_plan_prices(self.side, self.planned_entry, self.planned_stop, self.planned_target)
+        return self
+
+
+class TradePlanIn(TradePlanDraft):
+    """``POST /v1/plans``: a plan for ``ticker`` in the ``?book=`` book.
+
+    ``link_open_position`` links the book's open position in the ticker to the
+    plan: its entry fills were made before the plan, so the plan is labelled
+    "written after entry" and never locked.
+    """
+
+    ticker: str = Field(min_length=1, max_length=16)
+    link_open_position: bool = False
+
+
+class TradePlanPatch(BaseModel):
+    """``PATCH /v1/plans/{id}``. Plan fields only before the first fill (else
+    409); ``notes`` and ``tags`` always. ``status`` closes or cancels."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    planned_entry: PlanPrice | None = None
+    planned_stop: PlanPrice | None = None
+    planned_target: PlanPrice | None = None
+    planned_size: PlanSize | None = None
+    setup_version_id: int | None = Field(default=None, ge=1)
+    thesis_id: int | None = Field(default=None, ge=1)
+    thesis_text: str | None = Field(default=None, max_length=4000)
+    why: str | None = Field(default=None, max_length=2000)
+    invalidation: str | None = Field(default=None, max_length=4000)
+    horizon_bars: int | None = Field(default=None, ge=1, le=10000)
+    confidence: int | None = Field(default=None, ge=1, le=5)
+    notes: str | None = Field(default=None, max_length=8000)
+    tags: list[PlanTag] | None = Field(default=None, max_length=12)
+    status: Literal["closed", "cancelled"] | None = None
+
+
+class TradePlanOut(BaseModel):
+    id: int
+    source: Literal["paper", "replay", "drill", "imported"]
+    book_id: int | None
+    replay_session_id: int | None
+    ticker: str | None
+    currency: str
+    side: Literal["long", "short"]
+    planned_entry: Decimal | None
+    planned_stop: Decimal | None
+    planned_target: Decimal | None
+    planned_size: Decimal | None
+    risk_per_share: Decimal | None
+    """|entry - stop|."""
+    planned_risk: Decimal | None
+    """|entry - stop| x size, in ``currency``."""
+    reward_per_share: Decimal | None
+    """|target - entry| (null without a target)."""
+    reward_risk: Decimal | None
+    """reward / risk per share, 2 decimals (null without a target)."""
+    setup_version_id: int | None
+    setup_label: str | None
+    thesis_id: int | None
+    thesis_title: str | None
+    thesis_text: str | None
+    why: str | None
+    invalidation: str | None
+    horizon_bars: int | None
+    confidence: int | None
+    notes: str | None
+    tags: list[str]
+    status: Literal["open", "active", "closed", "cancelled"]
+    locked: bool
+    locked_at: datetime | None
+    first_fill_at: datetime | None
+    written_after_entry: bool
+    frozen: bool
+    """True once a fill is linked: only notes and tags can change."""
+    fills: int
+    """Paper fills linked to the plan (replay and drill plans: 0)."""
+    created_at: datetime
+    updated_at: datetime
+
+
+class TradePlansOut(BaseModel):
+    plans: list[TradePlanOut]
+    limit: int
+
+
 class TradeIn(BaseModel):
     """Request body for POST /v1/trades."""
 
@@ -398,6 +533,10 @@ class TradeIn(BaseModel):
     side: Literal["buy", "sell"]
     quantity: Decimal
     client_order_id: ClientOrderId = None
+    # A5.4: link the fill to a plan (one of the two; buys only).
+    trade_plan_id: int | None = Field(default=None, ge=1)
+    plan: TradePlanDraft | None = None
+    """A new plan written on the ticket, created with the order."""
 
     @field_validator("quantity")
     @classmethod
@@ -448,6 +587,8 @@ class TradeOut(BaseModel):
     realized_pnl_net: Decimal | None = None
     # A5.2: the trade's book (always set; the All books list mixes them).
     book_id: int | None = None
+    # A5.4: the plan the fill is linked to.
+    trade_plan_id: int | None = None
 
 
 class TradeFeeLineOut(BaseModel):
@@ -762,7 +903,11 @@ class ReplayJournalOut(BaseModel):
     confidence: int | None = None
     reflection: str | None = None
     locked: bool
+    """The thesis fields are frozen: locked at the first fill, or (A5.4)
+    written after it."""
     locked_at: datetime | None = None
+    # A5.4: the journal (a trade plan) was started after the first fill.
+    written_after_entry: bool = False
     created_at: datetime
     updated_at: datetime
 
@@ -1050,6 +1195,9 @@ class PendingOrderIn(BaseModel):
     quantity: str
     limit_price: str
     client_order_id: ClientOrderId = None
+    # A5.4: the plan the order's fill is linked to (buy limits only).
+    trade_plan_id: int | None = Field(default=None, ge=1)
+    plan: TradePlanDraft | None = None
 
 
 class PendingOrderOut(BaseModel):
@@ -1069,6 +1217,8 @@ class PendingOrderOut(BaseModel):
     cancel_reason: str | None = None
     # A5.2: the order's book (the All books list mixes them).
     portfolio_id: int | None = None
+    # A5.4: the plan its fill will be linked to.
+    trade_plan_id: int | None = None
 
 
 # ---------------------------------------------------------------------------

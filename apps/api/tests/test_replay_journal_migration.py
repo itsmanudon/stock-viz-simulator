@@ -47,7 +47,7 @@ def test_replay_journals_migration_upgrade_downgrade_reupgrade() -> None:
         assert "replay_sessions" in inspector.get_table_names()
         assert "replay_journals" not in inspector.get_table_names()
 
-        _alembic(_url(engine), "upgrade", "head")
+        _alembic(_url(engine), "upgrade", HEAD_REVISION)
         inspector = inspect(engine)
         assert "replay_journals" in inspector.get_table_names()
         columns = {col["name"] for col in inspector.get_columns("replay_journals")}

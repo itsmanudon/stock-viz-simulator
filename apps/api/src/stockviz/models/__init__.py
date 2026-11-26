@@ -27,7 +27,7 @@ from stockviz.models.delivery import (
 )
 from stockviz.models.dividend import Dividend, PortfolioDividend
 from stockviz.models.drawing import Drawing
-from stockviz.models.drill import Drill, DrillDeck, DrillPlan
+from stockviz.models.drill import Drill, DrillDeck
 from stockviz.models.earnings import EarningsEvent
 from stockviz.models.eod import EodExtras, EodRaw
 from stockviz.models.events import ConsumerInbox, OutboxEvent, PortfolioTradeActivity
@@ -70,7 +70,6 @@ from stockviz.models.portfolio import (
 from stockviz.models.replay import (
     ReplayDrawing,
     ReplayFill,
-    ReplayJournal,
     ReplayOrder,
     ReplayOrderStatus,
     ReplayPosition,
@@ -80,6 +79,7 @@ from stockviz.models.replay import (
 from stockviz.models.risk_limit import RiskLimit
 from stockviz.models.screen import SavedScreen, ScreenRun
 from stockviz.models.setup import Setup, SetupVersion, Thesis
+from stockviz.models.trade_plan import TradePlan
 from stockviz.models.trial import BacktestTrial, HoldoutUnlock
 from stockviz.models.user import User
 from stockviz.models.watchlist import ColumnSet, Watchlist, WatchlistItem
@@ -116,7 +116,6 @@ __all__ = [
     "Drawing",
     "Drill",
     "DrillDeck",
-    "DrillPlan",
     "EarningsEvent",
     "EodExtras",
     "EodRaw",
@@ -154,7 +153,6 @@ __all__ = [
     "QuarantinedPriceBar",
     "ReplayDrawing",
     "ReplayFill",
-    "ReplayJournal",
     "ReplayOrder",
     "ReplayOrderStatus",
     "ReplayPosition",
@@ -172,6 +170,7 @@ __all__ = [
     "SymbolMetrics",
     "Thesis",
     "Trade",
+    "TradePlan",
     "TradeSide",
     "User",
     "Watchlist",

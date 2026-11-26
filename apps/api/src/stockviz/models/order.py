@@ -11,7 +11,7 @@ import enum
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import CheckConstraint, Numeric, UniqueConstraint
+from sqlalchemy import CheckConstraint, ForeignKey, Integer, Numeric, UniqueConstraint
 from sqlmodel import Column, Field, SQLModel
 
 from stockviz._time import utcnow
@@ -66,3 +66,10 @@ class PendingOrder(SQLModel, table=True):
         default=None, sa_column=Column(Numeric(18, 6), nullable=True)
     )
     client_order_id: str | None = Field(default=None, max_length=64, nullable=True)
+    # A5.4: the plan the fill will be linked to (``trade_plans``; null = none).
+    trade_plan_id: int | None = Field(
+        default=None,
+        sa_column=Column(
+            Integer, ForeignKey("trade_plans.id", ondelete="SET NULL"), nullable=True, index=True
+        ),
+    )

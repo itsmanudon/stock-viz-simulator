@@ -175,6 +175,8 @@ def post_trade(
             quantity=body.quantity,
             client_order_id=body.client_order_id,
             book_id=book,
+            trade_plan_id=body.trade_plan_id,
+            plan=body.plan,
         )
     except SymbolNotFound as exc:
         raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
@@ -207,6 +209,7 @@ def post_trade(
         total_base=result.base_cost,
         realized_pnl=result.realized_pnl,
         book_id=trade.portfolio_id,
+        trade_plan_id=trade.trade_plan_id,
         **trade_fee_fields(trade, result.native_cost),
     )
 
@@ -633,6 +636,7 @@ def list_trades(
                 total_base=native * rate,
                 realized_pnl=trade.realized_pnl,
                 book_id=trade.portfolio_id,
+                trade_plan_id=trade.trade_plan_id,
                 **trade_fee_fields(trade, native),
             )
         )
