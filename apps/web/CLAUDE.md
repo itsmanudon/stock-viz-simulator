@@ -1124,7 +1124,7 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
 - **Command palette (A3.6)**: `components/command-palette.tsx` (replaced
   `global-ticker-search.tsx`), data in `lib/command-palette.ts`. ⌘K / Ctrl+K
   anywhere in the product app (again to close), `/` outside a field, or the
-  top-bar button ("Search symbols, pages and actions": a field from `sm`, an
+  top-bar button ("Search tickers, pages and actions": a field from `sm`, an
   icon on phones). Sources: pages (every sidebar item and the bottom rail),
   actions (`ACTIONS`: New backtest, Start a blind replay, Create drill deck,
   New screen, Compare symbols, Place a paper order, Create price alert, Open

@@ -5,7 +5,7 @@ test("guest research routes use the product shell without a website footer", asy
 
   await expect(page.getByRole("navigation", { name: "Product" })).toBeVisible();
   await expect(
-    page.getByRole("button", { name: "Search symbols, pages and actions" }),
+    page.getByRole("button", { name: "Search tickers, pages and actions" }),
   ).toBeVisible();
   await expect(page.getByRole("link", { name: "Overview" }).first()).toHaveAttribute(
     "aria-current",
@@ -74,7 +74,7 @@ test("the command palette opens with the keyboard and jumps to a symbol (A3.6)",
   await page.keyboard.press("ControlOrMeta+k");
   const palette = page.getByRole("dialog", { name: "Command palette" });
   await expect(palette).toBeVisible();
-  const input = palette.getByRole("combobox", { name: "Search symbols, pages and actions" });
+  const input = palette.getByRole("combobox", { name: "Search tickers, pages and actions" });
   await expect(input).toBeFocused();
 
   await input.fill("AAPL");
@@ -104,7 +104,7 @@ test("the command palette jumps to a page and closes with Escape (A3.6)", async 
   await page.keyboard.press("Escape");
   await expect(palette).toHaveCount(0);
   await expect(
-    page.getByRole("button", { name: "Search symbols, pages and actions" }),
+    page.getByRole("button", { name: "Search tickers, pages and actions" }),
   ).toBeFocused();
 
   await page.keyboard.press("ControlOrMeta+k");
@@ -120,7 +120,7 @@ test("the command palette jumps to a page and closes with Escape (A3.6)", async 
 test("on a phone the top bar button opens the palette (A3.6)", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/screener");
-  await page.getByRole("button", { name: "Search symbols, pages and actions" }).click();
+  await page.getByRole("button", { name: "Search tickers, pages and actions" }).click();
   const palette = page.getByRole("dialog", { name: "Command palette" });
   await expect(palette).toBeVisible();
   await palette.getByRole("combobox").fill("checklist");

@@ -168,7 +168,7 @@ describe("AppShell", () => {
     );
 
     expect(screen.getByRole("main")).toHaveAttribute("id", "main");
-    expect(screen.getByRole("button", { name: "Search symbols, pages and actions" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Search tickers, pages and actions" })).toBeVisible();
     expect(screen.getByRole("button", { name: "Alerts" })).toBeVisible();
     expect(screen.getByText("EOD data · latest close Nov 7, 2026")).toBeInTheDocument();
     expect(screen.queryByRole("contentinfo")).not.toBeInTheDocument();

@@ -35,7 +35,7 @@ function symbol(ticker: string, name: string): SymbolRow {
   };
 }
 
-const TRIGGER = "Search symbols, pages and actions";
+const TRIGGER = "Search tickers, pages and actions";
 
 function openPalette() {
   fireEvent.click(screen.getByRole("button", { name: TRIGGER }));

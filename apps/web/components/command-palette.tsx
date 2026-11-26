@@ -379,7 +379,7 @@ export function CommandPalette({
         <button
           ref={triggerRef}
           type="button"
-          aria-label="Search symbols, pages and actions"
+          aria-label="Search tickers, pages and actions"
           aria-keyshortcuts="Meta+K Control+K /"
           data-palette-trigger
           className="group relative inline-flex size-10 shrink-0 items-center justify-center rounded-md text-left text-muted-foreground outline-none transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring sm:block sm:size-auto sm:w-full sm:hover:bg-transparent sm:focus-visible:ring-0"
@@ -389,7 +389,7 @@ export function CommandPalette({
             aria-hidden
           />
           <span className="hidden h-9 w-full items-center rounded-md border border-border-muted bg-surface-elevated py-1 pl-9 pr-16 text-sm text-text-tertiary transition-colors hover:border-ring/60 hover:text-foreground sm:flex group-focus-visible:border-ring group-focus-visible:ring-2 group-focus-visible:ring-ring/30">
-            <span className="truncate">Search symbols, pages, actions</span>
+            <span className="truncate">Search tickers, pages, actions</span>
           </span>
           <kbd className="pointer-events-none absolute right-3 top-1/2 hidden -translate-y-1/2 items-center gap-1 rounded border bg-muted px-1.5 py-0.5 font-mono text-3xs text-muted-foreground sm:inline-flex">
             <Command className="size-3" aria-hidden /> K
@@ -431,12 +431,12 @@ export function CommandPalette({
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               onKeyDown={onKeyDown}
-              aria-label="Search symbols, pages and actions"
+              aria-label="Search tickers, pages and actions"
               aria-autocomplete="list"
               aria-controls={listboxId}
               aria-expanded={options.length > 0}
               aria-activedescendant={safeIndex >= 0 ? optionId(safeIndex) : undefined}
-              placeholder="Search symbols, pages, actions"
+              placeholder="Search tickers, pages, actions"
               autoComplete="off"
               spellCheck={false}
               className="h-12 w-full rounded-lg border border-border-muted bg-background py-1 pl-10 pr-16 text-base text-foreground outline-none placeholder:text-text-tertiary focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30"
