@@ -3,19 +3,24 @@
 /**
  * Interactive backtest experiment: setup on the left, results on the right.
  *
- * POST /v1/backtest is public, so this client island calls it from the browser.
- * The engine remains authoritative — this component only composes the UX.
+ * A4.3: runs go through a server action (`runTemplateAction`), authed when
+ * signed in, so every run lands in the caller's trial ledger. The engine
+ * remains authoritative — this component only composes the UX.
  */
 
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
 
+import { runTemplateAction } from "@/app/(product)/backtest/holdout-actions";
 import { SaveBacktestRun } from "@/components/backtest-run-actions";
 import { CostsDisclosure } from "@/components/costs-disclosure";
 import { EquityCurve } from "@/components/equity-curve";
 import { FigureStrip } from "@/components/figure-strip";
+import { OverfittingChecks } from "@/components/report-card/overfitting-checks";
+import { ReportCard } from "@/components/report-card/report-card";
 import { ResearchEmptyState, ResearchSectionHeader } from "@/components/research-page-header";
+import { StrategyTradesChart } from "@/components/rule-strategy/strategy-trades-chart";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -28,7 +33,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { UniverseNote } from "@/components/universe-note";
-import { ApiError, type BacktestRequest, type BacktestResult, runBacktest } from "@/lib/api";
+import type { BacktestRequest, BacktestResult } from "@/lib/api";
 import {
   type BacktestSymbol,
   defaultBacktestRange,
@@ -43,6 +48,7 @@ import {
   advCapValue,
   partialLabel,
 } from "@/lib/fees";
+import { HOLDOUT_OPTIONS, type HoldoutMode, templateRoundTrips } from "@/lib/report-card";
 import { formatCloseDate } from "@/lib/stock-workspace";
 import { cn } from "@/lib/utils";
 
@@ -62,17 +68,6 @@ function fmtPct(fraction: number): string {
   const pct = fraction * 100;
   const sign = pct > 0 ? "+" : "";
   return `${sign}${pct.toFixed(2)}%`;
-}
-
-function parseApiDetail(err: ApiError): string {
-  const raw = err.message.replace(/^API \d+ [^:]+:\s*/, "");
-  try {
-    const parsed = JSON.parse(raw) as { detail?: unknown };
-    if (typeof parsed.detail === "string") return parsed.detail;
-  } catch {
-    // fall through
-  }
-  return raw || err.message;
 }
 
 function signedClass(value: number): string {
@@ -119,6 +114,7 @@ export function BacktestForm({
   const [brokerage, setBrokerage] = useState<BrokerageName>("zerodha");
   const [advCap, setAdvCap] = useState(DEFAULT_ADV_CAP_PCT);
   const [slippageBps, setSlippageBps] = useState("0");
+  const [holdout, setHoldout] = useState<HoldoutMode>("last_20pct");
 
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<{ message: string; kind: "validation" | "system" } | null>(
@@ -176,21 +172,24 @@ export function BacktestForm({
         fee_schedule: feeSchedule,
         brokerage,
         adv_cap_pct: advCapValue(advCap),
+        holdout,
       };
-      const res = await runBacktest(request);
+      const res = await runTemplateAction(request);
+      if (!res.result) {
+        setResult(null);
+        const status = res.status ?? 500;
+        setError({
+          message: res.error ?? "Backtest failed",
+          kind: status >= 400 && status < 500 ? "validation" : "system",
+        });
+        return;
+      }
       setLastRequest(request);
       setLastCosts({ commissionBps: commission, slippageBps: slippage });
-      setResult(res);
-    } catch (err) {
+      setResult(res.result);
+    } catch {
       setResult(null);
-      if (err instanceof ApiError) {
-        setError({
-          message: parseApiDetail(err),
-          kind: err.status >= 400 && err.status < 500 ? "validation" : "system",
-        });
-      } else {
-        setError({ message: "Backtest failed", kind: "system" });
-      }
+      setError({ message: "Backtest failed", kind: "system" });
     } finally {
       setPending(false);
     }
@@ -414,6 +413,27 @@ export function BacktestForm({
               <option value="price">Price only (dividends not included)</option>
               <option value="total">Total return (dividends credited)</option>
             </select>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="bt-holdout">Holdout</Label>
+            <select
+              id="bt-holdout"
+              value={holdout}
+              onChange={(event) => setHoldout(event.target.value as HoldoutMode)}
+              aria-describedby="bt-holdout-hint"
+              className="flex h-10 w-full rounded-sm border border-input bg-transparent px-3 py-2 text-sm"
+            >
+              {HOLDOUT_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+            <p id="bt-holdout-hint" className="text-xs text-text-tertiary">
+              The run, sweeps and walk-forwards use the first 80% of the dates until you unlock the
+              rest once.
+            </p>
           </div>
 
           <div className="space-y-2">
@@ -666,7 +686,37 @@ function BacktestResults({
         <CostsDisclosure costs={result.costs} liquidity={result.liquidity} className="mt-3" />
       </section>
 
+      {result.window ? (
+        <p className="text-xs text-text-tertiary" data-testid="run-window">
+          {result.window.note}
+        </p>
+      ) : null}
+      {result.report ? <ReportCard report={result.report} currency={currency} /> : null}
+      {result.checks ? (
+        <OverfittingChecks
+          checks={result.checks}
+          report={result.report}
+          request={request ? { backtest: request } : undefined}
+        />
+      ) : null}
+
       {request ? <SaveBacktestRun request={request} /> : null}
+
+      <section aria-labelledby="template-chart-heading">
+        <ResearchSectionHeader id="template-chart-heading" title="Trades on the chart" />
+        <div className="border-y border-border-muted bg-surface-elevated p-3 sm:border-x sm:p-4">
+          <StrategyTradesChart
+            tickers={[result.ticker]}
+            trades={templateRoundTrips(
+              result.trades,
+              result.ticker,
+              result.equity_curve.at(-1)?.date,
+            )}
+            from={result.equity_curve[0]?.date ?? ""}
+            to={result.equity_curve.at(-1)?.date ?? ""}
+          />
+        </div>
+      </section>
 
       <section aria-labelledby="trades-heading">
         <ResearchSectionHeader

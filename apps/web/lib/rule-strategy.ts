@@ -58,6 +58,8 @@ export type StrategyForm = {
   maxPositions: string;
   direction: "long" | "short";
   shortable: string;
+  /** A4.3: the last 20% of the range locked (default), or none. */
+  holdout?: NonNullable<StrategyRequest["holdout"]>;
 };
 
 /** Short marker labels, so a busy chart stays readable (the table has the words). */
@@ -142,6 +144,7 @@ export function buildStrategyRequest(form: StrategyForm): StrategyRequest {
     spread_bps: num(form.spreadBps) || 0,
     direction: form.direction,
     shortable: form.direction === "short" ? parseTickerList(form.shortable) : [],
+    holdout: form.holdout ?? "last_20pct",
   };
   return request;
 }

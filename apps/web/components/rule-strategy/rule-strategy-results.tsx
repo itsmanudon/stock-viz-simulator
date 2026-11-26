@@ -14,6 +14,8 @@ import { SaveStrategyRun } from "@/components/backtest-run-actions";
 import { CostsDisclosure } from "@/components/costs-disclosure";
 import { EquityCurve } from "@/components/equity-curve";
 import { FigureStrip } from "@/components/figure-strip";
+import { OverfittingChecks } from "@/components/report-card/overfitting-checks";
+import { ReportCard } from "@/components/report-card/report-card";
 import { ResearchEmptyState, ResearchSectionHeader } from "@/components/research-page-header";
 import { StrategyTradesChart } from "@/components/rule-strategy/strategy-trades-chart";
 import {
@@ -26,6 +28,7 @@ import {
 } from "@/components/ui/table";
 import { UniverseNote } from "@/components/universe-note";
 import { partialLabel } from "@/lib/fees";
+import type { OverfittingChecks as Checks } from "@/lib/report-card";
 import {
   REASON_LABEL,
   type StrategyRequest,
@@ -62,10 +65,16 @@ const SIZING_LABEL = {
 export function RuleStrategyResults({
   result,
   request,
+  checks,
+  unlockRequest,
 }: {
   result: StrategyResult;
   /** The request behind the result; given on /backtest to offer Save run. */
   request?: StrategyRequest;
+  /** A4.3: a saved run's checks (a fresh run carries its own). */
+  checks?: Checks | null;
+  /** The request a holdout unlock sends (defaults to ``request``). */
+  unlockRequest?: StrategyRequest;
 }) {
   const [showAll, setShowAll] = useState(false);
   const currency = result.currency;
@@ -171,6 +180,20 @@ export function RuleStrategyResults({
         <UniverseNote universe={result.universe} className="mt-1" />
         <CostsDisclosure costs={result.costs} liquidity={result.liquidity} className="mt-3" />
       </section>
+
+      {result.window ? (
+        <p className="text-xs text-text-tertiary" data-testid="run-window">
+          {result.window.note}
+        </p>
+      ) : null}
+      {result.report ? <ReportCard report={result.report} currency={currency} /> : null}
+      {(checks ?? result.checks) ? (
+        <OverfittingChecks
+          checks={(checks ?? result.checks) as Checks}
+          report={result.report}
+          request={(unlockRequest ?? request) ? { strategy: unlockRequest ?? request } : undefined}
+        />
+      ) : null}
 
       {request ? <SaveStrategyRun request={request} /> : null}
 

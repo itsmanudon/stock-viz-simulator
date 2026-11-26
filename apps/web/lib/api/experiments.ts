@@ -1,5 +1,6 @@
 import "server-only";
 
+import type { OverfittingChecks, PboResult, Plateau, RunWindow } from "../report-card";
 import type { StrategyRequest, StrategyResult } from "../rule-strategy";
 import { authedDelete, authedGet, authedPost } from "./server";
 import type { BacktestRequest, BacktestResult, BacktestSummary, BacktestUniverse } from "./types";
@@ -26,6 +27,8 @@ export type ExperimentRun = {
   /** `kind` "single": a BacktestResult; "walk_forward" / "sweep": their own
    * shape; "strategy" (A4.1): a StrategyResult. */
   result?: BacktestResult | WalkForwardResult | SweepResult | StrategyResult | null;
+  /** A4.3: the trial ledger's checks, read when the run is opened (single, strategy). */
+  checks?: OverfittingChecks | null;
 };
 
 export type WalkForwardWindow = {
@@ -67,6 +70,11 @@ export type SweepResult = {
     trades: number;
   }[];
   summary: BacktestSummary;
+  /** A4.3 (absent on sweeps saved before it). */
+  window?: RunWindow;
+  pbo?: PboResult | null;
+  pbo_reason?: string | null;
+  plateau?: Record<string, Plateau | null>;
 };
 
 export type ExperimentRerun = {

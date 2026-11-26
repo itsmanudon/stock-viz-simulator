@@ -1575,7 +1575,11 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Post Backtest */
+        /**
+         * Post Backtest
+         * @description A4.3: every run is recorded in the trial ledger (yours signed in, the
+         *     anonymous pool otherwise) and the response carries its ``checks``.
+         */
         post: operations["post_backtest_v1_backtest_post"];
         delete?: never;
         options?: never;
@@ -1600,6 +1604,29 @@ export interface paths {
          *     setup version or a rule that reads drawings need a Bearer token.
          */
         post: operations["post_strategy_backtest_v1_backtest_strategy_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/backtest/holdout/unlock": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Post Unlock Holdout
+         * @description A4.3: unlock the held-out tail of this run's strategy family, once.
+         *     The unlock is recorded with its time; the response carries the holdout's
+         *     result, and every later run of the family shows it as seen. 409 when the
+         *     family is already unlocked, 400 when the run has no holdout.
+         */
+        post: operations["post_unlock_holdout_v1_backtest_holdout_unlock_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2500,6 +2527,12 @@ export interface components {
              * @default 10
              */
             adv_cap_pct: number | null;
+            /**
+             * Holdout
+             * @default last_20pct
+             * @enum {string}
+             */
+            holdout: "last_20pct" | "none";
         };
         /** BacktestOut */
         BacktestOut: {
@@ -2541,6 +2574,9 @@ export interface components {
             universe: components["schemas"]["UniverseOut"];
             costs?: components["schemas"]["CostsOut"] | null;
             liquidity?: components["schemas"]["LiquidityOut"] | null;
+            window?: components["schemas"]["RunWindowOut"] | null;
+            report?: components["schemas"]["ReportCardOut"] | null;
+            checks?: components["schemas"]["OverfittingChecksOut"] | null;
         };
         /**
          * BacktestSummaryOut
@@ -3159,6 +3195,35 @@ export interface components {
             /** Last Bar */
             last_bar: string | null;
         };
+        /** DsrOut */
+        DsrOut: {
+            /** N */
+            n: number;
+            /** Sharpe */
+            sharpe: number;
+            /** Sharpe Annual */
+            sharpe_annual: number;
+            /** Observations */
+            observations: number;
+            /** Skewness */
+            skewness?: number | null;
+            /** Kurtosis */
+            kurtosis?: number | null;
+            /** Variance */
+            variance?: number | null;
+            /** Expected Max Sharpe */
+            expected_max_sharpe: number;
+            /** Expected Max Sharpe Annual */
+            expected_max_sharpe_annual: number;
+            /** Value */
+            value?: number | null;
+            /** Formula */
+            formula: string;
+            /** Note */
+            note: string;
+            /** Meaning */
+            meaning: string;
+        };
         /**
          * EarningsEventOut
          * @description One provider-backed earnings date for the calendar.
@@ -3458,6 +3523,7 @@ export interface components {
             result?: {
                 [key: string]: unknown;
             } | null;
+            checks?: components["schemas"]["OverfittingChecksOut"] | null;
         };
         /** ExpiryGroupOut */
         ExpiryGroupOut: {
@@ -3505,6 +3571,20 @@ export interface components {
             dimension: string;
             /** Buckets */
             buckets: components["schemas"]["ExposureBucketOut"][];
+        };
+        /** FanPointOut */
+        FanPointOut: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** P5 */
+            p5: number;
+            /** P50 */
+            p50: number;
+            /** P95 */
+            p95: number;
         };
         /** FeeComponentOut */
         FeeComponentOut: {
@@ -3849,6 +3929,64 @@ export interface components {
             /** Kind */
             kind: string;
             xirr: components["schemas"]["XirrOut"];
+        };
+        /** HoldoutResultOut */
+        HoldoutResultOut: {
+            /**
+             * From Date
+             * Format: date
+             */
+            from_date: string;
+            /**
+             * To Date
+             * Format: date
+             */
+            to_date: string;
+            /** Total Return */
+            total_return: number;
+            /** Sharpe */
+            sharpe: number;
+            /** Max Drawdown */
+            max_drawdown: number;
+            /** Psr */
+            psr?: number | null;
+            /** Trades */
+            trades: number;
+        };
+        /** HoldoutStatusOut */
+        HoldoutStatusOut: {
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "last_20pct" | "none";
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "locked" | "seen" | "none";
+            /** Holdout From */
+            holdout_from?: string | null;
+            /** Holdout To */
+            holdout_to?: string | null;
+            /** Unlocked At */
+            unlocked_at?: string | null;
+            /**
+             * Can Unlock
+             * @default false
+             */
+            can_unlock: boolean;
+            result?: components["schemas"]["HoldoutResultOut"] | null;
+            /** Note */
+            note: string;
+        };
+        /**
+         * HoldoutUnlockIn
+         * @description A4.3: unlock a strategy family's holdout, once: the request of the run on screen.
+         */
+        HoldoutUnlockIn: {
+            backtest?: components["schemas"]["BacktestIn"] | null;
+            strategy?: components["schemas"]["StrategyBacktestIn"] | null;
         };
         /** IndicatorCatalogItemOut */
         IndicatorCatalogItemOut: {
@@ -4416,6 +4554,32 @@ export interface components {
             rows: components["schemas"]["MarketSummaryRowOut"][];
             /** Sectors */
             sectors: string[];
+        };
+        /**
+         * MonteCarloFanOut
+         * @description A4.3: the Phase 8 stationary block bootstrap of the run's daily net
+         *     returns, as many sessions as the run had. Seeded: the same run gives the
+         *     same fan.
+         */
+        MonteCarloFanOut: {
+            /** Method */
+            method: string;
+            /** Paths */
+            paths: number;
+            /** Mean Block */
+            mean_block: number;
+            /** Seed */
+            seed: number;
+            /** Horizon Days */
+            horizon_days: number;
+            max_drawdown: components["schemas"]["PercentilesOut"];
+            final_nav: components["schemas"]["PercentilesOut"];
+            /** Prob Loss */
+            prob_loss: number;
+            /** Fan */
+            fan: components["schemas"]["FanPointOut"][];
+            /** Actual Max Drawdown */
+            actual_max_drawdown: number;
         };
         /** MonteCarloOut */
         MonteCarloOut: {
@@ -5097,6 +5261,17 @@ export interface components {
             /** Method */
             method: string;
         };
+        /**
+         * OverfittingChecksOut
+         * @description A4.3: what the trial ledger says about this run. Read at response time
+         *     from the ledger and holdout unlocks, so it is never stored with a saved
+         *     run and never part of a rerun's comparison.
+         */
+        OverfittingChecksOut: {
+            trials: components["schemas"]["TrialsOut"];
+            dsr: components["schemas"]["DsrOut"];
+            holdout: components["schemas"]["HoldoutStatusOut"];
+        };
         /** PayoffPointOut */
         PayoffPointOut: {
             /** Spot */
@@ -5148,6 +5323,15 @@ export interface components {
             fill_price: string | null;
             /** Cancel Reason */
             cancel_reason?: string | null;
+        };
+        /** PercentilesOut */
+        PercentilesOut: {
+            /** P5 */
+            p5: number;
+            /** P50 */
+            p50: number;
+            /** P95 */
+            p95: number;
         };
         /**
          * PeriodReturnOut
@@ -5595,6 +5779,23 @@ export interface components {
             /** Disclaimer */
             disclaimer: string;
         };
+        /** RegimeRowOut */
+        RegimeRowOut: {
+            /** State */
+            state?: string | null;
+            /** Sessions */
+            sessions: number;
+            /** Share */
+            share: number;
+            /** Total Return */
+            total_return: number;
+            /** Sharpe */
+            sharpe?: number | null;
+            /** Exposure */
+            exposure: number;
+            /** Trades Entered */
+            trades_entered: number;
+        };
         /** RegimeRuleOut */
         RegimeRuleOut: {
             /**
@@ -5608,6 +5809,32 @@ export interface components {
             description: string;
             /** Met */
             met?: boolean | null;
+        };
+        /** RegimeSplitOut */
+        RegimeSplitOut: {
+            /** Market */
+            market?: string | null;
+            /** Index */
+            index?: string | null;
+            /**
+             * Rows
+             * @default []
+             */
+            rows: components["schemas"]["RegimeRowOut"][];
+            /**
+             * Index Sessions
+             * @default 0
+             */
+            index_sessions: number;
+            /**
+             * Breadth Sessions
+             * @default 0
+             */
+            breadth_sessions: number;
+            /** Method */
+            method: string;
+            /** Reason */
+            reason?: string | null;
         };
         /** RelativeStrengthOut */
         RelativeStrengthOut: {
@@ -6194,6 +6421,38 @@ export interface components {
             visible_low: string;
         };
         /**
+         * ReportCardOut
+         * @description A4.3 (M7.4): everything here is net of costs and depends only on the
+         *     run (it is stored with a saved run and compared on rerun).
+         */
+        ReportCardOut: {
+            /** Metrics */
+            metrics: components["schemas"]["ReportMetricOut"][];
+            sharpe: components["schemas"]["SharpeStatsOut"];
+            monte_carlo?: components["schemas"]["MonteCarloFanOut"] | null;
+            /** Monte Carlo Reason */
+            monte_carlo_reason?: string | null;
+            regimes: components["schemas"]["RegimeSplitOut"];
+        };
+        /** ReportMetricOut */
+        ReportMetricOut: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /** Value */
+            value?: number | null;
+            /**
+             * Unit
+             * @enum {string}
+             */
+            unit: "pct" | "ratio" | "money" | "r" | "days" | "count";
+            /** Formula */
+            formula: string;
+            /** Note */
+            note?: string | null;
+        };
+        /**
          * RiskLimitsIn
          * @description Phase 8.5: each cap is a percentage of NAV, (0, 100], or null for none.
          */
@@ -6312,6 +6571,46 @@ export interface components {
             line?: number | null;
             /** Column */
             column?: number | null;
+        };
+        /**
+         * RunWindowOut
+         * @description The range a run actually used (A4.3). With the default holdout the
+         *     in-sample range ends the day before ``holdout_from``.
+         */
+        RunWindowOut: {
+            /**
+             * Requested From
+             * Format: date
+             */
+            requested_from: string;
+            /**
+             * Requested To
+             * Format: date
+             */
+            requested_to: string;
+            /**
+             * From Date
+             * Format: date
+             */
+            from_date: string;
+            /**
+             * To Date
+             * Format: date
+             */
+            to_date: string;
+            /**
+             * Holdout
+             * @enum {string}
+             */
+            holdout: "last_20pct" | "none";
+            /** Holdout Pct */
+            holdout_pct?: number | null;
+            /** Holdout From */
+            holdout_from?: string | null;
+            /** Holdout To */
+            holdout_to?: string | null;
+            /** Note */
+            note: string;
         };
         /** SavedScreenIn */
         SavedScreenIn: {
@@ -6710,6 +7009,34 @@ export interface components {
             user_scoped: boolean;
         };
         /**
+         * SharpeStatsOut
+         * @description Bailey and López de Prado's inputs: per-day Sharpe of the net excess
+         *     returns, their skewness and kurtosis (not excess), and the PSR.
+         */
+        SharpeStatsOut: {
+            /** Observations */
+            observations: number;
+            /** Sharpe */
+            sharpe: number;
+            /** Sharpe Annual */
+            sharpe_annual: number;
+            /** Skewness */
+            skewness?: number | null;
+            /** Kurtosis */
+            kurtosis?: number | null;
+            /** Risk Free Rate */
+            risk_free_rate: number;
+            /** Psr */
+            psr?: number | null;
+            /**
+             * Benchmark Sharpe
+             * @default 0
+             */
+            benchmark_sharpe: number;
+            /** Formula */
+            formula: string;
+        };
+        /**
          * SmaCrossoverStrategy
          * @description Buy when the short SMA crosses above the long SMA, sell on the reverse.
          */
@@ -6828,6 +7155,12 @@ export interface components {
             direction: "long" | "short";
             /** Shortable */
             shortable?: string[];
+            /**
+             * Holdout
+             * @default last_20pct
+             * @enum {string}
+             */
+            holdout: "last_20pct" | "none";
         };
         /** StrategyBacktestOut */
         StrategyBacktestOut: {
@@ -6912,6 +7245,9 @@ export interface components {
             notes: string[];
             costs?: components["schemas"]["CostsOut"] | null;
             liquidity?: components["schemas"]["LiquidityOut"] | null;
+            window?: components["schemas"]["RunWindowOut"] | null;
+            report?: components["schemas"]["ReportCardOut"] | null;
+            checks?: components["schemas"]["OverfittingChecksOut"] | null;
         };
         /**
          * StrategyBenchmarkOut
@@ -7526,6 +7862,31 @@ export interface components {
              * @default 14
              */
             period: number;
+        };
+        /** TrialsOut */
+        TrialsOut: {
+            /** Family Key */
+            family_key: string;
+            /** Family Label */
+            family_label: string;
+            /** Definition */
+            definition: string;
+            /**
+             * Scope
+             * @enum {string}
+             */
+            scope: "user" | "anonymous";
+            /** N */
+            n: number;
+            /** Runs */
+            runs: number;
+            /** Sharpe Variance */
+            sharpe_variance?: number | null;
+            /**
+             * Sharpe Annual Values
+             * @default []
+             */
+            sharpe_annual_values: number[];
         };
         /** UnderlyingGreeksOut */
         UnderlyingGreeksOut: {
@@ -11245,7 +11606,9 @@ export interface operations {
     post_backtest_v1_backtest_post: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                authorization?: string | null;
+            };
             path?: never;
             cookie?: never;
         };
@@ -11297,6 +11660,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["StrategyBacktestOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    post_unlock_holdout_v1_backtest_holdout_unlock_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HoldoutUnlockIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OverfittingChecksOut"];
                 };
             };
             /** @description Validation Error */

@@ -307,6 +307,8 @@ export type BacktestRequest = {
   brokerage?: "zerodha" | "zero";
   /** A4.2: % of the 20-day average traded value a buy may take; null: off. */
   adv_cap_pct?: number | null;
+  /** A4.3: the last 20% of the range is held out unless "none". */
+  holdout?: components["schemas"]["BacktestIn"]["holdout"];
 };
 
 export type BacktestTrade = {
@@ -364,6 +366,10 @@ export type BacktestResult = {
   /** A4.2: each fee component with its rate and source, and the ADV cap. */
   costs?: components["schemas"]["CostsOut"] | null;
   liquidity?: components["schemas"]["LiquidityOut"] | null;
+  /** A4.3: the window used, the report card, and the trial ledger's checks. */
+  window?: components["schemas"]["RunWindowOut"] | null;
+  report?: components["schemas"]["ReportCardOut"] | null;
+  checks?: components["schemas"]["OverfittingChecksOut"] | null;
 };
 
 export type BacktestUniverse = {
