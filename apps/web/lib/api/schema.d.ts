@@ -728,6 +728,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/symbols/{ticker}/volume-profile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Volume Profile */
+        get: operations["get_volume_profile_v1_symbols__ticker__volume_profile_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/symbols/{ticker}/events": {
         parameters: {
             query?: never;
@@ -4232,7 +4249,7 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "trendline" | "ray" | "hline" | "rectangle" | "channel" | "fib_retracement" | "fib_extension" | "ruler" | "text" | "position_long" | "position_short" | "avwap";
+            kind: "trendline" | "ray" | "hline" | "rectangle" | "channel" | "fib_retracement" | "fib_extension" | "ruler" | "text" | "position_long" | "position_short" | "avwap" | "volume_profile";
             /** Points */
             points: components["schemas"]["DrawingPoint-Input"][];
             style?: components["schemas"]["DrawingStyle"];
@@ -4254,7 +4271,7 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "trendline" | "ray" | "hline" | "rectangle" | "channel" | "fib_retracement" | "fib_extension" | "ruler" | "text" | "position_long" | "position_short" | "avwap";
+            kind: "trendline" | "ray" | "hline" | "rectangle" | "channel" | "fib_retracement" | "fib_extension" | "ruler" | "text" | "position_long" | "position_short" | "avwap" | "volume_profile";
             /** Points */
             points: components["schemas"]["DrawingPoint-Output"][];
             style: components["schemas"]["DrawingStyle"];
@@ -8707,7 +8724,7 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "trendline" | "ray" | "hline" | "rectangle" | "channel" | "fib_retracement" | "fib_extension" | "ruler" | "text" | "position_long" | "position_short" | "avwap";
+            kind: "trendline" | "ray" | "hline" | "rectangle" | "channel" | "fib_retracement" | "fib_extension" | "ruler" | "text" | "position_long" | "position_short" | "avwap" | "volume_profile";
             /** Points */
             points: components["schemas"]["DrawingPoint-Input"][];
             style?: components["schemas"]["DrawingStyle"];
@@ -11181,6 +11198,11 @@ export interface components {
              */
             is_indian: boolean;
             intraday?: components["schemas"]["IntradayInfoOut"] | null;
+            /**
+             * Is Index
+             * @default false
+             */
+            is_index: boolean;
         };
         /** SymbolEventsOut */
         SymbolEventsOut: {
@@ -11848,6 +11870,68 @@ export interface components {
             cvar: number;
             /** Cvar Pct */
             cvar_pct: number;
+        };
+        /** VolumeProfileBinOut */
+        VolumeProfileBinOut: {
+            /** Low */
+            low: string;
+            /** High */
+            high: string;
+            /** Volume */
+            volume: number;
+        };
+        /**
+         * VolumeProfileOut
+         * @description A6.7 (M2.9): ``GET /v1/symbols/{ticker}/volume-profile``.
+         *
+         *     ``bins`` run from the lowest price up. ``poc`` is the middle of the bin with
+         *     the most volume; ``vah``/``val`` bound the value area (``value_area`` of the
+         *     volume, 0.7 by default). ``source`` is ``minutes`` (stored 1-minute bars on
+         *     ``feed``) or ``daily`` (an EOD approximation). ``from``/``to`` are the range
+         *     read, naive UTC.
+         */
+        VolumeProfileOut: {
+            /** Ticker */
+            ticker: string;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "minutes" | "daily";
+            /** Feed */
+            feed?: string | null;
+            /**
+             * From
+             * Format: date-time
+             */
+            from: string;
+            /**
+             * To
+             * Format: date-time
+             */
+            to: string;
+            /** Bars */
+            bars: number;
+            /** Bins */
+            bins: components["schemas"]["VolumeProfileBinOut"][];
+            /** Poc */
+            poc: string;
+            /** Poc Index */
+            poc_index: number;
+            /** Vah */
+            vah: string;
+            /** Val */
+            val: string;
+            /** Value Area */
+            value_area: number;
+            /** Total Volume */
+            total_volume: number;
+            /** Value Volume */
+            value_volume: number;
+            /** Badges */
+            badges: string[];
+            /** Note */
+            note: string;
         };
         /**
          * WalkForwardIn
@@ -13595,6 +13679,43 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AvwapOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_volume_profile_v1_symbols__ticker__volume_profile_get: {
+        parameters: {
+            query?: {
+                from?: string | null;
+                to?: string | null;
+                feed?: ("iex" | "sip" | "kite" | "file" | "replayed") | null;
+                bins?: number;
+                value_area?: number;
+            };
+            header?: never;
+            path: {
+                ticker: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VolumeProfileOut"];
                 };
             };
             /** @description Validation Error */

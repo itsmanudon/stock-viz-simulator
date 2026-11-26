@@ -186,6 +186,8 @@ class SymbolDetailOut(BaseModel):
     is_indian: bool = False
     # A6.2: the intraday bars stored for the symbol (default feed), or null.
     intraday: IntradayInfoOut | None = None
+    # A6.7: an index's stored volume is 0, not real, so it has no volume profile.
+    is_index: bool = False
 
 
 class IntradayCoverageOut(BaseModel):
@@ -3876,6 +3878,7 @@ DrawingKind = Literal[
     "position_long",
     "position_short",
     "avwap",
+    "volume_profile",
 ]
 DrawingColour = Literal["aqua", "blue", "violet", "pink", "amber", "lime", "slate", "foreground"]
 
@@ -3993,6 +3996,43 @@ class AvwapOut(BaseModel):
     feed: str | None = None
     decimals: int
     points: list[AvwapPointOut]
+
+
+class VolumeProfileBinOut(BaseModel):
+    low: Decimal
+    high: Decimal
+    # The volume spread into this price slice (a share of each bar's volume).
+    volume: float
+
+
+class VolumeProfileOut(BaseModel):
+    """A6.7 (M2.9): ``GET /v1/symbols/{ticker}/volume-profile``.
+
+    ``bins`` run from the lowest price up. ``poc`` is the middle of the bin with
+    the most volume; ``vah``/``val`` bound the value area (``value_area`` of the
+    volume, 0.7 by default). ``source`` is ``minutes`` (stored 1-minute bars on
+    ``feed``) or ``daily`` (an EOD approximation). ``from``/``to`` are the range
+    read, naive UTC.
+    """
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    ticker: str
+    source: Literal["minutes", "daily"]
+    feed: str | None = None
+    from_: datetime = Field(alias="from")
+    to: datetime
+    bars: int
+    bins: list[VolumeProfileBinOut]
+    poc: Decimal
+    poc_index: int
+    vah: Decimal
+    val: Decimal
+    value_area: float
+    total_volume: float
+    value_volume: float
+    badges: list[str]
+    note: str
 
 
 # ---------------------------------------------------------------------------

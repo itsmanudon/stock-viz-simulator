@@ -57,7 +57,7 @@ src/stockviz/
                     (display currency), earnings, replay
                     (isolated ReplaySession), rules / setups / theses
                     (A2.2), notification_channels (A2.3), drawings
-                    (A3.2), avwap (A3.3), events, strength (RS
+                    (A3.2), avwap (A3.3), volume_profile (A6.7), events, strength (RS
                     percentile, delivery) and regime (A3.5), drills
                     (A4.7), books (A5.1), plans (A5.4), journal_entries (A5.5:
                     `/v1/journal/entries`), journal_stats (A5.6:
@@ -168,6 +168,8 @@ src/stockviz/
                     A3.1: raw.py (`eod_raw` bars for `adjustment=raw`, `has_raw`)
                     A6.2: intraday.py (1m-60m from `intraday_bars`, resampled
                     within sessions, closed-bar partial rule, feeds and badges)
+                    A6.7: volume_profile.py (bins, POC, value area; minutes
+                    or an EOD approximation)
     markets/        calendar.py — exchange calendars and completed sessions (Phase 4.1;
                     A6.1: session_minutes, open/close in UTC with special hours);
                     india_holidays.py — the maintained NSE/BSE holiday table (A0;
@@ -1201,6 +1203,40 @@ numbers; never replace them with real responses).
   5m January 2026 minutes (rolled back): 25 replayed firings, the same bars
   as the stored path and the backtest.
 
+
+**Volume profile (A6.7, M2.9).** `services/bars/volume_profile.py`,
+`routers/volume_profile.py`; design: workspace `docs/a6-design-note.md`
+("Volume profile"). Migration `d4a7f9b1c3e5` (additive): `ck_drawings_kind`
+adds `volume_profile`; the downgrade refuses while one is stored.
+
+- **Route.** `GET /v1/symbols/{t}/volume-profile?from&to&feed&bins&value_area`
+  (public, 60/min like `/bars`). `from`/`to` instants (naive = UTC; default
+  the year to now), `feed` a stored intraday feed (default `FEED_RANK`'s
+  best: SIP first), `bins` 4-200 (24), `value_area` 0.05-1 (0.7). Out:
+  `VolumeProfileOut` (`bins` low to high with spread volume, `poc` the POC
+  bin's middle, `poc_index`, `vah`/`val`, `source` minutes | daily, `feed`,
+  `badges`, `note`). 404 unknown symbol or no bars; 409 with the reason for
+  an index (`instruments.asset_type = 'index'`: its volume is stored 0) or
+  a range with no volume; 422 `from` after `to`.
+- **Bars.** 1-minute `intraday_bars` on the chosen feed when every daily
+  session in the range has minutes ("From minute bars", plus "IEX volume
+  only" on `iex`); otherwise the stored daily bars ("EOD approximation").
+  More than 300,000 minutes also falls back to daily, with its own note.
+- **Maths** (`build_profile`, pure): each bar's volume spread evenly over
+  its high-low range (a zero-range bar's volume in the bin holding its
+  price; a price on an edge belongs to the bin above, the highest high to
+  the top bin). POC: the most volume; a tie goes to the bin nearest the
+  middle, then the lower. Value area: from the POC, add the side whose next
+  bin has more volume (a tie adds the bin above) until >= `value_area` of
+  the total. The hand calculation is in the test.
+- **The drawing kind.** `volume_profile`: two points `{ts: session, price:
+  null}` (`DATE_ONLY_KINDS` with `avwap`), any order, inside the stored daily
+  bars; no label needed. The DSL does not read it. Replay refuses it (422:
+  it reads its sessions' later bars).
+- `SymbolDetailOut.is_index` tells the chart not to offer a profile.
+- Tests: `test_a67_volume_profile.py` (the hand calculation, ties, the
+  route's minutes/daily/IEX/SIP/index/zero-volume cases, the drawing kind),
+  `test_a67_volume_profile_migration.py` (PostgreSQL up/down/up).
 
 **Raw prices on the bars route (A3.1, M2.3).** `GET /v1/symbols/{t}/bars`
 takes `adjustment=adjusted|raw` (default `adjusted`, the split-adjusted
