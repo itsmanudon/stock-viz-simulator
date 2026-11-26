@@ -35,7 +35,7 @@ src/stockviz/
                     JournalEntry / JournalEntryFill (round trips),
                     intraday — A6.1 IntradayBar / IntradayFile,
                     chart_layout — A6.8 ChartTemplate / ChartLayout)
-  (services/feeds/  A6.3: FeedProvider/BrokerProvider, SimulatedFeed, Alpaca,
+  (services/feeds/  A6.3: FeedProvider/BrokerProvider, SimulatedFeed, Alpaca (A6.6: live IEX),
                     Tiingo, Massive, Finnhub stub, intraday-backfill, feed status)
   (services/stream/ A6.5: the stream worker: minute bars from ticks, NOTIFY and
                     the SSE hub, per-bar alert judging, the SimulatedFeed replay)
@@ -258,6 +258,7 @@ CLI subcommands (`python -m stockviz.cli <cmd>`): `seed`, `backfill`,
 `intraday-reconcile [TICKER ...] [--against daily|60m] [--interval 1m|60m] [--feed F] [--show N]`,
 `intraday-size`,
 `intraday-backfill --provider alpaca|tiingo|massive --symbols T ... --from D --to D [--feed iex|sip] [--apply]`,
+`intraday-catch-up [--symbols T ...] [--date D] [--apply]` (A6.6),
 `rule-check "<rule>" [TICKER ...] [--date YYYY-MM-DD] [--explain] [--user-id N]`,
 `screen-runs`, `deliver-notifications [--channel webhook|email|telegram] [--limit N]`.
 `seed` also writes the rule presets (A2.2) and the checklist dimension setups
@@ -1197,6 +1198,22 @@ numbers; never replace them with real responses).
   stream_statuses`): name, label, `live` (false for `simulated`), state
   `streaming|closed|error`, `stale` (streaming but silent 5 minutes: shown
   closed), symbols, last tick and bar, counters, a fixed error summary.
+- **Live (A6.6).** `python -m stockviz.workers.stream --feed alpaca
+  [--symbols AAPL,MSFT] [--no-deliver]`: `AlpacaFeed.stream` subscribes to IEX
+  minute bars (`wss://stream.data.alpaca.markets/v2/iex`; connect, auth,
+  subscribe and error codes as Alpaca's docs read 27 Nov 2026, in the module
+  docstring) for up to 30 US symbols (Indian ones skipped), yields `FeedBar`s
+  (feed `iex`, source `alpaca_iex_live`, badge "IEX only") and reconnects
+  after a drop through `reconnecting`; auth errors end it, 406 waits a
+  minute. `worker.live_spec()`; `StreamWorker(stop_at=)` ends the run 2
+  minutes after the New York close; it starts at most 10 minutes before the
+  open and exits 2 on a closed day or a blank key. After the close,
+  `stockviz.cli intraday-catch-up [--apply]` backfills the same symbols' SIP
+  minutes for the latest session (`intraday-backfill --provider alpaca --feed
+  sip`; SIP is free once 15 minutes old). `websockets` is a direct dependency.
+  Tests (fake socket, no network): `tests/test_a66_alpaca_stream.py`, the live
+  cases in `test_a65_stream_worker.py`, the catch-up in
+  `test_feed_backfill.py`.
 - **Tests**: `tests/test_a65_stream_worker.py` (synthetic NSE minutes; the
   replayed done-when: firings equal A6.4's stored-bar judgement, a rerun
   adds nothing), `tests/test_a65_stream_migration.py` (PostgreSQL: up,
