@@ -159,7 +159,7 @@ export function RuleFieldEditor({
         {result?.valid ? (
           <span data-testid="rule-ok">
             <span className="font-mono">{result.canonical}</span> ·{" "}
-            {warmupLabel(result.warmup_bars, result.warmup_whole_history)}
+            {warmupLabel(result.warmup_bars, result.warmup_whole_history, timeframe)}
             {value.versionId !== null ? " · saved setup version" : ""}
           </span>
         ) : null}

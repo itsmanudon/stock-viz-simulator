@@ -195,7 +195,9 @@ export function RuleStrategyResults({
           {result.window.note}
         </p>
       ) : null}
-      {result.report ? <ReportCard report={result.report} currency={currency} /> : null}
+      {result.report ? (
+        <ReportCard report={result.report} currency={currency} unit={intradayTf ? "bar" : "day"} />
+      ) : null}
       {(checks ?? result.checks) ? (
         <OverfittingChecks
           checks={(checks ?? result.checks) as Checks}
