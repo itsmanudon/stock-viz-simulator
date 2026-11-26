@@ -3,7 +3,8 @@
 /**
  * The landing hero's stage (design board option B).
  *
- * - The phone rotates through its screens every few seconds; hover pauses it;
+ * - The phone rotates through its screens every few seconds, also while the
+ *   hero rises; hovering the phone pauses it;
  *   with reduced motion it never auto-advances. There are no screen dots:
  *   they sat in the pinned stage, had to fade as the pin began, and a click
  *   on them raced the animation (owner removed them, 26 Nov 2026).
@@ -159,8 +160,10 @@ export function HeroStage({
         const anchor = flyAnchorRef.current;
         if (!phone || !fly || !flyInner || !anchor) return;
 
-        // From the first scroll the phone stops rotating on Portfolio, the
-        // screen the card leaves from; the card itself leaves after the rise.
+        // Late in the rise the phone stops rotating on Portfolio, the screen
+        // the card leaves from, so its fade settles before the card moves.
+        // Holding from the first scroll froze the phone for the whole rise
+        // (owner, 26 Nov 2026).
         const setHold = (held: boolean) => {
           if (held && !hold.current.scroll) setActive(0);
           hold.current.scroll = held;
@@ -222,7 +225,7 @@ export function HeroStage({
               anticipatePin: 1,
               invalidateOnRefresh: true,
               onUpdate: (self) => {
-                setHold(self.progress > 0.004);
+                setHold(self.progress > Math.max(0.004, (RISE * 0.75) / (RISE + CARD)));
                 // The card swaps from the phone to the flying copy just as it
                 // starts to move, after the rise.
                 setOut(self.progress > (RISE + 0.02) / (RISE + CARD));
@@ -295,8 +298,12 @@ export function HeroStage({
   );
 
   return (
-    <div ref={wrapRef}>
-      <section ref={sectionRef} className="relative isolate overflow-hidden">
+    // The hero slides up under the sticky public header (pt-3 + h-14 = 68px)
+    // and pads itself back down by the same amount, so the liquid-metal light
+    // runs to the top of the page instead of stopping in a straight line at
+    // the header's foot (owner, 26 Nov 2026).
+    <div ref={wrapRef} className="-mt-[68px]">
+      <section ref={sectionRef} className="relative isolate overflow-hidden pt-[68px]">
         {lead}
 
         <div className="relative mx-auto mt-12 w-full max-w-6xl px-4 sm:mt-16 sm:px-6">
@@ -308,16 +315,7 @@ export function HeroStage({
             aria-hidden
             className="brand-glow top-6 left-1/2 -z-10 h-[34rem] w-[64rem] -translate-x-1/2"
           />
-          <div
-            ref={stageRef}
-            className="relative h-[45rem] overflow-hidden"
-            onMouseEnter={() => {
-              hold.current.hover = true;
-            }}
-            onMouseLeave={() => {
-              hold.current.hover = false;
-            }}
-          >
+          <div ref={stageRef} className="relative h-[45rem] overflow-hidden">
             <div ref={pillsRef} aria-hidden className="hidden lg:block">
               {pills}
             </div>
@@ -332,6 +330,14 @@ export function HeroStage({
               ref={phoneRef}
               aria-hidden
               className="dark absolute top-0 left-1/2 z-10 w-80 -translate-x-1/2 text-foreground lg:left-[61%] lg:translate-x-0 [&[data-card-out]_[data-phone-card]]:invisible"
+              // Hovering the phone itself pauses it, so a screen can be read;
+              // the panel beside it no longer does.
+              onMouseEnter={() => {
+                hold.current.hover = true;
+              }}
+              onMouseLeave={() => {
+                hold.current.hover = false;
+              }}
             >
               <PhoneFrame screens={screens} active={active} className="h-[41rem]" />
             </div>

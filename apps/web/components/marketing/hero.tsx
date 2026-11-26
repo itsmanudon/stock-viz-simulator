@@ -91,7 +91,7 @@ export async function Hero() {
           motion, which makes it this canvas's positioning box. */}
       <LiquidChrome
         share={breadth?.share ?? null}
-        className="top-0 left-1/2 h-[46rem] w-screen -translate-x-1/2"
+        className="-top-[68px] left-1/2 h-[calc(46rem+68px)] w-screen -translate-x-1/2"
       />
       <Link
         href="/trade"
