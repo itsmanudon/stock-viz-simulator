@@ -324,8 +324,9 @@ def execute_rotation(
     timing = TIMING.format(period=period, venue=venue,
                            profile=f"{profile.name}/{profile.model_version}")  # fmt: skip
     notes = [
-        "Names that stay in the top N are not resized: only names leaving (sold in full) "
-        "and entering (bought to their weight, capped by free cash) trade.",
+        "Each rebalance resizes to the targets: names leaving are sold in full, names that "
+        "stay are trimmed or topped up to their weight, names entering are bought to theirs "
+        "(whole shares, capped by free cash; sells fill before buys).",
         "Unknown ranking values are never ranked; ties go to the ticker that sorts first.",
         "Price return: dividends are not credited. Whole shares only. Holdings at the end "
         "are marked at the last close, not sold.",

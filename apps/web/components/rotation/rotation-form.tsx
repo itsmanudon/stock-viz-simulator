@@ -177,7 +177,7 @@ export function RotationForm({
               <option value="inverse_volatility">Inverse volatility (63 sessions)</option>
             </select>
             <p className="text-2xs text-text-tertiary">
-              Names that stay are not resized; only names entering and leaving trade.
+              Each rebalance resizes every holding to its weight of the equity.
             </p>
           </div>
 

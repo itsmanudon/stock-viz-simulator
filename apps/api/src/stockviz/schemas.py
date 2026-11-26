@@ -2655,6 +2655,7 @@ class RotationRebalanceOut(BaseModel):
     entered: list[str] = []
     exited: list[str] = []
     weights: dict[str, float] = {}
+    """Target weight of every name held after (fraction of the equity)."""
     bought: Decimal = Decimal(0)
     sold: Decimal = Decimal(0)
     turnover: float = 0.0
@@ -2675,7 +2676,9 @@ class RotationTradeOut(BaseModel):
     exit_fees: Decimal
     pnl: Decimal
     return_pct: float
-    reason: Literal["rebalance", "cash_filter", "end_of_data"]
+    reason: Literal["rebalance", "resize", "cash_filter", "end_of_data"]
+    """``resize``: shares trimmed back to the target weight (entry at the
+    holding's average price)."""
     open: bool = False
     bars_held: int
     requested_quantity: Decimal | None = None

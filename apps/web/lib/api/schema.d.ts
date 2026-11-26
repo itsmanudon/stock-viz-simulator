@@ -6902,7 +6902,7 @@ export interface components {
              * Reason
              * @enum {string}
              */
-            reason: "rebalance" | "cash_filter" | "end_of_data";
+            reason: "rebalance" | "resize" | "cash_filter" | "end_of_data";
             /**
              * Open
              * @default false

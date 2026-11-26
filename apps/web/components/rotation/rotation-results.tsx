@@ -58,6 +58,7 @@ const REBALANCE_ROWS = 24;
 const TRADE_ROWS = 50;
 const REASON: Record<string, string> = {
   rebalance: "Left the top N",
+  resize: "Trimmed to weight",
   cash_filter: "Cash filter",
   end_of_data: "Still held",
 };
@@ -247,7 +248,7 @@ export function RotationResults({
                 <TableHead>Held after</TableHead>
                 <TableHead className="hidden md:table-cell">In</TableHead>
                 <TableHead className="hidden md:table-cell">Out</TableHead>
-                <TableHead className="text-right">Turnover</TableHead>
+                <TableHead className="hidden text-right sm:table-cell">Turnover</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -256,7 +257,7 @@ export function RotationResults({
                   key={r.signal_date}
                   data-cash={r.cash_filter === true ? "true" : undefined}
                 >
-                  <TableCell className="align-top text-xs">
+                  <TableCell className="whitespace-nowrap align-top text-xs">
                     {formatCloseDate(r.signal_date)}
                     <span className="block text-2xs text-text-tertiary">
                       {(r.trade_dates ?? []).length
@@ -264,22 +265,28 @@ export function RotationResults({
                         : "no trades"}
                     </span>
                   </TableCell>
-                  <TableCell className="align-top text-xs">
+                  <TableCell className="whitespace-normal align-top text-xs">
                     <span className="ticker font-semibold">{nameList(r.held_after ?? [])}</span>
-                    <span className="block text-2xs text-text-tertiary">{rebalanceSummary(r)}</span>
+                    <span className="block text-2xs text-text-tertiary">
+                      {rebalanceSummary(r)}
+                      <span className="sm:hidden">
+                        {" "}
+                        · turnover {turnoverLabel(r.turnover ?? 0)}
+                      </span>
+                    </span>
                     <span className="block text-2xs text-text-tertiary md:hidden">
                       {(r.entered ?? []).length ? `In: ${nameList(r.entered ?? [])}. ` : ""}
                       {(r.exited ?? []).length ? `Out: ${nameList(r.exited ?? [])}.` : ""}
                     </span>
                     <Ranking r={r} topN={result.top_n} />
                   </TableCell>
-                  <TableCell className="hidden align-top text-xs text-positive md:table-cell">
+                  <TableCell className="hidden align-top text-xs md:table-cell">
                     {nameList(r.entered ?? [])}
                   </TableCell>
-                  <TableCell className="hidden align-top text-xs text-negative md:table-cell">
+                  <TableCell className="hidden align-top text-xs text-text-secondary md:table-cell">
                     {nameList(r.exited ?? [])}
                   </TableCell>
-                  <TableCell className="text-right align-top font-mono text-xs">
+                  <TableCell className="hidden text-right align-top font-mono text-xs sm:table-cell">
                     {turnoverLabel(r.turnover ?? 0)}
                   </TableCell>
                 </TableRow>

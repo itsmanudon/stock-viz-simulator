@@ -26,9 +26,11 @@ symbols not held.
 volatility (``inverse_volatility``: weight proportional to 1 / the standard deviation of
 the last :data:`VOL_WINDOW` daily returns, known at the rebalance close; a
 symbol whose volatility is unknown is not ranked). Fewer ranked names than N
-leave the spare slots in cash. **Names that stay are not resized:** only
-names leaving (sold in full) and entering (bought to their weight, capped by
-free cash) trade, which keeps turnover to the names that change.
+leave the spare slots in cash. **Every rebalance resizes to the targets:**
+names leaving are sold in full, names that stay are trimmed or topped up to
+their weight (whole shares at the fill bar's expected price), and names
+entering are bought to theirs, capped by free cash. Trims are ``resize``
+round trips at the holding's average price; top-ups re-average it.
 
 **Cash filter.** An optional rule judged at the rebalance close (by the
 caller: on the market index). Met: everything is sold and the run holds cash
@@ -191,7 +193,7 @@ class Rebalance:
     entered: list[str] = field(default_factory=list)
     exited: list[str] = field(default_factory=list)
     weights: dict[str, float] = field(default_factory=dict)
-    """Target weights of the names entering (fractions of the equity)."""
+    """Target weight of every name held after (fractions of the equity)."""
     trade_dates: list[date] = field(default_factory=list)
     bought: Decimal = Decimal(0)
     sold: Decimal = Decimal(0)
@@ -222,7 +224,7 @@ class RotationTrade:
     exit_fees: Decimal
     pnl: Decimal
     return_pct: float
-    reason: Literal["rebalance", "cash_filter", "end_of_data"]
+    reason: Literal["rebalance", "resize", "cash_filter", "end_of_data"]
     open: bool
     bars_held: int
     requested_quantity: Decimal | None = None
@@ -270,15 +272,18 @@ class RotationResult:
 class _Holding:
     quantity: Decimal
     entry_date: date
-    entry_index: int
-    entry: BookedFill
+    price: Decimal
+    """Average fill price of the shares held."""
+    reference: Decimal
+    fees: Decimal
+    """Entry fees of the shares held (a partial sale takes its share)."""
     requested: Decimal | None
     bars_held: int = 0
 
 
 @dataclass
 class _Order:
-    side: OrderSide
+    kind: str  # "exit" (sell all) | "target" (resize to ``weight`` of the equity)
     signal_date: date
     rebalance: int
     weight: float = 0.0
@@ -380,42 +385,54 @@ def run_rotation(
         if day not in r.trade_dates:
             r.trade_dates.append(day)
 
-    def sell(s: RotationSymbol, i: int, order: _Order) -> None:
+    def submitted(s: RotationSymbol, i: int, order: _Order) -> datetime:
+        j = index_of[s.ticker].get(order.signal_date)
+        return s.ts[j] if j is not None else s.ts[i]
+
+    def target_quantity(s: RotationSymbol, i: int, order: _Order) -> Decimal:
+        """Whole shares worth ``weight`` of the equity at the rebalance close,
+        at this bar's expected buy price."""
+        reference = s.open[i] if at_open else s.close[i]
+        expected = cost_adjusted(reference, OrderSide.BUY, costs)
+        if expected <= 0:
+            return Decimal(0)
+        value = rebalances[order.rebalance].equity * Decimal(repr(order.weight))
+        return (value / expected).to_integral_value(rounding=ROUND_FLOOR)
+
+    def sell(s: RotationSymbol, i: int, order: _Order, quantity: Decimal, reason: str) -> None:
         nonlocal price_costs
         h = holdings[s.ticker]
         intent = OrderIntent(ticker=s.ticker, side=OrderSide.SELL,
-                             order_type=SimulationOrderType.MARKET, quantity=h.quantity,
-                             submitted_at=s.ts[index_of[s.ticker][order.signal_date]]
-                             if order.signal_date in index_of[s.ticker] else s.ts[i])  # fmt: skip
+                             order_type=SimulationOrderType.MARKET, quantity=quantity,
+                             submitted_at=submitted(s, i, order))  # fmt: skip
         fill = booked(s, i, intent)
         assert fill is not None, "a market sell always fills"
-        price_costs += abs(fill.price - fill.reference) * h.quantity
+        price_costs += abs(fill.price - fill.reference) * quantity
         over: float | None = None
         if adv_cap_pct is not None:
             avg = adv(s, i)
-            share = (fill.price * h.quantity / avg * 100) if avg else None
+            share = (fill.price * quantity / avg * 100) if avg else None
             if share is not None and share > Decimal(repr(adv_cap_pct)):
                 over = round(float(share), 4)
         r = rebalances[order.rebalance]
-        r.sold += fill.price * h.quantity
+        r.sold += fill.price * quantity
         note_trade(r, s.dates[i])
-        trades.append(_trade(s.ticker, h, s.dates[i], fill.price, fill.reference,
-                             fill.fees.total, order.reason, open_=False, exit_adv_pct=over))  # fmt: skip
-        del holdings[s.ticker]
+        entry_fees = (h.fees * quantity / h.quantity).quantize(MICROS)
+        trades.append(_trade(s.ticker, h, quantity, entry_fees, s.dates[i], fill.price,
+                             fill.reference, fill.fees.total, reason, open_=False,
+                             exit_adv_pct=over))  # fmt: skip
+        h.fees -= entry_fees
+        h.quantity -= quantity
+        if h.quantity <= 0:
+            del holdings[s.ticker]
 
-    def buy(s: RotationSymbol, i: int, order: _Order) -> None:
+    def buy(s: RotationSymbol, i: int, order: _Order, quantity: Decimal) -> None:
         nonlocal price_costs
         r = rebalances[order.rebalance]
         reference = s.open[i] if at_open else s.close[i]
         expected = cost_adjusted(reference, OrderSide.BUY, costs)
         cash = ledger.cash
-        target_value = r.equity * Decimal(repr(order.weight))
-        budget = min(cash, target_value)
-        quantity = (
-            (budget / expected).to_integral_value(rounding=ROUND_FLOOR)
-            if expected > 0
-            else Decimal(0)
-        )
+        quantity = min(quantity, (cash / expected).to_integral_value(rounding=ROUND_FLOOR))
         requested: Decimal | None = None
         if adv_cap_pct is not None and quantity > 0:
             avg = adv(s, i)
@@ -440,10 +457,9 @@ def run_rotation(
         if quantity <= 0:
             r.not_filled["no_cash"] = r.not_filled.get("no_cash", 0) + 1
             return
-        j = index_of[s.ticker].get(order.signal_date)
         intent = OrderIntent(ticker=s.ticker, side=OrderSide.BUY,
                              order_type=SimulationOrderType.MARKET, quantity=quantity,
-                             submitted_at=s.ts[j] if j is not None else s.ts[i])  # fmt: skip
+                             submitted_at=submitted(s, i, order))  # fmt: skip
         try:
             fill = booked(s, i, intent)
         except SimInsufficientCash:
@@ -455,7 +471,18 @@ def run_rotation(
             counters["partial"] += 1
         r.bought += fill.price * quantity
         note_trade(r, s.dates[i])
-        holdings[s.ticker] = _Holding(quantity, s.dates[i], i, fill, requested)
+        h = holdings.get(s.ticker)
+        if h is None:
+            holdings[s.ticker] = _Holding(quantity, s.dates[i], fill.price, fill.reference,
+                                          fill.fees.total, requested)  # fmt: skip
+        else:
+            total = h.quantity + quantity
+            h.price = ((h.price * h.quantity + fill.price * quantity) / total).quantize(MICROS)
+            h.reference = ((h.reference * h.quantity + fill.reference * quantity) / total).quantize(
+                MICROS
+            )
+            h.fees += fill.fees.total
+            h.quantity = total
 
     def decide(day: date) -> None:
         held = sorted(holdings)
@@ -510,14 +537,14 @@ def run_rotation(
         r.exited = [t for t in held if t not in target]
         r.entered = [t for t in target if t not in holdings]
         weights = _weights(target, top_n, weighting, vols)
-        r.weights = {t: weights[t] for t in r.entered}
+        r.weights = {t: weights[t] for t in target}
         index = len(rebalances)
         rebalances.append(r)
         reason = "cash_filter" if flag else "rebalance"
         for t in r.exited:
-            pending[t] = _Order(OrderSide.SELL, day, index, reason=reason)
-        for t in r.entered:
-            pending[t] = _Order(OrderSide.BUY, day, index, weight=weights[t])
+            pending[t] = _Order("exit", day, index, reason=reason)
+        for t in target:
+            pending[t] = _Order("target", day, index, weight=weights[t])
 
     for day in timeline:
         todays = [
@@ -525,17 +552,30 @@ def run_rotation(
             for s in symbols
             if day in index_of[s.ticker] and index_of[s.ticker][day] >= s.first
         ]
-        for side in (OrderSide.SELL, OrderSide.BUY):
-            for s, i in sorted(todays, key=lambda si: _order_rank(pending.get(si[0].ticker))):
-                order = pending.get(s.ticker)
-                if order is None or order.side is not side or day <= order.signal_date:
-                    continue
+        # Sells first (exits and trims), then buys (entries and top-ups).
+        for s, i in todays:
+            order = pending.get(s.ticker)
+            if order is None or day <= order.signal_date:
+                continue
+            h = holdings.get(s.ticker)
+            if order.kind == "exit":
                 del pending[s.ticker]
-                if side is OrderSide.SELL:
-                    if s.ticker in holdings:
-                        sell(s, i, order)
-                else:
-                    buy(s, i, order)
+                if h is not None:
+                    sell(s, i, order, h.quantity, order.reason)
+            elif h is not None:
+                excess = h.quantity - target_quantity(s, i, order)
+                if excess > 0:
+                    del pending[s.ticker]
+                    sell(s, i, order, excess, "resize")
+        for s, i in sorted(todays, key=lambda si: _order_rank(pending.get(si[0].ticker))):
+            order = pending.get(s.ticker)
+            if order is None or day <= order.signal_date:
+                continue
+            del pending[s.ticker]
+            h = holdings.get(s.ticker)
+            need = target_quantity(s, i, order) - (h.quantity if h is not None else Decimal(0))
+            if need > 0:
+                buy(s, i, order, need)
         for s in symbols:
             i = index_of[s.ticker].get(day)
             if i is None:
@@ -552,8 +592,8 @@ def run_rotation(
     for ticker, h in sorted(holdings.items()):
         s = by_ticker[ticker]
         close = last_close[ticker]
-        trades.append(_trade(ticker, h, s.dates[-1], close, close, Decimal(0), "end_of_data",
-                             open_=True))  # fmt: skip
+        trades.append(_trade(ticker, h, h.quantity, h.fees, s.dates[-1], close, close,
+                             Decimal(0), "end_of_data", open_=True))  # fmt: skip
 
     navs = [nav for _, nav in curve]
     final = navs[-1] if navs else initial_cash
@@ -590,6 +630,8 @@ def _order_rank(order: _Order | None) -> tuple[int, float]:
 def _trade(
     ticker: str,
     h: _Holding,
+    quantity: Decimal,
+    entry_fees: Decimal,
     exit_date: date,
     exit_price: Decimal,
     exit_reference: Decimal,
@@ -599,21 +641,20 @@ def _trade(
     open_: bool,
     exit_adv_pct: float | None = None,
 ) -> RotationTrade:
-    entry_price = h.entry.price
-    pnl = ((exit_price - entry_price) * h.quantity - h.entry.fees.total - exit_fees).quantize(
-        MICROS
-    )
-    notional = entry_price * h.quantity
+    """``quantity`` of the holding, closed (or marked, ``open_``) at ``exit_price``;
+    entry at the holding's average fill price with its share of the entry fees."""
+    pnl = ((exit_price - h.price) * quantity - entry_fees - exit_fees).quantize(MICROS)
+    notional = h.price * quantity
     return RotationTrade(
         ticker=ticker,
         entry_date=h.entry_date,
-        entry_price=entry_price,
-        entry_reference=h.entry.reference,
+        entry_price=h.price,
+        entry_reference=h.reference,
         exit_date=exit_date,
         exit_price=exit_price,
         exit_reference=exit_reference,
-        quantity=h.quantity,
-        entry_fees=h.entry.fees.total,
+        quantity=quantity,
+        entry_fees=entry_fees,
         exit_fees=exit_fees,
         pnl=pnl,
         return_pct=float(pnl / notional) if notional else 0.0,

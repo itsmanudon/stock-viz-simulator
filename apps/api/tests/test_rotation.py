@@ -344,3 +344,25 @@ def test_saved_rotation_reruns_identical(client: TestClient, session: Session) -
     assert changed["status"] == "data_changed"
     both = client.post("/v1/experiments/runs", json={"rotation": body(), "backtest": {}}, headers=h)
     assert both.status_code == 422
+
+
+def test_each_rebalance_resizes_a_holding_back_to_its_weight() -> None:
+    days = _days(12)
+    # A doubles after the first rebalance; B stays. Equal weight 1/2 each.
+    a = _sym("A", days, [10] * 4 + [20] * 8, [2.0] * 12)
+    b = _sym("B", days, [10] * 12, [1.0] * 12)
+    out = run_rotation(
+        [a, b], signals=[days[0], days[6]], top_n=2, initial_cash=Decimal(10_000),
+        schedule=NONE,
+    )  # fmt: skip
+    second = out.rebalances[1]
+    assert second.entered == [] and second.exited == []
+    # Equity 15,000: A is worth 10,000 (500 shares), target 7,500 = 375 shares.
+    assert second.equity == Decimal(15_000)
+    trim = next(t for t in out.trades if t.reason == "resize")
+    assert trim.ticker == "A" and trim.quantity == 125 and trim.exit_date == days[7]
+    assert trim.pnl == Decimal(125 * 10)  # bought at 10, trimmed at 20, no fees
+    # B is topped up from 500 to 750 shares with the proceeds.
+    held_b = next(t for t in out.trades if t.ticker == "B")
+    assert held_b.open and held_b.quantity == 750
+    assert second.weights == {"A": 0.5, "B": 0.5}
