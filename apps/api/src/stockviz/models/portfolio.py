@@ -36,6 +36,12 @@ class TradeSide(enum.StrEnum):
     SELL = "sell"
 
 
+IMPORT_BROKERS = ("zerodha", "dhan", "fyers", "upstox", "angelone", "groww", "other")
+"""A5.3, A6.11: the brokers an imported book (and an import batch) names.
+``other`` is a book read with the user's own column map (a US broker, say)."""
+BROKER_SQL = ", ".join(f"'{b}'" for b in IMPORT_BROKERS)
+
+
 class BookKind(enum.StrEnum):
     """A5.1: a paper book trades in the simulator; an imported one holds a
     broker's fills (A5.3) and never trades here."""
@@ -72,7 +78,7 @@ class Portfolio(SQLModel, table=True):
         CheckConstraint(
             "holder_kind IN ('self', 'family', 'huf')", name="ck_portfolios_holder_kind"
         ),
-        CheckConstraint("broker IS NULL OR broker IN ('zerodha')", name="ck_portfolios_broker"),
+        CheckConstraint(f"broker IS NULL OR broker IN ({BROKER_SQL})", name="ck_portfolios_broker"),
         # The default book is the one writes fall back to: never archived.
         CheckConstraint(
             "NOT (is_default AND archived_at IS NOT NULL)",

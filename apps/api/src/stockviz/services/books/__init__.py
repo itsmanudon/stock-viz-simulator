@@ -49,7 +49,7 @@ from stockviz.models import (
     Trade,
 )
 from stockviz.models.order import OrderStatus
-from stockviz.models.portfolio import BOOK_NAME_MAX, HOLDER_LABEL_MAX
+from stockviz.models.portfolio import BOOK_NAME_MAX, HOLDER_LABEL_MAX, IMPORT_BROKERS
 from stockviz.models.risk_limit import RiskLimit
 from stockviz.services.trading.account import STARTING_CASH, activity
 from stockviz.services.trading.books import (
@@ -61,7 +61,7 @@ from stockviz.services.trading.books import (
 )
 from stockviz.services.trading.buying_power import lock_portfolio, lock_user
 
-BROKERS = ("zerodha",)
+BROKERS = IMPORT_BROKERS
 
 # Five letters, four digits, a letter: the shape of an Indian PAN.
 _PAN = re.compile(r"[A-Z]{5}[0-9]{4}[A-Z]", re.IGNORECASE)

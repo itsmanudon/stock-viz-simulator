@@ -25,6 +25,14 @@ user (``POST /v1/plans`` with ``link_open_position``) and labelled so. A
 position sold to zero closes its plan; a plan whose fills are all deleted
 is closed and stays frozen (its lock is part of the record).
 
+**Maps (A6.11).** Preview and commit read the file with one column map:
+the one named (``map=dhan_tradebook_v1``), the caller's saved map
+(``custom_map=<id>``), or the built-in map its header row fits
+(``columns.detect_map``). Broker maps read Indian rows into an INR book; a
+saved map reads the book's market (INR: NSE/BSE, USD: US equities, no
+charges estimated). Dedupe is by exchange and trade id across every map, so
+the same trade imported under two maps is caught.
+
 **Privacy.** Nothing here logs. Problems carry row numbers, fields and fixed
 reasons; the parsed symbol is shown only where it is the problem
 (unmatched).
@@ -63,6 +71,7 @@ from stockviz.models.broker_import import (
     BrokerFill,
     ImportBatch,
 )
+from stockviz.models.import_column_map import ImportColumnMap
 from stockviz.models.instrument import SCHEME_ISIN, SCHEME_YAHOO
 from stockviz.models.portfolio import BookKind
 from stockviz.models.trade_plan import TradePlan
@@ -77,13 +86,17 @@ from stockviz.services.imports.engine import (
 )
 from stockviz.services.imports.parse import (
     EQUITY_EXCHANGES,
+    KIND_NOT_EXECUTED,
     KIND_SEGMENT,
     MAX_FILE_BYTES,
+    US_EXCHANGE,
     FileRejected,
     ParsedFile,
     ParsedRow,
-    ist_day_start,
+    market_date,
+    market_day_start,
     parse_tradebook,
+    read_header,
 )
 from stockviz.services.trading.books import resolve_book
 from stockviz.services.trading.buying_power import lock_portfolio
@@ -93,14 +106,19 @@ MAX_PROBLEMS = 300
 MAX_COMMITS_PER_HOUR = 30
 BROKER = "zerodha"
 
+US_FEES_NOTE = (
+    "No charges are estimated for US trades: StockViz has no US broker fee schedule, so the "
+    "book's P&L is before commissions and regulatory fees."
+)
 FEES_NOTE = (
     "The tradebook carries no charges, so they are estimated from the dated schedule for "
     "the venue (NSE or BSE equity delivery). A scrip's buys and sells on one day that offset "
     "each other are priced as intraday (inferred: the file has no product column)."
 )
 
-SUFFIX = {"NSE": ".NS", "BSE": ".BO"}
+SUFFIX = {"NSE": ".NS", "BSE": ".BO", US_EXCHANGE: ""}
 VENUE_SUFFIX = {"XNSE": ".NS", "XBOM": ".BO"}
+MAX_HEADERS_SHOWN = 60
 
 
 class ImportNotAllowed(Exception):
@@ -135,20 +153,132 @@ def import_book(session: Session, user_id: int, book_id: int, *, write: bool) ->
         )
     if write and book.archived_at is not None:
         raise ImportNotAllowed(f"Book {book.name!r} is archived: unarchive it to import into it.")
-    if write and (book.base_currency or "USD") != "INR":
+    if write and (book.base_currency or "USD") not in ("INR", "USD"):
         raise ImportNotAllowed(
-            f"Book {book.name!r} is in {book.base_currency}: a Zerodha tradebook is in rupees, "
-            "so import it into an INR book."
+            f"Book {book.name!r} is in {book.base_currency}: imports go into INR or USD books."
         )
     return book
+
+
+def market_of(book: Portfolio) -> columns.Market:
+    """An INR book holds Indian trades, a USD book US trades (A6.11)."""
+    return "us" if (book.base_currency or "USD") == "USD" else "in"
+
+
+def check_market(book: Portfolio, column_map: columns.ColumnMap) -> None:
+    """A broker map reads one market; the book's currency must match it."""
+    if column_map.market is None or column_map.market == market_of(book):
+        return
+    broker = columns.BROKER_LABELS.get(column_map.broker, column_map.broker)
+    if column_map.market == "in":
+        raise ImportNotAllowed(
+            f"Book {book.name!r} is in {book.base_currency}: a {broker} tradebook is in rupees, "
+            "so import it into an INR book."
+        )
+    raise ImportNotAllowed(f"Book {book.name!r} is in {book.base_currency}: this map is for US.")
 
 
 def naive_utc(now: datetime) -> datetime:
     return now.astimezone(UTC).replace(tzinfo=None) if now.tzinfo is not None else now
 
 
-def _venue_date(executed_at: datetime) -> date:
-    return (executed_at + timedelta(hours=5, minutes=30)).date()
+def _venue_date(executed_at: datetime, market: str = "in") -> date:
+    return market_date(executed_at, market)
+
+
+def _fill_market(exchange: str) -> str:
+    return "us" if exchange == US_EXCHANGE else "in"
+
+
+# --- the column map -----------------------------------------------------------------
+
+
+@dataclass(frozen=True, slots=True)
+class MapChoice:
+    column_map: columns.ColumnMap
+    how: str  # header | chosen | saved | fallback
+    alternatives: tuple[str, ...] = ()
+
+
+def saved_map(session: Session, user_id: int, map_id: int) -> columns.ColumnMap:
+    row = session.get(ImportColumnMap, map_id)
+    if row is None or row.user_id != user_id or row.id is None:
+        raise ImportNotFound(f"Column map {map_id} not found")
+    return columns.custom_map(
+        row.id,
+        row.name,
+        dict(row.mapping),
+        default_exchange=row.default_exchange,
+        date_order=row.date_order,
+    )
+
+
+def choose_map(
+    session: Session,
+    user_id: int,
+    body: bytes,
+    *,
+    map_name: str | None = None,
+    custom_map_id: int | None = None,
+    book_broker: str | None = None,
+) -> MapChoice:
+    """The map the file is read with: a saved map, a named one, or detected.
+    When no built-in map fits, the book's broker's map is the fallback, so
+    the missing columns are named against the file the user meant."""
+    if custom_map_id is not None:
+        return MapChoice(saved_map(session, user_id, custom_map_id), "saved")
+    if map_name and map_name != "auto":
+        chosen = columns.MAPS.get(map_name)
+        if chosen is None:
+            raise ImportInvalid(f"Unknown column map {map_name!r}")
+        return MapChoice(chosen, "chosen")
+    try:
+        headers = read_header(body)
+    except FileRejected as exc:
+        raise ImportInvalid(str(exc)) from exc
+    found = columns.detect_map(headers)
+    preferred = broker_map(book_broker)
+    if found.how == "fallback" and preferred is not None:
+        return MapChoice(preferred, "fallback")
+    return MapChoice(found.column_map, found.how, found.alternatives)
+
+
+def broker_map(broker: str | None) -> columns.ColumnMap | None:
+    """The built-in map of a book's broker (none for ``other``)."""
+    return next((m for m in columns.MAPS.values() if m.broker == broker), None)
+
+
+def map_status(name: str) -> str:
+    if name.startswith(columns.CUSTOM_PREFIX):
+        return "custom"
+    m = columns.MAPS.get(name)
+    return m.status if m else "unconfirmed"
+
+
+def map_out(m: columns.ColumnMap) -> dict:
+    return {
+        "name": m.name,
+        "broker": m.broker,
+        "label": m.label,
+        "status": m.status,
+        "market": m.market,
+        "note": m.note,
+        "source": m.source,
+        "how_to": m.how_to,
+        "columns": [{"field": f.field, "label": f.label, "required": f.required} for f in m.fields],
+    }
+
+
+def saved_map_out(row: ImportColumnMap) -> dict:
+    return {
+        "id": row.id,
+        "name": row.name,
+        "mapping": dict(row.mapping),
+        "default_exchange": row.default_exchange,
+        "date_order": row.date_order,
+        "created_at": row.created_at,
+        "updated_at": row.updated_at,
+    }
 
 
 # --- instruments ------------------------------------------------------------------
@@ -278,13 +408,15 @@ def ledger_fill(f: BrokerFill, *, key: int | None = None, seq: int = 0) -> Ledge
         key=key if key is not None else (f.id or 0),
         instrument_id=f.instrument_id,
         ticker=f.ticker,
-        venue=EQUITY_EXCHANGES.get(f.exchange, "XNSE"),
+        venue=US_EXCHANGE
+        if f.exchange == US_EXCHANGE
+        else EQUITY_EXCHANGES.get(f.exchange, "XNSE"),
         kind=f.kind,
         side=f.side,
         quantity=f.quantity,
         price=f.price,
         executed_at=f.executed_at,
-        venue_date=_venue_date(f.executed_at),
+        venue_date=_venue_date(f.executed_at, _fill_market(f.exchange)),
         seq=seq,
     )
 
@@ -329,13 +461,27 @@ class Analysis:
     unmatched: int = 0
     skipped_segment: int = 0
     rejected: int = 0
+    not_executed: int = 0
 
 
-def analyse(session: Session, book: Portfolio, body: bytes, *, now: datetime) -> Analysis:
+def analyse(
+    session: Session,
+    book: Portfolio,
+    body: bytes,
+    *,
+    now: datetime,
+    column_map: columns.ColumnMap = columns.ZERODHA,
+) -> Analysis:
     """Parse, match, dedupe and run the ledger. Writes nothing."""
     assert book.id is not None
+    market = market_of(book)
     try:
-        parsed = parse_tradebook(body, today=_venue_date(naive_utc(now)))
+        parsed = parse_tradebook(
+            body,
+            today=_venue_date(naive_utc(now), market),
+            column_map=column_map,
+            market=market,
+        )
     except FileRejected as exc:
         raise ImportInvalid(str(exc)) from exc
     result = Analysis(parsed=parsed)
@@ -343,6 +489,8 @@ def analyse(session: Session, book: Portfolio, body: bytes, *, now: datetime) ->
         result.problems.append(Problem(p.row, p.kind, p.reason, p.field))
         if p.kind == KIND_SEGMENT:
             result.skipped_segment += 1
+        elif p.kind == KIND_NOT_EXECUTED:
+            result.not_executed += 1
         else:
             result.rejected += 1
     if parsed.header.missing_required:
@@ -358,7 +506,6 @@ def analyse(session: Session, book: Portfolio, body: bytes, *, now: datetime) ->
         for exchange, trade_id in session.exec(
             select(BrokerFill.exchange, BrokerFill.trade_id).where(
                 col(BrokerFill.portfolio_id) == book.id,
-                col(BrokerFill.broker) == BROKER,
                 col(BrokerFill.trade_id).in_(sorted({t for _e, t in keys})),
             )
         ).all():
@@ -457,22 +604,43 @@ def counts_of(a: Analysis) -> dict[str, int]:
         "unmatched": a.unmatched,
         "skipped_segment": a.skipped_segment,
         "rejected": a.rejected,
+        "not_executed": a.not_executed,
         "basis_uncertain": sum(1 for o in outcomes if o.basis_uncertain),
         "intraday_inferred": sum(1 for o in outcomes if o.intraday_quantity > 0),
         "intraday_short": sum(1 for o in outcomes if o.short == "open"),
     }
 
 
-def preview(session: Session, user_id: int, book_id: int, body: bytes, *, now: datetime) -> dict:
+def preview(
+    session: Session,
+    user_id: int,
+    book_id: int,
+    body: bytes,
+    *,
+    now: datetime,
+    map_name: str | None = None,
+    custom_map_id: int | None = None,
+) -> dict:
     book = import_book(session, user_id, book_id, write=True)
-    a = analyse(session, book, body, now=now)
+    choice = choose_map(
+        session,
+        user_id,
+        body,
+        map_name=map_name,
+        custom_map_id=custom_map_id,
+        book_broker=book.broker,
+    )
+    m = choice.column_map
+    check_market(book, m)
+    a = analyse(session, book, body, now=now, column_map=m)
     header = a.parsed.header
     message = None
     if header.missing_required:
         labels = [c.label for c in header.columns if c.field in header.missing_required]
         message = (
-            "The file is missing required columns: " + ", ".join(labels) + ". "
-            "If your tradebook names them differently, tell us the header row."
+            f"The file is missing required columns for the {m.label} map: "
+            + ", ".join(labels)
+            + ". Pick your broker, or map the columns yourself."
         )
     elif not a.new:
         message = "Nothing new to import." if a.parsed.rows_total else "The file has no rows."
@@ -500,11 +668,23 @@ def preview(session: Session, user_id: int, book_id: int, body: bytes, *, now: d
                 "intraday_short": o.short is not None,
             }
         )
+    try:
+        headers = [h.replace("\ufeff", "").strip()[:60] for h in read_header(body)]
+    except FileRejected:
+        headers = []
     rollback(session)
+    market = market_of(book)
     return {
-        "format": columns.MAP_NAME,
-        "format_status": columns.FORMAT_STATUS,
-        "format_note": columns.FORMAT_NOTE,
+        "format": m.name,
+        "format_label": m.label,
+        "format_status": m.status,
+        "format_note": m.note,
+        "format_source": m.source,
+        "broker": m.broker,
+        "detected": choice.how,
+        "alternatives": list(choice.alternatives),
+        "market": market,
+        "headers": [h for h in headers if h][:MAX_HEADERS_SHOWN],
         "file_sha256": a.parsed.sha256,
         "can_commit": not header.missing_required and bool(a.new),
         "message": message,
@@ -519,7 +699,7 @@ def preview(session: Session, user_id: int, book_id: int, body: bytes, *, now: d
         "sample": sample,
         "problems": [vars_of(p) for p in a.problems[:MAX_PROBLEMS]],
         "problems_total": len(a.problems),
-        "fees_note": FEES_NOTE,
+        "fees_note": US_FEES_NOTE if market == "us" else FEES_NOTE,
     }
 
 
@@ -562,10 +742,22 @@ def commit(
     *,
     file_sha256: str,
     now: datetime,
+    map_name: str | None = None,
+    custom_map_id: int | None = None,
 ) -> dict:
     book = import_book(session, user_id, book_id, write=True)
     assert book.id is not None
-    a = analyse(session, book, body, now=now)
+    m = choose_map(
+        session,
+        user_id,
+        body,
+        map_name=map_name,
+        custom_map_id=custom_map_id,
+        book_broker=book.broker,
+    ).column_map
+    check_market(book, m)
+    broker = m.broker if m.broker != "other" else (book.broker or "other")
+    a = analyse(session, book, body, now=now, column_map=m)
     if a.parsed.sha256 != file_sha256.strip().lower():
         session.rollback()
         raise ImportMismatch(
@@ -582,15 +774,15 @@ def commit(
     book = lock_portfolio(session, book.id)
     batch = ImportBatch(
         portfolio_id=book.id or 0,
-        broker=BROKER,
-        column_map=columns.MAP_NAME,
+        broker=broker,
+        column_map=m.name,
         file_sha256=a.parsed.sha256,
         rows_total=a.parsed.rows_total,
         rows_added=len(a.new),
         rows_duplicate=a.duplicate,
         rows_unmatched=a.unmatched,
         rows_skipped_segment=a.skipped_segment,
-        rows_rejected=a.rejected,
+        rows_rejected=a.rejected + a.not_executed,
         created_at=naive_utc(now),
     )
     session.add(batch)
@@ -601,7 +793,7 @@ def commit(
                 portfolio_id=book.id or 0,
                 import_batch_id=batch.id,
                 kind=FILL_TRADE,
-                broker=BROKER,
+                broker=broker,
                 exchange=r.exchange,
                 segment=r.segment,
                 series=r.series,
@@ -661,7 +853,7 @@ def rebuild_book(session: Session, book: Portfolio, *, now: datetime) -> Rebuild
         if f.kind == FILL_TRADE:
             f.product = o.product
             f.fees = o.fees
-            f.fee_source = FEE_ESTIMATED
+            f.fee_source = FEE_ESTIMATED if o.fee_schedule else None
             f.fee_lines = o.fee_lines
             f.basis_uncertain = o.basis_uncertain
         session.add(f)
@@ -810,7 +1002,8 @@ def batch_out(session: Session, batch: ImportBatch) -> dict:
         "id": batch.id,
         "created_at": batch.created_at,
         "column_map": batch.column_map,
-        "format_status": columns.FORMAT_STATUS,
+        "format_status": map_status(batch.column_map),
+        "broker": batch.broker,
         "rows_total": batch.rows_total,
         "rows_added": batch.rows_added,
         "rows_duplicate": batch.rows_duplicate,
@@ -853,19 +1046,33 @@ def imports_out(session: Session, user_id: int, book_id: int) -> dict:
                     "short_by": o.quantity - o.held_before,
                 }
             )
+    market = market_of(book)
+    default = broker_map(book.broker) or columns.ZERODHA
+    saved = session.exec(
+        select(ImportColumnMap)
+        .where(col(ImportColumnMap.user_id) == user_id)
+        .order_by(col(ImportColumnMap.name))
+    ).all()
     return {
         "book_id": book.id,
         "broker": book.broker,
-        "format": columns.MAP_NAME,
-        "format_status": columns.FORMAT_STATUS,
-        "format_note": columns.FORMAT_NOTE,
+        "market": market,
+        "currency": book.base_currency,
+        "format": default.name,
+        "format_status": default.status,
+        "format_note": default.note,
         "max_bytes": MAX_FILE_BYTES,
+        "maps": [map_out(m) for m in columns.MAPS.values()],
+        "saved_maps": [saved_map_out(r) for r in saved],
+        "custom_fields": [
+            {"field": f, "label": label, "required": req} for f, label, req in columns.CUSTOM_FIELDS
+        ],
         "batches": [batch_out(session, b) for b in batches],
         "opening_lots": [
             {
                 "id": f.id,
                 "ticker": f.ticker,
-                "on": _venue_date(f.executed_at),
+                "on": _venue_date(f.executed_at, _fill_market(f.exchange)),
                 "quantity": f.quantity,
                 "avg_price": f.price,
                 "created_at": f.created_at,
@@ -913,17 +1120,20 @@ def add_opening_lot(
     now: datetime,
 ) -> BrokerFill:
     """An opening lot: shares held before the file's window, at their average
-    price, dated at the start of ``on`` (IST) so it comes before that day's
-    trades. It has no fees and no trade id."""
+    price, dated at the start of ``on`` (IST; New York in a USD book) so it
+    comes before that day's trades. It has no fees and no trade id."""
     from stockviz.services.instruments import resolve_symbol
 
     book = import_book(session, user_id, book_id, write=True)
     assert book.id is not None
+    market = market_of(book)
     ticker = ticker.strip().upper()
     venue_suffix = next((s for s in VENUE_SUFFIX.values() if ticker.endswith(s)), None)
-    if venue_suffix is None:
+    if market == "in" and venue_suffix is None:
         raise ImportInvalid("An opening lot is for an NSE (.NS) or BSE (.BO) symbol")
-    if on > _venue_date(naive_utc(now)):
+    if market == "us" and (venue_suffix is not None or "." in ticker or "^" in ticker):
+        raise ImportInvalid("This book is in USD: an opening lot is for a US symbol, like AAPL")
+    if on > _venue_date(naive_utc(now), market):
         raise ImportInvalid("An opening lot can't be dated in the future")
     instrument = resolve_symbol(session, ticker)
     if instrument is None or instrument.id is None or session.get(Symbol, ticker) is None:
@@ -940,14 +1150,14 @@ def add_opening_lot(
         portfolio_id=book.id or 0,
         import_batch_id=None,
         kind=FILL_OPENING,
-        broker=BROKER,
-        exchange="NSE" if venue_suffix == ".NS" else "BSE",
+        broker=book.broker or BROKER,
+        exchange=US_EXCHANGE if market == "us" else ("NSE" if venue_suffix == ".NS" else "BSE"),
         instrument_id=instrument.id,
         ticker=ticker,
         side="buy",
         quantity=quantity,
         price=avg_price,
-        executed_at=ist_day_start(on),
+        executed_at=market_day_start(on, market),
         time_known=False,
         product=PRODUCT_DELIVERY,
         created_at=naive_utc(now),

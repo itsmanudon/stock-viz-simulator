@@ -1252,6 +1252,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/import-maps": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Import Maps */
+        get: operations["list_import_maps_v1_import_maps_get"];
+        put?: never;
+        /** Save Import Map */
+        post: operations["save_import_map_v1_import_maps_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/import-maps/{map_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Import Map */
+        delete: operations["delete_import_map_v1_import_maps__map_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/alerts": {
         parameters: {
             query?: never;
@@ -3029,6 +3064,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/broker/basket": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Basket Handoff */
+        get: operations["basket_handoff_v1_broker_basket_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/plans": {
         parameters: {
             query?: never;
@@ -3556,6 +3608,23 @@ export interface components {
             base_currency: string;
         };
         /**
+         * BasketHandoffOut
+         * @description A6.11 (M10.5): how a basket can leave StockViz. StockViz never places an
+         *     order: a basket downloads as CSV or JSON, and with ``KITE_API_KEY`` set the
+         *     web also offers Kite's basket form, which the user's browser posts and the
+         *     user confirms inside Zerodha.
+         */
+        BasketHandoffOut: {
+            /** Kite Basket */
+            kite_basket: boolean;
+            /** Kite Api Key */
+            kite_api_key: string | null;
+            /** Kite Basket Url */
+            kite_basket_url: string | null;
+            /** Exports */
+            exports: ("csv" | "json")[];
+        };
+        /**
          * BookIn
          * @description ``POST /v1/books``.
          */
@@ -3583,7 +3652,7 @@ export interface components {
             /** Holder Label */
             holder_label?: string | null;
             /** Broker */
-            broker?: "zerodha" | null;
+            broker?: ("zerodha" | "dhan" | "fyers" | "upstox" | "angelone" | "groww" | "other") | null;
         };
         /**
          * BookOut
@@ -5786,7 +5855,12 @@ export interface components {
              * Format Status
              * @enum {string}
              */
-            format_status: "unconfirmed" | "confirmed";
+            format_status: "unconfirmed" | "confirmed" | "custom";
+            /**
+             * Broker
+             * @default zerodha
+             */
+            broker: string;
             /** Rows Total */
             rows_total: number;
             /** Rows Added */
@@ -5877,6 +5951,11 @@ export interface components {
              */
             rejected: number;
             /**
+             * Not Executed
+             * @default 0
+             */
+            not_executed: number;
+            /**
              * Basis Uncertain
              * @default 0
              */
@@ -5892,6 +5971,42 @@ export interface components {
              */
             intraday_short: number;
         };
+        /** ImportMapColumnOut */
+        ImportMapColumnOut: {
+            /** Field */
+            field: string;
+            /** Label */
+            label: string;
+            /** Required */
+            required: boolean;
+        };
+        /**
+         * ImportMapOut
+         * @description A built-in tradebook column map (A6.11). Every broker map is unconfirmed.
+         */
+        ImportMapOut: {
+            /** Name */
+            name: string;
+            /** Broker */
+            broker: string;
+            /** Label */
+            label: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "unconfirmed" | "confirmed" | "custom";
+            /** Market */
+            market: ("in" | "us") | null;
+            /** Note */
+            note: string;
+            /** Source */
+            source: string;
+            /** How To */
+            how_to: string;
+            /** Columns */
+            columns: components["schemas"]["ImportMapColumnOut"][];
+        };
         /**
          * ImportPreviewOut
          * @description ``POST /v1/books/{id}/imports/preview``: nothing is stored.
@@ -5900,12 +6015,49 @@ export interface components {
             /** Format */
             format: string;
             /**
+             * Format Label
+             * @default
+             */
+            format_label: string;
+            /**
              * Format Status
              * @enum {string}
              */
-            format_status: "unconfirmed" | "confirmed";
+            format_status: "unconfirmed" | "confirmed" | "custom";
             /** Format Note */
             format_note: string;
+            /**
+             * Format Source
+             * @default
+             */
+            format_source: string;
+            /**
+             * Broker
+             * @default zerodha
+             */
+            broker: string;
+            /**
+             * Detected
+             * @default header
+             * @enum {string}
+             */
+            detected: "header" | "chosen" | "saved" | "fallback";
+            /**
+             * Alternatives
+             * @default []
+             */
+            alternatives: string[];
+            /**
+             * Market
+             * @default in
+             * @enum {string}
+             */
+            market: "in" | "us";
+            /**
+             * Headers
+             * @default []
+             */
+            headers: string[];
             /** File Sha256 */
             file_sha256: string;
             /** Can Commit */
@@ -5942,7 +6094,7 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "rejected" | "segment" | "unmatched" | "duplicate_in_file" | "already_imported" | "needs_opening_lot" | "basis_uncertain";
+            kind: "rejected" | "segment" | "unmatched" | "duplicate_in_file" | "already_imported" | "needs_opening_lot" | "basis_uncertain" | "not_executed";
             /** Reason */
             reason: string;
             /** Field */
@@ -6024,17 +6176,43 @@ export interface components {
             book_id: number;
             /** Broker */
             broker: string | null;
+            /**
+             * Market
+             * @default in
+             * @enum {string}
+             */
+            market: "in" | "us";
+            /**
+             * Currency
+             * @default INR
+             */
+            currency: string;
             /** Format */
             format: string;
             /**
              * Format Status
              * @enum {string}
              */
-            format_status: "unconfirmed" | "confirmed";
+            format_status: "unconfirmed" | "confirmed" | "custom";
             /** Format Note */
             format_note: string;
             /** Max Bytes */
             max_bytes: number;
+            /**
+             * Maps
+             * @default []
+             */
+            maps: components["schemas"]["ImportMapOut"][];
+            /**
+             * Saved Maps
+             * @default []
+             */
+            saved_maps: components["schemas"]["SavedImportMapOut"][];
+            /**
+             * Custom Fields
+             * @default []
+             */
+            custom_fields: components["schemas"]["ImportMapColumnOut"][];
             /** Batches */
             batches: components["schemas"]["ImportBatchOut"][];
             /** Opening Lots */
@@ -9915,6 +10093,55 @@ export interface components {
             holdout_to?: string | null;
             /** Note */
             note: string;
+        };
+        /**
+         * SavedImportMapIn
+         * @description ``POST /v1/import-maps``: "Map columns yourself". Header names only.
+         */
+        SavedImportMapIn: {
+            /** Name */
+            name: string;
+            /** Mapping */
+            mapping: {
+                [key: string]: string;
+            };
+            /** Default Exchange */
+            default_exchange?: ("NSE" | "BSE") | null;
+            /**
+             * Date Order
+             * @default auto
+             * @enum {string}
+             */
+            date_order: "auto" | "day_first" | "month_first";
+        };
+        /** SavedImportMapOut */
+        SavedImportMapOut: {
+            /** Id */
+            id: number;
+            /** Name */
+            name: string;
+            /** Mapping */
+            mapping: {
+                [key: string]: string;
+            };
+            /** Default Exchange */
+            default_exchange?: ("NSE" | "BSE") | null;
+            /**
+             * Date Order
+             * @default auto
+             * @enum {string}
+             */
+            date_order: "auto" | "day_first" | "month_first";
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
         };
         /** SavedScreenIn */
         SavedScreenIn: {
@@ -14485,7 +14712,12 @@ export interface operations {
     };
     preview_import_v1_books__book_id__imports_preview_post: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description auto or a map */
+                map?: string;
+                /** @description A saved column map's id */
+                custom_map?: number | null;
+            };
             header?: {
                 authorization?: string | null;
             };
@@ -14524,6 +14756,10 @@ export interface operations {
         parameters: {
             query: {
                 file_sha256: string;
+                /** @description auto or a map */
+                map?: string;
+                /** @description A saved column map's id */
+                custom_map?: number | null;
             };
             header?: {
                 authorization?: string | null;
@@ -14670,6 +14906,103 @@ export interface operations {
             path: {
                 book_id: number;
                 lot_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_import_maps_v1_import_maps_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SavedImportMapOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    save_import_map_v1_import_maps_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SavedImportMapIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SavedImportMapOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_import_map_v1_import_maps__map_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                map_id: number;
             };
             cookie?: never;
         };
@@ -18813,6 +19146,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["FeedStatusOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    basket_handoff_v1_broker_basket_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BasketHandoffOut"];
                 };
             };
             /** @description Validation Error */

@@ -17,16 +17,25 @@ import {
   addOpeningLot,
   commitImport,
   deleteImport,
+  deleteImportMap,
   deleteOpeningLot,
   previewImport,
+  saveImportMap,
 } from "@/lib/api/imports";
 import { AuthedApiError, UnauthenticatedError } from "@/lib/api/server";
 import { bookIdFromForm } from "@/lib/book-url";
-import { checkTradebookFile } from "@/lib/tradebook-import";
+import { MAP_FIELDS, checkTradebookFile, mappingProblem } from "@/lib/tradebook-import";
 
 export type PreviewState = { error?: string; preview?: ImportPreview };
 export type CommitState = { error?: string; result?: ImportCommit };
 export type ImportActionState = { error?: string; ok?: string };
+export type SaveMapState = { error?: string; id?: number; name?: string };
+
+/** The column map a form names: "auto", a built-in map, or `saved:<id>`. */
+function mapChoice(formData: FormData): string {
+  const raw = String(formData.get("map") ?? "auto");
+  return /^(auto|[a-z0-9_]{1,40}|saved:\d{1,9})$/.test(raw) ? raw : "auto";
+}
 
 function message(err: unknown): string {
   if (err instanceof UnauthenticatedError) return "Sign in to import trades";
@@ -68,7 +77,7 @@ export async function previewTradebookAction(formData: FormData): Promise<Previe
   const { bytes, error } = await fileBytes(formData);
   if (!bytes) return { error };
   try {
-    return { preview: await previewImport(book, bytes) };
+    return { preview: await previewImport(book, bytes, mapChoice(formData)) };
   } catch (err) {
     return { error: message(err) };
   }
@@ -82,7 +91,7 @@ export async function commitTradebookAction(formData: FormData): Promise<CommitS
   const { bytes, error } = await fileBytes(formData);
   if (!bytes) return { error };
   try {
-    const result = await commitImport(book, bytes, sha);
+    const result = await commitImport(book, bytes, sha, mapChoice(formData));
     refresh();
     return { result };
   } catch (err) {
@@ -109,11 +118,12 @@ export async function deleteImportAction(
 }
 
 const LotSchema = z.object({
+  // An NSE/BSE symbol in an INR book, a US one in a USD book: the API checks which.
   ticker: z
     .string()
     .trim()
     .toUpperCase()
-    .regex(/^[A-Z0-9&.-]{1,12}\.(NS|BO)$/, "Use an NSE (.NS) or BSE (.BO) symbol, like TCS.NS"),
+    .regex(/^[A-Z0-9&.-]{1,16}$/, "Use a symbol like TCS.NS (India) or AAPL (US)"),
   on: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Pick the date the shares were held from"),
   quantity: z.coerce.number().positive("Quantity must be above zero").max(1e10),
   avg_price: z.coerce.number().positive("Average price must be above zero").max(1e9),
@@ -159,6 +169,51 @@ export async function deleteOpeningLotAction(
     await deleteOpeningLot(book, lot);
     refresh();
     return { ok: "Opening lot removed." };
+  } catch (err) {
+    return { error: message(err) };
+  }
+}
+
+const MapSchema = z.object({
+  name: z.string().trim().min(1, "Name the map").max(60, "60 characters at most"),
+  default_exchange: z.enum(["", "NSE", "BSE"]).transform((v) => (v === "" ? null : v)),
+  date_order: z.enum(["auto", "day_first", "month_first"]),
+});
+
+/** A6.11: "Map columns yourself": save the user's choice of header per field. */
+export async function saveImportMapAction(formData: FormData): Promise<SaveMapState> {
+  const parsed = MapSchema.safeParse({
+    name: formData.get("map_name") ?? "",
+    default_exchange: formData.get("default_exchange") ?? "",
+    date_order: formData.get("date_order") ?? "auto",
+  });
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
+  const mapping: Record<string, string> = {};
+  for (const f of MAP_FIELDS) {
+    const header = String(formData.get(`field_${f.field}`) ?? "").trim();
+    if (header) mapping[f.field] = header.slice(0, 60);
+  }
+  const problem = mappingProblem(mapping);
+  if (problem) return { error: problem };
+  try {
+    const saved = await saveImportMap({ ...parsed.data, mapping });
+    revalidatePath("/portfolio/import");
+    return { id: saved.id, name: saved.name };
+  } catch (err) {
+    return { error: message(err) };
+  }
+}
+
+export async function deleteImportMapAction(
+  _prev: ImportActionState,
+  formData: FormData,
+): Promise<ImportActionState> {
+  const id = Number(formData.get("map_id"));
+  if (!Number.isSafeInteger(id) || id <= 0) return { error: "That map is gone" };
+  try {
+    await deleteImportMap(id);
+    revalidatePath("/portfolio/import");
+    return { ok: "Map deleted." };
   } catch (err) {
     return { error: message(err) };
   }

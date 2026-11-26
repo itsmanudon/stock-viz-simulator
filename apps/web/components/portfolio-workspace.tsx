@@ -34,6 +34,7 @@ import type {
   PortfolioStress,
 } from "@/lib/api/trading";
 import type { NewsArticle } from "@/lib/api/types";
+import type { KiteHandoff } from "@/lib/basket";
 import { tradeBlockReason } from "@/lib/book-url";
 import type { BrokerStatusLike } from "@/lib/broker-status";
 import type { JournalEntries } from "@/lib/journal-entries";
@@ -71,6 +72,8 @@ type Props = {
   bookContext?: { book: number | "all" | null; selected: Book | null; isAll: boolean };
   /** A5.7: the broker's status for an imported book (null: not loaded or unreadable). */
   broker?: BrokerStatusLike | null;
+  /** A6.11: Kite's basket form (null while the server has no KITE_API_KEY). */
+  kite?: KiteHandoff;
 };
 
 export function PortfolioWorkspace({
@@ -94,6 +97,7 @@ export function PortfolioWorkspace({
   journalEntries = null,
   bookContext,
   broker = null,
+  kite = null,
 }: Props) {
   const isAll = bookContext?.isAll ?? false;
   const selected = bookContext?.selected ?? null;
@@ -223,6 +227,7 @@ export function PortfolioWorkspace({
                   book={bookId}
                 />
                 <TradePlansPanel
+                  kite={kite}
                   plans={plans}
                   bookId={selected?.id ?? null}
                   writable={selected?.writable ?? true}
@@ -265,6 +270,7 @@ export function PortfolioWorkspace({
               )}
               {tab === "analytics" && !isAll ? (
                 <RebalancePreview
+                  kite={kite}
                   positions={portfolio.positions}
                   nav={Number(portfolio.total_value)}
                   currency={displayCurrency}

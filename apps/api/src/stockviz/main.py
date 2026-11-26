@@ -32,6 +32,7 @@ from stockviz.routers import (
     fees,
     fundamentals,
     health,
+    import_maps,
     imports,
     indicators,
     journal,
@@ -175,6 +176,7 @@ def create_app() -> FastAPI:
     app.include_router(trading.router)
     app.include_router(books.router)
     app.include_router(imports.router)
+    app.include_router(import_maps.router)
     app.include_router(alerts.router)
     app.include_router(watchlist.router)
     app.include_router(watchlists.router)

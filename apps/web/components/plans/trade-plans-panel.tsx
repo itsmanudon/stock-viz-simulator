@@ -18,11 +18,13 @@ import {
   planOpenPositionAction,
   updatePlanAction,
 } from "@/app/(product)/(authed)/portfolio/plan-actions";
+import { BasketExport } from "@/components/basket-export";
 import { formatMoney } from "@/components/order-review";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { formatUtcDateTime } from "@/lib/api-time";
+import { type KiteHandoff, basketFromPlan } from "@/lib/basket";
 import { PLAN_STATUS_LABEL, type TradePlan, planBadge } from "@/lib/plans";
 
 export type PlanPosition = {
@@ -57,11 +59,14 @@ export function TradePlansPanel({
   bookId,
   writable,
   positions,
+  kite = null,
 }: {
   plans: TradePlan[] | null;
   bookId: number | null;
   writable: boolean;
   positions: PlanPosition[];
+  /** A6.11: Kite's basket form, or null (CSV and JSON only). */
+  kite?: KiteHandoff;
 }) {
   const id = useId();
   const [filter, setFilter] = useState<Filter>("all");
@@ -123,7 +128,7 @@ export function TradePlansPanel({
       ) : (
         <ul className="divide-y divide-border-muted rounded-md border border-border-muted">
           {shown.map((plan) => (
-            <PlanRow key={plan.id} plan={plan} writable={writable} />
+            <PlanRow key={plan.id} plan={plan} writable={writable} kite={kite} />
           ))}
         </ul>
       )}
@@ -135,7 +140,15 @@ export function TradePlansPanel({
   );
 }
 
-function PlanRow({ plan, writable }: { plan: TradePlan; writable: boolean }) {
+function PlanRow({
+  plan,
+  writable,
+  kite,
+}: {
+  plan: TradePlan;
+  writable: boolean;
+  kite: KiteHandoff;
+}) {
   const badge = planBadge(plan);
   const cur = plan.currency;
   const [state, action, pending] = useActionState<PlanActionState, FormData>(updatePlanAction, {});
@@ -198,6 +211,13 @@ function PlanRow({ plan, writable }: { plan: TradePlan; writable: boolean }) {
             {plan.thesis_title ? <Meta label="Thesis" value={plan.thesis_title} /> : null}
           </dl>
           {plan.thesis_text ? <p className="text-text-secondary">{plan.thesis_text}</p> : null}
+          {plan.status === "open" ? (
+            <BasketExport
+              orders={basketFromPlan(plan)}
+              source={`Plan ${plan.ticker ?? ""}`}
+              kite={kite}
+            />
+          ) : null}
           {plan.why ? <p className="text-text-secondary">Why now: {plan.why}</p> : null}
           {plan.written_after_entry ? (
             <p className="text-xs text-warning">

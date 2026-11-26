@@ -37,6 +37,7 @@ from stockviz.models.execution import SimulatedExecution
 from stockviz.models.experiment import Experiment, ExperimentRun
 from stockviz.models.feed_stream import FeedStream
 from stockviz.models.fundamentals import FundamentalFact
+from stockviz.models.import_column_map import ImportColumnMap
 from stockviz.models.indicator_evidence import IndicatorEvidence
 from stockviz.models.instrument import Instrument, InstrumentIdentifier
 from stockviz.models.intraday import IntradayBar, IntradayFile
@@ -136,6 +137,7 @@ __all__ = [
     "HolderKind",
     "HoldoutUnlock",
     "ImportBatch",
+    "ImportColumnMap",
     "IndicatorEvidence",
     "Instrument",
     "InstrumentIdentifier",

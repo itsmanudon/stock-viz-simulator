@@ -56,8 +56,9 @@ BROKERS: dict[str, BrokerProvider] = {
         name="zerodha",
         label="Zerodha",
         reason=(
-            "tradebook CSV import is /v1/books/{id}/imports (A5.3); the login, "
-            "fills hook and basket export come with A6.11 and the paid Kite app"
+            "tradebook CSV import is /v1/books/{id}/imports (A5.3, A6.11 maps); a basket "
+            "leaves as CSV/JSON or Kite's browser basket form (A6.11, /v1/broker/basket), "
+            "never as a server order; the login waits for the paid Kite app"
         ),
     ),
 }

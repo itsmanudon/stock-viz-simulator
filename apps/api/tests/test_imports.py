@@ -312,6 +312,7 @@ def test_preview_reports_problems_and_stores_nothing(session: Session, client: T
         "unmatched": 1,
         "skipped_segment": 1,
         "rejected": 1,
+        "not_executed": 0,
         "basis_uncertain": 0,
         "intraday_inferred": 0,
         "intraday_short": 0,

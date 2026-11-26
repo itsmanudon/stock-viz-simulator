@@ -3617,7 +3617,9 @@ class BookIn(BaseModel):
     # Free text ("Mum", "Jariwala HUF"). Never a PAN: a PAN-shaped label is 422.
     holder_label: str | None = Field(default=None, max_length=60)
     # Imported books only; default zerodha.
-    broker: Literal["zerodha"] | None = None
+    broker: Literal["zerodha", "dhan", "fyers", "upstox", "angelone", "groww", "other"] | None = (
+        None
+    )
 
 
 class BookPatch(BaseModel):
@@ -4465,6 +4467,7 @@ class ImportProblemOut(BaseModel):
         "already_imported",
         "needs_opening_lot",
         "basis_uncertain",
+        "not_executed",
     ]
     reason: str
     field: str | None = None
@@ -4482,6 +4485,8 @@ class ImportCountsOut(BaseModel):
     unmatched: int = 0
     skipped_segment: int = 0
     rejected: int = 0
+    not_executed: int = 0
+    """Orders in the file that did not execute (an order-status column, A6.11)."""
     basis_uncertain: int = 0
     intraday_inferred: int = 0
     intraday_short: int = 0
@@ -4492,8 +4497,21 @@ class ImportPreviewOut(BaseModel):
     """``POST /v1/books/{id}/imports/preview``: nothing is stored."""
 
     format: str
-    format_status: Literal["unconfirmed", "confirmed"]
+    """The column map the file was read with (``dhan_tradebook_v1``, ``custom_3``)."""
+    format_label: str = ""
+    format_status: Literal["unconfirmed", "confirmed", "custom"]
     format_note: str
+    format_source: str = ""
+    broker: str = "zerodha"
+    detected: Literal["header", "chosen", "saved", "fallback"] = "header"
+    """header: the header row fits this map; chosen: the caller named it; saved:
+    the caller's own map; fallback: no map fits (``missing_required`` names
+    the closest map's missing columns)."""
+    alternatives: list[str] = []
+    """Other built-in maps the header row also fits."""
+    market: Literal["in", "us"] = "in"
+    headers: list[str] = []
+    """The file's header row (names only, never a cell), for "Map columns yourself"."""
     file_sha256: str
     can_commit: bool
     message: str | None = None
@@ -4512,7 +4530,8 @@ class ImportBatchOut(BaseModel):
     id: int
     created_at: datetime
     column_map: str
-    format_status: Literal["unconfirmed", "confirmed"]
+    format_status: Literal["unconfirmed", "confirmed", "custom"]
+    broker: str = "zerodha"
     rows_total: int
     rows_added: int
     rows_duplicate: int
@@ -4563,15 +4582,75 @@ class NeedsOpeningLotOut(BaseModel):
     short_by: Decimal
 
 
+class ImportMapColumnOut(BaseModel):
+    field: str
+    label: str
+    required: bool
+
+
+class ImportMapOut(BaseModel):
+    """A built-in tradebook column map (A6.11). Every broker map is unconfirmed."""
+
+    name: str
+    broker: str
+    label: str
+    status: Literal["unconfirmed", "confirmed", "custom"]
+    market: Literal["in", "us"] | None
+    note: str
+    source: str
+    """What the map is built from, with the date it was read."""
+    how_to: str
+    columns: list[ImportMapColumnOut]
+
+
+ImportMapField = Literal[
+    "trade_date",
+    "executed_at",
+    "symbol",
+    "exchange",
+    "side",
+    "quantity",
+    "price",
+    "trade_id",
+    "order_id",
+    "isin",
+]
+
+
+class SavedImportMapIn(BaseModel):
+    """``POST /v1/import-maps``: "Map columns yourself". Header names only."""
+
+    name: str = Field(min_length=1, max_length=60)
+    mapping: dict[ImportMapField, str]
+    default_exchange: Literal["NSE", "BSE"] | None = None
+    date_order: Literal["auto", "day_first", "month_first"] = "auto"
+
+
+class SavedImportMapOut(BaseModel):
+    id: int
+    name: str
+    mapping: dict[str, str]
+    default_exchange: Literal["NSE", "BSE"] | None = None
+    date_order: Literal["auto", "day_first", "month_first"] = "auto"
+    created_at: datetime
+    updated_at: datetime
+
+
 class ImportsOut(BaseModel):
     """``GET /v1/books/{id}/imports``."""
 
     book_id: int
     broker: str | None
+    market: Literal["in", "us"] = "in"
+    currency: str = "INR"
     format: str
-    format_status: Literal["unconfirmed", "confirmed"]
+    """The book's broker's map (Zerodha for an ``other`` book)."""
+    format_status: Literal["unconfirmed", "confirmed", "custom"]
     format_note: str
     max_bytes: int
+    maps: list[ImportMapOut] = []
+    saved_maps: list[SavedImportMapOut] = []
+    custom_fields: list[ImportMapColumnOut] = []
     batches: list[ImportBatchOut]
     opening_lots: list[OpeningLotOut]
     needs_opening_lot: list[NeedsOpeningLotOut]
