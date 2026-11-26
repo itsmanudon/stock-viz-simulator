@@ -1300,6 +1300,20 @@ models. Six concepts were added (additive, mapping still v1): `sga`,
 Friday fetch writes them from its next run). Web: the forensic scorecard
 card on the stock page's Financials tab. Tests: `tests/test_a73_forensics.py`.
 
+**Valuation bands and reverse DCF (A7.4, M5.3).** `/valuation/history` adds
+`bands` (`valuation.bands`: nearest-rank p10/p25/p50/p75/90 of the month-ends,
+5 points minimum). `GET /v1/symbols/{t}/reverse-dcf?wacc=0.09&terminal_growth=0.03&years=10&fcf_margin=&as_of=`
+(`routers/fundamentals.py`, public, 60/min; `services/fundamentals/reverse_dcf.py`,
+pure): two-stage FCF model (N years at g, then Gordon growth), g solved by
+bisection over [-50%, 100%] so the value equals today's EV; base FCF is the
+TTM free cash flow, or TTM revenue x `fcf_margin`; reasons instead of
+numbers when FCF <= 0, WACC <= terminal, EV missing or out of range; a 3x3
+sensitivity grid (WACC +-1 point, terminal +-0.5) and the EV -> equity ->
+price reconciliation. `Valuation` now carries `revenue_ttm`, `fcf_ttm`,
+`debt`, `cash`, `shares`, `price_reporting`, `enterprise_value`. Web: the
+bands line under P/E and a Reverse DCF card (inputs re-solve through the
+public route) on the Financials tab. Tests: `tests/test_a74_reverse_dcf.py`.
+
 **Raw prices on the bars route (A3.1, M2.3).** `GET /v1/symbols/{t}/bars`
 takes `adjustment=adjusted|raw` (default `adjusted`, the split-adjusted
 `price_bars`). `raw` reads `eod_raw` (A1.1) through `services/bars/raw.py`:

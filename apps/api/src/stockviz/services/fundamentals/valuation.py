@@ -55,6 +55,15 @@ class Valuation:
     point_in_time: bool = False
     sources: list[str] = field(default_factory=list)
     metrics: list[Metric] = field(default_factory=list)
+    # A7.4 (reverse DCF): the raw figures behind the multiples, in the
+    # reporting currency (None when unknown).
+    revenue_ttm: Decimal | None = None
+    fcf_ttm: Decimal | None = None
+    debt: Decimal | None = None
+    cash: Decimal | None = None
+    shares: Decimal | None = None
+    price_reporting: Decimal | None = None
+    enterprise_value: Decimal | None = None
 
     def value(self, key: str) -> float | None:
         return next((m.value for m in self.metrics if m.key == key), None)
@@ -166,6 +175,10 @@ def valuation(session: Session, ticker: str, as_of: date) -> Valuation:
     ev = None
     if mcap is not None:
         ev = mcap + (debt.value if debt else Decimal(0)) - (cash.value if cash else Decimal(0))
+    out.revenue_ttm, out.fcf_ttm = revenue, fcf
+    out.debt = debt.value if debt else None
+    out.cash = cash.value if cash else None
+    out.shares, out.price_reporting, out.enterprise_value = shares_n, price_rep, ev
 
     cur = out.reporting_currency or "?"
     missing_price = "no close or FX rate" if price_rep is None else None
@@ -308,6 +321,21 @@ def valuation(session: Session, ticker: str, as_of: date) -> Valuation:
                 "%",
                 "no figure a year earlier",
             )
+    return out
+
+
+BAND_PERCENTILES = (10, 25, 50, 75, 90)
+
+
+def bands(values: list[float]) -> dict[str, float] | None:
+    """A7.4: the history's percentile levels (nearest-rank), ``p10`` .. ``p90``."""
+    if len(values) < 5:
+        return None
+    ordered = sorted(values)
+    out: dict[str, float] = {}
+    for p in BAND_PERCENTILES:
+        rank = max(1, -(-p * len(ordered) // 100))  # ceil(p/100 x n), nearest rank
+        out[f"p{p}"] = round(ordered[rank - 1], 4)
     return out
 
 

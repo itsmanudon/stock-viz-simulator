@@ -634,6 +634,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/symbols/{ticker}/reverse-dcf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Reverse Dcf
+         * @description A7.4 (M5.3): the growth the price implies, with a sensitivity grid.
+         */
+        get: operations["get_reverse_dcf_v1_symbols__ticker__reverse_dcf_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/indicators/catalog": {
         parameters: {
             query?: never;
@@ -9874,6 +9894,59 @@ export interface components {
             note?: string | null;
         };
         /**
+         * ReverseDcfOut
+         * @description A7.4 (M5.3): the free-cash-flow growth today's enterprise value implies.
+         */
+        ReverseDcfOut: {
+            /** Ticker */
+            ticker: string;
+            /**
+             * As Of
+             * Format: date
+             */
+            as_of: string;
+            /** Currency */
+            currency?: string | null;
+            /** Implied Growth */
+            implied_growth?: number | null;
+            /** Reason */
+            reason?: string | null;
+            /** Base Fcf */
+            base_fcf?: number | null;
+            /** Base Fcf Source */
+            base_fcf_source: string;
+            /** Wacc */
+            wacc: number;
+            /** Terminal Growth */
+            terminal_growth: number;
+            /** Years */
+            years: number;
+            /** Enterprise Value */
+            enterprise_value?: number | null;
+            /** Sensitivity */
+            sensitivity: components["schemas"]["ReverseDcfRowOut"][];
+            /** Reconciliation */
+            reconciliation: components["schemas"]["ReverseDcfStepOut"][];
+            /** Method */
+            method: string;
+        };
+        /** ReverseDcfRowOut */
+        ReverseDcfRowOut: {
+            /** Wacc */
+            wacc: number;
+            /** Terminal Growth */
+            terminal_growth: number;
+            /** Implied Growth */
+            implied_growth?: number | null;
+        };
+        /** ReverseDcfStepOut */
+        ReverseDcfStepOut: {
+            /** Step */
+            step: string;
+            /** Value */
+            value?: number | null;
+        };
+        /**
          * RiskLimitsIn
          * @description Phase 8.5: each cap is a percentage of NAV, (0, 100], or null for none.
          */
@@ -12476,6 +12549,10 @@ export interface components {
             points: components["schemas"]["ValuationPointOut"][];
             /** Percentile */
             percentile?: number | null;
+            /** Bands */
+            bands?: {
+                [key: string]: number;
+            } | null;
         };
         /** ValuationMetricOut */
         ValuationMetricOut: {
@@ -14157,6 +14234,43 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ForensicsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_reverse_dcf_v1_symbols__ticker__reverse_dcf_get: {
+        parameters: {
+            query?: {
+                wacc?: number;
+                terminal_growth?: number;
+                years?: number;
+                fcf_margin?: number | null;
+                as_of?: string | null;
+            };
+            header?: never;
+            path: {
+                ticker: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReverseDcfOut"];
                 };
             };
             /** @description Validation Error */

@@ -25,15 +25,19 @@ from stockviz.schemas import (
     ForensicTestOut,
     FundamentalRowOut,
     FundamentalsOut,
+    ReverseDcfOut,
+    ReverseDcfRowOut,
+    ReverseDcfStepOut,
     ValuationHistoryOut,
     ValuationMetricOut,
     ValuationOut,
     ValuationPointOut,
 )
 from stockviz.services.fundamentals import forensics as fx
+from stockviz.services.fundamentals import reverse_dcf as rdcf
 from stockviz.services.fundamentals.concepts import CONCEPTS
 from stockviz.services.fundamentals.store import facts_as_of
-from stockviz.services.fundamentals.valuation import history, valuation
+from stockviz.services.fundamentals.valuation import bands, history, valuation
 from stockviz.services.instruments import instrument_ids
 
 router = APIRouter(prefix="/v1/symbols", tags=["fundamentals"])
@@ -145,6 +149,7 @@ def get_valuation_history(
         metric=metric,
         points=[ValuationPointOut(date=d, value=v) for d, v in points],
         percentile=percentile,
+        bands=bands([v for _d, v in points]),
     )
 
 
@@ -219,3 +224,49 @@ def get_forensics(
     out.beneish_m = _score(fx.beneish_m(t, t1))  # type: ignore[arg-type]
     out.cfo_to_pat = _score(fx.cfo_to_pat(t))  # type: ignore[arg-type]
     return out
+
+
+REVERSE_DCF_METHOD = (
+    "Two-stage DCF: N years of free cash flow growing at g, then Gordon growth at the "
+    "terminal rate, discounted at WACC; g is solved (bisection) so the value equals today's "
+    "enterprise value. Market-implied, not a forecast."
+)
+
+
+def _num(value) -> float | None:  # Decimal | None -> float | None
+    return None if value is None else float(value)
+
+
+@router.get("/{ticker}/reverse-dcf", response_model=ReverseDcfOut)
+@limiter.limit("60/minute")
+def get_reverse_dcf(
+    request: Request,
+    ticker: str,
+    session: SessionDep,
+    wacc: Annotated[float, Query(gt=0.0, le=0.3)] = 0.09,
+    terminal_growth: Annotated[float, Query(ge=-0.02, le=0.06)] = 0.03,
+    years: Annotated[int, Query(ge=3, le=20)] = 10,
+    fcf_margin: Annotated[float | None, Query(gt=-1.0, le=1.0)] = None,
+    as_of: Annotated[date | None, Query()] = None,
+) -> ReverseDcfOut:
+    """A7.4 (M5.3): the growth the price implies, with a sensitivity grid."""
+    ticker = ticker.upper()
+    if session.get(Symbol, ticker) is None:
+        raise HTTPException(status_code=404, detail=f"Symbol {ticker!r} not found")
+    day = as_of or utcnow().date()
+    v = valuation(session, ticker, day)
+    r = rdcf.reverse_dcf(
+        enterprise_value=_num(v.enterprise_value), fcf_ttm=_num(v.fcf_ttm),
+        revenue_ttm=_num(v.revenue_ttm), fcf_margin=fcf_margin, wacc=wacc,
+        terminal_growth=terminal_growth, years=years, debt=_num(v.debt), cash=_num(v.cash),
+        shares=_num(v.shares),
+    )  # fmt: skip
+    return ReverseDcfOut(
+        ticker=ticker, as_of=day, currency=v.reporting_currency,
+        implied_growth=None if r.implied_growth is None else round(r.implied_growth, 6),
+        reason=r.reason, base_fcf=r.base_fcf, base_fcf_source=r.base_fcf_source, wacc=wacc,
+        terminal_growth=terminal_growth, years=years, enterprise_value=r.enterprise_value,
+        sensitivity=[ReverseDcfRowOut(**row) for row in r.grid],  # type: ignore[arg-type]
+        reconciliation=[ReverseDcfStepOut(step=k, value=val) for k, val in r.reconciliation],
+        method=REVERSE_DCF_METHOD,
+    )  # fmt: skip

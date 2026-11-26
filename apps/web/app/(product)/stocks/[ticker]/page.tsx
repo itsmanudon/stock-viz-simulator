@@ -19,6 +19,7 @@ import { NewsList } from "@/components/news-list";
 import { PositionSummary } from "@/components/position-summary";
 import { PriceChart } from "@/components/price-chart";
 import { RelativeStrengthStrip } from "@/components/relative-strength-strip";
+import { ReverseDcfCard } from "@/components/reverse-dcf-card";
 import { SecurityHeader } from "@/components/security-header";
 import { StockChartToolbar } from "@/components/stock-chart-toolbar";
 import { StockMetricsStrip } from "@/components/stock-metrics-strip";
@@ -51,6 +52,7 @@ import { getMyFills } from "@/lib/api/events-server";
 import {
   getForensics,
   getFundamentals,
+  getReverseDcf,
   getValuation,
   getValuationHistory,
 } from "@/lib/api/fundamentals";
@@ -259,6 +261,7 @@ export default async function StockPage({
     checklist,
     relativeStrength,
     forensics,
+    reverseDcf,
   ] = await Promise.all([
     barsPromise,
     chartBarsPromise,
@@ -281,6 +284,8 @@ export default async function StockPage({
     getRelativeStrength(ticker).catch(() => null as RelativeStrength | null),
     // A7.3: the forensic scorecard; a failed call drops the card only.
     getForensics(ticker).catch(() => null),
+    // A7.4: the reverse DCF at the default inputs; a failed call drops the card.
+    getReverseDcf(ticker).catch(() => null),
   ]);
 
   // A6.2: an intraday lookback is whole sessions ("1D" is the last session,
@@ -638,6 +643,7 @@ export default async function StockPage({
                 valuation={valuationNow}
                 peHistory={peHistory}
               />
+              <ReverseDcfCard ticker={ticker} initial={reverseDcf} />
               <ForensicsCard forensics={forensics} />
             </div>
           }
