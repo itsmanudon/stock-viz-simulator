@@ -185,6 +185,7 @@ describe("Replay Lab presentation", () => {
       reflection: null,
       locked: true,
       locked_at: "2020-01-04T00:00:00Z",
+      written_after_entry: false,
       created_at: "2020-01-04T00:00:00Z",
       updated_at: "2020-01-04T00:00:00Z",
     };

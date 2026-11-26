@@ -26,6 +26,8 @@ from sqlalchemy import func
 from sqlmodel import Session, col, select
 
 from stockviz.models import FxConversion, Portfolio, Position, PriceBar, Symbol, Trade, TradeSide
+from stockviz.models.trade_plan import TradePlan
+from stockviz.schemas import TradePlanDraft
 from stockviz.services.instruments import instrument_of, is_index_ticker
 from stockviz.services.simulation import (
     LIVE_PAPER_EXECUTION_PROFILE,
@@ -340,6 +342,7 @@ def apply_fill(
     exclude_option_id: int | None = None,
     fee_on: date | None = None,
     charge_fees: bool = True,
+    trade_plan: TradePlan | None = None,
 ) -> TradeExecution:
     """Mutate cash + position and stage the Trade row for ``portfolio``.
 
@@ -368,6 +371,10 @@ def apply_fill(
     netted from a sell's proceeds, in the symbol's currency. ``realized_pnl``
     stays the price gain; the trade row keeps the fees beside it.
     ``charge_fees=False`` (option exercise and assignment) books none.
+
+    A5.4: ``trade_plan`` links the fill to that plan (its first fill locks
+    it, ``services/plans``); a sell that empties the position closes the
+    book's active plans in the instrument.
     """
 
     assert portfolio.id is not None
@@ -393,6 +400,7 @@ def apply_fill(
     position = get_position(session, portfolio_id=portfolio_id, ticker=ticker)
     realized_pnl: Decimal | None = None
     avg_cost_at_fill: Decimal | None = None
+    flat_instrument: int | None = None
 
     if side == TradeSide.BUY:
         try:
@@ -485,6 +493,7 @@ def apply_fill(
         # the portfolio view stays clean.
         if position.quantity == 0:
             session.delete(position)
+            flat_instrument = position.instrument_id
 
     trade = Trade(
         portfolio_id=portfolio_id,
@@ -508,6 +517,14 @@ def apply_fill(
     if conversion is not None:
         conversion.trade_id = trade.id
         session.add(conversion)
+    if trade_plan is not None:
+        from stockviz.services.plans import link_trade
+
+        link_trade(session, trade_plan, trade)
+    if flat_instrument is not None:
+        from stockviz.services.plans import close_flat_plans
+
+        close_flat_plans(session, portfolio_id=portfolio_id, instrument_id=flat_instrument)
     from stockviz.events.outbox import enqueue_trade_executed
 
     enqueue_trade_executed(
@@ -552,6 +569,8 @@ def execute_trade(
     quantity: Decimal,
     client_order_id: str | None = None,
     book_id: int | None = None,
+    trade_plan_id: int | None = None,
+    plan: TradePlanDraft | None = None,
 ) -> TradeExecution:
     """Execute a market order in ``book_id`` (default: the user's default book). Raises a ``TradeExecutionError`` subclass on validation failure.
 
@@ -592,23 +611,58 @@ def execute_trade(
     provenance = _market_fill_provenance(bar=priced.bar, side=side, quantity=quantity)
     fill_price = provenance.decision.fill_price
     assert fill_price is not None
+    trade_plan = order_plan(
+        session, user_id=user_id, book=portfolio, ticker=ticker, side=side,
+        trade_plan_id=trade_plan_id, draft=plan,
+    )  # fmt: skip
 
-    result = apply_fill(
-        session,
-        portfolio=portfolio,
-        ticker=ticker,
-        side=side,
-        quantity=quantity,
-        price=fill_price,
-        currency=priced.currency,
-        fx_rate=priced.fx_rate,
-        client_order_id=client_order_id,
-        fee_on=_fee_on(ticker, provenance.evaluated_at),
-    )
+    try:
+        result = apply_fill(
+            session,
+            portfolio=portfolio,
+            ticker=ticker,
+            side=side,
+            quantity=quantity,
+            price=fill_price,
+            currency=priced.currency,
+            fx_rate=priced.fx_rate,
+            client_order_id=client_order_id,
+            fee_on=_fee_on(ticker, provenance.evaluated_at),
+            trade_plan=trade_plan,
+        )
+    except Exception:
+        if plan is not None:
+            session.rollback()  # the new plan goes with the refused order
+        raise
     record_execution_provenance(session, trade=result.trade, provenance=provenance)
     session.commit()
     session.refresh(result.trade)
     return result
+
+
+def order_plan(
+    session: Session,
+    *,
+    user_id: int,
+    book: Portfolio,
+    ticker: str,
+    side: TradeSide,
+    trade_plan_id: int | None,
+    draft: TradePlanDraft | None,
+) -> TradePlan | None:
+    """A5.4: the plan an order links to (``services/plans.plan_for_order``)."""
+    if trade_plan_id is None and draft is None:
+        return None
+    from stockviz.services.instruments import resolve_symbol
+    from stockviz.services.plans import plan_for_order
+
+    instrument = resolve_symbol(session, ticker)
+    if instrument is None or instrument.id is None:
+        raise SymbolNotFound(f"Symbol {ticker!r} not found")
+    return plan_for_order(
+        session, user_id=user_id, book=book, instrument_id=instrument.id, side=side,
+        trade_plan_id=trade_plan_id, draft=draft,
+    )  # fmt: skip
 
 
 def _fee_on(ticker: str, instant: datetime) -> date:

@@ -315,6 +315,9 @@ def _delete_contents(session: Session, pid: int) -> None:
     session.exec(delete(Trade).where(col(Trade.portfolio_id) == pid))  # type: ignore[call-overload]
     session.exec(delete(Position).where(col(Position.portfolio_id) == pid))  # type: ignore[call-overload]
     session.exec(delete(PendingOrder).where(col(PendingOrder.portfolio_id) == pid))  # type: ignore[call-overload]
+    from stockviz.models.trade_plan import TradePlan
+
+    session.exec(delete(TradePlan).where(col(TradePlan.portfolio_id) == pid))  # type: ignore[call-overload]
     # Legs point at each other (covering_leg_id) and at their strategy.
     session.exec(
         update(OptionsPosition)

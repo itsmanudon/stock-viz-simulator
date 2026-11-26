@@ -78,6 +78,8 @@ def create_order(
             limit_price=limit_price,
             client_order_id=body.client_order_id,
             book_id=book,
+            trade_plan_id=body.trade_plan_id,
+            plan=body.plan,
         )
     except ClientOrderIdConflict as exc:
         raise HTTPException(status.HTTP_409_CONFLICT, detail=str(exc)) from exc

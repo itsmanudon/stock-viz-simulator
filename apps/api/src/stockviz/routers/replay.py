@@ -702,15 +702,18 @@ def _forensics_out(db: Session, replay) -> ReplayForensicsOut:
 
 
 def _journal_out(row) -> ReplayJournalOut:
+    """A5.4: the session's trade plan, in the journal's shape."""
+    locked_at = row.locked_at or row.first_fill_at
     return ReplayJournalOut(
-        session_id=row.session_id,
-        thesis=row.thesis,
+        session_id=row.replay_session_id,
+        thesis=row.thesis_text,
         invalidation=row.invalidation,
-        expected_holding_bars=row.expected_holding_bars,
+        expected_holding_bars=row.horizon_bars,
         confidence=row.confidence,
-        reflection=row.reflection,
-        locked=row.locked_at is not None,
-        locked_at=as_aware_utc(row.locked_at) if row.locked_at else None,
+        reflection=row.notes,
+        locked=row.frozen,
+        locked_at=as_aware_utc(locked_at) if locked_at else None,
+        written_after_entry=row.written_after_entry,
         created_at=as_aware_utc(row.created_at),
         updated_at=as_aware_utc(row.updated_at),
     )

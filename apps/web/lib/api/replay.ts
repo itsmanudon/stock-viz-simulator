@@ -242,6 +242,8 @@ export type ReplayJournal = {
   reflection: string | null;
   locked: boolean;
   locked_at: string | null;
+  /** A5.4: the journal was started after the first fill (never "locked"). */
+  written_after_entry: boolean;
   created_at: string;
   updated_at: string;
 };

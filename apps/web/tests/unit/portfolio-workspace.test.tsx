@@ -33,6 +33,10 @@ vi.mock("@/app/(product)/(authed)/trade/options-actions", () => ({
   closeOptionFormAction: vi.fn(),
 }));
 
+vi.mock("@/app/(product)/(authed)/portfolio/plan-actions", () => ({
+  updatePlanAction: vi.fn(async () => ({})),
+  planOpenPositionAction: vi.fn(async () => ({})),
+}));
 vi.mock("@/app/(product)/(authed)/orders/actions", () => ({
   cancelOrderAction: vi.fn(),
 }));

@@ -2685,6 +2685,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/plans": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Plans */
+        get: operations["list_plans_v1_plans_get"];
+        put?: never;
+        /** Create Plan */
+        post: operations["create_plan_v1_plans_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/plans/{plan_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Plan */
+        get: operations["get_plan_v1_plans__plan_id__get"];
+        put?: never;
+        post?: never;
+        /** Delete Plan */
+        delete: operations["delete_plan_v1_plans__plan_id__delete"];
+        options?: never;
+        head?: never;
+        /** Patch Plan */
+        patch: operations["patch_plan_v1_plans__plan_id__patch"];
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -6212,6 +6249,9 @@ export interface components {
             limit_price: string;
             /** Client Order Id */
             client_order_id?: string | null;
+            /** Trade Plan Id */
+            trade_plan_id?: number | null;
+            plan?: components["schemas"]["TradePlanDraft"] | null;
         };
         /** PendingOrderOut */
         PendingOrderOut: {
@@ -6242,6 +6282,8 @@ export interface components {
             cancel_reason?: string | null;
             /** Portfolio Id */
             portfolio_id?: number | null;
+            /** Trade Plan Id */
+            trade_plan_id?: number | null;
         };
         /** PercentilesOut */
         PercentilesOut: {
@@ -7208,6 +7250,11 @@ export interface components {
             locked: boolean;
             /** Locked At */
             locked_at?: string | null;
+            /**
+             * Written After Entry
+             * @default false
+             */
+            written_after_entry: boolean;
             /**
              * Created At
              * Format: date-time
@@ -9440,6 +9487,9 @@ export interface components {
             quantity: number | string;
             /** Client Order Id */
             client_order_id?: string | null;
+            /** Trade Plan Id */
+            trade_plan_id?: number | null;
+            plan?: components["schemas"]["TradePlanDraft"] | null;
         };
         /**
          * TradeOut
@@ -9516,6 +9566,225 @@ export interface components {
             realized_pnl_net?: string | null;
             /** Book Id */
             book_id?: number | null;
+            /** Trade Plan Id */
+            trade_plan_id?: number | null;
+        };
+        /**
+         * TradePlanDraft
+         * @description The plan fields a trader writes (A5.4). Entry, stop and size are required.
+         */
+        TradePlanDraft: {
+            /**
+             * Side
+             * @default long
+             * @enum {string}
+             */
+            side: "long" | "short";
+            /** Planned Entry */
+            planned_entry: number | string;
+            /** Planned Stop */
+            planned_stop: number | string;
+            /** Planned Target */
+            planned_target?: number | string | null;
+            /** Planned Size */
+            planned_size: number | string;
+            /** Setup Version Id */
+            setup_version_id?: number | null;
+            /** Thesis Id */
+            thesis_id?: number | null;
+            /** Thesis Text */
+            thesis_text?: string | null;
+            /** Why */
+            why?: string | null;
+            /** Invalidation */
+            invalidation?: string | null;
+            /** Horizon Bars */
+            horizon_bars?: number | null;
+            /** Confidence */
+            confidence?: number | null;
+            /** Notes */
+            notes?: string | null;
+            /** Tags */
+            tags?: string[];
+        };
+        /**
+         * TradePlanIn
+         * @description ``POST /v1/plans``: a plan for ``ticker`` in the ``?book=`` book.
+         *
+         *     ``link_open_position`` links the book's open position in the ticker to the
+         *     plan: its entry fills were made before the plan, so the plan is labelled
+         *     "written after entry" and never locked.
+         */
+        TradePlanIn: {
+            /**
+             * Side
+             * @default long
+             * @enum {string}
+             */
+            side: "long" | "short";
+            /** Planned Entry */
+            planned_entry: number | string;
+            /** Planned Stop */
+            planned_stop: number | string;
+            /** Planned Target */
+            planned_target?: number | string | null;
+            /** Planned Size */
+            planned_size: number | string;
+            /** Setup Version Id */
+            setup_version_id?: number | null;
+            /** Thesis Id */
+            thesis_id?: number | null;
+            /** Thesis Text */
+            thesis_text?: string | null;
+            /** Why */
+            why?: string | null;
+            /** Invalidation */
+            invalidation?: string | null;
+            /** Horizon Bars */
+            horizon_bars?: number | null;
+            /** Confidence */
+            confidence?: number | null;
+            /** Notes */
+            notes?: string | null;
+            /** Tags */
+            tags?: string[];
+            /** Ticker */
+            ticker: string;
+            /**
+             * Link Open Position
+             * @default false
+             */
+            link_open_position: boolean;
+        };
+        /** TradePlanOut */
+        TradePlanOut: {
+            /** Id */
+            id: number;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "paper" | "replay" | "drill" | "imported";
+            /** Book Id */
+            book_id: number | null;
+            /** Replay Session Id */
+            replay_session_id: number | null;
+            /** Ticker */
+            ticker: string | null;
+            /** Currency */
+            currency: string;
+            /**
+             * Side
+             * @enum {string}
+             */
+            side: "long" | "short";
+            /** Planned Entry */
+            planned_entry: string | null;
+            /** Planned Stop */
+            planned_stop: string | null;
+            /** Planned Target */
+            planned_target: string | null;
+            /** Planned Size */
+            planned_size: string | null;
+            /** Risk Per Share */
+            risk_per_share: string | null;
+            /** Planned Risk */
+            planned_risk: string | null;
+            /** Reward Per Share */
+            reward_per_share: string | null;
+            /** Reward Risk */
+            reward_risk: string | null;
+            /** Setup Version Id */
+            setup_version_id: number | null;
+            /** Setup Label */
+            setup_label: string | null;
+            /** Thesis Id */
+            thesis_id: number | null;
+            /** Thesis Title */
+            thesis_title: string | null;
+            /** Thesis Text */
+            thesis_text: string | null;
+            /** Why */
+            why: string | null;
+            /** Invalidation */
+            invalidation: string | null;
+            /** Horizon Bars */
+            horizon_bars: number | null;
+            /** Confidence */
+            confidence: number | null;
+            /** Notes */
+            notes: string | null;
+            /** Tags */
+            tags: string[];
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "open" | "active" | "closed" | "cancelled";
+            /** Locked */
+            locked: boolean;
+            /** Locked At */
+            locked_at: string | null;
+            /** First Fill At */
+            first_fill_at: string | null;
+            /** Written After Entry */
+            written_after_entry: boolean;
+            /** Frozen */
+            frozen: boolean;
+            /** Fills */
+            fills: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /**
+         * TradePlanPatch
+         * @description ``PATCH /v1/plans/{id}``. Plan fields only before the first fill (else
+         *     409); ``notes`` and ``tags`` always. ``status`` closes or cancels.
+         */
+        TradePlanPatch: {
+            /** Planned Entry */
+            planned_entry?: number | string | null;
+            /** Planned Stop */
+            planned_stop?: number | string | null;
+            /** Planned Target */
+            planned_target?: number | string | null;
+            /** Planned Size */
+            planned_size?: number | string | null;
+            /** Setup Version Id */
+            setup_version_id?: number | null;
+            /** Thesis Id */
+            thesis_id?: number | null;
+            /** Thesis Text */
+            thesis_text?: string | null;
+            /** Why */
+            why?: string | null;
+            /** Invalidation */
+            invalidation?: string | null;
+            /** Horizon Bars */
+            horizon_bars?: number | null;
+            /** Confidence */
+            confidence?: number | null;
+            /** Notes */
+            notes?: string | null;
+            /** Tags */
+            tags?: string[] | null;
+            /** Status */
+            status?: ("closed" | "cancelled") | null;
+        };
+        /** TradePlansOut */
+        TradePlansOut: {
+            /** Plans */
+            plans: components["schemas"]["TradePlanOut"][];
+            /** Limit */
+            limit: number;
         };
         /**
          * TrailingStopIn
@@ -15725,6 +15994,184 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["StatusOut"];
+                };
+            };
+        };
+    };
+    list_plans_v1_plans_get: {
+        parameters: {
+            query?: {
+                /** @description Book id (A5.1). Omit for the default book; another user's book is 404. */
+                book?: number | null;
+                status?: ("open" | "active" | "closed" | "cancelled") | null;
+                source?: ("paper" | "replay" | "drill" | "imported") | null;
+                setup_version_id?: number | null;
+                ticker?: string | null;
+                limit?: number;
+            };
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TradePlansOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_plan_v1_plans_post: {
+        parameters: {
+            query?: {
+                /** @description Book id (A5.1). Omit for the default book; another user's book is 404. */
+                book?: number | null;
+            };
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TradePlanIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TradePlanOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_plan_v1_plans__plan_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                plan_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TradePlanOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_plan_v1_plans__plan_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                plan_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    patch_plan_v1_plans__plan_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                plan_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TradePlanPatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TradePlanOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

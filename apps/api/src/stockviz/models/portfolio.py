@@ -16,7 +16,9 @@ from sqlalchemy import (
     JSON,
     Boolean,
     CheckConstraint,
+    ForeignKey,
     Index,
+    Integer,
     Numeric,
     String,
     UniqueConstraint,
@@ -258,6 +260,13 @@ class Trade(SQLModel, table=True):
     # [{key, label, amount, rate, side, effective_from, source_url}] per component.
     fee_lines: list[dict[str, Any]] | None = Field(
         default=None, sa_column=Column(JSON().with_variant(JSONB(), "postgresql"), nullable=True)
+    )
+    # A5.4: the plan this fill belongs to (``trade_plans``; null = none).
+    trade_plan_id: int | None = Field(
+        default=None,
+        sa_column=Column(
+            Integer, ForeignKey("trade_plans.id", ondelete="SET NULL"), nullable=True, index=True
+        ),
     )
 
 

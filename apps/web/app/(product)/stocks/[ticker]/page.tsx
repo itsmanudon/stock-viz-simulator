@@ -23,6 +23,7 @@ import { StockMetricsStrip } from "@/components/stock-metrics-strip";
 import { StockResearchTabs } from "@/components/stock-research-tabs";
 import { TickerOrders } from "@/components/ticker-orders";
 import type { TicketBook } from "@/components/ticket-book-line";
+import type { TicketPlanOptions } from "@/components/ticket-plan";
 import { VisitorLimitNotice } from "@/components/visitor-limit-notice";
 import {
   ApiError,
@@ -46,6 +47,7 @@ import { getSymbolChecklist } from "@/lib/api/checklist";
 import { listDrawings } from "@/lib/api/drawings";
 import { getMyFills } from "@/lib/api/events-server";
 import { getFundamentals, getValuation, getValuationHistory } from "@/lib/api/fundamentals";
+import { planPickerOptions } from "@/lib/api/plans";
 import { getEventStudy } from "@/lib/api/research";
 import {
   type PendingOrder,
@@ -262,18 +264,28 @@ export default async function StockPage({
   let drawings: DrawingsResponse | null = null;
   // A5.2: this ticket trades into the default book, and says so.
   let ticketBook: TicketBook | null = null;
+  let planOptions: TicketPlanOptions | null = null;
 
   if (signedIn) {
-    const [portfolioResult, ordersResult, watchlistResult, drawingsResult, booksResult] =
-      await Promise.all([
-        getPortfolio().catch(() => null),
-        listOrders("pending").catch(() => null),
-        // A2.5: every list, each saying whether it holds this ticker.
-        listWatchlists(ticker).catch(() => [] as WatchlistList[]),
-        // A3.2: the user's drawings; a failed call turns the tools off, not the chart.
-        listDrawings(ticker).catch(() => null),
-        listBooks().catch(() => null),
-      ]);
+    const [
+      portfolioResult,
+      ordersResult,
+      watchlistResult,
+      drawingsResult,
+      booksResult,
+      planResult,
+    ] = await Promise.all([
+      getPortfolio().catch(() => null),
+      listOrders("pending").catch(() => null),
+      // A2.5: every list, each saying whether it holds this ticker.
+      listWatchlists(ticker).catch(() => [] as WatchlistList[]),
+      // A3.2: the user's drawings; a failed call turns the tools off, not the chart.
+      listDrawings(ticker).catch(() => null),
+      listBooks().catch(() => null),
+      // A5.4: the ticket's setup and thesis pickers.
+      planPickerOptions().catch(() => null),
+    ]);
+    planOptions = planResult;
     const defaultBook = booksResult?.books.find((b) => b.is_default) ?? null;
     ticketBook = defaultBook
       ? { id: defaultBook.id, name: defaultBook.name, currency: defaultBook.base_currency }
@@ -346,6 +358,7 @@ export default async function StockPage({
   const activeStockUrl = buildStockChartHref(ticker, timeframe, selectedIndicators, interval, view);
   const ticketProps = {
     book: ticketBook,
+    planOptions,
     ticker,
     name: symbol.name,
     currency: symbol.currency,

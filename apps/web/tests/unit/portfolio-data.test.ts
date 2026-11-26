@@ -19,6 +19,9 @@ vi.mock("@/lib/api/options", () => ({
 }));
 vi.mock("@/lib/api/watchlist", () => ({ listWatchlist: vi.fn().mockResolvedValue([]) }));
 
+vi.mock("@/lib/api/plans", () => ({
+  listPlans: vi.fn().mockResolvedValue({ plans: [], limit: 2000 }),
+}));
 vi.mock("@/lib/api/journal", () => ({
   getJournalMonth: vi.fn(),
 }));
