@@ -8,6 +8,7 @@ import {
   forkPresetAction,
   saveSetupAction,
 } from "@/app/(product)/screener/actions";
+import { RuleBuilder } from "@/components/rule-builder";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -184,6 +185,18 @@ export function RulePanel({
           {forkState.error}
         </p>
       ) : null}
+
+      <details className="text-xs text-text-secondary" data-testid="build-visually">
+        <summary className="cursor-pointer text-text-tertiary hover:text-foreground">
+          Build visually
+        </summary>
+        <p className="mt-2 leading-5 text-text-tertiary">
+          Each change writes the rule above; you can edit the text after.
+        </p>
+        <div className="mt-2">
+          <RuleBuilder onRule={setText} />
+        </div>
+      </details>
 
       <details className="text-xs text-text-secondary">
         <summary className="cursor-pointer text-text-tertiary hover:text-foreground">
