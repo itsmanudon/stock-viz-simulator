@@ -5,7 +5,7 @@ from typing import Annotated, Literal
 from fastapi import APIRouter, Depends, Response, status
 from pydantic import BaseModel
 from sqlalchemy import func, text
-from sqlmodel import Session, select
+from sqlmodel import Session, col, select
 
 from stockviz import __version__
 from stockviz.db import get_session
@@ -74,11 +74,11 @@ def health(session: SessionDep, response: Response) -> HealthResponse:
 def _add_nightly_state(session: Session, out: HealthResponse) -> None:
     """Fill the OP-5 fields. Any failure leaves them empty, never fails /health."""
     from stockviz.models import JobRun, PriceBar
-    from stockviz.services.brokers import KITE_SNAPSHOT_JOB
+    from stockviz.services.brokers import MANUAL_PROVIDER_JOBS
 
-    # A5.7: a by-hand Kite snapshot is not a nightly job; /v1/broker/status
-    # reports it.
-    nightly = JobRun.job != KITE_SNAPSHOT_JOB
+    # A5.7/A6.3: a by-hand Kite snapshot or feed backfill is not a nightly
+    # job; /v1/broker/status and /v1/broker/feeds report them.
+    nightly = col(JobRun.job).notin_(MANUAL_PROVIDER_JOBS)
     try:
         newest = session.exec(
             select(func.max(PriceBar.ts)).where(PriceBar.interval == "1d")  # type: ignore[call-overload]

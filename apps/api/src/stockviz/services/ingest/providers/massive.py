@@ -2,7 +2,10 @@
 
 Massive wire names, URLs, pagination, request IDs, and corporate-action IDs
 stop in this module. Daily aggregates leave it only as canonical ``BarRecord``
-objects; no function here persists or serves provider data.
+objects; no function here persists or serves provider data. Since A6.3 the
+minute-history backfill (``services/feeds/massive.py``) stores the minutes of
+``fetch_massive_minute_range`` in ``intraday_bars`` (owner decision, 26 Nov
+2026); daily data stays shadow-only.
 """
 
 from __future__ import annotations
@@ -610,6 +613,72 @@ def fetch_massive_minutes(
             response_statuses=tuple(response_statuses),
         ),
     )
+
+
+def fetch_massive_minute_range(
+    ticker: str,
+    *,
+    start: date,
+    end: date,
+    api_key: str,
+    get_fn: MassiveGetFn = _default_get,
+) -> list[MassiveMinuteBar]:
+    """Adjusted one-minute aggregates over New York dates start..end, in UTC (A6.3).
+
+    The minute-history backfill (``services/feeds/massive.py``) stores these
+    in ``intraday_bars`` (owner decision, 26 Nov 2026: Massive Basic is the
+    minute-history source). ``limit`` caps the *base* aggregates per page
+    (50,000), so callers keep each range to about a month; ``next_url``
+    pages are followed. Extended-hours minutes are returned; the caller
+    keeps the regular session.
+    """
+
+    symbol = _ticker(ticker)
+    _date_range(start, end)
+    endpoint = (
+        f"{MASSIVE_API_ROOT}/v2/aggs/ticker/{quote(symbol, safe='.')}/range/1/minute/"
+        f"{start.isoformat()}/{end.isoformat()}"
+    )
+    params = {"adjusted": "true", "sort": "asc", "limit": "50000"}
+    bars: dict[datetime, MassiveMinuteBar] = {}
+    for payload in _pages(endpoint, params=params, api_key=api_key, get_fn=get_fn):
+        if payload.get("adjusted") is not True:
+            raise MassiveSemanticError("Massive minute response must be adjusted=true")
+        rows = _results(payload)
+        results_count = payload.get("resultsCount")
+        if results_count is not None:
+            parsed_count = _decimal(results_count, field="resultsCount")
+            if parsed_count != parsed_count.to_integral_value() or int(parsed_count) != len(rows):
+                raise MassiveSemanticError("Massive minute retrieval or pagination gap")
+        for row in rows:
+            open_ = _row_decimal(row, "o")
+            high = _row_decimal(row, "h")
+            low = _row_decimal(row, "l")
+            close = _row_decimal(row, "c")
+            volume = _row_decimal(row, "v")
+            millis = _row_decimal(row, "t")
+            if millis != millis.to_integral_value():
+                raise MassiveSemanticError("Massive minute timestamp must be integer milliseconds")
+            observed_at = datetime(1970, 1, 1, tzinfo=UTC) + timedelta(milliseconds=int(millis))
+            local_day = observed_at.astimezone(NEW_YORK).date()
+            if not start <= local_day <= end:
+                raise MassiveSemanticError(
+                    "Massive minute timestamp is outside the requested dates"
+                )
+            if observed_at.second or observed_at.microsecond:
+                raise MassiveSemanticError("Massive minute timestamp is not minute-aligned")
+            if observed_at in bars:
+                raise MassiveSemanticError("Massive minute response contains a duplicate timestamp")
+            _validate_ohlcv(open_=open_, high=high, low=low, close=close, volume=volume)
+            bars[observed_at] = MassiveMinuteBar(
+                observed_at=observed_at,
+                open=open_,
+                high=high,
+                low=low,
+                close=close,
+                volume=volume,
+            )
+    return [bars[t] for t in sorted(bars)]
 
 
 def _aggregate_minutes(

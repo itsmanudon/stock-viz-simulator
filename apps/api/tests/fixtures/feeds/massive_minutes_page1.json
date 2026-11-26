@@ -1,0 +1,32 @@
+{
+  "_note": "HAND-WRITTEN EXAMPLE from the provider's documented response shape (read 26 Nov 2026). Invented numbers, not real market data.",
+  "ticker": "MSFT",
+  "adjusted": true,
+  "queryCount": 2,
+  "resultsCount": 2,
+  "status": "OK",
+  "request_id": "handwritten-1",
+  "results": [
+    {
+      "o": 390.1,
+      "h": 390.4,
+      "l": 389.9,
+      "c": 390.3,
+      "v": 5100,
+      "vw": 390.2,
+      "n": 120,
+      "t": 1741006800000
+    },
+    {
+      "o": 390.3,
+      "h": 390.9,
+      "l": 390.2,
+      "c": 390.8,
+      "v": 9200,
+      "vw": 390.6,
+      "n": 240,
+      "t": 1741012200000
+    }
+  ],
+  "next_url": "https://api.massive.com/v2/aggs/ticker/MSFT/range/1/minute/1740999060000/2025-03-03?cursor=HANDWRITTEN&apiKey=SHOULD-BE-STRIPPED"
+}

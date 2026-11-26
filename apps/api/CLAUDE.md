@@ -34,6 +34,8 @@ src/stockviz/
                     ReplayJournal, both archived), journal_entry — A5.5
                     JournalEntry / JournalEntryFill (round trips),
                     intraday — A6.1 IntradayBar / IntradayFile)
+  (services/feeds/  A6.3: FeedProvider/BrokerProvider, SimulatedFeed, Alpaca,
+                    Tiingo, Massive, Finnhub stub, intraday-backfill, feed status)
   events/           versioned contracts (trades/market), outbox/inbox,
                     dispatcher, domain handlers, Kafka producer wrappers
                     (not imported by FastAPI startup)
@@ -248,6 +250,7 @@ CLI subcommands (`python -m stockviz.cli <cmd>`): `seed`, `backfill`,
 `intraday-load --dir DIR --kind bulk1m|bulk1h|moneycontrol [--apply] [--create-symbols] [--only T ...]`,
 `intraday-reconcile [TICKER ...] [--against daily|60m] [--interval 1m|60m] [--feed F] [--show N]`,
 `intraday-size`,
+`intraday-backfill --provider alpaca|tiingo|massive --symbols T ... --from D --to D [--feed iex|sip] [--apply]`,
 `rule-check "<rule>" [TICKER ...] [--date YYYY-MM-DD] [--explain] [--user-id N]`,
 `screen-runs`, `deliver-notifications [--channel webhook|email|telegram] [--limit N]`.
 `seed` also writes the rule presets (A2.2) and the checklist dimension setups
@@ -915,6 +918,156 @@ iex, file). Nothing is stored beyond A6.1's `1m`/`60m` rows.
   and refused cases, feed default, symbol detail, indicator warm-up and the
   partial bar, RS line empty, AVWAP at an instant on 1m and 5m, date anchor,
   60m and refusals).
+
+**US feeds and the minute backfill (A6.3, M1.6).** `services/feeds/`; design:
+workspace `docs/a6-design-note.md` ("Feed and broker interface", "Owner
+decisions (26 Nov 2026)": free plans only). No migration; no web change.
+**No provider was called while building it**: every adapter is tested against
+hand-written fixtures (`tests/fixtures/feeds/`, documented shapes, invented
+numbers; never replace them with real responses).
+
+- **Interfaces** (`base.py`). `FeedProvider`: `name`, `label`,
+  `capabilities` (`Capabilities`: `history`, `stream`, `coverage` feed tags,
+  `symbols_limit`, `history_days`, `rate_limits` (`RateLimitSpec(calls,
+  per_seconds)`), `notes`), `configured`, `minute_bars(symbol, start, end)
+  -> list[FeedBar]` (bars opening in [start, end), oldest first; `FeedBar`
+  symbol, `ts` = the bar's open as aware UTC, Decimal OHLC, int volume,
+  `feed` iex|sip|kite|file, `source`) and `stream(symbols) -> AsyncIterator[Tick
+  | FeedBar]` (`Tick`: symbol, ts, price, size, feed, `replayed`, `label`
+  "Replayed"/"Live"). `reconnecting(connect, backoff=Backoff(base, factor,
+  cap, max_attempts), sleep, on_reconnect)` wraps a stream: reconnects after
+  a network or rate error (at least its `retry_after`), resets after an
+  item, raises an auth/provider error at once. `BrokerProvider`: `status`,
+  `login_url`, `import_fills`, `export_basket`, each a `BrokerAnswer(supported,
+  reason)`; `StubBroker` (Zerodha) answers "not supported" until A6.11.
+  `registry.py`: `build_feed(name, settings)`, `FEED_NAMES`,
+  `KEY_ENV_VARS`, `BROKERS`. `us_symbol` refuses NSE/BSE, `^` indices and
+  other venues (US feeds never get an Indian symbol); Alpaca and Massive
+  write share classes `BRK.B`, Tiingo `brk-b`, StockViz keeps `BRK-B`.
+- **Errors.** `FeedError(provider, fixed message, status, retry_after)`
+  with `kind` `auth` (401, 403), `rate` (429), `network` (timeouts,
+  connection errors, 5xx), `provider` (other 4xx, bad JSON, shapes outside
+  the docs), `not_supported`. The text never holds the key, a URL query, a
+  header or the provider's body; `summary` ("Alpaca auth error") is what
+  `job_runs` keeps. `http.py::get_json` is the one HTTP edge: a token from
+  the limiter per request, a 429 retried twice after its `Retry-After`
+  (default 60 s), JSON numbers as Decimal. `FeedNotConfigured` when the key
+  is blank (raised before any request).
+- **Rate limits** (`ratelimit.py`): a token bucket per documented limit
+  (full at start), clock and sleep injected (tests use a fake clock);
+  `estimate_seconds(specs, calls)` is the plan's least waiting time.
+- **SimulatedFeed** (`simulated.py`): replays stored `intraday_bars` (any
+  feed, e.g. the owner's `file` minutes locally; `from_store(session,
+  tickers, feed=, start=, end=)` reads 1m rows only) or given `FeedBar`s.
+  One to four ticks per bar at +0/15/30/45 s: open, then low and high in
+  the bar's direction (up bar: low first), then close; a repeated price is
+  merged; volume split evenly, remainder on the last. Order by instant then
+  symbol; `start_at` skips earlier bars; `speed` x real time (0 = no
+  waiting) through an injected async sleep; `mode="bars"` yields each bar at
+  its close. Labelled "Replayed", never live. For tests and A6.5.
+- **Adapters** (history only; streams are A6.5/A6.6, `stream()` raises
+  `NotSupported` with that reason). Each is off until its key is set.
+  - **Alpaca** (`alpaca.py`, feed `iex`, or `sip`; source `alpaca_iex` /
+    `alpaca_sip`): `GET https://data.alpaca.markets/v2/stocks/{symbol}/bars`,
+    `timeframe=1Min`, `start`/`end` RFC-3339 (end inclusive; the bar at
+    `end` is dropped), `limit=10000`, `adjustment=split`, `feed`,
+    `sort=asc`, `page_token` from `next_page_token`; headers
+    `APCA-API-KEY-ID`/`APCA-API-SECRET-KEY`; rows `{t, o, h, l, c, v, n,
+    vw}`, `t` = bar start (UTC). Basic plan: 200 calls a minute, IEX for
+    recent data, 30 WebSocket symbols, history since 2016, **SIP only when
+    the query's end is at least 15 minutes old** (`SipTooRecent` before any
+    call; the backfill clips the end instead).
+  - **Tiingo** (`tiingo.py`, feed `iex`, source `tiingo_iex`):
+    `GET https://api.tiingo.com/iex/<ticker>/prices?startDate&endDate&resampleFreq=1min&columns=open,high,low,close,volume`
+    (volume only when named, IEX-only volume), in 5-day chunks;
+    `daily_bars()` reads `/tiingo/daily/<ticker>/prices` (adjusted close,
+    dividends, splits; not stored by this batch). `Authorization: Token
+    <key>`. Starter: 50 requests an hour, 1,000 a day, 500 symbols a month,
+    1 GB a month, personal use. **Unconfirmed by the docs** (check on the
+    first real run): `endDate` on IEX, the `date` format and zone (an
+    instant without an offset is refused), `date` = bar start, row caps,
+    error codes and bodies (a 200 with an object body is a provider error).
+  - **Massive** (`massive.py`, feed `sip`, source `massive`): reuses the
+    shadow adapter's `fetch_massive_minute_range`
+    (`services/ingest/providers/massive.py`): `GET
+    https://api.massive.com/v2/aggs/ticker/{T}/range/1/minute/{from}/{to}`,
+    `adjusted=true&sort=asc&limit=50000` (base aggregates), `next_url`
+    paging (its `apiKey` stripped), `Authorization: Bearer`; rows `{o, h, l,
+    c, v, vw, n, t}` (ms, window start), pre/after-market included (kept out
+    by session). 30-day chunks. Basic: 5 calls a minute, 2 years, no
+    WebSocket. The shadow adapter's messages (which may quote Massive's
+    text) become fixed ones. `MASSIVE_API_KEY` thus also enables this.
+  - **Finnhub** (`finnhub.py`): stub. Stock candles are premium (a free
+    key gets "You don't have access to this resource"), so no history;
+    the backup stream comes in A6.6, once Finnhub's own pages are read.
+- **Backfill** `stockviz.cli intraday-backfill --provider alpaca|tiingo|massive
+  --symbols T ... --from YYYY-MM-DD --to YYYY-MM-DD [--feed iex|sip]
+  [--apply]` (`backfill.py`). Exit 2 when the key is blank (nothing else
+  runs, no row). Dry run: XNYS sessions in range (regular hours, early
+  closes, none that has not opened), calls per symbol (Alpaca: pages of
+  10,000 minutes; Tiingo: 5-day chunks; Massive: 30-day chunks), the rate
+  limit and the least waiting; nothing fetched. Notes when the start is
+  clipped to 2 years (Massive) or the end to 15 minutes ago (Alpaca SIP).
+  `--apply`: per symbol, minutes inside a session span stored as
+  `interval 1m` with the feed tag, `available_at` = open + 1 minute clipped
+  at the close, others counted off-session; monthly partitions, then
+  `INSERT ... ON CONFLICT DO NOTHING RETURNING` in chunks of 1,000, one
+  commit per symbol: a rerun inserts nothing and never changes a row. A
+  ticker with no instrument is listed and skipped (add it with `ingest`).
+  An auth or rate error stops the run (the rest `skipped`); a network or
+  provider error skips that symbol. One `job_runs` row per apply,
+  `intraday-backfill-<provider>` (`FEED_BACKFILL_JOBS`), with a fixed
+  summary ("Tiingo: network error on 1 symbol(s)"). Any database (US
+  provider data, not the owner's files); not in `RECORDED_JOBS`, the cron
+  or the scheduler (a test reads `railway.ts`). Exit 1 on bad arguments or
+  a failed symbol.
+- **Status** `GET /v1/broker/feeds` (authed; `status.py`): per provider
+  `{provider, label, configured, state not_configured|configured|ok|error,
+  key_env_vars (names), capabilities, last_success_at, last_failure_at,
+  last_error}` from the newest backfill runs (`error` for 3 days, like
+  Kite's `offline`). Never a key. `/v1/status` and `/health` leave
+  `MANUAL_PROVIDER_JOBS` (Kite snapshot and the backfills) out.
+- **Sources** (official docs, read 26 Nov 2026 with WebFetch; no account
+  or key):
+  - Alpaca: https://docs.alpaca.markets/reference/stockbarsingle-1 and
+    https://docs.alpaca.markets/reference/stockbars (params, limits 1-10,000,
+    response, 400/401/403/429, `X-RateLimit-*`),
+    https://docs.alpaca.markets/docs/about-market-data-api (Basic: IEX, 30
+    symbols, 200/min, since 2016, "latest 15 minutes"),
+    https://docs.alpaca.markets/docs/market-data-faq (SIP end >= 15 minutes
+    old, bar `t` is the interval's left side, no bar without trades),
+    https://docs.alpaca.markets/docs/historical-stock-data-1,
+    https://docs.alpaca.markets/docs/real-time-stock-pricing-data and
+    https://docs.alpaca.markets/docs/streaming-market-data (for A6.6:
+    `wss://stream.data.alpaca.markets/v2/iex`, auth and subscribe
+    messages, `b` bars, error codes 402/405/406/409, one connection).
+  - Tiingo: https://www.tiingo.com/documentation/iex,
+    https://www.tiingo.com/documentation/end-of-day,
+    https://www.tiingo.com/documentation/general/connecting (token header),
+    https://www.tiingo.com/documentation/general/overview,
+    https://www.tiingo.com/about/pricing (Starter limits, internal use).
+  - Massive: https://massive.com/docs/rest/stocks/aggregates/custom-bars,
+    https://massive.com/docs/rest/quickstart (`apiKey` or Bearer),
+    https://massive.com/pricing and https://massive.com/stocks (Basic $0, 5
+    calls a minute, 2 years, minute aggregates, no WebSockets).
+  - Finnhub: https://finnhub.io/docs/api/stock-candles, `/websocket-trades`,
+    `/rate-limit` and https://finnhub.io/pricing did not render (JavaScript
+    only). Candles premium: https://github.com/finnhubio/Finnhub-API/issues/546
+    and the Grafana Finnhub data-source troubleshooting page
+    (https://grafana.com/grafana/plugins/clarity89-finnhub-datasource/docs/troubleshooting/).
+- **Env vars** (blank = off; local `.env` only, never committed):
+  `ALPACA_KEY_ID` + `ALPACA_SECRET_KEY` (both), `TIINGO_API_KEY`,
+  `MASSIVE_API_KEY` (shared with the shadow), `FINNHUB_API_KEY` (status
+  only until A6.6).
+- Tests: `test_feeds.py` (protocols, capabilities, every adapter's parsing,
+  UTC, feed tags, pagination, chunks, the SIP rule, malformed rows, error
+  classes and no key in messages or logs, 429 Retry-After, token buckets on
+  a fake clock, reconnect backoff, SimulatedFeed ticks, order, start, speed
+  and `from_store`), `test_feed_backfill.py` (plans and clipping, regular
+  minutes and availability on an early close, exit 2 without keys, dry run
+  without requests, idempotent apply and `job_runs`, auth stop, network
+  skip, US-only refusal, not in the cron, feed states and the route, status
+  and health; PostgreSQL partitions and idempotency).
 
 **Raw prices on the bars route (A3.1, M2.3).** `GET /v1/symbols/{t}/bars`
 takes `adjustment=adjusted|raw` (default `adjusted`, the split-adjusted

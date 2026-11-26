@@ -1,0 +1,27 @@
+{
+  "_note": "HAND-WRITTEN EXAMPLE from the provider's documented response shape (read 26 Nov 2026). Invented numbers, not real market data.",
+  "symbol": "BRK.B",
+  "bars": [
+    {
+      "t": "2025-03-03T14:30:00Z",
+      "o": 480.1,
+      "h": 480.5,
+      "l": 479.9,
+      "c": 480.4,
+      "v": 1200,
+      "n": 31,
+      "vw": 480.21
+    },
+    {
+      "t": "2025-03-03T14:31:00.000000000Z",
+      "o": 480.4,
+      "h": 480.45,
+      "l": 479.8,
+      "c": 479.95,
+      "v": 800,
+      "n": 22,
+      "vw": 480.1
+    }
+  ],
+  "next_page_token": "SEFORC1XUklUVEVOLVBBR0UtMg=="
+}

@@ -970,6 +970,102 @@ def _cmd_intraday_load(args: argparse.Namespace) -> int:
     return 1 if failed else 0
 
 
+def _cmd_intraday_backfill(args: argparse.Namespace) -> int:
+    """US minute history from a free feed into ``intraday_bars`` (A6.3).
+
+    Dry run unless ``--apply``: the plan (sessions, calls, least time the
+    documented rate limit allows); nothing is fetched. ``--apply`` fetches
+    and writes, idempotent, and records one ``job_runs`` row with a fixed
+    summary. Exit 2 when the provider's key is not set (nothing else runs),
+    1 on bad arguments or when any symbol failed. Not in the cron.
+    """
+    from stockviz.services.brokers import FEED_BACKFILL_JOBS, record_provider_run
+    from stockviz.services.feeds import backfill as bf
+    from stockviz.services.feeds.backfill import SymbolResult, make_plan, run_backfill
+    from stockviz.services.feeds.registry import KEY_ENV_VARS, build_feed
+
+    settings = get_settings()
+    options: dict[str, object] = {}
+    if args.provider == "alpaca":
+        options["feed"] = args.feed
+    elif args.feed != "iex":
+        print(f"--feed applies to alpaca only ({args.provider} has one feed)")
+        return 1
+    feed = build_feed(args.provider, settings, **options)
+    if not feed.configured:
+        print(f"{' and '.join(KEY_ENV_VARS[args.provider])} not set: {feed.label} is off")
+        return 2
+    try:
+        first = date.fromisoformat(args.date_from)
+        last = date.fromisoformat(args.date_to)
+    except ValueError:
+        print("--from and --to take YYYY-MM-DD")
+        return 1
+    if first > last:
+        print("--from must be on or before --to")
+        return 1
+    try:
+        plan = make_plan(feed, args.symbols, first, last, bf.now_utc())
+    except ValueError as exc:
+        print(f"refused: {exc} (US feeds take US tickers only)")
+        return 1
+    window = plan.window
+    print(
+        f"{plan.label} ({plan.provider}), feed {plan.feed}: {len(plan.symbols)} symbol(s), "
+        f"{first.isoformat()} to {last.isoformat()}"
+    )
+    if window is None:
+        print("no completed XNYS session minutes in that range: nothing to do")
+        return 0
+    for note in window.notes:
+        print(f"  note: {note}")
+    seconds = plan.seconds(feed)
+    print(
+        f"  {len(window.sessions)} sessions, {window.minutes} regular minutes per symbol "
+        f"({window.start:%Y-%m-%d %H:%M} to {window.end:%Y-%m-%d %H:%M} UTC)"
+    )
+    print(
+        f"  calls: {plan.calls_per_symbol} per symbol, {plan.calls} in all; rate limit "
+        f"{plan.rate_limits}; at least {seconds / 60:.1f} min of waiting"
+    )
+
+    def progress(index: int, total: int, r: SymbolResult) -> None:
+        line = f"[{index}/{total}] {r.symbol}: {r.status}"
+        if r.status == "written":
+            line += (
+                f"; fetched {r.fetched}, off-session {r.off_session}, inserted {r.inserted}, "
+                f"already stored {r.already_stored}"
+            )
+        if r.error:
+            line += f"; {r.error}"
+        print(line, flush=True)
+
+    with Session(engine) as session:
+        report = run_backfill(session, feed, plan, apply=args.apply, progress=progress)
+        if not args.apply:
+            print("dry run: nothing fetched or written. Run with --apply to backfill.")
+            return 0
+        try:
+            record_provider_run(
+                session,
+                FEED_BACKFILL_JOBS[args.provider],
+                ok=not report.errors,
+                summary=report.summary(),
+            )
+        except Exception:
+            logger.exception("job_runs: could not record the backfill run")
+    unknown = [r.symbol for r in report.results if r.status == "unknown_symbol"]
+    if unknown:
+        print(f"no symbol in this database (add with `ingest` first): {', '.join(unknown)}")
+    if report.stopped:
+        print(f"stopped: {report.stopped}")
+    print(
+        f"done: inserted {sum(r.inserted for r in report.results)}, "
+        f"waited {report.waited_seconds:.0f}s for the rate limit"
+    )
+    return 1 if report.errors else 0
+
+
 def _cmd_intraday_reconcile(args: argparse.Namespace) -> int:
     """Resample stored intraday bars to daily and compare (A6.1). Read-only.
 
@@ -2187,6 +2283,22 @@ def main(argv: list[str] | None = None) -> int:
         "--tolerance-pct", type=float, default=0.5, help="moneycontrol: price tolerance, percent"
     )
     p_intra.set_defaults(fn=_cmd_intraday_load)
+    p_iback = sub.add_parser(
+        "intraday-backfill",
+        help="US minute history from a free feed (A6.3; dry run unless --apply; needs its key)",
+    )
+    p_iback.add_argument("--provider", required=True, choices=("alpaca", "tiingo", "massive"))
+    p_iback.add_argument("--symbols", nargs="+", required=True, help="US tickers, e.g. AAPL MSFT")
+    p_iback.add_argument("--from", dest="date_from", required=True, help="YYYY-MM-DD (New York)")
+    p_iback.add_argument("--to", dest="date_to", required=True, help="YYYY-MM-DD, inclusive")
+    p_iback.add_argument(
+        "--feed",
+        default="iex",
+        choices=("iex", "sip"),
+        help="alpaca: sip needs an end >= 15 min old",
+    )
+    p_iback.add_argument("--apply", action="store_true", help="Fetch and write (default: plan)")
+    p_iback.set_defaults(fn=_cmd_intraday_backfill)
     p_irec = sub.add_parser(
         "intraday-reconcile",
         help="Compare stored intraday bars, resampled to daily, with daily or 60m bars (A6.1)",

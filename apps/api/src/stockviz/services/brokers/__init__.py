@@ -43,6 +43,12 @@ BrokerState = Literal["not_configured", "not_connected", "offline", "snapshot_on
 KITE_SNAPSHOT_JOB = "kite-snapshot"
 """``job_runs.job`` for each Kite history snapshot attempt."""
 
+FEED_BACKFILL_JOBS = {name: f"intraday-backfill-{name}" for name in ("alpaca", "tiingo", "massive")}
+"""A6.3: ``job_runs.job`` for each ``intraday-backfill --apply`` run, per provider."""
+
+MANUAL_PROVIDER_JOBS = (KITE_SNAPSHOT_JOB, *FEED_BACKFILL_JOBS.values())
+"""By-hand provider runs: ``/v1/status`` and ``/health`` leave them out (not nightly)."""
+
 OFFLINE_WINDOW = timedelta(days=3)
 """How long a failed Kite run keeps the broker ``offline``."""
 
