@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { formatUtcDateTime } from "@/lib/api-time";
 import type { Setup, SetupDetail } from "@/lib/api/setups";
 import { getSetup, listSetups } from "@/lib/api/setups-server";
+import { drillLaunchHref } from "@/lib/drills";
 import { eventStudyHref } from "@/lib/event-study";
 import { SETUP_KIND_LABEL, screenerHrefForRule, setupsHref } from "@/lib/setups-view";
 import { archiveSetupAction, forkSetupAction } from "./actions";
@@ -143,6 +144,11 @@ function SetupCard({ setup, opened }: { setup: Setup; opened: SetupDetail | null
         <Button asChild size="sm" variant="outline">
           <Link href={eventStudyHref({ setup: latest.id })} data-testid="setup-event-study">
             Run event study
+          </Link>
+        </Button>
+        <Button asChild size="sm" variant="outline">
+          <Link href={drillLaunchHref({ setupVersionId: latest.id })} data-testid="setup-drill">
+            Drill this setup
           </Link>
         </Button>
         <form action={forkSetupAction}>

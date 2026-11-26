@@ -43,6 +43,7 @@ from stockviz.schemas import (
     ReplaySubmitOut,
     ReplaySummaryOut,
 )
+from stockviz.services.drills.decks import drill_session_ids, is_hidden_session
 from stockviz.services.fee_view import resolve_fee_schedule
 from stockviz.services.instruments import is_index_ticker
 from stockviz.services.replay import (
@@ -249,9 +250,14 @@ def _summary_out(db: Session, replay) -> ReplaySummaryOut:
 
 def _load(db: Session, session_id: int, user_id: int):
     try:
-        return get_replay_session(db, session_id=session_id, user_id=user_id)
+        replay = get_replay_session(db, session_id=session_id, user_id=user_id)
     except ReplayNotFound as exc:
         raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+    # A4.7: an anonymised drill's session is reached through /v1/drills only,
+    # until it is revealed (these routes name the ticker and the real dates).
+    if is_hidden_session(db, session_id):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, f"Replay session {session_id} not found")
+    return replay
 
 
 @router.get("/availability", response_model=ReplayAvailabilityOut)
@@ -309,7 +315,12 @@ def post_replay_session(
 
 @router.get("/sessions", response_model=list[ReplaySessionListOut])
 def get_replay_sessions(session: SessionDep, user_id: UserIdDep) -> list[ReplaySessionListOut]:
-    return [_list_out(row) for row in list_replay_sessions(session, user_id=user_id)]
+    drills = drill_session_ids(session, user_id)
+    return [
+        _list_out(row)
+        for row in list_replay_sessions(session, user_id=user_id)
+        if row.id not in drills
+    ]
 
 
 @router.get("/sessions/{session_id}", response_model=ReplaySessionOut)
@@ -491,7 +502,10 @@ def get_replay_drawings(session_id: int, session: SessionDep, user_id: UserIdDep
     """A4.6: the drawings made in this session only (``first_bar``/``last_bar``
     bound anchors: the session's first bar to its clock)."""
 
-    replay = _load(session, session_id, user_id)
+    return drawings_of(session, _load(session, session_id, user_id))
+
+
+def drawings_of(session: Session, replay) -> DrawingsOut:
     first, last = replay_drawings.anchor_range(replay)
     return DrawingsOut(
         ticker=replay.ticker,
@@ -513,7 +527,10 @@ def get_replay_drawings(session_id: int, session: SessionDep, user_id: UserIdDep
 def post_replay_drawing(
     session_id: int, body: ReplayDrawingIn, session: SessionDep, user_id: UserIdDep
 ) -> DrawingOut:
-    replay = _load(session, session_id, user_id)
+    return create_drawing(session, _load(session, session_id, user_id), body)
+
+
+def create_drawing(session: Session, replay, body: ReplayDrawingIn) -> DrawingOut:
     label = body.label.strip() if body.label and body.label.strip() else None
     replay_drawings.validate(replay, body.kind, body.points, label)
     if replay_drawings.count(session, replay) >= replay_drawings.MAX_REPLAY_DRAWINGS:
@@ -544,7 +561,10 @@ def patch_replay_drawing(
     session: SessionDep,
     user_id: UserIdDep,
 ) -> DrawingOut:
-    replay = _load(session, session_id, user_id)
+    return patch_drawing(session, _load(session, session_id, user_id), drawing_id, body)
+
+
+def patch_drawing(session: Session, replay, drawing_id: int, body: DrawingPatch) -> DrawingOut:
     row = replay_drawings.owned(session, replay, drawing_id)
     sent = body.model_fields_set
     edits = sent - {"locked"}
@@ -583,13 +603,16 @@ def patch_replay_drawing(
 def delete_replay_drawing(
     session_id: int, drawing_id: int, session: SessionDep, user_id: UserIdDep
 ) -> Response:
-    replay = _load(session, session_id, user_id)
+    delete_drawing(session, _load(session, session_id, user_id), drawing_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+def delete_drawing(session: Session, replay, drawing_id: int) -> None:
     row = replay_drawings.owned(session, replay, drawing_id)
     if row.locked:
         raise HTTPException(status.HTTP_409_CONFLICT, "The drawing is locked; unlock it first")
     session.delete(row)
     session.commit()
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get("/sessions/{session_id}/fills", response_model=list[ReplayFillOut])

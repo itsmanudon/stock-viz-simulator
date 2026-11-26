@@ -20,6 +20,7 @@ from stockviz.routers import (
     checklist,
     column_sets,
     drawings,
+    drills,
     earnings,
     events,
     experiments,
@@ -142,6 +143,7 @@ def create_app() -> FastAPI:
     app.include_router(backtest.router)
     app.include_router(experiments.router)
     app.include_router(replay.router)
+    app.include_router(drills.router)
     app.include_router(earnings.router)
     app.include_router(journal.router)
     app.include_router(notification_channels.router)

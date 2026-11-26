@@ -50,6 +50,7 @@ from stockviz.schemas import (
     ScanHorizonOut,
     ScanPercentilesOut,
     ScanTriggerOut,
+    ScanUniverseIn,
     ScanUniverseSourceOut,
 )
 from stockviz.services.backtest.strategy_run import (
@@ -116,7 +117,13 @@ def _market_of(ticker: str) -> str:
 def _universe(
     session: Session, body: ScanEventStudyIn, user_id: int | None
 ) -> tuple[list[str], ScanUniverseSourceOut]:
-    u = body.universe
+    return resolve_universe(session, body.universe, user_id)
+
+
+def resolve_universe(
+    session: Session, u: ScanUniverseIn, user_id: int | None
+) -> tuple[list[str], ScanUniverseSourceOut]:
+    """Tickers, a watchlist or a market (the study's and A4.7's drills')."""
     if u.tickers is not None:
         tickers = list(dict.fromkeys(t.strip().upper() for t in u.tickers if t.strip()))
         if not tickers:
@@ -319,5 +326,6 @@ __all__ = [
     "ScanStudyError",
     "clustered_t",
     "horizon_out",
+    "resolve_universe",
     "run_scan_event_study",
 ]

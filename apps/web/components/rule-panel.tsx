@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { type RuleCheck, checkRule } from "@/lib/api/rules";
+import { drillLaunchHref } from "@/lib/drills";
 import { eventStudyHref } from "@/lib/event-study";
 import { type RuleMode, describeRuleError, warmupLabel } from "@/lib/screener-view";
 
@@ -271,6 +272,15 @@ export function RulePanel({
               data-testid="rule-event-study"
             >
               Run event study
+            </Link>
+          ) : null}
+          {valid && text.trim() && signedIn ? (
+            <Link
+              href={drillLaunchHref({ rule: text.trim(), market: "US" })}
+              className="text-xs text-text-secondary underline hover:text-foreground"
+              data-testid="rule-drill"
+            >
+              Drill this setup
             </Link>
           ) : null}
         </div>

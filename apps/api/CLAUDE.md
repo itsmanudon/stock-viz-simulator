@@ -29,7 +29,8 @@ src/stockviz/
                     A2.3 NotificationChannel / DeliveryAttempt,
                     drawing — A3.2 chart drawings, indicator_evidence —
                     A3.4 IndicatorEvidence, trial — A4.3 BacktestTrial /
-                    HoldoutUnlock)
+                    HoldoutUnlock, drill — A4.7 DrillDeck / Drill /
+                    DrillPlan)
   events/           versioned contracts (trades/market), outbox/inbox,
                     dispatcher, domain handlers, Kafka producer wrappers
                     (not imported by FastAPI startup)
@@ -48,7 +49,8 @@ src/stockviz/
                     (isolated ReplaySession), rules / setups / theses
                     (A2.2), notification_channels (A2.3), drawings
                     (A3.2), avwap (A3.3), events, strength (RS
-                    percentile, delivery) and regime (A3.5), health
+                    percentile, delivery) and regime (A3.5), drills
+                    (A4.7), health
                     (`GET /live` liveness, `GET /health` readiness + DB)
   services/
     ingest/         External-API fetchers (yfinance primary, Alpha Vantage fallback);
@@ -168,6 +170,10 @@ src/stockviz/
     regime.py       A3.5: rule-based market regime per market
     scan_event_study.py  A4.5: what followed a DSL trigger (A2.4's engine,
                     several horizons, dated costs, clustered t)
+    drills/         A4.7: triggers.py (edges, sessions, lag, seeded draw),
+                    anonymise.py (Mask: label, week shift, news counts),
+                    score.py (pure process score), decks.py (create, read,
+                    plan, reveal, delete)
     aegis/          Aegis News read sync (Phase 2): contract.py (lenient
                     feed models), token.py (EdDSA feed:read token), client.py
                     (the one client: timeouts, bounded retries), sync.py
@@ -1115,6 +1121,53 @@ resting orders").
   live route, drawings isolation, resting orders, DP, forensics net, no
   prize), `test_replay_a46_migration.py` (PostgreSQL up/down/up),
   `test_kernel_three_way.py` (INR replay compared, skip removed).
+
+**Drills and decks (A4.7, M9.3).** Migration `53b66a2e2ec2` (additive):
+`drill_decks` (rule as a setup version, universe JSON, range, `k` 1-25,
+`lead_bars`/`follow_bars`, `seed`, `anonymised` default true, trigger
+counts), `drills` (deck cascade, `position`, replay `session_id` cascade
+and unique, ticker, `trigger_at`/`trigger_date`, `date_offset_weeks`,
+`revealed_at`) and `drill_plans` (keyed on the replay session, unique,
+cascade; entry, stop, size, long only, `locked_at`). Rules and method in
+`docs/SIMULATION.md` ("Drills and decks").
+
+- **Triggers** (`services/drills/triggers.py`): the rule's vector series on
+  every symbol of the universe (`scan_event_study.resolve_universe`), edges
+  by `checklist/evidence.py::edge_indices` (shared with the scan event
+  study; `is_edge`, `rule_state` too), no cooldown. Session: N bars before
+  to M after, clamped; opens at the trigger (`current_at` set after
+  `create_replay_session`). NSE/BSE triggers ending inside the lag are
+  skipped and counted. `random.Random(seed).sample` over (date, ticker)
+  order; `offset_weeks(seed, position)` 52-520 weeks, never shown past
+  today. Inline rules become versions of "Rules from drills" (kind
+  `screen`) through `strategy_run.inline_rule_version` (A4.1's helper,
+  extracted).
+- **Anonymised view** (`anonymise.Mask`): every drill response while
+  `deck.anonymised` and not revealed: ticker -> "Stock A".. by position,
+  ticker and company name replaced in free text, every date/datetime and
+  ISO date in a string shifted, news reduced to counts. Errors from the
+  replay layer are masked too (`routers/drills.py::_guard`).
+  `routers/replay.py::_load` 404s an anonymised unrevealed drill session
+  (`decks.is_hidden_session`) and the replay list leaves out every drill
+  session (`drill_session_ids`). The replay router's drawing handlers are
+  module functions (`drawings_of`, `create_drawing`, `patch_drawing`,
+  `delete_drawing`) the drill routes reuse with dates translated.
+- **Routes** (authed, `routers/drills.py`): `POST /v1/drills/decks` (201;
+  404 unknown symbol/setup/watchlist, 401 drawings rule, 422 rule, 400 no
+  eligible trigger or a bad range, 409 past 100 decks), `GET
+  /v1/drills/decks`, `GET`/`DELETE /v1/drills/decks/{id}`, `GET
+  /v1/drills/{id}` (`DrillOut`: session, summary, bar, history, orders,
+  fills, plan, `needs_plan`, `score` and `reveal` once revealed), `PUT
+  .../plan` (422 stop not below entry, 409 after the first fill or the
+  reveal), `POST .../orders` (409 without a plan), `.../orders/{id}/cancel`,
+  `.../advance?expected_current_at=` (the shown date; unshifted),
+  `.../indicators`, `.../events`, `.../drawings`, `POST .../reveal`
+  (cancels a running session; idempotent). Another user's deck or drill is
+  404.
+- **Score** (`score.py`, pure): entry within 2%, stop honoured on closes,
+  peak size within the plan; R achieved beside it, "not the score". The
+  deck summary counts statuses, traded, followed the plan and checks.
+- Tests: `test_drills.py`, `test_drills_migration.py`.
 
 **Survivorship stamp (A1.4a, part of M1.5).** Every backtest result carries
 `universe: {name, point_in_time, survivorship_biased, note}`: the public

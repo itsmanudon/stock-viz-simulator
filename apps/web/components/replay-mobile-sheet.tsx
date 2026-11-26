@@ -18,6 +18,7 @@ export function ReplayMobileSheet({
   currency = "USD",
   tradable = true,
   feeSchedule = "none",
+  target = "replay",
 }: {
   sessionId: number;
   ticker: string;
@@ -28,6 +29,7 @@ export function ReplayMobileSheet({
   currency?: string;
   tradable?: boolean;
   feeSchedule?: string;
+  target?: "replay" | "drill";
 }) {
   const [open, setOpen] = useState(false);
   const [side, setSide] = useState<Side>("buy");
@@ -90,6 +92,7 @@ export function ReplayMobileSheet({
             currency={currency}
             tradable={tradable}
             feeSchedule={feeSchedule}
+            target={target}
           />
         </Dialog.Content>
       </Dialog.Portal>

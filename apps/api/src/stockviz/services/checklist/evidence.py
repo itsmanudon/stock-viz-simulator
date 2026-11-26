@@ -251,7 +251,7 @@ def study_horizons(
         live = [h for h in horizons if n > h]
         if not live:
             continue
-        state = vector(rule, data).astype("Float64").to_numpy(dtype=float, na_value=np.nan)
+        state = rule_state(rule, data)
         forwards: dict[int, np.ndarray] = {}
         for h in live:
             results[h].symbols += 1
@@ -272,7 +272,7 @@ def study_horizons(
                 in_window = (days >= start_ts) & (days <= end_ts) & np.isfinite(forward)
                 last_used = -(10**9)
                 for i in np.flatnonzero(in_window):
-                    if i == 0 or state[i] != 1.0 or state[i - 1] != 0.0:
+                    if not is_edge(state, int(i)):
                         continue
                     if i - last_used < h:
                         results[h].overlapping_skipped += 1
@@ -300,6 +300,26 @@ def study_horizons(
     return results
 
 
+def is_edge(state: np.ndarray, i: int) -> bool:
+    """The event definition (A2.4, A4.5, A4.7's drills): bar ``i`` is true and
+    the bar before it is false. A bar after an unknown one (NaN) is not an
+    edge: the state before it is not known."""
+    return i > 0 and state[i] == 1.0 and state[i - 1] == 0.0
+
+
+def edge_indices(state: np.ndarray, in_dates: np.ndarray) -> list[int]:
+    """Every false-to-true edge among the bars where ``in_dates`` is true, in
+    bar order. ``state`` is a rule's vector series as floats (1.0 true, 0.0
+    false, NaN unknown). The scan event study and the drills (A4.7) both read
+    their triggers here, so they agree by construction."""
+    return [i for i in (int(k) for k in np.flatnonzero(in_dates)) if is_edge(state, i)]
+
+
+def rule_state(rule: CompiledRule, data: SymbolData) -> np.ndarray:
+    """``rule``'s vector series on ``data`` as floats (NaN = unknown)."""
+    return vector(rule, data).astype("Float64").to_numpy(dtype=float, na_value=np.nan)
+
+
 def _shared_events(
     state: np.ndarray,
     days: Any,
@@ -315,9 +335,7 @@ def _shared_events(
     in_dates = (days >= start_ts) & (days <= end_ts)
     last_event = -(10**9)
     last_counted = dict.fromkeys(live, -(10**9))
-    for i in (int(k) for k in np.flatnonzero(in_dates)):
-        if i == 0 or state[i] != 1.0 or state[i - 1] != 0.0:
-            continue
+    for i in edge_indices(state, in_dates):
         if cooldown and i - last_event < cooldown:
             for h in live:
                 results[h].overlapping_skipped += 1
@@ -436,8 +454,11 @@ __all__ = [
     "NOTIONAL",
     "EvidenceRun",
     "StudyResult",
+    "edge_indices",
     "grade",
+    "is_edge",
     "round_trip_cost",
+    "rule_state",
     "run_evidence",
     "schedule_for",
     "study",

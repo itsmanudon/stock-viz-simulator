@@ -761,6 +761,87 @@ Authed API and Replay Lab UI:
 
 Live `evaluation_clock()` remains wall-clock UTC for paper trading.
 
+## Drills and decks (A4.7, M9.3)
+
+A **deck** is K replays seeded from a rule's real historical triggers; a
+**drill** is one of them. Tables `drill_decks`, `drills`, `drill_plans`
+(migration `53b66a2e2ec2`); code `services/drills/`, routes `/v1/drills`.
+
+- **Triggers.** The rule (a setup version, or inline text saved as a
+  version of the user's "Rules from drills" setup) is evaluated in vector
+  mode on every symbol of the universe (tickers, a watchlist, or a market,
+  as the scan event study takes them). A trigger is a false-to-true edge,
+  found by `checklist/evidence.py::edge_indices`, the same code the scan
+  event study counts events with: true on the bar, false on the bar
+  before; a bar after an unknown one is not a trigger; no cooldown. The
+  range defaults to the last ten years to the latest completed session.
+  **Acceptance** (`tests/test_drills.py::test_acceptance_deck_triggers_equal_the_vector_edges`):
+  with K at least the number of triggers, the deck's (ticker, date) set
+  equals the vector series' false-to-true dates computed independently in
+  the test (and the scan event study's `events_found`); with K below it,
+  the deck is an exact subset.
+- **Sessions.** Each drill is a replay session (A4.6: the symbol's currency,
+  its fees, resting orders) starting N stored bars before the trigger
+  (default 60) and ending M after it (default 40), both clamped to the
+  stored bars. It opens at the trigger bar (`current_at` = the trigger),
+  with the lead-in visible and nothing after it.
+- **Lag.** A trigger on an NSE/BSE symbol whose session would end inside the
+  30-day lag is skipped and counted (`lag_skipped`), unless the owner's
+  override lists the user. `triggers_found` counts every edge,
+  `triggers_eligible` those left.
+- **Sampling.** The eligible triggers, sorted by (date, ticker), are drawn
+  with `random.Random(seed).sample(eligible, K)`; the seed (given, or drawn
+  and stored) makes the deck reproducible. Drills keep the drawn order, so
+  positions do not reveal chronology.
+- **Anonymised by default** (design note question 5). While a drill is not
+  revealed, every `/v1/drills` response passes through
+  `anonymise.Mask`: the ticker is "Stock A", "Stock B"... by position in the
+  deck (a repeat of a symbol gets a new letter); the company name and the
+  ticker are replaced in free text (error messages); every date and
+  timestamp, and every ISO date inside a string, moves by
+  `date_offset_weeks` (52 to 520 whole weeks, earlier or later, never past
+  today), so weekdays are the real ones; prices, volumes and returns are
+  unchanged. Holidays are not remapped, so a real holiday's gap can sit on
+  an ordinary shown date. News markers keep only their count per day:
+  headlines, sources and links name the company. `/v1/replay` answers 404
+  for an anonymised drill's session (forensics, history, events, all of
+  it) and leaves drill sessions out of its list; drawings and the
+  `expected_current_at` of a step are translated back to real dates by the
+  API. The deck's own universe and date range are the caller's input and
+  are shown as given (a short ticker list narrows the guess; a market or a
+  watchlist does not). A deck can turn anonymisation off.
+- **Plan and score (process, not profit).** Before the first order the
+  drill asks for a plan: planned entry, stop and size, long
+  (`drill_plans`, keyed on the replay session so A5's journal can absorb
+  it). Orders without a plan are 409; the plan locks at the first fill.
+  After the reveal the score checks: entry (the first buy within 2% of the
+  plan), stop (no bar closed at or below the stop with shares still held
+  after that bar's fills; fills are at the close, so a resting stop-loss at
+  the plan's price or a sell on that bar exits in time; never reached while
+  holding is not applicable), size (most shares held at most the plan).
+  Score = checks passed of those that apply; no trade scores nothing. R
+  achieved (total P&L net of fees over (average buy - stop) x peak shares)
+  is shown beside it and is not the score. No leaderboard, prize or
+  ranking.
+- **Reveal** (`POST /v1/drills/{id}/reveal`): ends a running session
+  (cancelled: read-only), then shows the ticker, company, sector, the real
+  trigger and session dates, the shown trigger date and the offset, the
+  return from the trigger's close 5, 20 and 60 bars later and the stored
+  bars after the session, and the score. Revealed, the replay routes serve
+  the session again.
+
+Routes (authed): `POST`/`GET /v1/drills/decks`, `GET`/`DELETE
+/v1/drills/decks/{id}` (the delete removes drills, plans and their replay
+sessions), `GET /v1/drills/{id}`, `PUT .../plan`, `POST .../orders`,
+`POST .../orders/{order_id}/cancel`, `POST .../advance`, `GET
+.../indicators`, `GET .../events`, `GET`/`POST .../drawings`,
+`PATCH`/`DELETE .../drawings/{id}`, `POST .../reveal`. UI: `/drills`,
+`/drills/new`, `/drills/{id}`. Tests: `test_drills.py` (the acceptance,
+sampling by seed, lag skip, a leak check that greps every anonymised
+response for the ticker, the company and each real date of the session,
+weekday-preserving shift, plan and score rules, reveal, delete, isolation),
+`test_drills_migration.py` (PostgreSQL up/down/up).
+
 ## Later program
 
 | ID | Scope |
