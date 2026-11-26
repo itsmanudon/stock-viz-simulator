@@ -55,6 +55,7 @@ describe("getActiveNavigation", () => {
       "Backtest",
       "Replay",
       "News",
+      "Event study",
       "News reactions",
     ]);
     const trade = APP_NAVIGATION.find((group) => group.label === "Trade");

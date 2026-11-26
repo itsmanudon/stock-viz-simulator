@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { type RuleCheck, checkRule } from "@/lib/api/rules";
+import { eventStudyHref } from "@/lib/event-study";
 import { type RuleMode, describeRuleError, warmupLabel } from "@/lib/screener-view";
 
 export type RulePreset = {
@@ -263,6 +264,15 @@ export function RulePanel({
           <Button type="submit" disabled={invalid}>
             Run
           </Button>
+          {valid && text.trim() ? (
+            <Link
+              href={eventStudyHref({ rule: text.trim() })}
+              className="text-xs text-text-secondary underline hover:text-foreground"
+              data-testid="rule-event-study"
+            >
+              Run event study
+            </Link>
+          ) : null}
         </div>
       </form>
 

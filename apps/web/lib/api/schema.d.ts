@@ -2200,6 +2200,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/research/scan-event-study": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Scan Event Study
+         * @description A4.5: forward 5/20/60-session returns, net of round-trip costs, after
+         *     a Rule DSL trigger turned true, against the base rate of the same
+         *     universe and dates. Public; a watchlist, your own setup version or a rule
+         *     that reads your drawings need a Bearer token. Association, not cause.
+         */
+        post: operations["scan_event_study_v1_research_scan_event_study_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/fees/schedules": {
         parameters: {
             query?: never;
@@ -3922,6 +3945,17 @@ export interface components {
              * @default 0
              */
             dead_outbox_events: number;
+        };
+        /**
+         * HistogramOut
+         * @description Counts of net returns in equal bins from the 1st to the 99th
+         *     percentile; values beyond fall in the end bins.
+         */
+        HistogramOut: {
+            /** Edges */
+            edges: number[];
+            /** Counts */
+            counts: number[];
         };
         /** HoldingAttributionOut */
         HoldingAttributionOut: {
@@ -7061,6 +7095,194 @@ export interface components {
         SavedScreenPatch: {
             /** Notify On Change */
             notify_on_change: boolean;
+        };
+        /** ScanEventOut */
+        ScanEventOut: {
+            /** Ticker */
+            ticker: string;
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Net */
+            net: {
+                [key: string]: number | null;
+            };
+            /** Excess */
+            excess: {
+                [key: string]: number | null;
+            };
+        };
+        /**
+         * ScanEventStudyIn
+         * @description POST /v1/research/scan-event-study (A4.5): what happened after a Rule
+         *     DSL condition turned true. ``trigger`` is a setup version or inline text
+         *     (news and delivery triggers are rules too: ``news.count(1) >= 1``,
+         *     ``delivery_pct > 60``).
+         */
+        ScanEventStudyIn: {
+            trigger: components["schemas"]["StrategyRuleIn"];
+            universe: components["schemas"]["ScanUniverseIn"];
+            /** From */
+            from?: string | null;
+            /** To */
+            to?: string | null;
+            /** Horizons */
+            horizons?: number[];
+            /**
+             * Cooldown
+             * @default 0
+             */
+            cooldown: number;
+        };
+        /** ScanEventStudyOut */
+        ScanEventStudyOut: {
+            trigger: components["schemas"]["ScanTriggerOut"];
+            source: components["schemas"]["ScanUniverseSourceOut"];
+            /**
+             * From
+             * Format: date
+             */
+            from: string;
+            /**
+             * To
+             * Format: date
+             */
+            to: string;
+            /** Cooldown */
+            cooldown: number;
+            /** Horizons */
+            horizons: components["schemas"]["ScanHorizonOut"][];
+            /** Min Events */
+            min_events: number;
+            /** Events Found */
+            events_found: number;
+            /** Events Skipped Cooldown */
+            events_skipped_cooldown: number;
+            /** Events */
+            events: components["schemas"]["ScanEventOut"][];
+            /** Events Shown */
+            events_shown: number;
+            /** Method */
+            method: {
+                [key: string]: string;
+            };
+            universe: components["schemas"]["UniverseOut"];
+            /** Disclaimer */
+            disclaimer: string;
+        };
+        /**
+         * ScanHorizonOut
+         * @description One forward horizon. Returns are fractions (0.01 = 1%). Under
+         *     ``min_events`` only the counts are given.
+         */
+        ScanHorizonOut: {
+            /** Horizon */
+            horizon: number;
+            /** N */
+            n: number;
+            /** Symbols */
+            symbols: number;
+            /** Incomplete */
+            incomplete: number;
+            /** Overlapping */
+            overlapping: number;
+            /** Enough */
+            enough: boolean;
+            /** Base Rate */
+            base_rate?: number | null;
+            /** Mean Net */
+            mean_net?: number | null;
+            /** Median Net */
+            median_net?: number | null;
+            /** Mean Excess */
+            mean_excess?: number | null;
+            /** Median Excess */
+            median_excess?: number | null;
+            /** Hit Rate */
+            hit_rate?: number | null;
+            /** Hit Rate Excess */
+            hit_rate_excess?: number | null;
+            /** T Stat */
+            t_stat?: number | null;
+            /** T Stat Clustered */
+            t_stat_clustered?: number | null;
+            /**
+             * Clusters
+             * @default 0
+             */
+            clusters: number;
+            net_percentiles?: components["schemas"]["ScanPercentilesOut"] | null;
+            excess_percentiles?: components["schemas"]["ScanPercentilesOut"] | null;
+            histogram?: components["schemas"]["HistogramOut"] | null;
+            /**
+             * Fee Schedules
+             * @default {}
+             */
+            fee_schedules: {
+                [key: string]: number;
+            };
+        };
+        /** ScanPercentilesOut */
+        ScanPercentilesOut: {
+            /** P5 */
+            p5: number;
+            /** P25 */
+            p25: number;
+            /** P50 */
+            p50: number;
+            /** P75 */
+            p75: number;
+            /** P95 */
+            p95: number;
+        };
+        /** ScanTriggerOut */
+        ScanTriggerOut: {
+            /** Text */
+            text: string;
+            /** Canonical */
+            canonical: string;
+            /** Hash */
+            hash: string;
+            /** Setup Version Id */
+            setup_version_id?: number | null;
+            /**
+             * Uses
+             * @default []
+             */
+            uses: string[];
+            /** Warmup Bars */
+            warmup_bars?: number | null;
+        };
+        /**
+         * ScanUniverseIn
+         * @description Up to 50 tickers, one of your watchlists, or a whole market
+         *     (``US`` or ``IN``: its active non-index symbols).
+         */
+        ScanUniverseIn: {
+            /** Tickers */
+            tickers?: string[] | null;
+            /** Watchlist Id */
+            watchlist_id?: number | null;
+            /** Market */
+            market?: ("US" | "IN") | null;
+        };
+        /** ScanUniverseSourceOut */
+        ScanUniverseSourceOut: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "list" | "watchlist" | "market";
+            /** Name */
+            name?: string | null;
+            /** Watchlist Id */
+            watchlist_id?: number | null;
+            /** Market */
+            market?: string | null;
+            /** Tickers */
+            tickers: number;
         };
         /** ScreenerPageOut */
         ScreenerPageOut: {
@@ -13311,6 +13533,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EventStudyOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    scan_event_study_v1_research_scan_event_study_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ScanEventStudyIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScanEventStudyOut"];
                 };
             };
             /** @description Validation Error */

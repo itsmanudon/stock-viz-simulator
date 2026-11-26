@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { formatUtcDateTime } from "@/lib/api-time";
 import type { Setup, SetupDetail } from "@/lib/api/setups";
 import { getSetup, listSetups } from "@/lib/api/setups-server";
+import { eventStudyHref } from "@/lib/event-study";
 import { SETUP_KIND_LABEL, screenerHrefForRule, setupsHref } from "@/lib/setups-view";
 import { archiveSetupAction, forkSetupAction } from "./actions";
 
@@ -138,6 +139,11 @@ function SetupCard({ setup, opened }: { setup: Setup; opened: SetupDetail | null
       <div className="flex flex-wrap items-center gap-2">
         <Button asChild size="sm">
           <Link href={screenerHrefForRule(latest.rule_text)}>Open in screener</Link>
+        </Button>
+        <Button asChild size="sm" variant="outline">
+          <Link href={eventStudyHref({ setup: latest.id })} data-testid="setup-event-study">
+            Run event study
+          </Link>
         </Button>
         <form action={forkSetupAction}>
           <input type="hidden" name="id" value={setup.id} />

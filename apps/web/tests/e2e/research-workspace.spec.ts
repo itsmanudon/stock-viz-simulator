@@ -167,6 +167,24 @@ test.describe("research pages on a phone", () => {
     await expect(results.getByRole("heading", { name: "Equity curve" })).toBeVisible();
   });
 
+  test("the event study measures a DSL trigger and keeps it in the URL (A4.5)", async ({
+    page,
+  }) => {
+    await page.goto("/event-study?rule=close+crosses_above+sma%28close%2C+50%29&market=US");
+    const main = page.locator("#main");
+    const studyView = main.getByTestId("scan-study");
+    await expect(studyView).toBeVisible({ timeout: 60_000 });
+    await expect(main.getByTestId("scan-horizon")).toHaveCount(3);
+    await expect(main.getByTestId("scan-disclaimer")).toContainText("Association, not cause");
+    await expect(main.getByTestId("scan-events").getByRole("link").first()).toHaveAttribute(
+      "href",
+      /\/stocks\//,
+    );
+    await page.goto("/screener?rule=close+%3E+sma%28close%2C+200%29");
+    const link = page.locator("#main").getByTestId("rule-event-study");
+    await expect(link).toHaveAttribute("href", /\/event-study\?rule=/, { timeout: 15_000 });
+  });
+
   test("a rule backtest lists its costs and the ADV cap (A4.2)", async ({ page }) => {
     // stockviz_e2e holds US bars only: a US symbol defaults to no fees, and
     // the disclosure still states the schedule, the cap and its link.

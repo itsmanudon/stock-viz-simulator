@@ -2738,6 +2738,137 @@ class RotationBacktestOut(BaseModel):
     checks: OverfittingChecksOut | None = None
 
 
+# --- A4.5: scan event study ------------------------------------------------
+
+
+class ScanUniverseIn(BaseModel):
+    """Up to 50 tickers, one of your watchlists, or a whole market
+    (``US`` or ``IN``: its active non-index symbols)."""
+
+    tickers: list[str] | None = Field(default=None, min_length=1, max_length=50)
+    watchlist_id: int | None = None
+    market: Literal["US", "IN"] | None = None
+
+    @model_validator(mode="after")
+    def _one(self) -> ScanUniverseIn:
+        given = [v is not None for v in (self.tickers, self.watchlist_id, self.market)]
+        if sum(given) != 1:
+            raise ValueError("give exactly one of tickers, watchlist_id or market")
+        return self
+
+
+class ScanEventStudyIn(BaseModel):
+    """POST /v1/research/scan-event-study (A4.5): what happened after a Rule
+    DSL condition turned true. ``trigger`` is a setup version or inline text
+    (news and delivery triggers are rules too: ``news.count(1) >= 1``,
+    ``delivery_pct > 60``)."""
+
+    trigger: StrategyRuleIn
+    universe: ScanUniverseIn
+    from_: date | None = Field(default=None, alias="from")
+    to: date | None = None
+    horizons: list[int] = Field(default_factory=lambda: [5, 20, 60], min_length=1, max_length=5)
+    cooldown: int = Field(default=0, ge=0, le=250)
+    """Sessions after an event during which a new event on the symbol is skipped."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    @model_validator(mode="after")
+    def _horizons(self) -> ScanEventStudyIn:
+        if any(h < 1 or h > 250 for h in self.horizons):
+            raise ValueError("each horizon must be between 1 and 250 sessions")
+        self.horizons = sorted(set(self.horizons))
+        return self
+
+
+class ScanTriggerOut(BaseModel):
+    text: str
+    canonical: str
+    hash: str
+    setup_version_id: int | None = None
+    uses: list[str] = []
+    warmup_bars: int | None = None
+
+
+class ScanUniverseSourceOut(BaseModel):
+    kind: Literal["list", "watchlist", "market"]
+    name: str | None = None
+    watchlist_id: int | None = None
+    market: str | None = None
+    tickers: int
+
+
+class ScanPercentilesOut(BaseModel):
+    p5: float
+    p25: float
+    p50: float
+    p75: float
+    p95: float
+
+
+class HistogramOut(BaseModel):
+    """Counts of net returns in equal bins from the 1st to the 99th
+    percentile; values beyond fall in the end bins."""
+
+    edges: list[float]
+    counts: list[int]
+
+
+class ScanHorizonOut(BaseModel):
+    """One forward horizon. Returns are fractions (0.01 = 1%). Under
+    ``min_events`` only the counts are given."""
+
+    horizon: int
+    n: int
+    symbols: int
+    incomplete: int
+    overlapping: int
+    enough: bool
+    base_rate: float | None = None
+    mean_net: float | None = None
+    median_net: float | None = None
+    mean_excess: float | None = None
+    median_excess: float | None = None
+    hit_rate: float | None = None
+    """Share of events with a net return above zero."""
+    hit_rate_excess: float | None = None
+    """Share of events whose net return beat the base rate."""
+    t_stat: float | None = None
+    t_stat_clustered: float | None = None
+    clusters: int = 0
+    net_percentiles: ScanPercentilesOut | None = None
+    excess_percentiles: ScanPercentilesOut | None = None
+    histogram: HistogramOut | None = None
+    fee_schedules: dict[str, int] = {}
+
+
+class ScanEventOut(BaseModel):
+    ticker: str
+    date: date
+    net: dict[str, float | None]
+    """Net forward return per horizon (key: sessions), null if incomplete."""
+    excess: dict[str, float | None]
+
+
+class ScanEventStudyOut(BaseModel):
+    trigger: ScanTriggerOut
+    source: ScanUniverseSourceOut
+    from_: date = Field(serialization_alias="from")
+    to: date
+    cooldown: int
+    horizons: list[ScanHorizonOut]
+    min_events: int
+    events_found: int
+    events_skipped_cooldown: int
+    events: list[ScanEventOut]
+    events_shown: int
+    method: dict[str, str]
+    universe: UniverseOut
+    disclaimer: str
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
 class ExperimentIn(BaseModel):
     name: str = Field(min_length=1, max_length=120)
     hypothesis: str | None = Field(default=None, max_length=4000)

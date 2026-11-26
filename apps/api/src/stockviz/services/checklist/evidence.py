@@ -47,6 +47,7 @@ import math
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -94,15 +95,24 @@ def schedule_for(venue: str) -> FeeSchedule:
     return SCHEDULE_BY_VENUE.get(venue, NONE)
 
 
-def round_trip_cost(schedule: FeeSchedule, entry: float, exit_: float) -> float:
+def round_trip_cost(
+    schedule: FeeSchedule,
+    entry: float,
+    exit_: float,
+    *,
+    on_entry: date | None = None,
+    on_exit: date | None = None,
+) -> float:
     """Fees for buying ``NOTIONAL`` at ``entry`` and selling at ``exit_``, as a
-    fraction of the amount bought."""
+    fraction of the amount bought. Without dates the schedule's newest
+    version prices both legs (the checklist's grades); A4.5's scan event study
+    passes each leg's date, so the version in force then applies."""
     price_in = Decimal(str(entry))
     price_out = Decimal(str(exit_))
     quantity = NOTIONAL / price_in
     fees = (
-        schedule.fees(OrderSide.BUY, quantity, price_in).total
-        + schedule.fees(OrderSide.SELL, quantity, price_out).total
+        schedule.fees(OrderSide.BUY, quantity, price_in, on=on_entry).total
+        + schedule.fees(OrderSide.SELL, quantity, price_out, on=on_exit).total
     )
     return float(fees / (quantity * price_in))
 
@@ -147,6 +157,12 @@ class StudyResult:
     overlapping_skipped: int = 0
     base_rate: float | None = None
     fee_schedules: dict[str, int] = field(default_factory=dict)
+    incomplete: int = 0
+    """A4.5 (shared events): events whose forward window ends after the window."""
+    overlapping: int = 0
+    """A4.5 (shared events): counted events whose window overlaps the previous
+    counted one on the same symbol (they are kept; the t-statistic does not
+    correct for it)."""
 
     @property
     def n(self) -> int:
@@ -193,51 +209,129 @@ def study(
     end: date,
     horizon: int = HORIZON,
 ) -> StudyResult:
-    """The evidence study for one rule over ``datasets`` (pure)."""
-    result = StudyResult(start=start, end=end, horizon=horizon)
-    base_sum: dict[tuple[str, np.datetime64], float] = {}
-    base_n: dict[tuple[str, np.datetime64], int] = {}
-    pending: list[tuple[str, str, date, float, float]] = []
+    """The evidence study for one rule over ``datasets`` (pure): the
+    checklist's and the indicator badges' grade."""
+    return study_horizons(datasets, rule, start=start, end=end, horizons=(horizon,))[horizon]
+
+
+def study_horizons(
+    datasets: list[SymbolData],
+    rule: CompiledRule,
+    *,
+    start: date,
+    end: date,
+    horizons: tuple[int, ...] = (HORIZON,),
+    cooldown: int | None = None,
+    dated_costs: bool = False,
+) -> dict[int, StudyResult]:
+    """One study per horizon, from one vector-mode evaluation per symbol.
+
+    ``cooldown=None`` is the checklist's rule, per horizon: an event within
+    ``horizon`` bars of the last counted event on its symbol is skipped
+    (``overlapping_skipped``), among events with a full forward window.
+    An integer (A4.5, the scan event study) finds the events once for every
+    horizon: an event within ``cooldown`` bars of the previous event on its
+    symbol is skipped (0: none), and per horizon an event without a full
+    forward window is ``incomplete``. ``dated_costs`` prices each leg with
+    the schedule's version in force on its date."""
+    results = {h: StudyResult(start=start, end=end, horizon=h) for h in horizons}
+    base_sum: dict[int, dict[tuple[str, np.datetime64], float]] = {h: {} for h in horizons}
+    base_n: dict[int, dict[tuple[str, np.datetime64], int]] = {h: {} for h in horizons}
+    pending: dict[int, list[tuple[str, str, date, float, float]]] = {h: [] for h in horizons}
     start_ts, end_ts = pd.Timestamp(start), pd.Timestamp(end)
     for full in datasets:
         data = full.cut(end) if len(full.bars) and full.bars.index[-1] > end_ts else full
         n = len(data.bars)
-        if n <= horizon:
-            continue
-        result.symbols += 1
         closes = data.bars["close"].to_numpy(dtype=float)
         days = data.bars.index
         stamps = days.to_numpy(dtype="datetime64[D]")
         dates = data.dates
-        with np.errstate(divide="ignore", invalid="ignore"):
-            forward = np.full(n, np.nan)
-            forward[: n - horizon] = closes[horizon:] / closes[: n - horizon] - 1.0
-        in_window = (days >= start_ts) & (days <= end_ts) & np.isfinite(forward)
         group = _group(data)
-        for i in np.flatnonzero(in_window):
-            key = (group, stamps[i])
-            base_sum[key] = base_sum.get(key, 0.0) + float(forward[i])
-            base_n[key] = base_n.get(key, 0) + 1
-        state = vector(rule, data).astype("Float64").to_numpy(dtype=float, na_value=np.nan)
         schedule = schedule_for(data.venue)
-        last_used = -(10**9)
-        for i in np.flatnonzero(in_window):
-            if i == 0 or state[i] != 1.0 or state[i - 1] != 0.0:
+        live = [h for h in horizons if n > h]
+        if not live:
+            continue
+        state = vector(rule, data).astype("Float64").to_numpy(dtype=float, na_value=np.nan)
+        forwards: dict[int, np.ndarray] = {}
+        for h in live:
+            results[h].symbols += 1
+            with np.errstate(divide="ignore", invalid="ignore"):
+                forward = np.full(n, np.nan)
+                forward[: n - h] = closes[h:] / closes[: n - h] - 1.0
+            forwards[h] = forward
+            in_window = (days >= start_ts) & (days <= end_ts) & np.isfinite(forward)
+            for i in np.flatnonzero(in_window):
+                key = (group, stamps[i])
+                base_sum[h][key] = base_sum[h].get(key, 0.0) + float(forward[i])
+                base_n[h][key] = base_n[h].get(key, 0) + 1
+
+        picks: list[tuple[int, int]] = []
+        if cooldown is None:
+            for h in live:
+                forward = forwards[h]
+                in_window = (days >= start_ts) & (days <= end_ts) & np.isfinite(forward)
+                last_used = -(10**9)
+                for i in np.flatnonzero(in_window):
+                    if i == 0 or state[i] != 1.0 or state[i - 1] != 0.0:
+                        continue
+                    if i - last_used < h:
+                        results[h].overlapping_skipped += 1
+                        continue
+                    last_used = i
+                    picks.append((h, int(i)))
+        else:
+            picks = _shared_events(state, days, start_ts, end_ts, live, forwards, cooldown, results)
+        for h, i in picks:
+            on_in = dates[i] if dated_costs else None
+            on_out = dates[i + h] if dated_costs else None
+            cost = round_trip_cost(schedule, closes[i], closes[i + h], on_entry=on_in,
+                                   on_exit=on_out)  # fmt: skip
+            r = results[h]
+            r.fee_schedules[schedule.name] = r.fee_schedules.get(schedule.name, 0) + 1
+            pending[h].append((data.ticker, group, dates[i], float(forwards[h][i]), cost))
+    for h in horizons:
+        r = results[h]
+        for ticker, group, day, gross, cost in pending[h]:
+            key = (group, np.datetime64(day, "D"))
+            base = base_sum[h][key] / base_n[h][key]
+            r.events.append(Event(ticker, day, gross, cost, base))
+        total_n = sum(base_n[h].values())
+        r.base_rate = sum(base_sum[h].values()) / total_n if total_n else None
+    return results
+
+
+def _shared_events(
+    state: np.ndarray,
+    days: Any,
+    start_ts: Any,
+    end_ts: Any,
+    live: list[int],
+    forwards: dict[int, np.ndarray],
+    cooldown: int,
+    results: dict[int, StudyResult],
+) -> list[tuple[int, int]]:
+    """A4.5: the events found once for every horizon (edge, then cooldown)."""
+    picks: list[tuple[int, int]] = []
+    in_dates = (days >= start_ts) & (days <= end_ts)
+    last_event = -(10**9)
+    last_counted = dict.fromkeys(live, -(10**9))
+    for i in (int(k) for k in np.flatnonzero(in_dates)):
+        if i == 0 or state[i] != 1.0 or state[i - 1] != 0.0:
+            continue
+        if cooldown and i - last_event < cooldown:
+            for h in live:
+                results[h].overlapping_skipped += 1
+            continue
+        last_event = i
+        for h in live:
+            if not np.isfinite(forwards[h][i]):
+                results[h].incomplete += 1
                 continue
-            if i - last_used < horizon:
-                result.overlapping_skipped += 1
-                continue
-            last_used = i
-            cost = round_trip_cost(schedule, closes[i], closes[i + horizon])
-            result.fee_schedules[schedule.name] = result.fee_schedules.get(schedule.name, 0) + 1
-            pending.append((data.ticker, group, dates[i], float(forward[i]), cost))
-    for ticker, group, day, gross, cost in pending:
-        key = (group, np.datetime64(day, "D"))
-        base = base_sum[key] / base_n[key]
-        result.events.append(Event(ticker, day, gross, cost, base))
-    total_n = sum(base_n.values())
-    result.base_rate = sum(base_sum.values()) / total_n if total_n else None
-    return result
+            if i - last_counted[h] < h:
+                results[h].overlapping += 1
+            last_counted[h] = i
+            picks.append((h, i))
+    return picks
 
 
 # --- the job ------------------------------------------------------------------
@@ -347,4 +441,5 @@ __all__ = [
     "run_evidence",
     "schedule_for",
     "study",
+    "study_horizons",
 ]

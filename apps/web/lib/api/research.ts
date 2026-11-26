@@ -1,4 +1,5 @@
-import { apiGet } from "./client";
+import type { ScanStudy, ScanStudyRequest } from "../event-study";
+import { apiGet, apiPost } from "./client";
 
 /** Phase 7.4: abnormal returns around news of a kind. Association, not cause. */
 export type EventStudyWindow = {
@@ -59,4 +60,12 @@ export function getEventStudy(params: EventStudyParams): Promise<EventStudy> {
     revalidateSeconds: 3600,
     tags: ["bars", "news"],
   });
+}
+
+/**
+ * A4.5: the scan event study, public (no watchlist, presets only). The page
+ * calls `runScanEventStudyAsUser` (`research-server.ts`) when signed in.
+ */
+export function runScanEventStudy(body: ScanStudyRequest): Promise<ScanStudy> {
+  return apiPost<ScanStudy>("/v1/research/scan-event-study", body, { maxAttempts: 1 });
 }
