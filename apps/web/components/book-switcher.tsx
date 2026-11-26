@@ -40,9 +40,16 @@ import { cn } from "@/lib/utils";
  */
 export const IMPORTED_BOOK_NOTE = "Zerodha: not connected · updates from a tradebook (CSV)";
 
-export function rememberBook(book: BookRef): void {
+/**
+ * Remember the chosen book for pages opened without `?book=` (proxy.ts
+ * redirects to it). The default book needs no memory: choosing it clears the
+ * cookie, so default-book URLs stay without `?book=`.
+ */
+export function rememberBook(book: BookRef, isDefault = false): void {
   try {
-    document.cookie = `${BOOK_COOKIE}=${book}; path=/; max-age=${BOOK_COOKIE_MAX_AGE}; samesite=lax`;
+    document.cookie = isDefault
+      ? `${BOOK_COOKIE}=; path=/; max-age=0; samesite=lax`
+      : `${BOOK_COOKIE}=${book}; path=/; max-age=${BOOK_COOKIE_MAX_AGE}; samesite=lax`;
   } catch {
     // A blocked cookie only loses the convenience.
   }
@@ -200,7 +207,7 @@ export function BookSwitcher({ books, limit }: { books: BookSummary[]; limit: nu
                 <Link
                   data-book-item
                   href={switchHref(pathname, query, book.id)}
-                  onClick={() => rememberBook(book.id)}
+                  onClick={() => rememberBook(book.id, book.is_default)}
                   aria-current={
                     selection !== "all" && selection.id === book.id ? "true" : undefined
                   }

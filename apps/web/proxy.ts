@@ -11,6 +11,7 @@ import NextAuth from "next-auth";
 import { NextResponse } from "next/server";
 
 import { authConfig } from "@/auth.config";
+import { BOOK_COOKIE, rememberedBookRedirect } from "@/lib/book-url";
 
 const { auth: proxyAuth } = NextAuth(authConfig);
 
@@ -38,6 +39,24 @@ export default proxyAuth((req) => {
     const promptUrl = new URL("/sign-in-required", req.url);
     promptUrl.searchParams.set("callbackUrl", path);
     return NextResponse.redirect(promptUrl);
+  }
+  // A5.2: a book page opened without `?book=` goes to the remembered book (the
+  // switcher's `sv_book` cookie) with a real redirect, before the page
+  // renders. Done in a page it arrived after the streamed page had loaded, as
+  // a client navigation: the default book showed first and the next
+  // navigation could be aborted. loadBookContext still checks the book is
+  // the user's (an unknown id falls back to the default).
+  const remembered = req.auth
+    ? rememberedBookRedirect(
+        path,
+        req.nextUrl.searchParams.has("book"),
+        req.cookies.get(BOOK_COOKIE)?.value,
+      )
+    : null;
+  if (remembered !== null) {
+    const target = req.nextUrl.clone();
+    target.searchParams.set("book", String(remembered));
+    return NextResponse.redirect(target);
   }
   return NextResponse.next();
 });
