@@ -1481,6 +1481,8 @@ class ValuationHistoryOut(BaseModel):
     points: list[ValuationPointOut]
     # Share of the history at or below the latest value, 0-100.
     percentile: float | None = None
+    # A7.4: the history's 10th/25th/50th/75th/90th percentile levels (nearest rank).
+    bands: dict[str, float] | None = None
 
 
 class ScreenerRowOut(BaseModel):
@@ -5206,3 +5208,33 @@ class ForensicsOut(BaseModel):
     cfo_to_pat: ForensicScoreOut | None = None
     reason: str | None = None
     method: dict[str, str]
+
+
+class ReverseDcfRowOut(BaseModel):
+    wacc: float
+    terminal_growth: float
+    implied_growth: float | None = None
+
+
+class ReverseDcfStepOut(BaseModel):
+    step: str
+    value: float | None = None
+
+
+class ReverseDcfOut(BaseModel):
+    """A7.4 (M5.3): the free-cash-flow growth today's enterprise value implies."""
+
+    ticker: str
+    as_of: date
+    currency: str | None = None
+    implied_growth: float | None = None
+    reason: str | None = None
+    base_fcf: float | None = None
+    base_fcf_source: str
+    wacc: float
+    terminal_growth: float
+    years: int
+    enterprise_value: float | None = None
+    sensitivity: list[ReverseDcfRowOut]
+    reconciliation: list[ReverseDcfStepOut]
+    method: str

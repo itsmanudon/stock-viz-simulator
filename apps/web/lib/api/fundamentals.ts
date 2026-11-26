@@ -35,3 +35,10 @@ export type Forensics = components["schemas"]["ForensicsOut"];
 export function getForensics(ticker: string): Promise<Forensics> {
   return apiGet<Forensics>(`/v1/symbols/${encodeURIComponent(ticker)}/forensics`, CACHE);
 }
+
+export type ReverseDcf = components["schemas"]["ReverseDcfOut"];
+
+/** A7.4 (M5.3): the growth the price implies, at the default inputs. */
+export function getReverseDcf(ticker: string): Promise<ReverseDcf> {
+  return apiGet<ReverseDcf>(`/v1/symbols/${encodeURIComponent(ticker)}/reverse-dcf`, CACHE);
+}
