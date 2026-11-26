@@ -107,7 +107,8 @@ test("a Dhan file imports by its detected map, and an unknown file by the user's
 
   await page.reload();
   await expect(page.getByRole("region", { name: "Your column maps" })).toContainText("My Test Map");
-  await expect(page.getByText(/· your map/)).toBeVisible();
+  // Scoped to the page body: a second copy can sit in a transient overlay.
+  await expect(page.locator("#main").getByText(/· your map/)).toBeVisible();
 });
 
 test("a screen's basket downloads as CSV, with no Kite form without KITE_API_KEY", async ({
