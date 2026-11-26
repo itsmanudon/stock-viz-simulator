@@ -16,6 +16,7 @@ import { ForensicsCard } from "@/components/forensics-card";
 import { FundamentalsPanel } from "@/components/fundamentals-panel";
 import { MobileTradeSheet } from "@/components/mobile-trade-sheet";
 import { NewsList } from "@/components/news-list";
+import { OptionExposureCard } from "@/components/option-exposure-card";
 import { PositionSummary } from "@/components/position-summary";
 import { PriceChart } from "@/components/price-chart";
 import { RelativeStrengthStrip } from "@/components/relative-strength-strip";
@@ -56,6 +57,7 @@ import {
   getValuation,
   getValuationHistory,
 } from "@/lib/api/fundamentals";
+import { getOptionExposure } from "@/lib/api/option-exposure";
 import { planPickerOptions } from "@/lib/api/plans";
 import { getEventStudy } from "@/lib/api/research";
 import {
@@ -262,6 +264,7 @@ export default async function StockPage({
     relativeStrength,
     forensics,
     reverseDcf,
+    exposure,
   ] = await Promise.all([
     barsPromise,
     chartBarsPromise,
@@ -286,6 +289,8 @@ export default async function StockPage({
     getForensics(ticker).catch(() => null),
     // A7.4: the reverse DCF at the default inputs; a failed call drops the card.
     getReverseDcf(ticker).catch(() => null),
+    // A7.9: GEX/DEX from the stored US chain; no chain, no Options tab.
+    getOptionExposure(ticker).catch(() => null),
   ]);
 
   // A6.2: an intraday lookback is whole sessions ("1D" is the last session,
@@ -646,6 +651,11 @@ export default async function StockPage({
               <ReverseDcfCard ticker={ticker} initial={reverseDcf} />
               <ForensicsCard forensics={forensics} />
             </div>
+          }
+          options={
+            exposure && !exposure.reason && exposure.strikes.length ? (
+              <OptionExposureCard exposure={exposure} />
+            ) : undefined
           }
           news={
             <div className="space-y-8">
