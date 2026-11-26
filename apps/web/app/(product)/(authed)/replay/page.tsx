@@ -35,6 +35,7 @@ export default async function ReplayPage({
   return (
     <PageFrame width="workstation" className="py-6 sm:py-8">
       <ResearchPageHeader
+        path="/replay"
         title="Replay"
         description="Stand on a historical replay date. You will not see what happens next. Trades fill at the stored daily close on an isolated replay book."
       />

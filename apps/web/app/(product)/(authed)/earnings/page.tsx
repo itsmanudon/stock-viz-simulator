@@ -38,7 +38,7 @@ export default async function EarningsPage({
   return (
     <PageFrame width="workstation" className="py-5 sm:py-7">
       <PageHeader
-        eyebrow="Research · calendar"
+        eyebrow="Markets · calendar"
         title="Earnings"
         description="Scheduled and reported earnings from the stored provider feed. A result shows only when both reported and estimated EPS exist."
         meta={
