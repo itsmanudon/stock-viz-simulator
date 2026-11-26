@@ -10,6 +10,7 @@
 import {
   Activity,
   AlignJustify,
+  ChartBarStacked,
   ChartNoAxesGantt,
   Equal,
   Lock,
@@ -46,6 +47,7 @@ const ICONS: Record<DrawingKind, LucideIcon> = {
   position_long: TrendingUp,
   position_short: TrendingDown,
   avwap: Activity,
+  volume_profile: ChartBarStacked,
 };
 
 type Props = {

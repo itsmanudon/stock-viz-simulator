@@ -73,7 +73,10 @@ followed a plan written before the first order, not on profit. See
 `trade_plans`) hold every plan: a paper order's ("Plan this trade" on the
 tickets, listed on the Portfolio Journal tab), a replay journal and a drill
 plan; a plan locks at its first fill, and one written after the entry is
-labelled so, never locked.
+labelled so, never locked. The chart workspace (`/charts`, A6.8) shows up
+to four charts with their own symbols, intervals and saved templates, in
+linked colour groups, with saved layouts (`chart_templates`,
+`chart_layouts`).
 
 The web app's look is the **PRISM** redesign (Nov 2026) in the **Liquid Chrome**
 palette: ink black with a polished-metal brand (steel → champagne → silver), a

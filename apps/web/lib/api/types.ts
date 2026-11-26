@@ -46,6 +46,8 @@ export type SymbolDetail = Symbol & {
   is_indian?: boolean;
   /** A6.2: the intraday bars stored for the symbol (best feed), or null. */
   intraday?: IntradayInfo | null;
+  /** A6.7: an index's stored volume is 0, not real: no volume profile. */
+  is_index?: boolean;
 };
 
 /** A6.2: which intraday intervals a symbol has (`SymbolDetailOut.intraday`). */

@@ -17,6 +17,7 @@ from stockviz.models.aegis import (
 from stockviz.models.alert import Alert, AlertDirection, AlertEvent, AlertKind, AlertRepeat
 from stockviz.models.auth_rate_limit import AuthRateLimit
 from stockviz.models.broker_import import BrokerFill, ImportBatch
+from stockviz.models.chart_layout import ChartLayout, ChartTemplate
 from stockviz.models.checklist import ChecklistEvidence, ChecklistScore
 from stockviz.models.corporate_action import CorporateAction, CorporateActionApplication
 from stockviz.models.data_file import DataFile
@@ -109,6 +110,8 @@ __all__ = [
     "BrokerFill",
     "CashBalance",
     "ChannelKind",
+    "ChartLayout",
+    "ChartTemplate",
     "ChecklistEvidence",
     "ChecklistScore",
     "ColumnSet",

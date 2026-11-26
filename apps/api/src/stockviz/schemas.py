@@ -186,6 +186,8 @@ class SymbolDetailOut(BaseModel):
     is_indian: bool = False
     # A6.2: the intraday bars stored for the symbol (default feed), or null.
     intraday: IntradayInfoOut | None = None
+    # A6.7: an index's stored volume is 0, not real, so it has no volume profile.
+    is_index: bool = False
 
 
 class IntradayCoverageOut(BaseModel):
@@ -3878,6 +3880,7 @@ DrawingKind = Literal[
     "position_long",
     "position_short",
     "avwap",
+    "volume_profile",
 ]
 DrawingColour = Literal["aqua", "blue", "violet", "pink", "amber", "lime", "slate", "foreground"]
 
@@ -3995,6 +3998,43 @@ class AvwapOut(BaseModel):
     feed: str | None = None
     decimals: int
     points: list[AvwapPointOut]
+
+
+class VolumeProfileBinOut(BaseModel):
+    low: Decimal
+    high: Decimal
+    # The volume spread into this price slice (a share of each bar's volume).
+    volume: float
+
+
+class VolumeProfileOut(BaseModel):
+    """A6.7 (M2.9): ``GET /v1/symbols/{ticker}/volume-profile``.
+
+    ``bins`` run from the lowest price up. ``poc`` is the middle of the bin with
+    the most volume; ``vah``/``val`` bound the value area (``value_area`` of the
+    volume, 0.7 by default). ``source`` is ``minutes`` (stored 1-minute bars on
+    ``feed``) or ``daily`` (an EOD approximation). ``from``/``to`` are the range
+    read, naive UTC.
+    """
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    ticker: str
+    source: Literal["minutes", "daily"]
+    feed: str | None = None
+    from_: datetime = Field(alias="from")
+    to: datetime
+    bars: int
+    bins: list[VolumeProfileBinOut]
+    poc: Decimal
+    poc_index: int
+    vah: Decimal
+    val: Decimal
+    value_area: float
+    total_volume: float
+    value_volume: float
+    badges: list[str]
+    note: str
 
 
 # ---------------------------------------------------------------------------
@@ -4901,3 +4941,81 @@ class EdgeStatsOut(BaseModel):
     drift: list[EdgeDriftOut]
     imported_fees_estimated: bool
     honesty: list[str]
+
+
+# ---------------------------------------------------------------------------
+# Chart templates and layouts (A6.8, M2.10)
+# ---------------------------------------------------------------------------
+
+ChartTypeKey = Literal["candles", "hollow", "bars", "line", "area", "heikin-ashi"]
+ChartScaleKey = Literal["linear", "log", "percent"]
+ChartIntervalKey = Literal["1d", "1wk", "1mo", "1m", "5m", "15m", "30m", "60m"]
+ChartGridKey = Literal["1", "2v", "2h", "4"]
+LinkColourKey = Literal["aqua", "blue", "violet", "pink", "amber", "lime", "slate"]
+
+
+class ChartTemplateIn(BaseModel):
+    name: str = Field(min_length=1, max_length=64)
+    chart_type: ChartTypeKey = "candles"
+    scale: ChartScaleKey = "linear"
+    indicators: list[str] = Field(default_factory=list, max_length=16)
+    """Indicator registry keys with their parameters (``sma_50``, ``bb_20_2``)."""
+    pane_heights: dict[str, int] = Field(default_factory=dict)
+    """Pixels by pane kind (``price``, ``volume``, ``rsi``...), 48 to 1200."""
+
+
+class ChartTemplatePatch(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=64)
+    chart_type: ChartTypeKey | None = None
+    scale: ChartScaleKey | None = None
+    indicators: list[str] | None = Field(default=None, max_length=16)
+    pane_heights: dict[str, int] | None = None
+
+
+class ChartTemplateOut(BaseModel):
+    id: int
+    name: str
+    chart_type: ChartTypeKey
+    scale: ChartScaleKey
+    indicators: list[str]
+    pane_heights: dict[str, int]
+    created_at: datetime
+    updated_at: datetime
+
+
+class ChartPaneIn(BaseModel):
+    symbol: str = Field(min_length=1, max_length=32)
+    interval: ChartIntervalKey = "1d"
+    template_id: int | None = None
+    link: LinkColourKey | None = None
+    """The link colour; null is unlinked."""
+
+
+class ChartPaneOut(BaseModel):
+    symbol: str
+    interval: ChartIntervalKey
+    template_id: int | None
+    """Null when the pane has the default look or its template was deleted."""
+    link: LinkColourKey | None
+
+
+class ChartLayoutIn(BaseModel):
+    name: str = Field(min_length=1, max_length=64)
+    grid: ChartGridKey = "1"
+    panes: list[ChartPaneIn] = Field(min_length=1, max_length=4)
+    """One per grid cell in reading order: 1, 2 (``2v``, ``2h``) or 4."""
+
+
+class ChartLayoutPatch(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=64)
+    grid: ChartGridKey | None = None
+    panes: list[ChartPaneIn] | None = Field(default=None, min_length=1, max_length=4)
+
+
+class ChartLayoutOut(BaseModel):
+    id: int
+    name: str
+    grid: ChartGridKey
+    panes: list[ChartPaneOut]
+    created_at: datetime
+    updated_at: datetime
