@@ -7,6 +7,7 @@ import { AuthedApiError, UnauthenticatedError } from "@/lib/api/server";
 import { createOrder, postTrade } from "@/lib/api/trading";
 import { bookIdFromForm } from "@/lib/book-url";
 import { REVIEW_REQUIRED_ERROR, clientOrderIdFrom, skippedReview } from "@/lib/order-review";
+import { planFromForm } from "@/lib/plans";
 
 const TradeSchema = z.object({
   ticker: z
@@ -52,6 +53,8 @@ export type TradeFormState = {
     /** A4.2: fees on the fill and the amount after them (null: none charged). */
     fees?: string | null;
     net_native?: string | null;
+    /** A5.4: the fill was linked to a plan (which locked at it). */
+    planned?: boolean;
   };
 };
 
@@ -73,6 +76,9 @@ export async function placeTradeAction(
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
   }
+  // A5.4: "Plan this trade" posts the plan with the order (buys only).
+  const plan = parsed.data.side === "buy" ? planFromForm(formData) : null;
+  if (plan && "error" in plan) return { error: plan.error };
 
   try {
     const trade = await postTrade(
@@ -81,6 +87,7 @@ export async function placeTradeAction(
         side: parsed.data.side,
         quantity: parsed.data.quantity,
         client_order_id: clientOrderIdFrom(formData),
+        plan,
       },
       bookIdFromForm(formData),
     );
@@ -100,6 +107,7 @@ export async function placeTradeAction(
         total_usd: trade.total_usd,
         fees: trade.fees ?? null,
         net_native: trade.net_native ?? null,
+        planned: Boolean(trade.trade_plan_id),
       },
     };
   } catch (err) {
@@ -135,10 +143,12 @@ export async function placeOrderAction(
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
   }
+  const plan = parsed.data.side === "buy" ? planFromForm(formData) : null;
+  if (plan && "error" in plan) return { error: plan.error };
 
   try {
     const order = await createOrder(
-      { ...parsed.data, client_order_id: clientOrderIdFrom(formData) },
+      { ...parsed.data, client_order_id: clientOrderIdFrom(formData), plan },
       bookIdFromForm(formData),
     );
     revalidatePath("/orders");
@@ -146,7 +156,7 @@ export async function placeOrderAction(
     revalidatePath(`/stocks/${parsed.data.ticker}`);
     const label = order.order_type.replace("_", " ");
     return {
-      success: `${label.charAt(0).toUpperCase() + label.slice(1)} order placed: ${order.side.toUpperCase()} ${order.quantity} ${order.ticker} @ $${Number(order.limit_price).toFixed(2)}`,
+      success: `${label.charAt(0).toUpperCase() + label.slice(1)} order placed: ${order.side.toUpperCase()} ${order.quantity} ${order.ticker} @ $${Number(order.limit_price).toFixed(2)}${order.trade_plan_id ? ". Its plan locks when it fills" : ""}`,
     };
   } catch (err) {
     if (err instanceof UnauthenticatedError) {

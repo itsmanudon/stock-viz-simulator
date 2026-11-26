@@ -24,6 +24,7 @@ export default async function PortfolioPage({ searchParams }: { searchParams: Pr
     options: tab === "options",
     goal: parseGoal(params.goal),
     book: books.book,
+    plansBook: books.isAll ? null : (books.selected?.id ?? null),
   });
 
   return (

@@ -16,7 +16,7 @@
 
 import { CircleCheck, Clock3 } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { type ReactNode, useEffect, useState, useSyncExternalStore } from "react";
 
 import { LimitPreviewRows } from "@/components/limit-preview";
 import { Button } from "@/components/ui/button";
@@ -95,7 +95,10 @@ export function OrderReview({
   notional,
   account,
   availableQuantity,
+  plan = null,
 }: {
+  /** A5.4: the ticket's plan (`PlanReview`), shown under the order. */
+  plan?: ReactNode;
   mode: OrderMode;
   side: Side;
   ticker: string;
@@ -279,6 +282,8 @@ export function OrderReview({
           <dd className="mt-1 leading-5">{describeFillRule(mode)}</dd>
         </div>
       </dl>
+
+      {plan}
 
       {side === "buy" && (mode === "market" || mode === "limit") ? (
         <LimitPreviewRows ticker={ticker} quantity={quantity} />

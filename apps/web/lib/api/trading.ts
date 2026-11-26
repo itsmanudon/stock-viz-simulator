@@ -3,6 +3,7 @@ import "server-only";
 import type { OptionGreeks } from "./option-quote";
 
 import type { BookRef } from "@/lib/book-url";
+import type { TradePlanDraft } from "@/lib/plans";
 import { withBook } from "./books";
 import { authedDelete, authedGet, authedPost, authedPut } from "./server";
 
@@ -163,6 +164,8 @@ export type TradeRow = {
   realized_pnl_net?: string | null;
   /** A5.2: the trade's book. */
   book_id?: number | null;
+  /** A5.4: the plan the fill belongs to. */
+  trade_plan_id?: number | null;
 };
 
 export type TradeFeeLine = {
@@ -180,6 +183,9 @@ export type TradeInput = {
   quantity: string;
   /** Repeats with the same key return the first fill (#67). */
   client_order_id?: string;
+  /** A5.4: link the fill to a plan, or write a new one with the order (buys only). */
+  trade_plan_id?: number | null;
+  plan?: TradePlanDraft | null;
 };
 
 export function getPortfolio(book?: BookArg): Promise<Portfolio> {
@@ -319,6 +325,8 @@ export type PendingOrder = {
   cancel_reason: string | null;
   /** A5.2: the order's book. */
   portfolio_id?: number | null;
+  /** A5.4: the plan its fill will link to. */
+  trade_plan_id?: number | null;
 };
 
 export type PendingOrderInput = {
@@ -329,6 +337,9 @@ export type PendingOrderInput = {
   limit_price: string;
   /** Repeats with the same key return the first order (#67). */
   client_order_id?: string;
+  /** A5.4: the plan the order's fill links to (buys only). */
+  trade_plan_id?: number | null;
+  plan?: TradePlanDraft | null;
 };
 
 export function listOrders(status?: OrderStatus, book?: BookArg): Promise<PendingOrder[]> {

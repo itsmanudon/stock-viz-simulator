@@ -4,6 +4,7 @@ import { BookStateNotice, CombinedBooksPanel, PerBookOnly } from "@/components/b
 import { JournalPanel } from "@/components/journal/journal-panel";
 import { NewsList } from "@/components/news-list";
 import { ExpirationView, OptionsGreeks } from "@/components/options-book";
+import { TradePlansPanel } from "@/components/plans/trade-plans-panel";
 import { PortfolioInsights } from "@/components/portfolio-analytics";
 import { PortfolioEmptyState } from "@/components/portfolio-empty-state";
 import { PortfolioAttributionPanel, PortfolioExposurePanel } from "@/components/portfolio-exposure";
@@ -33,6 +34,7 @@ import type {
 } from "@/lib/api/trading";
 import type { NewsArticle } from "@/lib/api/types";
 import { tradeBlockReason } from "@/lib/book-url";
+import type { TradePlan } from "@/lib/plans";
 import type { PortfolioRange, PortfolioTab } from "@/lib/portfolio-view-model";
 
 type Props = {
@@ -58,6 +60,8 @@ type Props = {
   optionsBook?: OptionsBook | null;
   /** Phase 9.5: strategies (Options tab). */
   strategies?: OptionStrategy[] | null;
+  /** A5.4: the book's trade plans (Journal tab; null when not loaded or failed). */
+  plans?: TradePlan[] | null;
   /** A5.2: the selected book, or All books (per-book panels then say so). */
   bookContext?: { book: number | "all" | null; selected: Book | null; isAll: boolean };
 };
@@ -79,6 +83,7 @@ export function PortfolioWorkspace({
   goal = null,
   optionsBook = null,
   strategies = null,
+  plans = null,
   bookContext,
 }: Props) {
   const isAll = bookContext?.isAll ?? false;
@@ -192,13 +197,26 @@ export function PortfolioWorkspace({
                Next requires to sit under a Suspense boundary — without one the
                whole tab subtree silently fails to hydrate and every calendar
                cell becomes inert HTML. */
-              <Suspense fallback={<JournalPanelFallback />}>
-                <JournalPanel
-                  initialMonthKey={journalMonthKey}
-                  initialMonth={journalMonth}
-                  initialError={journalFailed}
+              <div className="space-y-8">
+                <TradePlansPanel
+                  plans={plans}
+                  bookId={selected?.id ?? null}
+                  writable={selected?.writable ?? true}
+                  positions={portfolio.positions.map((p) => ({
+                    ticker: p.ticker,
+                    quantity: p.quantity,
+                    avgCost: p.avg_cost,
+                    currency: p.currency,
+                  }))}
                 />
-              </Suspense>
+                <Suspense fallback={<JournalPanelFallback />}>
+                  <JournalPanel
+                    initialMonthKey={journalMonthKey}
+                    initialMonth={journalMonth}
+                    initialError={journalFailed}
+                  />
+                </Suspense>
+              </div>
             )
           }
           analytics={

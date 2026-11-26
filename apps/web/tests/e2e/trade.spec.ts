@@ -210,6 +210,34 @@ test("operational trading loop from ticket to orders, watchlist, alerts, and rep
     { timeout: 10_000 },
   );
 
+  // A5.4: plan the next MSFT buy on the ticket. The review shows the plan's
+  // risk and R:R, and the plan locks at the fill.
+  await main.getByRole("button", { name: "New order" }).click();
+  await main.getByLabel("Quantity").fill("3");
+  await main.getByRole("checkbox", { name: /Plan this trade/ }).check();
+  const ticketPlan = main.getByTestId("ticket-plan");
+  await expect(ticketPlan.getByLabel("Size (shares)")).toHaveValue("3");
+  const plannedEntry = Number(await ticketPlan.getByLabel("Planned entry").inputValue());
+  expect(plannedEntry).toBeGreaterThan(5);
+  await ticketPlan.getByLabel("Stop", { exact: true }).fill((plannedEntry - 5).toFixed(2));
+  await ticketPlan.getByLabel("Target (optional)").fill((plannedEntry + 15).toFixed(2));
+  await ticketPlan.getByLabel("Tags").fill("e2e");
+  await main.getByRole("button", { name: /Review market buy/i }).click();
+  const reviewPlan = main.getByTestId("review-plan");
+  await expect(reviewPlan).toContainText("Risk if stopped");
+  await expect(reviewPlan).toContainText("3.00 : 1");
+  await main.getByRole("button", { name: /Place market buy/i }).click();
+  await expect(main.getByRole("region", { name: "Order ticket" }).locator("output")).toContainText(
+    /Filled BUY 3(\.0+)? MSFT/,
+    { timeout: 10_000 },
+  );
+  const secondBook = new URL(page.url()).searchParams.get("book");
+  await page.goto(`/portfolio?tab=journal&book=${secondBook}`);
+  const lockedPlan = main.getByTestId("plan-row").first();
+  await expect(lockedPlan).toContainText("MSFT");
+  await expect(lockedPlan.getByTestId("plan-badge")).toHaveText("Locked");
+  await page.goto(`/trade?ticker=MSFT&book=${secondBook}`);
+
   // The default book still holds only its own fills.
   await switcher.click();
   await page
@@ -220,6 +248,21 @@ test("operational trading loop from ticket to orders, watchlist, alerts, and rep
   await page.goto(page.url().replace("/trade?", "/trades?"));
   await expect(main.getByRole("table")).toContainText("AAPL");
   await expect(main.getByRole("table")).not.toContainText("MSFT");
+
+  // A5.4: the default book's AAPL was bought without a plan. A plan written
+  // for it now is labelled "written after entry", never locked.
+  await page.goto(page.url().replace("/trades?", "/portfolio?tab=journal&"));
+  const lateForm = main.getByTestId("plan-open-position");
+  await lateForm.locator("summary").click();
+  await lateForm.getByLabel("Position").selectOption("AAPL");
+  const lateEntry = Number(await lateForm.getByLabel("Entry").inputValue());
+  await lateForm.getByLabel("Stop", { exact: true }).fill((lateEntry - 5).toFixed(2));
+  await lateForm.getByRole("button", { name: "Save plan" }).click();
+  // The holding has a plan now, so the form leaves and the row arrives.
+  const latePlan = main.getByTestId("plan-row").filter({ hasText: "AAPL" });
+  await expect(latePlan.getByTestId("plan-badge")).toHaveText("Written after entry", {
+    timeout: 10_000,
+  });
 
   // All books: both fills, each naming its book, and the combined portfolio.
   await switcher.click();

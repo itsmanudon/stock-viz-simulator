@@ -27,11 +27,13 @@ import {
 import { OrderConfirmation, OrderReview, useHydrated } from "@/components/order-review";
 import { OrderSideToggle } from "@/components/order-side-toggle";
 import { type TicketBook, TicketBookLine } from "@/components/ticket-book-line";
+import { PlanReview, type TicketPlanOptions, TicketPlanSection } from "@/components/ticket-plan";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { compareDecimalStrings, multiplyDecimalStrings } from "@/lib/decimal-math";
 import { type TradeOrderMode, orderTypeLabel } from "@/lib/operational-trading";
+import { emptyPlanForm } from "@/lib/plans";
 import { formatCurrency, formatQuantity } from "@/lib/portfolio-view-model";
 import { formatCloseDate } from "@/lib/stock-workspace";
 
@@ -61,6 +63,8 @@ type Props = {
   book?: TicketBook | null;
   /** Why this ticket can't trade here (All books, archived, imported); null = it can. */
   blockedReason?: string | null;
+  /** A5.4: setups and open theses for "Plan this trade" (null: pickers empty). */
+  planOptions?: TicketPlanOptions | null;
 };
 
 function triggerCopy(mode: TradeOrderMode, side: "buy" | "sell"): string {
@@ -89,6 +93,7 @@ export function OrderTicket({
   displayCurrency,
   book = null,
   blockedReason = null,
+  planOptions = null,
 }: Props) {
   const router = useRouter();
   const pathname = usePathname();
@@ -104,6 +109,7 @@ export function OrderTicket({
   const [quantity, setQuantity] = useState("1");
   const [limitPrice, setLimitPrice] = useState("");
   const [reviewing, setReviewing] = useState(false);
+  const [plan, setPlan] = useState(emptyPlanForm);
   // The action state keeps its last success until the next submit, so the
   // confirmation remembers which result was already dismissed.
   const [dismissed, setDismissed] = useState<unknown>(null);
@@ -139,6 +145,7 @@ export function OrderTicket({
   function syncTicker(next: string) {
     setTicker(next);
     setReviewing(false);
+    setPlan(emptyPlanForm());
     // Keep the other parameters (A5.2: `book`).
     const params = new URLSearchParams(searchParams?.toString() ?? "");
     params.set("ticker", next);
@@ -165,7 +172,11 @@ export function OrderTicket({
   function startNewOrder() {
     setDismissed(activeState);
     setReviewing(false);
+    setPlan(emptyPlanForm());
   }
+  // A5.4: a plan goes with a buy (market or limit); stops are sells.
+  const canPlan = effectiveSide === "buy" && (mode === "market" || mode === "limit");
+  const activePlan = canPlan ? plan : { ...plan, enabled: false };
 
   return (
     <section
@@ -222,6 +233,14 @@ export function OrderTicket({
               notional={estimate ? Number(estimate) : null}
               account={{ displayCurrency, availableCash: Number(availableCash) }}
               availableQuantity={Number(position?.availableQuantity ?? 0)}
+              plan={
+                <PlanReview
+                  form={activePlan}
+                  currency={currency}
+                  quantity={quantity}
+                  options={planOptions}
+                />
+              }
             />
           ) : (
             <>
@@ -339,6 +358,18 @@ export function OrderTicket({
                     required
                   />
                 </div>
+              ) : null}
+
+              {canPlan ? (
+                <TicketPlanSection
+                  form={plan}
+                  onChange={setPlan}
+                  ticker={ticker}
+                  currency={currency}
+                  referencePrice={referencePrice || null}
+                  quantity={quantity}
+                  options={planOptions}
+                />
               ) : null}
 
               <p className="rounded-md border border-border-muted bg-surface-secondary/50 p-3 text-sm">
