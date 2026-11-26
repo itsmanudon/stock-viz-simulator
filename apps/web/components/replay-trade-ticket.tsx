@@ -13,9 +13,9 @@ import { Label } from "@/components/ui/label";
 import { formatCurrency, formatQuantity } from "@/lib/portfolio-view-model";
 import {
   REPLAY_ORDER_TYPES,
-  REPLAY_PROFILE_LABEL,
   type ReplayTicketOrderType,
   replayOrderTypeLabel,
+  replayProfileLabel,
 } from "@/lib/replay";
 import { titleCase } from "@/lib/title-case";
 import { cn } from "@/lib/utils";
@@ -34,6 +34,8 @@ export function ReplayTradeTicket({
   tradable = true,
   feeSchedule = "none",
   target = "replay",
+  profileName = "legacy_close",
+  profileVersion = "v1",
 }: {
   /** The replay session's id, or the drill's when `target` is "drill". */
   sessionId: number;
@@ -50,6 +52,9 @@ export function ReplayTradeTicket({
   feeSchedule?: string;
   /** A4.7: orders for a drill go through `/v1/drills/{id}/orders`. */
   target?: "replay" | "drill";
+  /** A6.9: the session's profile (`legacy_close` or `intrabar_ohlc`). */
+  profileName?: string;
+  profileVersion?: string;
 }) {
   const fieldId = useId();
   const [side, setSide] = useState<Side>(initialSide);
@@ -59,15 +64,24 @@ export function ReplayTradeTicket({
     const value = Number(currentClose);
     return Number.isFinite(value) ? String(value) : currentClose;
   });
-  const resting = orderType !== "market";
+  const [entryType, setEntryType] = useState<"market" | "limit">("market");
+  const [stop, setStop] = useState(() => defaultLevel(currentClose, 0.95));
+  const [targetPrice, setTargetPrice] = useState(() => defaultLevel(currentClose, 1.05));
+  const bracket = orderType === "bracket";
+  const intrabar = profileName === "intrabar_ohlc";
+  const resting = orderType !== "market" && !(bracket && entryType === "market");
   const sellOnly = orderType === "stop_loss" || orderType === "take_profit";
-  const effectiveSide: Side = sellOnly ? "sell" : side;
+  const effectiveSide: Side = sellOnly ? "sell" : bracket ? "buy" : side;
+  const checked = intrabar ? "each later bar's range, the open first" : "each later close";
   const [state, action, pending] = useActionState<ReplayActionState, FormData>(
     submitReplayOrderAction,
     {},
   );
   useOutcomeSound(state.status, state.error, "fill");
   const close = Number(resting ? price : currentClose);
+  const bracketProblem = bracket
+    ? bracketLevelsProblem(resting ? price : currentClose, stop, targetPrice)
+    : null;
   const qty = Number(quantity);
   const notional = Number.isFinite(close) && Number.isFinite(qty) ? close * qty : null;
   const money = (value: string | number) => formatCurrency(value, currency);
@@ -82,8 +96,9 @@ export function ReplayTradeTicket({
           {ticker} replay ticket
         </h2>
         <p className="mt-1 text-xs leading-5 text-text-tertiary">
-          A market order fills at this session&apos;s stored daily close. A limit or stop order
-          rests and is checked against each later close as you step. Not live paper trading.
+          A market order fills at this session&apos;s stored close. A limit or stop order rests and
+          is checked against {checked} as you step. A bracket buys with a stop and a target that
+          cancel each other. Not live paper trading.
           {feeSchedule !== "none" ? " Fills pay the exchange's dated delivery charges." : ""}
         </p>
       </div>
@@ -107,6 +122,7 @@ export function ReplayTradeTicket({
           <input type="hidden" name="target" value={target} />
           <input type="hidden" name="side" value={effectiveSide} />
           <input type="hidden" name="order_type" value={orderType} />
+          {bracket ? <input type="hidden" name="entry_type" value={entryType} /> : null}
           <div className="space-y-1.5">
             <Label htmlFor={`${fieldId}-type`}>Order type</Label>
             <select
@@ -142,8 +158,9 @@ export function ReplayTradeTicket({
               type="button"
               onClick={() => setSide("sell")}
               aria-pressed={effectiveSide === "sell"}
+              disabled={bracket}
               className={cn(
-                "h-10 rounded-md border text-sm font-semibold",
+                "h-10 rounded-md border text-sm font-semibold disabled:opacity-40",
                 effectiveSide === "sell"
                   ? "border-negative/40 bg-negative/10 text-negative"
                   : "border-border-muted text-text-secondary",
@@ -165,10 +182,25 @@ export function ReplayTradeTicket({
               onChange={(event) => setQuantity(event.target.value)}
             />
           </div>
+          {bracket ? (
+            <div className="space-y-1.5">
+              <Label htmlFor={`${fieldId}-entry`}>Entry</Label>
+              <select
+                id={`${fieldId}-entry`}
+                value={entryType}
+                onChange={(event) => setEntryType(event.target.value as "market" | "limit")}
+                className="h-9 w-full rounded-md border border-border-muted bg-background px-2 text-sm"
+                data-testid="replay-bracket-entry"
+              >
+                <option value="market">Market, at this close</option>
+                <option value="limit">Limit, resting</option>
+              </select>
+            </div>
+          ) : null}
           {resting ? (
             <div className="space-y-1.5">
               <Label htmlFor={`${fieldId}-price`}>
-                {orderType === "limit" ? "Limit price" : "Trigger price"} ({currency})
+                {orderType === "limit" || bracket ? "Limit price" : "Trigger price"} ({currency})
               </Label>
               <Input
                 id={`${fieldId}-price`}
@@ -182,15 +214,59 @@ export function ReplayTradeTicket({
                 data-testid="replay-limit-price"
               />
               <p className="text-2xs text-text-tertiary">
-                {orderType === "limit"
-                  ? effectiveSide === "buy"
-                    ? "Fills at a later close at or below this price."
-                    : "Fills at a later close at or above this price."
-                  : orderType === "stop_loss"
-                    ? "Sells at a later close at or below this price."
-                    : "Sells at a later close at or above this price."}{" "}
+                {restingHelp(
+                  orderType === "bracket" ? "limit" : orderType,
+                  effectiveSide,
+                  intrabar,
+                )}{" "}
                 Checked from the next bar on; nothing is reserved.
               </p>
+            </div>
+          ) : null}
+          {bracket ? (
+            <div className="space-y-3" data-testid="replay-bracket-legs">
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1.5">
+                  <Label htmlFor={`${fieldId}-stop`}>Stop ({currency})</Label>
+                  <Input
+                    id={`${fieldId}-stop`}
+                    name="stop_price"
+                    type="number"
+                    min="0"
+                    step="any"
+                    required
+                    value={stop}
+                    onChange={(event) => setStop(event.target.value)}
+                    data-testid="replay-bracket-stop"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor={`${fieldId}-target`}>Target ({currency})</Label>
+                  <Input
+                    id={`${fieldId}-target`}
+                    name="target_price"
+                    type="number"
+                    min="0"
+                    step="any"
+                    required
+                    value={targetPrice}
+                    onChange={(event) => setTargetPrice(event.target.value)}
+                    data-testid="replay-bracket-target"
+                  />
+                </div>
+              </div>
+              <p className="text-2xs leading-4 text-text-tertiary">
+                The stop and the target rest once the entry fills, from the next bar, and one
+                cancels the other.{" "}
+                {intrabar
+                  ? "When both are inside one bar, the stored minutes decide; without minutes the stop fills first, labelled."
+                  : "Both are checked on each later close."}
+              </p>
+              {bracketProblem ? (
+                <p className="text-xs text-negative" data-testid="replay-bracket-problem">
+                  {bracketProblem}
+                </p>
+              ) : null}
             </div>
           ) : null}
           <dl className="space-y-1.5 text-xs text-text-tertiary">
@@ -216,7 +292,7 @@ export function ReplayTradeTicket({
             </div>
             <div className="flex justify-between gap-3">
               <dt>Execution</dt>
-              <dd>Current stored daily close · {REPLAY_PROFILE_LABEL}</dd>
+              <dd>Current stored close · {replayProfileLabel(profileName, profileVersion)}</dd>
             </div>
           </dl>
           {state.error ? (
@@ -232,24 +308,68 @@ export function ReplayTradeTicket({
           ) : null}
           {state.placed ? (
             <output className="block text-sm text-foreground" data-testid="replay-order-placed">
-              Placed {replayOrderTypeLabel(state.orderType ?? "").toLowerCase()} {state.side}{" "}
-              {formatQuantity(state.quantity ?? "0")} {ticker} at {money(state.limitPrice ?? "0")}.
-              It is checked from the next bar.
+              {state.orderType === "bracket"
+                ? `Placed bracket buy ${formatQuantity(state.quantity ?? "0")} ${ticker}: entry ${money(state.limitPrice ?? "0")}, stop ${money(state.stopPrice ?? "0")}, target ${money(state.targetPrice ?? "0")}.`
+                : `Placed ${replayOrderTypeLabel(state.orderType ?? "").toLowerCase()} ${state.side} ${formatQuantity(state.quantity ?? "0")} ${ticker} at ${money(state.limitPrice ?? "0")}. It is checked from the next bar.`}
             </output>
           ) : null}
           <Button
             type="submit"
-            disabled={pending || !(qty > 0) || (resting && !(Number(price) > 0))}
+            disabled={
+              pending ||
+              !(qty > 0) ||
+              (resting && !(Number(price) > 0)) ||
+              (bracket && bracketProblem !== null)
+            }
             className="w-full"
           >
             {pending
               ? "Submitting…"
-              : resting
-                ? `Place ${replayOrderTypeLabel(orderType).toLowerCase()} ${effectiveSide}`
-                : `Submit market ${effectiveSide}`}
+              : bracket
+                ? "Place bracket buy"
+                : resting
+                  ? `Place ${replayOrderTypeLabel(orderType).toLowerCase()} ${effectiveSide}`
+                  : `Submit market ${effectiveSide}`}
           </Button>
         </form>
       )}
     </section>
   );
+}
+
+function defaultLevel(close: string, factor: number): string {
+  const value = Number(close) * factor;
+  return Number.isFinite(value) ? String(Math.round(value * 100) / 100) : "";
+}
+
+/** Why a bracket's levels cannot be placed, or null (the API checks the same). */
+export function bracketLevelsProblem(entry: string, stop: string, target: string): string | null {
+  const e = Number(entry);
+  const s = Number(stop);
+  const t = Number(target);
+  if (!(s > 0) || !(t > 0)) return "Enter a positive stop and target.";
+  if (!(e > 0)) return null;
+  if (!(s < e && e < t)) return "The stop must be below the entry and the target above it.";
+  return null;
+}
+
+function restingHelp(orderType: string, side: "buy" | "sell", intrabar: boolean): string {
+  if (intrabar) {
+    if (orderType === "limit") {
+      return side === "buy"
+        ? "Fills when a later bar trades at or below this price (at the open if it opens there)."
+        : "Fills when a later bar trades at or above this price (at the open if it opens there).";
+    }
+    return orderType === "stop_loss"
+      ? "Sells when a later bar trades at or below this price (at the open on a gap)."
+      : "Sells when a later bar trades at or above this price (at the open on a gap).";
+  }
+  if (orderType === "limit") {
+    return side === "buy"
+      ? "Fills at a later close at or below this price."
+      : "Fills at a later close at or above this price.";
+  }
+  return orderType === "stop_loss"
+    ? "Sells at a later close at or below this price."
+    : "Sells at a later close at or above this price.";
 }

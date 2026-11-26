@@ -17,13 +17,14 @@ import type {
 } from "@/lib/drills";
 
 import { toApiPoints } from "./drawings";
-import type {
-  ReplayDrawingInput,
-  ReplayEvents,
-  ReplayOrder,
-  ReplayOrderInput,
-  ReplaySession,
-  ReplaySubmit,
+import {
+  type ReplayDrawingInput,
+  type ReplayEvents,
+  type ReplayOrder,
+  type ReplayOrderInput,
+  type ReplaySession,
+  type ReplaySubmit,
+  replayOrderBody,
 } from "./replay";
 import { authedDelete, authedGet, authedPatch, authedPost, authedPut } from "./server";
 import type { Indicators } from "./types";
@@ -53,13 +54,7 @@ export function putDrillPlan(drillId: number, body: DrillPlanInput): Promise<Dri
 }
 
 export function submitDrillOrder(drillId: number, body: ReplayOrderInput): Promise<ReplaySubmit> {
-  const orderType = body.order_type ?? "market";
-  return authedPost(`/v1/drills/${drillId}/orders`, {
-    side: body.side,
-    order_type: orderType,
-    quantity: body.quantity,
-    ...(orderType === "market" ? {} : { limit_price: body.limit_price }),
-  });
+  return authedPost(`/v1/drills/${drillId}/orders`, replayOrderBody(body));
 }
 
 export function cancelDrillOrder(drillId: number, orderId: number): Promise<ReplayOrder> {

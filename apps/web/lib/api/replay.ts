@@ -25,6 +25,9 @@ export type ReplaySessionList = {
   created_at: string;
   /** A4.6: the book's currency (the symbol's). */
   currency: string;
+  /** A6.9: the session's bars ("1d", or "1m"/"5m"/"15m"/"60m" from stored minutes). */
+  interval: string;
+  profile_name: string;
 };
 
 export type ReplayPosition = {
@@ -34,7 +37,6 @@ export type ReplayPosition = {
 };
 
 export type ReplaySession = ReplaySessionList & {
-  profile_name: string;
   model_version: string;
   completed_at: string | null;
   updated_at: string;
@@ -44,6 +46,10 @@ export type ReplaySession = ReplaySessionList & {
   /** False for an index session: watch, draw and study, no orders. */
   tradable: boolean;
   open_orders: number;
+  /** A6.9: the minute feed of an intraday session (null for daily). */
+  feed?: string | null;
+  /** A6.9: the session profile's assumptions, from the API's profile registry. */
+  profile_assumptions?: string[];
 };
 
 export type ReplayBar = {
@@ -97,13 +103,20 @@ export type ReplayOrder = {
   session_id: number;
   ticker: string;
   side: "buy" | "sell";
-  order_type: ReplayOrderType;
+  /** A6.9: "bracket" is a bracket's entry; its stop and target carry `parent_id`. */
+  order_type: ReplayOrderType | "bracket";
   quantity: string;
   limit_price: string;
-  status: "open" | "filled" | "cancelled" | "rejected" | "expired";
+  /** A6.9: "pending" is a bracket child waiting for its entry to fill. */
+  status: "pending" | "open" | "filled" | "cancelled" | "rejected" | "expired";
   placed_at: string;
   resolved_at: string | null;
   reason: string | null;
+  parent_id?: number | null;
+  /** The entry's id, shared by the entry, its stop and its target. */
+  oco_group?: number | null;
+  /** The stop filled first because the stop and target were both inside one bar. */
+  order_inside_bar_unknown?: boolean;
 };
 
 export type ReplayDecision = {
@@ -124,6 +137,8 @@ export type ReplaySubmit = {
   decision: ReplayDecision | null;
   fill: ReplayFill | null;
   order: ReplayOrder | null;
+  /** A6.9: a bracket's stop and target (`order` is its entry). */
+  children?: ReplayOrder[];
 };
 
 export type ReplaySummary = {
@@ -160,22 +175,59 @@ export type ReplayAvailability = {
   default_starting_cash: string;
   fee_schedule: string;
   tradable: boolean;
+  /** A6.9: "1d" plus the intraday intervals when minutes are stored. */
+  intervals?: string[];
+  minute_feed?: string | null;
+  minute_first?: string | null;
+  minute_last?: string | null;
 };
+
+export type ReplayInterval = "1d" | "1m" | "5m" | "15m" | "60m";
+export type ReplayProfileName = "legacy_close" | "intrabar_ohlc";
 
 export type ReplayCreateInput = {
   ticker: string;
   start_at: string;
   end_at?: string | null;
   starting_cash?: string;
+  interval?: ReplayInterval;
+  profile?: ReplayProfileName;
 };
 
 export type ReplayOrderInput = {
   side: "buy" | "sell";
-  order_type?: "market" | ReplayOrderType;
+  order_type?: "market" | ReplayOrderType | "bracket";
   quantity: string;
-  /** The limit or trigger price; required for a resting order. */
+  /** The limit or trigger price; required for a resting order (and a limit bracket entry). */
   limit_price?: string;
+  /** A6.9: a bracket's entry, stop and target. */
+  entry_type?: "market" | "limit";
+  stop_price?: string;
+  target_price?: string;
 };
+
+/** The JSON body of an order (shared with the drill routes). */
+export function replayOrderBody(body: ReplayOrderInput): Record<string, string | undefined> {
+  const orderType = body.order_type ?? "market";
+  if (orderType === "bracket") {
+    const entry = body.entry_type ?? "market";
+    return {
+      side: "buy",
+      order_type: "bracket",
+      quantity: body.quantity,
+      entry_type: entry,
+      stop_price: body.stop_price,
+      target_price: body.target_price,
+      ...(entry === "limit" ? { limit_price: body.limit_price } : {}),
+    };
+  }
+  return {
+    side: body.side,
+    order_type: orderType,
+    quantity: body.quantity,
+    ...(orderType === "market" ? {} : { limit_price: body.limit_price }),
+  };
+}
 
 export type ReplayEpisodeFill = Omit<ReplayFill, "fee_lines" | "order_id"> & {
   equity_after: string | null;
@@ -306,13 +358,7 @@ export function submitReplayOrder(
   sessionId: number,
   body: ReplayOrderInput,
 ): Promise<ReplaySubmit> {
-  const orderType = body.order_type ?? "market";
-  return authedPost(`/v1/replay/sessions/${sessionId}/orders`, {
-    side: body.side,
-    order_type: orderType,
-    quantity: body.quantity,
-    ...(orderType === "market" ? {} : { limit_price: body.limit_price }),
-  });
+  return authedPost(`/v1/replay/sessions/${sessionId}/orders`, replayOrderBody(body));
 }
 
 /** A4.6: the session's resting orders (every status), oldest first. */

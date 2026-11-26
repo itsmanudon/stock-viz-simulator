@@ -19,6 +19,8 @@ export function ReplayMobileSheet({
   tradable = true,
   feeSchedule = "none",
   target = "replay",
+  profileName = "legacy_close",
+  profileVersion = "v1",
 }: {
   sessionId: number;
   ticker: string;
@@ -29,6 +31,8 @@ export function ReplayMobileSheet({
   currency?: string;
   tradable?: boolean;
   feeSchedule?: string;
+  profileName?: string;
+  profileVersion?: string;
   target?: "replay" | "drill";
 }) {
   const [open, setOpen] = useState(false);
@@ -92,6 +96,8 @@ export function ReplayMobileSheet({
             currency={currency}
             tradable={tradable}
             feeSchedule={feeSchedule}
+            profileName={profileName}
+            profileVersion={profileVersion}
             target={target}
           />
         </Dialog.Content>

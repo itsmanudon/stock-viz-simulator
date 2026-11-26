@@ -855,6 +855,28 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   currency, cash presets per currency (`replayCashPresets`), the lag note
   (`replay-lag-note`) and caps the end date at `max_end`. Tests:
   `tests/unit/replay-a46.test.tsx`.
+- **Replay full orders (A6.9, M9.4).** The ticket's `bracket` type
+  (`replay-bracket-entry` market or limit, `replay-bracket-stop`,
+  `replay-bracket-target`, buy only, `bracketLevelsProblem`) posts
+  `entry_type`/`stop_price`/`target_price`; `ReplayOrders` groups a bracket
+  (`groupReplayOrders`) into one `replay-bracket` row (`data-oco-group`) with
+  two `replay-bracket-leg` rows (`data-leg`, `data-status`; `pending` reads
+  "Waiting for entry") and the `replay-order-unknown` badge ("Order Inside the
+  Bar Unknown") on a stop that filled first. The page names its profile
+  (`replay-profile`: "Fill model · intrabar_ohlc v1"), lists the registry's
+  assumptions (`replay-assumptions`), shows `replay-bar-count`, and passes the
+  session's `interval` to the chart and controls (`formatReplayClock` shows
+  an intraday time in UTC). The launcher picks Bars (`replay-launch-interval`,
+  intraday only when minutes are stored) and Fill model
+  (`replay-launch-profile`). Autoplay (`components/replay-autoplay.tsx`,
+  replay only, not drills): play, pause, step at 1/2/5/10 bars a second
+  through `autoplayStepAction` (no revalidation; the player calls
+  `router.refresh()` in a transition), one step at a time from the bar the
+  last answer named, a 429 waits and carries on, stops on the last bar; keys
+  space, arrows, 1-4 (`speedForKey`, `stepSpeed`); `data-advances`,
+  `data-playing`, `data-speed`. Tests: `tests/unit/replay-a69.test.tsx`,
+  `tests/e2e/replay-a69.ts` (run at the end of `trade.spec.ts` on its signed-in
+  account: 10x without a double advance).
 - **Drills (A4.7, M9.3).** `/drills` (protected in `proxy.ts`, Research nav
   and subnav after Replay): decks (`drill-deck`) with the rule, universe,
   range, K of the eligible triggers (found, lag-skipped), N, M, seed and

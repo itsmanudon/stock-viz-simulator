@@ -2193,10 +2193,11 @@ export interface paths {
         put?: never;
         /**
          * Post Replay Advance
-         * @description Advance one stored 1d bar; from the last bar, complete the session.
+         * @description Advance one bar; from the last bar, complete the session.
          *
          *     Pass ``expected_current_at`` (the bar on screen): a repeated request then
-         *     changes nothing (audit SR-10).
+         *     changes nothing (audit SR-10), so autoplay (A6.9) never moves two bars
+         *     for one step. Advances are limited per user (429 with ``Retry-After``).
          */
         post: operations["post_replay_advance_v1_replay_sessions__session_id__advance_post"];
         delete?: never;
@@ -2585,6 +2586,7 @@ export interface paths {
          * Post Advance
          * @description Next bar; from the last bar, the session completes (then reveal).
          *     ``expected_current_at`` is the date on screen (shifted, when anonymised).
+         *     A6.9: the replay route's per-user advance limit applies (429).
          */
         post: operations["post_advance_v1_drills__drill_id__advance_post"];
         delete?: never;
@@ -8849,6 +8851,19 @@ export interface components {
              * @default true
              */
             tradable: boolean;
+            /**
+             * Intervals
+             * @default [
+             *       "1d"
+             *     ]
+             */
+            intervals: string[];
+            /** Minute Feed */
+            minute_feed?: string | null;
+            /** Minute First */
+            minute_first?: string | null;
+            /** Minute Last */
+            minute_last?: string | null;
         };
         /** ReplayBarOut */
         ReplayBarOut: {
@@ -9240,6 +9255,10 @@ export interface components {
          *     close; a limit / stop-loss / take-profit order (A4.6) rests, priced by
          *     ``limit_price`` (the limit or the trigger), and is judged from the next
          *     bar on.
+         *
+         *     A6.9: ``bracket`` is a long entry (``entry_type`` market, or limit at
+         *     ``limit_price``) with a sell ``stop_price`` below it and a sell
+         *     ``target_price`` above it, one cancels the other. ``side`` must be buy.
          */
         ReplayOrderIn: {
             /**
@@ -9252,16 +9271,33 @@ export interface components {
              * @default market
              * @enum {string}
              */
-            order_type: "market" | "limit" | "stop_loss" | "take_profit";
+            order_type: "market" | "limit" | "stop_loss" | "take_profit" | "bracket";
             /** Quantity */
             quantity: number | string;
             /** Limit Price */
             limit_price?: number | string | null;
+            /**
+             * Entry Type
+             * @default market
+             * @enum {string}
+             */
+            entry_type: "market" | "limit";
+            /** Stop Price */
+            stop_price?: number | string | null;
+            /** Target Price */
+            target_price?: number | string | null;
         };
         /**
          * ReplayOrderOut
          * @description A4.6: a resting order. ``status`` open | filled | cancelled |
          *     rejected | expired; ``reason`` says why it left ``open``.
+         *
+         *     A6.9: a bracket's entry is ``bracket`` (``limit_price`` its limit, or
+         *     its market fill price) and its stop and target carry ``parent_id``;
+         *     all three share ``oco_group``. ``pending`` is a child waiting for its
+         *     entry. ``order_inside_bar_unknown``: the fill was a stop chosen first
+         *     because the stop and the target were both inside one bar with nothing
+         *     finer to say which came first.
          */
         ReplayOrderOut: {
             /** Id */
@@ -9279,7 +9315,7 @@ export interface components {
              * Order Type
              * @enum {string}
              */
-            order_type: "limit" | "stop_loss" | "take_profit";
+            order_type: "limit" | "stop_loss" | "take_profit" | "bracket";
             /** Quantity */
             quantity: string;
             /** Limit Price */
@@ -9288,7 +9324,7 @@ export interface components {
              * Status
              * @enum {string}
              */
-            status: "open" | "filled" | "cancelled" | "rejected" | "expired";
+            status: "pending" | "open" | "filled" | "cancelled" | "rejected" | "expired";
             /**
              * Placed At
              * Format: date-time
@@ -9298,6 +9334,15 @@ export interface components {
             resolved_at?: string | null;
             /** Reason */
             reason?: string | null;
+            /** Parent Id */
+            parent_id?: number | null;
+            /** Oco Group */
+            oco_group?: number | null;
+            /**
+             * Order Inside Bar Unknown
+             * @default false
+             */
+            order_inside_bar_unknown: boolean;
         };
         /** ReplayPositionOut */
         ReplayPositionOut: {
@@ -9331,6 +9376,14 @@ export interface components {
             end_at?: string | null;
             /** Starting Cash */
             starting_cash?: number | string | null;
+            /**
+             * Interval
+             * @default 1d
+             * @enum {string}
+             */
+            interval: "1d" | "1m" | "5m" | "15m" | "60m";
+            /** Profile */
+            profile?: ("legacy_close" | "intrabar_ohlc") | null;
         };
         /**
          * ReplaySessionListOut
@@ -9374,6 +9427,16 @@ export interface components {
              * @default USD
              */
             currency: string;
+            /**
+             * Interval
+             * @default 1d
+             */
+            interval: string;
+            /**
+             * Profile Name
+             * @default legacy_close
+             */
+            profile_name: string;
         };
         /** ReplaySessionOut */
         ReplaySessionOut: {
@@ -9453,6 +9516,18 @@ export interface components {
              * @default 0
              */
             open_orders: number;
+            /**
+             * Interval
+             * @default 1d
+             */
+            interval: string;
+            /** Feed */
+            feed?: string | null;
+            /**
+             * Profile Assumptions
+             * @default []
+             */
+            profile_assumptions: string[];
         };
         /**
          * ReplaySubmitOut
@@ -9464,6 +9539,11 @@ export interface components {
             decision?: components["schemas"]["ReplayDecisionOut"] | null;
             fill?: components["schemas"]["ReplayFillOut"] | null;
             order?: components["schemas"]["ReplayOrderOut"] | null;
+            /**
+             * Children
+             * @default []
+             */
+            children: components["schemas"]["ReplayOrderOut"][];
         };
         /**
          * ReplaySummaryOut
@@ -17290,6 +17370,13 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
+            };
+            /** @description Too many advances for this user right now */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

@@ -80,6 +80,14 @@ class ReplaySession(SQLModel, table=True):
         default=False,
         sa_column=Column(Boolean, nullable=False, server_default=text("false")),
     )
+    # A6.9: the bar interval (``1d``, or ``1m``/``5m``/``15m``/``60m`` built
+    # from stored minutes) and, for an intraday session, the minute feed it
+    # reads (frozen at creation). Daily sessions keep ``1d`` and no feed.
+    interval: str = Field(
+        default="1d",
+        sa_column=Column(String(8), nullable=False, server_default=text("'1d'")),
+    )
+    feed: str | None = Field(default=None, sa_column=Column(String(16), nullable=True))
 
     created_at: datetime = Field(default_factory=utcnow, nullable=False)
     updated_at: datetime = Field(default_factory=utcnow, nullable=False)
@@ -164,6 +172,8 @@ class ReplayFill(SQLModel, table=True):
 
 
 class ReplayOrderStatus(enum.StrEnum):
+    PENDING = "pending"
+    """A6.9: a bracket's stop or target before its entry has filled."""
     OPEN = "open"
     FILLED = "filled"
     CANCELLED = "cancelled"
@@ -171,7 +181,7 @@ class ReplayOrderStatus(enum.StrEnum):
     EXPIRED = "expired"
 
 
-REPLAY_ORDER_TYPES = ("limit", "stop_loss", "take_profit")
+REPLAY_ORDER_TYPES = ("limit", "stop_loss", "take_profit", "bracket")
 MAX_OPEN_REPLAY_ORDERS = 20
 
 
@@ -183,16 +193,23 @@ class ReplayOrder(SQLModel, table=True):
     the session's profile. Nothing is reserved: a fill the book cannot pay
     (cash) or deliver (shares) is ``rejected`` with the reason. Open orders
     expire when the session completes and are cancelled with it.
+
+    A6.9 brackets: the entry is a ``bracket`` row (a buy; ``limit_price`` is
+    its limit, or the fill price of a market entry) and its children are a
+    ``stop_loss`` and a ``take_profit`` with ``parent_id`` = the entry. All
+    three share ``oco_group`` (the entry's id). The children are ``pending``
+    until the entry fills, then ``open``; when one fills the other is
+    cancelled.
     """
 
     __tablename__ = "replay_orders"  # pyright: ignore[reportAssignmentType]
     __table_args__ = (
         CheckConstraint(
-            "order_type IN ('limit', 'stop_loss', 'take_profit')",
+            "order_type IN ('limit', 'stop_loss', 'take_profit', 'bracket')",
             name="ck_replay_orders_type",
         ),
         CheckConstraint(
-            "status IN ('open', 'filled', 'cancelled', 'rejected', 'expired')",
+            "status IN ('pending', 'open', 'filled', 'cancelled', 'rejected', 'expired')",
             name="ck_replay_orders_status",
         ),
     )
@@ -215,6 +232,16 @@ class ReplayOrder(SQLModel, table=True):
     placed_at: datetime = Field(nullable=False)
     resolved_at: datetime | None = Field(default=None)
     reason: str | None = Field(default=None, sa_column=Column(Text, nullable=True))
+    parent_id: int | None = Field(
+        default=None,
+        sa_column=Column(
+            Integer,
+            ForeignKey("replay_orders.id", ondelete="CASCADE"),
+            nullable=True,
+            index=True,
+        ),
+    )
+    oco_group: int | None = Field(default=None, sa_column=Column(Integer, nullable=True))
     created_at: datetime = Field(default_factory=utcnow, nullable=False)
     updated_at: datetime = Field(default_factory=utcnow, nullable=False)
 

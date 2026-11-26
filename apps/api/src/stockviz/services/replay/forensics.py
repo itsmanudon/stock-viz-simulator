@@ -74,11 +74,16 @@ class _FillLike(Protocol):
 
 
 class _BarLike(Protocol):
-    ts: datetime
-    open: Decimal
-    high: Decimal
-    low: Decimal
-    close: Decimal
+    @property
+    def ts(self) -> datetime: ...
+    @property
+    def open(self) -> Decimal: ...
+    @property
+    def high(self) -> Decimal: ...
+    @property
+    def low(self) -> Decimal: ...
+    @property
+    def close(self) -> Decimal: ...
 
 
 @dataclass(frozen=True, slots=True)
