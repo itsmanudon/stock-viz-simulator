@@ -10,7 +10,10 @@
  *   tilt, settles beside the "paper trading" copy, and flips to show its back.
  *   The hero is taller than the screen, so it rises into view as part of the
  *   same scrubbed timeline instead of scrolling up before the pin starts (the
- *   owner saw that as the phone "snapping" to the bottom of the screen).
+ *   owner saw that as the phone "snapping" to the bottom of the screen). The
+ *   rise comes first and alone: the card only leaves once the whole phone is
+ *   on screen (owner, 26 Nov 2026; it used to start with half the phone
+ *   still below the fold).
  * - Everywhere else (phones, reduced motion, no JS) nothing pins, and the same
  *   copy is a plain section under the hero. Only one of the two copies is ever
  *   shown, so assistive technology reads it once.
@@ -35,8 +38,16 @@ import { PaperCard } from "@/components/paper-card";
 gsap.registerPlugin(useGSAP, ScrollTrigger, SplitText);
 
 const ROTATE_MS = 4500;
-/** Scroll distance the pinned sequence takes, in viewport heights. */
-const PIN_LENGTH = 1.5;
+/**
+ * The pinned sequence in timeline units: first the hero rises until the
+ * whole phone is on screen (RISE), then the card leaves the phone (CARD).
+ * The card's part must not start before the rise ends, or it plays while
+ * the phone is still half below the fold (owner, 26 Nov 2026).
+ */
+const RISE = 0.3;
+const CARD = 1;
+/** Scroll distance per timeline unit, in viewport heights. */
+const PIN_PER_UNIT = 1.5;
 
 /** Layout offset of `el` inside `ancestor`, ignoring every CSS transform. */
 function offsetWithin(el: HTMLElement, ancestor: HTMLElement): { x: number; y: number } {
@@ -143,11 +154,15 @@ export function HeroStage({
         const anchor = flyAnchorRef.current;
         if (!phone || !fly || !flyInner || !anchor) return;
 
+        // From the first scroll the phone stops rotating on Portfolio, the
+        // screen the card leaves from; the card itself leaves after the rise.
+        const setHold = (held: boolean) => {
+          if (held && !hold.current.scroll) setActive(0);
+          hold.current.scroll = held;
+        };
         const setOut = (out: boolean) => {
-          hold.current.scroll = out;
           phone.toggleAttribute("data-card-out", out);
           gsap.set(fly, { autoAlpha: out ? 1 : 0 });
-          if (out) setActive(0);
         };
 
         // Where the card sits inside the phone, relative to where it lands.
@@ -190,7 +205,7 @@ export function HeroStage({
             scrollTrigger: {
               trigger: section,
               start: "top top",
-              end: () => `+=${Math.round(window.innerHeight * PIN_LENGTH)}`,
+              end: () => `+=${Math.round(window.innerHeight * PIN_PER_UNIT * (RISE + CARD))}`,
               pin: true,
               // Measured before every other trigger on the page: the space
               // this pin adds moves everything below it.
@@ -198,29 +213,38 @@ export function HeroStage({
               scrub: 0.6,
               anticipatePin: 1,
               invalidateOnRefresh: true,
-              onUpdate: (self) => setOut(self.progress > 0.004),
+              onUpdate: (self) => {
+                setHold(self.progress > 0.004);
+                // The card swaps from the phone to the flying copy just as it
+                // starts to move, after the rise.
+                setOut(self.progress > (RISE + 0.02) / (RISE + CARD));
+              },
             },
           });
           tl.to(
             Array.from(section.children),
-            { y: () => -rise(), duration: 0.42, ease: "power1.inOut" },
+            { y: () => -rise(), duration: RISE, ease: "power1.inOut" },
             0,
           )
-            .to(pillsRef.current, { autoAlpha: 0, duration: 0.12 }, 0)
-            .to(dotsRef.current, { autoAlpha: 0, duration: 0.12 }, 0)
+            .to(pillsRef.current, { autoAlpha: 0, duration: 0.12 }, RISE)
+            .to(dotsRef.current, { autoAlpha: 0, duration: 0.12 }, RISE)
             // The phone and panel sink out of view so nothing shows through
             // the copy that takes their place.
-            .to(phone, { scale: 0.84, y: 220, autoAlpha: 0, duration: 0.38, ease: "power2.in" }, 0)
+            .to(
+              phone,
+              { scale: 0.84, y: 220, autoAlpha: 0, duration: 0.38, ease: "power2.in" },
+              RISE,
+            )
             .to(
               deskRef.current,
               { scale: 0.9, y: 160, autoAlpha: 0, duration: 0.38, ease: "power2.in" },
-              0,
+              RISE,
             )
             .fromTo(
               fly,
               { x: () => start().x, y: () => start().y, scale: () => start().scale },
               { x: 0, y: 0, scale: 1, duration: 0.42, ease: "power2.inOut" },
-              0.02,
+              RISE + 0.02,
             )
             .to(
               flyInner,
@@ -230,18 +254,18 @@ export function HeroStage({
                   { rotateX: 0, rotateY: 0, rotateZ: 0, duration: 0.21, ease: "power2.out" },
                 ],
               },
-              0.02,
+              RISE + 0.02,
             )
             .fromTo(
               copyRef.current,
               { autoAlpha: 0, x: 40 },
               { autoAlpha: 1, x: 0, duration: 0.16, ease: "power2.out" },
-              0.42,
+              RISE + 0.42,
             )
-            .to(flyInner, { rotateY: 180, duration: 0.22, ease: "power2.inOut" }, 0.66)
+            .to(flyInner, { rotateY: 180, duration: 0.22, ease: "power2.inOut" }, RISE + 0.66)
             .to({}, { duration: 0.12 });
 
-          // The pin adds 1.5 viewport heights of scroll above every section
+          // The pin adds about two viewport heights of scroll above every section
           // below the hero, but their triggers were measured at mount, before
           // this pin existed. Re-measure all of them, or scrubbed sections
           // further down (the "fill shows its work" step bar) run early and
@@ -259,6 +283,7 @@ export function HeroStage({
           call.kill();
           ScrollTrigger.removeEventListener("refreshInit", closeGap);
           setOut(false);
+          setHold(false);
           setPinned(false);
         };
       });
