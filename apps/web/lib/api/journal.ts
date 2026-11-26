@@ -1,5 +1,6 @@
 import "server-only";
 
+import { withBook } from "./books";
 import { authedGet } from "./server";
 
 /**
@@ -104,14 +105,21 @@ export type JournalWeek = JournalWeekSummary & {
   unavailable_count: number;
 };
 
-export function getJournalMonth(year: number, month: number): Promise<JournalMonth> {
-  return authedGet<JournalMonth>(`/v1/portfolio/journal/months/${year}/${month}`);
+/** A5.2: the journal is per book; `book` null is the default book. */
+export function getJournalMonth(
+  year: number,
+  month: number,
+  book?: number | null,
+): Promise<JournalMonth> {
+  return authedGet<JournalMonth>(withBook(`/v1/portfolio/journal/months/${year}/${month}`, book));
 }
 
-export function getJournalDay(date: string, offset = 0): Promise<JournalDay> {
-  return authedGet<JournalDay>(`/v1/portfolio/journal/days/${date}?offset=${offset}`);
+export function getJournalDay(date: string, offset = 0, book?: number | null): Promise<JournalDay> {
+  return authedGet<JournalDay>(
+    withBook(`/v1/portfolio/journal/days/${date}?offset=${offset}`, book),
+  );
 }
 
-export function getJournalWeek(start: string): Promise<JournalWeek> {
-  return authedGet<JournalWeek>(`/v1/portfolio/journal/weeks/${start}`);
+export function getJournalWeek(start: string, book?: number | null): Promise<JournalWeek> {
+  return authedGet<JournalWeek>(withBook(`/v1/portfolio/journal/weeks/${start}`, book));
 }

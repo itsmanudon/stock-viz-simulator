@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { BookLink as Link } from "@/components/book-link";
 
 import { DataTableFrame } from "@/components/data-table";
 import {

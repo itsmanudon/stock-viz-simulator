@@ -1,5 +1,6 @@
 "use client";
 
+import { type TicketBook, TicketBookLine } from "@/components/ticket-book-line";
 import { feesSuffix } from "@/lib/fees";
 import Link from "next/link";
 import { useActionState, useId, useState } from "react";
@@ -59,6 +60,8 @@ export type ContextualTradeTicketProps = {
   callbackUrl: string;
   initialSide?: Side;
   openOrderCount?: number | null;
+  /** A5.2: the book this ticket trades into (the default book here). */
+  book?: TicketBook | null;
 };
 
 const SHORTCUTS = [
@@ -83,6 +86,7 @@ export function ContextualTradeTicket({
   callbackUrl,
   initialSide = "buy",
   openOrderCount = 0,
+  book = null,
 }: ContextualTradeTicketProps) {
   const fieldId = useId();
   const [side, setSide] = useState<Side>(initialSide);
@@ -240,6 +244,7 @@ export function ContextualTradeTicket({
         </p>
       ) : null}
 
+      {signedIn && book ? <TicketBookLine book={book} blockedReason={null} /> : null}
       <form
         action={formAction}
         onSubmit={(event) => {

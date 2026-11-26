@@ -22,6 +22,7 @@ import { StockChartToolbar } from "@/components/stock-chart-toolbar";
 import { StockMetricsStrip } from "@/components/stock-metrics-strip";
 import { StockResearchTabs } from "@/components/stock-research-tabs";
 import { TickerOrders } from "@/components/ticker-orders";
+import type { TicketBook } from "@/components/ticket-book-line";
 import { VisitorLimitNotice } from "@/components/visitor-limit-notice";
 import {
   ApiError,
@@ -33,6 +34,7 @@ import {
   getNewsForTicker,
   getSymbol,
 } from "@/lib/api";
+import { listBooks } from "@/lib/api/books";
 import {
   type Delivery,
   type RelativeStrength,
@@ -257,16 +259,24 @@ export default async function StockPage({
   let inWatchlist = false;
   let watchlists: WatchlistList[] = [];
   let drawings: DrawingsResponse | null = null;
+  // A5.2: this ticket trades into the default book, and says so.
+  let ticketBook: TicketBook | null = null;
 
   if (signedIn) {
-    const [portfolioResult, ordersResult, watchlistResult, drawingsResult] = await Promise.all([
-      getPortfolio().catch(() => null),
-      listOrders("pending").catch(() => null),
-      // A2.5: every list, each saying whether it holds this ticker.
-      listWatchlists(ticker).catch(() => [] as WatchlistList[]),
-      // A3.2: the user's drawings; a failed call turns the tools off, not the chart.
-      listDrawings(ticker).catch(() => null),
-    ]);
+    const [portfolioResult, ordersResult, watchlistResult, drawingsResult, booksResult] =
+      await Promise.all([
+        getPortfolio().catch(() => null),
+        listOrders("pending").catch(() => null),
+        // A2.5: every list, each saying whether it holds this ticker.
+        listWatchlists(ticker).catch(() => [] as WatchlistList[]),
+        // A3.2: the user's drawings; a failed call turns the tools off, not the chart.
+        listDrawings(ticker).catch(() => null),
+        listBooks().catch(() => null),
+      ]);
+    const defaultBook = booksResult?.books.find((b) => b.is_default) ?? null;
+    ticketBook = defaultBook
+      ? { id: defaultBook.id, name: defaultBook.name, currency: defaultBook.base_currency }
+      : null;
     drawings = drawingsResult;
     portfolio = portfolioResult;
     tickerOrders = ordersResult?.filter((order) => order.ticker === ticker) ?? null;
@@ -334,6 +344,7 @@ export default async function StockPage({
   const chartBars = showingRaw ? rawChartBars : bars;
   const activeStockUrl = buildStockChartHref(ticker, timeframe, selectedIndicators, interval, view);
   const ticketProps = {
+    book: ticketBook,
     ticker,
     name: symbol.name,
     currency: symbol.currency,

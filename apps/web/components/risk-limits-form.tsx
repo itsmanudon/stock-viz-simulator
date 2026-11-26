@@ -28,12 +28,16 @@ export const LIMIT_FIELDS: {
 export function RiskLimitsForm({
   limits,
   action,
+  bookId = null,
 }: {
   limits: RiskLimits | null;
   action: (formData: FormData) => Promise<void>;
+  /** A5.2: limits are per book; the book these are for. */
+  bookId?: number | null;
 }) {
   return (
     <form action={action} className="space-y-3" aria-labelledby="limits-heading">
+      {bookId != null ? <input type="hidden" name="book_id" value={bookId} /> : null}
       <p className="text-xs leading-relaxed text-text-tertiary">
         Each is a share of the account&apos;s value. A buy that would cross one is refused, and a
         pending order that would is cancelled with the reason. Selling is always allowed. Leave a

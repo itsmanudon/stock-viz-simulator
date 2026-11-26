@@ -13,8 +13,11 @@ export function PortfolioRiskPanel({
   open,
   goal = null,
   range,
+  book = null,
 }: {
   risk: PortfolioRisk | null;
+  /** A5.2: the book id, kept in the goal form. */
+  book?: number | null;
   /** False while another tab is open: the report is only loaded on Analytics. */
   open: boolean;
   /** Phase 8.6: the target value from `?goal=`, if any. */
@@ -114,6 +117,7 @@ export function PortfolioRiskPanel({
           <form method="get" action="/portfolio" className="mt-4 flex flex-wrap items-end gap-3">
             <input type="hidden" name="tab" value="analytics" />
             {range ? <input type="hidden" name="range" value={range} /> : null}
+            {book != null ? <input type="hidden" name="book" value={book} /> : null}
             <div className="grid gap-1">
               <label htmlFor="goal-value" className="text-2xs text-text-tertiary">
                 Goal: account value in a year ({ccy})

@@ -1,5 +1,5 @@
+import { BookLink as Link } from "@/components/book-link";
 import { ArrowLeftRight, ArrowUpRight, Bell, FlaskConical, ListOrdered } from "lucide-react";
-import Link from "next/link";
 
 import { DeltaPill } from "@/components/dashboard/delta-pill";
 import { NavSparkline } from "@/components/dashboard/nav-sparkline";
@@ -36,10 +36,14 @@ const ACTIONS = [
 export function PortfolioHero({
   portfolio,
   history,
+  book = null,
 }: {
   portfolio: Portfolio;
   history: PortfolioHistoryPoint[] | null;
+  /** A5.2: the selected book, or All books with how many it sums. */
+  book?: { name: string; kind: "paper" | "imported" | "all"; count: number } | null;
 }) {
+  const isAll = book?.kind === "all";
   const currency = portfolio.display_currency || "USD";
   const change = history ? calculateNavChange(history) : null;
   // The latest session's move: the last two snapshots (Aurora board v3 shows
@@ -69,8 +73,10 @@ export function PortfolioHero({
 
       <div className="grid gap-5 p-4 sm:p-5 @xl:grid-cols-[minmax(0,16rem)_minmax(0,1fr)] @xl:items-center @xl:gap-8">
         <PaperCard
-          accountId={portfolio.portfolio_id}
+          accountId={isAll ? undefined : portfolio.portfolio_id}
           currency={currency}
+          badge={isAll ? "ALL BOOKS" : book?.kind === "imported" ? "IMPORTED" : "PAPER"}
+          title={isAll ? `${book?.count ?? 0} BOOKS · ${currency}` : undefined}
           className="w-full max-w-72 justify-self-center @xl:justify-self-start"
         />
 
@@ -82,6 +88,11 @@ export function PortfolioHero({
                 className="flex flex-wrap items-center gap-2 text-sm font-medium text-text-secondary"
               >
                 Portfolio value
+                {book ? (
+                  <span className="rounded-full border border-brand/40 px-2 py-0.5 text-2xs font-medium text-foreground">
+                    {isAll ? `All books · ${book.count}` : book.name}
+                  </span>
+                ) : null}
                 <span className="rounded-full border border-border-muted px-2 py-0.5 text-2xs font-medium text-text-tertiary">
                   Simulated
                 </span>

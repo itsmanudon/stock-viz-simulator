@@ -14,6 +14,7 @@
  * only underlyings the API accepts.
  */
 
+import { type TicketBook, TicketBookLine } from "@/components/ticket-book-line";
 import { useActionState, useEffect, useState } from "react";
 
 import {
@@ -71,7 +72,16 @@ function quoteError(error: unknown): string {
   return "The premium could not be priced right now.";
 }
 
-export function OptionTradeForm({ options }: { options: SymbolOption[] }) {
+export function OptionTradeForm({
+  options,
+  book = null,
+  blockedReason = null,
+}: {
+  options: SymbolOption[];
+  /** A5.2: the book the contract opens in; `blockedReason` disables the form. */
+  book?: TicketBook | null;
+  blockedReason?: string | null;
+}) {
   const [state, action, pending] = useActionState<OptionTradeState, FormData>(openOptionAction, {});
   const [optionType, setOptionType] = useState<"call" | "put">("call");
   const [side, setSide] = useState<"long" | "short">("long");
@@ -137,7 +147,11 @@ export function OptionTradeForm({ options }: { options: SymbolOption[] }) {
 
   return (
     <div className="overflow-hidden rounded-md border border-border-muted bg-card">
+      <div className="px-5 pt-4">
+        <TicketBookLine book={book} blockedReason={blockedReason} />
+      </div>
       <form action={action} className="space-y-5 p-5">
+        {book ? <input type="hidden" name="book_id" value={book.id} /> : null}
         <fieldset className="space-y-2">
           <legend className="sr-only">Open as</legend>
           <div className="grid grid-cols-2 gap-3">
@@ -277,7 +291,7 @@ export function OptionTradeForm({ options }: { options: SymbolOption[] }) {
           </output>
         ) : null}
 
-        <Button type="submit" disabled={pending} className="w-full">
+        <Button type="submit" disabled={pending || Boolean(blockedReason)} className="w-full">
           {pending ? "Placing order…" : submitLabel(side, optionType, ready)}
         </Button>
       </form>

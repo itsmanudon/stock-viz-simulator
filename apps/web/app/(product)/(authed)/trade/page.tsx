@@ -6,8 +6,8 @@
  * ticket is a client island. `/trade?ticker=` is the shareable symbol.
  */
 
+import { BookLink as Link } from "@/components/book-link";
 import type { Metadata } from "next";
-import Link from "next/link";
 
 import {
   OperationalEmptyState,
@@ -25,6 +25,7 @@ import { StrategyBuilder } from "@/components/strategy-builder";
 import { ApiError, getBars, getQuotes, listSymbols } from "@/lib/api";
 import { parseApiTimestamp } from "@/lib/api-time";
 import { getPortfolio, listOrders, listTrades } from "@/lib/api/trading";
+import { loadBookContext } from "@/lib/book-context";
 import { currencyByTicker, parseTradeTicker } from "@/lib/operational-trading";
 import { formatCurrency, formatQuantity } from "@/lib/portfolio-view-model";
 
@@ -46,16 +47,27 @@ function fmtWhen(iso: string | null): string {
 export default async function TradePage({
   searchParams,
 }: {
-  searchParams: Promise<{ ticker?: string }>;
+  searchParams: Promise<{ ticker?: string; book?: string }>;
 }) {
-  const { ticker: rawTicker } = await searchParams;
-  const requestedTicker = parseTradeTicker(rawTicker);
+  const params = await searchParams;
+  const requestedTicker = parseTradeTicker(params.ticker);
+  // A5.2: the ticket trades into `?book=` (default when absent). All books and
+  // archived or imported books show the account and disable every ticket.
+  const books = await loadBookContext(params.book, "/trade", params);
+  const ticketBook =
+    books.selected && !books.isAll
+      ? {
+          id: books.selected.id,
+          name: books.selected.name,
+          currency: books.selected.base_currency,
+        }
+      : null;
 
   const [symbols, portfolio, pendingOrders, recentTrades] = await Promise.all([
     listSymbols(),
-    getPortfolio(),
-    listOrders("pending"),
-    listTrades(8),
+    getPortfolio(books.book),
+    listOrders("pending", books.book),
+    listTrades(8, books.book),
   ]);
 
   const heldTickers = new Set(portfolio.positions.map((position) => position.ticker));
@@ -250,6 +262,8 @@ export default async function TradePage({
                 }
                 availableCash={portfolio.available_cash}
                 displayCurrency={portfolio.display_currency || "USD"}
+                book={ticketBook}
+                blockedReason={books.tradeBlock}
               />
             </div>
 
@@ -262,6 +276,13 @@ export default async function TradePage({
                   <h2 id="account-context-heading" className="text-sm font-semibold">
                     Account
                   </h2>
+                  {books.isAll || books.selected ? (
+                    <p className="mt-1 text-xs font-medium text-text-secondary">
+                      {books.isAll
+                        ? "All books, in your display currency"
+                        : `Book: ${books.selected?.name}`}
+                    </p>
+                  ) : null}
                   <p className="mt-1 text-xs leading-5 text-text-tertiary">
                     Cash and shares after pending reservations. Source: current portfolio snapshot.
                   </p>
@@ -361,11 +382,19 @@ export default async function TradePage({
         <div className="mt-4 grid gap-6 xl:grid-cols-2">
           <div>
             <h3 className="mb-2 text-xs font-medium text-text-secondary">One contract type</h3>
-            <OptionTradeForm options={optionUnderlyings} />
+            <OptionTradeForm
+              options={optionUnderlyings}
+              book={ticketBook}
+              blockedReason={books.tradeBlock}
+            />
           </div>
           <div>
             <h3 className="mb-2 text-xs font-medium text-text-secondary">Strategy builder</h3>
-            <StrategyBuilder options={optionUnderlyings} />
+            <StrategyBuilder
+              options={optionUnderlyings}
+              book={ticketBook}
+              blockedReason={books.tradeBlock}
+            />
           </div>
         </div>
       </section>

@@ -126,6 +126,7 @@ vi.mock("@/lib/api", async () => {
   return { ...actual, getChecklist: () => getChecklist() };
 });
 vi.mock("next/navigation", () => ({
+  useSearchParams: () => new URLSearchParams(),
   usePathname: () => "/checklist",
   permanentRedirect: vi.fn(),
 }));

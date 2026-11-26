@@ -5,6 +5,7 @@ import { z } from "zod";
 
 import { AuthedApiError, UnauthenticatedError } from "@/lib/api/server";
 import { createOrder, postTrade } from "@/lib/api/trading";
+import { bookIdFromForm } from "@/lib/book-url";
 import { REVIEW_REQUIRED_ERROR, clientOrderIdFrom, skippedReview } from "@/lib/order-review";
 
 const TradeSchema = z.object({
@@ -74,12 +75,15 @@ export async function placeTradeAction(
   }
 
   try {
-    const trade = await postTrade({
-      ticker: parsed.data.ticker,
-      side: parsed.data.side,
-      quantity: parsed.data.quantity,
-      client_order_id: clientOrderIdFrom(formData),
-    });
+    const trade = await postTrade(
+      {
+        ticker: parsed.data.ticker,
+        side: parsed.data.side,
+        quantity: parsed.data.quantity,
+        client_order_id: clientOrderIdFrom(formData),
+      },
+      bookIdFromForm(formData),
+    );
     revalidatePath("/portfolio");
     revalidatePath("/trades");
     revalidatePath("/trade");
@@ -133,10 +137,10 @@ export async function placeOrderAction(
   }
 
   try {
-    const order = await createOrder({
-      ...parsed.data,
-      client_order_id: clientOrderIdFrom(formData),
-    });
+    const order = await createOrder(
+      { ...parsed.data, client_order_id: clientOrderIdFrom(formData) },
+      bookIdFromForm(formData),
+    );
     revalidatePath("/orders");
     revalidatePath("/trade");
     revalidatePath(`/stocks/${parsed.data.ticker}`);

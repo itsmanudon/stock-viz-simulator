@@ -23,7 +23,11 @@ export function ValuationNotice({
     >
       <TriangleAlert aria-hidden className="mt-px size-3.5 shrink-0" />
       <div className="min-w-0">
-        <p className="font-medium">This value is incomplete.</p>
+        <p className="font-medium">
+          {warnings.every((w) => w.code === "stale_fx_rate")
+            ? "This value uses an old exchange rate."
+            : "This value is incomplete."}
+        </p>
         <ul className="mt-1 space-y-0.5">
           {warnings.map((warning) => (
             <li key={`${warning.code}:${warning.subject}`}>{warning.message}</li>

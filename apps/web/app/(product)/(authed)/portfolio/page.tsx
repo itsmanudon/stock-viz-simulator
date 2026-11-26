@@ -1,4 +1,5 @@
 import { PortfolioWorkspace } from "@/components/portfolio-workspace";
+import { loadBookContext } from "@/lib/book-context";
 import { currentMonthKey, parseMonthKey } from "@/lib/journal-view-model";
 import { loadPortfolioData } from "@/lib/portfolio-data";
 import { parsePortfolioRange, parsePortfolioTab } from "@/lib/portfolio-view-model";
@@ -6,12 +7,12 @@ import type { Metadata } from "next";
 
 export const metadata: Metadata = { title: "Portfolio" };
 
-export default async function PortfolioPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ range?: string; tab?: string; month?: string; goal?: string }>;
-}) {
+type Params = { range?: string; tab?: string; month?: string; goal?: string; book?: string };
+
+export default async function PortfolioPage({ searchParams }: { searchParams: Promise<Params> }) {
   const params = await searchParams;
+  // A5.2: `?book=<id|all>`; absent is the default book (lib/book-url.ts).
+  const books = await loadBookContext(params.book, "/portfolio", params);
   const range = parsePortfolioRange(params.range);
   const tab = parsePortfolioTab(params.tab);
   // The Journal's month is server-rendered so the calendar arrives with data.
@@ -22,6 +23,7 @@ export default async function PortfolioPage({
     risk: tab === "analytics",
     options: tab === "options",
     goal: parseGoal(params.goal),
+    book: books.book,
   });
 
   return (
@@ -31,6 +33,7 @@ export default async function PortfolioPage({
       tab={tab}
       journalMonthKey={monthKey}
       goal={parseGoal(params.goal)}
+      bookContext={{ book: books.book, selected: books.selected, isAll: books.isAll }}
     />
   );
 }

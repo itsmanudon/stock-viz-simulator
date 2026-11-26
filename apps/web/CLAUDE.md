@@ -843,13 +843,41 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   when `cash_by_currency` (Phase 4.5b) holds a non-base currency: a sale of a
   EUR stock keeps its euros. The portfolio header and the dashboard hero
   show `ValuationNotice` when `valuation_warnings` is not empty (audit LG-13).
-- **Books (A5.1).** The API holds many books per user; every page still
-  reads the default book (no `?book=`), so nothing changed on screen.
-  `lib/api/books.ts` (server-only) has `listBooks`, `createBook`,
-  `updateBook`, `deleteBook` and `withBook(path, book)` (appends
-  `book=<id>`); types from the schema. The switcher, book settings and
-  passing `?book=` through the pages are A5.2. `scripts/seed-demo.mjs`
-  writes snapshots into each demo user's default book.
+- **Books (A5.1, A5.2).** `lib/api/books.ts` (server-only): `listBooks`,
+  `createBook`, `updateBook`, `deleteBook`, `withBook(path, book)` (appends
+  `book=<id|all>`). Every fetcher in `lib/api/trading.ts`, `options.ts` and
+  `journal.ts` takes an optional book. **URL rule** (`lib/book-url.ts`,
+  client-safe): the book is `?book=<id>` or `?book=all` on `BOOK_PAGES`
+  (dashboard, portfolio, trade, orders, trades, settings); absent = the
+  default book. `all` is allowed on all but settings (`ALL_BOOKS_PAGES`).
+  `lib/book-context.ts::loadBookContext(raw, path, query)` (server) loads the
+  list and returns `{books, book, selected, isAll, tradeBlock, limit}`; an
+  unknown id falls back to the default; with no `?book=` a valid `sv_book`
+  cookie (written by the switcher, a convenience only) redirects to that book.
+  Links: `components/book-link.tsx::BookLink` carries the page's `?book=` to
+  other book pages (portfolio, dashboard and operational components and
+  `PageSubnav` use it); `buildPortfolioHref({book})`; the order ticket keeps
+  it when the symbol changes. **Switcher**: `components/book-switcher.tsx`
+  (client: disclosure + links, arrows/Escape, phone-width panel under the
+  bar), loaded by `book-switcher-slot.tsx` in `TopUtilityBar` (signed in):
+  name, kind badge, currency, holder, archived, All books (2+ books) and
+  Manage books (`/settings#books`). **Tickets**: `ticket-book-line.tsx`
+  ("Trades into X (CUR)"), hidden `book_id` read by the server actions
+  (`bookIdFromForm`); `tradeBlockReason` disables the order ticket, option
+  form and strategy builder in All books, archived and imported books. The
+  stock page's ticket trades into the default book and says so.
+  **Settings → Books** (`components/books-panel.tsx`,
+  `settings/book-actions.ts`): create (name, USD/INR, paper/imported, holder
+  kind and label, no PAN field), rename, make default, archive/unarchive,
+  delete (two steps: what goes, then the name typed back; only empty or
+  archived, never the default); the cap shown. Account currency and risk
+  limits on Settings are the selected book's. **All books** views:
+  `CombinedBooksPanel` (each book's share, the FX rule, what is per book),
+  `PerBookOnly` stands in for journal, income, options Greeks, attribution,
+  risk, stress and rebalancing; trades and orders add a Book column/chip;
+  realized P&L is not totalled across currencies. `calculateNavChange` leaves
+  out All books `flow` (new books, imported buys) and chains the returns.
+  `scripts/seed-demo.mjs` writes snapshots into each demo user's default book.
 - Operational trading (`/trade`, `/orders`, `/watchlist`, `/alerts`) is the
   authenticated execution/monitoring loop. See
   [`docs/OPERATIONAL_TRADING.md`](../../docs/OPERATIONAL_TRADING.md).
