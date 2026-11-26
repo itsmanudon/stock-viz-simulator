@@ -4,7 +4,7 @@ which reads index and breadth history from the database."""
 from __future__ import annotations
 
 from collections.abc import Sequence
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 
 from sqlmodel import Session
@@ -68,20 +68,27 @@ def build(
     trips: Sequence[report.Trip],
     initial_cash: Decimal,
     max_drawdown: float,
+    periods_per_year: float = report.TRADING_DAYS_PER_YEAR,
+    session_days: Sequence[date] | None = None,
 ) -> tuple[ReportCardOut, report.SharpeStats]:
+    """A6.4: an intraday run passes its bars a year and each curve point's
+    session date: the fan is labelled by it, and a bar reads the regime of
+    the day before its session (a regime state is known at the close)."""
     navs = [n for _, n in curve]
     returns = report.nav_returns(navs)
-    stats = report.sharpe_stats(returns)
+    stats = report.sharpe_stats(returns, periods_per_year)
     dates = [d for d, _ in curve]
-    fan = report.mc_fan(returns, dates, float(initial_cash)) if curve else None
+    fan_dates = list(session_days) if session_days is not None else dates
+    fan = report.mc_fan(returns, fan_dates, float(initial_cash)) if curve else None
     mc = (
         MonteCarloFanOut.model_validate({**fan, "actual_max_drawdown": max_drawdown})
         if fan is not None
         else None
     )
     if curve:
-        history = regime_history(session, ticker, dates[0], dates[-1])
-        rows = report.regime_split(curve, states_on(history, dates), trips)
+        days = [d - timedelta(days=1) for d in session_days] if session_days is not None else dates
+        history = regime_history(session, ticker, days[0], days[-1])
+        rows = report.regime_split(curve, states_on(history, days), trips, periods_per_year)
         regimes = RegimeSplitOut(
             market=history.market,
             index=history.index,
@@ -107,7 +114,7 @@ def build(
     card = ReportCardOut(
         metrics=[
             ReportMetricOut.model_validate(m)
-            for m in report.metrics(curve, trips, initial_cash, max_drawdown)
+            for m in report.metrics(curve, trips, initial_cash, max_drawdown, periods_per_year)
         ],
         sharpe=sharpe_out(stats),
         monte_carlo=mc,

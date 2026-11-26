@@ -14,6 +14,22 @@ import os
 
 os.environ.setdefault("RATELIMIT_ENABLED", "0")
 
+# Feed and broker keys from a developer's local `.env` must never reach the
+# tests: environment variables win over the dotenv file, so blanking them here
+# keeps every feed "not configured" unless a test configures one itself.
+os.environ.update(
+    {
+        "ALPACA_KEY_ID": "",
+        "ALPACA_SECRET_KEY": "",
+        "TIINGO_API_KEY": "",
+        "FINNHUB_API_KEY": "",
+        "MASSIVE_API_KEY": "",
+        "KITE_API_KEY": "",
+        "KITE_API_SECRET": "",
+        "MASSIVE_SHADOW_ENABLED": "false",
+    }
+)
+
 from collections.abc import Generator, Iterator
 
 import pytest

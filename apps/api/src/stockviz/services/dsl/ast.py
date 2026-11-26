@@ -104,9 +104,11 @@ class Offset(Node):
 @dataclass(frozen=True)
 class Timeframe(Node):
     """``weekly.expr`` / ``monthly.expr``: evaluated on resampled bars, then
-    aligned to each daily bar as the last closed period at or before it."""
+    aligned to each daily bar as the last closed period at or before it.
+    A6.4: ``daily.expr`` on an intraday timeframe, aligned to the session
+    before each bar's."""
 
-    timeframe: str  # "weekly" | "monthly"
+    timeframe: str  # "daily" | "weekly" | "monthly"
     expr: Node
 
     def children(self) -> tuple[Node, ...]:

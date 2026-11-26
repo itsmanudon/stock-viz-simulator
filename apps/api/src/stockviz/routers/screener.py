@@ -128,6 +128,12 @@ def screener(
             raise HTTPException(
                 status.HTTP_404_NOT_FOUND, f"Setup version {setup_version_id} not found"
             ) from exc
+        if version.timeframe != "daily":  # A6.4
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST,
+                f"Setup version {version.id} is judged on {version.timeframe} bars; "
+                "the screener reads daily bars",
+            )
         rule_text = version.rule_text
     compiled = compile_or_422(rule_text) if rule_text else None
     if compiled is not None and compiled.user_scoped and user_id is None:

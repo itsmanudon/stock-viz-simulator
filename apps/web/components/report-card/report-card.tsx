@@ -91,9 +91,12 @@ export function FormulaTip({
 export function ReportCard({
   report,
   currency,
+  unit = "day",
 }: {
   report: ReportCardData;
   currency: string;
+  /** A6.4: an intraday run's returns are per bar, not per day. */
+  unit?: "day" | "bar";
 }) {
   const sharpe = report.sharpe;
   return (
@@ -120,7 +123,7 @@ export function ReportCard({
             value: sharpe.sharpe_annual.toFixed(2),
             note: (
               <FormulaTip
-                label={`${sharpe.observations} days`}
+                label={`${sharpe.observations} ${unit}s`}
                 formula={`mean / sample std of daily returns minus ${(sharpe.risk_free_rate * 100).toFixed(0)}%/252, x sqrt(252)`}
               />
             ),
@@ -128,7 +131,7 @@ export function ReportCard({
         ]}
       />
       {report.monte_carlo ? (
-        <McFan fan={report.monte_carlo} currency={currency} />
+        <McFan fan={report.monte_carlo} currency={currency} unit={unit} />
       ) : (
         <p className="mt-4 text-xs text-text-tertiary">{report.monte_carlo_reason}</p>
       )}
@@ -142,7 +145,15 @@ function money(v: number, currency: string): string {
 }
 
 /** The bootstrap's 5th-95th percentile band and median, as inline SVG. */
-export function McFan({ fan, currency }: { fan: MonteCarloFan; currency: string }) {
+export function McFan({
+  fan,
+  currency,
+  unit = "day",
+}: {
+  fan: MonteCarloFan;
+  currency: string;
+  unit?: "day" | "bar";
+}) {
   const points = fan.fan;
   const W = 640;
   const H = 200;
@@ -205,10 +216,11 @@ export function McFan({ fan, currency }: { fan: MonteCarloFan; currency: string 
         <span>{points.at(-1)?.date}</span>
       </div>
       <p className="text-xs leading-5 text-text-tertiary">
-        {fan.paths.toLocaleString("en-US")} paths of the run's own daily net returns, resampled in
-        blocks of mean length {fan.mean_block} (stationary bootstrap) for {fan.horizon_days}{" "}
-        sessions; seed {fan.seed}, so the same run draws the same fan. Band: 5th to 95th percentile;
-        line: median. Ends {money(fan.final_nav.p5, currency)} to{" "}
+        {fan.paths.toLocaleString("en-US")} paths of the run's own{" "}
+        {unit === "bar" ? "per-bar" : "daily"} net returns, resampled in blocks of mean length{" "}
+        {fan.mean_block} (stationary bootstrap) for {fan.horizon_days}{" "}
+        {unit === "bar" ? "bars" : "sessions"}; seed {fan.seed}, so the same run draws the same fan.
+        Band: 5th to 95th percentile; line: median. Ends {money(fan.final_nav.p5, currency)} to{" "}
         {money(fan.final_nav.p95, currency)}.
       </p>
     </div>

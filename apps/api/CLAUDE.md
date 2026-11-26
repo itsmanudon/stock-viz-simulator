@@ -241,7 +241,7 @@ CLI subcommands (`python -m stockviz.cli <cmd>`): `seed`, `backfill`,
 `indicator-evidence [--start D] [--end D] [--horizon N] [--only KEY ...]`, `snapshot-portfolios`,
 `dividends`, `credit-dividends`, `settle-options`, `run-scheduler`,
 `prune-events [--days N] [--include-unpublished]`, `prune-trials [--days N]`, `aegis-sync [--max-pages N]`,
-`settle-orders [--session-date YYYY-MM-DD]`, `evaluate-alerts`, `revalidate-web`,
+`settle-orders [--session-date YYYY-MM-DD]`, `evaluate-alerts [--intraday --since T [--ticker T] [--dry-run]]`, `revalidate-web`,
 `publish-outbox [--once]`,
 `consume-trade-activity [--once]`, `consume-market-ingest [--once]`,
 `consume-market-analytics [--once]`, `nse-load PATH ... [--apply]`,
@@ -911,13 +911,81 @@ iex, file). Nothing is stored beyond A6.1's `1m`/`60m` rows.
   (`intraday_info`: one min/max per stored feed and interval; all five
   intervals with minutes, `["60m"]` with hourly bars only).
 - **Not in A6.2:** a daily value on intraday bars (the DSL's `daily.` prefix
-  and alignment are A6.4), live bars (A6.5).
+  and alignment: A6.4, see "Intraday rules, backtests and alerts"), live
+  bars (A6.5).
 - Tests: `tests/test_intraday_bars.py` (synthetic minutes: NSE 15m/60m day,
   no bar across a night, Muhurat, DR pause, off-span minutes, 60m
   precedence, hourly-only 404, partial and grace, limits and from/to, empty
   and refused cases, feed default, symbol detail, indicator warm-up and the
   partial bar, RS line empty, AVWAP at an instant on 1m and 5m, date anchor,
   60m and refusals).
+
+**Intraday rules, backtests and alerts (A6.4, M4.5 intraday, M2.2).**
+Design: workspace `docs/a6-design-note.md`. Migration `b7c2d4e6f8a1`
+(additive; the downgrade refuses while an intraday version exists):
+`setup_versions.feed` (`auto|iex|sip|kite|file`, default `auto`), checks
+`ck_setup_versions_timeframe` (`daily|1m|5m|15m|30m|60m`) and
+`ck_setup_versions_feed`, the unique key widened to `(setup_id, rule_hash,
+timeframe, feed)`; `alerts.last_bar_at`, `last_fired_bar_at`;
+`alert_events.bar_at`, `feed`.
+
+- **DSL on instants** (`services/dsl/`). `compile_rule(text,
+  timeframe=)`: `CompiledRule.timeframe`; the hash stays the rule text's.
+  `SymbolData.timeframe` (`daily` default; every daily path is unchanged and
+  the A2 conformance corpus passes as before) with, intraday, `bars` indexed
+  by open instant (naive UTC), `closed_at` (ns), `sessions` (venue dates),
+  `daily` (daily frame) and `feed`. `cut(t)`: bars opening at or before
+  `t`, news by `t`'s close, facts dated before its session, daily bars and
+  benchmark strictly before its session. `Evaluation.base` is the timeframe;
+  `daily.` aligns each bar to the last daily row dated before its session
+  (`searchsorted(..., "left") - 1`), `weekly.`/`monthly.` through it.
+  `load_symbol_intraday` (= `intraday_bars_for` + `intraday_symbol`): closed
+  bars from `load_intraday` (start + lookback, or all), the whole daily
+  history when `Needs.daily`/delivery/benchmark/drawings. Lookback: intraday
+  bars; a prefix adds none. Per-binding rules in `check.py` (index, `rs`,
+  `rsline`, delivery and drawings only under `daily.`; fundamentals and news
+  at the bar, never under `daily.`; `daily.` refused on daily). Reference:
+  `docs/rule-dsl.md` ("Intraday timeframes").
+- **Conformance** `tests/test_dsl_intraday_conformance.py`
+  (`dsl_fixtures.intraday_universe`: synthetic minutes through the real
+  resampler on NSE 26 Feb-6 Mar 2024 (2 Mar DR pause) and 28 Oct-6 Nov 2024
+  (1 Nov Muhurat), XNYS 20 Nov-4 Dec 2024 (29 Nov half day)): 25 rules and
+  7 expressions point = vector at every 5m bar (both symbols), every 15m and
+  60m bar (NSE), 5 rules on 1m; perturbing later bars, today's and later
+  daily bars, benchmark, facts and news changes nothing up to `t`;
+  `daily.close` equals the previous session's close at every bar; refusals.
+  `DSL_CONFORMANCE_STRIDE` applies. About 20 s locally.
+- **Setups and checks.** `SetupIn`/`SetupVersionIn` take `timeframe` and
+  `feed` (a daily version with a feed 422); `RuleCheckIn.timeframe`,
+  `RuleCheckOut.timeframe`, `uses` may hold `daily_bars`.
+  `store.version_rule(version)` compiles a version for its timeframe. Daily
+  consumers refuse an intraday version: the screener and screens 400,
+  screen runs skip it, `_resolve_rule(..., timeframe)` raises
+  `StrategyError` (rotations, scan event studies, drills 400).
+- **Backtests** (`strategy_run._intraday_input`, `strategy.run_strategy`
+  with `SymbolInput.sessions`/`adv`, `flatten_at_close`,
+  `same_day_schedule`, `periods_per_year`): rules in `docs/SIMULATION.md`
+  ("Intraday strategy backtests (A6.4)"). `periods_per_year(ticker, tf)`;
+  `report_card.build(periods_per_year=, session_days=)`;
+  `engine._sharpe`, `report.sharpe_stats/metrics/regime_split` take the
+  periods (252 default). Registry stamps: `timeframe`, `feed`,
+  `feed_badge`, `flatten_at_close`, `periods_per_year`, `at`, `entry_at`,
+  `exit_at`, `same_day`.
+- **Alerts** (`services/alerts/intraday.py`): `judge_bar(session, alert,
+  rule, data, bar_at, now=)` judges one **closed** bar in point mode (the
+  stream worker of A6.5 calls it); state per bar instant (`last_bar_at`,
+  `last_state`, `last_fired_bar_at`), same crossing, arming (`armed_at` vs
+  bar close), `once`/`every_cross` with `cooldown_sessions` counted in bars;
+  dedupe key `<alert>:<bar open UTC, minutes>Z`; events carry `bar_at`,
+  `feed`, a message with the timeframe, the bar's close in the venue's zone
+  and the feed's badge ("Replayed from stored bars, not live" for a
+  replayed feed); notifications add `bar_at` and `feed`. The nightly
+  `evaluate_pending_alerts` skips intraday versions. `stockviz.cli
+  evaluate-alerts --intraday --since <ISO> [--ticker T] [--dry-run]` judges
+  every closed stored bar from `since`, oldest first (exit 1 without
+  `--since`; not recorded in `job_runs`; not in the cron).
+- Tests: `test_a64_intraday.py`, `test_a64_intraday_migration.py`
+  (PostgreSQL up/down/up, the refusal), the conformance file above.
 
 **US feeds and the minute backfill (A6.3, M1.6).** `services/feeds/`; design:
 workspace `docs/a6-design-note.md` ("Feed and broker interface", "Owner

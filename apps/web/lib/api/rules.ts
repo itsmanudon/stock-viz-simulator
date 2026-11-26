@@ -11,12 +11,20 @@ import type { components } from "./schema";
 export type RuleCheck = components["schemas"]["RuleCheckOut"];
 export type RuleCheckError = components["schemas"]["RuleErrorOut"];
 
+/** A6.4: the bars a rule is judged on. */
+export type RuleTimeframe = NonNullable<components["schemas"]["RuleCheckIn"]["timeframe"]>;
+
 export function checkRule(
   rule: string,
   signal?: AbortSignal,
   expect: "condition" | "number" = "condition",
+  timeframe: RuleTimeframe = "daily",
 ): Promise<RuleCheck> {
-  const body = expect === "number" ? { rule, expect } : { rule };
+  const body: Record<string, string> = { rule };
+  if (expect === "number") body.expect = expect;
+  // A6.4: daily is the default; an intraday timeframe checks daily. and the
+  // per-binding rules, with the warm-up counted in that timeframe's bars.
+  if (timeframe !== "daily") body.timeframe = timeframe;
   return apiPost<RuleCheck>("/v1/rules/check", body, { init: { signal }, maxAttempts: 1 });
 }
 

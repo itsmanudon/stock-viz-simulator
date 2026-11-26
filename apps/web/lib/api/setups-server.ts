@@ -18,6 +18,8 @@ export function createSetup(input: {
   kind?: SetupKind;
   description?: string;
   notes?: string;
+  /** A6.4: the bars the rule is judged on (default daily). */
+  timeframe?: "daily" | "1m" | "5m" | "15m" | "30m" | "60m";
 }): Promise<SetupDetail> {
   return authedPost<SetupDetail>("/v1/setups", { kind: "screen", ...input });
 }

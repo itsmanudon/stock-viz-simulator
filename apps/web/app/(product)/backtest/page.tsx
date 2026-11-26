@@ -103,7 +103,13 @@ export default async function BacktestPage({
       const v = s.latest_version;
       if (!v || seen.has(v.id) || s.kind === "checklist") continue;
       seen.add(v.id);
-      setups.push({ versionId: v.id, name: s.name, rule: v.rule_text, preset: s.is_preset });
+      setups.push({
+        versionId: v.id,
+        name: s.name,
+        rule: v.rule_text,
+        preset: s.is_preset,
+        timeframe: v.timeframe,
+      });
     }
     ruleProps = {
       setups,

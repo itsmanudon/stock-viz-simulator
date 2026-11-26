@@ -4745,6 +4745,8 @@ export interface components {
             date: string;
             /** Nav */
             nav: string;
+            /** At */
+            at?: string | null;
         };
         /** EventStudyEventOut */
         EventStudyEventOut: {
@@ -9566,6 +9568,12 @@ export interface components {
              * @enum {string}
              */
             expect: "condition" | "number";
+            /**
+             * Timeframe
+             * @default daily
+             * @enum {string}
+             */
+            timeframe: "daily" | "1m" | "5m" | "15m" | "30m" | "60m";
         };
         /**
          * RuleCheckOut
@@ -9596,6 +9604,8 @@ export interface components {
              */
             user_scoped: boolean;
             error?: components["schemas"]["RuleErrorOut"] | null;
+            /** Timeframe */
+            timeframe?: string | null;
         };
         /** RuleErrorOut */
         RuleErrorOut: {
@@ -10159,9 +10169,15 @@ export interface components {
             /**
              * Timeframe
              * @default daily
-             * @constant
+             * @enum {string}
              */
-            timeframe: "daily";
+            timeframe: "daily" | "1m" | "5m" | "15m" | "30m" | "60m";
+            /**
+             * Feed
+             * @default auto
+             * @enum {string}
+             */
+            feed: "auto" | "iex" | "sip" | "kite" | "file";
         };
         /** SetupOut */
         SetupOut: {
@@ -10202,9 +10218,15 @@ export interface components {
             /**
              * Timeframe
              * @default daily
-             * @constant
+             * @enum {string}
              */
-            timeframe: "daily";
+            timeframe: "daily" | "1m" | "5m" | "15m" | "30m" | "60m";
+            /**
+             * Feed
+             * @default auto
+             * @enum {string}
+             */
+            feed: "auto" | "iex" | "sip" | "kite" | "file";
         };
         /** SetupVersionOut */
         SetupVersionOut: {
@@ -10222,6 +10244,11 @@ export interface components {
             rule_hash: string;
             /** Timeframe */
             timeframe: string;
+            /**
+             * Feed
+             * @default auto
+             */
+            feed: string;
             /** Notes */
             notes?: string | null;
             /**
@@ -10388,6 +10415,23 @@ export interface components {
              * @enum {string}
              */
             holdout: "last_20pct" | "none";
+            /**
+             * Timeframe
+             * @default daily
+             * @enum {string}
+             */
+            timeframe: "daily" | "1m" | "5m" | "15m" | "30m" | "60m";
+            /**
+             * Feed
+             * @default auto
+             * @enum {string}
+             */
+            feed: "auto" | "iex" | "sip" | "kite" | "file";
+            /**
+             * Flatten At Close
+             * @default false
+             */
+            flatten_at_close: boolean;
         };
         /** StrategyBacktestOut */
         StrategyBacktestOut: {
@@ -10475,6 +10519,16 @@ export interface components {
             window?: components["schemas"]["RunWindowOut"] | null;
             report?: components["schemas"]["ReportCardOut"] | null;
             checks?: components["schemas"]["OverfittingChecksOut"] | null;
+            /** Timeframe */
+            timeframe?: string | null;
+            /** Feed */
+            feed?: string | null;
+            /** Feed Badge */
+            feed_badge?: string | null;
+            /** Flatten At Close */
+            flatten_at_close?: boolean | null;
+            /** Periods Per Year */
+            periods_per_year?: number | null;
         };
         /**
          * StrategyBenchmarkOut
@@ -10679,7 +10733,7 @@ export interface components {
              * Reason
              * @enum {string}
              */
-            reason: "exit_rule" | "stop_fixed" | "stop_atr" | "trail" | "time" | "end_of_data";
+            reason: "exit_rule" | "stop_fixed" | "stop_atr" | "trail" | "time" | "end_of_data" | "session_close";
             /**
              * Gap
              * @default false
@@ -10702,6 +10756,12 @@ export interface components {
             requested_quantity?: string | null;
             /** Exit Adv Pct */
             exit_adv_pct?: number | null;
+            /** Entry At */
+            entry_at?: string | null;
+            /** Exit At */
+            exit_at?: string | null;
+            /** Same Day */
+            same_day?: boolean | null;
         };
         /**
          * StrategyUniverseIn

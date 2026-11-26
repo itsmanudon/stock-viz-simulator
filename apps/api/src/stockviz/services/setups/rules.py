@@ -29,6 +29,7 @@ def uses(rule: CompiledRule) -> list[str]:
             ("news", needs.news),
             ("delivery", needs.delivery),
             ("drawings", needs.drawings),
+            ("daily_bars", needs.daily),
         )
         if used
     ]
@@ -49,11 +50,18 @@ def compile_number(text: str) -> CompiledRule:
     return rule
 
 
-def check_rule(text: str, expect: str = "condition") -> RuleCheckOut:
+def check_rule(text: str, expect: str = "condition", timeframe: str = "daily") -> RuleCheckOut:
+    """A6.4: ``timeframe`` checks the rule for intraday bars (``daily.``,
+    the per-binding refusals, warm-up in that timeframe's bars)."""
     try:
-        rule = compile_number(text) if expect == "number" else compile_rule(text)
+        if expect == "number":
+            if timeframe != "daily":
+                raise RuleError("type", "a ranking is judged on daily bars", 1, 1, text=text)
+            rule = compile_number(text)
+        else:
+            rule = compile_rule(text, timeframe=timeframe)
     except RuleError as exc:
-        return RuleCheckOut(valid=False, error=error_out(exc))
+        return RuleCheckOut(valid=False, error=error_out(exc), timeframe=timeframe)
     return RuleCheckOut(
         valid=True,
         canonical=rule.canonical_text,
@@ -63,12 +71,13 @@ def check_rule(text: str, expect: str = "condition") -> RuleCheckOut:
         warmup_whole_history=rule.lookback is None,
         uses=uses(rule),
         user_scoped=rule.user_scoped,
+        timeframe=timeframe,
     )
 
 
-def compile_or_422(text: str) -> CompiledRule:
+def compile_or_422(text: str, timeframe: str = "daily") -> CompiledRule:
     try:
-        return compile_rule(text)
+        return compile_rule(text, timeframe=timeframe)
     except RuleError as exc:
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_CONTENT, error_out(exc).model_dump()

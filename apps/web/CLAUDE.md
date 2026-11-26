@@ -868,6 +868,20 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   under the P&L; 50 rows, then "Show all"). `/backtest/runs/[runId]` shows
   a `strategy` run with the same component (no Save). Tests:
   `tests/unit/rule-strategy.test.tsx`, the e2e in `research-workspace.spec.ts`.
+  **A6.4 intraday:** a **Timeframe** picker (`rule-strategy/timeframe-picker.tsx`,
+  `timeframeOptions`): Daily always, the intraday intervals only when the one
+  chosen symbol has minutes (`intradayInfoAction` reads
+  `symbol.intraday.intervals`; another symbol without them falls back to
+  daily; watchlists and lists are daily). The rule fields check with the
+  timeframe (`checkRule(rule, signal, expect, timeframe)`; warm-up "Needs N
+  5m bars") and load only versions of that timeframe. Intraday adds "Flatten
+  at each session's close" and, signed in, "Save as <timeframe> setup"
+  (`saveRuleSetupAction`: kind `alert`, the timeframe). The request always
+  sends `timeframe`, `feed: auto`, `flatten_at_close`. Results: trades show
+  bar times in the venue's zone (`venueTimeZone`, `formatBarTime`), markers
+  at `entry_at`/`exit_at` ("C" = session close), the chart on the run's
+  interval with the feed badge, the equity curve per bar, and the report
+  card's counts in bars (`unit="bar"`).
 - `/backtest?mode=rotation` (A4.4): `RotationForm`
   (`components/rotation/rotation-form.tsx`): the ranking is a
   `RuleFieldEditor` checked with `checkNumber()` (`/v1/rules/check` with

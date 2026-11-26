@@ -232,6 +232,14 @@ export function dateInZone(ms: number, timeZone: string): string {
 }
 
 /**
+ * A6.4: a ticker's venue zone from its suffix (NSE/BSE India, else New York),
+ * for intraday times where the symbol detail is not at hand.
+ */
+export function venueTimeZone(ticker: string): string {
+  return /\.(NS|BO)$/i.test(ticker) || ticker === "^NSEI" ? "Asia/Kolkata" : "America/New_York";
+}
+
+/**
  * A6.2: an intraday bar's time in its venue's zone with the date and the
  * zone named: "Jan 30, 2026 09:15 IST". API timestamps are naive UTC, read
  * through `apiTimestampMs` (never `new Date(iso)`, audit RS-2).

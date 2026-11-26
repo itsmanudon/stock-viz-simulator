@@ -93,8 +93,11 @@ def test_a61_intraday_migration_up_down_up(monkeypatch) -> None:
                 ]
                 assert ensure_month_partitions(conn, [date(2025, 11, 1)]) == []
                 _bar(conn, iid, "2025-11-25 03:45")
-            # A partition the writer made is not drift for autogenerate.
+            # A partition the writer made is not drift for autogenerate
+            # (checked at head: later migrations stack on this one).
+            command.upgrade(config, "head")
             command.check(config)
+            command.downgrade(config, THIS)
             command.downgrade(config, BEFORE)
             names = set(inspect(engine).get_table_names())
             assert not {"intraday_bars", "intraday_files", "intraday_bars_y2025m11"} & names

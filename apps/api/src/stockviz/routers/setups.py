@@ -47,11 +47,18 @@ SessionDep = Annotated[Session, Depends(get_session)]
 
 
 @lru_cache(maxsize=4096)
-def _user_scoped(rule_text: str) -> bool:
+def _user_scoped(rule_text: str, timeframe: str = "daily") -> bool:
     try:
-        return compile_rule(rule_text).user_scoped
+        return compile_rule(rule_text, timeframe=timeframe).user_scoped
     except RuleError:  # a version saved under an older grammar
         return False
+
+
+def _check_feed(timeframe: str, feed: str) -> None:
+    if timeframe == "daily" and feed != "auto":
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT, "A daily rule reads no intraday feed"
+        )
 
 
 def version_out(v: SetupVersion) -> SetupVersionOut:
@@ -64,9 +71,10 @@ def version_out(v: SetupVersion) -> SetupVersionOut:
         canonical_text=v.canonical_text,
         rule_hash=v.rule_hash,
         timeframe=v.timeframe,
+        feed=v.feed,
         notes=v.notes,
         created_at=v.created_at,
-        user_scoped=_user_scoped(v.rule_text),
+        user_scoped=_user_scoped(v.rule_text, v.timeframe),
     )
 
 
@@ -141,7 +149,8 @@ def list_setups(
 
 @router.post("", response_model=SetupDetailOut, status_code=status.HTTP_201_CREATED)
 def create_setup(body: SetupIn, session: SessionDep, user_id: UserIdDep) -> SetupDetailOut:
-    rule = compile_or_422(body.rule)
+    _check_feed(body.timeframe, body.feed)
+    rule = compile_or_422(body.rule, body.timeframe)
     try:
         row, _version = store.create_setup(
             session,
@@ -152,6 +161,7 @@ def create_setup(body: SetupIn, session: SessionDep, user_id: UserIdDep) -> Setu
             description=body.description,
             notes=body.notes,
             timeframe=body.timeframe,
+            feed=body.feed,
         )
     except store.SetupLimit as exc:
         raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
@@ -183,9 +193,12 @@ def add_version(
     row = _owned(session, setup_id, user_id)
     if row.archived_at is not None:
         raise HTTPException(status.HTTP_409_CONFLICT, "Archived setups take no new versions")
-    rule = compile_or_422(body.rule)
+    _check_feed(body.timeframe, body.feed)
+    rule = compile_or_422(body.rule, body.timeframe)
     try:
-        saved = store.add_version(session, row, rule, notes=body.notes, timeframe=body.timeframe)
+        saved = store.add_version(
+            session, row, rule, notes=body.notes, timeframe=body.timeframe, feed=body.feed
+        )
     except store.SetupLimit as exc:
         raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
     if not saved.created:
