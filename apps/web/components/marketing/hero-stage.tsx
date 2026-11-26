@@ -3,8 +3,10 @@
 /**
  * The landing hero's stage (design board option B).
  *
- * - The phone rotates through its screens every few seconds. Dots switch
- *   screens; hover pauses it; with reduced motion it never auto-advances.
+ * - The phone rotates through its screens every few seconds; hover pauses it;
+ *   with reduced motion it never auto-advances. There are no screen dots:
+ *   they sat in the pinned stage, had to fade as the pin began, and a click
+ *   on them raced the animation (owner removed them, 26 Nov 2026).
  * - On wide screens with motion, the hero pins from the first scroll: the
  *   phone stops on Portfolio, the paper card lifts out of it, grows with a
  *   tilt, settles beside the "paper trading" copy, and flips to show its back.
@@ -89,7 +91,6 @@ export function HeroStage({
   const deskRef = useRef<HTMLDivElement>(null);
   const phoneRef = useRef<HTMLDivElement>(null);
   const pillsRef = useRef<HTMLDivElement>(null);
-  const dotsRef = useRef<HTMLDivElement>(null);
   const flyAnchorRef = useRef<HTMLDivElement>(null);
   const flyRef = useRef<HTMLDivElement>(null);
   const flyInnerRef = useRef<HTMLDivElement>(null);
@@ -230,7 +231,6 @@ export function HeroStage({
           });
           tl.to(Array.from(section.children), { y: () => -rise(), duration: RISE, ease: "none" }, 0)
             .to(pillsRef.current, { autoAlpha: 0, duration: 0.12 }, RISE)
-            .to(dotsRef.current, { autoAlpha: 0, duration: 0.12 }, RISE)
             // The phone and panel sink out of view so nothing shows through
             // the copy that takes their place.
             .to(
@@ -293,8 +293,6 @@ export function HeroStage({
     },
     { scope: wrapRef },
   );
-
-  const current = screens[active] ?? screens[0];
 
   return (
     <div ref={wrapRef}>
@@ -387,27 +385,6 @@ export function HeroStage({
             >
               {intro}
             </div>
-
-            {screens.length > 1 ? (
-              <div
-                ref={dotsRef}
-                className="glass absolute bottom-4 left-1/2 z-30 flex -translate-x-1/2 items-center gap-2.5 rounded-full py-1.5 pr-2.5 pl-3.5 text-xs text-text-secondary"
-              >
-                <span aria-live="polite">{current?.label}</span>
-                <span className="flex gap-1.5">
-                  {screens.map((screen, index) => (
-                    <button
-                      key={screen.key}
-                      type="button"
-                      aria-label={`Show the ${screen.label.toLowerCase()} screen`}
-                      aria-pressed={index === active}
-                      onClick={() => setActive(index)}
-                      className="h-2 w-2 rounded-full bg-surface-hover transition-[width,background-color] duration-300 aria-pressed:w-5 aria-pressed:bg-foreground"
-                    />
-                  ))}
-                </span>
-              </div>
-            ) : null}
           </div>
         </div>
       </section>

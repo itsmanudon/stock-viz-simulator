@@ -50,6 +50,7 @@ export function PhoneFrame({
           {screens.map((screen, index) => (
             <div
               key={screen.key}
+              data-screen={screen.key}
               data-active={index === active}
               className="absolute inset-0 flex flex-col gap-3.5 overflow-hidden px-3.5 pt-1.5 transition-opacity duration-500 data-[active=false]:pointer-events-none data-[active=false]:opacity-0 [&>*]:shrink-0"
             >

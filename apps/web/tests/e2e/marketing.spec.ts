@@ -42,19 +42,6 @@ test.describe("marketing home", () => {
     }
   });
 
-  test("hero phone screens can be switched with the dots", async ({ page }) => {
-    // With motion, scrolling the dots into view starts the pinned hero, whose
-    // panel covers the phone mid-animation by design; on a slow runner the
-    // click raced it and timed out (PR #94). The dots are the same control
-    // without motion, so check them where the hero does not pin.
-    await page.emulateMedia({ reducedMotion: "reduce" });
-    await page.reload();
-    const dots = page.getByRole("button", { name: /^Show the .* screen$/ });
-    if ((await dots.count()) < 2) test.skip(true, "Only one phone screen without stored bars");
-    await dots.nth(1).click();
-    await expect(dots.nth(1)).toHaveAttribute("aria-pressed", "true");
-  });
-
   test("movers link each card to its stock page", async ({ page }) => {
     const research = page.getByRole("link", { name: /^Research / });
     await expect(research.first()).toHaveAttribute("href", /\/stocks\//);
@@ -126,10 +113,11 @@ test.describe("reduced motion", () => {
     }
 
     // The hero phone must not change screen on its own.
-    const label = page.locator("[aria-live=polite]").first();
-    const before = await label.textContent();
+    const shown = page.locator('[data-screen][data-active="true"]').first();
+    const before = await shown.getAttribute("data-screen");
+    expect(before).not.toBeNull();
     await page.waitForTimeout(6000);
-    expect(await label.textContent()).toBe(before);
+    expect(await shown.getAttribute("data-screen")).toBe(before);
   });
 });
 
