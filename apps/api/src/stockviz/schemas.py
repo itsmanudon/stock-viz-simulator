@@ -291,10 +291,13 @@ class ValuationWarningOut(BaseModel):
     """A figure the valuation could not price (audit LG-13).
 
     ``code``: ``no_close`` and ``no_option_price`` (valued at 0) or
-    ``no_fx_rate`` (added unconverted). ``subject`` is a ticker or currency.
+    ``no_fx_rate`` (added unconverted; in All books, dates without a rate are
+    left out of the combined history). ``stale_fx_rate`` (A5.2, All books
+    only): a rate older than the session before the date it values was used.
+    ``subject`` is a ticker or currency.
     """
 
-    code: Literal["no_close", "no_option_price", "no_fx_rate"]
+    code: Literal["no_close", "no_option_price", "no_fx_rate", "stale_fx_rate"]
     subject: str
     message: str
 
@@ -352,6 +355,32 @@ class PortfolioOut(BaseModel):
     # fixed (true once the account has any trade, order or option).
     base_currency: str = "USD"
     base_currency_locked: bool = True
+    # A5.2: set only for ``?book=all``: the books summed, each in the display
+    # currency. ``portfolio_id`` is 0 then and ``base_currency`` is the
+    # display currency.
+    combined: CombinedOut | None = None
+
+
+class CombinedBookOut(BaseModel):
+    """One book's share of the All books figure (A5.2)."""
+
+    id: int
+    name: str
+    kind: Literal["paper", "imported"]
+    base_currency: str
+    archived: bool
+    is_default: bool
+    total_value: Decimal
+    """In the display currency at the latest rate."""
+
+
+class CombinedOut(BaseModel):
+    """What ``?book=all`` summed and how (A5.2, M10.1)."""
+
+    books: list[CombinedBookOut]
+    fx_rule: str
+    per_book_only: list[str]
+    """Figures that are per book and absent from All books (risk, stress, ...)."""
 
 
 ClientOrderId = Annotated[
@@ -417,6 +446,8 @@ class TradeOut(BaseModel):
     # Native cash effect net of fees: a buy's value + fees, a sell's value - fees.
     net_native: Decimal | None = None
     realized_pnl_net: Decimal | None = None
+    # A5.2: the trade's book (always set; the All books list mixes them).
+    book_id: int | None = None
 
 
 class TradeFeeLineOut(BaseModel):
@@ -766,6 +797,10 @@ class PortfolioHistoryPointOut(BaseModel):
 
     date: date
     nav: Decimal
+    # A5.2, ``?book=all`` only: outside money that day in the display
+    # currency (a new book's opening value, an imported book's buys less
+    # sells), so a change over a range can leave it out. Null per book.
+    flow: Decimal | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -1032,6 +1067,8 @@ class PendingOrderOut(BaseModel):
     fill_price: Decimal | None
     # Populated when a triggered order could not be filled.
     cancel_reason: str | None = None
+    # A5.2: the order's book (the All books list mixes them).
+    portfolio_id: int | None = None
 
 
 # ---------------------------------------------------------------------------

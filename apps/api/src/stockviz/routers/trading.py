@@ -30,7 +30,7 @@ from stockviz.models import (
 from stockviz.models.dividend import Dividend, PortfolioDividend
 from stockviz.models.risk_limit import LIMIT_COLUMNS as RISK_LIMIT_COLUMNS
 from stockviz.models.risk_limit import RiskLimit
-from stockviz.routers.book_query import BookQuery
+from stockviz.routers.book_query import BookOrAllQuery, BookQuery, parse_book
 from stockviz.schemas import (
     BaseCurrencyIn,
     DividendCreditOut,
@@ -58,6 +58,7 @@ from stockviz.schemas import (
     TradeOut,
     VarOut,
 )
+from stockviz.services.books.combined import CombinedView, combined_view, history_series
 from stockviz.services.instruments import instrument_of
 from stockviz.services.risk import compute_risk
 from stockviz.services.risk.engine import MC_METHOD, VAR_METHOD
@@ -81,12 +82,23 @@ from stockviz.services.trading.account import (
     set_base_currency,
 )
 from stockviz.services.trading.account import activity as account_activity
-from stockviz.services.trading.books import default_book, owned_book, resolve_book
+from stockviz.services.trading.books import (
+    default_book,
+    ensure_default_portfolio,
+    owned_book,
+    resolve_book,
+    user_books,
+)
 from stockviz.services.trading.execute import resolve_priced_symbol
 from stockviz.services.trading.fx import convert as fx_convert
 from stockviz.services.trading.fx import latest_rate as fx_latest_rate
 from stockviz.services.trading.simulation_adapter import as_aware_utc
-from stockviz.services.trading.views import portfolio_analytics_response, portfolio_response
+from stockviz.services.trading.views import (
+    combined_analytics_response,
+    combined_portfolio_response,
+    portfolio_analytics_response,
+    portfolio_response,
+)
 
 router = APIRouter(prefix="/v1", tags=["trading"])
 
@@ -98,9 +110,26 @@ def _user_display_currency(session: Session, user_id: int) -> str:
     return (user.display_currency if user else None) or "USD"
 
 
+def _all_books(session: Session, user_id: int, *, with_series: bool = True) -> CombinedView:
+    """Every book of the user, valued and (optionally) summed over time (A5.2)."""
+    ensure_default_portfolio(session, user_id)
+    return combined_view(
+        session,
+        user_books(session, user_id),
+        display=_user_display_currency(session, user_id),
+        as_of=utcnow().date(),
+        with_series=with_series,
+    )
+
+
 @router.get("/portfolio", response_model=PortfolioOut)
-def get_portfolio(session: SessionDep, user_id: UserIdDep, book: BookQuery = None) -> PortfolioOut:
-    portfolio = resolve_book(session, user_id, book)
+def get_portfolio(
+    session: SessionDep, user_id: UserIdDep, book: BookOrAllQuery = None
+) -> PortfolioOut:
+    chosen = parse_book(book)
+    if chosen == "all":
+        return combined_portfolio_response(_all_books(session, user_id))
+    portfolio = resolve_book(session, user_id, chosen)
     display = _user_display_currency(session, user_id)
     snap = compute_portfolio(session, portfolio, display_currency=display)
     return portfolio_response(snap, base_currency_locked=bool(account_activity(session, portfolio)))
@@ -177,6 +206,7 @@ def post_trade(
         base_currency=result.base_currency,
         total_base=result.base_cost,
         realized_pnl=result.realized_pnl,
+        book_id=trade.portfolio_id,
         **trade_fee_fields(trade, result.native_cost),
     )
 
@@ -222,15 +252,21 @@ def get_portfolio_analytics(
     session: SessionDep,
     user_id: UserIdDep,
     risk_free_rate: Annotated[float, Query(ge=0, le=1)] = DEFAULT_RISK_FREE_RATE,
-    book: BookQuery = None,
+    book: BookOrAllQuery = None,
 ) -> PortfolioAnalyticsOut:
     """Return Sharpe, drawdown, returns, sector mix, and top movers.
 
     Time-series metrics use every snapshot the user has; the series can be
     empty for brand-new accounts (in which case those fields come back as
-    ``None`` and the UI hides the relevant cards).
+    ``None`` and the UI hides the relevant cards). ``book=all`` (A5.2) sums
+    every book in the display currency (``services/books/combined.py``).
     """
-    portfolio = resolve_book(session, user_id, book)
+    chosen = parse_book(book)
+    if chosen == "all":
+        return combined_analytics_response(
+            session, _all_books(session, user_id), risk_free_rate=risk_free_rate
+        )
+    portfolio = resolve_book(session, user_id, chosen)
     display = _user_display_currency(session, user_id)
     valuation = compute_portfolio(session, portfolio, display_currency=display)
 
@@ -244,10 +280,17 @@ def get_portfolio_overview(
     session: SessionDep,
     user_id: UserIdDep,
     risk_free_rate: Annotated[float, Query(ge=0, le=1)] = DEFAULT_RISK_FREE_RATE,
-    book: BookQuery = None,
+    book: BookOrAllQuery = None,
 ) -> PortfolioOverviewOut:
     """Build summary and analytics from one uncached valuation for this user."""
-    portfolio = resolve_book(session, user_id, book)
+    chosen = parse_book(book)
+    if chosen == "all":
+        view = _all_books(session, user_id)
+        return PortfolioOverviewOut(
+            portfolio=combined_portfolio_response(view),
+            analytics=combined_analytics_response(session, view, risk_free_rate=risk_free_rate),
+        )
+    portfolio = resolve_book(session, user_id, chosen)
     display = _user_display_currency(session, user_id)
     valuation = compute_portfolio(session, portfolio, display_currency=display)
     return PortfolioOverviewOut(
@@ -476,17 +519,38 @@ def get_portfolio_history(
     session: SessionDep,
     user_id: UserIdDep,
     days: Annotated[int | None, Query(ge=1, le=3650)] = 90,
-    book: BookQuery = None,
-) -> list[PortfolioSnapshot]:
+    book: BookOrAllQuery = None,
+) -> list[PortfolioSnapshot] | list[PortfolioHistoryPointOut]:
     """Return the user's daily NAV history, oldest first.
 
     ``days=None`` (omit query param) returns the full history; otherwise the
     last N days. Empty list when the scheduler hasn't written any snapshots
     yet for this user — the UI hides the chart in that case.
+
+    ``book=all`` (A5.2): every book's snapshots summed in the display
+    currency at each date's rate, with that date's outside ``flow``.
     """
+    chosen = parse_book(book)
+    if chosen == "all":
+        today = utcnow().date()
+        series = history_series(
+            session,
+            user_books(session, user_id),
+            display=_user_display_currency(session, user_id),
+            as_of=today,
+        )
+        flows = series.flow_by_day
+        cutoff = today - timedelta(days=days) if days is not None else None
+        return [
+            PortfolioHistoryPointOut(date=d, nav=v, flow=flows.get(d, Decimal(0)))
+            for d, v in series.points
+            if cutoff is None or d >= cutoff
+        ]
     # Reading history never creates the default book (empty until it exists).
     portfolio = (
-        resolve_book(session, user_id, book) if book is not None else default_book(session, user_id)
+        resolve_book(session, user_id, chosen)
+        if chosen is not None
+        else default_book(session, user_id)
     )
     if portfolio is None:
         return []
@@ -503,7 +567,7 @@ def list_trades(
     session: SessionDep,
     user_id: UserIdDep,
     limit: Annotated[int, Query(ge=1, le=500)] = 100,
-    book: BookQuery = None,
+    book: BookOrAllQuery = None,
 ) -> list[TradeOut]:
     """Return executed trades, newest first.
 
@@ -512,12 +576,18 @@ def list_trades(
     written before that column existed fall back to the symbol's current rate,
     which is the old (approximate) behaviour.
     """
-    portfolio = resolve_book(session, user_id, book)
+    chosen = parse_book(book)
+    books = (
+        user_books(session, user_id)
+        if chosen == "all"
+        else [resolve_book(session, user_id, chosen)]
+    )
+    base_by_book = {b.id: (b.base_currency or "USD") for b in books}
     rows = list(
         session.exec(
             select(Trade)
-            .where(Trade.portfolio_id == portfolio.id)
-            .order_by(Trade.ts.desc())  # type: ignore[attr-defined]
+            .where(Trade.portfolio_id.in_(list(base_by_book)))  # type: ignore[union-attr]
+            .order_by(Trade.ts.desc(), Trade.id.desc())  # type: ignore[attr-defined,union-attr]
             .limit(limit)
         )
     )
@@ -533,10 +603,10 @@ def list_trades(
         ).all()
     }
 
-    base = portfolio.base_currency or "USD"
     out: list[TradeOut] = []
     fx_cache: dict[str, Decimal] = {}
     for trade in rows:
+        base = base_by_book.get(trade.portfolio_id, "USD")
         ccy = currency_by_ticker.get(trade.ticker, "USD")
         rate = trade.fx_rate
         if rate is None:
@@ -562,6 +632,7 @@ def list_trades(
                 base_currency=base,
                 total_base=native * rate,
                 realized_pnl=trade.realized_pnl,
+                book_id=trade.portfolio_id,
                 **trade_fee_fields(trade, native),
             )
         )
