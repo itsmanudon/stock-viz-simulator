@@ -12,6 +12,7 @@ import {
 } from "@/lib/api/trading";
 import type { NewsArticle } from "@/lib/api/types";
 import { type WatchlistItem, listWatchlist } from "@/lib/api/watchlist";
+import type { BookRef } from "@/lib/book-url";
 import { DASHBOARD_NEWS_LIMIT, dashboardNewsTickers } from "@/lib/dashboard-news";
 import { loadPortfolioOverview } from "@/lib/portfolio-overview";
 import { DASHBOARD_HISTORY_DAYS } from "@/lib/portfolio-view-model";
@@ -37,11 +38,12 @@ export type DashboardData = {
   newsTickers: string[];
 };
 
-export async function loadDashboardData(): Promise<DashboardData> {
+/** A5.2: `book` is the selected book's id, `"all"` or null (the default). */
+export async function loadDashboardData(book: BookRef | null = null): Promise<DashboardData> {
   const [overview, history, orders, alerts, watchlist] = await Promise.all([
-    loadPortfolioOverview(),
-    optional(getPortfolioHistory(DASHBOARD_HISTORY_DAYS)),
-    optional(listOrders("pending")),
+    loadPortfolioOverview(book),
+    optional(getPortfolioHistory(DASHBOARD_HISTORY_DAYS, book)),
+    optional(listOrders("pending", book)),
     optional(listAlerts()),
     optional(listWatchlist()),
   ]);

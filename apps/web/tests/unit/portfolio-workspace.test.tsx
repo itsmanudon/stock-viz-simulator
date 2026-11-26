@@ -11,6 +11,7 @@ import type {
 } from "@/lib/api/trading";
 
 vi.mock("next/navigation", () => ({
+  useSearchParams: () => new URLSearchParams(),
   useRouter: () => ({ push: vi.fn() }),
 }));
 

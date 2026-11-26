@@ -827,7 +827,8 @@ export interface paths {
          *
          *     Time-series metrics use every snapshot the user has; the series can be
          *     empty for brand-new accounts (in which case those fields come back as
-         *     ``None`` and the UI hides the relevant cards).
+         *     ``None`` and the UI hides the relevant cards). ``book=all`` (A5.2) sums
+         *     every book in the display currency (``services/books/combined.py``).
          */
         get: operations["get_portfolio_analytics_v1_portfolio_analytics_get"];
         put?: never;
@@ -961,6 +962,9 @@ export interface paths {
          *     ``days=None`` (omit query param) returns the full history; otherwise the
          *     last N days. Empty list when the scheduler hasn't written any snapshots
          *     yet for this user — the UI hides the chart in that case.
+         *
+         *     ``book=all`` (A5.2): every book's snapshots summed in the display
+         *     currency at each date's rate, with that date's outside ``flow``.
          */
         get: operations["get_portfolio_history_v1_portfolio_history_get"];
         put?: never;
@@ -1368,7 +1372,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List Orders */
+        /**
+         * List Orders
+         * @description One book's orders, or every book's with ``book=all`` (A5.2; each row names its book).
+         */
         get: operations["list_orders_v1_orders_get"];
         put?: never;
         /** Create Order */
@@ -3471,6 +3478,41 @@ export interface components {
             name?: string | null;
             /** Columns */
             columns?: ("close" | "change_pct" | "rsi_14" | "pct_from_52w_high" | "sma_50_gap_pct" | "sma_200_gap_pct" | "atr_pct_14" | "hv_20" | "volume_ratio" | "avg_volume_20" | "pe" | "pb" | "market_cap_usd" | "dividend_yield" | "roe" | "sentiment_7d" | "delivery_pct" | "checklist_met" | "sector")[] | null;
+        };
+        /**
+         * CombinedBookOut
+         * @description One book's share of the All books figure (A5.2).
+         */
+        CombinedBookOut: {
+            /** Id */
+            id: number;
+            /** Name */
+            name: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "paper" | "imported";
+            /** Base Currency */
+            base_currency: string;
+            /** Archived */
+            archived: boolean;
+            /** Is Default */
+            is_default: boolean;
+            /** Total Value */
+            total_value: string;
+        };
+        /**
+         * CombinedOut
+         * @description What ``?book=all`` summed and how (A5.2, M10.1).
+         */
+        CombinedOut: {
+            /** Books */
+            books: components["schemas"]["CombinedBookOut"][];
+            /** Fx Rule */
+            fx_rule: string;
+            /** Per Book Only */
+            per_book_only: string[];
         };
         /**
          * CostsOut
@@ -6198,6 +6240,8 @@ export interface components {
             fill_price: string | null;
             /** Cancel Reason */
             cancel_reason?: string | null;
+            /** Portfolio Id */
+            portfolio_id?: number | null;
         };
         /** PercentilesOut */
         PercentilesOut: {
@@ -6305,6 +6349,8 @@ export interface components {
             date: string;
             /** Nav */
             nav: string;
+            /** Flow */
+            flow?: string | null;
         };
         /**
          * PortfolioOptionOut
@@ -6455,6 +6501,7 @@ export interface components {
              * @default true
              */
             base_currency_locked: boolean;
+            combined?: components["schemas"]["CombinedOut"] | null;
         };
         /**
          * PortfolioOverviewOut
@@ -9467,6 +9514,8 @@ export interface components {
             net_native?: string | null;
             /** Realized Pnl Net */
             realized_pnl_net?: string | null;
+            /** Book Id */
+            book_id?: number | null;
         };
         /**
          * TrailingStopIn
@@ -9641,14 +9690,17 @@ export interface components {
          * @description A figure the valuation could not price (audit LG-13).
          *
          *     ``code``: ``no_close`` and ``no_option_price`` (valued at 0) or
-         *     ``no_fx_rate`` (added unconverted). ``subject`` is a ticker or currency.
+         *     ``no_fx_rate`` (added unconverted; in All books, dates without a rate are
+         *     left out of the combined history). ``stale_fx_rate`` (A5.2, All books
+         *     only): a rate older than the session before the date it values was used.
+         *     ``subject`` is a ticker or currency.
          */
         ValuationWarningOut: {
             /**
              * Code
              * @enum {string}
              */
-            code: "no_close" | "no_option_price" | "no_fx_rate";
+            code: "no_close" | "no_option_price" | "no_fx_rate" | "stale_fx_rate";
             /** Subject */
             subject: string;
             /** Message */
@@ -11434,8 +11486,8 @@ export interface operations {
     get_portfolio_v1_portfolio_get: {
         parameters: {
             query?: {
-                /** @description Book id (A5.1). Omit for the default book; another user's book is 404. */
-                book?: number | null;
+                /** @description Book id, or `all` for every book summed in the display currency (A5.2). Omit for the default book; another user's book is 404. */
+                book?: string | null;
             };
             header?: {
                 authorization?: string | null;
@@ -11507,8 +11559,8 @@ export interface operations {
         parameters: {
             query?: {
                 limit?: number;
-                /** @description Book id (A5.1). Omit for the default book; another user's book is 404. */
-                book?: number | null;
+                /** @description Book id, or `all` for every book summed in the display currency (A5.2). Omit for the default book; another user's book is 404. */
+                book?: string | null;
             };
             header?: {
                 authorization?: string | null;
@@ -11580,8 +11632,8 @@ export interface operations {
         parameters: {
             query?: {
                 risk_free_rate?: number;
-                /** @description Book id (A5.1). Omit for the default book; another user's book is 404. */
-                book?: number | null;
+                /** @description Book id, or `all` for every book summed in the display currency (A5.2). Omit for the default book; another user's book is 404. */
+                book?: string | null;
             };
             header?: {
                 authorization?: string | null;
@@ -11615,8 +11667,8 @@ export interface operations {
         parameters: {
             query?: {
                 risk_free_rate?: number;
-                /** @description Book id (A5.1). Omit for the default book; another user's book is 404. */
-                book?: number | null;
+                /** @description Book id, or `all` for every book summed in the display currency (A5.2). Omit for the default book; another user's book is 404. */
+                book?: string | null;
             };
             header?: {
                 authorization?: string | null;
@@ -11827,8 +11879,8 @@ export interface operations {
         parameters: {
             query?: {
                 days?: number | null;
-                /** @description Book id (A5.1). Omit for the default book; another user's book is 404. */
-                book?: number | null;
+                /** @description Book id, or `all` for every book summed in the display currency (A5.2). Omit for the default book; another user's book is 404. */
+                book?: string | null;
             };
             header?: {
                 authorization?: string | null;
@@ -12872,8 +12924,8 @@ export interface operations {
         parameters: {
             query?: {
                 status?: string | null;
-                /** @description Book id (A5.1). Omit for the default book; another user's book is 404. */
-                book?: number | null;
+                /** @description Book id, or `all` for every book summed in the display currency (A5.2). Omit for the default book; another user's book is 404. */
+                book?: string | null;
             };
             header?: {
                 authorization?: string | null;

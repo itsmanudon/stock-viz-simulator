@@ -1,8 +1,10 @@
 "use client";
 
+import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import type { LimitPreview } from "@/lib/api/trading";
+import { bookIdParam } from "@/lib/book-url";
 
 /**
  * Phase 8.5: in the order review, what this buy would do to each limit the
@@ -11,17 +13,20 @@ import type { LimitPreview } from "@/lib/api/trading";
  */
 export function LimitPreviewRows({ ticker, quantity }: { ticker: string; quantity: string }) {
   const [preview, setPreview] = useState<LimitPreview | null>(null);
+  // A5.2: limits are per book; the page's `?book=` names it.
+  const book = bookIdParam(useSearchParams()?.get("book"));
 
   useEffect(() => {
     if (!ticker || !(Number(quantity) > 0)) return;
     const controller = new AbortController();
     const q = new URLSearchParams({ ticker, quantity });
+    if (book != null) q.set("book", String(book));
     fetch(`/api/limits-check?${q.toString()}`, { signal: controller.signal })
       .then((r) => (r.ok ? r.json() : null))
       .then((body: LimitPreview | null) => setPreview(body))
       .catch(() => setPreview(null));
     return () => controller.abort();
-  }, [ticker, quantity]);
+  }, [ticker, quantity, book]);
 
   if (!preview || preview.checks.length === 0) return null;
   return (

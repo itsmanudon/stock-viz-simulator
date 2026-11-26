@@ -17,7 +17,7 @@ from stockviz.auth import UserIdDep
 from stockviz.db import get_session
 from stockviz.models import TradeSide
 from stockviz.models.order import OrderStatus, OrderType, PendingOrder
-from stockviz.routers.book_query import BookQuery
+from stockviz.routers.book_query import BookOrAllQuery, BookQuery, parse_book
 from stockviz.schemas import PendingOrderIn, PendingOrderOut
 from stockviz.services.trading import (
     ClientOrderIdConflict,
@@ -28,7 +28,7 @@ from stockviz.services.trading import (
     cancel_pending_order,
     create_pending_order,
 )
-from stockviz.services.trading.books import resolve_book
+from stockviz.services.trading.books import resolve_book, user_books
 from stockviz.services.trading.bounds import MAX_PRICE, MAX_QUANTITY, check_amount
 
 router = APIRouter(prefix="/v1", tags=["orders"])
@@ -92,13 +92,17 @@ def list_orders(
     session: SessionDep,
     user_id: UserIdDep,
     status_filter: Annotated[str | None, Query(alias="status")] = None,
-    book: BookQuery = None,
+    book: BookOrAllQuery = None,
 ) -> list[PendingOrder]:
-    portfolio = resolve_book(session, user_id, book)
-    assert portfolio.id is not None
-
+    """One book's orders, or every book's with ``book=all`` (A5.2; each row names its book)."""
+    chosen = parse_book(book)
+    books = (
+        user_books(session, user_id)
+        if chosen == "all"
+        else [resolve_book(session, user_id, chosen)]
+    )
     stmt = select(PendingOrder).where(
-        PendingOrder.portfolio_id == portfolio.id  # pyright: ignore[reportArgumentType]
+        PendingOrder.portfolio_id.in_([b.id for b in books])  # type: ignore[union-attr]
     )
     if status_filter:
         try:

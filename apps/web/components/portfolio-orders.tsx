@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { BookLink as Link } from "@/components/book-link";
 import type { ReactNode } from "react";
 
 import { cancelOrderAction } from "@/app/(product)/(authed)/orders/actions";

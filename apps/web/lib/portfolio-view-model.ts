@@ -47,18 +47,28 @@ export function buildPortfolioHref({
   range,
   tab,
   month,
+  book,
 }: {
   range: PortfolioRange;
   tab: PortfolioTab;
   /** Journal month (`YYYY-MM`). Ignored on the other tabs, which don't have one. */
   month?: string;
+  /** A5.2: the selected book (`?book=`), kept on every tab and range link. */
+  book?: number | "all" | null;
 }): string {
   const params = new URLSearchParams({ range });
   if (tab !== "positions") params.set("tab", tab);
   if (tab === "journal" && month) params.set("month", month);
+  if (book != null) params.set("book", String(book));
   return `/portfolio?${params.toString()}`;
 }
 
+/**
+ * The change over a series. A5.2: All books points carry `flow`, the outside
+ * money that day (a new book, an imported buy). It is left out of the
+ * change, and the percent is the time-weighted return over the points, so
+ * opening a book never reads as a gain. Without flows this is last - first.
+ */
 export function calculateNavChange(points: PortfolioHistoryPoint[]): NavChange | null {
   if (points.length < 2) return null;
 
@@ -68,10 +78,26 @@ export function calculateNavChange(points: PortfolioHistoryPoint[]): NavChange |
   const last = Number(lastPoint.nav);
   if (!Number.isFinite(first) || !Number.isFinite(last) || first === 0) return null;
 
-  const absolute = last - first;
+  const flows = points.slice(1).map((p) => Number(p.flow ?? 0));
+  if (flows.every((f) => f === 0)) {
+    const absolute = last - first;
+    return {
+      absolute,
+      percent: (absolute / first) * 100,
+      firstDate: firstPoint.date,
+      lastDate: lastPoint.date,
+    };
+  }
+  let growth = 1;
+  for (let i = 1; i < points.length; i++) {
+    const prev = Number(points[i - 1].nav);
+    const curr = Number(points[i].nav);
+    if (!(prev > 0) || !Number.isFinite(curr)) return null;
+    growth *= (curr - flows[i - 1]) / prev;
+  }
   return {
-    absolute,
-    percent: (absolute / first) * 100,
+    absolute: last - first - flows.reduce((sum, f) => sum + f, 0),
+    percent: (growth - 1) * 100,
     firstDate: firstPoint.date,
     lastDate: lastPoint.date,
   };

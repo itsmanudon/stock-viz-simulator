@@ -1,5 +1,5 @@
+import { BookLink as Link } from "@/components/book-link";
 import { ArrowUpRight } from "lucide-react";
-import Link from "next/link";
 
 import { cn } from "@/lib/utils";
 

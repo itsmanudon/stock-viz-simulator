@@ -1,3 +1,4 @@
+import { BookLink as Link } from "@/components/book-link";
 import {
   ArrowLeftRight,
   ArrowUpRight,
@@ -6,7 +7,6 @@ import {
   SearchCode,
 } from "lucide-react";
 import type { Metadata } from "next";
-import Link from "next/link";
 
 import { AlertsWidget } from "@/components/dashboard/alerts-widget";
 import { AllocationWidget } from "@/components/dashboard/allocation-widget";
@@ -16,6 +16,7 @@ import { OrdersWidget } from "@/components/dashboard/orders-widget";
 import { PortfolioHero } from "@/components/dashboard/portfolio-hero";
 import { WatchlistWidget } from "@/components/dashboard/watchlist-widget";
 import { PageFrame } from "@/components/page-frame";
+import { loadBookContext } from "@/lib/book-context";
 import { loadDashboardData } from "@/lib/dashboard-data";
 
 export const metadata: Metadata = { title: "Dashboard" };
@@ -27,9 +28,16 @@ const SHORTCUTS = [
   { label: "Portfolio", href: "/portfolio", icon: BriefcaseBusiness },
 ] as const;
 
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ book?: string }>;
+}) {
+  const params = await searchParams;
+  // A5.2: the hero and every widget follow `?book=<id|all>` (default when absent).
+  const books = await loadBookContext(params.book, "/dashboard", params);
   const { portfolio, history, analytics, orders, alerts, watchlist, news, newsTickers } =
-    await loadDashboardData();
+    await loadDashboardData(books.book);
   // Ticker to trading currency from what the page already holds, so pending
   // triggers show in their own currency without another request.
   const currencies: Record<string, string> = {};
@@ -73,7 +81,17 @@ export default async function DashboardPage() {
           open (orders, watchlist, alerts), then how the book moved, then news
           on the symbols held or watched. */}
       <div className="mt-6 grid gap-4">
-        <PortfolioHero portfolio={portfolio} history={history} />
+        <PortfolioHero
+          portfolio={portfolio}
+          history={history}
+          book={
+            books.isAll
+              ? { name: "All books", kind: "all", count: books.books.length }
+              : books.selected
+                ? { name: books.selected.name, kind: books.selected.kind, count: 1 }
+                : null
+          }
+        />
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           <OrdersWidget orders={orders} currencies={currencies} />
           <WatchlistWidget watchlist={watchlist} />

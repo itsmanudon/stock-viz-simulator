@@ -18,6 +18,10 @@ vi.mock("@/components/account-menu", () => ({
   AccountMenu: () => <button type="button">Account</button>,
 }));
 
+vi.mock("@/components/book-switcher-slot", () => ({
+  BookSwitcherSlot: () => <button type="button">Book</button>,
+}));
+
 vi.mock("@/components/alerts-bell", () => ({
   AlertsBell: () => null,
 }));

@@ -1,3 +1,4 @@
+import { BookLink } from "@/components/book-link";
 import { cn } from "@/lib/utils";
 
 /**
@@ -58,7 +59,7 @@ export function PageSubnav({
           const active = item.href === current;
           return (
             <li key={item.href}>
-              <a
+              <BookLink
                 href={item.href}
                 aria-current={active ? "page" : undefined}
                 className={cn(
@@ -69,7 +70,7 @@ export function PageSubnav({
                 )}
               >
                 {item.label}
-              </a>
+              </BookLink>
             </li>
           );
         })}

@@ -1806,6 +1806,39 @@ intraday fills anywhere in the app:
   409 for the default or last book, and for a book with activity that is
   not archived; deletes everything in it). `BookOut` carries `writable` and
   `activity`. Only a paper book can be the default.
+- **All books (A5.2, M10.1).** `routers/book_query.py::BookOrAllQuery`
+  (`?book=<id>|all`, `parse_book`) on `GET /v1/portfolio`, `/portfolio/overview`,
+  `/portfolio/analytics`, `/portfolio/history`, `/v1/trades` and `/v1/orders`;
+  every other book route still takes an id only, so `all` is 422 there.
+  `services/books/combined.py`: `combined_view` values every book with
+  `compute_portfolio` in the user's display currency and merges them
+  (`merge_valuations`: one row per ticker, quantity summed, average cost
+  weighted by quantity; cash per currency summed; `portfolio_id` 0,
+  `base_currency` = display). The series (`book_series` + pure `combine`):
+  each book's points (opening value on `created_at`'s date, its snapshots,
+  today's live value) are in its base currency and convert into the display
+  currency at the rate on or before that point's own date (`RateBook`); a
+  book's value between its points is its last point; a book adds nothing
+  before it opened. Outside flows: a book opening after the first book's
+  opening adds its `opening_nav` on its opening date; an imported book's buys
+  add cost + fees and its sells remove proceeds - fees, at `trades.fx_rate`
+  into its base, then the trade date's display rate (`imported_flows`).
+  Cross-book transfers do not exist yet. TWR = `period_returns` over the sum
+  with those flows; total return, drawdown and Sharpe read `growth_index`
+  (flow-free), XIRR takes `-first value`, `-flows`, `+today`
+  (`combined_xirr_flows`). FX age: `stale_floor(d)` =
+  `previous_session(session_on_or_before(d))` on XNYS (MD-7's fill rule); an
+  older rate is used and reported as `ValuationWarningOut.code =
+  "stale_fx_rate"`; a date with no rate at all is dropped from the series
+  (its flows count on the next date kept) and reported as `no_fx_rate`.
+  `PortfolioOut.combined` lists each book's value, `fx_rule` and
+  `per_book_only`. Per book only: risk, stress, attribution (null),
+  holding XIRRs (empty), limits, dividends, options and the journal.
+  `/portfolio/history?book=all` returns snapshots only, summed, each with
+  `flow` (null on one book's history). `TradeOut.book_id` and
+  `PendingOrderOut.portfolio_id` name each row's book. Tests:
+  `tests/test_books_combined.py` (the hand-worked USD + INR example: TWR
+  4.3133%; imported flows 0.47619%; stale and missing rates; the routes).
 - **Rupee accounts (Phase 4.8).** `PUT /v1/portfolio/base-currency`
   (`services/trading/account.py`; A5.1: per book, `?book=`, paper and not
   archived) restarts a **fresh** book in USD

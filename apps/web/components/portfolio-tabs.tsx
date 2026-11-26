@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { Tabs } from "radix-ui";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 
+import { useUrlBook } from "@/components/book-link";
 import { CountBadge } from "@/components/count-badge";
 import {
   type PortfolioRange,
@@ -41,6 +42,7 @@ export function PortfolioTabs({
   orderCount,
 }: Props) {
   const router = useRouter();
+  const book = useUrlBook();
   const scroller = useRef<HTMLDivElement>(null);
   // Which edges have more tabs past them (UI audit P3). On the narrowest
   // phones the row still scrolls; a fade on that edge says so.
@@ -75,6 +77,7 @@ export function PortfolioTabs({
       buildPortfolioHref({
         range,
         tab: value as PortfolioTab,
+        book,
       }),
       { scroll: false },
     );

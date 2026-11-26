@@ -7,6 +7,7 @@ import { PortfolioTabs } from "@/components/portfolio-tabs";
 const push = vi.fn();
 
 vi.mock("next/navigation", () => ({
+  useSearchParams: () => new URLSearchParams(),
   useRouter: () => ({ push }),
 }));
 

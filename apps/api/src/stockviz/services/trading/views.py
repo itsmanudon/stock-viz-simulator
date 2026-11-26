@@ -11,6 +11,8 @@ from sqlmodel import Session, select
 from stockviz._time import utcnow
 from stockviz.models import Portfolio, PortfolioSnapshot, Symbol
 from stockviz.schemas import (
+    CombinedBookOut,
+    CombinedOut,
     CurrencyCashOut,
     ExposureBucketOut,
     ExposureOut,
@@ -29,6 +31,14 @@ from stockviz.schemas import (
     TopMoverOut,
     ValuationWarningOut,
     XirrOut,
+)
+from stockviz.services.books.combined import (
+    COMBINED_TWR_BASIS,
+    COMBINED_XIRR_BASIS,
+    FX_STALE_RULE,
+    CombinedView,
+    combined_xirr_flows,
+    growth_index,
 )
 from stockviz.services.options.pricing import OptionPrice
 from stockviz.services.trading.analytics import (
@@ -55,6 +65,7 @@ from stockviz.services.trading.returns import (
     XIRR_METHOD,
     Xirr,
     period_returns,
+    xirr,
 )
 from stockviz.services.trading.returns_ledger import account_xirr, holding_returns
 
@@ -345,4 +356,143 @@ def _returns_out(
             HoldingReturnOut(ticker=h.ticker, kind=h.kind, xirr=_xirr_out(h.result))
             for h in holding_returns(session, portfolio, valuation, as_of=as_of)
         ],
+    )
+
+
+# ---------------------------------------------------------------------------
+# All books (A5.2)
+# ---------------------------------------------------------------------------
+
+PER_BOOK_ONLY = [
+    "risk (VaR, CVaR, Monte Carlo)",
+    "stress tests",
+    "currency attribution",
+    "each holding's XIRR",
+    "pre-trade limits",
+    "dividends",
+    "options Greeks and strategies",
+    "the journal",
+]
+
+
+def combined_portfolio_response(view: CombinedView) -> PortfolioOut:
+    """``PortfolioOut`` for ``?book=all``: the merged valuation plus each book's share."""
+    out = portfolio_response(view.valuation, base_currency_locked=True)
+    out.combined = CombinedOut(
+        books=[
+            CombinedBookOut(
+                id=b.id,  # type: ignore[arg-type]
+                name=b.name,
+                kind=str(b.kind),  # type: ignore[arg-type]
+                base_currency=b.base_currency or "USD",
+                archived=b.archived_at is not None,
+                is_default=b.is_default,
+                total_value=v.total_value,
+            )
+            for b, v in zip(view.books, view.valuations, strict=True)
+        ],
+        fx_rule=FX_STALE_RULE,
+        per_book_only=PER_BOOK_ONLY,
+    )
+    return out
+
+
+def combined_analytics_response(
+    session: Session, view: CombinedView, *, risk_free_rate: float
+) -> PortfolioAnalyticsOut:
+    """Analytics over every book in the display currency (``services/books/combined.py``).
+
+    Total return, drawdown and Sharpe read the flow-free growth index, so a
+    new book or an imported buy is never a gain. Attribution and each
+    holding's XIRR are per book only.
+    """
+    valuation = view.valuation
+    series = view.series
+    as_of = utcnow().date()
+    points = series.points
+    index = growth_index(points, series.flows)
+    # Like one book: no track record before two snapshot dates (plus today).
+    navs = [v for _, v in index] if len(points) >= 3 else []
+    opened = series.opened or as_of
+    history_days = max((as_of - opened).days, 0)
+
+    tickers = [p.ticker for p in valuation.positions]
+    sectors_by_ticker: dict[str, str | None] = (
+        dict(
+            session.exec(
+                select(Symbol.ticker, Symbol.sector).where(
+                    Symbol.ticker.in_(tickers)  # type: ignore[attr-defined]
+                )
+            ).all()  # type: ignore[arg-type]
+        )
+        if tickers
+        else {}
+    )
+    allocation = compute_sector_allocation(valuation.positions, sectors_by_ticker=sectors_by_ticker)
+    gainers, losers = compute_top_movers(valuation.positions, sectors_by_ticker=sectors_by_ticker)
+    live = Decimal(valuation.total_value)
+    flows = series.flows
+    return PortfolioAnalyticsOut(
+        display_currency=valuation.display_currency,
+        history_days=history_days,
+        total_return_pct=compute_total_return_pct(navs),
+        annualised_return_pct=(
+            compute_annualised_return_pct(navs, days=history_days) if history_days else None
+        ),
+        # The index without today's live point: end-of-day values only.
+        sharpe_ratio=compute_sharpe(index[:-1], risk_free_rate=risk_free_rate)
+        if len(index) > 1
+        else None,
+        max_drawdown_pct=compute_max_drawdown_pct(navs),
+        risk_free_rate=risk_free_rate,
+        sector_allocation=[
+            SectorAllocationOut(sector=a.sector, market_value=a.market_value, pct=a.pct)
+            for a in allocation
+        ],
+        top_gainers=[
+            TopMoverOut(
+                ticker=m.ticker,
+                name=m.name,
+                sector=m.sector,
+                unrealized_pl=m.unrealized_pl,
+                return_pct=m.return_pct,
+            )
+            for m in gainers
+        ],
+        top_losers=[
+            TopMoverOut(
+                ticker=m.ticker,
+                name=m.name,
+                sector=m.sector,
+                unrealized_pl=m.unrealized_pl,
+                return_pct=m.return_pct,
+            )
+            for m in losers
+        ],
+        returns=PortfolioReturnsOut(
+            currency=valuation.display_currency,
+            twr_method=TWR_METHOD,
+            twr_basis=COMBINED_TWR_BASIS,
+            periods=[
+                PeriodReturnOut(
+                    period=r.period,
+                    start_date=r.start_date,
+                    end_date=r.end_date,
+                    return_pct=r.return_pct,
+                    annualised_pct=r.annualised_pct,
+                    reason=r.reason,
+                )
+                for r in period_returns(points, as_of=as_of, opened=opened, flows=flows)
+            ]
+            if points
+            else [],
+            xirr_method=XIRR_METHOD,
+            xirr_basis=COMBINED_XIRR_BASIS,
+            account_xirr=_xirr_out(
+                xirr(combined_xirr_flows(series, live=live, as_of=as_of), as_of=as_of)
+            ),
+            holdings=[],
+        ),
+        exposure=_exposure_out(session, valuation),
+        attribution=None,
     )
