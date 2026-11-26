@@ -2014,6 +2014,19 @@ computed on read (`services/journal/`).
   exit, the text); `PATCH /{id}` (`JournalEntryPatch`: text and tags only,
   extra fields 422, `""` clears, tags de-duplicated ignoring case, at most
   12 of 32 characters).
+- **Exact excursions and trade replay (A6.10, M9.5).** A closed paper or
+  imported entry whose fills all carry a time, with stored 1m bars (best
+  `FEED_RANK` feed, never `replayed`) on every session it spans, gets basis
+  `exact_minutes` (`roundtrips.minute_excursions`: shares held at a minute's
+  open count its whole range, a fill counts from its own price); else the A5
+  daily rule. `GET /v1/journal/entries/{id}/replay` (`services/journal/
+  trade_replay.py`, `TradeReplayOut`): minutes when covered (at most 5,000)
+  else daily bars with 5 sessions either side, the fills, the plan's levels,
+  the excursions and a hesitation strip (bars from the plan entry level's
+  first touch to the fill; `stop_honoured` when the position closed on the
+  bar the stop broke). Read only; 409 for a replay session's entry. Tests:
+  `test_a610_exact_excursions.py`, the minutes case in
+  `test_journal_entries.py`.
 - **Chart markers:** `symbol_events._fills` asks `entries.fill_r_multiples`
   (the user's books' whole history in the instrument, grouped the same way;
   read only) for each fill's R, entry id and whether it closes the entry.

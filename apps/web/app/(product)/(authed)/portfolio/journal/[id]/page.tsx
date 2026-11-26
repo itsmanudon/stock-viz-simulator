@@ -174,6 +174,15 @@ export default async function JournalEntryPage({
               {badge.label}
             </span>
             <MetaChip>{cur}</MetaChip>
+            {entry.source !== "replay" ? (
+              <Link
+                href={`/portfolio/journal/${entry.id}/replay`}
+                className="rounded-full border border-border-muted px-2.5 py-0.5 text-xs font-medium text-brand hover:bg-surface-hover"
+                data-testid="entry-replay-link"
+              >
+                Replay My Trade
+              </Link>
+            ) : null}
           </span>
         }
       />
