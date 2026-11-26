@@ -459,6 +459,7 @@ def counts_of(a: Analysis) -> dict[str, int]:
         "rejected": a.rejected,
         "basis_uncertain": sum(1 for o in outcomes if o.basis_uncertain),
         "intraday_inferred": sum(1 for o in outcomes if o.intraday_quantity > 0),
+        "intraday_short": sum(1 for o in outcomes if o.short == "open"),
     }
 
 
@@ -496,6 +497,7 @@ def preview(session: Session, user_id: int, book_id: int, body: bytes, *, now: d
                 "fees": o.fees,
                 "status": o.status,
                 "basis_uncertain": o.basis_uncertain,
+                "intraday_short": o.short is not None,
             }
         )
     rollback(session)
@@ -740,6 +742,9 @@ def _pair_plans(
     )
     for f, o, trade in ordered:
         iid = f.instrument_id
+        if o.short is not None:
+            # An intraday short and its cover pair no plan: imported plans are long only.
+            continue
         if f.kind == FILL_OPENING:
             # An opening lot is the user's summary, not a fill: it pairs no
             # plan (link the position from the plans list instead).

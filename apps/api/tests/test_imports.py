@@ -314,6 +314,7 @@ def test_preview_reports_problems_and_stores_nothing(session: Session, client: T
         "rejected": 1,
         "basis_uncertain": 0,
         "intraday_inferred": 0,
+        "intraday_short": 0,
     }
     problems = [(p["row"], p["kind"]) for p in out["problems"]]
     assert problems == [
@@ -633,6 +634,120 @@ def test_sells_before_any_buy_wait_for_an_opening_lot(session: Session, client: 
     gone = client.delete(f"/v1/books/{book}/opening-lots/{lot.json()['id']}", headers=_h(uid))
     assert gone.status_code == 204
     assert _positions(session, book) == {"RELIANCE.NS": (Decimal(2), Decimal(1450))}
+
+
+def test_a_same_day_sell_then_buy_posts_as_an_intraday_short(
+    session: Session, client: TestClient
+) -> None:
+    from stockviz.services.trading.returns_ledger import realized_totals
+
+    _symbols(session)
+    uid = _user(session)
+    book = _book(client, uid)
+    body = _csv(
+        _row("TCS", "2025-06-02", "sell", "10", "3420", "T1", time="10:00:00"),
+        _row("TCS", "2025-06-02", "buy", "10", "3400", "T2", time="14:00:00"),
+    )
+    out = _preview(client, uid, book, body).json()
+    assert out["counts"]["needs_opening_lot"] == 0 and out["counts"]["posted"] == 2
+    assert out["counts"]["intraday_short"] == 1
+    assert [s["intraday_short"] for s in out["sample"]] == [True, True]
+    assert not [p for p in out["problems"] if p["kind"] == "needs_opening_lot"]
+    assert _commit(client, uid, book, body).status_code == 200
+
+    # Flat after the day; the cover realises sell value - buy value.
+    assert _positions(session, book) == {}
+    sell, buy = _trades(session, book)
+    assert sell.side.value == "sell" and sell.realized_pnl is None
+    assert buy.side.value == "buy" and buy.realized_pnl == Decimal(200)  # (3420 - 3400) x 10
+    assert buy.avg_cost_at_fill == Decimal(3420)
+    fills = {f.trade_id: f for f in session.exec(select(BrokerFill)).all()}
+    assert {f.status for f in fills.values()} == {"posted"}
+    assert fills["T1"].product == "intraday" and fills["T2"].product == "intraday"
+    on = date(2025, 6, 2)
+    intra = get_fee_schedule("in_equity_intraday_nse")
+    assert fills["T1"].fees == intra.fees(OrderSide.SELL, Decimal(10), Decimal(3420), on=on).total
+    assert fills["T2"].fees == intra.fees(OrderSide.BUY, Decimal(10), Decimal(3400), on=on).total
+    assert not [line for line in fills["T1"].fee_lines or [] if line["key"] == "dp_charge"]
+    status = client.get(f"/v1/books/{book}/imports", headers=_h(uid)).json()
+    assert status["needs_opening_lot"] == [] and status["posted"] == 2
+
+    # The book's realized P&L counts the cover and nothing is "unavailable".
+    portfolio = session.get(Portfolio, book)
+    assert portfolio is not None
+    totals = realized_totals(session, portfolio)
+    assert totals.amount == Decimal(200) and totals.unavailable == 0
+
+
+def test_a_short_is_covered_only_by_the_same_days_buys(
+    session: Session, client: TestClient
+) -> None:
+    _symbols(session)
+    uid = _user(session)
+    book = _book(client, uid)
+    # The sell is in one file, its covering buy in another: the sell waits
+    # for an opening lot until the buy arrives, and again once it is deleted.
+    _commit(
+        client,
+        uid,
+        book,
+        _csv(_row("TCS", "2025-06-02", "sell", "10", "3420", "T1", time="10:00:00")),
+    )
+    assert session.exec(select(BrokerFill)).one().status == "needs_opening_lot"
+    cover = _commit(
+        client,
+        uid,
+        book,
+        _csv(_row("TCS", "2025-06-02", "buy", "10", "3400", "T2", time="14:00:00")),
+    ).json()["batch"]
+    session.expire_all()
+    assert {f.trade_id: f.status for f in session.exec(select(BrokerFill)).all()} == {
+        "T1": "posted",
+        "T2": "posted",
+    }
+    assert _positions(session, book) == {}
+    assert sorted(t.realized_pnl or 0 for t in _trades(session, book)) == [0, Decimal(200)]
+    r = client.delete(f"/v1/books/{book}/imports/{cover['id']}", headers=_h(uid))
+    assert r.status_code == 204
+    session.expire_all()
+    assert session.exec(select(BrokerFill)).one().status == "needs_opening_lot"
+    assert _trades(session, book) == [] and _positions(session, book) == {}
+
+    # Not covered the same day: a buy of 5 leaves 5 short, so the sell waits
+    # and the buy is an ordinary holding; a buy the next day covers nothing.
+    other = _book(client, uid)
+    _commit(
+        client,
+        uid,
+        other,
+        _csv(
+            _row("RELIANCE", "2025-06-03", "sell", "10", "1500", "R1", time="10:00:00"),
+            _row("RELIANCE", "2025-06-03", "buy", "5", "1490", "R2", time="14:00:00"),
+            _row("RELIANCE", "2025-06-04", "buy", "5", "1480", "R3", time="10:00:00"),
+        ),
+    )
+    session.expire_all()
+    rows = {
+        f.trade_id: f.status
+        for f in session.exec(select(BrokerFill).where(BrokerFill.portfolio_id == other)).all()
+    }
+    assert rows == {"R1": "needs_opening_lot", "R2": "posted", "R3": "posted"}
+    assert _positions(session, other) == {"RELIANCE.NS": (Decimal(10), Decimal(1485))}
+
+    # A buy larger than the short covers it and holds the rest.
+    third = _book(client, uid)
+    _commit(
+        client,
+        uid,
+        third,
+        _csv(
+            _row("RELIANCE", "2025-06-05", "sell", "10", "1500", "M1", time="10:00:00"),
+            _row("RELIANCE", "2025-06-05", "buy", "15", "1490", "M2", time="14:00:00"),
+        ),
+    )
+    assert _positions(session, third) == {"RELIANCE.NS": (Decimal(5), Decimal(1490))}
+    buy = next(t for t in _trades(session, third) if t.side.value == "buy")
+    assert buy.realized_pnl == Decimal(100)
 
 
 def test_deleting_a_batch_restores_the_book(session: Session, client: TestClient) -> None:

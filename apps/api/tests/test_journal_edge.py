@@ -376,6 +376,31 @@ def test_imported_entries_flag_estimated_fees(session: Session, client: TestClie
     assert _stats(client, uid, f"?book={book}")["imported_fees_estimated"]
 
 
+def test_short_entries_win_or_lose_by_net_pnl(session: Session, client: TestClient) -> None:
+    from tests.test_imports import _commit, _csv, _row, _symbols
+    from tests.test_journal_entries import _reliance_week
+
+    _symbols(session)
+    _reliance_week(session)
+    uid = _user(session)
+    book = _book(client, uid)
+    body = _csv(
+        # A winning short (sold 1210, bought back 1200) and a losing one.
+        _row("RELIANCE", "2025-05-05", "sell", "10", "1210", "S1", time="09:30:00"),
+        _row("RELIANCE", "2025-05-05", "buy", "10", "1200", "S2", time="14:00:00"),
+        _row("RELIANCE", "2025-05-06", "sell", "10", "1200", "S3", time="09:30:00"),
+        _row("RELIANCE", "2025-05-06", "buy", "10", "1225", "S4", time="14:00:00"),
+    )
+    assert _commit(client, uid, book, body).status_code == 200
+    entries = client.get("/v1/journal/entries", headers=_h(uid)).json()["entries"]
+    assert [e["side"] for e in entries] == ["short", "short"]
+    nets = sorted(Decimal(e["net_pnl"]) for e in entries)
+    assert nets[0] < 0 < nets[1]
+    o = _stats(client, uid)["overall"]
+    assert o["n"] == 2 and o["wins"] == 1 and o["losses"] == 1 and o["counts_only"]
+    assert o["n_r"] == 0  # no plan on a short, so no R
+
+
 def _run(
     session: Session, uid: int, version: int, rs: list[float], *, days: int = 4, when: datetime
 ) -> ExperimentRun:

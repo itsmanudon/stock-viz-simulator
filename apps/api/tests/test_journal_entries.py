@@ -28,6 +28,7 @@ from stockviz.models import (
 from stockviz.models.journal_entry import JournalEntry, JournalEntryFill
 from stockviz.models.trade_plan import TradePlan
 from stockviz.services.journal.roundtrips import (
+    SHORT_NO_PLAN,
     Bar,
     LedgerFill,
     excursions,
@@ -400,6 +401,94 @@ def test_pure_grouping_and_r() -> None:
     exact = excursions(trips[0], bars, basis="exact_close", end_day=date(2025, 1, 7))
     # Exact: day 2 counts only its close (100 - 100 = 0).
     assert exact.mae is not None and exact.mae.per_share == Decimal(-20)
+
+
+def test_pure_short_round_trips() -> None:
+    def fill(key: str, side: str, qty: str, price: str, day: int) -> LedgerFill:
+        return LedgerFill(
+            key=key, side=side, quantity=Decimal(qty), price=Decimal(price), fees=Decimal(0),
+            at=datetime(2025, 1, day), venue_date=date(2025, 1, day),
+        )  # fmt: skip
+
+    fills = [
+        fill("s1", "sell", "10", "100", 2),
+        fill("s2", "sell", "10", "110", 2),
+        fill("b1", "buy", "25", "95", 2),  # covers 20; 5 go long (not this entry)
+    ]
+    # Long-only books ignore a sell while flat (the buy opens a long entry).
+    assert [t.key for t in group_round_trips(fills)] == ["b1"]
+    (trip,) = group_round_trips(fills, allow_short=True)
+    assert trip.side == "short" and trip.closed and trip.key == "s1"
+    f = trade_figures(trip)
+    # Average short price 105; cover 20 at 95: +200.
+    assert f.avg_entry == Decimal(105) and f.avg_exit == Decimal(95)
+    assert f.peak_quantity == Decimal(20) and f.realized == Decimal(200)
+    assert f.return_pct == Decimal("9.5238")  # 200 / 2100
+    r = r_multiple(f, stop=None, has_plan=False, side="short")
+    assert r.value is None and r.reason == SHORT_NO_PLAN
+    bars = [Bar(date(2025, 1, 2), Decimal(100), Decimal(112), Decimal(94), Decimal(96))]
+    exc = excursions(trip, bars, basis="approximate_daily", end_day=date(2025, 1, 2))
+    # Adverse is the high: 105 - 112 = -7; favourable the low: 105 - 94 = +11.
+    assert exc.mae is not None and exc.mae.per_share == Decimal(-7)
+    assert exc.mae.price == Decimal(112) and exc.mae.amount == Decimal(-140)
+    assert exc.mfe is not None and exc.mfe.per_share == Decimal(11)
+    assert exc.mfe.price == Decimal(94)
+
+
+def test_an_imported_intraday_short_is_its_own_short_entry(
+    session: Session, client: TestClient
+) -> None:
+    _symbols(session)
+    _reliance_week(session)
+    uid = _user(session)
+    book = _book(client, uid)
+    # An open long plan written before: imported plans are long only, so the
+    # short neither pairs with it nor locks it.
+    plan = _plan(client, uid, book)
+    _backdate_plan(session, plan["id"], datetime(2025, 5, 2, 12))
+    body = _csv(
+        _row("RELIANCE", "2025-05-05", "sell", "10", "1210", "S1", time="09:30:00"),
+        _row("RELIANCE", "2025-05-05", "buy", "10", "1200", "S2", time="14:00:00"),
+    )
+    assert _commit(client, uid, book, body).status_code == 200
+    (entry,) = _entries(client, uid, f"?book={book}")["entries"]
+    assert entry["side"] == "short" and entry["status"] == "closed"
+    assert entry["entry_date"] == entry["exit_date"] == "2025-05-05"
+    assert Decimal(entry["avg_entry"]) == Decimal(1210)
+    assert Decimal(entry["avg_exit"]) == Decimal(1200)
+    assert Decimal(entry["quantity"]) == Decimal(10) and Decimal(entry["held"]) == 0
+    trades = session.exec(select(Trade).where(col(Trade.portfolio_id) == book)).all()
+    fees = sum((t.fees or Decimal(0)) for t in trades)
+    assert fees > 0
+    assert Decimal(entry["realized_pnl"]) == Decimal(100)  # sell value - buy value
+    assert Decimal(entry["net_pnl"]) == Decimal(100) - fees
+    assert entry["plan"] is None and entry["r_multiple"] is None
+    assert entry["r_reason"] == SHORT_NO_PLAN
+    session.expire_all()
+    row = session.get(TradePlan, plan["id"])
+    assert row is not None and row.status == "open" and row.locked_at is None
+
+    # Hand calculation on 5 May (high 1215, low 1185), average short 1210:
+    #   MAE = the highest high above entry: 1210 - 1215 = -5 a share,
+    #         -0.4132%, -50 on 10 shares; MFE = 1210 - 1185 = +25, at the low.
+    mae, mfe = entry["excursions"]["mae"], entry["excursions"]["mfe"]
+    assert Decimal(mae["per_share"]) == Decimal(-5) and Decimal(mae["price"]) == Decimal(1215)
+    assert Decimal(mae["pct"]) == Decimal("-0.4132") and Decimal(mae["amount"]) == Decimal(-50)
+    assert mae["r"] is None
+    assert Decimal(mfe["per_share"]) == Decimal(25) and Decimal(mfe["price"]) == Decimal(1185)
+    assert Decimal(mfe["amount"]) == Decimal(250)
+
+    detail = client.get(f"/v1/journal/entries/{entry['id']}", headers=_h(uid)).json()
+    assert detail["side"] == "short"
+    assert [f["side"] for f in detail["fills"]] == ["sell", "buy"]
+    assert detail["adherence"] is None
+
+    # Markers: the cover closes the entry, with no R.
+    sell, buy = client.get(
+        f"/v1/symbols/{T}/events?types=fill&from=2025-05-01&to=2025-05-31", headers=_h(uid)
+    ).json()["events"]
+    assert sell["closes_entry"] is False and buy["closes_entry"] is True
+    assert buy["r_multiple"] is None and buy["journal_entry_id"] == entry["id"]
 
 
 # --- the rebuild after an import delete ------------------------------------------------------

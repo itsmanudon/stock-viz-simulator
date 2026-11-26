@@ -124,6 +124,11 @@ look wrong, send the header row (never the file).
   rights issue not recorded yet).
 - **Opening lots:** a sell with too few shares bought before it waits until
   you add an opening lot (symbol, date, quantity, average price).
+- **Intraday shorts:** a sell while you hold none of the scrip, covered by
+  buys of it later the same day, is an intraday short: it posts as a round
+  trip (realised P&L = sell value - buy value, intraday charges estimated)
+  and shows in the journal as its own short entry (no plan, so no R). A sell
+  the same day's buys do not cover still waits for an opening lot.
 - **History:** each import lists its counts and can be deleted in two steps;
   its trades leave the book and positions are rebuilt from the rest.
 - **Plans:** a plan written in the imported book before a buy's time locks

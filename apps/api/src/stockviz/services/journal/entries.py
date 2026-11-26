@@ -223,7 +223,8 @@ def _book_trips(
         ticker = tickers.get(iid)
         venue = venue_for_ticker(ticker or "")
         source = "imported" if kinds.get(pid) == "imported" else "paper"
-        for trip in group_round_trips(fills):
+        # An imported book posts a sell while flat only as an intraday short.
+        for trip in group_round_trips(fills, allow_short=source == "imported"):
             plan_id = next((f.plan_id for f in trip.fills if f.plan_id is not None), None)
             out.append(
                 Trip(
@@ -593,6 +594,7 @@ def _compute(session: Session, t: Trip, plan: TradePlan | None) -> _Computed:
         stop=plan.planned_stop if plan else None,
         has_plan=plan is not None,
         open_without_mark=not closed and mark is None,
+        side=t.trip.side,
     )
     end_day = (
         t.trip.fills[-1].venue_date
@@ -658,6 +660,7 @@ def _summary_fields(
         "ticker": t.ticker,
         "currency": t.currency,
         "venue": t.venue,
+        "side": t.trip.side,
         "status": "closed" if t.trip.closed else "open",
         "opened_at": t.trip.opened_at,
         "closed_at": t.trip.closed_at,
@@ -922,7 +925,10 @@ def fill_r_multiples(
             plan = plans.get(t.plan_id) if t.plan_id else None
             figures = trade_figures(t.trip)
             r_value = r_multiple(
-                figures, stop=plan.planned_stop if plan else None, has_plan=plan is not None
+                figures,
+                stop=plan.planned_stop if plan else None,
+                has_plan=plan is not None,
+                side=t.trip.side,
             ).value
         for f in t.trip.fills:
             if f.trade_id is None:
