@@ -843,6 +843,13 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   when `cash_by_currency` (Phase 4.5b) holds a non-base currency: a sale of a
   EUR stock keeps its euros. The portfolio header and the dashboard hero
   show `ValuationNotice` when `valuation_warnings` is not empty (audit LG-13).
+- **Books (A5.1).** The API holds many books per user; every page still
+  reads the default book (no `?book=`), so nothing changed on screen.
+  `lib/api/books.ts` (server-only) has `listBooks`, `createBook`,
+  `updateBook`, `deleteBook` and `withBook(path, book)` (appends
+  `book=<id>`); types from the schema. The switcher, book settings and
+  passing `?book=` through the pages are A5.2. `scripts/seed-demo.mjs`
+  writes snapshots into each demo user's default book.
 - Operational trading (`/trade`, `/orders`, `/watchlist`, `/alerts`) is the
   authenticated execution/monitoring loop. See
   [`docs/OPERATIONAL_TRADING.md`](../../docs/OPERATIONAL_TRADING.md).
