@@ -10,7 +10,8 @@ app/
                    concise public header and traditional website footer
   (product)/       guest-capable research routes plus the workstation shell
     (authed)/      dashboard, portfolio, trade, trades, orders, watchlist,
-                   alerts, settings, earnings, setups, replay, drills (A4.7) —
+                   alerts, settings, earnings, setups, replay, drills (A4.7),
+                   charts (A6.8: the chart workspace) —
                    protected by proxy.ts. `/dashboard` is
                    the signed-in home: a bento grid of portfolio widgets fed by
                    `lib/dashboard-data.ts` (every widget but the portfolio hero
@@ -496,6 +497,47 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   live" and its badge is "Replayed" (`sourceBadgeLabel`). Indicators do not
   update live (a reload does). Tests: `tests/unit/a65-live-bars.test.tsx`
   (a fake `EventSource`).
+- **Chart workspace (A6.8, M2.10).** `/charts` (protected in `proxy.ts`,
+  Workbench nav "Charts", icon `LayoutGrid`): a grid of one, two (`2v` side
+  by side, `2h` stacked) or four `PriceChart`s, each with its own symbol,
+  interval (daily, weekly, monthly or intraday; an intraday interval the
+  symbol has no bars for draws daily with `pane-note`) and template (or the
+  default look: candles, linear, SMA 50). **State is the URL**
+  (`lib/chart-layouts.ts`): `grid`, then per pane, comma-separated, `s`
+  symbols, `i` intervals, `t` template ids, `g` link colours; `wl` the
+  watchlist's colour; `layout` the saved layout it came from. `?layout=<id>`
+  alone opens a saved layout. Every control `router.push`es a new URL and the
+  server page reads the panes again (`lib/chart-layouts-server.ts::
+  loadPaneView`, the stock page's bar and indicator rules); no client store
+  (Zustand was not added). **Linked groups:** the seven watchlist colours
+  (`--list-<name>`); a pane in a colour follows the last symbol chosen in it
+  (`choosePaneSymbol`), a pane joining a colour takes its symbol
+  (`choosePaneLink`), and panes of one colour always share a symbol (the API
+  refuses otherwise). The default watchlist sits below the grid as a linked
+  widget: in a colour, a click moves that colour's panes and the current
+  symbol is `aria-pressed`; unlinked, rows open the stock page. The screener
+  and the forensics and options drawers do not follow colours yet.
+  **Crosshair:** panes on the same symbol share the crosshair time; the
+  workspace keeps `{source, symbol, time}` and passes `crosshairTime` to the
+  others (`PriceChart`'s A6.8 props `crosshairTime` / `onCrosshairTime`; only
+  pointer moves are sent, `param.sourceEvent`), placed at each pane's
+  interval by `lib/chart-sync.ts::syncedBarIndex` (intraday and daily: the
+  bar starting at or before; weekly and monthly: the period whose last
+  session is on or after the day). **Phones:** below `md` the grid is tabs
+  (`role="tablist"`, arrow keys, Home/End) and the other panes are
+  `max-md:hidden`. **Templates:** "Save as template" on the stock page
+  (signed in, `components/chart-layouts/save-template-button.tsx`) saves the
+  chart's type, scale and indicators with the pane heights the chart
+  remembers (`readPaneLayout`, sent within 48-1200 px); a pane's template is
+  applied through `PriceChart`'s `paneHeights` prop (read at mount, so the
+  chart is keyed by symbol, interval and template). States: `layouts-empty`
+  ("No saved layouts yet."), `layouts-error`, `loading.tsx`, a pane's
+  `pane-missing` (a symbol StockViz doesn't have, controls kept),
+  `pane-error` (with Try again) and `pane-empty`. Server actions in
+  `app/(product)/(authed)/charts/actions.ts`, fetchers in
+  `lib/api/chart-layouts.ts`. Tests: `tests/unit/a68-chart-layouts.test.tsx`,
+  `tests/e2e/chart-layouts.spec.ts` (signs up from its own
+  `x-forwarded-for`, since the other specs use the signup cap's five).
 - Backtest results, saved runs (list and detail) show the run's `universe`
   stamp through `components/universe-note.tsx` (A1.4a): one neutral line,
   "Pinned symbol list, not point in time: survivorship-biased." plus the

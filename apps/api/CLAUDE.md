@@ -33,7 +33,8 @@ src/stockviz/
                     trade_plan — A5.4 TradePlan (absorbed DrillPlan and
                     ReplayJournal, both archived), journal_entry — A5.5
                     JournalEntry / JournalEntryFill (round trips),
-                    intraday — A6.1 IntradayBar / IntradayFile)
+                    intraday — A6.1 IntradayBar / IntradayFile,
+                    chart_layout — A6.8 ChartTemplate / ChartLayout)
   (services/feeds/  A6.3: FeedProvider/BrokerProvider, SimulatedFeed, Alpaca,
                     Tiingo, Massive, Finnhub stub, intraday-backfill, feed status)
   (services/stream/ A6.5: the stream worker: minute bars from ticks, NOTIFY and
@@ -62,7 +63,8 @@ src/stockviz/
                     `/v1/journal/entries`), journal_stats (A5.6:
                     `/v1/journal/stats`), brokers (A5.7: broker
                     status), imports (A5.3: `/v1/books/{id}/imports`,
-                    opening lots), health
+                    opening lots), chart_templates + chart_layouts
+                    (A6.8: the chart workspace), health
                     (`GET /live` liveness, `GET /health` readiness + DB)
   services/
     ingest/         External-API fetchers (yfinance primary, Alpha Vantage fallback);
@@ -2210,6 +2212,39 @@ answers 401/403, 0 otherwise: an unreachable or sleeping web holds no cache.
 `WatchlistItemOut.closes` holds the last 30 daily closes, oldest first, read
 for every row in one `recent_bars` query; the list and add endpoints both
 use `_items_out`.
+
+**Chart templates and layouts (A6.8, M2.10).** Migration `d4a8f6c2b1e9`
+(additive, after `c8d3e5f7a9b2`): `chart_templates` (user, name, `chart_type`
+and `scale` with check constraints, `indicators` JSON list, `pane_heights`
+JSON object) and `chart_layouts` (user, name, `grid` `1`/`2v`/`2h`/`4` with a
+check constraint, `panes` JSON list of `{symbol, interval, template_id,
+link}`), both with per-user unique names. Tuples in `models/chart_layout.py`;
+the schema literals (`ChartTypeKey`, `ChartScaleKey`, `ChartIntervalKey`,
+`ChartGridKey`, `LinkColourKey`) must equal them (a test checks). Rules in
+`services/chart_templates.py` and `services/chart_layouts.py`:
+
+- **Caps.** 50 templates and 50 layouts a user (`MAX_TEMPLATES_PER_USER`,
+  `MAX_LAYOUTS_PER_USER`, 409); names 1-64 characters, unique per user
+  ignoring case (409).
+- **Templates.** Indicator keys must parse with the registry grammar
+  (`engine.parse`: a known study, at most its parameter count, each value in
+  bounds; 422), stored lower-cased, each once, at most 16. Pane heights by
+  pane kind (`^[a-z][a-z0-9_]{0,31}$`), whole pixels 48-1200, at most 16
+  (422). Deleting a template clears it from the owner's layouts.
+- **Layouts.** Exactly the grid's pane count (422). Each symbol must be a
+  stored `Symbol` (upper-cased; 422), each template the user's own (422),
+  intervals the bars route's (`1d 1wk 1mo 1m 5m 15m 30m 60m`). Link colours
+  are the watchlist tags; **panes of one colour share one symbol** (422),
+  since a pane in a colour follows the last symbol chosen in it. Symbols are
+  tickers, not instrument ids: a symbol removed later reads as missing in the
+  web. A read drops a template id the user no longer has.
+- **API** (authed; another user's row is 404). `/v1/chart-templates`: `GET`,
+  `POST {name, chart_type, scale, indicators, pane_heights}` (201),
+  `PATCH /{id}`, `DELETE /{id}` (204). `/v1/chart-layouts`: `GET`,
+  `GET /{id}`, `POST {name, grid, panes}` (201), `PATCH /{id}` `{name?,
+  grid?, panes?}` (a grid change sends its panes), `DELETE /{id}` (204).
+- **Tests:** `test_chart_layouts_router.py`, `test_chart_layouts_service.py`,
+  `test_a68_chart_layouts_migration.py` (PostgreSQL up/down/up).
 
 **Many watchlists, notes, tags, column sets (A2.5, M4.6).** Migration
 `5a167f08f3f7` (additive): `watchlists` gains `colour` (palette
