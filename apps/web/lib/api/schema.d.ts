@@ -2812,6 +2812,26 @@ export interface paths {
         patch: operations["patch_journal_entry_v1_journal_entries__entry_id__patch"];
         trace?: never;
     };
+    "/v1/journal/entries/{entry_id}/replay": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Trade Replay
+         * @description A6.10: "Replay my trade", read-only (409 for a replay session's entry).
+         */
+        get: operations["get_trade_replay_v1_journal_entries__entry_id__replay_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/journal/stats": {
         parameters: {
             query?: never;
@@ -11981,6 +12001,110 @@ export interface components {
             /** Limit */
             limit: number;
         };
+        /** TradeReplayBarOut */
+        TradeReplayBarOut: {
+            /**
+             * Ts
+             * Format: date-time
+             */
+            ts: string;
+            /** Open */
+            open: string;
+            /** High */
+            high: string;
+            /** Low */
+            low: string;
+            /** Close */
+            close: string;
+            /** Volume */
+            volume: number;
+        };
+        /** TradeReplayFillOut */
+        TradeReplayFillOut: {
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /**
+             * Side
+             * @enum {string}
+             */
+            side: "buy" | "sell";
+            /** Quantity */
+            quantity: string;
+            /** Price */
+            price: string;
+            /** Time Known */
+            time_known: boolean;
+        };
+        /**
+         * TradeReplayHesitationOut
+         * @description A6.10: from the plan's entry level being touched to the fill, and
+         *     whether a stop the price went through was honoured (closed on that bar).
+         */
+        TradeReplayHesitationOut: {
+            /** Entry Touched At */
+            entry_touched_at?: string | null;
+            /**
+             * Fill At
+             * Format: date-time
+             */
+            fill_at: string;
+            /** Wait Bars */
+            wait_bars?: number | null;
+            /** Stop Breached At */
+            stop_breached_at?: string | null;
+            /** Stop Honoured */
+            stop_honoured?: boolean | null;
+            /** Exit At */
+            exit_at?: string | null;
+            /** Exit Price */
+            exit_price?: string | null;
+            /** Note */
+            note: string;
+        };
+        /**
+         * TradeReplayOut
+         * @description A6.10 (M9.5): a read-only playback of a paper or imported entry. No orders.
+         */
+        TradeReplayOut: {
+            /** Entry Id */
+            entry_id: number;
+            /** Ticker */
+            ticker: string | null;
+            /** Currency */
+            currency: string;
+            /**
+             * Side
+             * @enum {string}
+             */
+            side: "long" | "short";
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "open" | "closed";
+            /**
+             * Interval
+             * @enum {string}
+             */
+            interval: "1m" | "1d";
+            /** Bars Note */
+            bars_note: string;
+            /** Bars */
+            bars: components["schemas"]["TradeReplayBarOut"][];
+            /** Fills */
+            fills: components["schemas"]["TradeReplayFillOut"][];
+            /** Planned Entry */
+            planned_entry?: string | null;
+            /** Planned Stop */
+            planned_stop?: string | null;
+            /** Planned Target */
+            planned_target?: string | null;
+            excursions: components["schemas"]["JournalExcursionsOut"];
+            hesitation?: components["schemas"]["TradeReplayHesitationOut"] | null;
+        };
         /**
          * TrailingStopIn
          * @description Ratchets with the highest high since entry (lowest low for a short):
@@ -18771,6 +18895,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["JournalEntryOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_trade_replay_v1_journal_entries__entry_id__replay_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                entry_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TradeReplayOut"];
                 };
             };
             /** @description Validation Error */
