@@ -251,7 +251,8 @@ test("operational trading loop from ticket to orders, watchlist, alerts, and rep
 
   // A5.4: the default book's AAPL was bought without a plan. A plan written
   // for it now is labelled "written after entry", never locked.
-  await page.goto(page.url().replace("/trades?", "/portfolio?tab=journal&"));
+  const defaultTrades = page.url();
+  await page.goto(defaultTrades.replace("/trades?", "/portfolio?tab=journal&"));
   const lateForm = main.getByTestId("plan-open-position");
   await lateForm.locator("summary").click();
   await lateForm.getByLabel("Position").selectOption("AAPL");
@@ -263,6 +264,7 @@ test("operational trading loop from ticket to orders, watchlist, alerts, and rep
   await expect(latePlan.getByTestId("plan-badge")).toHaveText("Written after entry", {
     timeout: 10_000,
   });
+  await page.goto(defaultTrades);
 
   // All books: both fills, each naming its book, and the combined portfolio.
   await switcher.click();
