@@ -52,6 +52,7 @@ import {
   useState,
 } from "react";
 
+import { useLiveBars } from "@/components/use-live-bars";
 import type { Bar, IndicatorPoint, MACDPoint } from "@/lib/api";
 import { barTimeToUtcSeconds } from "@/lib/api-time";
 import {
@@ -83,6 +84,7 @@ import { DrawingsPrimitive } from "@/lib/drawings/primitive";
 import { type SceneDrawing, hitScene } from "@/lib/drawings/scene";
 import { heikinAshi } from "@/lib/heikin-ashi";
 import type { IndicatorBadge } from "@/lib/indicator-badge";
+import { liveStatusText } from "@/lib/live-bars";
 import { SessionBreaksPrimitive, sessionStarts } from "@/lib/session-breaks";
 import {
   type ChartPane,
@@ -180,6 +182,11 @@ type Props = {
   timeZone?: string;
   /** A6.2: the intraday feed, shown as the chart's source badge. */
   sourceFeed?: string | null;
+  /**
+   * A6.5: on an intraday interval, the ticker whose stored minute bars stream
+   * in (server-sent events from the stream worker); null keeps the chart still.
+   */
+  liveTicker?: string | null;
 };
 
 const DRAG_THRESHOLD_PX = 4;
@@ -271,7 +278,7 @@ function addPriceSeries(
 }
 
 export function PriceChart({
-  bars,
+  bars: serverBars,
   overlays,
   macd,
   rsi,
@@ -290,8 +297,11 @@ export function PriceChart({
   priceLines,
   timeZone = "UTC",
   sourceFeed,
+  liveTicker = null,
 }: Props) {
   const intraday = isIntradayInterval(interval);
+  const live = useLiveBars(intraday ? liveTicker : null, serverBars, interval, timeZone);
+  const bars = live.bars;
   const containerRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const mainRef = useRef<{ series: ISeriesApi<SeriesType>; closes: number[] } | null>(null);
@@ -1025,6 +1035,28 @@ export function PriceChart({
             >
               <span className="sr-only">Source: </span>
               {sourceBadgeLabel(sourceFeed)}
+            </span>
+          ) : null}
+          {live.status ? (
+            <span
+              className="inline-flex items-center gap-1"
+              data-testid="chart-live-status"
+              data-status={live.status}
+              aria-live="polite"
+            >
+              <span
+                aria-hidden="true"
+                className={`size-1.5 rounded-full ${
+                  live.status === "live"
+                    ? live.replayed
+                      ? "bg-text-tertiary"
+                      : "bg-positive"
+                    : live.status === "offline"
+                      ? "bg-negative"
+                      : "bg-border-muted"
+                }`}
+              />
+              {liveStatusText(live.status, live.lastAt, live.replayed, timeZone)}
             </span>
           ) : null}
           <span data-testid="chart-time-zone">

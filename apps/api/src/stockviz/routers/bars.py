@@ -64,7 +64,7 @@ def get_bars(
     to: Annotated[datetime | None, Query()] = None,
     limit: Annotated[int, Query(ge=1, le=MAX_BARS)] = 1000,
     adjustment: Annotated[Literal["adjusted", "raw"], Query()] = "adjusted",
-    feed: Annotated[Literal["iex", "sip", "kite", "file"] | None, Query()] = None,
+    feed: Annotated[Literal["iex", "sip", "kite", "file", "replayed"] | None, Query()] = None,
 ) -> list[PriceBar] | list[BarOut]:
     ticker = ticker.upper()
     if session.get(Symbol, ticker) is None:

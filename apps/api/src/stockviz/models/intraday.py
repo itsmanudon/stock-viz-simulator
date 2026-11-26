@@ -6,8 +6,9 @@ these are instants, and the row is narrow (no ticker string, one index).
 - ``intraday_bars``: one row per (instrument, feed, interval, bar open).
   ``ts`` is the bar's **open** instant, naive UTC (like the ledger).
   ``feed`` is where the bar came from: ``iex`` / ``sip`` (US feeds, A6.3
-  onwards), ``kite``, or ``file`` (the owner's local files, which never go to
-  production: ``services/intraday/guard.py``). ``interval`` is ``1m``, or
+  onwards), ``kite``, ``file`` (the owner's local files, which never go to
+  production: ``services/intraday/guard.py``), or ``replayed`` (A6.5: minutes
+  the stream worker built from ``SimulatedFeed`` ticks, never called live). ``interval`` is ``1m``, or
   ``60m`` for the hourly files where minutes may not exist; 5/15/30/60 over
   minutes are resampled on read (A6.2). ``source`` names the provider or file
   family (``bulk_1m``, ``bulk_1h``, later ``alpaca_iex_live`` ...), and
@@ -64,7 +65,9 @@ class IntradayFile(SQLModel, table=True):
 class IntradayBar(SQLModel, table=True):
     __tablename__ = "intraday_bars"  # pyright: ignore[reportAssignmentType]
     __table_args__ = (
-        CheckConstraint("feed IN ('iex', 'sip', 'kite', 'file')", name="ck_intraday_bars_feed"),
+        CheckConstraint(
+            "feed IN ('iex', 'sip', 'kite', 'file', 'replayed')", name="ck_intraday_bars_feed"
+        ),
         CheckConstraint("interval IN ('1m', '60m')", name="ck_intraday_bars_interval"),
         {"postgresql_partition_by": "RANGE (ts)"},
     )

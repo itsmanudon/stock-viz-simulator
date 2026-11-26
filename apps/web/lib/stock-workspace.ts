@@ -262,6 +262,7 @@ export function sourceBadgeLabel(feed: string | null | undefined): string | null
   if (feed === "iex") return "IEX only";
   if (feed === "sip") return "SIP";
   if (feed === "kite") return "Kite";
+  if (feed === "replayed") return "Replayed";
   return feed;
 }
 
@@ -273,6 +274,8 @@ export function sourceBadgeTitle(feed: string | null | undefined): string {
     return "Trades on the IEX exchange only: a small share of all US trading, so volume is partial.";
   if (feed === "sip") return "Consolidated bars from every US exchange (SIP).";
   if (feed === "kite") return "Zerodha Kite Connect bars.";
+  if (feed === "replayed")
+    return "Stored minutes replayed through the stream worker as if live; never a live feed.";
   return "Intraday bars.";
 }
 /**

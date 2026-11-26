@@ -81,7 +81,7 @@ def broker_status(
 class FeedCapabilitiesOut(BaseModel):
     history: bool
     stream: bool
-    coverage: list[Literal["iex", "sip", "kite", "file"]]
+    coverage: list[Literal["iex", "sip", "kite", "file", "replayed"]]
     symbols_limit: int | None
     history_days: int | None
     rate_limits: list[str]
@@ -103,16 +103,37 @@ class FeedStatusItemOut(BaseModel):
     """A fixed summary of the newest failed backfill while ``error``."""
 
 
+class StreamStatusOut(BaseModel):
+    """A6.5: a stream the worker has run (``feed_streams``)."""
+
+    name: str
+    label: str
+    live: bool
+    """False for the ``simulated`` replay: never called live."""
+    state: Literal["streaming", "closed", "error"]
+    stale: bool
+    """It said ``streaming`` but has not reported for 5 minutes."""
+    symbols: list[str]
+    started_at: datetime
+    stopped_at: datetime | None
+    last_tick_at: datetime | None
+    last_bar_at: datetime | None
+    bars_written: int
+    alerts_fired: int
+    error: str | None
+
+
 class FeedStatusOut(BaseModel):
     feeds: list[FeedStatusItemOut]
+    streams: list[StreamStatusOut]
     offline_window_hours: int
     checked_at: datetime
 
 
 @router.get("/feeds", response_model=FeedStatusOut)
 def feed_status(session: SessionDep, settings: SettingsDep, user_id: UserIdDep) -> FeedStatusOut:
-    """A6.3: the US market-data feeds (history backfill now; streams in A6.5/A6.6)."""
-    from stockviz.services.feeds.status import feed_statuses
+    """A6.3: the US market-data feeds; A6.5: the streams the worker has run."""
+    from stockviz.services.feeds.status import feed_statuses, stream_statuses
 
     now = utcnow()
     return FeedStatusOut(
@@ -139,6 +160,24 @@ def feed_status(session: SessionDep, settings: SettingsDep, user_id: UserIdDep) 
                 last_error=s.last_error,
             )
             for s in feed_statuses(session, settings, now=now)
+        ],
+        streams=[
+            StreamStatusOut(
+                name=r.name,
+                label=r.label,
+                live=r.live,
+                state=r.state,  # pyright: ignore[reportArgumentType]
+                stale=r.stale,
+                symbols=list(r.symbols),
+                started_at=r.started_at,
+                stopped_at=r.stopped_at,
+                last_tick_at=r.last_tick_at,
+                last_bar_at=r.last_bar_at,
+                bars_written=r.bars_written,
+                alerts_fired=r.alerts_fired,
+                error=r.error,
+            )
+            for r in stream_statuses(session, now=now)
         ],
         offline_window_hours=int(OFFLINE_WINDOW.total_seconds() // 3600),
         checked_at=now,

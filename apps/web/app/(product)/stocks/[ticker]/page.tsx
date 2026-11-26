@@ -481,6 +481,8 @@ export default async function StockPage({
                   currency={symbol.currency}
                   timeZone={timeZone}
                   sourceFeed={sourceFeed}
+                  // A6.5: the newest window streams in; a past one (?to=) stays still.
+                  liveTicker={intraday && !intradayTo ? ticker : null}
                 />
               ) : chartBars.length ? (
                 <PriceChart

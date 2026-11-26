@@ -24,7 +24,7 @@ export class ApiError extends Error {
 }
 
 const SERVER_BASE = process.env.API_URL ?? "http://127.0.0.1:8000";
-const BROWSER_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000";
+export const BROWSER_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000";
 
 function baseUrl(): string {
   return typeof window === "undefined" ? SERVER_BASE : BROWSER_BASE;

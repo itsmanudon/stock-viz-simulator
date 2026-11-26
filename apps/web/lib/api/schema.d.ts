@@ -133,6 +133,23 @@ export interface paths {
         patch: operations["patch_screen_v1_screens__screen_id__patch"];
         trace?: never;
     };
+    "/v1/stream/bars": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Stream Bars */
+        get: operations["stream_bars_v1_stream_bars_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/rules/check": {
         parameters: {
             query?: never;
@@ -2911,7 +2928,7 @@ export interface paths {
         };
         /**
          * Feed Status
-         * @description A6.3: the US market-data feeds (history backfill now; streams in A6.5/A6.6).
+         * @description A6.3: the US market-data feeds; A6.5: the streams the worker has run.
          */
         get: operations["feed_status_v1_broker_feeds_get"];
         put?: never;
@@ -5252,7 +5269,7 @@ export interface components {
             /** Stream */
             stream: boolean;
             /** Coverage */
-            coverage: ("iex" | "sip" | "kite" | "file")[];
+            coverage: ("iex" | "sip" | "kite" | "file" | "replayed")[];
             /** Symbols Limit */
             symbols_limit: number | null;
             /** History Days */
@@ -5292,6 +5309,8 @@ export interface components {
         FeedStatusOut: {
             /** Feeds */
             feeds: components["schemas"]["FeedStatusItemOut"][];
+            /** Streams */
+            streams: components["schemas"]["StreamStatusOut"][];
             /** Offline Window Hours */
             offline_window_hours: number;
             /**
@@ -10789,6 +10808,44 @@ export interface components {
             /** Tickers */
             tickers: string[];
         };
+        /**
+         * StreamStatusOut
+         * @description A6.5: a stream the worker has run (``feed_streams``).
+         */
+        StreamStatusOut: {
+            /** Name */
+            name: string;
+            /** Label */
+            label: string;
+            /** Live */
+            live: boolean;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "streaming" | "closed" | "error";
+            /** Stale */
+            stale: boolean;
+            /** Symbols */
+            symbols: string[];
+            /**
+             * Started At
+             * Format: date-time
+             */
+            started_at: string;
+            /** Stopped At */
+            stopped_at: string | null;
+            /** Last Tick At */
+            last_tick_at: string | null;
+            /** Last Bar At */
+            last_bar_at: string | null;
+            /** Bars Written */
+            bars_written: number;
+            /** Alerts Fired */
+            alerts_fired: number;
+            /** Error */
+            error: string | null;
+        };
         /** StressDriverOut */
         StressDriverOut: {
             /** Ticker */
@@ -12095,6 +12152,37 @@ export interface operations {
             };
         };
     };
+    stream_bars_v1_stream_bars_get: {
+        parameters: {
+            query: {
+                tickers: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     check_v1_rules_check_post: {
         parameters: {
             query?: never;
@@ -12642,7 +12730,7 @@ export interface operations {
                 to?: string | null;
                 limit?: number;
                 adjustment?: "adjusted" | "raw";
-                feed?: ("iex" | "sip" | "kite" | "file") | null;
+                feed?: ("iex" | "sip" | "kite" | "file" | "replayed") | null;
             };
             header?: never;
             path: {
@@ -12907,7 +12995,7 @@ export interface operations {
                 from?: string | null;
                 to?: string | null;
                 limit?: number;
-                feed?: ("iex" | "sip" | "kite" | "file") | null;
+                feed?: ("iex" | "sip" | "kite" | "file" | "replayed") | null;
             };
             header?: never;
             path: {
@@ -13271,7 +13359,7 @@ export interface operations {
                 bands?: number;
                 /** @description Intraday anchor instant */
                 anchor_at?: string | null;
-                feed?: ("iex" | "sip" | "kite" | "file") | null;
+                feed?: ("iex" | "sip" | "kite" | "file" | "replayed") | null;
             };
             header?: never;
             path: {

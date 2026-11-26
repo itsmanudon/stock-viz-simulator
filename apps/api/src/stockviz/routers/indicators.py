@@ -181,7 +181,7 @@ def get_indicators(
     from_: Annotated[datetime | None, Query(alias="from")] = None,
     to: Annotated[datetime | None, Query()] = None,
     limit: Annotated[int, Query(ge=1, le=MAX_BARS)] = 1000,
-    feed: Annotated[Literal["iex", "sip", "kite", "file"] | None, Query()] = None,
+    feed: Annotated[Literal["iex", "sip", "kite", "file", "replayed"] | None, Query()] = None,
 ) -> IndicatorsOut:
     """Indicators over a window of bars, warmed up on the bars before it (RS-1).
 
