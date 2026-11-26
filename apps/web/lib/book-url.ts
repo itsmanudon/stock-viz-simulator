@@ -137,3 +137,19 @@ export function bookIdFromForm(formData: FormData): number | null {
   const raw = formData.get("book_id");
   return typeof raw === "string" ? bookIdParam(raw) : null;
 }
+
+/**
+ * The book proxy.ts should redirect a book page to, from the `sv_book`
+ * cookie, or null for no redirect: not a book page, a `?book=` already
+ * there, no usable cookie, or "all" where All books is not offered.
+ */
+export function rememberedBookRedirect(
+  pathname: string,
+  hasBookParam: boolean,
+  cookie: string | null | undefined,
+): BookRef | null {
+  if (hasBookParam || !isBookPage(pathname)) return null;
+  const remembered = parseBookParam(cookie);
+  if (remembered === "all" && !allowsAllBooks(pathname)) return null;
+  return remembered;
+}
