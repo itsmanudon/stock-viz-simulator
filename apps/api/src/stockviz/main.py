@@ -33,6 +33,7 @@ from stockviz.routers import (
     imports,
     indicators,
     journal,
+    journal_entries,
     markets,
     news,
     notification_channels,
@@ -180,6 +181,7 @@ def create_app() -> FastAPI:
     app.include_router(drills.router)
     app.include_router(earnings.router)
     app.include_router(journal.router)
+    app.include_router(journal_entries.router)
     app.include_router(notification_channels.router)
     app.include_router(notifications.router)
     app.include_router(research.router)

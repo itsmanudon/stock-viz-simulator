@@ -38,6 +38,7 @@ from stockviz.models.fundamentals import FundamentalFact
 from stockviz.models.indicator_evidence import IndicatorEvidence
 from stockviz.models.instrument import Instrument, InstrumentIdentifier
 from stockviz.models.job_run import JobRun
+from stockviz.models.journal_entry import JournalEntry, JournalEntryFill
 from stockviz.models.market import (
     FxRate,
     PriceBar,
@@ -133,6 +134,8 @@ __all__ = [
     "Instrument",
     "InstrumentIdentifier",
     "JobRun",
+    "JournalEntry",
+    "JournalEntryFill",
     "Notification",
     "NotificationCategory",
     "NotificationChannel",

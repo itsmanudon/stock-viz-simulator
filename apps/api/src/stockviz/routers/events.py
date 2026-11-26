@@ -83,6 +83,8 @@ def _out(event: SymbolEvent):
         price=event.price,
         r_multiple=event.r_multiple,
         book_id=event.book_id,
+        journal_entry_id=event.journal_entry_id,
+        closes_entry=event.closes_entry,
     )
 
 

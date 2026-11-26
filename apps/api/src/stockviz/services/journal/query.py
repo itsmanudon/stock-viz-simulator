@@ -32,19 +32,38 @@ from stockviz.services.journal.model import (
     ExecutionKind,
     JournalExecution,
 )
+from stockviz.services.markets.calendar import venue_for_ticker, venue_zone
 
 
-def session_date(ts: datetime) -> date_type:
-    """New York trading-session date for a naive-UTC ledger timestamp.
+def session_date(ts: datetime, venue: str | None = None) -> date_type:
+    """Trading-session date for a naive-UTC ledger timestamp.
 
     Timestamps are stored naive UTC (see ``stockviz._time``), so they are
-    re-attached to UTC before conversion. A fill at 2026-08-20T01:30Z belongs
-    to the **Aug 19** session; ``zoneinfo`` handles DST, so no fixed offset is
-    assumed anywhere.
+    re-attached to UTC before conversion. Without ``venue`` the date is New
+    York's: a fill at 2026-08-20T01:30Z belongs to the **Aug 19** session;
+    ``zoneinfo`` handles DST, so no fixed offset is assumed anywhere. A5.5:
+    with ``venue`` (``venue_for_ticker``) it is that venue's date, so an NSE
+    fill at 18:30Z (midnight IST) belongs to the next IST day.
     """
 
     aware = ts.replace(tzinfo=UTC) if ts.tzinfo is None else ts
-    return new_york_session_date(aware)
+    if venue is None:
+        return new_york_session_date(aware)
+    return aware.astimezone(venue_zone(venue)).date()
+
+
+def _ticker_session_date(ts: datetime, ticker: str) -> date_type:
+    return session_date(ts, venue_for_ticker(ticker))
+
+
+def _venue_window(first: date_type, last: date_type) -> tuple[datetime, datetime]:
+    """A UTC window wide enough for every venue's dates ``first``..``last``.
+
+    One day either side of the New York window covers venues from UTC-10 to
+    UTC+14; rows are then kept by their own venue's date.
+    """
+    start, end = utc_window(first, last)
+    return start - timedelta(days=1), end + timedelta(days=1)
 
 
 def utc_window(first: date_type, last: date_type) -> tuple[datetime, datetime]:
@@ -66,7 +85,13 @@ def utc_window(first: date_type, last: date_type) -> tuple[datetime, datetime]:
 
 
 def _equity_executions(
-    session: Session, *, portfolio_id: int, start: datetime, end: datetime
+    session: Session,
+    *,
+    portfolio_id: int,
+    start: datetime,
+    end: datetime,
+    first: date_type | None = None,
+    last: date_type | None = None,
 ) -> list[JournalExecution]:
     rows = list(
         session.exec(
@@ -83,13 +108,15 @@ def _equity_executions(
     if not rows:
         return []
 
+    if first is not None and last is not None:
+        rows = [r for r in rows if first <= _ticker_session_date(r.ts, r.ticker) <= last]
     currency_by_ticker = _currencies(session, {row.ticker for row in rows})
     return [
         JournalExecution(
             kind=ExecutionKind.EQUITY,
             reference_id=row.id or 0,
             ticker=row.ticker,
-            session_date=session_date(row.ts),
+            session_date=_ticker_session_date(row.ts, row.ticker),
             executed_at=row.ts,
             realized_pnl=row.realized_pnl or Decimal("0"),
             side=row.side.value,
@@ -173,15 +200,19 @@ def realized_executions(
 ) -> list[JournalExecution]:
     """Every closing execution attributed to sessions ``first``..``last``.
 
-    Equity and option legs are merged and sorted by execution time. Both are
-    read with a half-open UTC window, then re-attributed to New York session
-    dates; because the window is built from New York midnights, no execution is
-    ever pulled in or dropped by the conversion.
+    Equity and option legs are merged and sorted by execution time. Options
+    (USD only) are read with the New York window. Equity fills (A5.5) are read
+    with a window a day wider each side and kept by their own venue's date
+    (``venue_for_ticker``: an NSE or BSE fill by its IST date), so an Indian
+    fill is never pulled onto New York's day.
     """
 
     assert portfolio.id is not None
     start, end = utc_window(first, last)
-    executions = _equity_executions(session, portfolio_id=portfolio.id, start=start, end=end)
+    wide_start, wide_end = _venue_window(first, last)
+    executions = _equity_executions(
+        session, portfolio_id=portfolio.id, start=wide_start, end=wide_end, first=first, last=last
+    )
     # Option P&L is in USD. A non-USD book (Phase 4.8) has no fill-time rate
     # for it, so those closes are counted as unavailable instead of converted.
     if (portfolio.base_currency or "USD") == "USD":
@@ -217,17 +248,20 @@ def unavailable_realizations(
 ) -> int:
     """Count dated closes lacking reliable base-currency accounting; never silently call them zero."""
     start, end = utc_window(first, last)
-    equity = session.exec(
-        select(func.count())
-        .select_from(Trade)
-        .where(
-            Trade.portfolio_id == portfolio.id,
-            Trade.side == TradeSide.SELL,
-            Trade.ts >= start,
-            Trade.ts < end,
-            col(Trade.realized_pnl).is_(None),
-        )
-    ).one()
+    wide_start, wide_end = _venue_window(first, last)
+    equity = sum(
+        1
+        for ticker, ts in session.exec(
+            select(Trade.ticker, Trade.ts).where(
+                Trade.portfolio_id == portfolio.id,
+                Trade.side == TradeSide.SELL,
+                Trade.ts >= wide_start,
+                Trade.ts < wide_end,
+                col(Trade.realized_pnl).is_(None),
+            )
+        ).all()
+        if first <= _ticker_session_date(ts, ticker) <= last
+    )
     options = session.exec(
         select(func.count())
         .select_from(OptionsPosition)
