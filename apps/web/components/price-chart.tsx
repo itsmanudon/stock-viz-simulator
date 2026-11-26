@@ -76,21 +76,29 @@ import {
 import { fitWithLabelRoom } from "@/lib/chart-range";
 import { type ChartPalette, useChartPalette } from "@/lib/chart-theme";
 import type { ChartScale, ChartType } from "@/lib/chart-view";
-import { barDate } from "@/lib/drawings/anchor";
+import { sessionDateOf } from "@/lib/drawings/anchor";
 import { dragPoints, placePoint } from "@/lib/drawings/drag";
 import type { DrawingPoint } from "@/lib/drawings/kinds";
 import { DrawingsPrimitive } from "@/lib/drawings/primitive";
 import { type SceneDrawing, hitScene } from "@/lib/drawings/scene";
 import { heikinAshi } from "@/lib/heikin-ashi";
 import type { IndicatorBadge } from "@/lib/indicator-badge";
+import { SessionBreaksPrimitive, sessionStarts } from "@/lib/session-breaks";
 import {
   type ChartPane,
   type StockInterval,
+  dateInZone,
+  formatBarTime,
   formatCloseDate,
   indicatorLabel,
+  isIntradayInterval,
   partialBarLabel,
+  sourceBadgeLabel,
+  sourceBadgeTitle,
   splitSeriesKey,
   studyFor,
+  timeInZone,
+  zoneLabel,
 } from "@/lib/stock-workspace";
 
 export type PriceChartMarker = {
@@ -165,6 +173,13 @@ type Props = {
   currency?: string;
   /** A5.5: labelled levels on the price pane (the journal's plan lines). */
   priceLines?: PriceChartLine[];
+  /**
+   * A6.2, intraday intervals: the venue's IANA zone the axis, crosshair and
+   * legend read times in (bars stay UTC instants), default UTC.
+   */
+  timeZone?: string;
+  /** A6.2: the intraday feed, shown as the chart's source badge. */
+  sourceFeed?: string | null;
 };
 
 const DRAG_THRESHOLD_PX = 4;
@@ -273,7 +288,10 @@ export function PriceChart({
   events,
   currency,
   priceLines,
+  timeZone = "UTC",
+  sourceFeed,
 }: Props) {
+  const intraday = isIntradayInterval(interval);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const mainRef = useRef<{ series: ISeriesApi<SeriesType>; closes: number[] } | null>(null);
@@ -283,7 +301,17 @@ export function PriceChart({
   const layerRef = useRef<ChartDrawingLayer | undefined>(drawingLayer);
   layerRef.current = drawingLayer;
   const hasLayer = drawingLayer !== undefined;
-  const barDates = useMemo(() => bars.map((b) => barDate(b.ts)), [bars]);
+  // Each bar's session date: drawings, events and session breaks key on it.
+  const barDates = useMemo(() => bars.map(sessionDateOf), [bars]);
+  // A6.2: the bars that open a new session (dashed breaks on intraday charts).
+  const breakStarts = useMemo(
+    () => (intraday ? sessionStarts(barDates) : []),
+    [intraday, barDates],
+  );
+  const formatBarLabel = useCallback(
+    (ts: string) => (intraday ? formatBarTime(ts, timeZone) : (formatCloseDate(ts) ?? ts)),
+    [intraday, timeZone],
+  );
 
   // Remembered layout: read after mount (localStorage is the browser's), and
   // the chart waits for it so it is built once.
@@ -353,13 +381,8 @@ export function PriceChart({
 
   // A3.5: events per bar (the drawings' period rule), and their markers.
   const byBar = useMemo(
-    () =>
-      eventsByBar(
-        events ?? [],
-        interval,
-        bars.map((b) => b.ts),
-      ),
-    [events, interval, bars],
+    () => eventsByBar(events ?? [], interval, barDates),
+    [events, interval, barDates],
   );
   const allMarkers = useMemo<SeriesMarker<Time>[]>(() => {
     const colour: Record<ChartEvent["type"], string> = {
@@ -479,8 +502,36 @@ export function PriceChart({
           separatorHoverColor: palette.grid,
         },
       },
-      grid: { vertLines: { color: palette.grid }, horzLines: { color: palette.grid } },
-      timeScale: { borderColor: palette.axis, timeVisible: false },
+      // A6.2: intraday charts drop the vertical grid so the dashed session
+      // breaks are the only vertical lines.
+      grid: {
+        vertLines: { color: palette.grid, visible: !intraday },
+        horzLines: { color: palette.grid },
+      },
+      timeScale: {
+        borderColor: palette.axis,
+        timeVisible: intraday,
+        secondsVisible: false,
+        // A6.2: intraday ticks in the venue's zone; a day mark opens each session.
+        ...(intraday
+          ? {
+              tickMarkFormatter: (time: Time, tickType: number) => {
+                const ms = (time as number) * 1000;
+                if (tickType <= 2)
+                  return formatCloseDate(dateInZone(ms, timeZone))?.replace(/, \d{4}$/, "") ?? null;
+                return timeInZone(ms, timeZone);
+              },
+            }
+          : {}),
+      },
+      ...(intraday
+        ? {
+            localization: {
+              timeFormatter: (time: Time) =>
+                `${formatCloseDate(dateInZone((time as number) * 1000, timeZone))} ${timeInZone((time as number) * 1000, timeZone)} ${zoneLabel(timeZone)}`,
+            },
+          }
+        : {}),
       rightPriceScale: { borderColor: palette.axis },
       crosshair: { mode: CrosshairMode.Normal },
     });
@@ -499,6 +550,10 @@ export function PriceChart({
             primitiveRef.current = primitive;
           }
           if (allMarkers.length) createSeriesMarkers(main.series, allMarkers);
+          // A6.2: a faint line where one session ends and the next opens.
+          if (intraday && breakStarts.length) {
+            main.series.attachPrimitive(new SessionBreaksPrimitive(breakStarts, palette.text));
+          }
           for (const line of priceLines ?? []) {
             main.series.createPriceLine({
               price: line.price,
@@ -629,6 +684,9 @@ export function PriceChart({
     measurePanes,
     hasLayer,
     priceLines,
+    intraday,
+    timeZone,
+    breakStarts,
   ]);
 
   // ---- Drawings (A3.2) ----
@@ -894,7 +952,7 @@ export function PriceChart({
     if (handled) event.preventDefault();
   };
 
-  const legend = legendAt(legendModel, hoverIndex);
+  const legend = legendAt(legendModel, hoverIndex, formatBarLabel);
   const legendEventText = legend ? legendEvents(byBar.get(legend.index) ?? []) : "";
 
   // The legend in words, announced politely and at most every ANNOUNCE_EVERY_MS,
@@ -916,7 +974,7 @@ export function PriceChart({
     };
   }, [keyIndex, legendSentence]);
 
-  const partialLabel = partialBarLabel(bars.at(-1), interval);
+  const partialLabel = partialBarLabel(bars.at(-1), interval, timeZone);
 
   // Text equivalent of the canvas: range, endpoints, direction, panes.
   const chartSummary = useMemo(() => {
@@ -942,17 +1000,40 @@ export function PriceChart({
       : "";
     return (
       `${TYPE_WORDS[chartType]} price chart covering ${bars.length} bars from ` +
-      `${formatCloseDate(first.ts) ?? first.ts} to ` +
-      `${formatCloseDate(last.ts) ?? last.ts}. ` +
+      `${formatBarLabel(first.ts)} to ` +
+      `${formatBarLabel(last.ts)}. ` +
       `Closed at ${close.toFixed(2)}, ${direction} ${Math.abs(changePct).toFixed(2)} percent ` +
       `over the period.${scaleText}${withOverlays}${paneText}${markerText}${eventText}${partialText}`
     );
-  }, [bars, overlays, markers, byBar, partialLabel, visible, chartType, scale]);
+  }, [bars, overlays, markers, byBar, partialLabel, visible, chartType, scale, formatBarLabel]);
 
   const helpId = useId();
 
   return (
     <div className="space-y-2">
+      {intraday ? (
+        <div
+          className="flex flex-wrap items-center gap-x-2 gap-y-1 px-1 text-2xs text-text-tertiary"
+          data-testid="chart-source"
+        >
+          {sourceBadgeLabel(sourceFeed) ? (
+            <span
+              className="inline-flex h-5 items-center rounded-sm border border-border-muted bg-surface-elevated px-1.5 font-medium tracking-[0.02em] text-text-secondary"
+              title={sourceBadgeTitle(sourceFeed)}
+              data-testid="chart-source-badge"
+              data-feed={sourceFeed ?? undefined}
+            >
+              <span className="sr-only">Source: </span>
+              {sourceBadgeLabel(sourceFeed)}
+            </span>
+          ) : null}
+          <span data-testid="chart-time-zone">
+            Times in {zoneLabel(timeZone)}
+            {zoneLabel(timeZone) !== timeZone ? ` (${timeZone})` : ""}; bars open at the time shown,
+            and nights and weekends take no space.
+          </span>
+        </div>
+      ) : null}
       <figure className="m-0">
         {/* Focusable for the keyboard path; pointer-up saves dragged pane heights. */}
         <div
@@ -972,6 +1053,7 @@ export function PriceChart({
           data-testid="price-chart"
           data-pane-count={visible.length}
           data-panes={visible.map((p) => p.kind).join(",")}
+          data-session-breaks={intraday ? breakStarts.length : undefined}
           data-drawing-count={
             drawingLayer ? drawingLayer.drawings.filter((d) => d.id !== "draft").length : undefined
           }
@@ -1078,7 +1160,7 @@ export function PriceChart({
           ) : null}
           {openEvents && byBar.get(openEvents.index) ? (
             <EventPopover
-              date={bars[openEvents.index]?.ts ?? ""}
+              date={barDates[openEvents.index] ?? ""}
               events={byBar.get(openEvents.index) ?? []}
               x={openEvents.x}
               currency={currency}

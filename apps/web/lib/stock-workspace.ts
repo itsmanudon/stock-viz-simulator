@@ -1,3 +1,4 @@
+import { apiTimestampMs, barTimeToUtcSeconds } from "@/lib/api-time";
 import type { Bar, IndicatorPoint, MACDPoint } from "@/lib/api/types";
 import { type ChartView, DEFAULT_CHART_VIEW, setChartViewParams } from "@/lib/chart-view";
 
@@ -15,9 +16,29 @@ export const STOCK_INTERVALS = [
   { value: "1wk", label: "Weekly", short: "W" },
   { value: "1mo", label: "Monthly", short: "M" },
 ] as const;
-export type StockInterval = (typeof STOCK_INTERVALS)[number]["value"];
+
+/**
+ * A6.2: intraday intervals, offered only when the symbol has intraday bars
+ * (`symbol.intraday.intervals`). `60m` is the API's name; the button reads 1h.
+ */
+export const INTRADAY_INTERVALS = [
+  { value: "1m", label: "1m", short: "1m", minutes: 1 },
+  { value: "5m", label: "5m", short: "5m", minutes: 5 },
+  { value: "15m", label: "15m", short: "15m", minutes: 15 },
+  { value: "30m", label: "30m", short: "30m", minutes: 30 },
+  { value: "60m", label: "1h", short: "1h", minutes: 60 },
+] as const;
+
+export type DailyInterval = (typeof STOCK_INTERVALS)[number]["value"];
+export type IntradayInterval = (typeof INTRADAY_INTERVALS)[number]["value"];
+export type StockInterval = DailyInterval | IntradayInterval;
+
+export function isIntradayInterval(interval: string | undefined): interval is IntradayInterval {
+  return INTRADAY_INTERVALS.some((i) => i.value === interval);
+}
 
 export function parseStockInterval(raw: string | undefined): StockInterval {
+  if (isIntradayInterval(raw)) return raw;
   return STOCK_INTERVALS.some((i) => i.value === raw) ? (raw as StockInterval) : "1d";
 }
 
@@ -28,15 +49,223 @@ export function barsForLookback(days: number, interval: StockInterval): number {
   return days;
 }
 
+/**
+ * A6.2: intraday lookbacks, in sessions. Each interval offers the ranges that
+ * fit the bars route's 5,000-bar cap at that interval (1 minute: a day or a
+ * week; 1 hour: up to a year).
+ */
+export const INTRADAY_LOOKBACKS = [
+  { value: "1D", sessions: 1 },
+  { value: "5D", sessions: 5 },
+  { value: "1M", sessions: 22 },
+  { value: "3M", sessions: 65 },
+  { value: "1Y", sessions: 252 },
+] as const;
+export type IntradayLookback = (typeof INTRADAY_LOOKBACKS)[number]["value"];
+
+const LOOKBACKS_BY_INTERVAL: Record<IntradayInterval, readonly IntradayLookback[]> = {
+  "1m": ["1D", "5D"],
+  "5m": ["1D", "5D", "1M"],
+  "15m": ["5D", "1M", "3M"],
+  "30m": ["5D", "1M", "3M"],
+  "60m": ["1M", "3M", "1Y"],
+};
+const DEFAULT_LOOKBACK: Record<IntradayInterval, IntradayLookback> = {
+  "1m": "1D",
+  "5m": "5D",
+  "15m": "5D",
+  "30m": "1M",
+  "60m": "1M",
+};
+
+/** The lookbacks an intraday interval offers, oldest-reaching last. */
+export function intradayLookbacks(interval: IntradayInterval): readonly IntradayLookback[] {
+  return LOOKBACKS_BY_INTERVAL[interval];
+}
+
+/** The URL's lookback if this interval offers it, else the interval's default. */
+export function parseIntradayLookback(
+  raw: string | undefined,
+  interval: IntradayInterval,
+): IntradayLookback {
+  return LOOKBACKS_BY_INTERVAL[interval].includes(raw as IntradayLookback)
+    ? (raw as IntradayLookback)
+    : DEFAULT_LOOKBACK[interval];
+}
+
+/** Minutes in a regular session: NSE/BSE 09:15-15:30, else New York 09:30-16:00. */
+export function sessionMinutes(indian: boolean): number {
+  return indian ? 375 : 390;
+}
+
+/**
+ * Bars an intraday lookback asks for: (sessions + 1) x bars a regular session
+ * holds at the interval (the last one of a session is clipped, so it rounds
+ * up), capped at the route's 5,000. "1D" on 1 minute asks for 750 bars on
+ * NSE (2 x 375) and keeps the last session; "1M" on 1 hour 23 x 7 = 161.
+ */
+export function intradayBarsForLookback(
+  lookback: IntradayLookback,
+  interval: IntradayInterval,
+  indian: boolean,
+): number {
+  const spec = INTRADAY_LOOKBACKS.find((l) => l.value === lookback) ?? INTRADAY_LOOKBACKS[0];
+  const minutes = INTRADAY_INTERVALS.find((i) => i.value === interval)?.minutes ?? 1;
+  const perSession = Math.ceil(sessionMinutes(indian) / minutes);
+  // One session of headroom: the page keeps the newest whole sessions
+  // (`lastSessions`), so a short session never leaves the window a day short.
+  return Math.min(5000, (spec.sessions + 1) * perSession);
+}
+
+/** Sessions an intraday lookback covers. */
+export function sessionsForLookback(lookback: IntradayLookback): number {
+  return INTRADAY_LOOKBACKS.find((l) => l.value === lookback)?.sessions ?? 1;
+}
+
+/**
+ * The bars of the newest `sessions` sessions (by `session_date`), oldest
+ * first. The API's limit counts bars of regular sessions, so a short session
+ * (a Muhurat evening, a half day) would otherwise pull in the day before.
+ */
+export function lastSessions<T extends { ts: string; session_date?: string | null }>(
+  bars: readonly T[],
+  sessions: number,
+): T[] {
+  const seen: string[] = [];
+  let start = bars.length;
+  for (let i = bars.length - 1; i >= 0; i--) {
+    const day = bars[i].session_date ?? bars[i].ts.slice(0, 10);
+    if (seen.at(-1) !== day) {
+      if (seen.length === sessions) break;
+      seen.push(day);
+    }
+    start = i;
+  }
+  return bars.slice(start);
+}
+
+/**
+ * An indicator bundle without the points before `ts` (the first bar drawn),
+ * so a study never widens the time axis past the bars. Timestamps compare as
+ * the API writes them (same ISO form).
+ */
+export function clipBundleFrom<
+  B extends { series: Record<string, IndicatorPoint[]>; macd?: MACDPoint[] | null },
+>(bundle: B, ts: string): B {
+  const cut = barTimeToUtcSeconds(ts);
+  const keep = (p: { ts: string }) => barTimeToUtcSeconds(p.ts) >= cut;
+  return {
+    ...bundle,
+    series: Object.fromEntries(
+      Object.entries(bundle.series).map(([key, points]) => [key, points.filter(keep)]),
+    ),
+    macd: bundle.macd ? bundle.macd.filter(keep) : bundle.macd,
+  };
+}
+
+/** "15-minute", "1-hour": an intraday interval in words. */
+export function intradayWords(interval: IntradayInterval): string {
+  return interval === "60m" ? "1-hour" : `${interval.replace("m", "")}-minute`;
+}
+
 /** The caption under a chart whose newest bar is partial, or null. */
 export function partialBarLabel(
   bar: { ts: string; partial?: boolean | null } | undefined,
   interval: StockInterval,
+  timeZone?: string,
 ): string | null {
   if (!bar?.partial || interval === "1d") return null;
+  if (isIntradayInterval(interval)) {
+    const opened = formatBarTime(bar.ts, timeZone ?? "UTC");
+    return `Latest ${intradayWords(interval)} bar so far (partial), opened ${opened}. It is not a closed bar.`;
+  }
   const period = interval === "1wk" ? "week" : "month";
   const through = formatCloseDate(bar.ts) ?? bar.ts;
   return `Latest ${period} so far (partial), sessions through ${through}. It is not a closed bar.`;
+}
+
+const ZONE_NAMES: Record<string, string> = {
+  "Asia/Kolkata": "IST",
+  "Asia/Calcutta": "IST",
+  UTC: "UTC",
+};
+
+/** The short name of a venue's zone: "IST", "ET" (New York), else the IANA name. */
+export function zoneLabel(timeZone: string): string {
+  if (ZONE_NAMES[timeZone]) return ZONE_NAMES[timeZone];
+  if (timeZone === "America/New_York") return "ET";
+  return timeZone;
+}
+
+const TIME_PARTS = new Map<string, Intl.DateTimeFormat>();
+
+function partsIn(ms: number, timeZone: string) {
+  let fmt = TIME_PARTS.get(timeZone);
+  if (!fmt) {
+    fmt = new Intl.DateTimeFormat("en-US", {
+      timeZone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+    });
+    TIME_PARTS.set(timeZone, fmt);
+  }
+  const out: Record<string, string> = {};
+  for (const part of fmt.formatToParts(new Date(ms))) out[part.type] = part.value;
+  return {
+    date: `${out.year}-${out.month}-${out.day}`,
+    time: `${out.hour}:${out.minute}`,
+  };
+}
+
+/** An instant (epoch ms) as the venue's "HH:MM". */
+export function timeInZone(ms: number, timeZone: string): string {
+  return partsIn(ms, timeZone).time;
+}
+
+/** An instant (epoch ms) as the venue's calendar date, "YYYY-MM-DD". */
+export function dateInZone(ms: number, timeZone: string): string {
+  return partsIn(ms, timeZone).date;
+}
+
+/**
+ * A6.2: an intraday bar's time in its venue's zone with the date and the
+ * zone named: "Jan 30, 2026 09:15 IST". API timestamps are naive UTC, read
+ * through `apiTimestampMs` (never `new Date(iso)`, audit RS-2).
+ */
+export function formatBarTime(iso: string, timeZone: string): string {
+  const ms = apiTimestampMs(iso);
+  if (!Number.isFinite(ms)) return iso;
+  const { date, time } = partsIn(ms, timeZone);
+  return `${formatCloseDate(date) ?? date} ${time} ${zoneLabel(timeZone)}`;
+}
+
+/**
+ * A6.2: the source badge the chart shows for an intraday feed: the owner's
+ * local files "File · local", the free US feed "IEX only", consolidated
+ * "SIP". Null for daily bars.
+ */
+export function sourceBadgeLabel(feed: string | null | undefined): string | null {
+  if (!feed) return null;
+  if (feed === "file") return "File · local";
+  if (feed === "iex") return "IEX only";
+  if (feed === "sip") return "SIP";
+  if (feed === "kite") return "Kite";
+  return feed;
+}
+
+/** What each badge means, for its title and the screen-reader text. */
+export function sourceBadgeTitle(feed: string | null | undefined): string {
+  if (feed === "file")
+    return "Loaded from the owner's local files on this machine; never served in production.";
+  if (feed === "iex")
+    return "Trades on the IEX exchange only: a small share of all US trading, so volume is partial.";
+  if (feed === "sip") return "Consolidated bars from every US exchange (SIP).";
+  if (feed === "kite") return "Zerodha Kite Connect bars.";
+  return "Intraday bars.";
 }
 /**
  * The chart's studies (Phase 6.6, A3.4): one entry per study in the API's
@@ -219,7 +448,8 @@ export function macdSeries(
   return out;
 }
 
-export type StockTimeframe = (typeof STOCK_TIMEFRAMES)[number];
+/** A lookback: the daily ranges, or (A6.2) the intraday ones ("1D", "5D"). */
+export type StockTimeframe = (typeof STOCK_TIMEFRAMES)[number] | IntradayLookback;
 /** A chart key: a study and its parameters (`rsi_21`), A3.4. */
 export type StockIndicator = string;
 

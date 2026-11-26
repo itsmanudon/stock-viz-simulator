@@ -65,12 +65,21 @@ def compute(
     anchor: date,
 ) -> AvwapSeries:
     """The anchored VWAP and its deviation on every daily bar (oldest first)."""
+    start = anchor_index(dates, anchor)
+    if start is None:
+        n = len(close)
+        return AvwapSeries(None, np.full(n, NAN), np.full(n, NAN))
+    return compute_from(high, low, close, volume, start)
+
+
+def compute_from(
+    high: np.ndarray, low: np.ndarray, close: np.ndarray, volume: np.ndarray, start: int
+) -> AvwapSeries:
+    """The anchored VWAP summed from row ``start`` (any bars: daily, or intraday
+    bars anchored at an instant, A6.2)."""
     n = len(close)
     vwap = np.full(n, NAN)
     sd = np.full(n, NAN)
-    start = anchor_index(dates, anchor)
-    if start is None:
-        return AvwapSeries(None, vwap, sd)
     h = np.asarray(high[start:], dtype=float)
     lo = np.asarray(low[start:], dtype=float)
     c = np.asarray(close[start:], dtype=float)
@@ -105,4 +114,11 @@ def sample_last_of_period(period_keys: list, values: np.ndarray) -> list[tuple[i
     return out
 
 
-__all__ = ["API_DECIMALS", "AvwapSeries", "anchor_index", "compute", "sample_last_of_period"]
+__all__ = [
+    "API_DECIMALS",
+    "AvwapSeries",
+    "anchor_index",
+    "compute",
+    "compute_from",
+    "sample_last_of_period",
+]

@@ -3130,15 +3130,21 @@ export interface components {
              * Interval
              * @enum {string}
              */
-            interval: "1d" | "1wk" | "1mo";
+            interval: "1d" | "1wk" | "1mo" | "1m" | "5m" | "15m" | "30m" | "60m";
             /** Bands */
             bands: number;
             /**
              * Computed From
              * @default daily
-             * @constant
+             * @enum {string}
              */
-            computed_from: "daily";
+            computed_from: "daily" | "1m" | "60m";
+            /** Anchor At */
+            anchor_at?: string | null;
+            /** Anchor Bar At */
+            anchor_bar_at?: string | null;
+            /** Feed */
+            feed?: string | null;
             /** Decimals */
             decimals: number;
             /** Points */
@@ -3403,6 +3409,16 @@ export interface components {
             sessions?: number | null;
             /** Partial */
             partial?: boolean | null;
+            /** Closed At */
+            closed_at?: string | null;
+            /** Session Date */
+            session_date?: string | null;
+            /** Feed */
+            feed?: string | null;
+            /** Badge */
+            badge?: string | null;
+            /** Minutes */
+            minutes?: number | null;
         };
         /**
          * BaseCurrencyIn
@@ -5870,6 +5886,63 @@ export interface components {
             interval: string;
             /** Partial Bar Excluded */
             partial_bar_excluded?: string | null;
+            /** Feed */
+            feed?: string | null;
+        };
+        /** IntradayCoverageOut */
+        IntradayCoverageOut: {
+            /** Feed */
+            feed: string;
+            /**
+             * Interval
+             * @enum {string}
+             */
+            interval: "1m" | "60m";
+            /**
+             * First
+             * Format: date-time
+             */
+            first: string;
+            /**
+             * Last
+             * Format: date-time
+             */
+            last: string;
+        };
+        /**
+         * IntradayInfoOut
+         * @description A6.2: which intraday intervals a symbol has, from its best stored feed.
+         *
+         *     ``intervals`` is every interval the bars route can build (all five with
+         *     1-minute bars; ``60m`` alone with only hourly bars). ``first``/``last`` are
+         *     bar opens (naive UTC) over that feed's stored bars; ``coverage`` lists
+         *     each stored feed and interval; ``badge`` is the chart's source badge.
+         */
+        IntradayInfoOut: {
+            /** Feed */
+            feed: string;
+            /** Badge */
+            badge: string;
+            /** Intervals */
+            intervals: ("1m" | "5m" | "15m" | "30m" | "60m")[];
+            /**
+             * First
+             * Format: date-time
+             */
+            first: string;
+            /**
+             * Last
+             * Format: date-time
+             */
+            last: string;
+            /** Venue */
+            venue: string;
+            /** Time Zone */
+            time_zone: string;
+            /** Feeds */
+            feeds: string[];
+            /** Coverage */
+            coverage: components["schemas"]["IntradayCoverageOut"][];
         };
         /** JobStatusOut */
         JobStatusOut: {
@@ -10696,6 +10769,7 @@ export interface components {
              * @default false
              */
             is_indian: boolean;
+            intraday?: components["schemas"]["IntradayInfoOut"] | null;
         };
         /** SymbolEventsOut */
         SymbolEventsOut: {
@@ -12433,6 +12507,7 @@ export interface operations {
                 to?: string | null;
                 limit?: number;
                 adjustment?: "adjusted" | "raw";
+                feed?: ("iex" | "sip" | "kite" | "file") | null;
             };
             header?: never;
             path: {
@@ -12697,6 +12772,7 @@ export interface operations {
                 from?: string | null;
                 to?: string | null;
                 limit?: number;
+                feed?: ("iex" | "sip" | "kite" | "file") | null;
             };
             header?: never;
             path: {
@@ -13053,11 +13129,14 @@ export interface operations {
     };
     get_avwap_v1_symbols__ticker__avwap_get: {
         parameters: {
-            query: {
+            query?: {
                 /** @description Anchor date, YYYY-MM-DD */
-                anchor: string;
-                interval?: "1d" | "1wk" | "1mo";
+                anchor?: string | null;
+                interval?: "1d" | "1wk" | "1mo" | "1m" | "5m" | "15m" | "30m" | "60m";
                 bands?: number;
+                /** @description Intraday anchor instant */
+                anchor_at?: string | null;
+                feed?: ("iex" | "sip" | "kite" | "file") | null;
             };
             header?: never;
             path: {

@@ -12,6 +12,12 @@
  * A date with no bar of its own (a typed weekend, a gap) sits between its
  * neighbours, interpolated in time; before the first or after the last loaded
  * bar it is extrapolated at the chart's average bar spacing.
+ *
+ * **Intraday (A6.2).** Anchors stay dates. On an intraday chart `barDates`
+ * holds each bar's session date (the API's `session_date`), so many bars
+ * share a date, and an anchor maps to the **first bar of that session** (its
+ * open). Placing on an intraday bar saves that bar's session date, so the
+ * anchor snaps to the session's open on every interval.
  */
 
 import type { StockInterval } from "@/lib/stock-workspace";
@@ -34,9 +40,19 @@ export function barDate(ts: string): string {
   return ts.slice(0, 10);
 }
 
+/**
+ * A bar's session date (A6.2): the API's `session_date` on intraday bars (the
+ * venue's date, which an instant's UTC date may not be), else the daily
+ * label's date.
+ */
+export function sessionDateOf(bar: { ts: string; session_date?: string | null }): string {
+  return bar.session_date ?? barDate(bar.ts);
+}
+
 /** Monday of the date's ISO week, the first of its month, or the date itself. */
 export function periodKey(date: string, interval: StockInterval): string {
   if (interval === "1mo") return `${date.slice(0, 7)}-01`;
+  // Daily and intraday (A6.2): the session date itself.
   if (interval === "1wk") {
     const ms = dateMs(date);
     const weekday = (new Date(ms).getUTCDay() + 6) % 7; // Monday = 0
@@ -55,15 +71,17 @@ export function anchorBar(
   barDates: readonly string[],
 ): { index: number; date: string } | null {
   const key = periodKey(date, interval);
-  // Binary search on the period keys, which rise with the bars.
+  // Lower bound on the period keys, which rise with the bars (several bars
+  // share a key on intraday charts: the first is the session's open).
   let lo = 0;
-  let hi = barDates.length - 1;
-  while (lo <= hi) {
+  let hi = barDates.length;
+  while (lo < hi) {
     const mid = (lo + hi) >> 1;
-    const midKey = periodKey(barDates[mid], interval);
-    if (midKey === key) return { index: mid, date: barDates[mid] };
-    if (midKey < key) lo = mid + 1;
-    else hi = mid - 1;
+    if (periodKey(barDates[mid], interval) < key) lo = mid + 1;
+    else hi = mid;
+  }
+  if (lo < barDates.length && periodKey(barDates[lo], interval) === key) {
+    return { index: lo, date: barDates[lo] };
   }
   return null;
 }

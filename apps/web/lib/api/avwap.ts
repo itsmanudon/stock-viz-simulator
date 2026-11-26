@@ -7,14 +7,19 @@
 
 import { apiGet } from "./client";
 import type { components } from "./schema";
+import type { ApiInterval } from "./types";
 
 export type Avwap = components["schemas"]["AvwapOut"];
 export type AvwapPoint = components["schemas"]["AvwapPointOut"];
 
+/**
+ * A6.2: on intraday intervals the API reads `anchor` (a date) as that
+ * session's open, so a date-anchored drawing lands on the session's first bar.
+ */
 export function getAvwap(
   ticker: string,
   anchor: string,
-  interval: "1d" | "1wk" | "1mo",
+  interval: ApiInterval,
   bands: number,
 ): Promise<Avwap> {
   const q = new URLSearchParams({ anchor, interval, bands: String(bands) });

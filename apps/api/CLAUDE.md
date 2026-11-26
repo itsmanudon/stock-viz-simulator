@@ -159,6 +159,8 @@ src/stockviz/
     bars/           A1.4a: resample.py (pure: daily -> 1wk/1mo, the partial
                     rule) and load.py (loads enough daily bars for n output bars);
                     A3.1: raw.py (`eod_raw` bars for `adjustment=raw`, `has_raw`)
+                    A6.2: intraday.py (1m-60m from `intraday_bars`, resampled
+                    within sessions, closed-bar partial rule, feeds and badges)
     markets/        calendar.py — exchange calendars and completed sessions (Phase 4.1;
                     A6.1: session_minutes, open/close in UTC with special hours);
                     india_holidays.py — the maintained NSE/BSE holiday table (A0;
@@ -850,6 +852,69 @@ counted in output bars, and leave a partial newest bar out of the inputs:
 on. `BarOut` adds `source` and `adjustment_semantics` on every interval
 (null `sessions`/`partial` on `1d`). Tests: `tests/test_resample.py`,
 `tests/test_bars_interval.py` (clock patched through `bars.load.now_utc`).
+
+**Intraday intervals (A6.2, M2.2 intraday).** `services/bars/intraday.py`;
+design: workspace `docs/a6-design-note.md`. `GET /v1/symbols/{t}/bars`,
+`/indicators` and `/avwap` take `interval=1m|5m|15m|30m|60m` and
+`feed=iex|sip|kite|file` (default: the first stored of `FEED_RANK` sip, kite,
+iex, file). Nothing is stored beyond A6.1's `1m`/`60m` rows.
+
+- **Resampling.** `1m` is the stored minutes; `5m`/`15m`/`30m` are built from
+  them; `60m` is built from the minutes for every session that has any and
+  is the stored hourly bar (`bulk_1h`) for a session that has none (the
+  hourly files reach 2015, the minute files 2023), so one session never
+  mixes the two and `source` says which. Buckets start at each trading
+  span's open (`calendar.session_minutes`) and every N minutes after; the
+  last one of a span is clipped at its end: NSE 60m = 09:15 ... 14:15, 15:15-15:30;
+  a Muhurat evening is its own bars; the 2024 DR sessions give 09:15-10:00
+  then 11:30-12:30 (never across the pause). No bar crosses a night,
+  weekend or holiday. A minute outside every span is dropped; a day outside
+  the calendar is bucketed from UTC midnight. OHLCV as Decimal (first open,
+  extremes, last close, summed volume).
+- **Fields.** `BarOut` adds `closed_at` (bucket end, clipped), `session_date`
+  (the venue date), `feed`, `badge` (`FEED_BADGES`: "File (local)", "IEX
+  only", "SIP", "Kite") and `minutes` (stored minutes in it); `ts` is the
+  bar's **open**, naive UTC. Null on 1d/1wk/1mo. `adjustment_semantics` is
+  null (the files carry no adjustment label); `adjustment=raw` is 409.
+- **Partial (closed-bar semantics).** Only the newest bar: partial while
+  `closed_at` > now, or while its last stored minute ends before `closed_at`
+  and now < `closed_at` + `LATE_MINUTE_GRACE` (2 min). Older bars are closed
+  (a gap is a gap). Clock: `intraday.now_utc` (tests patch it).
+- **Limits.** `limit` counts output bars: `load_intraday` reads the newest
+  `(limit + 1) x N` minutes (and drops the oldest bucket when that cap was
+  hit), plus, for 60m, the stored hours of sessions without minutes inside
+  that range and the newest older hours still wanted. `from`/`to` select by
+  the bar's open (naive = UTC, offsets converted); a bar opening at `to`
+  loads whole. Measured on the owner's local load (TCS.NS, 26 Nov 2026): 375
+  1m bars 0.5 s cold, 154 60m bars 0.05 s, 1,800 60m bars 0.7 s.
+- **Empty.** 404 with the reason: no intraday bars for the symbol, none from
+  the asked feed, or no 1-minute bars to build 5-30m ("60m is available"). A
+  range with no bars is `[]`.
+- **Indicators** run the registry on these bars with the warm-up counted in
+  intraday bars (loads `limit + lookback + 1`), never daily ones; a partial
+  newest bar is left out (`partial_bar_excluded`); `IndicatorsOut.feed`.
+  The RS line gets no index on intraday (its daily close is later in the day
+  than the bar), so its series is empty.
+- **AVWAP at an instant.** `anchor_at` (ISO; naive = UTC) or `anchor` (a
+  date = that session's open, how a date-anchored drawing lands). 1m-30m sum
+  the **1-minute** bars from the first one opening at or after the anchor
+  (at most `MAX_INTRADAY_MINUTES` 100,000, else 422) and sample each chart
+  bar at its last minute, keyed by the bar's open (`computed_from: "1m"`);
+  60m sums the 60m chart's own bars (`"60m"`, at most 5,000).
+  `AvwapOut` adds `anchor_at`, `anchor_bar_at`, `feed`. Daily unchanged.
+  `services/avwap.compute_from(..., start)` is the shared maths.
+- **Symbol detail** `intraday: {feed, badge, intervals, first, last, venue,
+  time_zone, feeds, coverage [{feed, interval, first, last}]} | null`
+  (`intraday_info`: one min/max per stored feed and interval; all five
+  intervals with minutes, `["60m"]` with hourly bars only).
+- **Not in A6.2:** a daily value on intraday bars (the DSL's `daily.` prefix
+  and alignment are A6.4), live bars (A6.5).
+- Tests: `tests/test_intraday_bars.py` (synthetic minutes: NSE 15m/60m day,
+  no bar across a night, Muhurat, DR pause, off-span minutes, 60m
+  precedence, hourly-only 404, partial and grace, limits and from/to, empty
+  and refused cases, feed default, symbol detail, indicator warm-up and the
+  partial bar, RS line empty, AVWAP at an instant on 1m and 5m, date anchor,
+  60m and refusals).
 
 **Raw prices on the bars route (A3.1, M2.3).** `GET /v1/symbols/{t}/bars`
 takes `adjustment=adjusted|raw` (default `adjusted`, the split-adjusted
