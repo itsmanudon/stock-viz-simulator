@@ -2151,6 +2151,21 @@ figures: same net P&L, R and adherence as the entry pages).
   drift cases, the route with filters, All books, isolation, open entries,
   the imported flag, newest backtest and holdout seen).
 
+**Behaviour diagnostics (A7.6, M10.4).** `GET /v1/journal/behaviour?book=&source=&from=&to=`
+(`routers/journal_stats.py`, authed) -> `BehaviourOut`, from A5.6's
+outcomes (`edge.collect_outcomes`, which now also carries each entry's
+opening notional, first fill, venue, fees and gross P&L) by
+`services/journal/behaviour.py` (pure): plan discipline (followed / scored),
+disposition index (mean losing hold / mean winning hold), tilt flags (opened
+after a losing close at > 1.5x the median size of the previous 20), weekday
+and hour heatmaps in the venue's time (unknown times left out of hours), and
+cost leakage (fees in total, per entry, over gross P&L; estimated flag).
+Rates need 30 closed entries; counts always show. Neutral wording. Web: the
+Behaviour section on `/portfolio/journal/edge`; `/backtest/experiments` (list,
+create with a hypothesis) and `/backtest/experiments/[id]` (runs with
+fingerprints and reruns); `/backtest?experiment=<id>` files saved runs there
+(`experiment_id` on save). Tests: `tests/test_a76_behaviour.py`.
+
 **Survivorship stamp (A1.4a, part of M1.5).** Every backtest result carries
 `universe: {name, point_in_time, survivorship_biased, note}`: the public
 `POST /v1/backtest` (`BacktestOut.universe`), stored single runs, and

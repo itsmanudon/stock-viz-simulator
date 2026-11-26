@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState } from "react";
+import { useActionState, useEffect, useState } from "react";
 
 import {
   type RerunState,
@@ -13,6 +13,17 @@ import { Button } from "@/components/ui/button";
 import type { BacktestRequest } from "@/lib/api/types";
 import type { RotationRequest } from "@/lib/rotation";
 import type { StrategyRequest } from "@/lib/rule-strategy";
+
+/** A7.6 (M7.7): `/backtest?experiment=<id>` files the saved run in that experiment. */
+function ExperimentField() {
+  // Read after mount (the URL is the browser's), so the server render is the same.
+  const [id, setId] = useState<number | null>(null);
+  useEffect(() => {
+    const value = Number(new URLSearchParams(window.location.search).get("experiment"));
+    setId(Number.isInteger(value) && value > 0 ? value : null);
+  }, []);
+  return id ? <input type="hidden" name="experiment_id" value={id} /> : null;
+}
 
 const STUDIES = [
   { study: "single", label: "Save run" },
@@ -29,6 +40,7 @@ export function SaveBacktestRun({ request }: { request: BacktestRequest }) {
   return (
     <form action={save} className="space-y-2">
       <input type="hidden" name="request" value={JSON.stringify(request)} />
+      <ExperimentField />
       <div className="flex flex-wrap items-center gap-2">
         {STUDIES.map((s) => (
           <Button
@@ -76,6 +88,7 @@ export function SaveStrategyRun({
     <form action={save} className="space-y-2">
       <input type="hidden" name="kind" value={kind} />
       <input type="hidden" name="request" value={JSON.stringify(request)} />
+      <ExperimentField />
       <div className="flex flex-wrap items-center gap-2">
         <Button type="submit" variant="outline" disabled={saving}>
           Save run

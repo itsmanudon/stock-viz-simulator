@@ -139,6 +139,14 @@ export const WORKSPACES: readonly Workspace[] = [
         matches: ["/backtest/runs"],
         keywords: ["backtest runs", "results", "experiments"],
       },
+      {
+        // A7.6 (M7.7): named experiments with hypotheses and their runs.
+        label: "Experiments",
+        href: "/backtest/experiments",
+        matches: ["/backtest/experiments"],
+        signedInOnly: true,
+        keywords: ["hypothesis", "reproducibility", "rerun"],
+      },
       { label: "Replay", href: "/replay", matches: ["/replay"], keywords: ["blind", "session"] },
       { label: "Drills", href: "/drills", matches: ["/drills"], keywords: ["deck", "practice"] },
       {

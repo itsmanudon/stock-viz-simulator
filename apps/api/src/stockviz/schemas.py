@@ -5243,3 +5243,36 @@ class ReverseDcfOut(BaseModel):
     sensitivity: list[ReverseDcfRowOut]
     reconciliation: list[ReverseDcfStepOut]
     method: str
+
+
+class BehaviourCellOut(BaseModel):
+    key: str
+    entries: int
+    net_pnl: float
+    win_rate: float | None = None
+
+
+class BehaviourOut(BaseModel):
+    """A7.6 (M10.4): behaviour diagnostics over closed journal entries."""
+
+    entries: int
+    counts_only: bool
+    reason: str | None = None
+    discipline_scored: int
+    discipline_followed: int
+    discipline_rate: float | None = None
+    winners: int
+    losers: int
+    avg_hold_winners: float | None = None
+    avg_hold_losers: float | None = None
+    disposition_index: float | None = None
+    tilt_entries: list[int]
+    tilt_rate: float | None = None
+    by_weekday: list[BehaviourCellOut]
+    by_hour: list[BehaviourCellOut]
+    fees_total: float
+    fees_per_entry: float | None = None
+    fees_share_of_gross: float | None = None
+    fees_estimated: bool
+    currencies: list[str]
+    method: dict[str, str]

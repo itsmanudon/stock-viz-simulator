@@ -114,6 +114,7 @@ describe("route → workspace map", () => {
     expect(workspaceSubnav("/replay").map((item) => item.label)).toEqual([
       "Backtest",
       "Saved runs",
+      "Experiments",
       "Replay",
       "Drills",
       "News reactions",

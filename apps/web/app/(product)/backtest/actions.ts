@@ -47,13 +47,15 @@ export async function saveBacktestRunAction(
   formData: FormData,
 ): Promise<SaveRunState> {
   const kind = formData.get("kind");
+  // A7.6: a run saved from `/backtest?experiment=<id>` is filed in that experiment.
+  const experimentId = Number(formData.get("experiment_id")) || null;
   if (kind === "strategy" || kind === "rotation") {
     try {
       const raw = JSON.parse(String(formData.get("request") ?? ""));
       const run =
         kind === "rotation"
-          ? await saveRotationRun(raw as RotationRequest)
-          : await saveStrategyRun(raw as StrategyRequest);
+          ? await saveRotationRun(raw as RotationRequest, experimentId)
+          : await saveStrategyRun(raw as StrategyRequest, experimentId);
       revalidatePath("/backtest/runs");
       return { runId: run.id };
     } catch (err) {
@@ -74,10 +76,10 @@ export async function saveBacktestRunAction(
   try {
     const run =
       study === "walk_forward"
-        ? await runWalkForward(request)
+        ? await runWalkForward(request, experimentId)
         : study === "sweep"
-          ? await runSweep(request)
-          : await saveExperimentRun(request);
+          ? await runSweep(request, experimentId)
+          : await saveExperimentRun(request, experimentId);
     revalidatePath("/backtest/runs");
     return { runId: run.id };
   } catch (err) {
