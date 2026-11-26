@@ -833,6 +833,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/sector-rotation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Sector Rotation */
+        get: operations["get_sector_rotation_v1_sector_rotation_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/portfolio": {
         parameters: {
             query?: never;
@@ -9998,6 +10015,48 @@ export interface components {
             report?: components["schemas"]["ReportCardOut"] | null;
             checks?: components["schemas"]["OverfittingChecksOut"] | null;
         };
+        /** RotationOut */
+        RotationOut: {
+            /**
+             * Market
+             * @enum {string}
+             */
+            market: "US" | "IN";
+            /** Benchmark */
+            benchmark: string;
+            /** Benchmark Name */
+            benchmark_name: string;
+            /** As Of */
+            as_of?: string | null;
+            /** Note */
+            note: string;
+            /** Method */
+            method: {
+                [key: string]: string;
+            };
+            /** Sectors */
+            sectors: components["schemas"]["RotationSectorOut"][];
+        };
+        /**
+         * RotationPointOut
+         * @description A7.2 (M3.2): one week of a sector's trail.
+         */
+        RotationPointOut: {
+            /**
+             * Week
+             * Format: date
+             */
+            week: string;
+            /** Rs Trend */
+            rs_trend: number;
+            /** Rs Momentum */
+            rs_momentum: number;
+            /**
+             * Quadrant
+             * @enum {string}
+             */
+            quadrant: "leading" | "weakening" | "lagging" | "improving";
+        };
         /** RotationRankOut */
         RotationRankOut: {
             /** Ticker */
@@ -10111,6 +10170,15 @@ export interface components {
             setup_version_id?: number | null;
             /** Warmup Bars */
             warmup_bars?: number | null;
+        };
+        /** RotationSectorOut */
+        RotationSectorOut: {
+            /** Sector */
+            sector: string;
+            /** Members */
+            members: number;
+            /** Points */
+            points: components["schemas"]["RotationPointOut"][];
         };
         /** RotationTradeOut */
         RotationTradeOut: {
@@ -14417,6 +14485,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BreadthOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_sector_rotation_v1_sector_rotation_get: {
+        parameters: {
+            query?: {
+                market?: "US" | "IN";
+                weeks?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RotationOut"];
                 };
             };
             /** @description Validation Error */

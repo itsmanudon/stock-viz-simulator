@@ -5146,3 +5146,28 @@ class BreadthOut(BaseModel):
     universe_note: str
     method: dict[str, str]
     points: list[BreadthPointOut]
+
+
+class RotationPointOut(BaseModel):
+    """A7.2 (M3.2): one week of a sector's trail."""
+
+    week: date
+    rs_trend: float
+    rs_momentum: float
+    quadrant: Literal["leading", "weakening", "lagging", "improving"]
+
+
+class RotationSectorOut(BaseModel):
+    sector: str
+    members: int
+    points: list[RotationPointOut]
+
+
+class RotationOut(BaseModel):
+    market: Literal["US", "IN"]
+    benchmark: str
+    benchmark_name: str
+    as_of: date | None = None
+    note: str
+    method: dict[str, str]
+    sectors: list[RotationSectorOut]

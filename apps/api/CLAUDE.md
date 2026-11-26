@@ -1271,6 +1271,20 @@ summation index, and the Zweig breadth thrust. Bars load 420 days before
 breadth cockpit on `/markets` (all sectors only). Tests:
 `tests/test_a71_breadth.py`.
 
+**Sector rotation map (A7.2, M3.2).** `GET /v1/sector-rotation?market=US|IN&weeks=2-26`
+(`routers/sector_rotation.py`, public, 60/min) -> `RotationOut {market,
+benchmark, benchmark_name, as_of, note, method, sectors [{sector, members,
+points [{week, rs_trend, rs_momentum, quadrant}]}]}`. `services/sector_rotation.py`:
+a sector (>= 3 active non-index members by `symbols.sector`) is the
+equal-weight compounded mean of its members' daily returns (no sector index
+is stored; survivorship-biased); the benchmark is the venue index's stored
+bars, else the equal-weight market (`equal_weight`, labelled). Weekly at each
+ISO week's last stored session: RS ratio = 100 x sector / benchmark; RS-Trend
+= 100 x ratio / its 10-week mean; RS-Momentum = 100 x RS-Trend / RS-Trend 4
+weeks earlier; quadrants Leading / Weakening / Lagging / Improving. Openly
+documented, not RRG®. Two years of bars load. Web: an SVG map per market on
+`/markets`. Tests: `tests/test_a72_sector_rotation.py`.
+
 **Raw prices on the bars route (A3.1, M2.3).** `GET /v1/symbols/{t}/bars`
 takes `adjustment=adjusted|raw` (default `adjusted`, the split-adjusted
 `price_bars`). `raw` reads `eod_raw` (A1.1) through `services/bars/raw.py`:
