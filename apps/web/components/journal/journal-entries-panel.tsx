@@ -11,6 +11,7 @@
 import Link from "next/link";
 import { useId, useMemo, useState } from "react";
 
+import { edgeHref } from "@/lib/journal-edge";
 import {
   BADGE_CLASS,
   type JournalEntrySummary,
@@ -70,6 +71,13 @@ export function JournalEntriesPanel({
             {note ??
               "One row per round trip, flat to flat. The P&L calendar below counts each closing fill on its own day."}
           </p>
+          <Link
+            href={edgeHref(book)}
+            className="mt-2 inline-flex text-sm font-medium text-foreground underline underline-offset-2 hover:text-brand"
+            data-testid="edge-link"
+          >
+            Is My Edge Real? Statistics over your closed trades
+          </Link>
         </div>
         {entries?.length ? (
           <div className="flex flex-wrap gap-3">
