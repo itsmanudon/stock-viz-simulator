@@ -816,6 +816,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/breadth": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Breadth */
+        get: operations["get_breadth_v1_breadth_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/portfolio": {
         parameters: {
             query?: never;
@@ -3739,6 +3756,86 @@ export interface components {
             books: components["schemas"]["BookOut"][];
             /** Limit */
             limit: number;
+        };
+        /** BreadthOut */
+        BreadthOut: {
+            /**
+             * Market
+             * @enum {string}
+             */
+            market: "US" | "IN";
+            /**
+             * Start
+             * Format: date
+             */
+            start: string;
+            /**
+             * End
+             * Format: date
+             */
+            end: string;
+            /** Members */
+            members: number;
+            /** Universe Note */
+            universe_note: string;
+            /** Method */
+            method: {
+                [key: string]: string;
+            };
+            /** Points */
+            points: components["schemas"]["BreadthPointOut"][];
+        };
+        /**
+         * BreadthPointOut
+         * @description A7.1 (M3.3): one session's breadth over the market's stored members.
+         */
+        BreadthPointOut: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Advancers */
+            advancers: number;
+            /** Decliners */
+            decliners: number;
+            /** Unchanged */
+            unchanged: number;
+            /** Members */
+            members: number;
+            /** New Highs */
+            new_highs: number;
+            /** New Lows */
+            new_lows: number;
+            /** Highs Minus Lows */
+            highs_minus_lows: number;
+            /** Ad Line */
+            ad_line: number;
+            /** Ad Ratio 20 */
+            ad_ratio_20?: number | null;
+            /** Ad Ratio 40 */
+            ad_ratio_40?: number | null;
+            /** Mcclellan */
+            mcclellan?: number | null;
+            /** Summation */
+            summation?: number | null;
+            /** Thrust Ema10 */
+            thrust_ema10?: number | null;
+            /**
+             * Thrust
+             * @default false
+             */
+            thrust: boolean;
+            /** Pct Above 20 */
+            pct_above_20?: number | null;
+            /** Pct Above 50 */
+            pct_above_50?: number | null;
+            /** Pct Above 100 */
+            pct_above_100?: number | null;
+            /** Pct Above 200 */
+            pct_above_200?: number | null;
+            /** Pct Rsi 50 */
+            pct_rsi_50?: number | null;
         };
         /** BrokerStatusItemOut */
         BrokerStatusItemOut: {
@@ -14296,6 +14393,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RegimeOut"];
+                };
+            };
+        };
+    };
+    get_breadth_v1_breadth_get: {
+        parameters: {
+            query?: {
+                market?: "US" | "IN";
+                from?: string | null;
+                to?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BreadthOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
