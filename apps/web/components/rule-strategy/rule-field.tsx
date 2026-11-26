@@ -12,7 +12,7 @@
 import { useEffect, useId, useState } from "react";
 
 import { Label } from "@/components/ui/label";
-import { type RuleCheck, checkRule } from "@/lib/api/rules";
+import { type RuleCheck, type RuleTimeframe, checkRule } from "@/lib/api/rules";
 import type { RuleField } from "@/lib/rule-strategy";
 import { describeRuleError, warmupLabel } from "@/lib/screener-view";
 
@@ -21,6 +21,8 @@ export type StrategySetupOption = {
   name: string;
   rule: string;
   preset: boolean;
+  /** A6.4: the version's timeframe (daily when absent). */
+  timeframe?: string;
 };
 
 type Check =
@@ -40,6 +42,7 @@ export function RuleFieldEditor({
   setups,
   optional = false,
   check = checkRule,
+  timeframe = "daily",
 }: {
   label: string;
   hint: string;
@@ -49,7 +52,14 @@ export function RuleFieldEditor({
   onValidity: (valid: boolean) => void;
   setups: StrategySetupOption[];
   optional?: boolean;
-  check?: (rule: string, signal?: AbortSignal) => Promise<RuleCheck>;
+  check?: (
+    rule: string,
+    signal?: AbortSignal,
+    expect?: "condition" | "number",
+    timeframe?: RuleTimeframe,
+  ) => Promise<RuleCheck>;
+  /** A6.4: the rule is checked for these bars. */
+  timeframe?: RuleTimeframe;
 }) {
   const id = useId();
   const [status, setStatus] = useState<Check>({ state: "idle" });
@@ -64,7 +74,7 @@ export function RuleFieldEditor({
     const controller = new AbortController();
     setStatus({ state: "checking" });
     const timer = setTimeout(() => {
-      check(text, controller.signal)
+      check(text, controller.signal, "condition", timeframe)
         .then((result) => {
           if (controller.signal.aborted) return;
           setStatus({ state: "done", result });
@@ -80,17 +90,19 @@ export function RuleFieldEditor({
       controller.abort();
       clearTimeout(timer);
     };
-  }, [value.text, check, optional, onValidity]);
+  }, [value.text, check, optional, onValidity, timeframe]);
 
   const result = status.state === "done" ? status.result : null;
-  const yours = setups.filter((s) => !s.preset);
-  const presets = setups.filter((s) => s.preset);
+  // A6.4: only versions judged on the same bars can be loaded.
+  const usable = setups.filter((s) => (s.timeframe ?? "daily") === timeframe);
+  const yours = usable.filter((s) => !s.preset);
+  const presets = usable.filter((s) => s.preset);
 
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap items-end justify-between gap-2">
         <Label htmlFor={`${id}-rule`}>{label}</Label>
-        {setups.length ? (
+        {usable.length ? (
           <select
             aria-label={`Load a setup into the ${label.toLowerCase()}`}
             value={value.versionId ?? ""}

@@ -26,6 +26,8 @@ vi.mock("@/app/(product)/backtest/holdout-actions", () => ({
 vi.mock("@/app/(product)/backtest/strategy-actions", () => ({
   runStrategyAction: vi.fn(),
   strategyBarsAction: vi.fn(async () => bars),
+  intradayInfoAction: vi.fn(async () => null),
+  saveRuleSetupAction: vi.fn(async () => ({})),
 }));
 vi.mock("@/lib/api/rules", () => ({
   checkRule: vi.fn(async (rule: string) =>
@@ -52,11 +54,14 @@ vi.mock("@/lib/api/rules", () => ({
 import { RuleStrategyForm } from "@/components/rule-strategy/rule-strategy-form";
 import { initialStrategyForm } from "@/components/rule-strategy/rule-strategy-form";
 import { RuleStrategyResults } from "@/components/rule-strategy/rule-strategy-results";
+import { TimeframePicker } from "@/components/rule-strategy/timeframe-picker";
+import { checkRule } from "@/lib/api/rules";
 import {
   type StrategyResult,
   type StrategyTrade,
   buildStrategyRequest,
   parseTickerList,
+  timeframeOptions,
   tradeMarkers,
 } from "@/lib/rule-strategy";
 
@@ -309,5 +314,122 @@ describe("RuleStrategyResults", () => {
     expect(request.brokerage).toBe("zerodha");
     expect(request.adv_cap_pct).toBe(10);
     expect(buildStrategyRequest({ ...form, advCapPct: "" }).adv_cap_pct).toBeNull();
+  });
+});
+
+describe("A6.4 timeframes", () => {
+  beforeEach(() => resetLwc());
+
+  it("offers daily always and intraday only where bars exist", () => {
+    expect(timeframeOptions(null).map((o) => o.value)).toEqual(["daily"]);
+    expect(timeframeOptions(["60m", "5m"]).map((o) => o.label)).toEqual([
+      "Daily",
+      "5 minutes",
+      "1 hour",
+    ]);
+    const { rerender } = render(
+      <TimeframePicker id="tf" value="daily" onChange={() => {}} intervals={[]} />,
+    );
+    expect(screen.getAllByRole("option").map((o) => o.textContent)).toEqual(["Daily"]);
+    expect(screen.getByText("Only daily bars are stored for this symbol.")).toBeTruthy();
+    rerender(
+      <TimeframePicker
+        id="tf"
+        value="daily"
+        onChange={() => {}}
+        intervals={["1m", "5m"]}
+        badge="File (local)"
+      />,
+    );
+    expect(screen.getAllByRole("option").map((o) => o.textContent)).toEqual([
+      "Daily",
+      "1 minute",
+      "5 minutes",
+    ]);
+    expect(screen.getByText(/File \(local\)/)).toBeTruthy();
+  });
+
+  it("daily requests send the defaults", () => {
+    const req = buildStrategyRequest(
+      initialStrategyForm("AAPL", { from: "2024-01-01", to: "2024-06-01" }),
+    );
+    expect(req.timeframe).toBe("daily");
+    expect(req.flatten_at_close).toBe(false);
+  });
+
+  it("picks an intraday timeframe, checks the rule for it and runs on it", async () => {
+    const run = vi.fn(async () => ({ result: RESULT }));
+    const loadIntraday = vi.fn(async (ticker: string) =>
+      ticker === "AAPL"
+        ? {
+            feed: "iex",
+            badge: "IEX only",
+            intervals: ["1m", "5m"] as ("1m" | "5m")[],
+            first: "2024-01-02T14:30:00",
+            last: "2024-06-28T20:00:00",
+            venue: "XNYS",
+            time_zone: "America/New_York",
+            feeds: ["iex"],
+          }
+        : null,
+    );
+    const user = userEvent.setup();
+    render(
+      <RuleStrategyForm
+        symbols={SYMBOLS}
+        setups={[
+          { versionId: 1, name: "Daily one", rule: "close > 1", preset: false },
+          { versionId: 2, name: "Five", rule: "close > 2", preset: false, timeframe: "5m" },
+        ]}
+        watchlists={[]}
+        signedIn={false}
+        run={run}
+        loadIntraday={loadIntraday}
+      />,
+    );
+    const picker = screen.getByLabelText("Timeframe");
+    await waitFor(() => expect(within(picker).getAllByRole("option")).toHaveLength(3));
+    expect(screen.queryByText("Flatten at each session's close")).toBeNull();
+    await user.selectOptions(picker, "5m");
+    await waitFor(() =>
+      expect(vi.mocked(checkRule)).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.anything(),
+        "condition",
+        "5m",
+      ),
+    );
+    // Only the 5m version can be loaded on 5m bars.
+    const load = screen.getAllByLabelText(/Load a setup/)[0];
+    expect(within(load).queryByText("Daily one")).toBeNull();
+    expect(within(load).getByText("Five")).toBeTruthy();
+    await user.click(screen.getByLabelText("Flatten at each session's close"));
+    await waitFor(() => expect(screen.getAllByTestId("rule-ok")).toHaveLength(2));
+    await user.click(screen.getByRole("button", { name: "Run strategy" }));
+    const req = (run.mock.calls[0] as unknown[])[0] as ReturnType<typeof buildStrategyRequest>;
+    expect(req.timeframe).toBe("5m");
+    expect(req.flatten_at_close).toBe(true);
+    // A symbol without minutes falls back to daily.
+    await user.selectOptions(screen.getByLabelText("Symbol"), "MSFT");
+    await waitFor(() => expect((picker as HTMLSelectElement).value).toBe("daily"));
+  });
+
+  it("marks intraday trades at their bars", () => {
+    const markers = tradeMarkers(
+      [
+        trade({
+          entry_at: "2024-01-02T14:35:00",
+          exit_at: "2024-01-02T19:55:00",
+          reason: "session_close",
+          gap: false,
+        }),
+      ],
+      "AAPL",
+      { entry: "g", exit: "r" },
+    );
+    expect(markers.map((m) => [m.time, m.text])).toEqual([
+      ["2024-01-02T14:35:00", "B"],
+      ["2024-01-02T19:55:00", "C"],
+    ]);
   });
 });

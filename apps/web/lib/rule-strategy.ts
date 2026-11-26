@@ -14,6 +14,7 @@ export type StrategyTrade = components["schemas"]["StrategyTradeOut"];
 export type StrategyReason = StrategyTrade["reason"];
 export type SizingKind = NonNullable<components["schemas"]["StrategySizingIn"]["kind"]>;
 export type FeeSchedule = StrategyRequest["fee_schedule"];
+export type StrategyTimeframe = NonNullable<StrategyRequest["timeframe"]>;
 
 export type RuleField = {
   text: string;
@@ -60,7 +61,38 @@ export type StrategyForm = {
   shortable: string;
   /** A4.3: the last 20% of the range locked (default), or none. */
   holdout?: NonNullable<StrategyRequest["holdout"]>;
+  /** A6.4: the bars signals and fills use (daily by default). */
+  timeframe?: StrategyTimeframe;
+  /** A6.4, intraday: sell what is still held at each session's last bar. */
+  flattenAtClose?: boolean;
 };
+
+/** A6.4: the timeframes a rule can run on, with their labels. */
+export const TIMEFRAME_LABEL: Record<StrategyTimeframe, string> = {
+  daily: "Daily",
+  "1m": "1 minute",
+  "5m": "5 minutes",
+  "15m": "15 minutes",
+  "30m": "30 minutes",
+  "60m": "1 hour",
+};
+
+/**
+ * A6.4: the timeframe choices for a symbol: daily always, and the intraday
+ * intervals only where its bars exist (`symbol.intraday.intervals`), in order.
+ */
+export function timeframeOptions(
+  intervals: readonly string[] | null | undefined,
+): { value: StrategyTimeframe; label: string }[] {
+  const have = new Set(intervals ?? []);
+  return (Object.keys(TIMEFRAME_LABEL) as StrategyTimeframe[])
+    .filter((tf) => tf === "daily" || have.has(tf))
+    .map((value) => ({ value, label: TIMEFRAME_LABEL[value] }));
+}
+
+export function isIntradayTimeframe(tf: string | undefined | null): boolean {
+  return Boolean(tf) && tf !== "daily";
+}
 
 /** Short marker labels, so a busy chart stays readable (the table has the words). */
 export const REASON_CODE: Record<StrategyReason, string> = {
@@ -70,6 +102,7 @@ export const REASON_CODE: Record<StrategyReason, string> = {
   trail: "TS",
   time: "T",
   end_of_data: "",
+  session_close: "C",
 };
 
 export const REASON_LABEL: Record<StrategyReason, string> = {
@@ -79,6 +112,7 @@ export const REASON_LABEL: Record<StrategyReason, string> = {
   trail: "Trailing stop",
   time: "Time stop",
   end_of_data: "Still open",
+  session_close: "Session close",
 };
 
 /** "AAPL, msft  nvda" -> ["AAPL", "MSFT", "NVDA"], de-duplicated, at most 50. */
@@ -145,6 +179,10 @@ export function buildStrategyRequest(form: StrategyForm): StrategyRequest {
     direction: form.direction,
     shortable: form.direction === "short" ? parseTickerList(form.shortable) : [],
     holdout: form.holdout ?? "last_20pct",
+    // A6.4: daily runs send the defaults; flatten only means something intraday.
+    timeframe: form.timeframe ?? "daily",
+    feed: "auto",
+    flatten_at_close: isIntradayTimeframe(form.timeframe) && Boolean(form.flattenAtClose),
   };
   return request;
 }
@@ -186,8 +224,9 @@ export function tradeMarkers(
   for (const t of trades) {
     if (t.ticker !== ticker) continue;
     const long = t.direction === "long";
+    // A6.4: an intraday trade marks the bar it filled on (its open, UTC).
     out.push({
-      time: `${t.entry_date}T00:00:00`,
+      time: t.entry_at ?? `${t.entry_date}T00:00:00`,
       position: long ? "belowBar" : "aboveBar",
       color: colours.entry,
       shape: long ? "arrowUp" : "arrowDown",
@@ -195,7 +234,7 @@ export function tradeMarkers(
     });
     if (t.open) continue;
     out.push({
-      time: `${t.exit_date}T00:00:00`,
+      time: t.exit_at ?? `${t.exit_date}T00:00:00`,
       position: long ? "aboveBar" : "belowBar",
       color: colours.exit,
       shape: long ? "arrowDown" : "arrowUp",

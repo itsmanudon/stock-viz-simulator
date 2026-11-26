@@ -17,6 +17,10 @@ import { useChartPalette } from "@/lib/chart-theme";
 type Point = { date: string; nav: string };
 
 function toUtcSeconds(yyyyMmDd: string): UTCTimestamp {
+  // A6.4: an intraday run's point is a bar's open, naive UTC ("...T09:15:00").
+  if (yyyyMmDd.includes("T")) {
+    return Math.floor(new Date(`${yyyyMmDd}Z`).getTime() / 1000) as UTCTimestamp;
+  }
   // Treat as midnight UTC so the candle aligns with the labelled day.
   return Math.floor(new Date(`${yyyyMmDd}T00:00:00Z`).getTime() / 1000) as UTCTimestamp;
 }

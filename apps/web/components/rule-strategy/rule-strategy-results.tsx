@@ -37,7 +37,7 @@ import {
   type StrategyResult,
   formatR,
 } from "@/lib/rule-strategy";
-import { formatCloseDate } from "@/lib/stock-workspace";
+import { formatBarTime, formatCloseDate, venueTimeZone } from "@/lib/stock-workspace";
 
 function money(raw: string | number, currency: string): string {
   return Number(raw).toLocaleString("en-US", {
@@ -81,6 +81,12 @@ export function RuleStrategyResults({
   const [showAll, setShowAll] = useState(false);
   const currency = result.currency;
   const s = result.summary;
+  // A6.4: an intraday run's bars, times in the venue's zone.
+  const intradayTf =
+    result.timeframe && result.timeframe !== "daily"
+      ? (result.timeframe as "1m" | "5m" | "15m" | "30m" | "60m")
+      : null;
+  const zone = venueTimeZone(result.tickers[0] ?? "");
   const from = result.equity_curve[0]?.date;
   const to = result.equity_curve.at(-1)?.date;
   if (!from || !to) {
@@ -208,6 +214,9 @@ export function RuleStrategyResults({
             trades={result.trades}
             from={from}
             to={to}
+            interval={intradayTf ?? "1d"}
+            timeZone={zone}
+            feed={result.feed ?? null}
           />
         </div>
       </section>
@@ -220,7 +229,7 @@ export function RuleStrategyResults({
         />
         <div className="border-y border-border-muted bg-surface-elevated p-3 sm:border-x sm:p-4">
           <EquityCurve
-            points={result.equity_curve}
+            points={result.equity_curve.map((p) => ({ date: p.at ?? p.date, nav: p.nav }))}
             currency={currency}
             accessibleLabel="Rule strategy equity curve, net of costs."
           />
@@ -258,14 +267,14 @@ export function RuleStrategyResults({
                       <TableCell className="ticker font-semibold">{t.ticker}</TableCell>
                     ) : null}
                     <TableCell className="text-xs">
-                      {formatCloseDate(t.entry_date)}
+                      {t.entry_at ? formatBarTime(t.entry_at, zone) : formatCloseDate(t.entry_date)}
                       <span className="block font-mono text-text-tertiary">
                         {t.direction === "short" ? "Short " : ""}
                         {money(t.entry_price, currency)}
                       </span>
                     </TableCell>
                     <TableCell className="text-xs">
-                      {formatCloseDate(t.exit_date)}
+                      {t.exit_at ? formatBarTime(t.exit_at, zone) : formatCloseDate(t.exit_date)}
                       <span className="block font-mono text-text-tertiary">
                         {money(t.exit_price, currency)}
                         {t.open ? " (marked)" : ""}

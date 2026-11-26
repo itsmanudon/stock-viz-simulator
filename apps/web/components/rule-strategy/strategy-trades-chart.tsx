@@ -12,7 +12,7 @@ import { useEffect, useMemo, useState } from "react";
 import { strategyBarsAction } from "@/app/(product)/backtest/strategy-actions";
 import { PriceChart } from "@/components/price-chart";
 import { Label } from "@/components/ui/label";
-import type { Bar } from "@/lib/api/types";
+import type { ApiInterval, Bar } from "@/lib/api/types";
 import { useChartPalette } from "@/lib/chart-theme";
 import { type StrategyTrade, tradeMarkers } from "@/lib/rule-strategy";
 
@@ -22,12 +22,19 @@ export function StrategyTradesChart({
   from,
   to,
   loadBars = strategyBarsAction,
+  interval = "1d",
+  timeZone = "UTC",
+  feed = null,
 }: {
   tickers: string[];
   trades: StrategyTrade[];
   from: string;
   to: string;
-  loadBars?: (ticker: string, from: string, to: string) => Promise<Bar[]>;
+  loadBars?: (ticker: string, from: string, to: string, interval?: ApiInterval) => Promise<Bar[]>;
+  /** A6.4: an intraday run's bars (its timeframe), in the venue's zone. */
+  interval?: "1d" | "1m" | "5m" | "15m" | "30m" | "60m";
+  timeZone?: string;
+  feed?: string | null;
 }) {
   const withTrades = useMemo(() => {
     const traded = new Set(trades.map((t) => t.ticker));
@@ -41,13 +48,13 @@ export function StrategyTradesChart({
     if (!ticker) return;
     let live = true;
     setBars(null);
-    loadBars(ticker, from, to).then((rows) => {
+    loadBars(ticker, from, to, interval).then((rows) => {
       if (live) setBars(rows);
     });
     return () => {
       live = false;
     };
-  }, [ticker, from, to, loadBars]);
+  }, [ticker, from, to, loadBars, interval]);
 
   const markers = useMemo(
     () => tradeMarkers(trades, ticker, { entry: palette.positive, exit: palette.negative }),
@@ -83,12 +90,19 @@ export function StrategyTradesChart({
           No bars stored for {ticker}.
         </p>
       ) : (
-        <PriceChart bars={bars} markers={markers} showVolume={false} />
+        <PriceChart
+          bars={bars}
+          markers={markers}
+          showVolume={false}
+          interval={interval}
+          timeZone={timeZone}
+          sourceFeed={feed}
+        />
       )}
       <p className="text-xs text-text-tertiary" data-testid="strategy-chart-caption">
         {ticker}: {count} trade{count === 1 ? "" : "s"}. B and S mark long and short entries; exits
-        say why: X exit rule, SL fixed stop, ATR stop, TS trailing stop, T time stop, "gap" when the
-        bar opened through the stop.
+        say why: X exit rule, SL fixed stop, ATR stop, TS trailing stop, T time stop, C session
+        close, "gap" when the bar opened through the stop.
       </p>
     </div>
   );
