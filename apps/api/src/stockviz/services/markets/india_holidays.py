@@ -30,14 +30,20 @@ Weekend holidays are left out: they close nothing.
 day, Diwali Muhurat trading, a live test of a new system or of the disaster
 recovery site) or on a weekday holiday (Diwali Muhurat on Laxmi Pujan). :data:`SPECIAL_SESSIONS` lists each one with its source, and
 the calendars count it as a session, so its daily bar is expected and not
-reported as a bar on a closed day. Their hours are not modelled (a Muhurat
-session runs about an hour in the evening); the calendar gives them the
-normal close. Add a new one here when the exchanges announce it.
+reported as a bar on a closed day. Add a new one here when the exchanges
+announce it.
+
+**Special hours (A6.1).** A special session that did not trade the normal
+09:15-15:30 has its hours in :data:`SPECIAL_HOURS` (the normal market's
+continuous trading, IST, pre-open left out), so ``calendar.py`` gives it the
+right open and close and the intraday loader accepts its minutes. A session
+not listed there keeps the normal hours: the Budget days and the 20 Jan 2024
+live session traded a full day.
 """
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, time
 
 FIRST_MAINTAINED_YEAR = 2026
 """Years before this come from the ``exchange_calendars`` BSE list."""
@@ -149,6 +155,33 @@ SPECIAL_SESSIONS: dict[date, str] = {
 }
 """Days NSE and BSE traded outside their normal sessions: weekends, and
 weekday holidays with a Muhurat session. Each counts as a session."""
+
+SPECIAL_HOURS: dict[date, tuple[tuple[time, time], ...]] = {
+    # Read on 26 Nov 2026 from the owner's 1-minute files (first and last
+    # minute of every file on the day; no prices read): exact.
+    date(2023, 11, 12): ((time(18, 15), time(19, 15)),),  # Muhurat
+    date(2024, 3, 2): ((time(9, 15), time(10, 0)), (time(11, 30), time(12, 30))),  # DR switch
+    date(2024, 5, 18): ((time(9, 15), time(10, 0)), (time(11, 30), time(12, 30))),  # DR switch
+    date(2024, 11, 1): ((time(18, 0), time(19, 0)),),  # Muhurat
+    date(2025, 10, 21): ((time(13, 45), time(14, 45)),),  # Muhurat, afternoon that year
+    # Before the minute files (Jan 2023): the hours the exchanges announced,
+    # as reported at the time; each agrees with the owner's hourly files
+    # (bars start at those hours on those days and nowhere else). Not read
+    # from a circular here: correct one if a circular disagrees.
+    date(2015, 11, 11): ((time(17, 45), time(18, 45)),),  # Muhurat
+    date(2016, 10, 30): ((time(18, 30), time(19, 30)),),  # Muhurat
+    date(2017, 10, 19): ((time(18, 30), time(19, 30)),),  # Muhurat
+    date(2018, 11, 7): ((time(17, 30), time(18, 30)),),  # Muhurat
+    date(2019, 10, 27): ((time(18, 15), time(19, 15)),),  # Muhurat
+    date(2020, 11, 14): ((time(18, 15), time(19, 15)),),  # Muhurat
+    date(2021, 2, 24): ((time(9, 15), time(17, 0)),),  # NSE outage; close extended to 17:00
+    date(2021, 11, 4): ((time(18, 15), time(19, 15)),),  # Muhurat
+    date(2022, 10, 24): ((time(18, 15), time(19, 15)),),  # Muhurat
+}
+"""Sessions (special or regular) whose trading hours were not 09:15-15:30 IST:
+one (open, close) span, or several when trading paused between them (the
+live disaster-recovery switches). Open is the first minute, close the end of
+the last one."""
 
 HISTORY_CORRECTIONS: dict[date, bool] = {
     # The package's BSE list has Muharram 2013 on 14 Nov. The exchanges moved

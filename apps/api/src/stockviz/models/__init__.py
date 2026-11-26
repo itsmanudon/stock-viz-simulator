@@ -37,6 +37,7 @@ from stockviz.models.experiment import Experiment, ExperimentRun
 from stockviz.models.fundamentals import FundamentalFact
 from stockviz.models.indicator_evidence import IndicatorEvidence
 from stockviz.models.instrument import Instrument, InstrumentIdentifier
+from stockviz.models.intraday import IntradayBar, IntradayFile
 from stockviz.models.job_run import JobRun
 from stockviz.models.journal_entry import JournalEntry, JournalEntryFill
 from stockviz.models.market import (
@@ -133,6 +134,8 @@ __all__ = [
     "IndicatorEvidence",
     "Instrument",
     "InstrumentIdentifier",
+    "IntradayBar",
+    "IntradayFile",
     "JobRun",
     "JournalEntry",
     "JournalEntryFill",
