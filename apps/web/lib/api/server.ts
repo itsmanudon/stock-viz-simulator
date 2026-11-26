@@ -94,6 +94,23 @@ export async function authedPost<T>(path: string, body?: unknown): Promise<T> {
   return jsonOrThrow<T>(path, res);
 }
 
+/**
+ * A5.3: POST a raw body (the tradebook CSV's bytes) with its own content
+ * type. The body is never logged here or in the API.
+ */
+export async function authedPostText<T>(
+  path: string,
+  body: ArrayBuffer | string,
+  contentType: string,
+): Promise<T> {
+  const res = await authedFetch(path, {
+    method: "POST",
+    body,
+    headers: { "Content-Type": contentType },
+  });
+  return jsonOrThrow<T>(path, res);
+}
+
 export async function authedPatch<T>(path: string, body?: unknown): Promise<T> {
   const init: RequestInit = { method: "PATCH" };
   if (body !== undefined) init.body = JSON.stringify(body);

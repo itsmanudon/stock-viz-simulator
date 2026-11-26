@@ -316,7 +316,7 @@ function CreateBookForm({ disabled }: { disabled: boolean }) {
           </Label>
           <select id={`${id}-kind`} name="kind" defaultValue="paper" className={SELECT}>
             <option value="paper">Paper · trades here</option>
-            <option value="imported">Imported · a broker's trades, no paper orders</option>
+            <option value="imported">Imported · a Zerodha tradebook (INR), no paper orders</option>
           </select>
         </div>
         <div className="grid gap-1.5">

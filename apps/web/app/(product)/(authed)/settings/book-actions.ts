@@ -70,8 +70,13 @@ export async function createBookAction(
     holder_label: formData.get("holder_label") ?? "",
   });
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
+  // A5.3: an imported book holds a Zerodha tradebook, which is in rupees.
+  const body =
+    parsed.data.kind === "imported"
+      ? { ...parsed.data, base_currency: "INR" as const }
+      : parsed.data;
   try {
-    const book = await createBook(parsed.data);
+    const book = await createBook(body);
     refresh();
     return { ok: `Created ${book.name} (${book.base_currency}).` };
   } catch (err) {

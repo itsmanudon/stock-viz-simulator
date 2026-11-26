@@ -77,14 +77,23 @@ export function BookStateNotice({ book }: { book: Book | null }) {
     ? `${book.name} is archived: you can read it, but it takes no trades or orders. Unarchive it in Settings to trade in it.`
     : book.activity && book.activity.length > 0
       ? `${book.name} is an imported book: it holds a broker's trades, values holdings only (no cash) and takes no paper orders.`
-      : `${book.name} is an imported book with no imports yet. Importing a broker tradebook comes in a later batch; it takes no paper orders.`;
+      : `${book.name} is an imported book with no imports yet: import a Zerodha tradebook (CSV) to fill it. It takes no paper orders.`;
+  const canImport = book.kind === "imported" && !book.archived_at;
   return (
     <p
       role="note"
-      className="mt-4 flex items-start gap-2 rounded-md border border-border-muted bg-surface-secondary/50 px-3 py-2.5 text-xs text-text-secondary"
+      className="mt-4 flex flex-wrap items-start gap-2 rounded-md border border-border-muted bg-surface-secondary/50 px-3 py-2.5 text-xs text-text-secondary"
     >
       <Info className="mt-px size-3.5 shrink-0 text-text-tertiary" aria-hidden />
-      <span>{text}</span>
+      <span className="min-w-0 flex-1">{text}</span>
+      {canImport ? (
+        <a
+          href={`/portfolio/import?book=${book.id}`}
+          className="shrink-0 font-medium text-text-primary underline underline-offset-4 hover:text-brand"
+        >
+          Import Tradebook (CSV)
+        </a>
+      ) : null}
     </p>
   );
 }

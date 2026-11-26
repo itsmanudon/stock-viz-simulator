@@ -22,6 +22,14 @@ const config: NextConfig = {
       "../../node_modules/.pnpm/@swc+helpers@*/node_modules/@swc/helpers/**/*",
     ],
   },
+  // A5.3: the tradebook import posts its CSV to a server action. Next 16 caps
+  // action bodies at 1 MB by default; the importer's cap is 2 MiB, plus room
+  // for the multipart boundary and fields (the API still refuses past 2 MiB).
+  experimental: {
+    serverActions: {
+      bodySizeLimit: "2200kb",
+    },
+  },
   env: {
     NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000",
   },
