@@ -37,6 +37,7 @@ from sqlmodel import Column, Field, SQLModel
 
 from stockviz._time import utcnow
 from stockviz.models.instrument import ID_TYPE
+from stockviz.models.portfolio import BROKER_SQL
 
 FILL_TRADE = "trade"
 FILL_OPENING = "opening"
@@ -58,7 +59,7 @@ class ImportBatch(SQLModel, table=True):
 
     __tablename__ = "import_batches"  # pyright: ignore[reportAssignmentType]
     __table_args__ = (
-        CheckConstraint("broker IN ('zerodha')", name="ck_import_batches_broker"),
+        CheckConstraint(f"broker IN ({BROKER_SQL})", name="ck_import_batches_broker"),
         Index("ix_import_batches_portfolio_created", "portfolio_id", "created_at"),
     )
 

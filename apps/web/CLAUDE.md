@@ -1078,8 +1078,42 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   sets `experimental.serverActions.bodySizeLimit: "2200kb"` (2 MiB plus
   multipart overhead; the API still refuses past 2 MiB). `BookStateNotice`
   links "Import Tradebook (CSV)" on an imported book that is not archived;
-  Settings → Books creates imported books in INR. Nothing logs the file.
+  Settings → Books creates imported books in INR (A6.11: or USD for an Other
+  broker). Nothing logs the file.
   Tests: `lib/tradebook-import.test.ts`.
+- **Broker maps and baskets (A6.11, M10.2, M10.5).** The import page reads
+  any imported INR book's file with a **Column Map** select ("Detect From
+  Header Row", each broker map marked Unconfirmed, the user's saved maps as
+  `saved:<id>`); a USD book (broker Other) uses saved maps only. The
+  "Columns Matched" summary names the map used, and `map-used` inside it says
+  its status, how it was chosen and its source. "Map Columns Yourself"
+  (`column-mapper`) opens on a preview with missing columns (or at once in a
+  USD book without a map): a select per field over the file's headers (read
+  in the browser by `headerRowFromText`, or the preview's `headers`), first
+  guess `guessMapping`, checks `mappingProblem`, the date order, a default
+  exchange (India), a name; **Save Map and Preview** posts
+  `saveImportMapAction` then previews with it. "Your Column Maps" lists and
+  deletes them. Times and money follow the book's market (`marketZone`, IST or
+  ET; INR or USD); US rows show no estimated charges. Settings → Books asks
+  the broker for an imported book (`IMPORT_BROKERS`); an Indian broker's book
+  is INR, Other takes the chosen currency (`importedBookCurrency`). Helpers in
+  `lib/tradebook-import.ts` (`importQuery`, `brokerLabel`, ...).
+  **Baskets:** `lib/basket.ts` (pure): `basketFromPlan` (entry limit or
+  market buy, SL-M stop, limit target at the planned size; none without a
+  size), `basketFromRebalance` (market orders, sells first),
+  `basketFromScreen` (a market buy of N shares each), `basketCsv` /
+  `basketJson` (symbol, exchange, side, quantity, order_type, price, trigger),
+  `kiteBasketData` (Kite's item keys, CNC, NSE/BSE only, a plan's entry only).
+  `components/basket-export.tsx` (`basket-export`): Download CSV, Download
+  JSON, and only when `getKiteHandoff()` (`lib/api/brokers.ts`,
+  `/v1/broker/basket`) is not null, Kite's hidden form (`basket-kite-form`,
+  `api_key` + `data`, POST to `KITE_BASKET_URL`, new tab) behind "Review in
+  Kite". Shown on open plans (Journal tab), under the rebalance preview
+  (Analytics tab) and as "Basket From This Screen" (`screen-basket`, signed
+  in) on the screener. **StockViz never places an order;** nothing calls Kite
+  in tests. Tests: `tests/unit/a611-basket-lib.test.ts`,
+  `tests/unit/a611-basket.test.tsx`, `tests/unit/a611-import-maps.test.ts`,
+  `tests/e2e/imports.spec.ts`.
 - **Trade plans (A5.4, M10.3).** Types and the ticket helpers are
   client-safe in `lib/plans.ts` (`planFigures` risk/reward/R:R and the first
   problem, `planFormFields` / `planFromForm` (the `plan_*` hidden fields a

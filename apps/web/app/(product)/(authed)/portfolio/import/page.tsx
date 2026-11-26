@@ -1,5 +1,7 @@
 /**
- * /portfolio/import?book=<id> — A5.3: import a Zerodha tradebook CSV into an
+ * /portfolio/import?book=<id> — A5.3, A6.11: import a broker's tradebook CSV
+ * (Zerodha, Dhan, Fyers, Upstox, Angel One, Groww, or any file through your
+ * own column map; a USD book takes a US broker's file that way) into an
  * imported book. Preview, then Confirm import; the batch history, opening
  * lots and sells waiting for one. A paper book (or All books) explains where
  * imports go instead.
@@ -13,6 +15,7 @@ import { TradebookImport } from "@/components/tradebook-import";
 import { Button } from "@/components/ui/button";
 import { getImports } from "@/lib/api/imports";
 import { loadBookContext } from "@/lib/book-context";
+import { brokerLabel } from "@/lib/tradebook-import";
 
 export const metadata: Metadata = { title: "Import tradebook" };
 
@@ -33,12 +36,16 @@ export default async function ImportPage({
       <PageHeader
         eyebrow="Portfolio"
         title="Import tradebook"
-        description="Bring a Zerodha Console tradebook (CSV) into an imported book: holdings and realized P&L, with estimated charges."
+        description="Bring a broker's tradebook (CSV) into an imported book: holdings and realized P&L, with estimated charges for Indian trades."
         meta={
           book ? (
             <span className="flex flex-wrap items-center gap-2">
               <MetaChip>Book: {book.name}</MetaChip>
-              {imported ? <MetaChip>Zerodha · INR</MetaChip> : null}
+              {imported ? (
+                <MetaChip>
+                  {brokerLabel(book.broker)} · {book.base_currency}
+                </MetaChip>
+              ) : null}
             </span>
           ) : null
         }
@@ -74,9 +81,10 @@ export default async function ImportPage({
           <PageEmptyState title={`${book.name} is archived`}>
             Unarchive it in Settings → Books to import into it.
           </PageEmptyState>
-        ) : book.base_currency !== "INR" ? (
+        ) : book.base_currency !== "INR" && book.base_currency !== "USD" ? (
           <PageEmptyState title={`${book.name} is in ${book.base_currency}`}>
-            A Zerodha tradebook is in rupees: import it into an INR imported book.
+            Imports go into an INR book (Indian brokers) or a USD book (US brokers, with your own
+            column map).
           </PageEmptyState>
         ) : status ? (
           <TradebookImport bookId={book.id} status={status} />

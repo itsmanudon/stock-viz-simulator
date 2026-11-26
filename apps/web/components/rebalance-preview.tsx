@@ -3,7 +3,9 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 
+import { BasketExport } from "@/components/basket-export";
 import type { Position } from "@/lib/api/trading";
+import { type KiteHandoff, basketFromRebalance } from "@/lib/basket";
 import { formatCurrency } from "@/lib/portfolio-view-model";
 
 export type RebalanceLine = {
@@ -50,10 +52,13 @@ export function RebalancePreview({
   positions,
   nav,
   currency,
+  kite = null,
 }: {
   positions: Position[];
   nav: number;
   currency: string;
+  /** A6.11: Kite's basket form, or null (CSV and JSON only). */
+  kite?: KiteHandoff;
 }) {
   const held = useMemo(() => positions.filter((p) => Number(p.market_value) > 0), [positions]);
   const [targets, setTargets] = useState<Record<string, number>>(() =>
@@ -73,7 +78,8 @@ export function RebalancePreview({
       </h3>
       <p className="mt-1 text-2xs text-text-tertiary">
         Set a target share of the account for each holding. Whole shares at today&apos;s value; the
-        rest stays in cash. Nothing is placed: each line opens the ticket.
+        rest stays in cash. Nothing is placed: each line opens the ticket, or take the basket to
+        your broker.
       </p>
       <div className="mt-3 grid gap-5 lg:grid-cols-2">
         <ul aria-label="Targets" className="space-y-2">
@@ -141,6 +147,12 @@ export function RebalancePreview({
               </li>
             </ul>
           )}
+          <BasketExport
+            className="mt-3"
+            orders={basketFromRebalance(lines)}
+            source="Rebalance"
+            kite={kite}
+          />
         </div>
       </div>
     </section>

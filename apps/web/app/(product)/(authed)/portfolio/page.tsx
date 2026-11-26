@@ -1,5 +1,5 @@
 import { PortfolioWorkspace } from "@/components/portfolio-workspace";
-import { getBrokerStatusOrNull } from "@/lib/api/brokers";
+import { getBrokerStatusOrNull, getKiteHandoff } from "@/lib/api/brokers";
 import { loadBookContext } from "@/lib/book-context";
 import { currentMonthKey, parseMonthKey } from "@/lib/journal-view-model";
 import { loadPortfolioData } from "@/lib/portfolio-data";
@@ -22,6 +22,8 @@ export default async function PortfolioPage({ searchParams }: { searchParams: Pr
   // A5.7: an imported book says what its broker can do (never an error).
   const brokerStatus =
     books.selected?.kind === "imported" ? getBrokerStatusOrNull() : Promise.resolve(null);
+  // A6.11: Kite's basket form, only with KITE_API_KEY (plans and the rebalance preview).
+  const kite = tab === "journal" || tab === "analytics" ? getKiteHandoff() : Promise.resolve(null);
   const data = await loadPortfolioData(range, tab === "journal" ? monthKey : undefined, {
     news: tab === "news",
     risk: tab === "analytics",
@@ -42,6 +44,7 @@ export default async function PortfolioPage({ searchParams }: { searchParams: Pr
       goal={parseGoal(params.goal)}
       bookContext={{ book: books.book, selected: books.selected, isAll: books.isAll }}
       broker={broker}
+      kite={await kite}
     />
   );
 }

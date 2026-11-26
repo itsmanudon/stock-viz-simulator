@@ -1010,7 +1010,8 @@ numbers; never replace them with real responses).
   a network or rate error (at least its `retry_after`), resets after an
   item, raises an auth/provider error at once. `BrokerProvider`: `status`,
   `login_url`, `import_fills`, `export_basket`, each a `BrokerAnswer(supported,
-  reason)`; `StubBroker` (Zerodha) answers "not supported" until A6.11.
+  reason)`; `StubBroker` (Zerodha) answers "not supported": A6.11 built the
+  CSV maps and the browser basket handoff instead (no server order, no login).
   `registry.py`: `build_feed(name, settings)`, `FEED_NAMES`,
   `KEY_ENV_VARS`, `BROKERS`. `us_symbol` refuses NSE/BSE, `^` indices and
   other venues (US feeds never get an Indian symbol); Alpaca and Massive
@@ -1700,6 +1701,79 @@ estimated `fees`/`fee_source`/`fee_lines`, `basis_uncertain`; unique
   logs, Sentry scrub, intraday shorts: posted with intraday fees, rebuilt on
   batch delete, uncovered sells still waiting), `test_imports_migration.py`
   (PostgreSQL up/down/up).
+
+**Broker maps and the basket handoff (A6.11, M10.2, M10.5).** Migration
+`d1a6b11c2e40` (down `c8d3e5f7a9b2`; additive; the downgrade refuses while a
+book or batch names a new broker): `portfolios.broker` and
+`import_batches.broker` take `zerodha|dhan|fyers|upstox|angelone|groww|other`
+(`models/portfolio.IMPORT_BROKERS`, `BROKER_SQL`), and `import_column_maps`
+(user, unique name, `mapping` field -> header name, `default_exchange`
+NSE|BSE|null, `date_order` auto|day_first|month_first; header names only,
+never a cell; model `models/import_column_map.py`, 20 per user).
+
+- **Maps** (`services/imports/columns.py`): `ColumnMap` (name, broker, label,
+  status, market, fields, note, `source` with the read date, detection
+  `signature`, `how_to`) in `MAPS`: `zerodha_tradebook_v1`,
+  `dhan_tradebook_v1` (DhanHQ v2 trade-history API names), `fyers_tradebook_v1`
+  (Fyers' support article's column list), `upstox_tradebook_v1`,
+  `angelone_tradebook_v1`, `groww_orders_v1` (no public header row: common
+  spellings), **every one unconfirmed**; the module docstring cites each
+  source. `FieldSpec.required_unless`: a trade date is required unless an
+  execution time is present. `detect_map(headers)`: candidates are maps with
+  every required column; most signature headers, then most matched fields,
+  then registry order (Zerodha first) wins; no candidate is `fallback` (the
+  book's broker's map when it has one, so missing columns are named against
+  it). `custom_map(id, name, mapping, ...)` builds a user's map (`custom_<id>`,
+  status `custom`, market from the book).
+- **Parse** (`parse.parse_tradebook(body, today, column_map, market)`): a
+  compound exchange (`NSE_EQ`, `NSE_FNO`, `MCX_COMM`) splits into exchange
+  and segment; a `NSE:SBIN-EQ` symbol gives the exchange and series; else the
+  map's default exchange; else the row is rejected ("exchange is missing").
+  No trade-id column (Fyers, Angel One, Groww) or an empty optional cell: a
+  derived id `sv-` + 24 hex of SHA-256 over the parsed fields and the row's
+  occurrence among identical rows (`derive_trade_id`), so the same file
+  dedupes. An `order_status` column leaves out non-executed rows (problem kind
+  `not_executed`, counted `counts.not_executed`, in the batch's
+  `rows_rejected`). F&O, option, currency and commodity rows stay `segment`
+  problems (A7). **US** (`market = "us"`, a USD book): any US exchange name
+  or none is stored as `US` (venue `US`, ticker = symbol, `BRK.B` -> `BRK-B`),
+  times America/New_York, fractional quantities kept, OCC-style option
+  symbols skipped, NSE/BSE rejected; no fee schedule, so fees 0 and
+  `fee_source` null (`US_FEES_NOTE`), and no intraday-short rule.
+- **Routes:** preview and commit take `map` (`auto` default, or a built-in
+  name; unknown 422) or `custom_map=<id>` (another user's 404). A broker map
+  into a USD book (or a USD-only map into INR) is 409 (`check_market`). Preview
+  adds `format_label`, `format_source`, `broker`, `detected`
+  (header|chosen|saved|fallback), `alternatives`, `market`, `headers` (the
+  header row, names only, 60 max). `GET .../imports` adds `market`,
+  `currency`, `maps` (every built-in map with its columns, note, source and
+  how-to), `saved_maps`, `custom_fields`. Batches carry `broker`. Dedupe is by
+  exchange and trade id across brokers. `routers/import_maps.py`:
+  `GET|POST /v1/import-maps` (201; replaces the caller's map of that name; 422
+  for an unmapped required field or a header used twice; 409 past 20),
+  `DELETE /v1/import-maps/{id}` (204). Sentry scrubs `/import-maps` too.
+  Opening lots in a USD book take a US symbol (an Indian suffix is 422), dated
+  at the New York day start. Books: `BookIn.broker` takes the new brokers.
+- **Basket handoff (M10.5):** `GET /v1/broker/basket` (authed) ->
+  `{kite_basket, kite_api_key, kite_basket_url, exports: ["csv", "json"]}`.
+  `kite_basket` is `KITE_API_KEY` set (the secret is never returned);
+  `kite_api_key` is the app's public key only then, because Kite's documented
+  offsite basket form ("Offsite order execution", read 26 Nov 2026) carries it
+  in the user's browser. The browser POSTs the form to
+  `https://kite.zerodha.com/connect/basket`; **the API never calls Kite for
+  it and StockViz never places an order.** `tests/test_no_outbound_orders.py`
+  scans every file under `src/` (docstrings skipped) for a broker host with an
+  order or basket path (the one allowed string is the basket URL in
+  `routers/brokers.py`), a broker trading SDK import or an order-method call,
+  after checking itself on planted lines.
+- Tests: `test_a611_broker_maps.py` (detection and a synthetic row per map,
+  every required column named when missing, Dhan compound segments, Fyers
+  prefix and derived ids deduping, Groww not executed, market mismatch 409,
+  saved-map validation and isolation, a US broker into a USD book with
+  fractional and share-class symbols, options skipped, no fees, US opening
+  lots, no cell in logs, the basket endpoint with and without the key, the new
+  book brokers), `test_a611_maps_migration.py` (PostgreSQL up/down/up),
+  `test_no_outbound_orders.py`.
 
 **Trade plans (A5.4, M10.3).** Migration `b5d4a7e1c902`: `trade_plans`
 (`models/trade_plan.py`): user, `portfolio_id` (paper, imported; cascade),
