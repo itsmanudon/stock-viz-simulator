@@ -30,6 +30,7 @@ const PROTECTED_PREFIXES = [
   "/drills",
   "/earnings",
   "/backtest/runs",
+  "/backtest/experiments",
   "/setups",
   "/charts",
 ];

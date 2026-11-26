@@ -2924,6 +2924,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/journal/behaviour": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Journal Behaviour
+         * @description A7.6 (M10.4): discipline, disposition, tilt, heatmaps and cost leakage.
+         */
+        get: operations["journal_behaviour_v1_journal_behaviour_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/notifications/channels": {
         parameters: {
             query?: never;
@@ -3720,6 +3740,67 @@ export interface components {
             kite_basket_url: string | null;
             /** Exports */
             exports: ("csv" | "json")[];
+        };
+        /** BehaviourCellOut */
+        BehaviourCellOut: {
+            /** Key */
+            key: string;
+            /** Entries */
+            entries: number;
+            /** Net Pnl */
+            net_pnl: number;
+            /** Win Rate */
+            win_rate?: number | null;
+        };
+        /**
+         * BehaviourOut
+         * @description A7.6 (M10.4): behaviour diagnostics over closed journal entries.
+         */
+        BehaviourOut: {
+            /** Entries */
+            entries: number;
+            /** Counts Only */
+            counts_only: boolean;
+            /** Reason */
+            reason?: string | null;
+            /** Discipline Scored */
+            discipline_scored: number;
+            /** Discipline Followed */
+            discipline_followed: number;
+            /** Discipline Rate */
+            discipline_rate?: number | null;
+            /** Winners */
+            winners: number;
+            /** Losers */
+            losers: number;
+            /** Avg Hold Winners */
+            avg_hold_winners?: number | null;
+            /** Avg Hold Losers */
+            avg_hold_losers?: number | null;
+            /** Disposition Index */
+            disposition_index?: number | null;
+            /** Tilt Entries */
+            tilt_entries: number[];
+            /** Tilt Rate */
+            tilt_rate?: number | null;
+            /** By Weekday */
+            by_weekday: components["schemas"]["BehaviourCellOut"][];
+            /** By Hour */
+            by_hour: components["schemas"]["BehaviourCellOut"][];
+            /** Fees Total */
+            fees_total: number;
+            /** Fees Per Entry */
+            fees_per_entry?: number | null;
+            /** Fees Share Of Gross */
+            fees_share_of_gross?: number | null;
+            /** Fees Estimated */
+            fees_estimated: boolean;
+            /** Currencies */
+            currencies: string[];
+            /** Method */
+            method: {
+                [key: string]: string;
+            };
         };
         /**
          * BookIn
@@ -19453,6 +19534,43 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EdgeStatsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    journal_behaviour_v1_journal_behaviour_get: {
+        parameters: {
+            query?: {
+                /** @description Book id, or `all` for every book summed in the display currency (A5.2). Omit for the default book; another user's book is 404. */
+                book?: string | null;
+                source?: ("paper" | "imported" | "replay" | "all") | null;
+                from?: string | null;
+                to?: string | null;
+            };
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BehaviourOut"];
                 };
             };
             /** @description Validation Error */

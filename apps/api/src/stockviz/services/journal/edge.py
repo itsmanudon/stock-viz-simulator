@@ -155,6 +155,13 @@ class Outcome:
     setup_tags: tuple[str, ...] = ()
     mistake_tags: tuple[str, ...] = ()
     portfolio_id: int | None = None
+    # A7.6 (behaviour diagnostics): the entry's size, first fill and costs.
+    entry_notional: float = 0.0
+    opened_at: datetime | None = None
+    time_known: bool = True
+    venue: str = "XNYS"
+    fees: float = 0.0
+    gross_pnl: float = 0.0
 
 
 @dataclass
@@ -199,6 +206,12 @@ def collect_outcomes(session: Session, user_id: int) -> Collected:
                 setup_tags=tuple(t.row.setup_tags or ()),
                 mistake_tags=tuple(t.row.mistake_tags or ()),
                 portfolio_id=t.portfolio_id,
+                entry_notional=float(computed.figures.buy_notional),
+                opened_at=first.at,
+                time_known=first.time_known,
+                venue=t.venue,
+                fees=float(computed.figures.fees),
+                gross_pnl=float(computed.figures.realized),
             )
         )
     out.outcomes.sort(key=lambda o: (o.closed_at, o.entry_id))

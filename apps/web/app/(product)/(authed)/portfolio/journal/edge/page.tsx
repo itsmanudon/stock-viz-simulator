@@ -13,6 +13,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { BehaviourView } from "@/components/journal/behaviour-view";
 import {
   EdgeDriftCard,
   EdgeGroupsTable,
@@ -20,7 +21,7 @@ import {
   EdgeOverview,
 } from "@/components/journal/edge-view";
 import { MetaChip, PageHeader } from "@/components/page-header";
-import { getJournalStats } from "@/lib/api/journal-edge";
+import { type Behaviour, getJournalBehaviour, getJournalStats } from "@/lib/api/journal-edge";
 import { AuthedApiError } from "@/lib/api/server";
 import {
   type EdgeFilters,
@@ -72,6 +73,8 @@ export default async function EdgePage({ searchParams }: { searchParams: Promise
     if (error instanceof AuthedApiError && error.status === 404) notFound();
     stats = null;
   }
+  // A7.6: behaviour diagnostics over the same book, source and dates.
+  const behaviour: Behaviour | null = await getJournalBehaviour(book, filters).catch(() => null);
   const back = `/portfolio?tab=journal${book ? `&book=${book}` : ""}`;
   const activeSource = filters.source ?? "live";
 
@@ -180,6 +183,11 @@ export default async function EdgePage({ searchParams }: { searchParams: Promise
           <Section title="By Source" id="edge-sources">
             <EdgeGroupsTable groups={stats.by_source} caption="Edge by source" />
           </Section>
+          {behaviour ? (
+            <Section title="Behaviour" id="edge-behaviour">
+              <BehaviourView behaviour={behaviour} />
+            </Section>
+          ) : null}
         </>
       )}
     </div>
