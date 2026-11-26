@@ -40,13 +40,17 @@ gsap.registerPlugin(useGSAP, ScrollTrigger, SplitText);
 const ROTATE_MS = 4500;
 /**
  * The pinned sequence in timeline units: first the hero rises until the
- * whole phone is on screen (RISE), then the card leaves the phone (CARD).
- * The card's part must not start before the rise ends, or it plays while
- * the phone is still half below the fold (owner, 26 Nov 2026).
+ * whole phone is on screen, then the card leaves the phone (CARD). The
+ * card's part must not start before the rise ends, or it plays while the
+ * phone is still half below the fold (owner, 26 Nov 2026).
+ *
+ * The rise is sized from the distance it travels, so it moves exactly as
+ * far as the page scrolls, with no easing: to the reader it is ordinary
+ * scrolling. A fixed share with ease-in-out moved faster than the scroll
+ * mid-way and felt snappy (owner, 26 Nov 2026).
  */
-const RISE = 0.3;
 const CARD = 1;
-/** Scroll distance per timeline unit, in viewport heights. */
+/** Scroll distance per timeline unit of the card's part, in viewport heights. */
 const PIN_PER_UNIT = 1.5;
 
 /** Layout offset of `el` inside `ancestor`, ignoring every CSS transform. */
@@ -199,6 +203,9 @@ export function HeroStage({
 
         const build = () => {
           closeGap();
+          // The rise in timeline units: its distance over the scroll one unit
+          // takes. Measured at build; a resize keeps it until the next load.
+          const RISE = rise() / (window.innerHeight * PIN_PER_UNIT);
           ScrollTrigger.addEventListener("refreshInit", closeGap);
           const tl = gsap.timeline({
             defaults: { ease: "none" },
@@ -221,11 +228,7 @@ export function HeroStage({
               },
             },
           });
-          tl.to(
-            Array.from(section.children),
-            { y: () => -rise(), duration: RISE, ease: "power1.inOut" },
-            0,
-          )
+          tl.to(Array.from(section.children), { y: () => -rise(), duration: RISE, ease: "none" }, 0)
             .to(pillsRef.current, { autoAlpha: 0, duration: 0.12 }, RISE)
             .to(dotsRef.current, { autoAlpha: 0, duration: 0.12 }, RISE)
             // The phone and panel sink out of view so nothing shows through
@@ -299,6 +302,14 @@ export function HeroStage({
         {lead}
 
         <div className="relative mx-auto mt-12 w-full max-w-6xl px-4 sm:mt-16 sm:px-6">
+          {/* The glow behind the phone sits outside the stage, which clips
+              its overflow to crop the panel: inside it, the glow's blur was
+              cut off in a straight line along the stage's top edge (owner,
+              26 Nov 2026). */}
+          <div
+            aria-hidden
+            className="brand-glow top-6 left-1/2 -z-10 h-[34rem] w-[64rem] -translate-x-1/2"
+          />
           <div
             ref={stageRef}
             className="relative h-[45rem] overflow-hidden"
@@ -309,11 +320,6 @@ export function HeroStage({
               hold.current.hover = false;
             }}
           >
-            <div
-              aria-hidden
-              className="brand-glow top-6 left-1/2 -z-10 h-[34rem] w-[64rem] -translate-x-1/2"
-            />
-
             <div ref={pillsRef} aria-hidden className="hidden lg:block">
               {pills}
             </div>
@@ -352,8 +358,8 @@ export function HeroStage({
                   <div className="absolute inset-0 flex flex-col justify-between rounded-2xl border border-brand-gradient-via/40 bg-linear-to-br from-[#1c1d20] to-[#0b0b0d] p-5 text-[#f2eee6] shadow-[0_0_60px_color-mix(in_oklab,var(--brand-gradient-from)_45%,transparent)] [backface-visibility:hidden] [transform:rotateY(180deg)]">
                     <span className="flex items-start justify-between">
                       <span className="text-lg font-semibold tracking-[-0.04em]">stockviz</span>
-                      <span className="rounded-md border border-white/25 bg-black/25 px-1.5 py-0.5 font-mono text-3xs tracking-[0.08em]">
-                        PAPER
+                      <span className="rounded-md border border-white/25 bg-black/25 px-1.5 py-0.5 font-mono text-3xs tracking-[0.02em]">
+                        Paper
                       </span>
                     </span>
                     <span className="grid gap-1.5 text-sm">
@@ -366,8 +372,8 @@ export function HeroStage({
                         ),
                       )}
                     </span>
-                    <span className="font-mono text-3xs tracking-[0.06em] text-[#8e8a82]">
-                      NOT A REAL CARD · NOTHING REACHES AN EXCHANGE
+                    <span className="font-mono text-3xs tracking-[0.02em] text-[#8e8a82]">
+                      Not a Real Card · Nothing Reaches an Exchange
                     </span>
                   </div>
                 </div>
