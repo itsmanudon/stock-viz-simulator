@@ -180,6 +180,40 @@ Only the grouping and your text are stored; every figure is recomputed on
 read, so an import deleted or re-committed is followed at once. The P&L
 calendar below stays the fill-level view (one closing fill is one trade).
 
+### "Is my edge real?" (A5.6)
+
+The Journal entries panel links to **Is My Edge Real?**
+(`/portfolio/journal/edge`, the book's or every book's closed entries;
+filters: source, tag, setup, dates). It answers one question honestly:
+what do your closed trades say so far, and how sure can a sample this size
+be?
+
+- **Groups:** overall, by setup version (the plan's), by setup tag, by
+  mistake tag and by source. Paper and imported are "your trades"; replay is
+  never pooled with them unless you pick All Sources. Open entries are
+  counted and left out.
+- **Per group:** closed trades, won / lost, win rate, average win and loss,
+  payoff, profit factor, expectancy (mean net P&L per trade, fees included)
+  and expectancy in R (only over trades whose plan had a stop), plan
+  adherence (only plans locked before entry), average holding, total net
+  P&L. Money is never summed across currencies.
+- **Interval:** a 90% bootstrap interval of each expectancy: the trades in
+  closing order resampled 5,000 times (stationary bootstrap, mean block 3
+  trades), 5th to 95th percentile, with a fixed seed shown on the page, so
+  the same journal always gives the same interval.
+- **Under 30 closed trades** (the Checklist's minimum): counts only, with
+  the reason. No expectancy, interval or rate is shown for that group.
+- **Live vs backtest:** for each setup, your journal's expectancy in R, win
+  rate and average holding against the newest saved rule backtest of that
+  setup (Backtest, Rule strategy, Save run), with the differences, and
+  whether the backtest's expectancy lies inside your live interval
+  (Consistent / Outside the Interval / Too Few Live Trades / Too Few
+  Backtest Trades / Backtest Has No R / No Backtest). A backtest's figures
+  are in-sample (the range you looked at) unless its holdout was unlocked.
+- **What it is not:** your recorded trades only (survivorship does not
+  apply), small samples are noise, association is not cause, and none of it
+  is advice. Imported trades' charges are estimated, and the page says so.
+
 ## Currency display
 
 Operational prices for a security (close, limit/trigger, fill, alert target, estimated notional) use that symbol's ISO-4217 currency from the tracked universe. Cash, reserved cash, buying power, and total value stay in the portfolio display currency. The ledger and FX conversion are unchanged; this is formatting only. Unknown tickers fall back to USD.

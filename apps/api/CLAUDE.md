@@ -53,7 +53,8 @@ src/stockviz/
                     (A3.2), avwap (A3.3), events, strength (RS
                     percentile, delivery) and regime (A3.5), drills
                     (A4.7), books (A5.1), plans (A5.4), journal_entries (A5.5:
-                    `/v1/journal/entries`), brokers (A5.7: broker
+                    `/v1/journal/entries`), journal_stats (A5.6:
+                    `/v1/journal/stats`), brokers (A5.7: broker
                     status), imports (A5.3: `/v1/books/{id}/imports`,
                     opening lots), health
                     (`GET /live` liveness, `GET /health` readiness + DB)
@@ -86,7 +87,8 @@ src/stockviz/
     journal/        P&L calendar (`__init__`, `query`, `aggregate`; venue
                     dates since A5.5) and A5.5's round trips: `roundtrips.py`
                     (pure grouping, figures, R, MAE/MFE), `entries.py` (sync,
-                    reads, news windows, R for chart fills)
+                    reads, news windows, R for chart fills), `edge.py` (A5.6:
+                    stats, bootstrap, drift)
     plans/          A5.4: trade plans: record_fill (the lock), plans on
                     orders, written after entry, session plans for replay
                     and drills, outputs
@@ -1399,6 +1401,49 @@ computed on read (`services/journal/`).
   the P&L calendar and markers; news windows and "no news copy";
   isolation; filters and patch rules), `test_journal_entries_migration.py`
   (PostgreSQL up/down/up).
+
+**"Is my edge real?" (A5.6, M10.3 stats).** No migration; nothing stored.
+`GET /v1/journal/stats?book=<id>|all&source=paper|imported|replay|all&
+setup_version_id=&tag=&from=&to=` (`routers/journal_stats.py`, authed;
+another user's book 404; `from > to` 400) -> `EdgeStatsOut`
+(`services/journal/edge.py`, which reads `entries.sync` and the entry
+figures: same net P&L, R and adherence as the entry pages).
+
+- **Sources:** no `source` = paper and imported (replay never pooled by
+  default); `all` pools the three; the by-source groups ignore `source`.
+  Dates filter the entry's venue date. Open entries are `open_excluded`.
+- **Groups** (`EdgeGroupOut`): `overall`, `by_setup` (plan's setup
+  version, "No setup" last), `by_setup_tag`, `by_mistake_tag` (case
+  ignored), `by_source`. Each: `n`, `wins` (net > 0), `losses`,
+  `breakeven`, `n_r`, then win rate, average win/loss, payoff, profit factor,
+  `expectancy` (mean net P&L) with `expectancy_interval`, `expectancy_r`
+  (over entries with R) with `expectancy_r_interval`, `adherence_rate`
+  (`followed_plan` of plans locked before entry), `avg_holding_days`,
+  `total_net_pnl`. Mixed currencies: money null with `money_note`.
+- **Under 30** (`checklist/evidence.MIN_EVENTS`): `counts_only` with
+  `counts_only_reason`, every other figure null; R figures also need 30
+  entries with R (`r_note`).
+- **Interval:** `bootstrap_interval`: the values in closing order, 5,000
+  resamples of `risk.engine.stationary_indices` (mean block 3; 1 is iid),
+  5th-95th percentile of the means, `numpy.random.default_rng(SEED)`,
+  `SEED` 20261126 returned as `seed`.
+- **Drift** (`EdgeDriftOut`, per setup version in `by_setup`): the newest
+  `experiment_runs` row of yours with `kind = 'strategy'` and that
+  `setup_version_id`; closed trades from the stored result (open left out):
+  expectancy in R, win rate, average holding (calendar days); differences
+  live - backtest. Status: `no_backtest`, `backtest_no_r`,
+  `too_few_live_trades` (n_r < 30), `too_few_backtest_trades`, else
+  `consistent` (inside the live R interval, ends included) or
+  `outside_interval`. `backtest.sample`: `in_sample` (window note) or
+  `holdout_seen` (a `holdout_unlocks` row for the run's
+  `trials.strategy_family`).
+- **Honesty:** `honesty` lists the notes (recorded trades, survivorship
+  N/A, small samples, association, not advice) plus the imported-fees note
+  when imported entries are included (`imported_fees_estimated`).
+- Tests: `test_journal_edge.py` (each metric by hand, breakeven, 29 counts
+  only / 30 an identical interval, R needs 30, currencies, bootstrap by seed,
+  drift cases, the route with filters, All books, isolation, open entries,
+  the imported flag, newest backtest and holdout seen).
 
 **Survivorship stamp (A1.4a, part of M1.5).** Every backtest result carries
 `universe: {name, point_in_time, survivorship_biased, note}`: the public

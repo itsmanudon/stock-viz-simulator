@@ -2634,6 +2634,23 @@ export interface paths {
         patch: operations["patch_journal_entry_v1_journal_entries__entry_id__patch"];
         trace?: never;
     };
+    "/v1/journal/stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Journal Stats */
+        get: operations["journal_stats_v1_journal_stats_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/notifications/channels": {
         parameters: {
             query?: never;
@@ -4435,6 +4452,219 @@ export interface components {
             eps_actual?: string | null;
             /** Surprise Pct */
             surprise_pct?: string | null;
+        };
+        /**
+         * EdgeBacktestOut
+         * @description The newest saved A4.1 strategy run whose entry is the setup version.
+         */
+        EdgeBacktestOut: {
+            /** Run Id */
+            run_id: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Ticker */
+            ticker: string;
+            /** Closed Trades */
+            closed_trades: number;
+            /** N R */
+            n_r: number;
+            /** Expectancy R */
+            expectancy_r?: number | null;
+            /** Win Rate */
+            win_rate?: number | null;
+            /** Avg Holding Days */
+            avg_holding_days?: number | null;
+            /** Report Expectancy R */
+            report_expectancy_r?: number | null;
+            /** Holdout */
+            holdout: string;
+            /**
+             * Sample
+             * @enum {string}
+             */
+            sample: "in_sample" | "holdout_seen";
+            /** Sample Note */
+            sample_note: string;
+            /** Unlocked At */
+            unlocked_at?: string | null;
+        };
+        /**
+         * EdgeDriftOut
+         * @description Live (journal) against backtest, per trade, for one setup version.
+         */
+        EdgeDriftOut: {
+            /** Setup Version Id */
+            setup_version_id: number;
+            /** Label */
+            label: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "consistent" | "outside_interval" | "too_few_live_trades" | "too_few_backtest_trades" | "no_backtest" | "backtest_no_r";
+            /** Text */
+            text: string;
+            /** Live N */
+            live_n: number;
+            /** Live N R */
+            live_n_r: number;
+            /** Live Expectancy R */
+            live_expectancy_r?: number | null;
+            live_interval?: components["schemas"]["EdgeIntervalOut"] | null;
+            /** Live Win Rate */
+            live_win_rate?: number | null;
+            /** Live Avg Holding Days */
+            live_avg_holding_days?: number | null;
+            backtest?: components["schemas"]["EdgeBacktestOut"] | null;
+            /** Diff Expectancy R */
+            diff_expectancy_r?: number | null;
+            /** Diff Win Rate */
+            diff_win_rate?: number | null;
+            /** Diff Avg Holding Days */
+            diff_avg_holding_days?: number | null;
+        };
+        /**
+         * EdgeGroupOut
+         * @description One group's figures over its closed journal entries.
+         *
+         *     ``counts_only`` under ``min_closed`` (A2.4's 30): only ``n``, ``wins``,
+         *     ``losses`` and ``breakeven``, with ``counts_only_reason``; every other
+         *     figure is null. Money figures are null when the group mixes currencies
+         *     (``money_note``); R figures need 30 entries with R (``r_note``).
+         */
+        EdgeGroupOut: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "overall" | "setup" | "setup_tag" | "mistake_tag" | "source";
+            /** Setup Version Id */
+            setup_version_id?: number | null;
+            /** N */
+            n: number;
+            /** Wins */
+            wins: number;
+            /** Losses */
+            losses: number;
+            /** Breakeven */
+            breakeven: number;
+            /** Counts Only */
+            counts_only: boolean;
+            /** Counts Only Reason */
+            counts_only_reason?: string | null;
+            /**
+             * Includes Imported
+             * @default false
+             */
+            includes_imported: boolean;
+            /**
+             * Currencies
+             * @default []
+             */
+            currencies: string[];
+            /** Currency */
+            currency?: string | null;
+            /** Win Rate */
+            win_rate?: number | null;
+            /** Avg Win */
+            avg_win?: number | null;
+            /** Avg Loss */
+            avg_loss?: number | null;
+            /** Payoff */
+            payoff?: number | null;
+            /** Profit Factor */
+            profit_factor?: number | null;
+            /** Expectancy */
+            expectancy?: number | null;
+            expectancy_interval?: components["schemas"]["EdgeIntervalOut"] | null;
+            /**
+             * N R
+             * @default 0
+             */
+            n_r: number;
+            /** Expectancy R */
+            expectancy_r?: number | null;
+            expectancy_r_interval?: components["schemas"]["EdgeIntervalOut"] | null;
+            /** R Note */
+            r_note?: string | null;
+            /** Adherence Rate */
+            adherence_rate?: number | null;
+            /**
+             * Adherence N
+             * @default 0
+             */
+            adherence_n: number;
+            /** Avg Holding Days */
+            avg_holding_days?: number | null;
+            /** Total Net Pnl */
+            total_net_pnl?: number | null;
+            /** Money Note */
+            money_note?: string | null;
+        };
+        /**
+         * EdgeIntervalOut
+         * @description A seeded bootstrap interval of the mean (``level`` 0.9: 5th to 95th percentile).
+         */
+        EdgeIntervalOut: {
+            /** Low */
+            low: number;
+            /** High */
+            high: number;
+            /** Level */
+            level: number;
+        };
+        /** EdgeStatsOut */
+        EdgeStatsOut: {
+            /** Book Id */
+            book_id?: number | null;
+            /** Source */
+            source?: ("paper" | "imported" | "replay" | "all") | null;
+            /** Sources Included */
+            sources_included: string[];
+            /** Setup Version Id */
+            setup_version_id?: number | null;
+            /** Tag */
+            tag?: string | null;
+            /** Date From */
+            date_from?: string | null;
+            /** Date To */
+            date_to?: string | null;
+            /** Min Closed */
+            min_closed: number;
+            /** Seed */
+            seed: number;
+            /** Resamples */
+            resamples: number;
+            /** Mean Block */
+            mean_block: number;
+            /** Interval Level */
+            interval_level: number;
+            /** Method */
+            method: string;
+            /** Open Excluded */
+            open_excluded: number;
+            overall: components["schemas"]["EdgeGroupOut"];
+            /** By Setup */
+            by_setup: components["schemas"]["EdgeGroupOut"][];
+            /** By Setup Tag */
+            by_setup_tag: components["schemas"]["EdgeGroupOut"][];
+            /** By Mistake Tag */
+            by_mistake_tag: components["schemas"]["EdgeGroupOut"][];
+            /** By Source */
+            by_source: components["schemas"]["EdgeGroupOut"][];
+            /** Drift */
+            drift: components["schemas"]["EdgeDriftOut"][];
+            /** Imported Fees Estimated */
+            imported_fees_estimated: boolean;
+            /** Honesty */
+            honesty: string[];
         };
         /** EquityPointOut */
         EquityPointOut: {
@@ -16865,6 +17095,45 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["JournalEntryOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    journal_stats_v1_journal_stats_get: {
+        parameters: {
+            query?: {
+                /** @description Book id, or `all` for every book summed in the display currency (A5.2). Omit for the default book; another user's book is 404. */
+                book?: string | null;
+                source?: ("paper" | "imported" | "replay" | "all") | null;
+                setup_version_id?: number | null;
+                tag?: string | null;
+                from?: string | null;
+                to?: string | null;
+            };
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EdgeStatsOut"];
                 };
             };
             /** @description Validation Error */
