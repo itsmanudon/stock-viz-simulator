@@ -1039,6 +1039,44 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   `tests/unit/trade-plans.test.tsx`; the signed-in trade e2e plans a buy in
   the second book (Locked) and an open position in the default one
   (Written after entry).
+- **Journal entries (A5.5, M10.3).** Types and labels are client-safe in
+  `lib/journal-entries.ts` (`entryPlanBadge` Locked plan / Written after
+  entry / No plan, `BADGE_CLASS`, `rText`, `excursionPct`, `money`,
+  `entryHref`, `splitEntryTags`); `lib/api/journal-entries.ts` (server-only)
+  has `listJournalEntries(book | "all")`, `getJournalEntry`,
+  `patchJournalEntry`. Every figure comes from the API (computed on read);
+  the web never recomputes P&L, R, MAE or MFE. The Portfolio **Journal** tab
+  shows `JournalEntriesPanel` (`components/journal/journal-entries-panel.tsx`,
+  `journal-entries`) above the plans and the P&L calendar
+  (`loadPortfolioData(..., { entriesBook })`; in All books it lists every
+  book and replay session, and plans and the calendar stay per book): status
+  and source chips, one `journal-entry-row` per round trip (`data-status`,
+  `data-source`: symbol, source and plan badges, dates, `entry-r`,
+  `entry-pnl`, `entry-mae`, `entry-mfe`, size), each a link to
+  `/portfolio/journal/[id]` (`?book=` kept; mapped to the Portfolio item
+  through `matches: ["/portfolio", "/portfolio/journal"]`). The entry page
+  (`app/(product)/(authed)/portfolio/journal/[id]/page.tsx`, 404 for
+  another user's) has a `FigureStrip` (net P&L with estimated charges, R
+  with its risk or reason, MAE and MFE with money and date, average entry,
+  exit or the mark, holding), the basis note (`entry-basis`: "Daily bars: may
+  include moves before entry or after exit" for paper and imported),
+  `JournalEntryChart` (`journal-entry-chart`: `PriceChart` with the fills as
+  fill events, the closing one carrying R, MAE/MFE circles as `markers`, and
+  the plan's entry, stop and target as `priceLines`; bars from 21 days
+  before entry to 10 after the exit, a replay entry never past its last
+  fill or mark), the plan with the drill's adherence checks
+  (`entry-adherence`) or the written-after-entry note, the fills, News at
+  Entry / Exit (`news-at-entry`, `news-at-exit`; headline, source, date and
+  link; "No news copy for this date" before the sync's first document) and
+  `JournalReviewForm` (`journal-review-form`: review notes, mistakes,
+  lessons, setup and mistake tags; Ctrl/Cmd+Enter saves; through
+  `portfolio/journal-actions.ts`). `PriceChart` takes `priceLines`
+  (`PriceChartLine`). **R on fill markers:** a fill event with `r_multiple`
+  (the closing fill of a journal entry, from the API) is marked "S +0.97R"
+  and its summary says "closing the trade at +0.97R" (`formatR` in
+  `lib/chart-events.ts`); opening and partial fills stay "B"/"S". The P&L
+  calendar's caption says fills are dated on each exchange's own day.
+  Tests: `tests/unit/journal-entries.test.tsx`.
 - Operational trading (`/trade`, `/orders`, `/watchlist`, `/alerts`) is the
   authenticated execution/monitoring loop. See
   [`docs/OPERATIONAL_TRADING.md`](../../docs/OPERATIONAL_TRADING.md).

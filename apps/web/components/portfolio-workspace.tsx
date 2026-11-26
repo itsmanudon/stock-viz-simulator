@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 
 import { BookStateNotice, CombinedBooksPanel, PerBookOnly } from "@/components/book-notices";
+import { JournalEntriesPanel } from "@/components/journal/journal-entries-panel";
 import { JournalPanel } from "@/components/journal/journal-panel";
 import { NewsList } from "@/components/news-list";
 import { ExpirationView, OptionsGreeks } from "@/components/options-book";
@@ -35,6 +36,7 @@ import type {
 import type { NewsArticle } from "@/lib/api/types";
 import { tradeBlockReason } from "@/lib/book-url";
 import type { BrokerStatusLike } from "@/lib/broker-status";
+import type { JournalEntries } from "@/lib/journal-entries";
 import type { TradePlan } from "@/lib/plans";
 import type { PortfolioRange, PortfolioTab } from "@/lib/portfolio-view-model";
 
@@ -63,6 +65,8 @@ type Props = {
   strategies?: OptionStrategy[] | null;
   /** A5.4: the book's trade plans (Journal tab; null when not loaded or failed). */
   plans?: TradePlan[] | null;
+  /** A5.5: journal entries, round trips (Journal tab; null when not loaded or failed). */
+  journalEntries?: JournalEntries | null;
   /** A5.2: the selected book, or All books (per-book panels then say so). */
   bookContext?: { book: number | "all" | null; selected: Book | null; isAll: boolean };
   /** A5.7: the broker's status for an imported book (null: not loaded or unreadable). */
@@ -87,6 +91,7 @@ export function PortfolioWorkspace({
   optionsBook = null,
   strategies = null,
   plans = null,
+  journalEntries = null,
   bookContext,
   broker = null,
 }: Props) {
@@ -196,13 +201,27 @@ export function PortfolioWorkspace({
           }
           journal={
             isAll ? (
-              <PerBookOnly what="The journal" />
+              <div className="space-y-8">
+                <JournalEntriesPanel
+                  entries={journalEntries?.entries ?? null}
+                  total={journalEntries?.total ?? 0}
+                  note={journalEntries?.note ?? null}
+                  book="all"
+                />
+                <PerBookOnly what="Trade plans and the P&L calendar" />
+              </div>
             ) : (
               /* JournalPanel reads Journal state with `useSearchParams()`, which
                Next requires to sit under a Suspense boundary — without one the
                whole tab subtree silently fails to hydrate and every calendar
                cell becomes inert HTML. */
               <div className="space-y-8">
+                <JournalEntriesPanel
+                  entries={journalEntries?.entries ?? null}
+                  total={journalEntries?.total ?? 0}
+                  note={journalEntries?.note ?? null}
+                  book={bookId}
+                />
                 <TradePlansPanel
                   plans={plans}
                   bookId={selected?.id ?? null}

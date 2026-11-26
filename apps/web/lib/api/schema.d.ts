@@ -2599,6 +2599,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/journal/entries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Journal Entries */
+        get: operations["list_journal_entries_v1_journal_entries_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/journal/entries/{entry_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Journal Entry */
+        get: operations["get_journal_entry_v1_journal_entries__entry_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Patch Journal Entry */
+        patch: operations["patch_journal_entry_v1_journal_entries__entry_id__patch"];
+        trace?: never;
+    };
     "/v1/notifications/channels": {
         parameters: {
             query?: never;
@@ -4935,6 +4970,13 @@ export interface components {
             r_multiple?: number | null;
             /** Book Id */
             book_id?: number | null;
+            /** Journal Entry Id */
+            journal_entry_id?: number | null;
+            /**
+             * Closes Entry
+             * @default false
+             */
+            closes_entry: boolean;
         };
         /** FundamentalRowOut */
         FundamentalRowOut: {
@@ -5605,6 +5647,346 @@ export interface components {
             date: string;
             stats: components["schemas"]["JournalStatsOut"];
         };
+        /** JournalEntriesOut */
+        JournalEntriesOut: {
+            /** Entries */
+            entries: components["schemas"]["JournalEntrySummaryOut"][];
+            /** Total */
+            total: number;
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+            /** Note */
+            note: string;
+        };
+        /** JournalEntryFillOut */
+        JournalEntryFillOut: {
+            /** Trade Id */
+            trade_id?: number | null;
+            /** Replay Fill Id */
+            replay_fill_id?: number | null;
+            /**
+             * Side
+             * @enum {string}
+             */
+            side: "buy" | "sell";
+            /** Quantity */
+            quantity: string;
+            /** Price */
+            price: string;
+            /** Fees */
+            fees: string;
+            /** Fees Estimated */
+            fees_estimated: boolean;
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /**
+             * Venue Date
+             * Format: date
+             */
+            venue_date: string;
+            /** Time Known */
+            time_known: boolean;
+        };
+        /** JournalEntryOut */
+        JournalEntryOut: {
+            /** Id */
+            id: number;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "paper" | "imported" | "replay";
+            /** Book Id */
+            book_id?: number | null;
+            /** Replay Session Id */
+            replay_session_id?: number | null;
+            /** Ticker */
+            ticker?: string | null;
+            /** Currency */
+            currency: string;
+            /** Venue */
+            venue: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "open" | "closed";
+            /**
+             * Opened At
+             * Format: date-time
+             */
+            opened_at: string;
+            /** Closed At */
+            closed_at?: string | null;
+            /**
+             * Entry Date
+             * Format: date
+             */
+            entry_date: string;
+            /** Exit Date */
+            exit_date?: string | null;
+            /** As Of Date */
+            as_of_date?: string | null;
+            /** Mark Close */
+            mark_close?: string | null;
+            /** Avg Entry */
+            avg_entry: string;
+            /** Avg Exit */
+            avg_exit?: string | null;
+            /** Quantity */
+            quantity: string;
+            /** Held */
+            held: string;
+            /** Net Pnl */
+            net_pnl: string;
+            /** Realized Pnl */
+            realized_pnl: string;
+            /** Unrealized Pnl */
+            unrealized_pnl?: string | null;
+            /** Fees */
+            fees: string;
+            /** Fees Estimated */
+            fees_estimated: boolean;
+            /** Return Pct */
+            return_pct?: string | null;
+            /** Holding Days */
+            holding_days: number;
+            /** Holding Sessions */
+            holding_sessions: number;
+            /** Fills Count */
+            fills_count: number;
+            /** R Multiple */
+            r_multiple?: number | null;
+            /** R Reason */
+            r_reason?: string | null;
+            /** Initial Risk */
+            initial_risk?: string | null;
+            excursions: components["schemas"]["JournalExcursionsOut"];
+            plan?: components["schemas"]["JournalEntryPlanOut"] | null;
+            /**
+             * Setup Tags
+             * @default []
+             */
+            setup_tags: string[];
+            /**
+             * Mistake Tags
+             * @default []
+             */
+            mistake_tags: string[];
+            /**
+             * Has Notes
+             * @default false
+             */
+            has_notes: boolean;
+            /** Fills */
+            fills: components["schemas"]["JournalEntryFillOut"][];
+            adherence?: components["schemas"]["DrillScoreOut"] | null;
+            /** Adherence Note */
+            adherence_note?: string | null;
+            news_at_entry?: components["schemas"]["JournalNewsWindowOut"] | null;
+            news_at_exit?: components["schemas"]["JournalNewsWindowOut"] | null;
+            /** Review Notes */
+            review_notes?: string | null;
+            /** Mistakes */
+            mistakes?: string | null;
+            /** Lessons */
+            lessons?: string | null;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /**
+         * JournalEntryPatch
+         * @description The user's text. Null leaves a field; ``""`` clears it.
+         */
+        JournalEntryPatch: {
+            /** Review Notes */
+            review_notes?: string | null;
+            /** Mistakes */
+            mistakes?: string | null;
+            /** Lessons */
+            lessons?: string | null;
+            /** Setup Tags */
+            setup_tags?: string[] | null;
+            /** Mistake Tags */
+            mistake_tags?: string[] | null;
+        };
+        /** JournalEntryPlanOut */
+        JournalEntryPlanOut: {
+            /** Id */
+            id: number;
+            /** Status */
+            status: string;
+            /**
+             * Label
+             * @enum {string}
+             */
+            label: "locked" | "written_after_entry";
+            /** Locked At */
+            locked_at?: string | null;
+            /** First Fill At */
+            first_fill_at?: string | null;
+            /** Planned Entry */
+            planned_entry?: string | null;
+            /** Planned Stop */
+            planned_stop?: string | null;
+            /** Planned Target */
+            planned_target?: string | null;
+            /** Planned Size */
+            planned_size?: string | null;
+            /** Setup Version Id */
+            setup_version_id?: number | null;
+            /** Setup Label */
+            setup_label?: string | null;
+            /** Counts For Adherence */
+            counts_for_adherence: boolean;
+        };
+        /** JournalEntrySummaryOut */
+        JournalEntrySummaryOut: {
+            /** Id */
+            id: number;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "paper" | "imported" | "replay";
+            /** Book Id */
+            book_id?: number | null;
+            /** Replay Session Id */
+            replay_session_id?: number | null;
+            /** Ticker */
+            ticker?: string | null;
+            /** Currency */
+            currency: string;
+            /** Venue */
+            venue: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "open" | "closed";
+            /**
+             * Opened At
+             * Format: date-time
+             */
+            opened_at: string;
+            /** Closed At */
+            closed_at?: string | null;
+            /**
+             * Entry Date
+             * Format: date
+             */
+            entry_date: string;
+            /** Exit Date */
+            exit_date?: string | null;
+            /** As Of Date */
+            as_of_date?: string | null;
+            /** Mark Close */
+            mark_close?: string | null;
+            /** Avg Entry */
+            avg_entry: string;
+            /** Avg Exit */
+            avg_exit?: string | null;
+            /** Quantity */
+            quantity: string;
+            /** Held */
+            held: string;
+            /** Net Pnl */
+            net_pnl: string;
+            /** Realized Pnl */
+            realized_pnl: string;
+            /** Unrealized Pnl */
+            unrealized_pnl?: string | null;
+            /** Fees */
+            fees: string;
+            /** Fees Estimated */
+            fees_estimated: boolean;
+            /** Return Pct */
+            return_pct?: string | null;
+            /** Holding Days */
+            holding_days: number;
+            /** Holding Sessions */
+            holding_sessions: number;
+            /** Fills Count */
+            fills_count: number;
+            /** R Multiple */
+            r_multiple?: number | null;
+            /** R Reason */
+            r_reason?: string | null;
+            /** Initial Risk */
+            initial_risk?: string | null;
+            excursions: components["schemas"]["JournalExcursionsOut"];
+            plan?: components["schemas"]["JournalEntryPlanOut"] | null;
+            /**
+             * Setup Tags
+             * @default []
+             */
+            setup_tags: string[];
+            /**
+             * Mistake Tags
+             * @default []
+             */
+            mistake_tags: string[];
+            /**
+             * Has Notes
+             * @default false
+             */
+            has_notes: boolean;
+        };
+        /**
+         * JournalExcursionOut
+         * @description One excursion: the worst (MAE) or best (MFE) bar while shares were held.
+         */
+        JournalExcursionOut: {
+            /** Per Share */
+            per_share: string;
+            /** Pct */
+            pct: string;
+            /** Amount */
+            amount: string;
+            /** Shares */
+            shares: string;
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Price */
+            price: string;
+            /** R */
+            r?: number | null;
+        };
+        /** JournalExcursionsOut */
+        JournalExcursionsOut: {
+            /**
+             * Basis
+             * @enum {string}
+             */
+            basis: "exact_close" | "approximate_daily";
+            /** Note */
+            note: string;
+            mae?: components["schemas"]["JournalExcursionOut"] | null;
+            mfe?: components["schemas"]["JournalExcursionOut"] | null;
+            /** Reason */
+            reason?: string | null;
+            /**
+             * Missing Sessions
+             * @default []
+             */
+            missing_sessions: string[];
+            /**
+             * Sessions
+             * @default 0
+             */
+            sessions: number;
+        };
         /**
          * JournalExecutionOut
          * @description One closing execution — the Journal's definition of a "trade".
@@ -5692,6 +6074,52 @@ export interface components {
              * @default 0
              */
             unavailable_count: number;
+        };
+        /** JournalNewsHeadlineOut */
+        JournalNewsHeadlineOut: {
+            /** Id */
+            id: string;
+            /** Title */
+            title: string;
+            /** Source */
+            source?: string | null;
+            /** Url */
+            url?: string | null;
+            /**
+             * Available At
+             * Format: date-time
+             */
+            available_at: string;
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+        };
+        /** JournalNewsWindowOut */
+        JournalNewsWindowOut: {
+            /**
+             * From Date
+             * Format: date
+             */
+            from_date: string;
+            /**
+             * To Date
+             * Format: date
+             */
+            to_date: string;
+            /**
+             * Coverage
+             * @enum {string}
+             */
+            coverage: "covered" | "before_news_copy";
+            /** Note */
+            note: string;
+            /**
+             * Headlines
+             * @default []
+             */
+            headlines: components["schemas"]["JournalNewsHeadlineOut"][];
         };
         /** JournalPeriodOut */
         JournalPeriodOut: {
@@ -16324,6 +16752,119 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["JournalWeekOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_journal_entries_v1_journal_entries_get: {
+        parameters: {
+            query?: {
+                /** @description Book id, or `all` for every book summed in the display currency (A5.2). Omit for the default book; another user's book is 404. */
+                book?: string | null;
+                status?: ("open" | "closed") | null;
+                source?: ("paper" | "imported" | "replay") | null;
+                setup_version_id?: number | null;
+                tag?: string | null;
+                ticker?: string | null;
+                from?: string | null;
+                to?: string | null;
+                limit?: number;
+                offset?: number;
+            };
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JournalEntriesOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_journal_entry_v1_journal_entries__entry_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                entry_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JournalEntryOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    patch_journal_entry_v1_journal_entries__entry_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                entry_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["JournalEntryPatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JournalEntryOut"];
                 };
             };
             /** @description Validation Error */

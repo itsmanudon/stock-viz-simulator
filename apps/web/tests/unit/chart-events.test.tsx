@@ -91,6 +91,7 @@ const FILL: ChartEvent = {
   quantity: "5",
   price: "13",
   r_multiple: null,
+  closes_entry: false,
 };
 
 beforeEach(() => {

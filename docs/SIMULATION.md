@@ -685,6 +685,14 @@ then they lock (`409 ReplayJournalLocked`). Reflection stays editable.
 There is no R-multiple: Replay does not store a stop/invalidation *price*.
 No retrospective LLM and no buy/sell advice.
 
+**Replay in the journal (A5.5).** Each forensics episode of a replay session
+is also a journal entry (`/v1/journal/entries?source=replay`), grouped by
+the same flat-to-flat rule. Its MAE and MFE use forensics' close rule and
+numbers (`exact_close`); the session's plan pairs with the first episode,
+and R needs the plan's stop (a replay journal without one has no R). News at
+entry and exit and the entry page's bars never pass the session's clock, and
+anonymised drills not yet revealed are left out of the journal.
+
 
 **Trade plans (A5.4, M10.3).** Since migration `b5d4a7e1c902` the replay
 journal and the drill plan are one row in `trade_plans` (`source` `replay`

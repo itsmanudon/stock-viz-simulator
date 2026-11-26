@@ -31,7 +31,8 @@ src/stockviz/
                     A3.4 IndicatorEvidence, trial — A4.3 BacktestTrial /
                     HoldoutUnlock, drill — A4.7 DrillDeck / Drill,
                     trade_plan — A5.4 TradePlan (absorbed DrillPlan and
-                    ReplayJournal, both archived))
+                    ReplayJournal, both archived), journal_entry — A5.5
+                    JournalEntry / JournalEntryFill (round trips))
   events/           versioned contracts (trades/market), outbox/inbox,
                     dispatcher, domain handlers, Kafka producer wrappers
                     (not imported by FastAPI startup)
@@ -51,7 +52,8 @@ src/stockviz/
                     (A2.2), notification_channels (A2.3), drawings
                     (A3.2), avwap (A3.3), events, strength (RS
                     percentile, delivery) and regime (A3.5), drills
-                    (A4.7), books (A5.1), plans (A5.4), brokers (A5.7: broker
+                    (A4.7), books (A5.1), plans (A5.4), journal_entries (A5.5:
+                    `/v1/journal/entries`), brokers (A5.7: broker
                     status), imports (A5.3: `/v1/books/{id}/imports`,
                     opening lots), health
                     (`GET /live` liveness, `GET /health` readiness + DB)
@@ -81,6 +83,10 @@ src/stockviz/
                     map), parse, engine (pure holdings-only ledger, splits,
                     estimated fees), book (preview, commit, rebuild, delete,
                     opening lots)
+    journal/        P&L calendar (`__init__`, `query`, `aggregate`; venue
+                    dates since A5.5) and A5.5's round trips: `roundtrips.py`
+                    (pure grouping, figures, R, MAE/MFE), `entries.py` (sync,
+                    reads, news windows, R for chart fills)
     plans/          A5.4: trade plans: record_fill (the lock), plans on
                     orders, written after entry, session plans for replay
                     and drills, outputs
@@ -682,8 +688,9 @@ written by the nightly `metrics` job (`services/metrics.py::_returns`).
   available_at, published_at}] (up to 20 a day)}`, `earnings {date,
   report_time, fiscal_period, eps_estimate, eps_actual, surprise_pct}`,
   `dividend {date (ex-date), amount, currency}`, `split {date, ratio_from,
-  ratio_to}`, `fill {date, ts, side, quantity, price, r_multiple (null until
-  A5)}`; oldest first, then in type order. Default range: the last 365
+  ratio_to}`, `fill {date (the venue's date since A5.5), ts, side, quantity,
+  price, r_multiple (A5.5: the entry's R on the fill that closes a journal
+  entry, else null), book_id, journal_entry_id, closes_entry}`; oldest first, then in type order. Default range: the last 365
   days; at most 25 years (400); unknown type 400; `from > to` 400. **News
   clusters** by the UTC date of `available_at` (the field `/news` orders
   by; never `published_at`), so a day's count equals the `/news` items that
@@ -1308,6 +1315,90 @@ while paper or imported plans exist; otherwise it restores the tables
   forensics; archive row counts; idempotent copy; downgrade refused with a
   paper plan). `test_drills_migration.py` and
   `test_replay_journal_migration.py` now stop at their own revisions.
+
+**Journal entries (A5.5, M10.3).** Migration `c9d2e4f6a8b1` (additive;
+the downgrade refuses while any entry holds notes or tags):
+`journal_entries` (`models/journal_entry.py`: user, `source`
+paper|imported|replay, `portfolio_id` or `replay_session_id` (check
+`ck_journal_entries_home`; both cascade), instrument, `entry_key` (unique per
+user), `plan_id` (SET NULL), `status` open|closed|detached, `opened_at`,
+`closed_at`, and the user's text: `review_notes`, `mistakes`, `lessons`,
+`setup_tags`, `mistake_tags` (JSON)) and `journal_entry_fills` (entry
+cascade; exactly one of `trade_id` / `replay_fill_id`, each unique, both
+cascade). **Only the grouping and the text are stored**; every figure is
+computed on read (`services/journal/`).
+
+- **Grouping** (`roundtrips.group_round_trips`, the replay episode rule):
+  per book and instrument (`trades`, so paper and imported alike) or per
+  replay session (`replay_fills`), in time order, a buy while flat opens an
+  entry and the quantity back to zero closes it; partial sells stay in it, a
+  later buy opens a new one, a sell while flat belongs to none, a position
+  still held is open. Hidden drills (anonymised, unrevealed) are left out.
+- **Sync on read** (`entries.sync`, run by every list and detail read under a
+  `FOR UPDATE` on the user row): each round trip is matched to its row by
+  `entry_key`, a stable name of its first fill (`paper:<book>:t<trade id>`,
+  `imported:<book>:<broker>:<exchange>:<broker trade id>` or
+  `imported:<book>:opening:<id>`, `replay:<session>:f<fill id>`), and
+  `status`, times, `plan_id` and the fill links are rewritten when they
+  differ. An imported book rebuilds its `trades` on every commit, delete,
+  opening lot and split, and the next read follows; nothing to invalidate.
+  A row whose round trip is gone is deleted without text, or kept
+  `detached` (hidden, 404) with it; the same file imported again finds it,
+  notes intact.
+- **Plans:** a paper or imported entry's plan is the one its fills link
+  (`trades.trade_plan_id`: A5.4's ticket, A5.3's import pairing, which locks
+  a plan written before the buy); a replay session's plan pairs with the
+  session's first round trip. `plan.label` is `locked` or
+  `written_after_entry`; only `locked` has `counts_for_adherence`.
+- **Figures** (instrument currency): average entry (buy notional / shares
+  bought), average exit, most shares held, realized ((price - ledger average
+  cost) x qty per sell), fees (estimated for imports, `fees_estimated`), net
+  P&L = realized - fees (+ open shares x (last close - average cost),
+  `as_of_date`/`mark_close`), return, holding days and sessions. **R** = net
+  P&L / (|average entry - plan stop| x most shares held) (the drill's
+  definition), null with `r_reason` without a plan, a stop or a close to mark
+  at. **MAE/MFE** (`excursions`): worst/best (daily low/high - ledger average
+  cost) while held, per share, %, money (x shares held that day), R and the
+  date and price. Basis `exact_close` for replay (forensics' rule and
+  numbers: the entry bar counts from its close) or `approximate_daily` for
+  paper and imported (the entry and exit days count their whole range: the
+  fill's place in the day is unknown; "Daily bars: may include moves before
+  entry or after exit", design note question 6). A venue session (calendar)
+  without a stored bar makes both null with the reason and
+  `missing_sessions`. **Adherence** (`drills/score.score_drill` on venue-date
+  closes) for a plan locked before entry with entry, stop and size; a plan
+  written after entry is shown with a note, never scored.
+- **Venue dates:** a fill's date is its venue's (`venue_for_ticker`, IST for
+  `.NS`/`.BO`; an imported fill without a time is the IST day start). The P&L
+  calendar (`journal/query.py`) reads a window a day wider each side and
+  keeps equity fills by their own venue date, so an NSE fill is never on New
+  York's day; options stay on New York's.
+- **News** (`entries.news_window`): documents linked to the instrument with
+  `available_at` from the start of the third session before the entry day to
+  the end of the entry day, and from the session before the exit day to the
+  end of the session after it (venue time zone; up to 20, headline, source,
+  link, time, venue date). Replay entries are capped at the session's clock.
+  A window ending before the first Aegis document held is
+  `coverage: before_news_copy` ("No news copy for this date").
+- **Routes** (`routers/journal_entries.py`, authed; another user's entry or
+  book 404): `GET /v1/journal/entries?book=<id>|all&status=open|closed&
+  source=&setup_version_id=&tag=&ticker=&from=&to=&limit=&offset=` ->
+  `{entries: [JournalEntrySummaryOut], total, limit, offset, note}` (no
+  `book` or `all`: every book and replay; newest first; `from > to` 400);
+  `GET /{id}` -> `JournalEntryOut` (+ fills, adherence, news at entry and
+  exit, the text); `PATCH /{id}` (`JournalEntryPatch`: text and tags only,
+  extra fields 422, `""` clears, tags de-duplicated ignoring case, at most
+  12 of 32 characters).
+- **Chart markers:** `symbol_events._fills` asks `entries.fill_r_multiples`
+  (the user's books' whole history in the instrument, grouped the same way;
+  read only) for each fill's R, entry id and whether it closes the entry.
+- Tests: `test_journal_entries.py` (the done-when with hand-computed MAE,
+  MFE and R; written after entry; no plan; replay equal to forensics; open
+  paper entry; missing bar; partials and re-entry with markers; the pure
+  rules; delete and re-import keeping notes; venue dates in the journal,
+  the P&L calendar and markers; news windows and "no news copy";
+  isolation; filters and patch rules), `test_journal_entries_migration.py`
+  (PostgreSQL up/down/up).
 
 **Survivorship stamp (A1.4a, part of M1.5).** Every backtest result carries
 `universe: {name, point_in_time, survivorship_biased, note}`: the public
