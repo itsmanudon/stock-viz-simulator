@@ -42,6 +42,16 @@ class BarOut(BaseModel):
     # bar is "so far", never a closed bar. Null on ``1d``.
     sessions: int | None = None
     partial: bool | None = None
+    # Intraday intervals only (A6.2: ``1m``-``60m``): ``ts`` is the bar's open
+    # instant (naive UTC) and ``closed_at`` its close, clipped at the session
+    # close; ``session_date`` is the venue's date of its session; ``feed`` and
+    # ``badge`` name where it came from ("File (local)", "IEX only", "SIP");
+    # ``minutes`` counts the stored 1-minute bars in it. Null on 1d/1wk/1mo.
+    closed_at: datetime | None = None
+    session_date: date | None = None
+    feed: str | None = None
+    badge: str | None = None
+    minutes: int | None = None
 
 
 class QuoteOut(BaseModel):
@@ -94,6 +104,35 @@ class SymbolDetailOut(BaseModel):
     benchmark: str | None = None
     benchmark_name: str | None = None
     is_indian: bool = False
+    # A6.2: the intraday bars stored for the symbol (default feed), or null.
+    intraday: IntradayInfoOut | None = None
+
+
+class IntradayCoverageOut(BaseModel):
+    feed: str
+    interval: Literal["1m", "60m"]
+    first: datetime
+    last: datetime
+
+
+class IntradayInfoOut(BaseModel):
+    """A6.2: which intraday intervals a symbol has, from its best stored feed.
+
+    ``intervals`` is every interval the bars route can build (all five with
+    1-minute bars; ``60m`` alone with only hourly bars). ``first``/``last`` are
+    bar opens (naive UTC) over that feed's stored bars; ``coverage`` lists
+    each stored feed and interval; ``badge`` is the chart's source badge.
+    """
+
+    feed: str
+    badge: str
+    intervals: list[Literal["1m", "5m", "15m", "30m", "60m"]]
+    first: datetime
+    last: datetime
+    venue: str
+    time_zone: str
+    feeds: list[str]
+    coverage: list[IntradayCoverageOut]
 
 
 class EarningsEventOut(BaseModel):
@@ -207,6 +246,8 @@ class IndicatorsOut(BaseModel):
     # inputs, so no value is computed on it; this is its timestamp.
     interval: str = "1d"
     partial_bar_excluded: datetime | None = None
+    # A6.2: on intraday intervals, the feed the bars came from (null otherwise).
+    feed: str | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -3820,11 +3861,18 @@ class AvwapOut(BaseModel):
     anchor: date
     # The first stored daily bar on or after ``anchor``: where the sums start.
     anchor_bar: date
-    interval: Literal["1d", "1wk", "1mo"]
+    interval: Literal["1d", "1wk", "1mo", "1m", "5m", "15m", "30m", "60m"]
     bands: int
-    # Always "daily": weekly/monthly values are the daily AVWAP sampled at each
-    # period's last stored session.
-    computed_from: Literal["daily"] = "daily"
+    # "daily": weekly/monthly values are the daily AVWAP sampled at each
+    # period's last stored session. A6.2, intraday: "1m" (computed from minute
+    # bars and sampled at each bar's last minute, keyed by the bar's open) or
+    # "60m" (on the 60-minute chart's own bars).
+    computed_from: Literal["daily", "1m", "60m"] = "daily"
+    # A6.2, intraday: the instant asked for and the open of the first bar the
+    # sums start at (naive UTC); null on daily intervals.
+    anchor_at: datetime | None = None
+    anchor_bar_at: datetime | None = None
+    feed: str | None = None
     decimals: int
     points: list[AvwapPointOut]
 
