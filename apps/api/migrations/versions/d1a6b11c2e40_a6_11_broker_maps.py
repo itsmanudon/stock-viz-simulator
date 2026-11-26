@@ -1,7 +1,7 @@
 """A6.11 broker maps: more import brokers and saved column maps.
 
 Revision ID: d1a6b11c2e40
-Revises: c8d3e5f7a9b2
+Revises: d4a7f9b1c3e5
 Create Date: 2026-11-26 18:00:00.000000
 
 - ``portfolios.broker`` and ``import_batches.broker`` may also be ``dhan``,
@@ -21,7 +21,7 @@ from alembic import op
 from sqlalchemy.dialects import postgresql
 
 revision: str = "d1a6b11c2e40"
-down_revision: str | None = "c8d3e5f7a9b2"
+down_revision: str | None = "d4a7f9b1c3e5"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
