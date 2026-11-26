@@ -742,20 +742,32 @@ class ReplaySessionCreateIn(BaseModel):
     start_at: datetime
     end_at: datetime | None = None
     starting_cash: Decimal | None = None
+    # A6.9: the bars (1d, or 1m/5m/15m/60m from stored minutes; an intraday
+    # session needs end_at) and the replay profile (legacy_close, the default,
+    # or intrabar_ohlc).
+    interval: Literal["1d", "1m", "5m", "15m", "60m"] = "1d"
+    profile: Literal["legacy_close", "intrabar_ohlc"] | None = None
 
 
 class ReplayOrderIn(BaseModel):
     """Intent only. A market order fills at the session's current stored
     close; a limit / stop-loss / take-profit order (A4.6) rests, priced by
     ``limit_price`` (the limit or the trigger), and is judged from the next
-    bar on."""
+    bar on.
+
+    A6.9: ``bracket`` is a long entry (``entry_type`` market, or limit at
+    ``limit_price``) with a sell ``stop_price`` below it and a sell
+    ``target_price`` above it, one cancels the other. ``side`` must be buy."""
 
     model_config = ConfigDict(extra="forbid")
 
     side: Literal["buy", "sell"]
-    order_type: Literal["market", "limit", "stop_loss", "take_profit"] = "market"
+    order_type: Literal["market", "limit", "stop_loss", "take_profit", "bracket"] = "market"
     quantity: Decimal
     limit_price: Decimal | None = None
+    entry_type: Literal["market", "limit"] = "market"
+    stop_price: Decimal | None = None
+    target_price: Decimal | None = None
 
 
 class ReplayPositionOut(BaseModel):
@@ -791,19 +803,29 @@ class ReplayFillOut(BaseModel):
 
 class ReplayOrderOut(BaseModel):
     """A4.6: a resting order. ``status`` open | filled | cancelled |
-    rejected | expired; ``reason`` says why it left ``open``."""
+    rejected | expired; ``reason`` says why it left ``open``.
+
+    A6.9: a bracket's entry is ``bracket`` (``limit_price`` its limit, or
+    its market fill price) and its stop and target carry ``parent_id``;
+    all three share ``oco_group``. ``pending`` is a child waiting for its
+    entry. ``order_inside_bar_unknown``: the fill was a stop chosen first
+    because the stop and the target were both inside one bar with nothing
+    finer to say which came first."""
 
     id: int
     session_id: int
     ticker: str
     side: Literal["buy", "sell"]
-    order_type: Literal["limit", "stop_loss", "take_profit"]
+    order_type: Literal["limit", "stop_loss", "take_profit", "bracket"]
     quantity: Decimal
     limit_price: Decimal
-    status: Literal["open", "filled", "cancelled", "rejected", "expired"]
+    status: Literal["pending", "open", "filled", "cancelled", "rejected", "expired"]
     placed_at: datetime
     resolved_at: datetime | None = None
     reason: str | None = None
+    parent_id: int | None = None
+    oco_group: int | None = None
+    order_inside_bar_unknown: bool = False
 
 
 class ReplaySessionListOut(BaseModel):
@@ -820,6 +842,8 @@ class ReplaySessionListOut(BaseModel):
     has_next: bool
     created_at: datetime
     currency: str = "USD"
+    interval: str = "1d"
+    profile_name: str = "legacy_close"
 
 
 class ReplaySessionOut(BaseModel):
@@ -846,6 +870,11 @@ class ReplaySessionOut(BaseModel):
     lag_override: bool = False
     tradable: bool = True
     open_orders: int = 0
+    # A6.9: the session's bars (and minute feed, intraday) and the profile's
+    # assumptions from the registry, so the page names its fill model.
+    interval: str = "1d"
+    feed: str | None = None
+    profile_assumptions: list[str] = []
 
 
 class ReplayAvailabilityOut(BaseModel):
@@ -863,6 +892,12 @@ class ReplayAvailabilityOut(BaseModel):
     default_starting_cash: Decimal = Decimal("100000.00")
     fee_schedule: str = "none"
     tradable: bool = True
+    # A6.9: the intervals a session can run on (1d, plus the intraday ones
+    # when minutes are stored), the minute feed and its stored range.
+    intervals: list[str] = ["1d"]
+    minute_feed: str | None = None
+    minute_first: datetime | None = None
+    minute_last: datetime | None = None
 
 
 class ReplaySummaryOut(BaseModel):
@@ -930,6 +965,8 @@ class ReplaySubmitOut(BaseModel):
     decision: ReplayDecisionOut | None = None
     fill: ReplayFillOut | None = None
     order: ReplayOrderOut | None = None
+    # A6.9: a bracket's stop and target (``order`` is its entry).
+    children: list[ReplayOrderOut] = []
 
 
 class ReplayEpisodeFillOut(BaseModel):

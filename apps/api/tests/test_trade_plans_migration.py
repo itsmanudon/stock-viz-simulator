@@ -92,8 +92,22 @@ def _old_score(session: Session, sid: int) -> dict[str, Any] | None:
     ).first()
     if row is None:
         return None
-    replay = session.get(ReplaySession, sid)
-    assert replay is not None
+    # The old revision's columns only (later revisions add some, e.g. A6.9's
+    # ``interval`` and ``feed``), as a detached row with the new ones defaulted.
+    old_columns = (
+        "id, user_id, ticker, instrument_id, profile_name, model_version, start_at, current_at, "
+        "end_at, starting_cash, cash_balance, status, completed_at, currency, fee_schedule, "
+        "lag_override, created_at, updated_at"
+    )
+    found = (
+        session.execute(
+            text(f"SELECT {old_columns} FROM replay_sessions WHERE id = :s"), {"s": sid}
+        )
+        .mappings()
+        .first()
+    )
+    assert found is not None
+    replay = ReplaySession(**dict(found))
     fills = [
         FillFacts(f.side, f.quantity, f.fill_price, f.evaluated_at)
         for f in list_replay_fills(session, replay=replay)

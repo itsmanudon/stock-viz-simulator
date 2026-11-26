@@ -70,10 +70,14 @@ def replay_indicators(
     lookback = max((r.lookback for r in requests), default=0)
     warmup = get_warmup_bars(db, replay, lookback) if rows else []
     ohlcv = [(r.ts, r.open, r.high, r.low, r.close, r.volume) for r in warmup + rows]
-    needs_bench = any(r.spec.needs_benchmark for r in requests)
+    # A6.9: the RS line reads the venue index's daily closes, so an intraday
+    # session has none.
+    needs_bench = replay.interval == REPLAY_INTERVAL and any(
+        r.spec.needs_benchmark for r in requests
+    )
     return compute_bundle(
         replay.ticker,
-        REPLAY_INTERVAL,
+        replay.interval,
         requests,
         ohlcv,
         window_start=rows[0].ts if rows else None,

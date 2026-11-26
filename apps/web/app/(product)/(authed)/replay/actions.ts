@@ -31,6 +31,9 @@ export type ReplayActionState = {
   placed?: boolean;
   orderType?: string;
   limitPrice?: string;
+  /** A6.9: a bracket's stop and target. */
+  stopPrice?: string;
+  targetPrice?: string;
 };
 
 function mapError(err: unknown, drill = false): ReplayActionState {
@@ -74,6 +77,8 @@ const CreateSchema = z.object({
     .string()
     .min(1, "Starting cash is required")
     .refine((value) => Number(value) > 0, "Starting cash must be greater than 0"),
+  interval: z.enum(["1d", "1m", "5m", "15m", "60m"]).default("1d"),
+  profile: z.enum(["legacy_close", "intrabar_ohlc"]).default("legacy_close"),
 });
 
 export async function createReplayAction(
@@ -85,16 +90,22 @@ export async function createReplayAction(
     start: formData.get("start"),
     end: formData.get("end"),
     starting_cash: formData.get("starting_cash"),
+    interval: formData.get("interval") ?? undefined,
+    profile: formData.get("profile") ?? undefined,
   });
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
   }
+  const intraday = parsed.data.interval !== "1d";
   try {
     const session = await createReplaySession({
       ticker: parsed.data.ticker,
       start_at: toReplayTimestamp(parsed.data.start),
-      end_at: toReplayTimestamp(parsed.data.end),
+      // A6.9: an intraday session runs to its end date's last bar.
+      end_at: intraday ? `${parsed.data.end}T23:59:59.000Z` : toReplayTimestamp(parsed.data.end),
       starting_cash: parsed.data.starting_cash,
+      interval: parsed.data.interval,
+      profile: parsed.data.profile,
     });
     revalidatePath("/replay");
     const params = new URLSearchParams({
@@ -118,6 +129,9 @@ export async function loadReplayAvailabilityAction(ticker: string): Promise<{
   defaultCash?: string;
   feeSchedule?: string;
   tradable?: boolean;
+  intervals?: string[];
+  minuteFirst?: string | null;
+  minuteLast?: string | null;
 }> {
   try {
     const available = await getReplayAvailability(ticker);
@@ -131,6 +145,9 @@ export async function loadReplayAvailabilityAction(ticker: string): Promise<{
       defaultCash: String(Math.round(Number(available.default_starting_cash))),
       feeSchedule: available.fee_schedule,
       tradable: available.tradable,
+      intervals: available.intervals ?? ["1d"],
+      minuteFirst: available.minute_first ? available.minute_first.slice(0, 10) : null,
+      minuteLast: available.minute_last ? available.minute_last.slice(0, 10) : null,
     };
   } catch (err) {
     if (err instanceof AuthedApiError) {
@@ -164,6 +181,42 @@ export async function advanceReplayAction(
   }
 }
 
+/** A6.9: one autoplay step's outcome. */
+export type AutoplayStep = {
+  /** The bar the session is on after the step (unchanged when it was refused). */
+  to?: string;
+  status?: string;
+  hasNext?: boolean;
+  /** The API's per-user advance limit refused the step: try again after this. */
+  retryAfterMs?: number;
+  error?: string;
+};
+
+/**
+ * A6.9: one autoplay step from the bar on screen (`currentAt`). The API's
+ * `expected_current_at` guard makes a repeated or late step change nothing,
+ * so autoplay never moves two bars for one step. No revalidation here: the
+ * player refreshes the page itself, so steps are not held up by rendering.
+ */
+export async function autoplayStepAction(
+  sessionId: number,
+  currentAt: string,
+): Promise<AutoplayStep> {
+  if (!Number.isInteger(sessionId) || sessionId <= 0 || !currentAt) {
+    return { error: "Invalid replay session." };
+  }
+  try {
+    const session = await advanceReplaySession(sessionId, currentAt);
+    return { to: session.current_at, status: session.status, hasNext: session.has_next };
+  } catch (err) {
+    if (err instanceof AuthedApiError && err.status === 429) {
+      return { to: currentAt, retryAfterMs: 1000 };
+    }
+    const mapped = mapError(err);
+    return { error: mapped.error };
+  }
+}
+
 export async function cancelReplayAction(
   _prev: ReplayActionState,
   formData: FormData,
@@ -186,18 +239,30 @@ const OrderSchema = z
   .object({
     session_id: z.string().regex(/^\d+$/),
     side: z.enum(["buy", "sell"]),
-    order_type: z.enum(["market", "limit", "stop_loss", "take_profit"]).default("market"),
+    order_type: z
+      .enum(["market", "limit", "stop_loss", "take_profit", "bracket"])
+      .default("market"),
     quantity: z
       .string()
       .min(1, "Quantity is required")
       .refine((value) => Number(value) > 0, "Quantity must be positive"),
     limit_price: z.string().optional(),
+    entry_type: z.enum(["market", "limit"]).default("market"),
+    stop_price: z.string().optional(),
+    target_price: z.string().optional(),
   })
   .refine(
     (value) =>
       value.order_type === "market" ||
+      (value.order_type === "bracket" && value.entry_type === "market") ||
       (value.limit_price !== undefined && Number(value.limit_price) > 0),
     { message: "Enter a positive price for a limit or stop order", path: ["limit_price"] },
+  )
+  .refine(
+    (value) =>
+      value.order_type !== "bracket" ||
+      (Number(value.stop_price) > 0 && Number(value.target_price) > 0),
+    { message: "A bracket needs a positive stop and target", path: ["stop_price"] },
   )
   .refine(
     (value) =>
@@ -216,6 +281,9 @@ export async function submitReplayOrderAction(
     order_type: formData.get("order_type") ?? undefined,
     quantity: formData.get("quantity"),
     limit_price: formData.get("limit_price") || undefined,
+    entry_type: formData.get("entry_type") ?? undefined,
+    stop_price: formData.get("stop_price") || undefined,
+    target_price: formData.get("target_price") || undefined,
   });
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
@@ -228,11 +296,26 @@ export async function submitReplayOrderAction(
       order_type: parsed.data.order_type,
       quantity: parsed.data.quantity,
       limit_price: parsed.data.limit_price,
+      entry_type: parsed.data.entry_type,
+      stop_price: parsed.data.stop_price,
+      target_price: parsed.data.target_price,
     };
     const result = drill
       ? await submitDrillOrder(sessionId, order)
       : await submitReplayOrder(sessionId, order);
     revalidateTarget(drill, sessionId);
+    if (result.order?.order_type === "bracket") {
+      const legs = result.children ?? [];
+      return {
+        placed: true,
+        side: "buy",
+        quantity: result.order.quantity,
+        orderType: "bracket",
+        limitPrice: result.order.limit_price,
+        stopPrice: legs.find((l) => l.order_type === "stop_loss")?.limit_price,
+        targetPrice: legs.find((l) => l.order_type === "take_profit")?.limit_price,
+      };
+    }
     if (result.order) {
       return {
         placed: true,

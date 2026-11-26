@@ -1,6 +1,8 @@
 import type { Page } from "@playwright/test";
 import { expect, test } from "@playwright/test";
 
+import { replayFullOrders } from "./replay-a69";
+
 // Signup is capped at 5/IP/hour. A retry would consume a sixth attempt and
 // mask the original locator error behind a rate-limit timeout.
 test.describe.configure({ retries: 0 });
@@ -19,6 +21,7 @@ async function signUp(page: Page, email: string): Promise<void> {
 test("operational trading loop from ticket to orders, watchlist, alerts, and replay", async ({
   page,
 }) => {
+  test.setTimeout(180_000); // A6.9's replay flow runs at the end
   const email = `e2e+ops+${Date.now()}@example.com`;
   await signUp(page, email);
   const main = page.locator("#main");
@@ -302,4 +305,7 @@ test("operational trading loop from ticket to orders, watchlist, alerts, and rep
     );
     expect(overflows, `${path} scrolls sideways at 390px`).toBe(false);
   }
+
+  // A6.9: brackets, the named profile and 10x autoplay on the same account.
+  await replayFullOrders(page);
 });

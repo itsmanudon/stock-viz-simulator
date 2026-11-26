@@ -1,4 +1,5 @@
-"""`/v1/replay` — isolated ReplaySession over stored 1d PriceBars.
+"""`/v1/replay` — isolated ReplaySession over stored bars (daily, or A6.9's
+intraday bars built from stored minutes).
 
 Authenticated. Market truth is server-selected historical bars inside the
 session's frozen range. Live ``Trade`` / ``Portfolio`` / Kafka paths are
@@ -11,10 +12,12 @@ from datetime import datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from fastapi.responses import JSONResponse
 from sqlmodel import Session
 
 from stockviz.auth import UserIdDep
 from stockviz.db import get_session
+from stockviz.limiter import limiter
 from stockviz.models import ReplayDrawing, ReplayOrder
 from stockviz.routers.indicators import _parse_names
 from stockviz.schemas import (
@@ -83,16 +86,25 @@ from stockviz.services.replay import (
 from stockviz.services.replay import drawings as replay_drawings
 from stockviz.services.replay.context import REPLAY_NEWS_RULE, replay_events, replay_indicators
 from stockviz.services.replay.forensics import compute_replay_forensics
+from stockviz.services.replay.intraday import (
+    REPLAY_INTRADAY_INTERVALS,
+    minute_feed,
+    minute_range,
+)
 from stockviz.services.replay.journal import get_replay_journal, update_replay_journal
 from stockviz.services.replay.lag import lag_days_for, lag_waived_for, latest_allowed_end
 from stockviz.services.replay.market import get_replay_availability
-from stockviz.services.replay.session import session_can_advance
+from stockviz.services.replay.session import session_can_advance, submit_replay_bracket
 from stockviz.services.replay.summary import compute_replay_summary
+from stockviz.services.replay.throttle import ADVANCE_THROTTLE, retry_after_header
 from stockviz.services.replay.timeutil import as_aware_utc
 from stockviz.services.simulation import (
+    INTRABAR_UNKNOWN_LABEL,
     OrderSide,
     SimulationClockError,
     SimulationOrderType,
+    UnknownExecutionProfileError,
+    get_execution_profile,
 )
 from stockviz.services.simulation.contracts import FillDecision
 
@@ -127,6 +139,8 @@ def _list_out(replay) -> ReplaySessionListOut:
         has_next=session_can_advance(replay),
         created_at=as_aware_utc(replay.created_at),
         currency=replay.currency,
+        interval=replay.interval,
+        profile_name=replay.profile_name,
     )
 
 
@@ -157,7 +171,17 @@ def _session_out(db: Session, replay) -> ReplaySessionOut:
         lag_override=replay.lag_override,
         tradable=not is_index_ticker(replay.ticker),
         open_orders=len(open_replay_orders(db, replay=replay)),
+        interval=replay.interval,
+        feed=replay.feed,
+        profile_assumptions=_assumptions(replay),
     )
+
+
+def _assumptions(replay) -> list[str]:
+    try:
+        return list(get_execution_profile(replay.profile_name, replay.model_version).assumptions)
+    except UnknownExecutionProfileError:
+        return []
 
 
 def _fill_out(row) -> ReplayFillOut:
@@ -198,6 +222,11 @@ def _order_out(row: ReplayOrder) -> ReplayOrderOut:
         placed_at=as_aware_utc(row.placed_at),
         resolved_at=as_aware_utc(row.resolved_at) if row.resolved_at else None,
         reason=row.reason,
+        parent_id=row.parent_id,
+        oco_group=row.oco_group,
+        order_inside_bar_unknown=(
+            row.status == "filled" and INTRABAR_UNKNOWN_LABEL in (row.reason or "")
+        ),
     )
 
 
@@ -221,6 +250,7 @@ def _submit_out(db: Session, result: ReplaySubmitResult) -> ReplaySubmitOut:
         decision=_decision_out(result.decision) if result.decision is not None else None,
         fill=_fill_out(result.fill) if result.fill is not None else None,
         order=_order_out(result.order) if result.order is not None else None,
+        children=[_order_out(row) for row in result.children],
     )
 
 
@@ -276,6 +306,8 @@ def get_replay_ticker_availability(
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
     currency = (symbol.currency or "USD").upper()
     waived = lag_days_for(symbol.ticker) > 0 and lag_waived_for(user_id)
+    feed = minute_feed(session, symbol.ticker)
+    minutes = minute_range(session, symbol.ticker, feed) if feed is not None else None
     return ReplayAvailabilityOut(
         ticker=symbol.ticker,
         currency=currency,
@@ -288,6 +320,10 @@ def get_replay_ticker_availability(
         default_starting_cash=default_starting_cash(currency),
         fee_schedule=resolve_fee_schedule("auto", symbol.ticker),
         tradable=not is_index_ticker(symbol.ticker),
+        intervals=["1d", *(REPLAY_INTRADAY_INTERVALS if minutes is not None else ())],
+        minute_feed=feed if minutes is not None else None,
+        minute_first=as_aware_utc(minutes[0]) if minutes is not None else None,
+        minute_last=as_aware_utc(minutes[1]) if minutes is not None else None,
     )
 
 
@@ -305,6 +341,8 @@ def post_replay_session(
             start_at=body.start_at,
             end_at=body.end_at,
             starting_cash=body.starting_cash,
+            interval=body.interval,
+            profile=body.profile,
         )
     except ReplaySymbolNotFound as exc:
         raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
@@ -331,20 +369,44 @@ def get_one_replay_session(
     return _session_out(session, replay)
 
 
-@router.post("/sessions/{session_id}/advance", response_model=ReplaySessionOut)
+def advance_throttled(user_id: int) -> JSONResponse | None:
+    """A6.9: the per-user advance limit (``throttle.py``), or None to go on.
+
+    Off when the rate limiter is off (``RATELIMIT_ENABLED=0``, the tests)."""
+    if not limiter.enabled:
+        return None
+    wait = ADVANCE_THROTTLE.check(user_id)
+    if wait is None:
+        return None
+    return JSONResponse(
+        status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+        content={"detail": "Too many replay steps at once: wait a moment and step again."},
+        headers={"Retry-After": retry_after_header(wait)},
+    )
+
+
+@router.post(
+    "/sessions/{session_id}/advance",
+    response_model=ReplaySessionOut,
+    responses={429: {"description": "Too many advances for this user right now"}},
+)
 def post_replay_advance(
     session_id: int,
     session: SessionDep,
     user_id: UserIdDep,
     expected_current_at: datetime | None = None,
-) -> ReplaySessionOut:
-    """Advance one stored 1d bar; from the last bar, complete the session.
+) -> ReplaySessionOut | JSONResponse:
+    """Advance one bar; from the last bar, complete the session.
 
     Pass ``expected_current_at`` (the bar on screen): a repeated request then
-    changes nothing (audit SR-10).
+    changes nothing (audit SR-10), so autoplay (A6.9) never moves two bars
+    for one step. Advances are limited per user (429 with ``Retry-After``).
     """
 
     replay = _load(session, session_id, user_id)
+    throttled = advance_throttled(user_id)
+    if throttled is not None:
+        return throttled
     try:
         replay = advance_replay_session(
             session, replay=replay, expected_current_at=expected_current_at
@@ -413,14 +475,7 @@ def post_replay_order(
 
     replay = _load(session, session_id, user_id)
     try:
-        result = submit_replay_order(
-            session,
-            replay=replay,
-            side=OrderSide(body.side),
-            order_type=SimulationOrderType(body.order_type),
-            quantity=body.quantity,
-            limit_price=body.limit_price,
-        )
+        result = submit_order(session, replay, body)
     except (ReplayClosed, ReplayCompleted) as exc:
         raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
     except ReplayLookaheadError as exc:
@@ -434,6 +489,30 @@ def post_replay_order(
     except (SimulationClockError, TypeError, ValueError) as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
     return _submit_out(session, result)
+
+
+def submit_order(session: Session, replay, body: ReplayOrderIn) -> ReplaySubmitResult:
+    """A market or resting order, or (A6.9) a bracket. Shared with drills."""
+    if body.order_type == "bracket":
+        if body.side != "buy":
+            raise ReplayOrderError("A bracket is a long entry: its side is buy")
+        return submit_replay_bracket(
+            session,
+            replay=replay,
+            quantity=body.quantity,
+            entry_type=body.entry_type,
+            limit_price=body.limit_price,
+            stop_price=body.stop_price,
+            target_price=body.target_price,
+        )
+    return submit_replay_order(
+        session,
+        replay=replay,
+        side=OrderSide(body.side),
+        order_type=SimulationOrderType(body.order_type),
+        quantity=body.quantity,
+        limit_price=body.limit_price,
+    )
 
 
 @router.get("/sessions/{session_id}/orders", response_model=list[ReplayOrderOut])

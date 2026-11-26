@@ -24,9 +24,13 @@ limit or stop order rests: it is placed on DAY1 and judged on DAY2, as live
 settles a pending order on DAY2's bar.
 
 What a path does not support is a skip with its reason (never silent):
-live and replay are pinned to ``legacy_close``; ``next_open`` exists only
-in backtests (it is compared against the kernel's own rule in
-:func:`test_next_open_backtest_path`).
+live is pinned to ``legacy_close``; ``next_open`` exists only in backtests
+(it is compared against the kernel's own rule in
+:func:`test_next_open_backtest_path`). A6.9: ``intrabar_ohlc`` is a replay and
+backtest profile, so replay (a session created under it) is compared with
+the backtest path on every order, and live is skipped; a bracket's exit with
+the stop and the target both inside the bar is compared too
+(:func:`test_bracket_exit_replay_equals_backtest`).
 """
 
 from __future__ import annotations
@@ -57,6 +61,8 @@ from stockviz.services.replay import (
     submit_replay_order,
 )
 from stockviz.services.simulation import (
+    INTRABAR_OHLC,
+    INTRABAR_UNKNOWN_LABEL,
     LEGACY_CLOSE,
     NEXT_OPEN,
     ExecutionProfile,
@@ -66,7 +72,9 @@ from stockviz.services.simulation import (
     OrderSide,
     SimLedger,
     SimulationOrderType,
+    evaluate_oco_exit,
     evaluate_order,
+    get_execution_profile,
     get_fee_schedule,
 )
 from stockviz.services.trading import (
@@ -103,10 +111,17 @@ ORDERS = (
     Order("market_buy", OrderSide.BUY, SimulationOrderType.MARKET),
     Order("market_sell", OrderSide.SELL, SimulationOrderType.MARKET),
     Order("limit_buy", OrderSide.BUY, SimulationOrderType.LIMIT, Decimal("100.5")),
-    Order("limit_buy_not_triggered", OrderSide.BUY, SimulationOrderType.LIMIT, Decimal("99")),
+    # Below the bar's low (97.125) and its close: no fill under either profile.
+    Order("limit_buy_not_triggered", OrderSide.BUY, SimulationOrderType.LIMIT, Decimal("97")),
     Order("limit_sell", OrderSide.SELL, SimulationOrderType.LIMIT, Decimal("99.5")),
     Order("stop_sell", OrderSide.SELL, SimulationOrderType.STOP_LOSS, Decimal("100.5")),
+    # A6.9: above the close, below the high: only intrabar_ohlc fills it.
+    Order("target_sell", OrderSide.SELL, SimulationOrderType.TAKE_PROFIT, Decimal("104")),
 )
+NOT_FILLED = {
+    "legacy_close": {"limit_buy_not_triggered", "target_sell"},
+    "intrabar_ohlc": {"limit_buy_not_triggered"},
+}
 
 
 @dataclass(frozen=True)
@@ -159,7 +174,7 @@ def live_fill(session: Session, currency: str, order: Order) -> Fill | None:
         execute_trade(session, user_id=uid, ticker=ticker, side=side, quantity=QTY)
     else:
         assert order.limit is not None
-        kind = OrderType.LIMIT if order.kind is SimulationOrderType.LIMIT else OrderType.STOP_LOSS
+        kind = OrderType(order.kind.value)
         create_pending_order(session, user_id=uid, ticker=ticker, side=side, order_type=kind,
                              quantity=QTY, limit_price=order.limit)  # fmt: skip
         settle_pending_orders(session, session_date=DAY2.date())
@@ -188,11 +203,15 @@ def live_fill(session: Session, currency: str, order: Order) -> Fill | None:
     return Fill(trade.price, trade.quantity, change, realized, fees, fee_date(ticker, trade.ts))
 
 
-def replay_fill(session: Session, currency: str, order: Order) -> Fill | None:
+def replay_fill(
+    session: Session, currency: str, order: Order, profile: str = "legacy_close"
+) -> Fill | None:
     ticker = _seed(session, currency)
     uid = _user(session)
     # A4.6: an Indian session must end 30 days before today; DAY2 is long past.
-    replay = create_replay_session(session, user_id=uid, ticker=ticker, start_at=DAY1, end_at=DAY2)
+    replay = create_replay_session(session, user_id=uid, ticker=ticker, start_at=DAY1,
+                                   end_at=DAY2, profile=profile)  # fmt: skip
+    assert replay.profile_name == profile
     assert replay.currency == currency
     assert replay.fee_schedule == default_schedule_name(ticker)
     if order.side is OrderSide.SELL:
@@ -249,9 +268,15 @@ def backtest_fill(
     )
 
 
-def _agree(path: Fill | None, currency: str, order: Order, fee_schedule: str) -> None:
+def _agree(
+    path: Fill | None,
+    currency: str,
+    order: Order,
+    fee_schedule: str,
+    profile: ExecutionProfile = LEGACY_CLOSE,
+) -> None:
     on = path.fee_on if path is not None else None
-    backtest, fees = backtest_fill(currency, order, LEGACY_CLOSE, fee_schedule, on=on)
+    backtest, fees = backtest_fill(currency, order, profile, fee_schedule, on=on)
     assert (path is None) == (backtest is None), (order.name, fee_schedule)
     if path is None or backtest is None:
         return
@@ -279,12 +304,16 @@ SKIPS: dict[tuple[str, ...], str] = {
         "live",
         "next_open",
     ): "live paper trading is pinned to legacy_close (LIVE_PAPER_EXECUTION_PROFILE)",
-    ("replay", "next_open"): "replay sessions are pinned to legacy_close",
+    ("replay", "next_open"): "next_open is a backtest profile, not a replay one",
+    (
+        "live",
+        "intrabar_ohlc",
+    ): "live paper trading is pinned to legacy_close; intrabar_ohlc is replay and backtests",
 }
 
 
 @pytest.mark.parametrize("currency", ["USD", "INR"])
-@pytest.mark.parametrize("profile", ["legacy_close", "next_open"])
+@pytest.mark.parametrize("profile", ["legacy_close", "next_open", "intrabar_ohlc"])
 @pytest.mark.parametrize("path", ["live", "replay"])
 def test_path_agrees_with_backtest(engine, path: str, profile: str, currency: str) -> None:
     """Every order in ``ORDERS`` under every fee schedule of the currency."""
@@ -298,10 +327,14 @@ def test_path_agrees_with_backtest(engine, path: str, profile: str, currency: st
         SQLModel.metadata.drop_all(engine)
         SQLModel.metadata.create_all(engine)
         with Session(engine) as session:
-            fill = (live_fill if path == "live" else replay_fill)(session, currency, order)
-        assert (fill is None) == (order.name == "limit_buy_not_triggered"), order.name
+            fill = (
+                live_fill(session, currency, order)
+                if path == "live"
+                else replay_fill(session, currency, order, profile)
+            )
+        assert (fill is None) == (order.name in NOT_FILLED[profile]), order.name
         for fee_schedule in FEES[currency]:
-            _agree(fill, currency, order, fee_schedule)
+            _agree(fill, currency, order, fee_schedule, get_execution_profile(profile, "v1"))
 
 
 def test_three_way_market_buy_headline(engine) -> None:
@@ -381,3 +414,73 @@ def test_next_open_backtest_path(order: Order) -> None:
         assert fill.price == decision.fill_price == OPEN
     else:
         assert decision.status is FillStatus.INELIGIBLE and fill is None
+
+
+def test_intrabar_fills_differ_from_the_close() -> None:
+    """The profile is not a relabelled close: on the fixture bar the range
+    rule fills at the level or the open, never at the close."""
+    expected = {
+        "limit_buy": Decimal("100.5"),
+        "limit_sell": OPEN,  # the bar opened above the sell limit
+        "stop_sell": Decimal("100.5"),
+        "target_sell": Decimal("104"),
+    }
+    for order in ORDERS:
+        fill, _ = backtest_fill("USD", order, INTRABAR_OHLC, "none")
+        if order.name in expected:
+            assert fill is not None and fill.price == expected[order.name], order.name
+
+
+def test_bracket_exit_replay_equals_backtest(engine) -> None:
+    """A bracket bought at DAY1's close (100) with its stop (98) and target
+    (104) both inside DAY2's range, no minutes stored: replay fills the stop,
+    labelled, at the price and cash the kernel's ``evaluate_oco_exit`` and
+    ``SimLedger`` give the backtest."""
+    from sqlmodel import SQLModel
+
+    from stockviz.services.replay import list_replay_orders
+    from stockviz.services.replay.session import submit_replay_bracket
+
+    SQLModel.metadata.drop_all(engine)
+    SQLModel.metadata.create_all(engine)
+    stop_at, target_at, entry_at = Decimal("98"), Decimal("104"), Decimal("100")
+    ticker = "AAPL"
+    with Session(engine) as session:
+        session.add(Symbol(ticker=ticker, name=ticker, currency="USD"))
+        session.commit()
+        for ts, (o, h, lo, c) in ((DAY1, (entry_at,) * 4), (DAY2, (OPEN, HIGH, LOW, CLOSE))):
+            session.add(PriceBar(ticker=ticker, ts=ts, interval="1d", open=o, high=h, low=lo,
+                                 close=c, volume=1000, source="test"))  # fmt: skip
+        session.commit()
+        uid = _user(session)
+        replay = create_replay_session(session, user_id=uid, ticker=ticker, start_at=DAY1,
+                                       end_at=DAY2, profile="intrabar_ohlc")  # fmt: skip
+        placed = submit_replay_bracket(session, replay=replay, quantity=QTY, entry_type="market",
+                                       stop_price=stop_at, target_price=target_at)  # fmt: skip
+        assert placed.fill is not None and placed.fill.fill_price == entry_at
+        before = placed.replay.cash_balance
+        replay = advance_replay_session(session, replay=placed.replay)
+        orders = {o.order_type: o for o in list_replay_orders(session, replay=replay)}
+        assert orders["stop_loss"].status == "filled"
+        assert orders["take_profit"].status == "cancelled"
+        assert INTRABAR_UNKNOWN_LABEL in (orders["stop_loss"].reason or "")
+        exit_fill = session.exec(
+            select(ReplayFill).where(ReplayFill.order_id == orders["stop_loss"].id)
+        ).one()
+        replay_change = replay.cash_balance - before
+
+    ledger = SimLedger(cash=Decimal(100_000))
+    ledger.apply(OrderSide.BUY, ticker, QTY, entry_at)
+    stop = OrderIntent(ticker=ticker, side=OrderSide.SELL, order_type=SimulationOrderType.STOP_LOSS,
+                       quantity=QTY, submitted_at=DAY1.replace(tzinfo=UTC), limit_price=stop_at)  # fmt: skip
+    target = OrderIntent(ticker=ticker, side=OrderSide.SELL,
+                         order_type=SimulationOrderType.TAKE_PROFIT, quantity=QTY,
+                         submitted_at=DAY1.replace(tzinfo=UTC), limit_price=target_at)  # fmt: skip
+    bar = MarketSnapshot(ticker=ticker, observed_at=DAY2.replace(tzinfo=UTC), interval="1d",
+                         open=OPEN, high=HIGH, low=LOW, close=CLOSE, volume=Decimal(1000))  # fmt: skip
+    result = evaluate_oco_exit(stop, target, bar, INTRABAR_OHLC)
+    assert result.leg == "stop" and result.order_unknown
+    cash_before = ledger.cash
+    ledger.apply(OrderSide.SELL, ticker, QTY, result.decision.fill_price or Decimal(0))
+    assert exit_fill.fill_price == result.decision.fill_price == stop_at
+    assert replay_change == ledger.cash - cash_before

@@ -46,13 +46,22 @@ import type { ChartEvent } from "@/lib/chart-events";
 import { badgesFor } from "@/lib/indicator-badge";
 import { formatCurrency, formatQuantity, formatSignedCurrency } from "@/lib/portfolio-view-model";
 import {
-  REPLAY_PROFILE_LABEL,
   datesDiffer,
+  formatReplayClock,
   formatReplayDate,
+  isIntradayInterval,
   replayBarsToChart,
+  replayIntervalLabel,
+  replayProfileLabel,
   replayStatusLabel,
 } from "@/lib/replay";
-import { chartLayers, macdSeries, parseStockIndicators, studyFor } from "@/lib/stock-workspace";
+import {
+  chartLayers,
+  macdSeries,
+  parseStockIndicators,
+  parseStockInterval,
+  studyFor,
+} from "@/lib/stock-workspace";
 import { titleCase } from "@/lib/title-case";
 import { cn } from "@/lib/utils";
 
@@ -130,6 +139,11 @@ export default async function ReplaySessionPage({
     const position = session.positions[0] ?? null;
     const chartBars = replayBarsToChart(history);
     const chartHigh = Math.max(...history.map((bar) => Number(bar.high)), Number(market.bar.high));
+    const interval = session.interval ?? "1d";
+    const intraday = isIntradayInterval(interval);
+    const profileLabel = replayProfileLabel(session.profile_name, session.model_version);
+    const intrabar = session.profile_name === "intrabar_ohlc";
+    const barsWord = intraday ? `${interval} bars built from stored minutes` : "daily bars";
     const startChanged = datesDiffer(requested.requestedStart, session.start_at);
     const endChanged = datesDiffer(requested.requestedEnd, session.end_at);
 
@@ -138,17 +152,22 @@ export default async function ReplaySessionPage({
         <header className="flex flex-col gap-3 border-b border-border-muted pb-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <p className="text-2xs font-medium tracking-[0.02em] text-text-secondary">
-              {session.status === "completed" ? "Replay Review" : "Replay"} · Historical Session ·
-              Daily Data
+              {session.status === "completed" ? "Replay Review" : "Replay"} · Historical Session ·{" "}
+              {intraday ? `${replayIntervalLabel(interval)} Bars` : "Daily Data"}
             </p>
             <h1 className="mt-1.5 text-3xl font-semibold tracking-[-0.025em]">{session.ticker}</h1>
             <div className="mt-2.5 flex flex-wrap items-center gap-2 text-xs text-text-tertiary">
               <MetaChip tone={session.status === "active" ? "warning" : "neutral"}>
-                Replay date · {formatReplayDate(session.current_at)}
+                Replay {intraday ? "time" : "date"} ·{" "}
+                {formatReplayClock(session.current_at, interval)}
+              </MetaChip>
+              <MetaChip tone="neutral">
+                <span data-testid="replay-profile">Fill model · {profileLabel}</span>
               </MetaChip>
               <span>
-                {replayStatusLabel(session.status)} · stored daily bars{" "}
-                {session.start_at.slice(0, 10)} → {session.end_at.slice(0, 10)}
+                {replayStatusLabel(session.status)} · stored {barsWord}{" "}
+                {session.start_at.slice(0, 10)} → {session.end_at.slice(0, 10)} ·{" "}
+                <span data-testid="replay-bar-count">Bar {history.length}</span>
               </span>
             </div>
           </div>
@@ -165,8 +184,13 @@ export default async function ReplaySessionPage({
         <p className="mt-4 flex items-start gap-2.5 rounded-xl border border-border-muted bg-card px-4 py-3 text-sm text-text-secondary">
           <Lock className="mt-0.5 size-4 shrink-0 text-text-tertiary" aria-hidden />
           <span>
-            Blind session: you see bars, indicators and news up to the replay date only. Fills use
-            that day&apos;s stored close, with no spread and no slippage
+            Blind session: you see bars, indicators and news up to the replay{" "}
+            {intraday ? "time" : "date"} only. Market orders fill at the current bar&apos;s stored
+            close; resting orders are{" "}
+            {intrabar
+              ? "judged on each later bar's range, the open first"
+              : "checked against each later close"}
+            , with no spread and no slippage
             {session.fee_schedule && session.fee_schedule !== "none"
               ? ", and pay the exchange's charges in force on that date"
               : ""}
@@ -177,7 +201,7 @@ export default async function ReplaySessionPage({
         {startChanged || endChanged ? (
           <p className="mt-4 border-y border-border-muted py-3 text-sm text-text-secondary sm:border-x sm:px-4">
             Requested {requested.requestedStart} → {requested.requestedEnd}. Resolved{" "}
-            {session.start_at.slice(0, 10)} → {session.end_at.slice(0, 10)} to stored daily bars.
+            {session.start_at.slice(0, 10)} → {session.end_at.slice(0, 10)} to stored {barsWord}.
           </p>
         ) : null}
 
@@ -323,6 +347,8 @@ export default async function ReplaySessionPage({
                   currency={currency}
                   tradable={session.tradable ?? true}
                   feeSchedule={session.fee_schedule}
+                  profileName={session.profile_name}
+                  profileVersion={session.model_version}
                 />
                 <section
                   aria-label={`${session.ticker} replay price chart`}
@@ -358,7 +384,7 @@ export default async function ReplaySessionPage({
                       macdKey={macdKey}
                       panes={panes}
                       badges={badgesFor(selectedIndicators, catalog)}
-                      interval="1d"
+                      interval={parseStockInterval(interval)}
                       events={chartEvents}
                       currency={currency}
                     />
@@ -387,7 +413,12 @@ export default async function ReplaySessionPage({
                     before the first fill. Thesis fields lock once a trade exists.
                   </p>
                 ) : null}
-                <ReplayAssumptions />
+                <ReplayAssumptions
+                  profileLabel={profileLabel}
+                  assumptions={session.profile_assumptions ?? []}
+                  intrabar={intrabar}
+                  barsWord={barsWord}
+                />
               </div>
               <aside
                 className="hidden border-y border-border-muted py-5 xl:block sm:border-x sm:px-5"
@@ -403,6 +434,8 @@ export default async function ReplaySessionPage({
                   currency={currency}
                   tradable={session.tradable ?? true}
                   feeSchedule={session.fee_schedule}
+                  profileName={session.profile_name}
+                  profileVersion={session.model_version}
                 />
               </aside>
             </div>
@@ -420,6 +453,7 @@ export default async function ReplaySessionPage({
                 orders={orders}
                 currency={currency}
                 readOnly={readOnly}
+                profileName={session.profile_name}
               />
               <ReplayFillTable fills={fills} currency={currency} />
               <ReplayAdvanceControls
@@ -427,6 +461,7 @@ export default async function ReplaySessionPage({
                 currentAt={session.current_at}
                 hasNext={session.has_next}
                 readOnly={readOnly}
+                interval={interval}
               />
             </div>
           </>
@@ -547,23 +582,37 @@ function ReplayPositionCard({
   );
 }
 
-function ReplayAssumptions() {
+function ReplayAssumptions({
+  profileLabel,
+  assumptions,
+  intrabar,
+  barsWord,
+}: {
+  profileLabel: string;
+  assumptions: string[];
+  intrabar: boolean;
+  barsWord: string;
+}) {
   return (
     <details className="mt-6 text-xs leading-5 text-text-tertiary">
       <summary className="cursor-pointer font-medium text-text-secondary">
         Simulation assumptions
       </summary>
-      <ul className="mt-2 space-y-1">
-        <li>Execution model: {REPLAY_PROFILE_LABEL}</li>
+      <ul className="mt-2 space-y-1" data-testid="replay-assumptions">
+        <li>Execution model: {profileLabel}</li>
+        {assumptions.map((line) => (
+          <li key={line}>{line}</li>
+        ))}
         <li>
-          Limit and stop orders: checked against each later close as you step, filled at that close;
-          nothing reserved
+          {intrabar
+            ? "Limit, stop and target orders: judged on each later bar's open, high and low as you step; nothing reserved"
+            : "Limit and stop orders: checked against each later close as you step, filled at that close; nothing reserved"}
         </li>
-        <li>Indicators: computed from bars up to the replay date (warm-up from earlier bars)</li>
-        <li>News: shown once its publication time is at or before the replay date</li>
+        <li>Brackets: the stop and the target rest once the entry fills; one cancels the other</li>
+        <li>Indicators: computed from bars up to the replay clock (warm-up from earlier bars)</li>
+        <li>News: shown once its publication time is at or before the replay clock</li>
         <li>Drawings: this session&apos;s own; live-chart drawings are not shown</li>
-        <li>Data: stored 1d bars</li>
-        <li>Fill model: current observable close</li>
+        <li>Data: stored {barsWord}</li>
         <li>Spread: not modelled</li>
         <li>Slippage: not modelled</li>
       </ul>

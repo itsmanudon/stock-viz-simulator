@@ -62,7 +62,11 @@ Replay sessions (`/replay`) are an isolated book over a frozen 1d
 historical range in the symbol's currency (A4.6: INR and others, Indian
 sessions end 30 days before today, fees from the dated schedules, resting
 limit and stop orders, A3's chart with indicators, session-only drawings and
-news gated by `available_at`); the server owns PriceBar selection. Replay Lab is
+news gated by `available_at`); the server owns PriceBar selection. A6.9:
+bracket orders (one cancels the other), the `intrabar_ohlc` v1 profile for
+replay and backtests (live paper stays on `legacy_close`), intraday sessions
+on 1/5/15/60-minute bars built from stored minutes, and autoplay (1-10 bars a
+second through `advance`, rate-limited per user). Replay Lab is
 future-blind. Post-trade forensics reconstruct episodes, MAE/MFE,
 buy-and-hold excess, and a first-fill-locked journal from replay-visible
 bars only. Drills (`/drills`, A4.7) are decks of replays seeded from a

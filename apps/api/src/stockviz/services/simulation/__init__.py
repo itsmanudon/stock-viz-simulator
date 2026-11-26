@@ -19,7 +19,13 @@ from stockviz.services.simulation.contracts import (
     OrderSide,
     SimulationOrderType,
 )
-from stockviz.services.simulation.engine import cost_adjusted, evaluate_order, evaluate_range_stop
+from stockviz.services.simulation.engine import (
+    OcoDecision,
+    cost_adjusted,
+    evaluate_oco_exit,
+    evaluate_order,
+    evaluate_range_stop,
+)
 from stockviz.services.simulation.fees import (
     FEE_SCHEDULES,
     FeeBreakdown,
@@ -35,21 +41,30 @@ from stockviz.services.simulation.ledger import (
     SimPosition,
 )
 from stockviz.services.simulation.profiles import (
+    INTRABAR_OHLC,
+    INTRABAR_UNKNOWN_LABEL,
     LEGACY_CLOSE,
     LEGACY_CLOSE_ASSUMPTIONS,
     LEGACY_CLOSE_MODEL_VERSION,
     LEGACY_CLOSE_NAME,
     NEXT_OPEN,
+    is_intrabar_ohlc,
     is_legacy_close,
 )
 from stockviz.services.simulation.registry import (
+    BACKTEST_PROFILES,
     LIVE_PAPER_EXECUTION_PROFILE,
+    REPLAY_PROFILES,
     UnknownExecutionProfileError,
     get_execution_profile,
+    replay_profile,
 )
 
 __all__ = [
+    "BACKTEST_PROFILES",
     "FEE_SCHEDULES",
+    "INTRABAR_OHLC",
+    "INTRABAR_UNKNOWN_LABEL",
     "LEGACY_CLOSE",
     "LEGACY_CLOSE_ASSUMPTIONS",
     "LEGACY_CLOSE_MODEL_VERSION",
@@ -57,6 +72,7 @@ __all__ = [
     "LIVE_PAPER_EXECUTION_PROFILE",
     "NEXT_OPEN",
     "NO_COSTS",
+    "REPLAY_PROFILES",
     "CostModel",
     "ExecutionProfile",
     "ExecutionTrace",
@@ -65,6 +81,7 @@ __all__ = [
     "FillDecision",
     "FillStatus",
     "MarketSnapshot",
+    "OcoDecision",
     "OrderIntent",
     "OrderSide",
     "SimFill",
@@ -78,9 +95,12 @@ __all__ = [
     "UnknownExecutionProfileError",
     "UnknownFeeScheduleError",
     "cost_adjusted",
+    "evaluate_oco_exit",
     "evaluate_order",
     "evaluate_range_stop",
     "get_execution_profile",
     "get_fee_schedule",
+    "is_intrabar_ohlc",
     "is_legacy_close",
+    "replay_profile",
 ]

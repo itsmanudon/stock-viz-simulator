@@ -1576,6 +1576,36 @@ resting orders").
   prize), `test_replay_a46_migration.py` (PostgreSQL up/down/up),
   `test_kernel_three_way.py` (INR replay compared, skip removed).
 
+**Replay with full orders (A6.9, M9.4).** Migration `e9a4b6c8d0f3`
+(additive; down refuses while a bracket or intraday session is stored):
+`replay_orders.parent_id` (cascade) and `oco_group`, type `bracket`, status
+`pending`; `replay_sessions.interval` (default `1d`) and `feed`. Rules in
+`docs/SIMULATION.md` ("`intrabar_ohlc` (v1) and brackets").
+
+- **Kernel.** `profiles.INTRABAR_OHLC` (`intrabar_ohlc` v1,
+  `INTRABAR_UNKNOWN_LABEL`), `engine.evaluate_order` range rule with the open
+  first, `engine.evaluate_oco_exit(stop, target, market, profile, path=)` ->
+  `OcoDecision(leg, decision, basis)`. Registry: `REPLAY_PROFILES`,
+  `BACKTEST_PROFILES`, `replay_profile(name)`; backtest `FILL_RULES` read the
+  registry. Live stays `legacy_close`.
+- **Replay.** `create_replay_session(interval=, profile=)`;
+  `session.submit_replay_bracket` (market entry fills now, children open;
+  limit entry rests, children pending); `orders._Judge` judges a bracket's
+  open pair through `evaluate_oco_exit`, loading `intraday.minutes_inside`
+  only when both levels are inside the bar. `market.ReplayBar` is what every
+  bar function returns (daily `PriceBar` or `intraday.IntradaySource`).
+- **Routes.** `ReplaySessionCreateIn.interval`/`profile`; `ReplayOrderIn`
+  `bracket` + `entry_type`, `stop_price`, `target_price` (drills share
+  `routers/replay.submit_order`); `ReplayOrderOut.parent_id`, `oco_group`,
+  `order_inside_bar_unknown`; `ReplaySubmitOut.children`;
+  `ReplaySessionOut.interval`, `feed`, `profile_assumptions`; list rows
+  `interval`, `profile_name`; availability `intervals`, `minute_feed`,
+  `minute_first`, `minute_last`. Advance (replay and drills) is limited per
+  user (`throttle.ADVANCE_THROTTLE`, 429), off when the limiter is off.
+- Tests: `test_a69_intrabar_kernel.py`, `test_replay_a69.py`,
+  `test_a69_replay_migration.py` (PostgreSQL), `test_kernel_three_way.py`
+  (`intrabar_ohlc` column and the bracket exit).
+
 **Drills and decks (A4.7, M9.3).** Migration `53b66a2e2ec2` (additive):
 `drill_decks` (rule as a setup version, universe JSON, range, `k` 1-25,
 `lead_bars`/`follow_bars`, `seed`, `anonymised` default true, trigger

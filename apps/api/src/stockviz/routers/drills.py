@@ -14,6 +14,7 @@ from datetime import datetime
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from sqlmodel import Session
 
@@ -66,13 +67,12 @@ from stockviz.services.replay import (
     list_replay_fills,
     list_replay_orders,
     lock_replay_session,
-    submit_replay_order,
 )
 from stockviz.services.replay.context import REPLAY_NEWS_RULE, replay_events, replay_indicators
 from stockviz.services.replay.timeutil import as_aware_utc
 from stockviz.services.scan_event_study import ScanStudyError
 from stockviz.services.setups.rules import error_out
-from stockviz.services.simulation import OrderSide, SimulationClockError, SimulationOrderType
+from stockviz.services.simulation import SimulationClockError
 
 router = APIRouter(prefix="/v1/drills", tags=["drills"])
 
@@ -261,14 +261,7 @@ def post_order(
 
     def work() -> ReplaySubmitOut:
         decks.require_plan(session, ctx)
-        result = submit_replay_order(
-            session,
-            replay=ctx.replay,
-            side=OrderSide(body.side),
-            order_type=SimulationOrderType(body.order_type),
-            quantity=body.quantity,
-            limit_price=body.limit_price,
-        )
+        result = replay_routes.submit_order(session, ctx.replay, body)
         return replay_routes._submit_out(session, result)
 
     return _mask(mask, _guard(mask, work))
@@ -303,11 +296,15 @@ def post_advance(
     session: SessionDep,
     user_id: UserIdDep,
     expected_current_at: datetime | None = None,
-) -> ReplaySessionOut:
+) -> ReplaySessionOut | JSONResponse:
     """Next bar; from the last bar, the session completes (then reveal).
-    ``expected_current_at`` is the date on screen (shifted, when anonymised)."""
+    ``expected_current_at`` is the date on screen (shifted, when anonymised).
+    A6.9: the replay route's per-user advance limit applies (429)."""
     ctx = _ctx(session, drill_id, user_id)
     mask = decks.mask_for(session, ctx)
+    throttled = replay_routes.advance_throttled(user_id)
+    if throttled is not None:
+        return throttled
     expected = expected_current_at
     if expected is not None and mask is not None:
         expected = mask.unshift_dt(expected)
