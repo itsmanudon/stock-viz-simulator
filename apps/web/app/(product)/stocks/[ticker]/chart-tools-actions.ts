@@ -51,9 +51,15 @@ export async function volumeProfileAction(
 export async function chartRuleSetupAction(
   name: string,
   rule: string,
+  timeframe?: "1m" | "5m" | "15m" | "30m" | "60m",
 ): Promise<{ versionId?: number; error?: string }> {
   try {
-    const setup = await createSetup({ name: name.slice(0, 120), rule, kind: "alert" });
+    const setup = await createSetup({
+      name: name.slice(0, 120),
+      rule,
+      kind: "alert",
+      ...(timeframe ? { timeframe } : {}),
+    });
     return { versionId: setup.latest_version.id };
   } catch (err) {
     return authedFailure(err, "The rule could not be saved.");

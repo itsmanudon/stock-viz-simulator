@@ -134,7 +134,7 @@ test("operational trading loop from ticket to orders, watchlist, alerts, and rep
 
   await page.goto("/replay");
   await expect(main.getByRole("heading", { name: "Replay", exact: true })).toBeVisible();
-  await expect(main.getByText("legacy_close v1", { exact: true })).toBeVisible();
+  await expect(main.getByText("intrabar_ohlc v1", { exact: true })).toBeVisible();
   await main.getByLabel("Symbol").selectOption("AAPL");
   await expect(main.getByText(/Stored daily bars for AAPL/i)).toBeVisible({ timeout: 10_000 });
   await main.getByLabel("Start date").fill("2020-01-06");
