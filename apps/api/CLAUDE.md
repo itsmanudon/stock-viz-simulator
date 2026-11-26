@@ -52,7 +52,8 @@ src/stockviz/
                     (A3.2), avwap (A3.3), events, strength (RS
                     percentile, delivery) and regime (A3.5), drills
                     (A4.7), books (A5.1), plans (A5.4), brokers (A5.7: broker
-                    status), health
+                    status), imports (A5.3: `/v1/books/{id}/imports`,
+                    opening lots), health
                     (`GET /live` liveness, `GET /health` readiness + DB)
   services/
     ingest/         External-API fetchers (yfinance primary, Alpha Vantage fallback);
@@ -76,6 +77,10 @@ src/stockviz/
                     buying_power, portfolio, analytics, dividends, fx, snapshots,
                     books (A5.1: resolve_book, the default book)
     books/          A5.1: book create, rename, archive, default, delete
+    imports/        A5.3: Zerodha tradebook CSV: columns (the unconfirmed
+                    map), parse, engine (pure holdings-only ledger, splits,
+                    estimated fees), book (preview, commit, rebuild, delete,
+                    opening lots)
     plans/          A5.4: trade plans: record_fill (the lock), plans on
                     orders, written after entry, session plans for replay
                     and drills, outputs
@@ -1175,6 +1180,71 @@ cascade; entry, stop, size, long only, `locked_at`). Rules and method in
   peak size within the plan; R achieved beside it, "not the score". The
   deck summary counts statuses, traded, followed the plan and checks.
 - Tests: `test_drills.py`, `test_drills_migration.py`.
+
+**Tradebook import (A5.3, M10.2 CSV part).** Migration `e3a1c5d7f902`
+(additive; downgrade refuses while any `broker_fills` row exists):
+`import_batches` (book, broker, `column_map`, `file_sha256`, row counts,
+`created_at`: never the file, its name or a client id), `broker_fills` (one
+row per trade as traded, or an opening lot: `kind` trade|opening, exchange,
+segment, series, `trade_id`, `order_id`, instrument, ticker, ISIN, raw
+symbol, side, quantity, price, `executed_at` naive UTC, `time_known`,
+`auction`, and per rebuild `status` posted|needs_opening_lot, `product`,
+estimated `fees`/`fee_source`/`fee_lines`, `basis_uncertain`; unique
+`(portfolio_id, broker, exchange, trade_id)`), `trades.broker_fill_id`
+(unique, cascade). Models in `models/broker_import.py`; code in
+`services/imports/`, router `routers/imports.py`.
+
+- **Format:** `columns.ZERODHA_TRADEBOOK_V1`, the one table of fields and
+  aliases, **unconfirmed** (third-party column list, design note question
+  10): `format_status: "unconfirmed"` in every response. Headers match
+  ignoring case, spaces, `_`, `-`, `.`, `/`; required symbol, trade date,
+  exchange, trade type, quantity, price, trade id; optional ISIN, segment,
+  series, auction, order id, order execution time. Dates: ISO, month names,
+  numeric with the day/month order inferred from the file (a part over 12),
+  ambiguous or conflicting rows rejected; IST times to naive UTC; no time =
+  the start of the IST trade date, `time_known` false. NFO/BFO/MCX/CDS and
+  F&O/currency/commodity segments are `segment` problems (A6). Problems
+  carry the row (header = row 1), field and a fixed reason, never a value.
+- **Routes** (authed; another user's book 404, a paper book 409, archived
+  or non-INR 409 for writes): `POST /v1/books/{id}/imports/preview`
+  (`text/csv` body read under 2 MiB, 413 past it, 415 another type; 422 an
+  XLSX or unreadable file; stores nothing) -> `ImportPreviewOut` (columns
+  and unmatched headers, counts, first 20 new trades, up to 300 problems);
+  `POST .../imports/commit?file_sha256=` (the same bytes; 409 another file;
+  200 with `batch: null` when nothing is new; 30 commits an hour per user,
+  429); `GET .../imports` (batches, opening lots, sells waiting per symbol);
+  `DELETE .../imports/{batch_id}`; `POST|DELETE .../opening-lots[/{id}]`.
+  Instruments: ISIN (`instrument_identifiers` scheme `isin`, the row's venue
+  preferred), else symbol + `.NS`/`.BO`; unmatched rows are skipped.
+- **Ledger:** `book.rebuild_book` replays every fill of the book through
+  `engine.replay_fills` and rewrites its `trades` (updated in place, so plan
+  links survive) and `positions` on every commit, batch delete, opening lot
+  and split (`corporate_actions.apply.rebase_book` rebuilds an imported book
+  instead of scaling it; imported books with fills before the cut-off are
+  candidates). Holdings only, `fx_rate` 1, realized P&L on the weighted
+  average; a sell with too few shares is `needs_opening_lot` and does not
+  post; fills on a venue date before a due split's ex-date are restated
+  (qty x r, price / r); `basis_uncertain` when the restated price is outside
+  the day's bar low-2%..high+2%. Fees: the A4.2 schedules on the as-traded
+  numbers, the offsetting part of a scrip's day priced intraday, DP once per
+  scrip-day on delivery sells; `TradeOut.fees_estimated` and
+  `broker_fill_id` mark them.
+- **Plans:** `POST /v1/plans?book=<imported>` makes `source: imported`
+  plans. A posted buy opening a position links the newest open plan for the
+  instrument created at or before its time (`record_fill` locks it); later
+  buys of the position join it; the position back to zero closes it; a plan
+  whose fills are all deleted is closed and stays frozen. Opening lots pair
+  no plan.
+- **Privacy:** nothing in the import path logs; `observability.scrub_event`
+  drops the body, query and frame variables of Sentry events on import
+  routes. `services/trading/account.activity` adds `imports` and `opening
+  lots`; deleting a book deletes its fills and batches.
+- Tests: `test_imports.py` (aliases, date formats, ambiguous dates, bad
+  values, size/type, preview stores nothing, dedupe and overlap, ISIN,
+  isolation, fees and intraday inference, DP, split restatement, basis,
+  later split rebuild, opening lots, batch delete rebuild, book delete,
+  plan lock / written after entry / closed after delete, flows, no cell in
+  logs, Sentry scrub), `test_imports_migration.py` (PostgreSQL up/down/up).
 
 **Trade plans (A5.4, M10.3).** Migration `b5d4a7e1c902`: `trade_plans`
 (`models/trade_plan.py`): user, `portfolio_id` (paper, imported; cascade),
@@ -2306,7 +2376,8 @@ checked_at}`. `configured` = `KITE_API_KEY` and `KITE_API_SECRET` both set
 newest `kite-snapshot` run failed within `OFFLINE_WINDOW`, 3 days),
 `snapshot_only` (a snapshot has succeeded), else `not_connected`.
 `imported_books` counts the caller's active imported Zerodha books;
-`last_imported_at` stays null until A5.3's tradebook import. Provider
+`last_imported_at` is the newest `import_batches.created_at` across the
+caller's Zerodha books (A5.3; archived books included). Provider
 health reuses `job_runs`: once `ingest-history --provider kite` reaches Kite
 (keys and a request token set) it writes one `kite-snapshot` row through
 `record_provider_run`: `failed` on a Kite login error or any `KiteError` /

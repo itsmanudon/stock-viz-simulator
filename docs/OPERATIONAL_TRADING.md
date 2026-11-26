@@ -65,7 +65,7 @@ alerts are per book; price alerts, watchlists and the display currency stay
 per user. Each paper book has its own base currency (USD or INR, fixed after
 its first activity) and starts with that currency's starting cash. An
 archived book is readable but takes no trades or orders (409), and an
-imported book (filled by the Zerodha import, A5.3) never trades here.
+imported book (filled by the Zerodha import, A5.3, below) never trades here.
 Another user's book is 404.
 
 **In the web (A5.2).** The selected book is URL state: `?book=<id>` on the
@@ -85,6 +85,52 @@ a new book (its opening value) or an imported buy brings in; a rate older
 than the session before its date is used with a warning, and a date with no
 rate is left out with a warning. Risk, stress, attribution, limits,
 dividends, options Greeks and strategies, and the journal are per book only.
+
+## Zerodha tradebook import (A5.3)
+
+An imported book (Settings → Books, kind Imported; created in INR) is filled
+from a Zerodha Console tradebook downloaded as **CSV** (equity segment, up
+to a year, at most 2 MB). On `/portfolio/import?book=<id>` (linked from the
+imported book's notice and the sidebar):
+
+1. **Preview.** The file goes to a server action and on to the API as
+   `text/csv`; nothing is stored. The preview shows which header each field
+   was read from, the first 20 new trades (with estimated charges and any
+   split restatement) and every problem by row number: rejected rows (with
+   the field and a fixed reason, never the cell), F&O and other segments
+   (skipped until A6), unknown symbols, trade ids repeated in the file or
+   already imported, sells that need an opening lot and basis-uncertain
+   prices.
+2. **Confirm import.** The same file is sent again with the preview's
+   SHA-256; another file is refused. The new trades are stored and the book
+   is rebuilt: holdings only (no cash), weighted-average cost and realized
+   P&L, buys and sells counted as outside flows in All books.
+
+**The column map is unconfirmed**: Zerodha publishes no column list, so the
+default names come from a third-party description. If the preview's columns
+look wrong, send the header row (never the file).
+
+- **Dates:** ISO, month names and numeric dates; a numeric date is read
+  day-first or month-first only when the file shows which (a part over 12),
+  otherwise ambiguous rows are rejected. Times are IST.
+- **Dedupe:** one trade per (book, exchange, trade id); the same file twice
+  adds nothing, an overlapping file adds only the new trades.
+- **Charges are estimated** from the dated schedules (NSE/BSE delivery; the
+  part of a day's buys and sells of one scrip that offset is priced as
+  intraday, "inferred").
+- **Splits:** trades before a recorded split are restated to the
+  split-adjusted bars (the stored fill keeps the as-traded numbers); a
+  price far outside its day's bar is flagged "basis uncertain" (a bonus or
+  rights issue not recorded yet).
+- **Opening lots:** a sell with too few shares bought before it waits until
+  you add an opening lot (symbol, date, quantity, average price).
+- **History:** each import lists its counts and can be deleted in two steps;
+  its trades leave the book and positions are rebuilt from the rest.
+- **Plans:** a plan written in the imported book before a buy's time locks
+  at that buy; "Plan an open position" links one written later (labelled
+  written after entry).
+- **Privacy:** the file, its name and your client id are never stored or
+  logged; the import keeps parsed fields and the file's hash.
 
 ## Trade plans (A5.4)
 
