@@ -5604,6 +5604,23 @@ export interface components {
             /** Buckets */
             buckets: components["schemas"]["ExposureBucketOut"][];
         };
+        /**
+         * FactorIn
+         * @description A7.7 (M7.5): one factor of a multi-factor model.
+         */
+        FactorIn: {
+            /** Name */
+            name?: string | null;
+            /** Expression */
+            expression: string;
+            /** Weight */
+            weight: number;
+            /**
+             * Higher Is Better
+             * @default true
+             */
+            higher_is_better: boolean;
+        };
         /** FanPointOut */
         FanPointOut: {
             /**
@@ -10090,10 +10107,17 @@ export interface components {
          *     on the venue calendar. ``cash_filter`` is an optional condition judged on
          *     the market index (``^GSPC`` / ``^NSEI``) at each rebalance close: met
          *     means hold cash. Long only.
+         *
+         *     A7.7 (M7.5): ``factors`` instead of ``ranking`` makes it a multi-factor
+         *     model: each factor is z-scored across the universe on each session
+         *     (symbols with every factor known), signed by ``higher_is_better``, and
+         *     weighted; the weighted sum ranks. Exactly one of the two.
          */
         RotationBacktestIn: {
             /** Ranking */
-            ranking: string;
+            ranking?: string | null;
+            /** Factors */
+            factors?: components["schemas"]["FactorIn"][] | null;
             /**
              * Top N
              * @default 5
@@ -10410,7 +10434,7 @@ export interface components {
              * Role
              * @enum {string}
              */
-            role: "ranking" | "cash_filter";
+            role: "ranking" | "cash_filter" | "factor";
             /** Text */
             text: string;
             /** Canonical */

@@ -134,6 +134,50 @@ def _volatility(closes: Any) -> list[float | None]:
     return [None if pd.isna(v) else float(v) for v in sd.tolist()]
 
 
+FACTOR_MIN_SYMBOLS = 3
+
+
+def factor_scores(
+    inputs: list[RotationSymbol],
+    values: dict[str, list[list[float | None]]],
+    factors: list[Any],
+) -> list[RotationSymbol]:
+    """A7.7 (M7.5): each symbol's score on each date is the weighted sum of its
+    factors' cross-sectional z-scores that date (sign flipped where lower is
+    better). A date counts the symbols with every factor known; under
+    ``FACTOR_MIN_SYMBOLS`` of them, or a factor with no spread, nobody is
+    scored that date (unknown, so never ranked). Pure; values only from bars up
+    to each date, so no look-ahead."""
+    by_date: dict[date, dict[str, list[float]]] = {}
+    for sym in inputs:
+        rows = values.get(sym.ticker, [])
+        for i, day in enumerate(sym.dates):
+            point = [col[i] for col in rows]
+            if point and all(v is not None and math.isfinite(v) for v in point):
+                by_date.setdefault(day, {})[sym.ticker] = [float(v) for v in point]  # type: ignore[arg-type]
+    composite: dict[tuple[str, date], float] = {}
+    for day, members in by_date.items():
+        if len(members) < FACTOR_MIN_SYMBOLS:
+            continue
+        columns = list(zip(*members.values(), strict=True))
+        stats = []
+        for col in columns:
+            mean = sum(col) / len(col)
+            sd = math.sqrt(sum((v - mean) ** 2 for v in col) / (len(col) - 1))
+            stats.append((mean, sd))
+        if any(sd == 0 for _m, sd in stats):
+            continue
+        for ticker, point in members.items():
+            total = 0.0
+            for f, v, (mean, sd) in zip(factors, point, stats, strict=True):
+                z = (v - mean) / sd
+                total += f.weight * (z if f.higher_is_better else -z)
+            composite[(ticker, day)] = total
+    return [
+        replace(sym, score=[composite.get((sym.ticker, d)) for d in sym.dates]) for sym in inputs
+    ]
+
+
 def execute_rotation(
     session: Session, body: RotationBacktestIn, *, user_id: int | None
 ) -> RotationRun:
@@ -142,7 +186,15 @@ def execute_rotation(
     if body.from_ > body.to:
         raise StrategyError("'from' must be on or before 'to'")
     window = split_window(body.from_, body.to, body.holdout)
-    ranking = compile_number(body.ranking)  # RuleError: the router's 422
+    # A7.7: a factor model compiles each factor; their sum supplies the
+    # combined warm-up and inputs to load (its values are never used).
+    factor_rules = [compile_number(f.expression) for f in body.factors] if body.factors else []
+    if factor_rules:
+        assert body.factors is not None
+        ranking = compile_number(" + ".join(f"({f.expression})" for f in body.factors))
+    else:
+        assert body.ranking is not None
+        ranking = compile_number(body.ranking)  # RuleError: the router's 422
     if ranking.user_scoped and user_id is None:
         raise StrategyNeedsUser("This ranking reads your drawings: sign in to run it")
     cash_rule = (
@@ -199,7 +251,13 @@ def execute_rotation(
         lookback = max(lookback, VOL_WINDOW + 1 if vol_needed else 0) + 1
     needs = ranking.needs
     digest = hashlib.sha256()
-    digest.update(f"ranking|{ranking.hash}\n".encode())
+    if factor_rules:
+        assert body.factors is not None
+        for f, rule in zip(body.factors, factor_rules, strict=True):
+            digest.update(f"factor|{rule.hash}|{f.weight}|{f.higher_is_better}\n".encode())
+    else:
+        digest.update(f"ranking|{ranking.hash}\n".encode())
+    factor_values: dict[str, list[list[float | None]]] = {}
     inputs: list[RotationSymbol] = []
     bases: set[str] = set()
     bar_count = 0
@@ -231,11 +289,13 @@ def execute_rotation(
                 low=[r.low for r in rows],
                 close=[r.close for r in rows],
                 volume=[Decimal(r.volume) for r in rows],
-                score=_float_list(vector(ranking, data)),
+                score=([None] * len(dates) if factor_rules else _float_list(vector(ranking, data))),
                 first=first,
                 vol=_volatility(data.bars["close"]) if vol_needed else None,
             )
         )
+        if factor_rules:
+            factor_values[ticker] = [_float_list(vector(rule, data)) for rule in factor_rules]
         digest.update(f"symbol|{ticker}\n".encode())
         for r in rows:
             digest.update(
@@ -258,6 +318,10 @@ def execute_rotation(
         bar_count += len(rows)
         first_at = rows[0].ts if first_at is None else min(first_at, rows[0].ts)
         last_at = rows[-1].ts if last_at is None else max(last_at, rows[-1].ts)
+
+    if factor_rules:
+        assert body.factors is not None
+        inputs = factor_scores(inputs, factor_values, body.factors)
 
     signals = rebalance_signals(window.from_date, window.to_date, body.schedule, venue)
 
@@ -300,15 +364,41 @@ def execute_rotation(
     except RotationError as exc:
         raise StrategyError(str(exc)) from exc
 
-    rules_out = [
-        RotationRuleOut(
-            role="ranking",
-            text=ranking.text,
-            canonical=ranking.canonical_text,
-            hash=ranking.hash,
-            warmup_bars=ranking.lookback,
+    if factor_rules:
+        assert body.factors is not None
+        combined = " + ".join(
+            f"{f.weight:g} x {'' if f.higher_is_better else '-'}z({rule.canonical_text})"
+            for f, rule in zip(body.factors, factor_rules, strict=True)
         )
-    ]
+        rules_out = [
+            RotationRuleOut(
+                role="ranking",
+                text=f"Factor model: {combined}",
+                canonical=combined,
+                hash=hashlib.sha256(combined.encode()).hexdigest(),
+                warmup_bars=ranking.lookback,
+            ),
+            *[
+                RotationRuleOut(
+                    role="factor",
+                    text=f"{f.name or 'factor'}: {rule.text}",
+                    canonical=rule.canonical_text,
+                    hash=rule.hash,
+                    warmup_bars=rule.lookback,
+                )
+                for f, rule in zip(body.factors, factor_rules, strict=True)
+            ],
+        ]
+    else:
+        rules_out = [
+            RotationRuleOut(
+                role="ranking",
+                text=ranking.text,
+                canonical=ranking.canonical_text,
+                hash=ranking.hash,
+                warmup_bars=ranking.lookback,
+            )
+        ]
     if cash_rule is not None:
         rules_out.append(
             RotationRuleOut(

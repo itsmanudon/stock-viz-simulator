@@ -1630,6 +1630,20 @@ perturbing bars after a rebalance, unknown ranks excluded, cash filter
 met / unknown, costs and turnover, resizing, buffer, inverse volatility,
 rerun identical and data changed).
 
+**Multi-factor models (A7.7, M7.5).** `RotationBacktestIn.factors` (1-8
+`{name, expression, weight 0-10, higher_is_better}`) instead of `ranking`
+(exactly one; 422 otherwise). `rotation_run.factor_scores` (pure): on each
+session, each factor is z-scored across the symbols with every factor known
+(at least 3; a factor with no spread leaves the date unscored), signed and
+weighted; the sum is the score A4.4's engine ranks, so rebalancing, costs,
+holdout, trials and reruns are the rotation's. The combined canonical text
+(`2 x z(...) + 1 x -z(...)`) is the `ranking` rule's text and hash (in the
+strategy hash and the trial family's skeleton: weight variants are trials of
+one family); each factor is also a `factor` rule. Warm-up and inputs come
+from the factors' sum. Web: the rotation form's Factor model mode with
+presets (momentum 12-1, low volatility, P/E value, ROE quality, size).
+Tests: `tests/test_a77_factors.py`.
+
 **Scan event study (A4.5, M7.3).** `POST /v1/research/scan-event-study`
 (`routers/research.py`, public, 10/min, `auth.OptionalUserIdDep`;
 `services/scan_event_study.py`) takes `ScanEventStudyIn`: `trigger`
