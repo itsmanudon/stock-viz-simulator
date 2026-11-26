@@ -22,10 +22,14 @@ export default async function ReplayPage({
 }) {
   const { ticker: rawTicker } = await searchParams;
   const [symbols, sessions] = await Promise.all([listSymbols(), listReplaySessions()]);
+  // A4.6: every currency (the session trades in the symbol's); indices too, to watch.
   const options = [...symbols]
-    .filter((symbol) => (symbol.currency || "USD") === "USD")
     .sort((a, b) => a.ticker.localeCompare(b.ticker))
-    .map((symbol) => ({ ticker: symbol.ticker, name: symbol.name }));
+    .map((symbol) => ({
+      ticker: symbol.ticker,
+      name: symbol.name,
+      currency: symbol.currency || "USD",
+    }));
   const initialTicker = rawTicker?.trim().toUpperCase();
 
   return (

@@ -4,13 +4,15 @@
  * Create an alert rule (Phase 7.3, audit UX-2).
  *
  * One form for every kind: a price level, a session move, a technical
- * crossing, Aegis news, or a portfolio measure. It searches symbols by
+ * crossing, Aegis news, a portfolio measure, or (A2.3) a saved Rule DSL
+ * setup, yours or a preset. It searches symbols by
  * ticker or name, shows the stored close with its date and the distance to a
  * price target, and previews the rule in words before it is saved. Rules are
  * judged on daily closes after each nightly run, never in real time.
  */
 
 import { Bell } from "lucide-react";
+import Link from "next/link";
 import { Popover } from "radix-ui";
 import { useActionState, useId, useMemo, useState } from "react";
 
@@ -31,6 +33,15 @@ export type AlertSymbol = {
   last_close_at: string | null;
 };
 
+/** A2.3: a setup version a rule alert can judge (yours, or a preset). */
+export type AlertSetup = {
+  versionId: number;
+  name: string;
+  version: number;
+  canonical: string;
+  preset: boolean;
+};
+
 type Kind = RuleDraft["kind"];
 
 const KINDS: { value: Kind; label: string }[] = [
@@ -39,6 +50,7 @@ const KINDS: { value: Kind; label: string }[] = [
   { value: "technical", label: "Technical crossing" },
   { value: "news", label: "News (Aegis)" },
   { value: "portfolio", label: "My portfolio" },
+  { value: "rule", label: "Rule (saved setup)" },
 ];
 
 /** Series a technical rule can compare; `.output` picks one of several. */
@@ -81,6 +93,7 @@ function AlertFields({
   lastCloseAt,
   currency,
   symbols,
+  setups,
   pending,
   state,
 }: {
@@ -90,6 +103,7 @@ function AlertFields({
   lastCloseAt: string | null;
   currency: string;
   symbols: AlertSymbol[];
+  setups: AlertSetup[];
   pending: boolean;
   state: CreateAlertState;
 }) {
@@ -112,6 +126,9 @@ function AlertFields({
   const ccy = fixedTicker ? currency : (picked?.currency ?? currency);
   const distance = draft.kind === "price" ? distanceToTargetPct(close, draft.target) : null;
   const needsTicker = draft.kind !== "portfolio";
+  const chosenSetup = setups.find((x) => String(x.versionId) === draft.setupVersionId);
+  const mySetups = setups.filter((x) => !x.preset);
+  const presetSetups = setups.filter((x) => x.preset);
 
   return (
     <>
@@ -307,6 +324,65 @@ function AlertFields({
         </div>
       ) : null}
 
+      {draft.kind === "rule" ? (
+        setups.length ? (
+          <div className="grid gap-1.5">
+            <Field id={`${id}-setup`} label="Saved setup">
+              <select
+                id={`${id}-setup`}
+                name="setup_version_id"
+                value={draft.setupVersionId ?? ""}
+                onChange={(e) => {
+                  const pick = setups.find((x) => String(x.versionId) === e.target.value);
+                  set({
+                    setupVersionId: e.target.value || undefined,
+                    setupLabel: pick ? `${pick.name} (v${pick.version})` : undefined,
+                  });
+                }}
+                required
+                className={SELECT}
+              >
+                <option value="">Choose a setup</option>
+                {mySetups.length ? (
+                  <optgroup label="Your setups">
+                    {mySetups.map((x) => (
+                      <option key={x.versionId} value={x.versionId}>
+                        {x.name} (v{x.version})
+                      </option>
+                    ))}
+                  </optgroup>
+                ) : null}
+                {presetSetups.length ? (
+                  <optgroup label="Presets">
+                    {presetSetups.map((x) => (
+                      <option key={x.versionId} value={x.versionId}>
+                        {x.name}
+                      </option>
+                    ))}
+                  </optgroup>
+                ) : null}
+              </select>
+            </Field>
+            {chosenSetup ? (
+              <code
+                className="block rounded-sm bg-surface-secondary px-2 py-1.5 font-mono text-2xs break-words"
+                data-testid="alert-setup-rule"
+              >
+                {chosenSetup.canonical}
+              </code>
+            ) : null}
+          </div>
+        ) : (
+          <p className="text-xs text-text-tertiary" data-testid="alert-no-setups">
+            No saved setups yet.{" "}
+            <Link href="/setups" className="underline">
+              Save a rule as a setup
+            </Link>{" "}
+            or fork a preset, then pick it here.
+          </p>
+        )
+      ) : null}
+
       {draft.kind === "portfolio" ? (
         <div className="grid grid-cols-2 gap-3">
           <Field id={`${id}-metric`} label="Measure">
@@ -379,6 +455,7 @@ export function AlertForm({
   lastCloseAt = null,
   currency = "USD",
   symbols = [],
+  setups = [],
   variant = "popover",
 }: {
   ticker: string;
@@ -386,6 +463,7 @@ export function AlertForm({
   lastCloseAt?: string | null;
   currency?: string;
   symbols?: AlertSymbol[];
+  setups?: AlertSetup[];
   variant?: "popover" | "inline";
 }) {
   const [open, setOpen] = useState(false);
@@ -409,6 +487,7 @@ export function AlertForm({
             ]
           : symbols
       }
+      setups={setups}
       pending={pending}
       state={state}
     />

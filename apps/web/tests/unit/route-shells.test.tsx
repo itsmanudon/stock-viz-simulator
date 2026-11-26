@@ -18,6 +18,10 @@ vi.mock("@/components/account-menu", () => ({
   AccountMenu: () => <button type="button">Account</button>,
 }));
 
+vi.mock("@/components/book-switcher-slot", () => ({
+  BookSwitcherSlot: () => <button type="button">Book</button>,
+}));
+
 vi.mock("@/components/alerts-bell", () => ({
   AlertsBell: () => null,
 }));
@@ -28,6 +32,9 @@ vi.mock("@/components/theme-toggle", () => ({
 
 // Async server component (it awaits a bars fetch), which the client renderer
 // can't resolve. Its content is covered in app-shell.test.tsx.
+vi.mock("@/components/regime-badge", () => ({
+  RegimeBadges: () => <span>Regime</span>,
+}));
 vi.mock("@/components/marketing/market-status", () => ({
   DataDateChip: () => <span>EOD data</span>,
 }));

@@ -7,8 +7,13 @@ import { DOC_PAGES, findDocPage } from "@/lib/docs/nav";
 
 type Params = { params: Promise<{ slug: string }> };
 
+/** Pages with a route of their own (A4.2: /docs/costs reads the API). */
+const OWN_ROUTES = new Set(["costs"]);
+
 export function generateStaticParams() {
-  return DOC_PAGES.map((page) => ({ slug: page.slug }));
+  return DOC_PAGES.filter((page) => !OWN_ROUTES.has(page.slug)).map((page) => ({
+    slug: page.slug,
+  }));
 }
 
 export async function generateMetadata({ params }: Params): Promise<Metadata> {

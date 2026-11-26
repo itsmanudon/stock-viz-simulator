@@ -22,7 +22,6 @@ from stockviz.models import (
     OptionStatus,
     OptionType,
     PortfolioSnapshot,
-    Recommendation,
     Symbol,
     Trade,
     TradeSide,
@@ -40,6 +39,7 @@ from stockviz.services.journal import (
 from stockviz.services.journal.query import utc_window
 from stockviz.services.trading import ensure_default_portfolio
 from stockviz.settings import get_settings
+from tests.book_helpers import default_book_id
 
 SECRET = get_settings().internal_api_token
 
@@ -355,9 +355,23 @@ def test_return_pct_uses_the_nav_snapshot_before_the_month(
     user_id = _make_user(session, "return@stockviz.dev")
     portfolio = ensure_default_portfolio(session, user_id)
     assert portfolio.id is not None
-    session.add(PortfolioSnapshot(user_id=user_id, date=date(2026, 7, 31), nav=Decimal("100000")))
+    session.add(
+        PortfolioSnapshot(
+            user_id=user_id,
+            portfolio_id=default_book_id(session, user_id),
+            date=date(2026, 7, 31),
+            nav=Decimal("100000"),
+        )
+    )
     # A later snapshot inside the month must not become the denominator.
-    session.add(PortfolioSnapshot(user_id=user_id, date=date(2026, 8, 15), nav=Decimal("50000")))
+    session.add(
+        PortfolioSnapshot(
+            user_id=user_id,
+            portfolio_id=default_book_id(session, user_id),
+            date=date(2026, 8, 15),
+            nav=Decimal("50000"),
+        )
+    )
     session.commit()
     _add_trade(session, portfolio_id=portfolio.id, ts=datetime(2026, 8, 19, 18), realized="5000.00")
 
@@ -488,18 +502,6 @@ def test_closing_time_recommendation_is_not_misrepresented_as_entry_signal(
     user_id = _make_user(session, "signal@stockviz.dev")
     portfolio = ensure_default_portfolio(session, user_id)
     assert portfolio.id is not None
-    session.add_all(
-        [
-            Recommendation(
-                ticker="AAPL", score=Decimal(5), computed_at=datetime(2026, 8, 18, 21, 0)
-            ),
-            # Computed after the fill — must never be attached.
-            Recommendation(
-                ticker="AAPL", score=Decimal(7), computed_at=datetime(2026, 8, 19, 23, 0)
-            ),
-        ]
-    )
-    session.commit()
     _add_trade(session, portfolio_id=portfolio.id, ts=datetime(2026, 8, 19, 18), realized="12.00")
 
     body = client.get(
@@ -563,10 +565,6 @@ def test_no_signal_is_shown_when_none_was_computed_before_the_fill(
     user_id = _make_user(session, "nosignal@stockviz.dev")
     portfolio = ensure_default_portfolio(session, user_id)
     assert portfolio.id is not None
-    session.add(
-        Recommendation(ticker="AAPL", score=Decimal(6), computed_at=datetime(2026, 8, 20, 21, 0))
-    )
-    session.commit()
     _add_trade(session, portfolio_id=portfolio.id, ts=datetime(2026, 8, 19, 18), realized="12.00")
 
     body = client.get(

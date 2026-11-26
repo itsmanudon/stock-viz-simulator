@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { BookLink } from "@/components/book-link";
 
 import { titleCase } from "@/lib/title-case";
 import { cn } from "@/lib/utils";
@@ -64,7 +64,7 @@ export function PageSubnav({
             <li key={item.href}>
               {/* Client-side navigation (was a plain <a>, which reloaded the
                   whole document on every tab switch). */}
-              <Link
+              <BookLink
                 href={item.href}
                 aria-current={active ? "page" : undefined}
                 className={cn(
@@ -81,7 +81,7 @@ export function PageSubnav({
                     className="nav-active-bar absolute inset-x-2 -bottom-px h-0.5 rounded-full"
                   />
                 ) : null}
-              </Link>
+              </BookLink>
             </li>
           );
         })}

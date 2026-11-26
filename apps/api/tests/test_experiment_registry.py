@@ -83,6 +83,8 @@ def test_a_saved_run_reruns_identically(session: Session, client: TestClient) ->
 
     # Same request through the public endpoint: the same answer.
     public = client.post("/v1/backtest", json=BACKTEST).json()
+    # A4.3: the ledger's checks come with the response and are never stored.
+    assert public.pop("checks") is not None
     assert public == run["result"]
 
     report = client.post(f"/v1/experiments/runs/{run['id']}/rerun", headers=headers).json()

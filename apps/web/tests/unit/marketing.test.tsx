@@ -58,7 +58,7 @@ describe("HomePage", () => {
     for (const [name, href] of [
       ["Markets", "/markets"],
       ["Screener", "/screener"],
-      ["Signals", "/recommendations"],
+      ["Checklist", "/checklist"],
       ["Backtest", "/backtest"],
       ["Paper trading", "/trade"],
       ["Portfolio", "/portfolio"],

@@ -1,4 +1,4 @@
-// Rule DSL grammar (A2.1). LALR(1), parsed by Lark; see parser.py for the AST.
+// Rule DSL grammar (A2.1; A3.3 adds drawing("label") and avwap("label")). LALR(1), parsed by Lark; see parser.py for the AST.
 //
 // Precedence, loosest first: or, and, not, comparison and crossing (one per
 // level, never chained), + -, * /, unary minus and timeframe prefixes, then
@@ -38,6 +38,7 @@
 ?primary: NUMBER                      -> number
         | NAME                        -> name
         | NAME "(" [args] ")"         -> call
+        | NAME "(" STRING ")"         -> ref
         | _FUNDAMENTAL "." NAME       -> fundamental
         | _NEWS "." NAME "(" [args] ")" -> news
         | "(" expr ")"

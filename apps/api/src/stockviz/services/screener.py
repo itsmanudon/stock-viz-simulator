@@ -100,6 +100,7 @@ class ScreenQuery:
     limit: int = 50
     # A2.2: a compiled Rule DSL condition, judged after the SQL filters.
     rule: CompiledRule | None = None
+    rule_user_id: int | None = None  # A3.3: whose drawings a user-scoped rule reads
     rule_mode: str = "met_only"  # met_only | all
     as_of: date | None = None
     now: datetime | None = None  # the clock (tests pin it)
@@ -289,6 +290,7 @@ def run_screen_full(session: Session, q: ScreenQuery) -> ScreenResult:
             [r.ticker for r in rows],
             as_of=q.as_of,
             now=q.now or datetime.now(UTC),
+            user_id=q.rule_user_id,
         )
         counts = {"met": 0, "not_met": 0, "unknown": 0}
         for row in rows:

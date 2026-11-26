@@ -13,7 +13,8 @@ These are the current, code-verified boundaries of StockViz. They are not commit
   licensing approval are separate gates. Massive must not be the primary
   provider yet. See [market-data semantics](./MARKET_DATA.md).
 - **Small seeded universe.** The demo data contains a few dozen symbols. Symbol-search API support exists, but the header does not expose typeahead.
-- **Rule-based recommendations.** Technical votes and the Aegis News sentiment vote produce explainable scores; this is not a predictive model.
+- **The Checklist is a count, not a model (A2.4).** Six published conditions (Rule DSL setups) are met, not met or unknown; "N of 6 met" is not a prediction and never a buy or sell call. Volume/Delivery's delivery condition applies to NSE/BSE listings only and stays unknown until NSE delivery files are loaded (A1); Quality is unknown on dates before fundamentals were collected.
+- **Checklist evidence grades are survivorship-biased (until A1.4b).** The weekly `checklist-evidence` study measures each dimension on the pinned symbol list with today's provider history, so delisted and dropped names are missing and a grade can look better than it would have at the time. It uses split-adjusted closes without dividends, fees on a fixed 100,000 position, skips overlapping windows on one symbol but not correlated windows across symbols (the t-statistic is not adjusted for them), and dates fundamentals by fetch day. Every grade carries this stamp and its sample.
 
 ## Trading and quantitative models
 
@@ -30,7 +31,7 @@ These are the current, code-verified boundaries of StockViz. They are not commit
 - **No retry topics or dead-letter queue.** A failed record is rewound with `seek` so the same offset is retried, which means a genuinely poison record stalls its partition until the worker/code/data is corrected. That stall is the deliberate trade: without a DLQ, the alternative is silently dropping a market bar or news article. Retries are unbounded and unattended — there is no attempt counter, alert, or quarantine path.
 - **No Schema Registry.** Versioned JSON event contracts are application-managed.
 - **CPU-based consumer HPA.** The kind example demonstrates CPU autoscaling; Kafka lag would usually be a better production signal.
-- **Scheduled reconciliation remains.** Full-universe metric and sentiment aggregation jobs intentionally repair incremental-processing drift. Recommendations and financial settlement remain scheduled/synchronous by design.
+- **Scheduled reconciliation remains.** Full-universe metric and sentiment aggregation jobs intentionally repair incremental-processing drift. The checklist and financial settlement remain scheduled/synchronous by design.
 
 ## Deployment and operations
 
@@ -45,4 +46,6 @@ These are the current, code-verified boundaries of StockViz. They are not commit
 
 - Google OAuth needs valid provider credentials; email/password signup remains available without them.
 - There is no email verification, password reset, or change-password flow.
-- Alerts are in-app only. They are evaluated by incremental market analytics after refreshed bars and are not email/push notifications.
+- Alerts and notifications are end of day: judged after the nightly refresh, never in real time. Since A2.3 they also go to a user's signed webhook, email (only when the server has every `SMTP_*` value) or Telegram (only with `TELEGRAM_BOT_TOKEN`); hosted, the cron sends them once a night, so a failed send retries the next night unless the in-process scheduler runs.
+- **TODO (A2.3): browser push.** Not built. It needs a VAPID key pair (a server secret the owner sets), a service worker and per-browser subscriptions; it would be one more channel behind `services/delivery`.
+- The webhook signing secret is stored in plain text in `notification_channels.secret` (write-only through the API, never logged). Encrypting it at rest needs a server key that does not exist yet.

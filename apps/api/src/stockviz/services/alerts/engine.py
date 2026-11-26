@@ -14,6 +14,12 @@ Each active rule is judged on its ticker's newest daily bar:
   ``dedupe_key`` (``<rule>:<bar date>``) is unique in ``alert_events``.
 - ``once`` rules stop after firing; ``every_cross`` rules fire again on a
   later cross once ``cooldown_sessions`` bars have passed.
+- **Rule alerts (A2.3)** judge a Rule DSL setup version on the ticker's
+  newest daily bar in point mode (``dsl.point``: only bars, facts and news
+  known at that bar's close). Same crossing, arming, cooldown and dedupe
+  rules. A result of ``unknown`` (missing data, warm-up) never fires and
+  never counts as true: it is recorded as not-true, so true -> unknown ->
+  true fires again on the second true.
 """
 
 from __future__ import annotations
@@ -306,6 +312,9 @@ def evaluate_pending_alerts(
                 now=now,
             )
             fired += event is not None
+    fired += _evaluate_rule_alerts(
+        session, ticker=ticker, now=now, session_date=session_date, known=known_at_arming
+    )
     fired += _evaluate_news(session, ticker=ticker, now=now, session_date=session_date)
     if ticker is None:
         fired += _evaluate_portfolio(session, now=now, session_date=session_date)
@@ -399,19 +408,24 @@ def _evaluate_portfolio(session: Session, *, now: datetime, session_date: date) 
     when it was set does not fire (RS-8). An incomplete valuation (LG-13) is
     not judged.
     """
-    from stockviz.models import Portfolio, PortfolioSnapshot
+    from stockviz.models import PortfolioSnapshot
+    from stockviz.services.trading.books import default_book, owned_book
     from stockviz.services.trading.portfolio import compute_portfolio
 
     rules = _active_rules(session, None, (AlertKind.PORTFOLIO,))
     fired = 0
-    cache: dict[int, tuple | None] = {}
+    cache: dict[tuple[int, int | None], tuple | None] = {}
     for alert in rules:
         if alert.last_bar_date is not None and alert.last_bar_date >= session_date:
             continue
-        if alert.user_id not in cache:
-            portfolio = session.exec(
-                select(Portfolio).where(Portfolio.user_id == alert.user_id)
-            ).first()
+        # A5.1: the rule watches its own book; null means the default book.
+        key = (alert.user_id, alert.portfolio_id)
+        if key not in cache:
+            portfolio = (
+                owned_book(session, alert.user_id, alert.portfolio_id)
+                if alert.portfolio_id is not None
+                else default_book(session, alert.user_id)
+            )
             valuation = (
                 compute_portfolio(
                     session, portfolio, display_currency=portfolio.base_currency or "USD"
@@ -420,15 +434,15 @@ def _evaluate_portfolio(session: Session, *, now: datetime, session_date: date) 
                 else None
             )
             if portfolio is None or valuation is None or valuation.warnings:
-                cache[alert.user_id] = None
+                cache[key] = None
             else:
                 snaps = session.exec(
                     select(PortfolioSnapshot)
-                    .where(PortfolioSnapshot.user_id == alert.user_id)
+                    .where(PortfolioSnapshot.portfolio_id == portfolio.id)
                     .order_by(col(PortfolioSnapshot.date))
                 ).all()
-                cache[alert.user_id] = (portfolio, valuation, list(snaps))
-        entry = cache[alert.user_id]
+                cache[key] = (portfolio, valuation, list(snaps))
+        entry = cache[key]
         if entry is None:
             continue
         portfolio, valuation, snaps = entry
@@ -486,6 +500,112 @@ def _evaluate_portfolio(session: Session, *, now: datetime, session_date: date) 
                 message=f"{detail} ({base}), past your {threshold:g}% on {session_date}.",
                 source="portfolio",
                 dedupe_key=f"{alert.id}:{session_date.isoformat()}",
+                now=now,
+            )
+            fired += event is not None
+    return fired
+
+
+# --- Rule DSL alerts (A2.3) ---------------------------------------------------
+
+
+def _newest_bar_date(session: Session, ticker: str) -> date | None:
+    from sqlalchemy import func
+
+    from stockviz.services.bars.resample import bar_date
+
+    newest = session.exec(
+        select(func.max(PriceBar.ts)).where(
+            PriceBar.instrument_id == instrument_of(ticker), PriceBar.interval == "1d"
+        )
+    ).one()
+    return bar_date(newest, venue_for_ticker(ticker)) if newest is not None else None
+
+
+def rule_message(alert: Alert, bar: date) -> str:
+    """What a rule alert's firing says: the setup's name and its canonical text."""
+    p = alert.params or {}
+    name = p.get("setup_name") or "Your rule"
+    version = f" (v{p['version']})" if p.get("version") else ""
+    canonical = p.get("canonical") or ""
+    return f"{alert.ticker}: {name}{version} became true on {bar.isoformat()}: {canonical}"[:500]
+
+
+def _evaluate_rule_alerts(
+    session: Session,
+    *,
+    ticker: str | None,
+    now: datetime,
+    session_date: date,
+    known: Callable[[Alert], date],
+) -> int:
+    """Judge every active ``rule`` alert once per new daily bar of its ticker."""
+    from stockviz.models import SetupVersion
+    from stockviz.services.dsl import CompiledRule, RuleError, compile_rule, load_symbol, point
+
+    compiled: dict[int, CompiledRule | None] = {}
+    newest_by_ticker: dict[str, date | None] = {}
+    fired = 0
+    for alert in _active_rules(session, ticker, (AlertKind.RULE,)):
+        assert alert.ticker is not None
+        version_id = alert.setup_version_id
+        if version_id is None:
+            continue
+        if version_id not in compiled:
+            version = session.get(SetupVersion, version_id)
+            try:
+                compiled[version_id] = compile_rule(version.rule_text) if version else None
+            except RuleError as exc:  # a version saved under an older grammar
+                logger.warning("rule alert %s: version %s no longer compiles: %s",
+                               alert.id, version_id, exc)  # fmt: skip
+                compiled[version_id] = None
+        rule = compiled[version_id]
+        if rule is None:
+            continue
+        if alert.ticker not in newest_by_ticker:
+            newest_by_ticker[alert.ticker] = _newest_bar_date(session, alert.ticker)
+        newest = newest_by_ticker[alert.ticker]
+        if newest is None or (alert.last_bar_date is not None and newest <= alert.last_bar_date):
+            continue  # no new bar since the last judgement
+        cutoff = known(alert)
+        starts = [newest]
+        if alert.last_state is None and cutoff < newest:
+            starts.append(cutoff)
+        if alert.repeat == AlertRepeat.EVERY_CROSS and alert.last_fired_bar_date:
+            starts.append(alert.last_fired_bar_date)
+        data = load_symbol(
+            session, alert.ticker, end=newest, start=max(min(starts), date(1900, 1, 1)),
+            lookback=rule.lookback, needs=rule.needs, user_id=alert.user_id,
+        )  # fmt: skip
+        if data.bars.empty or data.dates[-1] != newest:
+            continue
+        current = point(rule, data, newest) is True  # unknown counts as not true
+        if alert.last_state is None:
+            if newest <= cutoff:
+                hit = False  # the user could already see this bar: arm only
+            else:
+                prior = [d for d in data.dates if d <= cutoff]
+                hit = current and not (prior and point(rule, data, prior[-1]) is True)
+        else:
+            hit = current and not alert.last_state
+        if hit and alert.repeat == AlertRepeat.EVERY_CROSS and alert.last_fired_bar_date:
+            since = sum(1 for d in data.dates if d > alert.last_fired_bar_date)
+            if since < alert.cooldown_sessions:
+                hit = False
+        alert.last_state = current
+        alert.last_bar_date = newest
+        session.add(alert)
+        if hit:
+            event = fire(
+                session,
+                alert,
+                session_date=session_date,
+                bar_date=newest,
+                observed=None,
+                threshold=None,
+                message=rule_message(alert, newest),
+                source="bar",
+                dedupe_key=f"{alert.id}:{newest.isoformat()}",
                 now=now,
             )
             fired += event is not None

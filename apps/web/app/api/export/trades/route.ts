@@ -10,6 +10,7 @@
 
 import { UnauthenticatedError } from "@/lib/api/server";
 import { listTrades } from "@/lib/api/trading";
+import { parseBookParam } from "@/lib/book-url";
 import { toCsv } from "@/lib/csv";
 
 const HEADER = [
@@ -25,9 +26,13 @@ const HEADER = [
   "Realized P&L (USD)",
 ];
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    const trades = await listTrades(500);
+    // A5.2: `?book=<id|all>` like the trades page; absent is the default book.
+    const trades = await listTrades(
+      500,
+      parseBookParam(new URL(request.url).searchParams.get("book")),
+    );
 
     const rows = trades.map((t) => {
       const native = Number(t.quantity) * Number(t.price);

@@ -10,6 +10,7 @@ export const NOTIFICATION_CATEGORIES = [
   { value: "dividend", label: "Dividends" },
   { value: "corporate_action", label: "Splits" },
   { value: "option", label: "Options" },
+  { value: "screen", label: "Screens" },
 ] as const;
 
 export function parseNotificationCategory(raw: string | undefined): string {
@@ -46,7 +47,7 @@ export function distanceToTargetPct(
 }
 
 export type RuleDraft = {
-  kind: "price" | "move" | "technical" | "news" | "portfolio";
+  kind: "price" | "move" | "technical" | "news" | "portfolio" | "rule";
   ticker: string;
   direction?: "above" | "below";
   target?: string;
@@ -60,6 +61,9 @@ export type RuleDraft = {
   metric?: string;
   threshold?: string;
   repeat?: "once" | "every_cross";
+  /** A2.3: the chosen setup version, and how it reads. */
+  setupVersionId?: string;
+  setupLabel?: string;
 };
 
 const METRIC_LABEL: Record<string, string> = {
@@ -92,6 +96,10 @@ export function previewRule(d: RuleDraft): string {
       const about = d.eventType ? ` about ${d.eventType}` : "";
       return `When new${mood} ${t} news${about} arrives from Aegis${again}.`;
     }
+    case "rule":
+      return d.setupVersionId
+        ? `When ${t} meets ${d.setupLabel ?? "the saved rule"} after not meeting it${again}. A day with missing data counts as not met and never fires.`
+        : "Pick a saved setup.";
     case "portfolio":
       return d.metric && d.threshold
         ? `When ${METRIC_LABEL[d.metric] ?? d.metric} reaches ${d.threshold}%${again}.`

@@ -59,6 +59,8 @@ def _body(**extra) -> dict:
         "to": "2023-12-31",
         "initial_cash": "10000",
         "strategy": {"type": "sma_crossover", "short_window": 10, "long_window": 50},
+        # A4.3: these tests pin the windows over the whole range.
+        "holdout": "none",
         **extra,
     }
 

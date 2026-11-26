@@ -158,6 +158,7 @@ async function resetDemoAccounts(client, emails) {
     "DELETE FROM pending_orders WHERE portfolio_id IN (SELECT id FROM portfolios WHERE user_id = ANY($1))",
     "DELETE FROM options_positions WHERE portfolio_id IN (SELECT id FROM portfolios WHERE user_id = ANY($1))",
     "DELETE FROM portfolio_dividends WHERE portfolio_id IN (SELECT id FROM portfolios WHERE user_id = ANY($1))",
+    "DELETE FROM corporate_action_applications WHERE user_id = ANY($1)",
     "DELETE FROM watchlist_items WHERE watchlist_id IN (SELECT id FROM watchlists WHERE user_id = ANY($1))",
     "DELETE FROM watchlists WHERE user_id = ANY($1)",
     "DELETE FROM alerts WHERE user_id = ANY($1)",
@@ -285,8 +286,10 @@ async function seedSnapshots(client, userId, currentNav, openingNav, days = 120)
 
   for (const [date, value] of rows) {
     await client.query(
-      `INSERT INTO portfolio_snapshots (user_id, date, nav) VALUES ($1, $2, $3)
-       ON CONFLICT (user_id, date) DO UPDATE SET nav = EXCLUDED.nav`,
+      // A5.1: snapshots belong to a book; the demo accounts trade in their default book.
+      `INSERT INTO portfolio_snapshots (user_id, portfolio_id, date, nav)
+       SELECT $1, p.id, $2, $3 FROM portfolios p WHERE p.user_id = $1 AND p.is_default
+       ON CONFLICT (portfolio_id, date) DO UPDATE SET nav = EXCLUDED.nav`,
       [userId, date, value],
     );
   }

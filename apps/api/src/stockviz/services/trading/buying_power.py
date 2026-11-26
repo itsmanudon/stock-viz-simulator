@@ -72,6 +72,21 @@ def lock_user(session: Session, user_id: int) -> User:
     return user
 
 
+def _estimated_fees(ticker: str, quantity: Decimal, limit_price: Decimal) -> Decimal:
+    """A4.2: a pending buy also holds back the fees its fill would pay at the
+    limit (today's version of the ticker's default schedule), so the fill is
+    not refused for them."""
+    from stockviz._time import utcnow
+    from stockviz.services.fee_view import default_schedule_name, fee_date
+    from stockviz.services.simulation import OrderSide, get_fee_schedule
+
+    schedule = get_fee_schedule(default_schedule_name(ticker))
+    if not schedule.versions:
+        return Decimal(0)
+    on = fee_date(ticker, utcnow())
+    return schedule.fees(OrderSide.BUY, quantity, limit_price, on=on).total.quantize(MICROS)
+
+
 def buy_reservation(
     session: Session,
     *,
@@ -88,7 +103,9 @@ def buy_reservation(
     """
     symbol = session.get(Symbol, ticker)
     currency = (symbol.currency if symbol is not None else None) or "USD"
-    native = (quantity * limit_price).quantize(MICROS)
+    native = (quantity * limit_price).quantize(MICROS) + _estimated_fees(
+        ticker, quantity, limit_price
+    )
     try:
         rate = base_rate(session, currency, base)
     except LookupError as exc:

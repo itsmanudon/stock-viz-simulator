@@ -18,7 +18,7 @@ from datetime import date as date_type
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import CheckConstraint, Column, Numeric, UniqueConstraint
+from sqlalchemy import CheckConstraint, Column, Index, Numeric, UniqueConstraint, text
 from sqlmodel import Field, SQLModel
 
 from stockviz._time import utcnow
@@ -59,16 +59,32 @@ class CorporateAction(SQLModel, table=True):
 
 
 class CorporateActionApplication(SQLModel, table=True):
-    """One user's ledger was rebased for one action. Unique, so a rerun is a no-op."""
+    """One action was applied once. Unique, so a rerun is a no-op.
+
+    A5.1: a row with ``portfolio_id`` is one book's rebase (its position,
+    orders and options); a row without is the user's own rebase (price
+    alerts, which belong to the user, not a book).
+    """
 
     __tablename__ = "corporate_action_applications"  # pyright: ignore[reportAssignmentType]
     __table_args__ = (
-        UniqueConstraint("action_id", "user_id", name="uq_corporate_action_applications"),
+        UniqueConstraint("action_id", "portfolio_id", name="uq_corporate_action_applications_book"),
+        Index(
+            "uq_corporate_action_applications_user",
+            "action_id",
+            "user_id",
+            unique=True,
+            postgresql_where=text("portfolio_id IS NULL"),
+            sqlite_where=text("portfolio_id IS NULL"),
+        ),
     )
 
     id: int | None = Field(default=None, primary_key=True)
     action_id: int = Field(foreign_key="corporate_actions.id", index=True)
     user_id: int = Field(foreign_key="users.id", index=True)
+    portfolio_id: int | None = Field(
+        default=None, foreign_key="portfolios.id", index=True, nullable=True
+    )
     applied_at: datetime = Field(default_factory=utcnow, nullable=False)
     # What changed, for the audit trail: "position 10 -> 40; 1 order; 0 alerts".
     summary: str = Field(max_length=500)

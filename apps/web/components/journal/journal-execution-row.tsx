@@ -87,17 +87,19 @@ export function JournalExecutionRow({
         )}
       </dl>
 
+      {/* Reserved: the API never attaches an entry snapshot today (journal
+          model `SignalAtEntry`), so this stays dormant. */}
       {execution.signal_at_entry ? (
         <div className="mt-2.5 flex flex-wrap items-center gap-2">
-          <span className="text-xs text-muted-foreground">Signal at entry</span>
+          <span className="text-xs text-muted-foreground">Conditions at entry</span>
           <Badge variant="secondary" className="font-mono text-2xs">
-            {execution.signal_at_entry.score} / {execution.signal_at_entry.max_score} votes
+            {execution.signal_at_entry.score} / {execution.signal_at_entry.max_score} met
           </Badge>
           <Link
-            href={`/recommendations?q=${execution.ticker}`}
+            href={`/checklist?q=${execution.ticker}`}
             className="inline-flex items-center gap-0.5 text-xs text-muted-foreground hover:text-foreground hover:underline"
           >
-            Signals
+            Checklist
             <ArrowUpRight className="size-3" aria-hidden />
           </Link>
         </div>

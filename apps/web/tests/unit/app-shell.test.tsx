@@ -18,6 +18,10 @@ vi.mock("@/components/account-menu", () => ({
   AccountMenu: () => <button type="button">Account menu</button>,
 }));
 
+vi.mock("@/components/book-switcher-slot", () => ({
+  BookSwitcherSlot: () => <button type="button">Book</button>,
+}));
+
 vi.mock("@/components/alerts-bell", () => ({
   AlertsBell: () => <button type="button">Alerts</button>,
 }));
@@ -25,6 +29,9 @@ vi.mock("@/components/alerts-bell", () => ({
 // Async server component: it awaits a bars fetch, which React can't render in a
 // synchronous client-side test. Its freshness dot has no bearing on the header
 // navigation assertions here.
+vi.mock("@/components/regime-badge", () => ({
+  RegimeBadges: () => <span>Regime</span>,
+}));
 vi.mock("@/components/marketing/market-status", () => ({
   MarketStatus: () => <span>EOD</span>,
   DataDateChip: () => <span>EOD data · latest close Nov 7, 2026</span>,

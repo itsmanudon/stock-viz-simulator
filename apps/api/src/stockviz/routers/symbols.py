@@ -17,7 +17,10 @@ from stockviz.db import get_session
 from stockviz.limiter import limiter
 from stockviz.models import PriceBar, Symbol
 from stockviz.schemas import QuoteOut, SymbolDetailOut, SymbolOut
+from stockviz.services.bars.raw import has_raw
+from stockviz.services.event_study import benchmark_for
 from stockviz.services.instruments import instrument_of
+from stockviz.services.relative_strength import BENCHMARK_NAMES, is_indian, market_for
 
 router = APIRouter(prefix="/v1/symbols", tags=["symbols"])
 
@@ -106,4 +109,16 @@ def get_symbol(request: Request, ticker: str, session: SessionDep) -> SymbolDeta
         if latest_bar is not None
         else None
     )
-    return SymbolDetailOut.model_validate({**symbol.model_dump(), "latest": latest})
+    benchmark = benchmark_for(symbol.ticker)
+    return SymbolDetailOut.model_validate(
+        {
+            **symbol.model_dump(),
+            "latest": latest,
+            "has_raw": has_raw(session, symbol.ticker),
+            # A3.5: the market and index the RS pane and delivery pane read.
+            "market": market_for(symbol.ticker),
+            "benchmark": benchmark,
+            "benchmark_name": BENCHMARK_NAMES.get(benchmark or ""),
+            "is_indian": is_indian(symbol.ticker),
+        }
+    )

@@ -1,14 +1,33 @@
-import Link from "next/link";
+import { BookLink as Link } from "@/components/book-link";
 
 import { formatCurrency } from "@/lib/portfolio-view-model";
 
 export function PortfolioEmptyState({
   availableCash,
   displayCurrency,
+  readOnly = null,
 }: {
   availableCash: string;
   displayCurrency: string;
+  /**
+   * A5.2: why this view takes no trades (an imported or archived book, All
+   * books). It then says it holds nothing yet instead of inviting a trade.
+   */
+  readOnly?: string | null;
 }) {
+  if (readOnly) {
+    return (
+      <section
+        aria-labelledby="portfolio-empty-heading"
+        className="border-y border-border-muted bg-surface-secondary/45 px-5 py-10 sm:px-8 sm:py-12"
+      >
+        <h2 id="portfolio-empty-heading" className="text-xl font-semibold tracking-tight">
+          No holdings yet
+        </h2>
+        <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">{readOnly}</p>
+      </section>
+    );
+  }
   return (
     <section
       aria-labelledby="portfolio-empty-heading"

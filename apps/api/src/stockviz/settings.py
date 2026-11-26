@@ -107,6 +107,22 @@ class Settings(BaseSettings):
     massive_api_key: str = ""
     massive_shadow_lookback_days: int = 90
 
+    # A4.6: an Indian (XNSE/XBOM) replay session must end at least this many
+    # calendar days before today on its venue (SEBI's rule for simulated
+    # trading on recent prices). 0 turns the rule off.
+    replay_min_lag_days: int = 30
+    # A4.6: the owner-only override, off by default: user ids (comma
+    # separated) whose Indian sessions may end inside the lag. Server-side
+    # only; no client flag can set it.
+    replay_lag_override_user_ids: Annotated[list[int], NoDecode] = []
+
+    @field_validator("replay_lag_override_user_ids", mode="before")
+    @classmethod
+    def _parse_override_ids(cls, raw: object) -> object:
+        if not isinstance(raw, str):
+            return raw
+        return [int(item) for item in raw.replace(" ", "").split(",") if item]
+
     # Off by default so tests, CLI, and horizontally scaled API pods do not
     # all fire jobs. Render sets true (in-process). Kubernetes API pods leave
     # this false; the singleton ``stockviz.workers.scheduler`` process runs the
@@ -164,6 +180,40 @@ class Settings(BaseSettings):
             and self.aegis_issuer.strip()
             and self.aegis_audience.strip()
         )
+
+    # A2.3 notification delivery. Email (any SMTP provider) is off until all
+    # five SMTP_* values are set; Telegram is off until the bot token is.
+    # The signed webhook needs no server secret. Never log these.
+    smtp_host: str = ""
+    # A string so an empty SMTP_PORT= line is "unset", not a parse error.
+    smtp_port: str = ""
+    smtp_user: str = ""
+    smtp_password: SecretStr = SecretStr("")
+    smtp_from: str = ""
+    telegram_bot_token: SecretStr = SecretStr("")
+
+    @property
+    def email_configured(self) -> bool:
+        return bool(
+            self.smtp_host.strip()
+            and self.smtp_port_number > 0
+            and self.smtp_user.strip()
+            and self.smtp_password.get_secret_value().strip()
+            and self.smtp_from.strip()
+        )
+
+    @property
+    def smtp_port_number(self) -> int:
+        text = self.smtp_port.strip()
+        return int(text) if text.isdigit() and 0 < int(text) < 65536 else 0
+
+    @property
+    def telegram_configured(self) -> bool:
+        return bool(self.telegram_bot_token.get_secret_value().strip())
+
+    @property
+    def is_production(self) -> bool:
+        return self.environment.strip().lower() in _PRODUCTION_ENVIRONMENTS
 
     @model_validator(mode="after")
     def _validate_runtime_configuration(self) -> Settings:

@@ -8,6 +8,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { AuthedApiError, UnauthenticatedError } from "@/lib/api/server";
 import { previewLimits } from "@/lib/api/trading";
+import { bookIdParam } from "@/lib/book-url";
 
 export async function GET(request: NextRequest) {
   const session = await auth();
@@ -23,7 +24,9 @@ export async function GET(request: NextRequest) {
     );
   }
   try {
-    return NextResponse.json(await previewLimits(ticker, quantity));
+    return NextResponse.json(
+      await previewLimits(ticker, quantity, bookIdParam(request.nextUrl.searchParams.get("book"))),
+    );
   } catch (err) {
     if (err instanceof UnauthenticatedError) {
       return NextResponse.json({ error: "unauthenticated" }, { status: 401 });

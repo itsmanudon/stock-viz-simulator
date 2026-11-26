@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { BookLink as Link } from "@/components/book-link";
 
 import { cancelOrderAction } from "@/app/(product)/(authed)/orders/actions";
 import { CancelOrderButton } from "@/components/cancel-order-button";

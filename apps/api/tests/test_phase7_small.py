@@ -4,7 +4,7 @@ OP-9 (request ids in API logs), OP-12 (outbox order per key, attempt cap)."""
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta
+from datetime import timedelta
 from decimal import Decimal
 from uuid import uuid4
 
@@ -19,9 +19,8 @@ from stockviz.events.outbox import (
     publish_batch,
 )
 from stockviz.logging_setup import REQUEST_ID, RequestIdFilter
-from stockviz.models import EarningsEvent, OutboxEvent, PriceBar, Recommendation, Symbol
+from stockviz.models import EarningsEvent, OutboxEvent, Symbol
 from stockviz.services.ingest.earnings import duplicate_upcoming, ingest_earnings_for_ticker
-from stockviz.services.recommend.engine import score_universe
 from tests.test_ingest_earnings import _Rows
 
 # --- RS-10 --------------------------------------------------------------------
@@ -62,36 +61,6 @@ def test_a_far_new_date_is_a_new_report_and_old_duplicates_are_listed(session: S
     session.commit()
     found = duplicate_upcoming(session)
     assert [t for t, _days in found] == ["AAPL"] and len(found[0][1]) == 2
-
-
-# --- SR-8 ---------------------------------------------------------------------
-
-
-def _bars(session: Session, ticker: str, last: datetime, n: int = 40) -> None:
-    for i in range(n):
-        c = Decimal(100 + (i % 5))
-        session.add(
-            PriceBar(
-                ticker=ticker, ts=last - timedelta(days=n - 1 - i), interval="1d",
-                open=c, high=c, low=c, close=c, volume=1000, source="test",
-            )
-        )  # fmt: skip
-
-
-def test_signals_carry_their_bar_date_and_say_when_stale(
-    session: Session, client: TestClient
-) -> None:
-    session.add_all([Symbol(ticker="AAPL", name="Apple"), Symbol(ticker="MSFT", name="Msft")])
-    session.commit()
-    _bars(session, "AAPL", datetime(2026, 11, 12))
-    _bars(session, "MSFT", datetime(2026, 11, 2))  # stalled ten days earlier
-    session.commit()
-    score_universe(session, persist=True)
-    stored = {r.ticker: r.bar_date for r in session.exec(select(Recommendation)).all()}
-    assert stored["AAPL"].isoformat() == "2026-11-12"  # type: ignore[union-attr]
-    rows = {r["ticker"]: r for r in client.get("/v1/recommendations").json()}
-    assert rows["AAPL"]["bar_date"] == "2026-11-12" and rows["AAPL"]["stale"] is False
-    assert rows["MSFT"]["bar_date"] == "2026-11-02" and rows["MSFT"]["stale"] is True
 
 
 # --- OP-9 ---------------------------------------------------------------------

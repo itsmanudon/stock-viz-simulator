@@ -10,7 +10,7 @@ from __future__ import annotations
 from datetime import date as date_type
 from datetime import timedelta
 from decimal import Decimal
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlmodel import Session, select
@@ -30,6 +30,7 @@ from stockviz.models import (
 from stockviz.models.dividend import Dividend, PortfolioDividend
 from stockviz.models.risk_limit import LIMIT_COLUMNS as RISK_LIMIT_COLUMNS
 from stockviz.models.risk_limit import RiskLimit
+from stockviz.routers.book_query import BookOrAllQuery, BookQuery, parse_book
 from stockviz.schemas import (
     BaseCurrencyIn,
     DividendCreditOut,
@@ -52,10 +53,12 @@ from stockviz.schemas import (
     RiskWindowOut,
     StressDriverOut,
     StressScenarioOut,
+    TradeFeeLineOut,
     TradeIn,
     TradeOut,
     VarOut,
 )
+from stockviz.services.books.combined import CombinedView, combined_view, history_series
 from stockviz.services.instruments import instrument_of
 from stockviz.services.risk import compute_risk
 from stockviz.services.risk.engine import MC_METHOD, VAR_METHOD
@@ -71,7 +74,6 @@ from stockviz.services.trading import (
     SymbolNotFound,
     TradeExecutionError,
     compute_portfolio,
-    ensure_default_portfolio,
     execute_trade,
 )
 from stockviz.services.trading.account import (
@@ -80,11 +82,23 @@ from stockviz.services.trading.account import (
     set_base_currency,
 )
 from stockviz.services.trading.account import activity as account_activity
+from stockviz.services.trading.books import (
+    default_book,
+    ensure_default_portfolio,
+    owned_book,
+    resolve_book,
+    user_books,
+)
 from stockviz.services.trading.execute import resolve_priced_symbol
 from stockviz.services.trading.fx import convert as fx_convert
 from stockviz.services.trading.fx import latest_rate as fx_latest_rate
 from stockviz.services.trading.simulation_adapter import as_aware_utc
-from stockviz.services.trading.views import portfolio_analytics_response, portfolio_response
+from stockviz.services.trading.views import (
+    combined_analytics_response,
+    combined_portfolio_response,
+    portfolio_analytics_response,
+    portfolio_response,
+)
 
 router = APIRouter(prefix="/v1", tags=["trading"])
 
@@ -96,9 +110,26 @@ def _user_display_currency(session: Session, user_id: int) -> str:
     return (user.display_currency if user else None) or "USD"
 
 
+def _all_books(session: Session, user_id: int, *, with_series: bool = True) -> CombinedView:
+    """Every book of the user, valued and (optionally) summed over time (A5.2)."""
+    ensure_default_portfolio(session, user_id)
+    return combined_view(
+        session,
+        user_books(session, user_id),
+        display=_user_display_currency(session, user_id),
+        as_of=utcnow().date(),
+        with_series=with_series,
+    )
+
+
 @router.get("/portfolio", response_model=PortfolioOut)
-def get_portfolio(session: SessionDep, user_id: UserIdDep) -> PortfolioOut:
-    portfolio = ensure_default_portfolio(session, user_id)
+def get_portfolio(
+    session: SessionDep, user_id: UserIdDep, book: BookOrAllQuery = None
+) -> PortfolioOut:
+    chosen = parse_book(book)
+    if chosen == "all":
+        return combined_portfolio_response(_all_books(session, user_id))
+    portfolio = resolve_book(session, user_id, chosen)
     display = _user_display_currency(session, user_id)
     snap = compute_portfolio(session, portfolio, display_currency=display)
     return portfolio_response(snap, base_currency_locked=bool(account_activity(session, portfolio)))
@@ -106,7 +137,7 @@ def get_portfolio(session: SessionDep, user_id: UserIdDep) -> PortfolioOut:
 
 @router.put("/portfolio/base-currency", response_model=PortfolioOut)
 def put_base_currency(
-    body: BaseCurrencyIn, session: SessionDep, user_id: UserIdDep
+    body: BaseCurrencyIn, session: SessionDep, user_id: UserIdDep, book: BookQuery = None
 ) -> PortfolioOut:
     """Restart a fresh account in USD ($100,000) or INR (₹1 crore) — Phase 4.8.
 
@@ -114,7 +145,9 @@ def put_base_currency(
     cash. Also sets the display currency to the new base.
     """
     try:
-        portfolio = set_base_currency(session, user_id=user_id, currency=body.base_currency)
+        portfolio = set_base_currency(
+            session, user_id=user_id, currency=body.base_currency, book_id=book
+        )
     except UnsupportedBaseCurrency as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
     except AccountNotFresh as exc:
@@ -125,7 +158,9 @@ def put_base_currency(
 
 
 @router.post("/trades", response_model=TradeOut, status_code=status.HTTP_201_CREATED)
-def post_trade(body: TradeIn, session: SessionDep, user_id: UserIdDep) -> TradeOut:
+def post_trade(
+    body: TradeIn, session: SessionDep, user_id: UserIdDep, book: BookQuery = None
+) -> TradeOut:
     try:
         side = TradeSide(body.side)
     except ValueError as exc:
@@ -139,6 +174,7 @@ def post_trade(body: TradeIn, session: SessionDep, user_id: UserIdDep) -> TradeO
             side=side,
             quantity=body.quantity,
             client_order_id=body.client_order_id,
+            book_id=book,
         )
     except SymbolNotFound as exc:
         raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
@@ -170,7 +206,31 @@ def post_trade(body: TradeIn, session: SessionDep, user_id: UserIdDep) -> TradeO
         base_currency=result.base_currency,
         total_base=result.base_cost,
         realized_pnl=result.realized_pnl,
+        book_id=trade.portfolio_id,
+        **trade_fee_fields(trade, result.native_cost),
     )
+
+
+def trade_fee_fields(trade: Trade, native: Decimal) -> dict[str, Any]:
+    """A4.2: net first. ``net_native`` and ``realized_pnl_net`` are after this
+    fill's fees (null fees: a fill from before A4.2, shown as it was)."""
+    fees = trade.fees
+    if fees is None:
+        return {"fees": None, "fee_schedule": None, "fee_lines": [], "net_native": None,
+                "realized_pnl_net": None}  # fmt: skip
+    buy = trade.side == TradeSide.BUY
+    net = native + fees if buy else native - fees
+    realized_net = None
+    if trade.realized_pnl is not None:
+        rate = trade.fx_rate if trade.fx_rate is not None else Decimal(1)
+        realized_net = trade.realized_pnl - (fees * rate).quantize(Decimal("0.000001"))
+    return {
+        "fees": fees,
+        "fee_schedule": trade.fee_schedule,
+        "fee_lines": [TradeFeeLineOut.model_validate(line) for line in trade.fee_lines or []],
+        "net_native": net,
+        "realized_pnl_net": realized_net,
+    }
 
 
 def _usd_total(session: Session, amount: Decimal, base: str) -> Decimal:
@@ -192,18 +252,27 @@ def get_portfolio_analytics(
     session: SessionDep,
     user_id: UserIdDep,
     risk_free_rate: Annotated[float, Query(ge=0, le=1)] = DEFAULT_RISK_FREE_RATE,
+    book: BookOrAllQuery = None,
 ) -> PortfolioAnalyticsOut:
     """Return Sharpe, drawdown, returns, sector mix, and top movers.
 
     Time-series metrics use every snapshot the user has; the series can be
     empty for brand-new accounts (in which case those fields come back as
-    ``None`` and the UI hides the relevant cards).
+    ``None`` and the UI hides the relevant cards). ``book=all`` (A5.2) sums
+    every book in the display currency (``services/books/combined.py``).
     """
-    portfolio = ensure_default_portfolio(session, user_id)
+    chosen = parse_book(book)
+    if chosen == "all":
+        return combined_analytics_response(
+            session, _all_books(session, user_id), risk_free_rate=risk_free_rate
+        )
+    portfolio = resolve_book(session, user_id, chosen)
     display = _user_display_currency(session, user_id)
     valuation = compute_portfolio(session, portfolio, display_currency=display)
 
-    return portfolio_analytics_response(session, user_id, valuation, risk_free_rate=risk_free_rate)
+    return portfolio_analytics_response(
+        session, portfolio, valuation, risk_free_rate=risk_free_rate
+    )
 
 
 @router.get("/portfolio/overview", response_model=PortfolioOverviewOut)
@@ -211,9 +280,17 @@ def get_portfolio_overview(
     session: SessionDep,
     user_id: UserIdDep,
     risk_free_rate: Annotated[float, Query(ge=0, le=1)] = DEFAULT_RISK_FREE_RATE,
+    book: BookOrAllQuery = None,
 ) -> PortfolioOverviewOut:
     """Build summary and analytics from one uncached valuation for this user."""
-    portfolio = ensure_default_portfolio(session, user_id)
+    chosen = parse_book(book)
+    if chosen == "all":
+        view = _all_books(session, user_id)
+        return PortfolioOverviewOut(
+            portfolio=combined_portfolio_response(view),
+            analytics=combined_analytics_response(session, view, risk_free_rate=risk_free_rate),
+        )
+    portfolio = resolve_book(session, user_id, chosen)
     display = _user_display_currency(session, user_id)
     valuation = compute_portfolio(session, portfolio, display_currency=display)
     return PortfolioOverviewOut(
@@ -221,7 +298,7 @@ def get_portfolio_overview(
             valuation, base_currency_locked=bool(account_activity(session, portfolio))
         ),
         analytics=portfolio_analytics_response(
-            session, user_id, valuation, risk_free_rate=risk_free_rate
+            session, portfolio, valuation, risk_free_rate=risk_free_rate
         ),
     )
 
@@ -237,6 +314,7 @@ def get_portfolio_risk(
     session: SessionDep,
     user_id: UserIdDep,
     goal: Annotated[Decimal | None, Query(gt=0, le=1e12)] = None,
+    book: BookQuery = None,
 ) -> PortfolioRiskOut:
     """Phase 8.3: historical-simulation VaR/CVaR and a block-bootstrap Monte Carlo.
 
@@ -244,7 +322,7 @@ def get_portfolio_risk(
     second for a large book). Every figure is in the base currency and the
     response names the method, the window and any proxied holdings.
     """
-    portfolio = ensure_default_portfolio(session, user_id)
+    portfolio = resolve_book(session, user_id, book)
     display = _user_display_currency(session, user_id)
     valuation = compute_portfolio(session, portfolio, display_currency=display)
     report = compute_risk(
@@ -312,9 +390,11 @@ STRESS_BASIS = (
 
 
 @router.get("/portfolio/stress", response_model=PortfolioStressOut)
-def get_portfolio_stress(session: SessionDep, user_id: UserIdDep) -> PortfolioStressOut:
+def get_portfolio_stress(
+    session: SessionDep, user_id: UserIdDep, book: BookQuery = None
+) -> PortfolioStressOut:
     """Phase 8.4: historical replays and hypothetical shocks on today's book."""
-    portfolio = ensure_default_portfolio(session, user_id)
+    portfolio = resolve_book(session, user_id, book)
     display = _user_display_currency(session, user_id)
     valuation = compute_portfolio(session, portfolio, display_currency=display)
     base = portfolio.base_currency or "USD"
@@ -364,16 +444,20 @@ def _limits_out(row: RiskLimit | None) -> RiskLimitsOut:
 
 
 @router.get("/portfolio/limits", response_model=RiskLimitsOut)
-def get_risk_limits(session: SessionDep, user_id: UserIdDep) -> RiskLimitsOut:
+def get_risk_limits(
+    session: SessionDep, user_id: UserIdDep, book: BookQuery = None
+) -> RiskLimitsOut:
     """Phase 8.5: the account's own pre-trade limits; all null until set."""
-    portfolio = ensure_default_portfolio(session, user_id)
+    portfolio = resolve_book(session, user_id, book)
     return _limits_out(session.get(RiskLimit, portfolio.id))
 
 
 @router.put("/portfolio/limits", response_model=RiskLimitsOut)
-def put_risk_limits(session: SessionDep, user_id: UserIdDep, body: RiskLimitsIn) -> RiskLimitsOut:
-    """Replace every limit at once; a null clears that limit."""
-    portfolio = ensure_default_portfolio(session, user_id)
+def put_risk_limits(
+    session: SessionDep, user_id: UserIdDep, body: RiskLimitsIn, book: BookQuery = None
+) -> RiskLimitsOut:
+    """Replace every limit at once; a null clears that limit. Per book (A5.1)."""
+    portfolio = resolve_book(session, user_id, book)
     assert portfolio.id is not None
     row = session.get(RiskLimit, portfolio.id) or RiskLimit(portfolio_id=portfolio.id)
     for name in RISK_LIMIT_COLUMNS:
@@ -391,10 +475,11 @@ def preview_limits(
     user_id: UserIdDep,
     ticker: Annotated[str, Query(min_length=1, max_length=16)],
     quantity: Annotated[Decimal, Query(gt=0)],
+    book: BookQuery = None,
 ) -> LimitPreviewOut:
     """What buying ``quantity`` of ``ticker`` at the latest close would do to
     each limit (the order review shows it before the user places the order)."""
-    portfolio = ensure_default_portfolio(session, user_id)
+    portfolio = resolve_book(session, user_id, book)
     base = portfolio.base_currency or "USD"
     try:
         priced = resolve_priced_symbol(session, ticker.upper(), base=base)
@@ -434,14 +519,42 @@ def get_portfolio_history(
     session: SessionDep,
     user_id: UserIdDep,
     days: Annotated[int | None, Query(ge=1, le=3650)] = 90,
-) -> list[PortfolioSnapshot]:
+    book: BookOrAllQuery = None,
+) -> list[PortfolioSnapshot] | list[PortfolioHistoryPointOut]:
     """Return the user's daily NAV history, oldest first.
 
     ``days=None`` (omit query param) returns the full history; otherwise the
     last N days. Empty list when the scheduler hasn't written any snapshots
     yet for this user — the UI hides the chart in that case.
+
+    ``book=all`` (A5.2): every book's snapshots summed in the display
+    currency at each date's rate, with that date's outside ``flow``.
     """
-    stmt = select(PortfolioSnapshot).where(PortfolioSnapshot.user_id == user_id)
+    chosen = parse_book(book)
+    if chosen == "all":
+        today = utcnow().date()
+        series = history_series(
+            session,
+            user_books(session, user_id),
+            display=_user_display_currency(session, user_id),
+            as_of=today,
+        )
+        flows = series.flow_by_day
+        cutoff = today - timedelta(days=days) if days is not None else None
+        return [
+            PortfolioHistoryPointOut(date=d, nav=v, flow=flows.get(d, Decimal(0)))
+            for d, v in series.points
+            if cutoff is None or d >= cutoff
+        ]
+    # Reading history never creates the default book (empty until it exists).
+    portfolio = (
+        resolve_book(session, user_id, chosen)
+        if chosen is not None
+        else default_book(session, user_id)
+    )
+    if portfolio is None:
+        return []
+    stmt = select(PortfolioSnapshot).where(PortfolioSnapshot.portfolio_id == portfolio.id)
     if days is not None:
         cutoff = utcnow().date() - timedelta(days=days)
         stmt = stmt.where(PortfolioSnapshot.date >= cutoff)
@@ -454,6 +567,7 @@ def list_trades(
     session: SessionDep,
     user_id: UserIdDep,
     limit: Annotated[int, Query(ge=1, le=500)] = 100,
+    book: BookOrAllQuery = None,
 ) -> list[TradeOut]:
     """Return executed trades, newest first.
 
@@ -462,12 +576,18 @@ def list_trades(
     written before that column existed fall back to the symbol's current rate,
     which is the old (approximate) behaviour.
     """
-    portfolio = ensure_default_portfolio(session, user_id)
+    chosen = parse_book(book)
+    books = (
+        user_books(session, user_id)
+        if chosen == "all"
+        else [resolve_book(session, user_id, chosen)]
+    )
+    base_by_book = {b.id: (b.base_currency or "USD") for b in books}
     rows = list(
         session.exec(
             select(Trade)
-            .where(Trade.portfolio_id == portfolio.id)
-            .order_by(Trade.ts.desc())  # type: ignore[attr-defined]
+            .where(Trade.portfolio_id.in_(list(base_by_book)))  # type: ignore[union-attr]
+            .order_by(Trade.ts.desc(), Trade.id.desc())  # type: ignore[attr-defined,union-attr]
             .limit(limit)
         )
     )
@@ -483,10 +603,10 @@ def list_trades(
         ).all()
     }
 
-    base = portfolio.base_currency or "USD"
     out: list[TradeOut] = []
     fx_cache: dict[str, Decimal] = {}
     for trade in rows:
+        base = base_by_book.get(trade.portfolio_id, "USD")
         ccy = currency_by_ticker.get(trade.ticker, "USD")
         rate = trade.fx_rate
         if rate is None:
@@ -512,6 +632,8 @@ def list_trades(
                 base_currency=base,
                 total_base=native * rate,
                 realized_pnl=trade.realized_pnl,
+                book_id=trade.portfolio_id,
+                **trade_fee_fields(trade, native),
             )
         )
     return out
@@ -526,9 +648,9 @@ def get_trade_execution(
     404 when the trade is missing, not owned by the caller, or was written
     before SIM-04 (no provenance row). Does not change ``GET /v1/trades``.
     """
-    portfolio = ensure_default_portfolio(session, user_id)
+    # A5.1: the trade's own book must be one of the user's.
     trade = session.get(Trade, trade_id)
-    if trade is None or trade.portfolio_id != portfolio.id:
+    if trade is None or owned_book(session, user_id, trade.portfolio_id) is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Trade not found")
 
     row = session.exec(
@@ -553,9 +675,11 @@ def get_trade_execution(
 
 
 @router.get("/portfolio/dividends", response_model=DividendSummaryOut)
-def get_portfolio_dividends(session: SessionDep, user_id: UserIdDep) -> DividendSummaryOut:
+def get_portfolio_dividends(
+    session: SessionDep, user_id: UserIdDep, book: BookQuery = None
+) -> DividendSummaryOut:
     """Return dividend income history and projected next payouts for the user's portfolio."""
-    portfolio = ensure_default_portfolio(session, user_id)
+    portfolio = resolve_book(session, user_id, book)
 
     # Credit history, newest first.
     credits = list(

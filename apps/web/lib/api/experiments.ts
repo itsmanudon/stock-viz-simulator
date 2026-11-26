@@ -1,5 +1,8 @@
 import "server-only";
 
+import type { OverfittingChecks, PboResult, Plateau, RunWindow } from "../report-card";
+import type { RotationRequest } from "../rotation";
+import type { StrategyRequest, StrategyResult } from "../rule-strategy";
 import { authedDelete, authedGet, authedPost } from "./server";
 import type { BacktestRequest, BacktestResult, BacktestSummary, BacktestUniverse } from "./types";
 
@@ -22,8 +25,11 @@ export type ExperimentRun = {
   summary: BacktestSummary;
   /** A1.4a: the run's universe stamp (old runs get the pinned one). */
   universe?: BacktestUniverse;
-  /** `kind` "single": a BacktestResult; "walk_forward" / "sweep": their own shape. */
-  result?: BacktestResult | WalkForwardResult | SweepResult | null;
+  /** `kind` "single": a BacktestResult; "walk_forward" / "sweep": their own
+   * shape; "strategy" (A4.1): a StrategyResult. */
+  result?: BacktestResult | WalkForwardResult | SweepResult | StrategyResult | null;
+  /** A4.3: the trial ledger's checks, read when the run is opened (single, strategy). */
+  checks?: OverfittingChecks | null;
 };
 
 export type WalkForwardWindow = {
@@ -65,6 +71,11 @@ export type SweepResult = {
     trades: number;
   }[];
   summary: BacktestSummary;
+  /** A4.3 (absent on sweeps saved before it). */
+  window?: RunWindow;
+  pbo?: PboResult | null;
+  pbo_reason?: string | null;
+  plateau?: Record<string, Plateau | null>;
 };
 
 export type ExperimentRerun = {
@@ -76,6 +87,16 @@ export type ExperimentRerun = {
 
 export function saveExperimentRun(backtest: BacktestRequest): Promise<ExperimentRun> {
   return authedPost<ExperimentRun>("/v1/experiments/runs", { backtest });
+}
+
+/** A4.1: a Rule DSL strategy; inline rules are saved as setup versions. */
+export function saveStrategyRun(strategy: StrategyRequest): Promise<ExperimentRun> {
+  return authedPost<ExperimentRun>("/v1/experiments/runs", { strategy });
+}
+
+/** A4.4: save a rotation run. */
+export function saveRotationRun(rotation: RotationRequest): Promise<ExperimentRun> {
+  return authedPost<ExperimentRun>("/v1/experiments/runs", { rotation });
 }
 
 export function runWalkForward(backtest: BacktestRequest): Promise<ExperimentRun> {

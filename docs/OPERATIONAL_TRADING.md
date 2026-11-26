@@ -46,14 +46,45 @@ Watchlist stays under **Portfolio**, not Trade. It is a monitoring surface (“w
 
 | Route | Shareable state |
 | --- | --- |
-| `/trade` | `ticker` |
-| `/orders` | `status` |
+| `/trade` | `ticker`, `book` |
+| `/orders` | `status`, `book` |
+| `/portfolio`, `/dashboard`, `/trades` | `book` (and their own state) |
 | `/watchlist` | none (single default list) |
 | `/alerts` | `ticker` (create prefill), `view=active\|triggered\|all` |
 
 ## Server / client boundaries
 
 Server Components load account, orders, quotes, watchlist, and alerts. Client islands submit server actions. Optional quote/sparkline fetches fail independently.
+
+## Books (A5.1, A5.2)
+
+A user can hold up to 20 books (`/v1/books`). One is the default: every
+trading route without `?book=<id>` uses it. Trades, orders, options,
+positions, snapshots, split rebases, risk limits, the journal and portfolio
+alerts are per book; price alerts, watchlists and the display currency stay
+per user. Each paper book has its own base currency (USD or INR, fixed after
+its first activity) and starts with that currency's starting cash. An
+archived book is readable but takes no trades or orders (409), and an
+imported book (filled by the Zerodha import, A5.3) never trades here.
+Another user's book is 404.
+
+**In the web (A5.2).** The selected book is URL state: `?book=<id>` on the
+dashboard, portfolio, trade, orders, trades and settings pages, `?book=all`
+for All books (not on settings); absent means the default book. The top-bar
+switcher lists every book (kind, currency, holder, archived) and links with
+`?book=`; it also remembers the choice in a cookie, used only when a page is
+opened without `?book=`. Links between these pages keep the book. Every
+ticket says which book it trades into and posts that book's id; in All
+books, an archived book or an imported book it is disabled with the reason.
+Books are created, renamed, made default, archived and deleted in Settings →
+Books.
+
+**All books** is read-only: each book's NAV is converted to the display
+currency at that date's stored rate and summed; returns leave out the money
+a new book (its opening value) or an imported buy brings in; a rate older
+than the session before its date is used with a warning, and a date with no
+rate is left out with a warning. Risk, stress, attribution, limits,
+dividends, options Greeks and strategies, and the journal are per book only.
 
 ## Currency display
 

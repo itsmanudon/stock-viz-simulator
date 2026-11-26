@@ -78,12 +78,20 @@ def credit_due_dividends(session: Session, *, credit_date: date_type) -> int:
     if not pairs:
         return 0
 
+    # A5.1: a holdings-only book (cash_tracked false: imported, A5.3) is
+    # credited nothing; the broker pays its dividends.
     opened = {
         p.id: _ny_date(p.created_at)
         for p in session.exec(
-            select(Portfolio).where(col(Portfolio.id).in_({pid for pid, _ in pairs}))
+            select(Portfolio).where(
+                col(Portfolio.id).in_({pid for pid, _ in pairs}),
+                col(Portfolio.cash_tracked).is_(True),
+            )
         )
     }
+    pairs = {pair for pair in pairs if pair[0] in opened}
+    if not pairs:
+        return 0
     tickers = {ticker for _, ticker in pairs}
     earliest = min(opened.values(), default=credit_date)
     due = list(

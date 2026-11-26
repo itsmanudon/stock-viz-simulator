@@ -15,6 +15,10 @@ export function ReplayMobileSheet({
   cash,
   quantityHeld,
   readOnly,
+  currency = "USD",
+  tradable = true,
+  feeSchedule = "none",
+  target = "replay",
 }: {
   sessionId: number;
   ticker: string;
@@ -22,11 +26,15 @@ export function ReplayMobileSheet({
   cash: string;
   quantityHeld: string;
   readOnly: boolean;
+  currency?: string;
+  tradable?: boolean;
+  feeSchedule?: string;
+  target?: "replay" | "drill";
 }) {
   const [open, setOpen] = useState(false);
   const [side, setSide] = useState<Side>("buy");
 
-  if (readOnly) return null;
+  if (readOnly || !tradable) return null;
 
   function openFor(nextSide: Side) {
     setSide(nextSide);
@@ -81,6 +89,10 @@ export function ReplayMobileSheet({
             quantityHeld={quantityHeld}
             readOnly={readOnly}
             initialSide={side}
+            currency={currency}
+            tradable={tradable}
+            feeSchedule={feeSchedule}
+            target={target}
           />
         </Dialog.Content>
       </Dialog.Portal>

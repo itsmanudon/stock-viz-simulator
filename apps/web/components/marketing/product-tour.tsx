@@ -11,8 +11,8 @@
 import { Reveal } from "@/components/marketing/reveal";
 import { ResearchPanel, ScreenPanel, SimulatePanel } from "@/components/marketing/tour-panels";
 import { type TourTab, TourTabs } from "@/components/marketing/tour-tabs";
-import { ApiError, getBars, getRecommendations, runBacktest, screenSymbols } from "@/lib/api";
-import type { BacktestResult, Recommendation, ScreenerResult } from "@/lib/api/types";
+import { ApiError, getBars, getChecklist, runBacktest, screenSymbols } from "@/lib/api";
+import type { BacktestResult, Checklist, ScreenerResult } from "@/lib/api/types";
 
 // Tried in order; the first with enough stored history wins — same fallback
 // reasoning as the hero panel. HDFCBANK.NS has deep (1996-) and *fresh* daily
@@ -72,15 +72,15 @@ async function loadBacktest(): Promise<BacktestResult | null> {
 }
 
 export async function ProductTour() {
-  const [screen, recs, backtest] = await Promise.all([
+  const [screen, checklist, backtest] = await Promise.all([
     safe<ScreenerResult[]>(() => screenSymbols({ momentumDays: 30, revalidateSeconds: CACHE_S })),
-    safe<Recommendation[]>(() => getRecommendations({ limit: 5, revalidateSeconds: CACHE_S })),
+    safe<Checklist>(() => getChecklist({ limit: 5, revalidateSeconds: CACHE_S })),
     loadBacktest(),
   ]);
 
-  // The first recommendation that actually carries a vote breakdown — the
-  // votes are the whole point of that panel.
-  const rec = recs?.find((r) => r.votes.length > 0) ?? null;
+  // The first checklist row judged on at least one dimension: the per-dimension
+  // breakdown is the whole point of that panel.
+  const row = checklist?.rows.find((r) => r.evaluated > 0) ?? null;
 
   const tabs: TourTab[] = [];
   if (screen && screen.length > 0) {
@@ -90,8 +90,12 @@ export async function ProductTour() {
       panel: <ScreenPanel rows={screen.slice(0, ROWS)} />,
     });
   }
-  if (rec) {
-    tabs.push({ id: "research", label: "Research", panel: <ResearchPanel rec={rec} /> });
+  if (row && checklist) {
+    tabs.push({
+      id: "research",
+      label: "Research",
+      panel: <ResearchPanel row={row} dimensions={checklist.dimensions} />,
+    });
   }
   if (backtest) {
     tabs.push({ id: "simulate", label: "Simulate", panel: <SimulatePanel result={backtest} /> });

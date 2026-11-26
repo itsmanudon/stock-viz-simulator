@@ -65,6 +65,15 @@ class SymbolMetrics(SQLModel, table=True):
     hv_20: float | None = None  # annualised 20-day historical volatility, percent
     avg_volume_20: float | None = None
 
+    # A3.5 (M2.7): price return over 21, 63, 126 and 252 sessions, percent
+    # (close against the close that many sessions earlier). The RS percentile
+    # ranks these within the symbol's market on read
+    # (``services/relative_strength.py``).
+    return_1m: float | None = None
+    return_3m: float | None = None
+    return_6m: float | None = None
+    return_12m: float | None = None
+
     # Phase 6.5 fundamentals snapshot, from services/fundamentals/valuation.py
     # as of the run date. Percent fields are percents; market cap is in USD so
     # it compares across markets.

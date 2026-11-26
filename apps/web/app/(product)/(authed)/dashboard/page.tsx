@@ -1,3 +1,4 @@
+import { BookLink as Link } from "@/components/book-link";
 import {
   ArrowLeftRight,
   ArrowUpRight,
@@ -6,7 +7,6 @@ import {
   SearchCode,
 } from "lucide-react";
 import type { Metadata } from "next";
-import Link from "next/link";
 
 import { AlertsWidget } from "@/components/dashboard/alerts-widget";
 import { AllocationWidget } from "@/components/dashboard/allocation-widget";
@@ -18,6 +18,7 @@ import { WatchlistWidget } from "@/components/dashboard/watchlist-widget";
 import { PageFrame } from "@/components/page-frame";
 import { MarketTerrain } from "@/components/prism/market-terrain";
 import { loadTerrain } from "@/components/prism/terrain-data";
+import { loadBookContext } from "@/lib/book-context";
 import { loadDashboardData } from "@/lib/dashboard-data";
 
 export const metadata: Metadata = { title: "Dashboard" };
@@ -29,9 +30,16 @@ const SHORTCUTS = [
   { label: "Portfolio", href: "/portfolio", icon: BriefcaseBusiness },
 ] as const;
 
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ book?: string }>;
+}) {
+  const params = await searchParams;
+  // A5.2: the hero and every widget follow `?book=<id|all>` (default when absent).
+  const books = await loadBookContext(params.book, "/dashboard", params);
   const [{ portfolio, history, analytics, orders, alerts, watchlist, news, newsTickers }, terrain] =
-    await Promise.all([loadDashboardData(), loadTerrain()]);
+    await Promise.all([loadDashboardData(books.book), loadTerrain()]);
   // Ticker to trading currency from what the page already holds, so pending
   // triggers show in their own currency without another request.
   const currencies: Record<string, string> = {};
@@ -76,7 +84,17 @@ export default async function DashboardPage() {
           open (orders, watchlist, alerts), then how the book moved, then news
           on the symbols held or watched. */}
       <div className="mt-6 grid gap-4" data-stagger>
-        <PortfolioHero portfolio={portfolio} history={history} />
+        <PortfolioHero
+          portfolio={portfolio}
+          history={history}
+          book={
+            books.isAll
+              ? { name: "All books", kind: "all", count: books.books.length }
+              : books.selected
+                ? { name: books.selected.name, kind: books.selected.kind, count: 1 }
+                : null
+          }
+        />
         {/* PRISM: the market as a 3D surface with time as its fourth axis.
             Drops out when fewer than four symbols share a full window. */}
         {terrain ? <MarketTerrain data={terrain} variant="compact" href="/markets" /> : null}

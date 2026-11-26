@@ -1,5 +1,5 @@
+import { BookLink as Link } from "@/components/book-link";
 import { Bell, BellRing } from "lucide-react";
-import Link from "next/link";
 
 import { WidgetCard, WidgetEmpty } from "@/components/dashboard/widget-card";
 import type { Alert } from "@/lib/api/alerts";

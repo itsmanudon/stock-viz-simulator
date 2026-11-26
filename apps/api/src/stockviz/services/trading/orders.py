@@ -29,6 +29,7 @@ from sqlmodel import Session, select
 from stockviz._time import utcnow
 from stockviz.models import PendingOrder, Portfolio, Symbol, TradeSide
 from stockviz.models.order import OrderStatus, OrderType
+from stockviz.services.fee_view import fee_date
 from stockviz.services.ingest.bar_semantics import latest_completed_session
 from stockviz.services.simulation import (
     LIVE_PAPER_EXECUTION_PROFILE,
@@ -36,6 +37,7 @@ from stockviz.services.simulation import (
     FillStatus,
     evaluate_order,
 )
+from stockviz.services.trading.books import owned_book, resolve_book
 from stockviz.services.trading.buying_power import (
     available_cash,
     available_shares,
@@ -55,7 +57,6 @@ from stockviz.services.trading.execute import (
     SymbolNotFound,
     TradeExecutionError,
     apply_fill,
-    ensure_default_portfolio,
     resolve_priced_symbol,
 )
 from stockviz.services.trading.execution_provenance import (
@@ -89,8 +90,9 @@ def create_pending_order(
     quantity: Decimal,
     limit_price: Decimal,
     client_order_id: str | None = None,
+    book_id: int | None = None,
 ) -> PendingOrder:
-    """Validate and persist a new pending order.
+    """Validate and persist a new pending order in ``book_id`` (default book).
 
     With a ``client_order_id`` a repeat of the same order returns the first
     one, and a repeat naming a different order raises
@@ -111,7 +113,7 @@ def create_pending_order(
     if order_type in (OrderType.STOP_LOSS, OrderType.TAKE_PROFIT) and side != TradeSide.SELL:
         raise OrderError(f"{order_type} orders must be sell orders")
 
-    portfolio = ensure_default_portfolio(session, user_id)
+    portfolio = resolve_book(session, user_id, book_id, write=True)
     assert portfolio.id is not None
     portfolio_id = portfolio.id
     portfolio = lock_portfolio(session, portfolio_id)
@@ -184,22 +186,21 @@ def create_pending_order(
 
 
 def cancel_pending_order(session: Session, *, user_id: int, order_id: int) -> None:
-    """Cancel a pending order, serialized on the portfolio row.
+    """Cancel a pending order, serialized on its book's row.
+
+    Cancelling is allowed in an archived book (it only releases a
+    reservation); archiving refuses a book with pending orders anyway.
 
     Holds the same ``FOR UPDATE`` lock settlement uses, then re-reads
     ``order.status`` so a fill that committed while we waited cannot be
     overwritten back to ``CANCELLED``.
     """
-    portfolio = session.exec(
-        select(Portfolio).where(Portfolio.user_id == user_id).order_by(Portfolio.id)  # type: ignore[arg-type]
-    ).first()
-    if portfolio is None or portfolio.id is None:
+    # A5.1: the order names its own book; it must be one of the user's.
+    order = session.get(PendingOrder, order_id)
+    portfolio = owned_book(session, user_id, order.portfolio_id if order else None)
+    if order is None or portfolio is None or portfolio.id is None:
         raise OrderNotFound("Order not found")
     lock_portfolio(session, portfolio.id)
-
-    order = session.get(PendingOrder, order_id)
-    if order is None or order.portfolio_id != portfolio.id:
-        raise OrderNotFound("Order not found")
     session.refresh(order)
     if order.status != OrderStatus.PENDING:
         raise OrderError("Only pending orders can be cancelled")
@@ -426,6 +427,7 @@ def _fill(
             currency=priced.currency,
             fx_rate=priced.fx_rate,
             exclude_order_id=order.id,
+            fee_on=fee_date(order.ticker, provenance.evaluated_at),
         )
     except TradeExecutionError as exc:
         _cancel(session, order, str(exc))

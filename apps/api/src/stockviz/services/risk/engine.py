@@ -14,7 +14,7 @@ by hand. Conventions, stated where the numbers are shown (UX-9):
 from __future__ import annotations
 
 import math
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
 from dataclasses import dataclass
 
 import numpy as np
@@ -88,6 +88,23 @@ def compound_windows(returns: np.ndarray, horizon: int) -> np.ndarray:
     return np.expm1(cumulative[horizon:] - cumulative[:-horizon])
 
 
+def stationary_indices(
+    n: int, *, paths: int, horizon_days: int, mean_block: int, rng: np.random.Generator
+) -> Iterator[np.ndarray]:
+    """The stationary bootstrap's day index for each path, one step at a time.
+
+    Politis and Romano: each step continues the current block with
+    probability ``1 - 1/mean_block`` or jumps to a random day, wrapping at the
+    end. Shared by the portfolio Monte Carlo below and the backtest
+    drawdown fan (A4.3), so both draw the same way from the generator."""
+    jump = 1.0 / mean_block
+    idx = rng.integers(0, n, size=paths)
+    for _ in range(horizon_days):
+        yield idx
+        restart = rng.random(paths) < jump
+        idx = np.where(restart, rng.integers(0, n, size=paths), (idx + 1) % n)
+
+
 def block_bootstrap(
     daily_returns: np.ndarray,
     *,
@@ -100,21 +117,18 @@ def block_bootstrap(
 ) -> MonteCarloResult:
     """Resample the portfolio's past daily returns in blocks of mean length 5.
 
-    The stationary bootstrap (Politis and Romano): each step continues the
-    current block with probability ``1 - 1/mean_block`` or jumps to a random
-    day, wrapping at the end. Short runs of calm or stress stay together. A
-    fixed seed makes the same request give the same answer.
+    The stationary bootstrap (:func:`stationary_indices`): short runs of calm
+    or stress stay together. A fixed seed makes the same request give the
+    same answer.
     """
     n = len(daily_returns)
     rng = np.random.default_rng(seed)
-    idx = rng.integers(0, n, size=paths)
     log_growth = np.zeros(paths)
     series = np.log1p(np.asarray(daily_returns, dtype=float))
-    jump = 1.0 / mean_block
-    for _ in range(horizon_days):
+    for idx in stationary_indices(
+        n, paths=paths, horizon_days=horizon_days, mean_block=mean_block, rng=rng
+    ):
         log_growth += series[idx]
-        restart = rng.random(paths) < jump
-        idx = np.where(restart, rng.integers(0, n, size=paths), (idx + 1) % n)
     ending = start_value * np.exp(log_growth)
     return MonteCarloResult(
         paths=paths,

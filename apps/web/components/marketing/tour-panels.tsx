@@ -11,10 +11,16 @@
  * rebound and ordinary workspace classes resolve correctly.
  */
 
-import { Check, X } from "lucide-react";
+import { Check, Minus, X } from "lucide-react";
 
 import { Sparkline } from "@/components/sparkline";
-import type { BacktestResult, Recommendation, ScreenerResult } from "@/lib/api/types";
+import type {
+  BacktestResult,
+  ChecklistDimension,
+  ChecklistRow,
+  ScreenerResult,
+} from "@/lib/api/types";
+import { STATUS_LABEL } from "@/lib/checklist-view";
 import { titleCase } from "@/lib/title-case";
 
 /** For values the API already expresses in percent (momentum). */
@@ -108,63 +114,66 @@ export function ScreenPanel({ rows }: { rows: ScreenerResult[] }) {
 // --- 02 Research -----------------------------------------------------------
 
 /**
- * The differentiator: every vote in the rule set is shown, including the ones
- * that failed. Two rows are called out with numbered markers — the annotation
- * is rendered inline rather than positioned over a bitmap, so it can't drift
- * out of alignment.
+ * The Checklist (A2.4): every one of the six dimensions is shown, including
+ * the ones not met or unknown. Two rows are called out with numbered markers;
+ * the annotation is rendered inline rather than over a bitmap, so it can't
+ * drift out of alignment.
  */
-export function ResearchPanel({ rec }: { rec: Recommendation }) {
-  const votes = rec.votes.slice(0, 7);
-  const passed = votes.filter((v) => v.passed).length;
-  // Annotate the first pass and the first failure, whichever rows those are.
-  const firstPass = votes.findIndex((v) => v.passed);
-  const firstFail = votes.findIndex((v) => !v.passed);
+export function ResearchPanel({
+  row,
+  dimensions,
+}: {
+  row: ChecklistRow;
+  dimensions: ChecklistDimension[];
+}) {
+  const items = dimensions.map((dimension) => ({
+    dimension,
+    status: row.results.find((r) => r.key === dimension.key)?.status ?? "unknown",
+  }));
+  const firstMet = items.findIndex((item) => item.status === "met");
+  const firstOther = items.findIndex((item) => item.status !== "met");
 
   const markerFor = (index: number): number | null => {
-    if (index === firstPass) return 1;
-    if (index === firstFail) return 2;
+    if (index === firstMet) return 1;
+    if (index === firstOther) return 2;
     return null;
   };
 
   return (
     <PanelBody>
       <PanelHeading
-        eyebrow="Signals · rule-based votes"
-        title="Every vote is shown, so you can disagree with the ones you don't buy."
+        eyebrow="Checklist · six published conditions"
+        title="Every dimension is shown with its formula, including the ones not met."
       />
 
       <div className="mb-3 flex items-baseline gap-3">
-        <span className="ticker text-sm font-semibold">{rec.ticker}</span>
+        <span className="ticker text-sm font-semibold">{row.ticker}</span>
         <span className="font-mono text-2xs text-text-tertiary">
-          {passed}/{votes.length} votes passed · score {rec.score}
+          {row.met} of {row.total} met · session {row.session_date}
         </span>
       </div>
 
       <ul className="space-y-1.5">
-        {votes.map((vote, index) => {
+        {items.map(({ dimension, status }, index) => {
           const marker = markerFor(index);
           return (
             <li
-              key={vote.id}
+              key={dimension.key}
               className={`flex items-center gap-2.5 rounded-md px-2.5 py-2 ${
                 marker ? "bg-brand/5 ring-1 ring-brand/30" : ""
               }`}
             >
-              <span
-                className={`flex size-4 shrink-0 items-center justify-center rounded-full ${
-                  vote.passed ? "bg-positive/15 text-positive" : "bg-negative/15 text-negative"
-                }`}
-              >
-                {vote.passed ? (
+              <span className="flex size-4 shrink-0 items-center justify-center rounded-full bg-surface-secondary text-text-secondary">
+                {status === "met" ? (
                   <Check className="size-2.5" aria-hidden />
-                ) : (
+                ) : status === "not_met" ? (
                   <X className="size-2.5" aria-hidden />
+                ) : (
+                  <Minus className="size-2.5" aria-hidden />
                 )}
               </span>
-              <span className="min-w-0 flex-1 truncate text-xs">{vote.label}</span>
-              <span className="hidden truncate text-2xs text-text-tertiary sm:block sm:max-w-[45%]">
-                {vote.detail}
-              </span>
+              <span className="min-w-0 flex-1 truncate text-xs">{dimension.name}</span>
+              <span className="text-2xs text-text-tertiary">{STATUS_LABEL[status]}</span>
               {marker ? (
                 <span className="flex size-4 shrink-0 items-center justify-center rounded-full bg-brand font-mono text-3xs text-primary-foreground">
                   {marker}
@@ -177,11 +186,11 @@ export function ResearchPanel({ rec }: { rec: Recommendation }) {
 
       <div className="mt-3 space-y-1 border-t border-border-muted pt-3">
         <p className="font-mono text-3xs text-text-tertiary">
-          <span className="text-brand">1</span> — a vote that passed, with the number behind it.
+          <span className="text-brand">1</span> — a dimension that is met, formula on the page.
         </p>
         <p className="font-mono text-3xs text-text-tertiary">
-          <span className="text-brand">2</span> — a vote that failed. It stays on screen; nothing is
-          hidden to make the score look better.
+          <span className="text-brand">2</span> — one not met or unknown. It stays on screen;
+          nothing is hidden. Not investment advice.
         </p>
       </div>
     </PanelBody>

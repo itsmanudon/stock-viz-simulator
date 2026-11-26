@@ -1,8 +1,8 @@
 /**
  * /settings — user preferences (Aurora board v3).
  *
- * Main column: display currency, account currency and risk limits (server
- * actions, so they work without JavaScript), then interface preferences that
+ * Main column: display currency, account currency, risk limits and (A2.3)
+ * notification channels (server actions), then interface preferences that
  * live in this browser. Aside: the account's paper card and details, keyboard
  * shortcuts, and the system context.
  */
@@ -11,13 +11,18 @@ import type { Metadata } from "next";
 import { revalidatePath } from "next/cache";
 
 import { auth } from "@/auth";
+import { BooksPanel } from "@/components/books-panel";
+import { NotificationChannelsPanel } from "@/components/notification-channels-panel";
 import { PageHeader } from "@/components/page-header";
 import { PaperCard } from "@/components/paper-card";
 import { TiltCard } from "@/components/prism/tilt-card";
 import { RiskLimitsForm } from "@/components/risk-limits-form";
 import { AccountDetails, InterfacePanel, KeyboardShortcuts } from "@/components/settings-workspace";
+import { type NotificationChannels, listNotificationChannels } from "@/lib/api/notifications";
 import { getProfile, patchProfile } from "@/lib/api/profile";
 import { getPortfolio, getRiskLimits, putBaseCurrency, putRiskLimits } from "@/lib/api/trading";
+import { loadBookContext } from "@/lib/book-context";
+import { bookIdFromForm } from "@/lib/book-url";
 import { limitsFromForm } from "@/lib/risk-limits";
 
 export const metadata: Metadata = { title: "Settings" };
@@ -39,7 +44,7 @@ async function setBaseCurrency(formData: FormData) {
   const next = formData.get("base_currency");
   if (next !== "USD" && next !== "INR") return;
   try {
-    await putBaseCurrency(next);
+    await putBaseCurrency(next, bookIdFromForm(formData));
   } catch {
     // 409: the account traded since the page loaded; the page shows it locked.
   }
@@ -48,17 +53,29 @@ async function setBaseCurrency(formData: FormData) {
 
 async function setRiskLimits(formData: FormData) {
   "use server";
-  await putRiskLimits(limitsFromForm(formData));
+  await putRiskLimits(limitsFromForm(formData), bookIdFromForm(formData));
   revalidatePath("/settings");
 }
 
-export default async function SettingsPage() {
-  const [profile, session, portfolio, limits] = await Promise.all([
+export default async function SettingsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ book?: string }>;
+}) {
+  const params = await searchParams;
+  // A5.2: the account currency and risk limits belong to one book: `?book=`,
+  // else the default. Books are managed in the Books panel.
+  const books = await loadBookContext(params.book, "/settings", params);
+  const bookId = books.selected?.id ?? null;
+  const [profile, session, portfolio, limits, channels] = await Promise.all([
     getProfile(),
     auth(),
-    getPortfolio().catch(() => null),
-    getRiskLimits().catch(() => null),
+    getPortfolio(bookId).catch(() => null),
+    getRiskLimits(bookId).catch(() => null),
+    listNotificationChannels().catch(() => null as NotificationChannels | null),
   ]);
+  const bookName = books.selected?.name ?? "this book";
+  const writable = books.selected?.writable ?? true;
   const base = portfolio?.base_currency ?? "USD";
   const other = base === "USD" ? "INR" : "USD";
 
@@ -108,15 +125,22 @@ export default async function SettingsPage() {
             </p>
           </SettingsPanel>
 
+          {books.listed ? (
+            <SettingsPanel title="Books" id="books">
+              <BooksPanel books={books.books} limit={books.limit} />
+            </SettingsPanel>
+          ) : null}
+
           {portfolio ? (
-            <SettingsPanel title="Account currency" id="base-currency-heading">
-              {portfolio.base_currency_locked === false ? (
+            <SettingsPanel title={`Account currency · ${bookName}`} id="base-currency-heading">
+              {portfolio.base_currency_locked === false && writable ? (
                 <form
                   action={setBaseCurrency}
                   className="space-y-3"
                   aria-labelledby="base-currency-heading"
                 >
                   <input type="hidden" name="base_currency" value={other} />
+                  {bookId != null ? <input type="hidden" name="book_id" value={bookId} /> : null}
                   <p className="text-sm">
                     This account holds its cash in <span className="font-semibold">{base}</span>.
                   </p>
@@ -145,8 +169,18 @@ export default async function SettingsPage() {
           ) : null}
 
           {portfolio ? (
-            <SettingsPanel title="Risk limits" id="limits-heading">
-              <RiskLimitsForm limits={limits} action={setRiskLimits} />
+            <SettingsPanel title={`Risk limits · ${bookName}`} id="limits-heading">
+              <RiskLimitsForm limits={limits} action={setRiskLimits} bookId={bookId} />
+            </SettingsPanel>
+          ) : null}
+
+          {channels ? (
+            <SettingsPanel title="Notifications" id="notifications-heading">
+              <NotificationChannelsPanel
+                channels={channels.channels}
+                categories={channels.categories}
+                accountEmail={session?.user?.email}
+              />
             </SettingsPanel>
           ) : null}
 

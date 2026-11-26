@@ -7,6 +7,8 @@ rule:
   (``rsi()`` -> ``rsi(14)``, ``bb(20, k=2)`` -> ``bb(20, 2)``);
 - a default output dropped (``adx(14).adx`` -> ``adx(14)``);
 - ``news.count`` keywords in name order;
+- a drawing label (A3.3) trimmed and lowercased (labels match ignoring
+  case), ``avwap("x").vwap`` written ``avwap("x")``;
 - ``and`` / ``or`` flattened and their operands sorted by canonical text.
   Kleene ``and``/``or`` are commutative and associative, so this never
   changes a result. Nothing else is reordered: not comparisons (``a < b`` is
@@ -52,6 +54,9 @@ def canonicalize(node: ast.Node) -> ast.Node:
                     args.append(canonicalize(arg))
             output = None if node.output == fn.default_output else node.output
             return ast.Call(node.name, tuple(args), (), output, pos=pos)
+        case ast.Ref():
+            output = None if node.kind == "avwap" and node.output == "vwap" else node.output
+            return ast.Ref(node.kind, ref_label(node.label), output, pos=pos)
         case ast.News():
             kwargs = tuple(sorted((k, canonicalize(v)) for k, v in node.kwargs))
             return ast.News(node.name, tuple(canonicalize(a) for a in node.args), kwargs, pos=pos)
@@ -76,8 +81,13 @@ def canonicalize(node: ast.Node) -> ast.Node:
     return node
 
 
+def ref_label(label: str) -> str:
+    """A drawing label as rules match it: trimmed, inner spaces collapsed, lowercase."""
+    return " ".join(label.split()).lower()
+
+
 def rule_hash(canonical_text: str) -> str:
     return hashlib.sha256(canonical_text.encode("utf-8")).hexdigest()
 
 
-__all__ = ["canonicalize", "rule_hash"]
+__all__ = ["canonicalize", "ref_label", "rule_hash"]

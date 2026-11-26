@@ -27,6 +27,10 @@ export const VISITOR_LIMITS = {
   compare: 30,
   reactions: 20,
   stock: 60,
+  // A4.1: rule strategy runs, signed out (the API's own limit is 20 a minute).
+  strategy: 20,
+  // A4.5: scan event studies, signed out (the API allows 10 a minute).
+  eventStudy: 10,
 } as const;
 
 export type VisitorScope = keyof typeof VISITOR_LIMITS;

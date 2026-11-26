@@ -1,6 +1,7 @@
 import { Bell, BriefcaseBusiness, Star } from "lucide-react";
 import Link from "next/link";
 
+import { AddToListMenu, type ListChoice } from "@/components/add-to-list";
 import { AlertForm } from "@/components/alert-form";
 import { DeltaPill } from "@/components/dashboard/delta-pill";
 import { WatchlistToggle } from "@/components/watchlist-toggle";
@@ -30,6 +31,7 @@ export function SecurityHeader({
   periodStart,
   signedIn,
   inWatchlist,
+  watchlists = [],
   hasPosition,
   callbackUrl,
 }: {
@@ -41,6 +43,8 @@ export function SecurityHeader({
   periodStart?: string | null;
   signedIn: boolean;
   inWatchlist: boolean;
+  /** A2.5: the user's lists for "Add to list…"; the star keeps one-click add to the default. */
+  watchlists?: ListChoice[];
   hasPosition: boolean;
   callbackUrl: string;
 }) {
@@ -115,6 +119,9 @@ export function SecurityHeader({
             {signedIn ? (
               <>
                 <WatchlistToggle ticker={symbol.ticker} initialInWatchlist={inWatchlist} compact />
+                {watchlists.length > 0 ? (
+                  <AddToListMenu ticker={symbol.ticker} lists={watchlists} />
+                ) : null}
                 <AlertForm
                   ticker={symbol.ticker}
                   lastClose={symbol.latest?.close ?? null}

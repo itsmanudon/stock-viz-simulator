@@ -148,6 +148,10 @@ def test_the_nightly_chain_leaves_the_night_it_should(chain_engine, monkeypatch)
     # revalidate-web exits 2 when WEB_REVALIDATE_URL is unset (RS-9); likewise.
     assert codes.pop("revalidate-web") == 2
     assert codes == dict.fromkeys(codes, 0), codes
+    # A2.3: the screen runs and the delivery drain ran in the chain.
+    assert {"screen-runs", "deliver-notifications"} <= set(codes)
+    # A2.4: the checklist replaced recommend; the Friday evidence step ran too.
+    assert {"checklist", "checklist-evidence"} <= set(codes) and "recommend" not in codes
 
     with Session(engine) as session:
         filled = session.get(PendingOrder, order_id)

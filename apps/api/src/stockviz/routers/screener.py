@@ -130,6 +130,11 @@ def screener(
             ) from exc
         rule_text = version.rule_text
     compiled = compile_or_422(rule_text) if rule_text else None
+    if compiled is not None and compiled.user_scoped and user_id is None:
+        raise HTTPException(
+            status.HTTP_401_UNAUTHORIZED,
+            "This rule reads your drawings (drawing() or avwap()); sign in to run it",
+        )
     result = run_screen_full(
         session,
         ScreenQuery(
@@ -169,6 +174,7 @@ def screener(
             offset=offset,
             limit=limit,
             rule=compiled,
+            rule_user_id=user_id if compiled is not None and compiled.user_scoped else None,
             rule_mode=rule_mode,
             as_of=as_of,
         ),
@@ -186,6 +192,7 @@ def screener(
             counts=ScreenerRuleCountsOut(**result.counts),
             evaluated=sum(result.counts.values()),
             cached=result.rule_run.cached,
+            user_scoped=compiled.user_scoped,
         )
     return ScreenerPageOut(
         rows=[ScreenerRowOut.model_validate(r, from_attributes=True) for r in result.rows],

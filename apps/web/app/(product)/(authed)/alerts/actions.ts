@@ -54,6 +54,14 @@ const CreateSchema = z.discriminatedUnion("kind", [
     repeat,
   }),
   z.object({
+    kind: z.literal("rule"),
+    ticker,
+    setup_version_id: z
+      .string({ message: "Pick a saved setup" })
+      .regex(/^[1-9][0-9]*$/, "Pick a saved setup"),
+    repeat,
+  }),
+  z.object({
     kind: z.literal("portfolio"),
     metric: z.enum(["drawdown_pct", "position_weight_pct", "day_change_pct"]),
     threshold: positive("Threshold"),
@@ -112,6 +120,13 @@ function toInput(data: z.infer<typeof CreateSchema>): AlertInput | string {
         params: { sentiment: data.sentiment || null, event_type: data.event_type || null },
         repeat: data.repeat,
       };
+    case "rule":
+      return {
+        ticker: data.ticker,
+        kind: "rule",
+        setup_version_id: Number(data.setup_version_id),
+        repeat: data.repeat,
+      };
     case "portfolio":
       return {
         kind: "portfolio",
@@ -139,6 +154,7 @@ export async function createAlertAction(
     "event_type",
     "metric",
     "threshold",
+    "setup_version_id",
     "repeat",
   ];
   const raw = Object.fromEntries(names.map((n) => [n, field(formData, n)]));

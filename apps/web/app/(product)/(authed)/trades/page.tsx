@@ -10,8 +10,8 @@
  * computes it in USD against the weighted-average cost.
  */
 
+import { BookLink as Link } from "@/components/book-link";
 import type { Metadata } from "next";
-import Link from "next/link";
 
 import { DataTableFrame, NumericCell } from "@/components/data-table";
 import { FigureStrip } from "@/components/figure-strip";
@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/table";
 import { formatUtcDateTime } from "@/lib/api-time";
 import { listTrades } from "@/lib/api/trading";
+import { loadBookContext } from "@/lib/book-context";
 import { formatCurrency, formatSignedCurrency } from "@/lib/portfolio-view-model";
 
 export const metadata: Metadata = { title: "Trade history" };
@@ -36,14 +37,32 @@ function fmtQty(raw: string): string {
   return Number(raw).toLocaleString("en-US", { maximumFractionDigits: 4 });
 }
 
-export default async function TradesPage() {
-  const trades = await listTrades(500);
+export default async function TradesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ book?: string }>;
+}) {
+  const params = await searchParams;
+  // A5.2: one book's fills, or every book's (`?book=all`, each row names its book).
+  const books = await loadBookContext(params.book, "/trades", params);
+  const trades = await listTrades(500, books.book);
+  const bookName = new Map(books.books.map((b) => [b.id, b.name]));
   const sells = trades.filter((trade) => trade.realized_pnl !== null);
   const winningSells = sells.filter((trade) => Number(trade.realized_pnl) > 0).length;
   const buys = trades.filter((trade) => trade.side === "buy").length;
-  const realized = sells.reduce((sum, trade) => sum + Number(trade.realized_pnl), 0);
-  // Realized P&L is in the account's base currency (Phase 4.8).
+  const grossRealized = sells.reduce((sum, trade) => sum + Number(trade.realized_pnl), 0);
+  // A4.2, net first: realized P&L less every fee paid on the listed fills
+  // (buys too), each at its fill's rate into the base currency. Fills from
+  // before A4.2 carry no fee and add nothing.
+  const feesPaid = trades.reduce(
+    (sum, trade) => sum + Number(trade.fees ?? 0) * Number(trade.fx_rate ?? 1),
+    0,
+  );
+  const realized = grossRealized - feesPaid;
+  // Realized P&L is in the account's base currency (Phase 4.8). All books
+  // may mix currencies: then it is not totalled (each book's page has it).
   const baseCurrency = trades[0]?.base_currency ?? "USD";
+  const oneCurrency = trades.every((trade) => (trade.base_currency ?? "USD") === baseCurrency);
 
   return (
     <div className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:py-7">
@@ -56,13 +75,19 @@ export default async function TradesPage() {
             <span>
               {trades.length} executed trade{trades.length === 1 ? "" : "s"}
             </span>
+            <MetaChip>
+              {books.isAll ? "All books" : `Book: ${books.selected?.name ?? "Default"}`}
+            </MetaChip>
             <MetaChip>Times in UTC</MetaChip>
           </span>
         }
         actions={
           trades.length > 0 ? (
             <Button asChild variant="outline" size="sm" className="rounded-full">
-              <a href="/api/export/trades" download="trades.csv">
+              <a
+                href={`/api/export/trades${books.book != null ? `?book=${books.book}` : ""}`}
+                download="trades.csv"
+              >
                 Download CSV
               </a>
             </Button>
@@ -93,7 +118,16 @@ export default async function TradesPage() {
             className="mt-5"
             figures={[
               { label: "Trades", value: String(trades.length), note: "latest 500 at most" },
-              ...(sells.length > 0
+              ...(sells.length > 0 && !oneCurrency
+                ? [
+                    {
+                      label: "Realized P&L",
+                      value: "Per book",
+                      note: "these books hold different currencies; open one book to total it",
+                    },
+                  ]
+                : []),
+              ...(sells.length > 0 && oneCurrency
                 ? [
                     {
                       label: "Realized P&L",
@@ -113,7 +147,10 @@ export default async function TradesPage() {
                           {formatSignedCurrency(realized, baseCurrency)}
                         </span>
                       ),
-                      note: "USD, all sells listed",
+                      note:
+                        feesPaid > 0
+                          ? `after ${formatCurrency(String(feesPaid), baseCurrency)} of fees · gross ${formatSignedCurrency(grossRealized, baseCurrency)}`
+                          : "after fees, all sells listed",
                     },
                   ]
                 : []),
@@ -138,11 +175,14 @@ export default async function TradesPage() {
                   <TableHead className="hidden sm:table-cell">Time (UTC)</TableHead>
                   <TableHead className="w-[100px] md:w-[120px]">Ticker</TableHead>
                   <TableHead className="w-[72px] md:w-[88px]">Side</TableHead>
+                  {books.isAll ? (
+                    <TableHead className="hidden md:table-cell">Book</TableHead>
+                  ) : null}
                   <TableHead className="text-right">Qty</TableHead>
                   <TableHead className="hidden text-right md:table-cell">Price</TableHead>
                   <TableHead className="text-right">Total</TableHead>
                   <TableHead className="hidden text-right sm:table-cell">
-                    Realized P&amp;L · USD
+                    Realized P&amp;L, Net
                   </TableHead>
                 </TableRow>
               </TableHeader>
@@ -160,21 +200,58 @@ export default async function TradesPage() {
                     <TableCell>
                       <OrderSideBadge side={trade.side} />
                     </TableCell>
+                    {books.isAll ? (
+                      <TableCell className="hidden text-xs text-text-secondary md:table-cell">
+                        {(trade.book_id != null && bookName.get(trade.book_id)) || "—"}
+                      </TableCell>
+                    ) : null}
                     <TableCell className="text-right font-mono">{fmtQty(trade.quantity)}</TableCell>
                     <TableCell className="hidden text-right font-mono md:table-cell">
                       {formatCurrency(trade.price, trade.currency)}
                     </TableCell>
+                    {/* Net first: what the fill cost or paid after its fees. */}
                     <TableCell className="text-right font-mono">
-                      {formatCurrency(trade.total_native, trade.currency)}
+                      {formatCurrency(trade.net_native ?? trade.total_native, trade.currency)}
+                      {trade.fees != null && Number(trade.fees) > 0 ? (
+                        <span
+                          className="block text-2xs text-text-tertiary"
+                          data-testid="trade-fees"
+                          title={(trade.fee_lines ?? [])
+                            .map((line) => `${line.label} ${line.amount}`)
+                            .join(", ")}
+                        >
+                          {formatCurrency(trade.total_native, trade.currency)}{" "}
+                          {trade.side === "buy" ? "+" : "−"} fees{" "}
+                          {formatCurrency(trade.fees, trade.currency)}
+                        </span>
+                      ) : null}
                     </TableCell>
                     {/* Only sells realize a gain or loss; a buy shows an em dash. */}
                     <NumericCell
-                      signedBy={trade.realized_pnl === null ? null : Number(trade.realized_pnl)}
+                      signedBy={
+                        trade.realized_pnl === null
+                          ? null
+                          : Number(trade.realized_pnl_net ?? trade.realized_pnl)
+                      }
                       className="hidden sm:table-cell"
                     >
-                      {trade.realized_pnl === null
-                        ? null
-                        : formatSignedCurrency(trade.realized_pnl, trade.base_currency ?? "USD")}
+                      {trade.realized_pnl === null ? null : (
+                        <>
+                          {formatSignedCurrency(
+                            trade.realized_pnl_net ?? trade.realized_pnl,
+                            trade.base_currency ?? "USD",
+                          )}
+                          {trade.realized_pnl_net != null ? (
+                            <span className="block text-2xs text-text-tertiary">
+                              gross{" "}
+                              {formatSignedCurrency(
+                                trade.realized_pnl,
+                                trade.base_currency ?? "USD",
+                              )}
+                            </span>
+                          ) : null}
+                        </>
+                      )}
                     </NumericCell>
                   </TableRow>
                 ))}

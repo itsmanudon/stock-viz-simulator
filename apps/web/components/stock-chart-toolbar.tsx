@@ -1,12 +1,26 @@
 "use client";
 
-import { Check, ChevronDown, SlidersHorizontal } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { DropdownMenu } from "radix-ui";
 
+import { IndicatorMenu } from "@/components/indicator-menu";
+import type { IndicatorCatalogItem } from "@/lib/api/types";
 import {
-  STOCK_INDICATORS,
+  EVENT_LABELS,
+  EVENT_TYPES,
+  resolveEventTypes,
+  toggleEventsParam,
+} from "@/lib/chart-events";
+import {
+  CHART_SCALES,
+  CHART_TYPES,
+  type ChartType,
+  type ChartView,
+  DEFAULT_CHART_VIEW,
+  PRICE_ADJUSTMENTS,
+  RAW_UNAVAILABLE_NOTE,
+} from "@/lib/chart-view";
+import {
   STOCK_INTERVALS,
   STOCK_TIMEFRAMES,
   type StockIndicator,
@@ -20,20 +34,34 @@ export function StockChartToolbar({
   timeframe,
   indicators,
   interval = "1d",
+  view = DEFAULT_CHART_VIEW,
+  hasRaw = false,
+  catalog = null,
+  signedIn = false,
 }: {
   ticker: string;
   timeframe: StockTimeframe;
   indicators: StockIndicator[];
   interval?: StockInterval;
+  /** A3.1: chart type, price scale and adjusted/raw prices. */
+  view?: ChartView;
+  /** Whether raw exchange prices are stored for this symbol. */
+  hasRaw?: boolean;
+  /** A3.4: the studies' parameters and evidence badges (null when the call failed). */
+  catalog?: IndicatorCatalogItem[] | null;
+  /** A3.5: fills are offered (and on by default) only when signed in. */
+  signedIn?: boolean;
 }) {
   const router = useRouter();
 
-  function toggleIndicator(indicator: StockIndicator) {
-    const next = new Set(indicators);
-    if (next.has(indicator)) next.delete(indicator);
-    else next.add(indicator);
-    router.push(buildStockChartHref(ticker, timeframe, Array.from(next), interval));
-  }
+  const hrefWith = (patch: Partial<ChartView>) =>
+    buildStockChartHref(ticker, timeframe, indicators, interval, { ...view, ...patch });
+  const segment = (active: boolean) =>
+    `inline-flex h-7 min-w-8 items-center justify-center rounded-sm px-2 text-xs font-medium transition-colors ${
+      active
+        ? "bg-brand/12 text-brand"
+        : "text-muted-foreground hover:bg-surface-hover hover:text-foreground"
+    }`;
 
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border-muted px-3 py-2.5 sm:px-4">
@@ -42,7 +70,7 @@ export function StockChartToolbar({
           {STOCK_TIMEFRAMES.map((value) => (
             <Link
               key={value}
-              href={buildStockChartHref(ticker, value, indicators, interval)}
+              href={buildStockChartHref(ticker, value, indicators, interval, view)}
               aria-current={timeframe === value ? "page" : undefined}
               className={`inline-flex h-8 min-w-9 items-center justify-center rounded-md px-2 font-mono text-xs font-medium transition-colors ${
                 timeframe === value
@@ -63,7 +91,7 @@ export function StockChartToolbar({
           {STOCK_INTERVALS.map((option) => (
             <Link
               key={option.value}
-              href={buildStockChartHref(ticker, timeframe, indicators, option.value)}
+              href={buildStockChartHref(ticker, timeframe, indicators, option.value, view)}
               aria-current={interval === option.value ? "page" : undefined}
               aria-label={`${option.label} bars`}
               className={`inline-flex h-7 min-w-8 items-center justify-center rounded-sm px-2 text-xs font-medium transition-colors ${
@@ -83,59 +111,150 @@ export function StockChartToolbar({
         </nav>
       </div>
 
-      <DropdownMenu.Root>
-        <DropdownMenu.Trigger asChild>
-          <button
-            type="button"
-            className="inline-flex h-8 items-center gap-2 rounded-md border border-border-muted px-2.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground data-[state=open]:bg-surface-hover data-[state=open]:text-foreground"
-            aria-label={`Indicators, ${indicators.length} selected`}
+      {/* A3.1: chart type, price scale and adjusted/raw prices. */}
+      <div className="flex flex-wrap items-center gap-2">
+        <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <span className="sr-only sm:not-sr-only">Type</span>
+          <select
+            aria-label="Chart type"
+            value={view.type}
+            onChange={(event) => router.push(hrefWith({ type: event.target.value as ChartType }))}
+            className="h-8 rounded-md border border-border-muted bg-card px-2 text-xs font-medium text-foreground hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60"
           >
-            <SlidersHorizontal className="size-3.5" aria-hidden />
-            Indicators
-            {indicators.length ? (
-              <span className="font-mono text-3xs text-brand">{indicators.length}</span>
-            ) : null}
-            <ChevronDown className="size-3" aria-hidden />
-          </button>
-        </DropdownMenu.Trigger>
-        <DropdownMenu.Portal>
-          <DropdownMenu.Content
-            align="end"
-            sideOffset={6}
-            className="z-50 min-w-48 rounded-md border border-border-muted bg-popover p-1"
-          >
-            <DropdownMenu.Label className="px-2 py-1.5 text-3xs font-semibold tracking-[0.02em] text-text-tertiary">
-              Technical Indicators
-            </DropdownMenu.Label>
-            {STOCK_INDICATORS.map((indicator, index) => [
-              index === 0 || STOCK_INDICATORS[index - 1].section !== indicator.section ? (
-                <DropdownMenu.Label
-                  key={`label-${indicator.section}`}
-                  className="px-2 pt-2 pb-1 text-3xs text-text-tertiary"
-                >
-                  {indicator.section === "price" ? "On the price chart" : "Below the chart"}
-                </DropdownMenu.Label>
-              ) : null,
-              <DropdownMenu.CheckboxItem
-                key={indicator.value}
-                checked={indicators.includes(indicator.value)}
-                onSelect={(event) => {
-                  event.preventDefault();
-                  toggleIndicator(indicator.value);
-                }}
-                className="relative flex h-8 cursor-default select-none items-center rounded-sm py-1 pl-8 pr-2 text-xs text-muted-foreground outline-none data-[highlighted]:bg-surface-hover data-[highlighted]:text-foreground"
+            {CHART_TYPES.map((type) => (
+              <option key={type.value} value={type.value}>
+                {type.label}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <nav
+          aria-label="Price scale"
+          className="flex items-center gap-0.5 rounded-md border border-border-muted p-0.5"
+        >
+          {CHART_SCALES.map((option) => (
+            <Link
+              key={option.value}
+              href={hrefWith({ scale: option.value })}
+              aria-current={view.scale === option.value ? "page" : undefined}
+              aria-label={`${option.label} scale`}
+              className={segment(view.scale === option.value)}
+            >
+              <span aria-hidden>{option.short}</span>
+            </Link>
+          ))}
+        </nav>
+
+        <nav
+          aria-label="Price adjustment"
+          className="flex items-center gap-0.5 rounded-md border border-border-muted p-0.5"
+        >
+          {PRICE_ADJUSTMENTS.map((option) =>
+            option.value === "raw" && !hasRaw ? (
+              // Focusable but inert, so the keyboard reaches the reason.
+              <button
+                key={option.value}
+                type="button"
+                aria-disabled="true"
+                aria-label={`Raw prices: ${RAW_UNAVAILABLE_NOTE}`}
+                title={RAW_UNAVAILABLE_NOTE}
+                className="inline-flex h-7 min-w-8 cursor-not-allowed items-center justify-center rounded-sm px-2 text-xs font-medium text-text-tertiary opacity-60"
+                data-testid="raw-unavailable"
               >
-                <span className="absolute left-2 inline-flex size-4 items-center justify-center text-brand">
-                  <DropdownMenu.ItemIndicator>
-                    <Check className="size-3.5" aria-hidden />
-                  </DropdownMenu.ItemIndicator>
-                </span>
-                {indicator.label}
-              </DropdownMenu.CheckboxItem>,
-            ])}
-          </DropdownMenu.Content>
-        </DropdownMenu.Portal>
-      </DropdownMenu.Root>
+                {option.label}
+              </button>
+            ) : (
+              <Link
+                key={option.value}
+                href={hrefWith({ adjustment: option.value })}
+                aria-current={view.adjustment === option.value ? "page" : undefined}
+                aria-label={`${option.label} prices`}
+                className={segment(view.adjustment === option.value)}
+              >
+                {option.label}
+              </Link>
+            ),
+          )}
+        </nav>
+      </div>
+
+      <IndicatorMenu
+        indicators={indicators}
+        catalog={catalog}
+        onChange={(next) =>
+          router.push(buildStockChartHref(ticker, timeframe, next, interval, view))
+        }
+      />
+
+      {/* A3.5: one toggle per event type; the choice is URL state (?events=). */}
+      <EventToggles
+        hrefFor={(events) =>
+          buildStockChartHref(ticker, timeframe, indicators, interval, { ...view, events })
+        }
+        param={view.events}
+        signedIn={signedIn}
+      />
     </div>
   );
 }
+
+export function EventToggles({
+  hrefFor,
+  param,
+  signedIn,
+}: {
+  hrefFor: (events: string | undefined) => string;
+  param: string | undefined;
+  signedIn: boolean;
+}) {
+  const shown = new Set(resolveEventTypes(param, signedIn));
+  const types = EVENT_TYPES.filter((t) => t !== "fill" || signedIn);
+  return (
+    <nav
+      aria-label="Chart events"
+      className="flex w-full flex-wrap items-center gap-1"
+      data-testid="event-toggles"
+    >
+      <span className="mr-1 text-2xs text-text-tertiary">Events</span>
+      {types.map((type) => {
+        const on = shown.has(type);
+        return (
+          <Link
+            key={type}
+            href={hrefFor(toggleEventsParam(param, type, signedIn))}
+            scroll={false}
+            role="switch"
+            aria-checked={on}
+            aria-label={`${on ? "Hide" : "Show"} ${EVENT_LABELS[type].toLowerCase()} on the chart`}
+            data-event-type={type}
+            className={`inline-flex h-6 items-center gap-1.5 rounded-full border px-2 text-2xs font-medium transition-colors ${
+              on
+                ? "border-border bg-surface-hover text-foreground"
+                : "border-border-muted text-text-tertiary hover:text-foreground"
+            }`}
+          >
+            <span
+              aria-hidden
+              className="size-1.5 rounded-full"
+              style={{
+                background: on ? `var(${EVENT_TOKEN[type]})` : "transparent",
+                outline: "1px solid currentColor",
+              }}
+            />
+            {EVENT_LABELS[type]}
+          </Link>
+        );
+      })}
+    </nav>
+  );
+}
+
+/** The CSS token each marker type is drawn in (the chart reads the same tokens). */
+const EVENT_TOKEN = {
+  news: "--list-violet",
+  earnings: "--list-amber",
+  dividend: "--list-lime",
+  split: "--list-blue",
+  fill: "--foreground",
+} as const;

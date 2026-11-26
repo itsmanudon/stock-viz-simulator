@@ -3,6 +3,8 @@
 import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
 
+import type { DrawingColour } from "@/lib/drawings/kinds";
+
 /**
  * Bridge between the CSS design tokens and the canvas charts.
  *
@@ -20,9 +22,19 @@ export type ChartPalette = {
   text: string;
   grid: string;
   axis: string;
+  /** A3.1: the line and area chart types' stroke, and the area's fill stops. */
+  line: string;
+  areaTop: string;
+  areaBottom: string;
   /** Categorical colours for indicator overlays, in assignment order. */
   overlays: readonly string[];
+  /** A3.2: drawing colour tokens (`--list-<name>`, and the foreground). */
+  drawing: Record<DrawingColour, string>;
+  /** A3.2: behind a drawing's label (`--card`, mostly opaque). */
+  labelBg: string;
 };
+
+const DRAWING_TOKENS = ["aqua", "blue", "violet", "pink", "amber", "lime", "slate"] as const;
 
 const FALLBACK: ChartPalette = {
   positive: "#147a56",
@@ -32,9 +44,23 @@ const FALLBACK: ChartPalette = {
   text: "#808080",
   grid: "rgba(222, 222, 222, 0.9)",
   axis: "#dedede",
+  line: "#0b1220",
+  areaTop: "rgba(11, 18, 32, 0.18)",
+  areaBottom: "rgba(11, 18, 32, 0)",
   /* Categorical ramp deliberately excludes the blue brand and P&L colors so
      an overlay is never mistaken for an action or a gain. */
   overlays: ["#8277e8", "#4baebd", "#d36f9b", "#e59152", "#6287b9"],
+  drawing: {
+    aqua: "#22d3ee",
+    blue: "#60a5fa",
+    violet: "#a78bfa",
+    pink: "#f472b6",
+    amber: "#fbbf24",
+    lime: "#a3e635",
+    slate: "#94a3b8",
+    foreground: "#0b1220",
+  },
+  labelBg: "rgba(255, 255, 255, 0.85)",
 };
 
 function readToken(styles: CSSStyleDeclaration, name: string, fallback: string): string {
@@ -59,6 +85,7 @@ function readPalette(): ChartPalette {
   const positive = readToken(styles, "--positive", FALLBACK.positive);
   const negative = readToken(styles, "--negative", FALLBACK.negative);
   const border = readToken(styles, "--border-muted", FALLBACK.axis);
+  const line = readToken(styles, "--foreground", FALLBACK.line);
 
   return {
     positive,
@@ -68,7 +95,20 @@ function readPalette(): ChartPalette {
     text: readToken(styles, "--text-tertiary", FALLBACK.text),
     grid: withAlpha(border, 0.9),
     axis: border,
+    line,
+    areaTop: withAlpha(line, 0.18),
+    areaBottom: withAlpha(line, 0),
     overlays: FALLBACK.overlays,
+    drawing: {
+      ...(Object.fromEntries(
+        DRAWING_TOKENS.map((name) => [
+          name,
+          readToken(styles, `--list-${name}`, FALLBACK.drawing[name]),
+        ]),
+      ) as Record<(typeof DRAWING_TOKENS)[number], string>),
+      foreground: line,
+    },
+    labelBg: withAlpha(readToken(styles, "--card", "#ffffff"), 0.85),
   };
 }
 
@@ -78,7 +118,10 @@ function sameColors(a: ChartPalette, b: ChartPalette): boolean {
     a.negative === b.negative &&
     a.text === b.text &&
     a.grid === b.grid &&
-    a.axis === b.axis
+    a.axis === b.axis &&
+    a.line === b.line &&
+    a.labelBg === b.labelBg &&
+    DRAWING_TOKENS.every((name) => a.drawing[name] === b.drawing[name])
   );
 }
 

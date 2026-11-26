@@ -78,6 +78,8 @@ const portfolio: Portfolio = {
   unrealized_pl_options: "200",
   realized_pl: "400",
   realized_pl_unavailable: 1,
+  fees_paid: "0",
+  realized_pl_net: "0",
   options_market_value: "300",
   positions: [],
   option_positions: [

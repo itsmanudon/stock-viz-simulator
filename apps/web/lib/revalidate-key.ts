@@ -30,6 +30,6 @@ export const MARKET_TAGS = [
   "symbols",
   "screener",
   "fundamentals",
-  "recommendations",
+  "checklist",
   "news",
 ] as const;

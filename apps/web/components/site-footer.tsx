@@ -30,7 +30,7 @@ const COLUMNS: { heading: string; links: { href: string; label: string; external
         { href: "/markets", label: "Markets" },
         { href: "/screener", label: "Screener" },
         { href: "/compare", label: "Compare" },
-        { href: "/recommendations", label: "Signals" },
+        { href: "/checklist", label: "Checklist" },
         { href: "/news", label: "News" },
       ],
     },
@@ -73,7 +73,7 @@ const COLUMNS: { heading: string; links: { href: string; label: string; external
  */
 const DISCLOSURES = [
   "Simulated trading only. Orders fill against stored end-of-day closes — this is not a live brokerage and nothing is executed on an exchange.",
-  "Not investment advice. Signals are a transparent, rule-based vote count, not a recommendation to buy or sell any security.",
+  "Not investment advice. The Checklist counts six published conditions per symbol; it is not a recommendation to buy or sell any security.",
   "Prices, fills, dividends, and alerts are modelled from end-of-day data and will differ from real market outcomes.",
 ];
 

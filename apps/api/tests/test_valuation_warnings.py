@@ -23,6 +23,7 @@ from stockviz.services.trading import (
     snapshot_user_navs,
 )
 from stockviz.settings import get_settings
+from tests.book_helpers import default_book_id
 
 SECRET = get_settings().internal_api_token
 SESSION = date(2026, 11, 6)
@@ -118,7 +119,14 @@ def test_an_option_without_a_price_is_reported(session: Session) -> None:
 
 def test_an_incomplete_valuation_keeps_the_last_good_snapshot(session: Session) -> None:
     user_id, _ = _book(session, ("AAPL", "USD", True), ("MSFT", "USD", False))
-    session.add(PortfolioSnapshot(user_id=user_id, date=date(2026, 11, 5), nav=Decimal(100_500)))
+    session.add(
+        PortfolioSnapshot(
+            user_id=user_id,
+            portfolio_id=default_book_id(session, user_id),
+            date=date(2026, 11, 5),
+            nav=Decimal(100_500),
+        )
+    )
     session.commit()
 
     written = snapshot_user_navs(session, snapshot_date=SESSION)

@@ -5,6 +5,7 @@ import { z } from "zod";
 
 import { AuthedApiError, UnauthenticatedError } from "@/lib/api/server";
 import { createOrder, postTrade } from "@/lib/api/trading";
+import { bookIdFromForm } from "@/lib/book-url";
 import { REVIEW_REQUIRED_ERROR, clientOrderIdFrom, skippedReview } from "@/lib/order-review";
 import { titleCase } from "@/lib/title-case";
 
@@ -49,6 +50,9 @@ export type TradeFormState = {
     currency: string;
     total_native: string;
     total_usd: string;
+    /** A4.2: fees on the fill and the amount after them (null: none charged). */
+    fees?: string | null;
+    net_native?: string | null;
   };
 };
 
@@ -72,12 +76,15 @@ export async function placeTradeAction(
   }
 
   try {
-    const trade = await postTrade({
-      ticker: parsed.data.ticker,
-      side: parsed.data.side,
-      quantity: parsed.data.quantity,
-      client_order_id: clientOrderIdFrom(formData),
-    });
+    const trade = await postTrade(
+      {
+        ticker: parsed.data.ticker,
+        side: parsed.data.side,
+        quantity: parsed.data.quantity,
+        client_order_id: clientOrderIdFrom(formData),
+      },
+      bookIdFromForm(formData),
+    );
     revalidatePath("/portfolio");
     revalidatePath("/trades");
     revalidatePath("/trade");
@@ -92,6 +99,8 @@ export async function placeTradeAction(
         currency: trade.currency,
         total_native: trade.total_native,
         total_usd: trade.total_usd,
+        fees: trade.fees ?? null,
+        net_native: trade.net_native ?? null,
       },
     };
   } catch (err) {
@@ -129,10 +138,10 @@ export async function placeOrderAction(
   }
 
   try {
-    const order = await createOrder({
-      ...parsed.data,
-      client_order_id: clientOrderIdFrom(formData),
-    });
+    const order = await createOrder(
+      { ...parsed.data, client_order_id: clientOrderIdFrom(formData) },
+      bookIdFromForm(formData),
+    );
     revalidatePath("/orders");
     revalidatePath("/trade");
     revalidatePath(`/stocks/${parsed.data.ticker}`);

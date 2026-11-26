@@ -30,9 +30,11 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from stockviz.services.checklist.dimensions import CHECKLIST_PRESETS
 from stockviz.services.dsl import ast, compile_rule, point, vector
 from stockviz.services.dsl.functions import FUNCTIONS
 from stockviz.services.dsl.pit import Fact, Fundamentals, News, NewsDoc
+from stockviz.services.indicators.signals import SIGNALS
 from stockviz.services.setups.presets import PRESETS
 from tests.dsl_fixtures import universe
 
@@ -98,9 +100,40 @@ CORPUS: tuple[str, ...] = (
     "bars_since(delivery_pct > 80) < 3",
     # A2.2: every shipped preset
     *(preset.rule for preset in PRESETS),
+    # A2.4: the venue index binding, and every checklist dimension setup
+    "index_close > sma(index_close, 200)",
+    "index_close crosses_above sma(index_close, 50) and close > open",
+    "weekly.index_close > weekly.index_close[4]",
+    *(preset.rule for preset in CHECKLIST_PRESETS),
+    # A3.3: the owner's drawings (tests/dsl_fixtures.py::_drawings)
+    'close > drawing("support").price',
+    'close crosses_above drawing("trend").price or close crosses_below drawing("ray up").price',
+    'close > drawing("ray left").price or close < drawing("zone").top',
+    'close > drawing("zone").bottom and close < drawing("zone").top[5]',
+    'close crosses_below avwap("swing") and volume > sma(volume, 20)',
+    'close > avwap("swing").upper1 or close < avwap("swing").lower2',
+    'avwap("late") > avwap("late")[3] or close < avwap("hole").upper2',
+    'drawing("weekend").price < close or drawing("missing").price > 0',
+    'drawing("chan").price > 0 or drawing("note").price > 0 or close > open',
+    'bars_since(close crosses_above avwap("swing")) < 10',
+    # A3.4: every study's canonical signal (the evidence badge rules) ...
+    *(
+        signal.rule
+        for signal in SIGNALS.values()
+        if signal.rule not in ("cci(20) crosses_above -100", "close > donchian(20).upper[1]")
+    ),
+    # ... and the new studies without one
+    "natr(14) > 3 and pivots(3).r1 > close",
+    "pivots(1) < close or pivots(2).s1 > low",
+    "rmv(5, 50) < 10 and rsline() > sma(rsline(), 50)",
+    "uo(7, 14, 28) > 50 or chop(14) < 38.2",
+    "elder(13).bull > 0 and elder(13).bear < 0",
+    "massi(9, 25) > 27",
+    "weekly.ichimoku().tenkan > weekly.ichimoku().kijun",
 )
 
 NUMERIC: tuple[str, ...] = (
+    "index_close / sma(index_close, 20)",
     "ema(rsi(14), 10)",
     "wma(10) - vwap(20)",
     "weekly.macd(12, 26, 9).signal",
@@ -108,6 +141,12 @@ NUMERIC: tuple[str, ...] = (
     "rs(63)",
     'news.count(30, sentiment="positive")',
     "bars_since(close > open)",
+    'avwap("swing")',
+    'drawing("trend").price - drawing("ray up").price',
+    'avwap("swing").upper2 - avwap("swing").lower1',
+    "kama(10, 2, 30) - hma(20)",
+    "psar().sar",
+    "rsline()",
 )
 
 
@@ -156,10 +195,22 @@ def _tasks() -> list[tuple[str, str]]:
 def test_corpus_covers_every_function_and_is_large_enough() -> None:
     assert len(CORPUS) >= 40
     assert {p.rule for p in PRESETS} <= set(CORPUS)  # presets must conform (A2.2)
+    assert {p.rule for p in CHECKLIST_PRESETS} <= set(CORPUS)  # checklist dimensions (A2.4)
+    assert {s.rule for s in SIGNALS.values()} <= set(CORPUS)  # evidence badge rules (A3.4)
     compiled = [compile_rule(r) for r in CORPUS]  # all type-check as conditions
     used = {n.name for c in compiled for n in ast.walk(c.canonical) if isinstance(n, ast.Call)}
     kinds = {type(n).__name__ for c in compiled for n in ast.walk(c.canonical)}
-    assert {"Offset", "Cross", "Timeframe", "Fundamental", "News", "Not", "Or", "Neg"} <= kinds
+    assert {
+        "Offset",
+        "Cross",
+        "Timeframe",
+        "Fundamental",
+        "News",
+        "Not",
+        "Or",
+        "Neg",
+        "Ref",
+    } <= kinds
     assert set(FUNCTIONS) <= used, sorted(set(FUNCTIONS) - used)
 
 

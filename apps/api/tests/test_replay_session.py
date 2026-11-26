@@ -29,7 +29,6 @@ from stockviz.services.replay import (
     ReplayInsufficientPosition,
     ReplayRangeError,
     ReplaySymbolNotFound,
-    ReplayUnsupportedCurrency,
     advance_replay_session,
     cancel_replay_session,
     create_replay_session,
@@ -142,7 +141,8 @@ def test_missing_ticker_fails(session: Session) -> None:
         create_replay_session(session, user_id=user_id, ticker="NOPE", start_at=DAY1, end_at=DAY2)
 
 
-def test_non_usd_symbol_rejected(session: Session) -> None:
+def test_non_usd_symbol_trades_in_its_currency(session: Session) -> None:
+    """A4.6: no more USD-only refusal; the book is in the symbol's currency."""
     session.add(Symbol(ticker="BARC.L", name="Barclays", currency="GBP"))
     session.commit()
     session.add_all(
@@ -153,8 +153,12 @@ def test_non_usd_symbol_rejected(session: Session) -> None:
     )
     session.commit()
     user_id = _user(session)
-    with pytest.raises(ReplayUnsupportedCurrency):
-        create_replay_session(session, user_id=user_id, ticker="BARC.L", start_at=DAY1, end_at=DAY2)
+    replay = create_replay_session(
+        session, user_id=user_id, ticker="BARC.L", start_at=DAY1, end_at=DAY2
+    )
+    assert replay.currency == "GBP"
+    assert replay.starting_cash == DEFAULT_REPLAY_CASH
+    assert replay.fee_schedule == "none"
 
 
 def test_single_bar_range_rejected(session: Session) -> None:
@@ -245,6 +249,7 @@ def test_market_buy_uses_server_bar_close(session: Session) -> None:
         order_type=SimulationOrderType.MARKET,
         quantity=Decimal("10"),
     )
+    assert result.decision is not None
     assert result.decision.status is FillStatus.FILLED
     assert result.decision.fill_price == Decimal("100")
     assert result.fill is not None
@@ -254,7 +259,8 @@ def test_market_buy_uses_server_bar_close(session: Session) -> None:
     assert result.replay.cash_balance == DEFAULT_REPLAY_CASH - Decimal("1000.000000")
 
 
-def test_limit_not_triggered_writes_no_fill(session: Session) -> None:
+def test_limit_rests_and_writes_no_fill(session: Session) -> None:
+    """A4.6: a limit order rests (judged from the next bar), never filled at once."""
     _seed_usd(session)
     user_id = _user(session)
     replay = _session(session, user_id)
@@ -266,7 +272,8 @@ def test_limit_not_triggered_writes_no_fill(session: Session) -> None:
         quantity=Decimal("10"),
         limit_price=Decimal("50"),
     )
-    assert result.decision.status is FillStatus.NOT_TRIGGERED
+    assert result.decision is None
+    assert result.order is not None and result.order.status == "open"
     assert result.fill is None
     assert session.exec(select(ReplayFill)).first() is None
 

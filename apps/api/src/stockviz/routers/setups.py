@@ -9,7 +9,9 @@
   rule is already a version of this setup (200, same canonical hash).
 - ``POST /{id}/archive``: hide it from the list; versions stay readable.
 - ``POST /{id}/fork``: copy a preset's (or your own setup's) version into a
-  new setup you own.
+  new setup you own. A rule that reads drawings (A3.3, ``user_scoped``) is
+  its owner's alone: another user's fork is 403 (their setup is 404 anyway),
+  and no preset can hold one.
 
 Presets are read-only (403 on versions and archive). Another user's setup is
 404. A rule that does not compile is 422 with the error's line and column.
@@ -17,6 +19,7 @@ Presets are read-only (403 on versions and archive). Another user's setup is
 
 from __future__ import annotations
 
+from functools import lru_cache
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
@@ -34,12 +37,21 @@ from stockviz.schemas import (
     SetupVersionIn,
     SetupVersionOut,
 )
+from stockviz.services.dsl import RuleError, compile_rule
 from stockviz.services.setups import store
 from stockviz.services.setups.rules import compile_or_422
 
 router = APIRouter(prefix="/v1/setups", tags=["setups"])
 
 SessionDep = Annotated[Session, Depends(get_session)]
+
+
+@lru_cache(maxsize=4096)
+def _user_scoped(rule_text: str) -> bool:
+    try:
+        return compile_rule(rule_text).user_scoped
+    except RuleError:  # a version saved under an older grammar
+        return False
 
 
 def version_out(v: SetupVersion) -> SetupVersionOut:
@@ -54,6 +66,7 @@ def version_out(v: SetupVersion) -> SetupVersionOut:
         timeframe=v.timeframe,
         notes=v.notes,
         created_at=v.created_at,
+        user_scoped=_user_scoped(v.rule_text),
     )
 
 
@@ -211,4 +224,6 @@ def fork_setup(
         row, _v = store.fork(session, source, user_id, version=version, name=body.name)
     except store.SetupLimit as exc:
         raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
+    except store.UserScopedRule as exc:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, str(exc)) from exc
     return _detail(session, row, user_id)

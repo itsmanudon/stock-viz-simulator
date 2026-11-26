@@ -22,9 +22,17 @@ from typing import Any
 from sqlmodel import Session, col, func, select
 
 from stockviz.models import Experiment, ExperimentRun
-from stockviz.schemas import BacktestIn
+from stockviz.schemas import BacktestIn, RotationBacktestIn, StrategyBacktestIn
+from stockviz.services.backtest.rotation_run import execute_rotation
+from stockviz.services.backtest.rotation_run import request_json as rotation_request_json
 from stockviz.services.backtest.run import BacktestRun, execute_backtest
+from stockviz.services.backtest.strategy_run import (
+    execute_strategy,
+    materialize_rules,
+    request_json,
+)
 from stockviz.services.backtest.walkforward import Computed, sweep, walk_forward
+from stockviz.services.fee_view import resolve_fee_schedule
 
 MAX_RUNS_PER_USER = 500
 """A run stores its whole equity curve; this bounds one user's storage."""
@@ -40,7 +48,8 @@ def code_version() -> str:
 
 
 def _result(run: BacktestRun) -> dict[str, Any]:
-    return run.out.model_dump(mode="json")
+    # A4.3: the ledger's checks are read at response time, never stored.
+    return run.out.model_dump(mode="json", exclude={"checks"})
 
 
 def save_run(
@@ -74,6 +83,87 @@ def save_run(
     session.add(row)
     session.commit()
     session.refresh(row)
+    from stockviz.services.backtest.checks import template_checks
+
+    template_checks(session, body, run, user_id=user_id, source="saved", read=False)
+    return row
+
+
+def save_strategy_run(
+    session: Session,
+    *,
+    user_id: int,
+    body: StrategyBacktestIn,
+    experiment_id: int | None = None,
+) -> ExperimentRun:
+    """A4.1: run a Rule DSL strategy and store it (``kind`` ``strategy``).
+    Inline rules are saved as setup versions first, so the stored request
+    names versions and its rerun reads the same immutable rules. Commits."""
+    _check_room(session, user_id, experiment_id)
+    execute_strategy(session, body, user_id=user_id)  # refuse before writing a version
+    body = materialize_rules(session, body, user_id)
+    run = execute_strategy(session, body, user_id=user_id)
+    row = ExperimentRun(
+        user_id=user_id,
+        experiment_id=experiment_id,
+        kind="strategy",
+        ticker=run.label,
+        request=request_json(body),
+        execution_profile=run.out.execution_profile,
+        fee_schedule=run.out.fee_schedule,
+        code_version=code_version(),
+        dataset_fingerprint=run.fingerprint,
+        bar_count=run.bar_count,
+        first_bar_at=run.first_bar_at,
+        last_bar_at=run.last_bar_at,
+        result=run.out.model_dump(mode="json", exclude={"checks"}),
+        setup_version_id=run.entry_version_id,
+    )
+    session.add(row)
+    session.commit()
+    session.refresh(row)
+    from stockviz.services.backtest.checks import strategy_checks
+
+    strategy_checks(session, body, run, user_id=user_id, source="saved", read=False)
+    return row
+
+
+def save_rotation_run(
+    session: Session,
+    *,
+    user_id: int,
+    body: RotationBacktestIn,
+    experiment_id: int | None = None,
+) -> ExperimentRun:
+    """A4.4: run a rotation and store it (``kind`` ``rotation``). The ranking
+    is inline text (a number, never a setup version) and the cash filter is
+    stored as sent: the stored request is itself immutable, so the rerun
+    reads the same rules. Commits."""
+    _check_room(session, user_id, experiment_id)
+    run = execute_rotation(session, body, user_id=user_id)
+    cash = next((r for r in run.out.rules if r.role == "cash_filter"), None)
+    row = ExperimentRun(
+        user_id=user_id,
+        experiment_id=experiment_id,
+        kind="rotation",
+        ticker=run.label,
+        request=rotation_request_json(body),
+        execution_profile=run.out.execution_profile,
+        fee_schedule=run.out.fee_schedule,
+        code_version=code_version(),
+        dataset_fingerprint=run.fingerprint,
+        bar_count=run.bar_count,
+        first_bar_at=run.first_bar_at,
+        last_bar_at=run.last_bar_at,
+        result=run.out.model_dump(mode="json", exclude={"checks"}),
+        setup_version_id=cash.setup_version_id if cash is not None else None,
+    )
+    session.add(row)
+    session.commit()
+    session.refresh(row)
+    from stockviz.services.backtest.checks import rotation_checks
+
+    rotation_checks(session, body, run, user_id=user_id, source="saved", read=False)
     return row
 
 
@@ -89,7 +179,20 @@ def _check_room(session: Session, user_id: int, experiment_id: int | None) -> No
             raise LookupError(f"Experiment {experiment_id} not found")
 
 
+def as_saved(request: dict[str, Any]) -> dict[str, Any]:
+    """A stored request as it ran. A4.2 added the ADV cap with a 10% default;
+    a request saved before then has no ``adv_cap_pct`` and ran uncapped, so it
+    reruns uncapped. A4.3 added the default holdout; a request without
+    ``holdout`` ran on its whole range, so it reruns with ``none``. (Its
+    ``fee_schedule`` was always stored by name; the new
+    ``auto`` default never applies to it.)"""
+    out = request if "adv_cap_pct" in request else {**request, "adv_cap_pct": None}
+    # A4.3: a request saved before the holdout ran on its whole range.
+    return out if "holdout" in out else {**out, "holdout": "none"}
+
+
 def _compute(session: Session, kind: str, request: dict[str, Any]) -> Computed:
+    request = {**request, "backtest": as_saved(request["backtest"])}
     body = BacktestIn.model_validate(request["backtest"])
     grid = request.get("grid")
     if kind == "walk_forward":
@@ -127,7 +230,7 @@ def save_study(
         ticker=body.ticker.upper(),
         request=request,
         execution_profile=f"{profile.name}/{profile.model_version}",
-        fee_schedule=body.fee_schedule,
+        fee_schedule=resolve_fee_schedule(body.fee_schedule, body.ticker.upper()),
         code_version=code_version(),
         dataset_fingerprint=computed.fingerprint,
         bar_count=computed.bar_count,
@@ -138,23 +241,61 @@ def save_study(
     session.add(row)
     session.commit()
     session.refresh(row)
+    from stockviz.services.backtest.checks import record_members
+
+    record_members(
+        session, user_id=user_id, kind=kind, members=computed.members,
+        fingerprint=computed.fingerprint,
+    )  # fmt: skip
+    session.refresh(row)
     return row
 
 
-STAMPS_ADDED_LATER = frozenset({"universe"})
-"""Result fields added after runs were first stored (A1.4a). A stored result
-that lacks one is not "different" for it: the field describes the run, it is
-not a figure the code recomputed differently."""
+STAMPS_ADDED_LATER = frozenset(
+    {
+        "universe",
+        # A4.2: the costs disclosure and liquidity stamp, the template
+        # summary's gross figures, and per-trade liquidity fields.
+        "costs",
+        "liquidity",
+        "gross_return",
+        "gross_final_nav",
+        "total_fees",
+        "price_costs",
+        "requested_shares",
+        "requested_quantity",
+        "exit_adv_pct",
+        # A4.3: the run's window, report card, and a sweep's PBO and plateaus.
+        "window",
+        "report",
+        "pbo",
+        "pbo_reason",
+        "plateau",
+    }
+)
+"""Result fields added after runs were first stored (A1.4a, A4.2), at any
+depth. A stored result that lacks one is not "different" for it: the field
+describes the run or restates its figures, it is not a figure the code
+recomputed differently. Everything the stored result does hold is compared."""
+
+
+def _strip_added(stored: Any, fresh: Any) -> Any:
+    if isinstance(stored, dict) and isinstance(fresh, dict):
+        return {
+            k: _strip_added(stored.get(k), v)
+            for k, v in fresh.items()
+            if k in stored or k not in STAMPS_ADDED_LATER
+        }
+    if isinstance(stored, list) and isinstance(fresh, list) and len(stored) == len(fresh):
+        return [_strip_added(a, b) for a, b in zip(stored, fresh, strict=True)]
+    return fresh
 
 
 def result_differences(stored: dict[str, Any], fresh: dict[str, Any]) -> list[str]:
     """Top-level fields whose values differ, skipping later stamps the stored
     result never had."""
-    return sorted(
-        k
-        for k in set(fresh) | set(stored)
-        if fresh.get(k) != stored.get(k) and not (k in STAMPS_ADDED_LATER and k not in stored)
-    )
+    fresh = _strip_added(stored, fresh)
+    return sorted(k for k in set(fresh) | set(stored) if fresh.get(k) != stored.get(k))
 
 
 @dataclass
@@ -169,8 +310,18 @@ def rerun(session: Session, row: ExperimentRun) -> RerunReport:
     if row.kind in ("walk_forward", "sweep"):
         computed = _compute(session, row.kind, row.request)
         current_fp, fresh = computed.fingerprint, computed.result
+    elif row.kind == "strategy":
+        body = StrategyBacktestIn.model_validate(as_saved(row.request))
+        strategy = execute_strategy(session, body, user_id=row.user_id)
+        current_fp = strategy.fingerprint
+        fresh = strategy.out.model_dump(mode="json", exclude={"checks"})
+    elif row.kind == "rotation":
+        body_r = RotationBacktestIn.model_validate(row.request)
+        rotation = execute_rotation(session, body_r, user_id=row.user_id)
+        current_fp = rotation.fingerprint
+        fresh = rotation.out.model_dump(mode="json", exclude={"checks"})
     else:
-        run = execute_backtest(session, BacktestIn.model_validate(row.request))
+        run = execute_backtest(session, BacktestIn.model_validate(as_saved(row.request)))
         current_fp, fresh = run.fingerprint, _result(run)
     if current_fp != row.dataset_fingerprint:
         return RerunReport("data_changed", row.dataset_fingerprint, current_fp)

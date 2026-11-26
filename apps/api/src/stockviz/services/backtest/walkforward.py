@@ -23,15 +23,17 @@ a request. Each run uses the same engine, kernel profile, costs and fees as
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date, datetime, time
 from decimal import Decimal
 from typing import Any
 
+import numpy as np
 from sqlmodel import Session
 
 from stockviz.models import PriceBar, Symbol
 from stockviz.schemas import BacktestIn
+from stockviz.services.backtest import report
 from stockviz.services.backtest.engine import (
     BacktestError,
     BacktestResult,
@@ -50,7 +52,9 @@ from stockviz.services.backtest.run import (
     price_basis_of,
     strategy_of,
 )
+from stockviz.services.backtest.trials import split_window
 from stockviz.services.backtest.universe import universe_json
+from stockviz.services.fee_view import resolve_fee_schedule
 
 MAX_SETTINGS = 50
 SCORES = ("sharpe", "total_return")
@@ -101,23 +105,27 @@ class _Data:
 
 
 def _load(session: Session, body: BacktestIn, grid: list[BacktestIn]) -> _Data:
+    """Bars for the in-sample range only: a study never reads the held-out tail."""
     ticker = body.ticker.upper()
     symbol = session.get(Symbol, ticker)
     if symbol is None:
         raise UnknownSymbol(f"Symbol {ticker!r} not found")
     if body.from_ > body.to:
         raise BadRange("'from' must be on or before 'to'")
-    check_fee_currency(body.fee_schedule, symbol.currency or "USD")
+    window = split_window(body.from_, body.to, body.holdout)
+    check_fee_currency(resolve_fee_schedule(body.fee_schedule, ticker), symbol.currency or "USD")
     warm = max(warmup_bars_for(*strategy_of(g)) for g in grid)
     rows, before = load_bars(
         session,
         ticker,
-        datetime.combine(body.from_, time.min),
-        datetime.combine(body.to, time.max),
+        datetime.combine(window.from_date, time.min),
+        datetime.combine(window.to_date, time.max),
         warm,
     )
     divs = (
-        load_dividends(session, ticker, body.from_, body.to) if body.return_mode == "total" else {}
+        load_dividends(session, ticker, window.from_date, window.to_date)
+        if body.return_mode == "total"
+        else {}
     )
     return _Data(bars=before + rows, dividends=divs, currency=symbol.currency or "USD")
 
@@ -143,7 +151,10 @@ def _run(data: _Data, spec: BacktestIn, start: date, end: date, cash: Decimal) -
         opens={b.ts: b.open for b in used},
         fill_rule=spec.fill_rule,
         spread_bps=spec.spread_bps,
-        fee_schedule=spec.fee_schedule,
+        fee_schedule=resolve_fee_schedule(spec.fee_schedule, spec.ticker.upper()),
+        volumes={b.ts: Decimal(b.volume) for b in used},
+        adv_cap_pct=spec.adv_cap_pct,
+        brokerage=spec.brokerage,
     )
 
 
@@ -180,12 +191,26 @@ def _summary(navs: list[Decimal], start_cash: Decimal, bench: float, costs: Deci
 
 
 @dataclass
+class Member:
+    """One grid setting a study tried (A4.3: each is a trial in the ledger)."""
+
+    spec: BacktestIn
+    stats: report.SharpeStats
+    total_return: float
+
+
+@dataclass
 class Computed:
     result: dict[str, Any]
     fingerprint: str
     bar_count: int
     first_bar_at: datetime | None
     last_bar_at: datetime | None
+    members: list[Member] = field(default_factory=list)
+
+
+def _stats(result: BacktestResult) -> report.SharpeStats:
+    return report.sharpe_stats(report.nav_returns([p.nav for p in result.equity_curve]))
 
 
 def walk_forward(
@@ -203,7 +228,10 @@ def walk_forward(
     if min(in_sample_years, out_of_sample_years, step_years) < 1:
         raise BacktestError("in-sample, out-of-sample and step must be at least a year")
     specs = _grid(body, grid)
-    plan = windows(body.from_, body.to, in_sample_years, out_of_sample_years, step_years)
+    window = split_window(body.from_, body.to, body.holdout)
+    plan = windows(
+        window.from_date, window.to_date, in_sample_years, out_of_sample_years, step_years
+    )
     if not plan:
         raise BadRange(
             f"The range is shorter than one in-sample period ({in_sample_years} years) "
@@ -216,8 +244,11 @@ def walk_forward(
     navs: list[Decimal] = []
     costs = Decimal(0)
     out_windows = []
+    fits: list[list[report.SharpeStats]] = [[] for _ in specs]
     for is_from, is_to, oos_from, oos_to in plan:
         fitted = [(spec, _run(data, spec, is_from, is_to, body.initial_cash)) for spec in specs]
+        for k, (_, res) in enumerate(fitted):
+            fits[k].append(_stats(res))
         best_spec, best = max(fitted, key=lambda pair: _score(pair[1], score))
         oos = _run(data, best_spec, oos_from, oos_to, capital)
         for point in oos.equity_curve:
@@ -260,8 +291,15 @@ def walk_forward(
         "equity_curve": stitched,
         "summary": _summary(navs, body.initial_cash, bench, costs),
         "universe": universe_json(body.ticker.upper()),
+        "window": window.model_dump(mode="json"),
     }
-    return _computed(result, data)
+    members = []
+    for spec, stats in zip(specs, fits, strict=True):
+        # A setting's trial Sharpe: its mean per-day Sharpe over the in-sample fits.
+        mean = sum(x.sharpe for x in stats) / len(stats)
+        obs = sum(x.observations for x in stats)
+        members.append(Member(spec, report.SharpeStats(obs, 0.0, 0.0, mean, None, None, None), 0.0))
+    return _computed(result, data, body, members)
 
 
 def sweep(
@@ -274,11 +312,16 @@ def sweep(
     if score not in SCORES:
         raise BacktestError(f"score must be one of {SCORES}")
     specs = _grid(body, grid)
+    window = split_window(body.from_, body.to, body.holdout)
     data = _load(session, body, specs)
     runs = []
+    members: list[Member] = []
+    curves: list[list[Decimal]] = []
     for spec in specs:
-        res = _run(data, spec, body.from_, body.to, body.initial_cash)
+        res = _run(data, spec, window.from_date, window.to_date, body.initial_cash)
         navs = [p.nav for p in res.equity_curve]
+        curves.append(navs)
+        members.append(Member(spec, _stats(res), res.summary.total_return))
         runs.append(
             {
                 "strategy": spec.strategy.model_dump(mode="json"),
@@ -292,6 +335,8 @@ def sweep(
                 "trades": len(res.trades),
             }
         )
+    pbo = _pbo(curves)
+    plateaus = _plateaus(runs)
     runs.sort(key=lambda r: r["score"], reverse=True)
     result = {
         "result_kind": "sweep",
@@ -303,14 +348,62 @@ def sweep(
         "runs": runs,
         "summary": runs[0]["summary"],
         "universe": universe_json(body.ticker.upper()),
+        "window": window.model_dump(mode="json"),
+        "pbo": pbo,
+        "pbo_reason": None if pbo is not None else PBO_REASON,
+        "plateau": plateaus,
     }
-    return _computed(result, data)
+    return _computed(result, data, body, members)
 
 
-def _computed(result: dict[str, Any], data: _Data) -> Computed:
+PBO_REASON = (
+    f"PBO needs at least two settings and {report.PBO_BLOCKS * report.PBO_MIN_ROWS_PER_BLOCK} "
+    "sessions."
+)
+
+PLATEAU_AXES = {
+    "sma_crossover": ("short_window", "long_window"),
+    "rsi_threshold": ("buy_below", "sell_above"),
+}
+
+
+def _pbo(curves: list[list[Decimal]]) -> dict[str, Any] | None:
+    """CSCV over the settings' daily net returns (they share the bars, so the dates)."""
+    rows = [report.nav_returns(c) for c in curves]
+    if len(rows) < 2 or len({len(r) for r in rows}) != 1:
+        return None
+    return report.pbo_cscv(np.asarray(rows, dtype=float).T)
+
+
+def _plateaus(runs: list[dict[str, Any]]) -> dict[str, Any]:
+    """A heatmap per metric over the template's two parameters."""
+    if not runs:
+        return {}
+    kind = runs[0]["strategy"]["type"]
+    axes = PLATEAU_AXES.get(kind)
+    if axes is None or any(r["strategy"]["type"] != kind for r in runs):
+        return {}
+    out: dict[str, Any] = {}
+    for metric in ("sharpe", "total_return"):
+        points = [
+            (
+                float(r["strategy"][axes[0]]),
+                float(r["strategy"][axes[1]]),
+                float(r["summary"][metric]),
+            )
+            for r in runs
+        ]
+        out[metric] = report.plateau(points, x_param=axes[0], y_param=axes[1], metric=metric)
+    return out
+
+
+def _computed(
+    result: dict[str, Any], data: _Data, body: BacktestIn, members: list[Member]
+) -> Computed:
     return Computed(
+        members=members,
         result=result,
-        fingerprint=fingerprint(data.bars, data.dividends),
+        fingerprint=fingerprint(data.bars, data.dividends, volume=body.adv_cap_pct is not None),
         bar_count=len(data.bars),
         first_bar_at=data.bars[0].ts if data.bars else None,
         last_bar_at=data.bars[-1].ts if data.bars else None,

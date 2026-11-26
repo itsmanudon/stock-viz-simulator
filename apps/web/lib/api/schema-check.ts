@@ -26,10 +26,13 @@ import type { components } from "./schema";
 import type { Portfolio, PortfolioOption, PortfolioOverview, TradeRow } from "./trading";
 import type {
   BacktestSummary,
+  Checklist,
+  ChecklistDimension,
   EarningsEvent,
+  IndicatorCatalogItem,
   MarketsSummary,
-  Recommendation,
   ScreenerResult,
+  SymbolChecklist,
 } from "./types";
 
 type Schemas = components["schemas"];
@@ -71,8 +74,12 @@ export type _MarketsSummaryMatches = Expect<
   Assignable<MarketsSummary, Schemas["MarketsSummaryOut"]>
 >;
 export type _ScreenerMatches = Expect<Assignable<ScreenerResult, Schemas["ScreenerResultOut"]>>;
-export type _RecommendationMatches = Expect<
-  Assignable<Recommendation, Schemas["RecommendationOut"]>
+export type _ChecklistMatches = Expect<Assignable<Checklist, Schemas["ChecklistOut"]>>;
+export type _ChecklistDimensionMatches = Expect<
+  Assignable<ChecklistDimension, Schemas["ChecklistDimensionOut"]>
+>;
+export type _SymbolChecklistMatches = Expect<
+  Assignable<SymbolChecklist, Schemas["SymbolChecklistOut"]>
 >;
 export type _EarningsEventMatches = Expect<Assignable<EarningsEvent, Schemas["EarningsEventOut"]>>;
 export type _BacktestSummaryMatches = Expect<
@@ -90,3 +97,8 @@ export type _ReplayJournalMatches = Expect<Assignable<ReplayJournal, Schemas["Re
 // Keep `Exact` referenced so an unused-type lint doesn't remove the helper —
 // it's the stricter check to reach for when a shape should match exactly.
 export type _ExactHelperInUse = Exact<true, true>;
+
+// --- A3.4: the indicator catalog (parameters and evidence badges) -------------
+export type _IndicatorCatalogMatches = Expect<
+  Assignable<IndicatorCatalogItem, Schemas["IndicatorCatalogItemOut"]>
+>;

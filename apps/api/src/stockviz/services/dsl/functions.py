@@ -229,6 +229,16 @@ DEFAULT_OUTPUTS: dict[str, str | None] = {
     "bb": None,
     "donchian": None,
     "keltner": None,
+    # A3.4
+    "psar": "sar",
+    "pivots": "pp",
+    "stochrsi": "k",
+    "tsi": "tsi",
+    "ppo": "ppo",
+    "ichimoku": None,
+    "aroon": None,
+    "vortex": None,
+    "elder": None,
 }
 
 _OHLCV = ["open", "high", "low", "close", "volume"]
@@ -239,7 +249,8 @@ def _indicator_compute(spec: engine.Spec) -> Compute:
         args = tuple(
             int(v) if is_int else float(v) for v, is_int in zip(c, _ints(spec), strict=True)
         )
-        out = spec.compute(f[_OHLCV], *args)
+        cols = [*_OHLCV, "bench"] if spec.needs_benchmark and "bench" in f else _OHLCV
+        out = spec.compute(f[cols], *args)
         return {k: np.asarray(v, dtype=float) for k, v in out.items()}
 
     return run
@@ -260,11 +271,11 @@ def _indicator_lookback(spec: engine.Spec) -> Callable[..., int | None]:
 
 
 def _indicator(spec: engine.Spec) -> FunctionSpec:
+    # A3.4: each parameter's bounds are the registry's (``engine.Param``).
     params = tuple(
-        Param(name, "period" if is_int else "number", float(default),
-              1 if is_int else 0, 500 if is_int else 10)
-        for name, default, is_int in zip(spec.params, spec.defaults, _ints(spec), strict=True)
-    )  # fmt: skip
+        Param(p.name, "period" if p.integer else "number", float(p.default), p.lo, p.hi)
+        for p in spec.parameters
+    )
     multi = len(spec.outputs) > 1
     return FunctionSpec(
         spec.key,
@@ -275,6 +286,7 @@ def _indicator(spec: engine.Spec) -> FunctionSpec:
         outputs=spec.outputs,
         default_output=DEFAULT_OUTPUTS.get(spec.key) if multi else spec.outputs[0],
         doc=spec.label,
+        needs_benchmark=spec.needs_benchmark,
         registry_key=spec.key,
     )
 
@@ -288,7 +300,7 @@ for _spec in engine.REGISTRY.values():
 def validate_constant(fn: FunctionSpec, param: Param, value: float) -> str | None:
     """An error message when ``value`` is out of bounds for ``param``."""
     if param.kind == "period":
-        hi = 500 if fn.kind == "indicator" else MAX_PERIOD
+        hi = int(param.hi)
         if value != int(value) or not param.lo <= value <= hi:
             return f"{fn.name} {param.name} must be a whole number from {int(param.lo)} to {hi}"
     elif param.kind == "number" and not param.lo < value <= param.hi:

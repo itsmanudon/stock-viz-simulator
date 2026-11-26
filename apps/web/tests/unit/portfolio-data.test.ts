@@ -46,6 +46,8 @@ const portfolio = {
   unrealized_pl_options: "0",
   realized_pl: "0",
   realized_pl_unavailable: 0,
+  fees_paid: "0",
+  realized_pl_net: "0",
   options_market_value: "0",
   positions: [],
   option_positions: [],
@@ -120,10 +122,10 @@ describe("portfolio server orchestration", () => {
 
     expect(getPortfolioOverview).toHaveBeenCalledTimes(1);
     expect(getPortfolio).not.toHaveBeenCalled();
-    expect(getPortfolioHistory).toHaveBeenCalledWith(365);
+    expect(getPortfolioHistory).toHaveBeenCalledWith(365, null);
     expect(getPortfolioAnalytics).not.toHaveBeenCalled();
     expect(getDividends).toHaveBeenCalledTimes(1);
-    expect(listOrders).toHaveBeenCalledWith("pending");
+    expect(listOrders).toHaveBeenCalledWith("pending", null);
     expect(result.portfolio).toBe(portfolio);
     expect(result.portfolio.option_positions).toEqual([]);
     expect(result.analytics?.risk_free_rate).toBe(0.05);
@@ -135,7 +137,7 @@ describe("portfolio server orchestration", () => {
 
     const result = await loadPortfolioData("all");
 
-    expect(getPortfolioHistory).toHaveBeenCalledWith(null);
+    expect(getPortfolioHistory).toHaveBeenCalledWith(null, null);
     expect(result.history).toBeNull();
     expect(result.orders).toBeNull();
     expect(result.dividends).toEqual({ ytd_income: "0", history: [], projected: [] });
@@ -152,7 +154,7 @@ describe("portfolio server orchestration", () => {
   it("loads the requested journal month alongside the rest of the page", async () => {
     const result = await loadPortfolioData("3m", "2026-08");
 
-    expect(getJournalMonth).toHaveBeenCalledWith(2026, 8);
+    expect(getJournalMonth).toHaveBeenCalledWith(2026, 8, null);
     expect(result.journalMonth).toBe(journalMonth);
     expect(result.journalFailed).toBe(false);
   });
@@ -198,5 +200,29 @@ describe("portfolio server orchestration", () => {
     const result = await loadDashboardData();
     expect(result.portfolio).toBe(portfolio);
     expect(result.analytics).toBeNull();
+  });
+
+  it("A5.2: All books asks the combined view and skips every per-book resource", async () => {
+    const result = await loadPortfolioData("3m", "2026-08", {
+      book: "all",
+      risk: true,
+      options: true,
+    });
+    expect(getPortfolioOverview).toHaveBeenCalledWith("all");
+    expect(getPortfolioHistory).toHaveBeenCalledWith(90, "all");
+    expect(listOrders).toHaveBeenCalledWith("pending", "all");
+    expect(getDividends).not.toHaveBeenCalled();
+    expect(getJournalMonth).not.toHaveBeenCalled();
+    expect(result.dividends).toBeNull();
+    expect(result.journalFailed).toBe(false);
+  });
+
+  it("A5.2: one book's id reaches every request", async () => {
+    await loadPortfolioData("3m", "2026-08", { book: 7 });
+    expect(getPortfolioOverview).toHaveBeenCalledWith(7);
+    expect(getDividends).toHaveBeenCalledWith(7);
+    expect(getJournalMonth).toHaveBeenCalledWith(2026, 8, 7);
+    await loadDashboardData(7);
+    expect(listOrders).toHaveBeenLastCalledWith("pending", 7);
   });
 });

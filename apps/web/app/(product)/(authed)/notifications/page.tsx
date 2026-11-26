@@ -2,8 +2,9 @@
  * /notifications — the notification centre (Phase 7.3).
  *
  * Everything the account was told: alert firings, order fills, cancellations
- * and expiries, dividends, splits and option settlements, newest first, by
- * category. In-app only. Times are UTC and say so.
+ * and expiries, dividends, splits, option settlements and (A2.3) saved
+ * screens' entries and exits, newest first, by category. Channels set in
+ * Settings (webhook, email, Telegram) get a copy. Times are UTC and say so.
  */
 
 import type { Metadata } from "next";
@@ -16,6 +17,7 @@ import {
   OperationalPageHeader,
 } from "@/components/operational-page-header";
 import { PageFrame } from "@/components/page-frame";
+import { ScreenChanges, screenChanges } from "@/components/screen-changes";
 import { NOTIFICATION_CATEGORIES, parseNotificationCategory } from "@/lib/alert-rules";
 import { formatUtcDateTime } from "@/lib/api-time";
 import { listNotifications, unreadNotificationCount } from "@/lib/api/notifications";
@@ -54,7 +56,7 @@ export default async function NotificationsPage({
       <OperationalPageHeader
         eyebrow="Portfolio"
         title="Notifications"
-        description="What happened to your account after each nightly run: alerts, fills, cancellations, dividends, splits and option settlements. In-app only."
+        description="What happened to your account after each nightly run: alerts, fills, cancellations, dividends, splits, option settlements and screen changes. Also sent to any channel you set in Settings."
         meta={<span>{unread} unread</span>}
       />
       <MonitoringSubnav current="/notifications" />
@@ -121,7 +123,11 @@ export default async function NotificationsPage({
                     n.title
                   )}
                 </p>
-                <p className="mt-0.5 text-sm text-text-secondary">{n.body}</p>
+                {n.category === "screen" && screenChanges(n.data) ? (
+                  <ScreenChanges data={n.data} />
+                ) : (
+                  <p className="mt-0.5 text-sm text-text-secondary">{n.body}</p>
+                )}
                 <p className="mt-1 text-2xs text-text-tertiary">
                   {formatUtcDateTime(n.created_at)} ·{" "}
                   {NOTIFICATION_CATEGORIES.find((c) => c.value === n.category)?.label ?? n.category}

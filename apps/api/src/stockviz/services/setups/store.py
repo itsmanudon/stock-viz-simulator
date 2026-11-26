@@ -34,6 +34,11 @@ class PresetReadOnly(PermissionError):
     pass
 
 
+class UserScopedRule(PermissionError):
+    """A3.3: a rule that reads drawings belongs to one user: no preset holds
+    it, and no one else may fork it."""
+
+
 class SetupLimit(ValueError):
     pass
 
@@ -138,6 +143,8 @@ def add_version(
 ) -> SavedVersion:
     """Version n+1 of ``setup`` for ``rule``, or the version that already holds it."""
     assert setup.id is not None
+    if rule.user_scoped and (setup.is_preset or setup.user_id is None):
+        raise UserScopedRule("A preset cannot read drawings: drawing() and avwap() are per user")
     found = _existing(session, setup.id, rule.hash)
     if found is not None:
         return SavedVersion(found, created=False)
@@ -223,12 +230,15 @@ def fork(
     from stockviz.services.dsl import compile_rule
 
     assert version.id is not None
+    rule = compile_rule(version.rule_text)
+    if rule.user_scoped and source.user_id != user_id:
+        raise UserScopedRule("This setup reads its owner's drawings; only its owner can fork it")
     return create_setup(
         session,
         user_id,
         name=name or f"{source.name} (fork)"[:120],
         kind=source.kind,
-        rule=compile_rule(version.rule_text),
+        rule=rule,
         description=source.description,
         notes=version.notes,
         timeframe=version.timeframe,
@@ -252,6 +262,7 @@ __all__ = [
     "SavedVersion",
     "SetupLimit",
     "SetupNotFound",
+    "UserScopedRule",
     "add_version",
     "archive",
     "create_setup",

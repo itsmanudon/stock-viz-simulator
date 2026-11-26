@@ -1,4 +1,5 @@
-"""`/v1/research/event-study` — price reactions to news (Phase 7.4).
+"""`/v1/research/event-study` — price reactions to news (Phase 7.4), and
+`POST /v1/research/scan-event-study` — any Rule DSL trigger (A4.5).
 
 Public and rate-limited like the screener. See ``services/event_study.py``
 for the method: market-adjusted abnormal returns around the first session
@@ -12,6 +13,7 @@ from typing import Annotated, Literal
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlmodel import Session
 
+from stockviz.auth import OptionalUserIdDep
 from stockviz.db import get_session
 from stockviz.limiter import limiter
 from stockviz.models import Symbol
@@ -20,8 +22,14 @@ from stockviz.schemas import (
     EventStudyOut,
     EventStudyPointOut,
     EventStudyWindowOut,
+    ScanEventStudyIn,
+    ScanEventStudyOut,
 )
+from stockviz.services.backtest.strategy_run import StrategyNeedsUser, StrategyNotFound
+from stockviz.services.dsl import RuleError
 from stockviz.services.event_study import MIN_EVENTS, run_event_study
+from stockviz.services.scan_event_study import ScanStudyError, run_scan_event_study
+from stockviz.services.setups.rules import error_out
 
 router = APIRouter(prefix="/v1/research", tags=["research"])
 
@@ -102,3 +110,26 @@ def event_study(
             for e in study.events[:100]
         ],
     )
+
+
+@router.post("/scan-event-study", response_model=ScanEventStudyOut)
+@limiter.limit("10/minute")
+def scan_event_study(
+    request: Request, body: ScanEventStudyIn, session: SessionDep, user_id: OptionalUserIdDep
+) -> ScanEventStudyOut:
+    """A4.5: forward 5/20/60-session returns, net of round-trip costs, after
+    a Rule DSL trigger turned true, against the base rate of the same
+    universe and dates. Public; a watchlist, your own setup version or a rule
+    that reads your drawings need a Bearer token. Association, not cause."""
+    try:
+        return run_scan_event_study(session, body, user_id=user_id)
+    except StrategyNotFound as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+    except StrategyNeedsUser as exc:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, str(exc)) from exc
+    except RuleError as exc:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT, error_out(exc).model_dump()
+        ) from exc
+    except ScanStudyError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc

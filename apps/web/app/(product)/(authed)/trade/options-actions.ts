@@ -5,6 +5,7 @@ import { z } from "zod";
 
 import { closeStrategy, openStrategy, tradeOption } from "@/lib/api/options";
 import { AuthedApiError, UnauthenticatedError } from "@/lib/api/server";
+import { bookIdFromForm } from "@/lib/book-url";
 import { clientOrderIdFrom } from "@/lib/order-review";
 
 const OpenSchema = z.object({
@@ -68,16 +69,19 @@ export async function openOptionAction(
   }
 
   try {
-    const result = await tradeOption({
-      action: "open",
-      ticker: parsed.data.ticker,
-      option_type: parsed.data.option_type,
-      side: parsed.data.side,
-      strike: parsed.data.strike,
-      expiry: parsed.data.expiry,
-      quantity: Number(parsed.data.quantity),
-      client_order_id: clientOrderIdFrom(formData),
-    });
+    const result = await tradeOption(
+      {
+        action: "open",
+        ticker: parsed.data.ticker,
+        option_type: parsed.data.option_type,
+        side: parsed.data.side,
+        strike: parsed.data.strike,
+        expiry: parsed.data.expiry,
+        quantity: Number(parsed.data.quantity),
+        client_order_id: clientOrderIdFrom(formData),
+      },
+      bookIdFromForm(formData),
+    );
     revalidatePath("/portfolio");
     revalidatePath("/trade");
     return {
@@ -212,11 +216,14 @@ export async function openStrategyAction(
   });
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
   try {
-    const result = await openStrategy({
-      ...parsed.data,
-      quantity: Number(parsed.data.quantity),
-      client_order_id: clientOrderIdFrom(formData),
-    });
+    const result = await openStrategy(
+      {
+        ...parsed.data,
+        quantity: Number(parsed.data.quantity),
+        client_order_id: clientOrderIdFrom(formData),
+      },
+      bookIdFromForm(formData),
+    );
     revalidatePath("/portfolio");
     revalidatePath("/trade");
     return {

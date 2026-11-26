@@ -10,6 +10,8 @@
  * precision. Parse to Number only at the render boundary.
  */
 
+import type { components } from "./schema";
+
 export type Health = {
   status: "ok" | "degraded";
   version: string;
@@ -35,6 +37,13 @@ export type Quote = {
 
 export type SymbolDetail = Symbol & {
   latest: Quote | null;
+  /** A3.1: raw exchange prices are stored, so the chart can offer `adjustment=raw`. */
+  has_raw?: boolean;
+  /** A3.5: the market and venue index (RS pane label), and NSE/BSE (delivery pane). */
+  market?: "US" | "IN" | null;
+  benchmark?: string | null;
+  benchmark_name?: string | null;
+  is_indian?: boolean;
 };
 
 export type EarningsEvent = {
@@ -123,29 +132,136 @@ export type Indicators = {
   partial_bar_excluded?: string | null;
 };
 
-export type RecommendationVote = {
-  id: string;
+/** A3.4: one study parameter and its bounds, from `/v1/indicators/catalog`. */
+export type IndicatorParam = {
+  name: string;
   label: string;
-  passed: boolean;
-  detail: string;
-  /** False when the vote's input is missing (no scored news this week). */
-  available: boolean;
+  type: "int" | "float";
+  default: number;
+  min: number;
+  max: number;
+  /** Decimals must be above `min`; whole numbers may equal it. */
+  min_exclusive: boolean;
+  step: number;
+  /** Names for the values 1..n when the parameter picks an option. */
+  choices: string[];
 };
 
-export type Recommendation = {
+/** A3.4: a study's canonical signal (default parameters) and its evidence grade. */
+export type IndicatorSignal = {
+  rule: string;
+  hash: string;
+  description: string;
+  source: string;
+  evidence?: ChecklistEvidence | null;
+};
+
+export type IndicatorCatalogItem = {
+  key: string;
+  label: string;
+  params: string[];
+  defaults: number[];
+  outputs: string[];
+  pane: "price" | "separate";
+  group: string;
+  parameters: IndicatorParam[];
+  default_key: string;
+  anchored: "none" | "start";
+  description: string;
+  source: string;
+  /** Null: no canonical signal, so "No grade". */
+  signal?: IndicatorSignal | null;
+};
+
+/** A2.4: met, not met, or unknown (an input is missing and nothing failed). */
+export type ChecklistStatus = "met" | "not_met" | "unknown";
+export type ChecklistGrade = "A" | "B" | "C" | "D" | "insufficient";
+export type ChecklistScope = "all" | "india" | "other";
+
+/** The latest evidence study of one dimension setup version (association, not advice). */
+export type ChecklistEvidence = {
+  grade: ChecklistGrade;
+  n_events: number;
+  symbols: number;
+  horizon: number;
+  window_start: string;
+  window_end: string;
+  mean_excess?: number | null;
+  t_stat?: number | null;
+  hit_rate?: number | null;
+  mean_net_return?: number | null;
+  base_rate?: number | null;
+  overlapping_skipped: number;
+  universe: BacktestUniverse;
+  computed_at: string;
+};
+
+export type ChecklistConditionDef = { label: string; rule: string };
+
+/** One setup of a dimension: every listing, or Indian / other listings (delivery). */
+export type ChecklistVariant = {
+  scope: ChecklistScope;
+  setup_id: number;
+  setup_version_id: number;
+  version: number;
+  canonical: string;
+  hash: string;
+  conditions: ChecklistConditionDef[];
+  evidence?: ChecklistEvidence | null;
+};
+
+export type ChecklistDimension = {
+  key: string;
+  name: string;
+  summary: string;
+  source: string;
+  variants: ChecklistVariant[];
+};
+
+export type ChecklistCondition = {
+  label: string;
+  rule: string;
+  status: ChecklistStatus;
+  reason?: string | null;
+};
+
+export type ChecklistResult = {
+  key: string;
+  scope: ChecklistScope;
+  setup_version_id?: number | null;
+  status: ChecklistStatus;
+  reason?: string | null;
+  conditions?: ChecklistCondition[];
+};
+
+export type ChecklistRow = {
   ticker: string;
   name: string;
-  sector: string | null;
-  score: number;
-  /** Votes that could have passed: 7, or 6 without scored news (audit SR-9). */
-  max_score: number;
-  rationale: string[];
-  votes: RecommendationVote[];
-  sentiment_7d: number | null;
+  sector?: string | null;
+  currency?: string | null;
+  session_date: string;
+  met: number;
+  evaluated: number;
+  total: number;
+  results: ChecklistResult[];
   computed_at: string;
-  /** SR-8 (Phase 7.5): the newest bar behind the votes; stale if it trails. */
-  bar_date: string | null;
   stale: boolean;
+};
+
+export type Checklist = {
+  dimensions: ChecklistDimension[];
+  rows: ChecklistRow[];
+  total: number;
+  universe: BacktestUniverse;
+  disclaimer: string;
+};
+
+export type SymbolChecklist = {
+  ticker: string;
+  dimensions: ChecklistDimension[];
+  row?: ChecklistRow | null;
+  universe: BacktestUniverse;
+  disclaimer: string;
 };
 
 export type ScreenerResult = {
@@ -184,8 +300,15 @@ export type BacktestRequest = {
   fill_rule?: "next_open" | "next_close";
   /** Moves the fill price against the trader by half the spread. */
   spread_bps?: number;
-  /** Must match the symbol's currency (Phase 5.6); "none" fits any. */
-  fee_schedule?: "none" | "us_equity_2026" | "in_delivery_nse_2026" | "in_delivery_bse_2026";
+  /** Must match the symbol's currency (Phase 5.6); "none" fits any. A4.2:
+   * "auto" (the default) picks the symbol's market; old names still work. */
+  fee_schedule?: components["schemas"]["BacktestIn"]["fee_schedule"];
+  /** A4.2: Indian brokerage model. */
+  brokerage?: "zerodha" | "zero";
+  /** A4.2: % of the 20-day average traded value a buy may take; null: off. */
+  adv_cap_pct?: number | null;
+  /** A4.3: the last 20% of the range is held out unless "none". */
+  holdout?: components["schemas"]["BacktestIn"]["holdout"];
 };
 
 export type BacktestTrade = {
@@ -196,6 +319,8 @@ export type BacktestTrade = {
   /** Phase 5.3: the price before spread and slippage, and each fee charged. */
   reference_price?: string | null;
   fees?: { name: string; amount: string }[];
+  /** A4.2: the shares asked for when the ADV cap bought fewer. */
+  requested_shares?: string | null;
 };
 
 export type BacktestEquityPoint = {
@@ -214,6 +339,11 @@ export type BacktestSummary = {
   /** Strategy return minus benchmark return, in percentage points. */
   excess_return: number;
   total_costs: string;
+  /** A4.2, net first: the figures above are after costs; these add them back. */
+  gross_return: number;
+  gross_final_nav: string;
+  total_fees: string;
+  price_costs: string;
 };
 
 export type BacktestResult = {
@@ -233,6 +363,13 @@ export type BacktestResult = {
   summary: BacktestSummary;
   /** A1.4a: the universe it ran on; "pinned" today, survivorship-biased. */
   universe?: BacktestUniverse;
+  /** A4.2: each fee component with its rate and source, and the ADV cap. */
+  costs?: components["schemas"]["CostsOut"] | null;
+  liquidity?: components["schemas"]["LiquidityOut"] | null;
+  /** A4.3: the window used, the report card, and the trial ledger's checks. */
+  window?: components["schemas"]["RunWindowOut"] | null;
+  report?: components["schemas"]["ReportCardOut"] | null;
+  checks?: components["schemas"]["OverfittingChecksOut"] | null;
 };
 
 export type BacktestUniverse = {

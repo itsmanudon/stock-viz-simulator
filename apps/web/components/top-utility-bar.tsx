@@ -1,8 +1,10 @@
 import { AccountMenu } from "@/components/account-menu";
 import { AlertsBell } from "@/components/alerts-bell";
 import { AppMobileNav } from "@/components/app-mobile-nav";
+import { BookSwitcherSlot } from "@/components/book-switcher-slot";
 import { GlobalTickerSearch } from "@/components/global-ticker-search";
 import { DataDateChip } from "@/components/marketing/market-status";
+import { RegimeBadges } from "@/components/regime-badge";
 import { SoundToggle } from "@/components/sound/sound-toggle";
 
 export function TopUtilityBar({ signedIn }: { signedIn: boolean }) {
@@ -13,10 +15,15 @@ export function TopUtilityBar({ signedIn }: { signedIn: boolean }) {
         <GlobalTickerSearch />
       </div>
       <div className="ml-auto flex shrink-0 items-center gap-1">
-        <span className="mr-2">
+        <span className="mr-1 hidden md:inline">
           <DataDateChip />
         </span>
         <SoundToggle className="mr-1" />
+        <span className="mr-1 hidden sm:inline">
+          <RegimeBadges />
+        </span>
+        {/* A5.2: the book switcher, signed in only. */}
+        {signedIn ? <BookSwitcherSlot /> : null}
         <AlertsBell enabled={signedIn} />
         <AccountMenu />
       </div>

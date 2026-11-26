@@ -2,9 +2,21 @@
 
 import { revalidatePath } from "next/cache";
 
-import { deleteScreen, saveScreen } from "@/lib/api/screens";
+import { apiDetail } from "@/lib/api-error-detail";
+import { checkRule } from "@/lib/api/rules";
+import {
+  type SavedScreen,
+  deleteScreen,
+  listSavedScreens,
+  saveScreen,
+  setScreenNotify,
+} from "@/lib/api/screens";
 import { AuthedApiError, UnauthenticatedError } from "@/lib/api/server";
-import { createSetup, forkSetup } from "@/lib/api/setups-server";
+import { createSetup, forkSetup, listSetups } from "@/lib/api/setups-server";
+
+function ruleOf(query: string): string {
+  return (new URLSearchParams(query).get("rule") ?? "").trim();
+}
 
 export type ScreenActionState = { saved?: string; error?: string };
 
@@ -17,7 +29,16 @@ export async function saveScreenAction(
   const query = String(formData.get("query") ?? "");
   if (!name) return { error: "Give the screen a name." };
   try {
-    await saveScreen(name.slice(0, 80), query);
+    // A2.3: re-saving a screen with the same rule keeps its setup version (and
+    // so its change notifications); a different rule drops them.
+    const existing = (await listSavedScreens().catch(() => [] as SavedScreen[])).find(
+      (s) => s.name === name.slice(0, 80),
+    );
+    const keep = existing?.setup_version_id && ruleOf(existing.query) === ruleOf(query);
+    await saveScreen(name.slice(0, 80), query, {
+      setupVersionId: keep ? existing?.setup_version_id : null,
+      notifyOnChange: keep ? Boolean(existing?.notify_on_change) : false,
+    });
     revalidatePath("/screener");
     return { saved: name };
   } catch (err) {
@@ -81,5 +102,56 @@ export async function forkPresetAction(
     if (err instanceof UnauthenticatedError) return { error: "Sign in to fork presets." };
     if (err instanceof AuthedApiError && err.status === 409) return { error: err.message };
     return { error: "The preset could not be forked." };
+  }
+}
+
+export type NotifyActionState = { error?: string; on?: boolean };
+
+/**
+ * A2.3: "Notify me when members change" on a saved screen. The nightly
+ * `screen-runs` job judges a setup version, so a screen whose rule is only
+ * text in its URL gets one first: the user's own setup with that exact rule
+ * (same canonical hash) if there is one, else a new setup named after the
+ * screen.
+ */
+export async function toggleScreenNotifyAction(
+  _prev: NotifyActionState,
+  formData: FormData,
+): Promise<NotifyActionState> {
+  const id = Number(formData.get("id"));
+  const on = formData.get("notify") === "on";
+  if (!Number.isInteger(id) || id <= 0) return { error: "Choose a screen." };
+  try {
+    const screen = (await listSavedScreens()).find((s) => s.id === id);
+    if (!screen) return { error: "That screen is gone." };
+    if (!on || screen.setup_version_id) {
+      const saved = await setScreenNotify(id, on);
+      revalidatePath("/screener");
+      return { on: Boolean(saved.notify_on_change) };
+    }
+    const rule = ruleOf(screen.query);
+    if (!rule) return { error: "Add a rule to this screen first." };
+    const check = await checkRule(rule);
+    if (!check.valid || !check.hash) return { error: "The screen's rule does not compile." };
+    const mine = (await listSetups()).find(
+      (s) => s.owned && !s.archived_at && s.latest_version.rule_hash === check.hash,
+    );
+    const versionId =
+      mine?.latest_version.id ??
+      (await createSetup({ name: screen.name.slice(0, 120), rule, kind: "screen" })).latest_version
+        .id;
+    const saved = await saveScreen(screen.name, screen.query, {
+      setupVersionId: versionId,
+      notifyOnChange: true,
+    });
+    revalidatePath("/screener");
+    revalidatePath("/setups");
+    return { on: Boolean(saved.notify_on_change) };
+  } catch (err) {
+    if (err instanceof UnauthenticatedError) return { error: "Sign in first." };
+    if (err instanceof AuthedApiError && (err.status === 400 || err.status === 409)) {
+      return { error: apiDetail(err.detail, "The setting could not be saved.") };
+    }
+    return { error: "The setting could not be saved." };
   }
 }

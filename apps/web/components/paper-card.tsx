@@ -19,15 +19,21 @@ export function PaperCard({
   currency,
   className,
   fluid = false,
+  badge = "PAPER",
+  title,
 }: {
   accountId?: number;
   currency: string;
   className?: string;
   fluid?: boolean;
+  /** A5.2: the corner chip: PAPER, IMPORTED or ALL BOOKS. */
+  badge?: string;
+  /** A5.2: replaces the account line (All books has no account number). */
+  title?: string;
 }) {
   const number = accountId === undefined ? null : String(accountId).padStart(4, "0").slice(-4);
 
-  const label = number ? `•••• ${number} · ${currency}` : `Paper Account · ${currency}`;
+  const label = title ?? (number ? `•••• ${number} · ${currency}` : `Paper Account · ${currency}`);
 
   if (fluid) {
     // Proportions taken from the card at 278px wide (the hero phone), where
@@ -40,7 +46,7 @@ export function PaperCard({
               stockviz
             </span>
             <span className="rounded-[2.2cqw] border border-white/25 bg-black/25 px-[2.2cqw] py-[0.7cqw] font-mono text-[3.6cqw] leading-[1.4] font-medium tracking-[0.02em]">
-              Paper
+              {badge}
             </span>
           </div>
           <div className="flex items-end justify-between gap-[4cqw] font-mono text-[4cqw] leading-[1.45] font-medium tracking-[0.06em]">
@@ -60,7 +66,7 @@ export function PaperCard({
       <div className="flex items-start justify-between gap-3">
         <span className="text-xl font-semibold tracking-[-0.04em] sm:text-2xl">stockviz</span>
         <span className="rounded-md border border-white/25 bg-black/25 px-1.5 py-0.5 font-mono text-3xs font-medium tracking-[0.02em]">
-          Paper
+          {badge}
         </span>
       </div>
       <div className="flex items-end justify-between gap-3 font-mono text-2xs font-medium tracking-[0.06em]">

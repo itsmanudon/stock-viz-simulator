@@ -2,6 +2,7 @@ import type { ComponentType } from "react";
 
 import { Alerts } from "@/components/docs/pages/alerts";
 import { Backtests } from "@/components/docs/pages/backtests";
+import { Checklist } from "@/components/docs/pages/checklist";
 import { GettingStarted } from "@/components/docs/pages/getting-started";
 import { GlossaryFaq } from "@/components/docs/pages/glossary-faq";
 import { HowFiguresAreMeasured } from "@/components/docs/pages/how-figures-are-measured";
@@ -14,7 +15,6 @@ import { Portfolio } from "@/components/docs/pages/portfolio";
 import { Replay } from "@/components/docs/pages/replay";
 import { ReturnsAndRisk } from "@/components/docs/pages/returns-and-risk";
 import { ScreenerCompare } from "@/components/docs/pages/screener-compare";
-import { Signals } from "@/components/docs/pages/signals";
 
 /** Content for each /docs page, by slug (lib/docs/nav.ts lists them). */
 export const DOC_CONTENT: Record<string, ComponentType> = {
@@ -24,7 +24,7 @@ export const DOC_CONTENT: Record<string, ComponentType> = {
   "option-strategies": OptionStrategies,
   "markets-and-stocks": MarketsAndStocks,
   "screener-and-compare": ScreenerCompare,
-  signals: Signals,
+  checklist: Checklist,
   backtests: Backtests,
   "news-reactions": NewsReactions,
   replay: Replay,

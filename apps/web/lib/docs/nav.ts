@@ -1,6 +1,7 @@
 /**
  * The public user guide at /docs: its sections and pages, in reading order.
- * Every page here has content in `components/docs/pages`; the sidebar, the
+ * Every page here has content in `components/docs/pages` (A4.2: except
+ * `costs`, its own dynamic route, because it reads the API's schedules); the sidebar, the
  * overview, the previous/next links and the e2e check all read this list.
  */
 
@@ -64,10 +65,10 @@ export const DOC_SECTIONS: DocSection[] = [
           "Filter the universe on technicals and fundamentals, and compare symbols side by side.",
       },
       {
-        slug: "signals",
-        title: "Signals",
+        slug: "checklist",
+        title: "Checklist",
         summary:
-          "Seven explainable votes per symbol, what makes a signal bullish, and what it is not.",
+          "Six published conditions per symbol, their formulas, evidence grades, and what they are not.",
       },
       {
         slug: "backtests",
@@ -112,6 +113,12 @@ export const DOC_SECTIONS: DocSection[] = [
   {
     title: "Reference",
     pages: [
+      {
+        slug: "costs",
+        title: "Costs and fees",
+        summary:
+          "Every fee schedule, its dated versions, each rate and the document it was copied from.",
+      },
       {
         slug: "how-figures-are-measured",
         title: "How figures are measured",

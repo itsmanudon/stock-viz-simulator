@@ -17,6 +17,10 @@ Kinds and their ``params``:
   "event_type": str | null}``.
 - ``portfolio``: ``{"metric": "drawdown_pct" | "position_weight_pct" |
   "day_change_pct", "threshold": 10}``.
+- ``rule`` (A2.3): the ``setup_version_id`` column names a Rule DSL setup
+  version; ``params`` keeps what the rule is called, for wording without a
+  lookup: ``{"setup_id", "setup_name", "version", "canonical", "hash"}``
+  (written by the router from the version, never by the caller).
 """
 
 from __future__ import annotations
@@ -82,6 +86,8 @@ def validate_rule(
     """Return the ``params`` to store, or raise :class:`RuleError`."""
     params = dict(params or {})
     if kind != AlertKind.PORTFOLIO and not ticker:
+        if kind == AlertKind.RULE:
+            raise RuleError("a rule alert needs a ticker")
         raise RuleError("ticker is required")
     if kind == AlertKind.PRICE:
         if "move_pct" in params:
@@ -125,6 +131,8 @@ def validate_rule(
         if threshold > 100:
             raise RuleError("threshold is a percentage, at most 100")
         return {"metric": metric, "threshold": threshold}
+    if kind == AlertKind.RULE:
+        return None  # the router fills params from the setup version
     raise RuleError(f"unknown kind {kind!r}")
 
 
@@ -157,5 +165,10 @@ def describe(alert: Alert) -> str:
         if p.get("event_type"):
             parts.append(f"about {p['event_type']}")
         return " ".join(parts)
+    if kind == AlertKind.RULE:
+        name = p.get("setup_name") or "a saved rule"
+        version = f" v{p['version']}" if p.get("version") else ""
+        canonical = p.get("canonical") or ""
+        return f"{alert.ticker}: {name}{version} becomes true ({canonical})"[:300]
     what = PORTFOLIO_METRICS.get(p.get("metric", ""), "a portfolio figure")
     return f"Alert when {what} reaches {p.get('threshold', 0):g}%"

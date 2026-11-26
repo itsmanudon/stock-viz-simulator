@@ -20,26 +20,36 @@ import logging
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from decimal import Decimal
+from typing import Any
 
 from sqlalchemy import func
-from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, col, select
 
 from stockviz.models import FxConversion, Portfolio, Position, PriceBar, Symbol, Trade, TradeSide
 from stockviz.services.instruments import instrument_of, is_index_ticker
 from stockviz.services.simulation import (
     LIVE_PAPER_EXECUTION_PROFILE,
+    FeeBreakdown,
     FillDecision,
     FillStatus,
     OrderIntent,
     SimulationOrderType,
     evaluate_order,
+    get_fee_schedule,
+)
+from stockviz.services.trading.books import (
+    DEFAULT_STARTING_CASH as DEFAULT_STARTING_CASH,
+)
+from stockviz.services.trading.books import (
+    ensure_default_portfolio as ensure_default_portfolio,
+)
+from stockviz.services.trading.books import (
+    resolve_book,
 )
 from stockviz.services.trading.buying_power import (
     available_cash,
     available_shares,
     lock_portfolio,
-    lock_user,
     reserved_shares,
 )
 from stockviz.services.trading.cash import base_currency, pay_for_buy, plan_buy
@@ -57,8 +67,8 @@ from stockviz.services.trading.simulation_adapter import (
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_STARTING_CASH = Decimal("100000.00")
-"""Matches the v1 simulator: every new portfolio starts with $100k."""
+EMPTY_FEES = FeeBreakdown(())
+
 
 MICROS = Decimal("0.000001")
 """Quantization step for stored monetary values (matches Numeric(_, 6))."""
@@ -151,87 +161,6 @@ def latest_bar(session: Session, ticker: str) -> PriceBar | None:
 def _latest_close(session: Session, ticker: str) -> Decimal | None:
     bar = latest_bar(session, ticker)
     return bar.close if bar else None
-
-
-def ensure_default_portfolio(session: Session, user_id: int) -> Portfolio:
-    """Return the user's default portfolio, creating it if needed.
-
-    The web app calls this on the first /v1/portfolio request so users see a
-    funded starting balance instead of an empty page. Idempotent — re-running
-    returns the existing portfolio.
-
-    A brand-new portfolio also gets a same-day NAV snapshot seeded at the
-    starting cash, so return-since-inception is measured from the moment the
-    account was funded rather than from whenever the nightly snapshot job
-    first happened to run.
-    """
-
-    existing = session.exec(
-        select(Portfolio).where(Portfolio.user_id == user_id).order_by(Portfolio.id)  # type: ignore[arg-type]
-    ).first()
-    if existing is not None:
-        return existing
-
-    # Serialize first-account creation on the user row. Without this, two
-    # concurrent first /portfolio hits can INSERT two portfolios (user_id
-    # uniqueness is enforced in the DB, but the race still needs a lock so
-    # the loser re-reads instead of erroring out to the client).
-    lock_user(session, user_id)
-    existing = session.exec(
-        select(Portfolio).where(Portfolio.user_id == user_id).order_by(Portfolio.id)  # type: ignore[arg-type]
-    ).first()
-    if existing is not None:
-        return existing
-
-    portfolio = Portfolio(
-        user_id=user_id,
-        name="Default",
-        cash_balance=DEFAULT_STARTING_CASH,
-        opening_nav=DEFAULT_STARTING_CASH,
-    )
-    session.add(portfolio)
-    try:
-        session.commit()
-    except IntegrityError:
-        session.rollback()
-        existing = session.exec(
-            select(Portfolio).where(Portfolio.user_id == user_id).order_by(Portfolio.id)  # type: ignore[arg-type]
-        ).first()
-        if existing is None:
-            raise
-        return existing
-    session.refresh(portfolio)
-    _seed_opening_snapshot(session, user_id=user_id, nav=DEFAULT_STARTING_CASH)
-    return portfolio
-
-
-def _seed_opening_snapshot(session: Session, *, user_id: int, nav: Decimal) -> None:
-    """Write the day-zero NAV snapshot for a freshly created portfolio.
-
-    Imported lazily: ``services.trading.snapshots`` imports ``portfolio``,
-    which imports this module, so a module-level import would cycle.
-    """
-    from stockviz._time import utcnow
-    from stockviz.models import PortfolioSnapshot
-
-    today = utcnow().date()
-    existing = session.exec(
-        select(PortfolioSnapshot).where(
-            PortfolioSnapshot.user_id == user_id,
-            PortfolioSnapshot.date == today,
-        )
-    ).first()
-    if existing is not None:
-        return
-    session.add(PortfolioSnapshot(user_id=user_id, date=today, nav=nav))
-    try:
-        session.commit()
-    except IntegrityError:
-        # The portfolio page fans out several /v1 calls in Promise.all; two of
-        # them can pass the SELECT above and one INSERT then hits
-        # uq_portfolio_snapshots_user_date. The other request already wrote
-        # the row — treat that as success.
-        session.rollback()
 
 
 def get_position(session: Session, *, portfolio_id: int, ticker: str) -> Position | None:
@@ -329,6 +258,70 @@ class TradeExecution:
     base_currency: str = "USD"
     # True when a repeated client_order_id returned an earlier fill (LG-10).
     replayed: bool = False
+    # A4.2: fees in the native currency (0 when the schedule charges none).
+    fees: Decimal = Decimal(0)
+
+
+def fill_fees(
+    session: Session,
+    *,
+    portfolio_id: int,
+    ticker: str,
+    side: TradeSide,
+    quantity: Decimal,
+    price: Decimal,
+    on: date,
+) -> tuple[str, FeeBreakdown]:
+    """A4.2: the default schedule's fees for a live fill on ``on`` (the venue
+    date). Indian symbols pay their venue's delivery schedule (Zerodha
+    brokerage model, free for delivery); other markets ``none``. The DP charge
+    is due on the first sell of the scrip that venue day."""
+    from stockviz.services.fee_view import day_bounds_utc, default_schedule_name
+
+    name = default_schedule_name(ticker)
+    schedule = get_fee_schedule(name)
+    if not schedule.versions:
+        return name, EMPTY_FEES
+    dp_due = True
+    if side == TradeSide.SELL:
+        start, end = day_bounds_utc(ticker, on)
+        earlier = session.exec(
+            select(Trade.id).where(
+                Trade.portfolio_id == portfolio_id,
+                Trade.instrument_id == instrument_of(ticker),
+                Trade.side == TradeSide.SELL,
+                col(Trade.fees).is_not(None),
+                col(Trade.ts) >= start,
+                col(Trade.ts) < end,
+            )
+        ).first()
+        dp_due = earlier is None
+    fees = schedule.fees(order_side(side), quantity, price, on=on, dp_due=dp_due)
+    return name, fees
+
+
+def fee_lines_json(fees: FeeBreakdown) -> list[dict[str, Any]]:
+    version = fees.version
+    out: list[dict[str, Any]] = []
+    for line in fees.lines:
+        comp = line.component
+        out.append(
+            {
+                "key": line.key,
+                "label": comp.label if comp else "Brokerage",
+                "amount": str(line.amount),
+                "rate": comp.rate_text()
+                if comp
+                else (fees.brokerage.rate_text() if fees.brokerage else ""),
+                "effective_from": version.effective_from.isoformat() if version else None,
+                "source_url": comp.source.url
+                if comp
+                else (
+                    fees.brokerage.source.url if fees.brokerage and fees.brokerage.source else None
+                ),
+            }
+        )
+    return out
 
 
 def apply_fill(
@@ -345,6 +338,8 @@ def apply_fill(
     client_order_id: str | None = None,
     check_limits: bool = True,
     exclude_option_id: int | None = None,
+    fee_on: date | None = None,
+    charge_fees: bool = True,
 ) -> TradeExecution:
     """Mutate cash + position and stage the Trade row for ``portfolio``.
 
@@ -367,6 +362,12 @@ def apply_fill(
     Raises ``InsufficientCash`` / ``InsufficientPosition`` without having
     mutated anything, so a caller that catches the error can carry on with the
     same session.
+
+    A4.2: fees (:func:`fill_fees`, the version in force on ``fee_on``, the
+    venue date of the fill; default today there) are paid on top of a buy and
+    netted from a sell's proceeds, in the symbol's currency. ``realized_pnl``
+    stays the price gain; the trade row keeps the fees beside it.
+    ``charge_fees=False`` (option exercise and assignment) books none.
     """
 
     assert portfolio.id is not None
@@ -376,6 +377,18 @@ def apply_fill(
     base = base_currency(portfolio)
     native_cost = (price * quantity).quantize(MICROS)
     base_cost = (native_cost * fx_rate).quantize(MICROS)
+    if charge_fees:
+        from stockviz._time import utcnow
+        from stockviz.services.fee_view import fee_date
+
+        on = fee_on if fee_on is not None else fee_date(ticker, utcnow())
+        schedule_name, fee_breakdown = fill_fees(
+            session, portfolio_id=portfolio_id, ticker=ticker, side=side,
+            quantity=quantity, price=price, on=on,
+        )  # fmt: skip
+    else:
+        schedule_name, fee_breakdown = "none", EMPTY_FEES
+    fees = fee_breakdown.total.quantize(MICROS)
     conversion: FxConversion | None = None
     position = get_position(session, portfolio_id=portfolio_id, ticker=ticker)
     realized_pnl: Decimal | None = None
@@ -393,7 +406,7 @@ def apply_fill(
             raise NoFxRateError(str(exc)) from exc
         # Phase 4.5b: a non-base buy spends that currency's cash first and
         # converts only the shortfall from the base balance.
-        funding = plan_buy(session, portfolio, currency, native_cost, fx_rate)
+        funding = plan_buy(session, portfolio, currency, native_cost + fees, fx_rate)
         if spendable < funding.base_debit:
             raise InsufficientCash(
                 f"Available buying power {base} {spendable:,.2f}; order requires "
@@ -457,8 +470,13 @@ def apply_fill(
             raise InsufficientPosition(f"Held {held} {ticker}, cannot sell {quantity}")
         assert position is not None
         avg_cost_at_fill = position.avg_cost
-        # The proceeds stay in the symbol's currency (Phase 4.5b).
-        credit_cash(session, portfolio, currency, native_cost)
+        if fees > native_cost:
+            raise TradeExecutionError(
+                f"Fees of {currency} {fees:,.2f} exceed the sale's value of "
+                f"{currency} {native_cost:,.2f}."
+            )
+        # The proceeds, net of fees, stay in the symbol's currency (Phase 4.5b).
+        credit_cash(session, portfolio, currency, native_cost - fees)
         # Realized P&L against the weighted-average cost basis, in the base.
         realized_pnl = ((price - position.avg_cost) * quantity * fx_rate).quantize(MICROS)
         position.quantity = position.quantity - quantity
@@ -478,6 +496,9 @@ def apply_fill(
         realized_pnl=realized_pnl,
         avg_cost_at_fill=avg_cost_at_fill,
         client_order_id=client_order_id,
+        fees=fees if charge_fees else None,
+        fee_schedule=schedule_name if charge_fees else None,
+        fee_lines=fee_lines_json(fee_breakdown) if charge_fees else None,
     )
     session.add(trade)
     session.add(portfolio)
@@ -504,6 +525,7 @@ def apply_fill(
         base_cost=base_cost,
         realized_pnl=realized_pnl,
         base_currency=base,
+        fees=fees,
     )
 
 
@@ -529,8 +551,9 @@ def execute_trade(
     side: TradeSide,
     quantity: Decimal,
     client_order_id: str | None = None,
+    book_id: int | None = None,
 ) -> TradeExecution:
-    """Execute a market order. Raises a ``TradeExecutionError`` subclass on validation failure.
+    """Execute a market order in ``book_id`` (default: the user's default book). Raises a ``TradeExecutionError`` subclass on validation failure.
 
     The price stored on the Trade row is in the symbol's native currency.
     Cash is debited/credited in the portfolio's base currency (Phase 4.8),
@@ -551,7 +574,7 @@ def execute_trade(
         raise TradeExecutionError("quantity must be positive")
 
     ticker = ticker.upper()
-    portfolio = ensure_default_portfolio(session, user_id)
+    portfolio = resolve_book(session, user_id, book_id, write=True)
     assert portfolio.id is not None
     if client_order_id is not None:
         lock_portfolio(session, portfolio.id)
@@ -580,11 +603,18 @@ def execute_trade(
         currency=priced.currency,
         fx_rate=priced.fx_rate,
         client_order_id=client_order_id,
+        fee_on=_fee_on(ticker, provenance.evaluated_at),
     )
     record_execution_provenance(session, trade=result.trade, provenance=provenance)
     session.commit()
     session.refresh(result.trade)
     return result
+
+
+def _fee_on(ticker: str, instant: datetime) -> date:
+    from stockviz.services.fee_view import fee_date
+
+    return fee_date(ticker, instant)
 
 
 def _replay_trade(
@@ -611,6 +641,7 @@ def _replay_trade(
         realized_pnl=trade.realized_pnl,
         base_currency=base_currency(portfolio) if portfolio is not None else "USD",
         replayed=True,
+        fees=trade.fees or Decimal(0),
     )
 
 

@@ -14,6 +14,7 @@ from stockviz.models import PortfolioSnapshot, Position, PriceBar, Symbol, Trade
 from stockviz.models.option import OptionsPosition, OptionStatus, OptionType
 from stockviz.services.trading import ensure_default_portfolio
 from stockviz.services.trading.returns import period_returns, time_weighted_return, xirr
+from tests.book_helpers import default_book_id
 from tests.test_trading_router import _auth_headers, _make_user
 
 D = Decimal
@@ -153,8 +154,18 @@ def test_snapshot_series_feeds_the_periods(session: Session, client: TestClient)
     today = utcnow().date()
     session.add_all(
         [
-            PortfolioSnapshot(user_id=user_id, date=today - timedelta(days=2), nav=D(100000)),
-            PortfolioSnapshot(user_id=user_id, date=today - timedelta(days=1), nav=D(100000)),
+            PortfolioSnapshot(
+                user_id=user_id,
+                portfolio_id=default_book_id(session, user_id),
+                date=today - timedelta(days=2),
+                nav=D(100000),
+            ),
+            PortfolioSnapshot(
+                user_id=user_id,
+                portfolio_id=default_book_id(session, user_id),
+                date=today - timedelta(days=1),
+                nav=D(100000),
+            ),
         ]
     )
     session.commit()

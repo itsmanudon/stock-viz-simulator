@@ -13,8 +13,21 @@ from __future__ import annotations
 import enum
 from datetime import datetime
 from decimal import Decimal
+from typing import Any
 
-from sqlalchemy import JSON, Column, ForeignKey, Integer, Numeric, Text, UniqueConstraint
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    CheckConstraint,
+    Column,
+    ForeignKey,
+    Integer,
+    Numeric,
+    String,
+    Text,
+    UniqueConstraint,
+    text,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Field, SQLModel
 
@@ -29,7 +42,14 @@ class ReplaySessionStatus(enum.StrEnum):
 
 
 class ReplaySession(SQLModel, table=True):
-    """One isolated paper book over a frozen historical 1d range."""
+    """One isolated paper book over a frozen historical 1d range.
+
+    A4.6: the book is in the symbol's currency (``currency``, frozen at
+    creation) and its fills pay ``fee_schedule`` (the A4.2 default for the
+    symbol's venue, resolved once). ``lag_override`` records that the owner's
+    override (``REPLAY_LAG_OVERRIDE_USER_IDS``) let an Indian session end
+    inside the minimum lag.
+    """
 
     __tablename__ = "replay_sessions"  # pyright: ignore[reportAssignmentType]
 
@@ -48,6 +68,18 @@ class ReplaySession(SQLModel, table=True):
     cash_balance: Decimal = Field(sa_column=Column(Numeric(20, 6), nullable=False))
     status: str = Field(default=ReplaySessionStatus.ACTIVE.value, max_length=16, index=True)
     completed_at: datetime | None = Field(default=None)
+    currency: str = Field(
+        default="USD",
+        sa_column=Column(String(3), nullable=False, server_default=text("'USD'")),
+    )
+    fee_schedule: str = Field(
+        default="none",
+        sa_column=Column(String(40), nullable=False, server_default=text("'none'")),
+    )
+    lag_override: bool = Field(
+        default=False,
+        sa_column=Column(Boolean, nullable=False, server_default=text("false")),
+    )
 
     created_at: datetime = Field(default_factory=utcnow, nullable=False)
     updated_at: datetime = Field(default_factory=utcnow, nullable=False)
@@ -114,6 +146,113 @@ class ReplayFill(SQLModel, table=True):
     order_type: str = Field(max_length=16)
     evaluated_at: datetime = Field(nullable=False)
     created_at: datetime = Field(default_factory=utcnow, nullable=False)
+    # A4.6: fees in the session currency (the session's schedule, the version
+    # in force on the fill's venue date). Fills before A4.6 keep 0.
+    fees: Decimal = Field(
+        default=Decimal(0),
+        sa_column=Column(Numeric(20, 6), nullable=False, server_default=text("0")),
+    )
+    fee_lines: list[dict[str, Any]] | None = Field(
+        default=None, sa_column=Column(JSON().with_variant(JSONB(), "postgresql"), nullable=True)
+    )
+    order_id: int | None = Field(
+        default=None,
+        sa_column=Column(
+            Integer, ForeignKey("replay_orders.id", ondelete="SET NULL"), nullable=True
+        ),
+    )
+
+
+class ReplayOrderStatus(enum.StrEnum):
+    OPEN = "open"
+    FILLED = "filled"
+    CANCELLED = "cancelled"
+    REJECTED = "rejected"
+    EXPIRED = "expired"
+
+
+REPLAY_ORDER_TYPES = ("limit", "stop_loss", "take_profit")
+MAX_OPEN_REPLAY_ORDERS = 20
+
+
+class ReplayOrder(SQLModel, table=True):
+    """A4.6: a resting limit / stop-loss / take-profit order in a session.
+
+    Placed at the session clock (``placed_at`` = ``current_at`` then) and
+    evaluated by the kernel on every later bar the session advances to, under
+    the session's profile. Nothing is reserved: a fill the book cannot pay
+    (cash) or deliver (shares) is ``rejected`` with the reason. Open orders
+    expire when the session completes and are cancelled with it.
+    """
+
+    __tablename__ = "replay_orders"  # pyright: ignore[reportAssignmentType]
+    __table_args__ = (
+        CheckConstraint(
+            "order_type IN ('limit', 'stop_loss', 'take_profit')",
+            name="ck_replay_orders_type",
+        ),
+        CheckConstraint(
+            "status IN ('open', 'filled', 'cancelled', 'rejected', 'expired')",
+            name="ck_replay_orders_status",
+        ),
+    )
+
+    id: int | None = Field(default=None, primary_key=True)
+    session_id: int = Field(
+        sa_column=Column(
+            Integer,
+            ForeignKey("replay_sessions.id", ondelete="CASCADE"),
+            nullable=False,
+            index=True,
+        )
+    )
+    ticker: str = Field(max_length=16)
+    side: str = Field(max_length=8)
+    order_type: str = Field(max_length=16)
+    quantity: Decimal = Field(sa_column=Column(Numeric(20, 6), nullable=False))
+    limit_price: Decimal = Field(sa_column=Column(Numeric(18, 6), nullable=False))
+    status: str = Field(default=ReplayOrderStatus.OPEN.value, max_length=16)
+    placed_at: datetime = Field(nullable=False)
+    resolved_at: datetime | None = Field(default=None)
+    reason: str | None = Field(default=None, sa_column=Column(Text, nullable=True))
+    created_at: datetime = Field(default_factory=utcnow, nullable=False)
+    updated_at: datetime = Field(default_factory=utcnow, nullable=False)
+
+
+class ReplayDrawing(SQLModel, table=True):
+    """A4.6: a chart drawing made inside one replay session.
+
+    Its own table, not ``drawings``: a live-chart drawing could sit on a later
+    date and leak the future, so a session shows only its own, and nothing
+    outside the session (the live chart, ``drawing()`` rules, other sessions)
+    ever reads these. Same shape and rules as ``drawings`` (A3.2), anchored
+    between the session's first bar and its clock.
+    """
+
+    __tablename__ = "replay_drawings"  # pyright: ignore[reportAssignmentType]
+
+    id: int | None = Field(default=None, primary_key=True)
+    session_id: int = Field(
+        sa_column=Column(
+            Integer,
+            ForeignKey("replay_sessions.id", ondelete="CASCADE"),
+            nullable=False,
+            index=True,
+        )
+    )
+    kind: str = Field(max_length=24)
+    points: list[dict[str, Any]] = Field(
+        default_factory=list,
+        sa_column=Column(JSON().with_variant(JSONB(), "postgresql"), nullable=False),
+    )
+    style: dict[str, Any] = Field(
+        default_factory=dict,
+        sa_column=Column(JSON().with_variant(JSONB(), "postgresql"), nullable=False),
+    )
+    label: str | None = Field(default=None, max_length=80, nullable=True)
+    locked: bool = Field(default=False)
+    created_at: datetime = Field(default_factory=utcnow, nullable=False)
+    updated_at: datetime = Field(default_factory=utcnow, nullable=False)
 
 
 class ReplayJournal(SQLModel, table=True):

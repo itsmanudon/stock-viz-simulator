@@ -22,7 +22,7 @@ Definitions (long-only, one ticker):
 * **Holding bars** — count of stored 1d bars in ``[opened_at, closed_or_as_of]``.
   Not labelled "trading days"; CSV data may include calendar days.
 * **Holding calendar days** — ``(end_date - open_date).days``.
-* **Episode return** — realized (plus unrealized if still open) / total buy
+* **Episode return** — realized net of fees (A4.6; plus unrealized if still open) / total buy
   notional of the episode.
 * **Episode benchmark** — ``(exit_or_as_of close - entry-bar close) / entry-bar
   close``. Same-symbol buy-and-hold over the episode's observable bars.
@@ -103,6 +103,8 @@ class FillSnapshot:
     order_type: str
     equity_after: Decimal | None
     concentration_pct: Decimal | None
+    fees: Decimal = ZERO
+    """A4.6: the fill's fees (cash moved by them; 0 before A4.6 and on USD)."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -133,6 +135,8 @@ class ReplayEpisode:
     entry_equity: Decimal | None
     peak_exposure: Decimal
     fills: tuple[FillSnapshot, ...]
+    fees: Decimal = ZERO
+    """A4.6: the episode's fees; ``realized_pnl`` is net of them."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -192,6 +196,7 @@ def _as_fill(fill: FillSnapshot | _FillLike) -> FillSnapshot:
         order_type=fill.order_type,
         equity_after=None,
         concentration_pct=None,
+        fees=getattr(fill, "fees", None) or ZERO,
     )
 
 
@@ -214,10 +219,10 @@ def annotate_fill_economics(
     for fill in fills:
         notional = _q_money(fill.quantity * fill.fill_price)
         if fill.side == "buy":
-            cash = _q_money(cash - notional)
+            cash = _q_money(cash - notional - fill.fees)
             qty = qty + fill.quantity
         else:
-            cash = _q_money(cash + notional)
+            cash = _q_money(cash + notional - fill.fees)
             qty = qty - fill.quantity
         position_notional = _q_money(qty * fill.fill_price)
         equity = _q_money(cash + position_notional)
@@ -246,6 +251,7 @@ def annotate_fill_economics(
                 order_type=fill.order_type,
                 equity_after=equity,
                 concentration_pct=concentration,
+                fees=fill.fees,
             )
         )
     return out
@@ -263,6 +269,7 @@ class _OpenEpisode:
     sell_qty: Decimal = ZERO
     sell_notional: Decimal = ZERO
     realized: Decimal = ZERO
+    fees: Decimal = ZERO
     peak_exposure: Decimal = ZERO
     entry_equity: Decimal | None = None
     # The ledger's average cost of the shares held (SimLedger / apply_fill):
@@ -287,6 +294,7 @@ def reconstruct_episodes(fills: Sequence[FillSnapshot]) -> list[_OpenEpisode]:
                 continue
             current = _OpenEpisode(ticker=fill.ticker, opened_at=fill.evaluated_at, fills=[])
         current.fills.append(fill)
+        current.fees += fill.fees
         if fill.side == "buy":
             current.avg_cost = _reaverage(
                 current.avg_cost, current.qty, fill.quantity, fill.fill_price
@@ -402,10 +410,10 @@ def _equity_curve(
             fill = remaining.pop(0)
             notional = _q_money(fill.quantity * fill.fill_price)
             if fill.side == "buy":
-                cash = _q_money(cash - notional)
+                cash = _q_money(cash - notional - fill.fees)
                 qty += fill.quantity
             else:
-                cash = _q_money(cash + notional)
+                cash = _q_money(cash + notional - fill.fees)
                 qty -= fill.quantity
         navs.append(_q_money(cash + qty * bar.close))
     return navs
@@ -451,7 +459,8 @@ def finish_episodes(
         unrealized: Decimal | None = None
         if not closed:
             unrealized = _q_money((mark_close - weighted_entry) * remaining_qty)
-        total_result = episode.realized + (unrealized or ZERO)
+        realized_net = episode.realized - episode.fees  # A4.6: net of every fee
+        total_result = realized_net + (unrealized or ZERO)
         return_pct = (
             _q_pct(total_result / episode.buy_notional * HUNDRED)
             if episode.buy_notional > 0
@@ -488,7 +497,7 @@ def finish_episodes(
                 peak_quantity=_q_money(episode.peak_qty),
                 weighted_entry_price=_q_money(weighted_entry),
                 weighted_exit_price=_q_money(weighted_exit) if weighted_exit is not None else None,
-                realized_pnl=_q_money(episode.realized),
+                realized_pnl=_q_money(realized_net),
                 unrealized_pnl=unrealized,
                 return_pct=return_pct,
                 holding_bars=holding_bars,
@@ -503,6 +512,7 @@ def finish_episodes(
                 entry_equity=episode.entry_equity,
                 peak_exposure=_q_money(episode.peak_exposure),
                 fills=tuple(episode.fills),
+                fees=_q_money(episode.fees),
             )
         )
     return finished

@@ -16,10 +16,12 @@
 
 import { CircleCheck, Clock3 } from "lucide-react";
 import Link from "next/link";
-import { useState, useSyncExternalStore } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 
 import { LimitPreviewRows } from "@/components/limit-preview";
 import { Button } from "@/components/ui/button";
+import { getFeeEstimate } from "@/lib/api/fees";
+import { type FeeEstimate, formatDay, sourceDated } from "@/lib/fees";
 import { newClientOrderId } from "@/lib/order-review";
 import { splitMinorUnits } from "@/lib/portfolio-view-model";
 import {
@@ -107,13 +109,27 @@ export function OrderReview({
   availableQuantity: number;
 }) {
   const sign = side === "buy" ? "−" : "+";
-  const amount = notional === null ? "—" : formatMoney(notional, currency);
-  const [major, minor] = splitMinorUnits(amount);
   const closeLabel = formatCloseDate(closeDate);
   const sameCurrency = account?.displayCurrency === currency;
   const qty = Number(quantity);
   // One key per opened review: repeats of this confirmation place it once.
   const [clientOrderId] = useState(newClientOrderId);
+  // A4.2: the fees this fill would pay (the ticker's default schedule, today's
+  // version), net first. Stop and take-profit orders are sells.
+  const feeSide: Side = mode === "market" || mode === "limit" ? side : "sell";
+  const feePrice = mode === "market" ? latestClose : Number(triggerPrice);
+  const fees = useFeeEstimate(ticker, feeSide, quantity, feePrice);
+  const feeTotal = fees ? Number(fees.total) : null;
+  const net =
+    notional === null || feeTotal === null
+      ? notional
+      : feeSide === "buy"
+        ? notional + feeTotal
+        : notional - feeTotal;
+
+  const amount = notional === null ? "—" : formatMoney(notional, currency);
+  const headline = net === null ? "—" : formatMoney(net, currency);
+  const [major, minor] = splitMinorUnits(headline);
 
   const rows: { label: string; value: string; tone?: "warning" }[] = [
     { label: "Quantity", value: `${formatQuantity(qty)} ${ticker}` },
@@ -129,12 +145,26 @@ export function OrderReview({
           label: mode === "limit" ? "Your limit" : "Your trigger",
           value: formatMoney(Number(triggerPrice), currency),
         },
-    { label: "Estimated value", value: amount },
-    { label: "Fees", value: "None in the simulator" },
+    {
+      label: feeSide === "buy" ? "Estimated total, after fees" : "Estimated proceeds, after fees",
+      value: net === null ? "—" : formatMoney(net, currency),
+    },
+    { label: "Value before fees", value: amount },
+    {
+      label: "Fees",
+      value:
+        fees === undefined
+          ? "Estimating…"
+          : fees === null
+            ? "Not available"
+            : feeTotal === 0
+              ? "None for this market"
+              : formatMoney(feeTotal ?? 0, currency),
+    },
   ];
 
-  if (side === "buy" && account && sameCurrency && notional !== null) {
-    const after = account.availableCash - notional;
+  if (side === "buy" && account && sameCurrency && net !== null) {
+    const after = account.availableCash - net;
     rows.push(
       mode === "market"
         ? {
@@ -144,7 +174,7 @@ export function OrderReview({
           }
         : {
             label: "Cash reserved until filled",
-            value: formatMoney(notional, account.displayCurrency),
+            value: formatMoney(net, account.displayCurrency),
             tone: after < 0 ? "warning" : undefined,
           },
     );
@@ -193,6 +223,55 @@ export function OrderReview({
             </dd>
           </div>
         ))}
+        {fees && fees.lines.length > 0 ? (
+          <div className="px-3 py-2.5" data-testid="order-costs">
+            <details>
+              <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
+                Costs: {fees.label}
+                {fees.effective_from
+                  ? `, rates in force from ${formatDay(fees.effective_from)}`
+                  : ""}
+              </summary>
+              <ul className="mt-2 space-y-1.5">
+                {fees.lines.map((line) => (
+                  <li key={line.key} className="flex items-start justify-between gap-3">
+                    <span>
+                      {line.label}
+                      <span className="block text-2xs text-text-tertiary">
+                        {line.rate_text}
+                        {line.source ? (
+                          <>
+                            {" · "}
+                            <a
+                              href={line.source.url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="underline underline-offset-2"
+                              title={sourceDated(line.source)}
+                            >
+                              source
+                            </a>
+                          </>
+                        ) : null}
+                      </span>
+                    </span>
+                    <span className="font-mono tabular-nums">
+                      {formatMoney(Number(line.amount), currency)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              {fees.dp_note ? (
+                <p className="mt-2 text-2xs text-text-tertiary">{fees.dp_note}</p>
+              ) : null}
+              <p className="mt-2 text-2xs text-text-tertiary">
+                <Link href="/docs/costs" className="underline underline-offset-2">
+                  Every schedule and its sources
+                </Link>
+              </p>
+            </details>
+          </div>
+        ) : null}
         <div className="px-3 py-2.5">
           <dt className="text-muted-foreground">How it fills</dt>
           <dd className="mt-1 leading-5">{describeFillRule(mode)}</dd>
@@ -213,6 +292,37 @@ export function OrderReview({
       <p className="text-2xs leading-4 text-text-tertiary">Paper trade. No real money moves.</p>
     </div>
   );
+}
+
+/**
+ * The fees an order would pay, from the public estimate (undefined while
+ * loading, null when it failed or there is no price yet).
+ */
+function useFeeEstimate(
+  ticker: string,
+  side: Side,
+  quantity: string,
+  price: number | null,
+): FeeEstimate | null | undefined {
+  const key = `${ticker}|${side}|${quantity}|${price ?? ""}`;
+  const [state, setState] = useState<{ key: string; value: FeeEstimate | null } | null>(null);
+  useEffect(() => {
+    if (!(Number(quantity) > 0) || price === null || !Number.isFinite(price) || price <= 0) {
+      return;
+    }
+    const controller = new AbortController();
+    getFeeEstimate({ ticker, side, quantity, price: String(price) }, controller.signal)
+      .then((value) => setState({ key, value }))
+      .catch((err: unknown) => {
+        if (!controller.signal.aborted) setState({ key, value: null });
+        return err;
+      });
+    return () => controller.abort();
+  }, [key, ticker, side, quantity, price]);
+  if (!(Number(quantity) > 0) || price === null || !Number.isFinite(price) || price <= 0) {
+    return null;
+  }
+  return state?.key === key ? state.value : undefined;
 }
 
 /** Shown in place of the form once the order went through. */
