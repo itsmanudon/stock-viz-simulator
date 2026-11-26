@@ -32,7 +32,8 @@ src/stockviz/
                     HoldoutUnlock, drill — A4.7 DrillDeck / Drill,
                     trade_plan — A5.4 TradePlan (absorbed DrillPlan and
                     ReplayJournal, both archived), journal_entry — A5.5
-                    JournalEntry / JournalEntryFill (round trips))
+                    JournalEntry / JournalEntryFill (round trips),
+                    intraday — A6.1 IntradayBar / IntradayFile)
   events/           versioned contracts (trades/market), outbox/inbox,
                     dispatcher, domain handlers, Kafka producer wrappers
                     (not imported by FastAPI startup)
@@ -158,8 +159,14 @@ src/stockviz/
     bars/           A1.4a: resample.py (pure: daily -> 1wk/1mo, the partial
                     rule) and load.py (loads enough daily bars for n output bars);
                     A3.1: raw.py (`eod_raw` bars for `adjustment=raw`, `has_raw`)
-    markets/        calendar.py — exchange calendars and completed sessions (Phase 4.1);
-                    india_holidays.py — the maintained NSE/BSE holiday table (A0)
+    markets/        calendar.py — exchange calendars and completed sessions (Phase 4.1;
+                    A6.1: session_minutes, open/close in UTC with special hours);
+                    india_holidays.py — the maintained NSE/BSE holiday table (A0;
+                    A6.1: SPECIAL_HOURS)
+    intraday/       A6.1: the owner's local intraday files: files.py (formats,
+                    file name -> ticker), guard.py (local databases only),
+                    partitions.py (monthly), load.py (intraday-load),
+                    reconcile.py (intraday-reconcile, MoneyControl), size.py
     nse/            A1.1 NSE end-of-day files placed by hand: formats.py
                     (header detection), parse.py (+ date check), archive.py
                     (`NSE_ARCHIVE_DIR`, `data_files`), load.py (`eod_raw`,
@@ -236,6 +243,9 @@ CLI subcommands (`python -m stockviz.cli <cmd>`): `seed`, `backfill`,
 `consume-market-analytics [--once]`, `nse-load PATH ... [--apply]`,
 `nse-files [--limit N]`,
 `export-parquet --out DIR [--since YYYY-MM-DD] [--tables T ...]`,
+`intraday-load --dir DIR --kind bulk1m|bulk1h|moneycontrol [--apply] [--create-symbols] [--only T ...]`,
+`intraday-reconcile [TICKER ...] [--against daily|60m] [--interval 1m|60m] [--feed F] [--show N]`,
+`intraday-size`,
 `rule-check "<rule>" [TICKER ...] [--date YYYY-MM-DD] [--explain] [--user-id N]`,
 `screen-runs`, `deliver-notifications [--channel webhook|email|telegram] [--limit N]`.
 `seed` also writes the rule presets (A2.2) and the checklist dimension setups
@@ -297,6 +307,80 @@ hold exchange data; use `lab/data/`, ignored, or a path outside the repo).
 only. Not in `RECORDED_JOBS` or the cron yet; where the export lives for the
 laptop to pull is an open owner question. `tests/test_export_parquet.py`;
 the reader is `lab/` (see `lab/README.md`).
+
+**Intraday bars and the owner's files (A6.1, M2.2 foundation).** Migration
+`a6b1c3d5e7f9` (additive): `intraday_files` and `intraday_bars`
+(`models/intraday.py`). Design: workspace `docs/a6-design-note.md`.
+
+- **Table.** Key `(instrument_id, feed, interval, ts)`, the only index; no
+  ticker column. `ts` = the bar's **open** instant, naive UTC. `feed`
+  `iex|sip|kite|file` (check), `interval` `1m|60m` (check; 60m only from
+  the hourly files; 5-60 minutes over minutes are resampled on read in
+  A6.2), OHLC `Numeric(18, 6)`, `volume`, `source` (`bulk_1m`, `bulk_1h`;
+  later the feed's), `file_id` (to `intraday_files`), `ingested_at`,
+  `available_at` (bar close, clipped at the session close). The note's key
+  gained `interval` so a 60m bar and the 1m bar opening at the same instant
+  both store. **PostgreSQL: `PARTITION BY RANGE (ts)`, one partition a
+  month** (`intraday_bars_yYYYYmMM`, no default partition), created by the
+  writer (`services/intraday/partitions.py::ensure_month_partitions`), not
+  the migration; `migrations/env.py::include_object` keeps them out of
+  autogenerate. SQLite (tests) gets a plain table. `price_bars` stays daily.
+- **The local-only rule (owner, 26 Nov 2026): the owner's intraday files
+  never go to production, demos included.** `services/intraday/guard.py`:
+  the loader refuses (exit 2) unless the bound database is PostgreSQL on
+  `localhost`, `127.0.0.1` or `::1` (SQLite allowed for tests); a URL with no
+  host, or a query setting `host`/`hostaddr`/`service`, is refused. It is
+  checked on the session's own URL, in dry runs too. **No flag, setting or
+  variable overrides it**; never add one. `.railway/railway.ts` must never
+  run `intraday-load` (a test reads it).
+- **Loader** `stockviz.cli intraday-load --dir DIR --kind
+  bulk1m|bulk1h|moneycontrol [--apply] [--create-symbols] [--only T ...]`
+  (`services/intraday/load.py`; dry run by default). Formats
+  (`files.py`): `<NAME>_bulk_data.csv` (1m, offset-aware),
+  `<NAME>_1hr_bulk_data.csv` (60m, offset-aware; a bulk row without its
+  offset is rejected, never guessed), `<YEAR>_<NAME>_1m_MoneyControl.csv`
+  (naive, read as IST; reconciliation only, never written). Ticker from the
+  name: `NIFTY50` -> `^NSEI`, `SENSEX` -> `^BSESN`, else `<NAME>.NS`
+  (`BANKNIFTY.NS` as production names it). Unknown tickers are reported;
+  `--create-symbols --apply` adds the `symbols` row (INR, NSE) and the
+  identity rules make the instrument (an index name gets `asset_type
+  'index'`: that is the flag that its zero volume is not real; volume is
+  stored as given). Rows: unreadable or impossible ones rejected and
+  counted (first lines listed, never values), repeated times are
+  duplicates, a 1m bar must open inside a trading span of
+  `session_minutes` and a 60m bar overlap one, else off-session (counted
+  per day, not loaded). `--apply`: one transaction per file; the file in
+  `intraday_files` (SHA-256 unique: name, size, counts), partitions, then
+  `COPY` into a temporary table and `INSERT ... ON CONFLICT DO NOTHING`, so
+  a rerun inserts nothing and a stored row is never changed. Progress line
+  per file. MetaTrader commodity files are not read until the owner gives
+  the server time zone; the `NIFTY/` options are A7.
+- **Reconciliation** `stockviz.cli intraday-reconcile [TICKER ...]
+  [--against daily|60m] [--interval 1m|60m] [--feed file] [--tolerance-pct
+  0.5] [--volume-tolerance-pct 10] [--show N]` (read-only;
+  `services/intraday/reconcile.py`): resample to one bar per venue date
+  (first open, extremes, last close, summed volume) and compare with the
+  stored daily `price_bars` or the 60m bars; a symbol "matches" at 99% of
+  sessions within tolerance; volume skipped for indices. Percentages only,
+  never prices. NSE daily closes are a last-30-minute VWAP, so minutes vs
+  exchange daily bars differ on the close by design. `--kind moneycontrol`
+  compares each MoneyControl file with the stored bulk 1m bars at the same
+  UTC instants and per session (after-hours rows counted).
+- **Size** `stockviz.cli intraday-size` (PostgreSQL): rows per symbol and
+  interval, heap and index bytes over the partitions, bytes per row.
+  Measured on the full local load (26 Nov 2026): 11,318,840 rows, 189.3
+  bytes per row (2,044 MiB).
+- **Parquet**: `export-parquet` exports `intraday_bars` (by month of `ts`,
+  every feed and interval) and `intraday_files` (whole); `lab/` reads them
+  like any table. The lake is the master copy of the owner's minutes.
+- Tests (synthetic files written by each test; never the owner's rows):
+  `test_intraday_load.py` (formats, naive IST = offset-aware instant,
+  rejects, sessions, duplicates, idempotency, 60m overlap and availability,
+  symbols, the guard and the CLI's refusal, Railway config, the COPY path and
+  partitions on PostgreSQL), `test_intraday_reconcile.py`,
+  `test_intraday_calendar.py`, `test_intraday_migration.py` (PostgreSQL
+  up/down/up, partitions on demand, `alembic check`),
+  `test_export_parquet.py`.
 
 **Rule DSL (A2.1, M4.1).** One rule language, `services/dsl/`, for the
 screens, alerts and setups A2.2 onwards builds. User reference:
@@ -1523,8 +1607,15 @@ answered. Hours are the package's BSE ones. Special sessions (weekend
 Budget days, Diwali Muhurat on a weekend or on the Laxmi Pujan weekday
 holiday, live tests of new systems and of the DR site) are
 `SPECIAL_SESSIONS` in the same module, each with its source; they count as
-sessions even where the package lists a holiday, and their short hours are
-not modelled. `HISTORY_CORRECTIONS` fixes the package's history where it is
+sessions even where the package lists a holiday. Since A6.1 their hours are
+modelled where they differ (`SPECIAL_HOURS`: the Muhurat evenings, the two
+2024 DR-switch sessions with their pause, the 24 Feb 2021 close extended to
+17:00); Budget days trade the normal hours. 2023 onwards read from the
+owner's minute files, earlier ones as reported and consistent with the hourly
+files. `session_minutes(day, venue)` gives a session's open, close and
+trading spans in UTC (None on a closed day, an unknown venue or outside the
+calendar); `session_complete_at` follows the special close. US: regular
+hours only (`tests/test_intraday_calendar.py`). `HISTORY_CORRECTIONS` fixes the package's history where it is
 wrong (Muharram 2013 moved from 14 to 15 Nov). Add new ones as the exchanges announce
 them. `tests/test_india_calendar.py`.
 

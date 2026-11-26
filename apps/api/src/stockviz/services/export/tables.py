@@ -33,5 +33,10 @@ TABLES: tuple[ExportTable, ...] = (
     ExportTable("instruments", None, ("id",)),
     ExportTable("instrument_identifiers", None, ("instrument_id", "id")),
     ExportTable("data_files", None, ("id",)),
+    # A6.1: intraday bars (every feed and interval) by month of the bar's open,
+    # and the provenance of the files they came from. The lake is the master
+    # copy of the owner's minutes; they never go to a hosted database.
+    ExportTable("intraday_bars", "ts", ("instrument_id", "feed", "interval", "ts")),
+    ExportTable("intraday_files", None, ("id",)),
 )
 TABLE_NAMES = tuple(t.name for t in TABLES)

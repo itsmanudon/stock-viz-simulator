@@ -45,7 +45,15 @@ export/
   instruments/part.parquet            reference tables, whole each run
   instrument_identifiers/part.parquet
   data_files/part.parquet             metadata only; raw files stay in the archive
+  intraday_bars/year=2023/month=01/part.parquet   A6.1: minute and hourly bars by month of
+                                      the bar's open (ts = open instant, naive UTC; feed, interval)
+  intraday_files/part.parquet         A6.1: which file each intraday row came from
 ```
+
+The owner's intraday files load only into a local Postgres
+(`stockviz.cli intraday-load`, which refuses any other database); this lake is
+their master copy. Export them with
+`export-parquet --out ../../lab/data/export --tables intraday_bars intraday_files`.
 
 Prices are Parquet decimals (`decimal(18,6)` for bars), never floats, and
 timestamps are naive UTC as stored. A table with no rows is skipped and listed

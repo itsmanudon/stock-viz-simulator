@@ -14,7 +14,10 @@ holiday list: the package's BSE holidays before 2026, then the table
 maintained in :mod:`stockviz.services.markets.india_holidays`, official or
 provisional by year. A provisional year closes only the fixed-date holidays
 and logs a warning once per venue and year. Hours are the package's
-BSE ones; weekend special sessions come from ``india_holidays.SPECIAL_SESSIONS``.
+BSE ones; weekend special sessions come from ``india_holidays.SPECIAL_SESSIONS``,
+and since A6.1 a special session's own hours from ``india_holidays.SPECIAL_HOURS``
+(so a Muhurat evening opens at 18:15 and closes at 19:15, not 15:30).
+:func:`session_minutes` gives any session's open and close in UTC.
 
 A calendar covers a fixed range (about 20 years back to a year ahead; the
 Indian ones to the end of ``india_holidays.PROVISIONAL_THROUGH``). Outside it,
@@ -25,6 +28,7 @@ rather than fail, and log once.
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
 from datetime import UTC, date, datetime, time, timedelta
 from functools import lru_cache
 from typing import Any
@@ -144,6 +148,27 @@ def _indian_calendar(venue: str) -> Any:
                 for start, end, mask in india_holidays.special_weekmasks()
             ]
 
+        @property
+        def special_opens_adhoc(self) -> list[tuple[time, pd.DatetimeIndex]]:
+            return _adhoc(0, self.open_times[0][1])
+
+        @property
+        def special_closes_adhoc(self) -> list[tuple[time, pd.DatetimeIndex]]:
+            return _adhoc(1, self.close_times[0][1])
+
+    def _adhoc(which: int, regular: time) -> list[tuple[time, pd.DatetimeIndex]]:
+        # A6.1: the special sessions' hours. The first span's open, the last
+        # span's close; a pause between spans is left to session_minutes.
+        by_time: dict[time, list[date]] = {}
+        for day, spans in india_holidays.SPECIAL_HOURS.items():
+            value = spans[0][0] if which == 0 else spans[-1][1]
+            if value != regular:
+                by_time.setdefault(value, []).append(day)
+        return [
+            (t, pd.DatetimeIndex([pd.Timestamp(d) for d in sorted(days)]))
+            for t, days in sorted(by_time.items())
+        ]
+
     return IndianExchangeCalendar(end=f"{india_holidays.PROVISIONAL_THROUGH}-12-31")
 
 
@@ -226,6 +251,73 @@ def _session_complete_at(day: date, venue: str) -> datetime:
         return datetime.combine(day, _FALLBACK_CLOSE, tzinfo=_FALLBACK_TZ)
     close = calendar.session_close(day.isoformat()).to_pydatetime()
     return close + COMPLETE_AFTER_CLOSE
+
+
+@dataclass(frozen=True)
+class SessionHours:
+    """One session's trading time on a venue (A6.1), as aware UTC instants.
+
+    ``spans`` are the continuous-trading periods, one unless trading paused
+    (NSE's live disaster-recovery switches); ``open`` is the first span's
+    start and ``close`` the last one's end. A minute bar belongs to the
+    session when its open instant lies inside a span.
+    """
+
+    day: date
+    venue: str
+    open: datetime
+    close: datetime
+    spans: tuple[tuple[datetime, datetime], ...]
+    special: str | None = None
+
+    def contains(self, instant: datetime) -> bool:
+        """Whether a bar opening at ``instant`` (aware) trades in the session."""
+        return any(start <= instant < end for start, end in self.spans)
+
+    def overlaps(self, start: datetime, end: datetime) -> bool:
+        """Whether [start, end) meets trading time (a longer bar, e.g. 60 minutes)."""
+        return any(start < span_end and end > span_start for span_start, span_end in self.spans)
+
+    @property
+    def minutes(self) -> int:
+        return sum(int((end - start).total_seconds() // 60) for start, end in self.spans)
+
+
+def session_minutes(day: date, venue: str = NEW_YORK_VENUE) -> SessionHours | None:
+    """The open and close of ``day``'s session on ``venue`` in UTC, or None.
+
+    None when the venue does not trade that day, has no calendar, or the day
+    is outside its calendar (no weekday guess: an intraday bar needs real
+    hours). Early closes (an XNYS half day) and the Indian special sessions'
+    hours (``india_holidays.SPECIAL_HOURS``: Muhurat evenings, the DR
+    switches) are included. US regular hours only: no pre- or post-market.
+    """
+    calendar = _calendar(venue)
+    if calendar is None or not _in_range(calendar, day):
+        return None
+    if not calendar.is_session(day.isoformat()):
+        return None
+    opened = calendar.session_open(day.isoformat()).to_pydatetime().astimezone(UTC)
+    closed = calendar.session_close(day.isoformat()).to_pydatetime().astimezone(UTC)
+    spans: tuple[tuple[datetime, datetime], ...] = ((opened, closed),)
+    special: str | None = None
+    if venue in INDIAN_VENUES:
+        from stockviz.services.markets import india_holidays
+
+        special = india_holidays.SPECIAL_SESSIONS.get(day)
+        hours = india_holidays.SPECIAL_HOURS.get(day)
+        if hours:
+            zone = ZoneInfo(str(calendar.tz))
+            spans = tuple(
+                (
+                    datetime.combine(day, start, tzinfo=zone).astimezone(UTC),
+                    datetime.combine(day, end, tzinfo=zone).astimezone(UTC),
+                )
+                for start, end in hours
+            )
+    return SessionHours(
+        day=day, venue=venue, open=spans[0][0], close=spans[-1][1], spans=spans, special=special
+    )
 
 
 def previous_session(day: date, venue: str = NEW_YORK_VENUE) -> date:

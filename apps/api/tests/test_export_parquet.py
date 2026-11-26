@@ -135,6 +135,8 @@ def test_partitions_by_month_with_an_exact_manifest(seeded, tmp_path: Path) -> N
         "corporate_actions",
         "fundamental_facts",
         "data_files",
+        "intraday_bars",
+        "intraday_files",
     ]
     assert not (out / "eod_raw").exists()
     assert {t.name: t.status for t in report.tables}["eod_raw"] == "empty"
@@ -243,6 +245,36 @@ def test_cli_exports_and_reports_empty_tables(seeded, tmp_path: Path, monkeypatc
     assert cli.main(["export-parquet", "--out", str(out), "--since", "2025-02-01"]) == 0
     assert "price_bars (since 2025-02-01): wrote 1 partition(s)" in capsys.readouterr().out
     assert "export-parquet" not in cli.RECORDED_JOBS
+
+
+def test_intraday_bars_export_by_month_with_exact_decimals(
+    seeded, session: Session, tmp_path: Path
+) -> None:
+    """A6.1: intraday bars go to the lake by month of the bar's open, decimals exact."""
+    from stockviz.services.intraday.files import KINDS
+    from stockviz.services.intraday.load import load_files
+
+    seed_symbols(session, "TCS.NS", currency="INR")
+    src = tmp_path / "TCS_bulk_data.csv"
+    src.write_text(
+        "date,open,high,low,close,volume\n"
+        "2025-01-31 15:29:00+05:30,100.123456,101,99,100.5,7\n"
+        "2025-02-03 09:15:00+05:30,100,101,99,100.25,8\n",
+        encoding="utf-8",
+    )
+    load_files(session, [(src, "TCS.NS")], KINDS["bulk1m"], apply=True)
+    out = tmp_path / "export"
+    report = _export(seeded, out, tables=["intraday_bars", "intraday_files"])
+    bars = report.manifest["tables"]["intraday_bars"]
+    assert [p["path"] for p in bars["partitions"]] == [
+        "intraday_bars/year=2025/month=01/part.parquet",
+        "intraday_bars/year=2025/month=02/part.parquet",
+    ]
+    table = _read_all(out / "intraday_bars")
+    assert table.schema.field("open").type == pa.decimal128(18, 6)
+    assert table.column("open").to_pylist()[0] == Decimal("100.123456")
+    assert table.column("ts").to_pylist()[0] == datetime(2025, 1, 31, 9, 59)
+    assert report.manifest["tables"]["intraday_files"]["rows"] == 1
 
 
 def test_cli_refuses_an_unignored_path_in_the_repository(seeded, monkeypatch, capsys) -> None:

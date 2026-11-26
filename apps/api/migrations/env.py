@@ -16,6 +16,20 @@ config.set_main_option("sqlalchemy.url", get_settings().database_url)
 
 target_metadata = SQLModel.metadata
 
+
+def include_object(obj, name, type_, reflected, compare_to) -> bool:
+    """Leave the monthly ``intraday_bars`` partitions (A6.1) out of autogenerate.
+
+    The writer creates them on demand; they are not in the metadata, so
+    ``alembic check`` would otherwise offer to drop them.
+    """
+    from stockviz.models.intraday import PARTITION_PREFIX
+
+    return not (
+        type_ == "table" and reflected and compare_to is None and name.startswith(PARTITION_PREFIX)
+    )
+
+
 MIGRATION_LOCK_KEY = 0x53_56_4D_49_47  # "SVMIG"; scheduler job keys are hashes
 """Postgres advisory lock held for a whole upgrade (audit OP-10).
 
@@ -52,7 +66,11 @@ def run_migrations_online() -> None:
             connection.execute(text("SELECT pg_advisory_lock(:key)"), {"key": MIGRATION_LOCK_KEY})
             connection.commit()
         try:
-            context.configure(connection=connection, target_metadata=target_metadata)
+            context.configure(
+                connection=connection,
+                target_metadata=target_metadata,
+                include_object=include_object,
+            )
 
             with context.begin_transaction():
                 context.run_migrations()

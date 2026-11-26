@@ -837,6 +837,214 @@ def _cmd_export_parquet(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_intraday_load(args: argparse.Namespace) -> int:
+    """Load the owner's intraday files into ``intraday_bars`` (A6.1). Local databases only.
+
+    Dry run unless ``--apply``: per file, rows, rejected, duplicates,
+    off-session rows (by day), already stored and new, with a progress line.
+    ``--kind moneycontrol`` never writes: it reconciles each file with the
+    stored bulk 1-minute bars. Refuses any database not on localhost,
+    127.0.0.1 or ::1 (exit 2); nothing overrides it. Exit 1 if a file failed.
+    """
+    import time as clock
+
+    from stockviz.services.intraday.files import KINDS
+    from stockviz.services.intraday.guard import RemoteDatabaseRefused, require_local_database
+    from stockviz.services.intraday.load import FileReport, files_in, load_files
+    from stockviz.services.intraday.reconcile import reconcile_moneycontrol
+
+    try:
+        require_local_database(engine.url)
+    except RemoteDatabaseRefused as exc:
+        print(exc)
+        return 2
+    kind = KINDS[args.kind]
+    directory = Path(args.dir)
+    if not directory.is_dir():
+        print(f"{directory}: not a directory")
+        return 1
+    files = files_in(directory, kind, args.only)
+    if not files:
+        print(f"no {kind.key} files in {directory}")
+        return 1
+    started = clock.monotonic()
+
+    if not kind.stored:
+        if args.apply:
+            print(
+                "moneycontrol files are reconciliation only; nothing is written (--apply ignored)"
+            )
+        failed = False
+        with Session(engine) as session:
+            for index, (path, ticker) in enumerate(files, start=1):
+                r = reconcile_moneycontrol(session, path, ticker, price_tol_pct=args.tolerance_pct)
+                failed = failed or r.status == "failed"
+                line = (
+                    f"[{index}/{len(files)}] {r.file_name} -> {ticker}: {r.status}; rows {r.rows}, "
+                    f"rejected {r.invalid}, off-session {r.off_session} "
+                    f"({r.off_session_with_volume} with volume), in session {r.in_session}"
+                )
+                if r.status == "compared":
+                    line += (
+                        f"; same instants {r.matched_instants}, only in file {r.only_file}, "
+                        f"only stored {r.only_stored}, close beyond {args.tolerance_pct}% "
+                        f"{r.close_mismatches} (max {r.max_close_diff_pct:.3f}%)"
+                    )
+                    if r.daily is not None:
+                        d = r.daily
+                        fields = ", ".join(f"{k} {v}" for k, v in d.field_mismatches.items() if v)
+                        line += f"; sessions {d.compared}, matched {d.matched}"
+                        if fields:
+                            line += f" (beyond tolerance: {fields})"
+                        if d.volume_mismatches:
+                            line += f", volume {d.volume_mismatches}"
+                        if d.median_volume_ratio is not None:
+                            line += f", median volume ratio {d.median_volume_ratio:.3f}"
+                print(line + (f" ({r.error})" if r.error else ""))
+        print(f"done in {clock.monotonic() - started:.1f}s; nothing written")
+        return 1 if failed else 0
+
+    def progress(index: int, total: int, r: FileReport) -> None:
+        line = (
+            f"[{index}/{total}] {r.file_name} -> {r.ticker} ({r.venue}): {r.status}; "
+            f"rows {r.rows_total}, rejected {r.invalid}, duplicate {r.duplicate}, "
+            f"off-session {r.off_session}, accepted {r.accepted} over {r.sessions} sessions"
+        )
+        if r.first_ts and r.last_ts:
+            line += f" ({r.first_ts:%Y-%m-%d} to {r.last_ts:%Y-%m-%d} UTC)"
+        if r.instrument_id is not None:
+            line += f", already stored {r.already_stored}, new {r.new}"
+        if args.apply and r.status == "loaded":
+            line += f", inserted {r.inserted}"
+        if r.is_index:
+            line += f"; index (volume not real; {r.nonzero_volume} rows with volume)"
+        if r.symbol_created:
+            line += "; symbol created"
+        if r.would_create_symbol:
+            line += "; symbol would be created"
+        if r.status == "unmatched":
+            line += "; no symbol (use --create-symbols)"
+        if r.error:
+            line += f"; {r.error}"
+        line += f" [{r.seconds:.1f}s]"
+        print(line, flush=True)
+        if r.off_session_days:
+            days = ", ".join(
+                f"{d.isoformat()} ({n})" for d, n in sorted(r.off_session_days.items())[:8]
+            )
+            more = len(r.off_session_days) - 8
+            print(f"    off-session days: {days}" + (f" and {more} more" if more > 0 else ""))
+        if r.problem_lines:
+            print(f"    rejected rows, first lines: {', '.join(map(str, r.problem_lines))}")
+
+    with Session(engine) as session:
+        reports = load_files(
+            session,
+            files,
+            kind,
+            apply=args.apply,
+            create_symbols=args.create_symbols,
+            progress=progress,
+        )
+    total = {
+        "rows": sum(r.rows_total for r in reports),
+        "rejected": sum(r.invalid for r in reports),
+        "duplicate": sum(r.duplicate for r in reports),
+        "off_session": sum(r.off_session for r in reports),
+        "accepted": sum(r.accepted for r in reports),
+        "new": sum(r.new for r in reports if r.instrument_id is not None),
+        "inserted": sum(r.inserted for r in reports),
+    }
+    unmatched = [r.ticker for r in reports if r.status == "unmatched"]
+    failed = [r.file_name for r in reports if r.status == "failed"]
+    print(
+        f"{len(reports)} files in {clock.monotonic() - started:.1f}s: "
+        + ", ".join(f"{k.replace('_', '-')} {v}" for k, v in total.items())
+    )
+    if unmatched:
+        print(f"unmatched tickers ({len(unmatched)}): {', '.join(unmatched)}")
+    if failed:
+        print(f"failed: {', '.join(failed)}")
+    if not args.apply:
+        print("dry run: nothing written. Run with --apply to load (local databases only).")
+    return 1 if failed else 0
+
+
+def _cmd_intraday_reconcile(args: argparse.Namespace) -> int:
+    """Resample stored intraday bars to daily and compare (A6.1). Read-only.
+
+    Against the stored daily ``price_bars`` (default) or the stored 60-minute
+    bars. Per symbol: sessions compared and matched within the tolerances,
+    sessions on one side only, mismatches by field, worst differences (in
+    percent; no prices). Exit 1 when nothing was compared.
+    """
+    from stockviz.services.intraday.reconcile import MATCH_RATE_FOR_SYMBOL, reconcile
+
+    with Session(engine) as session:
+        reports = reconcile(
+            session,
+            tickers=args.tickers or None,
+            feed=args.feed,
+            interval=args.interval,
+            against=args.against,
+            price_tol_pct=args.tolerance_pct,
+            volume_tol_pct=args.volume_tolerance_pct,
+        )
+    if not reports:
+        print(f"no stored {args.feed} {args.interval} bars")
+        return 1
+    compared = [r for r in reports if r.compared]
+    for r in reports:
+        rate = f"{r.match_rate * 100:.1f}%" if r.match_rate is not None else "-"
+        worst = ", ".join(f"{k} {v:.2f}%" for k, v in sorted(r.worst.items()))
+        fields = ", ".join(f"{k} {v}" for k, v in r.field_mismatches.items() if v)
+        print(
+            f"{r.ticker}: compared {r.compared}, matched {r.matched} ({rate}), "
+            f"only {args.interval} {r.only_intraday}, only {args.against} {r.only_reference}"
+            + (f"; mismatches: {fields}" if fields else "")
+            + (f", volume {r.volume_mismatches}" if r.volume_mismatches else "")
+            + ("" if r.volume_checked else "; volume not checked (index)")
+            + (
+                f"; median volume ratio {r.median_volume_ratio:.3f}"
+                if r.median_volume_ratio is not None
+                else ""
+            )
+            + (f"; worst {worst}" if worst else "")
+        )
+        if args.show and r.mismatches:
+            for m in r.mismatches[: args.show]:
+                print(f"    {m.day.isoformat()} {m.field} {m.diff_pct:.3f}%")
+    matching = sum(1 for r in compared if r.matches)
+    print(
+        f"{len(reports)} symbols, {len(compared)} with sessions to compare; "
+        f"{matching} match on at least {MATCH_RATE_FOR_SYMBOL:.0%} of sessions within "
+        f"{args.tolerance_pct}% (prices) and {args.volume_tolerance_pct}% (volume)"
+    )
+    return 0 if compared else 1
+
+
+def _cmd_intraday_size(_args: argparse.Namespace) -> int:
+    """Report the measured size of ``intraday_bars`` (A6.1). PostgreSQL only; read-only."""
+    from stockviz.services.intraday.size import measure
+
+    with engine.connect() as conn:
+        try:
+            report = measure(conn)
+        except RuntimeError as exc:
+            print(exc)
+            return 2
+    for ticker, interval, rows in report.per_symbol:
+        print(f"  {ticker} {interval}: {rows} rows")
+    mb = 1024 * 1024
+    per_row = f"{report.bytes_per_row:.1f}" if report.bytes_per_row is not None else "-"
+    print(
+        f"intraday_bars: {report.rows} rows in {report.partitions} partitions; "
+        f"table {report.table_bytes / mb:.1f} MiB, indexes {report.index_bytes / mb:.1f} MiB, "
+        f"total {report.total_bytes / mb:.1f} MiB; {per_row} bytes per row"
+    )
+    return 0
+
+
 def _cmd_rule_check(args: argparse.Namespace) -> int:
     """Parse, type-check and judge a Rule DSL rule (A2.1, M4.1). Read-only.
 
@@ -1959,6 +2167,43 @@ def main(argv: list[str] | None = None) -> int:
         "--tables", nargs="+", choices=TABLE_NAMES, default=None, help="Default: all"
     )
     p_export.set_defaults(fn=_cmd_export_parquet)
+
+    p_intra = sub.add_parser(
+        "intraday-load",
+        help="Load the owner's intraday files (A6.1; local databases only; dry run unless --apply)",
+    )
+    p_intra.add_argument("--dir", required=True, help="Directory holding the files")
+    p_intra.add_argument(
+        "--kind", required=True, choices=("bulk1m", "bulk1h", "moneycontrol"), help="File format"
+    )
+    p_intra.add_argument("--apply", action="store_true", help="Write (bulk1m, bulk1h)")
+    p_intra.add_argument(
+        "--create-symbols",
+        action="store_true",
+        help="Add a symbols row (INR, NSE) for a ticker the database lacks (with --apply)",
+    )
+    p_intra.add_argument("--only", nargs="+", default=None, help="Only these tickers")
+    p_intra.add_argument(
+        "--tolerance-pct", type=float, default=0.5, help="moneycontrol: price tolerance, percent"
+    )
+    p_intra.set_defaults(fn=_cmd_intraday_load)
+    p_irec = sub.add_parser(
+        "intraday-reconcile",
+        help="Compare stored intraday bars, resampled to daily, with daily or 60m bars (A6.1)",
+    )
+    p_irec.add_argument("tickers", nargs="*", help="Default: every instrument with bars")
+    p_irec.add_argument("--feed", default="file", choices=("file", "iex", "sip", "kite"))
+    p_irec.add_argument("--interval", default="1m", choices=("1m", "60m"))
+    p_irec.add_argument("--against", default="daily", choices=("daily", "60m"))
+    p_irec.add_argument("--tolerance-pct", type=float, default=0.5, help="Prices, percent")
+    p_irec.add_argument(
+        "--volume-tolerance-pct", type=float, default=10.0, help="Volume ratio, percent"
+    )
+    p_irec.add_argument("--show", type=int, default=0, help="List the N worst sessions per symbol")
+    p_irec.set_defaults(fn=_cmd_intraday_reconcile)
+    sub.add_parser(
+        "intraday-size", help="Measured size of intraday_bars (A6.1; PostgreSQL)"
+    ).set_defaults(fn=_cmd_intraday_size)
 
     p_rule = sub.add_parser(
         "rule-check",
