@@ -225,7 +225,7 @@ describe("A4.7 drills: scores and decks", () => {
       (i) => (i as HTMLInputElement).value,
     );
     expect(targets).toEqual(["drill", "drill"]);
-    expect(screen.getByText("Drill order")).toBeInTheDocument();
+    expect(screen.getByText("Drill Order")).toBeInTheDocument();
     expect(screen.queryByText("Cancel replay")).toBeNull();
   });
 

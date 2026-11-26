@@ -34,6 +34,7 @@ import { badgesFor } from "@/lib/indicator-badge";
 import { formatCurrency, formatSignedCurrency } from "@/lib/portfolio-view-model";
 import { formatReplayDate, formatReplayShortDate, replayBarsToChart } from "@/lib/replay";
 import { chartLayers, macdSeries, parseStockIndicators, studyFor } from "@/lib/stock-workspace";
+import { titleCase } from "@/lib/title-case";
 
 // No ticker in the title: a drill is anonymised until revealed.
 export const metadata: Metadata = { title: "Drill" };
@@ -96,7 +97,7 @@ export default async function DrillPage({
     <PageFrame width="workstation" className="py-6 sm:py-8">
       <header className="flex flex-col gap-3 border-b border-border-muted pb-5 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <p className="text-2xs font-medium tracking-[0.12em] text-text-secondary uppercase">
+          <p className="text-2xs font-medium tracking-[0.02em] text-text-secondary">
             Drill {drill.position + 1} · {drill.deck_name}
           </p>
           <h1
@@ -181,7 +182,7 @@ export default async function DrillPage({
           >
             <div className="flex flex-wrap items-end justify-between gap-3 px-4 py-3">
               <div>
-                <p className="text-[11px] font-semibold tracking-[0.14em] text-text-tertiary uppercase">
+                <p className="text-[11px] font-semibold tracking-[0.02em] text-text-tertiary">
                   Close
                 </p>
                 <p className="font-mono text-2xl tabular-nums">{money(drill.bar.close)}</p>

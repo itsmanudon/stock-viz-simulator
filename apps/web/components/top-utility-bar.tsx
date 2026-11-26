@@ -5,10 +5,11 @@ import { BookSwitcherSlot } from "@/components/book-switcher-slot";
 import { GlobalTickerSearch } from "@/components/global-ticker-search";
 import { DataDateChip } from "@/components/marketing/market-status";
 import { RegimeBadges } from "@/components/regime-badge";
+import { SoundToggle } from "@/components/sound/sound-toggle";
 
 export function TopUtilityBar({ signedIn }: { signedIn: boolean }) {
   return (
-    <header className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b border-border-muted bg-background/95 px-3 backdrop-blur lg:px-6">
+    <header className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b border-border-muted bg-background/70 px-3 backdrop-blur-xl backdrop-saturate-150 lg:px-6">
       <AppMobileNav signedIn={signedIn} />
       <div className="min-w-0 max-w-xl flex-1">
         <GlobalTickerSearch />
@@ -17,6 +18,7 @@ export function TopUtilityBar({ signedIn }: { signedIn: boolean }) {
         <span className="mr-1 hidden md:inline">
           <DataDateChip />
         </span>
+        <SoundToggle className="mr-1" />
         <span className="mr-1 hidden sm:inline">
           <RegimeBadges />
         </span>

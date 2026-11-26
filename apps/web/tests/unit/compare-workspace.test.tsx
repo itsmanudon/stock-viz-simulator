@@ -53,7 +53,7 @@ describe("compare presentation", () => {
       />,
     );
 
-    expect(screen.getByRole("columnheader", { name: "Window return" })).toBeVisible();
+    expect(screen.getByRole("columnheader", { name: "Window Return" })).toBeVisible();
     expect(screen.getByRole("link", { name: /AAPL/ })).toHaveAttribute("href", "/stocks/AAPL");
     expect(screen.getByText("+12.50%")).toBeVisible();
     expect(screen.getAllByText("—").length).toBeGreaterThan(0);

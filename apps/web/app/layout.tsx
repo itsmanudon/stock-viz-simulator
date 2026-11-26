@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist, Geist_Mono, Instrument_Serif } from "next/font/google";
 
 import { Providers } from "@/components/providers";
 import "./globals.css";
@@ -26,6 +26,19 @@ const mono = Geist_Mono({
   variable: "--font-numeric",
 });
 
+/**
+ * PRISM (Nov 2026): one editorial italic for a word or two inside a display
+ * headline on the public site and the dashboard greeting. Never for UI text,
+ * figures or tickers.
+ */
+const editorial = Instrument_Serif({
+  weight: "400",
+  style: ["normal", "italic"],
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-editorial",
+});
+
 export const metadata: Metadata = {
   // Each page names itself (UI audit A1); the home page keeps the full name.
   title: {
@@ -42,7 +55,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning className={`${display.variable} ${mono.variable}`}>
+    <html
+      lang="en"
+      suppressHydrationWarning
+      className={`${display.variable} ${mono.variable} ${editorial.variable}`}
+    >
       <body className="min-h-screen bg-background text-foreground antialiased">
         <Providers>
           <a

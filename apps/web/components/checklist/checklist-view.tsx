@@ -32,6 +32,7 @@ import {
   statusTone,
   variantFor,
 } from "@/lib/checklist-view";
+import { titleCase } from "@/lib/title-case";
 import { cn } from "@/lib/utils";
 
 export function ChecklistStatusBadge({ status }: { status: ChecklistStatus }) {
@@ -126,11 +127,11 @@ export function DimensionGuide({ dimensions }: { dimensions: ChecklistDimension[
               {dimension.variants.map((variant) => (
                 <div key={variant.setup_version_id} className="space-y-2">
                   {dimension.variants.length > 1 ? (
-                    <p className="text-2xs font-semibold uppercase tracking-[0.12em] text-text-tertiary">
-                      {SCOPE_LABEL[variant.scope]} · version {variant.version}
+                    <p className="text-2xs font-semibold tracking-[0.02em] text-text-tertiary">
+                      {titleCase(SCOPE_LABEL[variant.scope])} · Version {variant.version}
                     </p>
                   ) : (
-                    <p className="text-2xs font-semibold uppercase tracking-[0.12em] text-text-tertiary">
+                    <p className="text-2xs font-semibold tracking-[0.02em] text-text-tertiary">
                       Version {variant.version}
                     </p>
                   )}

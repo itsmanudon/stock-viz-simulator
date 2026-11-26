@@ -3,14 +3,20 @@
 /**
  * The landing hero's stage (design board option B).
  *
- * - The phone rotates through its screens every few seconds. Dots switch
- *   screens; hover pauses it; with reduced motion it never auto-advances.
+ * - The phone rotates through its screens every few seconds, also while the
+ *   hero rises; hovering the phone pauses it;
+ *   with reduced motion it never auto-advances. There are no screen dots:
+ *   they sat in the pinned stage, had to fade as the pin began, and a click
+ *   on them raced the animation (owner removed them, 26 Nov 2026).
  * - On wide screens with motion, the hero pins from the first scroll: the
  *   phone stops on Portfolio, the paper card lifts out of it, grows with a
  *   tilt, settles beside the "paper trading" copy, and flips to show its back.
  *   The hero is taller than the screen, so it rises into view as part of the
  *   same scrubbed timeline instead of scrolling up before the pin starts (the
- *   owner saw that as the phone "snapping" to the bottom of the screen).
+ *   owner saw that as the phone "snapping" to the bottom of the screen). The
+ *   rise comes first and alone: the card only leaves once the whole phone is
+ *   on screen (owner, 26 Nov 2026; it used to start with half the phone
+ *   still below the fold).
  * - Everywhere else (phones, reduced motion, no JS) nothing pins, and the same
  *   copy is a plain section under the hero. Only one of the two copies is ever
  *   shown, so assistive technology reads it once.
@@ -35,8 +41,20 @@ import { PaperCard } from "@/components/paper-card";
 gsap.registerPlugin(useGSAP, ScrollTrigger, SplitText);
 
 const ROTATE_MS = 4500;
-/** Scroll distance the pinned sequence takes, in viewport heights. */
-const PIN_LENGTH = 1.5;
+/**
+ * The pinned sequence in timeline units: first the hero rises until the
+ * whole phone is on screen, then the card leaves the phone (CARD). The
+ * card's part must not start before the rise ends, or it plays while the
+ * phone is still half below the fold (owner, 26 Nov 2026).
+ *
+ * The rise is sized from the distance it travels, so it moves exactly as
+ * far as the page scrolls, with no easing: to the reader it is ordinary
+ * scrolling. A fixed share with ease-in-out moved faster than the scroll
+ * mid-way and felt snappy (owner, 26 Nov 2026).
+ */
+const CARD = 1;
+/** Scroll distance per timeline unit of the card's part, in viewport heights. */
+const PIN_PER_UNIT = 1.5;
 
 /** Layout offset of `el` inside `ancestor`, ignoring every CSS transform. */
 function offsetWithin(el: HTMLElement, ancestor: HTMLElement): { x: number; y: number } {
@@ -74,7 +92,6 @@ export function HeroStage({
   const deskRef = useRef<HTMLDivElement>(null);
   const phoneRef = useRef<HTMLDivElement>(null);
   const pillsRef = useRef<HTMLDivElement>(null);
-  const dotsRef = useRef<HTMLDivElement>(null);
   const flyAnchorRef = useRef<HTMLDivElement>(null);
   const flyRef = useRef<HTMLDivElement>(null);
   const flyInnerRef = useRef<HTMLDivElement>(null);
@@ -143,11 +160,17 @@ export function HeroStage({
         const anchor = flyAnchorRef.current;
         if (!phone || !fly || !flyInner || !anchor) return;
 
+        // Late in the rise the phone stops rotating on Portfolio, the screen
+        // the card leaves from, so its fade settles before the card moves.
+        // Holding from the first scroll froze the phone for the whole rise
+        // (owner, 26 Nov 2026).
+        const setHold = (held: boolean) => {
+          if (held && !hold.current.scroll) setActive(0);
+          hold.current.scroll = held;
+        };
         const setOut = (out: boolean) => {
-          hold.current.scroll = out;
           phone.toggleAttribute("data-card-out", out);
           gsap.set(fly, { autoAlpha: out ? 1 : 0 });
-          if (out) setActive(0);
         };
 
         // Where the card sits inside the phone, relative to where it lands.
@@ -184,13 +207,16 @@ export function HeroStage({
 
         const build = () => {
           closeGap();
+          // The rise in timeline units: its distance over the scroll one unit
+          // takes. Measured at build; a resize keeps it until the next load.
+          const RISE = rise() / (window.innerHeight * PIN_PER_UNIT);
           ScrollTrigger.addEventListener("refreshInit", closeGap);
           const tl = gsap.timeline({
             defaults: { ease: "none" },
             scrollTrigger: {
               trigger: section,
               start: "top top",
-              end: () => `+=${Math.round(window.innerHeight * PIN_LENGTH)}`,
+              end: () => `+=${Math.round(window.innerHeight * PIN_PER_UNIT * (RISE + CARD))}`,
               pin: true,
               // Measured before every other trigger on the page: the space
               // this pin adds moves everything below it.
@@ -198,29 +224,33 @@ export function HeroStage({
               scrub: 0.6,
               anticipatePin: 1,
               invalidateOnRefresh: true,
-              onUpdate: (self) => setOut(self.progress > 0.004),
+              onUpdate: (self) => {
+                setHold(self.progress > Math.max(0.004, (RISE * 0.75) / (RISE + CARD)));
+                // The card swaps from the phone to the flying copy just as it
+                // starts to move, after the rise.
+                setOut(self.progress > (RISE + 0.02) / (RISE + CARD));
+              },
             },
           });
-          tl.to(
-            Array.from(section.children),
-            { y: () => -rise(), duration: 0.42, ease: "power1.inOut" },
-            0,
-          )
-            .to(pillsRef.current, { autoAlpha: 0, duration: 0.12 }, 0)
-            .to(dotsRef.current, { autoAlpha: 0, duration: 0.12 }, 0)
+          tl.to(Array.from(section.children), { y: () => -rise(), duration: RISE, ease: "none" }, 0)
+            .to(pillsRef.current, { autoAlpha: 0, duration: 0.12 }, RISE)
             // The phone and panel sink out of view so nothing shows through
             // the copy that takes their place.
-            .to(phone, { scale: 0.84, y: 220, autoAlpha: 0, duration: 0.38, ease: "power2.in" }, 0)
+            .to(
+              phone,
+              { scale: 0.84, y: 220, autoAlpha: 0, duration: 0.38, ease: "power2.in" },
+              RISE,
+            )
             .to(
               deskRef.current,
               { scale: 0.9, y: 160, autoAlpha: 0, duration: 0.38, ease: "power2.in" },
-              0,
+              RISE,
             )
             .fromTo(
               fly,
               { x: () => start().x, y: () => start().y, scale: () => start().scale },
               { x: 0, y: 0, scale: 1, duration: 0.42, ease: "power2.inOut" },
-              0.02,
+              RISE + 0.02,
             )
             .to(
               flyInner,
@@ -230,18 +260,18 @@ export function HeroStage({
                   { rotateX: 0, rotateY: 0, rotateZ: 0, duration: 0.21, ease: "power2.out" },
                 ],
               },
-              0.02,
+              RISE + 0.02,
             )
             .fromTo(
               copyRef.current,
               { autoAlpha: 0, x: 40 },
               { autoAlpha: 1, x: 0, duration: 0.16, ease: "power2.out" },
-              0.42,
+              RISE + 0.42,
             )
-            .to(flyInner, { rotateY: 180, duration: 0.22, ease: "power2.inOut" }, 0.66)
+            .to(flyInner, { rotateY: 180, duration: 0.22, ease: "power2.inOut" }, RISE + 0.66)
             .to({}, { duration: 0.12 });
 
-          // The pin adds 1.5 viewport heights of scroll above every section
+          // The pin adds about two viewport heights of scroll above every section
           // below the hero, but their triggers were measured at mount, before
           // this pin existed. Re-measure all of them, or scrubbed sections
           // further down (the "fill shows its work" step bar) run early and
@@ -259,6 +289,7 @@ export function HeroStage({
           call.kill();
           ScrollTrigger.removeEventListener("refreshInit", closeGap);
           setOut(false);
+          setHold(false);
           setPinned(false);
         };
       });
@@ -266,29 +297,25 @@ export function HeroStage({
     { scope: wrapRef },
   );
 
-  const current = screens[active] ?? screens[0];
-
   return (
-    <div ref={wrapRef}>
-      <section ref={sectionRef} className="relative isolate overflow-hidden">
+    // The hero slides up under the sticky public header (pt-3 + h-14 = 68px)
+    // and pads itself back down by the same amount, so the liquid-metal light
+    // runs to the top of the page instead of stopping in a straight line at
+    // the header's foot (owner, 26 Nov 2026).
+    <div ref={wrapRef} className="-mt-[68px]">
+      <section ref={sectionRef} className="relative isolate overflow-hidden pt-[68px]">
         {lead}
 
         <div className="relative mx-auto mt-12 w-full max-w-6xl px-4 sm:mt-16 sm:px-6">
+          {/* The glow behind the phone sits outside the stage, which clips
+              its overflow to crop the panel: inside it, the glow's blur was
+              cut off in a straight line along the stage's top edge (owner,
+              26 Nov 2026). */}
           <div
-            ref={stageRef}
-            className="relative h-[45rem] overflow-hidden"
-            onMouseEnter={() => {
-              hold.current.hover = true;
-            }}
-            onMouseLeave={() => {
-              hold.current.hover = false;
-            }}
-          >
-            <div
-              aria-hidden
-              className="brand-glow top-6 left-1/2 -z-10 h-[34rem] w-[64rem] -translate-x-1/2"
-            />
-
+            aria-hidden
+            className="brand-glow top-6 left-1/2 -z-10 h-[34rem] w-[64rem] -translate-x-1/2"
+          />
+          <div ref={stageRef} className="relative h-[45rem] overflow-hidden">
             <div ref={pillsRef} aria-hidden className="hidden lg:block">
               {pills}
             </div>
@@ -303,6 +330,14 @@ export function HeroStage({
               ref={phoneRef}
               aria-hidden
               className="dark absolute top-0 left-1/2 z-10 w-80 -translate-x-1/2 text-foreground lg:left-[61%] lg:translate-x-0 [&[data-card-out]_[data-phone-card]]:invisible"
+              // Hovering the phone itself pauses it, so a screen can be read;
+              // the panel beside it no longer does.
+              onMouseEnter={() => {
+                hold.current.hover = true;
+              }}
+              onMouseLeave={() => {
+                hold.current.hover = false;
+              }}
             >
               <PhoneFrame screens={screens} active={active} className="h-[41rem]" />
             </div>
@@ -324,11 +359,11 @@ export function HeroStage({
                     fluid
                     className="absolute inset-0 aspect-auto size-full rounded-[1.6rem] shadow-[0_0_70px_color-mix(in_oklab,var(--brand-gradient-from)_55%,transparent)] [backface-visibility:hidden]"
                   />
-                  <div className="absolute inset-0 flex flex-col justify-between rounded-2xl border border-brand-gradient-via/40 bg-linear-to-br from-[#141b2b] to-[#0a0f19] p-5 text-[#eef2f8] shadow-[0_0_60px_color-mix(in_oklab,var(--brand-gradient-from)_45%,transparent)] [backface-visibility:hidden] [transform:rotateY(180deg)]">
+                  <div className="absolute inset-0 flex flex-col justify-between rounded-2xl border border-brand-gradient-via/40 bg-linear-to-br from-[#1c1d20] to-[#0b0b0d] p-5 text-[#f2eee6] shadow-[0_0_60px_color-mix(in_oklab,var(--brand-gradient-from)_45%,transparent)] [backface-visibility:hidden] [transform:rotateY(180deg)]">
                     <span className="flex items-start justify-between">
                       <span className="text-lg font-semibold tracking-[-0.04em]">stockviz</span>
-                      <span className="rounded-md border border-white/25 bg-black/25 px-1.5 py-0.5 font-mono text-3xs tracking-[0.08em]">
-                        PAPER
+                      <span className="rounded-md border border-white/25 bg-black/25 px-1.5 py-0.5 font-mono text-3xs tracking-[0.02em]">
+                        Paper
                       </span>
                     </span>
                     <span className="grid gap-1.5 text-sm">
@@ -341,8 +376,8 @@ export function HeroStage({
                         ),
                       )}
                     </span>
-                    <span className="font-mono text-3xs tracking-[0.06em] text-[#8892a4]">
-                      NOT A REAL CARD · NOTHING REACHES AN EXCHANGE
+                    <span className="font-mono text-3xs tracking-[0.02em] text-[#8e8a82]">
+                      Not a Real Card · Nothing Reaches an Exchange
                     </span>
                   </div>
                 </div>
@@ -356,27 +391,6 @@ export function HeroStage({
             >
               {intro}
             </div>
-
-            {screens.length > 1 ? (
-              <div
-                ref={dotsRef}
-                className="glass absolute bottom-4 left-1/2 z-30 flex -translate-x-1/2 items-center gap-2.5 rounded-full py-1.5 pr-2.5 pl-3.5 text-xs text-text-secondary"
-              >
-                <span aria-live="polite">{current?.label}</span>
-                <span className="flex gap-1.5">
-                  {screens.map((screen, index) => (
-                    <button
-                      key={screen.key}
-                      type="button"
-                      aria-label={`Show the ${screen.label.toLowerCase()} screen`}
-                      aria-pressed={index === active}
-                      onClick={() => setActive(index)}
-                      className="h-2 w-2 rounded-full bg-surface-hover transition-[width,background-color] duration-300 aria-pressed:w-5 aria-pressed:bg-foreground"
-                    />
-                  ))}
-                </span>
-              </div>
-            ) : null}
           </div>
         </div>
       </section>

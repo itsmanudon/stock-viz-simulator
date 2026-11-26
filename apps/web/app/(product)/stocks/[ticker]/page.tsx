@@ -81,6 +81,7 @@ import {
   parseStockInterval,
   studyFor,
 } from "@/lib/stock-workspace";
+import { titleCase } from "@/lib/title-case";
 import { checkVisitorLimit } from "@/lib/visitor-limit";
 
 const TIMEFRAME_DAYS: Record<StockTimeframe, number> = {
@@ -628,8 +629,8 @@ function Overview({
     <div className="space-y-8">
       <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,0.55fr)]">
         <div>
-          <p className="text-2xs font-semibold uppercase tracking-[0.14em] text-text-tertiary">
-            Security overview
+          <p className="text-2xs font-semibold tracking-[0.02em] text-text-tertiary">
+            Security Overview
           </p>
           <h2 className="mt-2 text-xl font-semibold tracking-tight">{symbol.name}</h2>
           <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">
@@ -666,15 +667,15 @@ function Overview({
         <dl className="grid grid-cols-2 gap-x-6 gap-y-5 border-y border-border-muted py-5">
           {items.map(([label, value]) => (
             <div key={label}>
-              <dt className="text-3xs font-semibold uppercase tracking-[0.12em] text-text-tertiary">
-                {label}
+              <dt className="text-3xs font-semibold tracking-[0.02em] text-text-tertiary">
+                {titleCase(label)}
               </dt>
               <dd className="mt-1 text-sm font-medium">{value}</dd>
             </div>
           ))}
           <div>
-            <dt className="text-3xs font-semibold uppercase tracking-[0.12em] text-text-tertiary">
-              Portfolio status
+            <dt className="text-3xs font-semibold tracking-[0.02em] text-text-tertiary">
+              Portfolio Status
             </dt>
             <dd className="mt-1 text-sm font-medium">
               {positionStatus === "held"

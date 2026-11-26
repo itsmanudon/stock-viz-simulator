@@ -2,6 +2,7 @@ import { ArrowDown, ArrowUp, ChevronsUpDown } from "lucide-react";
 import Link from "next/link";
 
 import { TableCell, TableHead } from "@/components/ui/table";
+import { titleCase } from "@/lib/title-case";
 import { cn } from "@/lib/utils";
 
 /**
@@ -33,7 +34,7 @@ export function DataTableFrame({
   return (
     <div
       className={cn(
-        "min-w-0 overflow-x-auto rounded-md border border-border-muted bg-card [&_thead]:bg-surface-secondary/60",
+        "min-w-0 overflow-x-auto rounded-xl border border-border-muted bg-card [&_thead]:bg-surface-secondary/60",
         className,
       )}
     >
@@ -148,7 +149,7 @@ export function SortableHead({
           direction ? "text-foreground" : "text-text-secondary",
         )}
       >
-        {label}
+        {titleCase(label)}
         <Icon
           className={cn("size-3 shrink-0", direction ? "text-brand" : "text-text-tertiary")}
           aria-hidden

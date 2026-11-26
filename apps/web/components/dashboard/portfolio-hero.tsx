@@ -4,6 +4,8 @@ import { ArrowLeftRight, ArrowUpRight, Bell, FlaskConical, ListOrdered } from "l
 import { DeltaPill } from "@/components/dashboard/delta-pill";
 import { NavSparkline } from "@/components/dashboard/nav-sparkline";
 import { PaperCard } from "@/components/paper-card";
+import { RollingFigure } from "@/components/prism/rolling-figure";
+import { TiltCard } from "@/components/prism/tilt-card";
 import { ValuationNotice } from "@/components/valuation-notice";
 import type { Portfolio, PortfolioHistoryPoint } from "@/lib/api/trading";
 import { formatDateLabel } from "@/lib/journal-view-model";
@@ -72,13 +74,15 @@ export function PortfolioHero({
       />
 
       <div className="grid gap-5 p-4 sm:p-5 @xl:grid-cols-[minmax(0,16rem)_minmax(0,1fr)] @xl:items-center @xl:gap-8">
-        <PaperCard
-          accountId={isAll ? undefined : portfolio.portfolio_id}
-          currency={currency}
-          badge={isAll ? "ALL BOOKS" : book?.kind === "imported" ? "IMPORTED" : "PAPER"}
-          title={isAll ? `${book?.count ?? 0} BOOKS · ${currency}` : undefined}
-          className="w-full max-w-72 justify-self-center @xl:justify-self-start"
-        />
+        <TiltCard className="w-full max-w-72 justify-self-center @xl:justify-self-start">
+          <PaperCard
+            accountId={isAll ? undefined : portfolio.portfolio_id}
+            currency={currency}
+            badge={isAll ? "All Books" : book?.kind === "imported" ? "Imported" : "Paper"}
+            title={isAll ? `${book?.count ?? 0} Books · ${currency}` : undefined}
+            className="w-full"
+          />
+        </TiltCard>
 
         <div className="flex min-w-0 flex-col gap-4">
           <div className="flex flex-wrap items-start justify-between gap-3">
@@ -101,8 +105,8 @@ export function PortfolioHero({
                 className="mt-2 break-all font-mono text-3xl font-medium tracking-tight sm:text-4xl"
                 data-financial
               >
-                {major}
-                {minor ? <span className="figure-minor">{minor}</span> : null}
+                <RollingFigure text={major} />
+                {minor ? <RollingFigure text={minor} className="figure-minor" /> : null}
               </p>
             </div>
             <Link

@@ -35,8 +35,8 @@ export function RelativeStrengthStrip({ strength }: { strength: RelativeStrength
       <dl className="grid grid-cols-2 divide-x divide-y divide-border-muted sm:grid-cols-5 sm:divide-y-0">
         {strength.periods.map((p) => (
           <div key={p.period} className="min-w-0 px-3 py-3 sm:px-4">
-            <dt className="text-3xs leading-4 font-semibold tracking-[0.12em] text-text-tertiary uppercase">
-              RS rank {PERIOD_LABEL[p.period] ?? p.period}
+            <dt className="text-3xs leading-4 font-semibold tracking-[0.02em] text-text-tertiary">
+              RS Rank {PERIOD_LABEL[p.period] ?? p.period}
             </dt>
             <dd
               className="mt-1 font-mono text-sm font-medium tabular-nums text-foreground"
@@ -56,8 +56,8 @@ export function RelativeStrengthStrip({ strength }: { strength: RelativeStrength
           </div>
         ))}
         <div className="col-span-2 min-w-0 px-3 py-3 sm:col-span-1 sm:px-4">
-          <dt className="text-3xs leading-4 font-semibold tracking-[0.12em] text-text-tertiary uppercase">
-            From 52-week high
+          <dt className="text-3xs leading-4 font-semibold tracking-[0.02em] text-text-tertiary">
+            From 52-Week High
           </dt>
           <dd className="mt-1 font-mono text-sm font-medium tabular-nums text-foreground">
             {strength.distance_from_high_52w_pct === null ||

@@ -56,8 +56,8 @@ export default async function SavedBacktestsPage() {
                 <TableHead>Saved</TableHead>
                 <TableHead>Symbol</TableHead>
                 <TableHead className="hidden md:table-cell">Rules</TableHead>
-                <TableHead className="text-right">Net return</TableHead>
-                <TableHead className="hidden text-right sm:table-cell">vs hold</TableHead>
+                <TableHead className="text-right">Net Return</TableHead>
+                <TableHead className="hidden text-right sm:table-cell">vs Hold</TableHead>
                 <TableHead className="hidden md:table-cell">Data</TableHead>
                 <TableHead>Check</TableHead>
               </TableRow>

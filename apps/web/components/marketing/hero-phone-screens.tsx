@@ -96,8 +96,8 @@ function PortfolioScreen() {
       <div className="grid justify-items-center gap-0.5 text-center">
         <span className="flex items-center gap-1.5 text-2xs text-text-tertiary">
           Portfolio value
-          <span className="rounded border border-warning/40 px-1 font-mono text-3xs tracking-wider text-warning">
-            EXAMPLE ACCOUNT
+          <span className="rounded border border-warning/40 px-1 font-mono text-3xs tracking-[0.02em] text-warning">
+            Example Account
           </span>
         </span>
         <Figure value="$106,482.17" className="text-3xl font-medium" />

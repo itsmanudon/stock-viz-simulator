@@ -280,8 +280,8 @@ export function IndicatorMenu({
           data-testid="indicator-menu"
         >
           <div className="overflow-y-auto p-2">
-            <h2 className="px-1 pb-1.5 text-3xs font-semibold uppercase tracking-[0.12em] text-text-tertiary">
-              On the chart
+            <h2 className="px-1 pb-1.5 text-3xs font-semibold tracking-[0.02em] text-text-tertiary">
+              On the Chart
             </h2>
             {indicators.length ? (
               <ul className="space-y-1.5" aria-label="Selected studies">
@@ -307,8 +307,8 @@ export function IndicatorMenu({
             )}
 
             <div className="mt-3 border-t border-border-muted pt-2">
-              <label className="block px-1 text-3xs font-semibold uppercase tracking-[0.12em] text-text-tertiary">
-                Add a study
+              <label className="block px-1 text-3xs font-semibold tracking-[0.02em] text-text-tertiary">
+                Add a Study
                 <input
                   type="search"
                   value={filter}

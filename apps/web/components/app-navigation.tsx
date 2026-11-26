@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Activity,
   ArrowLeftRight,
   Bell,
   CalendarDays,
@@ -29,6 +30,7 @@ import {
   getActiveNavigation,
   homeHref,
 } from "@/lib/app-navigation";
+import { titleCase } from "@/lib/title-case";
 import { cn } from "@/lib/utils";
 
 /** One icon per destination, keyed by href so a label change can't drop it. */
@@ -42,6 +44,7 @@ const ICONS: Record<string, LucideIcon> = {
   "/backtest": FlaskConical,
   "/replay": RotateCcw,
   "/news": Newspaper,
+  "/news-reactions": Activity,
   "/trade": ArrowLeftRight,
   "/orders": ListOrdered,
   "/portfolio": Wallet,
@@ -70,13 +73,18 @@ function NavLink({
       onClick={onNavigate}
       className={cn(
         "relative flex h-9 items-center gap-3 rounded-md px-3 text-sm text-text-secondary transition-colors hover:bg-surface-hover hover:text-foreground focus-visible:z-10",
-        active && "bg-surface-secondary font-medium text-foreground",
+        active && "bg-linear-to-r from-brand/12 to-transparent font-medium text-foreground",
       )}
     >
       {active ? (
-        <span className="absolute inset-y-2 left-0 w-0.5 rounded-full bg-brand" aria-hidden />
+        <span className="nav-active-bar absolute inset-y-2 left-0 w-0.5 rounded-full" aria-hidden />
       ) : null}
-      {Icon ? <Icon className="size-4 shrink-0" aria-hidden /> : null}
+      {Icon ? (
+        <Icon
+          className={cn("size-4 shrink-0 transition-colors", active && "text-brand")}
+          aria-hidden
+        />
+      ) : null}
       <span>{item.label}</span>
     </Link>
   );
@@ -128,11 +136,11 @@ export function AppNavigation({
                 id={headingId}
                 data-active={groupActive ? "true" : undefined}
                 className={cn(
-                  "px-3 pb-1.5 text-3xs font-medium tracking-[0.12em] text-text-tertiary uppercase",
+                  "px-3 pb-1.5 text-3xs font-medium tracking-[0.02em] text-text-tertiary",
                   groupActive && "text-foreground",
                 )}
               >
-                {group.label}
+                {titleCase(group.label)}
               </p>
               <div className="space-y-0.5">
                 {group.items.map((item) => (
@@ -165,7 +173,7 @@ export function AppNavigation({
 }
 
 /**
- * The "EOD · SIMULATED" tag beside the wordmark. Warning tone, because the
+ * The "EOD · Simulated" tag beside the wordmark. Warning tone, because the
  * token rules reserve it for stale or simulated data, and both apply here:
  * prices are stored end-of-day closes and every fill is paper.
  */
@@ -175,7 +183,7 @@ export function SimulatedDataTag() {
       className="inline-flex shrink-0 items-center rounded-full border border-warning/40 px-1.5 py-0.5 font-mono text-3xs whitespace-nowrap text-warning"
       title="Prices are stored end-of-day closes. Every order is a paper trade."
     >
-      EOD · SIMULATED
+      EOD · Simulated
     </span>
   );
 }

@@ -1,5 +1,6 @@
 import type { TicketPosition } from "@/components/contextual-trade-ticket";
 import { formatQuantity } from "@/lib/stock-workspace";
+import { titleCase } from "@/lib/title-case";
 
 function money(value: number, currency: string, signed = false): string {
   let formatted: string;
@@ -39,8 +40,8 @@ export function PositionSummary({
     <section aria-labelledby="position-summary-title" className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="text-2xs font-semibold uppercase tracking-[0.14em] text-text-tertiary">
-            Portfolio relationship
+          <p className="text-2xs font-semibold tracking-[0.02em] text-text-tertiary">
+            Portfolio Relationship
           </p>
           <h3 id="position-summary-title" className="mt-1 text-base font-semibold">
             Your {ticker} position
@@ -72,8 +73,8 @@ export function PositionSummary({
 function Metric({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <dt className="text-3xs font-semibold uppercase tracking-[0.12em] text-text-tertiary">
-        {label}
+      <dt className="text-3xs font-semibold tracking-[0.02em] text-text-tertiary">
+        {titleCase(label)}
       </dt>
       <dd className="mt-1 font-mono text-sm font-medium tabular-nums">{value}</dd>
     </div>

@@ -168,7 +168,7 @@ export default async function OrdersPage({
                 {status === "all" ? "All paper orders" : `${status} paper orders`}
               </caption>
               <thead>
-                <tr className="border-b border-border-muted text-left text-3xs font-semibold tracking-[0.12em] text-text-tertiary uppercase">
+                <tr className="border-b border-border-muted text-left text-3xs font-semibold tracking-[0.02em] text-text-tertiary">
                   <th scope="col" className="px-3 py-2.5">
                     Ticker
                   </th>
@@ -191,7 +191,7 @@ export default async function OrdersPage({
                     Created
                   </th>
                   <th scope="col" className="hidden px-3 py-2.5 lg:table-cell">
-                    Filled / cancelled
+                    Filled / Cancelled
                   </th>
                   <th scope="col" className="px-3 py-2.5 text-right">
                     Fill

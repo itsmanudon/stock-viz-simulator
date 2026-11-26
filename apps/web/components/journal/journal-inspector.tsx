@@ -249,9 +249,7 @@ function DayBody({ day }: { day: JournalDay | null }) {
   return (
     <>
       <StatGrid stats={day.stats} currency={day.currency} />
-      <h3 className="mt-5 text-xs font-semibold uppercase tracking-wide text-text-tertiary">
-        Trades
-      </h3>
+      <h3 className="mt-5 text-xs font-semibold tracking-[0.02em] text-text-tertiary">Trades</h3>
       <ul className="mt-1">
         {day.executions.map((execution) => (
           <JournalExecutionRow
@@ -290,8 +288,8 @@ function WeekBody({
   return (
     <>
       <StatGrid stats={week.stats} currency={currency} extended />
-      <h3 className="mt-5 text-xs font-semibold uppercase tracking-wide text-text-tertiary">
-        Daily breakdown
+      <h3 className="mt-5 text-xs font-semibold tracking-[0.02em] text-text-tertiary">
+        Daily Breakdown
       </h3>
       <ul className="mt-1">
         {days.map((entry) => {

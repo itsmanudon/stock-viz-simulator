@@ -26,6 +26,7 @@ import {
 } from "@/app/(product)/(authed)/trade/actions";
 import { OrderConfirmation, OrderReview, useHydrated } from "@/components/order-review";
 import { OrderSideToggle } from "@/components/order-side-toggle";
+import { useOutcomeSound } from "@/components/sound/sound-provider";
 import { type TicketBook, TicketBookLine } from "@/components/ticket-book-line";
 import { PlanReview, type TicketPlanOptions, TicketPlanSection } from "@/components/ticket-plan";
 import { Button } from "@/components/ui/button";
@@ -36,6 +37,7 @@ import { type TradeOrderMode, orderTypeLabel } from "@/lib/operational-trading";
 import { emptyPlanForm } from "@/lib/plans";
 import { formatCurrency, formatQuantity } from "@/lib/portfolio-view-model";
 import { formatCloseDate } from "@/lib/stock-workspace";
+import { titleCase } from "@/lib/title-case";
 
 export type OrderTicketSymbol = { ticker: string; name: string; currency: string };
 
@@ -164,10 +166,11 @@ export function OrderTicket({
   const orderSuccess = mode === "market" ? undefined : orderState.success;
   const activeState = mode === "market" ? marketState : orderState;
   const successMessage = marketSuccess
-    ? `Filled ${marketSuccess.side.toUpperCase()} ${marketSuccess.quantity} ${marketSuccess.ticker} @ ${formatCurrency(marketSuccess.price, marketSuccess.currency)}${feesSuffix(marketSuccess, (v, c) => formatCurrency(String(v), c))}`
+    ? `Filled ${titleCase(marketSuccess.side)} ${marketSuccess.quantity} ${marketSuccess.ticker} @ ${formatCurrency(marketSuccess.price, marketSuccess.currency)}${feesSuffix(marketSuccess, (v, c) => formatCurrency(String(v), c))}`
     : orderSuccess;
   const confirmed = Boolean(successMessage) && !pending && activeState !== dismissed;
   const label = `${orderTypeLabel(mode).toLowerCase()} ${effectiveSide}`;
+  useOutcomeSound(successMessage, error, marketSuccess ? "fill" : "success");
 
   function startNewOrder() {
     setDismissed(activeState);
@@ -373,8 +376,8 @@ export function OrderTicket({
               ) : null}
 
               <p className="rounded-md border border-border-muted bg-surface-secondary/50 p-3 text-sm">
-                <span className="block text-3xs font-semibold tracking-[0.12em] text-text-tertiary uppercase">
-                  {estimateLabel}
+                <span className="block text-3xs font-semibold tracking-[0.02em] text-text-tertiary">
+                  {titleCase(estimateLabel)}
                 </span>
                 <span className="mt-1 block font-mono text-lg tabular-nums">
                   {estimate ? formatCurrency(estimate, currency) : "—"}

@@ -18,3 +18,12 @@ export type ServiceStatus = {
 export function getServiceStatus(): Promise<ServiceStatus> {
   return apiGet<ServiceStatus>("/v1/status", { cache: "no-store" });
 }
+
+/**
+ * The same report for the public footer's status strip: cached five minutes
+ * and dropped with the nightly `bars` revalidation, so the footer does not
+ * add an uncached API call to every public page.
+ */
+export function getServiceStatusCached(): Promise<ServiceStatus> {
+  return apiGet<ServiceStatus>("/v1/status", { revalidateSeconds: 300, tags: ["status", "bars"] });
+}

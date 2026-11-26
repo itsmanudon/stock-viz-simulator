@@ -8,6 +8,7 @@ import { createOrder, postTrade } from "@/lib/api/trading";
 import { bookIdFromForm } from "@/lib/book-url";
 import { REVIEW_REQUIRED_ERROR, clientOrderIdFrom, skippedReview } from "@/lib/order-review";
 import { planFromForm } from "@/lib/plans";
+import { titleCase } from "@/lib/title-case";
 
 const TradeSchema = z.object({
   ticker: z
@@ -156,7 +157,7 @@ export async function placeOrderAction(
     revalidatePath(`/stocks/${parsed.data.ticker}`);
     const label = order.order_type.replace("_", " ");
     return {
-      success: `${label.charAt(0).toUpperCase() + label.slice(1)} order placed: ${order.side.toUpperCase()} ${order.quantity} ${order.ticker} @ $${Number(order.limit_price).toFixed(2)}${order.trade_plan_id ? ". Its plan locks when it fills" : ""}`,
+      success: `${label.charAt(0).toUpperCase() + label.slice(1)} order placed: ${titleCase(order.side)} ${order.quantity} ${order.ticker} @ $${Number(order.limit_price).toFixed(2)}${order.trade_plan_id ? ". Its plan locks when it fills" : ""}`,
     };
   } catch (err) {
     if (err instanceof UnauthenticatedError) {

@@ -65,7 +65,7 @@ export default async function NewsPage({
   return (
     <div className="container mx-auto px-4 py-6 sm:px-6 lg:py-7">
       <header className="mb-5">
-        <p className="text-2xs font-semibold tracking-[0.14em] text-brand uppercase">Research</p>
+        <p className="text-2xs font-semibold tracking-[0.02em] text-brand">Research</p>
         <h1 className="mt-1.5 text-3xl font-semibold tracking-tight">News</h1>
         <p className="mt-1.5 text-sm text-muted-foreground">{INTRO[view]}</p>
         <PageSubnav

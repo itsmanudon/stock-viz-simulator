@@ -76,7 +76,7 @@ export function DrillPlanForm({
       aria-labelledby={`${id}-t`}
     >
       <div>
-        <p className="text-[11px] font-semibold tracking-[0.14em] text-brand uppercase">Step 1</p>
+        <p className="text-[11px] font-semibold tracking-[0.02em] text-brand">Step 1</p>
         <h2 id={`${id}-t`} className="mt-1 text-sm font-semibold">
           {plan
             ? "Your plan (editable until the first fill)"

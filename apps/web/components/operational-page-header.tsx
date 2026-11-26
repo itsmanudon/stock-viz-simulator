@@ -1,6 +1,7 @@
 import { PageEmptyState, PageHeader, PageSubnav } from "@/components/page-header";
 import { type BadgeTone, StatusBadge } from "@/components/status-badge";
 import { MONITORING_SUBNAV, OPERATIONAL_SUBNAV } from "@/lib/operational-trading";
+import { titleCase } from "@/lib/title-case";
 
 /**
  * Operational-trading flavour of the shared page chrome.
@@ -48,14 +49,14 @@ export function OrderTypeBadge({ type }: { type: string }) {
  */
 export function OrderSideBadge({ side }: { side: "buy" | "sell" }) {
   return (
-    <span className="inline-flex items-center gap-1.5 text-2xs font-semibold tracking-wide text-text-secondary uppercase">
+    <span className="inline-flex items-center gap-1.5 text-2xs font-semibold tracking-[0.02em] text-text-secondary">
       <span
         aria-hidden
         className="inline-grid size-5 place-items-center rounded-md border border-border-muted bg-surface-secondary text-2xs"
       >
         {side === "buy" ? "↗" : "↘"}
       </span>
-      <span>{side}</span>
+      <span>{titleCase(side)}</span>
     </span>
   );
 }

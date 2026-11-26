@@ -57,9 +57,7 @@ export async function MarketStatus() {
     day: "2-digit",
     month: "short",
     timeZone: "UTC",
-  })
-    .format(date)
-    .toUpperCase();
+  }).format(date);
 
   const ageDays = (Date.now() - date.getTime()) / MS_PER_DAY;
   const fresh = ageDays <= FRESH_DAYS;

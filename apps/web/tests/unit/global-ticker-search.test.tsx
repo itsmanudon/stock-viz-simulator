@@ -164,7 +164,7 @@ describe("GlobalTickerSearch", () => {
     const overlay = document.body.querySelector('[data-state="open"].fixed.inset-0');
     expect(overlay).toBeTruthy();
     expect(overlay).toHaveClass("fixed", "inset-0", "z-50");
-    expect(screen.getByText("Popular symbols")).toBeVisible();
+    expect(screen.getByText("Popular Symbols")).toBeVisible();
     const input = within(screen.getByRole("dialog")).getByRole("combobox");
     await act(async () => {
       fireEvent.keyDown(input, { key: "ArrowDown" });

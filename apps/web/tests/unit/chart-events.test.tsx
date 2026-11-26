@@ -308,9 +308,9 @@ describe("relative strength strip (A3.5)", () => {
   it("shows each percentile, the 52-week distance and the universe stamp", () => {
     render(<RelativeStrengthStrip strength={rs} />);
     const strip = screen.getByTestId("relative-strength");
-    expect(strip).toHaveTextContent("RS rank 1M4th");
-    expect(strip).toHaveTextContent("RS rank 12M63rd");
-    expect(strip).toHaveTextContent("From 52-week high−30.2%");
+    expect(strip).toHaveTextContent("RS Rank 1M4th");
+    expect(strip).toHaveTextContent("RS Rank 12M63rd");
+    expect(strip).toHaveTextContent("From 52-Week High−30.2%");
     expect(screen.getByTestId("rs-universe")).toHaveTextContent(
       "Percentile of the return among 25 US symbols on Apr 7, 2025",
     );

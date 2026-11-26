@@ -29,6 +29,7 @@ import {
   selectionLabel,
   withBookHref,
 } from "@/lib/book-url";
+import { titleCase } from "@/lib/title-case";
 import { cn } from "@/lib/utils";
 
 export function rememberBook(book: BookRef): void {
@@ -143,7 +144,7 @@ export function BookSwitcher({ books, limit }: { books: BookSummary[]; limit: nu
           id={panelId}
           className="absolute top-full right-3 left-3 z-40 mt-1 overflow-hidden rounded-xl border border-border-muted bg-popover text-popover-foreground shadow-lg sm:left-auto sm:w-[22rem] lg:right-0 lg:mt-2"
         >
-          <p className="border-b border-border-muted px-3.5 py-2 text-2xs font-medium tracking-[0.12em] text-text-tertiary uppercase">
+          <p className="border-b border-border-muted px-3.5 py-2 text-2xs font-medium tracking-[0.02em] text-text-tertiary">
             Books · {books.length} of {limit}
           </p>
           <ul className="max-h-[60vh] overflow-y-auto py-1" aria-label="Books">
@@ -224,7 +225,7 @@ export function BookKindBadge({ kind }: { kind: BookSummary["kind"] }) {
   return (
     <span
       className={cn(
-        "rounded-full border px-1.5 py-px text-3xs font-medium tracking-wide uppercase",
+        "rounded-full border px-1.5 py-px text-3xs font-medium tracking-[0.02em]",
         kind === "imported"
           ? "border-brand/40 text-brand"
           : "border-border-muted text-text-tertiary",
@@ -237,7 +238,7 @@ export function BookKindBadge({ kind }: { kind: BookSummary["kind"] }) {
 
 export function ArchivedBadge() {
   return (
-    <span className="rounded-full border border-warning/40 px-1.5 py-px text-3xs font-medium tracking-wide text-warning uppercase">
+    <span className="rounded-full border border-warning/40 px-1.5 py-px text-3xs font-medium tracking-[0.02em] text-warning">
       Archived
     </span>
   );

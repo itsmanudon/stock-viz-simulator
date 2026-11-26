@@ -71,6 +71,12 @@ shifted by whole weeks, headlines hidden) and scored on whether the trader
 followed a plan written before the first order, not on profit. See
 [`docs/SIMULATION.md`](./docs/SIMULATION.md).
 
+The web app's look is the **PRISM** redesign (Nov 2026) in the **Liquid Chrome**
+palette: ink black with a polished-metal brand (steel → champagne → silver), a
+liquid-metal WebGL hero light, a 3D "market terrain" with
+time as the fourth axis (landing and dashboard), and opt-in synthesised
+interface sound. See "PRISM layer" and "Sound" in `apps/web/CLAUDE.md`.
+
 Market ingest runs **in-process by default** (A0): the Railway cron's `ingest`
 and, where the scheduler runs, its price jobs fetch providers and write
 Postgres directly. Kafka is the optional events lab: with

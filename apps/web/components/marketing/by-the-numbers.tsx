@@ -99,8 +99,8 @@ export async function ByTheNumbers() {
 
       <div className="relative mx-auto w-full max-w-6xl px-4 py-16 sm:px-6 sm:py-20">
         <Reveal>
-          <p className="font-mono text-2xs tracking-[0.16em] text-brand uppercase">
-            What&rsquo;s actually in here
+          <p className="font-mono text-2xs tracking-[0.02em] text-brand">
+            What&rsquo;s Actually in Here
           </p>
           <h2
             id="numbers-heading"

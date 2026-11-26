@@ -40,7 +40,7 @@ test("operational trading loop from ticket to orders, watchlist, alerts, and rep
   await main.getByRole("button", { name: /Review market buy/i }).click();
   await main.getByRole("button", { name: /Place market buy/i }).click();
   await expect(main.getByRole("region", { name: "Order ticket" }).locator("output")).toContainText(
-    "Filled BUY",
+    "Filled Buy",
     { timeout: 10_000 },
   );
   await expect(main.getByRole("table", { name: "Recent paper fills" })).toContainText("AAPL");
@@ -62,7 +62,7 @@ test("operational trading loop from ticket to orders, watchlist, alerts, and rep
   await main.getByRole("button", { name: "Put", exact: true }).click();
   await expect(optionQuote).toContainText("Cash held back", { timeout: 10_000 });
   await main.getByRole("button", { name: /Write cash-secured put, receive/ }).click();
-  await expect(main.getByText(/Wrote 1 AAPL PUT .* and received/)).toBeVisible({ timeout: 10_000 });
+  await expect(main.getByText(/Wrote 1 AAPL Put .* and received/)).toBeVisible({ timeout: 10_000 });
   // Phase 9.5: open a bull call spread from the builder, reviewed first.
   await page.goto("/trade?ticker=AAPL");
   const builder = main.getByRole("region", { name: "Strategy builder" });
@@ -206,7 +206,7 @@ test("operational trading loop from ticket to orders, watchlist, alerts, and rep
   await main.getByRole("button", { name: /Review market buy/i }).click();
   await main.getByRole("button", { name: /Place market buy/i }).click();
   await expect(main.getByRole("region", { name: "Order ticket" }).locator("output")).toContainText(
-    /Filled BUY 2(\.0+)? MSFT/,
+    /Filled Buy 2(\.0+)? MSFT/,
     { timeout: 10_000 },
   );
 
@@ -228,7 +228,7 @@ test("operational trading loop from ticket to orders, watchlist, alerts, and rep
   await expect(reviewPlan).toContainText("3.00 : 1");
   await main.getByRole("button", { name: /Place market buy/i }).click();
   await expect(main.getByRole("region", { name: "Order ticket" }).locator("output")).toContainText(
-    /Filled BUY 3(\.0+)? MSFT/,
+    /Filled Buy 3(\.0+)? MSFT/,
     { timeout: 10_000 },
   );
   const secondBook = new URL(page.url()).searchParams.get("book");

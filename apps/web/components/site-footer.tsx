@@ -1,5 +1,12 @@
-import { LineChart } from "lucide-react";
 import Link from "next/link";
+import { Suspense } from "react";
+
+import rootPackage from "../../../package.json";
+
+import { StockVizWordmark } from "@/components/brand/stockviz-mark";
+import { FooterCloseLine, FooterStatus } from "@/components/footer-market";
+import { ChromeWordmark } from "@/components/prism/chrome-wordmark";
+import { titleCase } from "@/lib/title-case";
 
 /**
  * Website footer for the public pages.
@@ -51,16 +58,6 @@ const COLUMNS: { heading: string; links: { href: string; label: string; external
         { href: "/status", label: "Status" },
       ],
     },
-    {
-      heading: "Project",
-      links: [
-        {
-          href: "https://github.com/itsmanudon/stock-viz-simulator",
-          label: "Source on GitHub",
-          external: true,
-        },
-      ],
-    },
   ];
 
 /**
@@ -78,25 +75,28 @@ const DISCLOSURES = [
 export function SiteFooter() {
   return (
     <footer className="panel-inset rounded-none border-x-0 border-b-0">
-      <div className="mx-auto w-full max-w-7xl px-4 pt-14 sm:px-6">
+      <div className="mx-auto w-full max-w-7xl px-4 pt-10 sm:px-6">
+        {/* The page ends on the latest close (stored data; drops out without it). */}
+        <Suspense fallback={null}>
+          <div className="mb-12">
+            <FooterCloseLine />
+          </div>
+        </Suspense>
         <div className="grid gap-10 lg:grid-cols-[1fr_2.4fr]">
           <div className="max-w-xs">
-            <Link href="/" className="flex items-center gap-2.5 font-semibold tracking-tight">
-              <span className="flex size-7 items-center justify-center rounded-md border border-brand/40 bg-brand/10 text-brand">
-                <LineChart className="size-4" aria-hidden />
-              </span>
-              StockViz
+            <Link href="/" className="inline-flex rounded-sm">
+              <StockVizWordmark />
             </Link>
             <p className="mt-3 text-sm leading-6 text-text-secondary">
               A research and paper-trading workspace built on end-of-day market data.
             </p>
           </div>
 
-          <div className="grid gap-8 sm:grid-cols-3 lg:grid-cols-5">
+          <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
             {COLUMNS.map((column) => (
               <nav key={column.heading} aria-label={column.heading}>
-                <h2 className="font-mono text-2xs font-semibold tracking-[0.12em] text-text-tertiary uppercase">
-                  {column.heading}
+                <h2 className="font-mono text-2xs font-semibold tracking-[0.02em] text-text-tertiary">
+                  {titleCase(column.heading)}
                 </h2>
                 <ul className="mt-3 space-y-2">
                   {column.links.map((link) =>
@@ -131,7 +131,7 @@ export function SiteFooter() {
         <ol className="mt-14 grid gap-x-10 gap-y-4 border-t border-border-muted pt-8 sm:grid-cols-3">
           {DISCLOSURES.map((note, index) => (
             <li key={note} className="flex gap-2.5">
-              <span aria-hidden className="font-mono text-2xs text-brand/70 tabular-nums">
+              <span aria-hidden className="font-mono text-2xs text-brand tabular-nums">
                 {index + 1}
               </span>
               <p className="text-2xs leading-5 text-text-tertiary">{note}</p>
@@ -141,20 +141,19 @@ export function SiteFooter() {
 
         <div className="mt-10 flex flex-col gap-3 border-t border-border-muted pt-6 sm:flex-row sm:items-center sm:justify-between">
           <p className="font-mono text-2xs text-text-tertiary">
-            © {new Date().getFullYear()} StockViz · v2.0.0-alpha
+            © {new Date().getFullYear()} StockViz · v{rootPackage.version}
           </p>
+          <Suspense fallback={null}>
+            <FooterStatus />
+          </Suspense>
         </div>
       </div>
 
-      {/* Closing graphic: the wordmark as hollow display type, clipped by the
-          footer's own overflow so it reads as a watermark rather than a title.
-          Decorative only — the real wordmark is the link above. */}
-      <p
-        aria-hidden
-        className="text-outline mt-6 -mb-[0.18em] w-full text-center font-semibold tracking-tight select-none [--outline-color:var(--brand)] text-[clamp(4rem,17vw,15rem)] leading-none"
-      >
-        StockViz
-      </p>
+      {/* Closing graphic: the wordmark as display type filled with the hero's
+          liquid metal (ChromeWordmark), clipped by the footer's own overflow
+          so it reads as a watermark rather than a title. Decorative only —
+          the real wordmark is the link above. */}
+      <ChromeWordmark className="mt-6 -mb-[calc(0.18*clamp(4rem,17vw,15rem))]" />
     </footer>
   );
 }

@@ -60,15 +60,12 @@ export function NotifyToggle({ screen }: { screen: SavedScreen }) {
 export function SavedScreens({ screens, query }: { screens: SavedScreen[]; query: string }) {
   const [state, save, saving] = useActionState<ScreenActionState, FormData>(saveScreenAction, {});
   return (
-    <section
-      aria-labelledby="saved-screens"
-      className="space-y-2 border-t border-border-muted pt-4"
-    >
+    <section aria-labelledby="saved-screens" className="space-y-2">
       <h2
         id="saved-screens"
-        className="text-2xs font-semibold tracking-[0.12em] text-text-tertiary uppercase"
+        className="text-2xs font-semibold tracking-[0.02em] text-text-tertiary"
       >
-        Saved screens
+        Saved Screens
       </h2>
       {screens.length ? (
         <ul className="space-y-1">

@@ -15,6 +15,7 @@ import { BooksPanel } from "@/components/books-panel";
 import { NotificationChannelsPanel } from "@/components/notification-channels-panel";
 import { PageHeader } from "@/components/page-header";
 import { PaperCard } from "@/components/paper-card";
+import { TiltCard } from "@/components/prism/tilt-card";
 import { RiskLimitsForm } from "@/components/risk-limits-form";
 import { AccountDetails, InterfacePanel, KeyboardShortcuts } from "@/components/settings-workspace";
 import { type NotificationChannels, listNotificationChannels } from "@/lib/api/notifications";
@@ -194,7 +195,9 @@ export default async function SettingsPage({
                 brand moment on this page. */}
             <div className="relative isolate mb-4">
               <div aria-hidden className="brand-glow -top-6 -left-6 -z-10 h-40 w-64 opacity-50" />
-              <PaperCard currency={profile.display_currency || "USD"} className="w-full" />
+              <TiltCard>
+                <PaperCard currency={profile.display_currency || "USD"} className="w-full" />
+              </TiltCard>
             </div>
             <AccountDetails email={session?.user?.email} name={session?.user?.name} />
           </SettingsPanel>
