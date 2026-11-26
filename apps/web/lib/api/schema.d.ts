@@ -6838,7 +6838,7 @@ export interface components {
              * Basis
              * @enum {string}
              */
-            basis: "exact_close" | "approximate_daily";
+            basis: "exact_close" | "approximate_daily" | "exact_minutes";
             /** Note */
             note: string;
             mae?: components["schemas"]["JournalExcursionOut"] | null;

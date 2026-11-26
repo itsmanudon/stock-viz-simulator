@@ -4826,6 +4826,56 @@ class JournalEntrySummaryOut(BaseModel):
     has_notes: bool = False
 
 
+class TradeReplayBarOut(BaseModel):
+    ts: datetime
+    open: Decimal
+    high: Decimal
+    low: Decimal
+    close: Decimal
+    volume: int
+
+
+class TradeReplayFillOut(BaseModel):
+    at: datetime
+    side: Literal["buy", "sell"]
+    quantity: Decimal
+    price: Decimal
+    time_known: bool
+
+
+class TradeReplayHesitationOut(BaseModel):
+    """A6.10: from the plan's entry level being touched to the fill, and
+    whether a stop the price went through was honoured (closed on that bar)."""
+
+    entry_touched_at: datetime | None = None
+    fill_at: datetime
+    wait_bars: int | None = None
+    stop_breached_at: datetime | None = None
+    stop_honoured: bool | None = None
+    exit_at: datetime | None = None
+    exit_price: Decimal | None = None
+    note: str
+
+
+class TradeReplayOut(BaseModel):
+    """A6.10 (M9.5): a read-only playback of a paper or imported entry. No orders."""
+
+    entry_id: int
+    ticker: str | None
+    currency: str
+    side: Literal["long", "short"]
+    status: Literal["open", "closed"]
+    interval: Literal["1m", "1d"]
+    bars_note: str
+    bars: list[TradeReplayBarOut]
+    fills: list[TradeReplayFillOut]
+    planned_entry: Decimal | None = None
+    planned_stop: Decimal | None = None
+    planned_target: Decimal | None = None
+    excursions: JournalExcursionsOut
+    hesitation: TradeReplayHesitationOut | None = None
+
+
 class JournalEntryOut(JournalEntrySummaryOut):
     fills: list[JournalEntryFillOut]
     adherence: DrillScoreOut | None = None
