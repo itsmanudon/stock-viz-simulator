@@ -2902,6 +2902,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/broker/feeds": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Feed Status
+         * @description A6.3: the US market-data feeds (history backfill now; streams in A6.5/A6.6).
+         */
+        get: operations["feed_status_v1_broker_feeds_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/plans": {
         parameters: {
             query?: never;
@@ -5222,6 +5242,61 @@ export interface components {
             notes: string[];
             /** Fills */
             fills?: number | null;
+        };
+        /** FeedCapabilitiesOut */
+        FeedCapabilitiesOut: {
+            /** History */
+            history: boolean;
+            /** Stream */
+            stream: boolean;
+            /** Coverage */
+            coverage: ("iex" | "sip" | "kite" | "file")[];
+            /** Symbols Limit */
+            symbols_limit: number | null;
+            /** History Days */
+            history_days: number | null;
+            /** Rate Limits */
+            rate_limits: string[];
+            /** Notes */
+            notes: string;
+        };
+        /** FeedStatusItemOut */
+        FeedStatusItemOut: {
+            /**
+             * Provider
+             * @enum {string}
+             */
+            provider: "alpaca" | "tiingo" | "massive" | "finnhub";
+            /** Label */
+            label: string;
+            /** Configured */
+            configured: boolean;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "not_configured" | "configured" | "ok" | "error";
+            /** Key Env Vars */
+            key_env_vars: string[];
+            capabilities: components["schemas"]["FeedCapabilitiesOut"];
+            /** Last Success At */
+            last_success_at: string | null;
+            /** Last Failure At */
+            last_failure_at: string | null;
+            /** Last Error */
+            last_error: string | null;
+        };
+        /** FeedStatusOut */
+        FeedStatusOut: {
+            /** Feeds */
+            feeds: components["schemas"]["FeedStatusItemOut"][];
+            /** Offline Window Hours */
+            offline_window_hours: number;
+            /**
+             * Checked At
+             * Format: date-time
+             */
+            checked_at: string;
         };
         /** FillEventOut */
         FillEventOut: {
@@ -17918,6 +17993,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BrokerStatusOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    feed_status_v1_broker_feeds_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeedStatusOut"];
                 };
             };
             /** @description Validation Error */
