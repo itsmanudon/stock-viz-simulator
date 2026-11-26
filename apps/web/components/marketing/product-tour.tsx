@@ -109,7 +109,7 @@ export async function ProductTour() {
       className="mx-auto w-full max-w-6xl px-4 py-16 sm:px-6 sm:py-24"
     >
       <Reveal className="max-w-2xl">
-        <p className="font-mono text-2xs tracking-[0.16em] text-brand uppercase">A session</p>
+        <p className="font-mono text-2xs tracking-[0.02em] text-brand">A Session</p>
         <h2
           id="tour-heading"
           className="mt-3 text-3xl font-semibold tracking-tight text-balance sm:text-4xl"

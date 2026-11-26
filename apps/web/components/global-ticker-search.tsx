@@ -320,8 +320,8 @@ export function GlobalTickerSearch({
               ) : null}
               {!hasQuery && status === "idle" ? (
                 <>
-                  <p className="px-3 pb-2 pt-1 text-2xs font-semibold tracking-[0.14em] text-text-tertiary uppercase">
-                    Popular symbols
+                  <p className="px-3 pb-2 pt-1 text-2xs font-semibold tracking-[0.02em] text-text-tertiary">
+                    Popular Symbols
                   </p>
                   {POPULAR_SYMBOLS.map((result, index) => (
                     <button

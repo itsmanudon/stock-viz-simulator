@@ -9,6 +9,7 @@ import {
   formatSignedPercent,
   sectorLabel,
 } from "@/lib/portfolio-view-model";
+import { titleCase } from "@/lib/title-case";
 
 const SECTOR_COLORS = [
   "bg-brand",
@@ -143,9 +144,9 @@ function MoverList({
     <section aria-labelledby={`movers-${direction}-heading`}>
       <h3
         id={`movers-${direction}-heading`}
-        className="text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground"
+        className="text-xs font-medium tracking-[0.02em] text-muted-foreground"
       >
-        {title}
+        {titleCase(title)}
       </h3>
       {movers.length === 0 ? (
         <p className="mt-3 text-xs text-muted-foreground">

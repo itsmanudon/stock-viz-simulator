@@ -23,15 +23,15 @@ export default function GlobalError({
           minHeight: "100vh",
           display: "grid",
           placeItems: "center",
-          background: "#0b0d12",
-          color: "#e6e8ee",
+          background: "#0a0a0b",
+          color: "#ece8e0",
           fontFamily: "system-ui, sans-serif",
           padding: "2rem",
         }}
       >
         <main style={{ maxWidth: "32rem" }}>
           <h1 style={{ fontSize: "1.5rem", marginBottom: "0.75rem" }}>StockViz is unavailable</h1>
-          <p style={{ color: "#98a0b3", lineHeight: 1.6 }}>
+          <p style={{ color: "#a8a39a", lineHeight: 1.6 }}>
             The application failed to start. Please try again in a moment.
           </p>
           <button
@@ -41,8 +41,8 @@ export default function GlobalError({
               marginTop: "1.25rem",
               padding: "0.5rem 1rem",
               borderRadius: "0.375rem",
-              border: "1px solid #2a3040",
-              background: "#151a24",
+              border: "1px solid #2a2a2e",
+              background: "#151517",
               color: "inherit",
               cursor: "pointer",
             }}
@@ -50,7 +50,7 @@ export default function GlobalError({
             Try again
           </button>
           {error.digest ? (
-            <p style={{ marginTop: "1rem", fontSize: "0.75rem", color: "#6b7488" }}>
+            <p style={{ marginTop: "1rem", fontSize: "0.75rem", color: "#85817a" }}>
               Reference: {error.digest}
             </p>
           ) : null}

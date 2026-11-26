@@ -4,6 +4,7 @@ import { WidgetCard, WidgetEmpty } from "@/components/dashboard/widget-card";
 import type { PendingOrder } from "@/lib/api/trading";
 import { formatNativePrice } from "@/lib/operational-trading";
 import { formatQuantity } from "@/lib/portfolio-view-model";
+import { titleCase } from "@/lib/title-case";
 
 const ORDER_TYPE_LABELS: Record<PendingOrder["order_type"], string> = {
   limit: "Limit",
@@ -52,9 +53,9 @@ export function OrdersWidget({
               <span className="min-w-0">
                 <span className="flex items-center gap-2">
                   {/* Neutral: the side of an order is not a gain or a loss. */}
-                  <span className="inline-flex items-center gap-1 font-mono text-xs font-semibold text-text-secondary uppercase">
+                  <span className="inline-flex items-center gap-1 font-mono text-xs font-semibold text-text-secondary">
                     <span aria-hidden>{order.side === "buy" ? "↗" : "↘"}</span>
-                    <span>{order.side}</span>
+                    <span>{titleCase(order.side)}</span>
                   </span>
                   <span className="ticker text-sm font-semibold">{order.ticker}</span>
                 </span>

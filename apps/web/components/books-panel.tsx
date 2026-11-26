@@ -88,7 +88,7 @@ function BookItem({ book, onlyBook }: { book: BookRow; onlyBook: boolean }) {
             <BookKindBadge kind={book.kind} />
             {archived ? <ArchivedBadge /> : null}
             {book.is_default ? (
-              <span className="rounded-full bg-brand/10 px-1.5 py-px text-3xs font-medium tracking-wide text-brand uppercase">
+              <span className="rounded-full bg-brand/10 px-1.5 py-px text-3xs font-medium tracking-[0.02em] text-brand">
                 Default
               </span>
             ) : null}

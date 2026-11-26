@@ -35,9 +35,7 @@ export function DrillRevealPanel({
       data-testid="drill-reveal-panel"
     >
       <div>
-        <p className="text-2xs font-medium tracking-[0.12em] text-text-secondary uppercase">
-          Revealed
-        </p>
+        <p className="text-2xs font-medium tracking-[0.02em] text-text-secondary">Revealed</p>
         <h2 id="drill-reveal-heading" className="mt-1 text-2xl font-semibold tracking-[-0.025em]">
           <Link
             href={`/stocks/${encodeURIComponent(reveal.ticker)}`}

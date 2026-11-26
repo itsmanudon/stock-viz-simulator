@@ -1,4 +1,5 @@
 import type { BarMetrics } from "@/lib/stock-workspace";
+import { titleCase } from "@/lib/title-case";
 
 function formatMoney(value: number | null, currency: string): string {
   if (value === null) return "—";
@@ -64,8 +65,8 @@ export function StockMetricsStrip({
       <dl className="grid grid-cols-2 divide-x divide-y divide-border-muted sm:grid-cols-4 min-[90rem]:grid-cols-[repeat(6,minmax(0,1fr))_minmax(0,2fr)] min-[90rem]:divide-y-0">
         {items.map((item) => (
           <div key={item.label} className="min-w-0 px-3 py-3 sm:px-4">
-            <dt className="text-3xs leading-4 font-semibold tracking-[0.12em] text-balance text-text-tertiary uppercase">
-              {item.label}
+            <dt className="text-3xs leading-4 font-semibold tracking-[0.02em] text-balance text-text-tertiary">
+              {titleCase(item.label)}
             </dt>
             <dd
               className="mt-1 truncate font-mono text-sm font-medium tabular-nums text-foreground"
@@ -77,8 +78,8 @@ export function StockMetricsStrip({
         ))}
 
         <div className="col-span-2 min-w-0 px-3 py-3 sm:col-span-4 sm:px-4 min-[90rem]:col-span-1">
-          <dt className="text-3xs leading-4 font-semibold tracking-[0.12em] text-balance text-text-tertiary uppercase">
-            52-week range
+          <dt className="text-3xs leading-4 font-semibold tracking-[0.02em] text-balance text-text-tertiary">
+            52-Week Range
           </dt>
           <dd className="mt-1 min-w-0">
             {metrics.rangeLow === null || metrics.rangeHigh === null ? (

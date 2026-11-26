@@ -232,7 +232,7 @@ describe("/checklist page", () => {
     const { container } = render(await ChecklistPage({ searchParams: Promise.resolve({}) }));
     const guide = screen.getByTestId("dimension-volume");
     fireEvent.click(within(guide).getByText("Volume / delivery"));
-    expect(within(guide).getByText("NSE and BSE listings · version 1")).toBeInTheDocument();
+    expect(within(guide).getByText("NSE and BSE Listings · Version 1")).toBeInTheDocument();
     expect(
       within(guide).getByText(
         "Not graded yet: the weekly evidence study has not run on this formula.",

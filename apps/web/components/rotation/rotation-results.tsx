@@ -245,7 +245,7 @@ export function RotationResults({
             <TableHeader>
               <TableRow>
                 <TableHead>Rebalance</TableHead>
-                <TableHead>Held after</TableHead>
+                <TableHead>Held After</TableHead>
                 <TableHead className="hidden md:table-cell">In</TableHead>
                 <TableHead className="hidden md:table-cell">Out</TableHead>
                 <TableHead className="hidden text-right sm:table-cell">Turnover</TableHead>

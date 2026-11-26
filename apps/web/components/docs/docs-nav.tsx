@@ -9,6 +9,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { DOC_SECTIONS } from "@/lib/docs/nav";
+import { titleCase } from "@/lib/title-case";
 import { cn } from "@/lib/utils";
 
 function Links() {
@@ -27,8 +28,8 @@ function Links() {
       </Link>
       {DOC_SECTIONS.map((section) => (
         <div key={section.title}>
-          <p className="text-2xs font-medium uppercase tracking-wider text-text-tertiary">
-            {section.title}
+          <p className="text-2xs font-medium tracking-[0.02em] text-text-tertiary">
+            {titleCase(section.title)}
           </p>
           <ul className="mt-2 space-y-1.5">
             {section.pages.map((page) => {

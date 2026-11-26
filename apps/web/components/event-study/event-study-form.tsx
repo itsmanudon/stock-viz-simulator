@@ -68,7 +68,7 @@ export function EventStudyForm({
             <legend className="sr-only">Trigger presets</legend>
             {(["news", "delivery"] as const).map((group) => (
               <div key={group} className="flex flex-wrap items-center gap-2">
-                <span className="w-16 text-2xs uppercase tracking-wide text-text-tertiary">
+                <span className="w-16 text-2xs tracking-[0.02em] text-text-tertiary">
                   {group === "news" ? "News" : "Delivery"}
                 </span>
                 {TRIGGER_PRESETS.filter((p) => p.group === group).map((p) => (

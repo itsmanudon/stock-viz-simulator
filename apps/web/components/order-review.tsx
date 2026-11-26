@@ -200,9 +200,7 @@ export function OrderReview({
       {mode !== "market" ? <input type="hidden" name="limit_price" value={triggerPrice} /> : null}
 
       <div>
-        <p className="text-2xs font-semibold uppercase tracking-[0.14em] text-text-tertiary">
-          Review order
-        </p>
+        <p className="text-2xs font-semibold tracking-[0.02em] text-text-tertiary">Review Order</p>
         <p className="mt-2 font-mono text-3xl font-medium tracking-tight" data-financial>
           {notional === null ? "" : sign}
           {major}

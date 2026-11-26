@@ -60,14 +60,14 @@ export function PrintStamp({
       <span className="absolute top-[12%] h-2 w-[min(17rem,70%)] rounded-full bg-surface-secondary shadow-[inset_0_2px_3px_rgb(0_0_0/0.8)]" />
       <div
         ref={paperRef}
-        className="absolute top-[calc(12%+4px)] w-[min(15rem,64%)] overflow-hidden rounded-b-md bg-[#eef1f6] px-3.5 font-mono text-xs leading-6 text-[#1a2130] shadow-[0_16px_30px_-14px_rgb(0_0_0)]"
+        className="absolute top-[calc(12%+4px)] w-[min(15rem,64%)] overflow-hidden rounded-b-md bg-[#f2eee6] px-3.5 font-mono text-xs leading-6 text-[#1a1a1c] shadow-[0_16px_30px_-14px_rgb(0_0_0)]"
       >
-        <p className="flex justify-between gap-3 border-b border-dashed border-[#b7bfcc] pt-2.5 pb-1.5 font-medium">
+        <p className="flex justify-between gap-3 border-b border-dashed border-[#c9c3b8] pt-2.5 pb-1.5 font-medium">
           {heading}
         </p>
         {lines.map(([label, value]) => (
           <p key={label} className="flex justify-between gap-3 whitespace-nowrap">
-            <span className="text-[#5d6678]">{label}</span>
+            <span className="text-[#625d55]">{label}</span>
             <span>{value}</span>
           </p>
         ))}

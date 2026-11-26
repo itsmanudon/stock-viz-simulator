@@ -151,7 +151,7 @@ describe("stock workspace presentation", () => {
       />,
     );
 
-    expect(screen.getByText("BUY LIMIT")).toBeVisible();
+    expect(screen.getByText("Buy Limit")).toBeVisible();
     expect(screen.getByText("5 AAPL @ $180.00")).toBeVisible();
     expect(screen.getByText("Pending")).toBeVisible();
     expect(screen.getByRole("button", { name: "Cancel AAPL buy limit order" })).toBeVisible();

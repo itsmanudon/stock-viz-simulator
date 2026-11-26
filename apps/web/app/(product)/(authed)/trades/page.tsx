@@ -182,7 +182,7 @@ export default async function TradesPage({
                   <TableHead className="hidden text-right md:table-cell">Price</TableHead>
                   <TableHead className="text-right">Total</TableHead>
                   <TableHead className="hidden text-right sm:table-cell">
-                    Realized P&amp;L, net
+                    Realized P&amp;L, Net
                   </TableHead>
                 </TableRow>
               </TableHeader>

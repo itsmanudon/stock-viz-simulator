@@ -37,6 +37,7 @@ import {
 import { dayMovePct } from "@/lib/operational-trading";
 import { formatSignedPercent } from "@/lib/portfolio-view-model";
 import { formatCloseDate } from "@/lib/stock-workspace";
+import { titleCase } from "@/lib/title-case";
 import { cn } from "@/lib/utils";
 import {
   COLUMN_META,
@@ -335,7 +336,7 @@ export default async function WatchlistPage({
             <table className="w-full min-w-[48rem] text-sm">
               <caption className="sr-only">Watched securities on {active.name}</caption>
               <thead>
-                <tr className="border-b border-border-muted text-left text-3xs font-semibold tracking-[0.12em] text-text-tertiary uppercase">
+                <tr className="border-b border-border-muted text-left text-3xs font-semibold tracking-[0.02em] text-text-tertiary">
                   <th scope="col" className="px-3 py-2.5">
                     Ticker
                   </th>
@@ -349,11 +350,11 @@ export default async function WatchlistPage({
                         COLUMN_META[key].kind !== "text" && "text-right",
                       )}
                     >
-                      {COLUMN_META[key].label}
+                      {titleCase(COLUMN_META[key].label)}
                     </th>
                   ))}
                   <th scope="col" className="hidden w-[7.5rem] px-3 py-2.5 lg:table-cell">
-                    30-day
+                    30-Day
                   </th>
                   <th scope="col" className="px-3 py-2.5">
                     Note and tags

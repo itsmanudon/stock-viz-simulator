@@ -63,7 +63,7 @@ describe("AppSidebar", () => {
       "page",
     );
     expect(within(nav).getByText("Trade")).not.toHaveAttribute("data-active");
-    expect(screen.getByText("EOD · SIMULATED")).toBeVisible();
+    expect(screen.getByText("EOD · Simulated")).toBeVisible();
   });
 
   it("lights the Research section on a stock page without marking an item", () => {

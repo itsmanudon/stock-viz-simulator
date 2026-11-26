@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { DeltaPill } from "@/components/dashboard/delta-pill";
+import { titleCase } from "@/lib/title-case";
 import { cn } from "@/lib/utils";
 
 /**
@@ -89,8 +90,8 @@ export function SymbolCard({ row }: { row: SymbolCardData }) {
           >
             {row.metrics.map((metric) => (
               <div key={metric.label} className="min-w-0">
-                <dt className="inline truncate text-3xs font-semibold tracking-[0.1em] text-text-tertiary uppercase">
-                  {metric.label}
+                <dt className="inline truncate text-3xs font-semibold tracking-[0.02em] text-text-tertiary">
+                  {titleCase(metric.label)}
                 </dt>
                 <dd
                   className={cn(
@@ -148,8 +149,8 @@ export function CardSortBar({
 }) {
   return (
     <nav aria-label={label} className="flex flex-wrap items-center gap-1.5">
-      <span className="text-3xs font-semibold tracking-[0.1em] text-text-tertiary uppercase">
-        {label}
+      <span className="text-3xs font-semibold tracking-[0.02em] text-text-tertiary">
+        {titleCase(label)}
       </span>
       {options.map((option) => {
         const active = option.key === activeKey;

@@ -55,7 +55,7 @@ export function PortfolioOptions({
               <TableHead>Expiry</TableHead>
               <TableHead className="text-right">Contracts</TableHead>
               <TableHead className="text-right">Premium · USD</TableHead>
-              <TableHead className="text-right">Estimated value</TableHead>
+              <TableHead className="text-right">Estimated Value</TableHead>
               <TableHead className="text-right">Unrealized P&amp;L</TableHead>
               <TableHead className="text-right">Delta · Theta/day</TableHead>
               <TableHead className="w-16" />

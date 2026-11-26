@@ -105,7 +105,7 @@ export function ExplodedCandle({ bar }: { bar: CandleBar }) {
             fill="var(--foreground)"
             textAnchor={part.side > 0 ? "start" : "end"}
           >
-            {part.name.toUpperCase()} {part.value.toFixed(2)}
+            {part.name} {part.value.toFixed(2)}
           </text>
         </g>
       ))}

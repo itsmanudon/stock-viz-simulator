@@ -4,6 +4,7 @@ import { Popover } from "radix-ui";
 
 import type { MarketRegime } from "@/lib/api/chart-context";
 import { formatCloseDate } from "@/lib/stock-workspace";
+import { titleCase } from "@/lib/title-case";
 
 /**
  * One market's regime badge and its popover: the state, the rules as
@@ -72,8 +73,8 @@ export function RegimePopover({
           className="z-50 w-[min(24rem,calc(100vw-1.5rem))] rounded-md border border-border bg-surface-elevated p-4 text-xs shadow-lg outline-none"
           data-testid={`regime-popover-${market.market}`}
         >
-          <p className="text-2xs font-semibold tracking-[0.12em] text-text-tertiary uppercase">
-            {market.name} market regime
+          <p className="text-2xs font-semibold tracking-[0.02em] text-text-tertiary">
+            {market.name} Market Regime
           </p>
           <p className="mt-1 text-sm font-semibold text-foreground">{state}</p>
           <p className="mt-0.5 text-text-tertiary">

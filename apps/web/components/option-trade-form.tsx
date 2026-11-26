@@ -21,6 +21,7 @@ import {
   type OptionTradeState,
   openOptionAction,
 } from "@/app/(product)/(authed)/trade/options-actions";
+import { useOutcomeSound } from "@/components/sound/sound-provider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -33,6 +34,7 @@ import {
 } from "@/lib/api/option-quote";
 import { newClientOrderId } from "@/lib/order-review";
 import { formatCloseDate } from "@/lib/stock-workspace";
+import { titleCase } from "@/lib/title-case";
 
 type SymbolOption = { ticker: string; name: string };
 
@@ -83,6 +85,7 @@ export function OptionTradeForm({
   blockedReason?: string | null;
 }) {
   const [state, action, pending] = useActionState<OptionTradeState, FormData>(openOptionAction, {});
+  useOutcomeSound(state.success, state.error, "fill");
   const [optionType, setOptionType] = useState<"call" | "put">("call");
   const [side, setSide] = useState<"long" | "short">("long");
   const [ticker, setTicker] = useState(options[0]?.ticker ?? "");
@@ -284,7 +287,7 @@ export function OptionTradeForm({
         {state.success ? (
           <output className="block text-sm text-positive">
             {state.success.side === "short" ? "Wrote" : "Bought"} {state.success.quantity}{" "}
-            {state.success.ticker} {state.success.option_type.toUpperCase()} @ $
+            {state.success.ticker} {titleCase(state.success.option_type)} @ $
             {Number(state.success.strike).toFixed(2)}{" "}
             {state.success.side === "short" ? "and received" : "for"} $
             {Number(state.success.premium_paid).toFixed(2)}

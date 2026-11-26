@@ -18,6 +18,7 @@ import {
   useHydrated,
 } from "@/components/order-review";
 import { OrderSideToggle } from "@/components/order-side-toggle";
+import { useOutcomeSound } from "@/components/sound/sound-provider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -28,6 +29,7 @@ import {
   getBuyShortcutQuantity,
   getSellShortcutQuantity,
 } from "@/lib/stock-workspace";
+import { titleCase } from "@/lib/title-case";
 
 export type TicketPosition = {
   quantity: number;
@@ -153,11 +155,16 @@ export function ContextualTradeTicket({
   const marketSuccess = marketState.success;
   const successMessage =
     orderMode === "market" && marketSuccess
-      ? `Filled ${marketSuccess.side.toUpperCase()} ${marketSuccess.quantity} ${marketSuccess.ticker} at ${formatMoney(Number(marketSuccess.price), marketSuccess.currency)}${feesSuffix(marketSuccess, formatMoney)}`
+      ? `Filled ${titleCase(marketSuccess.side)} ${marketSuccess.quantity} ${marketSuccess.ticker} at ${formatMoney(Number(marketSuccess.price), marketSuccess.currency)}${feesSuffix(marketSuccess, formatMoney)}`
       : orderMode !== "market"
         ? orderState.success
         : undefined;
   const confirmed = Boolean(successMessage) && !pending && activeState !== dismissed;
+  useOutcomeSound(
+    successMessage,
+    error,
+    orderMode === "market" && marketSuccess ? "fill" : "success",
+  );
 
   const buyingPower = account
     ? formatMoney(account.availableCash, account.displayCurrency)
@@ -283,8 +290,8 @@ export function ContextualTradeTicket({
             <OrderSideToggle side={effectiveSide} onChange={setSide} disabled={isProtective} />
 
             <fieldset className="space-y-2">
-              <legend className="text-xs font-medium uppercase tracking-[0.12em] text-text-tertiary">
-                Order type
+              <legend className="text-xs font-medium tracking-[0.02em] text-text-tertiary">
+                Order Type
               </legend>
               <div className="grid grid-cols-2 gap-2">
                 {(["market", "limit"] as const).map((mode) => (
@@ -488,7 +495,7 @@ function TicketHeading({ id, ticker }: { id: string; ticker: string }) {
   return (
     <div className="flex items-start justify-between gap-4">
       <div>
-        <p className="text-2xs font-semibold uppercase tracking-[0.16em] text-brand">Simulation</p>
+        <p className="text-2xs font-semibold tracking-[0.02em] text-brand">Simulation</p>
         <h2 id={id} className="mt-1 text-base font-semibold tracking-tight">
           Paper trade
         </h2>

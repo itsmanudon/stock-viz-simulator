@@ -3,6 +3,7 @@
 import { ThemeProvider } from "next-themes";
 
 import { InterfacePreferences } from "@/components/interface-preferences";
+import { SoundProvider } from "@/components/sound/sound-provider";
 
 /**
  * Dark only, for now (owner's decision, 12 Nov 2026): the Aurora pages were
@@ -14,7 +15,9 @@ import { InterfacePreferences } from "@/components/interface-preferences";
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <ThemeProvider attribute="class" defaultTheme="dark" forcedTheme="dark" enableSystem={false}>
-      <InterfacePreferences>{children}</InterfacePreferences>
+      <InterfacePreferences>
+        <SoundProvider>{children}</SoundProvider>
+      </InterfacePreferences>
     </ThemeProvider>
   );
 }

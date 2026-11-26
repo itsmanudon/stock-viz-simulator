@@ -192,7 +192,7 @@ describe("OrdersWidget", () => {
     const list = screen.getByRole("list");
 
     expect(within(list).getByText("MSFT")).toBeVisible();
-    expect(within(list).getByText("buy")).toBeVisible();
+    expect(within(list).getByText("Buy")).toBeVisible();
     expect(within(list).getByText(/Limit · 10 sh/)).toBeVisible();
     expect(within(list).getByText("$410.50")).toBeVisible();
   });

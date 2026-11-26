@@ -104,9 +104,10 @@ components/
                    /product/paper-trading (the landing Rankings section and its
                    `departure-board.tsx` went with the leaderboard in A0).
                    Batch 3 adds
-                   `market-weather.tsx` (faint aurora behind the hero and
-                   closing CTA, coloured by `breadth.ts`: share of symbols that
-                   closed up; the hero chips and the CTA state the figure),
+                   `market-weather.tsx` (faint aurora coloured by `breadth.ts`;
+                   unused since the PRISM redesign put a WebGL light (now
+                   `prism/liquid-chrome.tsx`) behind the hero and closing
+                   CTA, which carries the same breadth lean; the hero chips and the CTA state the figure),
                    `decode-text.tsx` (Moving today figures resolve digit by
                    digit; sr-only real text), `exploded-candle.tsx` (one stored
                    bar taken apart beside the FAQ) and `loupe-chart.tsx` (the
@@ -139,7 +140,19 @@ components/
   order-side-toggle.tsx  buy/sell segmented control shared by both tickets
   ui/              shadcn-generated primitives — don't hand-edit
   site-footer.tsx  public footer: rides `.panel-inset` squared off, so the page
-                   ends dark; disclosures are numbered notes, not buried prose
+                   ends dark; disclosures are numbered notes, not buried prose.
+                   Liquid Chrome (26 Nov 2026): it opens on the close line and
+                   ends on `prism/chrome-wordmark.tsx` (the wordmark filled with
+                   the hero's liquid metal through a text mask; the outline is
+                   the fallback). `footer-market.tsx` holds the two async parts,
+                   each in Suspense and each dropping out without data: the
+                   close line (equal-weight average of the terrain's symbols
+                   over 120 sessions, end dot at the latest close) and the
+                   status strip (symbols tracked, US and India closes, nightly
+                   refresh, `getServiceStatusCached()`, linked to /status);
+                   their maths is in `lib/footer-market.ts`. The version is the
+                   root package's. No source-code link until the project is
+                   public (owner, legal review first)
   *.tsx            app-shell/sidebar/navigation, global-ticker-search, earnings-calendar,
                    public-header, price-chart, order-ticket, backtest-form, etc.
 lib/
@@ -310,11 +323,85 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   `tracking-[-0.025em]`, like the stock page's company name; marketing
   headlines stay 500. Geist Mono draws its own ₹ (its `latin-ext` subset is
   loaded), so there is no ₹ fallback face any more.
+- **PRISM layer (Nov 2026 redesign)** sits on top of the Aurora rules below,
+  which still hold (brand is identity/focus/selection only, gain and loss keep
+  their own hues). The palette is **Liquid Chrome** (owner's pick, 25 Nov
+  2026, after violet/pink/cyan, Volt and Solar passes): neutral ink black
+  `#070708`, warm pearl text `#f2eee6`, and a polished-metal brand, champagne
+  `#dcc49a` (`--brand`, also focus and selection), with a gradient from steel
+  `#8d9bb0` through champagne `#f0dfba` to silver `#d6dbe2`. The metal has no
+  hue of its own, so gain green (`#3ee59a`) and loss red (`#ff6b7f`) stay the
+  only colours that mean something. `--input` is `#67645e` so field borders
+  clear 3:1 (WCAG 1.4.11). The primary CTA (`.prism-cta`) is a polished-metal
+  pill with ink text. The paper card is black titanium. The terrain's flat colour is
+  `--text-tertiary`, never the brand, so up/down stays readable. Don't
+  reintroduce navy or violet literals. Instrument
+  Serif italic (`font-editorial`, `--font-editorial`) is for one or two words
+  of a display headline only, usually with `text-prism` (animated light-band
+  text); never for UI text, figures or tickers. The logo is
+  `components/brand/stockviz-mark.tsx` (`StockVizWordmark` in every header and
+  the footer): one chrome candle, a single stored close, in a black-titanium
+  tile, with a glint that crosses it on hover. `app/icon.svg` is the same
+  drawing as the favicon; change both together. `components/prism/`:
+  - `liquid-chrome.tsx` + `liquid-chrome.glsl.ts`: hero/closing-CTA WebGL
+    light (three.js, dynamic import): a pouring sheet of polished metal whose
+    key light follows the pointer, drawn at 0.6x device pixels. Its mid-tones
+    tint green/red with session breadth (`moodAmount`, at most 0.35); the
+    hero chips state the figure. Keep GLSL in the `.glsl.ts` module. It
+    replaced PRISM's `prism-field.tsx` ribbons, which had replaced
+    `MarketWeather` (that canvas component is kept for its other users).
+  - `market-terrain.tsx` + `terrain-data.ts` + `terrain-section.tsx`: the
+    "time is the fourth axis" 3D surface from real stored closes (symbols
+    with a full 120-session window ending on the same newest date). Landing
+    variant `scroll` pins and scrubs time with scroll; dashboard variant
+    `compact` autoplays while on screen. Both have a real range slider, text
+    stats beside the canvas, a reduced-motion still frame and a 2D fallback.
+    Never put DOM gradient overlays on top of its canvas; fade with
+    `mask-image` on the host (an overlay made some compositors drop the
+    WebGL layer).
+  - `prism-cursor.tsx`, `magnetic.tsx`: public pages only, fine pointers,
+    motion allowed. `tilt-card.tsx`: 3D tilt + glare around `PaperCard`.
+    `spotlight-tracker.tsx`: one listener feeding `.spotlight` tiles their
+    border light (border only, never behind a figure). `rolling-figure.tsx`:
+    odometer roll on the headline portfolio value, plain text before and
+    after the roll. `kinetic-marquee.tsx`: the oversized verb band.
+  - three.js is allowed in `components/prism/` only, always dynamically
+    imported inside an effect, rendering only while on screen. GSAP stays
+    marketing-only.
+  - `app/(product)/template.tsx` gives every workspace navigation the
+    `.page-enter` rise; `[data-stagger]` children follow in sequence.
+  - Use `mediaMatches()` (`lib/media.ts`), not `window.matchMedia`, in
+    client effects: jsdom has no matchMedia.
+- **Sound** (`lib/sound/engine.ts`, `components/sound/`): every sound is
+  synthesised with Web Audio, no files. Off by default and remembered per
+  browser (`localStorage["stockviz:sound"]`); the switch (`SoundToggle`, a
+  real `role="switch"`) is in the workspace top bar and the public header.
+  `SoundProvider` (in `providers.tsx`) gives buttons/links/tabs a tap, nav
+  hover a tick and route changes a sweep. Forms call
+  `useOutcomeSound(success, error, "fill" | "success")`; anything else can
+  `emitSound(name)`. Mark a control `data-sound="none"` to silence it or
+  `data-sound="<name>"` to pick its sound. A sound must never be the only
+  signal: each one accompanies a visible change.
 - **Dark only for now** (owner, 12 Nov 2026): `components/providers.tsx`
   sets `forcedTheme="dark"`, and the theme toggles are gone from the top bar,
   the public header, the footer and Settings. The light tokens stay in
   `globals.css` and `theme-toggle.tsx` stays in the tree, so the light theme
   can return after its own design pass. Don't design new screens light-first.
+- **Title Case, never capitals** (owner, 26 Nov 2026): labels that used to
+  be set in capitals (eyebrows, table and field labels, badges, chips, stamps)
+  are written in Title Case. Don't use Tailwind `uppercase` or CSS
+  `text-transform: uppercase`, and don't build display text with
+  `toUpperCase()`. Pass dynamic labels through `titleCase()`
+  (`lib/title-case.ts`; anything that isn't a string passes through). Labels
+  use `tracking-[0.02em]`; the wide tracking that capitals needed is gone.
+  Exceptions that keep their capitals, by convention: ticker symbols (and the
+  ticker input boxes, which still upper-case what is typed), exchange codes
+  (NSE, NASDAQ), currency codes (USD, INR), time zones (UTC), financial and
+  indicator abbreviations (P&L, P/E, RSI, MACD, SMA, VWAP, VaR, XIRR, MAE,
+  EOD), account initials in the avatar, and month names written by the date
+  formatters ("Apr 7"). `titleCase()` leaves any all-capital or mixed-case
+  word as written, keeps minor words (of, to, vs, and) lower inside a label,
+  and leaves units such as 30d, bn and bps alone.
 - The type ramp adds `text-3xs` (10px) and `text-2xs` (11px) below Tailwind's
   `text-xs` for dense table meta and column labels. Use them instead of
   arbitrary `text-[10px]` / `text-[11px]`, which bypass the scale.
@@ -975,7 +1062,7 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   Portfolio) whose headings are not links but light up while one
   of their routes is open, including `/stocks/*` for Research. Settings sits
   apart at the bottom and only for signed-in users (proxy.ts guards it). The
-  wordmark carries the `EOD · SIMULATED` tag, and the top bar shows
+  wordmark carries the `EOD · Simulated` tag, and the top bar shows
   `DataDateChip` (`components/marketing/market-status.tsx`), the newest stored
   bar's date. It is an async server component, so unit tests that render the
   shell mock that module.

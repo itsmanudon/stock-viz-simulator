@@ -6,6 +6,7 @@ import {
   type ReplayActionState,
   submitReplayOrderAction,
 } from "@/app/(product)/(authed)/replay/actions";
+import { useOutcomeSound } from "@/components/sound/sound-provider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,6 +17,7 @@ import {
   type ReplayTicketOrderType,
   replayOrderTypeLabel,
 } from "@/lib/replay";
+import { titleCase } from "@/lib/title-case";
 import { cn } from "@/lib/utils";
 
 type Side = "buy" | "sell";
@@ -64,6 +66,7 @@ export function ReplayTradeTicket({
     submitReplayOrderAction,
     {},
   );
+  useOutcomeSound(state.status, state.error, "fill");
   const close = Number(resting ? price : currentClose);
   const qty = Number(quantity);
   const notional = Number.isFinite(close) && Number.isFinite(qty) ? close * qty : null;
@@ -72,8 +75,8 @@ export function ReplayTradeTicket({
   return (
     <section aria-labelledby={`${fieldId}-title`} className="space-y-5">
       <div>
-        <p className="text-[11px] font-semibold tracking-[0.14em] text-brand uppercase">
-          {target === "drill" ? "Drill order" : "Replay order"}
+        <p className="text-[11px] font-semibold tracking-[0.02em] text-brand">
+          {target === "drill" ? "Drill Order" : "Replay Order"}
         </p>
         <h2 id={`${fieldId}-title`} className="mt-1 text-sm font-semibold">
           {ticker} replay ticket
@@ -223,7 +226,7 @@ export function ReplayTradeTicket({
           ) : null}
           {state.filled ? (
             <output className="block text-sm text-positive">
-              Filled {state.side?.toUpperCase()} {formatQuantity(state.quantity ?? "0")} {ticker} @{" "}
+              Filled {titleCase(state.side)} {formatQuantity(state.quantity ?? "0")} {ticker} @{" "}
               {money(state.fillPrice ?? "0")}
             </output>
           ) : null}

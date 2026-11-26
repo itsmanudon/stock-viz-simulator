@@ -50,7 +50,7 @@ describe("Replay Lab presentation", () => {
         readOnly={false}
       />,
     );
-    expect(screen.getByText("Replay order")).toBeVisible();
+    expect(screen.getByText("Replay Order")).toBeVisible();
     expect(screen.getByRole("button", { name: /Submit market buy/i })).toBeVisible();
     expect(screen.getByText(/Not live paper trading/i)).toBeVisible();
     expect(screen.queryByRole("heading", { name: /^paper trade$/i })).not.toBeInTheDocument();

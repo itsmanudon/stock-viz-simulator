@@ -2,6 +2,8 @@ import { BookLink as Link } from "@/components/book-link";
 
 import { EquityCurve } from "@/components/equity-curve";
 import { PaperCard } from "@/components/paper-card";
+import { RollingFigure } from "@/components/prism/rolling-figure";
+import { TiltCard } from "@/components/prism/tilt-card";
 import { ValuationNotice } from "@/components/valuation-notice";
 import type { Portfolio, PortfolioHistoryPoint } from "@/lib/api/trading";
 import {
@@ -45,12 +47,12 @@ export function PortfolioPerformance({ portfolio, history, range, tab, book = nu
     <section aria-labelledby="portfolio-heading" className="border-b border-border-muted pb-5">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
+          <p className="text-xs font-medium tracking-[0.02em] text-muted-foreground">
             {book?.kind === "all"
-              ? "All books · combined"
+              ? "All Books · Combined"
               : book
-                ? `${book.kind === "imported" ? "Imported" : "Paper"} book · ${book.name}`
-                : "Paper portfolio"}
+                ? `${book.kind === "imported" ? "Imported" : "Paper"} Book · ${book.name}`
+                : "Paper Portfolio"}
           </p>
           <h1
             id="portfolio-heading"
@@ -72,15 +74,21 @@ export function PortfolioPerformance({ portfolio, history, range, tab, book = nu
       <div className="mt-6 grid gap-6 md:grid-cols-[13rem_minmax(0,1fr)] md:items-center lg:grid-cols-[13rem_minmax(0,1fr)_auto] lg:items-end">
         <div className="relative isolate hidden md:block">
           <div aria-hidden className="brand-glow -top-10 -left-10 -z-10 h-56 w-80 opacity-70" />
-          <PaperCard
-            accountId={book?.kind === "all" ? undefined : portfolio.portfolio_id}
-            currency={currency}
-            badge={
-              book?.kind === "all" ? "ALL BOOKS" : book?.kind === "imported" ? "IMPORTED" : "PAPER"
-            }
-            title={book?.kind === "all" ? `ALL BOOKS · ${currency}` : undefined}
-            className="w-full"
-          />
+          <TiltCard>
+            <PaperCard
+              accountId={book?.kind === "all" ? undefined : portfolio.portfolio_id}
+              currency={currency}
+              badge={
+                book?.kind === "all"
+                  ? "All Books"
+                  : book?.kind === "imported"
+                    ? "Imported"
+                    : "Paper"
+              }
+              title={book?.kind === "all" ? `All Books · ${currency}` : undefined}
+              className="w-full"
+            />
+          </TiltCard>
         </div>
         <div className="min-w-0">
           <p className="mb-1 flex items-center gap-2 text-xs text-muted-foreground">
@@ -93,8 +101,8 @@ export function PortfolioPerformance({ portfolio, history, range, tab, book = nu
             className="font-mono text-4xl font-medium tracking-[-0.04em] sm:text-5xl"
             data-financial
           >
-            {major}
-            {minor ? <span className="figure-minor">{minor}</span> : null}
+            <RollingFigure text={major} />
+            {minor ? <RollingFigure text={minor} className="figure-minor" /> : null}
           </p>
           <p className="mt-2 text-xs text-muted-foreground">
             Latest EOD valuation · Display currency {currency}

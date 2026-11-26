@@ -21,6 +21,7 @@ import type {
   ScreenerResult,
 } from "@/lib/api/types";
 import { STATUS_LABEL } from "@/lib/checklist-view";
+import { titleCase } from "@/lib/title-case";
 
 /** For values the API already expresses in percent (momentum). */
 function pct(n: number): string {
@@ -50,7 +51,7 @@ function PanelBody({ children }: { children: React.ReactNode }) {
 function PanelHeading({ eyebrow, title }: { eyebrow: string; title: string }) {
   return (
     <div className="mb-4">
-      <p className="font-mono text-3xs tracking-[0.14em] text-brand uppercase">{eyebrow}</p>
+      <p className="font-mono text-3xs tracking-[0.02em] text-brand">{titleCase(eyebrow)}</p>
       <p className="mt-1 text-sm text-text-secondary">{title}</p>
     </div>
   );
@@ -72,9 +73,9 @@ export function ScreenPanel({ rows }: { rows: ScreenerResult[] }) {
               {["Symbol", "Last", "RSI 14", "Momentum"].map((h) => (
                 <th
                   key={h}
-                  className="pb-2 font-mono text-3xs font-normal tracking-[0.12em] text-text-tertiary uppercase last:text-right"
+                  className="pb-2 font-mono text-3xs font-normal tracking-[0.02em] text-text-tertiary last:text-right"
                 >
-                  {h}
+                  {titleCase(h)}
                 </th>
               ))}
             </tr>
@@ -240,8 +241,8 @@ export function SimulatePanel({ result }: { result: BacktestResult }) {
       <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 border-t border-border-muted pt-4 sm:grid-cols-4">
         {stats.map((stat) => (
           <div key={stat.label}>
-            <dt className="font-mono text-3xs tracking-[0.12em] text-text-tertiary uppercase">
-              {stat.label}
+            <dt className="font-mono text-3xs tracking-[0.02em] text-text-tertiary">
+              {titleCase(stat.label)}
             </dt>
             <dd className={`mt-1 font-mono text-sm tabular-nums ${stat.tone}`}>{stat.value}</dd>
           </div>
