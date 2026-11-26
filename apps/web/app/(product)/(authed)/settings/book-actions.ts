@@ -12,6 +12,7 @@ import { z } from "zod";
 
 import { createBook, deleteBook, updateBook } from "@/lib/api/books";
 import { AuthedApiError, UnauthenticatedError } from "@/lib/api/server";
+import { importedBookCurrency } from "@/lib/tradebook-import";
 
 export type BookActionState = { error?: string; ok?: string };
 
@@ -19,6 +20,9 @@ const CreateSchema = z.object({
   name: z.string().trim().min(1, "Name the book").max(60, "60 characters at most"),
   kind: z.enum(["paper", "imported"]).default("paper"),
   base_currency: z.enum(["USD", "INR"]),
+  broker: z
+    .enum(["zerodha", "dhan", "fyers", "upstox", "angelone", "groww", "other"])
+    .default("zerodha"),
   holder_kind: z.enum(["self", "family", "huf"]),
   holder_label: z
     .string()
@@ -66,15 +70,19 @@ export async function createBookAction(
     name: formData.get("name") ?? "",
     kind: formData.get("kind") ?? "paper",
     base_currency: formData.get("base_currency"),
+    broker: formData.get("broker") || "zerodha",
     holder_kind: formData.get("holder_kind") ?? "self",
     holder_label: formData.get("holder_label") ?? "",
   });
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
-  // A5.3: an imported book holds a Zerodha tradebook, which is in rupees.
+  // A5.3, A6.11: an Indian broker's tradebook is in rupees; "other" (your own
+  // column map) takes the chosen currency, USD for a US broker. A paper book
+  // has no broker.
+  const { broker, ...rest } = parsed.data;
   const body =
-    parsed.data.kind === "imported"
-      ? { ...parsed.data, base_currency: "INR" as const }
-      : parsed.data;
+    rest.kind === "imported"
+      ? { ...rest, broker, base_currency: importedBookCurrency(broker, rest.base_currency) }
+      : rest;
   try {
     const book = await createBook(body);
     refresh();

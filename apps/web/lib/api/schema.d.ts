@@ -728,6 +728,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/symbols/{ticker}/volume-profile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Volume Profile */
+        get: operations["get_volume_profile_v1_symbols__ticker__volume_profile_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/symbols/{ticker}/events": {
         parameters: {
             query?: never;
@@ -1235,6 +1252,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/import-maps": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Import Maps */
+        get: operations["list_import_maps_v1_import_maps_get"];
+        put?: never;
+        /** Save Import Map */
+        post: operations["save_import_map_v1_import_maps_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/import-maps/{map_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Import Map */
+        delete: operations["delete_import_map_v1_import_maps__map_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/alerts": {
         parameters: {
             query?: never;
@@ -1528,6 +1580,79 @@ export interface paths {
         head?: never;
         /** Update Column Set */
         patch: operations["update_column_set_v1_column_sets__set_id__patch"];
+        trace?: never;
+    };
+    "/v1/chart-templates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Chart Templates */
+        get: operations["list_chart_templates_v1_chart_templates_get"];
+        put?: never;
+        /** Create Chart Template */
+        post: operations["create_chart_template_v1_chart_templates_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/chart-templates/{template_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Chart Template */
+        delete: operations["delete_chart_template_v1_chart_templates__template_id__delete"];
+        options?: never;
+        head?: never;
+        /** Update Chart Template */
+        patch: operations["update_chart_template_v1_chart_templates__template_id__patch"];
+        trace?: never;
+    };
+    "/v1/chart-layouts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Chart Layouts */
+        get: operations["list_chart_layouts_v1_chart_layouts_get"];
+        put?: never;
+        /** Create Chart Layout */
+        post: operations["create_chart_layout_v1_chart_layouts_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/chart-layouts/{layout_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Chart Layout */
+        get: operations["get_chart_layout_v1_chart_layouts__layout_id__get"];
+        put?: never;
+        post?: never;
+        /** Delete Chart Layout */
+        delete: operations["delete_chart_layout_v1_chart_layouts__layout_id__delete"];
+        options?: never;
+        head?: never;
+        /** Update Chart Layout */
+        patch: operations["update_chart_layout_v1_chart_layouts__layout_id__patch"];
         trace?: never;
     };
     "/v1/orders": {
@@ -2941,6 +3066,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/broker/basket": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Basket Handoff */
+        get: operations["basket_handoff_v1_broker_basket_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/plans": {
         parameters: {
             query?: never;
@@ -3468,6 +3610,23 @@ export interface components {
             base_currency: string;
         };
         /**
+         * BasketHandoffOut
+         * @description A6.11 (M10.5): how a basket can leave StockViz. StockViz never places an
+         *     order: a basket downloads as CSV or JSON, and with ``KITE_API_KEY`` set the
+         *     web also offers Kite's basket form, which the user's browser posts and the
+         *     user confirms inside Zerodha.
+         */
+        BasketHandoffOut: {
+            /** Kite Basket */
+            kite_basket: boolean;
+            /** Kite Api Key */
+            kite_api_key: string | null;
+            /** Kite Basket Url */
+            kite_basket_url: string | null;
+            /** Exports */
+            exports: ("csv" | "json")[];
+        };
+        /**
          * BookIn
          * @description ``POST /v1/books``.
          */
@@ -3495,7 +3654,7 @@ export interface components {
             /** Holder Label */
             holder_label?: string | null;
             /** Broker */
-            broker?: "zerodha" | null;
+            broker?: ("zerodha" | "dhan" | "fyers" | "upstox" | "angelone" | "groww" | "other") | null;
         };
         /**
          * BookOut
@@ -3614,6 +3773,152 @@ export interface components {
             /** Rate Text */
             rate_text: string;
             source?: components["schemas"]["FeeSourceOut"] | null;
+        };
+        /** ChartLayoutIn */
+        ChartLayoutIn: {
+            /** Name */
+            name: string;
+            /**
+             * Grid
+             * @default 1
+             * @enum {string}
+             */
+            grid: "1" | "2v" | "2h" | "4";
+            /** Panes */
+            panes: components["schemas"]["ChartPaneIn"][];
+        };
+        /** ChartLayoutOut */
+        ChartLayoutOut: {
+            /** Id */
+            id: number;
+            /** Name */
+            name: string;
+            /**
+             * Grid
+             * @enum {string}
+             */
+            grid: "1" | "2v" | "2h" | "4";
+            /** Panes */
+            panes: components["schemas"]["ChartPaneOut"][];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** ChartLayoutPatch */
+        ChartLayoutPatch: {
+            /** Name */
+            name?: string | null;
+            /** Grid */
+            grid?: ("1" | "2v" | "2h" | "4") | null;
+            /** Panes */
+            panes?: components["schemas"]["ChartPaneIn"][] | null;
+        };
+        /** ChartPaneIn */
+        ChartPaneIn: {
+            /** Symbol */
+            symbol: string;
+            /**
+             * Interval
+             * @default 1d
+             * @enum {string}
+             */
+            interval: "1d" | "1wk" | "1mo" | "1m" | "5m" | "15m" | "30m" | "60m";
+            /** Template Id */
+            template_id?: number | null;
+            /** Link */
+            link?: ("aqua" | "blue" | "violet" | "pink" | "amber" | "lime" | "slate") | null;
+        };
+        /** ChartPaneOut */
+        ChartPaneOut: {
+            /** Symbol */
+            symbol: string;
+            /**
+             * Interval
+             * @enum {string}
+             */
+            interval: "1d" | "1wk" | "1mo" | "1m" | "5m" | "15m" | "30m" | "60m";
+            /** Template Id */
+            template_id: number | null;
+            /** Link */
+            link: ("aqua" | "blue" | "violet" | "pink" | "amber" | "lime" | "slate") | null;
+        };
+        /** ChartTemplateIn */
+        ChartTemplateIn: {
+            /** Name */
+            name: string;
+            /**
+             * Chart Type
+             * @default candles
+             * @enum {string}
+             */
+            chart_type: "candles" | "hollow" | "bars" | "line" | "area" | "heikin-ashi";
+            /**
+             * Scale
+             * @default linear
+             * @enum {string}
+             */
+            scale: "linear" | "log" | "percent";
+            /** Indicators */
+            indicators?: string[];
+            /** Pane Heights */
+            pane_heights?: {
+                [key: string]: number;
+            };
+        };
+        /** ChartTemplateOut */
+        ChartTemplateOut: {
+            /** Id */
+            id: number;
+            /** Name */
+            name: string;
+            /**
+             * Chart Type
+             * @enum {string}
+             */
+            chart_type: "candles" | "hollow" | "bars" | "line" | "area" | "heikin-ashi";
+            /**
+             * Scale
+             * @enum {string}
+             */
+            scale: "linear" | "log" | "percent";
+            /** Indicators */
+            indicators: string[];
+            /** Pane Heights */
+            pane_heights: {
+                [key: string]: number;
+            };
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** ChartTemplatePatch */
+        ChartTemplatePatch: {
+            /** Name */
+            name?: string | null;
+            /** Chart Type */
+            chart_type?: ("candles" | "hollow" | "bars" | "line" | "area" | "heikin-ashi") | null;
+            /** Scale */
+            scale?: ("linear" | "log" | "percent") | null;
+            /** Indicators */
+            indicators?: string[] | null;
+            /** Pane Heights */
+            pane_heights?: {
+                [key: string]: number;
+            } | null;
         };
         /** ChecklistConditionDefOut */
         ChecklistConditionDefOut: {
@@ -4015,7 +4320,7 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "trendline" | "ray" | "hline" | "rectangle" | "channel" | "fib_retracement" | "fib_extension" | "ruler" | "text" | "position_long" | "position_short" | "avwap";
+            kind: "trendline" | "ray" | "hline" | "rectangle" | "channel" | "fib_retracement" | "fib_extension" | "ruler" | "text" | "position_long" | "position_short" | "avwap" | "volume_profile";
             /** Points */
             points: components["schemas"]["DrawingPoint-Input"][];
             style?: components["schemas"]["DrawingStyle"];
@@ -4037,7 +4342,7 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "trendline" | "ray" | "hline" | "rectangle" | "channel" | "fib_retracement" | "fib_extension" | "ruler" | "text" | "position_long" | "position_short" | "avwap";
+            kind: "trendline" | "ray" | "hline" | "rectangle" | "channel" | "fib_retracement" | "fib_extension" | "ruler" | "text" | "position_long" | "position_short" | "avwap" | "volume_profile";
             /** Points */
             points: components["schemas"]["DrawingPoint-Output"][];
             style: components["schemas"]["DrawingStyle"];
@@ -5552,7 +5857,12 @@ export interface components {
              * Format Status
              * @enum {string}
              */
-            format_status: "unconfirmed" | "confirmed";
+            format_status: "unconfirmed" | "confirmed" | "custom";
+            /**
+             * Broker
+             * @default zerodha
+             */
+            broker: string;
             /** Rows Total */
             rows_total: number;
             /** Rows Added */
@@ -5643,6 +5953,11 @@ export interface components {
              */
             rejected: number;
             /**
+             * Not Executed
+             * @default 0
+             */
+            not_executed: number;
+            /**
              * Basis Uncertain
              * @default 0
              */
@@ -5658,6 +5973,42 @@ export interface components {
              */
             intraday_short: number;
         };
+        /** ImportMapColumnOut */
+        ImportMapColumnOut: {
+            /** Field */
+            field: string;
+            /** Label */
+            label: string;
+            /** Required */
+            required: boolean;
+        };
+        /**
+         * ImportMapOut
+         * @description A built-in tradebook column map (A6.11). Every broker map is unconfirmed.
+         */
+        ImportMapOut: {
+            /** Name */
+            name: string;
+            /** Broker */
+            broker: string;
+            /** Label */
+            label: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "unconfirmed" | "confirmed" | "custom";
+            /** Market */
+            market: ("in" | "us") | null;
+            /** Note */
+            note: string;
+            /** Source */
+            source: string;
+            /** How To */
+            how_to: string;
+            /** Columns */
+            columns: components["schemas"]["ImportMapColumnOut"][];
+        };
         /**
          * ImportPreviewOut
          * @description ``POST /v1/books/{id}/imports/preview``: nothing is stored.
@@ -5666,12 +6017,49 @@ export interface components {
             /** Format */
             format: string;
             /**
+             * Format Label
+             * @default
+             */
+            format_label: string;
+            /**
              * Format Status
              * @enum {string}
              */
-            format_status: "unconfirmed" | "confirmed";
+            format_status: "unconfirmed" | "confirmed" | "custom";
             /** Format Note */
             format_note: string;
+            /**
+             * Format Source
+             * @default
+             */
+            format_source: string;
+            /**
+             * Broker
+             * @default zerodha
+             */
+            broker: string;
+            /**
+             * Detected
+             * @default header
+             * @enum {string}
+             */
+            detected: "header" | "chosen" | "saved" | "fallback";
+            /**
+             * Alternatives
+             * @default []
+             */
+            alternatives: string[];
+            /**
+             * Market
+             * @default in
+             * @enum {string}
+             */
+            market: "in" | "us";
+            /**
+             * Headers
+             * @default []
+             */
+            headers: string[];
             /** File Sha256 */
             file_sha256: string;
             /** Can Commit */
@@ -5708,7 +6096,7 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "rejected" | "segment" | "unmatched" | "duplicate_in_file" | "already_imported" | "needs_opening_lot" | "basis_uncertain";
+            kind: "rejected" | "segment" | "unmatched" | "duplicate_in_file" | "already_imported" | "needs_opening_lot" | "basis_uncertain" | "not_executed";
             /** Reason */
             reason: string;
             /** Field */
@@ -5790,17 +6178,43 @@ export interface components {
             book_id: number;
             /** Broker */
             broker: string | null;
+            /**
+             * Market
+             * @default in
+             * @enum {string}
+             */
+            market: "in" | "us";
+            /**
+             * Currency
+             * @default INR
+             */
+            currency: string;
             /** Format */
             format: string;
             /**
              * Format Status
              * @enum {string}
              */
-            format_status: "unconfirmed" | "confirmed";
+            format_status: "unconfirmed" | "confirmed" | "custom";
             /** Format Note */
             format_note: string;
             /** Max Bytes */
             max_bytes: number;
+            /**
+             * Maps
+             * @default []
+             */
+            maps: components["schemas"]["ImportMapOut"][];
+            /**
+             * Saved Maps
+             * @default []
+             */
+            saved_maps: components["schemas"]["SavedImportMapOut"][];
+            /**
+             * Custom Fields
+             * @default []
+             */
+            custom_fields: components["schemas"]["ImportMapColumnOut"][];
             /** Batches */
             batches: components["schemas"]["ImportBatchOut"][];
             /** Opening Lots */
@@ -8503,7 +8917,7 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "trendline" | "ray" | "hline" | "rectangle" | "channel" | "fib_retracement" | "fib_extension" | "ruler" | "text" | "position_long" | "position_short" | "avwap";
+            kind: "trendline" | "ray" | "hline" | "rectangle" | "channel" | "fib_retracement" | "fib_extension" | "ruler" | "text" | "position_long" | "position_short" | "avwap" | "volume_profile";
             /** Points */
             points: components["schemas"]["DrawingPoint-Input"][];
             style?: components["schemas"]["DrawingStyle"];
@@ -9759,6 +10173,55 @@ export interface components {
             holdout_to?: string | null;
             /** Note */
             note: string;
+        };
+        /**
+         * SavedImportMapIn
+         * @description ``POST /v1/import-maps``: "Map columns yourself". Header names only.
+         */
+        SavedImportMapIn: {
+            /** Name */
+            name: string;
+            /** Mapping */
+            mapping: {
+                [key: string]: string;
+            };
+            /** Default Exchange */
+            default_exchange?: ("NSE" | "BSE") | null;
+            /**
+             * Date Order
+             * @default auto
+             * @enum {string}
+             */
+            date_order: "auto" | "day_first" | "month_first";
+        };
+        /** SavedImportMapOut */
+        SavedImportMapOut: {
+            /** Id */
+            id: number;
+            /** Name */
+            name: string;
+            /** Mapping */
+            mapping: {
+                [key: string]: string;
+            };
+            /** Default Exchange */
+            default_exchange?: ("NSE" | "BSE") | null;
+            /**
+             * Date Order
+             * @default auto
+             * @enum {string}
+             */
+            date_order: "auto" | "day_first" | "month_first";
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
         };
         /** SavedScreenIn */
         SavedScreenIn: {
@@ -11042,6 +11505,11 @@ export interface components {
              */
             is_indian: boolean;
             intraday?: components["schemas"]["IntradayInfoOut"] | null;
+            /**
+             * Is Index
+             * @default false
+             */
+            is_index: boolean;
         };
         /** SymbolEventsOut */
         SymbolEventsOut: {
@@ -11709,6 +12177,68 @@ export interface components {
             cvar: number;
             /** Cvar Pct */
             cvar_pct: number;
+        };
+        /** VolumeProfileBinOut */
+        VolumeProfileBinOut: {
+            /** Low */
+            low: string;
+            /** High */
+            high: string;
+            /** Volume */
+            volume: number;
+        };
+        /**
+         * VolumeProfileOut
+         * @description A6.7 (M2.9): ``GET /v1/symbols/{ticker}/volume-profile``.
+         *
+         *     ``bins`` run from the lowest price up. ``poc`` is the middle of the bin with
+         *     the most volume; ``vah``/``val`` bound the value area (``value_area`` of the
+         *     volume, 0.7 by default). ``source`` is ``minutes`` (stored 1-minute bars on
+         *     ``feed``) or ``daily`` (an EOD approximation). ``from``/``to`` are the range
+         *     read, naive UTC.
+         */
+        VolumeProfileOut: {
+            /** Ticker */
+            ticker: string;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "minutes" | "daily";
+            /** Feed */
+            feed?: string | null;
+            /**
+             * From
+             * Format: date-time
+             */
+            from: string;
+            /**
+             * To
+             * Format: date-time
+             */
+            to: string;
+            /** Bars */
+            bars: number;
+            /** Bins */
+            bins: components["schemas"]["VolumeProfileBinOut"][];
+            /** Poc */
+            poc: string;
+            /** Poc Index */
+            poc_index: number;
+            /** Vah */
+            vah: string;
+            /** Val */
+            val: string;
+            /** Value Area */
+            value_area: number;
+            /** Total Volume */
+            total_volume: number;
+            /** Value Volume */
+            value_volume: number;
+            /** Badges */
+            badges: string[];
+            /** Note */
+            note: string;
         };
         /**
          * WalkForwardIn
@@ -13469,6 +13999,43 @@ export interface operations {
             };
         };
     };
+    get_volume_profile_v1_symbols__ticker__volume_profile_get: {
+        parameters: {
+            query?: {
+                from?: string | null;
+                to?: string | null;
+                feed?: ("iex" | "sip" | "kite" | "file" | "replayed") | null;
+                bins?: number;
+                value_area?: number;
+            };
+            header?: never;
+            path: {
+                ticker: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VolumeProfileOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     events_for_symbol_v1_symbols__ticker__events_get: {
         parameters: {
             query?: {
@@ -14225,7 +14792,12 @@ export interface operations {
     };
     preview_import_v1_books__book_id__imports_preview_post: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description auto or a map */
+                map?: string;
+                /** @description A saved column map's id */
+                custom_map?: number | null;
+            };
             header?: {
                 authorization?: string | null;
             };
@@ -14264,6 +14836,10 @@ export interface operations {
         parameters: {
             query: {
                 file_sha256: string;
+                /** @description auto or a map */
+                map?: string;
+                /** @description A saved column map's id */
+                custom_map?: number | null;
             };
             header?: {
                 authorization?: string | null;
@@ -14410,6 +14986,103 @@ export interface operations {
             path: {
                 book_id: number;
                 lot_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_import_maps_v1_import_maps_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SavedImportMapOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    save_import_map_v1_import_maps_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SavedImportMapIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SavedImportMapOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_import_map_v1_import_maps__map_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                map_id: number;
             };
             cookie?: never;
         };
@@ -15229,6 +15902,307 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ColumnSetOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_chart_templates_v1_chart_templates_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChartTemplateOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_chart_template_v1_chart_templates_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChartTemplateIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChartTemplateOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_chart_template_v1_chart_templates__template_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                template_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_chart_template_v1_chart_templates__template_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                template_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChartTemplatePatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChartTemplateOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_chart_layouts_v1_chart_layouts_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChartLayoutOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_chart_layout_v1_chart_layouts_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChartLayoutIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChartLayoutOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_chart_layout_v1_chart_layouts__layout_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                layout_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChartLayoutOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_chart_layout_v1_chart_layouts__layout_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                layout_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_chart_layout_v1_chart_layouts__layout_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                layout_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChartLayoutPatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChartLayoutOut"];
                 };
             };
             /** @description Validation Error */
@@ -18259,6 +19233,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["FeedStatusOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    basket_handoff_v1_broker_basket_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BasketHandoffOut"];
                 };
             };
             /** @description Validation Error */

@@ -182,3 +182,35 @@ def feed_status(session: SessionDep, settings: SettingsDep, user_id: UserIdDep) 
         offline_window_hours=int(OFFLINE_WINDOW.total_seconds() // 3600),
         checked_at=now,
     )
+
+
+KITE_BASKET_URL = "https://kite.zerodha.com/connect/basket"
+"""Kite's offsite basket (Kite Connect v3 "Offsite order execution", read
+26 Nov 2026). The browser POSTs a form there; this server never does."""
+
+
+class BasketHandoffOut(BaseModel):
+    """A6.11 (M10.5): how a basket can leave StockViz. StockViz never places an
+    order: a basket downloads as CSV or JSON, and with ``KITE_API_KEY`` set the
+    web also offers Kite's basket form, which the user's browser posts and the
+    user confirms inside Zerodha."""
+
+    kite_basket: bool
+    """``KITE_API_KEY`` is set on this server."""
+    kite_api_key: str | None
+    """The Kite app's public ``api_key`` while ``kite_basket``, else null. Kite's
+    documented basket form carries it as a field in the user's browser, so it
+    is not a secret; ``KITE_API_SECRET`` is never returned."""
+    kite_basket_url: str | None
+    exports: list[Literal["csv", "json"]]
+
+
+@router.get("/basket", response_model=BasketHandoffOut)
+def basket_handoff(settings: SettingsDep, user_id: UserIdDep) -> BasketHandoffOut:
+    key = settings.kite_api_key.strip()
+    return BasketHandoffOut(
+        kite_basket=bool(key),
+        kite_api_key=key or None,
+        kite_basket_url=KITE_BASKET_URL if key else None,
+        exports=["csv", "json"],
+    )

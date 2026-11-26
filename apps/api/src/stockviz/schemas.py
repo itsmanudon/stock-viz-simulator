@@ -186,6 +186,8 @@ class SymbolDetailOut(BaseModel):
     is_indian: bool = False
     # A6.2: the intraday bars stored for the symbol (default feed), or null.
     intraday: IntradayInfoOut | None = None
+    # A6.7: an index's stored volume is 0, not real, so it has no volume profile.
+    is_index: bool = False
 
 
 class IntradayCoverageOut(BaseModel):
@@ -3652,7 +3654,9 @@ class BookIn(BaseModel):
     # Free text ("Mum", "Jariwala HUF"). Never a PAN: a PAN-shaped label is 422.
     holder_label: str | None = Field(default=None, max_length=60)
     # Imported books only; default zerodha.
-    broker: Literal["zerodha"] | None = None
+    broker: Literal["zerodha", "dhan", "fyers", "upstox", "angelone", "groww", "other"] | None = (
+        None
+    )
 
 
 class BookPatch(BaseModel):
@@ -3913,6 +3917,7 @@ DrawingKind = Literal[
     "position_long",
     "position_short",
     "avwap",
+    "volume_profile",
 ]
 DrawingColour = Literal["aqua", "blue", "violet", "pink", "amber", "lime", "slate", "foreground"]
 
@@ -4030,6 +4035,43 @@ class AvwapOut(BaseModel):
     feed: str | None = None
     decimals: int
     points: list[AvwapPointOut]
+
+
+class VolumeProfileBinOut(BaseModel):
+    low: Decimal
+    high: Decimal
+    # The volume spread into this price slice (a share of each bar's volume).
+    volume: float
+
+
+class VolumeProfileOut(BaseModel):
+    """A6.7 (M2.9): ``GET /v1/symbols/{ticker}/volume-profile``.
+
+    ``bins`` run from the lowest price up. ``poc`` is the middle of the bin with
+    the most volume; ``vah``/``val`` bound the value area (``value_area`` of the
+    volume, 0.7 by default). ``source`` is ``minutes`` (stored 1-minute bars on
+    ``feed``) or ``daily`` (an EOD approximation). ``from``/``to`` are the range
+    read, naive UTC.
+    """
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    ticker: str
+    source: Literal["minutes", "daily"]
+    feed: str | None = None
+    from_: datetime = Field(alias="from")
+    to: datetime
+    bars: int
+    bins: list[VolumeProfileBinOut]
+    poc: Decimal
+    poc_index: int
+    vah: Decimal
+    val: Decimal
+    value_area: float
+    total_volume: float
+    value_volume: float
+    badges: list[str]
+    note: str
 
 
 # ---------------------------------------------------------------------------
@@ -4462,6 +4504,7 @@ class ImportProblemOut(BaseModel):
         "already_imported",
         "needs_opening_lot",
         "basis_uncertain",
+        "not_executed",
     ]
     reason: str
     field: str | None = None
@@ -4479,6 +4522,8 @@ class ImportCountsOut(BaseModel):
     unmatched: int = 0
     skipped_segment: int = 0
     rejected: int = 0
+    not_executed: int = 0
+    """Orders in the file that did not execute (an order-status column, A6.11)."""
     basis_uncertain: int = 0
     intraday_inferred: int = 0
     intraday_short: int = 0
@@ -4489,8 +4534,21 @@ class ImportPreviewOut(BaseModel):
     """``POST /v1/books/{id}/imports/preview``: nothing is stored."""
 
     format: str
-    format_status: Literal["unconfirmed", "confirmed"]
+    """The column map the file was read with (``dhan_tradebook_v1``, ``custom_3``)."""
+    format_label: str = ""
+    format_status: Literal["unconfirmed", "confirmed", "custom"]
     format_note: str
+    format_source: str = ""
+    broker: str = "zerodha"
+    detected: Literal["header", "chosen", "saved", "fallback"] = "header"
+    """header: the header row fits this map; chosen: the caller named it; saved:
+    the caller's own map; fallback: no map fits (``missing_required`` names
+    the closest map's missing columns)."""
+    alternatives: list[str] = []
+    """Other built-in maps the header row also fits."""
+    market: Literal["in", "us"] = "in"
+    headers: list[str] = []
+    """The file's header row (names only, never a cell), for "Map columns yourself"."""
     file_sha256: str
     can_commit: bool
     message: str | None = None
@@ -4509,7 +4567,8 @@ class ImportBatchOut(BaseModel):
     id: int
     created_at: datetime
     column_map: str
-    format_status: Literal["unconfirmed", "confirmed"]
+    format_status: Literal["unconfirmed", "confirmed", "custom"]
+    broker: str = "zerodha"
     rows_total: int
     rows_added: int
     rows_duplicate: int
@@ -4560,15 +4619,75 @@ class NeedsOpeningLotOut(BaseModel):
     short_by: Decimal
 
 
+class ImportMapColumnOut(BaseModel):
+    field: str
+    label: str
+    required: bool
+
+
+class ImportMapOut(BaseModel):
+    """A built-in tradebook column map (A6.11). Every broker map is unconfirmed."""
+
+    name: str
+    broker: str
+    label: str
+    status: Literal["unconfirmed", "confirmed", "custom"]
+    market: Literal["in", "us"] | None
+    note: str
+    source: str
+    """What the map is built from, with the date it was read."""
+    how_to: str
+    columns: list[ImportMapColumnOut]
+
+
+ImportMapField = Literal[
+    "trade_date",
+    "executed_at",
+    "symbol",
+    "exchange",
+    "side",
+    "quantity",
+    "price",
+    "trade_id",
+    "order_id",
+    "isin",
+]
+
+
+class SavedImportMapIn(BaseModel):
+    """``POST /v1/import-maps``: "Map columns yourself". Header names only."""
+
+    name: str = Field(min_length=1, max_length=60)
+    mapping: dict[ImportMapField, str]
+    default_exchange: Literal["NSE", "BSE"] | None = None
+    date_order: Literal["auto", "day_first", "month_first"] = "auto"
+
+
+class SavedImportMapOut(BaseModel):
+    id: int
+    name: str
+    mapping: dict[str, str]
+    default_exchange: Literal["NSE", "BSE"] | None = None
+    date_order: Literal["auto", "day_first", "month_first"] = "auto"
+    created_at: datetime
+    updated_at: datetime
+
+
 class ImportsOut(BaseModel):
     """``GET /v1/books/{id}/imports``."""
 
     book_id: int
     broker: str | None
+    market: Literal["in", "us"] = "in"
+    currency: str = "INR"
     format: str
-    format_status: Literal["unconfirmed", "confirmed"]
+    """The book's broker's map (Zerodha for an ``other`` book)."""
+    format_status: Literal["unconfirmed", "confirmed", "custom"]
     format_note: str
     max_bytes: int
+    maps: list[ImportMapOut] = []
+    saved_maps: list[SavedImportMapOut] = []
+    custom_fields: list[ImportMapColumnOut] = []
     batches: list[ImportBatchOut]
     opening_lots: list[OpeningLotOut]
     needs_opening_lot: list[NeedsOpeningLotOut]
@@ -4859,3 +4978,81 @@ class EdgeStatsOut(BaseModel):
     drift: list[EdgeDriftOut]
     imported_fees_estimated: bool
     honesty: list[str]
+
+
+# ---------------------------------------------------------------------------
+# Chart templates and layouts (A6.8, M2.10)
+# ---------------------------------------------------------------------------
+
+ChartTypeKey = Literal["candles", "hollow", "bars", "line", "area", "heikin-ashi"]
+ChartScaleKey = Literal["linear", "log", "percent"]
+ChartIntervalKey = Literal["1d", "1wk", "1mo", "1m", "5m", "15m", "30m", "60m"]
+ChartGridKey = Literal["1", "2v", "2h", "4"]
+LinkColourKey = Literal["aqua", "blue", "violet", "pink", "amber", "lime", "slate"]
+
+
+class ChartTemplateIn(BaseModel):
+    name: str = Field(min_length=1, max_length=64)
+    chart_type: ChartTypeKey = "candles"
+    scale: ChartScaleKey = "linear"
+    indicators: list[str] = Field(default_factory=list, max_length=16)
+    """Indicator registry keys with their parameters (``sma_50``, ``bb_20_2``)."""
+    pane_heights: dict[str, int] = Field(default_factory=dict)
+    """Pixels by pane kind (``price``, ``volume``, ``rsi``...), 48 to 1200."""
+
+
+class ChartTemplatePatch(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=64)
+    chart_type: ChartTypeKey | None = None
+    scale: ChartScaleKey | None = None
+    indicators: list[str] | None = Field(default=None, max_length=16)
+    pane_heights: dict[str, int] | None = None
+
+
+class ChartTemplateOut(BaseModel):
+    id: int
+    name: str
+    chart_type: ChartTypeKey
+    scale: ChartScaleKey
+    indicators: list[str]
+    pane_heights: dict[str, int]
+    created_at: datetime
+    updated_at: datetime
+
+
+class ChartPaneIn(BaseModel):
+    symbol: str = Field(min_length=1, max_length=32)
+    interval: ChartIntervalKey = "1d"
+    template_id: int | None = None
+    link: LinkColourKey | None = None
+    """The link colour; null is unlinked."""
+
+
+class ChartPaneOut(BaseModel):
+    symbol: str
+    interval: ChartIntervalKey
+    template_id: int | None
+    """Null when the pane has the default look or its template was deleted."""
+    link: LinkColourKey | None
+
+
+class ChartLayoutIn(BaseModel):
+    name: str = Field(min_length=1, max_length=64)
+    grid: ChartGridKey = "1"
+    panes: list[ChartPaneIn] = Field(min_length=1, max_length=4)
+    """One per grid cell in reading order: 1, 2 (``2v``, ``2h``) or 4."""
+
+
+class ChartLayoutPatch(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=64)
+    grid: ChartGridKey | None = None
+    panes: list[ChartPaneIn] | None = Field(default=None, min_length=1, max_length=4)
+
+
+class ChartLayoutOut(BaseModel):
+    id: int
+    name: str
+    grid: ChartGridKey
+    panes: list[ChartPaneOut]
+    created_at: datetime
+    updated_at: datetime

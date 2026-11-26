@@ -17,6 +17,7 @@ from stockviz.models.aegis import (
 from stockviz.models.alert import Alert, AlertDirection, AlertEvent, AlertKind, AlertRepeat
 from stockviz.models.auth_rate_limit import AuthRateLimit
 from stockviz.models.broker_import import BrokerFill, ImportBatch
+from stockviz.models.chart_layout import ChartLayout, ChartTemplate
 from stockviz.models.checklist import ChecklistEvidence, ChecklistScore
 from stockviz.models.corporate_action import CorporateAction, CorporateActionApplication
 from stockviz.models.data_file import DataFile
@@ -36,6 +37,7 @@ from stockviz.models.execution import SimulatedExecution
 from stockviz.models.experiment import Experiment, ExperimentRun
 from stockviz.models.feed_stream import FeedStream
 from stockviz.models.fundamentals import FundamentalFact
+from stockviz.models.import_column_map import ImportColumnMap
 from stockviz.models.indicator_evidence import IndicatorEvidence
 from stockviz.models.instrument import Instrument, InstrumentIdentifier
 from stockviz.models.intraday import IntradayBar, IntradayFile
@@ -108,6 +110,8 @@ __all__ = [
     "BrokerFill",
     "CashBalance",
     "ChannelKind",
+    "ChartLayout",
+    "ChartTemplate",
     "ChecklistEvidence",
     "ChecklistScore",
     "ColumnSet",
@@ -133,6 +137,7 @@ __all__ = [
     "HolderKind",
     "HoldoutUnlock",
     "ImportBatch",
+    "ImportColumnMap",
     "IndicatorEvidence",
     "Instrument",
     "InstrumentIdentifier",

@@ -30,6 +30,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { type BookSummary, holderText } from "@/lib/book-url";
+import { IMPORT_BROKERS } from "@/lib/tradebook-import";
 
 export type BookRow = BookSummary & { activity?: readonly string[] };
 
@@ -316,8 +317,30 @@ function CreateBookForm({ disabled }: { disabled: boolean }) {
           </Label>
           <select id={`${id}-kind`} name="kind" defaultValue="paper" className={SELECT}>
             <option value="paper">Paper · trades here</option>
-            <option value="imported">Imported · a Zerodha tradebook (INR), no paper orders</option>
+            <option value="imported">Imported · a broker&apos;s tradebook, no paper orders</option>
           </select>
+        </div>
+        <div className="grid gap-1.5">
+          <Label htmlFor={`${id}-broker`} className="text-xs">
+            Broker (Imported Books)
+          </Label>
+          <select
+            id={`${id}-broker`}
+            name="broker"
+            defaultValue="zerodha"
+            className={SELECT}
+            aria-describedby={`${id}-broker-hint`}
+          >
+            {IMPORT_BROKERS.map((b) => (
+              <option key={b.value} value={b.value}>
+                {b.label}
+              </option>
+            ))}
+          </select>
+          <p id={`${id}-broker-hint`} className="text-2xs text-text-tertiary">
+            An Indian broker&apos;s book is in INR. Other Broker takes the currency above: USD for a
+            US broker.
+          </p>
         </div>
         <div className="grid gap-1.5">
           <Label htmlFor={`${id}-holder`} className="text-xs">

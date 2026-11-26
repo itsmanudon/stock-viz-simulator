@@ -10,7 +10,8 @@ app/
                    concise public header and traditional website footer
   (product)/       guest-capable research routes plus the workstation shell
     (authed)/      dashboard, portfolio, trade, trades, orders, watchlist,
-                   alerts, settings, earnings, setups, replay, drills (A4.7) —
+                   alerts, settings, earnings, setups, replay, drills (A4.7),
+                   charts (A6.8: the chart workspace) —
                    protected by proxy.ts. `/dashboard` is
                    the signed-in home: a bento grid of portfolio widgets fed by
                    `lib/dashboard-data.ts` (every widget but the portfolio hero
@@ -496,6 +497,92 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   live" and its badge is "Replayed" (`sourceBadgeLabel`). Indicators do not
   update live (a reload does). Tests: `tests/unit/a65-live-bars.test.tsx`
   (a fake `EventSource`).
+  **Chart tools (A6.7, M2.9, M2.11).** The stock page renders
+  `components/chart-tools.tsx::ChartWithTools` (it wraps `ChartWorkbench`;
+  `isIndex` from `SymbolDetail.is_index`). Everything binds to the built chart
+  through `PriceChart`'s one hook, `onChartReady(handle)` (the price series,
+  the focusable `root`, the canvas `container`, the bars, `drawingAt(x, y)`,
+  `drawings()`, `streaming()`; it may return a cleanup, run before the chart
+  is removed). Keep new chart features behind that hook rather than in
+  `price-chart.tsx`.
+  - **Volume profile:** the toolbar's `VolumeProfileToggle`
+    (`components/volume-profile-toggle.tsx`, shown only with the drawings'
+    chart, disabled on an index) writes `?vp=visible|fixed` with
+    `history.replaceState` (no server render; other toolbar links drop it).
+    Visible: the bars on screen (`rangeOfBars`), fetched again 400 ms after
+    the last pan or zoom (`subscribeVisibleLogicalRangeChange`). Fixed: each
+    `volume_profile` drawing (a date-only kind, two sessions, in the drawing
+    toolbar; not in replay) is fetched once per pair of sessions. Fetches go
+    through `stocks/[ticker]/chart-tools-actions.ts::volumeProfileAction`.
+    One primitive draws them (`lib/drawings/volume-profile-primitive.ts`,
+    under the candles; geometry `lib/volume-profile.ts::profileGeometry`);
+    `volume-profile-info` shows the badges, POC, value area and the
+    approximation note, or the API's 409 reason.
+  - **Context menu** (`components/chart-context-menu.tsx`): right-click, a
+    550 ms touch long press, or Menu / Shift+F10 on the focused chart (at the
+    last crosshair point). Items from `lib/chart-menu.ts`: the price, study
+    and rule alerts build the alert form's own field names and go through
+    `alerts/actions.ts::createAlertAction` (the test compares both bodies);
+    "Alert on this drawing" first saves a Rule DSL setup (kind `alert`,
+    `drawing("label").price|top|bottom` or `avwap("label")`), and needs a
+    labelled hline, trendline, ray, rectangle or AVWAP. Signed out: a
+    sign-in link. The note: judged on the next stored bar unless A6.5's
+    stream is live.
+  - **Plan a trade here** opens `ChartPlanEditor` (long, the default book;
+    entry at the crosshair, stop at the nearest drawing level below or 2 x
+    ATR(14) at the last bar, target at the nearest level above or 2R;
+    `planFigures` checks it) and saves through `createChartPlanAction`.
+  - **Plan lines** (`components/plan-lines.ts::PlanLinesController`): the
+    ticker's open and active paper/imported plans as price lines. Drafts are
+    dashed and draggable (capture listeners on `root` stop the chart
+    panning); a release saves the new prices 600 ms later
+    (`updatePlanLinesAction`), a refused save (409, the lock) snaps back.
+    Locked or written-after-entry plans are dotted, titled "(Locked)", and a
+    press says why. Tests: `tests/unit/a67-chart-tools.test.tsx`,
+    `tests/unit/a67-chart-menu.test.tsx` (the stub's price lines move and
+    remove, and `panChart()` fires range listeners); e2e
+    `tests/e2e/chart-tools.spec.ts`.
+- **Chart workspace (A6.8, M2.10).** `/charts` (protected in `proxy.ts`,
+  Workbench nav "Charts", icon `LayoutGrid`): a grid of one, two (`2v` side
+  by side, `2h` stacked) or four `PriceChart`s, each with its own symbol,
+  interval (daily, weekly, monthly or intraday; an intraday interval the
+  symbol has no bars for draws daily with `pane-note`) and template (or the
+  default look: candles, linear, SMA 50). **State is the URL**
+  (`lib/chart-layouts.ts`): `grid`, then per pane, comma-separated, `s`
+  symbols, `i` intervals, `t` template ids, `g` link colours; `wl` the
+  watchlist's colour; `layout` the saved layout it came from. `?layout=<id>`
+  alone opens a saved layout. Every control `router.push`es a new URL and the
+  server page reads the panes again (`lib/chart-layouts-server.ts::
+  loadPaneView`, the stock page's bar and indicator rules); no client store
+  (Zustand was not added). **Linked groups:** the seven watchlist colours
+  (`--list-<name>`); a pane in a colour follows the last symbol chosen in it
+  (`choosePaneSymbol`), a pane joining a colour takes its symbol
+  (`choosePaneLink`), and panes of one colour always share a symbol (the API
+  refuses otherwise). The default watchlist sits below the grid as a linked
+  widget: in a colour, a click moves that colour's panes and the current
+  symbol is `aria-pressed`; unlinked, rows open the stock page. The screener
+  and the forensics and options drawers do not follow colours yet.
+  **Crosshair:** panes on the same symbol share the crosshair time; the
+  workspace keeps `{source, symbol, time}` and passes `crosshairTime` to the
+  others (`PriceChart`'s A6.8 props `crosshairTime` / `onCrosshairTime`; only
+  pointer moves are sent, `param.sourceEvent`), placed at each pane's
+  interval by `lib/chart-sync.ts::syncedBarIndex` (intraday and daily: the
+  bar starting at or before; weekly and monthly: the period whose last
+  session is on or after the day). **Phones:** below `md` the grid is tabs
+  (`role="tablist"`, arrow keys, Home/End) and the other panes are
+  `max-md:hidden`. **Templates:** "Save as template" on the stock page
+  (signed in, `components/chart-layouts/save-template-button.tsx`) saves the
+  chart's type, scale and indicators with the pane heights the chart
+  remembers (`readPaneLayout`, sent within 48-1200 px); a pane's template is
+  applied through `PriceChart`'s `paneHeights` prop (read at mount, so the
+  chart is keyed by symbol, interval and template). States: `layouts-empty`
+  ("No saved layouts yet."), `layouts-error`, `loading.tsx`, a pane's
+  `pane-missing` (a symbol StockViz doesn't have, controls kept),
+  `pane-error` (with Try again) and `pane-empty`. Server actions in
+  `app/(product)/(authed)/charts/actions.ts`, fetchers in
+  `lib/api/chart-layouts.ts`. Tests: `tests/unit/a68-chart-layouts.test.tsx`,
+  `tests/e2e/chart-layouts.spec.ts` (signs up from its own
+  `x-forwarded-for`, since the other specs use the signup cap's five).
 - Backtest results, saved runs (list and detail) show the run's `universe`
   stamp through `components/universe-note.tsx` (A1.4a): one neutral line,
   "Pinned symbol list, not point in time: survivorship-biased." plus the
@@ -750,7 +837,7 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   default; `replayIndicatorsHref` keeps the other params) above
   `ChartWorkbench` with `actions` (the session's own drawing actions,
   `replay/[sessionId]/drawing-actions.ts`) and `kinds`
-  (`REPLAY_DRAWING_KINDS`: no anchored VWAP). `ChartWorkbench` takes
+  (`REPLAY_DRAWING_KINDS`: no anchored VWAP and, A6.7, no volume profile). `ChartWorkbench` takes
   `actions`/`kinds` (default: the live `/v1/drawings` actions, every kind);
   `DrawingToolbar` and `DrawingsList` take `kinds`. Indicators come from
   `getReplayIndicators` (`/v1/replay/sessions/{id}/indicators`, cut at the
@@ -1100,8 +1187,42 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   sets `experimental.serverActions.bodySizeLimit: "2200kb"` (2 MiB plus
   multipart overhead; the API still refuses past 2 MiB). `BookStateNotice`
   links "Import Tradebook (CSV)" on an imported book that is not archived;
-  Settings → Books creates imported books in INR. Nothing logs the file.
+  Settings → Books creates imported books in INR (A6.11: or USD for an Other
+  broker). Nothing logs the file.
   Tests: `lib/tradebook-import.test.ts`.
+- **Broker maps and baskets (A6.11, M10.2, M10.5).** The import page reads
+  any imported INR book's file with a **Column Map** select ("Detect From
+  Header Row", each broker map marked Unconfirmed, the user's saved maps as
+  `saved:<id>`); a USD book (broker Other) uses saved maps only. The
+  "Columns Matched" summary names the map used, and `map-used` inside it says
+  its status, how it was chosen and its source. "Map Columns Yourself"
+  (`column-mapper`) opens on a preview with missing columns (or at once in a
+  USD book without a map): a select per field over the file's headers (read
+  in the browser by `headerRowFromText`, or the preview's `headers`), first
+  guess `guessMapping`, checks `mappingProblem`, the date order, a default
+  exchange (India), a name; **Save Map and Preview** posts
+  `saveImportMapAction` then previews with it. "Your Column Maps" lists and
+  deletes them. Times and money follow the book's market (`marketZone`, IST or
+  ET; INR or USD); US rows show no estimated charges. Settings → Books asks
+  the broker for an imported book (`IMPORT_BROKERS`); an Indian broker's book
+  is INR, Other takes the chosen currency (`importedBookCurrency`). Helpers in
+  `lib/tradebook-import.ts` (`importQuery`, `brokerLabel`, ...).
+  **Baskets:** `lib/basket.ts` (pure): `basketFromPlan` (entry limit or
+  market buy, SL-M stop, limit target at the planned size; none without a
+  size), `basketFromRebalance` (market orders, sells first),
+  `basketFromScreen` (a market buy of N shares each), `basketCsv` /
+  `basketJson` (symbol, exchange, side, quantity, order_type, price, trigger),
+  `kiteBasketData` (Kite's item keys, CNC, NSE/BSE only, a plan's entry only).
+  `components/basket-export.tsx` (`basket-export`): Download CSV, Download
+  JSON, and only when `getKiteHandoff()` (`lib/api/brokers.ts`,
+  `/v1/broker/basket`) is not null, Kite's hidden form (`basket-kite-form`,
+  `api_key` + `data`, POST to `KITE_BASKET_URL`, new tab) behind "Review in
+  Kite". Shown on open plans (Journal tab), under the rebalance preview
+  (Analytics tab) and as "Basket From This Screen" (`screen-basket`, signed
+  in) on the screener. **StockViz never places an order;** nothing calls Kite
+  in tests. Tests: `tests/unit/a611-basket-lib.test.ts`,
+  `tests/unit/a611-basket.test.tsx`, `tests/unit/a611-import-maps.test.ts`,
+  `tests/e2e/imports.spec.ts`.
 - **Trade plans (A5.4, M10.3).** Types and the ticket helpers are
   client-safe in `lib/plans.ts` (`planFigures` risk/reward/R:R and the first
   problem, `planFormFields` / `planFromForm` (the `plan_*` hidden fields a

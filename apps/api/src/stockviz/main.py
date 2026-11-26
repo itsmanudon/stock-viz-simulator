@@ -20,6 +20,8 @@ from stockviz.routers import (
     bars,
     books,
     brokers,
+    chart_layouts,
+    chart_templates,
     checklist,
     column_sets,
     drawings,
@@ -30,6 +32,7 @@ from stockviz.routers import (
     fees,
     fundamentals,
     health,
+    import_maps,
     imports,
     indicators,
     journal,
@@ -58,6 +61,7 @@ from stockviz.routers import (
     symbols,
     theses,
     trading,
+    volume_profile,
     watchlist,
     watchlists,
 )
@@ -165,16 +169,20 @@ def create_app() -> FastAPI:
     app.include_router(checklist.router)
     app.include_router(drawings.router)
     app.include_router(avwap.router)
+    app.include_router(volume_profile.router)
     app.include_router(events.router)
     app.include_router(strength.router)
     app.include_router(regime.router)
     app.include_router(trading.router)
     app.include_router(books.router)
     app.include_router(imports.router)
+    app.include_router(import_maps.router)
     app.include_router(alerts.router)
     app.include_router(watchlist.router)
     app.include_router(watchlists.router)
     app.include_router(column_sets.router)
+    app.include_router(chart_templates.router)
+    app.include_router(chart_layouts.router)
     app.include_router(orders.router)
     app.include_router(profile.router)
     app.include_router(options.router)

@@ -60,6 +60,7 @@ describe("route → workspace map", () => {
     ["/stocks/RELIANCE.NS?tf=1Y", "workbench", null],
     ["/compare?tickers=AAPL", "workbench", "/compare"],
     ["/setups", "workbench", "/setups"],
+    ["/charts?grid=4&s=AAPL,AAPL,MSFT,TSLA", "workbench", "/charts"],
     ["/checklist", "workbench", "/checklist"],
     ["/recommendations", "workbench", "/checklist"],
     ["/event-study", "workbench", "/event-study"],

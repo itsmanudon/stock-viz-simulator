@@ -33,7 +33,8 @@ src/stockviz/
                     trade_plan — A5.4 TradePlan (absorbed DrillPlan and
                     ReplayJournal, both archived), journal_entry — A5.5
                     JournalEntry / JournalEntryFill (round trips),
-                    intraday — A6.1 IntradayBar / IntradayFile)
+                    intraday — A6.1 IntradayBar / IntradayFile,
+                    chart_layout — A6.8 ChartTemplate / ChartLayout)
   (services/feeds/  A6.3: FeedProvider/BrokerProvider, SimulatedFeed, Alpaca,
                     Tiingo, Massive, Finnhub stub, intraday-backfill, feed status)
   (services/stream/ A6.5: the stream worker: minute bars from ticks, NOTIFY and
@@ -56,13 +57,14 @@ src/stockviz/
                     (display currency), earnings, replay
                     (isolated ReplaySession), rules / setups / theses
                     (A2.2), notification_channels (A2.3), drawings
-                    (A3.2), avwap (A3.3), events, strength (RS
+                    (A3.2), avwap (A3.3), volume_profile (A6.7), events, strength (RS
                     percentile, delivery) and regime (A3.5), drills
                     (A4.7), books (A5.1), plans (A5.4), journal_entries (A5.5:
                     `/v1/journal/entries`), journal_stats (A5.6:
                     `/v1/journal/stats`), brokers (A5.7: broker
                     status), imports (A5.3: `/v1/books/{id}/imports`,
-                    opening lots), health
+                    opening lots), chart_templates + chart_layouts
+                    (A6.8: the chart workspace), health
                     (`GET /live` liveness, `GET /health` readiness + DB)
   services/
     ingest/         External-API fetchers (yfinance primary, Alpha Vantage fallback);
@@ -166,6 +168,8 @@ src/stockviz/
                     A3.1: raw.py (`eod_raw` bars for `adjustment=raw`, `has_raw`)
                     A6.2: intraday.py (1m-60m from `intraday_bars`, resampled
                     within sessions, closed-bar partial rule, feeds and badges)
+                    A6.7: volume_profile.py (bins, POC, value area; minutes
+                    or an EOD approximation)
     markets/        calendar.py — exchange calendars and completed sessions (Phase 4.1;
                     A6.1: session_minutes, open/close in UTC with special hours);
                     india_holidays.py — the maintained NSE/BSE holiday table (A0;
@@ -1010,7 +1014,8 @@ numbers; never replace them with real responses).
   a network or rate error (at least its `retry_after`), resets after an
   item, raises an auth/provider error at once. `BrokerProvider`: `status`,
   `login_url`, `import_fills`, `export_basket`, each a `BrokerAnswer(supported,
-  reason)`; `StubBroker` (Zerodha) answers "not supported" until A6.11.
+  reason)`; `StubBroker` (Zerodha) answers "not supported": A6.11 built the
+  CSV maps and the browser basket handoff instead (no server order, no login).
   `registry.py`: `build_feed(name, settings)`, `FEED_NAMES`,
   `KEY_ENV_VARS`, `BROKERS`. `us_symbol` refuses NSE/BSE, `^` indices and
   other venues (US feeds never get an Indian symbol); Alpaca and Massive
@@ -1199,6 +1204,40 @@ numbers; never replace them with real responses).
   5m January 2026 minutes (rolled back): 25 replayed firings, the same bars
   as the stored path and the backtest.
 
+
+**Volume profile (A6.7, M2.9).** `services/bars/volume_profile.py`,
+`routers/volume_profile.py`; design: workspace `docs/a6-design-note.md`
+("Volume profile"). Migration `d4a7f9b1c3e5` (additive): `ck_drawings_kind`
+adds `volume_profile`; the downgrade refuses while one is stored.
+
+- **Route.** `GET /v1/symbols/{t}/volume-profile?from&to&feed&bins&value_area`
+  (public, 60/min like `/bars`). `from`/`to` instants (naive = UTC; default
+  the year to now), `feed` a stored intraday feed (default `FEED_RANK`'s
+  best: SIP first), `bins` 4-200 (24), `value_area` 0.05-1 (0.7). Out:
+  `VolumeProfileOut` (`bins` low to high with spread volume, `poc` the POC
+  bin's middle, `poc_index`, `vah`/`val`, `source` minutes | daily, `feed`,
+  `badges`, `note`). 404 unknown symbol or no bars; 409 with the reason for
+  an index (`instruments.asset_type = 'index'`: its volume is stored 0) or
+  a range with no volume; 422 `from` after `to`.
+- **Bars.** 1-minute `intraday_bars` on the chosen feed when every daily
+  session in the range has minutes ("From minute bars", plus "IEX volume
+  only" on `iex`); otherwise the stored daily bars ("EOD approximation").
+  More than 300,000 minutes also falls back to daily, with its own note.
+- **Maths** (`build_profile`, pure): each bar's volume spread evenly over
+  its high-low range (a zero-range bar's volume in the bin holding its
+  price; a price on an edge belongs to the bin above, the highest high to
+  the top bin). POC: the most volume; a tie goes to the bin nearest the
+  middle, then the lower. Value area: from the POC, add the side whose next
+  bin has more volume (a tie adds the bin above) until >= `value_area` of
+  the total. The hand calculation is in the test.
+- **The drawing kind.** `volume_profile`: two points `{ts: session, price:
+  null}` (`DATE_ONLY_KINDS` with `avwap`), any order, inside the stored daily
+  bars; no label needed. The DSL does not read it. Replay refuses it (422:
+  it reads its sessions' later bars).
+- `SymbolDetailOut.is_index` tells the chart not to offer a profile.
+- Tests: `test_a67_volume_profile.py` (the hand calculation, ties, the
+  route's minutes/daily/IEX/SIP/index/zero-volume cases, the drawing kind),
+  `test_a67_volume_profile_migration.py` (PostgreSQL up/down/up).
 
 **Raw prices on the bars route (A3.1, M2.3).** `GET /v1/symbols/{t}/bars`
 takes `adjustment=adjusted|raw` (default `adjusted`, the split-adjusted
@@ -1731,6 +1770,79 @@ estimated `fees`/`fee_source`/`fee_lines`, `basis_uncertain`; unique
   batch delete, uncovered sells still waiting), `test_imports_migration.py`
   (PostgreSQL up/down/up).
 
+**Broker maps and the basket handoff (A6.11, M10.2, M10.5).** Migration
+`d1a6b11c2e40` (down `c8d3e5f7a9b2`; additive; the downgrade refuses while a
+book or batch names a new broker): `portfolios.broker` and
+`import_batches.broker` take `zerodha|dhan|fyers|upstox|angelone|groww|other`
+(`models/portfolio.IMPORT_BROKERS`, `BROKER_SQL`), and `import_column_maps`
+(user, unique name, `mapping` field -> header name, `default_exchange`
+NSE|BSE|null, `date_order` auto|day_first|month_first; header names only,
+never a cell; model `models/import_column_map.py`, 20 per user).
+
+- **Maps** (`services/imports/columns.py`): `ColumnMap` (name, broker, label,
+  status, market, fields, note, `source` with the read date, detection
+  `signature`, `how_to`) in `MAPS`: `zerodha_tradebook_v1`,
+  `dhan_tradebook_v1` (DhanHQ v2 trade-history API names), `fyers_tradebook_v1`
+  (Fyers' support article's column list), `upstox_tradebook_v1`,
+  `angelone_tradebook_v1`, `groww_orders_v1` (no public header row: common
+  spellings), **every one unconfirmed**; the module docstring cites each
+  source. `FieldSpec.required_unless`: a trade date is required unless an
+  execution time is present. `detect_map(headers)`: candidates are maps with
+  every required column; most signature headers, then most matched fields,
+  then registry order (Zerodha first) wins; no candidate is `fallback` (the
+  book's broker's map when it has one, so missing columns are named against
+  it). `custom_map(id, name, mapping, ...)` builds a user's map (`custom_<id>`,
+  status `custom`, market from the book).
+- **Parse** (`parse.parse_tradebook(body, today, column_map, market)`): a
+  compound exchange (`NSE_EQ`, `NSE_FNO`, `MCX_COMM`) splits into exchange
+  and segment; a `NSE:SBIN-EQ` symbol gives the exchange and series; else the
+  map's default exchange; else the row is rejected ("exchange is missing").
+  No trade-id column (Fyers, Angel One, Groww) or an empty optional cell: a
+  derived id `sv-` + 24 hex of SHA-256 over the parsed fields and the row's
+  occurrence among identical rows (`derive_trade_id`), so the same file
+  dedupes. An `order_status` column leaves out non-executed rows (problem kind
+  `not_executed`, counted `counts.not_executed`, in the batch's
+  `rows_rejected`). F&O, option, currency and commodity rows stay `segment`
+  problems (A7). **US** (`market = "us"`, a USD book): any US exchange name
+  or none is stored as `US` (venue `US`, ticker = symbol, `BRK.B` -> `BRK-B`),
+  times America/New_York, fractional quantities kept, OCC-style option
+  symbols skipped, NSE/BSE rejected; no fee schedule, so fees 0 and
+  `fee_source` null (`US_FEES_NOTE`), and no intraday-short rule.
+- **Routes:** preview and commit take `map` (`auto` default, or a built-in
+  name; unknown 422) or `custom_map=<id>` (another user's 404). A broker map
+  into a USD book (or a USD-only map into INR) is 409 (`check_market`). Preview
+  adds `format_label`, `format_source`, `broker`, `detected`
+  (header|chosen|saved|fallback), `alternatives`, `market`, `headers` (the
+  header row, names only, 60 max). `GET .../imports` adds `market`,
+  `currency`, `maps` (every built-in map with its columns, note, source and
+  how-to), `saved_maps`, `custom_fields`. Batches carry `broker`. Dedupe is by
+  exchange and trade id across brokers. `routers/import_maps.py`:
+  `GET|POST /v1/import-maps` (201; replaces the caller's map of that name; 422
+  for an unmapped required field or a header used twice; 409 past 20),
+  `DELETE /v1/import-maps/{id}` (204). Sentry scrubs `/import-maps` too.
+  Opening lots in a USD book take a US symbol (an Indian suffix is 422), dated
+  at the New York day start. Books: `BookIn.broker` takes the new brokers.
+- **Basket handoff (M10.5):** `GET /v1/broker/basket` (authed) ->
+  `{kite_basket, kite_api_key, kite_basket_url, exports: ["csv", "json"]}`.
+  `kite_basket` is `KITE_API_KEY` set (the secret is never returned);
+  `kite_api_key` is the app's public key only then, because Kite's documented
+  offsite basket form ("Offsite order execution", read 26 Nov 2026) carries it
+  in the user's browser. The browser POSTs the form to
+  `https://kite.zerodha.com/connect/basket`; **the API never calls Kite for
+  it and StockViz never places an order.** `tests/test_no_outbound_orders.py`
+  scans every file under `src/` (docstrings skipped) for a broker host with an
+  order or basket path (the one allowed string is the basket URL in
+  `routers/brokers.py`), a broker trading SDK import or an order-method call,
+  after checking itself on planted lines.
+- Tests: `test_a611_broker_maps.py` (detection and a synthetic row per map,
+  every required column named when missing, Dhan compound segments, Fyers
+  prefix and derived ids deduping, Groww not executed, market mismatch 409,
+  saved-map validation and isolation, a US broker into a USD book with
+  fractional and share-class symbols, options skipped, no fees, US opening
+  lots, no cell in logs, the basket endpoint with and without the key, the new
+  book brokers), `test_a611_maps_migration.py` (PostgreSQL up/down/up),
+  `test_no_outbound_orders.py`.
+
 **Trade plans (A5.4, M10.3).** Migration `b5d4a7e1c902`: `trade_plans`
 (`models/trade_plan.py`): user, `portfolio_id` (paper, imported; cascade),
 `replay_session_id` (replay, drill; unique, cascade), `instrument_id`,
@@ -2240,6 +2352,39 @@ answers 401/403, 0 otherwise: an unreachable or sleeping web holds no cache.
 `WatchlistItemOut.closes` holds the last 30 daily closes, oldest first, read
 for every row in one `recent_bars` query; the list and add endpoints both
 use `_items_out`.
+
+**Chart templates and layouts (A6.8, M2.10).** Migration `d4a8f6c2b1e9`
+(additive, after `c8d3e5f7a9b2`): `chart_templates` (user, name, `chart_type`
+and `scale` with check constraints, `indicators` JSON list, `pane_heights`
+JSON object) and `chart_layouts` (user, name, `grid` `1`/`2v`/`2h`/`4` with a
+check constraint, `panes` JSON list of `{symbol, interval, template_id,
+link}`), both with per-user unique names. Tuples in `models/chart_layout.py`;
+the schema literals (`ChartTypeKey`, `ChartScaleKey`, `ChartIntervalKey`,
+`ChartGridKey`, `LinkColourKey`) must equal them (a test checks). Rules in
+`services/chart_templates.py` and `services/chart_layouts.py`:
+
+- **Caps.** 50 templates and 50 layouts a user (`MAX_TEMPLATES_PER_USER`,
+  `MAX_LAYOUTS_PER_USER`, 409); names 1-64 characters, unique per user
+  ignoring case (409).
+- **Templates.** Indicator keys must parse with the registry grammar
+  (`engine.parse`: a known study, at most its parameter count, each value in
+  bounds; 422), stored lower-cased, each once, at most 16. Pane heights by
+  pane kind (`^[a-z][a-z0-9_]{0,31}$`), whole pixels 48-1200, at most 16
+  (422). Deleting a template clears it from the owner's layouts.
+- **Layouts.** Exactly the grid's pane count (422). Each symbol must be a
+  stored `Symbol` (upper-cased; 422), each template the user's own (422),
+  intervals the bars route's (`1d 1wk 1mo 1m 5m 15m 30m 60m`). Link colours
+  are the watchlist tags; **panes of one colour share one symbol** (422),
+  since a pane in a colour follows the last symbol chosen in it. Symbols are
+  tickers, not instrument ids: a symbol removed later reads as missing in the
+  web. A read drops a template id the user no longer has.
+- **API** (authed; another user's row is 404). `/v1/chart-templates`: `GET`,
+  `POST {name, chart_type, scale, indicators, pane_heights}` (201),
+  `PATCH /{id}`, `DELETE /{id}` (204). `/v1/chart-layouts`: `GET`,
+  `GET /{id}`, `POST {name, grid, panes}` (201), `PATCH /{id}` `{name?,
+  grid?, panes?}` (a grid change sends its panes), `DELETE /{id}` (204).
+- **Tests:** `test_chart_layouts_router.py`, `test_chart_layouts_service.py`,
+  `test_a68_chart_layouts_migration.py` (PostgreSQL up/down/up).
 
 **Many watchlists, notes, tags, column sets (A2.5, M4.6).** Migration
 `5a167f08f3f7` (additive): `watchlists` gains `colour` (palette

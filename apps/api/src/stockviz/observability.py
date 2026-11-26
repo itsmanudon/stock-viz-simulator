@@ -14,7 +14,7 @@ from stockviz.settings import Settings
 logger = logging.getLogger(__name__)
 
 
-PRIVATE_PATHS = ("/imports", "/opening-lots")
+PRIVATE_PATHS = ("/imports", "/opening-lots", "/import-maps")
 """A5.3: routes whose bodies are personal financial records."""
 
 

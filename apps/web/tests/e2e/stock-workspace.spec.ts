@@ -1,6 +1,8 @@
 import type { Page } from "@playwright/test";
 import { expect, test } from "@playwright/test";
 
+import { rightClickChart } from "./chart-helpers";
+
 test.describe.configure({ retries: 0 });
 
 async function signUp(page: Page, email: string): Promise<void> {
@@ -158,6 +160,26 @@ test("authenticated stock workspace exposes account-aware actions", async ({ pag
   await expect(weekly.getByTestId("drawing-item")).toHaveCount(1);
   await expect(weekly.getByTestId("drawing-item").first()).toHaveAttribute("data-kind", "hline");
   await expect(main.getByTestId("price-chart").first()).toHaveAttribute("data-drawing-count", "1");
+
+  // A6.7: the price pane's context menu sets a price alert and plans a trade.
+  await page.goto("/stocks/AAPL");
+  await rightClickChart(page);
+  const chartMenu = page.getByTestId("chart-context-menu");
+  await expect(chartMenu.getByRole("menuitem")).toHaveCount(4);
+  await chartMenu.getByRole("menuitem", { name: /Alert When Price Crosses Here/ }).click();
+  const toolsMessage = main.getByTestId("chart-tools-message");
+  await expect(toolsMessage).toContainText(/Alert set\. When AAPL closes (above|below) \d/);
+  await rightClickChart(page);
+  await page
+    .getByTestId("chart-context-menu")
+    .getByRole("menuitem", { name: /Plan a Trade Here/ })
+    .click();
+  const editor = main.getByTestId("chart-plan-editor");
+  await expect(editor.getByLabel("Entry")).toHaveValue(/^\d+\.\d{2}$/);
+  await expect(editor.getByLabel("Stop")).toHaveValue(/^\d+\.\d{2}$/);
+  await editor.getByLabel("Size").fill("5");
+  await editor.getByRole("button", { name: "Save Plan" }).click();
+  await expect(toolsMessage).toContainText("Plan saved as a draft");
 });
 
 test("the statistics strip shows every label and price in full (audit D1)", async ({ page }) => {

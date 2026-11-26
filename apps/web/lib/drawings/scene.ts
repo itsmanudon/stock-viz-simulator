@@ -253,9 +253,75 @@ export function avwapShapes(d: SceneDrawing, ctx: SceneContext, selected: boolea
   return shapes;
 }
 
+/**
+ * A6.7: a fixed-range volume profile's bracket: a dashed edge at each anchor
+ * session (its first bar's open to the last session's last bar) and a faint
+ * fill between. The profile itself is drawn by its own primitive
+ * (`volume-profile-primitive.ts`), from the API.
+ */
+export function volumeProfileShapes(
+  d: SceneDrawing,
+  ctx: SceneContext,
+  selected: boolean,
+): Shape[] {
+  const xs: number[] = [];
+  for (const p of d.points) {
+    if (!p.ts) continue;
+    const logical = anchorLogical(p.ts, ctx.interval, ctx.barDates);
+    const x = logical === null ? null : ctx.xOfLogical(logical);
+    if (x !== null) xs.push(x);
+  }
+  if (xs.length === 0) return [];
+  const colour = ctx.colours.drawing[d.style.colour] ?? ctx.colours.drawing.aqua;
+  const id = d.id;
+  const shapes: Shape[] = xs.map((x) =>
+    line(id, { x, y: 0 }, { x, y: ctx.height }, colour, d.style.width, "dashed"),
+  );
+  if (xs.length === 2) {
+    const [left, right] = [Math.min(...xs), Math.max(...xs)];
+    shapes.unshift({
+      type: "poly",
+      id,
+      points: [
+        [left, 0],
+        [right, 0],
+        [right, ctx.height],
+        [left, ctx.height],
+      ],
+      fill: colour,
+      opacity: Math.min(d.style.fill_opacity, 0.06),
+    });
+  }
+  const name = d.label || "Volume profile";
+  shapes.push({
+    type: "text",
+    id,
+    y: 4,
+    text: name,
+    colour,
+    bg: ctx.colours.labelBg,
+    ...fitLabel(Math.min(...xs) + 4, name, "left", ctx.width),
+  });
+  if (selected) {
+    xs.forEach((x, index) => {
+      shapes.push({
+        type: "handle",
+        id,
+        index,
+        x,
+        y: ctx.height / 2,
+        colour,
+        ring: ctx.colours.text,
+      });
+    });
+  }
+  return shapes;
+}
+
 /** Shapes for one drawing. `selected` adds its anchor handles. */
 export function drawingShapes(d: SceneDrawing, ctx: SceneContext, selected: boolean): Shape[] {
   if (d.kind === "avwap") return avwapShapes(d, ctx, selected);
+  if (d.kind === "volume_profile") return volumeProfileShapes(d, ctx, selected);
   const p = resolvePoints(d.points, ctx);
   if (!p || p.length === 0) return [];
   const colour = ctx.colours.drawing[d.style.colour] ?? ctx.colours.drawing.aqua;
