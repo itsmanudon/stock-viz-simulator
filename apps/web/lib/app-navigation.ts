@@ -96,6 +96,13 @@ export const WORKSPACES: readonly Workspace[] = [
     label: "Workbench",
     description: "One stock at a time: the chart, checks and comparisons",
     items: [
+      {
+        label: "Charts",
+        href: "/charts",
+        matches: ["/charts"],
+        signedInOnly: true,
+        keywords: ["layouts", "grid", "multi-chart", "templates", "linked"],
+      },
       { label: "Setups", href: "/setups", matches: ["/setups"], keywords: ["patterns"] },
       {
         label: "Checklist",
