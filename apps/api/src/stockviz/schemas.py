@@ -5171,3 +5171,38 @@ class RotationOut(BaseModel):
     note: str
     method: dict[str, str]
     sectors: list[RotationSectorOut]
+
+
+class ForensicTestOut(BaseModel):
+    key: str
+    label: str
+    result: Literal["pass", "fail", "unknown"]
+    detail: str
+
+
+class ForensicScoreOut(BaseModel):
+    value: float | None = None
+    zone: str | None = None
+    missing: list[str] = []
+    parts: dict[str, float] = {}
+
+
+class ForensicsOut(BaseModel):
+    """A7.3 (M5.1, M5.2): the forensic scorecard on annual facts as known on ``as_of``."""
+
+    ticker: str
+    as_of: date
+    sector: str | None = None
+    financial: bool
+    financial_note: str | None = None
+    fiscal_year_end: date | None = None
+    previous_year_end: date | None = None
+    currency: str | None = None
+    piotroski_score: int | None = None
+    piotroski_known: int | None = None
+    piotroski: list[ForensicTestOut] = []
+    altman_z: ForensicScoreOut | None = None
+    beneish_m: ForensicScoreOut | None = None
+    cfo_to_pat: ForensicScoreOut | None = None
+    reason: str | None = None
+    method: dict[str, str]

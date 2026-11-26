@@ -28,3 +28,10 @@ export function getValuationHistory(ticker: string, metric = "pe"): Promise<Valu
     CACHE,
   );
 }
+
+export type Forensics = components["schemas"]["ForensicsOut"];
+
+/** A7.3 (M5.1, M5.2): Piotroski, Altman Z'' and Beneish on the latest known fiscal years. */
+export function getForensics(ticker: string): Promise<Forensics> {
+  return apiGet<Forensics>(`/v1/symbols/${encodeURIComponent(ticker)}/forensics`, CACHE);
+}

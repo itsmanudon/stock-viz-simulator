@@ -1285,6 +1285,21 @@ weeks earlier; quadrants Leading / Weakening / Lagging / Improving. Openly
 documented, not RRG®. Two years of bars load. Web: an SVG map per market on
 `/markets`. Tests: `tests/test_a72_sector_rotation.py`.
 
+**Forensic scorecard (A7.3, M5.1, M5.2).** `GET /v1/symbols/{t}/forensics?as_of=`
+(`routers/fundamentals.py`, public, 60/min) -> `ForensicsOut`: the three latest
+fiscal years' annual flows and year-end instants as known on `as_of`
+(`facts_as_of`), scored by `services/fundamentals/forensics.py` (pure):
+Piotroski F-score (nine tests, `score` of `known`; total debt stands in for
+long-term debt, labelled), Altman Z'' emerging-market form (3.25 + 6.56 X1 +
+3.26 X2 + 6.72 X3 + 1.05 X4; safe > 5.85, distress < 4.35), Beneish M (eight
+variables, flagged > -2.22) and CFO/PAT; missing inputs are named, never
+guessed. A `Financial Services` sector symbol gets `financial: true` and no
+models. Six concepts were added (additive, mapping still v1): `sga`,
+`depreciation`, `retained_earnings`, `receivables`, `net_ppe`,
+`long_term_debt` (yfinance row names and EDGAR tags in `concepts.py`; the
+Friday fetch writes them from its next run). Web: the forensic scorecard
+card on the stock page's Financials tab. Tests: `tests/test_a73_forensics.py`.
+
 **Raw prices on the bars route (A3.1, M2.3).** `GET /v1/symbols/{t}/bars`
 takes `adjustment=adjusted|raw` (default `adjusted`, the split-adjusted
 `price_bars`). `raw` reads `eod_raw` (A1.1) through `services/bars/raw.py`:

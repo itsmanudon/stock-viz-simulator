@@ -613,6 +613,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/symbols/{ticker}/forensics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Forensics
+         * @description A7.3 (M5.1, M5.2): Piotroski, Altman Z'' and Beneish on the latest fiscal
+         *     years known on ``as_of``; financial companies get none of them.
+         */
+        get: operations["get_forensics_v1_symbols__ticker__forensics_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/indicators/catalog": {
         parameters: {
             query?: never;
@@ -5794,6 +5815,82 @@ export interface components {
              * @default false
              */
             closes_entry: boolean;
+        };
+        /** ForensicScoreOut */
+        ForensicScoreOut: {
+            /** Value */
+            value?: number | null;
+            /** Zone */
+            zone?: string | null;
+            /**
+             * Missing
+             * @default []
+             */
+            missing: string[];
+            /**
+             * Parts
+             * @default {}
+             */
+            parts: {
+                [key: string]: number;
+            };
+        };
+        /** ForensicTestOut */
+        ForensicTestOut: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /**
+             * Result
+             * @enum {string}
+             */
+            result: "pass" | "fail" | "unknown";
+            /** Detail */
+            detail: string;
+        };
+        /**
+         * ForensicsOut
+         * @description A7.3 (M5.1, M5.2): the forensic scorecard on annual facts as known on ``as_of``.
+         */
+        ForensicsOut: {
+            /** Ticker */
+            ticker: string;
+            /**
+             * As Of
+             * Format: date
+             */
+            as_of: string;
+            /** Sector */
+            sector?: string | null;
+            /** Financial */
+            financial: boolean;
+            /** Financial Note */
+            financial_note?: string | null;
+            /** Fiscal Year End */
+            fiscal_year_end?: string | null;
+            /** Previous Year End */
+            previous_year_end?: string | null;
+            /** Currency */
+            currency?: string | null;
+            /** Piotroski Score */
+            piotroski_score?: number | null;
+            /** Piotroski Known */
+            piotroski_known?: number | null;
+            /**
+             * Piotroski
+             * @default []
+             */
+            piotroski: components["schemas"]["ForensicTestOut"][];
+            altman_z?: components["schemas"]["ForensicScoreOut"] | null;
+            beneish_m?: components["schemas"]["ForensicScoreOut"] | null;
+            cfo_to_pat?: components["schemas"]["ForensicScoreOut"] | null;
+            /** Reason */
+            reason?: string | null;
+            /** Method */
+            method: {
+                [key: string]: string;
+            };
         };
         /** FundamentalRowOut */
         FundamentalRowOut: {
@@ -14027,6 +14124,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ValuationHistoryOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_forensics_v1_symbols__ticker__forensics_get: {
+        parameters: {
+            query?: {
+                as_of?: string | null;
+            };
+            header?: never;
+            path: {
+                ticker: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForensicsOut"];
                 };
             };
             /** @description Validation Error */
