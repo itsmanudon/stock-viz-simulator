@@ -30,6 +30,10 @@ ALLOWED: dict[str, tuple[int, str]] = {
         1,
         "chart fill markers join across all the caller's books (A3.5; book filter optional)",
     ),
+    "services/brokers/__init__.py": (
+        1,
+        "broker status counts the caller's imported books for a broker (A5.7; no book chosen)",
+    ),
 }
 
 
