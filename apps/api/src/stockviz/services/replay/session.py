@@ -24,6 +24,7 @@ from stockviz.models import (
     Symbol,
 )
 from stockviz.services.fee_view import resolve_fee_schedule
+from stockviz.services.plans import end_session_plan
 from stockviz.services.replay.errors import (
     ReplayClosed,
     ReplayCompleted,
@@ -162,6 +163,7 @@ def _complete(session: Session, replay: ReplaySession) -> None:
     close_open_orders(session, replay=replay, status=ReplayOrderStatus.EXPIRED)
     replay.status = ReplaySessionStatus.COMPLETED.value
     replay.completed_at = utcnow()
+    end_session_plan(session, replay=replay)
     _touch(replay)
 
 
@@ -303,6 +305,7 @@ def cancel_replay_session(session: Session, *, replay: ReplaySession) -> ReplayS
         return locked
     close_open_orders(session, replay=locked, status=ReplayOrderStatus.CANCELLED)
     locked.status = ReplaySessionStatus.CANCELLED.value
+    end_session_plan(session, replay=locked)
     _touch(locked)
     session.add(locked)
     session.commit()

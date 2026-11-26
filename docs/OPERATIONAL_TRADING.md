@@ -86,6 +86,26 @@ than the session before its date is used with a warning, and a date with no
 rate is left out with a warning. Risk, stress, attribution, limits,
 dividends, options Greeks and strategies, and the journal are per book only.
 
+## Trade plans (A5.4)
+
+Both paper tickets (the stock page and `/trade`) have an optional "Plan this
+trade" section for a buy (market or limit): planned entry, stop, target
+(optional), size, a setup version, a thesis (one of your open theses on the
+symbol and/or your own words), why now and tags. The review shows the plan
+with its risk if stopped and reward : risk. Placing the order creates the
+plan and links the order: a market buy links its fill at once, a limit buy
+when it settles. **The plan locks at its first fill**: after that its entry,
+stop, target, size, setup and reasons are frozen and the API refuses edits
+with 409; notes and tags stay editable. When the book's position in the
+symbol returns to zero, its active plans close.
+
+The Portfolio **Journal** tab lists the book's plans (status filter; badges
+Locked, Written after entry, Not filled yet). "Plan an open position" writes
+a plan for a holding bought without one: its fills came first, so the plan
+is labelled **written after entry**, never shown as locked, and is left out
+of plan-adherence figures (A5.6). Plans are per book and private; API
+`/v1/plans` (see `apps/api/CLAUDE.md`).
+
 ## Currency display
 
 Operational prices for a security (close, limit/trigger, fill, alert target, estimated notional) use that symbol's ISO-4217 currency from the tracked universe. Cash, reserved cash, buying power, and total value stay in the portfolio display currency. The ledger and FX conversion are unchanged; this is formatting only. Unknown tickers fall back to USD.

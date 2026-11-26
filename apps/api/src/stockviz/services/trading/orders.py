@@ -29,6 +29,8 @@ from sqlmodel import Session, select
 from stockviz._time import utcnow
 from stockviz.models import PendingOrder, Portfolio, Symbol, TradeSide
 from stockviz.models.order import OrderStatus, OrderType
+from stockviz.models.trade_plan import TradePlan
+from stockviz.schemas import TradePlanDraft
 from stockviz.services.fee_view import fee_date
 from stockviz.services.ingest.bar_semantics import latest_completed_session
 from stockviz.services.simulation import (
@@ -57,6 +59,7 @@ from stockviz.services.trading.execute import (
     SymbolNotFound,
     TradeExecutionError,
     apply_fill,
+    order_plan,
     resolve_priced_symbol,
 )
 from stockviz.services.trading.execution_provenance import (
@@ -91,8 +94,13 @@ def create_pending_order(
     limit_price: Decimal,
     client_order_id: str | None = None,
     book_id: int | None = None,
+    trade_plan_id: int | None = None,
+    plan: TradePlanDraft | None = None,
 ) -> PendingOrder:
     """Validate and persist a new pending order in ``book_id`` (default book).
+
+    A5.4: ``trade_plan_id`` (an open or active plan in this book) or ``plan``
+    (a new one, written with the order) links the order's fill to a plan.
 
     With a ``client_order_id`` a repeat of the same order returns the first
     one, and a repeat naming a different order raises
@@ -170,6 +178,10 @@ def create_pending_order(
                 f"{reserved} are reserved by pending orders or covered calls."
             )
 
+    trade_plan = order_plan(
+        session, user_id=user_id, book=portfolio, ticker=ticker, side=side,
+        trade_plan_id=trade_plan_id, draft=plan,
+    )  # fmt: skip
     order = PendingOrder(
         portfolio_id=portfolio_id,
         ticker=ticker,
@@ -178,6 +190,7 @@ def create_pending_order(
         quantity=quantity,
         limit_price=limit_price,
         client_order_id=client_order_id,
+        trade_plan_id=trade_plan.id if trade_plan is not None else None,
     )
     session.add(order)
     session.commit()
@@ -388,6 +401,16 @@ def _require_full_pending_fill(order: PendingOrder, decision: FillDecision) -> D
     return None
 
 
+def _live_plan(session: Session, order: PendingOrder) -> TradePlan | None:
+    """A5.4: the order's plan, if it can still take a fill."""
+    if order.trade_plan_id is None:
+        return None
+    plan = session.get(TradePlan, order.trade_plan_id)
+    if plan is None or plan.status not in ("open", "active"):
+        return None
+    return plan
+
+
 def _fill(
     session: Session,
     order: PendingOrder,
@@ -428,6 +451,7 @@ def _fill(
             fx_rate=priced.fx_rate,
             exclude_order_id=order.id,
             fee_on=fee_date(order.ticker, provenance.evaluated_at),
+            trade_plan=_live_plan(session, order),
         )
     except TradeExecutionError as exc:
         _cancel(session, order, str(exc))

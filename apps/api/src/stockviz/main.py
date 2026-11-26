@@ -37,6 +37,7 @@ from stockviz.routers import (
     notifications,
     options,
     orders,
+    plans,
     profile,
     quotes,
     regime,
@@ -56,6 +57,7 @@ from stockviz.routers import (
     watchlists,
 )
 from stockviz.scheduler import build_scheduler
+from stockviz.services.plans import PlanConflict, PlanError, PlanLocked, PlanNotFound
 from stockviz.services.trading.books import BookNotFound, BookNotWritable
 from stockviz.settings import get_settings
 
@@ -96,6 +98,15 @@ async def _book_not_writable(request: Request, exc: BookNotWritable) -> JSONResp
     return JSONResponse({"detail": str(exc)}, status_code=409)
 
 
+_PLAN_STATUS = {PlanNotFound: 404, PlanError: 422, PlanConflict: 409, PlanLocked: 409}
+
+
+async def _plan_error(request: Request, exc: Exception) -> JSONResponse:
+    """A5.4: plan errors from any route (orders, trades, plans)."""
+    del request
+    return JSONResponse({"detail": str(exc)}, status_code=_PLAN_STATUS[type(exc)])
+
+
 def create_app() -> FastAPI:
     settings = get_settings()
     init_sentry(settings)
@@ -114,6 +125,8 @@ def create_app() -> FastAPI:
     app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # type: ignore[arg-type]
     app.add_exception_handler(BookNotFound, _book_not_found)  # type: ignore[arg-type]
     app.add_exception_handler(BookNotWritable, _book_not_writable)  # type: ignore[arg-type]
+    for plan_exc in _PLAN_STATUS:
+        app.add_exception_handler(plan_exc, _plan_error)
     app.add_middleware(SlowAPIMiddleware)
     app.middleware("http")(request_id_middleware)
     app.add_middleware(
@@ -169,6 +182,7 @@ def create_app() -> FastAPI:
     app.include_router(research.router)
     app.include_router(fees.router)
     app.include_router(status.router)
+    app.include_router(plans.router)
 
     return app
 

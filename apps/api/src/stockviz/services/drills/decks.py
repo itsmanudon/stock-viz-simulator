@@ -18,7 +18,6 @@ from stockviz import _time
 from stockviz.models import (
     Drill,
     DrillDeck,
-    DrillPlan,
     PriceBar,
     ReplayFill,
     ReplaySession,
@@ -26,6 +25,7 @@ from stockviz.models import (
     Symbol,
 )
 from stockviz.models.drill import MAX_DECKS_PER_USER
+from stockviz.models.trade_plan import TradePlan
 from stockviz.schemas import (
     DrillDeckIn,
     DrillDeckOut,
@@ -37,6 +37,7 @@ from stockviz.schemas import (
     DrillRuleOut,
     DrillScoreOut,
 )
+from stockviz.services import plans
 from stockviz.services.backtest.strategy_run import _resolve_rule, inline_rule_version
 from stockviz.services.checklist.evidence import WINDOW_YEARS
 from stockviz.services.drills.anonymise import Mask, label_for
@@ -312,8 +313,13 @@ def drill_session_ids(session: Session, user_id: int) -> set[int]:
     return set(rows)
 
 
-def plan_of(session: Session, replay: ReplaySession) -> DrillPlan | None:
-    return session.exec(select(DrillPlan).where(col(DrillPlan.session_id) == replay.id)).first()
+def plan_of(session: Session, replay: ReplaySession) -> TradePlan | None:
+    """The drill's plan: the session's trade plan once it has entry, stop and
+    size (A5.4; a replay journal row without them is not a drill plan)."""
+    plan = plans.session_plan(session, replay)
+    if plan is None or plan.planned_entry is None:
+        return None
+    return plan
 
 
 def _first_fill_at(session: Session, replay: ReplaySession) -> datetime | None:
@@ -322,7 +328,7 @@ def _first_fill_at(session: Session, replay: ReplaySession) -> datetime | None:
     ).one()
 
 
-def status_of(session: Session, ctx: DrillContext, plan: DrillPlan | None) -> str:
+def status_of(session: Session, ctx: DrillContext, plan: TradePlan | None) -> str:
     if ctx.drill.revealed_at is not None:
         return "revealed"
     r = ctx.replay
@@ -336,13 +342,12 @@ def status_of(session: Session, ctx: DrillContext, plan: DrillPlan | None) -> st
     return "not_started"
 
 
-def plan_out(session: Session, ctx: DrillContext, plan: DrillPlan) -> DrillPlanOut:
-    first = _first_fill_at(session, ctx.replay)
-    if first is not None and plan.locked_at is None:
-        plan.locked_at = first
-        session.add(plan)
+def plan_out(session: Session, ctx: DrillContext, plan: TradePlan) -> DrillPlanOut:
+    if plans.sync_session_lock(session, plan, ctx.replay):
         session.commit()
         session.refresh(plan)
+    assert plan.planned_entry is not None and plan.planned_stop is not None
+    assert plan.planned_size is not None
     return DrillPlanOut(
         planned_entry=plan.planned_entry,
         planned_stop=plan.planned_stop,
@@ -350,13 +355,13 @@ def plan_out(session: Session, ctx: DrillContext, plan: DrillPlan) -> DrillPlanO
         planned_risk=((plan.planned_entry - plan.planned_stop) * plan.planned_size).quantize(
             Decimal("0.000001")
         ),
-        note=plan.note,
-        locked=plan.locked_at is not None,
-        locked_at=plan.locked_at,
+        note=plan.why,
+        locked=plan.frozen,
+        locked_at=plan.locked_at or plan.first_fill_at,
     )
 
 
-def score_of(session: Session, ctx: DrillContext, plan: DrillPlan | None) -> DrillScoreOut | None:
+def score_of(session: Session, ctx: DrillContext, plan: TradePlan | None) -> DrillScoreOut | None:
     """The process score, once revealed (null before, or without a plan)."""
     if ctx.drill.revealed_at is None or plan is None:
         return None
@@ -367,7 +372,7 @@ def score_of(session: Session, ctx: DrillContext, plan: DrillPlan | None) -> Dri
     bars = [BarFacts(b.ts, b.close) for b in get_visible_replay_history(session, ctx.replay)]
     summary = compute_replay_summary(session, ctx.replay)
     return score_drill(
-        PlanFacts(plan.planned_entry, plan.planned_stop, plan.planned_size),
+        PlanFacts(plan.planned_entry, plan.planned_stop, plan.planned_size),  # pyright: ignore[reportArgumentType]
         fills,
         bars,
         total_pnl=summary.total_pnl,
@@ -449,7 +454,9 @@ def delete_deck(session: Session, deck: DrillDeck) -> None:
     """The deck, its drills, their plans and their replay sessions."""
     drills = deck_drills(session, deck)
     session_ids = [d.session_id for d in drills]
-    for plan in session.exec(select(DrillPlan).where(col(DrillPlan.session_id).in_(session_ids))):
+    for plan in session.exec(
+        select(TradePlan).where(col(TradePlan.replay_session_id).in_(session_ids))
+    ):
         session.delete(plan)
     for drill in drills:
         session.delete(drill)
@@ -458,14 +465,13 @@ def delete_deck(session: Session, deck: DrillDeck) -> None:
     session.flush()
     from stockviz.models import (
         ReplayDrawing,
-        ReplayJournal,
         ReplayOrder,
         ReplayPosition,
     )
 
     # The database cascades these on PostgreSQL; deleting them here keeps
     # SQLite (no enforced foreign keys) the same.
-    for model in (ReplayFill, ReplayOrder, ReplayPosition, ReplayDrawing, ReplayJournal):
+    for model in (ReplayFill, ReplayOrder, ReplayPosition, ReplayDrawing):
         for child in session.exec(
             select(model).where(col(model.session_id).in_(session_ids))  # pyright: ignore[reportAttributeAccessIssue]
         ):
@@ -481,30 +487,21 @@ def delete_deck(session: Session, deck: DrillDeck) -> None:
 # --- plan and reveal -----------------------------------------------------------
 
 
-def put_plan(session: Session, ctx: DrillContext, body: DrillPlanIn) -> DrillPlan:
+def put_plan(session: Session, ctx: DrillContext, body: DrillPlanIn) -> TradePlan:
+    """Write the drill's plan (A5.4: the session's ``trade_plans`` row,
+    ``source = 'drill'``). Refused after the first fill or the reveal."""
     if ctx.drill.revealed_at is not None:
         raise DrillConflict("The drill is revealed; its plan is final")
-    plan = plan_of(session, ctx.replay)
     if _first_fill_at(session, ctx.replay) is not None:
         raise DrillConflict("The plan locked at the first fill")
-    now = _time.utcnow()
-    if plan is None:
-        assert ctx.replay.id is not None
-        plan = DrillPlan(
-            session_id=ctx.replay.id,
-            planned_entry=body.planned_entry,
-            planned_stop=body.planned_stop,
-            planned_size=body.planned_size,
-            note=body.note.strip() if body.note and body.note.strip() else None,
-            created_at=now,
-            updated_at=now,
-        )
-    else:
-        plan.planned_entry = body.planned_entry
-        plan.planned_stop = body.planned_stop
-        plan.planned_size = body.planned_size
-        plan.note = body.note.strip() if body.note and body.note.strip() else None
-        plan.updated_at = now
+    plan = plans.ensure_session_plan(session, ctx.replay, source="drill")
+    plan.source = "drill"
+    plan.side = "long"
+    plan.planned_entry = body.planned_entry
+    plan.planned_stop = body.planned_stop
+    plan.planned_size = body.planned_size
+    plan.why = body.note.strip() if body.note and body.note.strip() else None
+    plan.updated_at = _time.utcnow()
     session.add(plan)
     session.commit()
     session.refresh(plan)

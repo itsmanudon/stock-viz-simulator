@@ -37,9 +37,11 @@ export function ReplayJournalForm({
         id={`${fieldId}-title`}
         title="Decision journal"
         description={
-          locked
-            ? "Thesis, invalidation, expected bars, and confidence are frozen after the first fill. Reflection stays editable."
-            : "Write the thesis before the first fill. Those fields lock once a trade exists so the record stays point-in-time."
+          journal.written_after_entry
+            ? "Written after entry: this journal was started after the first fill, so it is not a plan made before the trade. Reflection stays editable."
+            : locked
+              ? "Thesis, invalidation, expected bars, and confidence are frozen after the first fill. Reflection stays editable."
+              : "Write the thesis before the first fill. Those fields lock once a trade exists so the record stays point-in-time."
         }
       />
       <form

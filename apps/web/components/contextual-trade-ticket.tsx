@@ -1,7 +1,9 @@
 "use client";
 
 import { type TicketBook, TicketBookLine } from "@/components/ticket-book-line";
+import { PlanReview, type TicketPlanOptions, TicketPlanSection } from "@/components/ticket-plan";
 import { feesSuffix } from "@/lib/fees";
+import { emptyPlanForm } from "@/lib/plans";
 import Link from "next/link";
 import { useActionState, useId, useState } from "react";
 
@@ -64,6 +66,8 @@ export type ContextualTradeTicketProps = {
   openOrderCount?: number | null;
   /** A5.2: the book this ticket trades into (the default book here). */
   book?: TicketBook | null;
+  /** A5.4: setups and open theses for "Plan this trade". */
+  planOptions?: TicketPlanOptions | null;
 };
 
 const SHORTCUTS = [
@@ -89,6 +93,7 @@ export function ContextualTradeTicket({
   initialSide = "buy",
   openOrderCount = 0,
   book = null,
+  planOptions = null,
 }: ContextualTradeTicketProps) {
   const fieldId = useId();
   const [side, setSide] = useState<Side>(initialSide);
@@ -98,6 +103,7 @@ export function ContextualTradeTicket({
   // Two-step entry (UI audit UX-4): the form first opens a review of the
   // order, and only the review's button submits it.
   const [reviewing, setReviewing] = useState(false);
+  const [plan, setPlan] = useState(emptyPlanForm);
   // The action state keeps its last success until the next submit, so the
   // confirmation remembers which result was already dismissed.
   const [dismissed, setDismissed] = useState<unknown>(null);
@@ -155,7 +161,7 @@ export function ContextualTradeTicket({
   const marketSuccess = marketState.success;
   const successMessage =
     orderMode === "market" && marketSuccess
-      ? `Filled ${titleCase(marketSuccess.side)} ${marketSuccess.quantity} ${marketSuccess.ticker} at ${formatMoney(Number(marketSuccess.price), marketSuccess.currency)}${feesSuffix(marketSuccess, formatMoney)}`
+      ? `Filled ${titleCase(marketSuccess.side)} ${marketSuccess.quantity} ${marketSuccess.ticker} at ${formatMoney(Number(marketSuccess.price), marketSuccess.currency)}${feesSuffix(marketSuccess, formatMoney)}${marketSuccess.planned ? ". Your plan locked at this fill" : ""}`
       : orderMode !== "market"
         ? orderState.success
         : undefined;
@@ -198,7 +204,11 @@ export function ContextualTradeTicket({
   function startNewOrder() {
     setDismissed(activeState);
     setReviewing(false);
+    setPlan(emptyPlanForm());
   }
+  // A5.4: a plan goes with a buy (market or limit); protective orders are sells.
+  const canPlan = effectiveSide === "buy" && !isProtective;
+  const activePlan = canPlan ? plan : { ...plan, enabled: false };
 
   if (confirmed && successMessage) {
     return (
@@ -284,6 +294,14 @@ export function ContextualTradeTicket({
             notional={notional}
             account={account}
             availableQuantity={availableQuantity}
+            plan={
+              <PlanReview
+                form={activePlan}
+                currency={currency}
+                quantity={quantity}
+                options={planOptions}
+              />
+            }
           />
         ) : (
           <>
@@ -390,6 +408,24 @@ export function ContextualTradeTicket({
                   </span>
                 </div>
               </div>
+            ) : null}
+
+            {canPlan ? (
+              <TicketPlanSection
+                form={plan}
+                onChange={setPlan}
+                ticker={ticker}
+                currency={currency}
+                referencePrice={
+                  orderMode === "market"
+                    ? latestClose === null
+                      ? null
+                      : String(latestClose)
+                    : triggerPrice || null
+                }
+                quantity={quantity}
+                options={planOptions}
+              />
             ) : null}
 
             <dl className="space-y-2 border-y border-border-muted py-3 text-xs">

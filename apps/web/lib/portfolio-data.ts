@@ -8,6 +8,7 @@ import "server-only";
 
 import { getNewsForTickers } from "@/lib/api";
 import { type JournalMonth, getJournalMonth } from "@/lib/api/journal";
+import { listPlans } from "@/lib/api/plans";
 import {
   type DividendSummary,
   type PendingOrder,
@@ -25,6 +26,7 @@ import {
 import type { NewsArticle } from "@/lib/api/types";
 import type { BookRef } from "@/lib/book-url";
 import { splitMonthKey } from "@/lib/journal-view-model";
+import type { TradePlan } from "@/lib/plans";
 import { loadPortfolioOverview } from "@/lib/portfolio-overview";
 import { type PortfolioRange, portfolioRangeDays } from "@/lib/portfolio-view-model";
 
@@ -51,6 +53,8 @@ export type PortfolioData = {
   optionsBook: OptionsBook | null;
   /** Phase 9.5: strategies; on the Options tab only. */
   strategies: OptionStrategy[] | null;
+  /** A5.4: the book's trade plans; on the Journal tab of one book only. */
+  plans: TradePlan[] | null;
 };
 
 /**
@@ -69,6 +73,7 @@ export async function loadPortfolioData(
     goal = null,
     options: wantOptions = false,
     book = null,
+    plansBook = null,
   }: {
     news?: boolean;
     risk?: boolean;
@@ -76,6 +81,8 @@ export async function loadPortfolioData(
     options?: boolean;
     /** A5.2: the book id, `"all"` or null (default). */
     book?: BookRef | null;
+    /** A5.4: the resolved book whose plans the Journal tab lists (null: none). */
+    plansBook?: number | null;
   } = {},
 ): Promise<PortfolioData> {
   // All books has no journal, risk, stress, dividends or options view: those
@@ -103,6 +110,7 @@ export async function loadPortfolioData(
     stress,
     optionsBook,
     strategies,
+    plans,
   ] = await Promise.all([
     loadPortfolioOverview(book),
     optional(getPortfolioHistory(portfolioRangeDays(range), book)),
@@ -113,6 +121,9 @@ export async function loadPortfolioData(
     wantRisk && !all ? optional(getPortfolioStress(one)) : Promise.resolve(null),
     (wantOptions || wantRisk) && !all ? optional(getOptionsBook(one)) : Promise.resolve(null),
     wantOptions && !all ? optional(listStrategies(one)) : Promise.resolve(null),
+    journalMonthKey && !all && plansBook
+      ? optional(listPlans(plansBook).then((r) => r.plans))
+      : Promise.resolve(null),
   ]);
 
   // Needs the holdings, so it follows the overview rather than joining it.
@@ -135,6 +146,7 @@ export async function loadPortfolioData(
     stress,
     optionsBook,
     strategies,
+    plans,
   };
 }
 

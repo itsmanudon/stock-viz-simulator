@@ -9,10 +9,10 @@ lead-in visible and ends at least M bars later. Anonymised drills show the
 symbol as "Stock A" (B, C... by position in the deck) and every date shifted
 by ``date_offset_weeks`` whole weeks; ``revealed_at`` ends that.
 
-A **plan** (``drill_plans``) is what the trader means to do before the first
-order: planned entry, stop and size (the A5 journal's fields). It keys on the
-replay session so A5's journal can absorb it; it locks at the session's
-first fill. Drills are scored on process (did the trader follow the plan),
+A **plan** is what the trader means to do before the first order: planned
+entry, stop and size. Since A5.4 it is a ``trade_plans`` row (``source =
+'drill'``, keyed on the replay session; ``models/trade_plan.py``); A4.7's
+``drill_plans`` table is archived. It locks at the session's first fill. Drills are scored on process (did the trader follow the plan),
 never on profit, and nothing ranks one user against another.
 
 Deleting a deck deletes its drills, their plans and their replay sessions.
@@ -21,7 +21,6 @@ Deleting a deck deletes its drills, their plans and their replay sessions.
 from __future__ import annotations
 
 from datetime import date, datetime
-from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import (
@@ -32,8 +31,6 @@ from sqlalchemy import (
     Column,
     ForeignKey,
     Integer,
-    Numeric,
-    String,
     Text,
     UniqueConstraint,
     text,
@@ -117,39 +114,4 @@ class Drill(SQLModel, table=True):
     created_at: datetime = Field(default_factory=utcnow, nullable=False)
 
 
-class DrillPlan(SQLModel, table=True):
-    """The trader's plan before the first order (A5 journal fields): entry,
-    stop and size, long. Keyed on the replay session; locks at its first fill."""
-
-    __tablename__ = "drill_plans"  # pyright: ignore[reportAssignmentType]
-    __table_args__ = (
-        CheckConstraint("side IN ('long')", name="ck_drill_plans_side"),
-        CheckConstraint(
-            "planned_entry > 0 AND planned_stop > 0 AND planned_size > 0",
-            name="ck_drill_plans_positive",
-        ),
-    )
-
-    id: int | None = Field(default=None, primary_key=True)
-    session_id: int = Field(
-        sa_column=Column(
-            Integer,
-            ForeignKey("replay_sessions.id", ondelete="CASCADE"),
-            nullable=False,
-            unique=True,
-            index=True,
-        )
-    )
-    side: str = Field(
-        default="long", sa_column=Column(String(8), nullable=False, server_default="long")
-    )
-    planned_entry: Decimal = Field(sa_column=Column(Numeric(18, 6), nullable=False))
-    planned_stop: Decimal = Field(sa_column=Column(Numeric(18, 6), nullable=False))
-    planned_size: Decimal = Field(sa_column=Column(Numeric(20, 6), nullable=False))
-    note: str | None = Field(default=None, sa_column=Column(Text, nullable=True))
-    locked_at: datetime | None = Field(default=None, nullable=True)
-    created_at: datetime = Field(default_factory=utcnow, nullable=False)
-    updated_at: datetime = Field(default_factory=utcnow, nullable=False)
-
-
-__all__ = ["MAX_DECKS_PER_USER", "MAX_DRILLS_PER_DECK", "Drill", "DrillDeck", "DrillPlan"]
+__all__ = ["MAX_DECKS_PER_USER", "MAX_DRILLS_PER_DECK", "Drill", "DrillDeck"]

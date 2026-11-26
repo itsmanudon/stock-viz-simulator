@@ -24,6 +24,7 @@ import { PriceChart } from "@/components/price-chart";
 import { StrategyBuilder } from "@/components/strategy-builder";
 import { ApiError, getBars, getQuotes, listSymbols } from "@/lib/api";
 import { parseApiTimestamp } from "@/lib/api-time";
+import { planPickerOptions } from "@/lib/api/plans";
 import { getPortfolio, listOrders, listTrades } from "@/lib/api/trading";
 import { loadBookContext } from "@/lib/book-context";
 import { currencyByTicker, parseTradeTicker } from "@/lib/operational-trading";
@@ -63,11 +64,13 @@ export default async function TradePage({
         }
       : null;
 
-  const [symbols, portfolio, pendingOrders, recentTrades] = await Promise.all([
+  const [symbols, portfolio, pendingOrders, recentTrades, planOptions] = await Promise.all([
     listSymbols(),
     getPortfolio(books.book),
     listOrders("pending", books.book),
     listTrades(8, books.book),
+    // A5.4: the ticket's setup and thesis pickers; a failure leaves them empty.
+    planPickerOptions().catch(() => null),
   ]);
 
   const heldTickers = new Set(portfolio.positions.map((position) => position.ticker));
@@ -246,6 +249,7 @@ export default async function TradePage({
                   currency: symbol.currency || "USD",
                 }))}
                 initialTicker={activeTicker}
+                planOptions={planOptions}
                 quoteClose={selectedQuote?.close ?? position?.last_close ?? null}
                 quoteAt={selectedQuote?.ts ?? null}
                 position={
