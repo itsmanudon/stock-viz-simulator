@@ -82,8 +82,16 @@ export function buildLegendModel(bars: Bar[], panes: PaneSpec[]): LegendModel {
   return { bars, indicators };
 }
 
-/** The legend for bar `index`, or the last bar when `index` is null or out of range. */
-export function legendAt(model: LegendModel, index: number | null): LegendRow | null {
+/**
+ * The legend for bar `index`, or the last bar when `index` is null or out of
+ * range. `formatDate` labels the bar (A6.2: intraday bars read their time in
+ * the venue's zone); by default the daily date.
+ */
+export function legendAt(
+  model: LegendModel,
+  index: number | null,
+  formatDate: (ts: string) => string = (ts) => formatCloseDate(ts) ?? ts,
+): LegendRow | null {
   const { bars } = model;
   if (!bars.length) return null;
   const i = index === null || index < 0 || index >= bars.length ? bars.length - 1 : index;
@@ -106,7 +114,7 @@ export function legendAt(model: LegendModel, index: number | null): LegendRow | 
   return {
     index: i,
     isLast: i === bars.length - 1,
-    date: formatCloseDate(bar.ts) ?? bar.ts,
+    date: formatDate(bar.ts),
     open: formatPrice(num(bar.open)),
     high: formatPrice(num(bar.high)),
     low: formatPrice(num(bar.low)),

@@ -42,6 +42,12 @@ export type SceneContext = {
  */
 export type AvwapLine = {
   date: string;
+  /**
+   * A6.2: on intraday charts the bar this point belongs to (by its open), so
+   * many points per date land on their own bars; null when that bar is not
+   * loaded. Absent on daily, weekly and monthly charts.
+   */
+  index?: number | null;
   vwap: number;
   upper1?: number | null;
   lower1?: number | null;
@@ -183,9 +189,10 @@ export function avwapShapes(d: SceneDrawing, ctx: SceneContext, selected: boolea
   const colour = ctx.colours.drawing[d.style.colour] ?? ctx.colours.drawing.aqua;
   const id = d.id;
   const shapes: Shape[] = [];
-  const at = (date: string, value: number | null | undefined) => {
+  const at = (date: string, value: number | null | undefined, index?: number | null) => {
     if (value === null || value === undefined || !Number.isFinite(value)) return null;
-    const logical = anchorLogical(date, ctx.interval, ctx.barDates);
+    if (index === null) return null;
+    const logical = index !== undefined ? index : anchorLogical(date, ctx.interval, ctx.barDates);
     if (logical === null) return null;
     const x = ctx.xOfLogical(logical);
     const y = ctx.yOfPrice(value);
@@ -198,7 +205,7 @@ export function avwapShapes(d: SceneDrawing, ctx: SceneContext, selected: boolea
       run = [];
     };
     for (const point of d.avwap ?? []) {
-      const here = at(point.date, point[key]);
+      const here = at(point.date, point[key], point.index);
       if (here) run.push([here.x, here.y]);
       else flush();
     }
@@ -208,7 +215,7 @@ export function avwapShapes(d: SceneDrawing, ctx: SceneContext, selected: boolea
   polyline("vwap", d.style.width + 1, d.style.dash);
 
   const first = d.avwap?.[0];
-  const start = first ? at(first.date, first.vwap) : null;
+  const start = first ? at(first.date, first.vwap, first.index) : null;
   const logical = anchorLogical(anchor, ctx.interval, ctx.barDates);
   const ax = start?.x ?? (logical === null ? null : ctx.xOfLogical(logical));
   if (ax !== null && ax !== undefined) {
@@ -219,7 +226,7 @@ export function avwapShapes(d: SceneDrawing, ctx: SceneContext, selected: boolea
     }
   }
   const last = d.avwap?.at(-1);
-  const end = last ? at(last.date, last.vwap) : null;
+  const end = last ? at(last.date, last.vwap, last.index) : null;
   const name = d.label || "AVWAP";
   if (end) {
     const value = `${name} ${formatPrice(last?.vwap ?? 0)}`;

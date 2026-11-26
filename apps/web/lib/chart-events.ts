@@ -86,8 +86,11 @@ export function eventBarIndex(
   interval: StockInterval,
   barDates: readonly string[],
 ): number | null {
-  if (interval !== "1d") return anchorBar(date, interval, barDates)?.index ?? null;
-  // Daily: the bar on the date, else the first one after it.
+  if (interval === "1wk" || interval === "1mo")
+    return anchorBar(date, interval, barDates)?.index ?? null;
+  // Daily: the bar on the date, else the first one after it. Intraday (A6.2,
+  // `barDates` are session dates): the session's first bar, else the next
+  // session's.
   let lo = 0;
   let hi = barDates.length;
   while (lo < hi) {

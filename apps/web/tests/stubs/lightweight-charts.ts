@@ -33,6 +33,8 @@ export const lwcCalls = {
   /** A3.5: click handlers, and every series-markers call's markers. */
   clickHandlers: [] as Handler[],
   markers: [] as unknown[][],
+  /** A6.2: each createChart call's options (the time axis formatters). */
+  chartOptions: [] as Record<string, unknown>[],
 };
 
 export function resetLwc(): void {
@@ -46,6 +48,7 @@ export function resetLwc(): void {
   lwcCalls.primitives = [];
   lwcCalls.clickHandlers = [];
   lwcCalls.markers = [];
+  lwcCalls.chartOptions = [];
 }
 
 /** A3.5: fire the newest chart's click handlers, as a click on a bar would. */
@@ -58,8 +61,9 @@ export function hover(time: number | undefined): void {
   for (const handler of lwcCalls.handlers) handler({ time });
 }
 
-function createChart() {
+function createChart(_el?: unknown, options: Record<string, unknown> = {}) {
   lwcCalls.charts += 1;
+  lwcCalls.chartOptions.push(options);
   const mine: RecordedSeries[] = [];
   const apis: { pane: number; api: unknown }[] = [];
   let range = { from: 0, to: 10 };
