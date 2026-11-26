@@ -3058,15 +3058,31 @@ class StrategyBacktestOut(BaseModel):
 # --- A4.4: cross-sectional rotation ---------------------------------------
 
 
+class FactorIn(BaseModel):
+    """A7.7 (M7.5): one factor of a multi-factor model."""
+
+    name: str | None = Field(default=None, max_length=40)
+    expression: str = Field(min_length=1, max_length=2000)
+    """A numeric Rule DSL expression per symbol (e.g. ``pct_change(close, 252)``)."""
+    weight: float = Field(gt=0, le=10)
+    higher_is_better: bool = True
+
+
 class RotationBacktestIn(BaseModel):
     """POST /v1/backtest/rotation (A4.4): hold the top ``top_n`` symbols of a
     universe by a numeric Rule DSL expression, rebalanced weekly or monthly
     on the venue calendar. ``cash_filter`` is an optional condition judged on
     the market index (``^GSPC`` / ``^NSEI``) at each rebalance close: met
-    means hold cash. Long only."""
+    means hold cash. Long only.
 
-    ranking: str = Field(min_length=1, max_length=4000)
+    A7.7 (M7.5): ``factors`` instead of ``ranking`` makes it a multi-factor
+    model: each factor is z-scored across the universe on each session
+    (symbols with every factor known), signed by ``higher_is_better``, and
+    weighted; the weighted sum ranks. Exactly one of the two."""
+
+    ranking: str | None = Field(default=None, min_length=1, max_length=4000)
     """A numeric expression; higher ranks first (e.g. ``pct_change(close, 126)``)."""
+    factors: list[FactorIn] | None = Field(default=None, min_length=1, max_length=8)
     top_n: int = Field(default=5, ge=1, le=50)
     schedule: Literal["weekly", "monthly"] = "monthly"
     weighting: Literal["equal", "inverse_volatility"] = "equal"
@@ -3085,6 +3101,12 @@ class RotationBacktestIn(BaseModel):
     slippage_bps: float = Field(default=0.0, ge=0, le=1000)
     spread_bps: float = Field(default=0.0, ge=0, le=1000)
     holdout: HoldoutMode = "last_20pct"
+
+    @model_validator(mode="after")
+    def _one_ranking(self) -> RotationBacktestIn:
+        if (self.ranking is None) == (self.factors is None):
+            raise ValueError("give exactly one of ranking or factors")
+        return self
 
     model_config = ConfigDict(populate_by_name=True)
 
@@ -3148,7 +3170,7 @@ class RotationTradeOut(BaseModel):
 
 
 class RotationRuleOut(BaseModel):
-    role: Literal["ranking", "cash_filter"]
+    role: Literal["ranking", "cash_filter", "factor"]
     text: str
     canonical: str
     hash: str

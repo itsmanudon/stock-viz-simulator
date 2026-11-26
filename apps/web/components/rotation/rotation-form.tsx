@@ -26,6 +26,8 @@ import type { BacktestSymbol } from "@/lib/backtest-defaults";
 import { BROKERAGE_OPTIONS, FEE_SCHEDULE_OPTIONS } from "@/lib/fees";
 import { HOLDOUT_OPTIONS } from "@/lib/report-card";
 import {
+  FACTOR_PRESETS,
+  type FactorRow,
   type RotationForm as Form,
   type RotationRequest,
   buildRotationRequest,
@@ -132,15 +134,37 @@ export function RotationForm({
           }}
           data-testid="rotation-form"
         >
-          <RuleFieldEditor
-            label="Ranking (a number; higher ranks first)"
-            hint="e.g. pct_change(close, 126): the 126-session return."
-            value={{ text: form.ranking, versionId: null }}
-            onChange={(v) => set("ranking", v.text)}
-            onValidity={onRank}
-            setups={[]}
-            check={checkNumber}
-          />
+          <fieldset className="flex gap-3 border-0 p-0 text-xs" aria-label="Score symbols by">
+            {(
+              [
+                ["ranking", "One ranking"],
+                ["factors", "Factor model"],
+              ] as const
+            ).map(([mode, label]) => (
+              <label key={mode} className="flex items-center gap-1">
+                <input
+                  type="radio"
+                  name="rot-mode"
+                  checked={form.mode === mode}
+                  onChange={() => set("mode", mode)}
+                />
+                {label}
+              </label>
+            ))}
+          </fieldset>
+          {form.mode === "ranking" ? (
+            <RuleFieldEditor
+              label="Ranking (a number; higher ranks first)"
+              hint="e.g. pct_change(close, 126): the 126-session return."
+              value={{ text: form.ranking, versionId: null }}
+              onChange={(v) => set("ranking", v.text)}
+              onValidity={onRank}
+              setups={[]}
+              check={checkNumber}
+            />
+          ) : (
+            <FactorRows rows={form.factors} onChange={(rows) => set("factors", rows)} />
+          )}
 
           <div className="grid grid-cols-3 gap-2">
             {field("topN", "Top N", { min: "1", max: "50", step: "1" })}
@@ -426,6 +450,96 @@ export function RotationForm({
           </ResearchEmptyState>
         )}
       </div>
+    </div>
+  );
+}
+
+/**
+ * A7.7 (M7.5): the factor model's rows. Each factor is z-scored across the
+ * universe each session and weighted; "lower is better" flips its sign.
+ */
+function FactorRows({
+  rows,
+  onChange,
+}: {
+  rows: FactorRow[];
+  onChange: (rows: FactorRow[]) => void;
+}) {
+  const update = (i: number, patch: Partial<FactorRow>) =>
+    onChange(rows.map((r, k) => (k === i ? { ...r, ...patch } : r)));
+  const unused = FACTOR_PRESETS.filter((p) => !rows.some((r) => r.expression === p.expression));
+  return (
+    <div className="space-y-2" data-testid="factor-rows">
+      <p className="text-xs text-text-tertiary">
+        Each factor is z-scored across the symbols on each rebalance close (symbols with every
+        factor known), signed, weighted and summed; the sum ranks.
+      </p>
+      {rows.map((row, i) => (
+        <div key={`${row.expression}-${i}`} className="grid grid-cols-12 items-end gap-2">
+          <div className="col-span-3 space-y-1">
+            <Label className="text-xs" htmlFor={`factor-name-${i}`}>
+              Name
+            </Label>
+            <Input
+              id={`factor-name-${i}`}
+              value={row.name}
+              onChange={(e) => update(i, { name: e.target.value })}
+            />
+          </div>
+          <div className="col-span-5 space-y-1">
+            <Label className="text-xs" htmlFor={`factor-expr-${i}`}>
+              Expression
+            </Label>
+            <Input
+              id={`factor-expr-${i}`}
+              className="font-mono"
+              value={row.expression}
+              onChange={(e) => update(i, { expression: e.target.value })}
+            />
+          </div>
+          <div className="col-span-2 space-y-1">
+            <Label className="text-xs" htmlFor={`factor-weight-${i}`}>
+              Weight
+            </Label>
+            <Input
+              id={`factor-weight-${i}`}
+              inputMode="decimal"
+              value={row.weight}
+              onChange={(e) => update(i, { weight: e.target.value })}
+            />
+          </div>
+          <label className="col-span-1 flex items-center gap-1 text-[11px]">
+            <input
+              type="checkbox"
+              checked={!row.higherIsBetter}
+              onChange={(e) => update(i, { higherIsBetter: !e.target.checked })}
+            />
+            Lower
+          </label>
+          <button
+            type="button"
+            className="col-span-1 text-xs text-text-tertiary hover:text-negative"
+            aria-label={`Remove ${row.name || "factor"}`}
+            onClick={() => onChange(rows.filter((_r, k) => k !== i))}
+          >
+            Remove
+          </button>
+        </div>
+      ))}
+      {unused.length && rows.length < 8 ? (
+        <div className="flex flex-wrap gap-1">
+          {unused.map((p) => (
+            <button
+              key={p.name}
+              type="button"
+              className="rounded-full border border-border-muted px-2 py-0.5 text-xs hover:bg-surface-hover"
+              onClick={() => onChange([...rows, p])}
+            >
+              + {p.name}
+            </button>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }
