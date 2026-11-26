@@ -65,7 +65,10 @@ limit and stop orders, A3's chart with indicators, session-only drawings and
 news gated by `available_at`); the server owns PriceBar selection. Replay Lab is
 future-blind. Post-trade forensics reconstruct episodes, MAE/MFE,
 buy-and-hold excess, and a first-fill-locked journal from replay-visible
-bars only. See
+bars only. Drills (`/drills`, A4.7) are decks of replays seeded from a
+rule's real false-to-true triggers, anonymised by default (Stock A, dates
+shifted by whole weeks, headlines hidden) and scored on whether the trader
+followed a plan written before the first order, not on profit. See
 [`docs/SIMULATION.md`](./docs/SIMULATION.md).
 
 Market ingest runs **in-process by default** (A0): the Railway cron's `ingest`

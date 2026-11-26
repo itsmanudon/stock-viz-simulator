@@ -10,7 +10,8 @@ app/
                    concise public header and traditional website footer
   (product)/       guest-capable research routes plus the workstation shell
     (authed)/      dashboard, portfolio, trade, trades, orders, watchlist,
-                   alerts, settings, earnings, setups — protected by proxy.ts. `/dashboard` is
+                   alerts, settings, earnings, setups, replay, drills (A4.7) —
+                   protected by proxy.ts. `/dashboard` is
                    the signed-in home: a bento grid of portfolio widgets fed by
                    `lib/dashboard-data.ts` (every widget but the portfolio hero
                    degrades to its own empty state if its request fails).
@@ -621,6 +622,38 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   currency, cash presets per currency (`replayCashPresets`), the lag note
   (`replay-lag-note`) and caps the end date at `max_end`. Tests:
   `tests/unit/replay-a46.test.tsx`.
+- **Drills (A4.7, M9.3).** `/drills` (protected in `proxy.ts`, Research nav
+  and subnav after Replay): decks (`drill-deck`) with the rule, universe,
+  range, K of the eligible triggers (found, lag-skipped), N, M, seed and
+  anonymisation; the process score line (`deck-score`, `deckScoreLine`);
+  one `drill-row` per drill (`data-status`: not started, in progress,
+  revealed; the label "Stock A" and no date while anonymised); a two-step
+  delete (`DeleteDeckButton`, `deck-delete` then `deck-delete-confirm`).
+  `/drills/new` is the launch form (`DrillLaunchForm`, a page rather than a
+  modal: rule through `RuleFieldEditor` with setups, universe market /
+  ticker list / watchlist, from, to, K (`drill-k`), N, M, seed, name, the
+  anonymise box (`drill-anonymised`, on by default), Ctrl/Cmd+Enter
+  creates; `createDeckAction` redirects to `/drills?deck=<id>`). Entry
+  points link there through `drillLaunchHref` (`lib/drills.ts`): the
+  screener rule panel (`rule-drill`, signed in, valid rule), each setup on
+  `/setups` (`setup-drill`), a strategy backtest's "Rules as run"
+  (`strategy-drill`: the entry rule, the run's tickers and range) and the
+  event study (`study-drill`, signed in: trigger, universe, range).
+  `/drills/[id]` uses only `/v1/drills` (`lib/api/drills.ts`): `DrillChart`
+  (A4.6's `ReplayChart` with `basePath` and the drill's drawing actions),
+  the shared `ReplayTradeTicket`, `ReplayMobileSheet`, `ReplayOrders` and
+  `ReplayAdvanceControls` with `target="drill"` (a hidden `target` field;
+  `replay/actions.ts` then calls the drill routes and revalidates
+  `/drills`), `DrillPlanForm` (`drill-plan`, `plan-entry`/`plan-stop`/
+  `plan-size`, planned risk; the ticket stays hidden until a plan exists;
+  read-only once locked), `DrillRevealButton` (one step when finished, two
+  to end early: `drill-end-early`, `drill-reveal`) and
+  `DrillRevealPanel` (`drill-reveal-panel`: ticker, company, real and shown
+  dates, `drill-after` returns, `drill-check` per check, `drill-r` with "not
+  the score"). The page title is "Drill" and the URL holds ids only, so
+  nothing names the symbol or a real date while anonymised; types come from
+  the schema (`lib/drills.ts`). Tests: `tests/unit/drills.test.tsx`, guest
+  e2e in `replay.spec.ts`.
 - Other `PriceChart` users (`/trade`) get price and volume panes and the
   legend; they pass no indicators. Unit tests mock the library with
   `tests/stubs/lightweight-charts.ts` (records series, panes, price lines,
