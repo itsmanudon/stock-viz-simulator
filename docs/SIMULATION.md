@@ -395,6 +395,95 @@ Every rate and its source: the workspace note `docs/a4-cost-sources.md`.
   2026 and NSE runs with every fill on or after 1 Mar 2026 rerun
   `identical`.
 
+## Report card, trial ledger and the locked holdout (A4.3, M7.4)
+
+Code: `apps/api/src/stockviz/services/backtest/report.py` (pure maths),
+`report_card.py` (assembly), `regime_history.py`, `trials.py` (families,
+ledger, holdout), `checks.py` (record and read). Worked example:
+[`benchmarks/2026-11-26-a4-report-card.md`](./benchmarks/2026-11-26-a4-report-card.md).
+
+**What is stored and what is not.** `report` (metrics, Sharpe statistics with
+PSR(0), the Monte Carlo fan, the regime split) and `window` depend only on the
+run: they are part of a saved result and of a rerun's comparison. `checks`
+(trials, DSR, holdout status) are read from the ledger when a response is
+built and are never stored, so a saved run reruns `identical` however many
+trials or unlocks were recorded after it. `STAMPS_ADDED_LATER` adds `window`,
+`report`, `pbo`, `pbo_reason` and `plateau`, so runs saved before A4.3 still
+rerun `identical`.
+
+**Metrics** (net: from the NAV after fees, spread and slippage). Daily returns
+`r_t = NAV_t / NAV_{t-1} - 1`; excess `e_t = r_t - 0.05/252`. CAGR
+`(NAV_end / cash)^(365.25 / calendar days) - 1`. Sortino `mean(e) /
+sqrt(mean(min(e, 0)^2)) x sqrt(252)`. Calmar `CAGR / max drawdown`. Over closed
+round trips (net of both legs' fees; a template's buy and sell legs are paired,
+a held position is marked and counted as open): win rate `wins / closed` (P&L
+> 0), payoff `mean win / |mean loss|`, profit factor `sum wins / |sum losses|`,
+expectancy `mean P&L`, expectancy in R `mean R` over trades with a price stop.
+Exposure: sessions holding a position at the close / sessions. Average holding:
+mean calendar days entry to exit. Undefined values are null with a reason.
+
+**Sharpe statistics.** SR per day = mean / sample std of `e`; skewness and
+kurtosis (not excess) from population moments; T = number of returns.
+PSR(SR*) = `Phi((SR - SR*) sqrt(T - 1) / sqrt(1 - g3 SR + (g4 - 1)/4 SR^2))`
+(Bailey and López de Prado 2012), SR* = 0. DSR = PSR(SR0) with
+`SR0 = sqrt(V) ((1 - gamma) inv_Phi(1 - 1/N) + gamma inv_Phi(1 - 1/(N e)))`
+(Bailey and López de Prado 2014), N the family's distinct variants in the
+ledger and V the sample variance of their per-day Sharpes; N = 1 or V = 0
+gives SR0 = 0, so DSR = PSR(0).
+
+**The trial ledger** (`backtest_trials`, migration `e5a7c9b1d324`). A row per
+(caller, strategy hash, data fingerprint): the public endpoints (`source`
+`run`), saved runs (`saved`), each setting of a sweep (`sweep`) or
+walk-forward (`walk_forward`, its Sharpe the mean per-day Sharpe over its
+in-sample fits). A repeat bumps `runs`. Template hash: SHA-256 of the whole
+request; rule strategies: their `strategy_hash` (which adds `holdout` only
+when it is not `none`). Family: template type + ticker; or the rules'
+canonical text with numbers as `#`, the stop kinds, the sizing kind, the
+direction and the tickers. Dates, costs, cash and fill rule are not part of a
+family. Anonymous runs: `user_id` NULL, one pool; no address or cookie is
+stored. `stockviz.cli prune-trials [--days 365]` deletes rows not run since;
+nothing schedules it.
+
+**The locked holdout.** `holdout: last_20pct` (default on `BacktestIn` and
+`StrategyBacktestIn`): the run uses the first `total_days * 4 // 5` calendar
+days of the range; sweeps and walk-forwards load bars for that range only (a
+test rewrites every held-out bar and finds the study's fingerprint and result
+unchanged). `POST /v1/backtest/holdout/unlock` (authed) records a family's
+unlock once (`holdout_unlocks`, unique per user and family; 409 the second
+time, 400 without a holdout); from then on every run of the family returns
+`checks.holdout.status = seen` with the holdout's result: the same request run
+on `[holdout_from, to]` with `holdout: none` (warm-up from the bars before).
+`holdout: none` runs the whole range and says so. Stored requests without the
+field rerun with `none` (`registry.as_saved`).
+
+**Monte Carlo fan.** `risk.engine.stationary_indices` (the Phase 8 stationary
+bootstrap, shared with the portfolio Monte Carlo, whose numbers are
+unchanged) resamples the run's daily net returns: 2,000 paths, mean block 5,
+as many sessions as the run, seed 20261126 (in the result). Per path the
+maximum drawdown; per sampled date the 5th/50th/95th NAV percentiles. Needs
+20 returns.
+
+**Regime split.** Each session gets A3.5's `REGIME_RULES` evaluated on data
+stored on or before it: the index (`^GSPC` US, `^NSEI` India, by the first
+ticker's market) close, 200-session SMA and 20-session volatility percentile
+over its last 1,260 values (252 needed); breadth recomputed in one SQL
+window query from stored daily bars of the market's active non-index symbols
+(close above the mean of its last 200 closes; at least 5 judged, else
+unknown). A day's return counts under the state at the previous close. The
+member list is today's (survivorship-biased like the pinned universe); with
+no index bars every day is "not enough data" (as on `stockviz_e2e`).
+
+**PBO and plateaus (sweeps).** CSCV over the settings' daily net returns
+(same dates): 16 blocks of `T // 16` sessions (the oldest `T mod 16`
+dropped; at least 4 a block), all C(16, 8) = 12,870 splits; the in-sample
+best by per-day Sharpe (ties: first) is ranked out of sample (ties averaged,
+Sharpes rounded to 10 decimals), `w = rank / (N + 1)`, `logit = ln(w / (1 -
+w))`, PBO = share of logits <= 0 (Bailey, Borwein, López de Prado and Zhu
+2017). The plateau heatmap (net Sharpe and net return) puts the template's
+two parameters on the axes; a neighbour (adjacent cell run) holds up within
+25% of the best's magnitude, and fewer than half holding up is an isolated
+peak.
+
 ## Future execution profiles (not implemented)
 
 These names are reserved for later SIM work. They are **not** implemented
