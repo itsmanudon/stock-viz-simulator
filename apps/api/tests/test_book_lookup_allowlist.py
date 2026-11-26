@@ -30,6 +30,10 @@ ALLOWED: dict[str, tuple[int, str]] = {
         1,
         "chart fill markers join across all the caller's books (A3.5; book filter optional)",
     ),
+    "services/imports/book.py": (
+        1,
+        "the commit throttle counts import batches across all the user's books (A5.3)",
+    ),
 }
 
 

@@ -41,6 +41,8 @@ class AccountNotFresh(Exception):
 
 def activity(session: Session, portfolio: Portfolio) -> list[str]:
     """What the account has done, in words; empty when it is fresh."""
+    from stockviz.models.broker_import import BrokerFill, ImportBatch
+
     assert portfolio.id is not None
     pid = portfolio.id
     checks: list[tuple[str, object]] = [
@@ -48,6 +50,13 @@ def activity(session: Session, portfolio: Portfolio) -> list[str]:
         ("orders", select(PendingOrder.id).where(PendingOrder.portfolio_id == pid)),
         ("options", select(OptionsPosition.id).where(OptionsPosition.portfolio_id == pid)),
         ("positions", select(Position.id).where(Position.portfolio_id == pid)),
+        ("imports", select(ImportBatch.id).where(ImportBatch.portfolio_id == pid)),
+        (
+            "opening lots",
+            select(BrokerFill.id).where(
+                BrokerFill.portfolio_id == pid, BrokerFill.kind == "opening"
+            ),
+        ),
         ("dividends", select(PortfolioDividend.id).where(PortfolioDividend.portfolio_id == pid)),
         (
             "foreign cash",

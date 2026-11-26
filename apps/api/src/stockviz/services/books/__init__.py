@@ -313,6 +313,11 @@ def _delete_contents(session: Session, pid: int) -> None:
     session.exec(delete(SimulatedExecution).where(col(SimulatedExecution.trade_id).in_(trade_ids)))  # type: ignore[call-overload]
     session.exec(delete(FxConversion).where(col(FxConversion.portfolio_id) == pid))  # type: ignore[call-overload]
     session.exec(delete(Trade).where(col(Trade.portfolio_id) == pid))  # type: ignore[call-overload]
+    # A5.3: an imported book's fills and import batches (after their trades).
+    from stockviz.models.broker_import import BrokerFill, ImportBatch
+
+    session.exec(delete(BrokerFill).where(col(BrokerFill.portfolio_id) == pid))  # type: ignore[call-overload]
+    session.exec(delete(ImportBatch).where(col(ImportBatch.portfolio_id) == pid))  # type: ignore[call-overload]
     session.exec(delete(Position).where(col(Position.portfolio_id) == pid))  # type: ignore[call-overload]
     session.exec(delete(PendingOrder).where(col(PendingOrder.portfolio_id) == pid))  # type: ignore[call-overload]
     from stockviz.models.trade_plan import TradePlan

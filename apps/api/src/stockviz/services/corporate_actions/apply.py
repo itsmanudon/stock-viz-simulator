@@ -160,6 +160,21 @@ def _candidate_books(
             .where(col(Position.instrument_id) == instrument_of(ticker))
         ).all()
     )
+    # A5.3: an imported book with fills in the instrument, held or not: the
+    # rebuild restates its closed round trips too.
+    from stockviz.models.broker_import import BrokerFill
+
+    add(
+        session.exec(
+            select(Portfolio.user_id, Portfolio.id)
+            .join(BrokerFill, col(BrokerFill.portfolio_id) == col(Portfolio.id))
+            .where(
+                col(BrokerFill.instrument_id) == instrument_of(ticker),
+                col(BrokerFill.executed_at) < before,
+            )
+            .distinct()
+        ).all()
+    )
     add(
         session.exec(
             select(Portfolio.user_id, Portfolio.id)
@@ -230,6 +245,37 @@ def rebase_book(session: Session, action: CorporateAction, portfolio_id: int) ->
         select(Portfolio).where(col(Portfolio.id) == portfolio_id).with_for_update()
     ).first()
     if portfolio is None or portfolio.id is None:
+        return summary
+    if portfolio.kind == "imported":
+        # A5.3: an imported book is rebuilt from its broker fills, which the
+        # rebuild restates for every due split (this one included).
+        from stockviz._time import utcnow
+        from stockviz.services.imports.book import rebuild_book
+
+        held = session.exec(
+            select(Position).where(
+                col(Position.portfolio_id) == portfolio.id,
+                col(Position.instrument_id) == instrument_of(ticker),
+            )
+        ).first()
+        before_qty = held.quantity if held is not None else Decimal(0)
+        rebuild_book(session, portfolio, now=max(utcnow(), before))
+        after = session.exec(
+            select(Position).where(
+                col(Position.portfolio_id) == portfolio.id,
+                col(Position.instrument_id) == instrument_of(ticker),
+            )
+        ).first()
+        if after is not None and after.quantity != before_qty:
+            summary.position = (before_qty, after.quantity)
+        session.add(
+            CorporateActionApplication(
+                action_id=action.id,
+                user_id=portfolio.user_id,
+                portfolio_id=portfolio.id,
+                summary=summary.text(),
+            )
+        )
         return summary
     position = session.exec(
         select(Position).where(
