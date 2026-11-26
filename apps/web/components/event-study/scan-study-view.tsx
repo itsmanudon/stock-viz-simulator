@@ -133,6 +133,59 @@ function HorizonCard({ h, minEvents }: { h: ScanHorizon; minEvents: number }) {
   );
 }
 
+const EVENT_ROWS = 25;
+
+function EventsTable({
+  events,
+  keys,
+  testId,
+}: {
+  events: ScanStudy["events"];
+  keys: string[];
+  testId?: string;
+}) {
+  return (
+    <div className="mt-2 overflow-x-auto rounded-md border border-border-muted">
+      <table className="w-full text-xs" data-testid={testId}>
+        <thead className="text-text-tertiary">
+          <tr className="border-b border-border-muted">
+            <th className="px-2 sm:px-3 py-2 text-left font-medium">Symbol</th>
+            <th className="px-2 sm:px-3 py-2 text-left font-medium">Date</th>
+            {keys.map((k) => (
+              <th key={k} className="whitespace-nowrap px-2 sm:px-3 py-2 text-right font-medium">
+                {k}d net
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {events.map((e) => (
+            <tr key={`${e.ticker}-${e.date}`} className="border-b border-border-muted/60">
+              <td className="px-2 sm:px-3 py-1.5">
+                <Link
+                  href={`/stocks/${encodeURIComponent(e.ticker)}`}
+                  className="ticker font-semibold hover:underline"
+                >
+                  {e.ticker}
+                </Link>
+              </td>
+              <td className="whitespace-nowrap px-2 sm:px-3 py-1.5">{formatCloseDate(e.date)}</td>
+              {keys.map((k) => (
+                <td
+                  key={k}
+                  className={`px-2 sm:px-3 py-1.5 text-right font-mono ${tone(e.net[k])}`}
+                >
+                  {signedPct(e.net[k], 1)}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 export function ScanStudyView({ study }: { study: ScanStudy }) {
   const horizons = study.horizons;
   const keys = horizons.map((h) => String(h.horizon));
@@ -192,41 +245,21 @@ export function ScanStudyView({ study }: { study: ScanStudy }) {
           </span>
         </h3>
         {study.events.length ? (
-          <div className="mt-2 overflow-x-auto rounded-md border border-border-muted">
-            <table className="w-full text-xs" data-testid="scan-events">
-              <thead className="text-text-tertiary">
-                <tr className="border-b border-border-muted">
-                  <th className="px-3 py-2 text-left font-medium">Symbol</th>
-                  <th className="px-3 py-2 text-left font-medium">Date</th>
-                  {keys.map((k) => (
-                    <th key={k} className="px-3 py-2 text-right font-medium">
-                      {k}d net
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {study.events.map((e) => (
-                  <tr key={`${e.ticker}-${e.date}`} className="border-b border-border-muted/60">
-                    <td className="px-3 py-1.5">
-                      <Link
-                        href={`/stocks/${encodeURIComponent(e.ticker)}`}
-                        className="ticker font-semibold hover:underline"
-                      >
-                        {e.ticker}
-                      </Link>
-                    </td>
-                    <td className="px-3 py-1.5">{formatCloseDate(e.date)}</td>
-                    {keys.map((k) => (
-                      <td key={k} className={`px-3 py-1.5 text-right font-mono ${tone(e.net[k])}`}>
-                        {signedPct(e.net[k], 1)}
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <>
+            <EventsTable
+              events={study.events.slice(0, EVENT_ROWS)}
+              keys={keys}
+              testId="scan-events"
+            />
+            {study.events.length > EVENT_ROWS ? (
+              <details className="mt-2 text-xs">
+                <summary className="cursor-pointer text-text-secondary hover:text-foreground">
+                  Show {study.events.length - EVENT_ROWS} more events
+                </summary>
+                <EventsTable events={study.events.slice(EVENT_ROWS)} keys={keys} />
+              </details>
+            ) : null}
+          </>
         ) : (
           <p className="mt-2 text-sm text-text-secondary">
             The trigger never turned true in this window.

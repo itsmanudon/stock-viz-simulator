@@ -156,7 +156,7 @@ export function EventStudyForm({
               <p className="text-2xs text-text-tertiary">Sign in to study a watchlist.</p>
             ) : null}
           </fieldset>
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
             <div className="space-y-1">
               <Label htmlFor="es-from" className="text-xs">
                 From
@@ -169,7 +169,7 @@ export function EventStudyForm({
               </Label>
               <Input id="es-to" name="to" type="date" defaultValue={initial.to} />
             </div>
-            <div className="space-y-1">
+            <div className="col-span-2 space-y-1 sm:col-span-1">
               <Label htmlFor="es-cooldown" className="text-xs">
                 Cooldown
               </Label>
