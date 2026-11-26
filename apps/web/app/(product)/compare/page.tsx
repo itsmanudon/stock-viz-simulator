@@ -138,6 +138,7 @@ export default async function ComparePage({
   return (
     <PageFrame width="workstation" className="py-5 sm:py-7">
       <ResearchPageHeader
+        path="/compare"
         title="Compare"
         description="How do these assets compare over the selected period? Every series uses the days all of them traded, rebased to 100 on the first."
         actions={

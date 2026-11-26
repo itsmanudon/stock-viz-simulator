@@ -41,6 +41,7 @@ export default async function DrillsPage({
   return (
     <PageFrame width="workstation" className="py-6 sm:py-8">
       <ResearchPageHeader
+        path="/drills"
         title="Drills"
         description="Replays seeded from a setup's real historical triggers. Plan, trade, reveal: the score is whether you followed your plan, not the profit."
         actions={

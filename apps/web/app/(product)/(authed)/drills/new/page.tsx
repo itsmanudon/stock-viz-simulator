@@ -45,6 +45,7 @@ export default async function NewDrillDeckPage({
   return (
     <PageFrame width="workstation" className="py-6 sm:py-8">
       <ResearchPageHeader
+        path="/drills/new"
         title="New drill deck"
         description="Practise a setup on its real historical triggers, one replay at a time."
         actions={

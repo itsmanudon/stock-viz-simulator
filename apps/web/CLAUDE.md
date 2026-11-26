@@ -153,7 +153,7 @@ components/
                    their maths is in `lib/footer-market.ts`. The version is the
                    root package's. No source-code link until the project is
                    public (owner, legal review first)
-  *.tsx            app-shell/sidebar/navigation, global-ticker-search, earnings-calendar,
+  *.tsx            app-shell/sidebar/navigation, command-palette, earnings-calendar,
                    public-header, price-chart, order-ticket, backtest-form, etc.
 lib/
   api/             fetch client for FastAPI, one module per resource
@@ -845,7 +845,7 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   equity curve; round trips linked to stock pages. Saved `rotation` runs
   render the same component. Tests: `tests/unit/rotation.test.tsx`, e2e in
   `research-workspace.spec.ts`.
-- `/event-study` (A4.5, Research nav and subnav, public): a GET form
+- `/event-study` (A4.5, Workbench nav and subnav, public): a GET form
   (`components/event-study/event-study-form.tsx`): trigger
   `RuleFieldEditor` with setups, news and delivery preset buttons
   (`TRIGGER_PRESETS`), universe (market, ticker list, watchlist signed in),
@@ -1106,15 +1106,62 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   offset (audit RS-2). Use `parseApiTimestamp()` / `barTimeToUtcSeconds()` from
   `lib/api-time.ts`; chart wrappers already do. Test date code under
   `TZ=Asia/Tokyo` as well as UTC.
-- The product sidebar follows the Aurora board v3 (`lib/app-navigation.ts`):
-  Home, Markets and Earnings, then labelled sections (Research, Trade,
-  Portfolio) whose headings are not links but light up while one
-  of their routes is open, including `/stocks/*` for Research. Settings sits
-  apart at the bottom and only for signed-in users (proxy.ts guards it). The
-  wordmark carries the `EOD · Simulated` tag, and the top bar shows
+- **The six-workspace shell (A3.6, 26 Nov 2026).** `lib/app-navigation.ts`
+  is the one route → workspace map (`WORKSPACES`); the sidebar, the command
+  palette, the workspace subnavs and the page eyebrows all read it. No URL
+  moved, so old links still work.
+
+  | Workspace | Routes (sidebar items in order) |
+  | --- | --- |
+  | Today | `/dashboard` (Home; `/` for guests), `/notifications` |
+  | Markets | `/markets` (Overview), `/screener`, `/earnings`, `/news` |
+  | Workbench | `/setups`, `/checklist` (+ `/recommendations`, a redirect), `/compare`, `/event-study`; `/stocks/*` belongs here without an item (`extraMatches`) |
+  | Quant Lab | `/backtest`, `/backtest/runs` (Saved runs, + `/runs/[id]`), `/replay` (+ `/[id]`), `/drills` (+ `/new`, `/[id]`), `/news-reactions` |
+  | Portfolio & Tax | `/portfolio` (journal and A5.4 plans are its Journal tab), `/trade`, `/orders`, `/trades`, `/watchlist`, `/alerts`, Books (a signed-in shortcut to `/settings#books`, never "current") |
+  | AI Copilot | `/copilot`: a placeholder page until A8 (no input, no sample answers; it lists what is planned) |
+  | Bottom rail (`UTILITY_NAVIGATION`) | `/status` (everyone), `/settings` (signed in) |
+
+  The sidebar (`components/app-navigation.tsx`) draws each workspace as a
+  labelled group (`role="group"`, `data-workspace`, `data-active`): the
+  heading is not a link and lights up for any of its routes; the item with the
+  longest matching prefix gets `aria-current="page"` (so `/backtest/runs`
+  marks Saved runs, not Backtest). `item.note` renders a small chip (the
+  Copilot's "A8"). Icons are in `components/navigation-icons.ts`
+  (`NAV_ICONS` by href, `WORKSPACE_ICONS` by id), shared with the palette.
+  `ResearchSubnav` lists the current workspace's items ("<Workspace> tools")
+  and `ResearchPageHeader path="/x"` takes its eyebrow from the workspace.
+  **To add a route:** add the page, then an item in its workspace (or a prefix
+  in `extraMatches`), and an icon in `NAV_ICONS`.
+  `tests/unit/app-navigation.test.ts` walks `app/(product)/**/page.tsx` and
+  fails while a page is unmapped; the palette picks the item up by itself.
+  The wordmark carries the `EOD · Simulated` tag, and the top bar shows
   `DataDateChip` (`components/marketing/market-status.tsx`), the newest stored
   bar's date. It is an async server component, so unit tests that render the
   shell mock that module.
+- **Command palette (A3.6)**: `components/command-palette.tsx` (replaced
+  `global-ticker-search.tsx`), data in `lib/command-palette.ts`. ⌘K / Ctrl+K
+  anywhere in the product app (again to close), `/` outside a field, or the
+  top-bar button ("Search tickers, pages and actions": a field from `sm`, an
+  icon on phones). Sources: pages (every sidebar item and the bottom rail),
+  actions (`ACTIONS`: New backtest, Start a blind replay, Create drill deck,
+  New screen, Compare symbols, Place a paper order, Create price alert, Open
+  journal and plans, Switch book…, Manage books; account-only ones hidden from
+  guests), symbols (`searchSymbols`, debounced, newest request wins), recent
+  picks (localStorage `stockviz:palette-recent`, 5, every access guarded).
+  With no query: Recent, Suggested (the current workspace's other pages, then
+  a few actions), Popular Symbols. Ranking (`scoreCommand`): every query word
+  must start a word of the label, workspace or keywords; whole label words
+  and a label prefix rank first. Keyboard and a11y: Radix Dialog ("Command
+  palette", focus trap, page inert); focus stays in the `role="combobox"`
+  input with `aria-activedescendant` into a `role="listbox"` of labelled
+  `role="group"`s; the first option is active; ↑/↓ wrap, Enter opens, Escape
+  closes and focus returns to the trigger; a polite live region counts
+  results. Book pages keep `?book=` (`resolveCommandHref`); a symbol keeps the
+  stock page's `tf` and `indicators`. "Switch book…" dispatches
+  `OPEN_BOOK_SWITCHER_EVENT`, which `book-switcher.tsx` listens for (it opens
+  with focus on the first book). The panel sits near the top (`top-3`, `sm:
+  top-[12vh]`) so results grow downward and the phone keyboard never covers
+  the input.
 - `/dashboard` (Aurora board v3): the hero takes the full width, then
   orders, watchlist and alerts, then movers and allocation. The hero adds the
   last session's move beside the period change once there are three
@@ -1207,7 +1254,7 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   category (unticked = muted on that channel), an enable box, Save and Send
   test; a channel whose server config is missing reads "Not available on
   this server.", not an error. Browser push is not built.
-- `/checklist` (A2.4, M4.4, Research nav and subnav, public): the
+- `/checklist` (A2.4, M4.4, Workbench nav and subnav, public): the
   Checklist that replaced the 7-vote Signals. `getChecklist()` /
   `getSymbolChecklist()` (`lib/api/checklist.ts`, public) read
   `/v1/checklist` and `/v1/symbols/{t}/checklist`; helpers in
@@ -1231,7 +1278,7 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   is a `permanentRedirect` to `/checklist` (keeping `q`); `lib/api/recommendations.ts`,
   `signals-table.tsx` and `signals-workspace.ts` are gone. The revalidate tag is
   `checklist`.
-- `/news-reactions` (Phase 7.4, Research subnav, public, 20 views a minute
+- `/news-reactions` (Phase 7.4, Quant Lab nav and subnav, public, 20 views a minute
   per visitor): an event study from the URL (`tickers`, `sentiment`,
   `event_type`, `pre`, `post`) through `getEventStudy()` (`lib/api/research.ts`,
   cached with `bars`/`news` tags), shown by `components/event-study-view.tsx`
