@@ -23,7 +23,6 @@ from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import func
-from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, col, select
 
 from stockviz.models import FxConversion, Portfolio, Position, PriceBar, Symbol, Trade, TradeSide
@@ -38,11 +37,19 @@ from stockviz.services.simulation import (
     evaluate_order,
     get_fee_schedule,
 )
+from stockviz.services.trading.books import (
+    DEFAULT_STARTING_CASH as DEFAULT_STARTING_CASH,
+)
+from stockviz.services.trading.books import (
+    ensure_default_portfolio as ensure_default_portfolio,
+)
+from stockviz.services.trading.books import (
+    resolve_book,
+)
 from stockviz.services.trading.buying_power import (
     available_cash,
     available_shares,
     lock_portfolio,
-    lock_user,
     reserved_shares,
 )
 from stockviz.services.trading.cash import base_currency, pay_for_buy, plan_buy
@@ -62,8 +69,6 @@ logger = logging.getLogger(__name__)
 
 EMPTY_FEES = FeeBreakdown(())
 
-DEFAULT_STARTING_CASH = Decimal("100000.00")
-"""Matches the v1 simulator: every new portfolio starts with $100k."""
 
 MICROS = Decimal("0.000001")
 """Quantization step for stored monetary values (matches Numeric(_, 6))."""
@@ -156,87 +161,6 @@ def latest_bar(session: Session, ticker: str) -> PriceBar | None:
 def _latest_close(session: Session, ticker: str) -> Decimal | None:
     bar = latest_bar(session, ticker)
     return bar.close if bar else None
-
-
-def ensure_default_portfolio(session: Session, user_id: int) -> Portfolio:
-    """Return the user's default portfolio, creating it if needed.
-
-    The web app calls this on the first /v1/portfolio request so users see a
-    funded starting balance instead of an empty page. Idempotent — re-running
-    returns the existing portfolio.
-
-    A brand-new portfolio also gets a same-day NAV snapshot seeded at the
-    starting cash, so return-since-inception is measured from the moment the
-    account was funded rather than from whenever the nightly snapshot job
-    first happened to run.
-    """
-
-    existing = session.exec(
-        select(Portfolio).where(Portfolio.user_id == user_id).order_by(Portfolio.id)  # type: ignore[arg-type]
-    ).first()
-    if existing is not None:
-        return existing
-
-    # Serialize first-account creation on the user row. Without this, two
-    # concurrent first /portfolio hits can INSERT two portfolios (user_id
-    # uniqueness is enforced in the DB, but the race still needs a lock so
-    # the loser re-reads instead of erroring out to the client).
-    lock_user(session, user_id)
-    existing = session.exec(
-        select(Portfolio).where(Portfolio.user_id == user_id).order_by(Portfolio.id)  # type: ignore[arg-type]
-    ).first()
-    if existing is not None:
-        return existing
-
-    portfolio = Portfolio(
-        user_id=user_id,
-        name="Default",
-        cash_balance=DEFAULT_STARTING_CASH,
-        opening_nav=DEFAULT_STARTING_CASH,
-    )
-    session.add(portfolio)
-    try:
-        session.commit()
-    except IntegrityError:
-        session.rollback()
-        existing = session.exec(
-            select(Portfolio).where(Portfolio.user_id == user_id).order_by(Portfolio.id)  # type: ignore[arg-type]
-        ).first()
-        if existing is None:
-            raise
-        return existing
-    session.refresh(portfolio)
-    _seed_opening_snapshot(session, user_id=user_id, nav=DEFAULT_STARTING_CASH)
-    return portfolio
-
-
-def _seed_opening_snapshot(session: Session, *, user_id: int, nav: Decimal) -> None:
-    """Write the day-zero NAV snapshot for a freshly created portfolio.
-
-    Imported lazily: ``services.trading.snapshots`` imports ``portfolio``,
-    which imports this module, so a module-level import would cycle.
-    """
-    from stockviz._time import utcnow
-    from stockviz.models import PortfolioSnapshot
-
-    today = utcnow().date()
-    existing = session.exec(
-        select(PortfolioSnapshot).where(
-            PortfolioSnapshot.user_id == user_id,
-            PortfolioSnapshot.date == today,
-        )
-    ).first()
-    if existing is not None:
-        return
-    session.add(PortfolioSnapshot(user_id=user_id, date=today, nav=nav))
-    try:
-        session.commit()
-    except IntegrityError:
-        # The portfolio page fans out several /v1 calls in Promise.all; two of
-        # them can pass the SELECT above and one INSERT then hits
-        # uq_portfolio_snapshots_user_date. The other request already wrote
-        # the row — treat that as success.
-        session.rollback()
 
 
 def get_position(session: Session, *, portfolio_id: int, ticker: str) -> Position | None:
@@ -627,8 +551,9 @@ def execute_trade(
     side: TradeSide,
     quantity: Decimal,
     client_order_id: str | None = None,
+    book_id: int | None = None,
 ) -> TradeExecution:
-    """Execute a market order. Raises a ``TradeExecutionError`` subclass on validation failure.
+    """Execute a market order in ``book_id`` (default: the user's default book). Raises a ``TradeExecutionError`` subclass on validation failure.
 
     The price stored on the Trade row is in the symbol's native currency.
     Cash is debited/credited in the portfolio's base currency (Phase 4.8),
@@ -649,7 +574,7 @@ def execute_trade(
         raise TradeExecutionError("quantity must be positive")
 
     ticker = ticker.upper()
-    portfolio = ensure_default_portfolio(session, user_id)
+    portfolio = resolve_book(session, user_id, book_id, write=True)
     assert portfolio.id is not None
     if client_order_id is not None:
         lock_portfolio(session, portfolio.id)

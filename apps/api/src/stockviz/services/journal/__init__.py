@@ -45,7 +45,7 @@ from stockviz.services.journal.query import (
     unavailable_realizations,
     utc_window,
 )
-from stockviz.services.trading.execute import ensure_default_portfolio
+from stockviz.services.trading.books import resolve_book
 
 __all__ = [
     "ExecutionKind",
@@ -97,31 +97,35 @@ class JournalDayView:
     unavailable_count: int = 0
 
 
-def month_view(session: Session, *, user_id: int, year: int, month: int) -> JournalMonthView:
+def month_view(
+    session: Session, *, user_id: int, year: int, month: int, book_id: int | None = None
+) -> JournalMonthView:
     """Aggregate one New York calendar month of the user's realized trading."""
 
-    portfolio = ensure_default_portfolio(session, user_id)
+    portfolio = resolve_book(session, user_id, book_id)
     first, last = month_bounds(year, month)
     executions = realized_executions(
         session, portfolio=portfolio, user_id=user_id, first=first, last=last
     )
     return JournalMonthView(
         month=build_month(year=year, month=month, executions=executions),
-        start_nav=month_start_nav(session, user_id=user_id, first=first),
+        start_nav=month_start_nav(session, portfolio=portfolio, first=first),
         unavailable_count=unavailable_realizations(
             session, portfolio=portfolio, user_id=user_id, first=first, last=last
         ),
     )
 
 
-def day_view(session: Session, *, user_id: int, day: date_type) -> JournalDayView:
+def day_view(
+    session: Session, *, user_id: int, day: date_type, book_id: int | None = None
+) -> JournalDayView:
     """Every closing execution for one New York session, with persisted accounting detail.
 
     Fetched lazily when a day is opened, so the month payload stays O(days)
     however many trades the user has.
     """
 
-    portfolio = ensure_default_portfolio(session, user_id)
+    portfolio = resolve_book(session, user_id, book_id)
     executions = realized_executions(
         session, portfolio=portfolio, user_id=user_id, first=day, last=day
     )
@@ -145,8 +149,10 @@ class JournalWeekView:
     unavailable_count: int = 0
 
 
-def week_view(session: Session, *, user_id: int, start: date_type) -> JournalWeekView:
-    portfolio = ensure_default_portfolio(session, user_id)
+def week_view(
+    session: Session, *, user_id: int, start: date_type, book_id: int | None = None
+) -> JournalWeekView:
+    portfolio = resolve_book(session, user_id, book_id)
     _, last = month_bounds(start.year, start.month)
     end = min(start + timedelta(days=6 - start.weekday()), last)
     executions = realized_executions(

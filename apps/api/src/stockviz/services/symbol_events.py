@@ -81,6 +81,7 @@ class SymbolEvent:
     quantity: Decimal | None = None
     price: Decimal | None = None
     r_multiple: float | None = None
+    book_id: int | None = None
 
 
 def _day_bounds(start: date, end: date) -> tuple[datetime, datetime]:
@@ -195,10 +196,16 @@ def _splits(session: Session, ticker: str, start: date, end: date) -> list[Symbo
 
 
 def _fills(
-    session: Session, ticker: str, start: date, end: date, user_id: int
+    session: Session,
+    ticker: str,
+    start: date,
+    end: date,
+    user_id: int,
+    book_id: int | None = None,
 ) -> list[SymbolEvent]:
+    """The caller's fills across all their books (A5.1), or one book's."""
     lo, hi = _day_bounds(start, end)
-    rows = session.exec(
+    stmt = (
         select(Trade)
         .join(Portfolio, col(Portfolio.id) == col(Trade.portfolio_id))
         .where(
@@ -207,9 +214,10 @@ def _fills(
             col(Trade.ts) >= lo,
             col(Trade.ts) < hi,
         )
-        .order_by(col(Trade.ts))
-        .limit(MAX_FILLS)
-    ).all()
+    )
+    if book_id is not None:
+        stmt = stmt.where(col(Trade.portfolio_id) == book_id)
+    rows = session.exec(stmt.order_by(col(Trade.ts)).limit(MAX_FILLS)).all()
     return [
         SymbolEvent(
             type="fill",
@@ -219,6 +227,7 @@ def _fills(
             quantity=r.quantity,
             price=r.price,
             r_multiple=None,
+            book_id=r.portfolio_id,
         )
         for r in rows
     ]
@@ -232,6 +241,7 @@ def symbol_events(
     end: date,
     types: tuple[str, ...],
     user_id: int | None,
+    book_id: int | None = None,
 ) -> list[SymbolEvent]:
     """Every wanted event in [start, end], oldest first, then in type order."""
     symbol = session.get(Symbol, ticker)
@@ -246,7 +256,7 @@ def symbol_events(
     if "split" in types:
         out += _splits(session, ticker, start, end)
     if "fill" in types and user_id is not None:
-        out += _fills(session, ticker, start, end, user_id)
+        out += _fills(session, ticker, start, end, user_id, book_id)
     order = {t: i for i, t in enumerate(EVENT_TYPES)}
     out.sort(key=lambda e: (e.date, order[e.type], e.ts or datetime.min))
     return out

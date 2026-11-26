@@ -64,9 +64,10 @@ from stockviz.services.options.trade import (
     quote_option,
     value_option,
 )
+from stockviz.services.trading.books import require_writable, resolve_book
 from stockviz.services.trading.buying_power import available_cash, available_shares, lock_portfolio
 from stockviz.services.trading.cash import base_currency, credit, pay_for_buy, plan_buy
-from stockviz.services.trading.execute import NoFxRateError, ensure_default_portfolio
+from stockviz.services.trading.execute import NoFxRateError
 
 _CENTS = Decimal("0.01")
 
@@ -296,8 +297,9 @@ def open_strategy(
     far_expiry: date_type | None = None,
     option_type: OptionType | None = None,
     client_order_id: str | None = None,
+    book_id: int | None = None,
 ) -> StrategyResult:
-    """Open every leg of a template in one transaction, or none.
+    """Open every leg of a template in one transaction, or none, in ``book_id``.
 
     The account must be able to pay the net debit and still hold back the
     collateral (for a credit, the credit counts toward it: it is cash in the
@@ -305,7 +307,7 @@ def open_strategy(
     single-order limit (Phase 8.5).
     """
     ticker = ticker.upper()
-    portfolio = ensure_default_portfolio(session, user_id)
+    portfolio = resolve_book(session, user_id, book_id, write=True)
     assert portfolio.id is not None
     portfolio_id = portfolio.id
     if client_order_id is not None:
@@ -463,6 +465,9 @@ def close_strategy(session: Session, *, user_id: int, strategy_id: int) -> Strat
         raise OptionNotFound("Strategy not found")
     if strategy.status != StrategyStatus.OPEN:
         raise OptionTradeError(f"This strategy is already {strategy.status}")
+    book = session.get(Portfolio, strategy.portfolio_id)
+    if book is not None:
+        require_writable(book)  # A5.1: closing trades in the strategy's book
     legs = [leg for leg in _legs(session, strategy) if leg.status == OptionStatus.OPEN]
     if any(leg.expiry < _today() for leg in legs):
         raise OptionTradeError("A leg has expired and is awaiting expiry settlement")

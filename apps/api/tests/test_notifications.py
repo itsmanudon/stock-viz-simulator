@@ -32,6 +32,7 @@ from stockviz.services.alerts import evaluate_pending_alerts
 from stockviz.services.trading import ensure_default_portfolio
 from stockviz.services.trading.orders import create_pending_order, settle_pending_orders
 from stockviz.settings import get_settings
+from tests.book_helpers import default_book_id
 from tests.test_aegis_news import _document, _symbols
 
 DAY0 = datetime(2025, 1, 6)
@@ -134,7 +135,12 @@ def test_a_drawdown_rule_fires_when_the_account_falls_past_it(session: Session) 
     assert evaluate_pending_alerts(session, now=day1) == 0  # records state only
     # A peak of $120,000 on a stored snapshot; the live value is $100,000.
     session.add(
-        PortfolioSnapshot(user_id=user, date=datetime(2026, 11, 9).date(), nav=Decimal(120000))
+        PortfolioSnapshot(
+            user_id=user,
+            portfolio_id=default_book_id(session, user),
+            date=datetime(2026, 11, 9).date(),
+            nav=Decimal(120000),
+        )
     )
     session.commit()
     assert evaluate_pending_alerts(session, now=day1) == 0  # same session: judged

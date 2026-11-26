@@ -50,7 +50,7 @@ src/stockviz/
                     (A2.2), notification_channels (A2.3), drawings
                     (A3.2), avwap (A3.3), events, strength (RS
                     percentile, delivery) and regime (A3.5), drills
-                    (A4.7), health
+                    (A4.7), books (A5.1), health
                     (`GET /live` liveness, `GET /health` readiness + DB)
   services/
     ingest/         External-API fetchers (yfinance primary, Alpha Vantage fallback);
@@ -71,7 +71,9 @@ src/stockviz/
     trading/        execute, orders (pending limit/stop + derived reservations),
                     simulation_adapter (PriceBar / PendingOrder → kernel types),
                     execution_provenance (SimulatedExecution writer),
-                    buying_power, portfolio, analytics, dividends, fx, snapshots
+                    buying_power, portfolio, analytics, dividends, fx, snapshots,
+                    books (A5.1: resolve_book, the default book)
+    books/          A5.1: book create, rename, archive, default, delete
     simulation/     pure deterministic execution kernel + profile registry +
                     SimulationClock. Live MARKET and pending equity fills call
                     evaluate_order with LIVE_PAPER_EXECUTION_PROFILE; apply_fill
@@ -1251,14 +1253,16 @@ yfinance's split-adjusted series, rewritten every night, so a split divides
 every old close by its ratio. `stockviz.cli corporate-actions` (after
 `ingest`, before `fx` and `settle-orders` in the cron) records splits for the
 tickers the ledger touches (`corporate_actions`, from `yfinance.splits`) and,
-once the ex-date bar is complete on the venue, rebases each user in one
+once the ex-date bar is complete on the venue, rebases each user's candidate
+books (A5.1: each book once) and their price alerts in one
 transaction (`services/corporate_actions/apply.py`): shares bought before the
 cut-off and still held times r with the total cost kept; pending orders, live
 alerts and open options made before the cut-off scaled likewise (options
 carry `shares_per_contract`, 100 until a split changes it; value and
 exercise read it, never `CONTRACT_MULTIPLIER`). Trade rows stay as filled.
-`corporate_action_applications` (unique per action and user) makes it run
-once. Old splits change nothing because no ledger row predates them. The
+`corporate_action_applications` (A5.1: unique per action and book for a
+book's rebase, and per action and user where `portfolio_id` is null for the
+user's alerts) makes each part run once. Old splits change nothing because no ledger row predates them. The
 Alpha Vantage fallback is unadjusted, so `upsert_bars` lets it add only days
 newer than the newest stored daily bar (audit MD-5). Replay sessions read
 the same rescaled bars and are not rebased.
@@ -1698,8 +1702,9 @@ users ─┬─ portfolios ─┬─ positions           (qty + native-currency 
        │              ├─ trades               (fill history)
        │              ├─ pending_orders       (limit / stop_loss / take_profit)
        │              ├─ options_positions    (also carries user_id)
-       │              └─ portfolio_dividends  (credited payouts)
-       ├─ portfolio_snapshots   (daily NAV — powers the equity curve and returns)
+       │              ├─ portfolio_dividends  (credited payouts)
+       │              ├─ portfolio_snapshots  (A5.1: daily NAV per book; also carries user_id)
+       │              └─ risk_limits          (one row per book)
        ├─ watchlists ── watchlist_items   (A2.5: many lists, one default; notes, tags)
        ├─ column_sets           (A2.5: saved watchlist columns)
        ├─ alerts
@@ -1712,7 +1717,9 @@ symbols ─┬─ price_bars          (EOD OHLCV; everything prices off the late
 fx_rates                        (currency + date, USD-per-unit)
 ```
 
-Gotcha: `portfolio_snapshots` hangs off **users**, not portfolios.
+A5.1: a user holds up to 20 portfolios ("books"), exactly one `is_default`.
+`portfolio_snapshots` hangs off the book (`portfolio_id`, unique with the
+date); its `user_id` is kept for the combined view (A5.2).
 
 ## Rate limiting
 
@@ -1750,13 +1757,62 @@ Everything prices off the **latest `1d` close** in `price_bars` — there are no
 intraday fills anywhere in the app:
 
 - New portfolios start with **$100,000** cash (`DEFAULT_STARTING_CASH`,
-  `services/trading/execute.py`), auto-created on the first `/v1/portfolio`
-  call via `ensure_default_portfolio` (idempotent).
+  `services/trading/books.py`), auto-created on the first `/v1/portfolio`
+  call via `ensure_default_portfolio` (idempotent; it finds the default
+  book, `is_default`).
+- **Books (A5.1, M10.1).** Migration `6ad74b7c4b5b`. `portfolios` gains
+  `kind` (`paper` | `imported`), `is_default`, `cash_tracked` (false for
+  imported: holdings only), `broker` (`zerodha` or null), `holder_kind`
+  (`self` | `family` | `huf`), `holder_label` (free text, 60; a PAN-shaped
+  label is 422: no PAN is stored) and `archived_at`. The unique `user_id`
+  index is gone; a partial unique index `uq_portfolios_user_default`
+  (`user_id WHERE is_default`) keeps the first-use race guard, and
+  `(user_id, name)` is unique (the API also refuses names equal ignoring
+  case). Checks: kind, holder kind, broker, `ck_portfolios_default_not_archived`.
+  The upgrade makes every existing portfolio its user's default paper book.
+  **Downgrade refuses** while any user holds more than one book (it names
+  how many; nothing changed), else it folds the split applications back to
+  one per (action, user) and restores the old keys. `alerts.portfolio_id`
+  (nullable, cascade): the book a portfolio rule watches, null = default.
+  **One resolver:** `services/trading/books.py::resolve_book(session,
+  user_id, book_id | None, write=False)`: None = the default book (created
+  on first use); another user's or a missing id raises `BookNotFound`
+  (404, `main.py` handler); `write=True` refuses an archived or imported
+  book (`BookNotWritable`, 409). `owned_book` checks a row's own book
+  (cancel an order, a trade's provenance); `require_writable` guards
+  closes of an option or strategy in its own book. Every book-scoped route
+  takes `?book=<id>` (`routers/book_query.py::BookQuery`): portfolio,
+  overview, analytics, risk, stress, limits (GET/PUT, check), history,
+  dividends, trades (GET/POST), base currency, orders (GET/POST), options
+  trade/positions/strategies/book, the journal, earnings `scope=holdings`
+  (default: every book's holdings) and symbol events (fills from all the
+  caller's books by default; each fill event carries `book_id`).
+  `POST /v1/alerts` takes `book_id` for portfolio rules. Nightly jobs
+  iterate books: snapshots (archived ones too), split rebases, dividend
+  credits (books with `cash_tracked` false get none); pending orders and
+  option expiry were already per book. `tests/test_book_lookup_allowlist.py`
+  fails on any new `Portfolio.user_id ==` / `PortfolioSnapshot.user_id ==`
+  in `src/` outside its allow-list. Risk limits are per book; price alerts,
+  watchlists and the display currency stay per user.
+- **Book CRUD (A5.1).** `services/books/`, `routers/books.py`:
+  `GET /v1/books` -> `{books: [BookOut], limit: 20}` (default first; it
+  creates the default); `POST /v1/books {name, kind?, base_currency?
+  USD|INR, holder_kind?, holder_label?, broker?}` (201; a paper book starts
+  with `STARTING_CASH` in its currency and a day-zero snapshot; an imported
+  one with 0; 409 past 20 or a taken name); `PATCH /v1/books/{id} {name?,
+  holder_kind?, holder_label? (null clears), archived?, is_default: true}`
+  (409: archiving the default, archiving with pending orders, making an
+  archived or imported book the default); `DELETE /v1/books/{id}` (204;
+  409 for the default or last book, and for a book with activity that is
+  not archived; deletes everything in it). `BookOut` carries `writable` and
+  `activity`. Only a paper book can be the default.
 - **Rupee accounts (Phase 4.8).** `PUT /v1/portfolio/base-currency`
-  (`services/trading/account.py`) restarts a **fresh** account in USD
+  (`services/trading/account.py`; A5.1: per book, `?book=`, paper and not
+  archived) restarts a **fresh** book in USD
   ($100,000) or INR (₹1 crore, `STARTING_CASH`): no trades, orders, options,
   positions, dividends or foreign cash, else 409. It restates the opening
-  NAV and the account's snapshots and sets the display currency to match.
+  NAV and that book's snapshots, and sets the display currency to match
+  only when the book is the default.
   `PortfolioOut` carries `base_currency` and `base_currency_locked`.
 - **Fees (A4.2).** Indian symbols pay their venue's equity delivery
   schedule on every live fill (see "Date-versioned costs (A4.2)"); other
@@ -1815,7 +1871,8 @@ intraday fills anywhere in the app:
   row via `lock_portfolio`, which **refreshes** the identity-map instance so
   a stale `cash_balance` cannot overwrite a concurrent debit. Cancel and
   fill re-read `order.status == PENDING` after that lock. First-portfolio
-  creation serializes on the user row; `portfolios.user_id` is unique.
+  creation serializes on the user row; one default book per user is unique
+  (A5.1, `uq_portfolios_user_default`).
   Orders that trigger but fail validation (insufficient available cash/shares)
   are **cancelled** with a `cancel_reason`, never retried. Settlement takes a
   `session_date` and leaves orders pending when the latest bar predates it, so

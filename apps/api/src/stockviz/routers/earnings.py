@@ -15,9 +15,11 @@ from sqlmodel import Session, col, select
 
 from stockviz.auth import UserIdDep
 from stockviz.db import get_session
-from stockviz.models import EarningsEvent, Portfolio, Position, Symbol, Watchlist, WatchlistItem
+from stockviz.models import EarningsEvent, Position, Symbol, Watchlist, WatchlistItem
+from stockviz.routers.book_query import BookQuery
 from stockviz.schemas import EarningsEventOut
 from stockviz.services.instruments import instruments_of
+from stockviz.services.trading.books import resolve_book, user_books
 
 router = APIRouter(prefix="/v1/earnings", tags=["earnings"])
 SessionDep = Annotated[Session, Depends(get_session)]
@@ -50,7 +52,9 @@ def list_earnings(
     from_date: Annotated[date | None, Query(alias="from")] = None,
     to_date: Annotated[date | None, Query(alias="to")] = None,
     scope: Annotated[Scope, Query()] = "all",
+    book: BookQuery = None,
 ) -> list[EarningsEventOut]:
+    """``scope=holdings`` reads every book's holdings (A5.1), or ``?book=``'s."""
     default_from, default_to = _month_window(date.today())
     start = from_date or default_from
     end = to_date or default_to
@@ -61,14 +65,21 @@ def list_earnings(
 
     ticker_filter: set[str] | None = None
     if scope == "holdings":
-        portfolio = session.exec(select(Portfolio).where(Portfolio.user_id == user_id)).first()
-        ticker_filter = set()
-        if portfolio is not None:
-            ticker_filter = set(
+        books = (
+            [resolve_book(session, user_id, book)]
+            if book is not None
+            else user_books(session, user_id)
+        )
+        ids = [b.id for b in books if b.id is not None]
+        ticker_filter = (
+            set(
                 session.exec(
-                    select(Position.ticker).where(Position.portfolio_id == portfolio.id)
+                    select(Position.ticker).where(col(Position.portfolio_id).in_(ids))
                 ).all()
             )
+            if ids
+            else set()
+        )
     elif scope == "watchlist":
         watchlists = select(Watchlist.id).where(Watchlist.user_id == user_id)
         ticker_filter = set(

@@ -17,8 +17,9 @@ from stockviz.services.trading import (
     snapshot_user_navs,
     upsert_user_snapshot,
 )
-from stockviz.services.trading.execute import _seed_opening_snapshot
+from stockviz.services.trading.books import seed_opening_snapshot
 from stockviz.settings import get_settings
+from tests.book_helpers import default_book_id
 
 SECRET = get_settings().internal_api_token
 
@@ -72,11 +73,11 @@ def _reset_snapshots(session: Session, user_id: int) -> None:
 
 def test_opening_snapshot_seed_is_idempotent(session: Session) -> None:
     """The portfolio page fires several /v1 calls in parallel; seeding twice
-    must not 500 on uq_portfolio_snapshots_user_date."""
+    must not 500 on uq_portfolio_snapshots_portfolio_date."""
     user_id = _make_user(session)
-    ensure_default_portfolio(session, user_id)
-    _seed_opening_snapshot(session, user_id=user_id, nav=DEFAULT_STARTING_CASH)
-    _seed_opening_snapshot(session, user_id=user_id, nav=DEFAULT_STARTING_CASH)
+    book = ensure_default_portfolio(session, user_id)
+    seed_opening_snapshot(session, portfolio=book)
+    seed_opening_snapshot(session, portfolio=book)
     rows = list(
         session.exec(select(PortfolioSnapshot).where(PortfolioSnapshot.user_id == user_id)).all()
     )
@@ -88,7 +89,7 @@ def test_opening_snapshot_seed_swallows_unique_violation(session: Session) -> No
     """If the SELECT misses a row another request just committed, INSERT
     must not 500 — that's the /portfolio Promise.all race."""
     user_id = _make_user(session)
-    ensure_default_portfolio(session, user_id)
+    book = ensure_default_portfolio(session, user_id)
 
     orig = session.exec
 
@@ -98,7 +99,7 @@ def test_opening_snapshot_seed_swallows_unique_violation(session: Session) -> No
 
     session.exec = lambda _statement, *_a, **_k: _Empty()  # type: ignore[method-assign]
     try:
-        _seed_opening_snapshot(session, user_id=user_id, nav=DEFAULT_STARTING_CASH)
+        seed_opening_snapshot(session, portfolio=book)
     finally:
         session.exec = orig  # type: ignore[method-assign]
 
@@ -162,7 +163,14 @@ def test_history_returns_ascending_window(session: Session, client: TestClient) 
     today = date.today()
     for i in range(5):
         d = today - timedelta(days=i)
-        session.add(PortfolioSnapshot(user_id=user_id, date=d, nav=Decimal(100_000 + i)))
+        session.add(
+            PortfolioSnapshot(
+                user_id=user_id,
+                portfolio_id=default_book_id(session, user_id),
+                date=d,
+                nav=Decimal(100_000 + i),
+            )
+        )
     session.commit()
 
     response = client.get("/v1/portfolio/history?days=365", headers=_auth_headers(user_id))
@@ -181,7 +189,14 @@ def test_history_filters_by_days_window(session: Session, client: TestClient) ->
     today = date.today()
     for offset in [0, 10, 60, 120]:
         d = today - timedelta(days=offset)
-        session.add(PortfolioSnapshot(user_id=user_id, date=d, nav=Decimal(100_000)))
+        session.add(
+            PortfolioSnapshot(
+                user_id=user_id,
+                portfolio_id=default_book_id(session, user_id),
+                date=d,
+                nav=Decimal(100_000),
+            )
+        )
     session.commit()
 
     response = client.get("/v1/portfolio/history?days=30", headers=_auth_headers(user_id))
@@ -193,9 +208,23 @@ def test_history_filters_by_days_window(session: Session, client: TestClient) ->
 def test_history_isolated_per_user(session: Session, client: TestClient) -> None:
     alice = _make_user(session, email="alice@stockviz.dev")
     bob = _make_user(session, email="bob@stockviz.dev")
+    for user in (alice, bob):
+        ensure_default_portfolio(session, user)
+        _reset_snapshots(session, user)
     today = date.today()
-    session.add(PortfolioSnapshot(user_id=alice, date=today, nav=Decimal(123)))
-    session.add(PortfolioSnapshot(user_id=bob, date=today, nav=Decimal(456)))
+    session.add(
+        PortfolioSnapshot(
+            user_id=alice,
+            portfolio_id=default_book_id(session, alice),
+            date=today,
+            nav=Decimal(123),
+        )
+    )
+    session.add(
+        PortfolioSnapshot(
+            user_id=bob, portfolio_id=default_book_id(session, bob), date=today, nav=Decimal(456)
+        )
+    )
     session.commit()
 
     alice_body = client.get("/v1/portfolio/history", headers=_auth_headers(alice)).json()

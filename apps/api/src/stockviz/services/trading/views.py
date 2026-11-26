@@ -143,23 +143,23 @@ def portfolio_response(
 
 def portfolio_analytics_response(
     session: Session,
-    user_id: int,
+    portfolio: Portfolio,
     valuation: PortfolioValuation,
     *,
     risk_free_rate: float,
 ) -> PortfolioAnalyticsOut:
+    """Analytics for one book (A5.1): its own snapshots and opening value."""
     snapshots = list(
         session.exec(
             select(PortfolioSnapshot)
-            .where(PortfolioSnapshot.user_id == user_id)
+            .where(PortfolioSnapshot.portfolio_id == portfolio.id)
             .order_by(PortfolioSnapshot.date.asc())  # type: ignore[attr-defined]
         )
     )
     # LG-1: the series runs from the fixed opening value, through the nightly
     # snapshots, to the live valuation. The first snapshot cannot stand in for
     # the opening: the nightly job overwrites it if the user traded that day.
-    portfolio = session.exec(select(Portfolio).where(Portfolio.user_id == user_id)).first()
-    opening = portfolio.opening_nav if portfolio is not None else None
+    opening = portfolio.opening_nav
     live = Decimal(valuation.total_value)
     # Opening and snapshots are in the base currency (Phase 4.8); so is live.
     if valuation.display_currency != valuation.base_currency:
@@ -176,11 +176,7 @@ def portfolio_analytics_response(
         if len(snapshots) >= 2
         else []
     )
-    started = (
-        portfolio.created_at.date()
-        if portfolio is not None
-        else (snapshots[0].date if snapshots else None)
-    )
+    started = portfolio.created_at.date()
     history_days = max((utcnow().date() - started).days, 0) if started is not None else 0
 
     position_tickers = [p.ticker for p in valuation.positions]
