@@ -15,3 +15,10 @@ export function getSeasonality(ticker: string): Promise<Seasonality> {
 export function getEarningsDrift(ticker: string): Promise<EarningsDrift> {
   return apiGet<EarningsDrift>(`/v1/symbols/${encodeURIComponent(ticker)}/earnings-drift`, CACHE);
 }
+
+export type Forecast = components["schemas"]["ForecastOut"];
+
+/** A9.2: HAR-RV against a random walk, and conformal cones with realised coverage. */
+export function getForecast(ticker: string): Promise<Forecast> {
+  return apiGet<Forecast>(`/v1/symbols/${encodeURIComponent(ticker)}/forecast`, CACHE);
+}

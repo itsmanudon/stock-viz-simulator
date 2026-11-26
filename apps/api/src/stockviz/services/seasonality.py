@@ -62,6 +62,19 @@ def closes(session: Session, ticker: str) -> list[tuple[date, float]]:
     return [(r.ts.date(), float(r.close)) for r in rows]
 
 
+def bars_hlc(
+    session: Session, ticker: str
+) -> tuple[list[date], list[float], list[float], list[float]]:
+    """A9.2: dates, highs, lows and closes of the stored daily bars."""
+    rows = session.exec(
+        select(PriceBar)
+        .where(col(PriceBar.ticker) == ticker, col(PriceBar.interval) == "1d")
+        .order_by(col(PriceBar.ts))
+    ).all()
+    return ([r.ts.date() for r in rows], [float(r.high) for r in rows],
+            [float(r.low) for r in rows], [float(r.close) for r in rows])  # fmt: skip
+
+
 def seasonality(series: list[tuple[date, float]]) -> dict[str, object]:
     """Monthly and weekday statistics (pure)."""
     month_end: dict[tuple[int, int], float] = {}

@@ -925,6 +925,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/symbols/{ticker}/forecast": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Forecast
+         * @description A9.2: every forecast with its skill against a random walk and its coverage.
+         */
+        get: operations["get_forecast_v1_symbols__ticker__forecast_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/portfolio": {
         parameters: {
             query?: never;
@@ -4483,6 +4503,21 @@ export interface components {
             /** Per Book Only */
             per_book_only: string[];
         };
+        /** ConeOut */
+        ConeOut: {
+            /** Horizon */
+            horizon: number;
+            /** Level */
+            level: number;
+            /** Lower */
+            lower?: number | null;
+            /** Upper */
+            upper?: number | null;
+            /** Realised Coverage */
+            realised_coverage?: number | null;
+            /** Test Days */
+            test_days: number;
+        };
         /**
          * CostsOut
          * @description A4.2: the costs a run applied, each component with its rate and source.
@@ -6069,6 +6104,27 @@ export interface components {
              * @default false
              */
             closes_entry: boolean;
+        };
+        /**
+         * ForecastOut
+         * @description A9.2 (M8.2, M8.3): HAR-RV against a random walk; conformal cones with coverage.
+         */
+        ForecastOut: {
+            /** Ticker */
+            ticker: string;
+            /** Last Date */
+            last_date?: string | null;
+            /** Last Close */
+            last_close?: number | null;
+            volatility: components["schemas"]["VolForecastOut"];
+            /** Cones */
+            cones: components["schemas"]["ConeOut"][];
+            /** Cones Reason */
+            cones_reason?: string | null;
+            /** Method */
+            method: {
+                [key: string]: string;
+            };
         };
         /** ForensicScoreOut */
         ForensicScoreOut: {
@@ -12998,6 +13054,29 @@ export interface components {
             /** Cvar Pct */
             cvar_pct: number;
         };
+        /** VolForecastOut */
+        VolForecastOut: {
+            /** Test Days */
+            test_days: number;
+            /** Har Mse */
+            har_mse?: number | null;
+            /** Rw Mse */
+            rw_mse?: number | null;
+            /** Har Qlike */
+            har_qlike?: number | null;
+            /** Rw Qlike */
+            rw_qlike?: number | null;
+            /** Skill Mse */
+            skill_mse?: number | null;
+            /** Skill Qlike */
+            skill_qlike?: number | null;
+            /** Next Day Vol */
+            next_day_vol?: number | null;
+            /** Coefficients */
+            coefficients?: number[] | null;
+            /** Reason */
+            reason?: string | null;
+        };
         /** VolumeProfileBinOut */
         VolumeProfileBinOut: {
             /** Low */
@@ -15166,6 +15245,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EarningsDriftOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_forecast_v1_symbols__ticker__forecast_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ticker: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForecastOut"];
                 };
             };
             /** @description Validation Error */
