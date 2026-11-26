@@ -1,0 +1,31 @@
+{
+  "operands": [
+    "close",
+    "open",
+    "high",
+    "low",
+    "volume",
+    "sma(close, 50)",
+    "ema(close, 20)",
+    "rsi(14)",
+    "atr(14) / close * 100",
+    "pct_change(close, 126)",
+    "highest(high, 252)",
+    "lowest(low, 20)",
+    "sma(volume, 20)",
+    "fundamental.pe",
+    "fundamental.pb",
+    "fundamental.roe",
+    "fundamental.market_cap",
+    "fundamental.dividend_yield",
+    "delivery_pct"
+  ],
+  "comparators": [
+    ">",
+    ">=",
+    "<",
+    "<=",
+    "crosses_above",
+    "crosses_below"
+  ]
+}

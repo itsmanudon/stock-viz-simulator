@@ -2195,6 +2195,15 @@ the first expiry). Web: an Options tab on the stock page (when a chain is
 stored) and what-if inputs and curve in the strategy builder. Tests:
 `tests/test_a79_option_exposure.py`.
 
+**Visual rule builder (A8.1, M4.2 visual half).** Web only: the screener's
+rule panel gains "Build visually" (`components/rule-builder.tsx`,
+`lib/rule-builder.ts`): groups of conditions, `and` inside and `or` between,
+written into the rule text as you build, reordered and moved by drag and drop;
+crossings are not offered on fundamentals (point in time, the DSL refuses
+them). `tests/fixtures/rule_builder_operands.json` is the builder's operand
+catalogue: Vitest holds the web list equal to it and
+`tests/test_a81_rule_builder.py` compiles every operand with every comparator.
+
 **Survivorship stamp (A1.4a, part of M1.5).** Every backtest result carries
 `universe: {name, point_in_time, survivorship_biased, note}`: the public
 `POST /v1/backtest` (`BacktestOut.universe`), stored single runs, and
