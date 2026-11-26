@@ -41,7 +41,9 @@ from stockviz.schemas import (
     StrategyTradeOut,
     StrategyUniverseSourceOut,
 )
+from stockviz.services.backtest import report_card
 from stockviz.services.backtest.engine import FILL_RULES, BacktestError
+from stockviz.services.backtest.report import SharpeStats, Trip
 from stockviz.services.backtest.run import check_fee_currency
 from stockviz.services.backtest.strategy import (
     STOP_PRIORITY,
@@ -51,6 +53,7 @@ from stockviz.services.backtest.strategy import (
     SymbolInput,
     run_strategy,
 )
+from stockviz.services.backtest.trials import split_window
 from stockviz.services.backtest.universe import universe_for
 from stockviz.services.bars.resample import bar_date
 from stockviz.services.dsl import CompiledRule, Needs, compile_rule, load_symbol, vector
@@ -81,6 +84,7 @@ class StrategyRun:
     first_bar_at: datetime | None
     last_bar_at: datetime | None
     entry_version_id: int | None
+    stats: SharpeStats | None = None
 
     @property
     def label(self) -> str:
@@ -167,6 +171,9 @@ def _strategy_hash(body: StrategyBacktestIn, rules: list[_Rule], tickers: list[s
         payload["adv_cap_pct"] = body.adv_cap_pct
     if body.brokerage != "zerodha":
         payload["brokerage"] = body.brokerage
+    # A4.3: the holdout joins only when on, so runs saved before it keep theirs.
+    if body.holdout != "none":
+        payload["holdout"] = body.holdout
     return hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()
 
 
@@ -202,6 +209,7 @@ def execute_strategy(
     or ``RuleError``."""
     if body.from_ > body.to:
         raise StrategyError("'from' must be on or before 'to'")
+    window = split_window(body.from_, body.to, body.holdout)
     rules = [_resolve_rule(session, body.entry, "entry", user_id)]
     if body.exit is not None:
         rules.append(_resolve_rule(session, body.exit, "exit", user_id))
@@ -287,18 +295,18 @@ def execute_strategy(
     last_at: datetime | None = None
     for ticker in tickers:
         data = load_symbol(
-            session, ticker, end=body.to, start=body.from_, lookback=lookback,
+            session, ticker, end=window.to_date, start=window.from_date, lookback=lookback,
             needs=needs, user_id=user_id,
         )  # fmt: skip
         dates = data.dates
         if not dates:
             continue
         venue = venue_for_ticker(ticker)
-        rows = [r for r in _price_rows(session, ticker, dates[0], body.to)
+        rows = [r for r in _price_rows(session, ticker, dates[0], window.to_date)
                 if bar_date(r.ts, venue) >= dates[0]]  # fmt: skip
         if [bar_date(r.ts, venue) for r in rows] != dates:
             raise StrategyError(f"{ticker}: the bars changed while loading; run it again")
-        first = next((i for i, d in enumerate(dates) if d >= body.from_), len(dates))
+        first = next((i for i, d in enumerate(dates) if d >= window.from_date), len(dates))
         if first >= len(dates):
             continue
         entry = _bool_list(vector(entry_rule, data))
@@ -463,6 +471,14 @@ def execute_strategy(
         ignored = result.ignored_entry_signals
         skip_reasons = result.skip_reasons
 
+    card, stats = report_card.build(
+        session,
+        ticker=tickers[0],
+        curve=[(p.date, p.nav) for p in curve],
+        trips=[Trip(t.entry_date, t.exit_date, t.pnl, t.r_multiple, t.open) for t in trades],
+        initial_cash=cash,
+        max_drawdown=summary.max_drawdown,
+    )
     out = StrategyBacktestOut(
         tickers=tickers,
         currency=currency,
@@ -510,6 +526,8 @@ def execute_strategy(
             skipped=result.skip_reasons.get("adv_cap", 0) if result is not None else 0,
             unknown=result.adv_unknown if result is not None else 0,
         ),
+        window=window,
+        report=card,
     )
     return StrategyRun(
         out=out,
@@ -518,6 +536,7 @@ def execute_strategy(
         first_bar_at=first_at,
         last_bar_at=last_at,
         entry_version_id=rules[0].version_id,
+        stats=stats,
     )
 
 

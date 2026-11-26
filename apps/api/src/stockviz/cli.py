@@ -377,6 +377,19 @@ def _cmd_settle_options(_args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_prune_trials(args: argparse.Namespace) -> int:
+    """A4.3: delete trial-ledger rows not run for ``--days`` (not scheduled)."""
+    from stockviz.services.backtest.trials import prune_trials
+
+    if args.days < 1:
+        print("--days must be at least 1")
+        return 2
+    with Session(engine) as session:
+        n = prune_trials(session, days=args.days)
+    print(f"pruned {n} backtest trial(s) not run for {args.days} day(s)")
+    return 0
+
+
 def _cmd_prune_events(args: argparse.Namespace) -> int:
     from stockviz._time import utcnow
     from stockviz.events.prune import prune_events
@@ -1818,6 +1831,15 @@ def main(argv: list[str] | None = None) -> int:
         help="Also delete old unpublished outbox rows. Only where no publisher runs, like the Railway cron",
     )
     p_prune.set_defaults(fn=_cmd_prune_events)
+
+    p_trials = sub.add_parser(
+        "prune-trials",
+        help="Delete backtest trial-ledger rows not run for --days (A4.3; not scheduled)",
+    )
+    p_trials.add_argument(
+        "--days", type=int, default=365, help="Keep rows run within this many days (default 365)"
+    )
+    p_trials.set_defaults(fn=_cmd_prune_trials)
 
     p_redate = sub.add_parser(
         "redate-bars",

@@ -46,7 +46,8 @@ def code_version() -> str:
 
 
 def _result(run: BacktestRun) -> dict[str, Any]:
-    return run.out.model_dump(mode="json")
+    # A4.3: the ledger's checks are read at response time, never stored.
+    return run.out.model_dump(mode="json", exclude={"checks"})
 
 
 def save_run(
@@ -80,6 +81,9 @@ def save_run(
     session.add(row)
     session.commit()
     session.refresh(row)
+    from stockviz.services.backtest.checks import template_checks
+
+    template_checks(session, body, run, user_id=user_id, source="saved", read=False)
     return row
 
 
@@ -110,12 +114,15 @@ def save_strategy_run(
         bar_count=run.bar_count,
         first_bar_at=run.first_bar_at,
         last_bar_at=run.last_bar_at,
-        result=run.out.model_dump(mode="json"),
+        result=run.out.model_dump(mode="json", exclude={"checks"}),
         setup_version_id=run.entry_version_id,
     )
     session.add(row)
     session.commit()
     session.refresh(row)
+    from stockviz.services.backtest.checks import strategy_checks
+
+    strategy_checks(session, body, run, user_id=user_id, source="saved", read=False)
     return row
 
 
@@ -134,11 +141,13 @@ def _check_room(session: Session, user_id: int, experiment_id: int | None) -> No
 def as_saved(request: dict[str, Any]) -> dict[str, Any]:
     """A stored request as it ran. A4.2 added the ADV cap with a 10% default;
     a request saved before then has no ``adv_cap_pct`` and ran uncapped, so it
-    reruns uncapped. (Its ``fee_schedule`` was always stored by name; the new
+    reruns uncapped. A4.3 added the default holdout; a request without
+    ``holdout`` ran on its whole range, so it reruns with ``none``. (Its
+    ``fee_schedule`` was always stored by name; the new
     ``auto`` default never applies to it.)"""
-    if "adv_cap_pct" in request:
-        return request
-    return {**request, "adv_cap_pct": None}
+    out = request if "adv_cap_pct" in request else {**request, "adv_cap_pct": None}
+    # A4.3: a request saved before the holdout ran on its whole range.
+    return out if "holdout" in out else {**out, "holdout": "none"}
 
 
 def _compute(session: Session, kind: str, request: dict[str, Any]) -> Computed:
@@ -191,6 +200,13 @@ def save_study(
     session.add(row)
     session.commit()
     session.refresh(row)
+    from stockviz.services.backtest.checks import record_members
+
+    record_members(
+        session, user_id=user_id, kind=kind, members=computed.members,
+        fingerprint=computed.fingerprint,
+    )  # fmt: skip
+    session.refresh(row)
     return row
 
 
@@ -208,6 +224,12 @@ STAMPS_ADDED_LATER = frozenset(
         "requested_shares",
         "requested_quantity",
         "exit_adv_pct",
+        # A4.3: the run's window, report card, and a sweep's PBO and plateaus.
+        "window",
+        "report",
+        "pbo",
+        "pbo_reason",
+        "plateau",
     }
 )
 """Result fields added after runs were first stored (A1.4a, A4.2), at any
@@ -250,7 +272,8 @@ def rerun(session: Session, row: ExperimentRun) -> RerunReport:
     elif row.kind == "strategy":
         body = StrategyBacktestIn.model_validate(as_saved(row.request))
         strategy = execute_strategy(session, body, user_id=row.user_id)
-        current_fp, fresh = strategy.fingerprint, strategy.out.model_dump(mode="json")
+        current_fp = strategy.fingerprint
+        fresh = strategy.out.model_dump(mode="json", exclude={"checks"})
     else:
         run = execute_backtest(session, BacktestIn.model_validate(as_saved(row.request)))
         current_fp, fresh = run.fingerprint, _result(run)
