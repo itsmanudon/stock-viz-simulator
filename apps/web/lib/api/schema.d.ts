@@ -1610,6 +1610,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/backtest/rotation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Post Rotation Backtest
+         * @description A4.4: cross-sectional rotation. Hold the top N of a universe (your
+         *     watchlist or up to 50 tickers, one currency) by a numeric Rule DSL
+         *     ranking, rebalanced on the last session of each week or month on the
+         *     venue calendar, with an optional cash filter on the market index. Same
+         *     kernel fills, costs, ADV cap, report card, trial ledger and holdout as a
+         *     rule strategy. A ranking that is not a number is 422.
+         */
+        post: operations["post_rotation_backtest_v1_backtest_rotation_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/backtest/holdout/unlock": {
         parameters: {
             query?: never;
@@ -2169,6 +2194,29 @@ export interface paths {
         get: operations["event_study_v1_research_event_study_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/research/scan-event-study": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Scan Event Study
+         * @description A4.5: forward 5/20/60-session returns, net of round-trip costs, after
+         *     a Rule DSL trigger turned true, against the base rate of the same
+         *     universe and dates. Public; a watchlist, your own setup version or a rule
+         *     that reads your drawings need a Bearer token. Association, not cause.
+         */
+        post: operations["scan_event_study_v1_research_scan_event_study_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3479,6 +3527,7 @@ export interface components {
         ExperimentRunIn: {
             backtest?: components["schemas"]["BacktestIn"] | null;
             strategy?: components["schemas"]["StrategyBacktestIn"] | null;
+            rotation?: components["schemas"]["RotationBacktestIn"] | null;
             /** Experiment Id */
             experiment_id?: number | null;
         };
@@ -3897,6 +3946,17 @@ export interface components {
              */
             dead_outbox_events: number;
         };
+        /**
+         * HistogramOut
+         * @description Counts of net returns in equal bins from the 1st to the 99th
+         *     percentile; values beyond fall in the end bins.
+         */
+        HistogramOut: {
+            /** Edges */
+            edges: number[];
+            /** Counts */
+            counts: number[];
+        };
         /** HoldingAttributionOut */
         HoldingAttributionOut: {
             /** Ticker */
@@ -3987,6 +4047,7 @@ export interface components {
         HoldoutUnlockIn: {
             backtest?: components["schemas"]["BacktestIn"] | null;
             strategy?: components["schemas"]["StrategyBacktestIn"] | null;
+            rotation?: components["schemas"]["RotationBacktestIn"] | null;
         };
         /** IndicatorCatalogItemOut */
         IndicatorCatalogItemOut: {
@@ -6509,6 +6570,378 @@ export interface components {
             sessions: number;
         };
         /**
+         * RotationBacktestIn
+         * @description POST /v1/backtest/rotation (A4.4): hold the top ``top_n`` symbols of a
+         *     universe by a numeric Rule DSL expression, rebalanced weekly or monthly
+         *     on the venue calendar. ``cash_filter`` is an optional condition judged on
+         *     the market index (``^GSPC`` / ``^NSEI``) at each rebalance close: met
+         *     means hold cash. Long only.
+         */
+        RotationBacktestIn: {
+            /** Ranking */
+            ranking: string;
+            /**
+             * Top N
+             * @default 5
+             */
+            top_n: number;
+            /**
+             * Schedule
+             * @default monthly
+             * @enum {string}
+             */
+            schedule: "weekly" | "monthly";
+            /**
+             * Weighting
+             * @default equal
+             * @enum {string}
+             */
+            weighting: "equal" | "inverse_volatility";
+            /**
+             * Buffer
+             * @default 0
+             */
+            buffer: number;
+            cash_filter?: components["schemas"]["StrategyRuleIn"] | null;
+            universe: components["schemas"]["StrategyUniverseIn"];
+            /**
+             * From
+             * Format: date
+             */
+            from: string;
+            /**
+             * To
+             * Format: date
+             */
+            to: string;
+            /** Initial Cash */
+            initial_cash: number | string;
+            /**
+             * Fill Rule
+             * @default next_open
+             * @enum {string}
+             */
+            fill_rule: "next_open" | "next_close";
+            /**
+             * Fee Schedule
+             * @default auto
+             * @enum {string}
+             */
+            fee_schedule: "auto" | "none" | "us_equity" | "us_equity_2026" | "in_equity_delivery_nse" | "in_delivery_nse_2026" | "in_equity_delivery_bse" | "in_delivery_bse_2026";
+            /**
+             * Brokerage
+             * @default zerodha
+             * @enum {string}
+             */
+            brokerage: "zerodha" | "zero";
+            /**
+             * Adv Cap Pct
+             * @default 10
+             */
+            adv_cap_pct: number | null;
+            /**
+             * Commission Bps
+             * @default 0
+             */
+            commission_bps: number;
+            /**
+             * Slippage Bps
+             * @default 0
+             */
+            slippage_bps: number;
+            /**
+             * Spread Bps
+             * @default 0
+             */
+            spread_bps: number;
+            /**
+             * Holdout
+             * @default last_20pct
+             * @enum {string}
+             */
+            holdout: "last_20pct" | "none";
+        };
+        /** RotationBacktestOut */
+        RotationBacktestOut: {
+            /**
+             * Mode
+             * @default rotation
+             * @constant
+             */
+            mode: "rotation";
+            /** Tickers */
+            tickers: string[];
+            /** Currency */
+            currency: string;
+            /** Price Basis */
+            price_basis?: string | null;
+            /** Execution Profile */
+            execution_profile: string;
+            /** Fee Schedule */
+            fee_schedule: string;
+            /** Rules */
+            rules: components["schemas"]["RotationRuleOut"][];
+            /** Top N */
+            top_n: number;
+            /**
+             * Schedule
+             * @enum {string}
+             */
+            schedule: "weekly" | "monthly";
+            /**
+             * Weighting
+             * @enum {string}
+             */
+            weighting: "equal" | "inverse_volatility";
+            /**
+             * Buffer
+             * @default 0
+             */
+            buffer: number;
+            /** Venue */
+            venue: string;
+            /** Cash Filter Index */
+            cash_filter_index?: string | null;
+            /** Timing */
+            timing: string;
+            /** Rebalances */
+            rebalances: components["schemas"]["RotationRebalanceOut"][];
+            /** Trades */
+            trades: components["schemas"]["RotationTradeOut"][];
+            /** Equity Curve */
+            equity_curve: components["schemas"]["EquityPointOut"][];
+            summary: components["schemas"]["StrategySummaryOut"];
+            benchmark: components["schemas"]["StrategyBenchmarkOut"];
+            turnover: components["schemas"]["RotationTurnoverOut"];
+            source: components["schemas"]["StrategyUniverseSourceOut"];
+            universe: components["schemas"]["UniverseOut"];
+            /**
+             * Warmup Bars
+             * @default 0
+             */
+            warmup_bars: number;
+            /**
+             * Cash Filter Unknown
+             * @default 0
+             */
+            cash_filter_unknown: number;
+            /**
+             * Unfilled At End
+             * @default 0
+             */
+            unfilled_at_end: number;
+            /**
+             * Skip Reasons
+             * @default {}
+             */
+            skip_reasons: {
+                [key: string]: number;
+            };
+            /** Strategy Hash */
+            strategy_hash: string;
+            /** Data Fingerprint */
+            data_fingerprint: string;
+            /**
+             * Notes
+             * @default []
+             */
+            notes: string[];
+            costs?: components["schemas"]["CostsOut"] | null;
+            liquidity?: components["schemas"]["LiquidityOut"] | null;
+            window?: components["schemas"]["RunWindowOut"] | null;
+            report?: components["schemas"]["ReportCardOut"] | null;
+            checks?: components["schemas"]["OverfittingChecksOut"] | null;
+        };
+        /** RotationRankOut */
+        RotationRankOut: {
+            /** Ticker */
+            ticker: string;
+            /** Value */
+            value: number;
+            /** Rank */
+            rank: number;
+        };
+        /**
+         * RotationRebalanceOut
+         * @description One rebalance: ranked on ``signal_date``'s close, traded on each
+         *     symbol's next bar (``trade_dates``).
+         */
+        RotationRebalanceOut: {
+            /**
+             * Signal Date
+             * Format: date
+             */
+            signal_date: string;
+            /**
+             * Trade Dates
+             * @default []
+             */
+            trade_dates: string[];
+            /** Equity */
+            equity: string;
+            /** Cash Filter */
+            cash_filter?: boolean | null;
+            /** Skipped */
+            skipped?: string | null;
+            /**
+             * Ranked
+             * @default []
+             */
+            ranked: components["schemas"]["RotationRankOut"][];
+            /**
+             * Unranked
+             * @default []
+             */
+            unranked: components["schemas"]["RotationUnrankedOut"][];
+            /**
+             * Held Before
+             * @default []
+             */
+            held_before: string[];
+            /**
+             * Held After
+             * @default []
+             */
+            held_after: string[];
+            /**
+             * Entered
+             * @default []
+             */
+            entered: string[];
+            /**
+             * Exited
+             * @default []
+             */
+            exited: string[];
+            /**
+             * Weights
+             * @default {}
+             */
+            weights: {
+                [key: string]: number;
+            };
+            /**
+             * Bought
+             * @default 0
+             */
+            bought: string;
+            /**
+             * Sold
+             * @default 0
+             */
+            sold: string;
+            /**
+             * Turnover
+             * @default 0
+             */
+            turnover: number;
+            /**
+             * Replaced Orders
+             * @default 0
+             */
+            replaced_orders: number;
+            /**
+             * Not Filled
+             * @default {}
+             */
+            not_filled: {
+                [key: string]: number;
+            };
+        };
+        /** RotationRuleOut */
+        RotationRuleOut: {
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "ranking" | "cash_filter";
+            /** Text */
+            text: string;
+            /** Canonical */
+            canonical: string;
+            /** Hash */
+            hash: string;
+            /** Setup Version Id */
+            setup_version_id?: number | null;
+            /** Warmup Bars */
+            warmup_bars?: number | null;
+        };
+        /** RotationTradeOut */
+        RotationTradeOut: {
+            /** Ticker */
+            ticker: string;
+            /**
+             * Entry Date
+             * Format: date
+             */
+            entry_date: string;
+            /** Entry Price */
+            entry_price: string;
+            /** Entry Reference Price */
+            entry_reference_price: string;
+            /**
+             * Exit Date
+             * Format: date
+             */
+            exit_date: string;
+            /** Exit Price */
+            exit_price: string;
+            /** Exit Reference Price */
+            exit_reference_price: string;
+            /** Quantity */
+            quantity: string;
+            /** Entry Fees */
+            entry_fees: string;
+            /** Exit Fees */
+            exit_fees: string;
+            /** Pnl */
+            pnl: string;
+            /** Return Pct */
+            return_pct: number;
+            /**
+             * Reason
+             * @enum {string}
+             */
+            reason: "rebalance" | "resize" | "cash_filter" | "end_of_data";
+            /**
+             * Open
+             * @default false
+             */
+            open: boolean;
+            /** Bars Held */
+            bars_held: number;
+            /** Requested Quantity */
+            requested_quantity?: string | null;
+            /** Exit Adv Pct */
+            exit_adv_pct?: number | null;
+        };
+        /**
+         * RotationTurnoverOut
+         * @description One-way turnover: (bought + sold) / 2 / equity at the rebalance close.
+         */
+        RotationTurnoverOut: {
+            /** Rebalances */
+            rebalances: number;
+            /** Mean Per Rebalance */
+            mean_per_rebalance: number;
+            /** Total */
+            total: number;
+            /** Annualised */
+            annualised: number;
+            /** Definition */
+            definition: string;
+        };
+        /** RotationUnrankedOut */
+        RotationUnrankedOut: {
+            /** Ticker */
+            ticker: string;
+            /**
+             * Reason
+             * @enum {string}
+             */
+            reason: "no_bar" | "unknown" | "volatility_unknown";
+        };
+        /**
          * RsiThresholdStrategy
          * @description Buy when RSI(14) drops below ``buy_below``, sell when it rises above ``sell_above``.
          */
@@ -6527,6 +6960,12 @@ export interface components {
         RuleCheckIn: {
             /** Rule */
             rule: string;
+            /**
+             * Expect
+             * @default condition
+             * @enum {string}
+             */
+            expect: "condition" | "number";
         };
         /**
          * RuleCheckOut
@@ -6656,6 +7095,194 @@ export interface components {
         SavedScreenPatch: {
             /** Notify On Change */
             notify_on_change: boolean;
+        };
+        /** ScanEventOut */
+        ScanEventOut: {
+            /** Ticker */
+            ticker: string;
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Net */
+            net: {
+                [key: string]: number | null;
+            };
+            /** Excess */
+            excess: {
+                [key: string]: number | null;
+            };
+        };
+        /**
+         * ScanEventStudyIn
+         * @description POST /v1/research/scan-event-study (A4.5): what happened after a Rule
+         *     DSL condition turned true. ``trigger`` is a setup version or inline text
+         *     (news and delivery triggers are rules too: ``news.count(1) >= 1``,
+         *     ``delivery_pct > 60``).
+         */
+        ScanEventStudyIn: {
+            trigger: components["schemas"]["StrategyRuleIn"];
+            universe: components["schemas"]["ScanUniverseIn"];
+            /** From */
+            from?: string | null;
+            /** To */
+            to?: string | null;
+            /** Horizons */
+            horizons?: number[];
+            /**
+             * Cooldown
+             * @default 0
+             */
+            cooldown: number;
+        };
+        /** ScanEventStudyOut */
+        ScanEventStudyOut: {
+            trigger: components["schemas"]["ScanTriggerOut"];
+            source: components["schemas"]["ScanUniverseSourceOut"];
+            /**
+             * From
+             * Format: date
+             */
+            from: string;
+            /**
+             * To
+             * Format: date
+             */
+            to: string;
+            /** Cooldown */
+            cooldown: number;
+            /** Horizons */
+            horizons: components["schemas"]["ScanHorizonOut"][];
+            /** Min Events */
+            min_events: number;
+            /** Events Found */
+            events_found: number;
+            /** Events Skipped Cooldown */
+            events_skipped_cooldown: number;
+            /** Events */
+            events: components["schemas"]["ScanEventOut"][];
+            /** Events Shown */
+            events_shown: number;
+            /** Method */
+            method: {
+                [key: string]: string;
+            };
+            universe: components["schemas"]["UniverseOut"];
+            /** Disclaimer */
+            disclaimer: string;
+        };
+        /**
+         * ScanHorizonOut
+         * @description One forward horizon. Returns are fractions (0.01 = 1%). Under
+         *     ``min_events`` only the counts are given.
+         */
+        ScanHorizonOut: {
+            /** Horizon */
+            horizon: number;
+            /** N */
+            n: number;
+            /** Symbols */
+            symbols: number;
+            /** Incomplete */
+            incomplete: number;
+            /** Overlapping */
+            overlapping: number;
+            /** Enough */
+            enough: boolean;
+            /** Base Rate */
+            base_rate?: number | null;
+            /** Mean Net */
+            mean_net?: number | null;
+            /** Median Net */
+            median_net?: number | null;
+            /** Mean Excess */
+            mean_excess?: number | null;
+            /** Median Excess */
+            median_excess?: number | null;
+            /** Hit Rate */
+            hit_rate?: number | null;
+            /** Hit Rate Excess */
+            hit_rate_excess?: number | null;
+            /** T Stat */
+            t_stat?: number | null;
+            /** T Stat Clustered */
+            t_stat_clustered?: number | null;
+            /**
+             * Clusters
+             * @default 0
+             */
+            clusters: number;
+            net_percentiles?: components["schemas"]["ScanPercentilesOut"] | null;
+            excess_percentiles?: components["schemas"]["ScanPercentilesOut"] | null;
+            histogram?: components["schemas"]["HistogramOut"] | null;
+            /**
+             * Fee Schedules
+             * @default {}
+             */
+            fee_schedules: {
+                [key: string]: number;
+            };
+        };
+        /** ScanPercentilesOut */
+        ScanPercentilesOut: {
+            /** P5 */
+            p5: number;
+            /** P25 */
+            p25: number;
+            /** P50 */
+            p50: number;
+            /** P75 */
+            p75: number;
+            /** P95 */
+            p95: number;
+        };
+        /** ScanTriggerOut */
+        ScanTriggerOut: {
+            /** Text */
+            text: string;
+            /** Canonical */
+            canonical: string;
+            /** Hash */
+            hash: string;
+            /** Setup Version Id */
+            setup_version_id?: number | null;
+            /**
+             * Uses
+             * @default []
+             */
+            uses: string[];
+            /** Warmup Bars */
+            warmup_bars?: number | null;
+        };
+        /**
+         * ScanUniverseIn
+         * @description Up to 50 tickers, one of your watchlists, or a whole market
+         *     (``US`` or ``IN``: its active non-index symbols).
+         */
+        ScanUniverseIn: {
+            /** Tickers */
+            tickers?: string[] | null;
+            /** Watchlist Id */
+            watchlist_id?: number | null;
+            /** Market */
+            market?: ("US" | "IN") | null;
+        };
+        /** ScanUniverseSourceOut */
+        ScanUniverseSourceOut: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "list" | "watchlist" | "market";
+            /** Name */
+            name?: string | null;
+            /** Watchlist Id */
+            watchlist_id?: number | null;
+            /** Market */
+            market?: string | null;
+            /** Tickers */
+            tickers: number;
         };
         /** ScreenerPageOut */
         ScreenerPageOut: {
@@ -11673,6 +12300,41 @@ export interface operations {
             };
         };
     };
+    post_rotation_backtest_v1_backtest_rotation_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RotationBacktestIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RotationBacktestOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     post_unlock_holdout_v1_backtest_holdout_unlock_post: {
         parameters: {
             query?: never;
@@ -12871,6 +13533,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EventStudyOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    scan_event_study_v1_research_scan_event_study_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ScanEventStudyIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScanEventStudyOut"];
                 };
             };
             /** @description Validation Error */

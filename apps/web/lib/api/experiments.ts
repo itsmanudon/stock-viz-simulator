@@ -1,6 +1,7 @@
 import "server-only";
 
 import type { OverfittingChecks, PboResult, Plateau, RunWindow } from "../report-card";
+import type { RotationRequest } from "../rotation";
 import type { StrategyRequest, StrategyResult } from "../rule-strategy";
 import { authedDelete, authedGet, authedPost } from "./server";
 import type { BacktestRequest, BacktestResult, BacktestSummary, BacktestUniverse } from "./types";
@@ -91,6 +92,11 @@ export function saveExperimentRun(backtest: BacktestRequest): Promise<Experiment
 /** A4.1: a Rule DSL strategy; inline rules are saved as setup versions. */
 export function saveStrategyRun(strategy: StrategyRequest): Promise<ExperimentRun> {
   return authedPost<ExperimentRun>("/v1/experiments/runs", { strategy });
+}
+
+/** A4.4: save a rotation run. */
+export function saveRotationRun(rotation: RotationRequest): Promise<ExperimentRun> {
+  return authedPost<ExperimentRun>("/v1/experiments/runs", { rotation });
 }
 
 export function runWalkForward(backtest: BacktestRequest): Promise<ExperimentRun> {

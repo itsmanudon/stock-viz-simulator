@@ -484,6 +484,45 @@ two parameters on the axes; a neighbour (adjacent cell run) holds up within
 25% of the best's magnitude, and fewer than half holding up is an isolated
 peak.
 
+## Cross-sectional rotation (A4.4)
+
+`POST /v1/backtest/rotation` (`services/backtest/rotation.py`, pure;
+`rotation_run.py` loads the data). Every fill goes through `fills.book`, the
+same kernel and `SimLedger` path as rule strategies, with A4.2's dated fee
+schedules and ADV cap.
+
+- **Rebalance sessions** (`rebalance_signals`): the last session of each ISO
+  week (Monday to Sunday) or calendar month on the venue calendar
+  (`markets/calendar.py::is_session`, so a Good Friday week ends on Thursday
+  and a month ending on a weekend or holiday ends on its last session), for
+  every period that ends inside the window, plus the last session before the
+  window (the first ranking, so the run is invested from its first session).
+  A period still running at the window's end does not rebalance.
+- **No look-ahead.** The ranking is the expression's vector-mode value at the
+  rebalance session's close (conformance-proven equal to point mode). Orders
+  fill on each symbol's next bar under the fill profile (`next_open`: its
+  open). A symbol with no bar on the rebalance session, or an unknown value,
+  is not ranked and is listed with the reason. A test perturbs every bar after
+  a rebalance and finds that rebalance's ranks and holdings unchanged.
+- **Targets.** Top N by value (ties: ticker order), with an optional buffer
+  (a holding stays while its rank is at most N + buffer). Weights: 1/N of the
+  equity at the rebalance close each (fewer ranked names leave cash), or
+  inverse volatility (1 / the standard deviation of the last 63 daily
+  returns, scaled to k/N for k names). Each rebalance resizes to the targets:
+  sells first (leavers in full, trims of names over their target), then buys
+  (entrants and top-ups, largest weight first), in whole shares at the fill
+  bar's expected price, capped by free cash and the ADV cap. A trim is a
+  `resize` round trip at the holding's average price.
+- **Cash filter.** A condition judged on the market index's own bars
+  (`^GSPC`, `^NSEI`; `index_close` is the index's close), at the newest index
+  bar at most 5 sessions before the rebalance session. Met: sell everything
+  and hold cash. Unknown: it does not act (counted). It may read prices only.
+- **Turnover** per rebalance = (bought + sold) / 2 / equity at the rebalance
+  close; the summary gives the mean, the total and the total per year.
+- Identity: `strategy_hash` over the ranking and filter hashes, N, schedule,
+  weighting, buffer, tickers, dates and costs; `data_fingerprint` over every
+  bar and index close read. Saved runs (`kind` `rotation`) rerun `identical`.
+
 ## Future execution profiles (not implemented)
 
 These names are reserved for later SIM work. They are **not** implemented

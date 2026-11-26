@@ -10,6 +10,7 @@ import { ApiError, apiPost } from "@/lib/api/client";
 import { AuthedApiError, authedPost } from "@/lib/api/server";
 import type { BacktestRequest, BacktestResult } from "@/lib/api/types";
 import type { OverfittingChecks } from "@/lib/report-card";
+import type { RotationRequest } from "@/lib/rotation";
 import type { StrategyRequest } from "@/lib/rule-strategy";
 import { checkVisitorLimit } from "@/lib/visitor-limit";
 
@@ -30,6 +31,7 @@ function detail(raw: string): string {
 export async function unlockHoldoutAction(payload: {
   backtest?: BacktestRequest;
   strategy?: StrategyRequest;
+  rotation?: RotationRequest;
 }): Promise<UnlockState> {
   const session = await auth();
   if (!session?.user?.id) return { error: "Sign in to unlock the holdout." };

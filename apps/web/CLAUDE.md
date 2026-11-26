@@ -681,6 +681,46 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   under the P&L; 50 rows, then "Show all"). `/backtest/runs/[runId]` shows
   a `strategy` run with the same component (no Save). Tests:
   `tests/unit/rule-strategy.test.tsx`, the e2e in `research-workspace.spec.ts`.
+- `/backtest?mode=rotation` (A4.4): `RotationForm`
+  (`components/rotation/rotation-form.tsx`): the ranking is a
+  `RuleFieldEditor` checked with `checkNumber()` (`/v1/rules/check` with
+  `expect: "number"`), top N, schedule, buffer, weighting, an optional cash
+  filter rule (setups loadable), universe (ticker list with "All US (n)" /
+  "All India (n)" quick fills from `marketTickers()`, or a watchlist signed
+  in), dates (ten years to the latest close by default), costs and holdout.
+  Helpers in `lib/rotation.ts` (`buildRotationRequest`, `rotationProblem`,
+  `rebalanceSummary`, `symbolMarket`). Runs through
+  `app/(product)/backtest/rotation-actions.ts::runRotationAction` (authed or
+  public with `checkVisitorLimit("strategy")`). `RotationResults`
+  (`rotation-results.tsx`, `rotation-results`): net first, then gross,
+  costs, Sharpe, drawdown, turnover a year and a rebalance; report card,
+  overfitting checks (unlock sends `{rotation}`), Save run
+  (`SaveStrategyRun kind="rotation"`); "Holdings by rebalance"
+  (`rotation-rebalances`, newest first, 24 then all: held after, in, out in
+  neutral colours, turnover, a "Ranking" disclosure with the values and the
+  unranked; on phones in/out and turnover sit under the holdings); the
+  equity curve; round trips linked to stock pages. Saved `rotation` runs
+  render the same component. Tests: `tests/unit/rotation.test.tsx`, e2e in
+  `research-workspace.spec.ts`.
+- `/event-study` (A4.5, Research nav and subnav, public): a GET form
+  (`components/event-study/event-study-form.tsx`): trigger
+  `RuleFieldEditor` with setups, news and delivery preset buttons
+  (`TRIGGER_PRESETS`), universe (market, ticker list, watchlist signed in),
+  from, to, cooldown. URL state parsed by `lib/event-study.ts`
+  (`parseStudyParams`, `studyRequest`, `eventStudyHref`); the page runs the
+  study on the server (`runScanEventStudyAsUser` in
+  `lib/api/research-server.ts` signed in, else `runScanEventStudy` with
+  `checkVisitorLimit("eventStudy")`, 10 a minute). `ScanStudyView`
+  (`scan-study-view.tsx`, server-renderable): trigger and sample line, the
+  disclaimer (`scan-disclaimer`), one `scan-horizon` card per horizon (n,
+  incomplete, overlapping; mean and median net and excess, base rate, hit
+  rates, t and clustered t, percentiles, an inline SVG histogram) or
+  "Too few events" (`scan-too-few`) under the minimum; the method, the
+  universe stamp; events (`scan-events`, 25 then a disclosure) linked to
+  `/stocks/[t]`. "Run event study" links: the screener's rule panel
+  (`rule-event-study`, valid rules) and each setup on `/setups`
+  (`setup-event-study`). `/news-reactions` is unchanged. Tests:
+  `tests/unit/event-study.test.tsx`, e2e in `research-workspace.spec.ts`.
 - **Report card and overfitting checks (A4.3, M7.4).** `lib/report-card.ts`
   (types from the schema, `HOLDOUT_OPTIONS`, `formatMetric`,
   `probabilityWords`, `heatShare`, `templateRoundTrips`).

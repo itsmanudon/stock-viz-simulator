@@ -34,9 +34,24 @@ def uses(rule: CompiledRule) -> list[str]:
     ]
 
 
-def check_rule(text: str) -> RuleCheckOut:
+def compile_number(text: str) -> CompiledRule:
+    """A4.4: a numeric expression (a rotation's ranking). Raises
+    :class:`RuleError` for a syntax or type error, or a condition."""
+    rule = compile_rule(text, require_condition=False)
+    if rule.type.value != "number":
+        raise RuleError(
+            "type",
+            "a ranking must be a number (e.g. pct_change(close, 126)), not a condition",
+            1,
+            1,
+            text=text,
+        )
+    return rule
+
+
+def check_rule(text: str, expect: str = "condition") -> RuleCheckOut:
     try:
-        rule = compile_rule(text)
+        rule = compile_number(text) if expect == "number" else compile_rule(text)
     except RuleError as exc:
         return RuleCheckOut(valid=False, error=error_out(exc))
     return RuleCheckOut(
@@ -60,4 +75,4 @@ def compile_or_422(text: str) -> CompiledRule:
         ) from exc
 
 
-__all__ = ["check_rule", "compile_or_422", "error_out", "uses"]
+__all__ = ["check_rule", "compile_number", "compile_or_422", "error_out", "uses"]

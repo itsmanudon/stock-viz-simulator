@@ -31,6 +31,7 @@ from stockviz.models.setup import Setup
 from stockviz.models.watchlist import Watchlist, WatchlistItem
 from stockviz.schemas import (
     EquityPointOut,
+    RotationBacktestIn,
     StrategyBacktestIn,
     StrategyBacktestOut,
     StrategyBenchmarkOut,
@@ -116,7 +117,7 @@ def _resolve_rule(session: Session, ref: StrategyRuleIn, role: str, user_id: int
 
 
 def _universe(
-    session: Session, body: StrategyBacktestIn, user_id: int | None
+    session: Session, body: StrategyBacktestIn | RotationBacktestIn, user_id: int | None
 ) -> tuple[list[str], StrategyUniverseSourceOut]:
     u = body.universe
     if u.ticker is not None:

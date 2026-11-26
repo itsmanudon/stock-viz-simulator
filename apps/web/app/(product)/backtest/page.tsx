@@ -3,7 +3,8 @@
  *
  * Server component: fetches the symbol universe, then hands off to a client
  * island. `?mode=rule` (A4.1) is the Rule strategy mode (Rule DSL entry and
- * exit, stops, sizing, a universe); without it the two templates POST to
+ * exit, stops, sizing, a universe); `?mode=rotation` (A4.4) holds the top N
+ * of a universe by a numeric ranking; without either the two templates POST to
  * /v1/backtest from the browser. `?ticker=` prefills either.
  */
 
@@ -13,6 +14,7 @@ import { auth } from "@/auth";
 import { BacktestForm } from "@/components/backtest-form";
 import { PageFrame } from "@/components/page-frame";
 import { ResearchPageHeader, ResearchSubnav } from "@/components/research-page-header";
+import { RotationForm } from "@/components/rotation/rotation-form";
 import type { StrategySetupOption } from "@/components/rule-strategy/rule-field";
 import {
   RuleStrategyForm,
@@ -27,11 +29,14 @@ import type { Metadata } from "next";
 
 export const metadata: Metadata = { title: "Backtest" };
 
-function ModeTabs({ mode, ticker }: { mode: "templates" | "rule"; ticker?: string }) {
+type Mode = "templates" | "rule" | "rotation";
+
+function ModeTabs({ mode, ticker }: { mode: Mode; ticker?: string }) {
   const q = ticker ? `ticker=${encodeURIComponent(ticker)}` : "";
   const tabs = [
     { mode: "templates", label: "Templates", href: `/backtest${q ? `?${q}` : ""}` },
     { mode: "rule", label: "Rule strategy", href: `/backtest?mode=rule${q ? `&${q}` : ""}` },
+    { mode: "rotation", label: "Rotation", href: "/backtest?mode=rotation" },
   ] as const;
   return (
     <nav aria-label="Backtest mode" className="mt-4 flex gap-2" data-testid="backtest-mode">
@@ -60,7 +65,7 @@ export default async function BacktestPage({
   searchParams: Promise<{ ticker?: string; mode?: string }>;
 }) {
   const { ticker: rawTicker, mode: rawMode } = await searchParams;
-  const mode = rawMode === "rule" ? "rule" : "templates";
+  const mode: Mode = rawMode === "rule" || rawMode === "rotation" ? rawMode : "templates";
   const [symbols, summary] = await Promise.all([
     listSymbols(),
     // Only used to start on a symbol with history (UI audit F1); the page
@@ -84,7 +89,7 @@ export default async function BacktestPage({
     watchlists: StrategyWatchlist[];
     signedIn: boolean;
   } | null = null;
-  if (mode === "rule") {
+  if (mode === "rule" || mode === "rotation") {
     const session = await auth();
     const signedIn = Boolean(session?.user?.id);
     const [presets, own, lists] = await Promise.all([
@@ -115,7 +120,9 @@ export default async function BacktestPage({
       />
       <ResearchSubnav current="/backtest" />
       <ModeTabs mode={mode} ticker={initialTicker} />
-      {ruleProps ? (
+      {ruleProps && mode === "rotation" ? (
+        <RotationForm symbols={options} {...ruleProps} />
+      ) : ruleProps ? (
         <RuleStrategyForm symbols={options} initialTicker={initialTicker} {...ruleProps} />
       ) : (
         <BacktestForm symbols={options} initialTicker={initialTicker} />

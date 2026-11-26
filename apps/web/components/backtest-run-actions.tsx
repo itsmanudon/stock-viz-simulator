@@ -11,6 +11,7 @@ import {
 } from "@/app/(product)/backtest/actions";
 import { Button } from "@/components/ui/button";
 import type { BacktestRequest } from "@/lib/api/types";
+import type { RotationRequest } from "@/lib/rotation";
 import type { StrategyRequest } from "@/lib/rule-strategy";
 
 const STUDIES = [
@@ -62,11 +63,18 @@ export function SaveBacktestRun({ request }: { request: BacktestRequest }) {
 }
 
 /** A4.1: save a Rule strategy run. Inline rules become setup versions. */
-export function SaveStrategyRun({ request }: { request: StrategyRequest }) {
+export function SaveStrategyRun({
+  request,
+  kind = "strategy",
+}: {
+  request: StrategyRequest | RotationRequest;
+  /** A4.4: ``rotation`` saves a rotation run. */
+  kind?: "strategy" | "rotation";
+}) {
   const [state, save, saving] = useActionState<SaveRunState, FormData>(saveBacktestRunAction, {});
   return (
     <form action={save} className="space-y-2">
-      <input type="hidden" name="kind" value="strategy" />
+      <input type="hidden" name="kind" value={kind} />
       <input type="hidden" name="request" value={JSON.stringify(request)} />
       <div className="flex flex-wrap items-center gap-2">
         <Button type="submit" variant="outline" disabled={saving}>
@@ -75,8 +83,9 @@ export function SaveStrategyRun({ request }: { request: StrategyRequest }) {
         {saving ? <output className="text-sm">Working…</output> : null}
       </div>
       <p className="text-xs leading-5 text-text-tertiary">
-        Saving stores typed rules as versions of your “Rules from backtests” setup, so the saved run
-        always points at the same rules; Rerun then says identical, different or data changed.
+        {kind === "rotation"
+          ? "Saving stores the request as it ran; Rerun then says identical, different or data changed."
+          : "Saving stores typed rules as versions of your “Rules from backtests” setup, so the saved run always points at the same rules; Rerun then says identical, different or data changed."}
       </p>
       {state.runId !== undefined ? (
         <output className="block text-sm">

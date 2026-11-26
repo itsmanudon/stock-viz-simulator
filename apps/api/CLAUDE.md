@@ -111,7 +111,10 @@ src/stockviz/
                     backtest fill path through the kernel and SimLedger).
                     A4.3: report.py (pure: metrics, PSR/DSR, PBO, plateau,
                     MC fan, regime split), report_card.py, regime_history.py,
-                    trials.py (families, ledger, holdout), checks.py
+                    trials.py (families, ledger, holdout), checks.py.
+                    A4.4: rotation.py (pure: top N by a DSL ranking,
+                    rebalance sessions, resizing, cash filter),
+                    rotation_run.py (loads, hash, fingerprint)
     alerts.py       price-alert evaluation
     metrics.py      precomputed per-symbol snapshot the screener reads: RSI,
                     52-week range, and (Phase 6.2) SMA 50/200, ATR %,
@@ -160,6 +163,8 @@ src/stockviz/
     relative_strength.py  A3.5: RS percentile within a market, 52-week distance
     delivery_pct.py A3.5: delivery % and its 20-session average (eod_extras)
     regime.py       A3.5: rule-based market regime per market
+    scan_event_study.py  A4.5: what followed a DSL trigger (A2.4's engine,
+                    several horizons, dated costs, clustered t)
     aegis/          Aegis News read sync (Phase 2): contract.py (lenient
                     feed models), token.py (EdDSA feed:read token), client.py
                     (the one client: timeouts, bounded retries), sync.py
@@ -1003,6 +1008,66 @@ and the worked PSR/DSR/PBO example in
   seen, reruns identical after ledger writes, prune),
   `test_a43_trial_ledger_migration.py` (PostgreSQL up/down/up).
 
+**Cross-sectional rotation (A4.4, M7.1 rotation).** `POST
+/v1/backtest/rotation` (`routers/backtest.py`, public, 20/min,
+`auth.OptionalUserIdDep`) takes `RotationBacktestIn`: `ranking` (inline
+numeric DSL text; `setups/rules.py::compile_number` refuses a condition,
+422), `top_n` (1-50), `schedule weekly|monthly`, `weighting
+equal|inverse_volatility`, `buffer`, optional `cash_filter` (`{rule}` or
+`{setup_version_id}`, prices and `index_close` only, else 400), `universe
+{watchlist_id | tickers}` (2-50, one currency; `top_n` <= the count),
+dates, costs as `StrategyBacktestIn`, `holdout`. Method in
+`docs/SIMULATION.md` ("Cross-sectional rotation (A4.4)"): ranks on the
+venue calendar's last session of each week or month (`rebalance_signals`;
+plus the session before the window), fills on the next bar through
+`fills.book`, resizes every holding to its target each rebalance (sells,
+then buys; trims are `resize` round trips), cash filter on the market
+index's own bars (`benchmark_for`; at most 5 sessions stale, unknown does
+not act). `RotationBacktestOut`: `rules`, `timing`, `rebalances
+[{signal_date, trade_dates, equity, cash_filter, skipped, ranked [{ticker,
+value, rank}], unranked [{ticker, reason}], held_before, held_after,
+entered, exited, weights, bought, sold, turnover, replaced_orders,
+not_filled}]`, `trades` (round trips, reason `rebalance|resize|
+cash_filter|end_of_data`), `equity_curve`, `summary` (net first),
+`benchmark` (equal-weight hold), `turnover {rebalances,
+mean_per_rebalance, total, annualised, definition}`, `costs`,
+`liquidity`, `window`, `report`, `checks` (family
+`trials.rotation_family`: ranking and filter skeletons, weighting,
+tickers). Registry: `ExperimentRunIn.rotation` (`kind` `rotation`, request
+stored as sent; rerun `identical`); `HoldoutUnlockIn.rotation`.
+`POST /v1/rules/check` takes `expect: "condition"|"number"`. No migration.
+Tests: `test_rotation.py` (holiday weeks and month ends, no look-ahead by
+perturbing bars after a rebalance, unknown ranks excluded, cash filter
+met / unknown, costs and turnover, resizing, buffer, inverse volatility,
+rerun identical and data changed).
+
+**Scan event study (A4.5, M7.3).** `POST /v1/research/scan-event-study`
+(`routers/research.py`, public, 10/min, `auth.OptionalUserIdDep`;
+`services/scan_event_study.py`) takes `ScanEventStudyIn`: `trigger`
+(`{rule}` | `{setup_version_id}`), `universe {tickers (<= 50) |
+watchlist_id | market US|IN}` (a market over 300 symbols 400), optional
+`from`/`to` (default the last 10 years to the latest completed session),
+`horizons` (default 5, 20, 60), `cooldown` (0-250 sessions). It runs
+`checklist/evidence.py::study_horizons` (A2.4's engine, generalised):
+event = false-to-true edge in vector mode (a session after an unknown one
+is not an event), cooldown skips an edge within N bars of the previous
+event on its symbol; per horizon an event without its window is
+`incomplete`; outcome net of a round trip at the venue's schedule
+(`schedule_for`) version in force on each leg's date (`dated_costs`);
+base rate per (market, date) over all symbol-days. `study()` (the
+checklist and indicator grades) is `study_horizons(..., horizons=(h,))`
+with the old per-horizon overlap rule and undated costs, held equal to the
+pre-A4.5 code by `test_study_equals_the_pre_a45_engine`. Output per
+horizon: `n`, `symbols`, `incomplete`, `overlapping`, `enough` (>= 30),
+`base_rate`, mean and median net and excess, `hit_rate` (net > 0),
+`hit_rate_excess`, `t_stat` (A2.4's), `t_stat_clustered` (by event date,
+CR1) and `clusters`, `net_percentiles`, `excess_percentiles`, `histogram`
+(20 bins, 1st-99th percentile); stats null under the minimum. Plus
+`events` (newest 200, net and excess per horizon), `events_found`,
+`events_skipped_cooldown`, `method`, `universe` (`evidence_universe`) and
+`disclaimer`. Errors: rule 422, unknown symbol/setup/watchlist 404,
+watchlist signed out 401. Tests: `test_scan_event_study.py`.
+
 **Survivorship stamp (A1.4a, part of M1.5).** Every backtest result carries
 `universe: {name, point_in_time, survivorship_biased, note}`: the public
 `POST /v1/backtest` (`BacktestOut.universe`), stored single runs, and
@@ -1570,7 +1635,7 @@ filters receive no request; `tests/test_rate_limit_web_server.py` pins it.
 Current budget: **60/min** on the public reads
 (symbols, bars, quotes, news, indicators, checklist, rule check,
 setup presets, AVWAP, events, relative strength, delivery, regime), **30/min**
-screener, **20/min** backtest. Authenticated routers are deliberately *not*
+screener, **20/min** backtest (rotation too), **10/min** scan event study. Authenticated routers are deliberately *not*
 slowapi-limited — every authed request arrives from the Next.js server, so a
 per-IP limit would be one global bucket for all users. Where per-user
 throttling matters, do it in the router with a DB count of recent rows. Disable the limiter with `RATELIMIT_ENABLED=0` — note that slowapi reads that

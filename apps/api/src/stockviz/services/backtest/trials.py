@@ -9,7 +9,9 @@ numbers and dates:
   number replaced by ``#`` (``sma(close, 50) > sma(close, 200)`` and
   ``sma(close, 20) > sma(close, 100)`` are one family), which stops are
   used (fixed, ATR, trailing % or ATR, time; not their values), the sizing
-  kind, the direction and the tickers.
+  kind, the direction and the tickers;
+- a rotation (A4.4): the ranking and cash filter skeletons, the weighting
+  and the tickers (top N, buffer and the schedule are variants).
 
 Dates, costs, fill rule and cash are not part of the family: trying another
 range or cost is one more variant. A **variant** is a distinct strategy hash
@@ -52,6 +54,7 @@ from stockviz.schemas import (
     HoldoutResultOut,
     HoldoutStatusOut,
     OverfittingChecksOut,
+    RotationBacktestOut,
     RunWindowOut,
     StrategyBacktestOut,
     TrialsOut,
@@ -150,6 +153,26 @@ def strategy_family(out: StrategyBacktestOut) -> Family:
 def strategy_label(out: StrategyBacktestOut) -> str:
     parts = [f"{r.role}: {r.canonical}" for r in out.rules]
     return " | ".join(parts)[:200]
+
+
+def rotation_family(out: RotationBacktestOut) -> Family:
+    rules = {r.role: skeleton(r.canonical) for r in out.rules}
+    tickers = list(out.tickers)
+    payload = {
+        "mode": "rotation",
+        "ranking": rules.get("ranking"),
+        "cash_filter": rules.get("cash_filter"),
+        "weighting": out.weighting,
+        "tickers": tickers,
+    }
+    where = f"{tickers[0]} +{len(tickers) - 1}" if len(tickers) > 1 else tickers[0]
+    return Family(_sha(payload), f"Rotation · {where}"[:120], "rotation")
+
+
+def rotation_label(out: RotationBacktestOut) -> str:
+    parts = [f"{r.role}: {r.canonical}" for r in out.rules]
+    head = f"top {out.top_n} {out.schedule} {out.weighting}"
+    return " | ".join([head, *parts])[:200]
 
 
 # --- the window ------------------------------------------------------------

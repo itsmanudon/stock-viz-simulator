@@ -1189,6 +1189,9 @@ class RuleErrorOut(BaseModel):
 
 class RuleCheckIn(BaseModel):
     rule: str = Field(min_length=1, max_length=RULE_MAX_LENGTH)
+    # A4.4: ``number`` checks a numeric expression (a rotation's ranking)
+    # instead of a condition.
+    expect: Literal["condition", "number"] = "condition"
 
 
 class RuleCheckOut(BaseModel):
@@ -2590,6 +2593,285 @@ class StrategyBacktestOut(BaseModel):
     checks: OverfittingChecksOut | None = None
 
 
+# --- A4.4: cross-sectional rotation ---------------------------------------
+
+
+class RotationBacktestIn(BaseModel):
+    """POST /v1/backtest/rotation (A4.4): hold the top ``top_n`` symbols of a
+    universe by a numeric Rule DSL expression, rebalanced weekly or monthly
+    on the venue calendar. ``cash_filter`` is an optional condition judged on
+    the market index (``^GSPC`` / ``^NSEI``) at each rebalance close: met
+    means hold cash. Long only."""
+
+    ranking: str = Field(min_length=1, max_length=4000)
+    """A numeric expression; higher ranks first (e.g. ``pct_change(close, 126)``)."""
+    top_n: int = Field(default=5, ge=1, le=50)
+    schedule: Literal["weekly", "monthly"] = "monthly"
+    weighting: Literal["equal", "inverse_volatility"] = "equal"
+    buffer: int = Field(default=0, ge=0, le=50)
+    """Hysteresis: a holding is kept while its rank is at most top_n + buffer."""
+    cash_filter: StrategyRuleIn | None = None
+    universe: StrategyUniverseIn
+    from_: date = Field(alias="from")
+    to: date
+    initial_cash: Decimal = Field(gt=0)
+    fill_rule: Literal["next_open", "next_close"] = "next_open"
+    fee_schedule: FeeScheduleName = "auto"
+    brokerage: BrokerageName = "zerodha"
+    adv_cap_pct: float | None = Field(default=10.0, gt=0, le=100)
+    commission_bps: float = Field(default=0.0, ge=0, le=1000)
+    slippage_bps: float = Field(default=0.0, ge=0, le=1000)
+    spread_bps: float = Field(default=0.0, ge=0, le=1000)
+    holdout: HoldoutMode = "last_20pct"
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class RotationRankOut(BaseModel):
+    ticker: str
+    value: float
+    rank: int
+
+
+class RotationUnrankedOut(BaseModel):
+    ticker: str
+    reason: Literal["no_bar", "unknown", "volatility_unknown"]
+
+
+class RotationRebalanceOut(BaseModel):
+    """One rebalance: ranked on ``signal_date``'s close, traded on each
+    symbol's next bar (``trade_dates``)."""
+
+    signal_date: date
+    trade_dates: list[date] = []
+    equity: Decimal
+    cash_filter: bool | None = None
+    """The cash filter at this close (null: no filter, or unknown)."""
+    skipped: str | None = None
+    ranked: list[RotationRankOut] = []
+    unranked: list[RotationUnrankedOut] = []
+    held_before: list[str] = []
+    held_after: list[str] = []
+    entered: list[str] = []
+    exited: list[str] = []
+    weights: dict[str, float] = {}
+    """Target weight of every name held after (fraction of the equity)."""
+    bought: Decimal = Decimal(0)
+    sold: Decimal = Decimal(0)
+    turnover: float = 0.0
+    replaced_orders: int = 0
+    not_filled: dict[str, int] = {}
+
+
+class RotationTradeOut(BaseModel):
+    ticker: str
+    entry_date: date
+    entry_price: Decimal
+    entry_reference_price: Decimal
+    exit_date: date
+    exit_price: Decimal
+    exit_reference_price: Decimal
+    quantity: Decimal
+    entry_fees: Decimal
+    exit_fees: Decimal
+    pnl: Decimal
+    return_pct: float
+    reason: Literal["rebalance", "resize", "cash_filter", "end_of_data"]
+    """``resize``: shares trimmed back to the target weight (entry at the
+    holding's average price)."""
+    open: bool = False
+    bars_held: int
+    requested_quantity: Decimal | None = None
+    exit_adv_pct: float | None = None
+
+
+class RotationRuleOut(BaseModel):
+    role: Literal["ranking", "cash_filter"]
+    text: str
+    canonical: str
+    hash: str
+    setup_version_id: int | None = None
+    warmup_bars: int | None = None
+
+
+class RotationTurnoverOut(BaseModel):
+    """One-way turnover: (bought + sold) / 2 / equity at the rebalance close."""
+
+    rebalances: int
+    mean_per_rebalance: float
+    total: float
+    annualised: float
+    definition: str
+
+
+class RotationBacktestOut(BaseModel):
+    mode: Literal["rotation"] = "rotation"
+    tickers: list[str]
+    currency: str
+    price_basis: str | None = None
+    execution_profile: str
+    fee_schedule: str
+    rules: list[RotationRuleOut]
+    top_n: int
+    schedule: Literal["weekly", "monthly"]
+    weighting: Literal["equal", "inverse_volatility"]
+    buffer: int = 0
+    venue: str
+    cash_filter_index: str | None = None
+    timing: str
+    rebalances: list[RotationRebalanceOut]
+    trades: list[RotationTradeOut]
+    equity_curve: list[EquityPointOut]
+    summary: StrategySummaryOut
+    benchmark: StrategyBenchmarkOut
+    turnover: RotationTurnoverOut
+    source: StrategyUniverseSourceOut
+    universe: UniverseOut
+    warmup_bars: int = 0
+    cash_filter_unknown: int = 0
+    unfilled_at_end: int = 0
+    skip_reasons: dict[str, int] = {}
+    strategy_hash: str
+    data_fingerprint: str
+    notes: list[str] = []
+    costs: CostsOut | None = None
+    liquidity: LiquidityOut | None = None
+    window: RunWindowOut | None = None
+    report: ReportCardOut | None = None
+    checks: OverfittingChecksOut | None = None
+
+
+# --- A4.5: scan event study ------------------------------------------------
+
+
+class ScanUniverseIn(BaseModel):
+    """Up to 50 tickers, one of your watchlists, or a whole market
+    (``US`` or ``IN``: its active non-index symbols)."""
+
+    tickers: list[str] | None = Field(default=None, min_length=1, max_length=50)
+    watchlist_id: int | None = None
+    market: Literal["US", "IN"] | None = None
+
+    @model_validator(mode="after")
+    def _one(self) -> ScanUniverseIn:
+        given = [v is not None for v in (self.tickers, self.watchlist_id, self.market)]
+        if sum(given) != 1:
+            raise ValueError("give exactly one of tickers, watchlist_id or market")
+        return self
+
+
+class ScanEventStudyIn(BaseModel):
+    """POST /v1/research/scan-event-study (A4.5): what happened after a Rule
+    DSL condition turned true. ``trigger`` is a setup version or inline text
+    (news and delivery triggers are rules too: ``news.count(1) >= 1``,
+    ``delivery_pct > 60``)."""
+
+    trigger: StrategyRuleIn
+    universe: ScanUniverseIn
+    from_: date | None = Field(default=None, alias="from")
+    to: date | None = None
+    horizons: list[int] = Field(default_factory=lambda: [5, 20, 60], min_length=1, max_length=5)
+    cooldown: int = Field(default=0, ge=0, le=250)
+    """Sessions after an event during which a new event on the symbol is skipped."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    @model_validator(mode="after")
+    def _horizons(self) -> ScanEventStudyIn:
+        if any(h < 1 or h > 250 for h in self.horizons):
+            raise ValueError("each horizon must be between 1 and 250 sessions")
+        self.horizons = sorted(set(self.horizons))
+        return self
+
+
+class ScanTriggerOut(BaseModel):
+    text: str
+    canonical: str
+    hash: str
+    setup_version_id: int | None = None
+    uses: list[str] = []
+    warmup_bars: int | None = None
+
+
+class ScanUniverseSourceOut(BaseModel):
+    kind: Literal["list", "watchlist", "market"]
+    name: str | None = None
+    watchlist_id: int | None = None
+    market: str | None = None
+    tickers: int
+
+
+class ScanPercentilesOut(BaseModel):
+    p5: float
+    p25: float
+    p50: float
+    p75: float
+    p95: float
+
+
+class HistogramOut(BaseModel):
+    """Counts of net returns in equal bins from the 1st to the 99th
+    percentile; values beyond fall in the end bins."""
+
+    edges: list[float]
+    counts: list[int]
+
+
+class ScanHorizonOut(BaseModel):
+    """One forward horizon. Returns are fractions (0.01 = 1%). Under
+    ``min_events`` only the counts are given."""
+
+    horizon: int
+    n: int
+    symbols: int
+    incomplete: int
+    overlapping: int
+    enough: bool
+    base_rate: float | None = None
+    mean_net: float | None = None
+    median_net: float | None = None
+    mean_excess: float | None = None
+    median_excess: float | None = None
+    hit_rate: float | None = None
+    """Share of events with a net return above zero."""
+    hit_rate_excess: float | None = None
+    """Share of events whose net return beat the base rate."""
+    t_stat: float | None = None
+    t_stat_clustered: float | None = None
+    clusters: int = 0
+    net_percentiles: ScanPercentilesOut | None = None
+    excess_percentiles: ScanPercentilesOut | None = None
+    histogram: HistogramOut | None = None
+    fee_schedules: dict[str, int] = {}
+
+
+class ScanEventOut(BaseModel):
+    ticker: str
+    date: date
+    net: dict[str, float | None]
+    """Net forward return per horizon (key: sessions), null if incomplete."""
+    excess: dict[str, float | None]
+
+
+class ScanEventStudyOut(BaseModel):
+    trigger: ScanTriggerOut
+    source: ScanUniverseSourceOut
+    from_: date = Field(serialization_alias="from")
+    to: date
+    cooldown: int
+    horizons: list[ScanHorizonOut]
+    min_events: int
+    events_found: int
+    events_skipped_cooldown: int
+    events: list[ScanEventOut]
+    events_shown: int
+    method: dict[str, str]
+    universe: UniverseOut
+    disclaimer: str
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
 class ExperimentIn(BaseModel):
     name: str = Field(min_length=1, max_length=120)
     hypothesis: str | None = Field(default=None, max_length=4000)
@@ -2609,12 +2891,15 @@ class ExperimentRunIn(BaseModel):
 
     backtest: BacktestIn | None = None
     strategy: StrategyBacktestIn | None = None
+    rotation: RotationBacktestIn | None = None
+    """A4.4: a rotation, the body of POST /v1/backtest/rotation."""
     experiment_id: int | None = None
 
     @model_validator(mode="after")
     def _one(self) -> ExperimentRunIn:
-        if (self.backtest is None) == (self.strategy is None):
-            raise ValueError("give exactly one of backtest or strategy")
+        given = [v is not None for v in (self.backtest, self.strategy, self.rotation)]
+        if sum(given) != 1:
+            raise ValueError("give exactly one of backtest, strategy or rotation")
         return self
 
 
@@ -3397,9 +3682,11 @@ class HoldoutUnlockIn(BaseModel):
 
     backtest: BacktestIn | None = None
     strategy: StrategyBacktestIn | None = None
+    rotation: RotationBacktestIn | None = None
 
     @model_validator(mode="after")
     def _one(self) -> HoldoutUnlockIn:
-        if (self.backtest is None) == (self.strategy is None):
-            raise ValueError("give exactly one of backtest or strategy")
+        given = [v is not None for v in (self.backtest, self.strategy, self.rotation)]
+        if sum(given) != 1:
+            raise ValueError("give exactly one of backtest, strategy or rotation")
         return self

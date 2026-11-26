@@ -24,6 +24,7 @@ import {
   probabilityWords,
   signedPct,
 } from "@/lib/report-card";
+import type { RotationRequest } from "@/lib/rotation";
 import type { StrategyRequest } from "@/lib/rule-strategy";
 
 export function OverfittingChecks({
@@ -34,7 +35,7 @@ export function OverfittingChecks({
   checks: Checks;
   report?: ReportCard | null;
   /** The request on screen, to unlock its family's holdout. */
-  request?: { backtest?: BacktestRequest; strategy?: StrategyRequest };
+  request?: { backtest?: BacktestRequest; strategy?: StrategyRequest; rotation?: RotationRequest };
 }) {
   const [current, setCurrent] = useState(checks);
   const { trials, dsr } = current;
@@ -113,7 +114,7 @@ function HoldoutPanel({
   onUnlocked,
 }: {
   holdout: HoldoutStatus;
-  request?: { backtest?: BacktestRequest; strategy?: StrategyRequest };
+  request?: { backtest?: BacktestRequest; strategy?: StrategyRequest; rotation?: RotationRequest };
   onUnlocked: (checks: Checks) => void;
 }) {
   const [step, setStep] = useState<"idle" | "confirm">("idle");

@@ -219,7 +219,23 @@ symbol list is today's, so a past date shows only today's survivors.
 API: `GET /v1/screener?rule=<text>&rule_mode=met_only|all[&as_of=]`, or
 `setup_version_id=<id>` for a saved version. `POST /v1/rules/check` with
 `{"rule": "..."}` returns the canonical text, hash and warm-up, or the error
-with its line and column.
+with its line and column. With `"expect": "number"` (A4.4) it checks a
+numeric expression instead, such as a rotation's ranking
+(`pct_change(close, 126)`); a condition is then an error.
+
+## Rotations and event studies (A4)
+
+- **Rotation ranking** (`/backtest?mode=rotation`): any numeric expression,
+  higher ranks first, read at each rebalance session's close; unknown values
+  are not ranked. The optional cash filter is a condition on the market
+  index, written with `index_close` (e.g. `index_close < sma(index_close,
+  200)`).
+- **Event study** (`/event-study`): any condition is a trigger; an event is
+  the session it turns true after a session it was false. News and delivery
+  triggers are rules: `news.count(1) >= 1`, `news.count(1,
+  sentiment="negative") >= 1`, `delivery_pct > 60`, `delivery_pct > 1.5 *
+  sma(delivery_pct, 20)`. "Run event study" on the screener's rule panel and
+  on a setup opens it with the rule.
 
 ## Setups
 

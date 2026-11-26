@@ -11,6 +11,16 @@ import type { components } from "./schema";
 export type RuleCheck = components["schemas"]["RuleCheckOut"];
 export type RuleCheckError = components["schemas"]["RuleErrorOut"];
 
-export function checkRule(rule: string, signal?: AbortSignal): Promise<RuleCheck> {
-  return apiPost<RuleCheck>("/v1/rules/check", { rule }, { init: { signal }, maxAttempts: 1 });
+export function checkRule(
+  rule: string,
+  signal?: AbortSignal,
+  expect: "condition" | "number" = "condition",
+): Promise<RuleCheck> {
+  const body = expect === "number" ? { rule, expect } : { rule };
+  return apiPost<RuleCheck>("/v1/rules/check", body, { init: { signal }, maxAttempts: 1 });
+}
+
+/** A4.4: check a numeric expression (a rotation's ranking), not a condition. */
+export function checkNumber(rule: string, signal?: AbortSignal): Promise<RuleCheck> {
+  return checkRule(rule, signal, "number");
 }
