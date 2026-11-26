@@ -408,19 +408,24 @@ def _evaluate_portfolio(session: Session, *, now: datetime, session_date: date) 
     when it was set does not fire (RS-8). An incomplete valuation (LG-13) is
     not judged.
     """
-    from stockviz.models import Portfolio, PortfolioSnapshot
+    from stockviz.models import PortfolioSnapshot
+    from stockviz.services.trading.books import default_book, owned_book
     from stockviz.services.trading.portfolio import compute_portfolio
 
     rules = _active_rules(session, None, (AlertKind.PORTFOLIO,))
     fired = 0
-    cache: dict[int, tuple | None] = {}
+    cache: dict[tuple[int, int | None], tuple | None] = {}
     for alert in rules:
         if alert.last_bar_date is not None and alert.last_bar_date >= session_date:
             continue
-        if alert.user_id not in cache:
-            portfolio = session.exec(
-                select(Portfolio).where(Portfolio.user_id == alert.user_id)
-            ).first()
+        # A5.1: the rule watches its own book; null means the default book.
+        key = (alert.user_id, alert.portfolio_id)
+        if key not in cache:
+            portfolio = (
+                owned_book(session, alert.user_id, alert.portfolio_id)
+                if alert.portfolio_id is not None
+                else default_book(session, alert.user_id)
+            )
             valuation = (
                 compute_portfolio(
                     session, portfolio, display_currency=portfolio.base_currency or "USD"
@@ -429,15 +434,15 @@ def _evaluate_portfolio(session: Session, *, now: datetime, session_date: date) 
                 else None
             )
             if portfolio is None or valuation is None or valuation.warnings:
-                cache[alert.user_id] = None
+                cache[key] = None
             else:
                 snaps = session.exec(
                     select(PortfolioSnapshot)
-                    .where(PortfolioSnapshot.user_id == alert.user_id)
+                    .where(PortfolioSnapshot.portfolio_id == portfolio.id)
                     .order_by(col(PortfolioSnapshot.date))
                 ).all()
-                cache[alert.user_id] = (portfolio, valuation, list(snaps))
-        entry = cache[alert.user_id]
+                cache[key] = (portfolio, valuation, list(snaps))
+        entry = cache[key]
         if entry is None:
             continue
         portfolio, valuation, snaps = entry

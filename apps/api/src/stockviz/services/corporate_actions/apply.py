@@ -3,7 +3,8 @@
 Stored bars are yfinance's split-adjusted series, rewritten in full every
 night, so after a split the old closes are divided by the ratio while the
 ledger was still in old shares. This module brings the ledger onto the new
-scale, once per (split, user).
+scale, once per (split, book), and the user's price alerts once per
+(split, user) (A5.1).
 
 **Which rows are on the old scale.** A trade, order, alert or option made
 before the split took effect was priced against unsplit closes. The cut-off
@@ -29,8 +30,10 @@ Trade rows are history and stay as filled. Cash does not change.
 (AAPL's 2020 4-for-1 among them). Nothing in the ledger predates those, so a
 first run records them and changes nothing.
 
-**Once only.** ``corporate_action_applications`` is unique on (action, user)
-and is written in the same transaction as the rebase, so a rerun skips it.
+**Once only.** ``corporate_action_applications`` is unique on (action,
+book) for a book's rebase and on (action, user) where the book is null for
+the user's alerts, and is written in the same transaction as the rebase, so
+a rerun skips it.
 A split becomes due once its ex-date session is complete on the venue.
 """
 
@@ -134,61 +137,88 @@ def _shares_held_before(
     return held
 
 
-def _candidate_user_ids(session: Session, action: CorporateAction, before: datetime) -> set[int]:
-    """Users with something on the old scale for this ticker."""
+def _candidate_books(
+    session: Session, action: CorporateAction, before: datetime
+) -> dict[int, set[int]]:
+    """Per user, the books with something on the old scale (A5.1: per book).
+
+    A user with only a live alert on the ticker appears with an empty set:
+    alerts belong to the user, not a book.
+    """
 
     ticker = action.ticker
-    users: set[int] = set()
-    holders = session.exec(
-        select(Portfolio.user_id)
-        .join(Position, col(Position.portfolio_id) == col(Portfolio.id))
-        .where(col(Position.instrument_id) == instrument_of(ticker))
-    ).all()
-    users.update(holders)
-    orders = session.exec(
-        select(Portfolio.user_id)
-        .join(PendingOrder, col(PendingOrder.portfolio_id) == col(Portfolio.id))
-        .where(
-            col(PendingOrder.instrument_id) == instrument_of(ticker),
-            col(PendingOrder.status) == OrderStatus.PENDING,
-            col(PendingOrder.created_at) < before,
-        )
-    ).all()
-    users.update(orders)
-    alerts = session.exec(
+    out: dict[int, set[int]] = {}
+
+    def add(rows) -> None:
+        for user_id, portfolio_id in rows:
+            out.setdefault(user_id, set()).add(portfolio_id)
+
+    add(
+        session.exec(
+            select(Portfolio.user_id, Portfolio.id)
+            .join(Position, col(Position.portfolio_id) == col(Portfolio.id))
+            .where(col(Position.instrument_id) == instrument_of(ticker))
+        ).all()
+    )
+    add(
+        session.exec(
+            select(Portfolio.user_id, Portfolio.id)
+            .join(PendingOrder, col(PendingOrder.portfolio_id) == col(Portfolio.id))
+            .where(
+                col(PendingOrder.instrument_id) == instrument_of(ticker),
+                col(PendingOrder.status) == OrderStatus.PENDING,
+                col(PendingOrder.created_at) < before,
+            )
+        ).all()
+    )
+    add(
+        session.exec(
+            select(OptionsPosition.user_id, OptionsPosition.portfolio_id).where(
+                col(OptionsPosition.instrument_id) == instrument_of(ticker),
+                col(OptionsPosition.status) == OptionStatus.OPEN,
+                col(OptionsPosition.opened_at) < before,
+            )
+        ).all()
+    )
+    for user_id in session.exec(
         select(Alert.user_id).where(
             col(Alert.instrument_id) == instrument_of(ticker),
             col(Alert.triggered_at).is_(None),
             col(Alert.dismissed_at).is_(None),
             col(Alert.created_at) < before,
         )
-    ).all()
-    users.update(alerts)
-    options = session.exec(
-        select(OptionsPosition.user_id).where(
-            col(OptionsPosition.instrument_id) == instrument_of(ticker),
-            col(OptionsPosition.status) == OptionStatus.OPEN,
-            col(OptionsPosition.opened_at) < before,
-        )
-    ).all()
-    users.update(options)
-    return users
+    ).all():
+        out.setdefault(user_id, set())
+    return out
 
 
-def _already_applied(session: Session, action_id: int, user_id: int) -> bool:
+def _book_applied(session: Session, action_id: int, portfolio_id: int) -> bool:
     return (
         session.exec(
             select(CorporateActionApplication).where(
                 col(CorporateActionApplication.action_id) == action_id,
-                col(CorporateActionApplication.user_id) == user_id,
+                col(CorporateActionApplication.portfolio_id) == portfolio_id,
             )
         ).first()
         is not None
     )
 
 
-def rebase_user(session: Session, action: CorporateAction, user_id: int) -> RebaseSummary:
-    """Rebase one user's ledger for ``action``. Stages changes; does not commit."""
+def _user_applied(session: Session, action_id: int, user_id: int) -> bool:
+    return (
+        session.exec(
+            select(CorporateActionApplication).where(
+                col(CorporateActionApplication.action_id) == action_id,
+                col(CorporateActionApplication.user_id) == user_id,
+                col(CorporateActionApplication.portfolio_id).is_(None),
+            )
+        ).first()
+        is not None
+    )
+
+
+def rebase_book(session: Session, action: CorporateAction, portfolio_id: int) -> RebaseSummary:
+    """Rebase one book for ``action``: position, orders, options. Stages; no commit."""
 
     assert action.id is not None
     ratio = action.ratio
@@ -197,62 +227,46 @@ def rebase_user(session: Session, action: CorporateAction, user_id: int) -> Reba
     summary = RebaseSummary()
 
     portfolio = session.exec(
-        select(Portfolio).where(col(Portfolio.user_id) == user_id).with_for_update()
+        select(Portfolio).where(col(Portfolio.id) == portfolio_id).with_for_update()
     ).first()
-    if portfolio is not None and portfolio.id is not None:
-        position = session.exec(
-            select(Position).where(
-                col(Position.portfolio_id) == portfolio.id,
-                col(Position.instrument_id) == instrument_of(ticker),
-            )
-        ).first()
-        if position is not None and position.quantity > 0:
-            old_scale = min(
-                max(_shares_held_before(session, portfolio.id, ticker, before), Decimal(0)),
-                position.quantity,
-            )
-            if old_scale > 0:
-                cost = position.quantity * position.avg_cost
-                quantity = (position.quantity + old_scale * (ratio - 1)).quantize(_QTY)
-                summary.position = (position.quantity, quantity)
-                position.quantity = quantity
-                position.avg_cost = (cost / quantity).quantize(_PRICE)
-                session.add(position)
+    if portfolio is None or portfolio.id is None:
+        return summary
+    position = session.exec(
+        select(Position).where(
+            col(Position.portfolio_id) == portfolio.id,
+            col(Position.instrument_id) == instrument_of(ticker),
+        )
+    ).first()
+    if position is not None and position.quantity > 0:
+        old_scale = min(
+            max(_shares_held_before(session, portfolio.id, ticker, before), Decimal(0)),
+            position.quantity,
+        )
+        if old_scale > 0:
+            cost = position.quantity * position.avg_cost
+            quantity = (position.quantity + old_scale * (ratio - 1)).quantize(_QTY)
+            summary.position = (position.quantity, quantity)
+            position.quantity = quantity
+            position.avg_cost = (cost / quantity).quantize(_PRICE)
+            session.add(position)
 
-        orders = session.exec(
-            select(PendingOrder).where(
-                col(PendingOrder.portfolio_id) == portfolio.id,
-                col(PendingOrder.instrument_id) == instrument_of(ticker),
-                col(PendingOrder.status) == OrderStatus.PENDING,
-                col(PendingOrder.created_at) < before,
-            )
-        ).all()
-        for order in orders:
-            order.quantity = (order.quantity * ratio).quantize(_QTY)
-            order.limit_price = (order.limit_price / ratio).quantize(_PRICE)
-            session.add(order)
-        summary.orders = len(orders)
-
-    alerts = session.exec(
-        select(Alert).where(
-            col(Alert.user_id) == user_id,
-            col(Alert.instrument_id) == instrument_of(ticker),
-            col(Alert.triggered_at).is_(None),
-            col(Alert.dismissed_at).is_(None),
-            col(Alert.created_at) < before,
-            # Phase 7.1: only price levels are in the split's units.
-            col(Alert.target_price).is_not(None),
+    orders = session.exec(
+        select(PendingOrder).where(
+            col(PendingOrder.portfolio_id) == portfolio.id,
+            col(PendingOrder.instrument_id) == instrument_of(ticker),
+            col(PendingOrder.status) == OrderStatus.PENDING,
+            col(PendingOrder.created_at) < before,
         )
     ).all()
-    for alert in alerts:
-        assert alert.target_price is not None
-        alert.target_price = (alert.target_price / ratio).quantize(_PRICE)
-        session.add(alert)
-    summary.alerts = len(alerts)
+    for order in orders:
+        order.quantity = (order.quantity * ratio).quantize(_QTY)
+        order.limit_price = (order.limit_price / ratio).quantize(_PRICE)
+        session.add(order)
+    summary.orders = len(orders)
 
     options = session.exec(
         select(OptionsPosition).where(
-            col(OptionsPosition.user_id) == user_id,
+            col(OptionsPosition.portfolio_id) == portfolio.id,
             col(OptionsPosition.instrument_id) == instrument_of(ticker),
             col(OptionsPosition.status) == OptionStatus.OPEN,
             col(OptionsPosition.opened_at) < before,
@@ -265,8 +279,82 @@ def rebase_user(session: Session, action: CorporateAction, user_id: int) -> Reba
     summary.options = len(options)
 
     session.add(
-        CorporateActionApplication(action_id=action.id, user_id=user_id, summary=summary.text())
+        CorporateActionApplication(
+            action_id=action.id,
+            user_id=portfolio.user_id,
+            portfolio_id=portfolio.id,
+            summary=summary.text(),
+        )
     )
+    return summary
+
+
+def rebase_user_alerts(session: Session, action: CorporateAction, user_id: int) -> RebaseSummary:
+    """Rebase the user's live price alerts for ``action``. Stages; no commit."""
+
+    assert action.id is not None
+    ratio = action.ratio
+    before = cutoff(action)
+    summary = RebaseSummary()
+    alerts = session.exec(
+        select(Alert).where(
+            col(Alert.user_id) == user_id,
+            col(Alert.instrument_id) == instrument_of(action.ticker),
+            col(Alert.triggered_at).is_(None),
+            col(Alert.dismissed_at).is_(None),
+            col(Alert.created_at) < before,
+            # Phase 7.1: only price levels are in the split's units.
+            col(Alert.target_price).is_not(None),
+        )
+    ).all()
+    for alert in alerts:
+        assert alert.target_price is not None
+        alert.target_price = (alert.target_price / ratio).quantize(_PRICE)
+        session.add(alert)
+    summary.alerts = len(alerts)
+    session.add(
+        CorporateActionApplication(
+            action_id=action.id, user_id=user_id, portfolio_id=None, summary=summary.text()
+        )
+    )
+    return summary
+
+
+def rebase_user(
+    session: Session, action: CorporateAction, user_id: int, books: set[int] | None = None
+) -> RebaseSummary:
+    """Rebase every candidate book of one user, and their alerts, for ``action``.
+
+    Each part not yet applied is applied once (book rows and the user row
+    are separate, so a rerun skips what is done). Stages; does not commit.
+    Notifies once when anything is applied.
+    """
+
+    assert action.id is not None
+    if books is None:
+        books = _candidate_books(session, action, cutoff(action)).get(user_id, set())
+    total = RebaseSummary()
+    applied_any = False
+    for portfolio_id in sorted(books):
+        if _book_applied(session, action.id, portfolio_id):
+            continue
+        part = rebase_book(session, action, portfolio_id)
+        applied_any = True
+        if part.position and total.position is None:
+            total.position = part.position
+        elif part.position and total.position is not None:
+            total.position = (
+                total.position[0] + part.position[0],
+                total.position[1] + part.position[1],
+            )
+        total.orders += part.orders
+        total.options += part.options
+    if not _user_applied(session, action.id, user_id):
+        total.alerts = rebase_user_alerts(session, action, user_id).alerts
+        applied_any = True
+    if not applied_any:
+        return total
+
     from stockviz.models import NotificationCategory
     from stockviz.services.notifications import notify
 
@@ -275,25 +363,26 @@ def rebase_user(session: Session, action: CorporateAction, user_id: int) -> Reba
         user_id=user_id,
         category=NotificationCategory.CORPORATE_ACTION,
         title=f"{action.ticker} split applied",
-        body=f"{action.ticker} split on {action.ex_date.isoformat()}: {summary.text()}",
+        body=f"{action.ticker} split on {action.ex_date.isoformat()}: {total.text()}",
         link="/portfolio",
         source_key=f"split:{action.id}:{user_id}",
     )
-    return summary
+    return total
 
 
 def apply_due_splits(session: Session, *, now: datetime) -> ApplyResult:
-    """Rebase every affected user for every due split, one commit per user."""
+    """Rebase every affected book for every due split, one commit per user."""
 
     result = ApplyResult()
     for action in due_actions(session, now):
         result.actions_due += 1
         assert action.id is not None
         before = cutoff(action)
-        for user_id in sorted(_candidate_user_ids(session, action, before)):
-            if _already_applied(session, action.id, user_id):
+        for user_id, books in sorted(_candidate_books(session, action, before).items()):
+            pending = {b for b in books if not _book_applied(session, action.id, b)}
+            if not pending and _user_applied(session, action.id, user_id):
                 continue
-            summary = rebase_user(session, action, user_id)
+            summary = rebase_user(session, action, user_id, pending)
             session.commit()
             if summary.changed():
                 result.users_rebased += 1

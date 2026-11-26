@@ -808,6 +808,9 @@ class AlertIn(BaseModel):
     setup_version_id: int | None = Field(default=None, ge=1)
     repeat: Literal["once", "every_cross"] = "once"
     cooldown_sessions: int = Field(default=1, ge=1, le=250)
+    # A5.1: the book a portfolio rule watches (yours, else 404); null = the
+    # default book. Portfolio rules only.
+    book_id: int | None = Field(default=None, ge=1)
 
 
 class AlertPatch(BaseModel):
@@ -830,6 +833,8 @@ class AlertOut(BaseModel):
     target_price: Decimal | None
     params: dict[str, Any] | None = None
     setup_version_id: int | None = None
+    # A5.1: a portfolio rule's book; null = the default book.
+    book_id: int | None = Field(default=None, validation_alias="portfolio_id")
     repeat: str = "once"
     cooldown_sessions: int = 1
     paused: bool = False
@@ -3219,6 +3224,62 @@ class BaseCurrencyIn(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Books (A5.1)
+# ---------------------------------------------------------------------------
+
+
+class BookOut(BaseModel):
+    """One book: a paper book trades here; an imported one holds a broker's fills."""
+
+    id: int
+    name: str
+    kind: Literal["paper", "imported"]
+    is_default: bool
+    # False for an imported book: holdings only, cash stays 0.
+    cash_tracked: bool
+    broker: str | None = None
+    holder_kind: Literal["self", "family", "huf"]
+    holder_label: str | None = None
+    base_currency: str
+    archived_at: datetime | None = None
+    created_at: datetime
+    # Paper and not archived: trades, orders and options may land in it.
+    writable: bool
+    # What the book has done (trades, orders, ...); empty = fresh, so its
+    # base currency can still change and it can be deleted outright.
+    activity: list[str] = Field(default_factory=list)
+
+
+class BooksOut(BaseModel):
+    books: list[BookOut]
+    limit: int
+
+
+class BookIn(BaseModel):
+    """``POST /v1/books``."""
+
+    name: str = Field(min_length=1, max_length=60)
+    kind: Literal["paper", "imported"] = "paper"
+    base_currency: Literal["USD", "INR"] = "USD"
+    holder_kind: Literal["self", "family", "huf"] = "self"
+    # Free text ("Mum", "Jariwala HUF"). Never a PAN: a PAN-shaped label is 422.
+    holder_label: str | None = Field(default=None, max_length=60)
+    # Imported books only; default zerodha.
+    broker: Literal["zerodha"] | None = None
+
+
+class BookPatch(BaseModel):
+    """``PATCH /v1/books/{id}``. Absent fields stay; ``holder_label: null`` clears it."""
+
+    name: str | None = Field(default=None, min_length=1, max_length=60)
+    holder_kind: Literal["self", "family", "huf"] | None = None
+    holder_label: str | None = Field(default=None, max_length=60)
+    archived: bool | None = None
+    # Only true: the default moves to this book.
+    is_default: Literal[True] | None = None
+
+
+# ---------------------------------------------------------------------------
 # Notifications (Phase 7.2)
 # ---------------------------------------------------------------------------
 
@@ -3679,6 +3740,8 @@ class FillEventOut(BaseModel):
     price: Decimal
     # A5 adds trade plans; until then the R-multiple is unknown.
     r_multiple: float | None = None
+    # A5.1: the book the fill landed in.
+    book_id: int | None = None
 
 
 SymbolEventOut = Annotated[

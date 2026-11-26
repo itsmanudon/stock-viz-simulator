@@ -55,6 +55,18 @@ Watchlist stays under **Portfolio**, not Trade. It is a monitoring surface (“w
 
 Server Components load account, orders, quotes, watchlist, and alerts. Client islands submit server actions. Optional quote/sparkline fetches fail independently.
 
+## Books (A5.1)
+
+A user can hold up to 20 books (`/v1/books`). One is the default: every
+trading route without `?book=<id>` uses it, so the pages work unchanged
+until the book switcher (A5.2). Trades, orders, options, positions,
+snapshots, split rebases, risk limits, the journal and portfolio alerts are
+per book; price alerts, watchlists and the display currency stay per user.
+Each paper book has its own base currency (USD or INR, fixed after its first
+activity) and starts with that currency's starting cash. An archived book is
+readable but takes no trades or orders (409), and an imported book (filled
+by the Zerodha import, A5.3) never trades here. Another user's book is 404.
+
 ## Currency display
 
 Operational prices for a security (close, limit/trigger, fill, alert target, estimated notional) use that symbol's ISO-4217 currency from the tracked universe. Cash, reserved cash, buying power, and total value stay in the portfolio display currency. The ledger and FX conversion are unchanged; this is formatting only. Unknown tickers fall back to USD.

@@ -17,6 +17,7 @@ from stockviz.auth import UserIdDep
 from stockviz.db import get_session
 from stockviz.models import TradeSide
 from stockviz.models.order import OrderStatus, OrderType, PendingOrder
+from stockviz.routers.book_query import BookQuery
 from stockviz.schemas import PendingOrderIn, PendingOrderOut
 from stockviz.services.trading import (
     ClientOrderIdConflict,
@@ -26,8 +27,8 @@ from stockviz.services.trading import (
     TradeExecutionError,
     cancel_pending_order,
     create_pending_order,
-    ensure_default_portfolio,
 )
+from stockviz.services.trading.books import resolve_book
 from stockviz.services.trading.bounds import MAX_PRICE, MAX_QUANTITY, check_amount
 
 router = APIRouter(prefix="/v1", tags=["orders"])
@@ -36,7 +37,9 @@ SessionDep = Annotated[Session, Depends(get_session)]
 
 
 @router.post("/orders", response_model=PendingOrderOut, status_code=status.HTTP_201_CREATED)
-def create_order(body: PendingOrderIn, session: SessionDep, user_id: UserIdDep) -> PendingOrder:
+def create_order(
+    body: PendingOrderIn, session: SessionDep, user_id: UserIdDep, book: BookQuery = None
+) -> PendingOrder:
     try:
         side = TradeSide(body.side)
     except ValueError:
@@ -74,6 +77,7 @@ def create_order(body: PendingOrderIn, session: SessionDep, user_id: UserIdDep) 
             quantity=quantity,
             limit_price=limit_price,
             client_order_id=body.client_order_id,
+            book_id=book,
         )
     except ClientOrderIdConflict as exc:
         raise HTTPException(status.HTTP_409_CONFLICT, detail=str(exc)) from exc
@@ -88,8 +92,9 @@ def list_orders(
     session: SessionDep,
     user_id: UserIdDep,
     status_filter: Annotated[str | None, Query(alias="status")] = None,
+    book: BookQuery = None,
 ) -> list[PendingOrder]:
-    portfolio = ensure_default_portfolio(session, user_id)
+    portfolio = resolve_book(session, user_id, book)
     assert portfolio.id is not None
 
     stmt = select(PendingOrder).where(

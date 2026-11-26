@@ -211,7 +211,9 @@ def test_rerun_changes_nothing(book) -> None:
 
     assert result.users_rebased == 0
     assert _snapshot(session, portfolio_id, user_id) == first
-    assert len(session.exec(select(CorporateActionApplication)).all()) == 1
+    # A5.1: one row for the book's rebase, one for the user's alerts.
+    rows = session.exec(select(CorporateActionApplication)).all()
+    assert sorted((r.portfolio_id is None) for r in rows) == [False, True]
 
 
 def test_a_split_before_the_ledger_existed_changes_nothing(book) -> None:

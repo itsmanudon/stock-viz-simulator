@@ -56,8 +56,11 @@ from stockviz.models.option_quote import OptionChainQuote
 from stockviz.models.option_strategy import OptionStrategy, StrategyKind, StrategyStatus
 from stockviz.models.order import OrderStatus, OrderType, PendingOrder
 from stockviz.models.portfolio import (
+    MAX_BOOKS_PER_USER,
+    BookKind,
     CashBalance,
     FxConversion,
+    HolderKind,
     Portfolio,
     PortfolioSnapshot,
     Position,
@@ -82,6 +85,7 @@ from stockviz.models.user import User
 from stockviz.models.watchlist import ColumnSet, Watchlist, WatchlistItem
 
 __all__ = [
+    "MAX_BOOKS_PER_USER",
     "AegisAnalysis",
     "AegisDocument",
     "AegisDocumentEntity",
@@ -96,6 +100,7 @@ __all__ = [
     "AlertRepeat",
     "AuthRateLimit",
     "BacktestTrial",
+    "BookKind",
     "CashBalance",
     "ChannelKind",
     "ChecklistEvidence",
@@ -120,6 +125,7 @@ __all__ = [
     "FundamentalFact",
     "FxConversion",
     "FxRate",
+    "HolderKind",
     "HoldoutUnlock",
     "IndicatorEvidence",
     "Instrument",

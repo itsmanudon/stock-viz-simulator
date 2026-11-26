@@ -684,7 +684,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Events For Symbol */
+        /**
+         * Events For Symbol
+         * @description ``?book=`` limits fills to one of the caller's books (A5.1); default all books.
+         */
         get: operations["events_for_symbol_v1_symbols__ticker__events_get"];
         put?: never;
         post?: never;
@@ -913,7 +916,7 @@ export interface paths {
         get: operations["get_risk_limits_v1_portfolio_limits_get"];
         /**
          * Put Risk Limits
-         * @description Replace every limit at once; a null clears that limit.
+         * @description Replace every limit at once; a null clears that limit. Per book (A5.1).
          */
         put: operations["put_risk_limits_v1_portfolio_limits_put"];
         post?: never;
@@ -1009,6 +1012,58 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/v1/books": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Books
+         * @description Every book, the default first (created on first use).
+         */
+        get: operations["get_books_v1_books_get"];
+        put?: never;
+        /**
+         * Post Book
+         * @description Create a book (409 past 20 or for a taken name; 422 a PAN-shaped label).
+         *
+         *     A paper book starts with $100,000 or ₹1 crore in its base currency.
+         */
+        post: operations["post_book_v1_books_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/books/{book_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Remove Book
+         * @description Delete a book and everything in it.
+         *
+         *     Only an empty book, or one archived first; never the default (or last) one.
+         */
+        delete: operations["remove_book_v1_books__book_id__delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Patch Book
+         * @description Rename, relabel, archive or unarchive, or make the default (409 on the rules).
+         */
+        patch: operations["patch_book_v1_books__book_id__patch"];
         trace?: never;
     };
     "/v1/alerts": {
@@ -1416,7 +1471,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Post Options Trade */
+        /**
+         * Post Options Trade
+         * @description Open in ``?book=`` (default book); a close trades in the leg's own book.
+         */
         post: operations["post_options_trade_v1_options_trade_post"];
         delete?: never;
         options?: never;
@@ -1433,7 +1491,7 @@ export interface paths {
         };
         /**
          * List Options Positions
-         * @description Return the user's open options positions, newest first, each priced now.
+         * @description Return the book's open options positions, newest first, each priced now.
          */
         get: operations["list_options_positions_v1_options_positions_get"];
         put?: never;
@@ -1477,7 +1535,7 @@ export interface paths {
         put?: never;
         /**
          * Post Strategy
-         * @description Open every leg of a strategy in one transaction, or none.
+         * @description Open every leg of a strategy in one transaction, or none, in ``?book=``.
          */
         post: operations["post_strategy_v1_options_strategies_post"];
         delete?: never;
@@ -1535,7 +1593,7 @@ export interface paths {
         };
         /**
          * Get Options Book
-         * @description The options book's Greeks and its legs by expiry (Phase 9.5).
+         * @description The options book's Greeks and its legs by expiry (Phase 9.5), per book (A5.1).
          */
         get: operations["get_options_book_v1_options_book_get"];
         put?: never;
@@ -2343,7 +2401,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List Earnings */
+        /**
+         * List Earnings
+         * @description ``scope=holdings`` reads every book's holdings (A5.1), or ``?book=``'s.
+         */
         get: operations["list_earnings_v1_earnings_get"];
         put?: never;
         post?: never;
@@ -2693,6 +2754,8 @@ export interface components {
              * @default 1
              */
             cooldown_sessions: number;
+            /** Book Id */
+            book_id?: number | null;
         };
         /**
          * AlertOut
@@ -2718,6 +2781,8 @@ export interface components {
             } | null;
             /** Setup Version Id */
             setup_version_id?: number | null;
+            /** Book Id */
+            book_id?: number | null;
             /**
              * Repeat
              * @default once
@@ -3085,6 +3150,100 @@ export interface components {
         BaseCurrencyIn: {
             /** Base Currency */
             base_currency: string;
+        };
+        /**
+         * BookIn
+         * @description ``POST /v1/books``.
+         */
+        BookIn: {
+            /** Name */
+            name: string;
+            /**
+             * Kind
+             * @default paper
+             * @enum {string}
+             */
+            kind: "paper" | "imported";
+            /**
+             * Base Currency
+             * @default USD
+             * @enum {string}
+             */
+            base_currency: "USD" | "INR";
+            /**
+             * Holder Kind
+             * @default self
+             * @enum {string}
+             */
+            holder_kind: "self" | "family" | "huf";
+            /** Holder Label */
+            holder_label?: string | null;
+            /** Broker */
+            broker?: "zerodha" | null;
+        };
+        /**
+         * BookOut
+         * @description One book: a paper book trades here; an imported one holds a broker's fills.
+         */
+        BookOut: {
+            /** Id */
+            id: number;
+            /** Name */
+            name: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "paper" | "imported";
+            /** Is Default */
+            is_default: boolean;
+            /** Cash Tracked */
+            cash_tracked: boolean;
+            /** Broker */
+            broker?: string | null;
+            /**
+             * Holder Kind
+             * @enum {string}
+             */
+            holder_kind: "self" | "family" | "huf";
+            /** Holder Label */
+            holder_label?: string | null;
+            /** Base Currency */
+            base_currency: string;
+            /** Archived At */
+            archived_at?: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Writable */
+            writable: boolean;
+            /** Activity */
+            activity?: string[];
+        };
+        /**
+         * BookPatch
+         * @description ``PATCH /v1/books/{id}``. Absent fields stay; ``holder_label: null`` clears it.
+         */
+        BookPatch: {
+            /** Name */
+            name?: string | null;
+            /** Holder Kind */
+            holder_kind?: ("self" | "family" | "huf") | null;
+            /** Holder Label */
+            holder_label?: string | null;
+            /** Archived */
+            archived?: boolean | null;
+            /** Is Default */
+            is_default?: true | null;
+        };
+        /** BooksOut */
+        BooksOut: {
+            /** Books */
+            books: components["schemas"]["BookOut"][];
+            /** Limit */
+            limit: number;
         };
         /** BrokerageOut */
         BrokerageOut: {
@@ -4520,6 +4679,8 @@ export interface components {
             price: string;
             /** R Multiple */
             r_multiple?: number | null;
+            /** Book Id */
+            book_id?: number | null;
         };
         /** FundamentalRowOut */
         FundamentalRowOut: {
@@ -11151,6 +11312,8 @@ export interface operations {
                 to?: string | null;
                 /** @description Comma-separated: news, earnings, dividend, split, fill. Default: every public type, plus fill with a Bearer token. fill needs a token. */
                 types?: string | null;
+                /** @description Book id (A5.1). Omit for the default book; another user's book is 404. */
+                book?: number | null;
             };
             header?: {
                 authorization?: string | null;
@@ -11270,7 +11433,10 @@ export interface operations {
     };
     get_portfolio_v1_portfolio_get: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Book id (A5.1). Omit for the default book; another user's book is 404. */
+                book?: number | null;
+            };
             header?: {
                 authorization?: string | null;
             };
@@ -11301,7 +11467,10 @@ export interface operations {
     };
     put_base_currency_v1_portfolio_base_currency_put: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Book id (A5.1). Omit for the default book; another user's book is 404. */
+                book?: number | null;
+            };
             header?: {
                 authorization?: string | null;
             };
@@ -11338,6 +11507,8 @@ export interface operations {
         parameters: {
             query?: {
                 limit?: number;
+                /** @description Book id (A5.1). Omit for the default book; another user's book is 404. */
+                book?: number | null;
             };
             header?: {
                 authorization?: string | null;
@@ -11369,7 +11540,10 @@ export interface operations {
     };
     post_trade_v1_trades_post: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Book id (A5.1). Omit for the default book; another user's book is 404. */
+                book?: number | null;
+            };
             header?: {
                 authorization?: string | null;
             };
@@ -11406,6 +11580,8 @@ export interface operations {
         parameters: {
             query?: {
                 risk_free_rate?: number;
+                /** @description Book id (A5.1). Omit for the default book; another user's book is 404. */
+                book?: number | null;
             };
             header?: {
                 authorization?: string | null;
@@ -11439,6 +11615,8 @@ export interface operations {
         parameters: {
             query?: {
                 risk_free_rate?: number;
+                /** @description Book id (A5.1). Omit for the default book; another user's book is 404. */
+                book?: number | null;
             };
             header?: {
                 authorization?: string | null;
@@ -11472,6 +11650,8 @@ export interface operations {
         parameters: {
             query?: {
                 goal?: number | string | null;
+                /** @description Book id (A5.1). Omit for the default book; another user's book is 404. */
+                book?: number | null;
             };
             header?: {
                 authorization?: string | null;
@@ -11503,7 +11683,10 @@ export interface operations {
     };
     get_portfolio_stress_v1_portfolio_stress_get: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Book id (A5.1). Omit for the default book; another user's book is 404. */
+                book?: number | null;
+            };
             header?: {
                 authorization?: string | null;
             };
@@ -11534,7 +11717,10 @@ export interface operations {
     };
     get_risk_limits_v1_portfolio_limits_get: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Book id (A5.1). Omit for the default book; another user's book is 404. */
+                book?: number | null;
+            };
             header?: {
                 authorization?: string | null;
             };
@@ -11565,7 +11751,10 @@ export interface operations {
     };
     put_risk_limits_v1_portfolio_limits_put: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Book id (A5.1). Omit for the default book; another user's book is 404. */
+                book?: number | null;
+            };
             header?: {
                 authorization?: string | null;
             };
@@ -11603,6 +11792,8 @@ export interface operations {
             query: {
                 ticker: string;
                 quantity: number | string;
+                /** @description Book id (A5.1). Omit for the default book; another user's book is 404. */
+                book?: number | null;
             };
             header?: {
                 authorization?: string | null;
@@ -11636,6 +11827,8 @@ export interface operations {
         parameters: {
             query?: {
                 days?: number | null;
+                /** @description Book id (A5.1). Omit for the default book; another user's book is 404. */
+                book?: number | null;
             };
             header?: {
                 authorization?: string | null;
@@ -11700,7 +11893,10 @@ export interface operations {
     };
     get_portfolio_dividends_v1_portfolio_dividends_get: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Book id (A5.1). Omit for the default book; another user's book is 404. */
+                book?: number | null;
+            };
             header?: {
                 authorization?: string | null;
             };
@@ -11716,6 +11912,140 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DividendSummaryOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_books_v1_books_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BooksOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    post_book_v1_books_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BookIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    remove_book_v1_books__book_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                book_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    patch_book_v1_books__book_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                book_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BookPatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookOut"];
                 };
             };
             /** @description Validation Error */
@@ -12542,6 +12872,8 @@ export interface operations {
         parameters: {
             query?: {
                 status?: string | null;
+                /** @description Book id (A5.1). Omit for the default book; another user's book is 404. */
+                book?: number | null;
             };
             header?: {
                 authorization?: string | null;
@@ -12573,7 +12905,10 @@ export interface operations {
     };
     create_order_v1_orders_post: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Book id (A5.1). Omit for the default book; another user's book is 404. */
+                book?: number | null;
+            };
             header?: {
                 authorization?: string | null;
             };
@@ -12776,7 +13111,10 @@ export interface operations {
     };
     post_options_trade_v1_options_trade_post: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Book id (A5.1). Omit for the default book; another user's book is 404. */
+                book?: number | null;
+            };
             header?: {
                 authorization?: string | null;
             };
@@ -12811,7 +13149,10 @@ export interface operations {
     };
     list_options_positions_v1_options_positions_get: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Book id (A5.1). Omit for the default book; another user's book is 404. */
+                book?: number | null;
+            };
             header?: {
                 authorization?: string | null;
             };
@@ -12875,7 +13216,10 @@ export interface operations {
     };
     list_strategies_v1_options_strategies_get: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Book id (A5.1). Omit for the default book; another user's book is 404. */
+                book?: number | null;
+            };
             header?: {
                 authorization?: string | null;
             };
@@ -12906,7 +13250,10 @@ export interface operations {
     };
     post_strategy_v1_options_strategies_post: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Book id (A5.1). Omit for the default book; another user's book is 404. */
+                book?: number | null;
+            };
             header?: {
                 authorization?: string | null;
             };
@@ -13007,7 +13354,10 @@ export interface operations {
     };
     get_options_book_v1_options_book_get: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Book id (A5.1). Omit for the default book; another user's book is 404. */
+                book?: number | null;
+            };
             header?: {
                 authorization?: string | null;
             };
@@ -14810,6 +15160,8 @@ export interface operations {
                 from?: string | null;
                 to?: string | null;
                 scope?: "all" | "holdings" | "watchlist";
+                /** @description Book id (A5.1). Omit for the default book; another user's book is 404. */
+                book?: number | null;
             };
             header?: {
                 authorization?: string | null;
@@ -14841,7 +15193,10 @@ export interface operations {
     };
     get_journal_month_v1_portfolio_journal_months__year___month__get: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Book id (A5.1). Omit for the default book; another user's book is 404. */
+                book?: number | null;
+            };
             header?: {
                 authorization?: string | null;
             };
@@ -14878,6 +15233,8 @@ export interface operations {
             query?: {
                 offset?: number;
                 limit?: number;
+                /** @description Book id (A5.1). Omit for the default book; another user's book is 404. */
+                book?: number | null;
             };
             header?: {
                 authorization?: string | null;
@@ -14911,7 +15268,10 @@ export interface operations {
     };
     get_journal_week_v1_portfolio_journal_weeks__start__get: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Book id (A5.1). Omit for the default book; another user's book is 404. */
+                book?: number | null;
+            };
             header?: {
                 authorization?: string | null;
             };

@@ -192,7 +192,7 @@ def realized_executions(
     return executions
 
 
-def month_start_nav(session: Session, *, user_id: int, first: date_type) -> Decimal | None:
+def month_start_nav(session: Session, *, portfolio: Portfolio, first: date_type) -> Decimal | None:
     """Portfolio NAV on the last snapshot strictly before the month.
 
     The denominator for the month's percentage figure. ``None`` when the
@@ -203,7 +203,7 @@ def month_start_nav(session: Session, *, user_id: int, first: date_type) -> Deci
 
     row = session.exec(
         select(PortfolioSnapshot)
-        .where(PortfolioSnapshot.user_id == user_id, PortfolioSnapshot.date < first)
+        .where(PortfolioSnapshot.portfolio_id == portfolio.id, PortfolioSnapshot.date < first)
         .order_by(PortfolioSnapshot.date.desc())  # type: ignore[attr-defined]
         .limit(1)
     ).first()

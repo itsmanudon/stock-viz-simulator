@@ -65,6 +65,7 @@ from stockviz.services.options.pricing import (
     risk_free_rate,
     usable_closes,
 )
+from stockviz.services.trading.books import require_writable, resolve_book
 from stockviz.services.trading.buying_power import (
     available_cash,
     available_shares,
@@ -77,7 +78,6 @@ from stockviz.services.trading.execute import (
     InsufficientPosition,
     NoFxRateError,
     apply_fill,
-    ensure_default_portfolio,
 )
 from stockviz.services.trading.fx import base_rate
 
@@ -340,6 +340,7 @@ def open_option(
     quantity: int,
     client_order_id: str | None = None,
     side: OptionSide = OptionSide.LONG,
+    book_id: int | None = None,
 ) -> OptionTradeResult:
     """Open ``quantity`` contracts: buy them (``side`` long) or write covered ones.
 
@@ -360,7 +361,9 @@ def open_option(
 
     ticker = ticker.upper()
     if client_order_id is not None:
-        earlier = _earlier_open(session, user_id=user_id, client_order_id=client_order_id)
+        earlier = _earlier_open(
+            session, user_id=user_id, client_order_id=client_order_id, book_id=book_id
+        )
         if earlier is not None:
             same = (
                 earlier.ticker == ticker
@@ -403,9 +406,10 @@ def open_option(
             quantity=quantity,
             premium=premium,
             client_order_id=client_order_id,
+            book_id=book_id,
         )
 
-    portfolio = ensure_default_portfolio(session, user_id)
+    portfolio = resolve_book(session, user_id, book_id, write=True)
     assert portfolio.id is not None
     portfolio_id = portfolio.id
     portfolio = lock_portfolio(session, portfolio_id)
@@ -459,9 +463,10 @@ def _write_covered(
     quantity: int,
     premium: Decimal,
     client_order_id: str | None,
+    book_id: int | None = None,
 ) -> OptionTradeResult:
     """Write a covered call or a cash-secured put: credit the premium, reserve the cover."""
-    portfolio = ensure_default_portfolio(session, user_id)
+    portfolio = resolve_book(session, user_id, book_id, write=True)
     assert portfolio.id is not None
     portfolio_id = portfolio.id
     portfolio = lock_portfolio(session, portfolio_id)
@@ -520,10 +525,10 @@ def _write_covered(
 
 
 def _earlier_open(
-    session: Session, *, user_id: int, client_order_id: str
+    session: Session, *, user_id: int, client_order_id: str, book_id: int | None = None
 ) -> OptionsPosition | None:
     """The open this key already placed, read under the portfolio lock."""
-    portfolio = ensure_default_portfolio(session, user_id)
+    portfolio = resolve_book(session, user_id, book_id, write=True)
     assert portfolio.id is not None
     lock_portfolio(session, portfolio.id)
     return session.exec(
@@ -570,6 +575,10 @@ def close_option(session: Session, *, user_id: int, option_id: int) -> OptionTra
         proceeds = Decimal("0.00")
 
     assert position.portfolio_id is not None
+    # A5.1: closing trades in the leg's own book, so it must be writable.
+    book = session.get(Portfolio, position.portfolio_id)
+    if book is not None:
+        require_writable(book)
     portfolio = lock_portfolio(session, position.portfolio_id)
     session.refresh(position)
     if position.status != OptionStatus.OPEN:
