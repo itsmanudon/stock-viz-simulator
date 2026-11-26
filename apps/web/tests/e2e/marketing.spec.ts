@@ -60,7 +60,8 @@ test.describe("marketing home", () => {
     await expect(footer).toBeVisible();
 
     await expect(footer.getByRole("navigation", { name: "Research" })).toBeVisible();
-    await expect(footer.getByRole("navigation", { name: "Project" })).toBeVisible();
+    // No source-code link while the project is private (owner, legal review first).
+    await expect(footer.getByRole("link", { name: /github/i })).toHaveCount(0);
     await expect(footer.getByText(/Simulated trading only/)).toBeVisible();
     await expect(footer.getByText(/Not investment advice/)).toBeVisible();
   });

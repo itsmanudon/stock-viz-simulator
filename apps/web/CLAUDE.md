@@ -140,7 +140,19 @@ components/
   order-side-toggle.tsx  buy/sell segmented control shared by both tickets
   ui/              shadcn-generated primitives — don't hand-edit
   site-footer.tsx  public footer: rides `.panel-inset` squared off, so the page
-                   ends dark; disclosures are numbered notes, not buried prose
+                   ends dark; disclosures are numbered notes, not buried prose.
+                   Liquid Chrome (26 Nov 2026): it opens on the close line and
+                   ends on `prism/chrome-wordmark.tsx` (the wordmark filled with
+                   the hero's liquid metal through a text mask; the outline is
+                   the fallback). `footer-market.tsx` holds the two async parts,
+                   each in Suspense and each dropping out without data: the
+                   close line (equal-weight average of the terrain's symbols
+                   over 120 sessions, end dot at the latest close) and the
+                   status strip (symbols tracked, US and India closes, nightly
+                   refresh, `getServiceStatusCached()`, linked to /status);
+                   their maths is in `lib/footer-market.ts`. The version is the
+                   root package's. No source-code link until the project is
+                   public (owner, legal review first)
   *.tsx            app-shell/sidebar/navigation, global-ticker-search, earnings-calendar,
                    public-header, price-chart, order-ticket, backtest-form, etc.
 lib/

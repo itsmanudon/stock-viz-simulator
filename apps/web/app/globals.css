@@ -1296,6 +1296,42 @@ body::after {
     transform: translateX(120%);
   }
 
+  /* The footer's close line (components/footer-market.tsx): it draws itself
+     as it scrolls into view where scroll-driven animations exist, and is
+     simply there everywhere else. The end dot marks the latest close. */
+  .footer-close-dot {
+    position: absolute;
+    right: 0;
+    width: 7px;
+    height: 7px;
+    border-radius: 9999px;
+    background: var(--brand-gradient-via);
+    box-shadow: 0 0 12px color-mix(in oklab, var(--brand-gradient-via) 70%, transparent);
+    transform: translate(50%, -50%);
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .footer-close-dot::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      border: 1px solid var(--brand-gradient-via);
+      animation: footer-close-ring 2.4s ease-out infinite;
+    }
+
+    @supports (animation-timeline: view()) {
+      .footer-close-line {
+        stroke-dasharray: 1;
+        animation: footer-close-draw linear both;
+        animation-timeline: view();
+        /* Done once the line is fully in view: the footer sits at the page's
+           foot, so a range that needs it to travel further never finishes. */
+        animation-range: entry 0% entry 100%;
+      }
+    }
+  }
+
   /* The logo's glint (components/brand/stockviz-mark.tsx): parked off the
      tile, it crosses once when the wordmark is hovered or focused. */
   .stockviz-mark-glint {
@@ -1313,5 +1349,25 @@ body::after {
     :focus-visible > .group\/mark .stockviz-mark-glint {
       transform: translateX(26px) rotate(20deg);
     }
+  }
+}
+
+@keyframes footer-close-ring {
+  from {
+    transform: scale(1);
+    opacity: 0.9;
+  }
+  to {
+    transform: scale(3.2);
+    opacity: 0;
+  }
+}
+
+@keyframes footer-close-draw {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
   }
 }

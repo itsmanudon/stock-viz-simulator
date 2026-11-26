@@ -35,7 +35,20 @@ vi.mock("@/components/marketing/closing-cta", () => ({
   ClosingCta: () => <div>Closing CTA</div>,
 }));
 
+// The footer's close line and status strip are async server components over
+// the API; the pure parts are covered in footer-market.test.ts.
+vi.mock("@/components/footer-market", () => ({
+  FooterCloseLine: () => null,
+  FooterStatus: () => null,
+}));
+
 describe("SiteFooter", () => {
+  it("links no source repository while the project is private, and shows the package version", () => {
+    render(<SiteFooter />);
+    expect(screen.queryByRole("link", { name: /github/i })).toBeNull();
+    expect(screen.getByText(/StockViz · v2\.0\.0-alpha/)).toBeVisible();
+  });
+
   it("groups destinations into labelled navigation landmarks", () => {
     render(<SiteFooter />);
 

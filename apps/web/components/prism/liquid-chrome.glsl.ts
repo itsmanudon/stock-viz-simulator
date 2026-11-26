@@ -82,3 +82,61 @@ export const LIQUID_CHROME_FRAGMENT = /* glsl */ `
     gl_FragColor = vec4(col * vignette * fadeBottom * 0.78, alpha);
   }
 `;
+
+/**
+ * The same liquid metal clipped to a mask (the footer wordmark, owner,
+ * 26 Nov 2026): `uMask` is the wordmark drawn white on transparent in a 2D
+ * canvas, and only its alpha decides where metal shows. No vignette or
+ * bottom fade; a floor of dim steel keeps the deepest folds readable as
+ * letters.
+ */
+export const LIQUID_CHROME_MASKED_FRAGMENT = /* glsl */ `
+  precision highp float;
+  varying vec2 vUv;
+  uniform float uTime;
+  uniform vec2 uRes;
+  uniform vec2 uPointer;
+  uniform vec3 uSteel;
+  uniform vec3 uSilver;
+  uniform vec3 uChampagne;
+  uniform sampler2D uMask;
+
+  float height(vec2 p) {
+    vec2 q = p;
+    for (int i = 1; i < 7; i++) {
+      float f = float(i);
+      q += vec2(
+        0.55 / f * sin(f * q.y + uTime * 0.22 + 0.3 * f + uPointer.x * 0.6),
+        0.55 / f * cos(f * q.x + uTime * 0.17 + 0.5 * f + uPointer.y * 0.6)
+      );
+    }
+    return 0.5 + 0.5 * sin(q.x * 1.1 + q.y * 0.9);
+  }
+
+  void main() {
+    float mask = texture2D(uMask, vUv).a;
+    if (mask < 0.004) discard;
+    vec2 uv = (gl_FragCoord.xy - 0.5 * uRes) / uRes.y;
+    vec2 p = uv * 3.2 + vec2(uTime * 0.02, 0.0);
+
+    float e = 0.006;
+    float h = height(p);
+    float hx = height(p + vec2(e, 0.0));
+    float hy = height(p + vec2(0.0, e));
+    vec3 n = normalize(vec3(h - hx, h - hy, e * 5.0));
+
+    vec3 r = reflect(vec3(0.0, 0.0, -1.0), n);
+    float sky = clamp(r.y * 0.5 + 0.5 + 0.18 * r.x, 0.0, 1.0);
+
+    vec3 col = mix(uSteel * 0.3, uSteel * 0.7, smoothstep(0.1, 0.5, sky));
+    col = mix(col, uSilver, smoothstep(0.55, 0.85, sky));
+    col = mix(col, uChampagne, smoothstep(0.86, 0.99, sky) * 0.85);
+
+    vec3 light = normalize(vec3(0.35 + uPointer.x * 0.6, 0.55 + uPointer.y * 0.6, 1.0));
+    col += uChampagne * pow(max(dot(n, light), 0.0), 50.0) * 0.8;
+    col *= 0.55 + 0.45 * smoothstep(0.0, 0.9, h);
+    col = max(col, uSteel * 0.22);
+
+    gl_FragColor = vec4(col * mask, mask);
+  }
+`;

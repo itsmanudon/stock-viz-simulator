@@ -206,7 +206,7 @@ test("operational trading loop from ticket to orders, watchlist, alerts, and rep
   await main.getByRole("button", { name: /Review market buy/i }).click();
   await main.getByRole("button", { name: /Place market buy/i }).click();
   await expect(main.getByRole("region", { name: "Order ticket" }).locator("output")).toContainText(
-    /Filled BUY 2(\.0+)? MSFT/,
+    /Filled Buy 2(\.0+)? MSFT/,
     { timeout: 10_000 },
   );
 
