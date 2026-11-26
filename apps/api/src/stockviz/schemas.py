@@ -5329,3 +5329,60 @@ class OptionExposureOut(BaseModel):
     skipped: int = 0
     reason: str | None = None
     note: str
+
+
+class SeasonCellOut(BaseModel):
+    key: str
+    n: int
+    mean: float | None = None
+    median: float | None = None
+    hit_rate: float | None = None
+    t_stat: float | None = None
+    thin: bool = False
+
+
+class SeasonalityOut(BaseModel):
+    """A9.1 (M3.6): returns by calendar month and weekday, percent."""
+
+    ticker: str
+    first: date | None = None
+    last: date | None = None
+    months: list[SeasonCellOut]
+    weekdays: list[SeasonCellOut]
+    note: str
+
+
+class DriftEventOut(BaseModel):
+    event_date: date
+    reaction_date: date
+    assumed: bool
+    surprise_pct: float | None = None
+    reaction: float
+    d1: float | None = None
+    d5: float | None = None
+    d20: float | None = None
+
+
+class DriftHorizonOut(BaseModel):
+    sessions: int
+    n: int
+    mean: float | None = None
+    median: float | None = None
+    hit_rate: float | None = None
+    t_stat: float | None = None
+
+
+class DriftGroupOut(BaseModel):
+    group: Literal["beat", "miss", "no_surprise"]
+    horizons: list[DriftHorizonOut]
+
+
+class EarningsDriftOut(BaseModel):
+    """A9.1 (M6.6): reactions on earnings sessions and the drift after them."""
+
+    ticker: str
+    avg_abs_reaction: float | None = None
+    avg_abs_day: float | None = None
+    events: list[DriftEventOut]
+    groups: list[DriftGroupOut]
+    note: str

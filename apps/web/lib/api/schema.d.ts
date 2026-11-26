@@ -891,6 +891,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/symbols/{ticker}/seasonality": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Seasonality */
+        get: operations["get_seasonality_v1_symbols__ticker__seasonality_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/symbols/{ticker}/earnings-drift": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Earnings Drift */
+        get: operations["get_earnings_drift_v1_symbols__ticker__earnings_drift_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/portfolio": {
         parameters: {
             query?: never;
@@ -4722,6 +4756,56 @@ export interface components {
             /** Last Bar */
             last_bar: string | null;
         };
+        /** DriftEventOut */
+        DriftEventOut: {
+            /**
+             * Event Date
+             * Format: date
+             */
+            event_date: string;
+            /**
+             * Reaction Date
+             * Format: date
+             */
+            reaction_date: string;
+            /** Assumed */
+            assumed: boolean;
+            /** Surprise Pct */
+            surprise_pct?: number | null;
+            /** Reaction */
+            reaction: number;
+            /** D1 */
+            d1?: number | null;
+            /** D5 */
+            d5?: number | null;
+            /** D20 */
+            d20?: number | null;
+        };
+        /** DriftGroupOut */
+        DriftGroupOut: {
+            /**
+             * Group
+             * @enum {string}
+             */
+            group: "beat" | "miss" | "no_surprise";
+            /** Horizons */
+            horizons: components["schemas"]["DriftHorizonOut"][];
+        };
+        /** DriftHorizonOut */
+        DriftHorizonOut: {
+            /** Sessions */
+            sessions: number;
+            /** N */
+            n: number;
+            /** Mean */
+            mean?: number | null;
+            /** Median */
+            median?: number | null;
+            /** Hit Rate */
+            hit_rate?: number | null;
+            /** T Stat */
+            t_stat?: number | null;
+        };
         /** DrillCheckOut */
         DrillCheckOut: {
             /**
@@ -5060,6 +5144,24 @@ export interface components {
             note: string;
             /** Meaning */
             meaning: string;
+        };
+        /**
+         * EarningsDriftOut
+         * @description A9.1 (M6.6): reactions on earnings sessions and the drift after them.
+         */
+        EarningsDriftOut: {
+            /** Ticker */
+            ticker: string;
+            /** Avg Abs Reaction */
+            avg_abs_reaction?: number | null;
+            /** Avg Abs Day */
+            avg_abs_day?: number | null;
+            /** Events */
+            events: components["schemas"]["DriftEventOut"][];
+            /** Groups */
+            groups: components["schemas"]["DriftGroupOut"][];
+            /** Note */
+            note: string;
         };
         /**
          * EarningsEventOut
@@ -11192,6 +11294,44 @@ export interface components {
              */
             cached: boolean;
         };
+        /** SeasonCellOut */
+        SeasonCellOut: {
+            /** Key */
+            key: string;
+            /** N */
+            n: number;
+            /** Mean */
+            mean?: number | null;
+            /** Median */
+            median?: number | null;
+            /** Hit Rate */
+            hit_rate?: number | null;
+            /** T Stat */
+            t_stat?: number | null;
+            /**
+             * Thin
+             * @default false
+             */
+            thin: boolean;
+        };
+        /**
+         * SeasonalityOut
+         * @description A9.1 (M3.6): returns by calendar month and weekday, percent.
+         */
+        SeasonalityOut: {
+            /** Ticker */
+            ticker: string;
+            /** First */
+            first?: string | null;
+            /** Last */
+            last?: string | null;
+            /** Months */
+            months: components["schemas"]["SeasonCellOut"][];
+            /** Weekdays */
+            weekdays: components["schemas"]["SeasonCellOut"][];
+            /** Note */
+            note: string;
+        };
         /** SectorAllocationOut */
         SectorAllocationOut: {
             /** Sector */
@@ -14964,6 +15104,68 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RotationOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_seasonality_v1_symbols__ticker__seasonality_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ticker: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SeasonalityOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_earnings_drift_v1_symbols__ticker__earnings_drift_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ticker: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EarningsDriftOut"];
                 };
             };
             /** @description Validation Error */

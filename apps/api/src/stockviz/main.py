@@ -51,6 +51,7 @@ from stockviz.routers import (
     regime,
     replay,
     research,
+    research_views,
     rules,
     screener,
     screens,
@@ -177,6 +178,7 @@ def create_app() -> FastAPI:
     app.include_router(regime.router)
     app.include_router(breadth.router)
     app.include_router(sector_rotation.router)
+    app.include_router(research_views.router)
     app.include_router(trading.router)
     app.include_router(books.router)
     app.include_router(imports.router)
