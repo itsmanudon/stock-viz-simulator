@@ -90,6 +90,11 @@
 }
 
 .dark {
+  /* Tells the browser the page is dark, so its own surfaces (the floating
+     address bar's tint, overscroll, form controls, scrollbars) stop following
+     the phone's light or dark setting. Without it a light-mode phone painted
+     white under the bar at the foot of every page. */
+  color-scheme: dark;
   /* PRISM, liquid chrome (Nov 2026 redesign, second palette). Neutral ink
      black, warm pearl text, and a polished-metal brand: steel → champagne →
      silver. The same strict rule as Aurora holds: the brand is identity, focus
@@ -249,6 +254,18 @@
   html {
     min-width: 20rem;
     background-color: var(--color-background);
+  }
+
+  /* Pages that end on the site footer: the canvas past the document (under a
+     phone browser's floating address bar, and in overscroll) takes the
+     footer's ground instead of the page's, so the page never ends on a band
+     of another colour below the footer. The body keeps the page colour. */
+  html:has(.site-footer) {
+    background-color: var(--card);
+  }
+
+  html.dark:has(.site-footer) {
+    background-color: var(--marketing-panel);
   }
 
   body {
@@ -1103,6 +1120,10 @@ body::after {
     line-height: 0.9;
     letter-spacing: -0.05em;
     font-weight: 600;
+    /* At line-height 0.9 the glyphs' descenders hang below the line box, and
+       the row's overflow: hidden (.marquee) cut the tails off "y" and "p".
+       The padding puts them back inside the row. */
+    padding-bottom: 0.1em;
   }
 
   /* Custom cursor (components/prism/prism-cursor.tsx), public pages only,
