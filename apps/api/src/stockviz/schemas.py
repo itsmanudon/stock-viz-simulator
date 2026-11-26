@@ -3929,10 +3929,14 @@ class FillEventOut(BaseModel):
     side: str
     quantity: Decimal
     price: Decimal
-    # A5 adds trade plans; until then the R-multiple is unknown.
+    # A5.5: the R of the journal entry this fill closes (null on opening and
+    # partial fills, and without a plan stop).
     r_multiple: float | None = None
     # A5.1: the book the fill landed in.
     book_id: int | None = None
+    # A5.5: the journal entry the fill belongs to (once the journal was read).
+    journal_entry_id: int | None = None
+    closes_entry: bool = False
 
 
 SymbolEventOut = Annotated[
@@ -4364,3 +4368,158 @@ class ImportsOut(BaseModel):
     basis_uncertain: int
     fills: int
     posted: int
+
+
+# --- A5.5: journal entries (round trips) ------------------------------------------
+
+
+class JournalExcursionOut(BaseModel):
+    """One excursion: the worst (MAE) or best (MFE) bar while shares were held."""
+
+    per_share: Decimal
+    """Daily low (MAE) or high (MFE) minus the ledger's average cost."""
+    pct: Decimal
+    """Per share as a percent of the average cost."""
+    amount: Decimal
+    """Per share x the shares held that day."""
+    shares: Decimal
+    date: date
+    price: Decimal
+    """The low or high itself (where the chart marks it)."""
+    r: float | None = None
+    """Amount over the initial risk; null without a plan stop."""
+
+
+class JournalExcursionsOut(BaseModel):
+    basis: Literal["exact_close", "approximate_daily"]
+    note: str
+    mae: JournalExcursionOut | None = None
+    mfe: JournalExcursionOut | None = None
+    reason: str | None = None
+    """Why MAE and MFE are null (a missing bar, no bars)."""
+    missing_sessions: list[date] = []
+    sessions: int = 0
+
+
+class JournalEntryPlanOut(BaseModel):
+    id: int
+    status: str
+    label: Literal["locked", "written_after_entry"]
+    locked_at: datetime | None = None
+    first_fill_at: datetime | None = None
+    planned_entry: Decimal | None = None
+    planned_stop: Decimal | None = None
+    planned_target: Decimal | None = None
+    planned_size: Decimal | None = None
+    setup_version_id: int | None = None
+    setup_label: str | None = None
+    counts_for_adherence: bool
+    """Only a plan locked before the entry counts in plan-adherence stats."""
+
+
+class JournalEntryFillOut(BaseModel):
+    trade_id: int | None = None
+    replay_fill_id: int | None = None
+    side: Literal["buy", "sell"]
+    quantity: Decimal
+    price: Decimal
+    fees: Decimal
+    fees_estimated: bool
+    at: datetime
+    venue_date: date
+    time_known: bool
+    """False for an imported fill whose file gave a date only (dated at the IST day start)."""
+
+
+class JournalNewsHeadlineOut(BaseModel):
+    id: str
+    title: str
+    source: str | None = None
+    url: str | None = None
+    available_at: datetime
+    date: date
+    """The venue date of ``available_at``."""
+
+
+class JournalNewsWindowOut(BaseModel):
+    from_date: date
+    to_date: date
+    coverage: Literal["covered", "before_news_copy"]
+    """``before_news_copy``: the window ends before the first Aegis document held."""
+    note: str
+    headlines: list[JournalNewsHeadlineOut] = []
+
+
+class JournalEntrySummaryOut(BaseModel):
+    id: int
+    source: Literal["paper", "imported", "replay"]
+    book_id: int | None = None
+    replay_session_id: int | None = None
+    ticker: str | None = None
+    currency: str
+    venue: str
+    status: Literal["open", "closed"]
+    opened_at: datetime
+    closed_at: datetime | None = None
+    entry_date: date
+    exit_date: date | None = None
+    as_of_date: date | None = None
+    """The last close an open entry is marked at."""
+    mark_close: Decimal | None = None
+    avg_entry: Decimal
+    avg_exit: Decimal | None = None
+    quantity: Decimal
+    """Most shares held."""
+    held: Decimal
+    """Shares still held (open entries)."""
+    net_pnl: Decimal
+    """Realized minus every fee, plus the open shares marked at the last close."""
+    realized_pnl: Decimal
+    unrealized_pnl: Decimal | None = None
+    fees: Decimal
+    fees_estimated: bool
+    return_pct: Decimal | None = None
+    holding_days: int
+    holding_sessions: int
+    fills_count: int
+    r_multiple: float | None = None
+    r_reason: str | None = None
+    initial_risk: Decimal | None = None
+    excursions: JournalExcursionsOut
+    plan: JournalEntryPlanOut | None = None
+    setup_tags: list[str] = []
+    mistake_tags: list[str] = []
+    has_notes: bool = False
+
+
+class JournalEntryOut(JournalEntrySummaryOut):
+    fills: list[JournalEntryFillOut]
+    adherence: DrillScoreOut | None = None
+    """The drill's process score against a plan locked before entry."""
+    adherence_note: str | None = None
+    news_at_entry: JournalNewsWindowOut | None = None
+    news_at_exit: JournalNewsWindowOut | None = None
+    review_notes: str | None = None
+    mistakes: str | None = None
+    lessons: str | None = None
+    updated_at: datetime
+
+
+class JournalEntriesOut(BaseModel):
+    entries: list[JournalEntrySummaryOut]
+    total: int
+    limit: int
+    offset: int
+    note: str
+
+
+class JournalEntryPatch(BaseModel):
+    """The user's text. Null leaves a field; ``""`` clears it."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    review_notes: str | None = Field(default=None, max_length=4000)
+    mistakes: str | None = Field(default=None, max_length=4000)
+    lessons: str | None = Field(default=None, max_length=4000)
+    setup_tags: list[str] | None = Field(default=None, max_length=12)
+    mistake_tags: list[str] | None = Field(default=None, max_length=12)

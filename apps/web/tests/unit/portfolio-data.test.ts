@@ -25,6 +25,11 @@ vi.mock("@/lib/api/plans", () => ({
 vi.mock("@/lib/api/journal", () => ({
   getJournalMonth: vi.fn(),
 }));
+vi.mock("@/lib/api/journal-entries", () => ({
+  listJournalEntries: vi
+    .fn()
+    .mockResolvedValue({ entries: [], total: 0, limit: 100, offset: 0, note: "" }),
+}));
 
 vi.mock("@/lib/api/trading", () => ({
   getPortfolio: vi.fn(),
@@ -160,6 +165,19 @@ describe("portfolio server orchestration", () => {
     expect(getJournalMonth).toHaveBeenCalledWith(2026, 8, null);
     expect(result.journalMonth).toBe(journalMonth);
     expect(result.journalFailed).toBe(false);
+  });
+
+  it("loads journal entries on the Journal tab only, for one book or all (A5.5)", async () => {
+    const { listJournalEntries } = await import("@/lib/api/journal-entries");
+    vi.mocked(listJournalEntries).mockClear();
+    const skipped = await loadPortfolioData("3m", undefined, { entriesBook: 4 });
+    expect(skipped.journalEntries).toBeNull();
+    expect(listJournalEntries).not.toHaveBeenCalled();
+    const one = await loadPortfolioData("3m", "2026-08", { book: 4, entriesBook: 4 });
+    expect(listJournalEntries).toHaveBeenCalledWith(4);
+    expect(one.journalEntries?.total).toBe(0);
+    await loadPortfolioData("3m", "2026-08", { book: "all", entriesBook: "all" });
+    expect(listJournalEntries).toHaveBeenLastCalledWith("all");
   });
 
   it("reports a failed journal month without taking the rest of the page down", async () => {

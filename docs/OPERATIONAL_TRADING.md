@@ -152,6 +152,34 @@ is labelled **written after entry**, never shown as locked, and is left out
 of plan-adherence figures (A5.6). Plans are per book and private; API
 `/v1/plans` (see `apps/api/CLAUDE.md`).
 
+### Journal entries (A5.5)
+
+Above the plans, the Journal tab lists **journal entries**: one per round
+trip, from the first buy while flat to the sell that brings the position back
+to zero. Partial sells stay in the same entry; a buy after that opens a new
+one; a position still held is an open entry, marked at the last close. Paper
+and imported books and replay sessions all appear (All books lists every book
+and replay; a book lists its own). Each entry shows its dates (the venue's
+session dates: IST for NSE and BSE), average entry and exit, size, net P&L
+after fees (estimated charges for imports), the R multiple and MAE / MFE.
+
+- **R** = net P&L / (|average entry - plan stop| x most shares held), only
+  when the entry has a plan with a stop.
+- **MAE / MFE** are the worst and best daily low / high against the average
+  cost while shares were held. Paper and imported entries have only daily
+  bars, so the entry day and the exit day count their whole range ("may
+  include moves before entry or after exit"); replay fills are at the close,
+  so replay entries are exact. A missing bar makes them unknown.
+- The entry page shows the chart with the fills (the closing fill carries
+  R, also on the stock page's fill markers), the plan's lines, MAE and MFE,
+  plan adherence for a plan locked before entry (entry within 2%, stop
+  honoured on closes, size within the plan), headlines around entry and
+  exit, and a review form (notes, mistakes, lessons, tags).
+
+Only the grouping and your text are stored; every figure is recomputed on
+read, so an import deleted or re-committed is followed at once. The P&L
+calendar below stays the fill-level view (one closing fill is one trade).
+
 ## Currency display
 
 Operational prices for a security (close, limit/trigger, fill, alert target, estimated notional) use that symbol's ISO-4217 currency from the tracked universe. Cash, reserved cash, buying power, and total value stay in the portfolio display currency. The ledger and FX conversion are unchanged; this is formatting only. Unknown tickers fall back to USD.

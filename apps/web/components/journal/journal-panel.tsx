@@ -304,7 +304,8 @@ export function JournalPanel({
             Trading journal
           </h2>
           <p className="mt-1 text-xs text-muted-foreground">
-            Realized profit and loss by execution date · New York time (ET).
+            Realized profit and loss by execution date, on each exchange's own day (IST for NSE and
+            BSE, New York time otherwise).
           </p>
           <p className="mt-1 text-xs text-muted-foreground">
             One trade is one closing fill or option settlement. Win rate excludes breakeven trades.

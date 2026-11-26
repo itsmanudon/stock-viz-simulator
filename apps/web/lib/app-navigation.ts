@@ -150,8 +150,9 @@ export const WORKSPACES: readonly Workspace[] = [
       {
         label: "Portfolio",
         href: "/portfolio",
-        matches: ["/portfolio"],
-        keywords: ["holdings", "positions", "journal", "risk"],
+        // A5.5: journal entries (`/portfolio/journal/[id]`) belong to the Journal tab.
+        matches: ["/portfolio", "/portfolio/journal"],
+        keywords: ["holdings", "positions", "journal", "risk", "round trips", "mae", "mfe"],
       },
       {
         label: "Trade",

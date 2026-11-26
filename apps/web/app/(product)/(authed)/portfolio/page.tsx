@@ -29,6 +29,7 @@ export default async function PortfolioPage({ searchParams }: { searchParams: Pr
     goal: parseGoal(params.goal),
     book: books.book,
     plansBook: books.isAll ? null : (books.selected?.id ?? null),
+    entriesBook: books.isAll ? "all" : (books.selected?.id ?? null),
   });
   const broker = (await brokerStatus)?.brokers.find((b) => b.broker === "zerodha") ?? null;
 

@@ -70,6 +70,7 @@ describe("route → workspace map", () => {
     ["/drills/new", "quant-lab", "/drills"],
     ["/news-reactions", "quant-lab", "/news-reactions"],
     ["/portfolio?tab=journal", "portfolio-tax", "/portfolio"],
+    ["/portfolio/journal/42", "portfolio-tax", "/portfolio"],
     ["/trade", "portfolio-tax", "/trade"],
     ["/orders/42", "portfolio-tax", "/orders"],
     ["/trades", "portfolio-tax", "/trades"],

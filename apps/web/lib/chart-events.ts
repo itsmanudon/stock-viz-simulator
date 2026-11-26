@@ -152,8 +152,13 @@ export function eventSummary(event: ChartEvent, currency?: string): string {
       return `Ex-dividend ${NUMBER.format(Number(event.amount))} ${event.currency || currency || ""}`.trim();
     case "split":
       return splitLabel(event);
-    case "fill":
-      return `${event.side === "sell" ? "Sold" : "Bought"} ${NUMBER.format(Number(event.quantity))} at ${NUMBER.format(Number(event.price))}`;
+    case "fill": {
+      const base = `${event.side === "sell" ? "Sold" : "Bought"} ${NUMBER.format(Number(event.quantity))} at ${NUMBER.format(Number(event.price))}`;
+      // A5.5: the fill that closes a journal entry carries the entry's R.
+      return event.r_multiple !== null && event.r_multiple !== undefined
+        ? `${base}, closing the trade at ${formatR(event.r_multiple)}`
+        : base;
+    }
   }
 }
 
@@ -195,4 +200,10 @@ export function mergeEvents(
 /** A stable key for an event in lists. */
 export function eventKey(event: ChartEvent, index: number): string {
   return `${event.type}-${event.date}-${"ts" in event ? event.ts : index}`;
+}
+
+/** An R multiple as the journal writes it: "+1.25R", "-0.40R". */
+export function formatR(value: number): string {
+  const sign = value > 0 ? "+" : value < 0 ? "-" : "";
+  return `${sign}${Math.abs(value).toFixed(2)}R`;
 }
