@@ -1956,6 +1956,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/options/{ticker}/exposure": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Option Exposure
+         * @description A7.9 (M6.2): gamma and delta exposure, the gamma flip, the walls and the
+         *     IV-implied one-day move, from the newest stored chain. Public.
+         */
+        get: operations["get_option_exposure_v1_options__ticker__exposure_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/options/book": {
         parameters: {
             query?: never;
@@ -5604,6 +5625,19 @@ export interface components {
             /** Buckets */
             buckets: components["schemas"]["ExposureBucketOut"][];
         };
+        /** ExposureStrikeOut */
+        ExposureStrikeOut: {
+            /** Strike */
+            strike: number;
+            /** Gex */
+            gex: number;
+            /** Dex */
+            dex: number;
+            /** Call Oi */
+            call_oi: number;
+            /** Put Oi */
+            put_oi: number;
+        };
         /**
          * FactorIn
          * @description A7.7 (M7.5): one factor of a multi-factor model.
@@ -8045,6 +8079,56 @@ export interface components {
             created_at: string;
         };
         /**
+         * OptionExposureOut
+         * @description A7.9 (M6.2): GEX/DEX and key levels from the newest US chain snapshot.
+         */
+        OptionExposureOut: {
+            /** Ticker */
+            ticker: string;
+            /** Snapshot Date */
+            snapshot_date?: string | null;
+            /** Spot */
+            spot?: number | null;
+            /**
+             * Expiries
+             * @default []
+             */
+            expiries: string[];
+            /**
+             * Strikes
+             * @default []
+             */
+            strikes: components["schemas"]["ExposureStrikeOut"][];
+            /** Total Gex */
+            total_gex?: number | null;
+            /** Total Dex */
+            total_dex?: number | null;
+            /** Gamma Flip */
+            gamma_flip?: number | null;
+            /** Call Wall */
+            call_wall?: number | null;
+            /** Put Wall */
+            put_wall?: number | null;
+            /** Expected Move 1D */
+            expected_move_1d?: number | null;
+            /** Atm Iv */
+            atm_iv?: number | null;
+            /**
+             * Used
+             * @default 0
+             */
+            used: number;
+            /**
+             * Skipped
+             * @default 0
+             */
+            skipped: number;
+            /** Reason */
+            reason?: string | null;
+            /** Note */
+            note: string;
+        };
+        /**
          * OptionGreeksOut
          * @description Per-share Black-Scholes greeks, shown on the ticket and each position.
          *
@@ -8528,6 +8612,8 @@ export interface components {
             at_expiry: number;
             /** Today */
             today: number;
+            /** What If */
+            what_if?: number | null;
         };
         /** PendingOrderIn */
         PendingOrderIn: {
@@ -17398,7 +17484,10 @@ export interface operations {
     };
     post_strategy_payoff_v1_options_strategies_payoff_post: {
         parameters: {
-            query?: never;
+            query?: {
+                days_forward?: number | null;
+                iv_shift?: number;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -17416,6 +17505,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["OptionStrategyPayoffOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_option_exposure_v1_options__ticker__exposure_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ticker: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OptionExposureOut"];
                 };
             };
             /** @description Validation Error */

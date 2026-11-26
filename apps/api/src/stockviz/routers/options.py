@@ -17,13 +17,21 @@ from sqlmodel import Session, select
 from stockviz.auth import UserIdDep
 from stockviz.db import get_session
 from stockviz.limiter import limiter
-from stockviz.models import OptionCover, OptionSide, OptionsPosition, OptionStatus, OptionType
+from stockviz.models import (
+    OptionCover,
+    OptionSide,
+    OptionsPosition,
+    OptionStatus,
+    OptionType,
+    Symbol,
+)
 from stockviz.models.option import CONTRACT_MULTIPLIER, position_sign
 from stockviz.models.option_strategy import OptionStrategy, StrategyKind
 from stockviz.routers.book_query import BookQuery
 from stockviz.schemas import (
     ExpiryGroupOut,
     ExpiryItemOut,
+    OptionExposureOut,
     OptionGreeksOut,
     OptionImpliedVolOut,
     OptionPositionOut,
@@ -498,7 +506,11 @@ def post_strategy_close(
 @router.post("/strategies/payoff", response_model=OptionStrategyPayoffOut)
 @limiter.limit("60/minute")
 def post_strategy_payoff(
-    request: Request, body: OptionStrategyIn, session: SessionDep
+    request: Request,
+    body: OptionStrategyIn,
+    session: SessionDep,
+    days_forward: Annotated[int | None, Query(ge=0, le=3650)] = None,
+    iv_shift: Annotated[float, Query(ge=-0.5, le=2.0)] = 0.0,
 ) -> OptionStrategyPayoffOut:
     """The quote plus its payoff curves and model chance of profit. Public."""
     del request  # slowapi reads it
@@ -506,17 +518,32 @@ def post_strategy_payoff(
         quote = quote_strategy(session, **_strategy_args(body))
     except _STRATEGY_ERRORS as exc:
         raise _strategy_errors(exc) from exc
-    payoff = strategy_payoff(quote)
+    payoff = strategy_payoff(quote, days_forward=days_forward, iv_shift=iv_shift)
     return OptionStrategyPayoffOut(
         quote=_quote_out(quote),
         horizon=payoff.horizon,
         points=[
-            PayoffPointOut(spot=p.spot, at_expiry=p.at_expiry, today=p.today) for p in payoff.points
+            PayoffPointOut(spot=p.spot, at_expiry=p.at_expiry, today=p.today, what_if=p.what_if)
+            for p in payoff.points
         ],
         prob_profit=payoff.prob_profit,
         volatility=round(payoff.volatility, 6),
         method=payoff.method,
     )
+
+
+@router.get("/{ticker}/exposure", response_model=OptionExposureOut)
+@limiter.limit("60/minute")
+def get_option_exposure(request: Request, ticker: str, session: SessionDep) -> OptionExposureOut:
+    """A7.9 (M6.2): gamma and delta exposure, the gamma flip, the walls and the
+    IV-implied one-day move, from the newest stored chain. Public."""
+    from stockviz.services.options.exposure import NOTE, exposure
+
+    del request  # slowapi reads it
+    if session.get(Symbol, ticker.upper()) is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, f"Symbol {ticker.upper()!r} not found")
+    e = exposure(session, ticker)
+    return OptionExposureOut(**{**e.__dict__, "note": NOTE})  # type: ignore[arg-type]
 
 
 @router.get("/book", response_model=OptionsBookOut)

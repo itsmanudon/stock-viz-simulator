@@ -2180,6 +2180,21 @@ create with a hypothesis) and `/backtest/experiments/[id]` (runs with
 fingerprints and reruns); `/backtest?experiment=<id>` files saved runs there
 (`experiment_id` on save). Tests: `tests/test_a76_behaviour.py`.
 
+**Option exposure and the payoff what-if (A7.9, M6.2, M6.5).**
+`GET /v1/options/{t}/exposure` (`routers/options.py`, public, 60/min;
+`services/options/exposure.py`): the newest `option_quotes` snapshot priced
+with Black-Scholes at the latest stored close; per strike GEX = gamma x OI x
+100 x spot^2 x 0.01 (calls +, puts -: dealers long calls, short puts, an
+assumption the note states) and DEX = delta x OI x 100 x spot; the gamma flip
+(total GEX re-priced over spot +-20%, the sign change nearest spot), call and
+put walls (most OI), ATM IV and the 1-day expected move (spot x IV x
+sqrt(1/252)); contracts without IV or OI skipped and counted. `POST
+/v1/options/strategies/payoff?days_forward=&iv_shift=` adds a `what_if`
+P&L per point (every leg re-priced that many days on, IV shifted, capped at
+the first expiry). Web: an Options tab on the stock page (when a chain is
+stored) and what-if inputs and curve in the strategy builder. Tests:
+`tests/test_a79_option_exposure.py`.
+
 **Survivorship stamp (A1.4a, part of M1.5).** Every backtest result carries
 `universe: {name, point_in_time, survivorship_biased, note}`: the public
 `POST /v1/backtest` (`BacktestOut.universe`), stored single runs, and

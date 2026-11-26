@@ -2244,6 +2244,8 @@ class PayoffPointOut(BaseModel):
     spot: float
     at_expiry: float
     today: float
+    # A7.9: with ``days_forward`` / ``iv_shift``: P&L on that day at the shifted IV.
+    what_if: float | None = None
 
 
 class OptionStrategyPayoffOut(BaseModel):
@@ -5298,3 +5300,32 @@ class BehaviourOut(BaseModel):
     fees_estimated: bool
     currencies: list[str]
     method: dict[str, str]
+
+
+class ExposureStrikeOut(BaseModel):
+    strike: float
+    gex: float
+    dex: float
+    call_oi: float
+    put_oi: float
+
+
+class OptionExposureOut(BaseModel):
+    """A7.9 (M6.2): GEX/DEX and key levels from the newest US chain snapshot."""
+
+    ticker: str
+    snapshot_date: date | None = None
+    spot: float | None = None
+    expiries: list[date] = []
+    strikes: list[ExposureStrikeOut] = []
+    total_gex: float | None = None
+    total_dex: float | None = None
+    gamma_flip: float | None = None
+    call_wall: float | None = None
+    put_wall: float | None = None
+    expected_move_1d: float | None = None
+    atm_iv: float | None = None
+    used: int = 0
+    skipped: int = 0
+    reason: str | None = None
+    note: str

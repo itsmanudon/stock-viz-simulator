@@ -39,6 +39,8 @@ class PayoffPoint:
     spot: float
     at_expiry: float
     today: float
+    what_if: float | None = None
+    """A7.9: P&L ``days_forward`` days on with every leg's IV moved by ``iv_shift``."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -54,7 +56,13 @@ def _with_shares(kind: StrategyKind) -> bool:
     return kind in (StrategyKind.COVERED_CALL, StrategyKind.PROTECTIVE_PUT)
 
 
-def strategy_payoff(quote: StrategyQuote, *, asof: date_type | None = None) -> Payoff:
+def strategy_payoff(
+    quote: StrategyQuote,
+    *,
+    asof: date_type | None = None,
+    days_forward: int | None = None,
+    iv_shift: float = 0.0,
+) -> Payoff:
     asof = asof or _today()
     first = quote.legs[0][1]
     spot0 = float(first.spot)
@@ -70,7 +78,7 @@ def strategy_payoff(quote: StrategyQuote, *, asof: date_type | None = None) -> P
         for plan, q in quote.legs
     )
 
-    def value(spot: float, years_from_now: float) -> float:
+    def value(spot: float, years_from_now: float, shift: float = 0.0) -> float:
         total = 0.0
         for plan, q in quote.legs:
             left = max((plan.expiry - asof).days / 365.0 - years_from_now, 0.0)
@@ -78,7 +86,7 @@ def strategy_payoff(quote: StrategyQuote, *, asof: date_type | None = None) -> P
                 spot=spot,
                 strike=float(plan.strike),
                 time_to_expiry_years=left,
-                volatility=q.volatility,
+                volatility=max(q.volatility + shift, 0.01) if shift else q.volatility,
                 risk_free_rate=RISK_FREE_RATE,
                 option_type=plan.option_type.value,
             ).value
@@ -99,9 +107,15 @@ def strategy_payoff(quote: StrategyQuote, *, asof: date_type | None = None) -> P
     lo = max(0.01, min(0.5 * spot0, 0.8 * min(strikes)))
     hi = max(1.5 * spot0, 1.2 * max(strikes))
     grid = sorted({*(lo + (hi - lo) * i / (POINTS - 1) for i in range(POINTS)), *strikes})
+    what_if = days_forward is not None or iv_shift != 0.0
+    # The what-if date never passes the first expiry.
+    years_on = min(max(days_forward or 0, 0) / 365.0, t_h)
     points = [
         PayoffPoint(
-            spot=round(s, 4), at_expiry=round(at_expiry(s), 2), today=round(value(s, 0.0) - cost, 2)
+            spot=round(s, 4),
+            at_expiry=round(at_expiry(s), 2),
+            today=round(value(s, 0.0) - cost, 2),
+            what_if=round(value(s, years_on, iv_shift) - cost, 2) if what_if else None,
         )
         for s in grid
     ]
