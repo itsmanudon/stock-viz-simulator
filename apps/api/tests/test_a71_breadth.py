@@ -58,9 +58,10 @@ def test_values_do_not_change_when_later_bars_arrive() -> None:
     )
     frames = {"close": close, "high": close * 1.01, "low": close * 0.99}
     short = {k: v.iloc[:300] for k, v in frames.items()}
-    start, end = days[260].date(), days[299].date()
+    stamps = [pd.Timestamp(d) for d in days]
+    start, end = stamps[260].date(), stamps[299].date()
     early = svc.compute(short, start, end)
-    late = svc.compute(frames, start, days[-1].date())
+    late = svc.compute(frames, start, stamps[-1].date())
     assert early == late[: len(early)]
     assert all(p["pct_above_200"] is not None for p in early)
 
