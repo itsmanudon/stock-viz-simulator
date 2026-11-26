@@ -20,10 +20,7 @@ export function trustedProxyHops(raw: string | undefined = process.env.TRUSTED_P
   return Number.isFinite(n) && n >= 0 ? n : 1;
 }
 
-export function clientAddress(
-  h: Pick<Headers, "get">,
-  hops: number = trustedProxyHops(),
-): string {
+export function clientAddress(h: Pick<Headers, "get">, hops: number = trustedProxyHops()): string {
   if (hops <= 0) return UNKNOWN_ADDRESS;
   const chain = (h.get("x-forwarded-for") ?? "")
     .split(",")

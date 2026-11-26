@@ -4,12 +4,12 @@
  * visitor by address on the query-driven research pages.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { clientAddress, trustedProxyHops } from "@/lib/client-address";
 
 const requestHeaders = new Headers();
 vi.mock("next/headers", () => ({ headers: async () => requestHeaders }));
 
 import { apiGet } from "@/lib/api/client";
+import { clientAddress, trustedProxyHops } from "@/lib/client-address";
 import { clearAll } from "@/lib/rate-limit";
 import { VISITOR_LIMITS, checkVisitorLimit, visitorAddress } from "@/lib/visitor-limit";
 import { WEB_SERVER_KEY_SLOT, registerWebServerKey, webServerKey } from "@/lib/web-server-key";
@@ -58,9 +58,7 @@ describe("visitorAddress", () => {
     expect(visitorAddress(new Headers({ "x-forwarded-for": "203.0.113.5, 198.51.100.7" }))).toBe(
       "198.51.100.7",
     );
-    expect(visitorAddress(new Headers({ "x-forwarded-for": "198.51.100.8" }))).toBe(
-      "198.51.100.8",
-    );
+    expect(visitorAddress(new Headers({ "x-forwarded-for": "198.51.100.8" }))).toBe("198.51.100.8");
   });
 
   it("ignores x-real-ip and falls back to one shared key", () => {
