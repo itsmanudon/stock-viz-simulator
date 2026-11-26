@@ -28,7 +28,8 @@ src/stockviz/
                     screen — saved screens + A2.3 ScreenRun, delivery —
                     A2.3 NotificationChannel / DeliveryAttempt,
                     drawing — A3.2 chart drawings, indicator_evidence —
-                    A3.4 IndicatorEvidence)
+                    A3.4 IndicatorEvidence, trial — A4.3 BacktestTrial /
+                    HoldoutUnlock)
   events/           versioned contracts (trades/market), outbox/inbox,
                     dispatcher, domain handlers, Kafka producer wrappers
                     (not imported by FastAPI startup)
@@ -107,7 +108,10 @@ src/stockviz/
                     A4.1: strategy.py (pure DSL backtester: stops, sizing,
                     R, baskets), strategy_run.py (loads rules, universe and
                     data; hash and fingerprint), fills.py (`book`: the one
-                    backtest fill path through the kernel and SimLedger)
+                    backtest fill path through the kernel and SimLedger).
+                    A4.3: report.py (pure: metrics, PSR/DSR, PBO, plateau,
+                    MC fan, regime split), report_card.py, regime_history.py,
+                    trials.py (families, ledger, holdout), checks.py
     alerts.py       price-alert evaluation
     metrics.py      precomputed per-symbol snapshot the screener reads: RSI,
                     52-week range, and (Phase 6.2) SMA 50/200, ATR %,
@@ -191,7 +195,7 @@ CLI subcommands (`python -m stockviz.cli <cmd>`): `seed`, `backfill`,
 `checklist-evidence [--start D] [--end D] [--horizon N]`,
 `indicator-evidence [--start D] [--end D] [--horizon N] [--only KEY ...]`, `snapshot-portfolios`,
 `dividends`, `credit-dividends`, `settle-options`, `run-scheduler`,
-`prune-events [--days N] [--include-unpublished]`, `aegis-sync [--max-pages N]`,
+`prune-events [--days N] [--include-unpublished]`, `prune-trials [--days N]`, `aegis-sync [--max-pages N]`,
 `settle-orders [--session-date YYYY-MM-DD]`, `evaluate-alerts`, `revalidate-web`,
 `publish-outbox [--once]`,
 `consume-trade-activity [--once]`, `consume-market-ingest [--once]`,
@@ -952,6 +956,52 @@ and the API shapes (`CostsOut`, `LiquidityOut`, `FeeSchedulesOut`).
   STT sides, DP per scrip per day, US dates, the routes, live fills,
   reservations, defaults, the ADV cap, rerun honesty),
   `test_kernel_three_way.py`, `test_rupee_portfolios.py`.
+
+**Report card, trial ledger, holdout (A4.3, M7.4).** Migration
+`e5a7c9b1d324` (additive): `backtest_trials` and `holdout_unlocks`
+(`models/trial.py`). The rules, formulas and sources are in
+`docs/SIMULATION.md` ("Report card, trial ledger and the locked holdout")
+and the worked PSR/DSR/PBO example in
+`docs/benchmarks/2026-11-26-a4-report-card.md`.
+
+- **Results.** `BacktestOut` and `StrategyBacktestOut` add `window`
+  (`RunWindowOut`: requested range, the range used, `holdout`
+  `last_20pct`|`none`, `holdout_from/to`, note), `report` (`ReportCardOut`:
+  `metrics [{key, label, value, unit, formula, note}]`, `sharpe` (per-day
+  and annual Sharpe, skewness, kurtosis, PSR(0), formula), `monte_carlo`
+  (seeded fan) or `monte_carlo_reason`, `regimes` (rows per state)) and
+  `checks` (`OverfittingChecksOut`: `trials` {family, scope, n, runs,
+  variance}, `dsr`, `holdout` {status `locked|seen|none`, `unlocked_at`,
+  `can_unlock`, `result`}). `checks` is built per response from the ledger and
+  never stored (`registry` dumps results with `exclude={"checks"}`);
+  `ExperimentRunOut.checks` is read live on full reads of `single` and
+  `strategy` runs. Sweep results add `window`, `pbo` (or `pbo_reason`) and
+  `plateau {sharpe, total_return}`; walk-forwards add `window`.
+- **Requests.** `BacktestIn.holdout` and `StrategyBacktestIn.holdout`
+  (default `last_20pct`: the run, sweeps and walk-forwards use the first 80%
+  of the calendar days). `registry.as_saved` reruns a stored request without
+  the field with `none`; the strategy hash adds `holdout` only when it is not
+  `none`.
+- **Ledger.** `POST /v1/backtest` now takes `auth.OptionalUserIdDep` too.
+  Every run is recorded (`checks.record_trial` through `template_checks` /
+  `strategy_checks`): public routes (`run`), saved runs (`saved`), sweep and
+  walk-forward settings (`record_members`). Signed out: `user_id` NULL, one
+  shared pool, nothing identifying stored. `stockviz.cli prune-trials
+  [--days 365]` (not in the cron).
+- **Unlock.** `POST /v1/backtest/holdout/unlock` (authed) `{backtest} |
+  {strategy}`: records the family's unlock once (409 again, 400 without a
+  holdout) and returns the checks with the holdout's result.
+- **Regime split** reads index closes and computes breadth from stored bars
+  in one SQL window query (`DATE(ts)` on SQLite, `CAST(ts AS DATE)` on
+  PostgreSQL).
+- `risk.engine.stationary_indices` is the bootstrap's index generator, shared
+  by `block_bootstrap` (same draws as before) and the drawdown fan.
+- Tests: `test_report_card.py` (each metric on a hand series, the worked
+  PSR/DSR/PBO, plateau, MC by seed, regime history without look-ahead, the
+  ledger recording unsaved runs and counting variants, families across
+  numbers, holdout excluded from sweeps and walk-forwards, unlock once then
+  seen, reruns identical after ledger writes, prune),
+  `test_a43_trial_ledger_migration.py` (PostgreSQL up/down/up).
 
 **Survivorship stamp (A1.4a, part of M1.5).** Every backtest result carries
 `universe: {name, point_in_time, survivorship_biased, note}`: the public

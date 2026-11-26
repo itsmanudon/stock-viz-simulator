@@ -615,9 +615,10 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
 - `/backtest` starts on the first symbol with stored closes and ends its
   range at that symbol's latest close (`lib/backtest-defaults.ts`, UI audit
   F1), using `last_close_at` from the markets summary. The range follows the
-  chosen symbol until the dates are edited by hand. The run is a browser
-  call to the API, so a dev server on a port other than 3000 needs that
-  origin in the API's `CORS_ORIGINS`, or the run fails with "Failed to fetch".
+  chosen symbol until the dates are edited by hand. Since A4.3 a template run
+  goes through `app/(product)/backtest/holdout-actions.ts::runTemplateAction`
+  (authed when signed in, so it lands in the user's trial ledger; signed out
+  public with `checkVisitorLimit("strategy")`), not the browser.
 - `/backtest` (Phase 5.2-5.4) sends `fill_rule` (default `next_open`),
   `spread_bps`, `fee_schedule` and `return_mode`, formats amounts in the
   run's `currency`, and states the basis, return mode, warm-up and profile
@@ -680,6 +681,31 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   under the P&L; 50 rows, then "Show all"). `/backtest/runs/[runId]` shows
   a `strategy` run with the same component (no Save). Tests:
   `tests/unit/rule-strategy.test.tsx`, the e2e in `research-workspace.spec.ts`.
+- **Report card and overfitting checks (A4.3, M7.4).** `lib/report-card.ts`
+  (types from the schema, `HOLDOUT_OPTIONS`, `formatMetric`,
+  `probabilityWords`, `heatShare`, `templateRoundTrips`).
+  `components/report-card/report-card.tsx`: `ReportCard` (`report-card`:
+  every metric on a `FigureStrip`, net, each with `FormulaTip`, an "i" button
+  (`formula-tip`, Enter/click toggles, Escape closes) that shows the formula
+  inline; a null value shows its reason), `McFan` (`mc-fan`: drawdown
+  percentiles, inline SVG band 5-95 and median, the seed) and `RegimeTable`
+  (`regime-split`, sessions, return, Sharpe, exposure, entries; on phones
+  Sharpe sits under the return). `overfitting-checks.tsx`:
+  `OverfittingChecks` (`overfitting-checks`: N (`trials-n`), PSR, DSR
+  (`dsr-value`) with the API's meaning sentence, the best-of-N bar, the
+  variant definition) and the holdout panel (`holdout-panel`,
+  `data-status`): locked shows "Unlock holdout…" then a warning and "Unlock
+  once, now" (`holdout-unlock`, `holdout-confirm`; a two-step confirm through
+  `unlockHoldoutAction`); seen shows the unlock time and the holdout's
+  result. `sweep-checks.tsx`: `PboPanel` (`pbo-panel`, logit histogram) and
+  `PlateauHeatmap` (`plateau`, Net Sharpe / Net return radios, the best cell
+  outlined, `plateau-isolated` warning). Both `/backtest` forms have a
+  Holdout select (last 20% locked, default; or none) and show the run's
+  window note (`run-window`); the template result also draws its trades on
+  the price chart (`StrategyTradesChart` with `templateRoundTrips`). Saved
+  runs: `single` shows the report card and live `checks`, `strategy` passes
+  `checks` to `RuleStrategyResults`, `sweep` shows PBO and the heatmap.
+  Tests: `tests/unit/report-card.test.tsx`.
 - The `/trade` option ticket (`components/option-trade-form.tsx`) quotes
   before it buys (audit LG-7): `getOptionQuote()` (`lib/api/option-quote.ts`,
   a browser call to the public `/v1/options/quote`) shows spot with its close

@@ -167,4 +167,22 @@ test.describe("research pages on a phone", () => {
     await expect(costs.getByTestId("liquidity-note")).toContainText("20-day average traded value");
     await expect(costs.getByRole("link", { name: "Costs and fees" })).toBeVisible();
   });
+
+  test("a backtest shows its report card and overfitting checks (A4.3)", async ({ page }) => {
+    await page.goto("/backtest?ticker=AAPL");
+    const main = page.locator("#main");
+    await main.getByRole("button", { name: "Run backtest" }).click();
+    const card = main.getByTestId("report-card");
+    await expect(card).toBeVisible({ timeout: 30_000 });
+    await expect(card.getByText("CAGR")).toBeVisible();
+    await card.getByTestId("formula-tip").first().click();
+    await expect(card.getByRole("tooltip")).toContainText("365.25");
+    const checks = main.getByTestId("overfitting-checks");
+    await expect(checks.getByTestId("trials-n")).not.toHaveText("");
+    await expect(checks.getByTestId("dsr-meaning")).toContainText("chance");
+    // Signed out: the holdout stays locked and cannot be unlocked here.
+    await expect(main.getByTestId("holdout-panel")).toHaveAttribute("data-status", "locked");
+    await expect(main.getByTestId("holdout-unlock")).toHaveCount(0);
+    await expect(main.getByTestId("run-window")).toContainText("held out");
+  });
 });

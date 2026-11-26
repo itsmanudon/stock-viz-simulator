@@ -28,12 +28,15 @@ from stockviz.schemas import (
     RsiThresholdStrategy,
     SmaCrossoverStrategy,
 )
+from stockviz.services.backtest import report_card
 from stockviz.services.backtest.engine import (
     FILL_RULES,
     BacktestError,
     run_backtest,
     warmup_bars_for,
 )
+from stockviz.services.backtest.report import SharpeStats
+from stockviz.services.backtest.trials import split_window
 from stockviz.services.backtest.universe import universe_for
 from stockviz.services.fee_view import costs_out, is_indian, liquidity_out, resolve_fee_schedule
 from stockviz.services.instruments import instrument_of
@@ -55,6 +58,7 @@ class BacktestRun:
     bar_count: int
     first_bar_at: datetime | None
     last_bar_at: datetime | None
+    stats: SharpeStats | None = None
 
 
 def strategy_of(body: BacktestIn) -> tuple[str, dict]:
@@ -158,16 +162,20 @@ def execute_backtest(session: Session, body: BacktestIn) -> BacktestRun:
     schedule_name = resolve_fee_schedule(body.fee_schedule, ticker)
     check_fee_currency(schedule_name, symbol.currency or "USD")
 
+    # A4.3: the in-sample range (the last 20% is held out by default).
+    window = split_window(body.from_, body.to, body.holdout)
     # Inclusive date range; bars are stored at day granularity (interval 1d).
-    start = datetime.combine(body.from_, time.min)
-    end = datetime.combine(body.to, time.max)
+    start = datetime.combine(window.from_date, time.min)
+    end = datetime.combine(window.to_date, time.max)
     strategy_type, params = strategy_of(body)
     rows, warmup = load_bars(session, ticker, start, end, warmup_bars_for(strategy_type, params))
     used = warmup + rows
     price_basis = price_basis_of(used)
 
     dividends: dict = (
-        load_dividends(session, ticker, body.from_, body.to) if body.return_mode == "total" else {}
+        load_dividends(session, ticker, window.from_date, window.to_date)
+        if body.return_mode == "total"
+        else {}
     )
 
     result = run_backtest(
@@ -189,6 +197,22 @@ def execute_backtest(session: Session, body: BacktestIn) -> BacktestRun:
     )
     profile = FILL_RULES[body.fill_rule]
     cash = body.initial_cash
+    curve = [(p.date, p.nav) for p in result.equity_curve]
+    trips = report_card.template_trips(
+        [
+            (t.date, t.side, t.price, t.shares, sum((a for _, a in t.fees), Decimal(0)))
+            for t in result.trades
+        ],
+        (curve[-1][0], used[-1].close) if curve else None,
+    )
+    card, stats = report_card.build(
+        session,
+        ticker=ticker,
+        curve=curve,
+        trips=trips,
+        initial_cash=cash,
+        max_drawdown=result.summary.max_drawdown,
+    )
     gross_nav = result.summary.final_nav + result.total_fees + result.price_costs
     out = BacktestOut(
         ticker=ticker,
@@ -241,6 +265,8 @@ def execute_backtest(session: Session, body: BacktestIn) -> BacktestRun:
             skipped=result.adv_skipped,
             unknown=result.adv_unknown,
         ),
+        window=window,
+        report=card,
     )
     return BacktestRun(
         out=out,
@@ -248,6 +274,7 @@ def execute_backtest(session: Session, body: BacktestIn) -> BacktestRun:
         bar_count=len(used),
         first_bar_at=used[0].ts if used else None,
         last_bar_at=used[-1].ts if used else None,
+        stats=stats,
     )
 
 

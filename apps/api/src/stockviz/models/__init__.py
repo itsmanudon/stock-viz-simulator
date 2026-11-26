@@ -73,6 +73,7 @@ from stockviz.models.replay import (
 from stockviz.models.risk_limit import RiskLimit
 from stockviz.models.screen import SavedScreen, ScreenRun
 from stockviz.models.setup import Setup, SetupVersion, Thesis
+from stockviz.models.trial import BacktestTrial, HoldoutUnlock
 from stockviz.models.user import User
 from stockviz.models.watchlist import ColumnSet, Watchlist, WatchlistItem
 
@@ -90,6 +91,7 @@ __all__ = [
     "AlertKind",
     "AlertRepeat",
     "AuthRateLimit",
+    "BacktestTrial",
     "CashBalance",
     "ChannelKind",
     "ChecklistEvidence",
@@ -111,6 +113,7 @@ __all__ = [
     "FundamentalFact",
     "FxConversion",
     "FxRate",
+    "HoldoutUnlock",
     "IndicatorEvidence",
     "Instrument",
     "InstrumentIdentifier",

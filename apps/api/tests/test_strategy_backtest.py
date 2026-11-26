@@ -242,7 +242,19 @@ def test_saved_strategy_reruns_identical(client: TestClient, session: Session) -
     client.post("/v1/experiments/runs", json={"strategy": body()}, headers=headers(uid))
     assert len(session.exec(select(SetupVersion)).all()) == 2
 
+    # A4.3: the last bar is in the held-out 20%, which the run never read.
     bar = session.exec(select(PriceBar).order_by(col(PriceBar.ts).desc())).first()
+    assert bar is not None
+    bar.close = bar.close + 1
+    session.add(bar)
+    session.commit()
+    rerun = client.post(f"/v1/experiments/runs/{run['id']}/rerun", headers=headers(uid)).json()
+    assert rerun["status"] == "identical"
+    bar = session.exec(
+        select(PriceBar)
+        .where(col(PriceBar.ts) < datetime(2023, 12, 1))
+        .order_by(col(PriceBar.ts).desc())
+    ).first()
     assert bar is not None
     bar.close = bar.close + 1
     session.add(bar)

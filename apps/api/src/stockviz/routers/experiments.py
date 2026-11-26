@@ -28,6 +28,7 @@ from stockviz.schemas import (
     WalkForwardIn,
 )
 from stockviz.services.backtest import BacktestError
+from stockviz.services.backtest.checks import stored_checks
 from stockviz.services.backtest.registry import (
     RunLimitReached,
     rerun,
@@ -43,7 +44,7 @@ router = APIRouter(prefix="/v1/experiments", tags=["experiments"])
 SessionDep = Annotated[Session, Depends(get_session)]
 
 
-def _run_out(row: ExperimentRun, *, full: bool) -> ExperimentRunOut:
+def _run_out(row: ExperimentRun, *, full: bool, session: Session | None = None) -> ExperimentRunOut:
     assert row.id is not None
     return ExperimentRunOut(
         id=row.id,
@@ -67,6 +68,7 @@ def _run_out(row: ExperimentRun, *, full: bool) -> ExperimentRunOut:
             else universe_for(row.ticker)
         ),
         result=row.result if full else None,
+        checks=stored_checks(session, row) if full and session is not None else None,
     )
 
 
@@ -128,7 +130,7 @@ def post_run(body: ExperimentRunIn, session: SessionDep, user_id: UserIdDep) -> 
             raise strategy_http_error(exc) from exc
         except LookupError as exc:
             raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
-        return _run_out(row, full=True)
+        return _run_out(row, full=True, session=session)
     assert body.backtest is not None
     try:
         row = save_run(
@@ -142,7 +144,7 @@ def post_run(body: ExperimentRunIn, session: SessionDep, user_id: UserIdDep) -> 
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
     except RunLimitReached as exc:
         raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
-    return _run_out(row, full=True)
+    return _run_out(row, full=True, session=session)
 
 
 def _study(
@@ -160,7 +162,7 @@ def _study(
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
     except RunLimitReached as exc:
         raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
-    return _run_out(row, full=True)
+    return _run_out(row, full=True, session=session)
 
 
 @router.post("/walk-forward", response_model=ExperimentRunOut, status_code=status.HTTP_201_CREATED)
@@ -192,7 +194,7 @@ def list_runs(
 
 @router.get("/runs/{run_id}", response_model=ExperimentRunOut)
 def get_run(run_id: int, session: SessionDep, user_id: UserIdDep) -> ExperimentRunOut:
-    return _run_out(_own_run(session, run_id, user_id), full=True)
+    return _run_out(_own_run(session, run_id, user_id), full=True, session=session)
 
 
 @router.post("/runs/{run_id}/rerun", response_model=ExperimentRerunOut)

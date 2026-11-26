@@ -26,6 +26,7 @@ import {
   pickBacktestTicker,
 } from "@/lib/backtest-defaults";
 import { BROKERAGE_OPTIONS, DEFAULT_ADV_CAP_PCT, FEE_SCHEDULE_OPTIONS } from "@/lib/fees";
+import { HOLDOUT_OPTIONS, type HoldoutMode } from "@/lib/report-card";
 import {
   type StrategyForm,
   type StrategyRequest,
@@ -75,6 +76,7 @@ export function initialStrategyForm(
     maxPositions: "5",
     direction: "long",
     shortable: "",
+    holdout: "last_20pct",
   };
 }
 
@@ -465,6 +467,28 @@ export function RuleStrategyForm({
                 <option value="long">Long only</option>
                 <option value="short">Short (US symbols you declare shortable)</option>
               </select>
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="rs-holdout" className="text-xs">
+                Holdout
+              </Label>
+              <select
+                id="rs-holdout"
+                value={form.holdout ?? "last_20pct"}
+                onChange={(e) => set("holdout", e.target.value as HoldoutMode)}
+                className={SELECT}
+                aria-describedby="rs-holdout-hint"
+              >
+                {HOLDOUT_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+              <p id="rs-holdout-hint" className="text-2xs text-text-tertiary">
+                The run, sweeps and walk-forwards use the first 80% of the dates until you unlock
+                the rest once.
+              </p>
             </div>
             {form.direction === "short" ? (
               <div className="space-y-1">

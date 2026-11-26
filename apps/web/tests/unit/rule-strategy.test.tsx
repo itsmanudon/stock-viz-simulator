@@ -19,6 +19,10 @@ const bars = Array.from({ length: 6 }, (_, i) => ({
   close: "100",
   volume: 1000,
 }));
+vi.mock("@/app/(product)/backtest/holdout-actions", () => ({
+  unlockHoldoutAction: vi.fn(async () => ({})),
+  runTemplateAction: vi.fn(async () => ({})),
+}));
 vi.mock("@/app/(product)/backtest/strategy-actions", () => ({
   runStrategyAction: vi.fn(),
   strategyBarsAction: vi.fn(async () => bars),

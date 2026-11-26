@@ -16,6 +16,9 @@ import { CostsDisclosure } from "@/components/costs-disclosure";
 import { DataTableFrame } from "@/components/data-table";
 import { FigureStrip } from "@/components/figure-strip";
 import { MetaChip, PageHeader } from "@/components/page-header";
+import { OverfittingChecks } from "@/components/report-card/overfitting-checks";
+import { ReportCard } from "@/components/report-card/report-card";
+import { PboPanel, PlateauHeatmap } from "@/components/report-card/sweep-checks";
 import { RuleStrategyResults } from "@/components/rule-strategy/rule-strategy-results";
 import {
   Table,
@@ -34,8 +37,8 @@ import {
   getExperimentRun,
 } from "@/lib/api/experiments";
 import { AuthedApiError } from "@/lib/api/server";
-import type { BacktestResult } from "@/lib/api/types";
-import type { StrategyResult } from "@/lib/rule-strategy";
+import type { BacktestRequest, BacktestResult } from "@/lib/api/types";
+import type { StrategyRequest, StrategyResult } from "@/lib/rule-strategy";
 
 export const metadata: Metadata = { title: "Saved backtest" };
 
@@ -117,16 +120,54 @@ export default async function SavedRunPage({ params }: { params: Promise<{ runId
           liquidity={(result as BacktestResult).liquidity}
         />
       ) : null}
+      {kind === "single" && result && (result as BacktestResult).window ? (
+        <p className="text-xs text-text-tertiary" data-testid="run-window">
+          {(result as BacktestResult).window?.note}
+        </p>
+      ) : null}
+      {kind === "single" && result && (result as BacktestResult).report ? (
+        <ReportCard
+          report={(result as BacktestResult).report as NonNullable<BacktestResult["report"]>}
+          currency={(result as BacktestResult).currency ?? "USD"}
+        />
+      ) : null}
+      {kind === "single" && run.checks ? (
+        <OverfittingChecks
+          checks={run.checks}
+          report={(result as BacktestResult | null)?.report}
+          request={{ backtest: run.request as BacktestRequest }}
+        />
+      ) : null}
       {kind === "walk_forward" && result ? (
         <WalkForwardTable result={result as WalkForwardResult} />
       ) : null}
-      {kind === "sweep" && result ? <SweepTable result={result as SweepResult} /> : null}
+      {kind === "sweep" && result ? (
+        <>
+          <SweepTable result={result as SweepResult} />
+          {(result as SweepResult).window ? (
+            <p className="text-xs text-text-tertiary">{(result as SweepResult).window?.note}</p>
+          ) : null}
+          {"pbo" in (result as SweepResult) ? (
+            <PboPanel
+              pbo={(result as SweepResult).pbo}
+              reason={(result as SweepResult).pbo_reason}
+            />
+          ) : null}
+          {(result as SweepResult).plateau ? (
+            <PlateauHeatmap plateaus={(result as SweepResult).plateau ?? {}} />
+          ) : null}
+        </>
+      ) : null}
       {kind === "strategy" && result ? (
-        <RuleStrategyResults result={result as StrategyResult} />
+        <RuleStrategyResults
+          result={result as StrategyResult}
+          checks={run.checks}
+          unlockRequest={run.request as unknown as StrategyRequest}
+        />
       ) : null}
       <p className="text-xs text-text-tertiary">
-        Data fingerprint <span className="font-mono">{run.dataset_fingerprint}</span> · code{" "}
-        {run.code_version.slice(0, 12)}. <Link href="/backtest/runs">All saved runs</Link>
+        Data fingerprint <span className="font-mono break-all">{run.dataset_fingerprint}</span> ·
+        code {run.code_version.slice(0, 12)}. <Link href="/backtest/runs">All saved runs</Link>
       </p>
     </div>
   );

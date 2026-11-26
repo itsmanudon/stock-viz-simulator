@@ -1932,6 +1932,13 @@ schedules are listed (GET /v1/fees/schedules) but not offered here."""
 BrokerageName = Literal["zerodha", "zero"]
 
 
+HoldoutMode = Literal["last_20pct", "none"]
+"""A4.3: ``last_20pct`` (the default) holds out the last 20% of the requested
+range: the run, sweeps and walk-forwards see only the first 80% until the
+family's holdout is unlocked. ``none`` is an explicit choice, stamped on the
+result."""
+
+
 class BacktestIn(BaseModel):
     """Request body for POST /v1/backtest.
 
@@ -1967,8 +1974,177 @@ class BacktestIn(BaseModel):
     # A4.2: at most this % of the 20-day average traded value per buy; null
     # turns the cap off (runs saved before A4.2 rerun without it).
     adv_cap_pct: float | None = Field(default=10.0, gt=0, le=100)
+    # A4.3: the last 20% of the range is held out unless "none" is chosen.
+    holdout: HoldoutMode = "last_20pct"
 
     model_config = ConfigDict(populate_by_name=True)
+
+
+# --- A4.3: the report card and overfitting checks ------------------------
+
+
+class RunWindowOut(BaseModel):
+    """The range a run actually used (A4.3). With the default holdout the
+    in-sample range ends the day before ``holdout_from``."""
+
+    requested_from: date
+    requested_to: date
+    from_date: date
+    to_date: date
+    holdout: HoldoutMode
+    holdout_pct: float | None = None
+    holdout_from: date | None = None
+    holdout_to: date | None = None
+    note: str
+
+
+class ReportMetricOut(BaseModel):
+    key: str
+    label: str
+    value: float | None = None
+    unit: Literal["pct", "ratio", "money", "r", "days", "count"]
+    formula: str
+    note: str | None = None
+    """Why ``value`` is null."""
+
+
+class SharpeStatsOut(BaseModel):
+    """Bailey and López de Prado's inputs: per-day Sharpe of the net excess
+    returns, their skewness and kurtosis (not excess), and the PSR."""
+
+    observations: int
+    sharpe: float
+    """Per day: mean / sample standard deviation of daily excess returns."""
+    sharpe_annual: float
+    skewness: float | None = None
+    kurtosis: float | None = None
+    risk_free_rate: float
+    psr: float | None = None
+    """PSR(0): the probability the true Sharpe is above 0."""
+    benchmark_sharpe: float = 0.0
+    formula: str
+
+
+class FanPointOut(BaseModel):
+    date: date
+    p5: float
+    p50: float
+    p95: float
+
+
+class PercentilesOut(BaseModel):
+    p5: float
+    p50: float
+    p95: float
+
+
+class MonteCarloFanOut(BaseModel):
+    """A4.3: the Phase 8 stationary block bootstrap of the run's daily net
+    returns, as many sessions as the run had. Seeded: the same run gives the
+    same fan."""
+
+    method: str
+    paths: int
+    mean_block: int
+    seed: int
+    horizon_days: int
+    max_drawdown: PercentilesOut
+    final_nav: PercentilesOut
+    prob_loss: float
+    fan: list[FanPointOut]
+    actual_max_drawdown: float
+
+
+class RegimeRowOut(BaseModel):
+    state: str | None = None
+    """``Calm trend``, ``Choppy``, ``High-vol down``; null: not enough data."""
+    sessions: int
+    share: float
+    total_return: float
+    sharpe: float | None = None
+    exposure: float
+    trades_entered: int
+
+
+class RegimeSplitOut(BaseModel):
+    market: str | None = None
+    index: str | None = None
+    rows: list[RegimeRowOut] = []
+    index_sessions: int = 0
+    breadth_sessions: int = 0
+    method: str
+    reason: str | None = None
+
+
+class ReportCardOut(BaseModel):
+    """A4.3 (M7.4): everything here is net of costs and depends only on the
+    run (it is stored with a saved run and compared on rerun)."""
+
+    metrics: list[ReportMetricOut]
+    sharpe: SharpeStatsOut
+    monte_carlo: MonteCarloFanOut | None = None
+    monte_carlo_reason: str | None = None
+    regimes: RegimeSplitOut
+
+
+class TrialsOut(BaseModel):
+    family_key: str
+    family_label: str
+    definition: str
+    scope: Literal["user", "anonymous"]
+    n: int
+    """Distinct variants (strategy hashes) of the family in the ledger."""
+    runs: int
+    sharpe_variance: float | None = None
+    """Variance of the variants' per-day Sharpes (null under 2 variants)."""
+    sharpe_annual_values: list[float] = []
+
+
+class DsrOut(BaseModel):
+    n: int
+    sharpe: float
+    sharpe_annual: float
+    observations: int
+    skewness: float | None = None
+    kurtosis: float | None = None
+    variance: float | None = None
+    expected_max_sharpe: float
+    expected_max_sharpe_annual: float
+    value: float | None = None
+    formula: str
+    note: str
+    meaning: str
+
+
+class HoldoutResultOut(BaseModel):
+    from_date: date
+    to_date: date
+    total_return: float
+    sharpe: float
+    max_drawdown: float
+    psr: float | None = None
+    trades: int
+
+
+class HoldoutStatusOut(BaseModel):
+    mode: HoldoutMode
+    status: Literal["locked", "seen", "none"]
+    holdout_from: date | None = None
+    holdout_to: date | None = None
+    unlocked_at: datetime | None = None
+    can_unlock: bool = False
+    result: HoldoutResultOut | None = None
+    note: str
+
+
+class OverfittingChecksOut(BaseModel):
+    """A4.3: what the trial ledger says about this run. Read at response time
+    from the ledger and holdout unlocks, so it is never stored with a saved
+    run and never part of a rerun's comparison."""
+
+    trials: TrialsOut
+    dsr: DsrOut
+    holdout: HoldoutStatusOut
 
 
 class BacktestFeeOut(BaseModel):
@@ -2175,6 +2351,11 @@ class BacktestOut(BaseModel):
     # A4.2: each cost component with its rate and source, and the ADV cap.
     costs: CostsOut | None = None
     liquidity: LiquidityOut | None = None
+    # A4.3: the window used (holdout), the report card, and the ledger's
+    # checks (response time only, never stored).
+    window: RunWindowOut | None = None
+    report: ReportCardOut | None = None
+    checks: OverfittingChecksOut | None = None
 
 
 # --- A4.1: backtests on the Rule DSL -------------------------------------
@@ -2284,6 +2465,7 @@ class StrategyBacktestIn(BaseModel):
     spread_bps: float = Field(default=0.0, ge=0, le=1000)
     direction: Literal["long", "short"] = "long"
     shortable: list[str] = Field(default_factory=list, max_length=50)
+    holdout: HoldoutMode = "last_20pct"
 
     model_config = ConfigDict(populate_by_name=True)
 
@@ -2403,6 +2585,9 @@ class StrategyBacktestOut(BaseModel):
     notes: list[str] = []
     costs: CostsOut | None = None
     liquidity: LiquidityOut | None = None
+    window: RunWindowOut | None = None
+    report: ReportCardOut | None = None
+    checks: OverfittingChecksOut | None = None
 
 
 class ExperimentIn(BaseModel):
@@ -2476,6 +2661,8 @@ class ExperimentRunOut(BaseModel):
     # ``single`` runs; for ``walk_forward`` and ``sweep`` runs, the shape their
     # ``result_kind`` names (windows + stitched curve, or ranked settings).
     result: dict[str, Any] | None = None
+    # A4.3: the ledger's checks for this run, read now (full reads only).
+    checks: OverfittingChecksOut | None = None
 
 
 class ExperimentRerunOut(BaseModel):
@@ -3203,3 +3390,16 @@ class RegimeOut(BaseModel):
     markets: list[MarketRegimeOut]
     method: str
     disclaimer: str
+
+
+class HoldoutUnlockIn(BaseModel):
+    """A4.3: unlock a strategy family's holdout, once: the request of the run on screen."""
+
+    backtest: BacktestIn | None = None
+    strategy: StrategyBacktestIn | None = None
+
+    @model_validator(mode="after")
+    def _one(self) -> HoldoutUnlockIn:
+        if (self.backtest is None) == (self.strategy is None):
+            raise ValueError("give exactly one of backtest or strategy")
+        return self

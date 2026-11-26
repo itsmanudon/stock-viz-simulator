@@ -35,6 +35,30 @@ vi.mock("@/app/(product)/backtest/actions", () => ({
   rerunBacktestRunAction: vi.fn(async () => ({})),
 }));
 
+// A4.3: template runs go through a server action; adapt it to the mock.
+vi.mock("@/app/(product)/backtest/holdout-actions", () => ({
+  runTemplateAction: async (request: unknown) => {
+    try {
+      return { result: await runBacktest(request) };
+    } catch (err) {
+      const e = err as { status?: number; message?: string };
+      const raw = (e.message ?? "").replace(/^API \d+ [^:]+:\s*/, "");
+      let message = raw;
+      try {
+        message = (JSON.parse(raw) as { detail: string }).detail;
+      } catch {
+        // plain text
+      }
+      return { error: message, status: e.status ?? 500 };
+    }
+  },
+  unlockHoldoutAction: vi.fn(async () => ({})),
+}));
+
+vi.mock("@/components/rule-strategy/strategy-trades-chart", () => ({
+  StrategyTradesChart: () => null,
+}));
+
 vi.mock("@/lib/api", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api")>("@/lib/api");
   return {
