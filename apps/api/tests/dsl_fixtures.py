@@ -213,3 +213,120 @@ def many(count: int) -> list[SymbolData]:
         SymbolData(f"P{i:03d}", "XNYS", _bars(rng, us, float(rng.uniform(10, 500))), spx, "^GSPC")
         for i in range(count)
     ]
+
+
+# --- A6.4: intraday histories ------------------------------------------------
+
+INTRADAY_SPANS: dict[str, tuple[tuple[date, date], ...]] = {
+    # NSE: the 2 Mar 2024 DR-switch Saturday (09:15-10:00, 11:30-12:30) and
+    # the 1 Nov 2024 Muhurat evening (18:00-19:00) with the sessions around them.
+    "XNSE": ((date(2024, 2, 26), date(2024, 3, 6)), (date(2024, 10, 28), date(2024, 11, 6))),
+    # XNYS: Thanksgiving week 2024 with its 29 Nov half day (13:00 close).
+    "XNYS": ((date(2024, 11, 20), date(2024, 12, 4)),),
+}
+
+
+def _minutes(rng: np.random.Generator, venue: str, start_price: float) -> list:
+    """Synthetic 1-minute rows on ``venue``'s real trading spans (every minute
+    of every span, so no bucket is short), in the ``intraday.Row`` shape."""
+    from stockviz.services.markets.calendar import session_minutes
+
+    rows = []
+    price = start_price
+    for first, last in INTRADAY_SPANS[venue]:
+        day = first
+        while day <= last:
+            hours = session_minutes(day, venue)
+            if hours is not None:
+                price *= float(np.exp(rng.normal(0, 0.01)))  # an overnight gap
+                for span_start, span_end in hours.spans:
+                    t = span_start.replace(tzinfo=None)
+                    end = span_end.replace(tzinfo=None)
+                    while t < end:
+                        o = price
+                        price *= float(np.exp(rng.normal(0, 0.0012)))
+                        hi = max(o, price) * (1 + abs(float(rng.normal(0, 0.0006))))
+                        lo = min(o, price) * (1 - abs(float(rng.normal(0, 0.0006))))
+                        vol = round(2000 * float(np.exp(rng.normal(0, 0.5))))
+                        q = Decimal("0.01")
+                        rows.append((t, Decimal(str(o)).quantize(q), Decimal(str(hi)).quantize(q),
+                                     Decimal(str(lo)).quantize(q), Decimal(str(price)).quantize(q),
+                                     vol, "synthetic", t + timedelta(minutes=1)))  # fmt: skip
+                        t += timedelta(minutes=1)
+            day += timedelta(days=1)
+    return rows
+
+
+@lru_cache(maxsize=8)
+def intraday_universe(interval: str = "5m") -> dict[str, SymbolData]:
+    """A6.4: two synthetic intraday histories on ``interval`` bars.
+
+    - ``SYNI.NS`` (XNSE): the DR pause and the Muhurat evening, daily bars
+      for every session (today's included, so a test can show ``daily.``
+      never reads it), delivery, ^NSEI, fundamentals and news.
+    - ``SYNU`` (XNYS): a half day, daily bars ending two sessions before its
+      minutes end (``daily.`` at the end reads the last stored day), no
+      fundamentals or news.
+
+    Built through the real resampler (``services/bars/intraday.py``), so the
+    buckets are the chart's."""
+    from stockviz.services.bars.intraday import resample_minutes
+    from stockviz.services.dsl.data import intraday_frame
+
+    rng = np.random.default_rng(20261126)
+    out: dict[str, SymbolData] = {}
+    for ticker, venue, price in (("SYNI.NS", "XNSE", 1500.0), ("SYNU", "XNYS", 80.0)):
+        rows = _minutes(rng, venue, price)
+        bars = (
+            resample_minutes(rows, interval, venue=venue, feed="file")
+            if interval != "1m"
+            else resample_minutes(rows, "1m", venue=venue, feed="file")
+        )
+        frame, closed, days = intraday_frame(bars)
+        daily_days = list(sessions(venue, date(2023, 1, 2), date(2024, 12, 31)))
+        if ticker == "SYNU":
+            daily_days = [d for d in daily_days if d <= date(2024, 12, 2)]
+        daily = _bars(rng, daily_days, price)
+        data = SymbolData(
+            ticker, venue, frame, timeframe=interval, closed_at=closed, sessions=days,
+            daily=daily, feed="file",
+        )  # fmt: skip
+        if ticker == "SYNI.NS":
+            delivery = rng.uniform(20, 95, len(daily))
+            daily["delivery_pct"] = np.round(delivery, 2)
+            daily["deliverable_qty"] = np.round(daily["volume"].to_numpy() * delivery / 100)
+            nifty = pd.Series(_walk(rng, len(daily_days), 22000.0, 0.01),
+                              index=pd.DatetimeIndex(daily_days))  # fmt: skip
+            news_days = [d.item() for d in np.unique(days)]
+            docs = []
+            for day in news_days:
+                for _ in range(int(rng.integers(0, 4))):
+                    at = datetime(day.year, day.month, day.day, int(rng.integers(0, 24)),
+                                  int(rng.integers(0, 60)), tzinfo=UTC)  # fmt: skip
+                    label = str(rng.choice(["positive", "neutral", "negative"]))
+                    docs.append(NewsDoc(to_ns(at), ((to_ns(at), label),), ()))
+            data = replace(
+                data,
+                benchmark=nifty,
+                benchmark_ticker="^NSEI",
+                fundamentals=Fundamentals(_facts(rng, 2022, "INR"), "INR"),
+                news=News(tuple(sorted(docs, key=lambda d: d.available_at)),
+                          to_ns(datetime(2023, 1, 1, tzinfo=UTC))),
+                delivery_loaded=True,
+            )  # fmt: skip
+        out[ticker] = replace(data, drawings=_daily_drawings(data))
+    return out
+
+
+def _daily_drawings(data: SymbolData) -> Drawings:
+    """Drawings anchored on daily bars, for ``daily.drawing()`` / ``daily.avwap()``."""
+    assert data.daily is not None
+    days = [ts.date() for ts in data.daily.index]
+    close = data.daily["close"].to_numpy(dtype=float)
+    n = len(days)
+    return Drawings(1, (
+        DrawingRef(1, "hline", "level", ((None, round(float(np.median(close[-60:])), 2)),)),
+        DrawingRef(2, "trendline", "trend", ((days[n - 120], float(close[n - 120])),
+                                             (days[n - 30], float(close[n - 30])))),
+        DrawingRef(3, "avwap", "swing", ((days[n - 90], None),)),
+    ))  # fmt: skip

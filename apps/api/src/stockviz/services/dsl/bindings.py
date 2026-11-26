@@ -57,8 +57,14 @@ AVWAP_OUTPUTS = ("vwap", "upper1", "lower1", "upper2", "lower2")
 """A3.3 ``avwap("label")``: the anchored VWAP (default) or a band at +-1 / +-2
 volume-weighted standard deviations."""
 
-TIMEFRAMES = ("weekly", "monthly")
+TIMEFRAMES = ("daily", "weekly", "monthly")
+"""Prefixes. ``daily.`` exists on intraday timeframes only (A6.4)."""
 INTERVAL_BY_TIMEFRAME = {"weekly": "1wk", "monthly": "1mo"}
+
+INTRADAY_TIMEFRAMES = ("1m", "5m", "15m", "30m", "60m")
+"""A6.4: the intraday timeframes a rule can be judged on (a setup version's
+``timeframe``); ``daily`` is the default."""
+RULE_TIMEFRAMES = ("daily", *INTRADAY_TIMEFRAMES)
 
 __all__ = [
     "AVWAP_OUTPUTS",
@@ -67,10 +73,12 @@ __all__ = [
     "FUNDAMENTAL_METRICS",
     "INDEX_SERIES",
     "INTERVAL_BY_TIMEFRAME",
+    "INTRADAY_TIMEFRAMES",
     "NEWS_FUNCTIONS",
     "NEWS_MAX_DAYS",
     "NEWS_SENTIMENTS",
     "PRICE_SERIES",
+    "RULE_TIMEFRAMES",
     "SERIES",
     "TIMEFRAMES",
 ]

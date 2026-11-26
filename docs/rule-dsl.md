@@ -237,13 +237,61 @@ numeric expression instead, such as a rotation's ranking
   sma(delivery_pct, 20)`. "Run event study" on the screener's rule panel and
   on a setup opens it with the rule.
 
+## Intraday timeframes (A6.4)
+
+A rule is judged on **daily bars** unless its setup version (or a backtest)
+names an intraday **timeframe**: `1m`, `5m`, `15m`, `30m` or `60m`. The rule
+text is the same language; on an intraday timeframe `close`, `rsi(14)` and
+every other series and indicator read that timeframe's bars, built from the
+stored minutes (bars never cross a night, a weekend or a pause), and the
+warm-up is counted in those bars. Intraday bars are judged only once they
+are **closed**.
+
+- **Instants.** Each intraday bar is its open instant (UTC) and its close.
+  A rule's value on a bar uses only what was known at that bar's close.
+- **`daily.`** reads daily bars on an intraday timeframe: `close >
+  daily.high[1]`, `daily.close crosses_above daily.sma(close, 10)`. A
+  `daily.` value on a bar is the value on the **most recent completed
+  session strictly before the bar's session**: yesterday's, all day, even
+  at today's last bar (today's daily bar is not complete until after the
+  close). On a Muhurat evening or a DR-pause day the same rule holds.
+  `weekly.` and `monthly.` work too, as of that same previous session.
+  `daily.` does not exist on the daily timeframe (write the expression
+  without it), and prefixes do not nest.
+- **Per binding** on an intraday timeframe:
+
+  | Binding | Intraday |
+  | --- | --- |
+  | `open high low close volume`, every indicator and primitive | on the intraday bars |
+  | `fundamental.*` | read at each bar: facts dated **before** the bar's session (a filing dated today is not known at a given minute of today), the bar's close as the price. No prefix |
+  | `news.count(...)` | read at each bar: documents with `available_at` at or before the **bar's close**. No prefix |
+  | `index_close`, `rs(n)`, `rsline()` | daily only: write `daily.index_close`, `daily.rs(20)` (the index's closes are daily) |
+  | `delivery_pct`, `deliverable_qty` | daily only: write `daily.delivery_pct` |
+  | `drawing("x")`, `avwap("x")` | daily only (drawings anchor on daily bars): write `daily.drawing("x").price` |
+
+- **Checking.** `POST /v1/rules/check` takes `timeframe`; the backtest
+  form's picker offers the intraday timeframes only for a symbol whose
+  minutes are stored, and checks the rule for the timeframe picked.
+- **Proof.** `tests/test_dsl_intraday_conformance.py`: every intraday rule
+  in its corpus gives the same value bar by bar (as a stream judges) as
+  over the whole history, on synthetic NSE minutes with the 2 Mar 2024 DR
+  pause and the 1 Nov 2024 Muhurat evening and on XNYS minutes with a half
+  day; changing later bars, today's daily bar, later facts or later news
+  changes no value up to the bar.
+
 ## Setups
 
 A **setup** is a saved rule. Signed in, "Save as setup" stores the rule as
 version 1; a changed rule is a new version, and an old version never changes,
 so anything that names a version keeps its exact rule. Saving a rule a setup
 already has (same canonical text) returns that version. `/setups` lists your
-setups and the presets.
+setups and the presets. Since A6.4 a version also carries its **timeframe**
+(daily, or `1m` ... `60m`) and **feed** (`auto`: the best stored); the same
+rule on another timeframe is another version. The screener, screens, event
+studies, drills and rotations read daily versions only. The backtest's
+Rule strategy form saves its entry rule as an alert setup on the timeframe
+picked ("Save as 5 minutes setup"), and a rule alert on it is judged on each
+closed bar (`apps/api/CLAUDE.md`, "Intraday rules (A6.4)").
 
 ## Presets
 

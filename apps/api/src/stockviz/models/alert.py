@@ -107,6 +107,10 @@ class Alert(SQLModel, table=True):
     last_state: bool | None = Field(default=None, nullable=True)
     last_bar_date: date | None = Field(default=None, nullable=True)
     last_fired_bar_date: date | None = Field(default=None, nullable=True)
+    # A6.4: intraday rule alerts keep their state per bar instant (the bar's
+    # open, naive UTC); daily alerts leave these null.
+    last_bar_at: datetime | None = Field(default=None, nullable=True)
+    last_fired_bar_at: datetime | None = Field(default=None, nullable=True)
     # News rules: documents available after this were not yet looked at.
     last_seen_at: datetime | None = Field(default=None, nullable=True)
     triggered_at: datetime | None = Field(default=None, nullable=True)
@@ -134,6 +138,10 @@ class AlertEvent(SQLModel, table=True):
     message: str = Field(max_length=500)
     # "bar", "document:<id>" or "portfolio".
     source: str = Field(max_length=80)
-    # "<alert>:<bar date>" or "<alert>:doc:<id>": a rerun writes nothing twice.
+    # A6.4: an intraday firing's bar (open instant, naive UTC) and its feed.
+    bar_at: datetime | None = Field(default=None, nullable=True)
+    feed: str | None = Field(default=None, max_length=8)
+    # "<alert>:<bar date>", "<alert>:<bar open ISO>" (intraday) or
+    # "<alert>:doc:<id>": a rerun writes nothing twice.
     dedupe_key: str = Field(max_length=120, unique=True)
     created_at: datetime = Field(default_factory=utcnow, nullable=False, index=True)

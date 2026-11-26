@@ -106,6 +106,14 @@ class Settings(BaseSettings):
     massive_shadow_enabled: bool = False
     massive_api_key: str = ""
     massive_shadow_lookback_days: int = 90
+    # A6.3 US feeds, free plans (owner, 26 Nov 2026). Blank = that provider is
+    # off: `intraday-backfill --provider X` exits 2 and /v1/broker/feeds says
+    # "not configured". Keys go in the local .env only; never committed or
+    # logged. MASSIVE_API_KEY above also turns on the Massive minute backfill.
+    alpaca_key_id: str = ""
+    alpaca_secret_key: SecretStr = SecretStr("")
+    tiingo_api_key: SecretStr = SecretStr("")
+    finnhub_api_key: SecretStr = SecretStr("")
 
     # A4.6: an Indian (XNSE/XBOM) replay session must end at least this many
     # calendar days before today on its venue (SEBI's rule for simulated

@@ -271,6 +271,16 @@ STAMPS_ADDED_LATER = frozenset(
         "pbo",
         "pbo_reason",
         "plateau",
+        # A6.4: intraday runs' stamps (null on daily runs).
+        "timeframe",
+        "feed",
+        "feed_badge",
+        "flatten_at_close",
+        "periods_per_year",
+        "at",
+        "entry_at",
+        "exit_at",
+        "same_day",
     }
 )
 """Result fields added after runs were first stored (A1.4a, A4.2), at any

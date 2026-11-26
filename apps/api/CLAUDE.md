@@ -32,7 +32,10 @@ src/stockviz/
                     HoldoutUnlock, drill — A4.7 DrillDeck / Drill,
                     trade_plan — A5.4 TradePlan (absorbed DrillPlan and
                     ReplayJournal, both archived), journal_entry — A5.5
-                    JournalEntry / JournalEntryFill (round trips))
+                    JournalEntry / JournalEntryFill (round trips),
+                    intraday — A6.1 IntradayBar / IntradayFile)
+  (services/feeds/  A6.3: FeedProvider/BrokerProvider, SimulatedFeed, Alpaca,
+                    Tiingo, Massive, Finnhub stub, intraday-backfill, feed status)
   events/           versioned contracts (trades/market), outbox/inbox,
                     dispatcher, domain handlers, Kafka producer wrappers
                     (not imported by FastAPI startup)
@@ -158,8 +161,16 @@ src/stockviz/
     bars/           A1.4a: resample.py (pure: daily -> 1wk/1mo, the partial
                     rule) and load.py (loads enough daily bars for n output bars);
                     A3.1: raw.py (`eod_raw` bars for `adjustment=raw`, `has_raw`)
-    markets/        calendar.py — exchange calendars and completed sessions (Phase 4.1);
-                    india_holidays.py — the maintained NSE/BSE holiday table (A0)
+                    A6.2: intraday.py (1m-60m from `intraday_bars`, resampled
+                    within sessions, closed-bar partial rule, feeds and badges)
+    markets/        calendar.py — exchange calendars and completed sessions (Phase 4.1;
+                    A6.1: session_minutes, open/close in UTC with special hours);
+                    india_holidays.py — the maintained NSE/BSE holiday table (A0;
+                    A6.1: SPECIAL_HOURS)
+    intraday/       A6.1: the owner's local intraday files: files.py (formats,
+                    file name -> ticker), guard.py (local databases only),
+                    partitions.py (monthly), load.py (intraday-load),
+                    reconcile.py (intraday-reconcile, MoneyControl), size.py
     nse/            A1.1 NSE end-of-day files placed by hand: formats.py
                     (header detection), parse.py (+ date check), archive.py
                     (`NSE_ARCHIVE_DIR`, `data_files`), load.py (`eod_raw`,
@@ -230,12 +241,16 @@ CLI subcommands (`python -m stockviz.cli <cmd>`): `seed`, `backfill`,
 `indicator-evidence [--start D] [--end D] [--horizon N] [--only KEY ...]`, `snapshot-portfolios`,
 `dividends`, `credit-dividends`, `settle-options`, `run-scheduler`,
 `prune-events [--days N] [--include-unpublished]`, `prune-trials [--days N]`, `aegis-sync [--max-pages N]`,
-`settle-orders [--session-date YYYY-MM-DD]`, `evaluate-alerts`, `revalidate-web`,
+`settle-orders [--session-date YYYY-MM-DD]`, `evaluate-alerts [--intraday --since T [--ticker T] [--dry-run]]`, `revalidate-web`,
 `publish-outbox [--once]`,
 `consume-trade-activity [--once]`, `consume-market-ingest [--once]`,
 `consume-market-analytics [--once]`, `nse-load PATH ... [--apply]`,
 `nse-files [--limit N]`,
 `export-parquet --out DIR [--since YYYY-MM-DD] [--tables T ...]`,
+`intraday-load --dir DIR --kind bulk1m|bulk1h|moneycontrol [--apply] [--create-symbols] [--only T ...]`,
+`intraday-reconcile [TICKER ...] [--against daily|60m] [--interval 1m|60m] [--feed F] [--show N]`,
+`intraday-size`,
+`intraday-backfill --provider alpaca|tiingo|massive --symbols T ... --from D --to D [--feed iex|sip] [--apply]`,
 `rule-check "<rule>" [TICKER ...] [--date YYYY-MM-DD] [--explain] [--user-id N]`,
 `screen-runs`, `deliver-notifications [--channel webhook|email|telegram] [--limit N]`.
 `seed` also writes the rule presets (A2.2) and the checklist dimension setups
@@ -297,6 +312,80 @@ hold exchange data; use `lab/data/`, ignored, or a path outside the repo).
 only. Not in `RECORDED_JOBS` or the cron yet; where the export lives for the
 laptop to pull is an open owner question. `tests/test_export_parquet.py`;
 the reader is `lab/` (see `lab/README.md`).
+
+**Intraday bars and the owner's files (A6.1, M2.2 foundation).** Migration
+`a6b1c3d5e7f9` (additive): `intraday_files` and `intraday_bars`
+(`models/intraday.py`). Design: workspace `docs/a6-design-note.md`.
+
+- **Table.** Key `(instrument_id, feed, interval, ts)`, the only index; no
+  ticker column. `ts` = the bar's **open** instant, naive UTC. `feed`
+  `iex|sip|kite|file` (check), `interval` `1m|60m` (check; 60m only from
+  the hourly files; 5-60 minutes over minutes are resampled on read in
+  A6.2), OHLC `Numeric(18, 6)`, `volume`, `source` (`bulk_1m`, `bulk_1h`;
+  later the feed's), `file_id` (to `intraday_files`), `ingested_at`,
+  `available_at` (bar close, clipped at the session close). The note's key
+  gained `interval` so a 60m bar and the 1m bar opening at the same instant
+  both store. **PostgreSQL: `PARTITION BY RANGE (ts)`, one partition a
+  month** (`intraday_bars_yYYYYmMM`, no default partition), created by the
+  writer (`services/intraday/partitions.py::ensure_month_partitions`), not
+  the migration; `migrations/env.py::include_object` keeps them out of
+  autogenerate. SQLite (tests) gets a plain table. `price_bars` stays daily.
+- **The local-only rule (owner, 26 Nov 2026): the owner's intraday files
+  never go to production, demos included.** `services/intraday/guard.py`:
+  the loader refuses (exit 2) unless the bound database is PostgreSQL on
+  `localhost`, `127.0.0.1` or `::1` (SQLite allowed for tests); a URL with no
+  host, or a query setting `host`/`hostaddr`/`service`, is refused. It is
+  checked on the session's own URL, in dry runs too. **No flag, setting or
+  variable overrides it**; never add one. `.railway/railway.ts` must never
+  run `intraday-load` (a test reads it).
+- **Loader** `stockviz.cli intraday-load --dir DIR --kind
+  bulk1m|bulk1h|moneycontrol [--apply] [--create-symbols] [--only T ...]`
+  (`services/intraday/load.py`; dry run by default). Formats
+  (`files.py`): `<NAME>_bulk_data.csv` (1m, offset-aware),
+  `<NAME>_1hr_bulk_data.csv` (60m, offset-aware; a bulk row without its
+  offset is rejected, never guessed), `<YEAR>_<NAME>_1m_MoneyControl.csv`
+  (naive, read as IST; reconciliation only, never written). Ticker from the
+  name: `NIFTY50` -> `^NSEI`, `SENSEX` -> `^BSESN`, else `<NAME>.NS`
+  (`BANKNIFTY.NS` as production names it). Unknown tickers are reported;
+  `--create-symbols --apply` adds the `symbols` row (INR, NSE) and the
+  identity rules make the instrument (an index name gets `asset_type
+  'index'`: that is the flag that its zero volume is not real; volume is
+  stored as given). Rows: unreadable or impossible ones rejected and
+  counted (first lines listed, never values), repeated times are
+  duplicates, a 1m bar must open inside a trading span of
+  `session_minutes` and a 60m bar overlap one, else off-session (counted
+  per day, not loaded). `--apply`: one transaction per file; the file in
+  `intraday_files` (SHA-256 unique: name, size, counts), partitions, then
+  `COPY` into a temporary table and `INSERT ... ON CONFLICT DO NOTHING`, so
+  a rerun inserts nothing and a stored row is never changed. Progress line
+  per file. MetaTrader commodity files are not read until the owner gives
+  the server time zone; the `NIFTY/` options are A7.
+- **Reconciliation** `stockviz.cli intraday-reconcile [TICKER ...]
+  [--against daily|60m] [--interval 1m|60m] [--feed file] [--tolerance-pct
+  0.5] [--volume-tolerance-pct 10] [--show N]` (read-only;
+  `services/intraday/reconcile.py`): resample to one bar per venue date
+  (first open, extremes, last close, summed volume) and compare with the
+  stored daily `price_bars` or the 60m bars; a symbol "matches" at 99% of
+  sessions within tolerance; volume skipped for indices. Percentages only,
+  never prices. NSE daily closes are a last-30-minute VWAP, so minutes vs
+  exchange daily bars differ on the close by design. `--kind moneycontrol`
+  compares each MoneyControl file with the stored bulk 1m bars at the same
+  UTC instants and per session (after-hours rows counted).
+- **Size** `stockviz.cli intraday-size` (PostgreSQL): rows per symbol and
+  interval, heap and index bytes over the partitions, bytes per row.
+  Measured on the full local load (26 Nov 2026): 11,318,840 rows, 189.3
+  bytes per row (2,044 MiB).
+- **Parquet**: `export-parquet` exports `intraday_bars` (by month of `ts`,
+  every feed and interval) and `intraday_files` (whole); `lab/` reads them
+  like any table. The lake is the master copy of the owner's minutes.
+- Tests (synthetic files written by each test; never the owner's rows):
+  `test_intraday_load.py` (formats, naive IST = offset-aware instant,
+  rejects, sessions, duplicates, idempotency, 60m overlap and availability,
+  symbols, the guard and the CLI's refusal, Railway config, the COPY path and
+  partitions on PostgreSQL), `test_intraday_reconcile.py`,
+  `test_intraday_calendar.py`, `test_intraday_migration.py` (PostgreSQL
+  up/down/up, partitions on demand, `alembic check`),
+  `test_export_parquet.py`.
 
 **Rule DSL (A2.1, M4.1).** One rule language, `services/dsl/`, for the
 screens, alerts and setups A2.2 onwards builds. User reference:
@@ -766,6 +855,287 @@ counted in output bars, and leave a partial newest bar out of the inputs:
 on. `BarOut` adds `source` and `adjustment_semantics` on every interval
 (null `sessions`/`partial` on `1d`). Tests: `tests/test_resample.py`,
 `tests/test_bars_interval.py` (clock patched through `bars.load.now_utc`).
+
+**Intraday intervals (A6.2, M2.2 intraday).** `services/bars/intraday.py`;
+design: workspace `docs/a6-design-note.md`. `GET /v1/symbols/{t}/bars`,
+`/indicators` and `/avwap` take `interval=1m|5m|15m|30m|60m` and
+`feed=iex|sip|kite|file` (default: the first stored of `FEED_RANK` sip, kite,
+iex, file). Nothing is stored beyond A6.1's `1m`/`60m` rows.
+
+- **Resampling.** `1m` is the stored minutes; `5m`/`15m`/`30m` are built from
+  them; `60m` is built from the minutes for every session that has any and
+  is the stored hourly bar (`bulk_1h`) for a session that has none (the
+  hourly files reach 2015, the minute files 2023), so one session never
+  mixes the two and `source` says which. Buckets start at each trading
+  span's open (`calendar.session_minutes`) and every N minutes after; the
+  last one of a span is clipped at its end: NSE 60m = 09:15 ... 14:15, 15:15-15:30;
+  a Muhurat evening is its own bars; the 2024 DR sessions give 09:15-10:00
+  then 11:30-12:30 (never across the pause). No bar crosses a night,
+  weekend or holiday. A minute outside every span is dropped; a day outside
+  the calendar is bucketed from UTC midnight. OHLCV as Decimal (first open,
+  extremes, last close, summed volume).
+- **Fields.** `BarOut` adds `closed_at` (bucket end, clipped), `session_date`
+  (the venue date), `feed`, `badge` (`FEED_BADGES`: "File (local)", "IEX
+  only", "SIP", "Kite") and `minutes` (stored minutes in it); `ts` is the
+  bar's **open**, naive UTC. Null on 1d/1wk/1mo. `adjustment_semantics` is
+  null (the files carry no adjustment label); `adjustment=raw` is 409.
+- **Partial (closed-bar semantics).** Only the newest bar: partial while
+  `closed_at` > now, or while its last stored minute ends before `closed_at`
+  and now < `closed_at` + `LATE_MINUTE_GRACE` (2 min). Older bars are closed
+  (a gap is a gap). Clock: `intraday.now_utc` (tests patch it).
+- **Limits.** `limit` counts output bars: `load_intraday` reads the newest
+  `(limit + 1) x N` minutes (and drops the oldest bucket when that cap was
+  hit), plus, for 60m, the stored hours of sessions without minutes inside
+  that range and the newest older hours still wanted. `from`/`to` select by
+  the bar's open (naive = UTC, offsets converted); a bar opening at `to`
+  loads whole. Measured on the owner's local load (TCS.NS, 26 Nov 2026): 375
+  1m bars 0.5 s cold, 154 60m bars 0.05 s, 1,800 60m bars 0.7 s.
+- **Empty.** 404 with the reason: no intraday bars for the symbol, none from
+  the asked feed, or no 1-minute bars to build 5-30m ("60m is available"). A
+  range with no bars is `[]`.
+- **Indicators** run the registry on these bars with the warm-up counted in
+  intraday bars (loads `limit + lookback + 1`), never daily ones; a partial
+  newest bar is left out (`partial_bar_excluded`); `IndicatorsOut.feed`.
+  The RS line gets no index on intraday (its daily close is later in the day
+  than the bar), so its series is empty.
+- **AVWAP at an instant.** `anchor_at` (ISO; naive = UTC) or `anchor` (a
+  date = that session's open, how a date-anchored drawing lands). 1m-30m sum
+  the **1-minute** bars from the first one opening at or after the anchor
+  (at most `MAX_INTRADAY_MINUTES` 100,000, else 422) and sample each chart
+  bar at its last minute, keyed by the bar's open (`computed_from: "1m"`);
+  60m sums the 60m chart's own bars (`"60m"`, at most 5,000).
+  `AvwapOut` adds `anchor_at`, `anchor_bar_at`, `feed`. Daily unchanged.
+  `services/avwap.compute_from(..., start)` is the shared maths.
+- **Symbol detail** `intraday: {feed, badge, intervals, first, last, venue,
+  time_zone, feeds, coverage [{feed, interval, first, last}]} | null`
+  (`intraday_info`: one min/max per stored feed and interval; all five
+  intervals with minutes, `["60m"]` with hourly bars only).
+- **Not in A6.2:** a daily value on intraday bars (the DSL's `daily.` prefix
+  and alignment: A6.4, see "Intraday rules, backtests and alerts"), live
+  bars (A6.5).
+- Tests: `tests/test_intraday_bars.py` (synthetic minutes: NSE 15m/60m day,
+  no bar across a night, Muhurat, DR pause, off-span minutes, 60m
+  precedence, hourly-only 404, partial and grace, limits and from/to, empty
+  and refused cases, feed default, symbol detail, indicator warm-up and the
+  partial bar, RS line empty, AVWAP at an instant on 1m and 5m, date anchor,
+  60m and refusals).
+
+**Intraday rules, backtests and alerts (A6.4, M4.5 intraday, M2.2).**
+Design: workspace `docs/a6-design-note.md`. Migration `b7c2d4e6f8a1`
+(additive; the downgrade refuses while an intraday version exists):
+`setup_versions.feed` (`auto|iex|sip|kite|file`, default `auto`), checks
+`ck_setup_versions_timeframe` (`daily|1m|5m|15m|30m|60m`) and
+`ck_setup_versions_feed`, the unique key widened to `(setup_id, rule_hash,
+timeframe, feed)`; `alerts.last_bar_at`, `last_fired_bar_at`;
+`alert_events.bar_at`, `feed`.
+
+- **DSL on instants** (`services/dsl/`). `compile_rule(text,
+  timeframe=)`: `CompiledRule.timeframe`; the hash stays the rule text's.
+  `SymbolData.timeframe` (`daily` default; every daily path is unchanged and
+  the A2 conformance corpus passes as before) with, intraday, `bars` indexed
+  by open instant (naive UTC), `closed_at` (ns), `sessions` (venue dates),
+  `daily` (daily frame) and `feed`. `cut(t)`: bars opening at or before
+  `t`, news by `t`'s close, facts dated before its session, daily bars and
+  benchmark strictly before its session. `Evaluation.base` is the timeframe;
+  `daily.` aligns each bar to the last daily row dated before its session
+  (`searchsorted(..., "left") - 1`), `weekly.`/`monthly.` through it.
+  `load_symbol_intraday` (= `intraday_bars_for` + `intraday_symbol`): closed
+  bars from `load_intraday` (start + lookback, or all), the whole daily
+  history when `Needs.daily`/delivery/benchmark/drawings. Lookback: intraday
+  bars; a prefix adds none. Per-binding rules in `check.py` (index, `rs`,
+  `rsline`, delivery and drawings only under `daily.`; fundamentals and news
+  at the bar, never under `daily.`; `daily.` refused on daily). Reference:
+  `docs/rule-dsl.md` ("Intraday timeframes").
+- **Conformance** `tests/test_dsl_intraday_conformance.py`
+  (`dsl_fixtures.intraday_universe`: synthetic minutes through the real
+  resampler on NSE 26 Feb-6 Mar 2024 (2 Mar DR pause) and 28 Oct-6 Nov 2024
+  (1 Nov Muhurat), XNYS 20 Nov-4 Dec 2024 (29 Nov half day)): 25 rules and
+  7 expressions point = vector at every 5m bar (both symbols), every 15m and
+  60m bar (NSE), 5 rules on 1m; perturbing later bars, today's and later
+  daily bars, benchmark, facts and news changes nothing up to `t`;
+  `daily.close` equals the previous session's close at every bar; refusals.
+  `DSL_CONFORMANCE_STRIDE` applies. About 20 s locally.
+- **Setups and checks.** `SetupIn`/`SetupVersionIn` take `timeframe` and
+  `feed` (a daily version with a feed 422); `RuleCheckIn.timeframe`,
+  `RuleCheckOut.timeframe`, `uses` may hold `daily_bars`.
+  `store.version_rule(version)` compiles a version for its timeframe. Daily
+  consumers refuse an intraday version: the screener and screens 400,
+  screen runs skip it, `_resolve_rule(..., timeframe)` raises
+  `StrategyError` (rotations, scan event studies, drills 400).
+- **Backtests** (`strategy_run._intraday_input`, `strategy.run_strategy`
+  with `SymbolInput.sessions`/`adv`, `flatten_at_close`,
+  `same_day_schedule`, `periods_per_year`): rules in `docs/SIMULATION.md`
+  ("Intraday strategy backtests (A6.4)"). `periods_per_year(ticker, tf)`;
+  `report_card.build(periods_per_year=, session_days=)`;
+  `engine._sharpe`, `report.sharpe_stats/metrics/regime_split` take the
+  periods (252 default). Registry stamps: `timeframe`, `feed`,
+  `feed_badge`, `flatten_at_close`, `periods_per_year`, `at`, `entry_at`,
+  `exit_at`, `same_day`.
+- **Alerts** (`services/alerts/intraday.py`): `judge_bar(session, alert,
+  rule, data, bar_at, now=)` judges one **closed** bar in point mode (the
+  stream worker of A6.5 calls it); state per bar instant (`last_bar_at`,
+  `last_state`, `last_fired_bar_at`), same crossing, arming (`armed_at` vs
+  bar close), `once`/`every_cross` with `cooldown_sessions` counted in bars;
+  dedupe key `<alert>:<bar open UTC, minutes>Z`; events carry `bar_at`,
+  `feed`, a message with the timeframe, the bar's close in the venue's zone
+  and the feed's badge ("Replayed from stored bars, not live" for a
+  replayed feed); notifications add `bar_at` and `feed`. The nightly
+  `evaluate_pending_alerts` skips intraday versions. `stockviz.cli
+  evaluate-alerts --intraday --since <ISO> [--ticker T] [--dry-run]` judges
+  every closed stored bar from `since`, oldest first (exit 1 without
+  `--since`; not recorded in `job_runs`; not in the cron).
+- Tests: `test_a64_intraday.py`, `test_a64_intraday_migration.py`
+  (PostgreSQL up/down/up, the refusal), the conformance file above.
+
+**US feeds and the minute backfill (A6.3, M1.6).** `services/feeds/`; design:
+workspace `docs/a6-design-note.md` ("Feed and broker interface", "Owner
+decisions (26 Nov 2026)": free plans only). No migration; no web change.
+**No provider was called while building it**: every adapter is tested against
+hand-written fixtures (`tests/fixtures/feeds/`, documented shapes, invented
+numbers; never replace them with real responses).
+
+- **Interfaces** (`base.py`). `FeedProvider`: `name`, `label`,
+  `capabilities` (`Capabilities`: `history`, `stream`, `coverage` feed tags,
+  `symbols_limit`, `history_days`, `rate_limits` (`RateLimitSpec(calls,
+  per_seconds)`), `notes`), `configured`, `minute_bars(symbol, start, end)
+  -> list[FeedBar]` (bars opening in [start, end), oldest first; `FeedBar`
+  symbol, `ts` = the bar's open as aware UTC, Decimal OHLC, int volume,
+  `feed` iex|sip|kite|file, `source`) and `stream(symbols) -> AsyncIterator[Tick
+  | FeedBar]` (`Tick`: symbol, ts, price, size, feed, `replayed`, `label`
+  "Replayed"/"Live"). `reconnecting(connect, backoff=Backoff(base, factor,
+  cap, max_attempts), sleep, on_reconnect)` wraps a stream: reconnects after
+  a network or rate error (at least its `retry_after`), resets after an
+  item, raises an auth/provider error at once. `BrokerProvider`: `status`,
+  `login_url`, `import_fills`, `export_basket`, each a `BrokerAnswer(supported,
+  reason)`; `StubBroker` (Zerodha) answers "not supported" until A6.11.
+  `registry.py`: `build_feed(name, settings)`, `FEED_NAMES`,
+  `KEY_ENV_VARS`, `BROKERS`. `us_symbol` refuses NSE/BSE, `^` indices and
+  other venues (US feeds never get an Indian symbol); Alpaca and Massive
+  write share classes `BRK.B`, Tiingo `brk-b`, StockViz keeps `BRK-B`.
+- **Errors.** `FeedError(provider, fixed message, status, retry_after)`
+  with `kind` `auth` (401, 403), `rate` (429), `network` (timeouts,
+  connection errors, 5xx), `provider` (other 4xx, bad JSON, shapes outside
+  the docs), `not_supported`. The text never holds the key, a URL query, a
+  header or the provider's body; `summary` ("Alpaca auth error") is what
+  `job_runs` keeps. `http.py::get_json` is the one HTTP edge: a token from
+  the limiter per request, a 429 retried twice after its `Retry-After`
+  (default 60 s), JSON numbers as Decimal. `FeedNotConfigured` when the key
+  is blank (raised before any request).
+- **Rate limits** (`ratelimit.py`): a token bucket per documented limit
+  (full at start), clock and sleep injected (tests use a fake clock);
+  `estimate_seconds(specs, calls)` is the plan's least waiting time.
+- **SimulatedFeed** (`simulated.py`): replays stored `intraday_bars` (any
+  feed, e.g. the owner's `file` minutes locally; `from_store(session,
+  tickers, feed=, start=, end=)` reads 1m rows only) or given `FeedBar`s.
+  One to four ticks per bar at +0/15/30/45 s: open, then low and high in
+  the bar's direction (up bar: low first), then close; a repeated price is
+  merged; volume split evenly, remainder on the last. Order by instant then
+  symbol; `start_at` skips earlier bars; `speed` x real time (0 = no
+  waiting) through an injected async sleep; `mode="bars"` yields each bar at
+  its close. Labelled "Replayed", never live. For tests and A6.5.
+- **Adapters** (history only; streams are A6.5/A6.6, `stream()` raises
+  `NotSupported` with that reason). Each is off until its key is set.
+  - **Alpaca** (`alpaca.py`, feed `iex`, or `sip`; source `alpaca_iex` /
+    `alpaca_sip`): `GET https://data.alpaca.markets/v2/stocks/{symbol}/bars`,
+    `timeframe=1Min`, `start`/`end` RFC-3339 (end inclusive; the bar at
+    `end` is dropped), `limit=10000`, `adjustment=split`, `feed`,
+    `sort=asc`, `page_token` from `next_page_token`; headers
+    `APCA-API-KEY-ID`/`APCA-API-SECRET-KEY`; rows `{t, o, h, l, c, v, n,
+    vw}`, `t` = bar start (UTC). Basic plan: 200 calls a minute, IEX for
+    recent data, 30 WebSocket symbols, history since 2016, **SIP only when
+    the query's end is at least 15 minutes old** (`SipTooRecent` before any
+    call; the backfill clips the end instead).
+  - **Tiingo** (`tiingo.py`, feed `iex`, source `tiingo_iex`):
+    `GET https://api.tiingo.com/iex/<ticker>/prices?startDate&endDate&resampleFreq=1min&columns=open,high,low,close,volume`
+    (volume only when named, IEX-only volume), in 5-day chunks;
+    `daily_bars()` reads `/tiingo/daily/<ticker>/prices` (adjusted close,
+    dividends, splits; not stored by this batch). `Authorization: Token
+    <key>`. Starter: 50 requests an hour, 1,000 a day, 500 symbols a month,
+    1 GB a month, personal use. **Unconfirmed by the docs** (check on the
+    first real run): `endDate` on IEX, the `date` format and zone (an
+    instant without an offset is refused), `date` = bar start, row caps,
+    error codes and bodies (a 200 with an object body is a provider error).
+  - **Massive** (`massive.py`, feed `sip`, source `massive`): reuses the
+    shadow adapter's `fetch_massive_minute_range`
+    (`services/ingest/providers/massive.py`): `GET
+    https://api.massive.com/v2/aggs/ticker/{T}/range/1/minute/{from}/{to}`,
+    `adjusted=true&sort=asc&limit=50000` (base aggregates), `next_url`
+    paging (its `apiKey` stripped), `Authorization: Bearer`; rows `{o, h, l,
+    c, v, vw, n, t}` (ms, window start), pre/after-market included (kept out
+    by session). 30-day chunks. Basic: 5 calls a minute, 2 years, no
+    WebSocket. The shadow adapter's messages (which may quote Massive's
+    text) become fixed ones. `MASSIVE_API_KEY` thus also enables this.
+  - **Finnhub** (`finnhub.py`): stub. Stock candles are premium (a free
+    key gets "You don't have access to this resource"), so no history;
+    the backup stream comes in A6.6, once Finnhub's own pages are read.
+- **Backfill** `stockviz.cli intraday-backfill --provider alpaca|tiingo|massive
+  --symbols T ... --from YYYY-MM-DD --to YYYY-MM-DD [--feed iex|sip]
+  [--apply]` (`backfill.py`). Exit 2 when the key is blank (nothing else
+  runs, no row). Dry run: XNYS sessions in range (regular hours, early
+  closes, none that has not opened), calls per symbol (Alpaca: pages of
+  10,000 minutes; Tiingo: 5-day chunks; Massive: 30-day chunks), the rate
+  limit and the least waiting; nothing fetched. Notes when the start is
+  clipped to 2 years (Massive) or the end to 15 minutes ago (Alpaca SIP).
+  `--apply`: per symbol, minutes inside a session span stored as
+  `interval 1m` with the feed tag, `available_at` = open + 1 minute clipped
+  at the close, others counted off-session; monthly partitions, then
+  `INSERT ... ON CONFLICT DO NOTHING RETURNING` in chunks of 1,000, one
+  commit per symbol: a rerun inserts nothing and never changes a row. A
+  ticker with no instrument is listed and skipped (add it with `ingest`).
+  An auth or rate error stops the run (the rest `skipped`); a network or
+  provider error skips that symbol. One `job_runs` row per apply,
+  `intraday-backfill-<provider>` (`FEED_BACKFILL_JOBS`), with a fixed
+  summary ("Tiingo: network error on 1 symbol(s)"). Any database (US
+  provider data, not the owner's files); not in `RECORDED_JOBS`, the cron
+  or the scheduler (a test reads `railway.ts`). Exit 1 on bad arguments or
+  a failed symbol.
+- **Status** `GET /v1/broker/feeds` (authed; `status.py`): per provider
+  `{provider, label, configured, state not_configured|configured|ok|error,
+  key_env_vars (names), capabilities, last_success_at, last_failure_at,
+  last_error}` from the newest backfill runs (`error` for 3 days, like
+  Kite's `offline`). Never a key. `/v1/status` and `/health` leave
+  `MANUAL_PROVIDER_JOBS` (Kite snapshot and the backfills) out.
+- **Sources** (official docs, read 26 Nov 2026 with WebFetch; no account
+  or key):
+  - Alpaca: https://docs.alpaca.markets/reference/stockbarsingle-1 and
+    https://docs.alpaca.markets/reference/stockbars (params, limits 1-10,000,
+    response, 400/401/403/429, `X-RateLimit-*`),
+    https://docs.alpaca.markets/docs/about-market-data-api (Basic: IEX, 30
+    symbols, 200/min, since 2016, "latest 15 minutes"),
+    https://docs.alpaca.markets/docs/market-data-faq (SIP end >= 15 minutes
+    old, bar `t` is the interval's left side, no bar without trades),
+    https://docs.alpaca.markets/docs/historical-stock-data-1,
+    https://docs.alpaca.markets/docs/real-time-stock-pricing-data and
+    https://docs.alpaca.markets/docs/streaming-market-data (for A6.6:
+    `wss://stream.data.alpaca.markets/v2/iex`, auth and subscribe
+    messages, `b` bars, error codes 402/405/406/409, one connection).
+  - Tiingo: https://www.tiingo.com/documentation/iex,
+    https://www.tiingo.com/documentation/end-of-day,
+    https://www.tiingo.com/documentation/general/connecting (token header),
+    https://www.tiingo.com/documentation/general/overview,
+    https://www.tiingo.com/about/pricing (Starter limits, internal use).
+  - Massive: https://massive.com/docs/rest/stocks/aggregates/custom-bars,
+    https://massive.com/docs/rest/quickstart (`apiKey` or Bearer),
+    https://massive.com/pricing and https://massive.com/stocks (Basic $0, 5
+    calls a minute, 2 years, minute aggregates, no WebSockets).
+  - Finnhub: https://finnhub.io/docs/api/stock-candles, `/websocket-trades`,
+    `/rate-limit` and https://finnhub.io/pricing did not render (JavaScript
+    only). Candles premium: https://github.com/finnhubio/Finnhub-API/issues/546
+    and the Grafana Finnhub data-source troubleshooting page
+    (https://grafana.com/grafana/plugins/clarity89-finnhub-datasource/docs/troubleshooting/).
+- **Env vars** (blank = off; local `.env` only, never committed):
+  `ALPACA_KEY_ID` + `ALPACA_SECRET_KEY` (both), `TIINGO_API_KEY`,
+  `MASSIVE_API_KEY` (shared with the shadow), `FINNHUB_API_KEY` (status
+  only until A6.6).
+- Tests: `test_feeds.py` (protocols, capabilities, every adapter's parsing,
+  UTC, feed tags, pagination, chunks, the SIP rule, malformed rows, error
+  classes and no key in messages or logs, 429 Retry-After, token buckets on
+  a fake clock, reconnect backoff, SimulatedFeed ticks, order, start, speed
+  and `from_store`), `test_feed_backfill.py` (plans and clipping, regular
+  minutes and availability on an early close, exit 2 without keys, dry run
+  without requests, idempotent apply and `job_runs`, auth stop, network
+  skip, US-only refusal, not in the cron, feed states and the route, status
+  and health; PostgreSQL partitions and idempotency).
 
 **Raw prices on the bars route (A3.1, M2.3).** `GET /v1/symbols/{t}/bars`
 takes `adjustment=adjusted|raw` (default `adjusted`, the split-adjusted
@@ -1523,8 +1893,15 @@ answered. Hours are the package's BSE ones. Special sessions (weekend
 Budget days, Diwali Muhurat on a weekend or on the Laxmi Pujan weekday
 holiday, live tests of new systems and of the DR site) are
 `SPECIAL_SESSIONS` in the same module, each with its source; they count as
-sessions even where the package lists a holiday, and their short hours are
-not modelled. `HISTORY_CORRECTIONS` fixes the package's history where it is
+sessions even where the package lists a holiday. Since A6.1 their hours are
+modelled where they differ (`SPECIAL_HOURS`: the Muhurat evenings, the two
+2024 DR-switch sessions with their pause, the 24 Feb 2021 close extended to
+17:00); Budget days trade the normal hours. 2023 onwards read from the
+owner's minute files, earlier ones as reported and consistent with the hourly
+files. `session_minutes(day, venue)` gives a session's open, close and
+trading spans in UTC (None on a closed day, an unknown venue or outside the
+calendar); `session_complete_at` follows the special close. US: regular
+hours only (`tests/test_intraday_calendar.py`). `HISTORY_CORRECTIONS` fixes the package's history where it is
 wrong (Muharram 2013 moved from 14 to 15 Nov). Add new ones as the exchanges announce
 them. `tests/test_india_calendar.py`.
 
@@ -1921,6 +2298,25 @@ the workspace repository and `aegis-news/docs/feed.md`. Rules:
   the end of every `aegis-sync` (also after a failed sync) and by the
   `sentiment-aggregate` CLI and scheduler job (audit AG-14). The legacy
   pipeline is gone since A0 (see "Sentiment" below).
+- **The news archive (26 Nov 2026).** `GET /v1/news/feed` and
+  `GET /v1/news/overview` (public, 60 a minute; `services/aegis/feed.py`)
+  serve the `/news` page. Feed: keyset paging over `available_at` desc,
+  `document_id` asc (`cursor`, an opaque base64url of both; a bad one is
+  400), `limit` up to 100, `total`; filters `q` (every word in the headline,
+  ILIKE with `%`/`_` escaped, at most 8 words), `tickers`, `sentiment`
+  (`unscored` = no sentiment analysis), `topic`, `source`,
+  `scope=symbols|market|all` (market with tickers is 400) and `from`/`to`
+  (UTC dates on `available_at`, never `published_at`; from > to is 400).
+  Each item carries `reactions` for up to 3 tickers: the first stored daily
+  bar whose session completed after `available_at` (event_study's rule),
+  its change on the previous close and 5 closes either side
+  (`reaction_index`); none without a later bar. Overview: `days` over the
+  whole archive (date filters ignored, so the page's brush can widen again)
+  with tone counts; `total`, sentiment, topic and source counts honour
+  every filter; `heatmap` is the 12 most-covered tickers over the 30 days
+  ending at the newest headline, each cell `count` and `net`
+  ((positive - negative) / count). Headline, source, dates and links only.
+  Tests: `tests/test_news_feed.py`.
 - **Signals (SR-8, SR-9) are retired (A2.4).** The 7-vote engine, its router
   and the `recommend` step are gone; see "The Checklist (A2.4)".
 

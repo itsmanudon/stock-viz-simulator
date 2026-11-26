@@ -98,8 +98,12 @@ def nav_returns(navs: Sequence[Decimal]) -> list[float]:
     return out
 
 
-def excess(returns: Sequence[float], risk_free_rate: float = DEFAULT_RISK_FREE_RATE) -> list[float]:
-    daily_rf = risk_free_rate / TRADING_DAYS_PER_YEAR
+def excess(
+    returns: Sequence[float],
+    risk_free_rate: float = DEFAULT_RISK_FREE_RATE,
+    periods_per_year: float = TRADING_DAYS_PER_YEAR,
+) -> list[float]:
+    daily_rf = risk_free_rate / periods_per_year
     return [r - daily_rf for r in returns]
 
 
@@ -154,18 +158,22 @@ class SharpeStats:
     kurtosis: float | None
     psr: float | None
     """PSR against a benchmark Sharpe of 0."""
+    periods_per_year: float = TRADING_DAYS_PER_YEAR
+    """A6.4: return periods a year (252 sessions; an intraday run's bars a year)."""
 
     @property
     def sharpe_annual(self) -> float:
-        return self.sharpe * math.sqrt(TRADING_DAYS_PER_YEAR)
+        return self.sharpe * math.sqrt(self.periods_per_year)
 
 
-def sharpe_stats(returns: Sequence[float]) -> SharpeStats:
-    e = excess(returns)
+def sharpe_stats(
+    returns: Sequence[float], periods_per_year: float = TRADING_DAYS_PER_YEAR
+) -> SharpeStats:
+    e = excess(returns, periods_per_year=periods_per_year)
     mean, std, skew, kurt = moments(e)
     sr = mean / std if std > 0 and len(e) >= 2 else 0.0
     value = psr(sr, 0.0, len(e), skew, kurt) if skew is not None and kurt is not None else None
-    return SharpeStats(len(e), mean, std, sr, skew, kurt, value)
+    return SharpeStats(len(e), mean, std, sr, skew, kurt, value, periods_per_year)
 
 
 def deflated(stats: SharpeStats, trials: int, variance: float | None) -> tuple[float, float | None]:
@@ -233,8 +241,11 @@ def metrics(
     trips: Sequence[Trip],
     initial_cash: Decimal,
     max_drawdown: float,
+    periods_per_year: float = TRADING_DAYS_PER_YEAR,
 ) -> list[dict[str, Any]]:
-    """The report card's metrics, each with its formula; null with a note when undefined."""
+    """The report card's metrics, each with its formula; null with a note when
+    undefined. A6.4: an intraday curve (one point per bar, datetimes) passes
+    its bars a year; holding is then fractional days."""
     dates = [d for d, _ in curve]
     navs = [n for _, n in curve]
     returns = nav_returns(navs)
@@ -248,13 +259,13 @@ def metrics(
         cagr = ratio ** (1 / years) - 1 if ratio > 0 else -1.0
     out.append(_metric("cagr", cagr, note))
 
-    e = excess(returns)
+    e = excess(returns, periods_per_year=periods_per_year)
     sortino: float | None = None
     note = "Fewer than two daily returns."
     if len(e) >= 2:
         downside = math.sqrt(sum(min(x, 0.0) ** 2 for x in e) / len(e))
         if downside > 0:
-            sortino = (sum(e) / len(e)) / downside * math.sqrt(TRADING_DAYS_PER_YEAR)
+            sortino = (sum(e) / len(e)) / downside * math.sqrt(periods_per_year)
         else:
             note = "No day fell below the risk-free rate."
     out.append(_metric("sortino", sortino, note))
@@ -289,7 +300,7 @@ def metrics(
     )
     flags = exposure_flags(dates, trips)
     out.append(_metric("exposure", sum(flags) / len(flags) if flags else None, "No sessions."))
-    holding = [(t.exit_date - t.entry_date).days for t in closed]
+    holding = [(t.exit_date - t.entry_date).total_seconds() / 86400 for t in closed]
     out.append(
         _metric("avg_holding_days", sum(holding) / len(holding) if holding else None, none_closed)
     )
@@ -366,6 +377,7 @@ def regime_split(
     curve: Sequence[tuple[date, Decimal]],
     states: Sequence[str | None],
     trips: Sequence[Trip],
+    periods_per_year: float = TRADING_DAYS_PER_YEAR,
 ) -> list[dict[str, Any]]:
     """Per regime state, the run's daily returns while it held. The return
     from session t-1 to t counts under the state known at t-1's close
@@ -393,7 +405,7 @@ def regime_split(
             continue
         r = [float(navs[t] / navs[t - 1]) - 1.0 for t in days]
         growth = math.prod(1 + x for x in r) - 1
-        stats = sharpe_stats(r)
+        stats = sharpe_stats(r, periods_per_year)
         rows.append(
             {
                 "state": state,

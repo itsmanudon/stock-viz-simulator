@@ -124,12 +124,24 @@ def list_visible(
     return list(session.exec(stmt).all())
 
 
-def _existing(session: Session, setup_id: int, rule_hash: str) -> SetupVersion | None:
+def _existing(
+    session: Session, setup_id: int, rule_hash: str, timeframe: str = "daily", feed: str = "auto"
+) -> SetupVersion | None:
     return session.exec(
         select(SetupVersion).where(
-            col(SetupVersion.setup_id) == setup_id, col(SetupVersion.rule_hash) == rule_hash
+            col(SetupVersion.setup_id) == setup_id,
+            col(SetupVersion.rule_hash) == rule_hash,
+            col(SetupVersion.timeframe) == timeframe,
+            col(SetupVersion.feed) == feed,
         )
     ).first()
+
+
+def version_rule(version: SetupVersion) -> CompiledRule:
+    """A6.4: a version's rule compiled for its own timeframe. Raises RuleError."""
+    from stockviz.services.dsl import compile_rule
+
+    return compile_rule(version.rule_text, timeframe=version.timeframe)
 
 
 def add_version(
@@ -139,13 +151,19 @@ def add_version(
     *,
     notes: str | None = None,
     timeframe: str = "daily",
+    feed: str = "auto",
     commit: bool = True,
 ) -> SavedVersion:
-    """Version n+1 of ``setup`` for ``rule``, or the version that already holds it."""
+    """Version n+1 of ``setup`` for ``rule`` on ``timeframe`` (A6.4: and
+    ``feed``), or the version that already holds that."""
     assert setup.id is not None
+    if rule.timeframe != timeframe:
+        raise ValueError(f"the rule was checked for {rule.timeframe}, not {timeframe}")
+    if timeframe == "daily" and feed != "auto":
+        raise ValueError("a daily version reads no intraday feed")
     if rule.user_scoped and (setup.is_preset or setup.user_id is None):
         raise UserScopedRule("A preset cannot read drawings: drawing() and avwap() are per user")
-    found = _existing(session, setup.id, rule.hash)
+    found = _existing(session, setup.id, rule.hash, timeframe, feed)
     if found is not None:
         return SavedVersion(found, created=False)
     newest = session.exec(
@@ -160,6 +178,7 @@ def add_version(
         canonical_text=rule.canonical_text,
         rule_hash=rule.hash,
         timeframe=timeframe,
+        feed=feed,
         notes=notes,
     )
     session.add(version)
@@ -171,7 +190,7 @@ def add_version(
     except IntegrityError:
         # A concurrent save of the same rule (or the same number): the other won.
         session.rollback()
-        found = _existing(session, setup.id, rule.hash)
+        found = _existing(session, setup.id, rule.hash, timeframe, feed)
         if found is None:
             raise
         return SavedVersion(found, created=False)
@@ -197,6 +216,7 @@ def create_setup(
     description: str | None = None,
     notes: str | None = None,
     timeframe: str = "daily",
+    feed: str = "auto",
     forked_from_version_id: int | None = None,
 ) -> tuple[Setup, SetupVersion]:
     """A new setup owned by ``user_id`` with ``rule`` as version 1, in one commit."""
@@ -211,7 +231,9 @@ def create_setup(
     )
     session.add(setup)
     session.flush()
-    saved = add_version(session, setup, rule, notes=notes, timeframe=timeframe, commit=False)
+    saved = add_version(
+        session, setup, rule, notes=notes, timeframe=timeframe, feed=feed, commit=False
+    )
     session.commit()
     session.refresh(setup)
     session.refresh(saved.version)
@@ -227,10 +249,8 @@ def fork(
     name: str | None = None,
 ) -> tuple[Setup, SetupVersion]:
     """Copy ``version`` of ``source`` into a new setup owned by ``user_id``."""
-    from stockviz.services.dsl import compile_rule
-
     assert version.id is not None
-    rule = compile_rule(version.rule_text)
+    rule = version_rule(version)
     if rule.user_scoped and source.user_id != user_id:
         raise UserScopedRule("This setup reads its owner's drawings; only its owner can fork it")
     return create_setup(
@@ -242,6 +262,7 @@ def fork(
         description=source.description,
         notes=version.notes,
         timeframe=version.timeframe,
+        feed=version.feed,
         forked_from_version_id=version.id,
     )
 
@@ -271,6 +292,7 @@ __all__ = [
     "get_visible",
     "latest_versions",
     "list_visible",
+    "version_rule",
     "versions_of",
     "visible",
     "visible_version",

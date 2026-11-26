@@ -11,7 +11,9 @@ import { auth } from "@/auth";
 import { getBars } from "@/lib/api/bars";
 import { ApiError, apiPost } from "@/lib/api/client";
 import { AuthedApiError, authedPost } from "@/lib/api/server";
-import type { Bar } from "@/lib/api/types";
+import { createSetup } from "@/lib/api/setups-server";
+import { getSymbol } from "@/lib/api/symbols";
+import type { ApiInterval, Bar, IntradayInfo } from "@/lib/api/types";
 import type { StrategyRequest, StrategyResult } from "@/lib/rule-strategy";
 import { describeRuleError } from "@/lib/screener-view";
 import { checkVisitorLimit } from "@/lib/visitor-limit";
@@ -63,11 +65,57 @@ export async function runStrategyAction(request: StrategyRequest): Promise<Strat
   }
 }
 
-/** Daily bars for the trades chart, from `from` to `to`. */
-export async function strategyBarsAction(ticker: string, from: string, to: string): Promise<Bar[]> {
+/**
+ * Bars for the trades chart, from `from` to `to` (dates). A6.4: intraday bars
+ * select by their open instant, so `to` reaches the end of its day.
+ */
+export async function strategyBarsAction(
+  ticker: string,
+  from: string,
+  to: string,
+  interval: ApiInterval = "1d",
+): Promise<Bar[]> {
   try {
-    return await getBars(ticker, { from, to, limit: 5000 });
+    if (interval === "1d") return await getBars(ticker, { from, to, limit: 5000 });
+    return await getBars(ticker, { from, to: `${to}T23:59:59`, limit: 5000, interval });
   } catch {
     return [];
+  }
+}
+
+/** A6.4: which intraday intervals a symbol has (null: daily only). */
+export async function intradayInfoAction(ticker: string): Promise<IntradayInfo | null> {
+  try {
+    return (await getSymbol(ticker)).intraday ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export type SaveRuleState = { saved?: { id: number; name: string }; error?: string };
+
+/** A6.4: save the entry rule as an alert setup on its timeframe (signed in). */
+export async function saveRuleSetupAction(input: {
+  name: string;
+  rule: string;
+  timeframe: NonNullable<StrategyRequest["timeframe"]>;
+}): Promise<SaveRuleState> {
+  const name = input.name.trim().slice(0, 120);
+  if (!name) return { error: "Give the setup a name." };
+  if (!input.rule.trim()) return { error: "Write a rule first." };
+  try {
+    const setup = await createSetup({
+      name,
+      rule: input.rule.trim(),
+      kind: "alert",
+      timeframe: input.timeframe,
+    });
+    return { saved: { id: setup.id, name: setup.name } };
+  } catch (err) {
+    if (err instanceof AuthedApiError && err.status === 422) {
+      return { error: "The rule does not compile on this timeframe." };
+    }
+    if (err instanceof AuthedApiError && err.status === 409) return { error: err.message };
+    return { error: "Sign in to save setups." };
   }
 }

@@ -44,7 +44,24 @@ export type SymbolDetail = Symbol & {
   benchmark?: string | null;
   benchmark_name?: string | null;
   is_indian?: boolean;
+  /** A6.2: the intraday bars stored for the symbol (best feed), or null. */
+  intraday?: IntradayInfo | null;
 };
+
+/** A6.2: which intraday intervals a symbol has (`SymbolDetailOut.intraday`). */
+export type IntradayInfo = {
+  feed: string;
+  badge: string;
+  intervals: ("1m" | "5m" | "15m" | "30m" | "60m")[];
+  first: string;
+  last: string;
+  venue: string;
+  time_zone: string;
+  feeds: string[];
+};
+
+/** The intervals the bars, indicators and AVWAP routes take. */
+export type ApiInterval = "1d" | "1wk" | "1mo" | "1m" | "5m" | "15m" | "30m" | "60m";
 
 export type EarningsEvent = {
   id: number;
@@ -74,6 +91,16 @@ export type Bar = {
   /** A1.4a, weekly/monthly only: daily bars in the period, and whether it is not over. */
   sessions?: number | null;
   partial?: boolean | null;
+  /**
+   * A6.2, intraday only: `ts` is the bar's open (UTC), `closed_at` its close,
+   * `session_date` the venue's date of its session, `feed`/`badge` its source
+   * and `minutes` the stored minutes in it.
+   */
+  closed_at?: string | null;
+  session_date?: string | null;
+  feed?: string | null;
+  badge?: string | null;
+  minutes?: number | null;
 };
 
 /** "mixed" (strong signals both ways) comes from Aegis News (audit AG-4). */
@@ -130,6 +157,8 @@ export type Indicators = {
   /** A1.4a: the interval they ran on; a partial newest bar is left out of the inputs. */
   interval?: string;
   partial_bar_excluded?: string | null;
+  /** A6.2: the intraday feed they ran on. */
+  feed?: string | null;
 };
 
 /** A3.4: one study parameter and its bounds, from `/v1/indicators/catalog`. */

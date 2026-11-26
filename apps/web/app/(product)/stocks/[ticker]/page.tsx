@@ -56,7 +56,7 @@ import {
   getPortfolio,
   listOrders,
 } from "@/lib/api/trading";
-import type { Indicators } from "@/lib/api/types";
+import type { Bar, Indicators } from "@/lib/api/types";
 import { type WatchlistList, listWatchlists } from "@/lib/api/watchlist";
 import { type ChartEvent, eventBarIndex, mergeEvents, resolveEventTypes } from "@/lib/chart-events";
 import { parseChartView } from "@/lib/chart-view";
@@ -67,6 +67,7 @@ import {
   type ChartPane,
   STOCK_TIMEFRAMES,
   type StockIndicator,
+  type StockInterval,
   type StockTimeframe,
   barsForLookback,
   buildStockChartHref,
@@ -74,17 +75,26 @@ import {
   calculatePeriodReturnPct,
   calculatePositionReturnPct,
   chartLayers,
+  clipBundleFrom,
   deriveTrailingBarMetrics,
   formatCloseDate,
+  intradayBarsForLookback,
+  intradayWords,
+  isIntradayInterval,
+  lastSessions,
   macdSeries,
+  parseIntradayLookback,
   parseStockIndicators,
   parseStockInterval,
+  sessionsForLookback,
   studyFor,
 } from "@/lib/stock-workspace";
 import { titleCase } from "@/lib/title-case";
 import { checkVisitorLimit } from "@/lib/visitor-limit";
 
-const TIMEFRAME_DAYS: Record<StockTimeframe, number> = {
+type DailyTimeframe = (typeof STOCK_TIMEFRAMES)[number];
+
+const TIMEFRAME_DAYS: Record<DailyTimeframe, number> = {
   "1M": 22,
   "3M": 65,
   "6M": 130,
@@ -93,8 +103,8 @@ const TIMEFRAME_DAYS: Record<StockTimeframe, number> = {
   MAX: 5000,
 };
 
-function parseTimeframe(raw: string | undefined): StockTimeframe {
-  return STOCK_TIMEFRAMES.includes(raw as StockTimeframe) ? (raw as StockTimeframe) : "1Y";
+function parseTimeframe(raw: string | undefined): DailyTimeframe {
+  return STOCK_TIMEFRAMES.includes(raw as DailyTimeframe) ? (raw as DailyTimeframe) : "1Y";
 }
 
 function ticketPosition(position: Position, portfolio: Portfolio): TicketPosition {
@@ -137,6 +147,7 @@ export default async function StockPage({
     scale?: string;
     adjustment?: string;
     events?: string;
+    to?: string;
   }>;
 }) {
   const [{ ticker: rawTicker }, query] = await Promise.all([params, searchParams]);
@@ -145,7 +156,6 @@ export default async function StockPage({
     return <VisitorLimitNotice retryAfterSeconds={visitorLimit.retryAfterSeconds} />;
   }
   const ticker = rawTicker.toUpperCase();
-  const timeframe = parseTimeframe(query.tf);
   // A3.4: the catalog's parameter bounds validate the URL's keys (a failed
   // call keeps the studies at most at their parameter count, unbounded).
   const catalog = await getIndicatorCatalog().catch(() => null);
@@ -153,11 +163,6 @@ export default async function StockPage({
     query.indicators,
     catalog ? Object.fromEntries(catalog.map((c) => [c.key, c.parameters])) : null,
   );
-  const timeframeDays = TIMEFRAME_DAYS[timeframe];
-  // A1.4a: the bar interval (daily, weekly, monthly) is separate from the
-  // lookback; the limit counts bars of that interval.
-  const interval = parseStockInterval(query.interval);
-  const chartLimit = barsForLookback(timeframeDays, interval);
 
   let symbol: SymbolDetail;
   try {
@@ -166,6 +171,33 @@ export default async function StockPage({
     if (error instanceof ApiError && error.status === 404) notFound();
     throw error;
   }
+
+  // A1.4a: the bar interval (daily, weekly, monthly) is separate from the
+  // lookback; the limit counts bars of that interval. A6.2: intraday
+  // intervals only where the symbol has intraday bars (else daily, said).
+  const intradayOffered = symbol.intraday?.intervals ?? [];
+  const requestedInterval = parseStockInterval(query.interval);
+  const intervalUnavailable =
+    isIntradayInterval(requestedInterval) && !intradayOffered.includes(requestedInterval);
+  const interval: StockInterval = intervalUnavailable ? "1d" : requestedInterval;
+  const intraday = isIntradayInterval(interval);
+  const timeZone = symbol.intraday?.time_zone ?? "UTC";
+  // A6.2: `?to=YYYY-MM-DD` ends an intraday window on that session date (the
+  // owner's files end in Feb 2026); absent = the newest stored bar.
+  const toDate = intraday ? parseToDate(query.to) : null;
+  const intradayTo = toDate ? endOfVenueDay(toDate) : null;
+  const dailyTimeframe = parseTimeframe(query.tf);
+  const timeframe: StockTimeframe = isIntradayInterval(interval)
+    ? parseIntradayLookback(query.tf, interval)
+    : dailyTimeframe;
+  const timeframeDays = TIMEFRAME_DAYS[dailyTimeframe];
+  const chartLimit = isIntradayInterval(interval)
+    ? intradayBarsForLookback(
+        parseIntradayLookback(query.tf, interval),
+        interval,
+        Boolean(symbol.is_indian),
+      )
+    : barsForLookback(timeframeDays, interval);
 
   // A3.1: raw prices only where the API stores them; otherwise adjusted.
   const requestedView = parseChartView(query);
@@ -176,10 +208,15 @@ export default async function StockPage({
       : requestedView;
   const rawRequestedButMissing = requestedView.adjustment === "raw" && !hasRaw;
 
-  const barsPromise = getBars(ticker, { interval, limit: chartLimit });
+  // A6.2: an intraday 404 (no minutes to build the interval) is an empty chart.
+  const barsPromise = intraday
+    ? getBars(ticker, { interval, limit: chartLimit, to: intradayTo ?? undefined }).catch(
+        () => [] as Bar[],
+      )
+    : getBars(ticker, { interval, limit: chartLimit });
   // The header's period return and the metrics stay on adjusted prices.
   const chartBarsPromise =
-    view.adjustment === "raw"
+    view.adjustment === "raw" && !intraday
       ? getBars(ticker, { interval, limit: chartLimit, adjustment: "raw" }).catch(() => null)
       : barsPromise;
   // The metrics strip (52-week range, daily RSI) always reads daily bars.
@@ -191,6 +228,7 @@ export default async function StockPage({
     names: requestedIndicators,
     interval,
     limit: chartLimit,
+    to: intraday ? (intradayTo ?? undefined) : undefined,
   }).catch(() => ({ ticker, series: {}, macd: null, meta: {} }) as Indicators);
   const dailyRsiPromise =
     interval === "1d"
@@ -198,10 +236,10 @@ export default async function StockPage({
       : getIndicators(ticker, { names: ["rsi_14"], limit: 22 }).catch(() => null);
 
   const [
-    bars,
+    loadedBars,
     rawChartBars,
     rangeBars,
-    indicatorBundle,
+    loadedBundle,
     dailyRsiBundle,
     news,
     session,
@@ -235,6 +273,15 @@ export default async function StockPage({
     getRelativeStrength(ticker).catch(() => null as RelativeStrength | null),
   ]);
 
+  // A6.2: an intraday lookback is whole sessions ("1D" is the last session,
+  // a Muhurat evening included), and its indicators start with its first bar.
+  const bars = isIntradayInterval(interval)
+    ? lastSessions(loadedBars, sessionsForLookback(parseIntradayLookback(query.tf, interval)))
+    : loadedBars;
+  const indicatorBundle =
+    isIntradayInterval(interval) && bars.length
+      ? clipBundleFrom(loadedBundle, bars[0].ts)
+      : loadedBundle;
   const signedIn = Boolean(session?.user?.id);
 
   // A3.5: chart events over the chart's range (to today, so a headline after
@@ -250,7 +297,7 @@ export default async function StockPage({
     chartRange && signedIn && eventTypes.includes("fill")
       ? getMyFills(ticker, chartRange).catch(() => null)
       : Promise.resolve(null),
-    symbol.is_indian
+    symbol.is_indian && !isIntradayInterval(interval)
       ? getDelivery(ticker, interval, chartRange?.from).catch(() => null as Delivery | null)
       : Promise.resolve(null),
   ]);
@@ -316,7 +363,10 @@ export default async function StockPage({
 
   const latestClose = symbol.latest ? Number(symbol.latest.close) : null;
   const firstClose = bars[0] ? Number(bars[0].close) : null;
-  const periodReturnPct = calculatePeriodReturnPct(firstClose, latestClose);
+  // A6.2: an intraday lookback's return runs to its own last bar (the latest
+  // daily close may be from another day, or absent).
+  const periodEnd = intraday ? (bars.at(-1) ? Number(bars.at(-1)?.close) : null) : latestClose;
+  const periodReturnPct = calculatePeriodReturnPct(firstClose, periodEnd);
   const metrics = deriveTrailingBarMetrics(rangeBars);
   // A3.4: the first RSI and MACD on the chart get their own panes, whatever
   // their parameters; another instance draws in a pane of its own.
@@ -328,6 +378,7 @@ export default async function StockPage({
   const latestRsi = dailyRsiBundle?.series.rsi_14?.at(-1)?.value ?? null;
   const partialExcluded =
     interval !== "1d" && selectedIndicators.length > 0 && indicatorBundle.partial_bar_excluded;
+  const sourceFeed = intraday ? (bars.at(-1)?.feed ?? symbol.intraday?.feed ?? null) : null;
   // Phase 6.6: overlays and panes by each indicator's registry pane.
   const { overlays: overlaySeries, panes: studyPanes } = chartLayers(
     indicatorBundle,
@@ -348,9 +399,11 @@ export default async function StockPage({
     studyFor(p.name)?.key === "rsline" ? { ...p, label: `RS line vs ${benchmarkLabel}` } : p,
   );
   // A3.5: delivery % and its 20-day average, mounted by default on NSE/BSE charts.
-  const deliveryPane = deliveryChartPane(delivery, bars, interval);
+  const deliveryPane = isIntradayInterval(interval)
+    ? null
+    : deliveryChartPane(delivery, bars, interval);
   if (deliveryPane) indicatorPanes.push(deliveryPane);
-  const deliveryEmpty = symbol.is_indian && !deliveryPane;
+  const deliveryEmpty = symbol.is_indian && !deliveryPane && !intraday;
   // A raw request that failed falls back to the adjusted bars, and says so.
   const rawFailed = view.adjustment === "raw" && rawChartBars === null;
   const showingRaw = view.adjustment === "raw" && rawChartBars !== null;
@@ -404,6 +457,7 @@ export default async function StockPage({
               hasRaw={hasRaw}
               catalog={catalog}
               signedIn={signedIn}
+              intradayIntervals={intradayOffered}
             />
             <div className="p-1.5 sm:p-3">
               {chartBars.length && !showingRaw ? (
@@ -425,6 +479,8 @@ export default async function StockPage({
                   scale={view.scale}
                   events={chartEvents}
                   currency={symbol.currency}
+                  timeZone={timeZone}
+                  sourceFeed={sourceFeed}
                 />
               ) : chartBars.length ? (
                 <PriceChart
@@ -444,11 +500,40 @@ export default async function StockPage({
                   events={chartEvents}
                   currency={symbol.currency}
                 />
-              ) : (
-                <p className="py-24 text-center text-sm text-muted-foreground">
-                  No price history is available for this timeframe.
+              ) : intraday ? (
+                <p
+                  className="py-24 text-center text-sm text-muted-foreground"
+                  data-testid="intraday-empty"
+                >
+                  No minute bars for this symbol in this range.
                 </p>
+              ) : (
+                <div className="py-24 text-center text-sm text-muted-foreground">
+                  <p>No price history is available for this timeframe.</p>
+                  {intradayOffered.length ? (
+                    <p className="mt-1 text-xs text-text-tertiary" data-testid="daily-missing-note">
+                      No daily bars are stored for {ticker}, but intraday bars are: choose{" "}
+                      {intradayOffered.map((i) => (i === "60m" ? "1h" : i)).join(", ")} above.
+                    </p>
+                  ) : null}
+                </div>
               )}
+              {toDate ? (
+                <p className="px-1 pt-1 text-2xs text-text-tertiary" data-testid="intraday-to">
+                  Bars through {formatCloseDate(toDate)}.{" "}
+                  <Link href={activeStockUrl} className="underline hover:text-foreground">
+                    Back to the latest bars
+                  </Link>
+                </p>
+              ) : null}
+              {intervalUnavailable ? (
+                <p
+                  className="px-1 pt-1 text-2xs text-text-tertiary"
+                  data-testid="interval-fallback"
+                >
+                  {ticker} has no intraday bars at that interval, so the chart shows daily bars.
+                </p>
+              ) : null}
               {deliveryEmpty ? (
                 <div
                   className="mx-1 mt-2 flex items-baseline gap-2 rounded-sm border border-dashed border-border-muted px-3 py-2 text-2xs"
@@ -483,8 +568,9 @@ export default async function StockPage({
               ) : null}
               {partialExcluded ? (
                 <p className="px-1 pt-1 text-2xs text-text-tertiary">
-                  Indicators run on {interval === "1wk" ? "weekly" : "monthly"} bars and leave out
-                  the partial {interval === "1wk" ? "week" : "month"} until it closes.
+                  {isIntradayInterval(interval)
+                    ? `Indicators run on ${intradayWords(interval)} bars and leave out the partial bar until it closes.`
+                    : `Indicators run on ${interval === "1wk" ? "weekly" : "monthly"} bars and leave out the partial ${interval === "1wk" ? "week" : "month"} until it closes.`}
                 </p>
               ) : null}
             </div>
@@ -574,6 +660,21 @@ export default async function StockPage({
       </section>
     </div>
   );
+}
+
+/** A `?to=` date ("YYYY-MM-DD"), or null when it is not one. */
+function parseToDate(raw: string | undefined): string | null {
+  return raw && /^\d{4}-\d{2}-\d{2}$/.test(raw) && !Number.isNaN(Date.parse(raw)) ? raw : null;
+}
+
+/**
+ * The last instant (naive UTC) a venue date's intraday bars open by. Every
+ * venue the app trades holds its regular session inside one UTC day (NSE
+ * 03:45-10:00, Muhurat evenings to 13:45; New York to 21:00), so the end of
+ * the UTC day is enough.
+ */
+function endOfVenueDay(date: string): string {
+  return `${date}T23:59:00`;
 }
 
 /** Delivery points placed on the chart's bars (the events' period rule), or null with none. */

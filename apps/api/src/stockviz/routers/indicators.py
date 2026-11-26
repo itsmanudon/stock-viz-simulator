@@ -11,12 +11,19 @@ the daily ones, with the same warm-up rule counted in output bars. A partial
 newest bar (its week or month not over at the venue) is left out of the
 inputs: no indicator value is computed on a period still running, and the
 response names the bar it left out in ``partial_bar_excluded``.
+
+``interval=1m|5m|15m|30m|60m`` (A6.2) runs the registry on the intraday bars
+the bars route returns (same feed rule, same resampling), warmed up on the
+intraday bars before the window, never on daily ones. A partial newest bar is
+left out the same way. Studies that read the venue index (the RS line) get
+no index on intraday bars (its daily close would be a value from later in
+the day), so their series is empty.
 """
 
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Annotated
+from typing import Annotated, Literal
 
 import pandas as pd
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -25,6 +32,7 @@ from sqlmodel import Session, select
 from stockviz.db import get_session
 from stockviz.limiter import limiter
 from stockviz.models import PriceBar, Symbol
+from stockviz.routers.bars import intraday_bars, naive_utc
 from stockviz.schemas import (
     ChecklistEvidenceOut,
     IndicatorCatalogItemOut,
@@ -34,6 +42,7 @@ from stockviz.schemas import (
     UniverseOut,
 )
 from stockviz.services.backtest.universe import evidence_universe
+from stockviz.services.bars.intraday import INTERVAL_MINUTES
 from stockviz.services.bars.load import load_resampled
 from stockviz.services.indicator_view import compute_bundle
 from stockviz.services.indicators import engine
@@ -168,10 +177,11 @@ def get_indicators(
     ticker: str,
     session: SessionDep,
     names: Annotated[str, Query(description="e.g. sma_20,rsi_14,macd,bb_20_2")],
-    interval: Annotated[str, Query(pattern=r"^(1d|1wk|1mo)$")] = "1d",
+    interval: Annotated[str, Query(pattern=r"^(1d|1wk|1mo|1m|5m|15m|30m|60m)$")] = "1d",
     from_: Annotated[datetime | None, Query(alias="from")] = None,
     to: Annotated[datetime | None, Query()] = None,
     limit: Annotated[int, Query(ge=1, le=MAX_BARS)] = 1000,
+    feed: Annotated[Literal["iex", "sip", "kite", "file"] | None, Query()] = None,
 ) -> IndicatorsOut:
     """Indicators over a window of bars, warmed up on the bars before it (RS-1).
 
@@ -184,6 +194,8 @@ def get_indicators(
         raise HTTPException(status_code=404, detail=f"Symbol {ticker!r} not found")
 
     parsed = _parse_names(names)
+    if interval in INTERVAL_MINUTES:
+        return _intraday_indicators(session, ticker, interval, feed, parsed, from_, to, limit)
     if interval != "1d":
         return _resampled_indicators(session, ticker, interval, parsed, from_, to, limit)
 
@@ -271,3 +283,48 @@ def _resampled_indicators(
         bench=_bench_closes(session, ticker) if _needs_bench(parsed) else None,
     )
     return bundle.model_copy(update={"interval": interval, "partial_bar_excluded": excluded})
+
+
+def _intraday_indicators(
+    session: Session,
+    ticker: str,
+    interval: str,
+    feed: str | None,
+    parsed: list[engine.Request],
+    from_: datetime | None,
+    to: datetime | None,
+    limit: int,
+) -> IndicatorsOut:
+    """A6.2: the registry on intraday bars, warmed up on earlier intraday bars."""
+    lookback = max(r.lookback for r in parsed)
+    start, end = naive_utc(from_), naive_utc(to)
+    # Load from the start of the warm-up: the window's bars plus ``lookback``
+    # before them (``from`` filters after, so the warm-up is not cut off).
+    bars = intraday_bars(session, ticker, interval, feed, None, end, limit + lookback + 1)
+    excluded = None
+    if bars and bars[-1].partial:
+        excluded = bars[-1].ts
+        bars = bars[:-1]
+    in_range = [i for i, b in enumerate(bars) if start is None or b.ts >= start][-limit:]
+    if in_range:
+        first, last = in_range[0], in_range[-1]
+        rows, warmup = bars[first : last + 1], bars[max(0, first - lookback) : first]
+    else:
+        rows, warmup = [], []
+    ohlcv = [(r.ts, r.open, r.high, r.low, r.close, r.volume) for r in warmup + rows]
+    bundle = compute_bundle(
+        ticker,
+        interval,
+        parsed,
+        ohlcv,
+        window_start=rows[0].ts if rows else None,
+        warmup_bars=len(warmup),
+        bench=None,
+    )
+    return bundle.model_copy(
+        update={
+            "interval": interval,
+            "partial_bar_excluded": excluded,
+            "feed": (rows or bars)[0].feed if (rows or bars) else None,
+        }
+    )

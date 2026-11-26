@@ -127,7 +127,15 @@ export class DrawingsPrimitive implements ISeriesPrimitive<Time> {
     return {
       interval: state.interval,
       barDates: state.barDates,
-      xOfLogical: (logical) => timeScale.logicalToCoordinate(logical as Logical),
+      // 5.3 maps a fractional logical index to 0, so interpolate between
+      // the whole bars around it (an anchor dated between two bars, A6.2 find).
+      xOfLogical: (logical) => {
+        const lo = Math.floor(logical);
+        const a = timeScale.logicalToCoordinate(lo as Logical);
+        if (logical === lo || a === null) return a;
+        const b = timeScale.logicalToCoordinate((lo + 1) as Logical);
+        return b === null ? null : a + (b - a) * (logical - lo);
+      },
       yOfPrice: (price) => series.priceToCoordinate(price),
       width: timeScale.width(),
       height: pane?.getHeight() ?? 0,

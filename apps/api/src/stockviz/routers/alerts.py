@@ -83,8 +83,8 @@ def _rule_params(session: Session, version_id: int, user_id: int) -> dict:
     assert setup is not None
     if setup.archived_at is not None:
         raise HTTPException(status.HTTP_409_CONFLICT, "That setup is archived")
-    rule = compile_or_422(version.rule_text)
-    return {
+    rule = compile_or_422(version.rule_text, version.timeframe)
+    params = {
         "setup_id": setup.id,
         "setup_name": setup.name,
         "version": version.version,
@@ -92,6 +92,10 @@ def _rule_params(session: Session, version_id: int, user_id: int) -> dict:
         "hash": rule.hash,
         "preset": setup.is_preset,
     }
+    if version.timeframe != "daily":  # A6.4: judged per closed intraday bar
+        params["timeframe"] = version.timeframe
+        params["feed"] = version.feed
+    return params
 
 
 def _owned(session: Session, alert_id: int, user_id: int) -> Alert:

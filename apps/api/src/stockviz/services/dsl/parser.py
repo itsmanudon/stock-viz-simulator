@@ -37,7 +37,7 @@ _FRIENDLY = {
     "ADD_OP": "'+' or '-'",
     "MUL_OP": "'*' or '/'",
     "MINUS": "'-'",
-    "TIMEFRAME": "weekly or monthly",
+    "TIMEFRAME": "daily, weekly or monthly",
     "_AND": "and",
     "_OR": "or",
     "_NOT": "not",
@@ -149,7 +149,7 @@ class _Build(Transformer):
         expr, name = items
         if isinstance(expr, ast.Ref) and expr.output is None:
             return ast.Ref(expr.kind, expr.label, str(name), pos=expr.pos)
-        if isinstance(expr, ast.Name) and expr.name in ("weekly", "monthly"):
+        if isinstance(expr, ast.Name) and expr.name in ("daily", "weekly", "monthly"):
             raise RuleError("syntax", "timeframe prefixes do not nest", *(expr.pos or (None, None)))
         if not isinstance(expr, ast.Call) or expr.output is not None:
             raise RuleError(

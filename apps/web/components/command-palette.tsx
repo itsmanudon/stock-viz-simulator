@@ -36,6 +36,7 @@ import {
   type RecentEntry,
   buildCommands,
   filterCommands,
+  newsCommandsFor,
   pushRecent,
   readRecents,
   resolveCommandHref,
@@ -257,6 +258,11 @@ export function CommandPalette({
           id: "symbols",
           label: "Symbols",
           options: results.map((r) => symbolOption(r, "q")),
+        });
+        out.push({
+          id: "symbol-news",
+          label: "News",
+          options: newsCommandsFor(results.map((r) => r.ticker)).map((c) => commandOption(c, "q")),
         });
       }
       return out;

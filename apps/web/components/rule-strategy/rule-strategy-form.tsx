@@ -8,18 +8,23 @@
  * and your own setups work. Ctrl/Cmd+Enter runs it from any field.
  */
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
+  type SaveRuleState,
   type StrategyRunState,
+  intradayInfoAction,
   runStrategyAction,
+  saveRuleSetupAction,
 } from "@/app/(product)/backtest/strategy-actions";
 import { ResearchEmptyState } from "@/components/research-page-header";
 import { RuleFieldEditor, type StrategySetupOption } from "@/components/rule-strategy/rule-field";
 import { RuleStrategyResults } from "@/components/rule-strategy/rule-strategy-results";
+import { TimeframePicker } from "@/components/rule-strategy/timeframe-picker";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import type { IntradayInfo } from "@/lib/api/types";
 import {
   type BacktestSymbol,
   defaultBacktestRange,
@@ -30,8 +35,11 @@ import { HOLDOUT_OPTIONS, type HoldoutMode } from "@/lib/report-card";
 import {
   type StrategyForm,
   type StrategyRequest,
+  type StrategyTimeframe,
+  TIMEFRAME_LABEL,
   buildStrategyRequest,
   formProblem,
+  isIntradayTimeframe,
 } from "@/lib/rule-strategy";
 
 export type StrategyWatchlist = { id: number; name: string; count: number };
@@ -77,6 +85,8 @@ export function initialStrategyForm(
     direction: "long",
     shortable: "",
     holdout: "last_20pct",
+    timeframe: "daily",
+    flattenAtClose: false,
   };
 }
 
@@ -87,6 +97,8 @@ export function RuleStrategyForm({
   watchlists,
   signedIn,
   run = runStrategyAction,
+  loadIntraday = intradayInfoAction,
+  saveRule = saveRuleSetupAction,
 }: {
   symbols: BacktestSymbol[];
   initialTicker?: string;
@@ -94,6 +106,8 @@ export function RuleStrategyForm({
   watchlists: StrategyWatchlist[];
   signedIn: boolean;
   run?: (request: StrategyRequest) => Promise<StrategyRunState>;
+  loadIntraday?: (ticker: string) => Promise<IntradayInfo | null>;
+  saveRule?: typeof saveRuleSetupAction;
 }) {
   const lastCloseOf = useMemo(
     () => new Map(symbols.map((s) => [s.ticker, s.lastClose])),
@@ -116,6 +130,34 @@ export function RuleStrategyForm({
   const onEntryValidity = useCallback((v: boolean) => setEntryValid(v), []);
   const onExitValidity = useCallback((v: boolean) => setExitValid(v), []);
   const problem = formProblem(form, entryValid && exitValid);
+  const timeframe: StrategyTimeframe = form.timeframe ?? "daily";
+  const intraday = isIntradayTimeframe(timeframe);
+
+  // A6.4: the intraday intervals the chosen symbol has (one symbol only).
+  const [intradayInfo, setIntradayInfo] = useState<{
+    ticker: string;
+    info: IntradayInfo | null;
+  } | null>(null);
+  const infoTicker = form.universeKind === "ticker" ? form.ticker : "";
+  useEffect(() => {
+    if (!infoTicker) return;
+    let live = true;
+    loadIntraday(infoTicker).then((info) => {
+      if (!live) return;
+      setIntradayInfo({ ticker: infoTicker, info });
+      setForm((f) =>
+        f.timeframe === "daily" || info?.intervals.includes(f.timeframe as never)
+          ? f
+          : { ...f, timeframe: "daily" },
+      );
+    });
+    return () => {
+      live = false;
+    };
+  }, [infoTicker, loadIntraday]);
+  const info = intradayInfo?.ticker === infoTicker ? intradayInfo.info : null;
+  const [saveName, setSaveName] = useState("");
+  const [saved, setSaved] = useState<SaveRuleState>({});
 
   async function submit() {
     if (problem || pending) return;
@@ -178,8 +220,8 @@ export function RuleStrategyForm({
             Rule strategy
           </h2>
           <p className="mt-1 text-xs leading-5 text-text-tertiary">
-            Rules are judged on each completed daily bar; orders fill on the next bar. A missing
-            value is unknown and does nothing.
+            Rules are judged on each completed bar of the timeframe; orders fill on the next bar. A
+            missing value is unknown and does nothing.
           </p>
         </div>
         <form
@@ -190,6 +232,14 @@ export function RuleStrategyForm({
             void submit();
           }}
         >
+          <TimeframePicker
+            id="rs-timeframe"
+            value={timeframe}
+            onChange={(tf) => set("timeframe", tf)}
+            intervals={form.universeKind === "ticker" ? info?.intervals : null}
+            badge={info?.badge}
+            loading={form.universeKind === "ticker" && intradayInfo?.ticker !== infoTicker}
+          />
           <RuleFieldEditor
             label="Entry rule"
             hint="Enter when this turns true."
@@ -197,7 +247,39 @@ export function RuleStrategyForm({
             onChange={(v) => set("entry", v)}
             onValidity={onEntryValidity}
             setups={setups}
+            timeframe={timeframe}
           />
+          {signedIn && form.entry.text.trim() && form.entry.versionId === null ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <Input
+                aria-label="Name for the entry rule's setup"
+                value={saveName}
+                onChange={(e) => setSaveName(e.target.value)}
+                placeholder="Name the entry rule"
+                className="h-8 max-w-[14rem] text-xs"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-8 rounded-sm text-xs"
+                onClick={async () =>
+                  setSaved(await saveRule({ name: saveName, rule: form.entry.text, timeframe }))
+                }
+              >
+                Save as {TIMEFRAME_LABEL[timeframe].toLowerCase()} setup
+              </Button>
+              {saved.saved ? (
+                <output className="text-2xs text-text-tertiary">
+                  Saved {saved.saved.name}: alerts can watch it.
+                </output>
+              ) : saved.error ? (
+                <span className="text-2xs text-negative" role="alert">
+                  {saved.error}
+                </span>
+              ) : null}
+            </div>
+          ) : null}
           <RuleFieldEditor
             label="Exit rule"
             hint="Optional. Stops can close a position on their own."
@@ -206,7 +288,18 @@ export function RuleStrategyForm({
             onValidity={onExitValidity}
             setups={setups}
             optional
+            timeframe={timeframe}
           />
+          {intraday ? (
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={Boolean(form.flattenAtClose)}
+                onChange={(e) => set("flattenAtClose", e.target.checked)}
+              />
+              Flatten at each session&apos;s close
+            </label>
+          ) : null}
 
           <fieldset className="space-y-2">
             <legend className="text-sm font-medium">Universe</legend>
@@ -224,7 +317,14 @@ export function RuleStrategyForm({
                     name="universe"
                     checked={form.universeKind === kind}
                     disabled={kind === "watchlist" && !signedIn}
-                    onChange={() => set("universeKind", kind)}
+                    onChange={() =>
+                      setForm((f) => ({
+                        ...f,
+                        universeKind: kind,
+                        // A6.4: intraday runs take one symbol whose bars exist.
+                        timeframe: kind === "ticker" ? f.timeframe : "daily",
+                      }))
+                    }
                   />
                   {label}
                 </label>
@@ -532,7 +632,7 @@ export function RuleStrategyForm({
       <div aria-busy={pending} aria-live="polite">
         {pending ? (
           <div className="border-y border-border-muted px-4 py-10 text-sm text-text-secondary sm:border-x sm:px-6">
-            Running the rules over stored daily bars…
+            Running the rules over stored {intraday ? TIMEFRAME_LABEL[timeframe] : "daily"} bars…
           </div>
         ) : state.result && state.request ? (
           <RuleStrategyResults result={state.result} request={state.request} />

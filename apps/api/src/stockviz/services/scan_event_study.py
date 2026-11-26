@@ -53,6 +53,7 @@ from stockviz.schemas import (
     ScanUniverseIn,
     ScanUniverseSourceOut,
 )
+from stockviz.services.backtest.strategy import StrategyError
 from stockviz.services.backtest.strategy_run import (
     StrategyNeedsUser,
     StrategyNotFound,
@@ -248,7 +249,10 @@ def run_scan_event_study(
 ) -> ScanEventStudyOut:
     """Raises ``StrategyNotFound``, ``StrategyNeedsUser``, ``ScanStudyError``
     or ``RuleError``."""
-    rule = _resolve_rule(session, body.trigger, "trigger", user_id)
+    try:
+        rule = _resolve_rule(session, body.trigger, "trigger", user_id)
+    except StrategyError as exc:  # A6.4: an intraday version
+        raise ScanStudyError(str(exc)) from exc
     tickers, source = _universe(session, body, user_id)
     now = now or _time.utcnow()
     if now.tzinfo is None:

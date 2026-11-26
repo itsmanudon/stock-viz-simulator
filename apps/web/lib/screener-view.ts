@@ -321,10 +321,16 @@ export function describeRuleError(error: RuleErrorDetail): string {
 }
 
 /** How many daily bars the rule needs before it can be judged, in words. */
-export function warmupLabel(bars: number | null | undefined, wholeHistory: boolean): string {
+export function warmupLabel(
+  bars: number | null | undefined,
+  wholeHistory: boolean,
+  /** A6.4: an intraday rule counts its warm-up in that timeframe's bars. */
+  timeframe = "daily",
+): string {
   if (wholeHistory || bars === null || bars === undefined) return "Reads the whole history";
   if (bars === 0) return "Needs no warm-up";
-  return `Needs ${bars} daily bar${bars === 1 ? "" : "s"} of warm-up`;
+  const unit = timeframe === "daily" ? "daily" : timeframe === "60m" ? "1h" : timeframe;
+  return `Needs ${bars} ${unit} bar${bars === 1 ? "" : "s"} of warm-up`;
 }
 
 export const RULE_RESULT_LABEL: Record<"met" | "not_met" | "unknown", string> = {

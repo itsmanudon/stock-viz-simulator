@@ -209,7 +209,8 @@ a server action or a route handler — never through the browser.
   `lib/api/client.ts` adds `X-StockViz-Web` on the server, from the key
   `instrumentation.ts` registers (`lib/web-server-key.ts`; never in the
   browser bundle). Instead `/screener`, `/compare` and `/stocks/[ticker]`
-  call `checkVisitorLimit()` (`lib/visitor-limit.ts`) first: 30, 30 and 60
+  call `checkVisitorLimit()` (`lib/visitor-limit.ts`) first (and `/news`,
+  60, since its redesign): 30, 30 and 60
   views a minute per visitor address, in the same `auth_rate_limits`
   counters, failing open. A new query-driven public page should do the same.
 - Sessions are JWT (default). The user.id is persisted via the `jwt` callback
@@ -437,6 +438,49 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   (partial)...", also in the chart's text summary). Indicators follow the
   interval (the API leaves the partial bar out and the page says so); the
   metrics strip's RSI and 52-week range stay daily.
+- **Intraday intervals (A6.2, M2.2 intraday).** The toolbar adds an
+  "Intraday interval" group (1m, 5m, 15m, 30m, 1h; `?interval=1m|5m|15m|30m|60m`,
+  `data-testid="intraday-intervals"`) only with the intervals in
+  `symbol.intraday.intervals` (hidden when null; an unavailable URL interval
+  falls back to daily with `interval-fallback`). Lookbacks follow the
+  interval (`intradayLookbacks`: 1m 1D/5D, 5m 1D/5D/1M, 15m and 30m 5D/1M/3M,
+  1h 1M/3M/1Y; `parseIntradayLookback` defaults 1D, 5D, 5D, 1M, 1M);
+  `intradayBarsForLookback` asks for (sessions + 1) x a regular session's
+  bars (NSE 375 minutes, New York 390), capped at 5,000, and the page keeps
+  the newest whole sessions (`lastSessions` by `session_date`, so "1D" on a
+  Muhurat evening is that evening) and clips indicator points before the
+  first bar (`clipBundleFrom`). `?to=YYYY-MM-DD` ends an intraday window on
+  that session date (`intraday-to`, with a link back to the latest; the
+  owner's files end Feb 2026). Times: bars stay UTC instants; `PriceChart`
+  takes `timeZone` (`symbol.intraday.time_zone`) and on intraday sets
+  `timeVisible`, a `tickMarkFormatter` and `localization.timeFormatter` in
+  that zone (`dateInZone`, `timeInZone`; "15:15", "Jan 30", crosshair "Jan
+  30, 2026 15:15 IST"); the legend, text summary and partial caption use
+  `formatBarTime()` ("Jan 30, 2026 09:15 IST", `zoneLabel`: IST, ET, else
+  the IANA name). Session breaks: Lightweight Charts lays bars out by index,
+  so nights and weekends take no space and no bar is invented; intraday
+  charts hide the vertical grid and `lib/session-breaks.ts`
+  (`SessionBreaksPrimitive`, `sessionStarts`) draws a dashed line between
+  sessions (`data-session-breaks` counts them). **5.3's
+  `logicalToCoordinate` maps a fractional index to 0**: use whole bars
+  (the drawings primitive's `xOfLogical` now interpolates). Source badge:
+  `sourceFeed` (the bars' `feed`) renders `chart-source` above the chart,
+  the `chart-source-badge` chip (`sourceBadgeLabel`: "File · local", "IEX
+  only", "SIP", title `sourceBadgeTitle`) and the zone line
+  (`chart-time-zone`). Drawings and markers: anchors stay dates; on intraday
+  `barDates` are each bar's `session_date` (`sessionDateOf`), so an anchor
+  or a dated event lands on its session's first bar (`anchorBar` is a lower
+  bound; `eventBarIndex` uses the daily rule, a weekend date going to the
+  next session); placing on an intraday bar saves its session date; an
+  intraday AVWAP is fetched with the date (the API reads it as the session's
+  open) and each point is placed on the bar with its `ts`
+  (`AvwapLine.index`). The page degrades without daily bars (the owner's
+  Indian symbols locally): the header's close is "—", an intraday lookback's
+  return runs to its own last bar, the daily chart says
+  `daily-missing-note`, the delivery pane is daily only, and an intraday 404
+  is `intraday-empty` ("No minute bars for this symbol in this range").
+  `getBars` caches intraday responses 60 s. Tests:
+  `tests/unit/intraday-chart.test.tsx` (the stub records `chartOptions`).
 - Backtest results, saved runs (list and detail) show the run's `universe`
   stamp through `components/universe-note.tsx` (A1.4a): one neutral line,
   "Pinned symbol list, not point in time: survivorship-biased." plus the
@@ -824,6 +868,20 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   under the P&L; 50 rows, then "Show all"). `/backtest/runs/[runId]` shows
   a `strategy` run with the same component (no Save). Tests:
   `tests/unit/rule-strategy.test.tsx`, the e2e in `research-workspace.spec.ts`.
+  **A6.4 intraday:** a **Timeframe** picker (`rule-strategy/timeframe-picker.tsx`,
+  `timeframeOptions`): Daily always, the intraday intervals only when the one
+  chosen symbol has minutes (`intradayInfoAction` reads
+  `symbol.intraday.intervals`; another symbol without them falls back to
+  daily; watchlists and lists are daily). The rule fields check with the
+  timeframe (`checkRule(rule, signal, expect, timeframe)`; warm-up "Needs N
+  5m bars") and load only versions of that timeframe. Intraday adds "Flatten
+  at each session's close" and, signed in, "Save as <timeframe> setup"
+  (`saveRuleSetupAction`: kind `alert`, the timeframe). The request always
+  sends `timeframe`, `feed: auto`, `flatten_at_close`. Results: trades show
+  bar times in the venue's zone (`venueTimeZone`, `formatBarTime`), markers
+  at `entry_at`/`exit_at` ("C" = session close), the chart on the run's
+  interval with the feed badge, the equity curve per bar, and the report
+  card's counts in bars (`unit="bar"`).
 - `/backtest?mode=rotation` (A4.4): `RotationForm`
   (`components/rotation/rotation-form.tsx`): the ranking is a
   `RuleFieldEditor` checked with `checkNumber()` (`/v1/rules/check` with
@@ -1310,14 +1368,40 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   (GDELT sends none, audit AG-12).
   News for a set of symbols is one call, `getNewsForTickers()` (`/v1/news?tickers=`):
   `/watchlist` lists it under the table, and `/portfolio?tab=news` loads it
-  for the holdings only while that tab is open, as Journal does. `/news` has
-  two views (`?view=`): listed companies (default, linked documents) and
-  `market` (`getMarketNews()`, `/v1/news?scope=market`: documents linked to no
-  symbol), so a general headline is never shown as news about a symbol. The
+  for the holdings only while that tab is open, as Journal does. The
   dashboard's `NewsWidget` (`components/dashboard/news-widget.tsx`) shows the
   five newest headlines on the holdings and watchlist (`dashboardNewsTickers`
   in `lib/dashboard-news.ts`), loaded after the rest as the page's one second
   call and degrading to its own empty state.
+- **`/news` is the whole archive (26 Nov 2026).** `app/(product)/news/page.tsx`
+  reads `getNewsFeed()` and `getNewsOverview()` (`lib/api/news.ts`, over
+  `/v1/news/feed` and `/v1/news/overview`) in parallel, after
+  `checkVisitorLimit("news")`; each part degrades on its own. URL state is
+  `lib/news-view.ts` (`parseNewsQuery`/`newsHref`; any change drops the
+  cursor): `q`, `tickers`, `sentiment` (incl. `unscored`), `topic`,
+  `source`, `scope` (`symbols` default, `market`, `all`; the old
+  `?view=market` still opens market), `from`, `to`, `cursor`, `lens=mine`
+  (signed in: holdings and watchlist through `dashboardNewsTickers`; none
+  gives an empty state). Components in `components/news/`: `NewsFilters`
+  (server: GET search form `#news-q` with From/To, view links, "For You",
+  tone/topic/source chips with counts as links with `aria-current`,
+  removable ticker and date chips), `NewsTimeline` (client: headlines per
+  day stacked by tone over the whole archive; drag picks `from`/`to`, the
+  date fields are the keyboard path), `CoverageHeatmap` (server: 12 tickers
+  by 30 days, net tone colour, every cell a link with its figures in words;
+  widths from a `<colgroup>`, the header row is sr-only) and `NewsFeed`
+  (client: sticky day headers at `top-14` with a tone bar; stories grouped
+  by `groupStories`: same UTC day, same tickers, headline words Jaccard ≥
+  0.45, "+N more sources"; `ReactionChip` per ticker with a sparkline and
+  the move on the first session after, titled "Association, not cause";
+  "N new since your last visit" from `localStorage["stockviz:news-last-seen"]`,
+  first page only, every access guarded; keys outside a field: j/k move, o
+  opens the original). `NewsSearchShortcut` (mounted with the filters, so
+  also on an empty result) makes `/` focus the search in the capture phase
+  so the palette does not open; ⌘K still does. The palette adds "Search news
+  headlines" and a "News: T" command per matched symbol (`newsCommandsFor`).
+  No article text anywhere. Tests: `tests/unit/news-redesign.test.tsx`, e2e
+  in `markets.spec.ts`.
 - Alerts and notifications (Phase 7.3): `/alerts` lists rules of every kind
   (price level, daily move, technical crossing, Aegis news, portfolio) with
   the rule in words (`description`), the current close and its date from the

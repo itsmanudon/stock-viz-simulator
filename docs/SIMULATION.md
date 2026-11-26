@@ -526,6 +526,58 @@ schedules and ADV cap.
   weighting, buffer, tickers, dates and costs; `data_fingerprint` over every
   bar and index close read. Saved runs (`kind` `rotation`) rerun `identical`.
 
+## Intraday strategy backtests (A6.4, M4.5 intraday)
+
+`POST /v1/backtest/strategy` takes `timeframe` (`daily` default, `1m` ...
+`60m`), `feed` (`auto`: the best stored) and `flatten_at_close`. `from` and
+`to` stay session dates. One symbol's intraday bars come from
+`services/bars/intraday.py` (closed bars only), signals from the rules'
+vector mode on those bars (A6.4's DSL), fills through the same kernel path
+(`fills.book`) as daily runs. The engine (`backtest/strategy.py`) treats an
+intraday symbol (`SymbolInput.sessions`) by these rules:
+
+- **Signals on the bar's close, fills on the next bar** (`next_open`: its
+  open; `next_close`: its close).
+- **Entries only inside a session.** An entry signal on a session's last
+  bar is dropped (`skip_reasons.session_end`), so an entry never fills
+  across a night, weekend or holiday.
+- **Holding overnight is allowed (default).** An exit signalled on a
+  session's last bar fills at the next session's first bar; a stop the open
+  gapped through fills there at the open (`gap`).
+- **`flatten_at_close`**: a position still open at a session's last bar is
+  sold at that bar's close (the kernel's `legacy_close` on that bar),
+  reason `session_close` (marker "C").
+- **Costs.** Each fill pays the schedule version in force on its **session
+  date**. Indian symbols default to NSE/BSE delivery; a round trip closed in
+  its entry's session pays the **intraday** schedule on both legs (the
+  entry's delivery fee is re-priced and the difference returned to cash;
+  `same_day: true` on the trade). US symbols pay the US schedule as on daily
+  runs.
+- **ADV cap** uses the 20-session average traded value from **daily**
+  `price_bars` before the bar's session, never the intraday bars' volume
+  (the owner's minute files' volume may not be exchange volume). Without 20
+  daily bars an entry is not capped and is counted (`liquidity.not_capped`).
+- **Annualisation.** One equity point per bar; Sharpe and Sortino are
+  annualised by the venue's bars a year: bars in a regular session (NSE 375
+  minutes, XNYS 390, the last bar clipped, so rounded up) x 252
+  (`periods_per_year`: NSE 5m = 18,900, 60m = 1,764). CAGR uses calendar
+  time; average holding is fractional days. The regime split reads, for each
+  bar, the regime of the day before its session.
+- **Holdout, ledger and identity** as daily runs: `from`/`to` split by date,
+  every run recorded. The strategy hash adds `timeframe`, `feed` and
+  `flatten_at_close` only for intraday runs; the fingerprint hashes every
+  intraday bar read (open instant, OHLCV, source), the daily bars, benchmark,
+  facts, news and the daily ADV.
+- **Output.** Trades carry `entry_at`/`exit_at` (bar opens, UTC) beside
+  session dates and `same_day`; equity points carry `at`; the result carries
+  `timeframe`, `feed`, `feed_badge`, `flatten_at_close` and
+  `periods_per_year`. The web shows the trades on the intraday chart in the
+  venue's zone.
+
+Tests: `apps/api/tests/test_a64_intraday.py` (next-bar fills, entries
+dropped at a session's end, exits across a night, same-day fees by hand,
+flatten, annualisation, daily ADV).
+
 ## Future execution profiles (not implemented)
 
 These names are reserved for later SIM work. They are **not** implemented

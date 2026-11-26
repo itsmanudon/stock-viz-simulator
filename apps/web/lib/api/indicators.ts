@@ -1,10 +1,10 @@
 import { apiGet } from "./client";
-import type { IndicatorCatalogItem, Indicators } from "./types";
+import type { ApiInterval, IndicatorCatalogItem, Indicators } from "./types";
 
 export type IndicatorsParams = {
   names: string[];
   /** A1.4a: weekly and monthly bars are resampled from the daily ones. */
-  interval?: "1d" | "1wk" | "1mo";
+  interval?: ApiInterval;
   from?: string;
   to?: string;
   limit?: number;

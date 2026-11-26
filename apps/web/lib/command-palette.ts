@@ -69,6 +69,14 @@ const ACTIONS: readonly ActionSpec[] = [
     keywords: ["drill", "deck", "new"],
   },
   {
+    id: "action:search-news",
+    label: "Search news headlines",
+    href: "/news",
+    iconHref: "/news",
+    workspaceId: "markets",
+    keywords: ["news", "headlines", "sentiment", "coverage"],
+  },
+  {
     id: "action:new-screen",
     label: "New screen",
     href: "/screener",
@@ -270,4 +278,21 @@ export function safeLocalStorage(): Storage | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * "News: AAPL" commands for the palette's symbol results (news redesign,
+ * 26 Nov 2026): the first few matches open /news filtered to that symbol.
+ */
+export function newsCommandsFor(tickers: readonly string[], max = 3): PaletteCommand[] {
+  return tickers.slice(0, max).map((ticker) => ({
+    id: `news:${ticker}`,
+    kind: "action",
+    label: `News: ${ticker}`,
+    hint: "Markets",
+    workspaceId: "markets",
+    href: `/news?tickers=${encodeURIComponent(ticker)}`,
+    iconHref: "/news",
+    keywords: ["news", ticker.toLowerCase()],
+  }));
 }

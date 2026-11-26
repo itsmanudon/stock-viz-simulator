@@ -16,10 +16,18 @@ from sqlmodel import Session, select
 from stockviz.db import get_session
 from stockviz.limiter import limiter
 from stockviz.models import PriceBar, Symbol
-from stockviz.schemas import QuoteOut, SymbolDetailOut, SymbolOut
+from stockviz.schemas import (
+    IntradayCoverageOut,
+    IntradayInfoOut,
+    QuoteOut,
+    SymbolDetailOut,
+    SymbolOut,
+)
+from stockviz.services.bars.intraday import intraday_info
 from stockviz.services.bars.raw import has_raw
 from stockviz.services.event_study import benchmark_for
-from stockviz.services.instruments import instrument_of
+from stockviz.services.instruments import instrument_of, resolve_symbol
+from stockviz.services.markets.calendar import venue_for_ticker, venue_zone
 from stockviz.services.relative_strength import BENCHMARK_NAMES, is_indian, market_for
 
 router = APIRouter(prefix="/v1/symbols", tags=["symbols"])
@@ -110,6 +118,36 @@ def get_symbol(request: Request, ticker: str, session: SessionDep) -> SymbolDeta
         else None
     )
     benchmark = benchmark_for(symbol.ticker)
+    instrument = resolve_symbol(session, symbol.ticker)
+    info = (
+        intraday_info(session, instrument.id)
+        if instrument is not None and instrument.id is not None
+        else None
+    )
+    venue = venue_for_ticker(symbol.ticker)
+    intraday = (
+        IntradayInfoOut(
+            feed=info.feed,
+            badge=info.badge,
+            intervals=info.intervals,  # type: ignore[arg-type]
+            first=info.first,
+            last=info.last,
+            venue=venue,
+            time_zone=str(venue_zone(venue)),
+            feeds=info.feeds,
+            coverage=[
+                IntradayCoverageOut(
+                    feed=c.feed,
+                    interval=c.interval,  # type: ignore[arg-type]
+                    first=c.first,
+                    last=c.last,
+                )
+                for c in info.coverage
+            ],
+        )
+        if info is not None
+        else None
+    )
     return SymbolDetailOut.model_validate(
         {
             **symbol.model_dump(),
@@ -120,5 +158,7 @@ def get_symbol(request: Request, ticker: str, session: SessionDep) -> SymbolDeta
             "benchmark": benchmark,
             "benchmark_name": BENCHMARK_NAMES.get(benchmark or ""),
             "is_indian": is_indian(symbol.ticker),
+            # A6.2: which intraday intervals the chart can offer.
+            "intraday": intraday,
         }
     )

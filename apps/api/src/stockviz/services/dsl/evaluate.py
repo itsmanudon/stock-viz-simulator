@@ -16,6 +16,14 @@ false, true or unknown is true, not unknown is unknown. At the boundary a
 condition becomes a pandas nullable ``boolean`` Series (``pd.NA`` for
 unknown), and a judged bar is ``met``, ``not_met`` or ``unknown`` with the
 reasons: which binding was missing, or which function lacked history.
+
+**Intraday (A6.4).** A rule compiled for an intraday timeframe evaluates on
+that timeframe's bars (indexed by open instant; ``SymbolData.intraday``).
+``daily.``, ``weekly.`` and ``monthly.`` read the daily frame and its
+resamples, aligned to each intraday bar as the value on the most recent
+**completed session strictly before the bar's session** (never today's
+daily bar, even at the session's last bar). On the daily timeframe nothing
+changes: the base frame is still named ``daily``.
 """
 
 # pyright: reportArgumentType=false, reportCallIssue=false, reportIndexIssue=false, reportAttributeAccessIssue=false
@@ -23,7 +31,7 @@ reasons: which binding was missing, or which function lacked history.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime
 from typing import Literal
 
 import numpy as np
@@ -31,10 +39,15 @@ import pandas as pd
 
 from stockviz.services.bars.resample import MAX_SESSIONS_PER_PERIOD
 from stockviz.services.dsl import ast
-from stockviz.services.dsl.bindings import DELIVERY_SERIES, INDEX_SERIES, INTERVAL_BY_TIMEFRAME
+from stockviz.services.dsl.bindings import (
+    DELIVERY_SERIES,
+    INDEX_SERIES,
+    INTERVAL_BY_TIMEFRAME,
+    INTRADAY_TIMEFRAMES,
+)
 from stockviz.services.dsl.canonical import canonicalize, rule_hash
 from stockviz.services.dsl.check import Type, check
-from stockviz.services.dsl.data import Needs, SymbolData
+from stockviz.services.dsl.data import Needs, SymbolData, bars_frame, instant
 from stockviz.services.dsl.drawings import RefResult
 from stockviz.services.dsl.drawings import reason as ref_reason
 from stockviz.services.dsl.drawings import resolve as resolve_ref
@@ -58,8 +71,12 @@ class CompiledRule:
     hash: str
     type: Type
     lookback: int | None
-    """Daily bars needed before the first bar judged; None: the whole history."""
+    """Daily bars needed before the first bar judged; None: the whole history.
+    Intraday: bars of the rule's timeframe (``daily.`` values read the whole
+    stored daily history, so they add none)."""
     needs: Needs
+    timeframe: str = "daily"
+    """A6.4: the timeframe it was checked for (``daily`` or ``1m`` ... ``60m``)."""
 
     @property
     def user_scoped(self) -> bool:
@@ -100,6 +117,9 @@ def lookback(node: ast.Node, tf: str = "daily") -> int | None:
             # An AVWAP sums every bar since its anchor, which the rule does
             # not know: load the whole history. A line reads no bars.
             return None if kind == "avwap" else 0
+        case ast.Timeframe() if tf in INTRADAY_TIMEFRAMES:
+            # The daily history is loaded whole for an intraday rule.
+            return 0
         case ast.Timeframe(timeframe=timeframe, expr=expr):
             sub = lookback(expr, timeframe)
             per = MAX_SESSIONS_PER_PERIOD[INTERVAL_BY_TIMEFRAME[timeframe]]
@@ -110,9 +130,10 @@ def lookback(node: ast.Node, tf: str = "daily") -> int | None:
     return max((s for s in subs if s is not None), default=0)
 
 
-def needs(node: ast.Node) -> Needs:
+def needs(node: ast.Node, timeframe: str = "daily") -> Needs:
     nodes = list(ast.walk(node))
     return Needs(
+        daily=timeframe != "daily" and any(isinstance(n, ast.Timeframe) for n in nodes),
         benchmark=any(
             (isinstance(n, ast.Call) and FUNCTIONS[n.name].needs_benchmark)
             or (isinstance(n, ast.Name) and n.name in INDEX_SERIES)
@@ -125,11 +146,16 @@ def needs(node: ast.Node) -> Needs:
     )
 
 
-def compile_rule(text: str, *, require_condition: bool = True) -> CompiledRule:
-    """Parse, type-check and canonicalize. Raises :class:`RuleError`."""
+def compile_rule(
+    text: str, *, require_condition: bool = True, timeframe: str = "daily"
+) -> CompiledRule:
+    """Parse, type-check (for ``timeframe``: ``daily`` or an intraday
+    interval) and canonicalize. Raises :class:`RuleError`."""
+    if timeframe not in ("daily", *INTRADAY_TIMEFRAMES):
+        raise ValueError(f"unknown timeframe {timeframe!r}")
     tree = parse(text)
     try:
-        kind = check(tree, require_condition=require_condition)
+        kind = check(tree, require_condition=require_condition, timeframe=timeframe)
     except RuleError as exc:
         exc.text = text
         raise
@@ -137,12 +163,21 @@ def compile_rule(text: str, *, require_condition: bool = True) -> CompiledRule:
     canonical_text = to_text(canonical)
     return CompiledRule(
         text, tree, canonical, canonical_text, rule_hash(canonical_text), kind,
-        lookback(canonical), needs(canonical),
+        lookback(canonical, timeframe), needs(canonical, timeframe), timeframe,
     )  # fmt: skip
 
 
-def _compiled(rule: CompiledRule | str) -> CompiledRule:
-    return rule if isinstance(rule, CompiledRule) else compile_rule(rule, require_condition=False)
+def _compiled(rule: CompiledRule | str, timeframe: str = "daily") -> CompiledRule:
+    if isinstance(rule, CompiledRule):
+        return rule
+    return compile_rule(rule, require_condition=False, timeframe=timeframe)
+
+
+def _check_timeframe(rule: CompiledRule, data: SymbolData) -> None:
+    if rule.timeframe != data.timeframe:
+        raise ValueError(
+            f"the rule was compiled for {rule.timeframe} bars, the data holds {data.timeframe}"
+        )
 
 
 # --- evaluation -------------------------------------------------------------
@@ -189,13 +224,24 @@ class Evaluation:
 
     def __init__(self, data: SymbolData, *, benchmark: bool = True):
         self.data = data
-        daily = data.bars
+        self.base = data.timeframe
+        """The frame a rule's bars are: ``daily``, or the intraday interval."""
+        daily = data.bars if not data.intraday else data.daily
+        if daily is None:
+            daily = bars_frame([])
         if benchmark and data.benchmark is not None:
             daily = daily.assign(
                 bench=data.benchmark.reindex(daily.index, method="ffill", limit=5).to_numpy()
             )
         self.frames: dict[str, pd.DataFrame] = {"daily": daily}
         self.align: dict[str, np.ndarray] = {}
+        if data.intraday:
+            assert data.sessions is not None
+            self.frames[self.base] = data.bars
+            # A6.4: the session strictly before each bar's (no look-ahead into
+            # today's daily bar, which is not complete until the close).
+            days = daily.index.to_numpy(dtype="datetime64[D]")
+            self.align["daily"] = np.searchsorted(days, data.sessions, side="left").astype(int) - 1
         self.cache: dict[tuple[ast.Node, str], np.ndarray] = {}
         self._indicators: dict[tuple, dict[str, np.ndarray]] = {}
         self._fundamentals = None
@@ -209,14 +255,25 @@ class Evaluation:
                 self.frames["daily"], INTERVAL_BY_TIMEFRAME[tf], self.data.venue
             )
             self.frames[tf] = resampled.frame
-            self.align[tf] = resampled.align
+            align = resampled.align
+            if self.data.intraday:
+                # Period aligned to the daily row aligned to each bar.
+                daily = self.align["daily"]
+                align = np.where(daily >= 0, align[np.maximum(daily, 0)] if len(align) else -1, -1)
+            self.align[tf] = align.astype(int)
         return self.frames[tf]
 
     def fundamentals_table(self):
         if self._fundamentals is None and self.data.fundamentals is not None:
-            daily = self.frames["daily"]
+            base = self.frames[self.base]
+            if self.data.intraday:
+                # A6.4: facts dated before the bar's session, at the bar's close.
+                assert self.data.sessions is not None
+                days = self.data.sessions - np.timedelta64(1, "D")
+            else:
+                days = base.index.to_numpy(dtype="datetime64[D]")
             self._fundamentals = self.data.fundamentals.table(
-                daily.index.to_numpy(dtype="datetime64[D]"), daily["close"].to_numpy(dtype=float)
+                days, base["close"].to_numpy(dtype=float)
             )
         return self._fundamentals
 
@@ -230,7 +287,8 @@ class Evaluation:
             self._refs[node] = hit
         return hit
 
-    def value(self, node: ast.Node, tf: str = "daily") -> np.ndarray:
+    def value(self, node: ast.Node, tf: str | None = None) -> np.ndarray:
+        tf = tf or self.base
         key = (node, tf)
         hit = self.cache.get(key)
         if hit is None:
@@ -272,6 +330,7 @@ class Evaluation:
                 return shift(self.value(expr, tf), bars)
             case ast.Timeframe(timeframe=timeframe, expr=expr):
                 inner = self.value(expr, timeframe)
+                self.frame(timeframe)
                 align = self.align[timeframe]
                 return np.where(align >= 0, inner[np.maximum(align, 0)] if len(inner) else NAN, NAN)
             case ast.Neg(expr=expr):
@@ -314,9 +373,17 @@ class Evaluation:
 
     # --- reasons ------------------------------------------------------------
 
+    def label(self, tf: str, i: int) -> str:
+        """Bar ``i`` of ``tf`` in a reason: its date (an intraday bar: its
+        open, ``YYYY-MM-DD HH:MM UTC``)."""
+        ts = self.frame(tf).index[i]
+        if tf in INTRADAY_TIMEFRAMES:
+            return f"{ts:%Y-%m-%d %H:%M} UTC"
+        return ts.date().isoformat()
+
     def index_in(self, tf: str, i: int) -> int:
-        """Row of ``tf``'s frame aligned to daily row ``i`` (-1: none)."""
-        if tf == "daily":
+        """Row of ``tf``'s frame aligned to base row ``i`` (-1: none)."""
+        if tf == self.base:
             return i
         self.frame(tf)
         return int(self.align[tf][i])
@@ -330,18 +397,22 @@ class Evaluation:
             return []
         text = to_text(node)
         day = self.frame(tf).index[i].date()
+        if self.data.intraday and tf == self.base:
+            assert self.data.sessions is not None
+            day = self.data.sessions[i].item()
+        where = self.label(tf, i)
         match node:
             case ast.Name(name=name):
                 if name in INDEX_SERIES:
                     index = self.data.benchmark_ticker
                     if index is None:
                         return [f"{name}: no index series for {self.data.ticker}'s venue"]
-                    return [f"{name}: no {index} close on or up to 5 bars before {day.isoformat()}"]
+                    return [f"{name}: no {index} close on or up to 5 bars before {where}"]
                 if name in DELIVERY_SERIES:
                     if not self.data.delivery_loaded:
                         return [f"{name}: no delivery data for {self.data.ticker} (eod_extras)"]
-                    return [f"{name}: no delivery data on {day.isoformat()}"]
-                return [f"{name}: no value on {day.isoformat()}"]
+                    return [f"{name}: no delivery data on {where}"]
+                return [f"{name}: no value on {where}"]
             case ast.Fundamental(metric=metric):
                 table = self.fundamentals_table()
                 if table is None:
@@ -355,6 +426,8 @@ class Evaluation:
             case ast.Timeframe(timeframe=timeframe, expr=expr):
                 j = self.index_in(timeframe, i)
                 if j < 0:
+                    if self.data.intraday and timeframe == "daily":
+                        return [f"{text}: no daily bar before this bar's session"]
                     return [f"{text}: no closed {timeframe} bar yet"]
                 return self.reasons(expr, timeframe, j)
             case ast.Offset(expr=expr, bars=bars):
@@ -414,7 +487,7 @@ class Evaluation:
         if need is None:
             return [f"{text}: no value in the history held"]
         if i < need:
-            unit = "bars" if tf == "daily" else f"{tf} bars"
+            unit = "bars" if tf == self.base else f"{tf} bars"
             return [f"{text}: not enough history (needs {need + 1} {unit}, has {i + 1})"]
         return [f"{text}: no value"]
 
@@ -432,13 +505,14 @@ def _as_series(rule: CompiledRule, values: np.ndarray, index: pd.Index) -> pd.Se
 def vector(rule: CompiledRule | str, data: SymbolData) -> pd.Series:
     """The rule on every daily bar: a nullable ``boolean`` Series for a
     condition (``pd.NA`` = unknown), float with NaN for a number."""
-    compiled = _compiled(rule)
+    compiled = _compiled(rule, data.timeframe)
+    _check_timeframe(compiled, data)
     ev = Evaluation(data, benchmark=compiled.needs.benchmark)
     return _as_series(compiled, ev.value(compiled.canonical), data.bars.index)
 
 
 def _bar_index(data: SymbolData, t: date) -> int:
-    ts = pd.Timestamp(t)
+    ts = instant(t) if data.intraday else pd.Timestamp(t)
     if len(data.bars) == 0 or data.bars.index[-1] != ts:
         raise ValueError(f"{data.ticker} has no bar on {t.isoformat()}")
     return len(data.bars) - 1
@@ -446,8 +520,10 @@ def _bar_index(data: SymbolData, t: date) -> int:
 
 def point(rule: CompiledRule | str, data: SymbolData, t: date) -> bool | float | None:
     """The rule at bar ``t``, from the data cut at ``t``: True / False / None
-    (unknown) for a condition, a float or None for a number."""
-    compiled = _compiled(rule)
+    (unknown) for a condition, a float or None for a number. Intraday: ``t``
+    is the bar's open instant (a ``datetime``; naive is UTC)."""
+    compiled = _compiled(rule, data.timeframe)
+    _check_timeframe(compiled, data)
     cut = data.cut(t)
     i = _bar_index(cut, t)
     value = Evaluation(cut, benchmark=compiled.needs.benchmark).value(compiled.canonical)[i]
@@ -461,6 +537,8 @@ class Outcome:
     status: Status
     bar_date: date
     reasons: tuple[str, ...] = ()
+    bar_at: datetime | None = None
+    """Intraday: the judged bar's open instant (naive UTC)."""
 
 
 @dataclass(frozen=True)
@@ -489,18 +567,23 @@ def evaluate_at(
 ) -> tuple[Outcome, list[ExplainRow]]:
     """Judge a condition at bar ``t`` (point mode) with its reasons, and
     optionally every sub-expression's value."""
-    compiled = _compiled(rule)
+    compiled = _compiled(rule, data.timeframe)
+    _check_timeframe(compiled, data)
     cut = data.cut(t)
     i = _bar_index(cut, t)
     ev = Evaluation(cut, benchmark=compiled.needs.benchmark)
     value = ev.value(compiled.canonical)[i]
+    day, at = t, None
+    if cut.intraday:
+        day, at = cut.dates[i], instant(t).to_pydatetime()
     if np.isnan(value):
-        outcome = Outcome("unknown", t, tuple(ev.reasons(compiled.canonical, "daily", i)))
+        reasons = tuple(ev.reasons(compiled.canonical, ev.base, i))
+        outcome = Outcome("unknown", day, reasons, bar_at=at)
     else:
-        outcome = Outcome("met" if value == 1.0 else "not_met", t)
+        outcome = Outcome("met" if value == 1.0 else "not_met", day, bar_at=at)
     rows: list[ExplainRow] = []
     if explain:
-        rows = _explain(ev, compiled.canonical, "daily", i)
+        rows = _explain(ev, compiled.canonical, ev.base, i)
     return outcome, rows
 
 

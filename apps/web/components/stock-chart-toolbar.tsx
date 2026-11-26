@@ -21,12 +21,18 @@ import {
   RAW_UNAVAILABLE_NOTE,
 } from "@/lib/chart-view";
 import {
+  INTRADAY_INTERVALS,
+  type IntradayInterval,
   STOCK_INTERVALS,
   STOCK_TIMEFRAMES,
   type StockIndicator,
   type StockInterval,
   type StockTimeframe,
   buildStockChartHref,
+  intradayLookbacks,
+  intradayWords,
+  isIntradayInterval,
+  parseIntradayLookback,
 } from "@/lib/stock-workspace";
 
 export function StockChartToolbar({
@@ -38,6 +44,7 @@ export function StockChartToolbar({
   hasRaw = false,
   catalog = null,
   signedIn = false,
+  intradayIntervals = [],
 }: {
   ticker: string;
   timeframe: StockTimeframe;
@@ -51,7 +58,24 @@ export function StockChartToolbar({
   catalog?: IndicatorCatalogItem[] | null;
   /** A3.5: fills are offered (and on by default) only when signed in. */
   signedIn?: boolean;
+  /** A6.2: the intraday intervals the symbol has (none: the buttons are hidden). */
+  intradayIntervals?: readonly string[];
 }) {
+  const intraday = isIntradayInterval(interval);
+  // The lookbacks follow the interval: daily ranges, or the intraday ones.
+  const lookbacks: readonly StockTimeframe[] = isIntradayInterval(interval)
+    ? intradayLookbacks(interval)
+    : STOCK_TIMEFRAMES;
+  const offered = INTRADAY_INTERVALS.filter((i) => intradayIntervals.includes(i.value));
+  /** A link to another interval keeps the lookback when that interval offers it. */
+  const intervalHref = (next: StockInterval) => {
+    const tf: StockTimeframe = isIntradayInterval(next)
+      ? parseIntradayLookback(timeframe, next as IntradayInterval)
+      : intraday
+        ? "1Y"
+        : timeframe;
+    return buildStockChartHref(ticker, tf, indicators, next, view);
+  };
   const router = useRouter();
 
   const hrefWith = (patch: Partial<ChartView>) =>
@@ -67,7 +91,7 @@ export function StockChartToolbar({
     <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border-muted px-3 py-2.5 sm:px-4">
       <div className="flex flex-wrap items-center gap-2">
         <nav aria-label="Chart timeframe" className="flex items-center gap-0.5">
-          {STOCK_TIMEFRAMES.map((value) => (
+          {lookbacks.map((value) => (
             <Link
               key={value}
               href={buildStockChartHref(ticker, value, indicators, interval, view)}
@@ -91,7 +115,7 @@ export function StockChartToolbar({
           {STOCK_INTERVALS.map((option) => (
             <Link
               key={option.value}
-              href={buildStockChartHref(ticker, timeframe, indicators, option.value, view)}
+              href={intervalHref(option.value)}
               aria-current={interval === option.value ? "page" : undefined}
               aria-label={`${option.label} bars`}
               className={`inline-flex h-7 min-w-8 items-center justify-center rounded-sm px-2 text-xs font-medium transition-colors ${
@@ -109,6 +133,32 @@ export function StockChartToolbar({
             </Link>
           ))}
         </nav>
+
+        {/* A6.2: intraday intervals, only when the symbol has intraday bars. */}
+        {offered.length ? (
+          <nav
+            aria-label="Intraday interval"
+            className="flex items-center gap-0.5 rounded-md border border-border-muted p-0.5"
+            data-testid="intraday-intervals"
+          >
+            {offered.map((option) => (
+              <Link
+                key={option.value}
+                href={intervalHref(option.value)}
+                aria-current={interval === option.value ? "page" : undefined}
+                aria-label={`${intradayWords(option.value)} bars`}
+                data-interval={option.value}
+                className={`inline-flex h-7 min-w-8 items-center justify-center rounded-sm px-1.5 font-mono text-xs font-medium transition-colors ${
+                  interval === option.value
+                    ? "bg-brand/12 text-brand"
+                    : "text-muted-foreground hover:bg-surface-hover hover:text-foreground"
+                }`}
+              >
+                <span aria-hidden>{option.short}</span>
+              </Link>
+            ))}
+          </nav>
+        ) : null}
       </div>
 
       {/* A3.1: chart type, price scale and adjusted/raw prices. */}

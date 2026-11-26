@@ -464,6 +464,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/news/feed": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** News Feed Page */
+        get: operations["news_feed_page_v1_news_feed_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/news/overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** News Overview */
+        get: operations["news_overview_v1_news_overview_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/quotes": {
         parameters: {
             query?: never;
@@ -2868,6 +2902,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/broker/feeds": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Feed Status
+         * @description A6.3: the US market-data feeds (history backfill now; streams in A6.5/A6.6).
+         */
+        get: operations["feed_status_v1_broker_feeds_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/plans": {
         parameters: {
             query?: never;
@@ -3096,15 +3150,21 @@ export interface components {
              * Interval
              * @enum {string}
              */
-            interval: "1d" | "1wk" | "1mo";
+            interval: "1d" | "1wk" | "1mo" | "1m" | "5m" | "15m" | "30m" | "60m";
             /** Bands */
             bands: number;
             /**
              * Computed From
              * @default daily
-             * @constant
+             * @enum {string}
              */
-            computed_from: "daily";
+            computed_from: "daily" | "1m" | "60m";
+            /** Anchor At */
+            anchor_at?: string | null;
+            /** Anchor Bar At */
+            anchor_bar_at?: string | null;
+            /** Feed */
+            feed?: string | null;
             /** Decimals */
             decimals: number;
             /** Points */
@@ -3369,6 +3429,16 @@ export interface components {
             sessions?: number | null;
             /** Partial */
             partial?: boolean | null;
+            /** Closed At */
+            closed_at?: string | null;
+            /** Session Date */
+            session_date?: string | null;
+            /** Feed */
+            feed?: string | null;
+            /** Badge */
+            badge?: string | null;
+            /** Minutes */
+            minutes?: number | null;
         };
         /**
          * BaseCurrencyIn
@@ -4675,6 +4745,8 @@ export interface components {
             date: string;
             /** Nav */
             nav: string;
+            /** At */
+            at?: string | null;
         };
         /** EventStudyEventOut */
         EventStudyEventOut: {
@@ -5172,6 +5244,61 @@ export interface components {
             notes: string[];
             /** Fills */
             fills?: number | null;
+        };
+        /** FeedCapabilitiesOut */
+        FeedCapabilitiesOut: {
+            /** History */
+            history: boolean;
+            /** Stream */
+            stream: boolean;
+            /** Coverage */
+            coverage: ("iex" | "sip" | "kite" | "file")[];
+            /** Symbols Limit */
+            symbols_limit: number | null;
+            /** History Days */
+            history_days: number | null;
+            /** Rate Limits */
+            rate_limits: string[];
+            /** Notes */
+            notes: string;
+        };
+        /** FeedStatusItemOut */
+        FeedStatusItemOut: {
+            /**
+             * Provider
+             * @enum {string}
+             */
+            provider: "alpaca" | "tiingo" | "massive" | "finnhub";
+            /** Label */
+            label: string;
+            /** Configured */
+            configured: boolean;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "not_configured" | "configured" | "ok" | "error";
+            /** Key Env Vars */
+            key_env_vars: string[];
+            capabilities: components["schemas"]["FeedCapabilitiesOut"];
+            /** Last Success At */
+            last_success_at: string | null;
+            /** Last Failure At */
+            last_failure_at: string | null;
+            /** Last Error */
+            last_error: string | null;
+        };
+        /** FeedStatusOut */
+        FeedStatusOut: {
+            /** Feeds */
+            feeds: components["schemas"]["FeedStatusItemOut"][];
+            /** Offline Window Hours */
+            offline_window_hours: number;
+            /**
+             * Checked At
+             * Format: date-time
+             */
+            checked_at: string;
         };
         /** FillEventOut */
         FillEventOut: {
@@ -5836,6 +5963,63 @@ export interface components {
             interval: string;
             /** Partial Bar Excluded */
             partial_bar_excluded?: string | null;
+            /** Feed */
+            feed?: string | null;
+        };
+        /** IntradayCoverageOut */
+        IntradayCoverageOut: {
+            /** Feed */
+            feed: string;
+            /**
+             * Interval
+             * @enum {string}
+             */
+            interval: "1m" | "60m";
+            /**
+             * First
+             * Format: date-time
+             */
+            first: string;
+            /**
+             * Last
+             * Format: date-time
+             */
+            last: string;
+        };
+        /**
+         * IntradayInfoOut
+         * @description A6.2: which intraday intervals a symbol has, from its best stored feed.
+         *
+         *     ``intervals`` is every interval the bars route can build (all five with
+         *     1-minute bars; ``60m`` alone with only hourly bars). ``first``/``last`` are
+         *     bar opens (naive UTC) over that feed's stored bars; ``coverage`` lists
+         *     each stored feed and interval; ``badge`` is the chart's source badge.
+         */
+        IntradayInfoOut: {
+            /** Feed */
+            feed: string;
+            /** Badge */
+            badge: string;
+            /** Intervals */
+            intervals: ("1m" | "5m" | "15m" | "30m" | "60m")[];
+            /**
+             * First
+             * Format: date-time
+             */
+            first: string;
+            /**
+             * Last
+             * Format: date-time
+             */
+            last: string;
+            /** Venue */
+            venue: string;
+            /** Time Zone */
+            time_zone: string;
+            /** Feeds */
+            feeds: string[];
+            /** Coverage */
+            coverage: components["schemas"]["IntradayCoverageOut"][];
         };
         /** JobStatusOut */
         JobStatusOut: {
@@ -6733,6 +6917,27 @@ export interface components {
             /** Topic */
             topic?: string | null;
         };
+        /**
+         * NewsDayOut
+         * @description Documents that became available on one UTC day, by sentiment.
+         */
+        NewsDayOut: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Positive */
+            positive: number;
+            /** Neutral */
+            neutral: number;
+            /** Negative */
+            negative: number;
+            /** Mixed */
+            mixed: number;
+            /** Unscored */
+            unscored: number;
+        };
         /** NewsEventOut */
         NewsEventOut: {
             /**
@@ -6752,6 +6957,61 @@ export interface components {
             /** Headlines */
             headlines: components["schemas"]["NewsHeadlineOut"][];
         };
+        /** NewsFacetOut */
+        NewsFacetOut: {
+            /** Value */
+            value: string;
+            /** Count */
+            count: number;
+        };
+        /** NewsFeedItemOut */
+        NewsFeedItemOut: {
+            /** Id */
+            id: string;
+            /** Tickers */
+            tickers: string[];
+            /** Title */
+            title: string;
+            /** Url */
+            url?: string | null;
+            /** Source */
+            source: string;
+            /** Published At */
+            published_at?: string | null;
+            /**
+             * Available At
+             * Format: date-time
+             */
+            available_at: string;
+            /** Sentiment */
+            sentiment?: ("positive" | "neutral" | "negative" | "mixed") | null;
+            /** Sentiment Model */
+            sentiment_model?: string | null;
+            /** Topic */
+            topic?: string | null;
+            /**
+             * Reactions
+             * @default []
+             */
+            reactions: components["schemas"]["NewsReactionOut"][];
+        };
+        /**
+         * NewsFeedOut
+         * @description ``/v1/news/feed``: one page of the archive, newest-available first.
+         */
+        NewsFeedOut: {
+            /** Items */
+            items: components["schemas"]["NewsFeedItemOut"][];
+            /** Next Cursor */
+            next_cursor?: string | null;
+            /** Total */
+            total: number;
+            /**
+             * Note
+             * @default Headlines, sources, dates and links only: Aegis News stores no article text. Price moves are the session after each headline, an association, not a cause.
+             */
+            note: string;
+        };
         /** NewsHeadlineOut */
         NewsHeadlineOut: {
             /** Id */
@@ -6769,6 +7029,81 @@ export interface components {
             available_at: string;
             /** Published At */
             published_at?: string | null;
+        };
+        /** NewsHeatCellOut */
+        NewsHeatCellOut: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Count */
+            count: number;
+            /** Net */
+            net?: number | null;
+        };
+        /** NewsHeatRowOut */
+        NewsHeatRowOut: {
+            /** Ticker */
+            ticker: string;
+            /** Total */
+            total: number;
+            /** Cells */
+            cells: components["schemas"]["NewsHeatCellOut"][];
+        };
+        /**
+         * NewsOverviewOut
+         * @description ``/v1/news/overview``: the timeline, filter options and coverage heatmap.
+         *
+         *     ``days`` and the heatmap ignore the date filters (they show the whole
+         *     archive); ``total``, ``sentiments``, ``topics`` and ``sources`` honour them.
+         */
+        NewsOverviewOut: {
+            /** Total */
+            total: number;
+            /** First Date */
+            first_date?: string | null;
+            /** Last Date */
+            last_date?: string | null;
+            /** Days */
+            days: components["schemas"]["NewsDayOut"][];
+            /** Sentiments */
+            sentiments: {
+                [key: string]: number;
+            };
+            /** Topics */
+            topics: components["schemas"]["NewsFacetOut"][];
+            /** Sources */
+            sources: components["schemas"]["NewsFacetOut"][];
+            /** Heatmap Days */
+            heatmap_days: string[];
+            /** Heatmap */
+            heatmap: components["schemas"]["NewsHeatRowOut"][];
+        };
+        /**
+         * NewsReactionOut
+         * @description A linked stock's move on the session after a headline (news redesign).
+         *
+         *     The session is the first stored daily bar whose session closed after the
+         *     headline's ``available_at`` (``event_study``'s rule). ``change_pct`` is its
+         *     close against the previous stored close (null for the first bar held).
+         *     ``closes`` holds up to five closes either side, ``reaction_index`` marks
+         *     the session in it. Association, not cause.
+         */
+        NewsReactionOut: {
+            /** Ticker */
+            ticker: string;
+            /**
+             * Session Date
+             * Format: date
+             */
+            session_date: string;
+            /** Change Pct */
+            change_pct?: number | null;
+            /** Closes */
+            closes: number[];
+            /** Reaction Index */
+            reaction_index: number;
         };
         /**
          * NotificationCategory
@@ -9233,6 +9568,12 @@ export interface components {
              * @enum {string}
              */
             expect: "condition" | "number";
+            /**
+             * Timeframe
+             * @default daily
+             * @enum {string}
+             */
+            timeframe: "daily" | "1m" | "5m" | "15m" | "30m" | "60m";
         };
         /**
          * RuleCheckOut
@@ -9263,6 +9604,8 @@ export interface components {
              */
             user_scoped: boolean;
             error?: components["schemas"]["RuleErrorOut"] | null;
+            /** Timeframe */
+            timeframe?: string | null;
         };
         /** RuleErrorOut */
         RuleErrorOut: {
@@ -9826,9 +10169,15 @@ export interface components {
             /**
              * Timeframe
              * @default daily
-             * @constant
+             * @enum {string}
              */
-            timeframe: "daily";
+            timeframe: "daily" | "1m" | "5m" | "15m" | "30m" | "60m";
+            /**
+             * Feed
+             * @default auto
+             * @enum {string}
+             */
+            feed: "auto" | "iex" | "sip" | "kite" | "file";
         };
         /** SetupOut */
         SetupOut: {
@@ -9869,9 +10218,15 @@ export interface components {
             /**
              * Timeframe
              * @default daily
-             * @constant
+             * @enum {string}
              */
-            timeframe: "daily";
+            timeframe: "daily" | "1m" | "5m" | "15m" | "30m" | "60m";
+            /**
+             * Feed
+             * @default auto
+             * @enum {string}
+             */
+            feed: "auto" | "iex" | "sip" | "kite" | "file";
         };
         /** SetupVersionOut */
         SetupVersionOut: {
@@ -9889,6 +10244,11 @@ export interface components {
             rule_hash: string;
             /** Timeframe */
             timeframe: string;
+            /**
+             * Feed
+             * @default auto
+             */
+            feed: string;
             /** Notes */
             notes?: string | null;
             /**
@@ -10055,6 +10415,23 @@ export interface components {
              * @enum {string}
              */
             holdout: "last_20pct" | "none";
+            /**
+             * Timeframe
+             * @default daily
+             * @enum {string}
+             */
+            timeframe: "daily" | "1m" | "5m" | "15m" | "30m" | "60m";
+            /**
+             * Feed
+             * @default auto
+             * @enum {string}
+             */
+            feed: "auto" | "iex" | "sip" | "kite" | "file";
+            /**
+             * Flatten At Close
+             * @default false
+             */
+            flatten_at_close: boolean;
         };
         /** StrategyBacktestOut */
         StrategyBacktestOut: {
@@ -10142,6 +10519,16 @@ export interface components {
             window?: components["schemas"]["RunWindowOut"] | null;
             report?: components["schemas"]["ReportCardOut"] | null;
             checks?: components["schemas"]["OverfittingChecksOut"] | null;
+            /** Timeframe */
+            timeframe?: string | null;
+            /** Feed */
+            feed?: string | null;
+            /** Feed Badge */
+            feed_badge?: string | null;
+            /** Flatten At Close */
+            flatten_at_close?: boolean | null;
+            /** Periods Per Year */
+            periods_per_year?: number | null;
         };
         /**
          * StrategyBenchmarkOut
@@ -10346,7 +10733,7 @@ export interface components {
              * Reason
              * @enum {string}
              */
-            reason: "exit_rule" | "stop_fixed" | "stop_atr" | "trail" | "time" | "end_of_data";
+            reason: "exit_rule" | "stop_fixed" | "stop_atr" | "trail" | "time" | "end_of_data" | "session_close";
             /**
              * Gap
              * @default false
@@ -10369,6 +10756,12 @@ export interface components {
             requested_quantity?: string | null;
             /** Exit Adv Pct */
             exit_adv_pct?: number | null;
+            /** Entry At */
+            entry_at?: string | null;
+            /** Exit At */
+            exit_at?: string | null;
+            /** Same Day */
+            same_day?: boolean | null;
         };
         /**
          * StrategyUniverseIn
@@ -10511,6 +10904,7 @@ export interface components {
              * @default false
              */
             is_indian: boolean;
+            intraday?: components["schemas"]["IntradayInfoOut"] | null;
         };
         /** SymbolEventsOut */
         SymbolEventsOut: {
@@ -12248,6 +12642,7 @@ export interface operations {
                 to?: string | null;
                 limit?: number;
                 adjustment?: "adjusted" | "raw";
+                feed?: ("iex" | "sip" | "kite" | "file") | null;
             };
             header?: never;
             path: {
@@ -12377,6 +12772,100 @@ export interface operations {
             };
         };
     };
+    news_feed_page_v1_news_feed_get: {
+        parameters: {
+            query?: {
+                /** @description Words the headline must contain */
+                q?: string | null;
+                /** @description Comma-separated symbols */
+                tickers?: string | null;
+                /** @description Comma-separated: positive, neutral, negative, mixed, unscored */
+                sentiment?: string | null;
+                /** @description Comma-separated Aegis topics */
+                topic?: string | null;
+                /** @description Comma-separated source names */
+                source?: string | null;
+                /** @description symbols (default): linked to a StockViz symbol; market: linked to none; all */
+                scope?: "symbols" | "market" | "all";
+                /** @description UTC date of available_at, inclusive */
+                from?: string | null;
+                /** @description UTC date of available_at, inclusive */
+                to?: string | null;
+                cursor?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NewsFeedOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    news_overview_v1_news_overview_get: {
+        parameters: {
+            query?: {
+                /** @description Words the headline must contain */
+                q?: string | null;
+                /** @description Comma-separated symbols */
+                tickers?: string | null;
+                /** @description Comma-separated: positive, neutral, negative, mixed, unscored */
+                sentiment?: string | null;
+                /** @description Comma-separated Aegis topics */
+                topic?: string | null;
+                /** @description Comma-separated source names */
+                source?: string | null;
+                /** @description symbols (default): linked to a StockViz symbol; market: linked to none; all */
+                scope?: "symbols" | "market" | "all";
+                /** @description UTC date of available_at, inclusive */
+                from?: string | null;
+                /** @description UTC date of available_at, inclusive */
+                to?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NewsOverviewOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     batch_quotes_v1_quotes_get: {
         parameters: {
             query: {
@@ -12418,6 +12907,7 @@ export interface operations {
                 from?: string | null;
                 to?: string | null;
                 limit?: number;
+                feed?: ("iex" | "sip" | "kite" | "file") | null;
             };
             header?: never;
             path: {
@@ -12774,11 +13264,14 @@ export interface operations {
     };
     get_avwap_v1_symbols__ticker__avwap_get: {
         parameters: {
-            query: {
+            query?: {
                 /** @description Anchor date, YYYY-MM-DD */
-                anchor: string;
-                interval?: "1d" | "1wk" | "1mo";
+                anchor?: string | null;
+                interval?: "1d" | "1wk" | "1mo" | "1m" | "5m" | "15m" | "30m" | "60m";
                 bands?: number;
+                /** @description Intraday anchor instant */
+                anchor_at?: string | null;
+                feed?: ("iex" | "sip" | "kite" | "file") | null;
             };
             header?: never;
             path: {
@@ -17560,6 +18053,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BrokerStatusOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    feed_status_v1_broker_feeds_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeedStatusOut"];
                 };
             };
             /** @description Validation Error */

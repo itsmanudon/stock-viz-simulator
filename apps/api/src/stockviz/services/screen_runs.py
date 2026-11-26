@@ -215,8 +215,8 @@ def run_screen_runs(session: Session, *, now: datetime | None = None) -> ScreenR
     ids = instrument_ids(session, tickers)
     for version_id, watchers in sorted(by_version.items()):
         version = session.get(SetupVersion, version_id)
-        if version is None:
-            continue
+        if version is None or version.timeframe != "daily":
+            continue  # A6.4: an intraday version is refused when a screen is saved
         try:
             rule = compile_rule(version.rule_text)
         except RuleError as exc:

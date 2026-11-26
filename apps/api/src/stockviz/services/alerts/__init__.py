@@ -31,6 +31,12 @@ def on_alert_fired(session: Session, alert: Alert, event: AlertEvent) -> None:
             "ticker": alert.ticker,
             "bar_date": event.bar_date.isoformat() if event.bar_date else None,
             "setup_version_id": alert.setup_version_id,
+            # A6.4: an intraday firing's bar (open, UTC) and its feed.
+            **(
+                {"bar_at": event.bar_at.isoformat(), "feed": event.feed}
+                if event.bar_at is not None
+                else {}
+            ),
         },
     )
 

@@ -42,6 +42,16 @@ class BarOut(BaseModel):
     # bar is "so far", never a closed bar. Null on ``1d``.
     sessions: int | None = None
     partial: bool | None = None
+    # Intraday intervals only (A6.2: ``1m``-``60m``): ``ts`` is the bar's open
+    # instant (naive UTC) and ``closed_at`` its close, clipped at the session
+    # close; ``session_date`` is the venue's date of its session; ``feed`` and
+    # ``badge`` name where it came from ("File (local)", "IEX only", "SIP");
+    # ``minutes`` counts the stored 1-minute bars in it. Null on 1d/1wk/1mo.
+    closed_at: datetime | None = None
+    session_date: date | None = None
+    feed: str | None = None
+    badge: str | None = None
+    minutes: int | None = None
 
 
 class QuoteOut(BaseModel):
@@ -73,6 +83,86 @@ class NewsArticleOut(BaseModel):
     topic: str | None = None
 
 
+class NewsReactionOut(BaseModel):
+    """A linked stock's move on the session after a headline (news redesign).
+
+    The session is the first stored daily bar whose session closed after the
+    headline's ``available_at`` (``event_study``'s rule). ``change_pct`` is its
+    close against the previous stored close (null for the first bar held).
+    ``closes`` holds up to five closes either side, ``reaction_index`` marks
+    the session in it. Association, not cause.
+    """
+
+    ticker: str
+    session_date: date
+    change_pct: float | None = None
+    closes: list[float]
+    reaction_index: int
+
+
+class NewsFeedItemOut(NewsArticleOut):
+    reactions: list[NewsReactionOut] = []
+
+
+class NewsFeedOut(BaseModel):
+    """``/v1/news/feed``: one page of the archive, newest-available first."""
+
+    items: list[NewsFeedItemOut]
+    next_cursor: str | None = None
+    total: int
+    note: str = (
+        "Headlines, sources, dates and links only: Aegis News stores no article text. "
+        "Price moves are the session after each headline, an association, not a cause."
+    )
+
+
+class NewsDayOut(BaseModel):
+    """Documents that became available on one UTC day, by sentiment."""
+
+    date: date
+    positive: int
+    neutral: int
+    negative: int
+    mixed: int
+    unscored: int
+
+
+class NewsFacetOut(BaseModel):
+    value: str
+    count: int
+
+
+class NewsHeatCellOut(BaseModel):
+    date: date
+    count: int
+    net: float | None = None
+    """(positive - negative) / count, null on a day without coverage."""
+
+
+class NewsHeatRowOut(BaseModel):
+    ticker: str
+    total: int
+    cells: list[NewsHeatCellOut]
+
+
+class NewsOverviewOut(BaseModel):
+    """``/v1/news/overview``: the timeline, filter options and coverage heatmap.
+
+    ``days`` and the heatmap ignore the date filters (they show the whole
+    archive); ``total``, ``sentiments``, ``topics`` and ``sources`` honour them.
+    """
+
+    total: int
+    first_date: date | None = None
+    last_date: date | None = None
+    days: list[NewsDayOut]
+    sentiments: dict[str, int]
+    topics: list[NewsFacetOut]
+    sources: list[NewsFacetOut]
+    heatmap_days: list[date]
+    heatmap: list[NewsHeatRowOut]
+
+
 class SymbolDetailOut(BaseModel):
     """Symbol metadata + most recent close, used on the ticker detail page."""
 
@@ -94,6 +184,35 @@ class SymbolDetailOut(BaseModel):
     benchmark: str | None = None
     benchmark_name: str | None = None
     is_indian: bool = False
+    # A6.2: the intraday bars stored for the symbol (default feed), or null.
+    intraday: IntradayInfoOut | None = None
+
+
+class IntradayCoverageOut(BaseModel):
+    feed: str
+    interval: Literal["1m", "60m"]
+    first: datetime
+    last: datetime
+
+
+class IntradayInfoOut(BaseModel):
+    """A6.2: which intraday intervals a symbol has, from its best stored feed.
+
+    ``intervals`` is every interval the bars route can build (all five with
+    1-minute bars; ``60m`` alone with only hourly bars). ``first``/``last`` are
+    bar opens (naive UTC) over that feed's stored bars; ``coverage`` lists
+    each stored feed and interval; ``badge`` is the chart's source badge.
+    """
+
+    feed: str
+    badge: str
+    intervals: list[Literal["1m", "5m", "15m", "30m", "60m"]]
+    first: datetime
+    last: datetime
+    venue: str
+    time_zone: str
+    feeds: list[str]
+    coverage: list[IntradayCoverageOut]
 
 
 class EarningsEventOut(BaseModel):
@@ -207,6 +326,8 @@ class IndicatorsOut(BaseModel):
     # inputs, so no value is computed on it; this is its timestamp.
     interval: str = "1d"
     partial_bar_excluded: datetime | None = None
+    # A6.2: on intraday intervals, the feed the bars came from (null otherwise).
+    feed: str | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -1439,11 +1560,18 @@ class RuleErrorOut(BaseModel):
     column: int | None = None  # from 1
 
 
+RuleTimeframe = Literal["daily", "1m", "5m", "15m", "30m", "60m"]
+"""A6.4: the bars a rule is judged on."""
+SetupFeed = Literal["auto", "iex", "sip", "kite", "file"]
+
+
 class RuleCheckIn(BaseModel):
     rule: str = Field(min_length=1, max_length=RULE_MAX_LENGTH)
     # A4.4: ``number`` checks a numeric expression (a rotation's ranking)
     # instead of a condition.
     expect: Literal["condition", "number"] = "condition"
+    # A6.4: the bars the rule is judged on (``daily`` or an intraday interval).
+    timeframe: RuleTimeframe = "daily"
 
 
 class RuleCheckOut(BaseModel):
@@ -1465,6 +1593,8 @@ class RuleCheckOut(BaseModel):
     # owner can run it; it cannot be a preset or forked by another user.
     user_scoped: bool = False
     error: RuleErrorOut | None = None
+    # A6.4: the timeframe it was checked for; warm-up counts its bars.
+    timeframe: str | None = None
 
 
 SetupKind = Literal["screen", "alert", "strategy", "checklist"]
@@ -1478,6 +1608,8 @@ class SetupVersionOut(BaseModel):
     canonical_text: str
     rule_hash: str
     timeframe: str
+    # A6.4: the stored intraday feed it reads (``auto`` = the best stored).
+    feed: str = "auto"
     notes: str | None = None
     created_at: datetime
     # A3.3: the rule reads its owner's drawings (only the owner can run it).
@@ -1509,13 +1641,15 @@ class SetupIn(BaseModel):
     description: str | None = Field(default=None, max_length=2000)
     rule: str = Field(min_length=1, max_length=RULE_MAX_LENGTH)
     notes: str | None = Field(default=None, max_length=2000)
-    timeframe: Literal["daily"] = "daily"
+    timeframe: RuleTimeframe = "daily"
+    feed: SetupFeed = "auto"
 
 
 class SetupVersionIn(BaseModel):
     rule: str = Field(min_length=1, max_length=RULE_MAX_LENGTH)
     notes: str | None = Field(default=None, max_length=2000)
-    timeframe: Literal["daily"] = "daily"
+    timeframe: RuleTimeframe = "daily"
+    feed: SetupFeed = "auto"
 
 
 class SetupForkIn(BaseModel):
@@ -2549,6 +2683,9 @@ class BacktestTradeOut(BaseModel):
 class EquityPointOut(BaseModel):
     date: date
     nav: Decimal
+    # A6.4: an intraday run's point is a bar: its open instant (naive UTC);
+    # ``date`` is then its session date.
+    at: datetime | None = None
 
 
 class BacktestSummaryOut(BaseModel):
@@ -2721,6 +2858,13 @@ class StrategyBacktestIn(BaseModel):
     direction: Literal["long", "short"] = "long"
     shortable: list[str] = Field(default_factory=list, max_length=50)
     holdout: HoldoutMode = "last_20pct"
+    # A6.4: the bars signals and fills use. ``from``/``to`` stay session
+    # dates. An intraday run reads one stored feed (``auto``: the best
+    # stored); ``flatten_at_close`` sells a position still open at each
+    # session's last bar, at its close.
+    timeframe: RuleTimeframe = "daily"
+    feed: SetupFeed = "auto"
+    flatten_at_close: bool = False
 
     model_config = ConfigDict(populate_by_name=True)
 
@@ -2754,7 +2898,9 @@ class StrategyTradeOut(BaseModel):
     exit_fees: Decimal
     pnl: Decimal
     return_pct: float
-    reason: Literal["exit_rule", "stop_fixed", "stop_atr", "trail", "time", "end_of_data"]
+    reason: Literal[
+        "exit_rule", "stop_fixed", "stop_atr", "trail", "time", "end_of_data", "session_close"
+    ]
     gap: bool = False
     """The bar opened through the stop, so it filled at the open, not the stop."""
     open: bool = False
@@ -2767,6 +2913,12 @@ class StrategyTradeOut(BaseModel):
     exit_adv_pct: float | None = None
     """A4.2: the exit's value as % of the 20-day ADV, when above the cap
     (exits are not capped)."""
+    entry_at: datetime | None = None
+    """A6.4: an intraday trade's entry and exit bars (open instants, naive
+    UTC); ``entry_date``/``exit_date`` are their session dates."""
+    exit_at: datetime | None = None
+    same_day: bool | None = None
+    """A6.4: priced on the same-day (intraday) schedule; null on daily runs."""
 
 
 class StrategySummaryOut(BacktestSummaryOut):
@@ -2843,6 +2995,13 @@ class StrategyBacktestOut(BaseModel):
     window: RunWindowOut | None = None
     report: ReportCardOut | None = None
     checks: OverfittingChecksOut | None = None
+    # A6.4: intraday runs (null on daily ones).
+    timeframe: str | None = None
+    feed: str | None = None
+    feed_badge: str | None = None
+    flatten_at_close: bool | None = None
+    periods_per_year: float | None = None
+    """Bars a year the Sharpe and Sortino are annualised by."""
 
 
 # --- A4.4: cross-sectional rotation ---------------------------------------
@@ -3820,11 +3979,18 @@ class AvwapOut(BaseModel):
     anchor: date
     # The first stored daily bar on or after ``anchor``: where the sums start.
     anchor_bar: date
-    interval: Literal["1d", "1wk", "1mo"]
+    interval: Literal["1d", "1wk", "1mo", "1m", "5m", "15m", "30m", "60m"]
     bands: int
-    # Always "daily": weekly/monthly values are the daily AVWAP sampled at each
-    # period's last stored session.
-    computed_from: Literal["daily"] = "daily"
+    # "daily": weekly/monthly values are the daily AVWAP sampled at each
+    # period's last stored session. A6.2, intraday: "1m" (computed from minute
+    # bars and sampled at each bar's last minute, keyed by the bar's open) or
+    # "60m" (on the 60-minute chart's own bars).
+    computed_from: Literal["daily", "1m", "60m"] = "daily"
+    # A6.2, intraday: the instant asked for and the open of the first bar the
+    # sums start at (naive UTC); null on daily intervals.
+    anchor_at: datetime | None = None
+    anchor_bar_at: datetime | None = None
+    feed: str | None = None
     decimals: int
     points: list[AvwapPointOut]
 

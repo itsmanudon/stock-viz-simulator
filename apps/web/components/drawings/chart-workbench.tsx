@@ -30,6 +30,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 
@@ -41,7 +42,7 @@ import {
   updateDrawingAction,
 } from "@/app/(product)/stocks/[ticker]/drawing-actions";
 import { type ChartDrawingLayer, PriceChart } from "@/components/price-chart";
-import { barDate } from "@/lib/drawings/anchor";
+import { barDate, sessionDateOf } from "@/lib/drawings/anchor";
 import {
   EMPTY_HISTORY,
   type History,
@@ -63,6 +64,7 @@ import {
   toPoints,
 } from "@/lib/drawings/kinds";
 import type { AvwapLine, SceneDrawing } from "@/lib/drawings/scene";
+import { isIntradayInterval } from "@/lib/stock-workspace";
 
 import { DrawingToolbar } from "./drawing-toolbar";
 import { DrawingsList, type PointsDraft } from "./drawings-list";
@@ -122,15 +124,20 @@ export function avwapKey(d: Pick<Drawing, "id" | "points" | "style">, interval: 
 
 /** Quick anchors (A3.3): the loaded bars' highest high and lowest low dates. */
 export function extremeDates(
-  bars: readonly { ts: string; high: string | number; low: string | number }[],
+  bars: readonly {
+    ts: string;
+    high: string | number;
+    low: string | number;
+    session_date?: string | null;
+  }[],
 ): { high: string | null; low: string | null } {
   let hi: { v: number; d: string } | null = null;
   let lo: { v: number; d: string } | null = null;
   for (const b of bars) {
     const h = Number(b.high);
     const l = Number(b.low);
-    if (Number.isFinite(h) && (!hi || h > hi.v)) hi = { v: h, d: barDate(b.ts) };
-    if (Number.isFinite(l) && (!lo || l < lo.v)) lo = { v: l, d: barDate(b.ts) };
+    if (Number.isFinite(h) && (!hi || h > hi.v)) hi = { v: h, d: sessionDateOf(b) };
+    if (Number.isFinite(l) && (!lo || l < lo.v)) lo = { v: l, d: sessionDateOf(b) };
   }
   return { high: hi?.d ?? null, low: lo?.d ?? null };
 }
@@ -179,6 +186,14 @@ export function ChartWorkbench({
   const bounds = { first: initial?.first_bar ?? null, last: initial?.last_bar ?? null };
 
   const selected = drawings.find((d) => d.id === selectedId) ?? null;
+  // A6.2: an intraday AVWAP point is keyed by its bar's open; place it on that bar.
+  const barIndexByTs = useMemo(
+    () => new Map(chart.bars.map((b, i) => [b.ts, i] as const)),
+    [chart.bars],
+  );
+  const barIndexRef = useRef(barIndexByTs);
+  barIndexRef.current = barIndexByTs;
+  const intraday = isIntradayInterval(interval);
 
   // Each anchored VWAP's line for this interval, fetched once per anchor,
   // interval and bands (the line follows the data, not the drawing's style).
@@ -191,13 +206,17 @@ export function ChartWorkbench({
       setAvwapLines((lines) => ({ ...lines, [key]: null }));
       void avwapAction(ticker, anchor, interval, d.style.bands ?? 0).then((result) => {
         const line: AvwapLine | null = result.avwap
-          ? result.avwap.points.map((p) => ({ ...p, date: barDate(p.ts) }))
+          ? result.avwap.points.map((p) => ({
+              ...p,
+              date: barDate(p.ts),
+              ...(intraday ? { index: barIndexRef.current.get(p.ts) ?? null } : {}),
+            }))
           : null;
         if (!result.avwap) setMessage(result.error ?? "The anchored VWAP could not be loaded.");
         setAvwapLines((lines) => ({ ...lines, [key]: line }));
       });
     }
-  }, [drawings, interval, ticker, avwapLines]);
+  }, [drawings, interval, ticker, avwapLines, intraday]);
 
   const chooseTool = useCallback((kind: DrawingKind | null) => {
     setTool(kind);
