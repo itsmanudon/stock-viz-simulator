@@ -4723,7 +4723,7 @@ class JournalExcursionOut(BaseModel):
 
 
 class JournalExcursionsOut(BaseModel):
-    basis: Literal["exact_close", "approximate_daily"]
+    basis: Literal["exact_close", "approximate_daily", "exact_minutes"]
     note: str
     mae: JournalExcursionOut | None = None
     mfe: JournalExcursionOut | None = None
