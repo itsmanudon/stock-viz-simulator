@@ -1,0 +1,21 @@
+{
+  "_note": "HAND-WRITTEN EXAMPLE from the provider's documented response shape (read 26 Nov 2026). Invented numbers, not real market data.",
+  "ticker": "MSFT",
+  "adjusted": true,
+  "queryCount": 1,
+  "resultsCount": 1,
+  "status": "OK",
+  "request_id": "handwritten-2",
+  "results": [
+    {
+      "o": 390.8,
+      "h": 391.0,
+      "l": 390.5,
+      "c": 390.6,
+      "v": 7000.4,
+      "vw": 390.7,
+      "n": 180,
+      "t": 1741012260000
+    }
+  ]
+}
