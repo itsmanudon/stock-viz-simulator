@@ -1256,6 +1256,21 @@ adds `volume_profile`; the downgrade refuses while one is stored.
   route's minutes/daily/IEX/SIP/index/zero-volume cases, the drawing kind),
   `test_a67_volume_profile_migration.py` (PostgreSQL up/down/up).
 
+**Breadth and diffusion (A7.1, M3.3).** `GET /v1/breadth?market=US|IN&from&to`
+(`routers/breadth.py`, public, 60/min, at most 10 years; default the last
+year) -> `BreadthOut {market, start, end, members, universe_note, method,
+points}`. `services/breadth.py` computes on read from stored daily bars (no
+table), cached 10 minutes per (market, from, to): per session, over the
+market's active non-index symbols with a bar that day, advancers/decliners/
+unchanged against each symbol's previous stored close, 52-week new highs and
+lows (252 earlier bars), % above the 20/50/100/200-bar SMA and % with RSI(14)
+>= 50 (the engine's Wilder RSI); then the A/D line, 20/40-day A/D ratios,
+McClellan oscillator (EMA19 - EMA39 of net advances, alpha 0.10/0.05) and
+summation index, and the Zweig breadth thrust. Bars load 420 days before
+`from`, so values do not move when later bars arrive (tested). Web: the
+breadth cockpit on `/markets` (all sectors only). Tests:
+`tests/test_a71_breadth.py`.
+
 **Raw prices on the bars route (A3.1, M2.3).** `GET /v1/symbols/{t}/bars`
 takes `adjustment=adjusted|raw` (default `adjusted`, the split-adjusted
 `price_bars`). `raw` reads `eod_raw` (A1.1) through `services/bars/raw.py`:

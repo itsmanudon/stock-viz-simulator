@@ -5111,3 +5111,38 @@ class ChartLayoutOut(BaseModel):
     panes: list[ChartPaneOut]
     created_at: datetime
     updated_at: datetime
+
+
+class BreadthPointOut(BaseModel):
+    """A7.1 (M3.3): one session's breadth over the market's stored members."""
+
+    date: date
+    advancers: int
+    decliners: int
+    unchanged: int
+    members: int
+    new_highs: int
+    new_lows: int
+    highs_minus_lows: int
+    ad_line: int
+    ad_ratio_20: float | None = None
+    ad_ratio_40: float | None = None
+    mcclellan: float | None = None
+    summation: float | None = None
+    thrust_ema10: float | None = None
+    thrust: bool = False
+    pct_above_20: float | None = None
+    pct_above_50: float | None = None
+    pct_above_100: float | None = None
+    pct_above_200: float | None = None
+    pct_rsi_50: float | None = None
+
+
+class BreadthOut(BaseModel):
+    market: Literal["US", "IN"]
+    start: date
+    end: date
+    members: int
+    universe_note: str
+    method: dict[str, str]
+    points: list[BreadthPointOut]

@@ -13,6 +13,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import { BreadthCockpit } from "@/components/breadth-cockpit";
 import { ClickableRow } from "@/components/clickable-row";
 import { DataTableFrame, NumericCell, SortableHead, TableToolbar } from "@/components/data-table";
 import { type Figure, FigureStrip } from "@/components/figure-strip";
@@ -28,6 +29,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { getMarketsSummary } from "@/lib/api";
+import { type Breadth, getBreadth } from "@/lib/api/breadth";
 import {
   type MarketRow,
   type SortDir,
@@ -52,7 +54,15 @@ export default async function MarketsPage({
   const sort = (params.sort as SortKey) ?? "ticker";
   const dir = (params.dir as SortDir) ?? (sort === "ticker" ? "asc" : "desc");
 
-  const summary = await getMarketsSummary({ sector: params.sector, sparklineDays: 30 });
+  const [summary, ...breadthResults] = await Promise.all([
+    getMarketsSummary({ sector: params.sector, sparklineDays: 30 }),
+    // A7.1: breadth per market; a failed call just leaves that market out.
+    getBreadth("US").catch(() => null),
+    getBreadth("IN").catch(() => null),
+  ]);
+  const breadthMarkets = breadthResults.filter(
+    (b): b is Breadth => b !== null && b.points.length > 0,
+  );
   const sectors = summary.sectors;
 
   const rows: MarketRow[] = summary.rows.map((r) => ({
@@ -166,6 +176,8 @@ export default async function MarketsPage({
       {breadthFigures.length ? (
         <FigureStrip label="Market breadth" figures={breadthFigures} className="mt-5" />
       ) : null}
+
+      {params.sector ? null : <BreadthCockpit markets={breadthMarkets} />}
 
       <div className="mt-5">
         <TableToolbar>
