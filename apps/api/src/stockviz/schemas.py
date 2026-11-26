@@ -3772,3 +3772,180 @@ class ReplayDrawingIn(BaseModel):
     style: DrawingStyle = Field(default_factory=DrawingStyle)
     label: str | None = Field(default=None, max_length=80)
     locked: bool = False
+
+
+# ---------------------------------------------------------------------------
+# Drills and decks (A4.7, M9.3)
+# ---------------------------------------------------------------------------
+
+
+class DrillDeckIn(BaseModel):
+    """POST /v1/drills/decks: K drills from a rule's real false-to-true
+    triggers. ``rule`` is a setup version or inline text (saved as a version
+    of your "Rules from drills" setup)."""
+
+    name: str | None = Field(default=None, max_length=120)
+    rule: StrategyRuleIn
+    universe: ScanUniverseIn
+    from_: date | None = Field(default=None, alias="from")
+    to: date | None = None
+    k: int = Field(default=10, ge=1, le=25)
+    """Drills in the deck (sampled at random from the eligible triggers)."""
+    lead_bars: int = Field(default=60, ge=5, le=250)
+    """N: bars of lead-in shown before the trigger bar."""
+    follow_bars: int = Field(default=40, ge=5, le=250)
+    """M: the session ends this many bars after the trigger (clamped to data)."""
+    seed: int | None = Field(default=None, ge=0, le=2**31 - 1)
+    anonymised: bool = True
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class DrillRuleOut(BaseModel):
+    text: str
+    canonical: str
+    hash: str
+    setup_version_id: int
+
+
+class DrillCheckOut(BaseModel):
+    key: Literal["entry", "stop", "size"]
+    label: str
+    status: Literal["passed", "failed", "not_applicable"]
+    detail: str
+
+
+class DrillScoreOut(BaseModel):
+    """Process, not profit: did the trade follow the plan."""
+
+    checks: list[DrillCheckOut]
+    passed: int
+    applicable: int
+    followed_plan: bool | None
+    """True when every applicable check passed; null with no trade."""
+    traded: bool
+    r_achieved: float | None
+    """Total P&L over the planned risk. Shown beside the score; it is not the score."""
+    r_note: str
+    total_pnl: Decimal
+    rules: dict[str, str]
+
+
+class DrillPlanIn(BaseModel):
+    planned_entry: Decimal = Field(gt=0, max_digits=18, decimal_places=6)
+    planned_stop: Decimal = Field(gt=0, max_digits=18, decimal_places=6)
+    planned_size: Decimal = Field(gt=0, max_digits=20, decimal_places=6)
+    note: str | None = Field(default=None, max_length=2000)
+
+    @model_validator(mode="after")
+    def _long(self) -> DrillPlanIn:
+        if self.planned_stop >= self.planned_entry:
+            raise ValueError("a long plan's stop must be below its entry")
+        return self
+
+
+class DrillPlanOut(BaseModel):
+    side: Literal["long"] = "long"
+    planned_entry: Decimal
+    planned_stop: Decimal
+    planned_size: Decimal
+    planned_risk: Decimal
+    """(entry - stop) x size, in the session's currency."""
+    note: str | None
+    locked: bool
+    locked_at: datetime | None
+
+
+class DrillRevealHorizonOut(BaseModel):
+    bars: int
+    date: date | None
+    close: Decimal | None
+    return_pct: float | None
+    """From the trigger bar's close; null when the data ends first."""
+
+
+class DrillRevealOut(BaseModel):
+    ticker: str
+    name: str | None
+    sector: str | None
+    currency: str
+    trigger_date: date
+    session_start: date
+    session_end: date
+    shown_trigger_date: date
+    date_offset_weeks: int
+    after: list[DrillRevealHorizonOut]
+    next_bars: list[ReplayBarOut]
+    """Stored daily bars after the session's last one (up to 60)."""
+
+
+class DrillRowOut(BaseModel):
+    id: int
+    position: int
+    label: str
+    status: Literal["not_started", "in_progress", "revealed"]
+    ticker: str | None
+    """Null while the drill is anonymised and not revealed."""
+    trigger_date: date | None
+    score: DrillScoreOut | None
+
+
+class DrillDeckSummaryOut(BaseModel):
+    drills: int
+    not_started: int
+    in_progress: int
+    revealed: int
+    traded: int
+    followed_plan: int
+    checks_passed: int
+    checks_applicable: int
+
+
+class DrillDeckOut(BaseModel):
+    id: int
+    name: str
+    rule: DrillRuleOut
+    universe: dict[str, Any]
+    from_: date = Field(alias="from")
+    to: date
+    k: int
+    lead_bars: int
+    follow_bars: int
+    seed: int
+    anonymised: bool
+    triggers_found: int
+    triggers_eligible: int
+    lag_skipped: int
+    created_at: datetime
+    drills: list[DrillRowOut]
+    summary: DrillDeckSummaryOut
+    method: dict[str, str]
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class DrillOut(BaseModel):
+    """One drill. While ``anonymised`` the symbol is ``label`` everywhere and
+    every date is shifted by whole weeks; nothing names the real ticker,
+    company or dates (``reveal`` is null)."""
+
+    id: int
+    deck_id: int
+    deck_name: str
+    position: int
+    label: str
+    status: Literal["not_started", "in_progress", "revealed"]
+    anonymised: bool
+    date_note: str | None
+    news_note: str
+    trigger_at: datetime
+    session: ReplaySessionOut
+    summary: ReplaySummaryOut
+    bar: ReplayBarOut
+    history: list[ReplayBarOut]
+    orders: list[ReplayOrderOut]
+    fills: list[ReplayFillOut]
+    plan: DrillPlanOut | None
+    needs_plan: bool
+    score: DrillScoreOut | None
+    reveal: DrillRevealOut | None

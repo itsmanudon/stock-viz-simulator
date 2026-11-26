@@ -27,7 +27,7 @@ import pandas as pd
 from sqlmodel import Session, col, select
 
 from stockviz.models import PriceBar, Symbol
-from stockviz.models.setup import Setup
+from stockviz.models.setup import Setup, SetupVersion
 from stockviz.models.watchlist import Watchlist, WatchlistItem
 from stockviz.schemas import (
     EquityPointOut,
@@ -541,6 +541,35 @@ def execute_strategy(
     )
 
 
+def inline_rule_version(
+    session: Session,
+    user_id: int,
+    compiled: CompiledRule,
+    *,
+    name: str,
+    kind: str,
+    description: str,
+) -> SetupVersion:
+    """Inline rule text as a version of the user's setup ``name`` (one setup,
+    a version per distinct rule; the same rule is the same version). A4.1's
+    saved backtests and A4.7's drill decks use it."""
+    setup = session.exec(
+        select(Setup).where(
+            col(Setup.user_id) == user_id,
+            col(Setup.kind) == kind,
+            col(Setup.name) == name,
+            col(Setup.archived_at).is_(None),
+        )
+    ).first()
+    if setup is None:
+        _setup, version = store.create_setup(
+            session, user_id, name=name, kind=kind, rule=compiled, description=description
+        )
+    else:
+        version = store.add_version(session, setup, compiled).version
+    return version
+
+
 def materialize_rules(
     session: Session, body: StrategyBacktestIn, user_id: int
 ) -> StrategyBacktestIn:
@@ -551,22 +580,10 @@ def materialize_rules(
     def version_for(ref: StrategyRuleIn | None) -> StrategyRuleIn | None:
         if ref is None or ref.rule is None:
             return ref
-        compiled = compile_rule(ref.rule)
-        setup = session.exec(
-            select(Setup).where(
-                col(Setup.user_id) == user_id,
-                col(Setup.kind) == "strategy",
-                col(Setup.name) == INLINE_SETUP_NAME,
-                col(Setup.archived_at).is_(None),
-            )
-        ).first()
-        if setup is None:
-            _setup, version = store.create_setup(
-                session, user_id, name=INLINE_SETUP_NAME, kind="strategy", rule=compiled,
-                description="Inline rules from saved backtests; one version per rule.",
-            )  # fmt: skip
-        else:
-            version = store.add_version(session, setup, compiled).version
+        version = inline_rule_version(
+            session, user_id, compile_rule(ref.rule), name=INLINE_SETUP_NAME, kind="strategy",
+            description="Inline rules from saved backtests; one version per rule.",
+        )  # fmt: skip
         assert version.id is not None
         return StrategyRuleIn(setup_version_id=version.id)
 
@@ -585,6 +602,7 @@ __all__ = [
     "StrategyNotFound",
     "StrategyRun",
     "execute_strategy",
+    "inline_rule_version",
     "materialize_rules",
     "request_json",
 ]

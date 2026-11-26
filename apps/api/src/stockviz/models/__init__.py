@@ -27,6 +27,7 @@ from stockviz.models.delivery import (
 )
 from stockviz.models.dividend import Dividend, PortfolioDividend
 from stockviz.models.drawing import Drawing
+from stockviz.models.drill import Drill, DrillDeck, DrillPlan
 from stockviz.models.earnings import EarningsEvent
 from stockviz.models.eod import EodExtras, EodRaw
 from stockviz.models.events import ConsumerInbox, OutboxEvent, PortfolioTradeActivity
@@ -108,6 +109,9 @@ __all__ = [
     "DeliveryStatus",
     "Dividend",
     "Drawing",
+    "Drill",
+    "DrillDeck",
+    "DrillPlan",
     "EarningsEvent",
     "EodExtras",
     "EodRaw",
