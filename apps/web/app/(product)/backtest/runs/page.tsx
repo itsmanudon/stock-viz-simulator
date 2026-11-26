@@ -37,7 +37,7 @@ export default async function SavedBacktestsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow="Research"
+        eyebrow="Quant Lab"
         title="Saved backtests"
         description="Every saved run keeps its request, rules, fees and a fingerprint of the data it read, so it can be rerun and checked."
       />

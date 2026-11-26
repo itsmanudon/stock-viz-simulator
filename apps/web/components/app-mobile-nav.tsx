@@ -29,7 +29,8 @@ export function AppMobileNav({ signedIn }: { signedIn: boolean }) {
         <Dialog.Content className="fixed inset-y-0 left-0 z-50 flex w-[min(19rem,88vw)] flex-col border-r border-border-muted bg-surface-elevated outline-none data-[state=closed]:animate-out data-[state=open]:animate-in data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left lg:hidden">
           <Dialog.Title className="sr-only">Product navigation</Dialog.Title>
           <Dialog.Description className="sr-only">
-            Navigate StockViz research, trading, portfolio, and community tools.
+            Navigate the six StockViz workspaces: Today, Markets, Workbench, Quant Lab, Portfolio &
+            Tax and AI Copilot.
           </Dialog.Description>
 
           <div className="flex h-14 items-center gap-2.5 border-b border-border-muted px-5">
