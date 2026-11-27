@@ -740,3 +740,40 @@ def test_the_fill_time_converts_to_the_venue_date() -> None:
     assert venue_session_date(late_utc, T) == date(2025, 5, 8)
     assert venue_session_date(late_utc, "AAPL") == date(2025, 5, 7)
     assert venue_session_date(datetime(2025, 5, 8, 2, 0, tzinfo=UTC), "AAPL") == date(2025, 5, 7)
+
+
+# --- A6.10: exact excursions from stored minutes --------------------------------------
+
+
+def test_a_paper_entry_with_stored_minutes_gets_exact_excursions(
+    session: Session, client: TestClient
+) -> None:
+    from stockviz.models import IntradayBar
+    from stockviz.services.instruments import resolve_symbol
+
+    _aapl(session)
+    uid = _user(session)
+    _trade(client, uid, "buy", "10")
+    _trade(client, uid, "sell", "10")
+    buy, sell = session.exec(select(Trade).order_by(col(Trade.id))).all()
+    buy.ts = datetime(2025, 4, 10, 18, 0, 20)  # 14:00:20 New York
+    sell.ts = datetime(2025, 4, 10, 18, 3, 10)
+    session.add_all([buy, sell])
+    session.commit()
+    instrument = resolve_symbol(session, "AAPL")
+    assert instrument is not None and instrument.id is not None
+    for minute, (low, high) in enumerate([("149", "151"), ("146", "150"), ("149", "155"),
+                                          ("150", "156")]):  # fmt: skip
+        ts = datetime(2025, 4, 10, 18, minute)
+        session.add(IntradayBar(instrument_id=instrument.id, feed="iex", interval="1m", ts=ts,
+                                open=Decimal(low), high=Decimal(high), low=Decimal(low),
+                                close=Decimal(high), volume=10, source="alpaca_iex",
+                                available_at=ts + timedelta(minutes=1)))  # fmt: skip
+    session.commit()
+
+    entry = _entries(client, uid, "?status=closed")["entries"][0]
+    detail = client.get(f"/v1/journal/entries/{entry['id']}", headers=_h(uid)).json()
+    exc = detail["excursions"]
+    assert exc["basis"] == "exact_minutes", exc
+    assert Decimal(exc["mae"]["per_share"]) == Decimal("-4")  # low 146 vs cost 150
+    assert Decimal(exc["mfe"]["per_share"]) == Decimal("6")  # high 156 at the exit minute

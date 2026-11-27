@@ -33,14 +33,18 @@ src/stockviz/
                     trade_plan — A5.4 TradePlan (absorbed DrillPlan and
                     ReplayJournal, both archived), journal_entry — A5.5
                     JournalEntry / JournalEntryFill (round trips),
-                    intraday — A6.1 IntradayBar / IntradayFile)
-  (services/feeds/  A6.3: FeedProvider/BrokerProvider, SimulatedFeed, Alpaca,
+                    intraday — A6.1 IntradayBar / IntradayFile,
+                    chart_layout — A6.8 ChartTemplate / ChartLayout)
+  (services/feeds/  A6.3: FeedProvider/BrokerProvider, SimulatedFeed, Alpaca (A6.6: live IEX),
                     Tiingo, Massive, Finnhub stub, intraday-backfill, feed status)
+  (services/stream/ A6.5: the stream worker: minute bars from ticks, NOTIFY and
+                    the SSE hub, per-bar alert judging, the SimulatedFeed replay)
   events/           versioned contracts (trades/market), outbox/inbox,
                     dispatcher, domain handlers, Kafka producer wrappers
                     (not imported by FastAPI startup)
   workers/          outbox_publisher, scheduler (dedicated APScheduler process),
-                    plus trade-activity and market ingest/analytics consumers
+                    plus trade-activity and market ingest/analytics consumers,
+                    and stream (A6.5, the intraday stream worker; laptop only)
   benchmarks/       Kafka consumer-group scaling experiment (not domain logic).
                     Runs isolate by seek-to-end + run_id; throughput is
                     min(produced_at)→max(consumed_at), not collector wall-clock.
@@ -53,13 +57,14 @@ src/stockviz/
                     (display currency), earnings, replay
                     (isolated ReplaySession), rules / setups / theses
                     (A2.2), notification_channels (A2.3), drawings
-                    (A3.2), avwap (A3.3), events, strength (RS
+                    (A3.2), avwap (A3.3), volume_profile (A6.7), events, strength (RS
                     percentile, delivery) and regime (A3.5), drills
                     (A4.7), books (A5.1), plans (A5.4), journal_entries (A5.5:
                     `/v1/journal/entries`), journal_stats (A5.6:
                     `/v1/journal/stats`), brokers (A5.7: broker
                     status), imports (A5.3: `/v1/books/{id}/imports`,
-                    opening lots), health
+                    opening lots), chart_templates + chart_layouts
+                    (A6.8: the chart workspace), health
                     (`GET /live` liveness, `GET /health` readiness + DB)
   services/
     ingest/         External-API fetchers (yfinance primary, Alpha Vantage fallback);
@@ -163,6 +168,8 @@ src/stockviz/
                     A3.1: raw.py (`eod_raw` bars for `adjustment=raw`, `has_raw`)
                     A6.2: intraday.py (1m-60m from `intraday_bars`, resampled
                     within sessions, closed-bar partial rule, feeds and badges)
+                    A6.7: volume_profile.py (bins, POC, value area; minutes
+                    or an EOD approximation)
     markets/        calendar.py — exchange calendars and completed sessions (Phase 4.1;
                     A6.1: session_minutes, open/close in UTC with special hours);
                     india_holidays.py — the maintained NSE/BSE holiday table (A0;
@@ -251,8 +258,14 @@ CLI subcommands (`python -m stockviz.cli <cmd>`): `seed`, `backfill`,
 `intraday-reconcile [TICKER ...] [--against daily|60m] [--interval 1m|60m] [--feed F] [--show N]`,
 `intraday-size`,
 `intraday-backfill --provider alpaca|tiingo|massive --symbols T ... --from D --to D [--feed iex|sip] [--apply]`,
+`intraday-catch-up [--symbols T ...] [--date D] [--apply]` (A6.6),
 `rule-check "<rule>" [TICKER ...] [--date YYYY-MM-DD] [--explain] [--user-id N]`,
 `screen-runs`, `deliver-notifications [--channel webhook|email|telegram] [--limit N]`.
+`doctor` (A10.1: read-only health of a self-hosted instance, exit 1 on a failed check).
+`macro-sync [--series ID ...]` (A9.7: the FRED macro catalogue; needs `FRED_API_KEY`).
+`docs-load PATH ... --ticker T --kind K [--date D] [--apply]`, `docs-edgar TICKER ... --since D` (A7.10).
+`docs-index [--embed] [--limit N]` (A8.4: passages and embeddings for hybrid search; local only).
+`fo-load --dir DIR [--apply]` (A7.14: the owner's option files as daily summaries; local only).
 `seed` also writes the rule presets (A2.2) and the checklist dimension setups
 (A2.4).
 
@@ -1007,7 +1020,8 @@ numbers; never replace them with real responses).
   a network or rate error (at least its `retry_after`), resets after an
   item, raises an auth/provider error at once. `BrokerProvider`: `status`,
   `login_url`, `import_fills`, `export_basket`, each a `BrokerAnswer(supported,
-  reason)`; `StubBroker` (Zerodha) answers "not supported" until A6.11.
+  reason)`; `StubBroker` (Zerodha) answers "not supported": A6.11 built the
+  CSV maps and the browser basket handoff instead (no server order, no login).
   `registry.py`: `build_feed(name, settings)`, `FEED_NAMES`,
   `KEY_ENV_VARS`, `BROKERS`. `us_symbol` refuses NSE/BSE, `^` indices and
   other venues (US feeds never get an Indian symbol); Alpaca and Massive
@@ -1033,7 +1047,7 @@ numbers; never replace them with real responses).
   symbol; `start_at` skips earlier bars; `speed` x real time (0 = no
   waiting) through an injected async sleep; `mode="bars"` yields each bar at
   its close. Labelled "Replayed", never live. For tests and A6.5.
-- **Adapters** (history only; streams are A6.5/A6.6, `stream()` raises
+- **Adapters** (history only; the live stream is A6.6, `stream()` raises
   `NotSupported` with that reason). Each is off until its key is set.
   - **Alpaca** (`alpaca.py`, feed `iex`, or `sip`; source `alpaca_iex` /
     `alpaca_sip`): `GET https://data.alpaca.markets/v2/stocks/{symbol}/bars`,
@@ -1136,6 +1150,186 @@ numbers; never replace them with real responses).
   without requests, idempotent apply and `job_runs`, auth stop, network
   skip, US-only refusal, not in the cron, feed states and the route, status
   and health; PostgreSQL partitions and idempotency).
+
+**The stream worker (A6.5, M1.6, M4.5 intraday).** `services/stream/`,
+`workers/stream.py`, `routers/stream.py`; design: workspace
+`docs/a6-design-note.md` ("Stream worker"). Migration `c8d3e5f7a9b2`:
+`intraday_bars.feed` may be `replayed`, and `feed_streams` (model
+`feed_stream.py`).
+
+- **Run it** (laptop only during A6; nothing on Railway starts it):
+  `python -m stockviz.workers.stream --replay --from-feed file --symbols
+  TCS.NS --start 2026-01-05 --end 2026-01-10 [--speed 60] [--no-deliver]`.
+  Symbols default to the watched ones (`replay.watched`: intraday alert
+  symbols, then watchlists, capped at 30). `--feed alpaca` exits 2 (no key:
+  "Offline"; with a key: the live stream is A6.6). Exit 2 also for no
+  window, no symbols or no stored minutes in it.
+- **Loop** (`worker.py::StreamWorker.run`): a pump task feeds an
+  `asyncio.Queue` (never `wait_for` on an async generator: a timeout would
+  close it). `bars.py::MinuteBarBuilder` builds 1m bars per symbol: a later
+  minute's tick closes the open bar, a tick for a closed minute is `late`
+  and dropped, `due(now)` closes bars a `grace` (5 s) after their minute on
+  a wall-clock feed (`StreamSpec.wall_clock`), `flush()` at the end, a
+  provider `FeedBar` closes at once. Replayed ticks rebuild the stored bars
+  exactly (OHLCV).
+- **Per closed bar** (`close_bar`, one transaction): off-session bars
+  (venue calendar) are counted, not stored; otherwise `write_rows` (ON
+  CONFLICT DO NOTHING) with the stream's feed (`replayed`, source
+  `replay_<feed>`), `available_at` = close clipped at the session close;
+  if inserted, `hub.notify_bar` (`pg_notify('intraday_bar', json)`,
+  delivered at commit; no-op on SQLite); then every active intraday rule
+  alert of the symbol whose version feed is in `StreamSpec.version_feeds`
+  (`auto` and the replayed source feed) is judged with A6.4's `judge_bar`
+  on each bar of its timeframe that this minute closed (`now` = the
+  minute's close, `recorded_at` = the wall clock), only bars opening at or
+  after `judge_from` (the stream's first bar: warm-up is context, never a
+  firing). Rules compile once per version. Then `feed_streams` is updated.
+  After the commit a firing drains deliveries at once (`delivery.drain`).
+- **Replay** (`replay.py::plan_replay`): copies the source feed's bars of
+  the sessions before the window into `replayed` unjudged (warm-up:
+  `warmup_sessions`, the longest alert rule's lookback, at least 2), then
+  loads the window into `SimulatedFeed`. Replayed bars sit beside the real
+  ones and `FEED_RANK` reads them last; firings carry `feed = replayed` and
+  say "Replayed from stored bars, not live".
+- **Server-sent events**: `GET /v1/stream/bars?tickers=A,B` (public, 30 a
+  minute, at most 10 tickers): `: connected`, then `event: bar` per stored
+  minute (`hub.BarEvent`: ticker, feed, badge, interval `1m`, `ts` = open,
+  `closed_at`, OHLCV strings, `replayed`) and a keep-alive comment every
+  15 s. `hub.BarHub` LISTENs on its own autocommit psycopg connection in a
+  thread started by the first subscriber and stopped after the last, so an
+  API with no open intraday chart holds no connection; each subscriber
+  has a 256-event queue that drops its oldest when full; at most 200.
+- **Status**: `/v1/broker/feeds` adds `streams` (`feeds/status.py::
+  stream_statuses`): name, label, `live` (false for `simulated`), state
+  `streaming|closed|error`, `stale` (streaming but silent 5 minutes: shown
+  closed), symbols, last tick and bar, counters, a fixed error summary.
+- **Live (A6.6).** `python -m stockviz.workers.stream --feed alpaca
+  [--symbols AAPL,MSFT] [--no-deliver]`: `AlpacaFeed.stream` subscribes to IEX
+  minute bars (`wss://stream.data.alpaca.markets/v2/iex`; connect, auth,
+  subscribe and error codes as Alpaca's docs read 27 Nov 2026, in the module
+  docstring) for up to 30 US symbols (Indian ones skipped), yields `FeedBar`s
+  (feed `iex`, source `alpaca_iex_live`, badge "IEX only") and reconnects
+  after a drop through `reconnecting`; auth errors end it, 406 waits a
+  minute. `worker.live_spec()`; `StreamWorker(stop_at=)` ends the run 2
+  minutes after the New York close; it starts at most 10 minutes before the
+  open and exits 2 on a closed day or a blank key. After the close,
+  `stockviz.cli intraday-catch-up [--apply]` backfills the same symbols' SIP
+  minutes for the latest session (`intraday-backfill --provider alpaca --feed
+  sip`; SIP is free once 15 minutes old). `websockets` is a direct dependency.
+  Tests (fake socket, no network): `tests/test_a66_alpaca_stream.py`, the live
+  cases in `test_a65_stream_worker.py`, the catch-up in
+  `test_feed_backfill.py`.
+- **Tests**: `tests/test_a65_stream_worker.py` (synthetic NSE minutes; the
+  replayed done-when: firings equal A6.4's stored-bar judgement, a rerun
+  adds nothing), `tests/test_a65_stream_migration.py` (PostgreSQL: up,
+  down, up; a real LISTEN/NOTIFY round trip). Locally on the owner's TCS
+  5m January 2026 minutes (rolled back): 25 replayed firings, the same bars
+  as the stored path and the backtest.
+
+
+**Volume profile (A6.7, M2.9).** `services/bars/volume_profile.py`,
+`routers/volume_profile.py`; design: workspace `docs/a6-design-note.md`
+("Volume profile"). Migration `d4a7f9b1c3e5` (additive): `ck_drawings_kind`
+adds `volume_profile`; the downgrade refuses while one is stored.
+
+- **Route.** `GET /v1/symbols/{t}/volume-profile?from&to&feed&bins&value_area`
+  (public, 60/min like `/bars`). `from`/`to` instants (naive = UTC; default
+  the year to now), `feed` a stored intraday feed (default `FEED_RANK`'s
+  best: SIP first), `bins` 4-200 (24), `value_area` 0.05-1 (0.7). Out:
+  `VolumeProfileOut` (`bins` low to high with spread volume, `poc` the POC
+  bin's middle, `poc_index`, `vah`/`val`, `source` minutes | daily, `feed`,
+  `badges`, `note`). 404 unknown symbol or no bars; 409 with the reason for
+  an index (`instruments.asset_type = 'index'`: its volume is stored 0) or
+  a range with no volume; 422 `from` after `to`.
+- **Bars.** 1-minute `intraday_bars` on the chosen feed when every daily
+  session in the range has minutes ("From minute bars", plus "IEX volume
+  only" on `iex`); otherwise the stored daily bars ("EOD approximation").
+  More than 300,000 minutes also falls back to daily, with its own note.
+- **Maths** (`build_profile`, pure): each bar's volume spread evenly over
+  its high-low range (a zero-range bar's volume in the bin holding its
+  price; a price on an edge belongs to the bin above, the highest high to
+  the top bin). POC: the most volume; a tie goes to the bin nearest the
+  middle, then the lower. Value area: from the POC, add the side whose next
+  bin has more volume (a tie adds the bin above) until >= `value_area` of
+  the total. The hand calculation is in the test.
+- **The drawing kind.** `volume_profile`: two points `{ts: session, price:
+  null}` (`DATE_ONLY_KINDS` with `avwap`), any order, inside the stored daily
+  bars; no label needed. The DSL does not read it. Replay refuses it (422:
+  it reads its sessions' later bars).
+- `SymbolDetailOut.is_index` tells the chart not to offer a profile.
+- Tests: `test_a67_volume_profile.py` (the hand calculation, ties, the
+  route's minutes/daily/IEX/SIP/index/zero-volume cases, the drawing kind),
+  `test_a67_volume_profile_migration.py` (PostgreSQL up/down/up).
+
+**Breadth and diffusion (A7.1, M3.3).** `GET /v1/breadth?market=US|IN&from&to`
+(`routers/breadth.py`, public, 60/min, at most 10 years; default the last
+year) -> `BreadthOut {market, start, end, members, universe_note, method,
+points}`. `services/breadth.py` computes on read from stored daily bars (no
+table), cached 10 minutes per (market, from, to): per session, over the
+market's active non-index symbols with a bar that day, advancers/decliners/
+unchanged against each symbol's previous stored close, 52-week new highs and
+lows (252 earlier bars), % above the 20/50/100/200-bar SMA and % with RSI(14)
+>= 50 (the engine's Wilder RSI); then the A/D line, 20/40-day A/D ratios,
+McClellan oscillator (EMA19 - EMA39 of net advances, alpha 0.10/0.05) and
+summation index, and the Zweig breadth thrust. Bars load 420 days before
+`from`, so values do not move when later bars arrive (tested). Web: the
+breadth cockpit on `/markets` (all sectors only). Tests:
+`tests/test_a71_breadth.py`.
+
+**Sector rotation map (A7.2, M3.2).** `GET /v1/sector-rotation?market=US|IN&weeks=2-26`
+(`routers/sector_rotation.py`, public, 60/min) -> `RotationOut {market,
+benchmark, benchmark_name, as_of, note, method, sectors [{sector, members,
+points [{week, rs_trend, rs_momentum, quadrant}]}]}`. `services/sector_rotation.py`:
+a sector (>= 3 active non-index members by `symbols.sector`) is the
+equal-weight compounded mean of its members' daily returns (no sector index
+is stored; survivorship-biased); the benchmark is the venue index's stored
+bars, else the equal-weight market (`equal_weight`, labelled). Weekly at each
+ISO week's last stored session: RS ratio = 100 x sector / benchmark; RS-Trend
+= 100 x ratio / its 10-week mean; RS-Momentum = 100 x RS-Trend / RS-Trend 4
+weeks earlier; quadrants Leading / Weakening / Lagging / Improving. Openly
+documented, not RRG®. Two years of bars load. Web: an SVG map per market on
+`/markets`. Tests: `tests/test_a72_sector_rotation.py`.
+
+**Forensic scorecard (A7.3, M5.1, M5.2).** `GET /v1/symbols/{t}/forensics?as_of=`
+(`routers/fundamentals.py`, public, 60/min) -> `ForensicsOut`: the three latest
+fiscal years' annual flows and year-end instants as known on `as_of`
+(`facts_as_of`), scored by `services/fundamentals/forensics.py` (pure):
+Piotroski F-score (nine tests, `score` of `known`; total debt stands in for
+long-term debt, labelled), Altman Z'' emerging-market form (3.25 + 6.56 X1 +
+3.26 X2 + 6.72 X3 + 1.05 X4; safe > 5.85, distress < 4.35), Beneish M (eight
+variables, flagged > -2.22) and CFO/PAT; missing inputs are named, never
+guessed. A `Financial Services` sector symbol gets `financial: true` and no
+models. Six concepts were added (additive, mapping still v1): `sga`,
+`depreciation`, `retained_earnings`, `receivables`, `net_ppe`,
+`long_term_debt` (yfinance row names and EDGAR tags in `concepts.py`; the
+Friday fetch writes them from its next run). Web: the forensic scorecard
+card on the stock page's Financials tab. Tests: `tests/test_a73_forensics.py`.
+
+**Valuation bands and reverse DCF (A7.4, M5.3).** `/valuation/history` adds
+`bands` (`valuation.bands`: nearest-rank p10/p25/p50/p75/90 of the month-ends,
+5 points minimum). `GET /v1/symbols/{t}/reverse-dcf?wacc=0.09&terminal_growth=0.03&years=10&fcf_margin=&as_of=`
+(`routers/fundamentals.py`, public, 60/min; `services/fundamentals/reverse_dcf.py`,
+pure): two-stage FCF model (N years at g, then Gordon growth), g solved by
+bisection over [-50%, 100%] so the value equals today's EV; base FCF is the
+TTM free cash flow, or TTM revenue x `fcf_margin`; reasons instead of
+numbers when FCF <= 0, WACC <= terminal, EV missing or out of range; a 3x3
+sensitivity grid (WACC +-1 point, terminal +-0.5) and the EV -> equity ->
+price reconciliation. `Valuation` now carries `revenue_ttm`, `fcf_ttm`,
+`debt`, `cash`, `shares`, `price_reporting`, `enterprise_value`. Web: the
+bands line under P/E and a Reverse DCF card (inputs re-solve through the
+public route) on the Financials tab. Tests: `tests/test_a74_reverse_dcf.py`.
+
+**Thesis kill switches (A7.5, M5.6).** A thesis with a kill rule owns one
+rule alert (`services/thesis_kill.py`): `alerts.params["thesis_id"]` links it;
+its setup version is a version of the user's "Thesis kill switches" setup
+(`strategy_run.inline_rule_version`). `POST /v1/theses`, `PATCH` and `/close`
+call `sync_kill_alert`: a new or changed rule points the alert at its version
+and re-arms it, removing the rule deletes the alert, a closed or invalidated
+thesis pauses it. A2.3's engine judges it nightly (fires once, notifies,
+stages delivery); a firing never changes the thesis. `ThesisOut` adds
+`kill_alert_id`, `kill_state` (none|armed|paused|fired), `kill_fired_at`,
+`kill_fired_on`. No migration. Web: `/theses` (create, close, invalidate,
+remove the rule). Tests: `tests/test_a75_thesis_kill.py`.
 
 **Raw prices on the bars route (A3.1, M2.3).** `GET /v1/symbols/{t}/bars`
 takes `adjustment=adjusted|raw` (default `adjusted`, the split-adjusted
@@ -1441,6 +1635,20 @@ perturbing bars after a rebalance, unknown ranks excluded, cash filter
 met / unknown, costs and turnover, resizing, buffer, inverse volatility,
 rerun identical and data changed).
 
+**Multi-factor models (A7.7, M7.5).** `RotationBacktestIn.factors` (1-8
+`{name, expression, weight 0-10, higher_is_better}`) instead of `ranking`
+(exactly one; 422 otherwise). `rotation_run.factor_scores` (pure): on each
+session, each factor is z-scored across the symbols with every factor known
+(at least 3; a factor with no spread leaves the date unscored), signed and
+weighted; the sum is the score A4.4's engine ranks, so rebalancing, costs,
+holdout, trials and reruns are the rotation's. The combined canonical text
+(`2 x z(...) + 1 x -z(...)`) is the `ranking` rule's text and hash (in the
+strategy hash and the trial family's skeleton: weight variants are trials of
+one family); each factor is also a `factor` rule. Warm-up and inputs come
+from the factors' sum. Web: the rotation form's Factor model mode with
+presets (momentum 12-1, low volatility, P/E value, ROE quality, size).
+Tests: `tests/test_a77_factors.py`.
+
 **Scan event study (A4.5, M7.3).** `POST /v1/research/scan-event-study`
 (`routers/research.py`, public, 10/min, `auth.OptionalUserIdDep`;
 `services/scan_event_study.py`) takes `ScanEventStudyIn`: `trigger`
@@ -1512,6 +1720,44 @@ resting orders").
   live route, drawings isolation, resting orders, DP, forensics net, no
   prize), `test_replay_a46_migration.py` (PostgreSQL up/down/up),
   `test_kernel_three_way.py` (INR replay compared, skip removed).
+
+**Replay with full orders (A6.9, M9.4).** Migration `e9a4b6c8d0f3`
+(additive; down refuses while a bracket or intraday session is stored):
+`replay_orders.parent_id` (cascade) and `oco_group`, type `bracket`, status
+`pending`; `replay_sessions.interval` (default `1d`) and `feed`. Rules in
+`docs/SIMULATION.md` ("`intrabar_ohlc` (v1) and brackets").
+
+- **Kernel.** `profiles.INTRABAR_OHLC` (`intrabar_ohlc` v1,
+  `INTRABAR_UNKNOWN_LABEL`), `engine.evaluate_order` range rule with the open
+  first, `engine.evaluate_oco_exit(stop, target, market, profile, path=)` ->
+  `OcoDecision(leg, decision, basis)`. Registry: `REPLAY_PROFILES`,
+  `BACKTEST_PROFILES`, `replay_profile(name)`; backtest `FILL_RULES` read the
+  registry. Live stays `legacy_close`.
+- **Replay.** `create_replay_session(interval=, profile=)`;
+  `session.submit_replay_bracket` (market entry fills now, children open;
+  limit entry rests, children pending); `orders._Judge` judges a bracket's
+  open pair through `evaluate_oco_exit`, loading `intraday.minutes_inside`
+  only when both levels are inside the bar. `market.ReplayBar` is what every
+  bar function returns (daily `PriceBar` or `intraday.IntradaySource`).
+- **Routes.** `ReplaySessionCreateIn.interval`/`profile`; `ReplayOrderIn`
+  `bracket` + `entry_type`, `stop_price`, `target_price` (drills share
+  `routers/replay.submit_replay_ticket`); `ReplayOrderOut.parent_id`, `oco_group`,
+  `order_inside_bar_unknown`; `ReplaySubmitOut.children`;
+  `ReplaySessionOut.interval`, `feed`, `profile_assumptions`; list rows
+  `interval`, `profile_name`; availability `intervals`, `minute_feed`,
+  `minute_first`, `minute_last`. Advance (replay and drills) is limited per
+  user (`throttle.ADVANCE_THROTTLE`, 429), off when the limiter is off.
+- **Short brackets (27 Nov 2026).** `ReplayOrderIn.direction` `long|short`;
+  short (US-listed only, `ledger.require_shortable`) sells short and its
+  children are buys (stop above, target below). `evaluate_oco_exit` mirrors
+  for buy legs; `evaluate_order(..., covers=)` keeps stop/take-profit
+  sell-only elsewhere. A short is a negative `ReplayPosition.quantity`
+  (`apply_replay_fill(open_short=)`, `SimLedger.apply_short`); forensics
+  episodes and replay journal entries carry `side`. Rules in
+  `docs/SIMULATION.md` ("Short brackets").
+- Tests: `test_a69_intrabar_kernel.py`, `test_replay_a69.py`,
+  `test_a69_replay_migration.py` (PostgreSQL), `test_kernel_three_way.py`
+  (`intrabar_ohlc` column and the bracket exit).
 
 **Drills and decks (A4.7, M9.3).** Migration `53b66a2e2ec2` (additive):
 `drill_decks` (rule as a setup version, universe JSON, range, `k` 1-25,
@@ -1637,6 +1883,79 @@ estimated `fees`/`fee_source`/`fee_lines`, `basis_uncertain`; unique
   logs, Sentry scrub, intraday shorts: posted with intraday fees, rebuilt on
   batch delete, uncovered sells still waiting), `test_imports_migration.py`
   (PostgreSQL up/down/up).
+
+**Broker maps and the basket handoff (A6.11, M10.2, M10.5).** Migration
+`d1a6b11c2e40` (down `c8d3e5f7a9b2`; additive; the downgrade refuses while a
+book or batch names a new broker): `portfolios.broker` and
+`import_batches.broker` take `zerodha|dhan|fyers|upstox|angelone|groww|other`
+(`models/portfolio.IMPORT_BROKERS`, `BROKER_SQL`), and `import_column_maps`
+(user, unique name, `mapping` field -> header name, `default_exchange`
+NSE|BSE|null, `date_order` auto|day_first|month_first; header names only,
+never a cell; model `models/import_column_map.py`, 20 per user).
+
+- **Maps** (`services/imports/columns.py`): `ColumnMap` (name, broker, label,
+  status, market, fields, note, `source` with the read date, detection
+  `signature`, `how_to`) in `MAPS`: `zerodha_tradebook_v1`,
+  `dhan_tradebook_v1` (DhanHQ v2 trade-history API names), `fyers_tradebook_v1`
+  (Fyers' support article's column list), `upstox_tradebook_v1`,
+  `angelone_tradebook_v1`, `groww_orders_v1` (no public header row: common
+  spellings), **every one unconfirmed**; the module docstring cites each
+  source. `FieldSpec.required_unless`: a trade date is required unless an
+  execution time is present. `detect_map(headers)`: candidates are maps with
+  every required column; most signature headers, then most matched fields,
+  then registry order (Zerodha first) wins; no candidate is `fallback` (the
+  book's broker's map when it has one, so missing columns are named against
+  it). `custom_map(id, name, mapping, ...)` builds a user's map (`custom_<id>`,
+  status `custom`, market from the book).
+- **Parse** (`parse.parse_tradebook(body, today, column_map, market)`): a
+  compound exchange (`NSE_EQ`, `NSE_FNO`, `MCX_COMM`) splits into exchange
+  and segment; a `NSE:SBIN-EQ` symbol gives the exchange and series; else the
+  map's default exchange; else the row is rejected ("exchange is missing").
+  No trade-id column (Fyers, Angel One, Groww) or an empty optional cell: a
+  derived id `sv-` + 24 hex of SHA-256 over the parsed fields and the row's
+  occurrence among identical rows (`derive_trade_id`), so the same file
+  dedupes. An `order_status` column leaves out non-executed rows (problem kind
+  `not_executed`, counted `counts.not_executed`, in the batch's
+  `rows_rejected`). F&O, option, currency and commodity rows stay `segment`
+  problems (A7). **US** (`market = "us"`, a USD book): any US exchange name
+  or none is stored as `US` (venue `US`, ticker = symbol, `BRK.B` -> `BRK-B`),
+  times America/New_York, fractional quantities kept, OCC-style option
+  symbols skipped, NSE/BSE rejected; no fee schedule, so fees 0 and
+  `fee_source` null (`US_FEES_NOTE`), and no intraday-short rule.
+- **Routes:** preview and commit take `map` (`auto` default, or a built-in
+  name; unknown 422) or `custom_map=<id>` (another user's 404). A broker map
+  into a USD book (or a USD-only map into INR) is 409 (`check_market`). Preview
+  adds `format_label`, `format_source`, `broker`, `detected`
+  (header|chosen|saved|fallback), `alternatives`, `market`, `headers` (the
+  header row, names only, 60 max). `GET .../imports` adds `market`,
+  `currency`, `maps` (every built-in map with its columns, note, source and
+  how-to), `saved_maps`, `custom_fields`. Batches carry `broker`. Dedupe is by
+  exchange and trade id across brokers. `routers/import_maps.py`:
+  `GET|POST /v1/import-maps` (201; replaces the caller's map of that name; 422
+  for an unmapped required field or a header used twice; 409 past 20),
+  `DELETE /v1/import-maps/{id}` (204). Sentry scrubs `/import-maps` too.
+  Opening lots in a USD book take a US symbol (an Indian suffix is 422), dated
+  at the New York day start. Books: `BookIn.broker` takes the new brokers.
+- **Basket handoff (M10.5):** `GET /v1/broker/basket` (authed) ->
+  `{kite_basket, kite_api_key, kite_basket_url, exports: ["csv", "json"]}`.
+  `kite_basket` is `KITE_API_KEY` set (the secret is never returned);
+  `kite_api_key` is the app's public key only then, because Kite's documented
+  offsite basket form ("Offsite order execution", read 26 Nov 2026) carries it
+  in the user's browser. The browser POSTs the form to
+  `https://kite.zerodha.com/connect/basket`; **the API never calls Kite for
+  it and StockViz never places an order.** `tests/test_no_outbound_orders.py`
+  scans every file under `src/` (docstrings skipped) for a broker host with an
+  order or basket path (the one allowed string is the basket URL in
+  `routers/brokers.py`), a broker trading SDK import or an order-method call,
+  after checking itself on planted lines.
+- Tests: `test_a611_broker_maps.py` (detection and a synthetic row per map,
+  every required column named when missing, Dhan compound segments, Fyers
+  prefix and derived ids deduping, Groww not executed, market mismatch 409,
+  saved-map validation and isolation, a US broker into a USD book with
+  fractional and share-class symbols, options skipped, no fees, US opening
+  lots, no cell in logs, the basket endpoint with and without the key, the new
+  book brokers), `test_a611_maps_migration.py` (PostgreSQL up/down/up),
+  `test_no_outbound_orders.py`.
 
 **Trade plans (A5.4, M10.3).** Migration `b5d4a7e1c902`: `trade_plans`
 (`models/trade_plan.py`): user, `portfolio_id` (paper, imported; cascade),
@@ -1784,6 +2103,19 @@ computed on read (`services/journal/`).
   exit, the text); `PATCH /{id}` (`JournalEntryPatch`: text and tags only,
   extra fields 422, `""` clears, tags de-duplicated ignoring case, at most
   12 of 32 characters).
+- **Exact excursions and trade replay (A6.10, M9.5).** A closed paper or
+  imported entry whose fills all carry a time, with stored 1m bars (best
+  `FEED_RANK` feed, never `replayed`) on every session it spans, gets basis
+  `exact_minutes` (`roundtrips.minute_excursions`: shares held at a minute's
+  open count its whole range, a fill counts from its own price); else the A5
+  daily rule. `GET /v1/journal/entries/{id}/replay` (`services/journal/
+  trade_replay.py`, `TradeReplayOut`): minutes when covered (at most 5,000)
+  else daily bars with 5 sessions either side, the fills, the plan's levels,
+  the excursions and a hesitation strip (bars from the plan entry level's
+  first touch to the fill; `stop_honoured` when the position closed on the
+  bar the stop broke). Read only; 409 for a replay session's entry. Tests:
+  `test_a610_exact_excursions.py`, the minutes case in
+  `test_journal_entries.py`.
 - **Chart markers:** `symbol_events._fills` asks `entries.fill_r_multiples`
   (the user's books' whole history in the instrument, grouped the same way;
   read only) for each fill's R, entry id and whether it closes the entry.
@@ -1837,6 +2169,515 @@ figures: same net P&L, R and adherence as the entry pages).
   only / 30 an identical interval, R needs 30, currencies, bootstrap by seed,
   drift cases, the route with filters, All books, isolation, open entries,
   the imported flag, newest backtest and holdout seen).
+
+**Behaviour diagnostics (A7.6, M10.4).** `GET /v1/journal/behaviour?book=&source=&from=&to=`
+(`routers/journal_stats.py`, authed) -> `BehaviourOut`, from A5.6's
+outcomes (`edge.collect_outcomes`, which now also carries each entry's
+opening notional, first fill, venue, fees and gross P&L) by
+`services/journal/behaviour.py` (pure): plan discipline (followed / scored),
+disposition index (mean losing hold / mean winning hold), tilt flags (opened
+after a losing close at > 1.5x the median size of the previous 20), weekday
+and hour heatmaps in the venue's time (unknown times left out of hours), and
+cost leakage (fees in total, per entry, over gross P&L; estimated flag).
+Rates need 30 closed entries; counts always show. Neutral wording. Web: the
+Behaviour section on `/portfolio/journal/edge`; `/backtest/experiments` (list,
+create with a hypothesis) and `/backtest/experiments/[id]` (runs with
+fingerprints and reruns); `/backtest?experiment=<id>` files saved runs there
+(`experiment_id` on save). Tests: `tests/test_a76_behaviour.py`.
+
+**Option exposure and the payoff what-if (A7.9, M6.2, M6.5).**
+`GET /v1/options/{t}/exposure` (`routers/options.py`, public, 60/min;
+`services/options/exposure.py`): the newest `option_quotes` snapshot priced
+with Black-Scholes at the latest stored close; per strike GEX = gamma x OI x
+100 x spot^2 x 0.01 (calls +, puts -: dealers long calls, short puts, an
+assumption the note states) and DEX = delta x OI x 100 x spot; the gamma flip
+(total GEX re-priced over spot +-20%, the sign change nearest spot), call and
+put walls (most OI), ATM IV and the 1-day expected move (spot x IV x
+sqrt(1/252)); contracts without IV or OI skipped and counted. `POST
+/v1/options/strategies/payoff?days_forward=&iv_shift=` adds a `what_if`
+P&L per point (every leg re-priced that many days on, IV shifted, capped at
+the first expiry). Web: an Options tab on the stock page (when a chain is
+stored) and what-if inputs and curve in the strategy builder. Tests:
+`tests/test_a79_option_exposure.py`.
+
+**Visual rule builder (A8.1, M4.2 visual half).** Web only: the screener's
+rule panel gains "Build visually" (`components/rule-builder.tsx`,
+`lib/rule-builder.ts`): groups of conditions, `and` inside and `or` between,
+written into the rule text as you build, reordered and moved by drag and drop;
+crossings are not offered on fundamentals (point in time, the DSL refuses
+them). `tests/fixtures/rule_builder_operands.json` is the builder's operand
+catalogue: Vitest holds the web list equal to it and
+`tests/test_a81_rule_builder.py` compiles every operand with every comparator.
+
+**Seasonality and earnings drift (A9.1, M3.6, M6.6).** `routers/research_views.py`
+(public, 60/min): `GET /v1/symbols/{t}/seasonality` (month-end over previous
+month-end returns per calendar month, skipping gaps; weekday returns; n,
+mean, median, hit rate, t; months under 10 years `thin`) and `GET
+/v1/symbols/{t}/earnings-drift` (per stored earnings event the reaction
+session: the event day before the open, the next session after the close,
+the event day `assumed` when unknown; reaction and drift at +1/+5/+20
+sessions grouped beat/miss/no surprise; average absolute reaction vs the
+average day). `services/seasonality.py` is pure on closes. Web: a Research
+tab on the stock page. Tests: `tests/test_a91_seasonality.py`.
+
+**Forecasts scored against a random walk (A9.2, M8.2, M8.3).** `GET
+/v1/symbols/{t}/forecast` (`routers/research_views.py`, public, 30/min;
+`services/forecasts.py`, pure numpy): HAR-RV (Corsi) on Parkinson daily
+variance, fitted by OLS on earlier days only (refit every 20), scored over
+the last 250 sessions against the random walk by MSE and QLIKE (skill = 1 -
+loss ratio; above 0 beats it), plus the next session's annualised vol; and
+split-conformal price cones around a zero-drift random walk at 1/5/20
+sessions and 80/95% from the previous 250 completed moves, each with its
+realised coverage over the last 250 sessions. The phase's done-when. Web: the
+forecast card on the Research tab (coverage under its level shown in warning).
+Tests: `tests/test_a92_forecasts.py`.
+
+**Pairs lab (A9.3, M7.6).** `GET /v1/symbols/{a}/pair/{b}?years=1-15`
+(`routers/research_views.py`, public, 30/min; `services/pairs.py`, numpy):
+Engle-Granger on log closes over the common sessions: OLS hedge ratio, ADF
+(one lag, no constant) on the residual against MacKinnon (2010) N=2 constant
+critical values with his finite-sample response surface, the half-life from
+an AR(1) on the spread, the latest z-score and a 60-session rolling hedge
+ratio; 120 common sessions minimum. Web: `/pairs` (Quant Lab). Tests:
+`tests/test_a93_pairs.py` (planted pair rejects at 1% with its beta and
+half-life; independent walks reject at about the nominal rate).
+
+**Volatility summary (A9.4, M6.3).** `GET /v1/options/{t}/vol-summary`
+(`routers/options.py`, public, 60/min; `services/options/vol_summary.py`):
+from the stored nightly chains, ATM IV and 25-delta skew (put minus call IV,
+Black-Scholes deltas) per expiry of the newest snapshot, VRP = the ~30-day ATM
+IV minus 21-session close-to-close realised vol, and IV rank and percentile
+over the last year's snapshots (20 minimum, else null with the count). Web:
+the volatility card on the stock page's Options tab. Tests:
+`tests/test_a94_vol_summary.py`.
+
+**Structure annotations (A9.5, M2.12).** `GET /v1/symbols/{t}/structure?n=2-20&sessions=30-2000`
+(`routers/research_views.py`, public, 60/min; `services/structure.py`, pure):
+fractal swing pivots (a high above the `n` bars before and at least the `n`
+after; lows mirrored), each confirmed `n` bars later (`confirmed_at`), so the
+newest `n` bars carry none and adding bars never moves one; HH/LH/HL/LL
+against the previous pivot of its kind; zones = pivot prices clustered within
+ATR(14)/2 of the last bar (2+ touches), support / resistance / at price by the
+last close. Every response carries the rules in words. Web: the Structure
+section of the stock page's Research tab. Tests: `tests/test_a95_structure.py`
+(by hand, no repainting, clustering, the route).
+
+**Dividend projection (A9.6, M10.8).** `GET /v1/portfolio/dividends` adds
+`projection` (per holding: TTM per share, 3-year growth and the rate used,
+capped to -50%..+25% and 0% without 3 years, next 12 months per share and in
+total at today's quantity, forward yield on the latest close, the growth
+streak in completed years, and a payout calendar of last year's ex-dates
+moved a year), `projection_totals` (per currency, never summed across) and
+`projection_method`. `services/dividend_projection.py` (pure); the ETF/MF
+overlap is held. Tests: `tests/test_a96_dividend_projection.py`. Web: the
+projection on the Portfolio Income tab and the printable tearsheet
+(`/stocks/[t]/tearsheet`, built from existing routes).
+
+**Classroom cohorts (A10.2, M12.1, M12.2).** Owner, 27 Nov 2026: invite
+codes, members opt in, **the instructor sees process scores only**, never
+P&L, R, fills or books. Migration `c8a3d5f7e9b1` (additive; cascades; the
+downgrade refuses while a cohort exists): `cohorts` (owner, name, unique
+8-character `invite_code` without 0/O/1/I), `cohort_members` (`consented_at`),
+`cohort_assignments` (a `DrillDeckIn` recipe, **seed fixed and always
+anonymised**, so every student drills the same triggers; `min_followed_pct`
+rubric, `due_on`), `assignment_decks` (a student's deck per assignment).
+`services/classroom.py`: `join` (422 without consent; `CONSENT_TEXT` says
+exactly what the instructor sees), `leave` (unlinks the decks, which stay the
+student's), `start` (A4.7's `create_deck` with the recipe; a second call
+returns the same deck), `gradebook` (reads only `deck_out(...).summary`
+counts into `GradebookCell`, which has no money, R, fill, ticker or date
+field; `grade`: `in_progress` until every drill is revealed, then
+`meets_rubric` when followed/traded >= the rubric, else `below_rubric`).
+Limits: 20 cohorts per instructor, 200 members, 50 assignments. Routes
+(`routers/classroom.py`, authed; another user's cohort and a member asking
+for the gradebook are 404): `POST/GET /v1/cohorts`, `GET /v1/cohorts/{id}`,
+`POST /v1/cohorts/join`, `DELETE /v1/cohorts/{id}/membership`, `POST
+/v1/cohorts/{id}/assignments`, `POST /v1/assignments/{id}/start`, `GET
+/v1/cohorts/{id}/gradebook`. Tests: `tests/test_a102_classroom.py` (consent,
+isolation, identical triggers, forced anonymity, a gradebook whose JSON holds
+no P&L, price, fill, ticker or date, the rubric, leaving),
+`tests/test_a102_classroom_migration.py` (PostgreSQL).
+
+**The local MCP server (A8.6, M11.7).** Owner, 27 Nov 2026: the official
+`mcp` SDK (2.x: `mcp.server.mcpserver.MCPServer`; `FastMCP` is gone), a
+local stdio server only; remote access waits for the legal review. Run
+`uv --directory apps/api run python -m stockviz.mcp` as the owner's own
+process (logs go to stderr; stdout is the protocol). `stockviz/mcp/server.py`
+`build_server(factory)`: every tool calls the API's routes in process
+(`httpx.ASGITransport` on `create_app()`), so results equal the pages', with
+the same checks and refusals; each result is `{ok, source (the route), data}`
+or `{ok: false, status, detail, source}`. Tools (`TOOL_NAMES`, all
+`read_only_hint`): `rule_check`, `screen` (rows trimmed), `backtest_strategy`
+(one symbol, simulated, summary, first 20 trades, hash and fingerprint),
+`symbol_summary`, `search_documents`, `macro_overview`, `journal_stats`
+(signs as `STOCKVIZ_MCP_USER_ID` with `INTERNAL_API_TOKEN`; off without it).
+**No order tool**: a test bans order-like names, and
+`test_no_outbound_orders.py` scans the module. A client config entry:
+`{"command": "uv", "args": ["--directory", "<repo>/apps/api", "run", "python",
+"-m", "stockviz.mcp"]}`. Checked 27 Nov over real stdio with the SDK's client
+(7 tools listed; `rule_check` and `macro_overview` answered from the local
+database). The `mcp` SDK adds 15 locked packages (103 -> 118). Tests:
+`tests/test_a86_mcp.py` (the A8 done-when: a screen and a backtest through
+`call_tool`).
+
+**AI providers and the rule translator (A8.2, A8.3, M4.2, M11.2).** Owner,
+27 Nov 2026: Ollama first (local), then BYOK (keys wait for
+`APP_ENCRYPTION_KEY`; each paid test call needs approval). `services/ai/
+provider.py`: `LLMProvider.complete(messages)`, `OllamaProvider` (`POST
+{OLLAMA_URL}/api/chat`, `stream: false`, temperature 0; fixed error texts),
+`provider_from_settings` (**off until `OLLAMA_MODEL`**; production has none,
+so every AI control is off there and says why). `services/ai/rules.py`:
+`translate(provider, text)` drafts **DSL text only** from a prompt built from
+the live registry (`dsl.functions.FUNCTIONS`, `bindings.FUNDAMENTAL_METRICS`,
+a short grammar with units: percentages in percent, the `fundamental.`
+prefix), extracts the first line, judges it with `setups.rules.check_rule`,
+and on a failed check retries once with the error; a draft that still fails
+is returned with its error, never changed. Routes (`routers/ai.py`): `GET
+/v1/ai/status` (public), `POST /v1/ai/rule` (signed in, 10/min; 409 off, 502
+provider failure). Nothing runs on a draft. Local smoke with `gemma4:e4b` on
+27 Nov: first prompt 5 of 6 drafts valid, two with wrong units (fixed in the
+prompt); second run on new phrasings 6 of 6 valid, one valid but not what was
+asked (weekly close against a daily average): the note says the checker
+proves validity, not intent. Tests: `tests/test_a82_ai_rule.py` (a fake
+provider and a fake post; no model is called).
+
+**NSE index options from the owner's files (A7.14, M6.1, M6.3).** Owner, 27
+Nov 2026: load the owner's NSE F&O files into a local database only, like
+the minute files. Migration `b7e2f4a6c8d1` (additive): `fo_daily`
+((underlying, series, day, CE/PE, strike offset) -> the day's last minute
+premium, IV, OI, spot and the summed volume, minutes) and `fo_files`
+(SHA-256 unique, counts). `services/fo/load.py`: `stockviz.cli fo-load --dir
+DIR [--apply]` (dry run by default; **local database only**,
+`intraday.guard.local_database_problem`, no override; `.railway/railway.ts`
+must never run it, a test reads it) reads every `.csv` under `DIR` together
+(a day can span two part files), by the header `date,time,symbol,
+option_type,type,strike_offset,...,oi,iv,spot` (`date` as `="dd-mm-yy"`,
+IST; offsets `ATM`, `ATM+3`, `ATM-2`), skips files without those columns
+(listed), rejects unreadable rows (line numbers only), leaves out minutes
+outside 09:15-15:30, and upserts. Series = the folder (`weekly`, else
+`nearest`: the files carry no expiry). `services/fo/summary.py`: ATM IV
+(mean of the ATM call and put), skew (ATM-2 put IV minus ATM+2 call IV, by
+offset not delta), PCR by OI, IV rank and percentile over the stored window
+(60 days at least), the latest smile. Route `GET /v1/fo/india` (public,
+60/min; empty wherever the files were not loaded, so always in production).
+First run 27 Nov 2026 into the local `stockviz_intraday`: 9.67 million
+minutes in 31 s, 24,008 summaries (BANKNIFTY 10 Jun 2024 - 28 Jan 2026, NIFTY
+weekly 23 Jul 2024 - 14 Jan 2026). The futures file has no OI, so M6.4 is
+not fed by it. Tests: `tests/test_a714_fo.py` (synthetic files),
+`tests/test_a714_fo_migration.py` (PostgreSQL).
+
+**Lender mode (A7.13, M5.2).** `GET /v1/symbols/{t}/lender?coe=&growth=`
+(`routers/research_views.py`, public, 60/min; 409 for a symbol whose sector
+is not financial, `forensics.is_financial`) -> `LenderOut`.
+`services/lender.py`: the owner's 27 Nov answer, P/B against ROE without the
+lender KPIs (`KPI_NOTE` names them). Peers: active symbols in the same market
+(`relative_strength.market_for`) with a financial sector and a positive P/B
+and an ROE (percent) in `symbol_metrics`; the peer line is OLS of P/B on ROE
+(5 peers at least, `MIN_PEERS`); `gap` = P/B minus the line at the symbol's
+ROE (a description, not a verdict); justified P/B = (ROE - g) / (COE - g),
+defaults 12%/6% in India and 9%/3% elsewhere, refused when COE <= g. Tests:
+`tests/test_a713_lender.py`.
+
+**India capital gains estimate (A7.12, M10.7).** `GET /v1/tax/india?book=&fy=&surcharge=`
+(`routers/tax.py`, authed; another user's book 404; a non-INR book 409; an
+FY outside `FY_RULES` 400) -> `IndiaTaxOut`. No migration; computed on read
+from `trades`. `services/tax/`: `rules.py` (**dated and cited**: FY 2025-26
+under the 1961 Act s.111A/112A, FY 2026-27 under the Income-tax Act 2025
+s.196/198; STCG 20%, LTCG 12.5% above Rs 1,25,000, cess 4%, surcharge on
+these gains capped at 15%, long term after more than 12 months; every
+`Source` says how it was read: the Income Tax Department pages refuse
+automated reads, so all were read through search extracts, and the FIFO
+circular was not read at all; **the legal review must confirm each rate and
+section number**; `ESTIMATE_NOTE` on every response), `lots.py` (pure: the
+day's offsetting buy and sell quantity is intraday business income, apart;
+the rest FIFO lots; grandfathering for long-term lots bought before 1 Feb
+2018 at the higher of cost and the lower of the 31 Jan 2018 FMV and the sale;
+short losses against short then long gains, long losses against long gains
+only, then the exemption; carried losses reported, not modelled across
+years; prices only, no transfer expenses), `report.py` (the book's trades in
+Indian listings dated by the IST venue day, FMV = the stored 31 Jan 2018
+high, open lots at the latest close with their term and the first long-term
+day). Tests: `tests/test_a712_india_tax.py` (each rule worked by hand).
+
+**Portfolio optimisation (A7.11, M10.6).** `POST /v1/research/optimise`
+(`routers/optimise.py`, public, 10/min; nothing stored or placed) ->
+`OptimiseOut`. `services/optimise.py` on **PyPortfolioOpt** (MIT; the owner's
+27 Nov 2026 choice; it brings cvxpy and its solvers, SciPy and scikit-learn:
+86 -> 103 locked packages, about 130 MB in the image). **SciPy is pinned
+`<1.18`**: PyPortfolioOpt 1.6.0's HRP reads
+`scipy.cluster.hierarchy._LINKAGE_METHODS`, removed in 1.18; lift the pin
+when PyPortfolioOpt fixes it. Inputs: 2-30 symbols in one currency (400
+otherwise), their closes on common sessions over `years` (1-10), at least 252
+(400). Ledoit-Wolf covariance for every method; mean historical returns x252.
+Methods: `hrp` (single linkage on the shrunk covariance's correlation),
+`min_volatility`, `max_sharpe` (`risk_free_rate`), `min_cvar` (`beta`, the
+window's daily returns as scenarios), `black_litterman` (prior implied by
+`symbol_metrics.market_cap_usd` at `delta` 2.5, absolute `views` with
+Idzorek confidences, then max Sharpe; a missing cap is 400). Long only,
+`max_weight` cap (`max_weight x n < 1` is 400). `cash` sizes whole shares
+(greedy `DiscreteAllocation` at the latest common close) with the leftover.
+Every response carries equal-weight figures for comparison, the method notes
+and a disclaimer (in-sample, not advice, survivorship). Tests:
+`tests/test_a711_optimise.py` (seeded walks with known volatilities: min
+volatility and HRP favour the calm symbol, max Sharpe and min CVaR beat equal
+weight on their own measure, the cap, a view moves weight, whole shares, the
+route and refusals).
+
+**Company documents (A7.10, M5.5, M1.9 India foundation).** The owner's 27
+Nov 2026 decision: filings and concalls live here, not in Aegis. Migration
+`a7d1c3e5f9b2` (additive; the downgrade refuses while a document is stored):
+`documents` (`models/document.py`: instrument (no ticker column), `kind`
+filing|concall_transcript|announcement|annual_report|other, `source`
+file|edgar, `form_type`, title, `event_date`, `available_at` (naive UTC, when
+it became public; **every read is point-in-time on it**),
+`available_assumed`, url, `accession` (indexed), `sha256` of the source bytes
+(unique: a file or filing loads once), content type, size, characters) and
+`document_texts` (cascade). `services/documents/`: `extract.py` (HTML through
+BeautifulSoup's `html.parser`, scripts, styles, hidden XBRL headers dropped,
+blocks on their own lines; text and Markdown UTF-8 then Latin-1; PDFs through
+`pypdf` (owner, 27 Nov 2026; pure Python), page by page, refusing encrypted
+files, more than 600 pages and scans with no text layer (no OCR); 20 MiB cap),
+`store.py` (`add_document`, `list_documents(as_of=)`, `search`: exact phrase,
+case-insensitive, LIKE escaped, with snippets), `load.py` (hand-placed files;
+**local database only**, `intraday.guard.local_database_problem`, no
+override; `--available-at` when known, else `--date` = 23:59 that day in the
+venue's zone, marked assumed), `edgar.py` (SEC submissions `filings.recent`,
+default forms 10-K 10-Q 8-K 20-F 6-K, the primary document from the archive;
+`acceptanceDateTime`'s clock read as New York time, never earlier than its
+`Z` reading; 10-K/20-F are `annual_report`; skips an accession already
+stored; **off until `SEC_USER_AGENT`**). CLI: `docs-load PATH ... --ticker T
+--kind K [--date D | --available-at ISO] [--title] [--form] [--apply]`
+(dry run by default; exit 2 refused, 1 when a file was refused),
+`docs-edgar TICKER ... --since D [--forms ...] [--limit 20]` (exit 2 without
+the user agent). Not in `RECORDED_JOBS`, the scheduler or the cron. Routes
+(`routers/documents.py`, public): `GET /v1/symbols/{t}/documents?kind=&as_of=`
+(60/min), `GET /v1/documents/search?q=&ticker=&kind=&as_of=&limit=` (30/min,
+`q` 2-100 characters), `GET /v1/documents/{id}?q=` (text up to 400,000
+characters, `matches`; 404 before it is public). `beautifulsoup4` is now a
+direct dependency (already locked through yfinance), and `pypdf` (no
+dependencies of its own). Not yet: OCR for scanned PDFs, NSE/BSE
+announcement downloads (held with the NSE question), concall analysis
+(M11.3, LLM), Reg 30 governance flags. Tests: `tests/test_a710_documents.py`,
+`tests/test_a710_documents_migration.py` (PostgreSQL).
+
+**Hybrid passage search (A8.4, M11.1).** Migration `d8b4e6f0a2c3`
+(additive): `document_chunks` (`models/document.py::DocumentChunk`: document
+(cascade), `position`, `start_char`/`end_char` into the stored text, `text`,
+`embedding` `real[]` (JSON on SQLite) and `embed_model`, both null until
+embedded) and a GIN index on `to_tsvector('english', text)` that the model
+cannot declare (`migrations/env.py::MIGRATION_ONLY_INDEXES` keeps it out of
+`alembic check`). **No pgvector**: the local Postgres lacks it and Railway is
+unchecked, so vectors are compared in Python with NumPy (at most 20,000
+passages per query, newest documents first, said in `notes` when cut).
+- `services/documents/chunks.py`: ~1,200-character passages cut at a
+  paragraph, line, sentence or space, overlapping ~200; `build_chunks`
+  replaces a document's chunks. `store.add_document` chunks every new
+  document in its transaction.
+- `services/ai/embed.py`: `OllamaEmbedder` (`POST {OLLAMA_URL}/api/embed`,
+  batches of 32, nomic's `search_document: ` / `search_query: ` prefixes,
+  fixed error messages); off until `OLLAMA_EMBED_MODEL` (owner, 27 Nov 2026:
+  `nomic-embed-text`, 768 dimensions; nothing added to the API image).
+- `services/documents/index.py` + `stockviz.cli docs-index [--embed]
+  [--limit N]` (local database only, the intraday guard): chunks documents
+  without passages, then embeds passages without a vector from the current
+  model (a new model re-embeds; old vectors never mix). Exit 2 without the
+  model. Not in the scheduler or the cron.
+- `services/documents/retrieve.py`: keyword rank = `ts_rank_cd` against
+  `websearch_to_tsquery('english', q)` (PostgreSQL; on SQLite, tests only, a
+  term count without stemming); vector rank = cosine to the query's
+  embedding; fused by reciprocal rank fusion (k 60). Point-in-time on the
+  document's `available_at`. No model, or an Ollama failure: keyword only,
+  with the reason in `notes`.
+- Route `GET /v1/documents/passages?q=&ticker=&kind=&as_of=&limit=` (public,
+  30/min, `q` 2-300, `limit` 1-20) -> `PassageSearchOut` (`mode`
+  hybrid|keyword, `embed_model`, passages with the document, offsets, score,
+  `keyword_rank`, `vector_rank`, `similarity`, `notes`, `method`). Retrieval
+  only: nothing writes an answer (the copilot is M11.2).
+- Tests: `tests/test_a84_hybrid_search.py` (a fake embedder whose synonyms
+  share a dimension: hybrid finds "topline" where words find nothing),
+  `tests/test_a84_hybrid_search_migration.py` (PostgreSQL: up, `alembic
+  check`, real full text with stemming and `real[]` vectors, down, up).
+
+**The filings copilot (A8.5, M11.2).** `POST /v1/ai/ask` (`routers/ai.py`,
+signed in, 10/min) `{question 5-500, ticker?, kind?, as_of?}` -> `AskOut`.
+`services/ai/copilot.py`: A8.4's `retrieve` (6 passages, point-in-time); no
+passage = the fixed `NOT_FOUND` answer and **no model call**; otherwise the
+provider (A8.3, `OLLAMA_MODEL`) gets a system prompt (only the numbered
+sources, `[n]` after every claim, `NOT_FOUND` when they do not answer, no
+outside knowledge, never buy/sell/hold or targets, six sentences) and the
+sources (`[n] TICKER · title · public YYYY-MM-DD`, 1,400 characters each).
+`check_citations` marks the answer, never rewrites it: valid `cited`
+numbers, `invalid_citations` (no such source), `uncited_sentences` (four or
+more words without a citation; `sentences()` keeps "24.6" whole and joins a
+citation written after the full stop), `grounded` = at least one valid
+citation; each becomes a warning. Stateless: nothing stored. 409 no
+provider, 502 provider failed, 404 unknown ticker. BYOK providers are A8.7.
+Tests: `tests/test_a85_copilot.py`.
+
+**Saved AI keys (A8.7, M11.2 BYOK).** Migration `e9c5f7a1b3d4` (additive;
+the downgrade refuses while a key is stored): `user_ai_keys`
+(`models/ai_key.py`: user (cascade), `provider` (check: `openai_compatible`,
+`anthropic`), `ciphertext` (Fernet under `APP_ENCRYPTION_KEY`), `key_last4`,
+`model`, `base_url`; unique per user and provider). `services/ai/keys.py`:
+`save_key` (refuses without a valid Fernet key: 409; a key under 8
+characters or with spaces, no model, a bad URL: 422), `list_keys` (never the
+key), `delete_key`, `provider_for(choice)` (`server` = A8.3's provider; a
+key that no longer decrypts after the server key changed says "save it
+again"). Usable: `openai_compatible` and (A8.7b, owner 27 Nov 2026)
+`anthropic`: `services/ai/claude.py::ClaudeProvider` on the official
+`anthropic` SDK (2.14, a direct dependency): `messages.create` with the
+user's model (default `claude-opus-5-5`, must start `claude-`; no base URL),
+the system prompt apart, `max_tokens` 16,000, no sampling parameters; on
+`FALLBACK_MODELS` the server-side refusal fallback is on
+(`client.beta.messages.create(betas=["server-side-fallback-2026-07-01"],
+fallbacks="default")`); a final `stop_reason == "refusal"` raises "Claude
+declined"; text blocks joined; SDK errors mapped to fixed text by class.
+`HELD` is empty. `services/ai/openai_compat.py`:
+`OpenAICompatibleProvider` (`POST {base}/chat/completions`, Bearer, 120 s,
+no redirects); the user's base URL goes through the webhook SSRF rules
+(`delivery.channels.check_url_syntax` and `pinned_target`: https only, http
+for localhost outside production, no credentials or query, every resolved
+address public, sent to the checked IP with `Host` and SNI); errors are
+fixed text (never the key or the body); `repr` hides the key. Routes
+(`routers/ai.py`, signed in): `GET /v1/ai/keys` -> `AiKeysOut` (`available`,
+`keys`, `providers`, `held`, `note`), `PUT /v1/ai/keys/{provider}`
+(10/min), `DELETE /v1/ai/keys/{provider}` (204, 404 none). `/rule` and
+`/ask`, `/extract`, `/grid` and `/debate` take `provider: server |
+openai_compatible | anthropic` (409 no saved key).
+`/v1/ai/status` adds `keys_available`. **No real paid call was made** while
+building it: every request is faked. Env: `APP_ENCRYPTION_KEY` (blank = off;
+changing it makes saved keys unreadable). Tests: `tests/test_a87_byok.py`,
+`tests/test_a87b_claude.py` (a fake client: request shape, the fallback, errors, refusal),
+`tests/test_a87_byok_migration.py` (PostgreSQL).
+
+**Filing analysis (A9.10, M11.3).** No migration; nothing stored.
+- `GET /v1/documents/{id}/compare?against=` (public, 30/min;
+  `services/documents/compare.py`, deterministic): `against` defaults to the
+  newest earlier public document of the same company and kind (none: 200,
+  `against: null`, a note); another company's 400, itself 400. Annual
+  reports compare the "Item 1A. Risk Factors" section (the last such
+  heading, so a table of contents is skipped, to "Item 1B/1C/2") when both
+  have it, else the whole texts (`scope_note` says which lacked it).
+  Paragraphs (40+ characters) diffed with `difflib`: `added`, `removed`,
+  `changed` (a replaced paragraph at least 60% similar to its best partner),
+  `unchanged` counted; at most 60 listed (`truncated`). Hedging: a short
+  fixed list of uncertainty words and phrases per 1,000 words in each
+  (`HEDGES`; not the Loughran-McDonald list itself), "a rough signal of
+  wording, not of evasiveness or intent".
+- `POST /v1/ai/extract {document_id, provider}` (signed in, 5/min;
+  `services/ai/extract.py`): up to 8 passages containing a digit go to the
+  model, which returns a JSON list `{metric, value, unit, period, quote}`;
+  an item is kept only when its quote is in the passages word for word
+  (whitespace and case aside) and every digit run of its value is in the
+  quote; the rest are counted in `dropped` by reason ("quote not in the
+  text", "value not in its quote", "duplicate", "incomplete", "answer was
+  not a JSON list"). No passage with a digit: no model call. Real run on a
+  synthetic transcript (`gemma4:e4b`): 10 figures, all verified, 0 dropped.
+- Tests: `tests/test_a910_filing_analysis.py`.
+
+**Research grid and case for / against (A9.11, M11.4, M11.5).**
+`services/ai/research.py` on A8.5's copilot (`copilot.answer_from` is the
+shared prompt-and-check step; `build_messages` takes a `system`). Nothing
+stored. `POST /v1/ai/grid {tickers 1-5, questions 1-3 (5-300), as_of?,
+provider}` (signed in, 2/min): each cell is one copilot answer from that
+company's documents only (a cell can cite only its own company; no passage =
+no model call; `model_calls` counts the calls), passages trimmed to 600
+characters; tickers upper-cased and de-duplicated; unknown 404. `POST
+/v1/ai/debate {ticker, topic 5-300, as_of?, provider}` (signed in, 5/min):
+8 passages retrieved once; the model argues the case FOR and then the case
+AGAINST from the same numbered sources (at most four cited points each and
+a closing line on what would weaken it; `NO_CASE` when they give no basis;
+both prompts forbid buy/sell/hold and targets); each side's citations are
+checked as in A8.5. Response models `AnswerCheckOut`, `GridOut`,
+`DebateOut`. Real run (`gemma4:e4b`, synthetic transcript): both sides cited
+and grounded; the against side's closing line was uncited and flagged.
+Tests: `tests/test_a911_grid_debate.py`.
+
+**Weekly review and morning brief (A9.12, M11.6).** Deterministic; no
+model; nothing stored.
+- `GET /v1/journal/weekly?book=&source=&week_end=` (`routers/journal_stats.py`,
+  signed in; `services/journal/weekly.py`, pure over A5.6's outcomes): the
+  seven days ending `week_end` (default today, UTC) by close date against the
+  four weeks before (`baseline_entries_per_week`, `baseline_mean_r`,
+  `baseline_adherence`); net P&L per currency (never added across); `look_at`
+  from fixed rules in order, each naming its entries: `tilt` (A7.6's rule),
+  `plan_not_followed`, `no_plan` (not replay), `mistake_tag` (used twice),
+  `r_below_baseline` (0.5R, 3+ entries with R each side), `more_entries` (more
+  than twice the baseline's weekly average); notes for an empty or small
+  week. Neutral wording (a test bans judgement words).
+- `GET /v1/brief` (`routers/brief.py`, signed in; `services/brief.py`):
+  symbols = positions in the user's books, then watchlist symbols (50 at
+  most); moves = the last two stored daily closes with both dates, largest
+  first (8); the user's alert notifications of the last 24 hours; stored
+  earnings in the next 7 days; documents made public in the last 7 days;
+  counts of open or active plans and pending orders. End of day: the note
+  says a move is not today's unless its date is.
+- Tests: `tests/test_a912_weekly_brief.py`.
+
+**Implied vs model distribution (A9.13, M8.5).** `GET
+/v1/options/{t}/implied-distribution?expiry=` (`routers/options.py`, public,
+60/min; `services/options/implied_distribution.py`; no table). The newest
+stored `option_quotes` snapshot; `expiry` defaults to the one nearest 30
+days (`vol_summary.nearest_expiry`); spot = the last stored close on or
+before the snapshot. Smile: the out-of-the-money IVs (mean where both sides
+quote), **fitted** by least squares as a quadratic in `ln(K/S)/sqrt(T)` over
+strikes within 2.5 ATM-vol units of spot with IV in 3%-300%, flat beyond
+the fitted range (linear interpolation through raw yfinance IVs gave 24-46%
+negative density on real chains; the fit gives about 3%). Implied density =
+`e^{rT} d²C/dK²` of Black-Scholes calls on a 401-point log grid of +-4
+standard deviations (non-uniform three-point second difference); negative
+values cut and their share reported (`negative_mass`). Model: a lognormal
+with the HAR-RV next-session volatility (A9.2), else 21-session realised,
+drift `r - σ²/2` (the same forward). Out: quantiles 5/25/50/75/95%, the
+chance of ending more than 10% below or above spot for each, both ATM
+volatilities, 81 curve points, a reason when it cannot run (fewer than 5
+usable strikes either side, no chain, no close). Risk-neutral: it carries
+the risk premium, not a forecast. Real run (27 Nov 2026, AAPL and MSFT
+chains from yfinance into the throwaway e2e database): implied P(fall >10%
+in 7 days) 3.8% vs model 0.5% (AAPL), 7.7% vs 1.3% (MSFT). Tests:
+`tests/test_a913_implied_distribution.py` (a flat smile gives back the
+lognormal; put skew fattens the left tail; outliers barely move the fit).
+
+**Macro series from FRED (A9.7, M1.10, M3.5).** Migration `f1a9c7e3b5d2`
+(additive): `macro_series` (FRED id, title, units, frequency, observation
+range, FRED's `last_updated`, `fetched_at`) and `macro_observations` ((series,
+date) -> `Numeric(20, 6)`, null where FRED writes `"."`). `services/macro/`:
+`catalogue.py` (29 series in 8 groups: rates, inflation, growth and labour,
+credit and stress, dollar and FX, commodities, money, India; `third_party` on
+ICE, CBOE and Moody's series, personal research only until the legal review;
+5 `SPREADS`), `fred.py` (`FredClient`: `/fred/series` and
+`/fred/series/observations`, key as a query parameter through
+`feeds.http.get_json`, so never in an error; 100 calls a minute against FRED's
+120), `sync.py` (`sync_catalogue`: first fetch from 2000-01-01, later from 400
+days before the newest stored date so revisions land; upsert on (series,
+date); one commit per series; auth/rate errors stop, others skip one),
+`view.py` (latest, value on or before a month and a year earlier, `stale` by
+frequency (`STALE_AFTER`: daily 10 days, monthly 75, annual 800), thinned
+3-year sparks, spreads = a - b on a's dates with b at most 7 days old).
+`stockviz.cli macro-sync [--series ID ...]` (recorded; exit 2 without
+`FRED_API_KEY`, 1 on an unknown id or a failed series); scheduler
+`macro_refresh` Saturdays 10:00 ET (skips without a key); not in the Railway
+cron. Routes (`routers/macro.py`, public, 60/min): `GET /v1/macro`
+(`MacroOverviewOut`: groups, every catalogue series with `fetched`, latest,
+`change_month`, `change_year`, `stale`, `spark`, `source_url`; the spreads with
+`latest`, `year_ago`, points or a `reason`; method and the third-party note)
+and `GET /v1/macro/{id}?from=` (404 outside the catalogue). First real run 27
+Nov 2026 into the local `stockviz_intraday` database: 30 series, 104,974
+observations. Tests: `tests/test_a97_macro.py` (fake FRED in the documented
+shape, no key in errors, revisions, auth stop, view rules, routes, CLI),
+`tests/test_a97_macro_migration.py` (PostgreSQL up/down/up, `alembic check`).
+
+**Self-hosting release (A10.1).** `infra/compose.release.yml` (Postgres, API,
+web, a `setup` profile running `seed`; every secret `${VAR:?}`; ports on
+127.0.0.1) builds the Dockerfile's `release` stage: the company list, **no seed
+price CSVs** (the default last stage `runtime` adds them, so every other
+deploy is unchanged). `infra/release.env.example` is the template;
+`infra/release.env` is gitignored. `stockviz.cli doctor` (`services/doctor.py`):
+database, migrations at head, `INTERNAL_API_TOKEN` (set, not the dev default,
+32+ characters), symbols and daily bars (none is a warning: no data ships),
+the scheduler, and each optional key by name, never its value. Guide:
+`docs/SELF_HOSTING.md`. Tests: `tests/test_a101_release.py` (reads the
+Compose file and Dockerfile; PyYAML is a dev dependency for it).
 
 **Survivorship stamp (A1.4a, part of M1.5).** Every backtest result carries
 `universe: {name, point_in_time, survivorship_biased, note}`: the public
@@ -2147,6 +2988,39 @@ answers 401/403, 0 otherwise: an unreachable or sleeping web holds no cache.
 `WatchlistItemOut.closes` holds the last 30 daily closes, oldest first, read
 for every row in one `recent_bars` query; the list and add endpoints both
 use `_items_out`.
+
+**Chart templates and layouts (A6.8, M2.10).** Migration `d4a8f6c2b1e9`
+(additive, after `c8d3e5f7a9b2`): `chart_templates` (user, name, `chart_type`
+and `scale` with check constraints, `indicators` JSON list, `pane_heights`
+JSON object) and `chart_layouts` (user, name, `grid` `1`/`2v`/`2h`/`4` with a
+check constraint, `panes` JSON list of `{symbol, interval, template_id,
+link}`), both with per-user unique names. Tuples in `models/chart_layout.py`;
+the schema literals (`ChartTypeKey`, `ChartScaleKey`, `ChartIntervalKey`,
+`ChartGridKey`, `LinkColourKey`) must equal them (a test checks). Rules in
+`services/chart_templates.py` and `services/chart_layouts.py`:
+
+- **Caps.** 50 templates and 50 layouts a user (`MAX_TEMPLATES_PER_USER`,
+  `MAX_LAYOUTS_PER_USER`, 409); names 1-64 characters, unique per user
+  ignoring case (409).
+- **Templates.** Indicator keys must parse with the registry grammar
+  (`engine.parse`: a known study, at most its parameter count, each value in
+  bounds; 422), stored lower-cased, each once, at most 16. Pane heights by
+  pane kind (`^[a-z][a-z0-9_]{0,31}$`), whole pixels 48-1200, at most 16
+  (422). Deleting a template clears it from the owner's layouts.
+- **Layouts.** Exactly the grid's pane count (422). Each symbol must be a
+  stored `Symbol` (upper-cased; 422), each template the user's own (422),
+  intervals the bars route's (`1d 1wk 1mo 1m 5m 15m 30m 60m`). Link colours
+  are the watchlist tags; **panes of one colour share one symbol** (422),
+  since a pane in a colour follows the last symbol chosen in it. Symbols are
+  tickers, not instrument ids: a symbol removed later reads as missing in the
+  web. A read drops a template id the user no longer has.
+- **API** (authed; another user's row is 404). `/v1/chart-templates`: `GET`,
+  `POST {name, chart_type, scale, indicators, pane_heights}` (201),
+  `PATCH /{id}`, `DELETE /{id}` (204). `/v1/chart-layouts`: `GET`,
+  `GET /{id}`, `POST {name, grid, panes}` (201), `PATCH /{id}` `{name?,
+  grid?, panes?}` (a grid change sends its panes), `DELETE /{id}` (204).
+- **Tests:** `test_chart_layouts_router.py`, `test_chart_layouts_service.py`,
+  `test_a68_chart_layouts_migration.py` (PostgreSQL up/down/up).
 
 **Many watchlists, notes, tags, column sets (A2.5, M4.6).** Migration
 `5a167f08f3f7` (additive): `watchlists` gains `colour` (palette

@@ -13,7 +13,32 @@ export type RotationResult = components["schemas"]["RotationBacktestOut"];
 export type RotationRebalance = components["schemas"]["RotationRebalanceOut"];
 export type RotationTrade = components["schemas"]["RotationTradeOut"];
 
+/** A7.7 (M7.5): one factor row of a multi-factor model. */
+export type FactorRow = {
+  name: string;
+  expression: string;
+  weight: string;
+  higherIsBetter: boolean;
+};
+
+/** The factor presets: openly defined, each a numeric Rule DSL expression. */
+export const FACTOR_PRESETS: FactorRow[] = [
+  {
+    name: "Momentum 12-1",
+    expression: "pct_change(close, 252) - pct_change(close, 21)",
+    weight: "1",
+    higherIsBetter: true,
+  },
+  { name: "Low volatility", expression: "atr(14) / close", weight: "1", higherIsBetter: false },
+  { name: "Value (P/E)", expression: "fundamental.pe", weight: "1", higherIsBetter: false },
+  { name: "Quality (ROE)", expression: "fundamental.roe", weight: "1", higherIsBetter: true },
+  { name: "Size", expression: "fundamental.market_cap", weight: "1", higherIsBetter: false },
+];
+
 export type RotationForm = {
+  /** A7.7: a single ranking, or a weighted factor model. */
+  mode: "ranking" | "factors";
+  factors: FactorRow[];
   ranking: string;
   topN: string;
   schedule: "weekly" | "monthly";
@@ -45,6 +70,8 @@ export function initialRotationForm(
   range: { from: string; to: string },
 ): RotationForm {
   return {
+    mode: "ranking",
+    factors: FACTOR_PRESETS.slice(0, 2),
     ranking: DEFAULT_RANKING,
     topN: "5",
     schedule: "monthly",
@@ -76,7 +103,17 @@ function num(raw: string): number {
 export function buildRotationRequest(form: RotationForm): RotationRequest {
   const filter = form.cashFilter;
   return {
-    ranking: form.ranking.trim(),
+    ...(form.mode === "factors"
+      ? {
+          ranking: null,
+          factors: form.factors.map((f) => ({
+            name: f.name.trim() || null,
+            expression: f.expression.trim(),
+            weight: Number(f.weight),
+            higher_is_better: f.higherIsBetter,
+          })),
+        }
+      : { ranking: form.ranking.trim(), factors: null }),
     top_n: num(form.topN),
     schedule: form.schedule,
     weighting: form.weighting,
@@ -106,8 +143,17 @@ export function buildRotationRequest(form: RotationForm): RotationRequest {
 
 /** Why the run button is off, or null when the form can run. */
 export function rotationProblem(form: RotationForm, rulesValid: boolean): string | null {
-  if (!form.ranking.trim()) return "Write a ranking expression.";
-  if (!rulesValid) return "Fix the ranking or the cash filter first.";
+  if (form.mode === "factors") {
+    if (form.factors.length === 0) return "Add at least one factor.";
+    if (form.factors.length > 8) return "At most 8 factors.";
+    if (form.factors.some((f) => !f.expression.trim())) return "Every factor needs an expression.";
+    if (form.factors.some((f) => !(Number(f.weight) > 0 && Number(f.weight) <= 10))) {
+      return "Factor weights are above 0 and at most 10.";
+    }
+  } else {
+    if (!form.ranking.trim()) return "Write a ranking expression.";
+    if (!rulesValid) return "Fix the ranking or the cash filter first.";
+  }
   const n = num(form.topN);
   if (!Number.isInteger(n) || n < 1 || n > 50) return "Top N is a whole number from 1 to 50.";
   if (form.useCashFilter && !form.cashFilter.text.trim() && form.cashFilter.versionId === null) {

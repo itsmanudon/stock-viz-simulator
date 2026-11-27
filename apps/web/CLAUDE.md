@@ -10,7 +10,8 @@ app/
                    concise public header and traditional website footer
   (product)/       guest-capable research routes plus the workstation shell
     (authed)/      dashboard, portfolio, trade, trades, orders, watchlist,
-                   alerts, settings, earnings, setups, replay, drills (A4.7) —
+                   alerts, settings, earnings, setups, replay, drills (A4.7),
+                   charts (A6.8: the chart workspace) —
                    protected by proxy.ts. `/dashboard` is
                    the signed-in home: a bento grid of portfolio widgets fed by
                    `lib/dashboard-data.ts` (every widget but the portfolio hero
@@ -201,6 +202,19 @@ a server action or a route handler — never through the browser.
   audit OP-4). Sign-up does not verify email, so an account with a password
   never gets Google attached: its holder signs in with the password, and
   `/login?error=` explains the refusal.
+- **The signup switch** (owner, 27 Nov 2026): `SIGNUP_MODE` closed (default
+  when unset) | allowlist | open, `SIGNUP_ALLOWLIST` (comma-separated). Pure
+  rules in `lib/signup-policy.ts` (`parseSignupMode`, `signupAllowed`: open
+  anyone; the first account on an empty database always; allowlist by
+  address, case ignored; else no); `lib/signup-gate.ts::canCreateAccount`
+  reads the env per request and `lib/users.ts::countUsers`. Enforced in
+  `signupAction` (after the duplicate check, so an existing user is still
+  told to sign in) and in the Google `signIn` callback for an address with no
+  account (`/login?error=SignupClosed`). `/signup` is `force-dynamic`: closed
+  shows `signup-closed` ("Invite Only", a sign-in link), allowlist adds
+  `signup-invite-note`. The public header's button reads "Sign in" while
+  closed; other marketing buttons still go to `/signup`, which explains.
+  Tests: `tests/unit/signup-policy.test.ts`. e2e and CI set `open`.
 - Credential sign-in and sign-up are throttled by fixed windows in Postgres
   (`lib/rate-limit.ts`, table `auth_rate_limits` owned by the API's Alembic
   chain; audit OP-8), so counters survive the web service sleeping. A
@@ -481,6 +495,107 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   is `intraday-empty` ("No minute bars for this symbol in this range").
   `getBars` caches intraday responses 60 s. Tests:
   `tests/unit/intraday-chart.test.tsx` (the stub records `chartOptions`).
+  **Live bars (A6.5).** The stock page passes `liveTicker` on an intraday
+  interval (not on a past `?to=` window); `PriceChart` then runs
+  `useLiveBars` (`components/use-live-bars.ts`): one browser `EventSource`
+  to the API's `/v1/stream/bars?tickers=` (`BROWSER_BASE` from
+  `lib/api/client.ts`), each `bar` event merged by `lib/live-bars.ts::
+  mergeLiveBar` (only the chart's own feed; 1m appends or replaces; coarser
+  intervals fold the minute into the newest bar while it falls inside it,
+  skipping minutes the server's bar already holds, else open the next
+  bucket from its close, or a new session's at the minute's time; the
+  length is kept). New server bars reset the merge. `chart-live-status`
+  (`data-status` connecting | waiting | live | offline, `liveStatusText`)
+  sits in the source row; a replayed stream says "Replayed stream, not
+  live" and its badge is "Replayed" (`sourceBadgeLabel`). Indicators do not
+  update live (a reload does). Tests: `tests/unit/a65-live-bars.test.tsx`
+  (a fake `EventSource`).
+  **Chart tools (A6.7, M2.9, M2.11).** The stock page renders
+  `components/chart-tools.tsx::ChartWithTools` (it wraps `ChartWorkbench`;
+  `isIndex` from `SymbolDetail.is_index`). Everything binds to the built chart
+  through `PriceChart`'s one hook, `onChartReady(handle)` (the price series,
+  the focusable `root`, the canvas `container`, the bars, `drawingAt(x, y)`,
+  `drawings()`, `streaming()`; it may return a cleanup, run before the chart
+  is removed). Keep new chart features behind that hook rather than in
+  `price-chart.tsx`.
+  - **Volume profile:** the toolbar's `VolumeProfileToggle`
+    (`components/volume-profile-toggle.tsx`, shown only with the drawings'
+    chart, disabled on an index) writes `?vp=visible|fixed` with
+    `history.replaceState` (no server render; other toolbar links drop it).
+    Visible: the bars on screen (`rangeOfBars`), fetched again 400 ms after
+    the last pan or zoom (`subscribeVisibleLogicalRangeChange`). Fixed: each
+    `volume_profile` drawing (a date-only kind, two sessions, in the drawing
+    toolbar; not in replay) is fetched once per pair of sessions. Fetches go
+    through `stocks/[ticker]/chart-tools-actions.ts::volumeProfileAction`.
+    One primitive draws them (`lib/drawings/volume-profile-primitive.ts`,
+    under the candles; geometry `lib/volume-profile.ts::profileGeometry`);
+    `volume-profile-info` shows the badges, POC, value area and the
+    approximation note, or the API's 409 reason.
+  - **Context menu** (`components/chart-context-menu.tsx`): right-click, a
+    550 ms touch long press, or Menu / Shift+F10 on the focused chart (at the
+    last crosshair point). Items from `lib/chart-menu.ts`: the price, study
+    and rule alerts build the alert form's own field names and go through
+    `alerts/actions.ts::createAlertAction` (the test compares both bodies);
+    "Alert on this drawing" first saves a Rule DSL setup (kind `alert`,
+    `drawing("label").price|top|bottom` or `avwap("label")`), and needs a
+    labelled hline, trendline, ray, rectangle or AVWAP. Signed out: a
+    sign-in link. The note: judged on the next stored bar unless A6.5's
+    stream is live.
+  - **Plan a trade here** opens `ChartPlanEditor` (long, the default book;
+    entry at the crosshair, stop at the nearest drawing level below or 2 x
+    ATR(14) at the last bar, target at the nearest level above or 2R;
+    `planFigures` checks it) and saves through `createChartPlanAction`.
+  - **Plan lines** (`components/plan-lines.ts::PlanLinesController`): the
+    ticker's open and active paper/imported plans as price lines. Drafts are
+    dashed and draggable (capture listeners on `root` stop the chart
+    panning); a release saves the new prices 600 ms later
+    (`updatePlanLinesAction`), a refused save (409, the lock) snaps back.
+    Locked or written-after-entry plans are dotted, titled "(Locked)", and a
+    press says why. Tests: `tests/unit/a67-chart-tools.test.tsx`,
+    `tests/unit/a67-chart-menu.test.tsx` (the stub's price lines move and
+    remove, and `panChart()` fires range listeners); e2e
+    `tests/e2e/chart-tools.spec.ts`.
+- **Chart workspace (A6.8, M2.10).** `/charts` (protected in `proxy.ts`,
+  Workbench nav "Charts", icon `LayoutGrid`): a grid of one, two (`2v` side
+  by side, `2h` stacked) or four `PriceChart`s, each with its own symbol,
+  interval (daily, weekly, monthly or intraday; an intraday interval the
+  symbol has no bars for draws daily with `pane-note`) and template (or the
+  default look: candles, linear, SMA 50). **State is the URL**
+  (`lib/chart-layouts.ts`): `grid`, then per pane, comma-separated, `s`
+  symbols, `i` intervals, `t` template ids, `g` link colours; `wl` the
+  watchlist's colour; `layout` the saved layout it came from. `?layout=<id>`
+  alone opens a saved layout. Every control `router.push`es a new URL and the
+  server page reads the panes again (`lib/chart-layouts-server.ts::
+  loadPaneView`, the stock page's bar and indicator rules); no client store
+  (Zustand was not added). **Linked groups:** the seven watchlist colours
+  (`--list-<name>`); a pane in a colour follows the last symbol chosen in it
+  (`choosePaneSymbol`), a pane joining a colour takes its symbol
+  (`choosePaneLink`), and panes of one colour always share a symbol (the API
+  refuses otherwise). The default watchlist sits below the grid as a linked
+  widget: in a colour, a click moves that colour's panes and the current
+  symbol is `aria-pressed`; unlinked, rows open the stock page. The screener
+  and the forensics and options drawers do not follow colours yet.
+  **Crosshair:** panes on the same symbol share the crosshair time; the
+  workspace keeps `{source, symbol, time}` and passes `crosshairTime` to the
+  others (`PriceChart`'s A6.8 props `crosshairTime` / `onCrosshairTime`; only
+  pointer moves are sent, `param.sourceEvent`), placed at each pane's
+  interval by `lib/chart-sync.ts::syncedBarIndex` (intraday and daily: the
+  bar starting at or before; weekly and monthly: the period whose last
+  session is on or after the day). **Phones:** below `md` the grid is tabs
+  (`role="tablist"`, arrow keys, Home/End) and the other panes are
+  `max-md:hidden`. **Templates:** "Save as template" on the stock page
+  (signed in, `components/chart-layouts/save-template-button.tsx`) saves the
+  chart's type, scale and indicators with the pane heights the chart
+  remembers (`readPaneLayout`, sent within 48-1200 px); a pane's template is
+  applied through `PriceChart`'s `paneHeights` prop (read at mount, so the
+  chart is keyed by symbol, interval and template). States: `layouts-empty`
+  ("No saved layouts yet."), `layouts-error`, `loading.tsx`, a pane's
+  `pane-missing` (a symbol StockViz doesn't have, controls kept),
+  `pane-error` (with Try again) and `pane-empty`. Server actions in
+  `app/(product)/(authed)/charts/actions.ts`, fetchers in
+  `lib/api/chart-layouts.ts`. Tests: `tests/unit/a68-chart-layouts.test.tsx`,
+  `tests/e2e/chart-layouts.spec.ts` (signs up from its own
+  `x-forwarded-for`, since the other specs use the signup cap's five).
 - Backtest results, saved runs (list and detail) show the run's `universe`
   stamp through `components/universe-note.tsx` (A1.4a): one neutral line,
   "Pinned symbol list, not point in time: survivorship-biased." plus the
@@ -735,7 +850,7 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   default; `replayIndicatorsHref` keeps the other params) above
   `ChartWorkbench` with `actions` (the session's own drawing actions,
   `replay/[sessionId]/drawing-actions.ts`) and `kinds`
-  (`REPLAY_DRAWING_KINDS`: no anchored VWAP). `ChartWorkbench` takes
+  (`REPLAY_DRAWING_KINDS`: no anchored VWAP and, A6.7, no volume profile). `ChartWorkbench` takes
   `actions`/`kinds` (default: the live `/v1/drawings` actions, every kind);
   `DrawingToolbar` and `DrawingsList` take `kinds`. Indicators come from
   `getReplayIndicators` (`/v1/replay/sessions/{id}/indicators`, cut at the
@@ -753,6 +868,28 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   currency, cash presets per currency (`replayCashPresets`), the lag note
   (`replay-lag-note`) and caps the end date at `max_end`. Tests:
   `tests/unit/replay-a46.test.tsx`.
+- **Replay full orders (A6.9, M9.4).** The ticket's `bracket` type
+  (`replay-bracket-entry` market or limit, `replay-bracket-stop`,
+  `replay-bracket-target`, buy only, `bracketLevelsProblem`) posts
+  `entry_type`/`stop_price`/`target_price`; `ReplayOrders` groups a bracket
+  (`groupReplayOrders`) into one `replay-bracket` row (`data-oco-group`) with
+  two `replay-bracket-leg` rows (`data-leg`, `data-status`; `pending` reads
+  "Waiting for entry") and the `replay-order-unknown` badge ("Order Inside the
+  Bar Unknown") on a stop that filled first. The page names its profile
+  (`replay-profile`: "Fill model · intrabar_ohlc v1"), lists the registry's
+  assumptions (`replay-assumptions`), shows `replay-bar-count`, and passes the
+  session's `interval` to the chart and controls (`formatReplayClock` shows
+  an intraday time in UTC). The launcher picks Bars (`replay-launch-interval`,
+  intraday only when minutes are stored) and Fill model
+  (`replay-launch-profile`). Autoplay (`components/replay-autoplay.tsx`,
+  replay only, not drills): play, pause, step at 1/2/5/10 bars a second
+  through `autoplayStepAction` (no revalidation; the player calls
+  `router.refresh()` in a transition), one step at a time from the bar the
+  last answer named, a 429 waits and carries on, stops on the last bar; keys
+  space, arrows, 1-4 (`speedForKey`, `stepSpeed`); `data-advances`,
+  `data-playing`, `data-speed`. Tests: `tests/unit/replay-a69.test.tsx`,
+  `tests/e2e/replay-a69.ts` (run at the end of `trade.spec.ts` on its signed-in
+  account: 10x without a double advance).
 - **Drills (A4.7, M9.3).** `/drills` (protected in `proxy.ts`, Research nav
   and subnav after Replay): decks (`drill-deck`) with the rule, universe,
   range, K of the eligible triggers (found, lag-skipped), N, M, seed and
@@ -790,6 +927,180 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   `tests/stubs/lightweight-charts.ts` (records series, panes, price lines,
   crosshair calls): `vi.mock("lightweight-charts", async () => (await
   import("../stubs/lightweight-charts")).lwc)`.
+- **Tearsheet and printing (A9.6, M5.7, M10.8).** `/stocks/[ticker]/tearsheet`
+  (linked as "Printable tearsheet", `tearsheet-link`, under the stock page's
+  header; visitor-limited like the stock page): a one-page X-ray from
+  existing public routes (returns and RS, valuation and the P/E band,
+  forensic scores, reverse DCF, the checklist, five headlines), each block
+  dropping out when its call fails. `PrintButton` prints. Print CSS at the end
+  of `globals.css`: `[data-app-chrome]` (the sidebar and top bar, wrapped in
+  `display: contents` divs in `app-shell.tsx`), `.prism-ambient` and
+  `[data-print-hide]` are hidden, and `[data-tearsheet]` prints dark on white.
+  The Portfolio Income tab adds `DividendProjection`
+  (`components/dividend-projection.tsx`: per-currency totals, per-holding
+  rows with the reason when none, a payout calendar), labelled a projection.
+  Tests: `tests/unit/a96-dividend-projection.test.tsx`,
+  `tests/e2e/tearsheet.spec.ts`.
+- **Classroom (A10.2, M12.1, M12.2).** `/classroom` (protected in
+  `proxy.ts`; Quant Lab nav "Classroom", signed in, icon `GraduationCap`):
+  join with a code and a consent box that states what the instructor sees;
+  joined cohorts list assignments with Start (makes the student's anonymised
+  deck and opens `/drills?deck=`) or Open My Deck, and Leave; instructors
+  create a cohort (its invite code shown), add an assignment (title, rule,
+  symbols, range, K, rubric %, due date) and read `GradebookTable`
+  (`components/classroom/gradebook-table.tsx`: grade and process counts per
+  student; the API sends nothing else). Server actions in
+  `(authed)/classroom/actions.ts` redirect back with `?ok=` / `?error=`;
+  fetchers in `lib/api/classroom.ts`. Tests: `tests/unit/a102-classroom.test.tsx`,
+  `tests/e2e/classroom.spec.ts`.
+- **Copilot (A8.5, M11.2).** `/copilot` (AI Copilot nav, public page):
+  signed out `copilot-signed-out` (a sign-in link); no model on the server
+  `copilot-off` (the API's reason, a link to `/filings?match=meaning`);
+  otherwise `CopilotPanel` (`components/copilot/copilot-panel.tsx`: question,
+  optional symbol, Ctrl/Cmd+Enter asks) through `copilot/actions.ts::
+  askCopilotAction` (`lib/api/ai-server.ts::askCopilot`, authed `POST
+  /v1/ai/ask`). `CopilotAnswerView` renders the answer with each `[n]` as a
+  link to `#source-n` (`copilot-cite`; a number with no source is
+  `copilot-cite-invalid`, "[3?]"), the API's warnings, the sources the model
+  saw (`copilot-source`, `data-cited`, "Not Cited"), the notes and the
+  disclaimer. `lib/copilot.ts` (`answerParts`, `questionProblem`). Tests:
+  `tests/unit/a85-copilot.test.tsx`, the signed-out check in
+  `tests/e2e/app-shell.spec.ts`.
+- **Morning brief and weekly review (A9.12, M11.6).** `/brief` (Today nav
+  "Morning Brief", signed in, icon `Sunrise`, protected in `proxy.ts`):
+  `getBrief()` (`lib/api/brief.ts`, authed) shown as four cards: largest
+  moves with both close dates (`brief-moves`, gain/loss colours), alerts of
+  the last 24 hours, earnings in the next 7 days, new documents, and counts
+  of open plans and pending orders; `brief-empty` with no symbols.
+  `/portfolio/journal/week?week_end=&book=` (linked as "Weekly Review",
+  `weekly-link`, beside the edge link): a `FigureStrip`, net P&L per
+  currency, `weekly-look-at` items each linking their entries, previous and
+  next week (`lib/brief.ts`: `moveText`, `shiftWeek`, `weekHref`). Tests:
+  `tests/unit/a912-brief.test.ts`, the signed-in steps in
+  `tests/e2e/portfolio.spec.ts`.
+- **Implied vs model distribution (A9.13, M8.5).** The stock page's Options
+  tab adds `ImpliedDistributionCard` (`components/implied-distribution-card.tsx`,
+  `implied-distribution`) from `getImpliedDistribution`
+  (`lib/api/option-exposure.ts`, cached an hour, tag `options`; dropped when it
+  fails or has a `reason`): an inline SVG of the implied density (solid) and
+  the model's (dashed) on one scale (`densityPath`), the quantile table
+  (`idist-quantiles`), the tail chances in words (`idist-tails`), the cut
+  negative share when over 1%, and the method. Neutral colours only. Tests:
+  `tests/unit/a913-implied-distribution.test.tsx`.
+- **Grid and For and Against (A9.11, M11.4, M11.5).** `/copilot?mode=grid|debate`
+  (`copilot-modes`: Ask, Grid, For and Against links with `aria-current`):
+  `GridPanel` (`components/copilot/research-panels.tsx`: up to 5 symbols and
+  3 questions, a table of `grid-cell`s with `data-grounded`, the model-call
+  count) and `DebatePanel` (symbol and topic; `case-for` and `case-against`
+  side by side, "from the same passages"), both through
+  `copilot/actions.ts::gridAction` / `debateAction` (`lib/api/ai-server.ts::
+  runGrid` / `runDebate`). `CheckedAnswerView` renders an answer with its
+  citation chips, warnings and sources. Tests:
+  `tests/unit/a911-grid-debate.test.tsx`.
+- **AI keys (A8.7, M11.2 BYOK).** Settings → AI Keys
+  (`components/ai-keys-panel.tsx`, actions in
+  `(authed)/settings/ai-key-actions.ts`, `listAiKeys`/`saveAiKey`/
+  `deleteAiKey` in `lib/api/ai-server.ts`): one form per provider
+  (`ai-key-openai_compatible`: base URL, model, key; `ai-key-anthropic`
+  (A8.7b): model, default `claude-opus-5-5`, and key, no endpoint); the key
+  is a password field, empty on every render; a saved key shows model,
+  endpoint and "Key Ending WXYZ" only (`ai-key-saved`), Remove Key;
+  `ai-keys-off` when the server has no encryption key. `lib/ai-choices.ts::
+  aiChoices` builds the model choices ("Server: …", "Your key: …", "Your
+  Claude key: …") for `/copilot` and `/filings/[id]`; a non-server choice
+  says it is billed to the user's account. Tests: `tests/unit/a87-ai-keys.test.tsx`, the copilot test,
+  the off state in `tests/e2e/portfolio.spec.ts`.
+- **Describe in words (A8.2, M4.2).** The screener's rule panel adds a
+  "Describe in words" disclosure (`describe-in-words`) only when signed in
+  and `getAiStatus()` (`lib/api/ai.ts`, public, cached a minute) says a
+  model is set up; `components/rule-draft.tsx` sends the words through
+  `screener/actions.ts::draftRuleAction` (`lib/api/ai-server.ts`, authed
+  `POST /v1/ai/rule`) and shows the draft as code with its check
+  (`rule-draft-check`); only a passing draft offers "Use This Rule", which
+  puts it in the editor (the usual check runs again). Nothing runs on a
+  draft. Tests: `tests/unit/a82-rule-draft.test.tsx`.
+- **India options (A7.14, M6.1, M6.3).** `/india-options` (Markets nav
+  "India options", icon `Activity`, public; linked from the Derivatives
+  desk): `getFoIndia()` (`lib/api/fo.ts`, cached an hour, tag `fo`) rendered
+  by `components/fo-india-view.tsx` (server): per underlying ATM IV, IV rank
+  and percentile, skew and PCR, three neutral sparklines and the latest IV
+  by strike offset. `fo-empty` wherever the owner's files were not loaded
+  (production, e2e). Tests: `tests/unit/a714-fo-india.test.tsx`,
+  `tests/e2e/india-options.spec.ts`.
+- **Lender mode and desks (A7.13, M5.2).** The stock page loads `getLender`
+  (`lib/api/fundamentals.ts`; a 409 for a non-financial symbol drops it) and
+  the Financials tab shows `LenderCard` (`components/lender-card.tsx`: P/B,
+  ROE, the peer line's P/B, the gap, the justified P/B at the stated COE and
+  growth, an SVG scatter of the market's financial peers with the dashed
+  least-squares line, the missing KPIs named). `StockResearchTabs` takes
+  `initialTab` from `?tab=` (ignored when that tab is not shown). `/desks`
+  (Workbench nav "Desks", public): the four presets in `lib/desks.ts`
+  (Swing, Compounder, Derivatives, Quant: tools, a starting screen
+  `deskScreenHref`, a chart look `deskChartHref` with indicators, type and
+  tab); `?desk=&ticker=` redirects to the stock page with that look. Not a
+  new shell (owner, 27 Nov 2026). Tests: `tests/unit/a713-lender-desks.test.tsx`,
+  `tests/e2e/desks.spec.ts`.
+- **Capital gains (A7.12, M10.7).** `/portfolio/tax` (Portfolio & Tax nav
+  "Capital gains", signed in, icon `Landmark`; protected by `/portfolio`):
+  `?book=` (default book), `fy` (`TAX_YEARS`), `surcharge` (none, 10%, 15%
+  capped); `getIndiaTax` (`lib/api/tax.ts`, authed). 409 (not an INR book)
+  and 404 read as sentences. `components/india-tax-view.tsx`: the estimate
+  note first (`tax-estimate-note`), a `FigureStrip` (net short, net long,
+  exemption left, estimated tax with the section numbers), the breakdown,
+  realised lots (term, grandfathered), open lots with the first long-term
+  day and a harvesting summary in figures only ("not a recommendation"), the
+  rules, method and every source with how it was read. `lib/india-tax.ts`
+  (`inr` with Indian grouping). Tests: `tests/unit/a712-india-tax.test.tsx`,
+  `tests/e2e/tax.spec.ts`.
+- **Optimiser (A7.11, M10.6).** `/optimise` (Quant Lab nav "Optimiser", icon
+  `PieChart`, public; `checkVisitorLimit("optimise")`, 10 a minute, only when
+  a run is asked): a GET form (`tickers`, `method`, `years`, `rf` %, `maxw` %,
+  `cash`, `views` "MSFT 12% 0.6, KO 5 0.4" for Black-Litterman), parsed by
+  `lib/optimise.ts::optimiseRequest` (bounded; views only for
+  Black-Litterman), run on the server (`lib/api/optimise.ts::runOptimise`,
+  `apiPost`); a 400's `detail` is shown (`errorDetail`).
+  `components/optimise-result.tsx`: a `FigureStrip` against equal weight,
+  the weights table (neutral bars; prior and posterior for Black-Litterman;
+  shares and price with cash), the leftover, notes and the disclaimer. No
+  green or red. Tests: `tests/unit/a711-optimise.test.tsx`,
+  `tests/e2e/optimise.spec.ts`.
+- **Filings (A7.10, M5.5).** `/filings` (Workbench nav "Filings", icon
+  `FileText`, public, `checkVisitorLimit("filings")`, 30 a minute): a GET form
+  (`ticker`, `q`, `kind`); `q` of 2+ characters searches the stored text
+  (`searchDocuments`, exact phrase), else `ticker` lists (`listDocuments`);
+  `filings-intro`, `filings-empty`, `filings-results`. `/filings/[id]?q=`
+  shows the text with the phrase marked (`Marked`, `markParts`) and a link to
+  the original. `components/documents-view.tsx`: `DocumentRow`,
+  `DocumentMeta` (kind, form, "Public <UTC time>", "(Assumed: End of Its
+  Date)", "SEC EDGAR" or "Placed by Hand"). `lib/api/documents.ts` (cached 5
+  minutes, tag `documents`). A8.4: a **Match** select (`match=meaning`,
+  "Passages") calls `searchPassages` (`/v1/documents/passages`) and lists
+  `PassageRow`s (`filings-passages`, `passage-row`, `passage-ranks` from
+  `passageRanks`: "Words #2 · Meaning #1 (0.82)") with the API's mode, notes
+  and method. Tests: `tests/unit/a710-documents.test.tsx`,
+  `tests/unit/a84-passages.test.tsx`, `tests/e2e/filings.spec.ts`.
+  A9.10 (M11.3): `/filings/[id]` adds `DocumentChanges`
+  (`components/filing-analysis.tsx`, `document-changes`: counts in
+  `document-change-counts`, hedging per 1,000 words before and after in
+  `document-hedging` (`hedgingLine`), the changed paragraphs in a
+  disclosure, `document-change` with `data-kind`) from the public
+  `compareDocument`, and, signed in with a model (the server's or a saved
+  key), `FigureExtractor` (`figure-extractor`, "Extract Figures" through
+  `filings/[id]/actions.ts::extractFiguresAction`: each `figure` with its
+  quote, `figures-dropped` counting what failed the check, the method and
+  disclaimer). Tests: `tests/unit/a910-filing-analysis.test.tsx` (no e2e:
+  the e2e database stores no documents).
+- **Macro (A9.7, M1.10, M3.5).** `/macro` (Markets nav "Macro", icon
+  `Globe`, public): `getMacroOverview()` (`lib/api/macro.ts`, cached an hour,
+  tag `macro`) rendered by `components/macro-view.tsx` (server): the spreads,
+  then one card per series by group (`macro-series`, `data-series`,
+  `data-stale`: value, units, date, 1 month and 1 year change in points for
+  percent series and as a percent of the level otherwise, a 3-year sparkline,
+  the FRED link, "Third Party" where marked), "Not fetched yet." before the
+  first fetch, `macro-empty` when nothing is stored. **Neutral colours only**:
+  a rising yield or CPI is not a gain, so `Sparkline` takes `tone="neutral"`
+  (and `subject` for its label; defaults unchanged). Tests:
+  `tests/unit/a97-macro.test.tsx`, `tests/e2e/macro.spec.ts`.
 - Server components by default — only mark `"use client"` when you need state,
   effects, or interactivity.
 - Research (`/compare`, `/backtest`, `/checklist`, `/replay`) is one
@@ -1063,8 +1374,42 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   sets `experimental.serverActions.bodySizeLimit: "2200kb"` (2 MiB plus
   multipart overhead; the API still refuses past 2 MiB). `BookStateNotice`
   links "Import Tradebook (CSV)" on an imported book that is not archived;
-  Settings → Books creates imported books in INR. Nothing logs the file.
+  Settings → Books creates imported books in INR (A6.11: or USD for an Other
+  broker). Nothing logs the file.
   Tests: `lib/tradebook-import.test.ts`.
+- **Broker maps and baskets (A6.11, M10.2, M10.5).** The import page reads
+  any imported INR book's file with a **Column Map** select ("Detect From
+  Header Row", each broker map marked Unconfirmed, the user's saved maps as
+  `saved:<id>`); a USD book (broker Other) uses saved maps only. The
+  "Columns Matched" summary names the map used, and `map-used` inside it says
+  its status, how it was chosen and its source. "Map Columns Yourself"
+  (`column-mapper`) opens on a preview with missing columns (or at once in a
+  USD book without a map): a select per field over the file's headers (read
+  in the browser by `headerRowFromText`, or the preview's `headers`), first
+  guess `guessMapping`, checks `mappingProblem`, the date order, a default
+  exchange (India), a name; **Save Map and Preview** posts
+  `saveImportMapAction` then previews with it. "Your Column Maps" lists and
+  deletes them. Times and money follow the book's market (`marketZone`, IST or
+  ET; INR or USD); US rows show no estimated charges. Settings → Books asks
+  the broker for an imported book (`IMPORT_BROKERS`); an Indian broker's book
+  is INR, Other takes the chosen currency (`importedBookCurrency`). Helpers in
+  `lib/tradebook-import.ts` (`importQuery`, `brokerLabel`, ...).
+  **Baskets:** `lib/basket.ts` (pure): `basketFromPlan` (entry limit or
+  market buy, SL-M stop, limit target at the planned size; none without a
+  size), `basketFromRebalance` (market orders, sells first),
+  `basketFromScreen` (a market buy of N shares each), `basketCsv` /
+  `basketJson` (symbol, exchange, side, quantity, order_type, price, trigger),
+  `kiteBasketData` (Kite's item keys, CNC, NSE/BSE only, a plan's entry only).
+  `components/basket-export.tsx` (`basket-export`): Download CSV, Download
+  JSON, and only when `getKiteHandoff()` (`lib/api/brokers.ts`,
+  `/v1/broker/basket`) is not null, Kite's hidden form (`basket-kite-form`,
+  `api_key` + `data`, POST to `KITE_BASKET_URL`, new tab) behind "Review in
+  Kite". Shown on open plans (Journal tab), under the rebalance preview
+  (Analytics tab) and as "Basket From This Screen" (`screen-basket`, signed
+  in) on the screener. **StockViz never places an order;** nothing calls Kite
+  in tests. Tests: `tests/unit/a611-basket-lib.test.ts`,
+  `tests/unit/a611-basket.test.tsx`, `tests/unit/a611-import-maps.test.ts`,
+  `tests/e2e/imports.spec.ts`.
 - **Trade plans (A5.4, M10.3).** Types and the ticket helpers are
   client-safe in `lib/plans.ts` (`planFigures` risk/reward/R:R and the first
   problem, `planFormFields` / `planFromForm` (the `plan_*` hidden fields a
@@ -1270,12 +1615,12 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
 
   | Workspace | Routes (sidebar items in order) |
   | --- | --- |
-  | Today | `/dashboard` (Home; `/` for guests), `/notifications` |
+  | Today | `/dashboard` (Home; `/` for guests), `/brief` (Morning Brief, signed in; A9.12), `/notifications` |
   | Markets | `/markets` (Overview), `/screener`, `/earnings`, `/news` |
   | Workbench | `/setups`, `/checklist` (+ `/recommendations`, a redirect), `/compare`, `/event-study`; `/stocks/*` belongs here without an item (`extraMatches`) |
   | Quant Lab | `/backtest`, `/backtest/runs` (Saved runs, + `/runs/[id]`), `/replay` (+ `/[id]`), `/drills` (+ `/new`, `/[id]`), `/news-reactions` |
   | Portfolio & Tax | `/portfolio` (journal and A5.4 plans are its Journal tab), `/trade`, `/orders`, `/trades`, `/watchlist`, `/alerts`, Books (a signed-in shortcut to `/settings#books`, never "current") |
-  | AI Copilot | `/copilot`: a placeholder page until A8 (no input, no sample answers; it lists what is planned) |
+  | AI Copilot | `/copilot`: the filings copilot (A8.5) |
   | Bottom rail (`UTILITY_NAVIGATION`) | `/status` (everyone), `/settings` (signed in) |
 
   The sidebar (`components/app-navigation.tsx`) draws each workspace as a

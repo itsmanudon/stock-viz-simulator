@@ -24,6 +24,12 @@ export async function findUserByEmail(email: string): Promise<UserRow | null> {
   return result.rows[0] ?? null;
 }
 
+/** How many accounts exist (the signup switch lets the first one through). */
+export async function countUsers(): Promise<number> {
+  const result = await pool.query<{ n: string }>("SELECT count(*)::text AS n FROM users");
+  return Number(result.rows[0]?.n ?? 0);
+}
+
 export async function createUser(args: {
   email: string;
   name: string | null;

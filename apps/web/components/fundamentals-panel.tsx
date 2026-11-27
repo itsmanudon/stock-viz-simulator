@@ -144,6 +144,13 @@ function KeyMetrics({
           percentile of its last {peHistory.points.length} month-ends.
         </p>
       ) : null}
+      {peHistory?.bands ? (
+        <p className="mt-1 text-xs text-text-tertiary" data-testid="pe-bands">
+          P/E bands over those month-ends: 10th {peHistory.bands.p10?.toFixed(1)}×, 25th{" "}
+          {peHistory.bands.p25?.toFixed(1)}×, median {peHistory.bands.p50?.toFixed(1)}×, 75th{" "}
+          {peHistory.bands.p75?.toFixed(1)}×, 90th {peHistory.bands.p90?.toFixed(1)}×.
+        </p>
+      ) : null}
     </section>
   );
 }

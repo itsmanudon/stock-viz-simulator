@@ -28,6 +28,7 @@ import { RangeBar, rangePositionPct } from "@/components/range-bar";
 import { ResearchPageHeader } from "@/components/research-page-header";
 import { RulePanel, type RulePreset } from "@/components/rule-panel";
 import { SavedScreens } from "@/components/saved-screens";
+import { ScreenBasket } from "@/components/screen-basket";
 import { CardSortBar, type SymbolCardData, SymbolCardList } from "@/components/symbol-card-list";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -49,11 +50,14 @@ import {
   getScreenerPage,
   listSymbols,
 } from "@/lib/api";
+import { getAiStatus } from "@/lib/api/ai";
+import { getKiteHandoff } from "@/lib/api/brokers";
 import { getScreenerPageAsUser } from "@/lib/api/screener-server";
 import { type SavedScreen, listSavedScreens } from "@/lib/api/screens";
 import { AuthedApiError, UnauthenticatedError } from "@/lib/api/server";
 import { listPresets } from "@/lib/api/setups";
 import { listWatchlists } from "@/lib/api/watchlist";
+import type { KiteHandoff } from "@/lib/basket";
 import { buildCompareHref } from "@/lib/compare-workspace";
 import { formatCurrency } from "@/lib/portfolio-view-model";
 import {
@@ -79,6 +83,7 @@ import {
 } from "@/lib/screener-view";
 import { formatCloseDate } from "@/lib/stock-workspace";
 import { checkVisitorLimit } from "@/lib/visitor-limit";
+import { draftRuleAction } from "./actions";
 
 export const metadata: Metadata = { title: "Screener" };
 
@@ -174,18 +179,25 @@ export default async function ScreenerPage({
   } catch {
     presets = [];
   }
+  // A8.2: "Describe in words" shows only when the server has a model.
+  const ai = signedIn ? await getAiStatus().catch(() => null) : null;
+  const aiModel = ai?.configured ? `${ai.provider} ${ai.model}` : null;
   const pageNumber = parseScreenerPage(params);
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   let savedScreens: SavedScreen[] = [];
   // A2.5: the lists the bulk "Add to list" offers (signed in only).
   let watchlists: ListChoice[] = [];
+  // A6.11: Kite's basket form for the screen's basket (only with KITE_API_KEY).
+  let kite: KiteHandoff = null;
   if (signedIn) {
-    const [screensResult, listsResult] = await Promise.all([
+    const [screensResult, listsResult, kiteResult] = await Promise.all([
       listSavedScreens().catch(() => [] as SavedScreen[]),
       listWatchlists().catch(() => []),
+      getKiteHandoff(),
     ]);
     savedScreens = screensResult;
+    kite = kiteResult;
     watchlists = listsResult.map((list) => ({ id: list.id, name: list.name, colour: list.colour }));
   }
   // A sector column of dashes says nothing (UI audit S3).
@@ -487,6 +499,8 @@ export default async function ScreenerPage({
             presets={presets}
             signedIn={signedIn}
             clearHref={rule ? clearRuleHref(params) : null}
+            aiModel={aiModel}
+            draft={draftRuleAction}
           />
           <div className="mb-3 grid gap-3">
             <div className="flex flex-wrap items-baseline justify-between gap-2 text-sm">
@@ -804,6 +818,9 @@ export default async function ScreenerPage({
               ) : null}
             </>
           )}
+          {signedIn && results.length > 0 ? (
+            <ScreenBasket tickers={results.map((row) => row.ticker)} kite={kite} />
+          ) : null}
           <UniverseNote universe={screen?.universe ?? null} className="mt-4" />
         </section>
       </div>

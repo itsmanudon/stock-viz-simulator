@@ -28,3 +28,24 @@ export function getValuationHistory(ticker: string, metric = "pe"): Promise<Valu
     CACHE,
   );
 }
+
+export type Forensics = components["schemas"]["ForensicsOut"];
+
+/** A7.3 (M5.1, M5.2): Piotroski, Altman Z'' and Beneish on the latest known fiscal years. */
+export function getForensics(ticker: string): Promise<Forensics> {
+  return apiGet<Forensics>(`/v1/symbols/${encodeURIComponent(ticker)}/forensics`, CACHE);
+}
+
+export type ReverseDcf = components["schemas"]["ReverseDcfOut"];
+
+/** A7.4 (M5.3): the growth the price implies, at the default inputs. */
+export function getReverseDcf(ticker: string): Promise<ReverseDcf> {
+  return apiGet<ReverseDcf>(`/v1/symbols/${encodeURIComponent(ticker)}/reverse-dcf`, CACHE);
+}
+
+export type Lender = components["schemas"]["LenderOut"];
+
+/** A7.13 (M5.2): lender mode; the API answers 409 for a non-financial symbol. */
+export function getLender(ticker: string): Promise<Lender> {
+  return apiGet<Lender>(`/v1/symbols/${encodeURIComponent(ticker)}/lender`, CACHE);
+}

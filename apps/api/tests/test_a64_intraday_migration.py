@@ -82,7 +82,11 @@ def test_a64_migration_up_down_up(monkeypatch) -> None:
                     conn.begin_nested(),
                 ):
                     _version(conn, sid, 4, "5m", "file")
+            # The models match the head schema (later revisions add tables, so
+            # check at head and come back).
+            command.upgrade(config, "head")
             command.check(config)
+            command.downgrade(config, THIS)
             with pytest.raises(RuntimeError, match="intraday setup version"):
                 command.downgrade(config, BEFORE)
             with engine.begin() as conn:

@@ -52,6 +52,7 @@ import {
   useState,
 } from "react";
 
+import { useLiveBars } from "@/components/use-live-bars";
 import type { Bar, IndicatorPoint, MACDPoint } from "@/lib/api";
 import { barTimeToUtcSeconds } from "@/lib/api-time";
 import {
@@ -74,6 +75,7 @@ import {
   writePaneLayout,
 } from "@/lib/chart-panes";
 import { fitWithLabelRoom } from "@/lib/chart-range";
+import { syncedBarIndex } from "@/lib/chart-sync";
 import { type ChartPalette, useChartPalette } from "@/lib/chart-theme";
 import type { ChartScale, ChartType } from "@/lib/chart-view";
 import { sessionDateOf } from "@/lib/drawings/anchor";
@@ -83,6 +85,7 @@ import { DrawingsPrimitive } from "@/lib/drawings/primitive";
 import { type SceneDrawing, hitScene } from "@/lib/drawings/scene";
 import { heikinAshi } from "@/lib/heikin-ashi";
 import type { IndicatorBadge } from "@/lib/indicator-badge";
+import { liveStatusText } from "@/lib/live-bars";
 import { SessionBreaksPrimitive, sessionStarts } from "@/lib/session-breaks";
 import {
   type ChartPane,
@@ -142,6 +145,27 @@ export type ChartDrawingLayer = {
   onMoved: (id: string, points: DrawingPoint[]) => void;
 };
 
+/**
+ * A6.7: the built chart's parts, for tools that live outside this file (the
+ * volume profile, the context menu, plan lines). Handed to `onChartReady`
+ * each time the chart is built.
+ */
+export type PriceChartHandle = {
+  chart: IChartApi;
+  /** The price series (primitives and price lines attach to it). */
+  series: ISeriesApi<SeriesType>;
+  /** The focusable chart group (pointer and key events). */
+  root: HTMLElement;
+  /** The canvas container: price-pane coordinates start at its top-left. */
+  container: HTMLElement;
+  bars: Bar[];
+  /** The saved drawing under a price-pane point, if any. */
+  drawingAt: (x: number, y: number) => SceneDrawing | null;
+  drawings: () => readonly SceneDrawing[];
+  /** A6.5's stream is delivering bars (not replayed ones). */
+  streaming: () => boolean;
+};
+
 type Props = {
   bars: Bar[];
   overlays?: Record<string, IndicatorPoint[]>;
@@ -180,6 +204,26 @@ type Props = {
   timeZone?: string;
   /** A6.2: the intraday feed, shown as the chart's source badge. */
   sourceFeed?: string | null;
+  /**
+   * A6.5: on an intraday interval, the ticker whose stored minute bars stream
+   * in (server-sent events from the stream worker); null keeps the chart still.
+   */
+  liveTicker?: string | null;
+  /** A6.7: called with the chart's parts each time it is built; may return a cleanup. */
+  onChartReady?: (handle: PriceChartHandle) => (() => void) | undefined;
+  /**
+   * A6.8: pane heights by pane kind (a chart template's) over the remembered
+   * ones; read when the chart mounts.
+   */
+  paneHeights?: Record<string, number>;
+  /**
+   * A6.8: a crosshair time (UTC seconds) from a linked chart, shown at this
+   * chart's bar for that time (`lib/chart-sync.ts`); null clears it. Left
+   * undefined, the chart is not synced.
+   */
+  crosshairTime?: number | null;
+  /** A6.8: the hovered bar's time (UTC seconds) as the pointer moves; null when it leaves. */
+  onCrosshairTime?: (time: number | null) => void;
 };
 
 const DRAG_THRESHOLD_PX = 4;
@@ -271,7 +315,7 @@ function addPriceSeries(
 }
 
 export function PriceChart({
-  bars,
+  bars: serverBars,
   overlays,
   macd,
   rsi,
@@ -290,9 +334,22 @@ export function PriceChart({
   priceLines,
   timeZone = "UTC",
   sourceFeed,
+  liveTicker = null,
+  onChartReady,
+  paneHeights,
+  crosshairTime,
+  onCrosshairTime,
 }: Props) {
   const intraday = isIntradayInterval(interval);
+  const live = useLiveBars(intraday ? liveTicker : null, serverBars, interval, timeZone);
+  const bars = live.bars;
   const containerRef = useRef<HTMLDivElement | null>(null);
+  // A6.7: the chart's parts go to tools outside this file (`onChartReady`).
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const readyRef = useRef(onChartReady);
+  readyRef.current = onChartReady;
+  const streamingRef = useRef(false);
+  streamingRef.current = live.status === "live" && !live.replayed;
   const chartRef = useRef<IChartApi | null>(null);
   const mainRef = useRef<{ series: ISeriesApi<SeriesType>; closes: number[] } | null>(null);
   const rangeRef = useRef<{ count: number; range: LogicalRange } | null>(null);
@@ -317,9 +374,10 @@ export function PriceChart({
   // the chart waits for it so it is built once.
   const [layout, setLayout] = useState<PaneLayout | null>(null);
   const heightsRef = useRef<Record<string, number>>({});
+  // biome-ignore lint/correctness/useExhaustiveDependencies: read once at mount (a new template remounts the chart).
   useEffect(() => {
     const stored = readPaneLayout();
-    heightsRef.current = stored.heights;
+    heightsRef.current = paneHeights ? { ...stored.heights, ...paneHeights } : stored.heights;
     setLayout(stored);
   }, []);
   const collapsedSet = useMemo(() => new Set(layout?.collapsed ?? []), [layout]);
@@ -461,6 +519,8 @@ export function PriceChart({
   byBarRef.current = byBar;
 
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
+  const crosshairOutRef = useRef(onCrosshairTime);
+  crosshairOutRef.current = onCrosshairTime;
   const [keyIndex, setKeyIndex] = useState<number | null>(null);
   const keyIndexRef = useRef<number | null>(null);
   keyIndexRef.current = keyIndex;
@@ -638,6 +698,10 @@ export function PriceChart({
     else fitWithLabelRoom(chart, candles.length, el.clientWidth - 64);
 
     const onMove = (param: MouseEventParams<Time>) => {
+      // A6.8: only the pointer's moves go to linked charts, not a synced position.
+      if (param.sourceEvent && param.time !== undefined) {
+        crosshairOutRef.current?.(param.time as number);
+      }
       if (param.time === undefined) {
         setHoverIndex(keyIndexRef.current);
         return;
@@ -657,6 +721,24 @@ export function PriceChart({
       openEventsRef.current({ index, x });
     };
     chart.subscribeClick(onClick);
+    const main = mainRef.current;
+    const detach =
+      main && rootRef.current
+        ? readyRef.current?.({
+            chart,
+            series: main.series,
+            root: rootRef.current,
+            container: el,
+            bars,
+            drawingAt: (x, y) => {
+              const hit = primitiveRef.current ? hitScene(primitiveRef.current.shapes, x, y) : null;
+              if (!hit || hit.id === "draft") return null;
+              return layerRef.current?.drawings.find((d) => d.id === hit.id) ?? null;
+            },
+            drawings: () => layerRef.current?.drawings ?? [],
+            streaming: () => streamingRef.current,
+          })
+        : undefined;
     const frame =
       typeof requestAnimationFrame === "function" ? requestAnimationFrame(measurePanes) : 0;
 
@@ -666,6 +748,7 @@ export function PriceChart({
       rangeRef.current = range ? { count: candles.length, range } : null;
       chart.unsubscribeCrosshairMove(onMove);
       chart.unsubscribeClick(onClick);
+      detach?.();
       chart.remove();
       chartRef.current = null;
       mainRef.current = null;
@@ -917,6 +1000,31 @@ export function PriceChart({
     [candles],
   );
 
+  // A6.8: a linked chart's crosshair time, shown at this chart's bar for it.
+  useEffect(() => {
+    if (crosshairTime === undefined) return;
+    const chart = chartRef.current;
+    const main = mainRef.current;
+    if (!chart || !main) return;
+    const i =
+      crosshairTime === null
+        ? null
+        : syncedBarIndex(
+            candles.map((c) => c.time as number),
+            crosshairTime,
+            interval,
+          );
+    if (i === null) {
+      if (keyIndexRef.current === null) {
+        chart.clearCrosshairPosition();
+        setHoverIndex(null);
+      }
+      return;
+    }
+    chart.setCrosshairPosition(main.closes[i], candles[i].time, main.series);
+    setHoverIndex(i);
+  }, [crosshairTime, candles, interval]);
+
   const zoom = useCallback((factor: number) => {
     const chart = chartRef.current;
     const range = chart?.timeScale().getVisibleLogicalRange();
@@ -1027,6 +1135,28 @@ export function PriceChart({
               {sourceBadgeLabel(sourceFeed)}
             </span>
           ) : null}
+          {live.status ? (
+            <span
+              className="inline-flex items-center gap-1"
+              data-testid="chart-live-status"
+              data-status={live.status}
+              aria-live="polite"
+            >
+              <span
+                aria-hidden="true"
+                className={`size-1.5 rounded-full ${
+                  live.status === "live"
+                    ? live.replayed
+                      ? "bg-text-tertiary"
+                      : "bg-positive"
+                    : live.status === "offline"
+                      ? "bg-negative"
+                      : "bg-border-muted"
+                }`}
+              />
+              {liveStatusText(live.status, live.lastAt, live.replayed, timeZone)}
+            </span>
+          ) : null}
           <span data-testid="chart-time-zone">
             Times in {zoneLabel(timeZone)}
             {zoneLabel(timeZone) !== timeZone ? ` (${timeZone})` : ""}; bars open at the time shown,
@@ -1037,6 +1167,7 @@ export function PriceChart({
       <figure className="m-0">
         {/* Focusable for the keyboard path; pointer-up saves dragged pane heights. */}
         <div
+          ref={rootRef}
           // biome-ignore lint/a11y/useSemanticElements: a fieldset is for form controls; this is a canvas widget.
           role="group"
           // biome-ignore lint/a11y/noNoninteractiveTabindex: the chart takes keys (arrows, +, -, 0).
@@ -1045,6 +1176,7 @@ export function PriceChart({
           aria-describedby={helpId}
           onKeyDown={onKeyDown}
           onPointerUp={rememberHeights}
+          onPointerLeave={onCrosshairTime ? () => onCrosshairTime(null) : undefined}
           onPointerDownCapture={hasLayer ? onDrawingPointerDown : undefined}
           onMouseDownCapture={hasLayer ? stopIfGrabbed : undefined}
           onTouchStartCapture={hasLayer ? stopIfGrabbed : undefined}

@@ -27,7 +27,16 @@ from sqlmodel import Session
 from stockviz.auth import UserIdDep
 from stockviz.db import get_session
 from stockviz.routers.book_query import BookOrAllQuery, parse_book
-from stockviz.schemas import JournalEntriesOut, JournalEntryOut, JournalEntryPatch
+from stockviz.schemas import (
+    JournalEntriesOut,
+    JournalEntryOut,
+    JournalEntryPatch,
+    JournalExcursionsOut,
+    TradeReplayBarOut,
+    TradeReplayFillOut,
+    TradeReplayHesitationOut,
+    TradeReplayOut,
+)
 from stockviz.services.journal import entries as svc
 
 router = APIRouter(prefix="/v1/journal/entries", tags=["journal"])
@@ -79,6 +88,60 @@ def get_journal_entry(entry_id: int, session: SessionDep, user_id: UserIdDep) ->
         return svc.get_entry(session, user_id, entry_id)
     except svc.JournalEntryNotFound as exc:
         raise _not_found(exc) from exc
+
+
+@router.get("/{entry_id}/replay", response_model=TradeReplayOut)
+def get_trade_replay(entry_id: int, session: SessionDep, user_id: UserIdDep) -> TradeReplayOut:
+    """A6.10: "Replay my trade", read-only (409 for a replay session's entry)."""
+    from stockviz.services.journal.trade_replay import TradeReplayNotOffered, trade_replay
+
+    try:
+        replay = trade_replay(session, user_id, entry_id)
+    except svc.JournalEntryNotFound as exc:
+        raise _not_found(exc) from exc
+    except TradeReplayNotOffered as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
+    t, c, plan, h = replay.trip, replay.computed, replay.plan, replay.hesitation
+    exc_ = c.excursions  # type: ignore[attr-defined]
+    assert t.row is not None and t.row.id is not None
+    return TradeReplayOut(
+        entry_id=t.row.id,
+        ticker=t.ticker,
+        currency=t.currency,
+        side=t.trip.side,
+        status="closed" if t.trip.closed else "open",
+        interval=replay.interval,  # type: ignore[arg-type]
+        bars_note="Minute bars." if replay.interval == "1m" else "Daily bars, approximate.",
+        bars=[
+            TradeReplayBarOut(
+                ts=b.ts, open=b.open, high=b.high, low=b.low, close=b.close, volume=b.volume
+            )
+            for b in replay.bars
+        ],
+        fills=[
+            TradeReplayFillOut(
+                at=f.at,
+                side="sell" if f.side == "sell" else "buy",
+                quantity=f.quantity,
+                price=f.price,
+                time_known=f.time_known,
+            )
+            for f in t.trip.fills
+        ],
+        planned_entry=plan.planned_entry if plan else None,
+        planned_stop=plan.planned_stop if plan else None,
+        planned_target=plan.planned_target if plan else None,
+        excursions=JournalExcursionsOut(
+            basis=exc_.basis,
+            note=exc_.note,
+            mae=svc._excursion_out(exc_.mae),
+            mfe=svc._excursion_out(exc_.mfe),
+            reason=exc_.reason,
+            missing_sessions=list(exc_.missing_sessions),
+            sessions=exc_.sessions,
+        ),
+        hesitation=TradeReplayHesitationOut(**h.__dict__) if h else None,
+    )
 
 
 @router.patch("/{entry_id}", response_model=JournalEntryOut)

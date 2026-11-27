@@ -10,7 +10,10 @@
  * the password.
  */
 
-export type GoogleSignInRefusal = "OAuthAccountNotLinked" | "GoogleEmailUnverified";
+export type GoogleSignInRefusal =
+  | "OAuthAccountNotLinked"
+  | "GoogleEmailUnverified"
+  | "SignupClosed";
 
 export function googleSignInRefusal(args: {
   emailVerified: boolean;
@@ -26,4 +29,6 @@ export const SIGN_IN_ERRORS: Record<string, string> = {
   OAuthAccountNotLinked:
     "This email already has a StockViz password. Sign in with your password instead of Google.",
   GoogleEmailUnverified: "Google has not verified this email address, so it cannot sign you in.",
+  SignupClosed:
+    "StockViz is invite only for now, so Google cannot open a new account. Existing accounts can still sign in.",
 };

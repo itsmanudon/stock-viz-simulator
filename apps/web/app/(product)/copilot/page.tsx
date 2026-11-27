@@ -1,68 +1,114 @@
 /**
- * /copilot — the AI Copilot workspace (A3.6), a placeholder until A8.
+ * /copilot — A8.5 (M11.2): ask the stored filings and transcripts.
  *
- * Nothing here pretends to work: no input box, no sample answers. It says
- * what is planned and points at the workspaces that answer the same
- * questions today. Public, like the other research routes.
+ * Public page; asking needs a sign-in and a model on the server (A8.3:
+ * `OLLAMA_MODEL`). Answers come only from A8.4's passages and cite them; the
+ * citations are checked by the API and shown with the passages. Nothing is
+ * stored.
  */
 
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import { auth } from "@/auth";
+import { CopilotPanel } from "@/components/copilot/copilot-panel";
+import { DebatePanel, GridPanel } from "@/components/copilot/research-panels";
 import { PageFrame } from "@/components/page-frame";
-import { MetaChip, PageEmptyState, PageHeader } from "@/components/page-header";
+import { PageEmptyState, PageHeader } from "@/components/page-header";
+import { aiChoices } from "@/lib/ai-choices";
+import { type AiKeys, type AiStatus, getAiStatus } from "@/lib/api/ai";
+import { listAiKeys } from "@/lib/api/ai-server";
+
+import { askCopilotAction, debateAction, gridAction } from "./actions";
 
 export const metadata: Metadata = { title: "AI Copilot" };
 
-const PLANNED = [
-  "Answers grounded in the page you are on: the chart, the watchlist, the journal.",
-  "Plain-English screens that turn into screener rules you can read and edit.",
-  "A StockViz MCP server, so an agent can run a screen and a backtest.",
-  "Every number in an answer links to the source it came from.",
+const MODES = [
+  { value: "ask", label: "Ask" },
+  { value: "grid", label: "Grid" },
+  { value: "debate", label: "For and Against" },
 ] as const;
 
-const TODAY = [
-  { href: "/screener", label: "Screener", text: "write a screen as rules" },
-  { href: "/checklist", label: "Checklist", text: "check a stock against six dimensions" },
-  { href: "/backtest", label: "Backtest", text: "test a rule on stored history" },
-] as const;
-
-export default function CopilotPage() {
+export default async function CopilotPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ mode?: string }>;
+}) {
+  const raw = (await searchParams).mode;
+  const mode = MODES.find((m) => m.value === raw)?.value ?? "ask";
+  const session = await auth();
+  let status: AiStatus | null = null;
+  try {
+    status = await getAiStatus();
+  } catch {
+    status = null;
+  }
+  // A8.7: the user's saved keys (OpenAI-compatible, Claude) are further choices.
+  const keys: AiKeys | null = session?.user ? await listAiKeys().catch(() => null) : null;
+  const choices = aiChoices(status, keys);
   return (
     <PageFrame>
       <PageHeader
         eyebrow="AI Copilot"
         title="Copilot"
-        description="An assistant that reads what you are looking at. It is not built yet."
-        meta={<MetaChip tone="warning">Planned for A8</MetaChip>}
+        description="Ask the filings and transcripts stored here. Every answer cites the passages it came from."
       />
-      <div className="mt-6 grid gap-4 lg:grid-cols-2">
-        <PageEmptyState title="Arrives in A8">
-          <p>The AI layer is plan phase A8. What it is planned to do:</p>
-          <ul className="mt-3 list-disc space-y-1.5 pl-5">
-            {PLANNED.map((line) => (
-              <li key={line}>{line}</li>
-            ))}
-          </ul>
-        </PageEmptyState>
-        <section className="rounded-xl border border-border-muted bg-card px-4 py-6 sm:px-6">
-          <h2 className="text-base font-semibold">Until Then</h2>
-          <ul className="mt-3 space-y-2 text-sm text-text-secondary">
-            {TODAY.map((item) => (
-              <li key={item.href}>
-                <Link href={item.href} className="font-medium text-foreground hover:underline">
-                  {item.label}
+      <div className="mt-6 max-w-3xl">
+        {!session?.user ? (
+          <div data-testid="copilot-signed-out">
+            <PageEmptyState title="Sign In to Ask">
+              <p>
+                The copilot answers as your account.{" "}
+                <Link href="/login?callbackUrl=/copilot" className="font-medium underline">
+                  Sign in
                 </Link>{" "}
-                to {item.text}.
-              </li>
-            ))}
-          </ul>
-          <p className="mt-4 text-xs text-text-tertiary">
-            Press <kbd className="rounded border px-1 font-mono text-3xs">⌘K</kbd> or{" "}
-            <kbd className="rounded border px-1 font-mono text-3xs">Ctrl K</kbd> to jump to any
-            symbol, page or action.
-          </p>
-        </section>
+                to ask. You can search the documents themselves on{" "}
+                <Link href="/filings" className="font-medium underline">
+                  Filings
+                </Link>
+                .
+              </p>
+            </PageEmptyState>
+          </div>
+        ) : choices.length === 0 ? (
+          <div data-testid="copilot-off">
+            <PageEmptyState title="No Model on This Server">
+              <p>
+                {status?.reason ?? "The AI status could not be read just now."} Until then,{" "}
+                <Link href="/filings?match=meaning" className="font-medium underline">
+                  search the passages
+                </Link>{" "}
+                yourself.
+              </p>
+            </PageEmptyState>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <nav aria-label="Copilot modes" className="flex gap-2" data-testid="copilot-modes">
+              {MODES.map((m) => (
+                <Link
+                  key={m.value}
+                  href={m.value === "ask" ? "/copilot" : `/copilot?mode=${m.value}`}
+                  aria-current={mode === m.value ? "page" : undefined}
+                  className={`rounded-full border px-3 py-1 text-xs ${
+                    mode === m.value
+                      ? "border-brand text-foreground"
+                      : "border-border text-text-secondary"
+                  }`}
+                >
+                  {m.label}
+                </Link>
+              ))}
+            </nav>
+            {mode === "grid" ? (
+              <GridPanel choices={choices} run={gridAction} />
+            ) : mode === "debate" ? (
+              <DebatePanel choices={choices} run={debateAction} />
+            ) : (
+              <CopilotPanel choices={choices} ask={askCopilotAction} />
+            )}
+          </div>
+        )}
       </div>
     </PageFrame>
   );

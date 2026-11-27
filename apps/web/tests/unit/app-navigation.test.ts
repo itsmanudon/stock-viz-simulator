@@ -60,6 +60,7 @@ describe("route → workspace map", () => {
     ["/stocks/RELIANCE.NS?tf=1Y", "workbench", null],
     ["/compare?tickers=AAPL", "workbench", "/compare"],
     ["/setups", "workbench", "/setups"],
+    ["/charts?grid=4&s=AAPL,AAPL,MSFT,TSLA", "workbench", "/charts"],
     ["/checklist", "workbench", "/checklist"],
     ["/recommendations", "workbench", "/checklist"],
     ["/event-study", "workbench", "/event-study"],
@@ -113,8 +114,12 @@ describe("route → workspace map", () => {
     expect(workspaceSubnav("/replay").map((item) => item.label)).toEqual([
       "Backtest",
       "Saved runs",
+      "Experiments",
       "Replay",
       "Drills",
+      "Classroom",
+      "Pairs lab",
+      "Optimiser",
       "News reactions",
     ]);
     // Books opens Settings, so it is not a workspace tab.

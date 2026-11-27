@@ -26,6 +26,11 @@ ALLOWED: dict[str, tuple[int, str]] = {
         4,
         "book CRUD: name uniqueness, the cap count, the last-book count, moving the default",
     ),
+    "services/brief.py": (
+        2,
+        "the morning brief (A9.12) reads positions and pending orders across all the user's "
+        "books, like All books; it never writes",
+    ),
     "services/symbol_events.py": (
         1,
         "chart fill markers join across all the caller's books (A3.5; book filter optional)",

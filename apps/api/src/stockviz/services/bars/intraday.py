@@ -34,7 +34,7 @@ far". Indicators leave a partial bar out.
 
 **Feeds.** Bars of one feed only per response. The default is the best feed
 stored for the symbol (:data:`FEED_RANK`: consolidated SIP, then Kite, then
-IEX, then the owner's files). Each feed has a badge the chart shows
+IEX, then the owner's files, then A6.5's replayed bars). Each feed has a badge the chart shows
 (:data:`FEED_BADGES`).
 """
 
@@ -56,14 +56,17 @@ INTRADAY_INTERVALS: tuple[str, ...] = ("1m", "5m", "15m", "30m", "60m")
 INTERVAL_MINUTES: dict[str, int] = {"1m": 1, "5m": 5, "15m": 15, "30m": 30, "60m": 60}
 INTRADAY_PATTERN = r"^(1m|5m|15m|30m|60m)$"
 
-FEED_RANK: tuple[str, ...] = ("sip", "kite", "iex", "file")
-"""Which stored feed a request without ``feed`` reads: the first one stored."""
+FEED_RANK: tuple[str, ...] = ("sip", "kite", "iex", "file", "replayed")
+"""Which stored feed a request without ``feed`` reads: the first one stored.
+``replayed`` (A6.5) is last: a symbol shows its replayed bars by default only
+when it has no real ones."""
 
 FEED_BADGES: dict[str, str] = {
     "file": "File (local)",
     "iex": "IEX only",
     "sip": "SIP",
     "kite": "Kite",
+    "replayed": "Replayed",
 }
 """The source badge per feed. ``file`` is the owner's local files, which never
 reach production (``services/intraday/guard.py``)."""

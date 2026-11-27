@@ -14,10 +14,13 @@ from stockviz.models.aegis import (
     AegisSyncRun,
     AegisSyncState,
 )
+from stockviz.models.ai_key import UserAiKey
 from stockviz.models.alert import Alert, AlertDirection, AlertEvent, AlertKind, AlertRepeat
 from stockviz.models.auth_rate_limit import AuthRateLimit
 from stockviz.models.broker_import import BrokerFill, ImportBatch
+from stockviz.models.chart_layout import ChartLayout, ChartTemplate
 from stockviz.models.checklist import ChecklistEvidence, ChecklistScore
+from stockviz.models.classroom import AssignmentDeck, Cohort, CohortAssignment, CohortMember
 from stockviz.models.corporate_action import CorporateAction, CorporateActionApplication
 from stockviz.models.data_file import DataFile
 from stockviz.models.delivery import (
@@ -27,6 +30,7 @@ from stockviz.models.delivery import (
     NotificationChannel,
 )
 from stockviz.models.dividend import Dividend, PortfolioDividend
+from stockviz.models.document import Document, DocumentChunk, DocumentText
 from stockviz.models.drawing import Drawing
 from stockviz.models.drill import Drill, DrillDeck
 from stockviz.models.earnings import EarningsEvent
@@ -34,12 +38,16 @@ from stockviz.models.eod import EodExtras, EodRaw
 from stockviz.models.events import ConsumerInbox, OutboxEvent, PortfolioTradeActivity
 from stockviz.models.execution import SimulatedExecution
 from stockviz.models.experiment import Experiment, ExperimentRun
+from stockviz.models.feed_stream import FeedStream
+from stockviz.models.fo import FoDaily, FoFile
 from stockviz.models.fundamentals import FundamentalFact
+from stockviz.models.import_column_map import ImportColumnMap
 from stockviz.models.indicator_evidence import IndicatorEvidence
 from stockviz.models.instrument import Instrument, InstrumentIdentifier
 from stockviz.models.intraday import IntradayBar, IntradayFile
 from stockviz.models.job_run import JobRun
 from stockviz.models.journal_entry import JournalEntry, JournalEntryFill
+from stockviz.models.macro import MacroObservation, MacroSeries
 from stockviz.models.market import (
     FxRate,
     PriceBar,
@@ -101,14 +109,20 @@ __all__ = [
     "AlertEvent",
     "AlertKind",
     "AlertRepeat",
+    "AssignmentDeck",
     "AuthRateLimit",
     "BacktestTrial",
     "BookKind",
     "BrokerFill",
     "CashBalance",
     "ChannelKind",
+    "ChartLayout",
+    "ChartTemplate",
     "ChecklistEvidence",
     "ChecklistScore",
+    "Cohort",
+    "CohortAssignment",
+    "CohortMember",
     "ColumnSet",
     "ConsumerInbox",
     "CorporateAction",
@@ -117,6 +131,9 @@ __all__ = [
     "DeliveryAttempt",
     "DeliveryStatus",
     "Dividend",
+    "Document",
+    "DocumentChunk",
+    "DocumentText",
     "Drawing",
     "Drill",
     "DrillDeck",
@@ -125,12 +142,16 @@ __all__ = [
     "EodRaw",
     "Experiment",
     "ExperimentRun",
+    "FeedStream",
+    "FoDaily",
+    "FoFile",
     "FundamentalFact",
     "FxConversion",
     "FxRate",
     "HolderKind",
     "HoldoutUnlock",
     "ImportBatch",
+    "ImportColumnMap",
     "IndicatorEvidence",
     "Instrument",
     "InstrumentIdentifier",
@@ -139,6 +160,8 @@ __all__ = [
     "JobRun",
     "JournalEntry",
     "JournalEntryFill",
+    "MacroObservation",
+    "MacroSeries",
     "Notification",
     "NotificationCategory",
     "NotificationChannel",
@@ -182,6 +205,7 @@ __all__ = [
     "TradePlan",
     "TradeSide",
     "User",
+    "UserAiKey",
     "Watchlist",
     "WatchlistItem",
 ]

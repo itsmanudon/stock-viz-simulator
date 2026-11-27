@@ -7,8 +7,11 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 
 import { signIn } from "@/auth";
+import { clientAddress } from "@/lib/client-address";
 import { hit, reset } from "@/lib/rate-limit";
 import { safeRedirect } from "@/lib/redirect";
+import { canCreateAccount } from "@/lib/signup-gate";
+import { SIGNUP_CLOSED_MESSAGE } from "@/lib/signup-policy";
 import { createUser, findUserByEmail } from "@/lib/users";
 
 const SignupSchema = z.object({
@@ -31,11 +34,8 @@ const SIGNUP_LIMIT = 5;
 const SIGNUP_WINDOW_MS = 60 * 60 * 1000;
 
 async function clientIp(): Promise<string> {
-  const h = await headers();
-  // Vercel and most proxies set x-forwarded-for; left-most hop is the client.
-  const forwarded = h.get("x-forwarded-for");
-  if (forwarded) return forwarded.split(",")[0]?.trim() || "unknown";
-  return h.get("x-real-ip") ?? "unknown";
+  // The proxy-added hop, never the client-chosen left-most entry.
+  return clientAddress(await headers());
 }
 
 function throttled(retryAfterSeconds: number): AuthFormState {
@@ -65,6 +65,11 @@ export async function signupAction(
   const existing = await findUserByEmail(parsed.data.email);
   if (existing) {
     return { error: "An account with that email already exists" };
+  }
+  // The signup switch (SIGNUP_MODE): checked after the duplicate check so a
+  // closed site still tells an existing user to sign in instead.
+  if (!(await canCreateAccount(parsed.data.email))) {
+    return { error: SIGNUP_CLOSED_MESSAGE };
   }
 
   const passwordHash = await bcrypt.hash(parsed.data.password, 12);

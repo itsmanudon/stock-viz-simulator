@@ -8,8 +8,9 @@ import {
   advanceReplayAction,
   cancelReplayAction,
 } from "@/app/(product)/(authed)/replay/actions";
+import { ReplayAutoplay } from "@/components/replay-autoplay";
 import { Button } from "@/components/ui/button";
-import { formatReplayDay } from "@/lib/replay";
+import { formatReplayClock, formatReplayDay, isIntradayInterval } from "@/lib/replay";
 
 export function ReplayAdvanceControls({
   sessionId,
@@ -17,6 +18,7 @@ export function ReplayAdvanceControls({
   hasNext,
   readOnly,
   target = "replay",
+  interval = "1d",
 }: {
   sessionId: number;
   currentAt: string;
@@ -24,7 +26,12 @@ export function ReplayAdvanceControls({
   readOnly: boolean;
   /** A4.7: a drill steps through `/v1/drills/{id}/advance` and is ended by its reveal. */
   target?: "replay" | "drill";
+  /** A6.9: the session's bars (daily, or intraday from stored minutes). */
+  interval?: string;
 }) {
+  const intraday = isIntradayInterval(interval);
+  const when = (iso: string) =>
+    intraday ? formatReplayClock(iso, interval) : formatReplayDay(iso);
   const drill = target === "drill";
   const [advanceState, advance, advancing] = useActionState<ReplayActionState, FormData>(
     advanceReplayAction,
@@ -70,7 +77,9 @@ export function ReplayAdvanceControls({
         </Button>
         <p className="mt-2 text-xs leading-5 text-text-tertiary">
           {hasNext
-            ? "Moves to the next stored daily bar."
+            ? intraday
+              ? "Moves to the next bar built from stored minutes."
+              : "Moves to the next stored daily bar."
             : drill
               ? "This is the last bar. You can still trade it; finishing ends the drill."
               : "This is the last bar. You can still trade it; finishing ends the replay."}
@@ -78,7 +87,7 @@ export function ReplayAdvanceControls({
       </form>
       {advanceState.from && advanceState.to ? (
         <output className="block text-sm">
-          Advanced: {formatReplayDay(advanceState.from)} → {formatReplayDay(advanceState.to)}
+          Advanced: {when(advanceState.from)} → {when(advanceState.to)}
         </output>
       ) : null}
       {advanceState.error ? (
@@ -86,6 +95,9 @@ export function ReplayAdvanceControls({
           {advanceState.error}
         </p>
       ) : null}
+      {drill ? null : (
+        <ReplayAutoplay sessionId={sessionId} currentAt={currentAt} hasNext={hasNext} />
+      )}
 
       {drill ? null : confirmCancel ? (
         <form action={cancel} className="flex flex-wrap items-center gap-2">

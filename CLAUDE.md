@@ -62,7 +62,11 @@ Replay sessions (`/replay`) are an isolated book over a frozen 1d
 historical range in the symbol's currency (A4.6: INR and others, Indian
 sessions end 30 days before today, fees from the dated schedules, resting
 limit and stop orders, A3's chart with indicators, session-only drawings and
-news gated by `available_at`); the server owns PriceBar selection. Replay Lab is
+news gated by `available_at`); the server owns PriceBar selection. A6.9:
+bracket orders (one cancels the other), the `intrabar_ohlc` v1 profile for
+replay and backtests (live paper stays on `legacy_close`), intraday sessions
+on 1/5/15/60-minute bars built from stored minutes, and autoplay (1-10 bars a
+second through `advance`, rate-limited per user). Replay Lab is
 future-blind. Post-trade forensics reconstruct episodes, MAE/MFE,
 buy-and-hold excess, and a first-fill-locked journal from replay-visible
 bars only. Drills (`/drills`, A4.7) are decks of replays seeded from a
@@ -73,7 +77,10 @@ followed a plan written before the first order, not on profit. See
 `trade_plans`) hold every plan: a paper order's ("Plan this trade" on the
 tickets, listed on the Portfolio Journal tab), a replay journal and a drill
 plan; a plan locks at its first fill, and one written after the entry is
-labelled so, never locked.
+labelled so, never locked. The chart workspace (`/charts`, A6.8) shows up
+to four charts with their own symbols, intervals and saved templates, in
+linked colour groups, with saved layouts (`chart_templates`,
+`chart_layouts`).
 
 The web app's look is the **PRISM** redesign (Nov 2026) in the **Liquid Chrome**
 palette: ink black with a polished-metal brand (steel → champagne → silver), a
@@ -322,16 +329,18 @@ Full lists live in `apps/web/.env.example` and `apps/api/.env.example`
 | `ALPHA_VANTAGE_KEY`                                     | api                          | blank only skips the Alpha Vantage fallback; yfinance remains the persisted/default daily source |
 | `SEC_USER_AGENT`                                        | api, cron                    | SEC EDGAR fundamentals (Phase 6.3): "<name> <contact>" the SEC asks automated clients for. Blank keeps EDGAR off (exit 2); set by the owner before release. Never the owner's personal address without their say-so |
 | `WEB_REVALIDATE_URL`                                     | cron                         | the web's `POST /api/revalidate` (Phase 6.6, RS-9), called last in the nightly chain with an HMAC of `INTERNAL_API_TOKEN`, so the web's cached market data refreshes together. Blank skips it (exit 2); a rejected key fails the job. Set in `.railway/railway.ts` from the web's domain |
-| `KITE_API_KEY`, `KITE_API_SECRET`                      | api                          | optional Kite Connect app for on-demand NSE/BSE history snapshots (`ingest-history --provider kite`); blank turns Kite off (exit 2). Never used nightly; the login is manual every day |
+| `KITE_API_KEY`, `KITE_API_SECRET`                      | api                          | optional Kite Connect app for on-demand NSE/BSE history snapshots (`ingest-history --provider kite`); blank turns Kite off (exit 2). Never used nightly; the login is manual every day. A6.11: `KITE_API_KEY` alone also shows Kite's browser basket form (the public key is in that form; the secret never leaves the server) |
 | `NSE_ARCHIVE_DIR`                                       | api                          | A1.1: where `stockviz.cli nse-load --apply` keeps raw NSE files (default `var/nse-archive`, relative to the API's working directory; gitignored). Never commit or serve its contents. Nothing downloads into it yet |
 | `MASSIVE_SHADOW_ENABLED`, `MASSIVE_API_KEY`             | api                          | Massive daily data is private/nonpersistent shadow only; explicit enablement without its key fails validation. Since A6.3 `MASSIVE_API_KEY` also enables `intraday-backfill --provider massive` (free Basic: 5 calls a minute, 2 years of minutes, stored as feed `sip`) |
-| `ALPACA_KEY_ID`, `ALPACA_SECRET_KEY`, `TIINGO_API_KEY`, `FINNHUB_API_KEY` | api        | A6.3 US feeds, free plans. Blank = off: `intraday-backfill --provider alpaca` or `tiingo` exits 2 and `/v1/broker/feeds` says not configured (Alpaca needs both halves). Finnhub is status only until A6.6 (its candles are premium). Local `.env` only, never committed or logged; on Railway only when the owner decides US intraday runs there |
+| `ALPACA_KEY_ID`, `ALPACA_SECRET_KEY`, `TIINGO_API_KEY`, `FINNHUB_API_KEY` | api        | A6.3 US feeds, free plans. Blank = off: `intraday-backfill --provider alpaca` or `tiingo` exits 2 and `/v1/broker/feeds` says not configured (Alpaca needs both halves). Finnhub is status only until A6.6 (its candles are premium). A6.5's stream worker (`python -m stockviz.workers.stream`) replays stored minutes with no key; its live `--feed alpaca` is A6.6. Local `.env` only, never committed or logged; on Railway only when the owner decides US intraday runs there |
 | `KAFKA_BOOTSTRAP_SERVERS`                                | api workers                  | defaults to `localhost:9092`; workers run inside compose need `kafka:29092`. The API never produces to Kafka, so the compose `api` service does not set it |
 | `EVENTS_OUTBOX_ENABLED`                                  | api, cron                    | default `false` (A0). `true` only in the Kubernetes events lab: the scheduler's price jobs then enqueue `market.refresh.requested` for the Kafka workers instead of refreshing in-process. Old rows go with `stockviz.cli prune-events` |
 | `AEGIS_BASE_URL`, `AEGIS_SERVICE_TOKEN_KEY`, `AEGIS_ISSUER`, `AEGIS_AUDIENCE`, `AEGIS_KEY_ID` | api, cron              | the Aegis News read sync (`stockviz.cli aegis-sync`). Off, exit 2, until the first four are set. The key is the Ed25519 private PEM Aegis trusts as `stockviz-sync-2026-11` (Doppler `stock-viz-simulator/prd`); never commit it. The other values are in `.railway/railway.ts`. See `apps/api/CLAUDE.md` |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`               | web                          | Google OAuth sign-in                                                                                                                                                                                                         |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM` | api, cron | A2.3 email delivery through any SMTP provider (STARTTLS, or TLS on 465). Off (`deliver-notifications --channel email` exits 2; Settings says "not available on this server") until all five are set. The owner picks the provider and sets the key; never commit it |
 | `TELEGRAM_BOT_TOKEN`                                     | api, cron                    | A2.3 Telegram delivery (`sendMessage` to each user's chat id). Off until set; the owner creates the bot. Never logged (it sits in the request URL) |
+| `SIGNUP_MODE`, `SIGNUP_ALLOWLIST`                       | web                          | Who may open an account (owner, 27 Nov 2026: a switch, not removed code; read per request). `closed` is the default when unset (production too): no new accounts by email or Google, except the first on an empty database; `allowlist` only the comma-separated addresses; `open` anyone. Existing accounts always sign in. e2e, CI and `apps/web/.env.example` use `open`. Flip on Railway with `railway variable set SIGNUP_MODE=open --service web` (the owner's call) |
+| `APP_ENCRYPTION_KEY`                                     | api                          | A8.7: Fernet key that encrypts users' saved AI keys. Blank = saved keys off (409). Changing it makes every saved key unreadable (users save them again). Local `.env` only today; never commit or log it |
 | `REPLAY_MIN_LAG_DAYS`, `REPLAY_LAG_OVERRIDE_USER_IDS`    | api                          | A4.6: an NSE/BSE replay session must end this many days (default 30; 0 off) before today. The override lists user ids allowed inside it, empty by default: the owner's switch, server-side only |
 | `NEXTAUTH_JWT_SECRET`                                    | api                          | **legacy** — still in `settings.py` but no longer read by the auth bridge                                                                                                                                                    |
 
@@ -357,6 +366,8 @@ work fine without one. Env vars live in `apps/web/.env.example` and
   `NEXT_PUBLIC_API_URL` bakes at web build time, so after the first apply:
   `railway domain --service api && railway domain --service web`, then
   `railway redeploy --service web`. See `docs/DEPLOYMENT.md`.
+- **Self-hosting** → `infra/compose.release.yml` (A10.1): one Compose command,
+  the user's own keys, no bundled market data. See `docs/SELF_HOSTING.md`.
 - kind / CI lab → [`docs/KUBERNETES.md`](./docs/KUBERNETES.md) (Kustomize +
   Strimzi). Not a production control plane.
 

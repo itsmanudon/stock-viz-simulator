@@ -8,6 +8,7 @@ import "server-only";
 
 import { type EdgeFilters, type EdgeStats, edgeQuery } from "@/lib/journal-edge";
 
+import type { components } from "./schema";
 import { authedGet } from "./server";
 
 /** One book's stats (a numeric book), or every book and replay (null or "all"). */
@@ -17,4 +18,18 @@ export function getJournalStats(
 ): Promise<EdgeStats> {
   const query = edgeQuery(book, filters);
   return authedGet<EdgeStats>(`/v1/journal/stats${query ? `?${query}` : ""}`);
+}
+
+export type Behaviour = components["schemas"]["BehaviourOut"];
+
+/** A7.6 (M10.4): discipline, disposition, tilt, heatmaps and cost leakage. */
+export function getJournalBehaviour(
+  book: number | "all" | null,
+  filters: EdgeFilters = {},
+): Promise<Behaviour> {
+  const params = new URLSearchParams(edgeQuery(book, filters));
+  params.delete("tag");
+  params.delete("setup_version_id");
+  const query = params.toString();
+  return authedGet<Behaviour>(`/v1/journal/behaviour${query ? `?${query}` : ""}`);
 }

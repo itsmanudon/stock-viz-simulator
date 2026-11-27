@@ -40,10 +40,17 @@ from stockviz.services.simulation import (
     SimulationOrderType,
     cost_adjusted,
     evaluate_order,
+    get_execution_profile,
     get_fee_schedule,
 )
 
-FILL_RULES = {"next_open": NEXT_OPEN, "next_close": LEGACY_CLOSE}
+FILL_RULES = {
+    "next_open": get_execution_profile(NEXT_OPEN.name, NEXT_OPEN.model_version),
+    "next_close": get_execution_profile(LEGACY_CLOSE.name, LEGACY_CLOSE.model_version),
+}
+"""The backtester's fill rules, read from the profile registry replay reads
+too (A6.9). ``intrabar_ohlc`` goes through ``fills.book`` (the three-way
+kernel test); it is not yet a ``fill_rule`` the routes take."""
 
 MICROS = Decimal("0.000001")
 LEDGER_TICKER = "BACKTEST"

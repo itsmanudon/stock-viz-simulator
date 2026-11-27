@@ -13,10 +13,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import { BreadthCockpit } from "@/components/breadth-cockpit";
 import { ClickableRow } from "@/components/clickable-row";
 import { DataTableFrame, NumericCell, SortableHead, TableToolbar } from "@/components/data-table";
 import { type Figure, FigureStrip } from "@/components/figure-strip";
 import { MetaChip, PageHeader } from "@/components/page-header";
+import { SectorRotationMap } from "@/components/sector-rotation-map";
 import { Sparkline } from "@/components/sparkline";
 import { CardSortBar, type SymbolCardData, SymbolCardList } from "@/components/symbol-card-list";
 import {
@@ -28,6 +30,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { getMarketsSummary } from "@/lib/api";
+import { type Breadth, getBreadth } from "@/lib/api/breadth";
+import { type Rotation, getSectorRotation } from "@/lib/api/sector-rotation";
 import {
   type MarketRow,
   type SortDir,
@@ -52,7 +56,20 @@ export default async function MarketsPage({
   const sort = (params.sort as SortKey) ?? "ticker";
   const dir = (params.dir as SortDir) ?? (sort === "ticker" ? "asc" : "desc");
 
-  const summary = await getMarketsSummary({ sector: params.sector, sparklineDays: 30 });
+  const [summary, usBreadth, inBreadth, usRotation, inRotation] = await Promise.all([
+    getMarketsSummary({ sector: params.sector, sparklineDays: 30 }),
+    // A7.1/A7.2: breadth and rotation per market; a failed call leaves it out.
+    getBreadth("US").catch(() => null),
+    getBreadth("IN").catch(() => null),
+    getSectorRotation("US").catch(() => null),
+    getSectorRotation("IN").catch(() => null),
+  ]);
+  const breadthMarkets = [usBreadth, inBreadth].filter(
+    (b): b is Breadth => b !== null && b.points.length > 0,
+  );
+  const rotations = [usRotation, inRotation].filter(
+    (r): r is Rotation => r !== null && r.sectors.length > 0,
+  );
   const sectors = summary.sectors;
 
   const rows: MarketRow[] = summary.rows.map((r) => ({
@@ -166,6 +183,21 @@ export default async function MarketsPage({
       {breadthFigures.length ? (
         <FigureStrip label="Market breadth" figures={breadthFigures} className="mt-5" />
       ) : null}
+
+      {params.sector ? null : <BreadthCockpit markets={breadthMarkets} />}
+
+      {params.sector || rotations.length === 0 ? null : (
+        <section aria-labelledby="rotation-title" className="mt-5 space-y-3">
+          <h2 id="rotation-title" className="text-base font-semibold tracking-tight">
+            Sector rotation
+          </h2>
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            {rotations.map((r) => (
+              <SectorRotationMap key={r.market} rotation={r} />
+            ))}
+          </div>
+        </section>
+      )}
 
       <div className="mt-5">
         <TableToolbar>

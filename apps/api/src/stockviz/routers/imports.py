@@ -18,6 +18,12 @@ nothing kept between them:
   trades; the book is rebuilt.
 - ``POST /opening-lots`` (201) and ``DELETE /opening-lots/{id}`` (204).
 
+A6.11: preview and commit take ``map`` (``auto``, the default, detects the
+map from the header row; or a built-in name such as ``dhan_tradebook_v1``)
+or ``custom_map`` (the caller's saved map, ``/v1/import-maps``). Commit must
+name the same map as the preview. A broker map into a book of the other
+market is 409.
+
 Another user's book is 404, a paper book 409, an archived one 409 for
 writes. Request bodies are never logged; errors name no cell value.
 """
@@ -84,6 +90,12 @@ CSV_OPENAPI = {
 }
 
 
+MapQuery = Annotated[
+    str, Query(alias="map", max_length=40, pattern="^[a-z0-9_]+$", description="auto or a map")
+]
+CustomMapQuery = Annotated[int | None, Query(gt=0, description="A saved column map's id")]
+
+
 def _now() -> datetime:
     return datetime.now(UTC)
 
@@ -110,11 +122,24 @@ ERRORS = (
 
 @router.post("/imports/preview", response_model=ImportPreviewOut, openapi_extra=CSV_OPENAPI)
 def preview_import(
-    book_id: int, body: CsvBody, session: SessionDep, user_id: UserIdDep
+    book_id: int,
+    body: CsvBody,
+    session: SessionDep,
+    user_id: UserIdDep,
+    map_name: MapQuery = "auto",
+    custom_map: CustomMapQuery = None,
 ) -> ImportPreviewOut:
     """Parse and check a tradebook. Stores nothing."""
     try:
-        out = svc.preview(session, user_id, book_id, body, now=_now())
+        out = svc.preview(
+            session,
+            user_id,
+            book_id,
+            body,
+            now=_now(),
+            map_name=map_name,
+            custom_map_id=custom_map,
+        )
     except ERRORS as exc:
         session.rollback()
         raise _http(exc) from None
@@ -128,10 +153,21 @@ def commit_import(
     session: SessionDep,
     user_id: UserIdDep,
     file_sha256: Annotated[str, Query(min_length=64, max_length=64, pattern="^[0-9a-fA-F]{64}$")],
+    map_name: MapQuery = "auto",
+    custom_map: CustomMapQuery = None,
 ) -> ImportCommitOut:
     """Import the previewed file (the same bytes: its SHA-256 must match)."""
     try:
-        out = svc.commit(session, user_id, book_id, body, file_sha256=file_sha256, now=_now())
+        out = svc.commit(
+            session,
+            user_id,
+            book_id,
+            body,
+            file_sha256=file_sha256,
+            now=_now(),
+            map_name=map_name,
+            custom_map_id=custom_map,
+        )
     except ERRORS as exc:
         session.rollback()
         raise _http(exc) from None

@@ -17,13 +17,23 @@ from sqlmodel import Session, select
 from stockviz.auth import UserIdDep
 from stockviz.db import get_session
 from stockviz.limiter import limiter
-from stockviz.models import OptionCover, OptionSide, OptionsPosition, OptionStatus, OptionType
+from stockviz.models import (
+    OptionCover,
+    OptionSide,
+    OptionsPosition,
+    OptionStatus,
+    OptionType,
+    Symbol,
+)
 from stockviz.models.option import CONTRACT_MULTIPLIER, position_sign
 from stockviz.models.option_strategy import OptionStrategy, StrategyKind
 from stockviz.routers.book_query import BookQuery
 from stockviz.schemas import (
+    DistributionPointOut,
     ExpiryGroupOut,
     ExpiryItemOut,
+    ImpliedDistributionOut,
+    OptionExposureOut,
     OptionGreeksOut,
     OptionImpliedVolOut,
     OptionPositionOut,
@@ -44,6 +54,7 @@ from stockviz.schemas import (
     SurfaceExpiryOut,
     SurfacePointOut,
     UnderlyingGreeksOut,
+    VolSummaryOut,
 )
 from stockviz.services.options import (
     RISK_FREE_RATE,
@@ -498,7 +509,11 @@ def post_strategy_close(
 @router.post("/strategies/payoff", response_model=OptionStrategyPayoffOut)
 @limiter.limit("60/minute")
 def post_strategy_payoff(
-    request: Request, body: OptionStrategyIn, session: SessionDep
+    request: Request,
+    body: OptionStrategyIn,
+    session: SessionDep,
+    days_forward: Annotated[int | None, Query(ge=0, le=3650)] = None,
+    iv_shift: Annotated[float, Query(ge=-0.5, le=2.0)] = 0.0,
 ) -> OptionStrategyPayoffOut:
     """The quote plus its payoff curves and model chance of profit. Public."""
     del request  # slowapi reads it
@@ -506,17 +521,53 @@ def post_strategy_payoff(
         quote = quote_strategy(session, **_strategy_args(body))
     except _STRATEGY_ERRORS as exc:
         raise _strategy_errors(exc) from exc
-    payoff = strategy_payoff(quote)
+    payoff = strategy_payoff(quote, days_forward=days_forward, iv_shift=iv_shift)
     return OptionStrategyPayoffOut(
         quote=_quote_out(quote),
         horizon=payoff.horizon,
         points=[
-            PayoffPointOut(spot=p.spot, at_expiry=p.at_expiry, today=p.today) for p in payoff.points
+            PayoffPointOut(spot=p.spot, at_expiry=p.at_expiry, today=p.today, what_if=p.what_if)
+            for p in payoff.points
         ],
         prob_profit=payoff.prob_profit,
         volatility=round(payoff.volatility, 6),
         method=payoff.method,
     )
+
+
+@router.get("/{ticker}/exposure", response_model=OptionExposureOut)
+@limiter.limit("60/minute")
+def get_option_exposure(request: Request, ticker: str, session: SessionDep) -> OptionExposureOut:
+    """A7.9 (M6.2): gamma and delta exposure, the gamma flip, the walls and the
+    IV-implied one-day move, from the newest stored chain. Public."""
+    from stockviz.services.options.exposure import NOTE, exposure
+
+    del request  # slowapi reads it
+    if session.get(Symbol, ticker.upper()) is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, f"Symbol {ticker.upper()!r} not found")
+    e = exposure(session, ticker)
+    return OptionExposureOut(**{**e.__dict__, "note": NOTE})  # type: ignore[arg-type]
+
+
+VOL_SUMMARY_METHOD = (
+    "From the stored nightly chains: ATM IV per expiry, 25-delta skew (put minus call IV), "
+    "VRP = the ~30-day ATM IV minus 21-session realised volatility, and IV rank and "
+    "percentile over the stored snapshots of the last year (20 at least). Context, not a "
+    "signal on its own."
+)
+
+
+@router.get("/{ticker}/vol-summary", response_model=VolSummaryOut)
+@limiter.limit("60/minute")
+def get_vol_summary(request: Request, ticker: str, session: SessionDep) -> VolSummaryOut:
+    """A9.4 (M6.3): term structure, skew, VRP and IV rank. Public."""
+    from stockviz.services.options.vol_summary import vol_summary
+
+    del request
+    if session.get(Symbol, ticker.upper()) is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, f"Symbol {ticker.upper()!r} not found")
+    v = vol_summary(session, ticker)
+    return VolSummaryOut.model_validate({**v.__dict__, "method": VOL_SUMMARY_METHOD})
 
 
 @router.get("/book", response_model=OptionsBookOut)
@@ -608,4 +659,50 @@ def get_option_surface(
             for expiry, points in expiries
         ],
         source=source,
+    )
+
+
+IMPLIED_METHOD = (
+    "Implied: the risk-neutral density from the newest stored chain by Breeden-Litzenberger "
+    "(e^rT times the second derivative of Black-Scholes call prices in strike), on the "
+    "out-of-the-money IV smile interpolated linearly in strike and flat beyond it. Model: a "
+    "lognormal with the HAR-RV forecast volatility (else 21-session realised) and the same "
+    "forward. The implied density includes the market's risk premium; it is not a forecast."
+)
+
+
+@router.get("/{ticker}/implied-distribution", response_model=ImpliedDistributionOut)
+@limiter.limit("60/minute")
+def get_implied_distribution(
+    request: Request, ticker: str, session: SessionDep, expiry: date | None = None
+) -> ImpliedDistributionOut:
+    """A9.13 (M8.5): option-implied vs model distribution of the price at expiry."""
+    from stockviz.services.options import implied_distribution as idist
+
+    del request
+    t = ticker.upper()
+    if session.get(Symbol, t) is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, f"Symbol {t!r} not found")
+    d = idist.load(session, t, expiry)
+    return ImpliedDistributionOut(
+        ticker=t,
+        expiry=d.expiry,
+        days=d.days,
+        spot=d.spot,
+        implied_atm_vol=d.implied_atm_vol,
+        model_vol=d.model_vol,
+        model_vol_source=d.model_vol_source,
+        quantile_levels=list(idist.QUANTILES),
+        implied_quantiles=d.implied_quantiles,
+        model_quantiles=d.model_quantiles,
+        move=idist.MOVE,
+        implied_p_down=d.implied_p_down,
+        implied_p_up=d.implied_p_up,
+        model_p_down=d.model_p_down,
+        model_p_up=d.model_p_up,
+        negative_mass=d.negative_mass,
+        strikes_used=d.strikes_used,
+        curve=[DistributionPointOut(price=a, implied=b, model=c) for a, b, c in d.curve],
+        reason=d.reason,
+        method=IMPLIED_METHOD,
     )

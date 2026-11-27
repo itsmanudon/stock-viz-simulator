@@ -12,7 +12,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { formatCurrency } from "@/lib/portfolio-view-model";
-import { REPLAY_DEFAULT_CASH, REPLAY_PROFILE_LABEL, replayCashPresets } from "@/lib/replay";
+import {
+  REPLAY_DEFAULT_CASH,
+  REPLAY_INTERVALS,
+  REPLAY_PROFILES,
+  type ReplayIntervalValue,
+  type ReplayProfileValue,
+  replayCashPresets,
+  replayProfileLabel,
+} from "@/lib/replay";
 
 type SymbolOption = { ticker: string; name: string; currency?: string };
 
@@ -26,6 +34,10 @@ type Range = {
   maxEnd: string | null;
   feeSchedule: string;
   tradable: boolean;
+  /** A6.9: "1d" plus the intraday intervals when minutes are stored. */
+  intervals: string[];
+  minuteFirst: string | null;
+  minuteLast: string | null;
 };
 
 export function ReplayLauncher({
@@ -45,6 +57,8 @@ export function ReplayLauncher({
   const [cash, setCash] = useState(REPLAY_DEFAULT_CASH);
   const [range, setRange] = useState<Range | null>(null);
   const [rangeError, setRangeError] = useState<string | null>(null);
+  const [interval, setBarInterval] = useState<ReplayIntervalValue>("1d");
+  const [profile, setProfile] = useState<ReplayProfileValue>("intrabar_ohlc");
   const [state, action, pending] = useActionState<ReplayActionState, FormData>(
     createReplayAction,
     {},
@@ -73,7 +87,13 @@ export function ReplayLauncher({
         maxEnd,
         feeSchedule: result.feeSchedule ?? "none",
         tradable: result.tradable ?? true,
+        intervals: result.intervals ?? ["1d"],
+        minuteFirst: result.minuteFirst ?? null,
+        minuteLast: result.minuteLast ?? null,
       });
+      setBarInterval((current) =>
+        (result.intervals ?? ["1d"]).includes(current) ? current : "1d",
+      );
       setCash(result.defaultCash ?? REPLAY_DEFAULT_CASH);
       setStart((current) => (current && current >= first && current < last ? current : first));
       setEnd((current) => (current && current <= last && current > first ? current : last));
@@ -82,6 +102,12 @@ export function ReplayLauncher({
       cancelled = true;
     };
   }, [ticker]);
+
+  const intraday = interval !== "1d" && range?.minuteFirst && range.minuteLast;
+  const lowest = intraday ? (range?.minuteFirst ?? undefined) : range?.first;
+  const highest = intraday ? (range?.minuteLast ?? undefined) : range?.last;
+  const intervals = REPLAY_INTERVALS.filter((i) => (range?.intervals ?? ["1d"]).includes(i.value));
+  const chosenProfile = REPLAY_PROFILES.find((p) => p.value === profile) ?? REPLAY_PROFILES[0];
 
   return (
     <section
@@ -120,8 +146,8 @@ export function ReplayLauncher({
                 name="start"
                 type="date"
                 required
-                min={range?.first}
-                max={range?.last}
+                min={lowest}
+                max={highest}
                 value={start}
                 onChange={(event) => setStart(event.target.value)}
               />
@@ -133,8 +159,8 @@ export function ReplayLauncher({
                 name="end"
                 type="date"
                 required
-                min={range?.first}
-                max={range?.last}
+                min={lowest}
+                max={highest}
                 value={end}
                 onChange={(event) => setEnd(event.target.value)}
               />
@@ -143,6 +169,50 @@ export function ReplayLauncher({
           {range ? (
             <p className="text-xs leading-5 text-text-tertiary">
               Stored daily bars for {ticker}: {range.first} → {range.last} ({range.bars} bars).
+              {range.minuteFirst && range.minuteLast
+                ? ` Minutes: ${range.minuteFirst} → ${range.minuteLast}.`
+                : ""}
+            </p>
+          ) : null}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor={`${fieldId}-interval`}>Bars</Label>
+              <select
+                id={`${fieldId}-interval`}
+                name="interval"
+                value={interval}
+                onChange={(event) => setBarInterval(event.target.value as ReplayIntervalValue)}
+                className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"
+                data-testid="replay-launch-interval"
+              >
+                {intervals.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor={`${fieldId}-profile`}>Fill model</Label>
+              <select
+                id={`${fieldId}-profile`}
+                name="profile"
+                value={profile}
+                onChange={(event) => setProfile(event.target.value as ReplayProfileValue)}
+                className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"
+                data-testid="replay-launch-profile"
+              >
+                {REPLAY_PROFILES.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+          {range && range.intervals.length === 1 ? (
+            <p className="text-xs leading-5 text-text-tertiary">
+              No minute bars are stored for {ticker}, so it replays on daily bars.
             </p>
           ) : null}
           {range?.maxEnd ? (
@@ -187,9 +257,18 @@ export function ReplayLauncher({
           <div className="border-y border-border-muted py-3 text-xs leading-5 text-text-tertiary sm:border-x sm:px-3">
             <p>
               Execution profile:{" "}
-              <span className="font-medium text-foreground">{REPLAY_PROFILE_LABEL}</span>
+              <span
+                className="font-medium text-foreground"
+                data-testid="replay-launch-profile-name"
+              >
+                {replayProfileLabel(chosenProfile.value, chosenProfile.version)}
+              </span>
             </p>
-            <p className="mt-1">Daily-bar simulation. No future data. No spread or slippage.</p>
+            <p className="mt-1">{chosenProfile.description}</p>
+            <p className="mt-1">
+              {interval === "1d" ? "Daily-bar" : "Intraday"} simulation. No future data. No spread
+              or slippage.
+            </p>
             {range && range.feeSchedule !== "none" ? (
               <p className="mt-1">
                 Fills pay the exchange&apos;s delivery charges in force on each date.

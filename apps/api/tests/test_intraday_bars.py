@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from datetime import UTC, date, datetime, time, timedelta
 from decimal import Decimal
+from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
@@ -112,7 +113,7 @@ MUHURAT = date(2024, 11, 1)  # 18:00-19:00 IST
 DR = date(2024, 3, 2)  # 09:15-10:00 and 11:30-12:30 IST
 
 
-def _get(client: TestClient, interval: str, **params: object) -> list[dict]:
+def _get(client: TestClient, interval: str, **params: Any) -> list[dict]:
     response = client.get(f"/v1/symbols/{TICKER}/bars", params={"interval": interval, **params})
     assert response.status_code == 200, response.text
     return response.json()

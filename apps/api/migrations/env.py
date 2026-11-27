@@ -17,14 +17,21 @@ config.set_main_option("sqlalchemy.url", get_settings().database_url)
 target_metadata = SQLModel.metadata
 
 
+MIGRATION_ONLY_INDEXES = frozenset({"ix_document_chunks_tsv"})
+
+
 def include_object(obj, name, type_, reflected, compare_to) -> bool:
     """Leave the monthly ``intraday_bars`` partitions (A6.1) out of autogenerate.
 
     The writer creates them on demand; they are not in the metadata, so
-    ``alembic check`` would otherwise offer to drop them.
+    ``alembic check`` would otherwise offer to drop them. Also A8.4's GIN
+    expression index on ``document_chunks`` (``to_tsvector``), which the model
+    cannot declare.
     """
     from stockviz.models.intraday import PARTITION_PREFIX
 
+    if type_ == "index" and reflected and compare_to is None and name in MIGRATION_ONLY_INDEXES:
+        return False
     return not (
         type_ == "table" and reflected and compare_to is None and name.startswith(PARTITION_PREFIX)
     )

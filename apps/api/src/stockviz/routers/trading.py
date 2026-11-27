@@ -36,6 +36,7 @@ from stockviz.schemas import (
     DividendCreditOut,
     DividendSummaryOut,
     ExecutionProvenanceOut,
+    HoldingProjectionOut,
     LimitCheckOut,
     LimitPreviewOut,
     MonteCarloOut,
@@ -750,8 +751,56 @@ def get_portfolio_dividends(
 
     projected.sort(key=lambda p: p.projected_ex_date or date_type.max)
 
+    projection, totals = _dividend_projection(session, positions, today)
     return DividendSummaryOut(
         ytd_income=ytd_income,
         history=[DividendCreditOut.model_validate(c) for c in credits],
         projected=projected,
+        projection=projection,
+        projection_totals=totals,
+        projection_method=DIVIDEND_PROJECTION_METHOD,
     )
+
+
+DIVIDEND_PROJECTION_METHOD = (
+    "A projection, not a declaration: the trailing 12 months' dividends per share, "
+    "grown at the 3-year rate (capped at -50% to +25% a year; 0% without 3 years of "
+    "history), at today's quantity. Payout dates repeat last year's ex-dates. Totals "
+    "are per currency."
+)
+
+
+def _dividend_projection(
+    session: Session, positions: list[Position], today: date_type
+) -> tuple[list[HoldingProjectionOut], dict[str, Decimal]]:
+    """A9.6: the next 12 months' dividends per holding."""
+    from stockviz.models import PriceBar, Symbol
+    from stockviz.services.dividend_projection import project
+
+    out: list[HoldingProjectionOut] = []
+    totals: dict[str, Decimal] = {}
+    for pos in positions:
+        sym = session.get(Symbol, pos.ticker)
+        currency = sym.currency if sym is not None and sym.currency else "USD"
+        rows = session.exec(
+            select(Dividend).where(Dividend.instrument_id == instrument_of(pos.ticker))
+        ).all()
+        bar = session.exec(
+            select(PriceBar)
+            .where(PriceBar.ticker == pos.ticker, PriceBar.interval == "1d")
+            .order_by(PriceBar.ts.desc())  # type: ignore[attr-defined]
+            .limit(1)
+        ).first()
+        result = project(
+            pos.ticker,
+            currency,
+            pos.quantity,
+            [(r.ex_date, r.amount) for r in rows],
+            bar.close if bar is not None else None,
+            today,
+        )
+        out.append(HoldingProjectionOut.model_validate(result.__dict__))
+        if result.next_12m_total > 0:
+            totals[currency] = totals.get(currency, Decimal(0)) + result.next_12m_total
+    out.sort(key=lambda h: (-h.next_12m_total, h.ticker))
+    return out, totals

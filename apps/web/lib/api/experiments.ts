@@ -85,26 +85,56 @@ export type ExperimentRerun = {
   differences: string[];
 };
 
-export function saveExperimentRun(backtest: BacktestRequest): Promise<ExperimentRun> {
-  return authedPost<ExperimentRun>("/v1/experiments/runs", { backtest });
+export function saveExperimentRun(
+  backtest: BacktestRequest,
+  experimentId?: number | null,
+): Promise<ExperimentRun> {
+  return authedPost<ExperimentRun>("/v1/experiments/runs", {
+    backtest: backtest,
+    ...(experimentId ? { experiment_id: experimentId } : {}),
+  });
 }
 
 /** A4.1: a Rule DSL strategy; inline rules are saved as setup versions. */
-export function saveStrategyRun(strategy: StrategyRequest): Promise<ExperimentRun> {
-  return authedPost<ExperimentRun>("/v1/experiments/runs", { strategy });
+export function saveStrategyRun(
+  strategy: StrategyRequest,
+  experimentId?: number | null,
+): Promise<ExperimentRun> {
+  return authedPost<ExperimentRun>("/v1/experiments/runs", {
+    strategy: strategy,
+    ...(experimentId ? { experiment_id: experimentId } : {}),
+  });
 }
 
 /** A4.4: save a rotation run. */
-export function saveRotationRun(rotation: RotationRequest): Promise<ExperimentRun> {
-  return authedPost<ExperimentRun>("/v1/experiments/runs", { rotation });
+export function saveRotationRun(
+  rotation: RotationRequest,
+  experimentId?: number | null,
+): Promise<ExperimentRun> {
+  return authedPost<ExperimentRun>("/v1/experiments/runs", {
+    rotation: rotation,
+    ...(experimentId ? { experiment_id: experimentId } : {}),
+  });
 }
 
-export function runWalkForward(backtest: BacktestRequest): Promise<ExperimentRun> {
-  return authedPost<ExperimentRun>("/v1/experiments/walk-forward", { backtest });
+export function runWalkForward(
+  backtest: BacktestRequest,
+  experimentId?: number | null,
+): Promise<ExperimentRun> {
+  return authedPost<ExperimentRun>("/v1/experiments/walk-forward", {
+    backtest: backtest,
+    ...(experimentId ? { experiment_id: experimentId } : {}),
+  });
 }
 
-export function runSweep(backtest: BacktestRequest): Promise<ExperimentRun> {
-  return authedPost<ExperimentRun>("/v1/experiments/sweep", { backtest });
+export function runSweep(
+  backtest: BacktestRequest,
+  experimentId?: number | null,
+): Promise<ExperimentRun> {
+  return authedPost<ExperimentRun>("/v1/experiments/sweep", {
+    backtest: backtest,
+    ...(experimentId ? { experiment_id: experimentId } : {}),
+  });
 }
 
 export function getExperimentRun(runId: number): Promise<ExperimentRun> {
@@ -121,4 +151,25 @@ export function rerunExperimentRun(runId: number): Promise<ExperimentRerun> {
 
 export function deleteExperimentRun(runId: number): Promise<void> {
   return authedDelete(`/v1/experiments/runs/${runId}`);
+}
+
+/** A7.6 (M7.7): a named experiment with its hypothesis and run count. */
+export type Experiment = {
+  id: number;
+  name: string;
+  hypothesis: string | null;
+  created_at: string;
+  run_count: number;
+};
+
+export function listExperiments(): Promise<Experiment[]> {
+  return authedGet<Experiment[]>("/v1/experiments");
+}
+
+export function createExperiment(name: string, hypothesis: string | null): Promise<Experiment> {
+  return authedPost<Experiment>("/v1/experiments", { name, hypothesis });
+}
+
+export function listExperimentRunsIn(experimentId: number): Promise<ExperimentRun[]> {
+  return authedGet<ExperimentRun[]>(`/v1/experiments/runs?experiment_id=${experimentId}`);
 }

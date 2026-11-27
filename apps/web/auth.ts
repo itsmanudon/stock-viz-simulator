@@ -21,6 +21,7 @@ import { z } from "zod";
 import { authConfig } from "@/auth.config";
 import { requireSecret } from "@/lib/env";
 import { googleSignInRefusal } from "@/lib/oauth-linking";
+import { canCreateAccount } from "@/lib/signup-gate";
 import { findOrCreateOAuthUser, findUserByEmail } from "@/lib/users";
 
 // Fail at module load rather than issuing sessions signed with the dev secret
@@ -70,12 +71,17 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (account?.provider !== "google") return true;
       const email = user?.email ?? profile?.email;
       if (!email) return "/login?error=GoogleEmailUnverified";
+      const existing = await findUserByEmail(email);
       const refusal = googleSignInRefusal({
         emailVerified:
           (profile as { email_verified?: unknown } | undefined)?.email_verified === true,
-        existing: await findUserByEmail(email),
+        existing,
       });
-      return refusal ? `/login?error=${refusal}` : true;
+      if (refusal) return `/login?error=${refusal}`;
+      // The signup switch: Google may sign in an existing account, never open
+      // a new one while SIGNUP_MODE says no.
+      if (!existing && !(await canCreateAccount(email))) return "/login?error=SignupClosed";
+      return true;
     },
     async jwt({ token, user, account }) {
       // Credentials: authorize() already set user.id to our DB id

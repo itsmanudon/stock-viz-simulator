@@ -29,8 +29,8 @@ from typing import Literal, Protocol, runtime_checkable
 
 from stockviz.services.markets.calendar import NEW_YORK_VENUE, venue_for_ticker
 
-FeedTag = Literal["iex", "sip", "kite", "file"]
-"""``intraday_bars.feed``: where a bar came from (A6.1)."""
+FeedTag = Literal["iex", "sip", "kite", "file", "replayed"]
+"""``intraday_bars.feed``: where a bar came from (A6.1; ``replayed`` since A6.5)."""
 
 ErrorKind = Literal["auth", "rate", "network", "provider", "not_supported"]
 

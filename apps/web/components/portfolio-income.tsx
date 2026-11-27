@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { DividendProjection } from "@/components/dividend-projection";
 import {
   Table,
   TableBody,
@@ -30,10 +31,14 @@ export function PortfolioIncome({
     );
   }
 
+  // A9.6: a holding without a recent dividend carries only a reason, which
+  // is not income; the empty state stays until one projects something.
+  const paying = (dividends.projection ?? []).filter((h) => !h.reason);
   const hasIncome =
     Number(dividends.ytd_income) !== 0 ||
     dividends.projected.length > 0 ||
-    dividends.history.length > 0;
+    dividends.history.length > 0 ||
+    paying.length > 0;
 
   if (!hasIncome) {
     return (
@@ -104,6 +109,14 @@ export function PortfolioIncome({
             })}
           </ul>
         </section>
+      ) : null}
+
+      {paying.length > 0 ? (
+        <DividendProjection
+          holdings={dividends.projection ?? []}
+          totals={dividends.projection_totals ?? {}}
+          method={dividends.projection_method ?? ""}
+        />
       ) : null}
 
       {dividends.history.length > 0 ? (

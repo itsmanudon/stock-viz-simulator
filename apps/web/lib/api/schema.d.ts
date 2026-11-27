@@ -54,6 +54,450 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/macro": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Macro Overview */
+        get: operations["macro_overview_v1_macro_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/macro/{series_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Macro Series */
+        get: operations["macro_series_v1_macro__series_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/symbols/{ticker}/documents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Symbol Documents */
+        get: operations["symbol_documents_v1_symbols__ticker__documents_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/documents/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Search Documents */
+        get: operations["search_documents_v1_documents_search_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/documents/passages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Search Passages */
+        get: operations["search_passages_v1_documents_passages_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/documents/{document_id}/compare": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Compare Document */
+        get: operations["compare_document_v1_documents__document_id__compare_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/documents/{document_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Document */
+        get: operations["get_document_v1_documents__document_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/brief": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Brief */
+        get: operations["get_brief_v1_brief_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/research/optimise": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Optimise */
+        post: operations["optimise_v1_research_optimise_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/tax/india": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** India Tax */
+        get: operations["india_tax_v1_tax_india_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/fo/india": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Fo India */
+        get: operations["fo_india_v1_fo_india_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/ai/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Ai Status */
+        get: operations["ai_status_v1_ai_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/ai/rule": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Ai Rule */
+        post: operations["ai_rule_v1_ai_rule_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/ai/ask": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Ai Ask */
+        post: operations["ai_ask_v1_ai_ask_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/ai/keys": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Ai Keys */
+        get: operations["list_ai_keys_v1_ai_keys_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/ai/keys/{provider}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Save Ai Key */
+        put: operations["save_ai_key_v1_ai_keys__provider__put"];
+        post?: never;
+        /** Delete Ai Key */
+        delete: operations["delete_ai_key_v1_ai_keys__provider__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/ai/extract": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Ai Extract Figures */
+        post: operations["ai_extract_figures_v1_ai_extract_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/ai/grid": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Ai Grid */
+        post: operations["ai_grid_v1_ai_grid_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/ai/debate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Ai Debate */
+        post: operations["ai_debate_v1_ai_debate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/cohorts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Cohorts */
+        get: operations["list_cohorts_v1_cohorts_get"];
+        put?: never;
+        /** Create Cohort */
+        post: operations["create_cohort_v1_cohorts_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/cohorts/{cohort_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Cohort */
+        get: operations["get_cohort_v1_cohorts__cohort_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/cohorts/join": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Join Cohort */
+        post: operations["join_cohort_v1_cohorts_join_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/cohorts/{cohort_id}/membership": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Leave Cohort */
+        delete: operations["leave_cohort_v1_cohorts__cohort_id__membership_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/cohorts/{cohort_id}/assignments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Add Assignment */
+        post: operations["add_assignment_v1_cohorts__cohort_id__assignments_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/assignments/{assignment_id}/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Start Assignment */
+        post: operations["start_assignment_v1_assignments__assignment_id__start_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/cohorts/{cohort_id}/gradebook": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Gradebook */
+        get: operations["gradebook_v1_cohorts__cohort_id__gradebook_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/symbols/screen": {
         parameters: {
             query?: never;
@@ -131,6 +575,23 @@ export interface paths {
          * @description Turn the nightly change notification on or off (A2.3).
          */
         patch: operations["patch_screen_v1_screens__screen_id__patch"];
+        trace?: never;
+    };
+    "/v1/stream/bars": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Stream Bars */
+        get: operations["stream_bars_v1_stream_bars_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/v1/rules/check": {
@@ -596,6 +1057,47 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/symbols/{ticker}/forensics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Forensics
+         * @description A7.3 (M5.1, M5.2): Piotroski, Altman Z'' and Beneish on the latest fiscal
+         *     years known on ``as_of``; financial companies get none of them.
+         */
+        get: operations["get_forensics_v1_symbols__ticker__forensics_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/symbols/{ticker}/reverse-dcf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Reverse Dcf
+         * @description A7.4 (M5.3): the growth the price implies, with a sensitivity grid.
+         */
+        get: operations["get_reverse_dcf_v1_symbols__ticker__reverse_dcf_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/indicators/catalog": {
         parameters: {
             query?: never;
@@ -711,6 +1213,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/symbols/{ticker}/volume-profile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Volume Profile */
+        get: operations["get_volume_profile_v1_symbols__ticker__volume_profile_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/symbols/{ticker}/events": {
         parameters: {
             query?: never;
@@ -774,6 +1293,154 @@ export interface paths {
         };
         /** Get Regime */
         get: operations["get_regime_v1_regime_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/breadth": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Breadth */
+        get: operations["get_breadth_v1_breadth_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/sector-rotation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Sector Rotation */
+        get: operations["get_sector_rotation_v1_sector_rotation_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/symbols/{ticker}/seasonality": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Seasonality */
+        get: operations["get_seasonality_v1_symbols__ticker__seasonality_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/symbols/{ticker}/earnings-drift": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Earnings Drift */
+        get: operations["get_earnings_drift_v1_symbols__ticker__earnings_drift_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/symbols/{ticker}/forecast": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Forecast
+         * @description A9.2: every forecast with its skill against a random walk and its coverage.
+         */
+        get: operations["get_forecast_v1_symbols__ticker__forecast_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/symbols/{ticker}/pair/{other}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Pair
+         * @description A9.3: cointegration, hedge ratio, half-life and the spread's z-score.
+         */
+        get: operations["get_pair_v1_symbols__ticker__pair__other__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/symbols/{ticker}/structure": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Structure
+         * @description A9.5: pivots, labels and zones over the last ``sessions`` daily bars.
+         */
+        get: operations["get_structure_v1_symbols__ticker__structure_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/symbols/{ticker}/lender": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Lender
+         * @description A7.13 (M5.2): lender mode, P/B against ROE (409 for a non-financial symbol).
+         */
+        get: operations["get_lender_v1_symbols__ticker__lender_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1218,6 +1885,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/import-maps": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Import Maps */
+        get: operations["list_import_maps_v1_import_maps_get"];
+        put?: never;
+        /** Save Import Map */
+        post: operations["save_import_map_v1_import_maps_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/import-maps/{map_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Import Map */
+        delete: operations["delete_import_map_v1_import_maps__map_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/alerts": {
         parameters: {
             query?: never;
@@ -1513,6 +2215,79 @@ export interface paths {
         patch: operations["update_column_set_v1_column_sets__set_id__patch"];
         trace?: never;
     };
+    "/v1/chart-templates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Chart Templates */
+        get: operations["list_chart_templates_v1_chart_templates_get"];
+        put?: never;
+        /** Create Chart Template */
+        post: operations["create_chart_template_v1_chart_templates_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/chart-templates/{template_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Chart Template */
+        delete: operations["delete_chart_template_v1_chart_templates__template_id__delete"];
+        options?: never;
+        head?: never;
+        /** Update Chart Template */
+        patch: operations["update_chart_template_v1_chart_templates__template_id__patch"];
+        trace?: never;
+    };
+    "/v1/chart-layouts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Chart Layouts */
+        get: operations["list_chart_layouts_v1_chart_layouts_get"];
+        put?: never;
+        /** Create Chart Layout */
+        post: operations["create_chart_layout_v1_chart_layouts_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/chart-layouts/{layout_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Chart Layout */
+        get: operations["get_chart_layout_v1_chart_layouts__layout_id__get"];
+        put?: never;
+        post?: never;
+        /** Delete Chart Layout */
+        delete: operations["delete_chart_layout_v1_chart_layouts__layout_id__delete"];
+        options?: never;
+        head?: never;
+        /** Update Chart Layout */
+        patch: operations["update_chart_layout_v1_chart_layouts__layout_id__patch"];
+        trace?: never;
+    };
     "/v1/orders": {
         parameters: {
             query?: never;
@@ -1739,6 +2514,47 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/options/{ticker}/exposure": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Option Exposure
+         * @description A7.9 (M6.2): gamma and delta exposure, the gamma flip, the walls and the
+         *     IV-implied one-day move, from the newest stored chain. Public.
+         */
+        get: operations["get_option_exposure_v1_options__ticker__exposure_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/options/{ticker}/vol-summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Vol Summary
+         * @description A9.4 (M6.3): term structure, skew, VRP and IV rank. Public.
+         */
+        get: operations["get_vol_summary_v1_options__ticker__vol_summary_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/options/book": {
         parameters: {
             query?: never;
@@ -1771,6 +2587,26 @@ export interface paths {
          * @description Implied volatility by expiry and strike from the latest chain snapshot. Public.
          */
         get: operations["get_option_surface_v1_options_surface_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/options/{ticker}/implied-distribution": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Implied Distribution
+         * @description A9.13 (M8.5): option-implied vs model distribution of the price at expiry.
+         */
+        get: operations["get_implied_distribution_v1_options__ticker__implied_distribution_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2051,10 +2887,11 @@ export interface paths {
         put?: never;
         /**
          * Post Replay Advance
-         * @description Advance one stored 1d bar; from the last bar, complete the session.
+         * @description Advance one bar; from the last bar, complete the session.
          *
          *     Pass ``expected_current_at`` (the bar on screen): a repeated request then
-         *     changes nothing (audit SR-10).
+         *     changes nothing (audit SR-10), so autoplay (A6.9) never moves two bars
+         *     for one step. Advances are limited per user (429 with ``Retry-After``).
          */
         post: operations["post_replay_advance_v1_replay_sessions__session_id__advance_post"];
         delete?: never;
@@ -2443,6 +3280,7 @@ export interface paths {
          * Post Advance
          * @description Next bar; from the last bar, the session completes (then reveal).
          *     ``expected_current_at`` is the date on screen (shifted, when anonymised).
+         *     A6.9: the replay route's per-user advance limit applies (429).
          */
         post: operations["post_advance_v1_drills__drill_id__advance_post"];
         delete?: never;
@@ -2668,6 +3506,26 @@ export interface paths {
         patch: operations["patch_journal_entry_v1_journal_entries__entry_id__patch"];
         trace?: never;
     };
+    "/v1/journal/entries/{entry_id}/replay": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Trade Replay
+         * @description A6.10: "Replay my trade", read-only (409 for a replay session's entry).
+         */
+        get: operations["get_trade_replay_v1_journal_entries__entry_id__replay_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/journal/stats": {
         parameters: {
             query?: never;
@@ -2677,6 +3535,46 @@ export interface paths {
         };
         /** Journal Stats */
         get: operations["journal_stats_v1_journal_stats_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/journal/behaviour": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Journal Behaviour
+         * @description A7.6 (M10.4): discipline, disposition, tilt, heatmaps and cost leakage.
+         */
+        get: operations["journal_behaviour_v1_journal_behaviour_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/journal/weekly": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Journal Weekly
+         * @description A9.12 (M11.6): one week of closed entries, the baseline and what to look at.
+         */
+        get: operations["journal_weekly_v1_journal_weekly_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2911,9 +3809,26 @@ export interface paths {
         };
         /**
          * Feed Status
-         * @description A6.3: the US market-data feeds (history backfill now; streams in A6.5/A6.6).
+         * @description A6.3: the US market-data feeds; A6.5: the streams the worker has run.
          */
         get: operations["feed_status_v1_broker_feeds_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/broker/basket": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Basket Handoff */
+        get: operations["basket_handoff_v1_broker_basket_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2963,6 +3878,106 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * AiKeyIn
+         * @description A8.7: a user's own key; write-only (never returned).
+         */
+        AiKeyIn: {
+            /** Api Key */
+            api_key: string;
+            /** Model */
+            model: string;
+            /** Base Url */
+            base_url?: string | null;
+        };
+        /** AiKeyOut */
+        AiKeyOut: {
+            /** Provider */
+            provider: string;
+            /** Model */
+            model: string;
+            /** Base Url */
+            base_url: string | null;
+            /** Key Last4 */
+            key_last4: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** AiKeysOut */
+        AiKeysOut: {
+            /** Available */
+            available: boolean;
+            /** Keys */
+            keys: components["schemas"]["AiKeyOut"][];
+            /** Providers */
+            providers: string[];
+            /** Held */
+            held: {
+                [key: string]: string;
+            };
+            /** Note */
+            note: string;
+        };
+        /** AiRuleAttemptOut */
+        AiRuleAttemptOut: {
+            /** Rule */
+            rule: string;
+            check: components["schemas"]["RuleCheckOut"];
+        };
+        /**
+         * AiRuleIn
+         * @description A8.2 (M4.2): describe a screen in words; the model drafts DSL text.
+         */
+        AiRuleIn: {
+            /** Text */
+            text: string;
+            /**
+             * Timeframe
+             * @default daily
+             */
+            timeframe: string;
+            /**
+             * Provider
+             * @default server
+             * @enum {string}
+             */
+            provider: "server" | "openai_compatible" | "anthropic";
+        };
+        /** AiRuleOut */
+        AiRuleOut: {
+            /** Request */
+            request: string;
+            /** Provider */
+            provider: string;
+            /** Model */
+            model: string;
+            /** Rule */
+            rule: string;
+            check: components["schemas"]["RuleCheckOut"];
+            /** Attempts */
+            attempts: components["schemas"]["AiRuleAttemptOut"][];
+            /** Note */
+            note: string;
+        };
+        /** AiStatusOut */
+        AiStatusOut: {
+            /** Configured */
+            configured: boolean;
+            /** Provider */
+            provider?: string | null;
+            /** Model */
+            model?: string | null;
+            /** Reason */
+            reason?: string | null;
+            /**
+             * Keys Available
+             * @default false
+             */
+            keys_available: boolean;
+        };
         /**
          * AlertEventOut
          * @description One firing of a rule: what was seen, against what, on which bar.
@@ -3117,6 +4132,82 @@ export interface components {
             paused?: boolean | null;
             /** Setup Version Id */
             setup_version_id?: number | null;
+        };
+        /** AnswerCheckOut */
+        AnswerCheckOut: {
+            /** Answer */
+            answer: string;
+            /** Grounded */
+            grounded: boolean;
+            /** Cited */
+            cited: number[];
+            /** Invalid Citations */
+            invalid_citations: number[];
+            /** Uncited Sentences */
+            uncited_sentences: number;
+            /** Warnings */
+            warnings: string[];
+            /** Sources */
+            sources: components["schemas"]["AskSourceOut"][];
+        };
+        /** AskIn */
+        AskIn: {
+            /** Question */
+            question: string;
+            /** Ticker */
+            ticker?: string | null;
+            /** Kind */
+            kind?: string | null;
+            /** As Of */
+            as_of?: string | null;
+            /**
+             * Provider
+             * @default server
+             * @enum {string}
+             */
+            provider: "server" | "openai_compatible" | "anthropic";
+        };
+        /** AskOut */
+        AskOut: {
+            /** Question */
+            question: string;
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            /** Retrieval Mode */
+            retrieval_mode: string;
+            /** Answer */
+            answer: string;
+            /** Grounded */
+            grounded: boolean;
+            /** Cited */
+            cited: number[];
+            /** Invalid Citations */
+            invalid_citations: number[];
+            /** Uncited Sentences */
+            uncited_sentences: number;
+            /** Sources */
+            sources: components["schemas"]["AskSourceOut"][];
+            /** Provider */
+            provider: string | null;
+            /** Model */
+            model: string | null;
+            /** Warnings */
+            warnings: string[];
+            /** Notes */
+            notes: string[];
+            /** Disclaimer */
+            disclaimer: string;
+        };
+        /** AskSourceOut */
+        AskSourceOut: {
+            /** N */
+            n: number;
+            /** Cited */
+            cited: boolean;
+            passage: components["schemas"]["PassageOut"];
         };
         /**
          * AtrStopIn
@@ -3449,6 +4540,84 @@ export interface components {
             base_currency: string;
         };
         /**
+         * BasketHandoffOut
+         * @description A6.11 (M10.5): how a basket can leave StockViz. StockViz never places an
+         *     order: a basket downloads as CSV or JSON, and with ``KITE_API_KEY`` set the
+         *     web also offers Kite's basket form, which the user's browser posts and the
+         *     user confirms inside Zerodha.
+         */
+        BasketHandoffOut: {
+            /** Kite Basket */
+            kite_basket: boolean;
+            /** Kite Api Key */
+            kite_api_key: string | null;
+            /** Kite Basket Url */
+            kite_basket_url: string | null;
+            /** Exports */
+            exports: ("csv" | "json")[];
+        };
+        /** BehaviourCellOut */
+        BehaviourCellOut: {
+            /** Key */
+            key: string;
+            /** Entries */
+            entries: number;
+            /** Net Pnl */
+            net_pnl: number;
+            /** Win Rate */
+            win_rate?: number | null;
+        };
+        /**
+         * BehaviourOut
+         * @description A7.6 (M10.4): behaviour diagnostics over closed journal entries.
+         */
+        BehaviourOut: {
+            /** Entries */
+            entries: number;
+            /** Counts Only */
+            counts_only: boolean;
+            /** Reason */
+            reason?: string | null;
+            /** Discipline Scored */
+            discipline_scored: number;
+            /** Discipline Followed */
+            discipline_followed: number;
+            /** Discipline Rate */
+            discipline_rate?: number | null;
+            /** Winners */
+            winners: number;
+            /** Losers */
+            losers: number;
+            /** Avg Hold Winners */
+            avg_hold_winners?: number | null;
+            /** Avg Hold Losers */
+            avg_hold_losers?: number | null;
+            /** Disposition Index */
+            disposition_index?: number | null;
+            /** Tilt Entries */
+            tilt_entries: number[];
+            /** Tilt Rate */
+            tilt_rate?: number | null;
+            /** By Weekday */
+            by_weekday: components["schemas"]["BehaviourCellOut"][];
+            /** By Hour */
+            by_hour: components["schemas"]["BehaviourCellOut"][];
+            /** Fees Total */
+            fees_total: number;
+            /** Fees Per Entry */
+            fees_per_entry?: number | null;
+            /** Fees Share Of Gross */
+            fees_share_of_gross?: number | null;
+            /** Fees Estimated */
+            fees_estimated: boolean;
+            /** Currencies */
+            currencies: string[];
+            /** Method */
+            method: {
+                [key: string]: string;
+            };
+        };
+        /**
          * BookIn
          * @description ``POST /v1/books``.
          */
@@ -3476,7 +4645,7 @@ export interface components {
             /** Holder Label */
             holder_label?: string | null;
             /** Broker */
-            broker?: "zerodha" | null;
+            broker?: ("zerodha" | "dhan" | "fyers" | "upstox" | "angelone" | "groww" | "other") | null;
         };
         /**
          * BookOut
@@ -3542,6 +4711,149 @@ export interface components {
             /** Limit */
             limit: number;
         };
+        /** BreadthOut */
+        BreadthOut: {
+            /**
+             * Market
+             * @enum {string}
+             */
+            market: "US" | "IN";
+            /**
+             * Start
+             * Format: date
+             */
+            start: string;
+            /**
+             * End
+             * Format: date
+             */
+            end: string;
+            /** Members */
+            members: number;
+            /** Universe Note */
+            universe_note: string;
+            /** Method */
+            method: {
+                [key: string]: string;
+            };
+            /** Points */
+            points: components["schemas"]["BreadthPointOut"][];
+        };
+        /**
+         * BreadthPointOut
+         * @description A7.1 (M3.3): one session's breadth over the market's stored members.
+         */
+        BreadthPointOut: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Advancers */
+            advancers: number;
+            /** Decliners */
+            decliners: number;
+            /** Unchanged */
+            unchanged: number;
+            /** Members */
+            members: number;
+            /** New Highs */
+            new_highs: number;
+            /** New Lows */
+            new_lows: number;
+            /** Highs Minus Lows */
+            highs_minus_lows: number;
+            /** Ad Line */
+            ad_line: number;
+            /** Ad Ratio 20 */
+            ad_ratio_20?: number | null;
+            /** Ad Ratio 40 */
+            ad_ratio_40?: number | null;
+            /** Mcclellan */
+            mcclellan?: number | null;
+            /** Summation */
+            summation?: number | null;
+            /** Thrust Ema10 */
+            thrust_ema10?: number | null;
+            /**
+             * Thrust
+             * @default false
+             */
+            thrust: boolean;
+            /** Pct Above 20 */
+            pct_above_20?: number | null;
+            /** Pct Above 50 */
+            pct_above_50?: number | null;
+            /** Pct Above 100 */
+            pct_above_100?: number | null;
+            /** Pct Above 200 */
+            pct_above_200?: number | null;
+            /** Pct Rsi 50 */
+            pct_rsi_50?: number | null;
+        };
+        /** BriefAlertOut */
+        BriefAlertOut: {
+            /** Title */
+            title: string;
+            /** Body */
+            body: string;
+            /** Link */
+            link: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
+        /** BriefDocumentOut */
+        BriefDocumentOut: {
+            /** Id */
+            id: number;
+            /** Ticker */
+            ticker: string;
+            /** Title */
+            title: string;
+            /** Kind */
+            kind: string;
+            /**
+             * Available At
+             * Format: date-time
+             */
+            available_at: string;
+        };
+        /** BriefEarningsOut */
+        BriefEarningsOut: {
+            /** Ticker */
+            ticker: string;
+            /**
+             * Event Date
+             * Format: date
+             */
+            event_date: string;
+        };
+        /** BriefMoveOut */
+        BriefMoveOut: {
+            /** Ticker */
+            ticker: string;
+            /** Close */
+            close: string;
+            /**
+             * Close Date
+             * Format: date
+             */
+            close_date: string;
+            /** Previous Close */
+            previous_close: string;
+            /**
+             * Previous Date
+             * Format: date
+             */
+            previous_date: string;
+            /** Change Pct */
+            change_pct: number;
+            /** Held */
+            held: boolean;
+        };
         /** BrokerStatusItemOut */
         BrokerStatusItemOut: {
             /**
@@ -3595,6 +4907,152 @@ export interface components {
             /** Rate Text */
             rate_text: string;
             source?: components["schemas"]["FeeSourceOut"] | null;
+        };
+        /** ChartLayoutIn */
+        ChartLayoutIn: {
+            /** Name */
+            name: string;
+            /**
+             * Grid
+             * @default 1
+             * @enum {string}
+             */
+            grid: "1" | "2v" | "2h" | "4";
+            /** Panes */
+            panes: components["schemas"]["ChartPaneIn"][];
+        };
+        /** ChartLayoutOut */
+        ChartLayoutOut: {
+            /** Id */
+            id: number;
+            /** Name */
+            name: string;
+            /**
+             * Grid
+             * @enum {string}
+             */
+            grid: "1" | "2v" | "2h" | "4";
+            /** Panes */
+            panes: components["schemas"]["ChartPaneOut"][];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** ChartLayoutPatch */
+        ChartLayoutPatch: {
+            /** Name */
+            name?: string | null;
+            /** Grid */
+            grid?: ("1" | "2v" | "2h" | "4") | null;
+            /** Panes */
+            panes?: components["schemas"]["ChartPaneIn"][] | null;
+        };
+        /** ChartPaneIn */
+        ChartPaneIn: {
+            /** Symbol */
+            symbol: string;
+            /**
+             * Interval
+             * @default 1d
+             * @enum {string}
+             */
+            interval: "1d" | "1wk" | "1mo" | "1m" | "5m" | "15m" | "30m" | "60m";
+            /** Template Id */
+            template_id?: number | null;
+            /** Link */
+            link?: ("aqua" | "blue" | "violet" | "pink" | "amber" | "lime" | "slate") | null;
+        };
+        /** ChartPaneOut */
+        ChartPaneOut: {
+            /** Symbol */
+            symbol: string;
+            /**
+             * Interval
+             * @enum {string}
+             */
+            interval: "1d" | "1wk" | "1mo" | "1m" | "5m" | "15m" | "30m" | "60m";
+            /** Template Id */
+            template_id: number | null;
+            /** Link */
+            link: ("aqua" | "blue" | "violet" | "pink" | "amber" | "lime" | "slate") | null;
+        };
+        /** ChartTemplateIn */
+        ChartTemplateIn: {
+            /** Name */
+            name: string;
+            /**
+             * Chart Type
+             * @default candles
+             * @enum {string}
+             */
+            chart_type: "candles" | "hollow" | "bars" | "line" | "area" | "heikin-ashi";
+            /**
+             * Scale
+             * @default linear
+             * @enum {string}
+             */
+            scale: "linear" | "log" | "percent";
+            /** Indicators */
+            indicators?: string[];
+            /** Pane Heights */
+            pane_heights?: {
+                [key: string]: number;
+            };
+        };
+        /** ChartTemplateOut */
+        ChartTemplateOut: {
+            /** Id */
+            id: number;
+            /** Name */
+            name: string;
+            /**
+             * Chart Type
+             * @enum {string}
+             */
+            chart_type: "candles" | "hollow" | "bars" | "line" | "area" | "heikin-ashi";
+            /**
+             * Scale
+             * @enum {string}
+             */
+            scale: "linear" | "log" | "percent";
+            /** Indicators */
+            indicators: string[];
+            /** Pane Heights */
+            pane_heights: {
+                [key: string]: number;
+            };
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** ChartTemplatePatch */
+        ChartTemplatePatch: {
+            /** Name */
+            name?: string | null;
+            /** Chart Type */
+            chart_type?: ("candles" | "hollow" | "bars" | "line" | "area" | "heikin-ashi") | null;
+            /** Scale */
+            scale?: ("linear" | "log" | "percent") | null;
+            /** Indicators */
+            indicators?: string[] | null;
+            /** Pane Heights */
+            pane_heights?: {
+                [key: string]: number;
+            } | null;
         };
         /** ChecklistConditionDefOut */
         ChecklistConditionDefOut: {
@@ -3780,6 +5238,98 @@ export interface components {
             conditions: components["schemas"]["ChecklistConditionDefOut"][];
             evidence?: components["schemas"]["ChecklistEvidenceOut"] | null;
         };
+        /**
+         * CohortAssignmentIn
+         * @description A10.2 (M12.2): a drill-deck recipe for every member, and its rubric.
+         */
+        CohortAssignmentIn: {
+            /** Title */
+            title: string;
+            deck: components["schemas"]["DrillDeckIn"];
+            /**
+             * Min Followed Pct
+             * @default 70
+             */
+            min_followed_pct: number;
+            /** Due On */
+            due_on?: string | null;
+        };
+        /** CohortAssignmentOut */
+        CohortAssignmentOut: {
+            /** Id */
+            id: number;
+            /** Title */
+            title: string;
+            /** Min Followed Pct */
+            min_followed_pct: number;
+            /** Due On */
+            due_on?: string | null;
+            /** Rule */
+            rule: string;
+            /** K */
+            k: number;
+            /** Seed */
+            seed?: number | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** My Deck Id */
+            my_deck_id?: number | null;
+        };
+        /** CohortIn */
+        CohortIn: {
+            /** Name */
+            name: string;
+        };
+        /** CohortJoinIn */
+        CohortJoinIn: {
+            /** Code */
+            code: string;
+            /**
+             * Consent
+             * @default false
+             */
+            consent: boolean;
+        };
+        /**
+         * CohortOut
+         * @description A10.2 (M12.1): a cohort as its owner or a member sees it.
+         */
+        CohortOut: {
+            /** Id */
+            id: number;
+            /** Name */
+            name: string;
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "owner" | "member";
+            /** Invite Code */
+            invite_code?: string | null;
+            /** Members */
+            members: number;
+            /** Assignments */
+            assignments: components["schemas"]["CohortAssignmentOut"][];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Consent Text */
+            consent_text: string;
+        };
+        /** CohortStartOut */
+        CohortStartOut: {
+            /** Assignment Id */
+            assignment_id: number;
+            /** Deck Id */
+            deck_id: number;
+            /** Created */
+            created: boolean;
+        };
         /** ColumnSetIn */
         ColumnSetIn: {
             /** Name */
@@ -3848,6 +5398,21 @@ export interface components {
             /** Per Book Only */
             per_book_only: string[];
         };
+        /** ConeOut */
+        ConeOut: {
+            /** Horizon */
+            horizon: number;
+            /** Level */
+            level: number;
+            /** Lower */
+            lower?: number | null;
+            /** Upper */
+            upper?: number | null;
+            /** Realised Coverage */
+            realised_coverage?: number | null;
+            /** Test Days */
+            test_days: number;
+        };
         /**
          * CostsOut
          * @description A4.2: the costs a run applied, each component with its rate and source.
@@ -3909,6 +5474,43 @@ export interface components {
             /** Value */
             value: string;
         };
+        /** DebateIn */
+        DebateIn: {
+            /** Ticker */
+            ticker: string;
+            /** Topic */
+            topic: string;
+            /** As Of */
+            as_of?: string | null;
+            /**
+             * Provider
+             * @default server
+             * @enum {string}
+             */
+            provider: "server" | "openai_compatible" | "anthropic";
+        };
+        /** DebateOut */
+        DebateOut: {
+            /** Ticker */
+            ticker: string;
+            /** Topic */
+            topic: string;
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            /** Retrieval Mode */
+            retrieval_mode: string;
+            case_for: components["schemas"]["AnswerCheckOut"];
+            case_against: components["schemas"]["AnswerCheckOut"];
+            /** Provider */
+            provider: string | null;
+            /** Model */
+            model: string | null;
+            /** Disclaimer */
+            disclaimer: string;
+        };
         /** DeliveryOut */
         DeliveryOut: {
             /** Ticker */
@@ -3940,6 +5542,15 @@ export interface components {
             delivery_pct: number;
             /** Avg 20 */
             avg_20?: number | null;
+        };
+        /** DistributionPointOut */
+        DistributionPointOut: {
+            /** Price */
+            price: number;
+            /** Implied */
+            implied: number;
+            /** Model */
+            model: number;
         };
         /** DividendCreditOut */
         DividendCreditOut: {
@@ -3987,6 +5598,133 @@ export interface components {
             history: components["schemas"]["DividendCreditOut"][];
             /** Projected */
             projected: components["schemas"]["ProjectedDividendOut"][];
+            /**
+             * Projection
+             * @default []
+             */
+            projection: components["schemas"]["HoldingProjectionOut"][];
+            /**
+             * Projection Totals
+             * @default {}
+             */
+            projection_totals: {
+                [key: string]: string;
+            };
+            /**
+             * Projection Method
+             * @default
+             */
+            projection_method: string;
+        };
+        /** DocumentCompareOut */
+        DocumentCompareOut: {
+            document: components["schemas"]["DocumentOut"];
+            against: components["schemas"]["DocumentOut"] | null;
+            /** Scope */
+            scope: string | null;
+            /** Scope Note */
+            scope_note: string | null;
+            /** Paragraphs Before */
+            paragraphs_before: number;
+            /** Paragraphs After */
+            paragraphs_after: number;
+            /** Unchanged */
+            unchanged: number;
+            /** Added */
+            added: number;
+            /** Removed */
+            removed: number;
+            /** Changed */
+            changed: number;
+            /** Changes */
+            changes: components["schemas"]["TextChangeOut"][];
+            /** Truncated */
+            truncated: boolean;
+            hedging_before: components["schemas"]["HedgingOut"] | null;
+            hedging_after: components["schemas"]["HedgingOut"] | null;
+            /** Note */
+            note: string;
+            /** Method */
+            method: string;
+        };
+        /** DocumentDetailOut */
+        DocumentDetailOut: {
+            document: components["schemas"]["DocumentOut"];
+            /** Text */
+            text: string;
+            /** Truncated */
+            truncated: boolean;
+            /** Matches */
+            matches?: number | null;
+        };
+        /** DocumentHitOut */
+        DocumentHitOut: {
+            document: components["schemas"]["DocumentOut"];
+            /** Matches */
+            matches: number;
+            /** Snippets */
+            snippets: string[];
+        };
+        /** DocumentListOut */
+        DocumentListOut: {
+            /** Ticker */
+            ticker: string;
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            /** Documents */
+            documents: components["schemas"]["DocumentOut"][];
+            /** Note */
+            note: string;
+        };
+        /**
+         * DocumentOut
+         * @description A7.10 (M5.5): one stored document; ``available_at`` is naive UTC.
+         */
+        DocumentOut: {
+            /** Id */
+            id: number;
+            /** Ticker */
+            ticker: string;
+            /** Kind */
+            kind: string;
+            /** Source */
+            source: string;
+            /** Form Type */
+            form_type?: string | null;
+            /** Title */
+            title: string;
+            /** Event Date */
+            event_date?: string | null;
+            /**
+             * Available At
+             * Format: date-time
+             */
+            available_at: string;
+            /** Available Assumed */
+            available_assumed: boolean;
+            /** Url */
+            url?: string | null;
+            /** Content Type */
+            content_type: string;
+            /** Text Chars */
+            text_chars: number;
+        };
+        /** DocumentSearchOut */
+        DocumentSearchOut: {
+            /** Query */
+            query: string;
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            /** Hits */
+            hits: components["schemas"]["DocumentHitOut"][];
+            /** Note */
+            note: string;
         };
         /** DrawingIn */
         DrawingIn: {
@@ -3996,7 +5734,7 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "trendline" | "ray" | "hline" | "rectangle" | "channel" | "fib_retracement" | "fib_extension" | "ruler" | "text" | "position_long" | "position_short" | "avwap";
+            kind: "trendline" | "ray" | "hline" | "rectangle" | "channel" | "fib_retracement" | "fib_extension" | "ruler" | "text" | "position_long" | "position_short" | "avwap" | "volume_profile";
             /** Points */
             points: components["schemas"]["DrawingPoint-Input"][];
             style?: components["schemas"]["DrawingStyle"];
@@ -4018,7 +5756,7 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "trendline" | "ray" | "hline" | "rectangle" | "channel" | "fib_retracement" | "fib_extension" | "ruler" | "text" | "position_long" | "position_short" | "avwap";
+            kind: "trendline" | "ray" | "hline" | "rectangle" | "channel" | "fib_retracement" | "fib_extension" | "ruler" | "text" | "position_long" | "position_short" | "avwap" | "volume_profile";
             /** Points */
             points: components["schemas"]["DrawingPoint-Output"][];
             style: components["schemas"]["DrawingStyle"];
@@ -4120,6 +5858,56 @@ export interface components {
             first_bar: string | null;
             /** Last Bar */
             last_bar: string | null;
+        };
+        /** DriftEventOut */
+        DriftEventOut: {
+            /**
+             * Event Date
+             * Format: date
+             */
+            event_date: string;
+            /**
+             * Reaction Date
+             * Format: date
+             */
+            reaction_date: string;
+            /** Assumed */
+            assumed: boolean;
+            /** Surprise Pct */
+            surprise_pct?: number | null;
+            /** Reaction */
+            reaction: number;
+            /** D1 */
+            d1?: number | null;
+            /** D5 */
+            d5?: number | null;
+            /** D20 */
+            d20?: number | null;
+        };
+        /** DriftGroupOut */
+        DriftGroupOut: {
+            /**
+             * Group
+             * @enum {string}
+             */
+            group: "beat" | "miss" | "no_surprise";
+            /** Horizons */
+            horizons: components["schemas"]["DriftHorizonOut"][];
+        };
+        /** DriftHorizonOut */
+        DriftHorizonOut: {
+            /** Sessions */
+            sessions: number;
+            /** N */
+            n: number;
+            /** Mean */
+            mean?: number | null;
+            /** Median */
+            median?: number | null;
+            /** Hit Rate */
+            hit_rate?: number | null;
+            /** T Stat */
+            t_stat?: number | null;
         };
         /** DrillCheckOut */
         DrillCheckOut: {
@@ -4459,6 +6247,24 @@ export interface components {
             note: string;
             /** Meaning */
             meaning: string;
+        };
+        /**
+         * EarningsDriftOut
+         * @description A9.1 (M6.6): reactions on earnings sessions and the drift after them.
+         */
+        EarningsDriftOut: {
+            /** Ticker */
+            ticker: string;
+            /** Avg Abs Reaction */
+            avg_abs_reaction?: number | null;
+            /** Avg Abs Day */
+            avg_abs_day?: number | null;
+            /** Events */
+            events: components["schemas"]["DriftEventOut"][];
+            /** Groups */
+            groups: components["schemas"]["DriftGroupOut"][];
+            /** Note */
+            note: string;
         };
         /**
          * EarningsEventOut
@@ -5024,6 +6830,67 @@ export interface components {
             /** Buckets */
             buckets: components["schemas"]["ExposureBucketOut"][];
         };
+        /** ExposureStrikeOut */
+        ExposureStrikeOut: {
+            /** Strike */
+            strike: number;
+            /** Gex */
+            gex: number;
+            /** Dex */
+            dex: number;
+            /** Call Oi */
+            call_oi: number;
+            /** Put Oi */
+            put_oi: number;
+        };
+        /** ExtractIn */
+        ExtractIn: {
+            /** Document Id */
+            document_id: number;
+            /**
+             * Provider
+             * @default server
+             * @enum {string}
+             */
+            provider: "server" | "openai_compatible" | "anthropic";
+        };
+        /** ExtractOut */
+        ExtractOut: {
+            document: components["schemas"]["DocumentOut"];
+            /** Figures */
+            figures: components["schemas"]["FigureOut"][];
+            /** Passages Read */
+            passages_read: number;
+            /** Dropped */
+            dropped: {
+                [key: string]: number;
+            };
+            /** Provider */
+            provider: string | null;
+            /** Model */
+            model: string | null;
+            /** Method */
+            method: string;
+            /** Disclaimer */
+            disclaimer: string;
+        };
+        /**
+         * FactorIn
+         * @description A7.7 (M7.5): one factor of a multi-factor model.
+         */
+        FactorIn: {
+            /** Name */
+            name?: string | null;
+            /** Expression */
+            expression: string;
+            /** Weight */
+            weight: number;
+            /**
+             * Higher Is Better
+             * @default true
+             */
+            higher_is_better: boolean;
+        };
         /** FanPointOut */
         FanPointOut: {
             /**
@@ -5252,7 +7119,7 @@ export interface components {
             /** Stream */
             stream: boolean;
             /** Coverage */
-            coverage: ("iex" | "sip" | "kite" | "file")[];
+            coverage: ("iex" | "sip" | "kite" | "file" | "replayed")[];
             /** Symbols Limit */
             symbols_limit: number | null;
             /** History Days */
@@ -5292,6 +7159,8 @@ export interface components {
         FeedStatusOut: {
             /** Feeds */
             feeds: components["schemas"]["FeedStatusItemOut"][];
+            /** Streams */
+            streams: components["schemas"]["StreamStatusOut"][];
             /** Offline Window Hours */
             offline_window_hours: number;
             /**
@@ -5299,6 +7168,23 @@ export interface components {
              * Format: date-time
              */
             checked_at: string;
+        };
+        /** FigureOut */
+        FigureOut: {
+            /** Metric */
+            metric: string;
+            /** Value */
+            value: string;
+            /** Unit */
+            unit: string;
+            /** Period */
+            period: string;
+            /** Quote */
+            quote: string;
+            /** Chunk Id */
+            chunk_id: number;
+            /** Position */
+            position: number;
         };
         /** FillEventOut */
         FillEventOut: {
@@ -5334,6 +7220,173 @@ export interface components {
              * @default false
              */
             closes_entry: boolean;
+        };
+        /** FoDayOut */
+        FoDayOut: {
+            /**
+             * Day
+             * Format: date
+             */
+            day: string;
+            /** Atm Iv */
+            atm_iv?: number | null;
+            /** Skew */
+            skew?: number | null;
+            /** Pcr */
+            pcr?: number | null;
+            /** Spot */
+            spot: number;
+        };
+        /**
+         * FoIndiaOut
+         * @description A7.14 (M6.1, M6.3): India index options from the owner's local files.
+         */
+        FoIndiaOut: {
+            /** Underlyings */
+            underlyings: components["schemas"]["FoUnderlyingOut"][];
+            /** Skew Offset */
+            skew_offset: number;
+            /** Min Days */
+            min_days: number;
+            /** Method */
+            method: string;
+            /** Source Note */
+            source_note: string;
+        };
+        /** FoSmileOut */
+        FoSmileOut: {
+            /** Offset */
+            offset: number;
+            /** Call Iv */
+            call_iv?: number | null;
+            /** Put Iv */
+            put_iv?: number | null;
+        };
+        /** FoUnderlyingOut */
+        FoUnderlyingOut: {
+            /** Underlying */
+            underlying: string;
+            /** Series */
+            series: string;
+            /**
+             * First
+             * Format: date
+             */
+            first: string;
+            /**
+             * Last
+             * Format: date
+             */
+            last: string;
+            /** Sessions */
+            sessions: number;
+            /** Iv Now */
+            iv_now?: number | null;
+            /** Iv Rank */
+            iv_rank?: number | null;
+            /** Iv Percentile */
+            iv_percentile?: number | null;
+            /** Days */
+            days: components["schemas"]["FoDayOut"][];
+            /** Smile */
+            smile: components["schemas"]["FoSmileOut"][];
+        };
+        /**
+         * ForecastOut
+         * @description A9.2 (M8.2, M8.3): HAR-RV against a random walk; conformal cones with coverage.
+         */
+        ForecastOut: {
+            /** Ticker */
+            ticker: string;
+            /** Last Date */
+            last_date?: string | null;
+            /** Last Close */
+            last_close?: number | null;
+            volatility: components["schemas"]["VolForecastOut"];
+            /** Cones */
+            cones: components["schemas"]["ConeOut"][];
+            /** Cones Reason */
+            cones_reason?: string | null;
+            /** Method */
+            method: {
+                [key: string]: string;
+            };
+        };
+        /** ForensicScoreOut */
+        ForensicScoreOut: {
+            /** Value */
+            value?: number | null;
+            /** Zone */
+            zone?: string | null;
+            /**
+             * Missing
+             * @default []
+             */
+            missing: string[];
+            /**
+             * Parts
+             * @default {}
+             */
+            parts: {
+                [key: string]: number;
+            };
+        };
+        /** ForensicTestOut */
+        ForensicTestOut: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /**
+             * Result
+             * @enum {string}
+             */
+            result: "pass" | "fail" | "unknown";
+            /** Detail */
+            detail: string;
+        };
+        /**
+         * ForensicsOut
+         * @description A7.3 (M5.1, M5.2): the forensic scorecard on annual facts as known on ``as_of``.
+         */
+        ForensicsOut: {
+            /** Ticker */
+            ticker: string;
+            /**
+             * As Of
+             * Format: date
+             */
+            as_of: string;
+            /** Sector */
+            sector?: string | null;
+            /** Financial */
+            financial: boolean;
+            /** Financial Note */
+            financial_note?: string | null;
+            /** Fiscal Year End */
+            fiscal_year_end?: string | null;
+            /** Previous Year End */
+            previous_year_end?: string | null;
+            /** Currency */
+            currency?: string | null;
+            /** Piotroski Score */
+            piotroski_score?: number | null;
+            /** Piotroski Known */
+            piotroski_known?: number | null;
+            /**
+             * Piotroski
+             * @default []
+             */
+            piotroski: components["schemas"]["ForensicTestOut"][];
+            altman_z?: components["schemas"]["ForensicScoreOut"] | null;
+            beneish_m?: components["schemas"]["ForensicScoreOut"] | null;
+            cfo_to_pat?: components["schemas"]["ForensicScoreOut"] | null;
+            /** Reason */
+            reason?: string | null;
+            /** Method */
+            method: {
+                [key: string]: string;
+            };
         };
         /** FundamentalRowOut */
         FundamentalRowOut: {
@@ -5379,6 +7432,104 @@ export interface components {
             /** Latest Available At */
             latest_available_at?: string | null;
         };
+        /**
+         * GradebookCellOut
+         * @description Process counts only: no money, R, fills, symbols or dates.
+         */
+        GradebookCellOut: {
+            /** Assignment Id */
+            assignment_id: number;
+            /** Started */
+            started: boolean;
+            /** Drills */
+            drills: number;
+            /** Revealed */
+            revealed: number;
+            /** Traded */
+            traded: number;
+            /** Followed Plan */
+            followed_plan: number;
+            /** Checks Passed */
+            checks_passed: number;
+            /** Checks Applicable */
+            checks_applicable: number;
+            /** Followed Pct */
+            followed_pct?: number | null;
+            /**
+             * Grade
+             * @enum {string}
+             */
+            grade: "not_started" | "in_progress" | "meets_rubric" | "below_rubric";
+        };
+        /** GradebookOut */
+        GradebookOut: {
+            /** Cohort Id */
+            cohort_id: number;
+            /** Assignments */
+            assignments: components["schemas"]["CohortAssignmentOut"][];
+            /** Rows */
+            rows: components["schemas"]["GradebookRowOut"][];
+            /** Rubric */
+            rubric: string;
+            /** Privacy */
+            privacy: string;
+        };
+        /** GradebookRowOut */
+        GradebookRowOut: {
+            /** User Id */
+            user_id: number;
+            /** Name */
+            name: string;
+            /** Joined At */
+            joined_at: string;
+            /** Cells */
+            cells: components["schemas"]["GradebookCellOut"][];
+        };
+        /** GridCellOut */
+        GridCellOut: {
+            /** Ticker */
+            ticker: string;
+            /** Question */
+            question: string;
+            result: components["schemas"]["AnswerCheckOut"];
+        };
+        /** GridIn */
+        GridIn: {
+            /** Tickers */
+            tickers: string[];
+            /** Questions */
+            questions: string[];
+            /** As Of */
+            as_of?: string | null;
+            /**
+             * Provider
+             * @default server
+             * @enum {string}
+             */
+            provider: "server" | "openai_compatible" | "anthropic";
+        };
+        /** GridOut */
+        GridOut: {
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            /** Tickers */
+            tickers: string[];
+            /** Questions */
+            questions: string[];
+            /** Cells */
+            cells: components["schemas"]["GridCellOut"][];
+            /** Model Calls */
+            model_calls: number;
+            /** Provider */
+            provider: string | null;
+            /** Model */
+            model: string | null;
+            /** Disclaimer */
+            disclaimer: string;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -5413,6 +7564,20 @@ export interface components {
              */
             dead_outbox_events: number;
         };
+        /** HedgingOut */
+        HedgingOut: {
+            /** Words */
+            words: number;
+            /** Hedges */
+            hedges: number;
+            /** Per Thousand */
+            per_thousand: number | null;
+            /** Top */
+            top: [
+                string,
+                number
+            ][];
+        };
         /**
          * HistogramOut
          * @description Counts of net returns in equal bins from the 1st to the 99th
@@ -5446,6 +7611,39 @@ export interface components {
             cross_effect: string | null;
             /** Income */
             income: string;
+            /** Reason */
+            reason?: string | null;
+        };
+        /**
+         * HoldingProjectionOut
+         * @description A9.6 (M10.8): the next 12 months' dividends of one holding (a projection).
+         */
+        HoldingProjectionOut: {
+            /** Ticker */
+            ticker: string;
+            /** Currency */
+            currency: string;
+            /** Quantity */
+            quantity: string;
+            /** Ttm Per Share */
+            ttm_per_share: string;
+            /** Growth 3Y */
+            growth_3y?: number | null;
+            /** Growth Used */
+            growth_used: number;
+            /** Next 12M Per Share */
+            next_12m_per_share: string;
+            /** Next 12M Total */
+            next_12m_total: string;
+            /** Forward Yield */
+            forward_yield?: number | null;
+            /** Streak Years */
+            streak_years: number;
+            /**
+             * Payouts
+             * @default []
+             */
+            payouts: components["schemas"]["ProjectedPayoutOut"][];
             /** Reason */
             reason?: string | null;
         };
@@ -5516,6 +7714,49 @@ export interface components {
             strategy?: components["schemas"]["StrategyBacktestIn"] | null;
             rotation?: components["schemas"]["RotationBacktestIn"] | null;
         };
+        /** ImpliedDistributionOut */
+        ImpliedDistributionOut: {
+            /** Ticker */
+            ticker: string;
+            /** Expiry */
+            expiry: string | null;
+            /** Days */
+            days: number | null;
+            /** Spot */
+            spot: number | null;
+            /** Implied Atm Vol */
+            implied_atm_vol: number | null;
+            /** Model Vol */
+            model_vol: number | null;
+            /** Model Vol Source */
+            model_vol_source: string | null;
+            /** Quantile Levels */
+            quantile_levels: number[];
+            /** Implied Quantiles */
+            implied_quantiles: number[];
+            /** Model Quantiles */
+            model_quantiles: number[];
+            /** Move */
+            move: number;
+            /** Implied P Down */
+            implied_p_down: number | null;
+            /** Implied P Up */
+            implied_p_up: number | null;
+            /** Model P Down */
+            model_p_down: number | null;
+            /** Model P Up */
+            model_p_up: number | null;
+            /** Negative Mass */
+            negative_mass: number | null;
+            /** Strikes Used */
+            strikes_used: number;
+            /** Curve */
+            curve: components["schemas"]["DistributionPointOut"][];
+            /** Reason */
+            reason: string | null;
+            /** Method */
+            method: string;
+        };
         /** ImportBatchOut */
         ImportBatchOut: {
             /** Id */
@@ -5531,7 +7772,12 @@ export interface components {
              * Format Status
              * @enum {string}
              */
-            format_status: "unconfirmed" | "confirmed";
+            format_status: "unconfirmed" | "confirmed" | "custom";
+            /**
+             * Broker
+             * @default zerodha
+             */
+            broker: string;
             /** Rows Total */
             rows_total: number;
             /** Rows Added */
@@ -5622,6 +7868,11 @@ export interface components {
              */
             rejected: number;
             /**
+             * Not Executed
+             * @default 0
+             */
+            not_executed: number;
+            /**
              * Basis Uncertain
              * @default 0
              */
@@ -5637,6 +7888,42 @@ export interface components {
              */
             intraday_short: number;
         };
+        /** ImportMapColumnOut */
+        ImportMapColumnOut: {
+            /** Field */
+            field: string;
+            /** Label */
+            label: string;
+            /** Required */
+            required: boolean;
+        };
+        /**
+         * ImportMapOut
+         * @description A built-in tradebook column map (A6.11). Every broker map is unconfirmed.
+         */
+        ImportMapOut: {
+            /** Name */
+            name: string;
+            /** Broker */
+            broker: string;
+            /** Label */
+            label: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "unconfirmed" | "confirmed" | "custom";
+            /** Market */
+            market: ("in" | "us") | null;
+            /** Note */
+            note: string;
+            /** Source */
+            source: string;
+            /** How To */
+            how_to: string;
+            /** Columns */
+            columns: components["schemas"]["ImportMapColumnOut"][];
+        };
         /**
          * ImportPreviewOut
          * @description ``POST /v1/books/{id}/imports/preview``: nothing is stored.
@@ -5645,12 +7932,49 @@ export interface components {
             /** Format */
             format: string;
             /**
+             * Format Label
+             * @default
+             */
+            format_label: string;
+            /**
              * Format Status
              * @enum {string}
              */
-            format_status: "unconfirmed" | "confirmed";
+            format_status: "unconfirmed" | "confirmed" | "custom";
             /** Format Note */
             format_note: string;
+            /**
+             * Format Source
+             * @default
+             */
+            format_source: string;
+            /**
+             * Broker
+             * @default zerodha
+             */
+            broker: string;
+            /**
+             * Detected
+             * @default header
+             * @enum {string}
+             */
+            detected: "header" | "chosen" | "saved" | "fallback";
+            /**
+             * Alternatives
+             * @default []
+             */
+            alternatives: string[];
+            /**
+             * Market
+             * @default in
+             * @enum {string}
+             */
+            market: "in" | "us";
+            /**
+             * Headers
+             * @default []
+             */
+            headers: string[];
             /** File Sha256 */
             file_sha256: string;
             /** Can Commit */
@@ -5687,7 +8011,7 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "rejected" | "segment" | "unmatched" | "duplicate_in_file" | "already_imported" | "needs_opening_lot" | "basis_uncertain";
+            kind: "rejected" | "segment" | "unmatched" | "duplicate_in_file" | "already_imported" | "needs_opening_lot" | "basis_uncertain" | "not_executed";
             /** Reason */
             reason: string;
             /** Field */
@@ -5769,17 +8093,43 @@ export interface components {
             book_id: number;
             /** Broker */
             broker: string | null;
+            /**
+             * Market
+             * @default in
+             * @enum {string}
+             */
+            market: "in" | "us";
+            /**
+             * Currency
+             * @default INR
+             */
+            currency: string;
             /** Format */
             format: string;
             /**
              * Format Status
              * @enum {string}
              */
-            format_status: "unconfirmed" | "confirmed";
+            format_status: "unconfirmed" | "confirmed" | "custom";
             /** Format Note */
             format_note: string;
             /** Max Bytes */
             max_bytes: number;
+            /**
+             * Maps
+             * @default []
+             */
+            maps: components["schemas"]["ImportMapOut"][];
+            /**
+             * Saved Maps
+             * @default []
+             */
+            saved_maps: components["schemas"]["SavedImportMapOut"][];
+            /**
+             * Custom Fields
+             * @default []
+             */
+            custom_fields: components["schemas"]["ImportMapColumnOut"][];
             /** Batches */
             batches: components["schemas"]["ImportBatchOut"][];
             /** Opening Lots */
@@ -5792,6 +8142,39 @@ export interface components {
             fills: number;
             /** Posted */
             posted: number;
+        };
+        /**
+         * IndiaTaxOut
+         * @description A7.12 (M10.7): an estimate of one INR book's FY capital gains tax.
+         */
+        IndiaTaxOut: {
+            /** Book Id */
+            book_id: number;
+            /** Fy */
+            fy: string;
+            /**
+             * As Of
+             * Format: date
+             */
+            as_of: string;
+            /** Surcharge Rate */
+            surcharge_rate: string;
+            rules: components["schemas"]["TaxRulesOut"];
+            computation: components["schemas"]["TaxComputationOut"];
+            /** Realised */
+            realised: components["schemas"]["TaxRealisedOut"][];
+            /** Intraday */
+            intraday: components["schemas"]["TaxIntradayOut"][];
+            /** Open Lots */
+            open_lots: components["schemas"]["TaxOpenLotOut"][];
+            /** Unmatched */
+            unmatched: components["schemas"]["TaxUnmatchedOut"][];
+            /** Skipped Tickers */
+            skipped_tickers: string[];
+            /** Method */
+            method: string[];
+            /** Estimate Note */
+            estimate_note: string;
         };
         /** IndicatorCatalogItemOut */
         IndicatorCatalogItemOut: {
@@ -6403,7 +8786,7 @@ export interface components {
              * Basis
              * @enum {string}
              */
-            basis: "exact_close" | "approximate_daily";
+            basis: "exact_close" | "approximate_daily" | "exact_minutes";
             /** Note */
             note: string;
             mae?: components["schemas"]["JournalExcursionOut"] | null;
@@ -6646,6 +9029,53 @@ export interface components {
             end: string;
             stats: components["schemas"]["JournalStatsOut"];
         };
+        /**
+         * LenderOut
+         * @description A7.13 (M5.2): P/B against ROE for a bank or NBFC, with its peers.
+         */
+        LenderOut: {
+            /** Ticker */
+            ticker: string;
+            /** Market */
+            market?: string | null;
+            /** Pb */
+            pb?: number | null;
+            /** Roe */
+            roe?: number | null;
+            /** As Of */
+            as_of?: string | null;
+            /** Peers */
+            peers: components["schemas"]["LenderPeerOut"][];
+            /** Slope */
+            slope?: number | null;
+            /** Intercept */
+            intercept?: number | null;
+            /** Line Pb */
+            line_pb?: number | null;
+            /** Gap */
+            gap?: number | null;
+            /** Coe */
+            coe: number;
+            /** Growth */
+            growth: number;
+            /** Justified Pb */
+            justified_pb?: number | null;
+            /** Reasons */
+            reasons: string[];
+            /** Method */
+            method: string;
+            /** Kpi Note */
+            kpi_note: string;
+        };
+        /** LenderPeerOut */
+        LenderPeerOut: {
+            /** Ticker */
+            ticker: string;
+            /** Pb */
+            pb: number;
+            /** Roe */
+            roe: number;
+        };
         /** LimitCheckOut */
         LimitCheckOut: {
             /** Limit */
@@ -6713,6 +9143,15 @@ export interface components {
              */
             status: "ok";
         };
+        /** LookAtOut */
+        LookAtOut: {
+            /** Key */
+            key: string;
+            /** Text */
+            text: string;
+            /** Entry Ids */
+            entry_ids: number[];
+        };
         /** MACDPointOut */
         MACDPointOut: {
             /**
@@ -6726,6 +9165,108 @@ export interface components {
             signal: number;
             /** Histogram */
             histogram: number;
+        };
+        /** MacroObservationOut */
+        MacroObservationOut: {
+            /**
+             * Day
+             * Format: date
+             */
+            day: string;
+            /** Value */
+            value?: number | null;
+        };
+        /** MacroOverviewOut */
+        MacroOverviewOut: {
+            /** Groups */
+            groups: string[];
+            /** Series */
+            series: components["schemas"]["MacroSeriesOut"][];
+            /** Spreads */
+            spreads: components["schemas"]["MacroSpreadOut"][];
+            /** Last Fetched At */
+            last_fetched_at?: string | null;
+            /** Source */
+            source: string;
+            /** Third Party Note */
+            third_party_note: string;
+            /** Method */
+            method: string;
+        };
+        /** MacroPointOut */
+        MacroPointOut: {
+            /**
+             * Day
+             * Format: date
+             */
+            day: string;
+            /** Value */
+            value: number;
+        };
+        /** MacroSeriesDetailOut */
+        MacroSeriesDetailOut: {
+            series: components["schemas"]["MacroSeriesOut"];
+            /** Observations */
+            observations: components["schemas"]["MacroObservationOut"][];
+        };
+        /**
+         * MacroSeriesOut
+         * @description A9.7 (M1.10): one catalogue series as stored, with its changes.
+         */
+        MacroSeriesOut: {
+            /** Series Id */
+            series_id: string;
+            /** Group */
+            group: string;
+            /** Label */
+            label: string;
+            /** Title */
+            title?: string | null;
+            /** Units */
+            units?: string | null;
+            /** Frequency */
+            frequency?: string | null;
+            /** Third Party */
+            third_party: boolean;
+            /** Fetched */
+            fetched: boolean;
+            /** Fetched At */
+            fetched_at?: string | null;
+            latest?: components["schemas"]["MacroPointOut"] | null;
+            /** Change Month */
+            change_month?: number | null;
+            /** Change Year */
+            change_year?: number | null;
+            /** Stale */
+            stale: boolean;
+            /** Spark */
+            spark: components["schemas"]["MacroPointOut"][];
+            /** Source Url */
+            source_url: string;
+        };
+        /**
+         * MacroSpreadOut
+         * @description A9.7 (M3.5): ``a - b`` on a's dates, b as of each date (at most 7 days old).
+         */
+        MacroSpreadOut: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /** A */
+            a: string;
+            /** B */
+            b: string;
+            /** Units */
+            units: string;
+            /** Note */
+            note: string;
+            latest?: components["schemas"]["MacroPointOut"] | null;
+            year_ago?: components["schemas"]["MacroPointOut"] | null;
+            /** Points */
+            points: components["schemas"]["MacroPointOut"][];
+            /** Reason */
+            reason?: string | null;
         };
         /** MarketRegimeOut */
         MarketRegimeOut: {
@@ -6863,6 +9404,30 @@ export interface components {
             goal?: number | null;
             /** Prob Goal */
             prob_goal?: number | null;
+        };
+        /** MorningBriefOut */
+        MorningBriefOut: {
+            /**
+             * Generated At
+             * Format: date-time
+             */
+            generated_at: string;
+            /** Symbols */
+            symbols: string[];
+            /** Moves */
+            moves: components["schemas"]["BriefMoveOut"][];
+            /** Alerts */
+            alerts: components["schemas"]["BriefAlertOut"][];
+            /** Earnings */
+            earnings: components["schemas"]["BriefEarningsOut"][];
+            /** Documents */
+            documents: components["schemas"]["BriefDocumentOut"][];
+            /** Open Plans */
+            open_plans: number;
+            /** Pending Orders */
+            pending_orders: number;
+            /** Note */
+            note: string;
         };
         /**
          * NeedsOpeningLotOut
@@ -7259,6 +9824,169 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+        };
+        /**
+         * OptimiseIn
+         * @description A7.11 (M10.6): optimise weights over stored closes.
+         */
+        OptimiseIn: {
+            /** Tickers */
+            tickers: string[];
+            /**
+             * Method
+             * @default hrp
+             * @enum {string}
+             */
+            method: "hrp" | "min_volatility" | "max_sharpe" | "min_cvar" | "black_litterman";
+            /**
+             * Years
+             * @default 3
+             */
+            years: number;
+            /**
+             * Risk Free Rate
+             * @default 0.04
+             */
+            risk_free_rate: number;
+            /**
+             * Max Weight
+             * @default 1
+             */
+            max_weight: number;
+            /**
+             * Beta
+             * @default 0.95
+             */
+            beta: number;
+            /** Cash */
+            cash?: number | null;
+            /** Views */
+            views?: components["schemas"]["OptimiseViewIn"][];
+            /**
+             * Delta
+             * @default 2.5
+             */
+            delta: number;
+        };
+        /** OptimiseOut */
+        OptimiseOut: {
+            /** Method */
+            method: string;
+            /** Currency */
+            currency: string;
+            /**
+             * First
+             * Format: date
+             */
+            first: string;
+            /**
+             * Last
+             * Format: date
+             */
+            last: string;
+            /** Sessions */
+            sessions: number;
+            /** Risk Free Rate */
+            risk_free_rate: number;
+            /** Beta */
+            beta: number;
+            /** Weights */
+            weights: components["schemas"]["OptimiseWeightOut"][];
+            performance: components["schemas"]["OptimisePerformanceOut"];
+            equal_weight: components["schemas"]["OptimisePerformanceOut"];
+            /** Cash */
+            cash?: number | null;
+            /** Leftover */
+            leftover?: number | null;
+            /** Notes */
+            notes: string[];
+            /** Disclaimer */
+            disclaimer: string;
+        };
+        /** OptimisePerformanceOut */
+        OptimisePerformanceOut: {
+            /** Expected Return */
+            expected_return?: number | null;
+            /** Volatility */
+            volatility?: number | null;
+            /** Sharpe */
+            sharpe?: number | null;
+            /** Cvar */
+            cvar?: number | null;
+        };
+        /** OptimiseViewIn */
+        OptimiseViewIn: {
+            /** Ticker */
+            ticker: string;
+            /** Expected Return */
+            expected_return: number;
+            /** Confidence */
+            confidence: number;
+        };
+        /** OptimiseWeightOut */
+        OptimiseWeightOut: {
+            /** Ticker */
+            ticker: string;
+            /** Weight */
+            weight: number;
+            /** Shares */
+            shares?: number | null;
+            /** Price */
+            price?: number | null;
+            /** Prior */
+            prior?: number | null;
+            /** Posterior */
+            posterior?: number | null;
+        };
+        /**
+         * OptionExposureOut
+         * @description A7.9 (M6.2): GEX/DEX and key levels from the newest US chain snapshot.
+         */
+        OptionExposureOut: {
+            /** Ticker */
+            ticker: string;
+            /** Snapshot Date */
+            snapshot_date?: string | null;
+            /** Spot */
+            spot?: number | null;
+            /**
+             * Expiries
+             * @default []
+             */
+            expiries: string[];
+            /**
+             * Strikes
+             * @default []
+             */
+            strikes: components["schemas"]["ExposureStrikeOut"][];
+            /** Total Gex */
+            total_gex?: number | null;
+            /** Total Dex */
+            total_dex?: number | null;
+            /** Gamma Flip */
+            gamma_flip?: number | null;
+            /** Call Wall */
+            call_wall?: number | null;
+            /** Put Wall */
+            put_wall?: number | null;
+            /** Expected Move 1D */
+            expected_move_1d?: number | null;
+            /** Atm Iv */
+            atm_iv?: number | null;
+            /**
+             * Used
+             * @default 0
+             */
+            used: number;
+            /**
+             * Skipped
+             * @default 0
+             */
+            skipped: number;
+            /** Reason */
+            reason?: string | null;
+            /** Note */
+            note: string;
         };
         /**
          * OptionGreeksOut
@@ -7736,6 +10464,109 @@ export interface components {
             dsr: components["schemas"]["DsrOut"];
             holdout: components["schemas"]["HoldoutStatusOut"];
         };
+        /**
+         * PairOut
+         * @description A9.3 (M7.6): Engle-Granger cointegration of two stored symbols.
+         */
+        PairOut: {
+            /** A */
+            a: string;
+            /** B */
+            b: string;
+            /** Sessions */
+            sessions: number;
+            /** First */
+            first?: string | null;
+            /** Last */
+            last?: string | null;
+            /** Alpha */
+            alpha?: number | null;
+            /** Beta */
+            beta?: number | null;
+            /** Tau */
+            tau?: number | null;
+            /**
+             * Critical
+             * @default {}
+             */
+            critical: {
+                [key: string]: number;
+            };
+            /** Cointegrated At */
+            cointegrated_at?: string | null;
+            /** Half Life */
+            half_life?: number | null;
+            /** Zscore */
+            zscore?: number | null;
+            /**
+             * Rolling Beta
+             * @default []
+             */
+            rolling_beta: components["schemas"]["PairPointOut"][];
+            /**
+             * Spread
+             * @default []
+             */
+            spread: components["schemas"]["PairPointOut"][];
+            /** Reason */
+            reason?: string | null;
+            /** Method */
+            method: string;
+        };
+        /** PairPointOut */
+        PairPointOut: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Spread */
+            spread?: number | null;
+            /** Beta */
+            beta?: number | null;
+        };
+        /** PassageOut */
+        PassageOut: {
+            document: components["schemas"]["DocumentOut"];
+            /** Chunk Id */
+            chunk_id: number;
+            /** Position */
+            position: number;
+            /** Start Char */
+            start_char: number;
+            /** End Char */
+            end_char: number;
+            /** Text */
+            text: string;
+            /** Score */
+            score: number;
+            /** Keyword Rank */
+            keyword_rank: number | null;
+            /** Vector Rank */
+            vector_rank: number | null;
+            /** Similarity */
+            similarity: number | null;
+        };
+        /** PassageSearchOut */
+        PassageSearchOut: {
+            /** Query */
+            query: string;
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            /** Mode */
+            mode: string;
+            /** Embed Model */
+            embed_model: string | null;
+            /** Passages */
+            passages: components["schemas"]["PassageOut"][];
+            /** Notes */
+            notes: string[];
+            /** Method */
+            method: string;
+        };
         /** PayoffPointOut */
         PayoffPointOut: {
             /** Spot */
@@ -7744,6 +10575,8 @@ export interface components {
             at_expiry: number;
             /** Today */
             today: number;
+            /** What If */
+            what_if?: number | null;
         };
         /** PendingOrderIn */
         PendingOrderIn: {
@@ -7824,6 +10657,28 @@ export interface components {
             annualised_pct: number | null;
             /** Reason */
             reason?: string | null;
+        };
+        /** PivotOut */
+        PivotOut: {
+            /**
+             * Day
+             * Format: date
+             */
+            day: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "high" | "low";
+            /** Price */
+            price: number;
+            /** Label */
+            label?: ("HH" | "LH" | "HL" | "LL") | null;
+            /**
+             * Confirmed At
+             * Format: date
+             */
+            confirmed_at: string;
         };
         /**
          * PortfolioAnalyticsOut
@@ -8223,6 +11078,18 @@ export interface components {
             /** Projected Amount */
             projected_amount: string;
         };
+        /** ProjectedPayoutOut */
+        ProjectedPayoutOut: {
+            /**
+             * Ex Date
+             * Format: date
+             */
+            ex_date: string;
+            /** Per Share */
+            per_share: string;
+            /** Amount */
+            amount: string;
+        };
         /** QuoteOut */
         QuoteOut: {
             /** Ticker */
@@ -8416,6 +11283,19 @@ export interface components {
              * @default true
              */
             tradable: boolean;
+            /**
+             * Intervals
+             * @default [
+             *       "1d"
+             *     ]
+             */
+            intervals: string[];
+            /** Minute Feed */
+            minute_feed?: string | null;
+            /** Minute First */
+            minute_first?: string | null;
+            /** Minute Last */
+            minute_last?: string | null;
         };
         /** ReplayBarOut */
         ReplayBarOut: {
@@ -8469,7 +11349,7 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "trendline" | "ray" | "hline" | "rectangle" | "channel" | "fib_retracement" | "fib_extension" | "ruler" | "text" | "position_long" | "position_short" | "avwap";
+            kind: "trendline" | "ray" | "hline" | "rectangle" | "channel" | "fib_retracement" | "fib_extension" | "ruler" | "text" | "position_long" | "position_short" | "avwap" | "volume_profile";
             /** Points */
             points: components["schemas"]["DrawingPoint-Input"][];
             style?: components["schemas"]["DrawingStyle"];
@@ -8534,7 +11414,7 @@ export interface components {
         };
         /**
          * ReplayEpisodeForensicsOut
-         * @description One reconstructed long-only exposure episode.
+         * @description One reconstructed exposure episode, long or (27 Nov 2026) short.
          */
         ReplayEpisodeForensicsOut: {
             /** Index */
@@ -8603,6 +11483,12 @@ export interface components {
              * @default 0
              */
             fees: string;
+            /**
+             * Side
+             * @default long
+             * @enum {string}
+             */
+            side: "long" | "short";
         };
         /**
          * ReplayEventsOut
@@ -8807,6 +11693,12 @@ export interface components {
          *     close; a limit / stop-loss / take-profit order (A4.6) rests, priced by
          *     ``limit_price`` (the limit or the trigger), and is judged from the next
          *     bar on.
+         *
+         *     A6.9: ``bracket`` is a long entry (``entry_type`` market, or limit at
+         *     ``limit_price``) with a sell ``stop_price`` below it and a sell
+         *     ``target_price`` above it, one cancels the other. ``side`` must be buy.
+         *     Owner, 27 Nov 2026: ``direction: short`` (US-listed only) makes it a short
+         *     sale with a buy stop above and a buy target below; ``side`` is then sell.
          */
         ReplayOrderIn: {
             /**
@@ -8819,16 +11711,39 @@ export interface components {
              * @default market
              * @enum {string}
              */
-            order_type: "market" | "limit" | "stop_loss" | "take_profit";
+            order_type: "market" | "limit" | "stop_loss" | "take_profit" | "bracket";
             /** Quantity */
             quantity: number | string;
             /** Limit Price */
             limit_price?: number | string | null;
+            /**
+             * Entry Type
+             * @default market
+             * @enum {string}
+             */
+            entry_type: "market" | "limit";
+            /** Stop Price */
+            stop_price?: number | string | null;
+            /** Target Price */
+            target_price?: number | string | null;
+            /**
+             * Direction
+             * @default long
+             * @enum {string}
+             */
+            direction: "long" | "short";
         };
         /**
          * ReplayOrderOut
          * @description A4.6: a resting order. ``status`` open | filled | cancelled |
          *     rejected | expired; ``reason`` says why it left ``open``.
+         *
+         *     A6.9: a bracket's entry is ``bracket`` (``limit_price`` its limit, or
+         *     its market fill price) and its stop and target carry ``parent_id``;
+         *     all three share ``oco_group``. ``pending`` is a child waiting for its
+         *     entry. ``order_inside_bar_unknown``: the fill was a stop chosen first
+         *     because the stop and the target were both inside one bar with nothing
+         *     finer to say which came first.
          */
         ReplayOrderOut: {
             /** Id */
@@ -8846,7 +11761,7 @@ export interface components {
              * Order Type
              * @enum {string}
              */
-            order_type: "limit" | "stop_loss" | "take_profit";
+            order_type: "limit" | "stop_loss" | "take_profit" | "bracket";
             /** Quantity */
             quantity: string;
             /** Limit Price */
@@ -8855,7 +11770,7 @@ export interface components {
              * Status
              * @enum {string}
              */
-            status: "open" | "filled" | "cancelled" | "rejected" | "expired";
+            status: "pending" | "open" | "filled" | "cancelled" | "rejected" | "expired";
             /**
              * Placed At
              * Format: date-time
@@ -8865,6 +11780,15 @@ export interface components {
             resolved_at?: string | null;
             /** Reason */
             reason?: string | null;
+            /** Parent Id */
+            parent_id?: number | null;
+            /** Oco Group */
+            oco_group?: number | null;
+            /**
+             * Order Inside Bar Unknown
+             * @default false
+             */
+            order_inside_bar_unknown: boolean;
         };
         /** ReplayPositionOut */
         ReplayPositionOut: {
@@ -8898,6 +11822,14 @@ export interface components {
             end_at?: string | null;
             /** Starting Cash */
             starting_cash?: number | string | null;
+            /**
+             * Interval
+             * @default 1d
+             * @enum {string}
+             */
+            interval: "1d" | "1m" | "5m" | "15m" | "60m";
+            /** Profile */
+            profile?: ("legacy_close" | "intrabar_ohlc") | null;
         };
         /**
          * ReplaySessionListOut
@@ -8941,6 +11873,16 @@ export interface components {
              * @default USD
              */
             currency: string;
+            /**
+             * Interval
+             * @default 1d
+             */
+            interval: string;
+            /**
+             * Profile Name
+             * @default legacy_close
+             */
+            profile_name: string;
         };
         /** ReplaySessionOut */
         ReplaySessionOut: {
@@ -9020,6 +11962,18 @@ export interface components {
              * @default 0
              */
             open_orders: number;
+            /**
+             * Interval
+             * @default 1d
+             */
+            interval: string;
+            /** Feed */
+            feed?: string | null;
+            /**
+             * Profile Assumptions
+             * @default []
+             */
+            profile_assumptions: string[];
         };
         /**
          * ReplaySubmitOut
@@ -9031,6 +11985,11 @@ export interface components {
             decision?: components["schemas"]["ReplayDecisionOut"] | null;
             fill?: components["schemas"]["ReplayFillOut"] | null;
             order?: components["schemas"]["ReplayOrderOut"] | null;
+            /**
+             * Children
+             * @default []
+             */
+            children: components["schemas"]["ReplayOrderOut"][];
         };
         /**
          * ReplaySummaryOut
@@ -9116,6 +12075,59 @@ export interface components {
             note?: string | null;
         };
         /**
+         * ReverseDcfOut
+         * @description A7.4 (M5.3): the free-cash-flow growth today's enterprise value implies.
+         */
+        ReverseDcfOut: {
+            /** Ticker */
+            ticker: string;
+            /**
+             * As Of
+             * Format: date
+             */
+            as_of: string;
+            /** Currency */
+            currency?: string | null;
+            /** Implied Growth */
+            implied_growth?: number | null;
+            /** Reason */
+            reason?: string | null;
+            /** Base Fcf */
+            base_fcf?: number | null;
+            /** Base Fcf Source */
+            base_fcf_source: string;
+            /** Wacc */
+            wacc: number;
+            /** Terminal Growth */
+            terminal_growth: number;
+            /** Years */
+            years: number;
+            /** Enterprise Value */
+            enterprise_value?: number | null;
+            /** Sensitivity */
+            sensitivity: components["schemas"]["ReverseDcfRowOut"][];
+            /** Reconciliation */
+            reconciliation: components["schemas"]["ReverseDcfStepOut"][];
+            /** Method */
+            method: string;
+        };
+        /** ReverseDcfRowOut */
+        ReverseDcfRowOut: {
+            /** Wacc */
+            wacc: number;
+            /** Terminal Growth */
+            terminal_growth: number;
+            /** Implied Growth */
+            implied_growth?: number | null;
+        };
+        /** ReverseDcfStepOut */
+        ReverseDcfStepOut: {
+            /** Step */
+            step: string;
+            /** Value */
+            value?: number | null;
+        };
+        /**
          * RiskLimitsIn
          * @description Phase 8.5: each cap is a percentage of NAV, (0, 100], or null for none.
          */
@@ -9178,10 +12190,17 @@ export interface components {
          *     on the venue calendar. ``cash_filter`` is an optional condition judged on
          *     the market index (``^GSPC`` / ``^NSEI``) at each rebalance close: met
          *     means hold cash. Long only.
+         *
+         *     A7.7 (M7.5): ``factors`` instead of ``ranking`` makes it a multi-factor
+         *     model: each factor is z-scored across the universe on each session
+         *     (symbols with every factor known), signed by ``higher_is_better``, and
+         *     weighted; the weighted sum ranks. Exactly one of the two.
          */
         RotationBacktestIn: {
             /** Ranking */
-            ranking: string;
+            ranking?: string | null;
+            /** Factors */
+            factors?: components["schemas"]["FactorIn"][] | null;
             /**
              * Top N
              * @default 5
@@ -9354,6 +12373,48 @@ export interface components {
             report?: components["schemas"]["ReportCardOut"] | null;
             checks?: components["schemas"]["OverfittingChecksOut"] | null;
         };
+        /** RotationOut */
+        RotationOut: {
+            /**
+             * Market
+             * @enum {string}
+             */
+            market: "US" | "IN";
+            /** Benchmark */
+            benchmark: string;
+            /** Benchmark Name */
+            benchmark_name: string;
+            /** As Of */
+            as_of?: string | null;
+            /** Note */
+            note: string;
+            /** Method */
+            method: {
+                [key: string]: string;
+            };
+            /** Sectors */
+            sectors: components["schemas"]["RotationSectorOut"][];
+        };
+        /**
+         * RotationPointOut
+         * @description A7.2 (M3.2): one week of a sector's trail.
+         */
+        RotationPointOut: {
+            /**
+             * Week
+             * Format: date
+             */
+            week: string;
+            /** Rs Trend */
+            rs_trend: number;
+            /** Rs Momentum */
+            rs_momentum: number;
+            /**
+             * Quadrant
+             * @enum {string}
+             */
+            quadrant: "leading" | "weakening" | "lagging" | "improving";
+        };
         /** RotationRankOut */
         RotationRankOut: {
             /** Ticker */
@@ -9456,7 +12517,7 @@ export interface components {
              * Role
              * @enum {string}
              */
-            role: "ranking" | "cash_filter";
+            role: "ranking" | "cash_filter" | "factor";
             /** Text */
             text: string;
             /** Canonical */
@@ -9467,6 +12528,15 @@ export interface components {
             setup_version_id?: number | null;
             /** Warmup Bars */
             warmup_bars?: number | null;
+        };
+        /** RotationSectorOut */
+        RotationSectorOut: {
+            /** Sector */
+            sector: string;
+            /** Members */
+            members: number;
+            /** Points */
+            points: components["schemas"]["RotationPointOut"][];
         };
         /** RotationTradeOut */
         RotationTradeOut: {
@@ -9660,6 +12730,55 @@ export interface components {
             holdout_to?: string | null;
             /** Note */
             note: string;
+        };
+        /**
+         * SavedImportMapIn
+         * @description ``POST /v1/import-maps``: "Map columns yourself". Header names only.
+         */
+        SavedImportMapIn: {
+            /** Name */
+            name: string;
+            /** Mapping */
+            mapping: {
+                [key: string]: string;
+            };
+            /** Default Exchange */
+            default_exchange?: ("NSE" | "BSE") | null;
+            /**
+             * Date Order
+             * @default auto
+             * @enum {string}
+             */
+            date_order: "auto" | "day_first" | "month_first";
+        };
+        /** SavedImportMapOut */
+        SavedImportMapOut: {
+            /** Id */
+            id: number;
+            /** Name */
+            name: string;
+            /** Mapping */
+            mapping: {
+                [key: string]: string;
+            };
+            /** Default Exchange */
+            default_exchange?: ("NSE" | "BSE") | null;
+            /**
+             * Date Order
+             * @default auto
+             * @enum {string}
+             */
+            date_order: "auto" | "day_first" | "month_first";
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
         };
         /** SavedScreenIn */
         SavedScreenIn: {
@@ -10069,6 +13188,44 @@ export interface components {
              * @default false
              */
             cached: boolean;
+        };
+        /** SeasonCellOut */
+        SeasonCellOut: {
+            /** Key */
+            key: string;
+            /** N */
+            n: number;
+            /** Mean */
+            mean?: number | null;
+            /** Median */
+            median?: number | null;
+            /** Hit Rate */
+            hit_rate?: number | null;
+            /** T Stat */
+            t_stat?: number | null;
+            /**
+             * Thin
+             * @default false
+             */
+            thin: boolean;
+        };
+        /**
+         * SeasonalityOut
+         * @description A9.1 (M3.6): returns by calendar month and weekday, percent.
+         */
+        SeasonalityOut: {
+            /** Ticker */
+            ticker: string;
+            /** First */
+            first?: string | null;
+            /** Last */
+            last?: string | null;
+            /** Months */
+            months: components["schemas"]["SeasonCellOut"][];
+            /** Weekdays */
+            weekdays: components["schemas"]["SeasonCellOut"][];
+            /** Note */
+            note: string;
         };
         /** SectorAllocationOut */
         SectorAllocationOut: {
@@ -10789,6 +13946,44 @@ export interface components {
             /** Tickers */
             tickers: string[];
         };
+        /**
+         * StreamStatusOut
+         * @description A6.5: a stream the worker has run (``feed_streams``).
+         */
+        StreamStatusOut: {
+            /** Name */
+            name: string;
+            /** Label */
+            label: string;
+            /** Live */
+            live: boolean;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "streaming" | "closed" | "error";
+            /** Stale */
+            stale: boolean;
+            /** Symbols */
+            symbols: string[];
+            /**
+             * Started At
+             * Format: date-time
+             */
+            started_at: string;
+            /** Stopped At */
+            stopped_at: string | null;
+            /** Last Tick At */
+            last_tick_at: string | null;
+            /** Last Bar At */
+            last_bar_at: string | null;
+            /** Bars Written */
+            bars_written: number;
+            /** Alerts Fired */
+            alerts_fired: number;
+            /** Error */
+            error: string | null;
+        };
         /** StressDriverOut */
         StressDriverOut: {
             /** Ticker */
@@ -10822,6 +14017,28 @@ export interface components {
             proxied: string[];
             /** Missing */
             missing: string[];
+        };
+        /**
+         * StructureOut
+         * @description A9.5 (M2.12): swing pivots, HH/LH/HL/LL labels and pivot zones, by stated rules.
+         */
+        StructureOut: {
+            /** Ticker */
+            ticker: string;
+            /** N */
+            n: number;
+            /** Sessions */
+            sessions: number;
+            /** Atr */
+            atr?: number | null;
+            /** Pivots */
+            pivots: components["schemas"]["PivotOut"][];
+            /** Zones */
+            zones: components["schemas"]["ZoneOut"][];
+            /** Rules */
+            rules: {
+                [key: string]: string;
+            };
         };
         /** SurfaceExpiryOut */
         SurfaceExpiryOut: {
@@ -10905,6 +14122,11 @@ export interface components {
              */
             is_indian: boolean;
             intraday?: components["schemas"]["IntradayInfoOut"] | null;
+            /**
+             * Is Index
+             * @default false
+             */
+            is_index: boolean;
         };
         /** SymbolEventsOut */
         SymbolEventsOut: {
@@ -10946,6 +14168,188 @@ export interface components {
             currency: string;
             /** Is Active */
             is_active: boolean;
+        };
+        /** TaxComputationOut */
+        TaxComputationOut: {
+            /** Stcg */
+            stcg: string;
+            /** Stcl */
+            stcl: string;
+            /** Ltcg */
+            ltcg: string;
+            /** Ltcl */
+            ltcl: string;
+            /** Net Short */
+            net_short: string;
+            /** Net Long Before Exemption */
+            net_long_before_exemption: string;
+            /** Exemption Used */
+            exemption_used: string;
+            /** Exemption Left */
+            exemption_left: string;
+            /** Taxable Short */
+            taxable_short: string;
+            /** Taxable Long */
+            taxable_long: string;
+            /** Tax Short */
+            tax_short: string;
+            /** Tax Long */
+            tax_long: string;
+            /** Surcharge */
+            surcharge: string;
+            /** Cess */
+            cess: string;
+            /** Total Tax */
+            total_tax: string;
+            /** Loss Carried Short */
+            loss_carried_short: string;
+            /** Loss Carried Long */
+            loss_carried_long: string;
+            /** Intraday Pnl */
+            intraday_pnl: string;
+        };
+        /** TaxIntradayOut */
+        TaxIntradayOut: {
+            /** Ticker */
+            ticker: string;
+            /**
+             * Day
+             * Format: date
+             */
+            day: string;
+            /** Quantity */
+            quantity: string;
+            /** Pnl */
+            pnl: string;
+        };
+        /** TaxOpenLotOut */
+        TaxOpenLotOut: {
+            /** Ticker */
+            ticker: string;
+            /**
+             * Bought
+             * Format: date
+             */
+            bought: string;
+            /** Quantity */
+            quantity: string;
+            /** Cost */
+            cost: string;
+            /** Close */
+            close?: string | null;
+            /** Close Date */
+            close_date?: string | null;
+            /** Unrealised */
+            unrealised?: string | null;
+            /**
+             * Term
+             * @enum {string}
+             */
+            term: "short" | "long";
+            /**
+             * Long Term On
+             * Format: date
+             */
+            long_term_on: string;
+        };
+        /** TaxRealisedOut */
+        TaxRealisedOut: {
+            /** Ticker */
+            ticker: string;
+            /**
+             * Bought
+             * Format: date
+             */
+            bought: string;
+            /**
+             * Sold
+             * Format: date
+             */
+            sold: string;
+            /** Quantity */
+            quantity: string;
+            /** Cost */
+            cost: string;
+            /** Proceeds */
+            proceeds: string;
+            /** Gain */
+            gain: string;
+            /**
+             * Term
+             * @enum {string}
+             */
+            term: "short" | "long";
+            /** Grandfathered */
+            grandfathered: boolean;
+        };
+        /** TaxRulesOut */
+        TaxRulesOut: {
+            /** Fy */
+            fy: string;
+            /**
+             * Start
+             * Format: date
+             */
+            start: string;
+            /**
+             * End
+             * Format: date
+             */
+            end: string;
+            /** Act */
+            act: string;
+            /** Stcg Section */
+            stcg_section: string;
+            /** Ltcg Section */
+            ltcg_section: string;
+            /** Stcg Rate */
+            stcg_rate: string;
+            /** Ltcg Rate */
+            ltcg_rate: string;
+            /** Ltcg Exemption */
+            ltcg_exemption: string;
+            /** Cess Rate */
+            cess_rate: string;
+            /** Surcharge Cap */
+            surcharge_cap: string;
+            /** Long Term After Months */
+            long_term_after_months: number;
+            /** Sources */
+            sources: components["schemas"]["TaxSourceOut"][];
+        };
+        /** TaxSourceOut */
+        TaxSourceOut: {
+            /** Title */
+            title: string;
+            /** Url */
+            url: string;
+            /** Read On */
+            read_on: string;
+            /** Note */
+            note: string;
+        };
+        /** TaxUnmatchedOut */
+        TaxUnmatchedOut: {
+            /** Ticker */
+            ticker: string;
+            /**
+             * Day
+             * Format: date
+             */
+            day: string;
+            /** Quantity */
+            quantity: string;
+        };
+        /** TextChangeOut */
+        TextChangeOut: {
+            /** Kind */
+            kind: string;
+            /** Before */
+            before: string | null;
+            /** After */
+            after: string | null;
+            /** Similarity */
+            similarity: number | null;
         };
         /** ThesisCloseIn */
         ThesisCloseIn: {
@@ -10996,6 +14400,18 @@ export interface components {
              * Format: date-time
              */
             updated_at: string;
+            /** Kill Alert Id */
+            kill_alert_id?: number | null;
+            /**
+             * Kill State
+             * @default none
+             * @enum {string}
+             */
+            kill_state: "none" | "armed" | "paused" | "fired";
+            /** Kill Fired At */
+            kill_fired_at?: string | null;
+            /** Kill Fired On */
+            kill_fired_on?: string | null;
         };
         /**
          * ThesisPatch
@@ -11362,6 +14778,110 @@ export interface components {
             /** Limit */
             limit: number;
         };
+        /** TradeReplayBarOut */
+        TradeReplayBarOut: {
+            /**
+             * Ts
+             * Format: date-time
+             */
+            ts: string;
+            /** Open */
+            open: string;
+            /** High */
+            high: string;
+            /** Low */
+            low: string;
+            /** Close */
+            close: string;
+            /** Volume */
+            volume: number;
+        };
+        /** TradeReplayFillOut */
+        TradeReplayFillOut: {
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /**
+             * Side
+             * @enum {string}
+             */
+            side: "buy" | "sell";
+            /** Quantity */
+            quantity: string;
+            /** Price */
+            price: string;
+            /** Time Known */
+            time_known: boolean;
+        };
+        /**
+         * TradeReplayHesitationOut
+         * @description A6.10: from the plan's entry level being touched to the fill, and
+         *     whether a stop the price went through was honoured (closed on that bar).
+         */
+        TradeReplayHesitationOut: {
+            /** Entry Touched At */
+            entry_touched_at?: string | null;
+            /**
+             * Fill At
+             * Format: date-time
+             */
+            fill_at: string;
+            /** Wait Bars */
+            wait_bars?: number | null;
+            /** Stop Breached At */
+            stop_breached_at?: string | null;
+            /** Stop Honoured */
+            stop_honoured?: boolean | null;
+            /** Exit At */
+            exit_at?: string | null;
+            /** Exit Price */
+            exit_price?: string | null;
+            /** Note */
+            note: string;
+        };
+        /**
+         * TradeReplayOut
+         * @description A6.10 (M9.5): a read-only playback of a paper or imported entry. No orders.
+         */
+        TradeReplayOut: {
+            /** Entry Id */
+            entry_id: number;
+            /** Ticker */
+            ticker: string | null;
+            /** Currency */
+            currency: string;
+            /**
+             * Side
+             * @enum {string}
+             */
+            side: "long" | "short";
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "open" | "closed";
+            /**
+             * Interval
+             * @enum {string}
+             */
+            interval: "1m" | "1d";
+            /** Bars Note */
+            bars_note: string;
+            /** Bars */
+            bars: components["schemas"]["TradeReplayBarOut"][];
+            /** Fills */
+            fills: components["schemas"]["TradeReplayFillOut"][];
+            /** Planned Entry */
+            planned_entry?: string | null;
+            /** Planned Stop */
+            planned_stop?: string | null;
+            /** Planned Target */
+            planned_target?: string | null;
+            excursions: components["schemas"]["JournalExcursionsOut"];
+            hesitation?: components["schemas"]["TradeReplayHesitationOut"] | null;
+        };
         /**
          * TrailingStopIn
          * @description Ratchets with the highest high since entry (lowest low for a short):
@@ -11471,6 +14991,10 @@ export interface components {
             points: components["schemas"]["ValuationPointOut"][];
             /** Percentile */
             percentile?: number | null;
+            /** Bands */
+            bands?: {
+                [key: string]: number;
+            } | null;
         };
         /** ValuationMetricOut */
         ValuationMetricOut: {
@@ -11572,6 +15096,141 @@ export interface components {
             cvar: number;
             /** Cvar Pct */
             cvar_pct: number;
+        };
+        /** VolForecastOut */
+        VolForecastOut: {
+            /** Test Days */
+            test_days: number;
+            /** Har Mse */
+            har_mse?: number | null;
+            /** Rw Mse */
+            rw_mse?: number | null;
+            /** Har Qlike */
+            har_qlike?: number | null;
+            /** Rw Qlike */
+            rw_qlike?: number | null;
+            /** Skill Mse */
+            skill_mse?: number | null;
+            /** Skill Qlike */
+            skill_qlike?: number | null;
+            /** Next Day Vol */
+            next_day_vol?: number | null;
+            /** Coefficients */
+            coefficients?: number[] | null;
+            /** Reason */
+            reason?: string | null;
+        };
+        /**
+         * VolSummaryOut
+         * @description A9.4 (M6.3): term structure, skew, VRP and IV rank from stored US chains.
+         */
+        VolSummaryOut: {
+            /** Ticker */
+            ticker: string;
+            /** Snapshot Date */
+            snapshot_date?: string | null;
+            /** Spot */
+            spot?: number | null;
+            /**
+             * Term
+             * @default []
+             */
+            term: components["schemas"]["VolTermOut"][];
+            /** Atm 30D */
+            atm_30d?: number | null;
+            /** Realised 21D */
+            realised_21d?: number | null;
+            /** Vrp */
+            vrp?: number | null;
+            /** Iv Rank */
+            iv_rank?: number | null;
+            /** Iv Percentile */
+            iv_percentile?: number | null;
+            /**
+             * Snapshots
+             * @default 0
+             */
+            snapshots: number;
+            /** Reason */
+            reason?: string | null;
+            /** Method */
+            method: string;
+        };
+        /** VolTermOut */
+        VolTermOut: {
+            /**
+             * Expiry
+             * Format: date
+             */
+            expiry: string;
+            /** Days */
+            days: number;
+            /** Atm Iv */
+            atm_iv?: number | null;
+            /** Skew 25D */
+            skew_25d?: number | null;
+        };
+        /** VolumeProfileBinOut */
+        VolumeProfileBinOut: {
+            /** Low */
+            low: string;
+            /** High */
+            high: string;
+            /** Volume */
+            volume: number;
+        };
+        /**
+         * VolumeProfileOut
+         * @description A6.7 (M2.9): ``GET /v1/symbols/{ticker}/volume-profile``.
+         *
+         *     ``bins`` run from the lowest price up. ``poc`` is the middle of the bin with
+         *     the most volume; ``vah``/``val`` bound the value area (``value_area`` of the
+         *     volume, 0.7 by default). ``source`` is ``minutes`` (stored 1-minute bars on
+         *     ``feed``) or ``daily`` (an EOD approximation). ``from``/``to`` are the range
+         *     read, naive UTC.
+         */
+        VolumeProfileOut: {
+            /** Ticker */
+            ticker: string;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "minutes" | "daily";
+            /** Feed */
+            feed?: string | null;
+            /**
+             * From
+             * Format: date-time
+             */
+            from: string;
+            /**
+             * To
+             * Format: date-time
+             */
+            to: string;
+            /** Bars */
+            bars: number;
+            /** Bins */
+            bins: components["schemas"]["VolumeProfileBinOut"][];
+            /** Poc */
+            poc: string;
+            /** Poc Index */
+            poc_index: number;
+            /** Vah */
+            vah: string;
+            /** Val */
+            val: string;
+            /** Value Area */
+            value_area: number;
+            /** Total Volume */
+            total_volume: number;
+            /** Value Volume */
+            value_volume: number;
+            /** Badges */
+            badges: string[];
+            /** Note */
+            note: string;
         };
         /**
          * WalkForwardIn
@@ -11773,6 +15432,57 @@ export interface components {
                 [key: string]: number | string | null;
             };
         };
+        /** WeekFiguresOut */
+        WeekFiguresOut: {
+            /** Entries */
+            entries: number;
+            /** Wins */
+            wins: number;
+            /** Losses */
+            losses: number;
+            /** Net By Currency */
+            net_by_currency: {
+                [key: string]: number;
+            };
+            /** Mean R */
+            mean_r: number | null;
+            /** N R */
+            n_r: number;
+            /** Plans Scored */
+            plans_scored: number;
+            /** Plans Followed */
+            plans_followed: number;
+            /** No Plan */
+            no_plan: number;
+        };
+        /** WeeklyReviewOut */
+        WeeklyReviewOut: {
+            /**
+             * Week Start
+             * Format: date
+             */
+            week_start: string;
+            /**
+             * Week End
+             * Format: date
+             */
+            week_end: string;
+            week: components["schemas"]["WeekFiguresOut"];
+            /** Baseline Weeks */
+            baseline_weeks: number;
+            /** Baseline Entries Per Week */
+            baseline_entries_per_week: number | null;
+            /** Baseline Mean R */
+            baseline_mean_r: number | null;
+            /** Baseline Adherence */
+            baseline_adherence: number | null;
+            /** Look At */
+            look_at: components["schemas"]["LookAtOut"][];
+            /** Notes */
+            notes: string[];
+            /** Method */
+            method: string;
+        };
         /**
          * XirrOut
          * @description A money-weighted (XIRR) annual return; null with a reason when it means nothing.
@@ -11786,6 +15496,30 @@ export interface components {
             flows: number;
             /** Reason */
             reason?: string | null;
+        };
+        /** ZoneOut */
+        ZoneOut: {
+            /** Low */
+            low: number;
+            /** High */
+            high: number;
+            /** Touches */
+            touches: number;
+            /**
+             * Side
+             * @enum {string}
+             */
+            side: "support" | "resistance" | "at price";
+            /**
+             * First
+             * Format: date
+             */
+            first: string;
+            /**
+             * Last
+             * Format: date
+             */
+            last: string;
         };
     };
     responses: never;
@@ -11832,6 +15566,910 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HealthResponse"];
+                };
+            };
+        };
+    };
+    macro_overview_v1_macro_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MacroOverviewOut"];
+                };
+            };
+        };
+    };
+    macro_series_v1_macro__series_id__get: {
+        parameters: {
+            query?: {
+                from?: string | null;
+            };
+            header?: never;
+            path: {
+                series_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MacroSeriesDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    symbol_documents_v1_symbols__ticker__documents_get: {
+        parameters: {
+            query?: {
+                kind?: string | null;
+                as_of?: string | null;
+            };
+            header?: never;
+            path: {
+                ticker: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentListOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    search_documents_v1_documents_search_get: {
+        parameters: {
+            query: {
+                q: string;
+                ticker?: string | null;
+                kind?: string | null;
+                as_of?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentSearchOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    search_passages_v1_documents_passages_get: {
+        parameters: {
+            query: {
+                q: string;
+                ticker?: string | null;
+                kind?: string | null;
+                as_of?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PassageSearchOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    compare_document_v1_documents__document_id__compare_get: {
+        parameters: {
+            query?: {
+                against?: number | null;
+            };
+            header?: never;
+            path: {
+                document_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentCompareOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_document_v1_documents__document_id__get: {
+        parameters: {
+            query?: {
+                q?: string | null;
+            };
+            header?: never;
+            path: {
+                document_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_brief_v1_brief_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MorningBriefOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    optimise_v1_research_optimise_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OptimiseIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OptimiseOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    india_tax_v1_tax_india_get: {
+        parameters: {
+            query?: {
+                book?: number | null;
+                fy?: string | null;
+                surcharge?: number | string;
+            };
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IndiaTaxOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    fo_india_v1_fo_india_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FoIndiaOut"];
+                };
+            };
+        };
+    };
+    ai_status_v1_ai_status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AiStatusOut"];
+                };
+            };
+        };
+    };
+    ai_rule_v1_ai_rule_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AiRuleIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AiRuleOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    ai_ask_v1_ai_ask_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AskIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AskOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_ai_keys_v1_ai_keys_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AiKeysOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    save_ai_key_v1_ai_keys__provider__put: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                provider: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AiKeyIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AiKeyOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_ai_key_v1_ai_keys__provider__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                provider: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    ai_extract_figures_v1_ai_extract_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExtractIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExtractOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    ai_grid_v1_ai_grid_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GridIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GridOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    ai_debate_v1_ai_debate_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DebateIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DebateOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_cohorts_v1_cohorts_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CohortOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_cohort_v1_cohorts_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CohortIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CohortOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_cohort_v1_cohorts__cohort_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                cohort_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CohortOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    join_cohort_v1_cohorts_join_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CohortJoinIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CohortOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    leave_cohort_v1_cohorts__cohort_id__membership_delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                cohort_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    add_assignment_v1_cohorts__cohort_id__assignments_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                cohort_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CohortAssignmentIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CohortAssignmentOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    start_assignment_v1_assignments__assignment_id__start_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                assignment_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CohortStartOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    gradebook_v1_cohorts__cohort_id__gradebook_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                cohort_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GradebookOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -12082,6 +16720,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SavedScreenOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    stream_bars_v1_stream_bars_get: {
+        parameters: {
+            query: {
+                tickers: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */
@@ -12642,7 +17311,7 @@ export interface operations {
                 to?: string | null;
                 limit?: number;
                 adjustment?: "adjusted" | "raw";
-                feed?: ("iex" | "sip" | "kite" | "file") | null;
+                feed?: ("iex" | "sip" | "kite" | "file" | "replayed") | null;
             };
             header?: never;
             path: {
@@ -12907,7 +17576,7 @@ export interface operations {
                 from?: string | null;
                 to?: string | null;
                 limit?: number;
-                feed?: ("iex" | "sip" | "kite" | "file") | null;
+                feed?: ("iex" | "sip" | "kite" | "file" | "replayed") | null;
             };
             header?: never;
             path: {
@@ -13026,6 +17695,76 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ValuationHistoryOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_forensics_v1_symbols__ticker__forensics_get: {
+        parameters: {
+            query?: {
+                as_of?: string | null;
+            };
+            header?: never;
+            path: {
+                ticker: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForensicsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_reverse_dcf_v1_symbols__ticker__reverse_dcf_get: {
+        parameters: {
+            query?: {
+                wacc?: number;
+                terminal_growth?: number;
+                years?: number;
+                fcf_margin?: number | null;
+                as_of?: string | null;
+            };
+            header?: never;
+            path: {
+                ticker: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReverseDcfOut"];
                 };
             };
             /** @description Validation Error */
@@ -13271,7 +18010,7 @@ export interface operations {
                 bands?: number;
                 /** @description Intraday anchor instant */
                 anchor_at?: string | null;
-                feed?: ("iex" | "sip" | "kite" | "file") | null;
+                feed?: ("iex" | "sip" | "kite" | "file" | "replayed") | null;
             };
             header?: never;
             path: {
@@ -13288,6 +18027,43 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AvwapOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_volume_profile_v1_symbols__ticker__volume_profile_get: {
+        parameters: {
+            query?: {
+                from?: string | null;
+                to?: string | null;
+                feed?: ("iex" | "sip" | "kite" | "file" | "replayed") | null;
+                bins?: number;
+                value_area?: number;
+            };
+            header?: never;
+            path: {
+                ticker: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VolumeProfileOut"];
                 };
             };
             /** @description Validation Error */
@@ -13423,6 +18199,266 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RegimeOut"];
+                };
+            };
+        };
+    };
+    get_breadth_v1_breadth_get: {
+        parameters: {
+            query?: {
+                market?: "US" | "IN";
+                from?: string | null;
+                to?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BreadthOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_sector_rotation_v1_sector_rotation_get: {
+        parameters: {
+            query?: {
+                market?: "US" | "IN";
+                weeks?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RotationOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_seasonality_v1_symbols__ticker__seasonality_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ticker: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SeasonalityOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_earnings_drift_v1_symbols__ticker__earnings_drift_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ticker: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EarningsDriftOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_forecast_v1_symbols__ticker__forecast_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ticker: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForecastOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_pair_v1_symbols__ticker__pair__other__get: {
+        parameters: {
+            query?: {
+                years?: number;
+            };
+            header?: never;
+            path: {
+                ticker: string;
+                other: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PairOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_structure_v1_symbols__ticker__structure_get: {
+        parameters: {
+            query?: {
+                n?: number;
+                sessions?: number;
+            };
+            header?: never;
+            path: {
+                ticker: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StructureOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_lender_v1_symbols__ticker__lender_get: {
+        parameters: {
+            query?: {
+                coe?: number | null;
+                growth?: number | null;
+            };
+            header?: never;
+            path: {
+                ticker: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LenderOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -14057,7 +19093,12 @@ export interface operations {
     };
     preview_import_v1_books__book_id__imports_preview_post: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description auto or a map */
+                map?: string;
+                /** @description A saved column map's id */
+                custom_map?: number | null;
+            };
             header?: {
                 authorization?: string | null;
             };
@@ -14096,6 +19137,10 @@ export interface operations {
         parameters: {
             query: {
                 file_sha256: string;
+                /** @description auto or a map */
+                map?: string;
+                /** @description A saved column map's id */
+                custom_map?: number | null;
             };
             header?: {
                 authorization?: string | null;
@@ -14242,6 +19287,103 @@ export interface operations {
             path: {
                 book_id: number;
                 lot_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_import_maps_v1_import_maps_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SavedImportMapOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    save_import_map_v1_import_maps_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SavedImportMapIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SavedImportMapOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_import_map_v1_import_maps__map_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                map_id: number;
             };
             cookie?: never;
         };
@@ -15074,6 +20216,307 @@ export interface operations {
             };
         };
     };
+    list_chart_templates_v1_chart_templates_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChartTemplateOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_chart_template_v1_chart_templates_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChartTemplateIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChartTemplateOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_chart_template_v1_chart_templates__template_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                template_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_chart_template_v1_chart_templates__template_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                template_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChartTemplatePatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChartTemplateOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_chart_layouts_v1_chart_layouts_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChartLayoutOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_chart_layout_v1_chart_layouts_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChartLayoutIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChartLayoutOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_chart_layout_v1_chart_layouts__layout_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                layout_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChartLayoutOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_chart_layout_v1_chart_layouts__layout_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                layout_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_chart_layout_v1_chart_layouts__layout_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                layout_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChartLayoutPatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChartLayoutOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_orders_v1_orders_get: {
         parameters: {
             query?: {
@@ -15527,7 +20970,10 @@ export interface operations {
     };
     post_strategy_payoff_v1_options_strategies_payoff_post: {
         parameters: {
-            query?: never;
+            query?: {
+                days_forward?: number | null;
+                iv_shift?: number;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -15545,6 +20991,68 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["OptionStrategyPayoffOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_option_exposure_v1_options__ticker__exposure_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ticker: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OptionExposureOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_vol_summary_v1_options__ticker__vol_summary_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ticker: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VolSummaryOut"];
                 };
             };
             /** @description Validation Error */
@@ -15610,6 +21118,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["OptionSurfaceOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_implied_distribution_v1_options__ticker__implied_distribution_get: {
+        parameters: {
+            query?: {
+                expiry?: string | null;
+            };
+            header?: never;
+            path: {
+                ticker: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImpliedDistributionOut"];
                 };
             };
             /** @description Validation Error */
@@ -16228,6 +21769,13 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
+            };
+            /** @description Too many advances for this user right now */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
@@ -17621,6 +23169,39 @@ export interface operations {
             };
         };
     };
+    get_trade_replay_v1_journal_entries__entry_id__replay_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                entry_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TradeReplayOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     journal_stats_v1_journal_stats_get: {
         parameters: {
             query?: {
@@ -17647,6 +23228,79 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EdgeStatsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    journal_behaviour_v1_journal_behaviour_get: {
+        parameters: {
+            query?: {
+                /** @description Book id, or `all` for every book summed in the display currency (A5.2). Omit for the default book; another user's book is 404. */
+                book?: string | null;
+                source?: ("paper" | "imported" | "replay" | "all") | null;
+                from?: string | null;
+                to?: string | null;
+            };
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BehaviourOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    journal_weekly_v1_journal_weekly_get: {
+        parameters: {
+            query?: {
+                /** @description Book id, or `all` for every book summed in the display currency (A5.2). Omit for the default book; another user's book is 404. */
+                book?: string | null;
+                source?: ("paper" | "imported" | "replay" | "all") | null;
+                week_end?: string | null;
+            };
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WeeklyReviewOut"];
                 };
             };
             /** @description Validation Error */
@@ -18084,6 +23738,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["FeedStatusOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    basket_handoff_v1_broker_basket_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BasketHandoffOut"];
                 };
             };
             /** @description Validation Error */

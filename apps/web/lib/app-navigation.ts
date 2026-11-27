@@ -58,6 +58,13 @@ export const WORKSPACES: readonly Workspace[] = [
     items: [
       { label: "Home", href: "/dashboard", matches: ["/dashboard"], keywords: ["dashboard"] },
       {
+        label: "Morning Brief",
+        href: "/brief",
+        matches: ["/brief"],
+        signedInOnly: true,
+        keywords: ["digest", "overnight", "movers"],
+      },
+      {
         label: "Notifications",
         href: "/notifications",
         matches: ["/notifications"],
@@ -89,6 +96,20 @@ export const WORKSPACES: readonly Workspace[] = [
         keywords: ["calendar", "results"],
       },
       { label: "News", href: "/news", matches: ["/news"], keywords: ["headlines", "aegis"] },
+      {
+        // A7.14 (M6.1, M6.3): NIFTY and BANKNIFTY option summaries from local files.
+        label: "India options",
+        href: "/india-options",
+        matches: ["/india-options"],
+        keywords: ["nifty", "banknifty", "iv rank", "pcr", "skew", "f&o", "options india"],
+      },
+      {
+        // A9.7 (M1.10, M3.5): FRED rates, inflation, credit, commodities and spreads.
+        label: "Macro",
+        href: "/macro",
+        matches: ["/macro"],
+        keywords: ["fred", "rates", "yield curve", "inflation", "spreads", "oil", "dollar"],
+      },
     ],
   },
   {
@@ -96,6 +117,13 @@ export const WORKSPACES: readonly Workspace[] = [
     label: "Workbench",
     description: "One stock at a time: the chart, checks and comparisons",
     items: [
+      {
+        label: "Charts",
+        href: "/charts",
+        matches: ["/charts"],
+        signedInOnly: true,
+        keywords: ["layouts", "grid", "multi-chart", "templates", "linked"],
+      },
       { label: "Setups", href: "/setups", matches: ["/setups"], keywords: ["patterns"] },
       {
         label: "Checklist",
@@ -109,6 +137,20 @@ export const WORKSPACES: readonly Workspace[] = [
         href: "/event-study",
         matches: ["/event-study"],
         keywords: ["events", "earnings reaction"],
+      },
+      {
+        // A7.13: Swing, Compounder, Derivatives and Quant desk presets.
+        label: "Desks",
+        href: "/desks",
+        matches: ["/desks"],
+        keywords: ["swing", "compounder", "derivatives", "presets", "trading style"],
+      },
+      {
+        // A7.10 (M5.5): stored filings and concall transcripts, searched as of a date.
+        label: "Filings",
+        href: "/filings",
+        matches: ["/filings"],
+        keywords: ["concall", "transcript", "10-K", "annual report", "documents", "edgar"],
       },
     ],
     // The stock page (chart, drawings, financials) has no item: the palette
@@ -132,8 +174,45 @@ export const WORKSPACES: readonly Workspace[] = [
         matches: ["/backtest/runs"],
         keywords: ["backtest runs", "results", "experiments"],
       },
+      {
+        // A7.6 (M7.7): named experiments with hypotheses and their runs.
+        label: "Experiments",
+        href: "/backtest/experiments",
+        matches: ["/backtest/experiments"],
+        signedInOnly: true,
+        keywords: ["hypothesis", "reproducibility", "rerun"],
+      },
       { label: "Replay", href: "/replay", matches: ["/replay"], keywords: ["blind", "session"] },
       { label: "Drills", href: "/drills", matches: ["/drills"], keywords: ["deck", "practice"] },
+      {
+        // A10.2 (M12.1, M12.2): cohorts, drill assignments and a process-only gradebook.
+        label: "Classroom",
+        href: "/classroom",
+        matches: ["/classroom"],
+        signedInOnly: true,
+        keywords: ["cohort", "class", "students", "instructor", "assignments", "gradebook"],
+      },
+      {
+        // A9.3 (M7.6): cointegration of two stored symbols.
+        label: "Pairs lab",
+        href: "/pairs",
+        matches: ["/pairs"],
+        keywords: ["cointegration", "spread", "hedge ratio", "mean reversion"],
+      },
+      {
+        // A7.11 (M10.6): HRP, min volatility, max Sharpe, min CVaR, Black-Litterman.
+        label: "Optimiser",
+        href: "/optimise",
+        matches: ["/optimise"],
+        keywords: [
+          "portfolio optimisation",
+          "hrp",
+          "black-litterman",
+          "cvar",
+          "weights",
+          "allocation",
+        ],
+      },
       {
         label: "News reactions",
         href: "/news-reactions",
@@ -175,8 +254,24 @@ export const WORKSPACES: readonly Workspace[] = [
         signedInOnly: true,
         keywords: ["zerodha", "csv", "import", "broker", "console"],
       },
+      {
+        // A7.12 (M10.7): the India capital gains estimate for an INR book.
+        label: "Capital gains",
+        href: "/portfolio/tax",
+        matches: ["/portfolio/tax"],
+        signedInOnly: true,
+        keywords: ["tax", "stcg", "ltcg", "harvesting", "112a", "india", "fifo"],
+      },
       { label: "Watchlist", href: "/watchlist", matches: ["/watchlist"], keywords: ["lists"] },
       { label: "Alerts", href: "/alerts", matches: ["/alerts"], keywords: ["price alert"] },
+      {
+        // A7.5: theses with kill switches.
+        label: "Theses",
+        href: "/theses",
+        matches: ["/theses"],
+        signedInOnly: true,
+        keywords: ["thesis", "memo", "kill rule", "invalidation"],
+      },
       {
         // Books are managed in Settings; the item is a shortcut, never "current".
         label: "Books",
@@ -190,14 +285,13 @@ export const WORKSPACES: readonly Workspace[] = [
   {
     id: "copilot",
     label: "AI Copilot",
-    description: "A placeholder: the copilot is planned for A8",
+    description: "Ask the stored filings and transcripts; answers cite their passages",
     items: [
       {
         label: "Copilot",
         href: "/copilot",
         matches: ["/copilot"],
-        note: "A8",
-        keywords: ["ai", "assistant"],
+        keywords: ["ai", "assistant", "ask", "filings", "transcripts"],
       },
     ],
   },

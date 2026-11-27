@@ -34,9 +34,10 @@ def tickers_for(session: Session, instrument_ids: list[int]) -> dict[int, str]:
     return dict(rows)
 
 
-def thesis_out(row: Thesis, ticker: str | None) -> ThesisOut:
+def thesis_out(row: Thesis, ticker: str | None, kill: dict | None = None) -> ThesisOut:
     assert row.id is not None
     return ThesisOut(
+        **(kill or {}),
         id=row.id,
         ticker=ticker,
         title=row.title,
@@ -55,7 +56,9 @@ def list_theses(session: Session, user_id: int, status: str | None = None) -> li
         stmt = stmt.where(col(Thesis.status) == status)
     rows = list(session.exec(stmt.order_by(col(Thesis.updated_at).desc(), col(Thesis.id))).all())
     names = tickers_for(session, [r.instrument_id for r in rows])
-    return [thesis_out(r, names.get(r.instrument_id)) for r in rows]
+    from stockviz.services.thesis_kill import kill_state  # imports this module
+
+    return [thesis_out(r, names.get(r.instrument_id), kill_state(session, r)) for r in rows]
 
 
 def touch(row: Thesis) -> None:

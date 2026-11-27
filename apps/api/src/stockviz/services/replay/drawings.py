@@ -7,7 +7,8 @@ rules and other sessions cannot read them, and the session never reads live
 ones. The rules per kind are A3.2's (``services/drawings.validate_points``),
 with anchors between the session's first bar and its clock (nothing anchored
 after ``current_at``). An anchored VWAP is not offered: its line is computed
-from every stored bar, so replay refuses the kind (422).
+from every stored bar, so replay refuses the kind (422). A6.7's fixed-range
+volume profile is refused too: it reads whole sessions, past the clock.
 """
 
 from __future__ import annotations
@@ -26,7 +27,7 @@ from stockviz.services.drawings import points_json, position_metrics, validate_p
 from stockviz.services.markets.calendar import venue_for_ticker
 
 MAX_REPLAY_DRAWINGS = MAX_DRAWINGS_PER_INSTRUMENT
-REPLAY_REFUSED_KINDS = frozenset({"avwap"})
+REPLAY_REFUSED_KINDS = frozenset({"avwap", "volume_profile"})
 
 
 def anchor_range(replay: ReplaySession) -> tuple[date, date]:
@@ -36,10 +37,15 @@ def anchor_range(replay: ReplaySession) -> tuple[date, date]:
 
 
 def check_kind(kind: str) -> None:
-    if kind in REPLAY_REFUSED_KINDS:
+    if kind == "avwap":
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_CONTENT,
             "An anchored VWAP is not available in replay (its line reads every stored bar)",
+        )
+    if kind in REPLAY_REFUSED_KINDS:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "A volume profile is not available in replay (it reads its sessions' later bars)",
         )
 
 

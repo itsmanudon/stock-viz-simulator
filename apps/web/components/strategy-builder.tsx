@@ -97,6 +97,9 @@ export function StrategyBuilder({
   const [optionType, setOptionType] = useState<"call" | "put">("call");
   const [quantity, setQuantity] = useState("1");
   const [payoff, setPayoff] = useState<PayoffState>({ status: "idle" });
+  // A7.9: the what-if (days on, IV shift in points); blank days = off.
+  const [whatIfDays, setWhatIfDays] = useState("");
+  const [whatIfIv, setWhatIfIv] = useState("0");
   const [reviewing, setReviewing] = useState(false);
   const [orderKey, setOrderKey] = useState<string | null>(null);
 
@@ -149,6 +152,12 @@ export function StrategyBuilder({
           ...(kind === "calendar" ? { far_expiry: farExpiry, option_type: optionType } : {}),
         },
         controller.signal,
+        whatIfDays.trim() || Number(whatIfIv)
+          ? {
+              daysForward: whatIfDays.trim() ? Math.max(0, Number(whatIfDays) || 0) : 0,
+              ivShift: (Number(whatIfIv) || 0) / 100,
+            }
+          : undefined,
       )
         .then((result) => setPayoff({ status: "ready", payoff: result }))
         .catch((error: unknown) => {
@@ -160,7 +169,18 @@ export function StrategyBuilder({
       clearTimeout(timer);
       controller.abort();
     };
-  }, [kind, ticker, strikes, expiry, farExpiry, optionType, quantity, template.strikes.length]);
+  }, [
+    kind,
+    ticker,
+    strikes,
+    expiry,
+    farExpiry,
+    optionType,
+    quantity,
+    template.strikes.length,
+    whatIfDays,
+    whatIfIv,
+  ]);
 
   const ready = payoff.status === "ready" ? payoff.payoff : null;
 
@@ -291,6 +311,27 @@ export function StrategyBuilder({
           </div>
         </div>
 
+        <div className="grid grid-cols-2 gap-2" data-testid="what-if">
+          <label className="space-y-1 text-xs">
+            <span className="text-text-tertiary">What-if: days from today</span>
+            <input
+              className="h-9 w-full rounded-md border border-border-muted bg-background px-2 text-sm"
+              inputMode="numeric"
+              placeholder="off"
+              value={whatIfDays}
+              onChange={(e) => setWhatIfDays(e.target.value)}
+            />
+          </label>
+          <label className="space-y-1 text-xs">
+            <span className="text-text-tertiary">IV shift (points)</span>
+            <input
+              className="h-9 w-full rounded-md border border-border-muted bg-background px-2 text-sm"
+              inputMode="decimal"
+              value={whatIfIv}
+              onChange={(e) => setWhatIfIv(e.target.value)}
+            />
+          </label>
+        </div>
         {payoff.status === "error" ? (
           <output className="block text-sm text-warning">{payoff.message}</output>
         ) : null}

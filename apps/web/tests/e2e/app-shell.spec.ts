@@ -63,8 +63,9 @@ test("the six workspaces light up for their routes (A3.6)", async ({ page }) => 
     );
     await expect(product.locator('[role="group"][data-active="true"]')).toHaveCount(1);
   }
-  // The placeholder promises nothing that does not exist.
-  await expect(page.getByRole("heading", { name: "Arrives in A8" })).toBeVisible();
+  // A8.5: signed out, the copilot asks for a sign-in and offers nothing else.
+  await expect(page.getByTestId("copilot-signed-out")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Sign In to Ask" })).toBeVisible();
 });
 
 test("the command palette opens with the keyboard and jumps to a symbol (A3.6)", async ({

@@ -24,7 +24,8 @@ export function PayoffChart({
 }) {
   if (points.length < 2) return null;
   const xs = points.map((p) => p.spot);
-  const ys = points.flatMap((p) => [p.at_expiry, p.today]);
+  const whatIf = points.some((p) => p.what_if !== null && p.what_if !== undefined);
+  const ys = points.flatMap((p) => [p.at_expiry, p.today, ...(whatIf ? [p.what_if ?? 0] : [])]);
   const x0 = Math.min(...xs);
   const x1 = Math.max(...xs);
   const y0 = Math.min(0, ...ys);
@@ -32,9 +33,9 @@ export function PayoffChart({
   const ySpan = y1 - y0 || 1;
   const x = (v: number) => PAD + ((v - x0) / (x1 - x0 || 1)) * (W - 2 * PAD);
   const y = (v: number) => PAD + (1 - (v - y0) / ySpan) * (H - 2 * PAD);
-  const path = (key: "at_expiry" | "today") =>
+  const path = (key: "at_expiry" | "today" | "what_if") =>
     points
-      .map((p, i) => `${i === 0 ? "M" : "L"}${x(p.spot).toFixed(1)},${y(p[key]).toFixed(1)}`)
+      .map((p, i) => `${i === 0 ? "M" : "L"}${x(p.spot).toFixed(1)},${y(p[key] ?? 0).toFixed(1)}`)
       .join(" ");
   const zero = y(0);
   return (
@@ -68,10 +69,21 @@ export function PayoffChart({
           strokeDasharray="5 4"
         />
         <path d={path("at_expiry")} fill="none" className="stroke-brand" strokeWidth={2} />
+        {whatIf ? (
+          <path
+            d={path("what_if")}
+            fill="none"
+            className="stroke-warning"
+            strokeWidth={1.5}
+            strokeDasharray="1 3"
+            data-testid="payoff-what-if"
+          />
+        ) : null}
       </svg>
       <figcaption className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-2xs text-text-tertiary">
         <span>Solid: at {horizon}</span>
         <span>Dashed: today</span>
+        {whatIf ? <span>Dotted: what-if</span> : null}
         <span>Dotted line: today&apos;s close</span>
         <span>Dots: breakevens</span>
       </figcaption>

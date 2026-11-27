@@ -3,20 +3,27 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { auth } from "@/auth";
+import { SaveTemplateButton } from "@/components/chart-layouts/save-template-button";
+import { ChartWithTools } from "@/components/chart-tools";
 import { ChecklistPanel } from "@/components/checklist/checklist-panel";
 import {
   ContextualTradeTicket,
   type TicketPosition,
   type TradeTicketAccount,
 } from "@/components/contextual-trade-ticket";
-import { ChartWorkbench } from "@/components/drawings/chart-workbench";
 import { NewsReactions } from "@/components/event-study-view";
+import { ForensicsCard } from "@/components/forensics-card";
 import { FundamentalsPanel } from "@/components/fundamentals-panel";
+import { ImpliedDistributionCard } from "@/components/implied-distribution-card";
+import { LenderCard } from "@/components/lender-card";
 import { MobileTradeSheet } from "@/components/mobile-trade-sheet";
 import { NewsList } from "@/components/news-list";
+import { OptionExposureCard } from "@/components/option-exposure-card";
 import { PositionSummary } from "@/components/position-summary";
 import { PriceChart } from "@/components/price-chart";
 import { RelativeStrengthStrip } from "@/components/relative-strength-strip";
+import { ReverseDcfCard } from "@/components/reverse-dcf-card";
+import { SeasonalityView } from "@/components/seasonality-view";
 import { SecurityHeader } from "@/components/security-header";
 import { StockChartToolbar } from "@/components/stock-chart-toolbar";
 import { StockMetricsStrip } from "@/components/stock-metrics-strip";
@@ -25,6 +32,7 @@ import { TickerOrders } from "@/components/ticker-orders";
 import type { TicketBook } from "@/components/ticket-book-line";
 import type { TicketPlanOptions } from "@/components/ticket-plan";
 import { VisitorLimitNotice } from "@/components/visitor-limit-notice";
+import { VolSummaryCard } from "@/components/vol-summary-card";
 import {
   ApiError,
   type SymbolChecklist,
@@ -46,9 +54,27 @@ import {
 import { getSymbolChecklist } from "@/lib/api/checklist";
 import { listDrawings } from "@/lib/api/drawings";
 import { getMyFills } from "@/lib/api/events-server";
-import { getFundamentals, getValuation, getValuationHistory } from "@/lib/api/fundamentals";
+import {
+  getForensics,
+  getFundamentals,
+  getLender,
+  getReverseDcf,
+  getValuation,
+  getValuationHistory,
+} from "@/lib/api/fundamentals";
+import {
+  getImpliedDistribution,
+  getOptionExposure,
+  getVolSummary,
+} from "@/lib/api/option-exposure";
 import { planPickerOptions } from "@/lib/api/plans";
 import { getEventStudy } from "@/lib/api/research";
+import {
+  getEarningsDrift,
+  getForecast,
+  getSeasonality,
+  getStructure,
+} from "@/lib/api/research-views";
 import {
   type PendingOrder,
   type Portfolio,
@@ -148,6 +174,7 @@ export default async function StockPage({
     adjustment?: string;
     events?: string;
     to?: string;
+    tab?: string;
   }>;
 }) {
   const [{ ticker: rawTicker }, query] = await Promise.all([params, searchParams]);
@@ -251,6 +278,16 @@ export default async function StockPage({
     positiveReactions,
     checklist,
     relativeStrength,
+    forensics,
+    lender,
+    reverseDcf,
+    exposure,
+    seasonality,
+    earningsDrift,
+    forecast,
+    volSummary,
+    structure,
+    impliedDist,
   ] = await Promise.all([
     barsPromise,
     chartBarsPromise,
@@ -271,6 +308,25 @@ export default async function StockPage({
     getSymbolChecklist(ticker).catch(() => null),
     // A3.5: RS percentiles and the 52-week distance; a failed call drops the strip.
     getRelativeStrength(ticker).catch(() => null as RelativeStrength | null),
+    // A7.3: the forensic scorecard; a failed call drops the card only.
+    getForensics(ticker).catch(() => null),
+    // A7.13: lender mode; 409 (not financial) and failures drop the card.
+    getLender(ticker).catch(() => null),
+    // A7.4: the reverse DCF at the default inputs; a failed call drops the card.
+    getReverseDcf(ticker).catch(() => null),
+    // A7.9: GEX/DEX from the stored US chain; no chain, no Options tab.
+    getOptionExposure(ticker).catch(() => null),
+    // A9.1: seasonality and the earnings drift; failures drop the Research tab.
+    getSeasonality(ticker).catch(() => null),
+    getEarningsDrift(ticker).catch(() => null),
+    // A9.2: forecasts scored against a random walk.
+    getForecast(ticker).catch(() => null),
+    // A9.4: term structure, skew, VRP and IV rank from stored chains.
+    getVolSummary(ticker).catch(() => null),
+    // A9.5: swing pivots and zones by stated rules.
+    getStructure(ticker).catch(() => null),
+    // A9.13: implied vs model distribution from the newest stored chain.
+    getImpliedDistribution(ticker).catch(() => null),
   ]);
 
   // A6.2: an intraday lookback is whole sessions ("1D" is the last session,
@@ -439,6 +495,16 @@ export default async function StockPage({
         hasPosition={position !== null}
         callbackUrl={activeStockUrl}
       />
+      {/* A9.6: the printable one-page summary. */}
+      <p className="-mt-2 text-xs">
+        <Link
+          href={`/stocks/${encodeURIComponent(ticker)}/tearsheet`}
+          className="text-text-secondary hover:text-brand"
+          data-testid="tearsheet-link"
+        >
+          Printable tearsheet
+        </Link>
+      </p>
 
       <MobileTradeSheet {...ticketProps} />
 
@@ -458,10 +524,15 @@ export default async function StockPage({
               catalog={catalog}
               signedIn={signedIn}
               intradayIntervals={intradayOffered}
+              // A6.7: the profile goes with the drawings' chart (adjusted prices).
+              volumeProfile={
+                chartBars.length && !showingRaw ? { offered: !symbol.is_index } : undefined
+              }
             />
             <div className="p-1.5 sm:p-3">
               {chartBars.length && !showingRaw ? (
-                <ChartWorkbench
+                <ChartWithTools
+                  isIndex={Boolean(symbol.is_index)}
                   ticker={ticker}
                   signedIn={signedIn}
                   initial={drawings}
@@ -481,6 +552,8 @@ export default async function StockPage({
                   currency={symbol.currency}
                   timeZone={timeZone}
                   sourceFeed={sourceFeed}
+                  // A6.5: the newest window streams in; a past one (?to=) stays still.
+                  liveTicker={intraday && !intradayTo ? ticker : null}
                 />
               ) : chartBars.length ? (
                 <PriceChart
@@ -518,6 +591,14 @@ export default async function StockPage({
                   ) : null}
                 </div>
               )}
+              {signedIn ? (
+                // A6.8: this chart's look as a template for the chart workspace.
+                <SaveTemplateButton
+                  chartType={view.type}
+                  scale={view.scale}
+                  indicators={selectedIndicators}
+                />
+              ) : null}
               {toDate ? (
                 <p className="px-1 pt-1 text-2xs text-text-tertiary" data-testid="intraday-to">
                   Bars through {formatCloseDate(toDate)}.{" "}
@@ -595,6 +676,7 @@ export default async function StockPage({
 
       <section aria-label={`${ticker} research`} className="mt-7 xl:mt-8">
         <StockResearchTabs
+          initialTab={query.tab}
           newsCount={news.length}
           orderCount={tickerOrders?.length ?? 0}
           overview={
@@ -606,12 +688,41 @@ export default async function StockPage({
             />
           }
           financials={
-            <FundamentalsPanel
-              annual={fundamentalsAnnual}
-              quarterly={fundamentalsQuarterly}
-              valuation={valuationNow}
-              peHistory={peHistory}
-            />
+            <div className="space-y-8">
+              <FundamentalsPanel
+                annual={fundamentalsAnnual}
+                quarterly={fundamentalsQuarterly}
+                valuation={valuationNow}
+                peHistory={peHistory}
+              />
+              <ReverseDcfCard ticker={ticker} initial={reverseDcf} />
+              <ForensicsCard forensics={forensics} />
+              <LenderCard lender={lender} />
+            </div>
+          }
+          options={
+            (exposure && !exposure.reason && exposure.strikes.length) ||
+            (volSummary && !volSummary.reason) ? (
+              <div className="space-y-8">
+                {volSummary && !volSummary.reason ? <VolSummaryCard summary={volSummary} /> : null}
+                {impliedDist && !impliedDist.reason ? (
+                  <ImpliedDistributionCard data={impliedDist} />
+                ) : null}
+                {exposure && !exposure.reason && exposure.strikes.length ? (
+                  <OptionExposureCard exposure={exposure} />
+                ) : null}
+              </div>
+            ) : undefined
+          }
+          research={
+            seasonality || earningsDrift?.events.length ? (
+              <SeasonalityView
+                seasonality={seasonality}
+                drift={earningsDrift}
+                forecast={forecast}
+                structure={structure}
+              />
+            ) : undefined
           }
           news={
             <div className="space-y-8">

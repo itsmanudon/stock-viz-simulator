@@ -142,7 +142,13 @@ export type StrategyQuote = {
   risk: StrategyRisk;
 };
 
-export type PayoffPoint = { spot: number; at_expiry: number; today: number };
+export type PayoffPoint = {
+  spot: number;
+  at_expiry: number;
+  today: number;
+  /** A7.9: P&L `days_forward` days on with IV shifted by `iv_shift`. */
+  what_if?: number | null;
+};
 
 export type StrategyPayoff = {
   quote: StrategyQuote;
@@ -154,11 +160,21 @@ export type StrategyPayoff = {
   method: string;
 };
 
+/** A7.9: re-price on a later day and/or at shifted implied volatility. */
+export type PayoffWhatIf = { daysForward: number | null; ivShift: number };
+
 export function getStrategyPayoff(
   request: StrategyRequest,
   signal?: AbortSignal,
+  whatIf?: PayoffWhatIf,
 ): Promise<StrategyPayoff> {
-  return apiPost<StrategyPayoff>("/v1/options/strategies/payoff", request, {
+  const q = new URLSearchParams();
+  if (whatIf?.daysForward !== null && whatIf?.daysForward !== undefined) {
+    q.set("days_forward", String(whatIf.daysForward));
+  }
+  if (whatIf?.ivShift) q.set("iv_shift", String(whatIf.ivShift));
+  const path = `/v1/options/strategies/payoff${q.size ? `?${q}` : ""}`;
+  return apiPost<StrategyPayoff>(path, request, {
     init: { signal },
     maxAttempts: 1,
   });

@@ -29,9 +29,9 @@ import type { IndicatorCatalogItem } from "@/lib/api/types";
 import { type DrawingKind, KIND_SPECS } from "@/lib/drawings/kinds";
 import type { StockIndicator } from "@/lib/stock-workspace";
 
-/** Every drawing kind except the anchored VWAP. */
+/** Every drawing kind except the anchored VWAP and (A6.7) the volume profile. */
 export const REPLAY_DRAWING_KINDS: readonly DrawingKind[] = KIND_SPECS.map((s) => s.kind).filter(
-  (kind) => kind !== "avwap",
+  (kind) => kind !== "avwap" && kind !== "volume_profile",
 );
 
 /** The replay page's href with a new `indicators` list (other params kept). */

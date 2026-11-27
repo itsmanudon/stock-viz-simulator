@@ -13,6 +13,8 @@ Rules:
 - A text note needs a label.
 - An anchored VWAP (A3.3) is one point ``{ts: anchor date, price: null}``
   and needs a label, so a rule can name it (``avwap("label")``).
+- A fixed-range volume profile (A6.7) is two points ``{ts: session, price:
+  null}``: the first and last session it covers, in either order.
 - Every other point needs a price.
 - Position tools: long has stop < entry < target, short target < entry < stop.
 - At most ``MAX_DRAWINGS_PER_INSTRUMENT`` per user and instrument.
@@ -51,7 +53,9 @@ POINT_COUNTS: dict[str, int] = {
     "position_long": 3,
     "position_short": 3,
     "avwap": 1,
+    "volume_profile": 2,
 }
+DATE_ONLY_KINDS = ("avwap", "volume_profile")
 POSITION_KINDS = ("position_long", "position_short")
 FIB_RETRACEMENT_LEVELS = (0.0, 0.236, 0.382, 0.5, 0.618, 0.786, 1.0)
 FIB_EXTENSION_LEVELS = (0.0, 0.618, 1.0, 1.272, 1.618, 2.618)
@@ -89,9 +93,11 @@ def validate_points(
     if len(points) != expected:
         raise _unprocessable(f"A {kind} takes {expected} point{'s' if expected > 1 else ''}")
     for index, point in enumerate(points):
-        if kind == "avwap":
+        if kind in DATE_ONLY_KINDS:
             if point.price is not None:
-                raise _unprocessable("An anchored VWAP takes a date only (price must be null)")
+                if kind == "avwap":
+                    raise _unprocessable("An anchored VWAP takes a date only (price must be null)")
+                raise _unprocessable("A volume profile takes dates only (price must be null)")
         elif point.price is None:
             raise _unprocessable(f"Point {index + 1} needs a price")
         price_only = kind == "hline" or (kind in POSITION_KINDS and index > 0)
@@ -187,6 +193,7 @@ def count_for(session: Session, user_id: int, instrument_id: int) -> int:
 
 
 __all__ = [
+    "DATE_ONLY_KINDS",
     "FIB_EXTENSION_LEVELS",
     "FIB_RETRACEMENT_LEVELS",
     "MAX_DRAWINGS_PER_INSTRUMENT",

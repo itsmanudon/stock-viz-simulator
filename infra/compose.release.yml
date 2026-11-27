@@ -1,0 +1,107 @@
+# StockViz self-hosting (A10.1). One command on a fresh machine:
+#
+#   docker compose -f infra/compose.release.yml --env-file infra/release.env up -d --build
+#
+# then, once, `docker compose -f infra/compose.release.yml --env-file
+# infra/release.env --profile setup run --rm setup`, and `... exec api python
+# -m stockviz.cli doctor`. See docs/SELF_HOSTING.md.
+#
+# No market data ships: the API image is the Dockerfile's `release` target
+# (the company list only, no price history). Every secret is required (the
+# `:?` form stops `up` with its name); provider keys are optional and blank
+# means that feature is off. Ports bind to 127.0.0.1 only.
+name: stockviz
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: stockviz
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in infra/release.env}
+      POSTGRES_DB: stockviz
+    volumes:
+      - stockviz_release_db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U stockviz -d stockviz"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: ../apps/api
+      dockerfile: Dockerfile
+      target: release
+    image: stockviz-api:release
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment: &api_env
+      DATABASE_URL: postgresql+psycopg://stockviz:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in infra/release.env}@postgres:5432/stockviz
+      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:?set INTERNAL_API_TOKEN in infra/release.env}
+      ENVIRONMENT: production
+      PORT: "8000"
+      ENABLE_SCHEDULER: ${ENABLE_SCHEDULER:-true}
+      CORS_ORIGINS: '["http://localhost:3100"]'
+      # Optional providers: blank = off.
+      ALPHA_VANTAGE_KEY: ${ALPHA_VANTAGE_KEY:-}
+      SEC_USER_AGENT: ${SEC_USER_AGENT:-}
+      ALPACA_KEY_ID: ${ALPACA_KEY_ID:-}
+      ALPACA_SECRET_KEY: ${ALPACA_SECRET_KEY:-}
+      TIINGO_API_KEY: ${TIINGO_API_KEY:-}
+      FINNHUB_API_KEY: ${FINNHUB_API_KEY:-}
+      MASSIVE_API_KEY: ${MASSIVE_API_KEY:-}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+    ports:
+      - "127.0.0.1:8000:8000"
+    healthcheck:
+      test:
+        ["CMD-SHELL", "python -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/live', timeout=3).status==200 else 1)\""]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+  # One-shot: the symbol list and rule presets (no prices). Run it once.
+  setup:
+    image: stockviz-api:release
+    profiles: ["setup"]
+    depends_on:
+      api:
+        condition: service_healthy
+    environment: *api_env
+    command: ["python", "-m", "stockviz.cli", "seed"]
+
+  web:
+    build:
+      context: ..
+      dockerfile: apps/web/Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:8000
+    image: stockviz-web:release
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      API_URL: http://api:8000
+      DATABASE_URL: postgres://stockviz:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in infra/release.env}@postgres:5432/stockviz
+      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:?set INTERNAL_API_TOKEN in infra/release.env}
+      AUTH_SECRET: ${AUTH_SECRET:?set AUTH_SECRET in infra/release.env}
+      AUTH_TRUST_HOST: "true"
+      # Who may open an account: closed (default; the first account on an
+      # empty database is still allowed), allowlist (SIGNUP_ALLOWLIST), open.
+      SIGNUP_MODE: ${SIGNUP_MODE:-closed}
+      SIGNUP_ALLOWLIST: ${SIGNUP_ALLOWLIST:-}
+    ports:
+      - "127.0.0.1:3100:3000"
+
+volumes:
+  stockviz_release_db:

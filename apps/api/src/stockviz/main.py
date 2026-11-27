@@ -14,31 +14,42 @@ from stockviz.logging_setup import configure_logging
 from stockviz.observability import init_sentry
 from stockviz.request_id import request_id_middleware
 from stockviz.routers import (
+    ai,
     alerts,
     avwap,
     backtest,
     bars,
     books,
+    breadth,
+    brief,
     brokers,
+    chart_layouts,
+    chart_templates,
     checklist,
+    classroom,
     column_sets,
+    documents,
     drawings,
     drills,
     earnings,
     events,
     experiments,
     fees,
+    fo,
     fundamentals,
     health,
+    import_maps,
     imports,
     indicators,
     journal,
     journal_entries,
     journal_stats,
+    macro,
     markets,
     news,
     notification_channels,
     notifications,
+    optimise,
     options,
     orders,
     plans,
@@ -47,16 +58,21 @@ from stockviz.routers import (
     regime,
     replay,
     research,
+    research_views,
     rules,
     screener,
     screens,
+    sector_rotation,
     sentiment,
     setups,
     status,
+    stream,
     strength,
     symbols,
+    tax,
     theses,
     trading,
+    volume_profile,
     watchlist,
     watchlists,
 )
@@ -143,11 +159,20 @@ def create_app() -> FastAPI:
     )
 
     app.include_router(health.router)
+    app.include_router(macro.router)
+    app.include_router(documents.router)
+    app.include_router(brief.router)
+    app.include_router(optimise.router)
+    app.include_router(tax.router)
+    app.include_router(fo.router)
+    app.include_router(ai.router)
+    app.include_router(classroom.router)
     # Register screener before symbols so /v1/symbols/screen wins over the
     # /v1/symbols/{ticker} catch-all in symbols.router.
     app.include_router(screener.router)
     app.include_router(screener.page_router)
     app.include_router(screens.router)
+    app.include_router(stream.router)
     app.include_router(rules.router)
     app.include_router(setups.router)
     app.include_router(theses.router)
@@ -163,16 +188,23 @@ def create_app() -> FastAPI:
     app.include_router(checklist.router)
     app.include_router(drawings.router)
     app.include_router(avwap.router)
+    app.include_router(volume_profile.router)
     app.include_router(events.router)
     app.include_router(strength.router)
     app.include_router(regime.router)
+    app.include_router(breadth.router)
+    app.include_router(sector_rotation.router)
+    app.include_router(research_views.router)
     app.include_router(trading.router)
     app.include_router(books.router)
     app.include_router(imports.router)
+    app.include_router(import_maps.router)
     app.include_router(alerts.router)
     app.include_router(watchlist.router)
     app.include_router(watchlists.router)
     app.include_router(column_sets.router)
+    app.include_router(chart_templates.router)
+    app.include_router(chart_layouts.router)
     app.include_router(orders.router)
     app.include_router(profile.router)
     app.include_router(options.router)

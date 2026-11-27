@@ -160,5 +160,7 @@ def get_symbol(request: Request, ticker: str, session: SessionDep) -> SymbolDeta
             "is_indian": is_indian(symbol.ticker),
             # A6.2: which intraday intervals the chart can offer.
             "intraday": intraday,
+            # A6.7: an index's volume is not real, so no volume profile.
+            "is_index": instrument is not None and instrument.asset_type == "index",
         }
     )

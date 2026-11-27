@@ -57,10 +57,14 @@ HUNDRED = Decimal(100)
 MICROS = Decimal("0.000001")
 PCT = Decimal("0.0001")
 
-Basis = Literal["exact_close", "approximate_daily"]
+Basis = Literal["exact_close", "approximate_daily", "exact_minutes"]
 
 APPROXIMATE_NOTE = "Daily bars: may include moves before entry or after exit."
 EXACT_NOTE = "Replay fills at the bar's close: the entry bar counts from its close."
+MINUTES_NOTE = (
+    "Minute bars: exact to the minute. Shares held at a minute's open count its whole "
+    "range; a fill counts from its own price."
+)
 
 
 @dataclass(frozen=True)
@@ -359,6 +363,77 @@ def excursions(
     return Excursions(basis, note, worst, best, sessions=len(window))
 
 
+@dataclass(frozen=True)
+class MinuteBar:
+    """One stored 1-minute bar: ``at`` its open (naive UTC), ``day`` the venue date."""
+
+    at: datetime
+    day: date
+    high: Decimal
+    low: Decimal
+
+
+def minute_excursions(
+    trip: RoundTrip,
+    minutes: Sequence[MinuteBar],
+    *,
+    initial_risk: Decimal | None = None,
+) -> Excursions:
+    """A6.10: MAE and MFE from stored minutes, for a closed entry whose fills
+    all carry a time. Shares held at a minute's open saw its whole range; a
+    fill inside a minute counts from its own price (the rest of that minute
+    is not known to be before or after it). Minutes run from the first fill's
+    minute to the last fill's."""
+    fills = sorted(trip.fills, key=lambda f: f.at)
+    first = fills[0].at.replace(second=0, microsecond=0)
+    last = fills[-1].at
+    window = sorted((m for m in minutes if first <= m.at <= last), key=lambda m: m.at)
+    if not window:
+        return Excursions("exact_minutes", MINUTES_NOTE, None, None,
+                          reason="No stored minutes for this entry.")  # fmt: skip
+    worst: Excursion | None = None
+    best: Excursion | None = None
+    short = trip.side == "short"
+    opening = trip.opening_side
+
+    def _mark(day: date, low: Decimal, high: Decimal, cost: Decimal, shares: Decimal) -> None:
+        nonlocal worst, best
+        if cost <= 0 or shares <= 0:
+            return
+        if short:
+            adverse, adverse_at = cost - high, high
+            favourable, favourable_at = cost - low, low
+        else:
+            adverse, adverse_at = low - cost, low
+            favourable, favourable_at = high - cost, high
+        if worst is None or adverse < worst.per_share:
+            worst = _excursion(day, adverse_at, adverse, cost, shares, initial_risk)
+        if best is None or favourable > best.per_share:
+            best = _excursion(day, favourable_at, favourable, cost, shares, initial_risk)
+
+    qty = avg = ZERO
+    index = 0
+    for minute in window:
+        if qty > 0:
+            _mark(minute.day, minute.low, minute.high, avg, qty)
+        # Fills inside this minute (or in an earlier minute with no bar).
+        while index < len(fills) and fills[index].at.replace(second=0, microsecond=0) <= minute.at:
+            fill = fills[index]
+            index += 1
+            if fill.side == opening:
+                avg = reaverage(avg, qty, fill.quantity, fill.price)
+                qty += fill.quantity
+            else:
+                qty -= fill.quantity
+            if qty > 0:
+                _mark(minute.day, fill.price, fill.price, avg, qty)
+    if worst is None or best is None:
+        return Excursions("exact_minutes", MINUTES_NOTE, None, None,
+                          reason="No minute while shares were held.")  # fmt: skip
+    return Excursions("exact_minutes", MINUTES_NOTE, worst, best,
+                      sessions=len({m.day for m in window}))  # fmt: skip
+
+
 def _excursion(
     day: date, price: Decimal, per_share: Decimal, cost: Decimal, shares: Decimal,
     risk: Decimal | None,
@@ -378,18 +453,21 @@ def _excursion(
 __all__ = [
     "APPROXIMATE_NOTE",
     "EXACT_NOTE",
+    "MINUTES_NOTE",
     "SHORT_NO_PLAN",
     "Bar",
     "Basis",
     "Excursion",
     "Excursions",
     "LedgerFill",
+    "MinuteBar",
     "RResult",
     "RoundTrip",
     "Side",
     "TradeFigures",
     "excursions",
     "group_round_trips",
+    "minute_excursions",
     "r_multiple",
     "reaverage",
     "trade_figures",

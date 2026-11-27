@@ -92,6 +92,17 @@ def _cmd_seed(_args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_doctor(_args: argparse.Namespace) -> int:
+    """A10.1: read-only health of a self-hosted instance; exit 1 on a failed check."""
+    from stockviz.services import doctor
+    from stockviz.settings import get_settings
+
+    with Session(engine) as session:
+        checks = doctor.run(session, get_settings())
+    print(doctor.render(checks))
+    return 1 if any(c.status == "fail" for c in checks) else 0
+
+
 def _cmd_backfill(args: argparse.Namespace) -> int:
     with Session(engine) as session:
         ensure_symbols_for_backfill(session)
@@ -970,6 +981,54 @@ def _cmd_intraday_load(args: argparse.Namespace) -> int:
     return 1 if failed else 0
 
 
+def _cmd_intraday_catch_up(args: argparse.Namespace) -> int:
+    """A6.6: the SIP catch-up after a live IEX day.
+
+    The live stream stores IEX bars only (one exchange's trades). After the
+    close, SIP history (every exchange) is free once it is 15 minutes old, so
+    this backfills the watched US symbols' minutes for the latest completed
+    New York session (or ``--date``) as feed ``sip``, beside the IEX bars
+    (``FEED_RANK`` reads SIP first). It is ``intraday-backfill --provider
+    alpaca --feed sip`` with the stream's symbols and day: dry run unless
+    ``--apply``, exit 2 without the key or without symbols. Not in the cron.
+    """
+    from stockviz.db import engine
+    from stockviz.services.feeds.base import us_symbol
+    from stockviz.services.ingest.bar_semantics import latest_completed_session
+    from stockviz.services.stream.replay import watched
+
+    if args.date:
+        try:
+            day = date.fromisoformat(args.date)
+        except ValueError:
+            print("--date takes YYYY-MM-DD")
+            return 1
+    else:
+        day = latest_completed_session(datetime.now(UTC))
+    with Session(engine) as session:
+        wanted = args.symbols or watched(session)
+    symbols: list[str] = []
+    for ticker in wanted:
+        try:
+            us_symbol(ticker)
+        except ValueError:
+            continue  # the catch-up is US only, like the stream
+        symbols.append(ticker.upper())
+    if not symbols:
+        print("no US symbols: name them with --symbols, or add an intraday alert")
+        return 2
+    return _cmd_intraday_backfill(
+        argparse.Namespace(
+            provider="alpaca",
+            symbols=symbols[:30],
+            date_from=day.isoformat(),
+            date_to=day.isoformat(),
+            feed="sip",
+            apply=args.apply,
+        )
+    )
+
+
 def _cmd_intraday_backfill(args: argparse.Namespace) -> int:
     """US minute history from a free feed into ``intraday_bars`` (A6.3).
 
@@ -1429,6 +1488,164 @@ def _cmd_fx(args: argparse.Namespace) -> int:
         # Fills in these currencies would convert at an old rate (audit MD-4).
         print(f"fx: no rates for {', '.join(failed)}", file=sys.stderr)
         return 1
+    return 0
+
+
+def _cmd_macro_sync(args: argparse.Namespace) -> int:
+    """A9.7 (M1.10): fetch the catalogue's FRED series into ``macro_*``."""
+    from stockviz.services.feeds.base import FeedNotConfigured
+    from stockviz.services.macro.catalogue import BY_ID, CATALOGUE
+    from stockviz.services.macro.fred import FredClient
+    from stockviz.services.macro.sync import sync_catalogue
+
+    key = get_settings().fred_api_key.get_secret_value()
+    if not key:
+        print("macro-sync: FRED_API_KEY is not set", file=sys.stderr)
+        return 2
+    wanted = [s.upper() for s in (args.series or [])]
+    unknown = [s for s in wanted if s not in BY_ID]
+    if unknown:
+        print(f"macro-sync: not in the catalogue: {', '.join(unknown)}", file=sys.stderr)
+        return 1
+    entries = [BY_ID[s] for s in wanted] if wanted else list(CATALOGUE)
+    try:
+        with Session(engine) as session:
+            report = sync_catalogue(session, FredClient(key), entries)
+    except FeedNotConfigured:
+        print("macro-sync: FRED_API_KEY is not set", file=sys.stderr)
+        return 2
+    for r in report.results:
+        print(f"  {r.series_id}: {r.error or r.written}")
+    print(f"macro-sync: {report.written} observations over {len(report.results)} series")
+    if report.stopped:
+        print(f"macro-sync: stopped ({report.stopped})", file=sys.stderr)
+    return 1 if report.failed else 0
+
+
+def _cmd_docs_load(args: argparse.Namespace) -> int:
+    """A7.10: load hand-placed document files (dry run unless --apply)."""
+    from pathlib import Path
+
+    from stockviz.services.documents.load import LoadRefused, load_files
+
+    on = date.fromisoformat(args.date) if args.date else None
+    at = datetime.fromisoformat(args.available_at) if args.available_at else None
+    try:
+        with Session(engine) as session:
+            report = load_files(
+                session,
+                [Path(p) for p in args.paths],
+                ticker=args.ticker,
+                kind=args.kind,
+                on=on,
+                available_at=at,
+                title=args.title,
+                form_type=args.form,
+                apply=args.apply,
+            )
+    except LoadRefused as exc:
+        print(f"docs-load: {exc}", file=sys.stderr)
+        return 2
+    assumed = " (assumed: end of the date, venue time)" if report.available_assumed else ""
+    print(
+        f"{report.ticker} {report.kind}, public at {report.available_at:%Y-%m-%d %H:%M} UTC{assumed}"
+    )
+    for f in report.files:
+        detail = f.reason or f"{f.content_type}, {f.size_bytes} bytes, {f.text_chars} chars"
+        print(f"  {f.status:9} {f.path}: {detail}")
+    if not report.applied:
+        print("dry run: nothing written (add --apply)")
+    return 1 if report.refused else 0
+
+
+def _cmd_docs_edgar(args: argparse.Namespace) -> int:
+    """A7.10: store recent SEC filings for US tickers. Off until SEC_USER_AGENT is set."""
+    from stockviz.services.documents.edgar import DEFAULT_FORMS, http_getters, sync_edgar
+    from stockviz.services.fundamentals.edgar_source import cik_map
+
+    agent = get_settings().sec_user_agent.strip()
+    if not agent:
+        print("docs-edgar: SEC_USER_AGENT is not set (an owner pre-release item)", file=sys.stderr)
+        return 2
+    get_json, get_bytes = http_getters(agent)
+    since = date.fromisoformat(args.since)
+    forms = tuple(args.forms) if args.forms else DEFAULT_FORMS
+    with Session(engine) as session:
+        results = sync_edgar(
+            session,
+            [t.upper() for t in args.tickers],
+            get_json=get_json,
+            get_bytes=get_bytes,
+            ciks=cik_map(get_json),
+            since=since,
+            forms=forms,
+            limit=args.limit,
+        )
+    for r in results:
+        print(
+            f"  {r.ticker}: stored {r.stored}, skipped {r.skipped}"
+            + (f" ({r.error})" if r.error else "")
+        )
+    return 1 if any(r.error and not r.stored for r in results) else 0
+
+
+def _cmd_docs_index(args: argparse.Namespace) -> int:
+    """A8.4: chunk documents without passages; with --embed, embed every passage."""
+    from stockviz.services.ai.embed import embedder_from_settings
+    from stockviz.services.ai.provider import AiProviderError
+    from stockviz.services.documents.index import index_documents
+    from stockviz.services.intraday.guard import local_database_problem
+
+    embedder = embedder_from_settings(get_settings()) if args.embed else None
+    if args.embed and embedder is None:
+        print("docs-index: OLLAMA_EMBED_MODEL is not set", file=sys.stderr)
+        return 2
+    with Session(engine) as session:
+        problem = local_database_problem(session.get_bind().engine.url)
+        if problem:
+            print(f"docs-index: local database only ({problem})", file=sys.stderr)
+            return 2
+        try:
+            report = index_documents(session, embedder=embedder, max_embed=args.limit)
+        except AiProviderError as exc:
+            print(f"docs-index: {exc}", file=sys.stderr)
+            return 1
+    print(
+        f"chunked {report.documents_chunked} document(s) into {report.chunks_added} passage(s); "
+        f"embedded {report.chunks_embedded}"
+        + (f" with {report.model}" if report.model else "")
+        + f"; {report.chunks_waiting} passage(s) still without a vector"
+    )
+    return 0
+
+
+def _cmd_fo_load(args: argparse.Namespace) -> int:
+    """A7.14: the owner's NSE index option minute files as daily summaries (local only)."""
+    from pathlib import Path
+
+    from stockviz.services.fo.load import FoLoadRefused, load_dir
+
+    try:
+        with Session(engine) as session:
+            report = load_dir(session, Path(args.dir), apply=args.apply)
+    except FoLoadRefused as exc:
+        print(f"fo-load: {exc}", file=sys.stderr)
+        return 2
+    for f in report.files:
+        if f.skipped:
+            print(f"  {f.path}: skipped, {f.skipped}")
+            continue
+        bad = f" (first bad lines {f.first_bad_lines})" if f.first_bad_lines else ""
+        seen = " [already loaded]" if f.known else ""
+        print(
+            f"  {f.path}: {f.series}, {f.rows} rows, {f.rejected} rejected, {f.off_session} off-session{bad}{seen}"
+        )
+    for (und, series), (lo, hi) in sorted(report.days.items()):
+        print(f"  {und} {series}: {lo} to {hi}")
+    verb = "upserted" if report.applied else "would write"
+    print(f"fo-load: {verb} {report.summaries} daily summaries")
+    if not report.applied:
+        print("dry run: nothing written (add --apply)")
     return 0
 
 
@@ -1944,6 +2161,7 @@ RECORDED_JOBS = frozenset(
         "revalidate-web",
         "corporate-actions",
         "fx",
+        "macro-sync",
         "settle-orders",
         "evaluate-alerts",
         "screen-runs",
@@ -2041,6 +2259,9 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser(
         "seed", help="Seed symbols from companies.json and the rule presets"
     ).set_defaults(fn=_cmd_seed)
+    sub.add_parser(
+        "doctor", help="Check a self-hosted instance (database, migrations, secrets, keys)"
+    ).set_defaults(fn=_cmd_doctor)
     p_backfill = sub.add_parser(
         "backfill", help="Load the seed CSVs into price_bars (run once after seed)"
     )
@@ -2107,6 +2328,52 @@ def main(argv: list[str] | None = None) -> int:
     )
     p_fx.add_argument("currencies", nargs="*", help="Optional currency filter, e.g. EUR GBP JPY")
     p_fx.set_defaults(fn=_cmd_fx)
+
+    p_macro = sub.add_parser(
+        "macro-sync", help="Fetch the macro catalogue's FRED series (A9.7; needs FRED_API_KEY)"
+    )
+    p_macro.add_argument("--series", nargs="*", help="Only these FRED ids (default: all)")
+    p_macro.set_defaults(fn=_cmd_macro_sync)
+
+    p_docs = sub.add_parser(
+        "docs-load", help="Load hand-placed document files (A7.10; local database only)"
+    )
+    p_docs.add_argument("paths", nargs="+", help=".html, .htm, .pdf, .txt or .md files")
+    p_docs.add_argument("--ticker", required=True)
+    p_docs.add_argument(
+        "--kind",
+        required=True,
+        choices=["filing", "concall_transcript", "announcement", "annual_report", "other"],
+    )
+    p_docs.add_argument("--date", help="The document's date (YYYY-MM-DD)")
+    p_docs.add_argument("--available-at", help="When it was public (ISO; naive = UTC)")
+    p_docs.add_argument("--title")
+    p_docs.add_argument("--form", help="Form or filing type, e.g. Reg 30, 10-K")
+    p_docs.add_argument("--apply", action="store_true")
+    p_docs.set_defaults(fn=_cmd_docs_load)
+
+    p_edgar = sub.add_parser(
+        "docs-edgar", help="Store recent SEC filings (A7.10; needs SEC_USER_AGENT)"
+    )
+    p_edgar.add_argument("tickers", nargs="+")
+    p_edgar.add_argument("--since", required=True, help="Filed on or after (YYYY-MM-DD)")
+    p_edgar.add_argument("--forms", nargs="*", help="Default: 10-K 10-Q 8-K 20-F 6-K")
+    p_edgar.add_argument("--limit", type=int, default=20, help="Newest N per ticker")
+    p_edgar.set_defaults(fn=_cmd_docs_edgar)
+
+    p_index = sub.add_parser(
+        "docs-index", help="Chunk and embed documents for hybrid search (A8.4; local only)"
+    )
+    p_index.add_argument("--embed", action="store_true", help="Embed with OLLAMA_EMBED_MODEL")
+    p_index.add_argument("--limit", type=int, help="Embed at most N passages this run")
+    p_index.set_defaults(fn=_cmd_docs_index)
+
+    p_fo = sub.add_parser(
+        "fo-load", help="Owner's NSE option minute files as daily summaries (A7.14; local only)"
+    )
+    p_fo.add_argument("--dir", required=True, help="Folder of the files (read recursively)")
+    p_fo.add_argument("--apply", action="store_true")
+    p_fo.set_defaults(fn=_cmd_fo_load)
 
     sub.add_parser(
         "metrics", help="Recompute the screener's precomputed per-symbol metrics"
@@ -2334,6 +2601,18 @@ def main(argv: list[str] | None = None) -> int:
     )
     p_iback.add_argument("--apply", action="store_true", help="Fetch and write (default: plan)")
     p_iback.set_defaults(fn=_cmd_intraday_backfill)
+    p_icatch = sub.add_parser(
+        "intraday-catch-up",
+        help="A6.6: SIP minutes for the watched US symbols after a live IEX day (dry run unless --apply)",
+    )
+    p_icatch.add_argument(
+        "--symbols", nargs="+", default=None, help="Default: the stream's symbols"
+    )
+    p_icatch.add_argument(
+        "--date", default=None, help="YYYY-MM-DD (default: the latest US session)"
+    )
+    p_icatch.add_argument("--apply", action="store_true", help="Fetch and write (default: plan)")
+    p_icatch.set_defaults(fn=_cmd_intraday_catch_up)
     p_irec = sub.add_parser(
         "intraday-reconcile",
         help="Compare stored intraday bars, resampled to daily, with daily or 60m bars (A6.1)",

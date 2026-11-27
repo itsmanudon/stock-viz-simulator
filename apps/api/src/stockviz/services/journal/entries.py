@@ -43,6 +43,7 @@ from stockviz.models import (
     AegisDocument,
     BrokerFill,
     Instrument,
+    IntradayBar,
     Portfolio,
     PriceBar,
     ReplayFill,
@@ -76,10 +77,12 @@ from stockviz.services.journal.roundtrips import (
     Excursion,
     Excursions,
     LedgerFill,
+    MinuteBar,
     RoundTrip,
     TradeFigures,
     excursions,
     group_round_trips,
+    minute_excursions,
     r_multiple,
     trade_figures,
 )
@@ -287,7 +290,9 @@ def _replay_trips(session: Session, user_id: int) -> list[Trip]:
         replay = by_id[sid]
         assert replay.instrument_id is not None
         plan = plans.get(sid)
-        for index, trip in enumerate(group_round_trips(ledger)):
+        # A replay sell while flat exists only as a short sale (owner, 27 Nov
+        # 2026): the ledger refuses any other.
+        for index, trip in enumerate(group_round_trips(ledger, allow_short=True)):
             paired = plan is not None and plan.first_fill_at is not None and index == 0
             out.append(
                 Trip(
@@ -574,6 +579,48 @@ def _bars(session: Session, t: Trip) -> list[Bar]:
     ]
 
 
+def _minutes(session: Session, t: Trip) -> list[MinuteBar]:
+    """A6.10: the stored 1-minute bars over a closed entry, from the best feed
+    holding any (``FEED_RANK``), or none."""
+    from stockviz.services.bars.intraday import FEED_RANK
+
+    first = t.trip.fills[0].at.replace(second=0, microsecond=0)
+    last = max(f.at for f in t.trip.fills)
+    zone = venue_zone(t.venue)
+    for feed in FEED_RANK:
+        if feed == "replayed":
+            continue  # replayed copies are not the market's own record
+        rows = session.exec(
+            select(IntradayBar)
+            .where(
+                col(IntradayBar.instrument_id) == t.instrument_id,
+                col(IntradayBar.interval) == "1m",
+                col(IntradayBar.feed) == feed,
+                col(IntradayBar.ts) >= first,
+                col(IntradayBar.ts) <= last,
+            )
+            .order_by(col(IntradayBar.ts))
+        ).all()
+        if rows:
+            return [
+                MinuteBar(
+                    at=r.ts,
+                    day=r.ts.replace(tzinfo=UTC).astimezone(zone).date(),
+                    high=r.high,
+                    low=r.low,
+                )
+                for r in rows
+            ]
+    return []
+
+
+def _minute_coverage(t: Trip, minutes: list[MinuteBar]) -> bool:
+    """Every venue session from the entry's first fill to its last has minutes."""
+    days = {m.day for m in minutes}
+    start, end = t.trip.fills[0].venue_date, t.trip.fills[-1].venue_date
+    return bool(days) and all(d in days for d in _expected_sessions(start, end, t.venue))
+
+
 def _expected_sessions(start: date, end: date, venue: str) -> list[date]:
     days: list[date] = []
     day = start
@@ -602,6 +649,16 @@ def _compute(session: Session, t: Trip, plan: TradePlan | None) -> _Computed:
         else (mark.day if mark else t.trip.fills[-1].venue_date)
     )
     exact = t.source == "replay"
+    # A6.10: a closed paper or imported entry whose fills all carry a time,
+    # with stored minutes on every session it spans, gets exact excursions.
+    if not exact and closed and all(f.time_known for f in t.trip.fills):
+        minutes = _minutes(session, t)
+        if minutes and _minute_coverage(t, minutes):
+            exc = minute_excursions(t.trip, minutes, initial_risk=rr.initial_risk)
+            if exc.mae is not None:
+                return _Computed(
+                    bars, figures, exc, rr.value, rr.reason, rr.initial_risk, end_day, mark
+                )
     exc = excursions(
         t.trip,
         bars,

@@ -177,6 +177,7 @@ function ReplayEpisodeRows({
           <div>{formatReplayShortDate(episode.opened_at)}</div>
           <div className="font-mono text-xs tabular-nums text-text-tertiary">
             {formatCurrency(episode.entry_price, currency)}
+            {episode.side === "short" ? " · short" : ""}
             {episode.status === "open" ? " · open" : ""}
           </div>
         </TableCell>

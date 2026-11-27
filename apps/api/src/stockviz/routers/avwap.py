@@ -73,7 +73,7 @@ def get_avwap(
     ] = "1d",
     bands: Annotated[int, Query(ge=0, le=2)] = 0,
     anchor_at: Annotated[datetime | None, Query(description="Intraday anchor instant")] = None,
-    feed: Annotated[Literal["iex", "sip", "kite", "file"] | None, Query()] = None,
+    feed: Annotated[Literal["iex", "sip", "kite", "file", "replayed"] | None, Query()] = None,
 ) -> AvwapOut:
     ticker = ticker.upper()
     instrument = resolve_symbol(session, ticker)

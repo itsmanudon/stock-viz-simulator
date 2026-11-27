@@ -403,3 +403,32 @@ def test_postgres_backfill_partitions_and_idempotency() -> None:
             .scalars()
         )
         assert list(parts) == ["intraday_bars_y2025m03"]
+
+
+# --- A6.6: the SIP catch-up --------------------------------------------------------
+
+
+def test_catch_up_needs_the_key_then_plans_sip_for_the_day(capsys, monkeypatch) -> None:
+    from stockviz import cli
+
+    assert cli.main(["intraday-catch-up", "--symbols", "AAPL", "--date", "2026-11-25"]) == 2
+    assert "not set" in capsys.readouterr().out
+    monkeypatch.setenv("ALPACA_KEY_ID", "not-real")
+    monkeypatch.setenv("ALPACA_SECRET_KEY", "not-real")
+    get_settings.cache_clear()
+    try:
+        code = cli.main(["intraday-catch-up", "--symbols", "AAPL", "TCS.NS", "--date",
+                         "2026-11-25"])  # fmt: skip
+        out = capsys.readouterr().out
+        assert code == 0, out
+        # US only (TCS.NS dropped), SIP, a dry run: nothing is fetched.
+        assert "feed sip: 1 symbol(s), 2026-11-25 to 2026-11-25" in out
+    finally:
+        get_settings.cache_clear()
+
+
+def test_catch_up_without_us_symbols_exits_2(capsys) -> None:
+    from stockviz import cli
+
+    assert cli.main(["intraday-catch-up", "--symbols", "TCS.NS"]) == 2
+    assert "no US symbols" in capsys.readouterr().out

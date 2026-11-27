@@ -71,7 +71,13 @@ def _create(client: TestClient, headers: dict[str, str], end: str = DAY3):
     return client.post(
         "/v1/replay/sessions",
         headers=headers,
-        json={"ticker": "AAPL", "start_at": DAY1, "end_at": end, "starting_cash": "100000"},
+        json={
+            "ticker": "AAPL",
+            "start_at": DAY1,
+            "end_at": end,
+            "starting_cash": "100000",
+            "profile": "legacy_close",
+        },
     )
 
 

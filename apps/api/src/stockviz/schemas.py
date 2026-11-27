@@ -186,6 +186,8 @@ class SymbolDetailOut(BaseModel):
     is_indian: bool = False
     # A6.2: the intraday bars stored for the symbol (default feed), or null.
     intraday: IntradayInfoOut | None = None
+    # A6.7: an index's stored volume is 0, not real, so it has no volume profile.
+    is_index: bool = False
 
 
 class IntradayCoverageOut(BaseModel):
@@ -354,10 +356,37 @@ class ProjectedDividendOut(BaseModel):
     projected_amount: Decimal
 
 
+class ProjectedPayoutOut(BaseModel):
+    ex_date: date
+    per_share: Decimal
+    amount: Decimal
+
+
+class HoldingProjectionOut(BaseModel):
+    """A9.6 (M10.8): the next 12 months' dividends of one holding (a projection)."""
+
+    ticker: str
+    currency: str
+    quantity: Decimal
+    ttm_per_share: Decimal
+    growth_3y: float | None = None
+    growth_used: float
+    next_12m_per_share: Decimal
+    next_12m_total: Decimal
+    forward_yield: float | None = None
+    streak_years: int
+    payouts: list[ProjectedPayoutOut] = []
+    reason: str | None = None
+
+
 class DividendSummaryOut(BaseModel):
     ytd_income: Decimal
     history: list[DividendCreditOut]
     projected: list[ProjectedDividendOut]
+    # A9.6: per holding, and the 12-month total per currency (never summed across).
+    projection: list[HoldingProjectionOut] = []
+    projection_totals: dict[str, Decimal] = {}
+    projection_method: str = ""
 
 
 # ---------------------------------------------------------------------------
@@ -742,20 +771,35 @@ class ReplaySessionCreateIn(BaseModel):
     start_at: datetime
     end_at: datetime | None = None
     starting_cash: Decimal | None = None
+    # A6.9: the bars (1d, or 1m/5m/15m/60m from stored minutes; an intraday
+    # session needs end_at) and the replay profile (intrabar_ohlc, the default,
+    # or legacy_close).
+    interval: Literal["1d", "1m", "5m", "15m", "60m"] = "1d"
+    profile: Literal["legacy_close", "intrabar_ohlc"] | None = None
 
 
 class ReplayOrderIn(BaseModel):
     """Intent only. A market order fills at the session's current stored
     close; a limit / stop-loss / take-profit order (A4.6) rests, priced by
     ``limit_price`` (the limit or the trigger), and is judged from the next
-    bar on."""
+    bar on.
+
+    A6.9: ``bracket`` is a long entry (``entry_type`` market, or limit at
+    ``limit_price``) with a sell ``stop_price`` below it and a sell
+    ``target_price`` above it, one cancels the other. ``side`` must be buy.
+    Owner, 27 Nov 2026: ``direction: short`` (US-listed only) makes it a short
+    sale with a buy stop above and a buy target below; ``side`` is then sell."""
 
     model_config = ConfigDict(extra="forbid")
 
     side: Literal["buy", "sell"]
-    order_type: Literal["market", "limit", "stop_loss", "take_profit"] = "market"
+    order_type: Literal["market", "limit", "stop_loss", "take_profit", "bracket"] = "market"
     quantity: Decimal
     limit_price: Decimal | None = None
+    entry_type: Literal["market", "limit"] = "market"
+    stop_price: Decimal | None = None
+    target_price: Decimal | None = None
+    direction: Literal["long", "short"] = "long"
 
 
 class ReplayPositionOut(BaseModel):
@@ -791,19 +835,29 @@ class ReplayFillOut(BaseModel):
 
 class ReplayOrderOut(BaseModel):
     """A4.6: a resting order. ``status`` open | filled | cancelled |
-    rejected | expired; ``reason`` says why it left ``open``."""
+    rejected | expired; ``reason`` says why it left ``open``.
+
+    A6.9: a bracket's entry is ``bracket`` (``limit_price`` its limit, or
+    its market fill price) and its stop and target carry ``parent_id``;
+    all three share ``oco_group``. ``pending`` is a child waiting for its
+    entry. ``order_inside_bar_unknown``: the fill was a stop chosen first
+    because the stop and the target were both inside one bar with nothing
+    finer to say which came first."""
 
     id: int
     session_id: int
     ticker: str
     side: Literal["buy", "sell"]
-    order_type: Literal["limit", "stop_loss", "take_profit"]
+    order_type: Literal["limit", "stop_loss", "take_profit", "bracket"]
     quantity: Decimal
     limit_price: Decimal
-    status: Literal["open", "filled", "cancelled", "rejected", "expired"]
+    status: Literal["pending", "open", "filled", "cancelled", "rejected", "expired"]
     placed_at: datetime
     resolved_at: datetime | None = None
     reason: str | None = None
+    parent_id: int | None = None
+    oco_group: int | None = None
+    order_inside_bar_unknown: bool = False
 
 
 class ReplaySessionListOut(BaseModel):
@@ -820,6 +874,8 @@ class ReplaySessionListOut(BaseModel):
     has_next: bool
     created_at: datetime
     currency: str = "USD"
+    interval: str = "1d"
+    profile_name: str = "legacy_close"
 
 
 class ReplaySessionOut(BaseModel):
@@ -846,6 +902,11 @@ class ReplaySessionOut(BaseModel):
     lag_override: bool = False
     tradable: bool = True
     open_orders: int = 0
+    # A6.9: the session's bars (and minute feed, intraday) and the profile's
+    # assumptions from the registry, so the page names its fill model.
+    interval: str = "1d"
+    feed: str | None = None
+    profile_assumptions: list[str] = []
 
 
 class ReplayAvailabilityOut(BaseModel):
@@ -863,6 +924,12 @@ class ReplayAvailabilityOut(BaseModel):
     default_starting_cash: Decimal = Decimal("100000.00")
     fee_schedule: str = "none"
     tradable: bool = True
+    # A6.9: the intervals a session can run on (1d, plus the intraday ones
+    # when minutes are stored), the minute feed and its stored range.
+    intervals: list[str] = ["1d"]
+    minute_feed: str | None = None
+    minute_first: datetime | None = None
+    minute_last: datetime | None = None
 
 
 class ReplaySummaryOut(BaseModel):
@@ -930,6 +997,8 @@ class ReplaySubmitOut(BaseModel):
     decision: ReplayDecisionOut | None = None
     fill: ReplayFillOut | None = None
     order: ReplayOrderOut | None = None
+    # A6.9: a bracket's stop and target (``order`` is its entry).
+    children: list[ReplayOrderOut] = []
 
 
 class ReplayEpisodeFillOut(BaseModel):
@@ -956,7 +1025,7 @@ class ReplayEpisodeFillOut(BaseModel):
 
 
 class ReplayEpisodeForensicsOut(BaseModel):
-    """One reconstructed long-only exposure episode."""
+    """One reconstructed exposure episode, long or (27 Nov 2026) short."""
 
     index: int
     ticker: str
@@ -986,6 +1055,8 @@ class ReplayEpisodeForensicsOut(BaseModel):
     fills: list[ReplayEpisodeFillOut] = []
     # A4.6: the episode's fees; ``realized_pnl`` is net of them.
     fees: Decimal = Decimal(0)
+    # 27 Nov 2026: ``short`` when a short sale opened it (US replay sessions).
+    side: Literal["long", "short"] = "long"
 
 
 class ReplayForensicsOut(BaseModel):
@@ -1437,6 +1508,8 @@ class ValuationHistoryOut(BaseModel):
     points: list[ValuationPointOut]
     # Share of the history at or below the latest value, 0-100.
     percentile: float | None = None
+    # A7.4: the history's 10th/25th/50th/75th/90th percentile levels (nearest rank).
+    bands: dict[str, float] | None = None
 
 
 class ScreenerRowOut(BaseModel):
@@ -1687,6 +1760,11 @@ class ThesisOut(BaseModel):
     status: Literal["open", "invalidated", "closed"]
     created_at: datetime
     updated_at: datetime
+    # A7.5 (M5.6): the kill switch, a rule alert judged nightly (A2.3's engine).
+    kill_alert_id: int | None = None
+    kill_state: Literal["none", "armed", "paused", "fired"] = "none"
+    kill_fired_at: datetime | None = None
+    kill_fired_on: date | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -2193,6 +2271,8 @@ class PayoffPointOut(BaseModel):
     spot: float
     at_expiry: float
     today: float
+    # A7.9: with ``days_forward`` / ``iv_shift``: P&L on that day at the shifted IV.
+    what_if: float | None = None
 
 
 class OptionStrategyPayoffOut(BaseModel):
@@ -3007,15 +3087,31 @@ class StrategyBacktestOut(BaseModel):
 # --- A4.4: cross-sectional rotation ---------------------------------------
 
 
+class FactorIn(BaseModel):
+    """A7.7 (M7.5): one factor of a multi-factor model."""
+
+    name: str | None = Field(default=None, max_length=40)
+    expression: str = Field(min_length=1, max_length=2000)
+    """A numeric Rule DSL expression per symbol (e.g. ``pct_change(close, 252)``)."""
+    weight: float = Field(gt=0, le=10)
+    higher_is_better: bool = True
+
+
 class RotationBacktestIn(BaseModel):
     """POST /v1/backtest/rotation (A4.4): hold the top ``top_n`` symbols of a
     universe by a numeric Rule DSL expression, rebalanced weekly or monthly
     on the venue calendar. ``cash_filter`` is an optional condition judged on
     the market index (``^GSPC`` / ``^NSEI``) at each rebalance close: met
-    means hold cash. Long only."""
+    means hold cash. Long only.
 
-    ranking: str = Field(min_length=1, max_length=4000)
+    A7.7 (M7.5): ``factors`` instead of ``ranking`` makes it a multi-factor
+    model: each factor is z-scored across the universe on each session
+    (symbols with every factor known), signed by ``higher_is_better``, and
+    weighted; the weighted sum ranks. Exactly one of the two."""
+
+    ranking: str | None = Field(default=None, min_length=1, max_length=4000)
     """A numeric expression; higher ranks first (e.g. ``pct_change(close, 126)``)."""
+    factors: list[FactorIn] | None = Field(default=None, min_length=1, max_length=8)
     top_n: int = Field(default=5, ge=1, le=50)
     schedule: Literal["weekly", "monthly"] = "monthly"
     weighting: Literal["equal", "inverse_volatility"] = "equal"
@@ -3034,6 +3130,12 @@ class RotationBacktestIn(BaseModel):
     slippage_bps: float = Field(default=0.0, ge=0, le=1000)
     spread_bps: float = Field(default=0.0, ge=0, le=1000)
     holdout: HoldoutMode = "last_20pct"
+
+    @model_validator(mode="after")
+    def _one_ranking(self) -> RotationBacktestIn:
+        if (self.ranking is None) == (self.factors is None):
+            raise ValueError("give exactly one of ranking or factors")
+        return self
 
     model_config = ConfigDict(populate_by_name=True)
 
@@ -3097,7 +3199,7 @@ class RotationTradeOut(BaseModel):
 
 
 class RotationRuleOut(BaseModel):
-    role: Literal["ranking", "cash_filter"]
+    role: Literal["ranking", "cash_filter", "factor"]
     text: str
     canonical: str
     hash: str
@@ -3615,7 +3717,9 @@ class BookIn(BaseModel):
     # Free text ("Mum", "Jariwala HUF"). Never a PAN: a PAN-shaped label is 422.
     holder_label: str | None = Field(default=None, max_length=60)
     # Imported books only; default zerodha.
-    broker: Literal["zerodha"] | None = None
+    broker: Literal["zerodha", "dhan", "fyers", "upstox", "angelone", "groww", "other"] | None = (
+        None
+    )
 
 
 class BookPatch(BaseModel):
@@ -3876,6 +3980,7 @@ DrawingKind = Literal[
     "position_long",
     "position_short",
     "avwap",
+    "volume_profile",
 ]
 DrawingColour = Literal["aqua", "blue", "violet", "pink", "amber", "lime", "slate", "foreground"]
 
@@ -3993,6 +4098,43 @@ class AvwapOut(BaseModel):
     feed: str | None = None
     decimals: int
     points: list[AvwapPointOut]
+
+
+class VolumeProfileBinOut(BaseModel):
+    low: Decimal
+    high: Decimal
+    # The volume spread into this price slice (a share of each bar's volume).
+    volume: float
+
+
+class VolumeProfileOut(BaseModel):
+    """A6.7 (M2.9): ``GET /v1/symbols/{ticker}/volume-profile``.
+
+    ``bins`` run from the lowest price up. ``poc`` is the middle of the bin with
+    the most volume; ``vah``/``val`` bound the value area (``value_area`` of the
+    volume, 0.7 by default). ``source`` is ``minutes`` (stored 1-minute bars on
+    ``feed``) or ``daily`` (an EOD approximation). ``from``/``to`` are the range
+    read, naive UTC.
+    """
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    ticker: str
+    source: Literal["minutes", "daily"]
+    feed: str | None = None
+    from_: datetime = Field(alias="from")
+    to: datetime
+    bars: int
+    bins: list[VolumeProfileBinOut]
+    poc: Decimal
+    poc_index: int
+    vah: Decimal
+    val: Decimal
+    value_area: float
+    total_volume: float
+    value_volume: float
+    badges: list[str]
+    note: str
 
 
 # ---------------------------------------------------------------------------
@@ -4425,6 +4567,7 @@ class ImportProblemOut(BaseModel):
         "already_imported",
         "needs_opening_lot",
         "basis_uncertain",
+        "not_executed",
     ]
     reason: str
     field: str | None = None
@@ -4442,6 +4585,8 @@ class ImportCountsOut(BaseModel):
     unmatched: int = 0
     skipped_segment: int = 0
     rejected: int = 0
+    not_executed: int = 0
+    """Orders in the file that did not execute (an order-status column, A6.11)."""
     basis_uncertain: int = 0
     intraday_inferred: int = 0
     intraday_short: int = 0
@@ -4452,8 +4597,21 @@ class ImportPreviewOut(BaseModel):
     """``POST /v1/books/{id}/imports/preview``: nothing is stored."""
 
     format: str
-    format_status: Literal["unconfirmed", "confirmed"]
+    """The column map the file was read with (``dhan_tradebook_v1``, ``custom_3``)."""
+    format_label: str = ""
+    format_status: Literal["unconfirmed", "confirmed", "custom"]
     format_note: str
+    format_source: str = ""
+    broker: str = "zerodha"
+    detected: Literal["header", "chosen", "saved", "fallback"] = "header"
+    """header: the header row fits this map; chosen: the caller named it; saved:
+    the caller's own map; fallback: no map fits (``missing_required`` names
+    the closest map's missing columns)."""
+    alternatives: list[str] = []
+    """Other built-in maps the header row also fits."""
+    market: Literal["in", "us"] = "in"
+    headers: list[str] = []
+    """The file's header row (names only, never a cell), for "Map columns yourself"."""
     file_sha256: str
     can_commit: bool
     message: str | None = None
@@ -4472,7 +4630,8 @@ class ImportBatchOut(BaseModel):
     id: int
     created_at: datetime
     column_map: str
-    format_status: Literal["unconfirmed", "confirmed"]
+    format_status: Literal["unconfirmed", "confirmed", "custom"]
+    broker: str = "zerodha"
     rows_total: int
     rows_added: int
     rows_duplicate: int
@@ -4523,15 +4682,75 @@ class NeedsOpeningLotOut(BaseModel):
     short_by: Decimal
 
 
+class ImportMapColumnOut(BaseModel):
+    field: str
+    label: str
+    required: bool
+
+
+class ImportMapOut(BaseModel):
+    """A built-in tradebook column map (A6.11). Every broker map is unconfirmed."""
+
+    name: str
+    broker: str
+    label: str
+    status: Literal["unconfirmed", "confirmed", "custom"]
+    market: Literal["in", "us"] | None
+    note: str
+    source: str
+    """What the map is built from, with the date it was read."""
+    how_to: str
+    columns: list[ImportMapColumnOut]
+
+
+ImportMapField = Literal[
+    "trade_date",
+    "executed_at",
+    "symbol",
+    "exchange",
+    "side",
+    "quantity",
+    "price",
+    "trade_id",
+    "order_id",
+    "isin",
+]
+
+
+class SavedImportMapIn(BaseModel):
+    """``POST /v1/import-maps``: "Map columns yourself". Header names only."""
+
+    name: str = Field(min_length=1, max_length=60)
+    mapping: dict[ImportMapField, str]
+    default_exchange: Literal["NSE", "BSE"] | None = None
+    date_order: Literal["auto", "day_first", "month_first"] = "auto"
+
+
+class SavedImportMapOut(BaseModel):
+    id: int
+    name: str
+    mapping: dict[str, str]
+    default_exchange: Literal["NSE", "BSE"] | None = None
+    date_order: Literal["auto", "day_first", "month_first"] = "auto"
+    created_at: datetime
+    updated_at: datetime
+
+
 class ImportsOut(BaseModel):
     """``GET /v1/books/{id}/imports``."""
 
     book_id: int
     broker: str | None
+    market: Literal["in", "us"] = "in"
+    currency: str = "INR"
     format: str
-    format_status: Literal["unconfirmed", "confirmed"]
+    """The book's broker's map (Zerodha for an ``other`` book)."""
+    format_status: Literal["unconfirmed", "confirmed", "custom"]
     format_note: str
     max_bytes: int
+    maps: list[ImportMapOut] = []
+    saved_maps: list[SavedImportMapOut] = []
+    custom_fields: list[ImportMapColumnOut] = []
     batches: list[ImportBatchOut]
     opening_lots: list[OpeningLotOut]
     needs_opening_lot: list[NeedsOpeningLotOut]
@@ -4562,7 +4781,7 @@ class JournalExcursionOut(BaseModel):
 
 
 class JournalExcursionsOut(BaseModel):
-    basis: Literal["exact_close", "approximate_daily"]
+    basis: Literal["exact_close", "approximate_daily", "exact_minutes"]
     note: str
     mae: JournalExcursionOut | None = None
     mfe: JournalExcursionOut | None = None
@@ -4663,6 +4882,56 @@ class JournalEntrySummaryOut(BaseModel):
     setup_tags: list[str] = []
     mistake_tags: list[str] = []
     has_notes: bool = False
+
+
+class TradeReplayBarOut(BaseModel):
+    ts: datetime
+    open: Decimal
+    high: Decimal
+    low: Decimal
+    close: Decimal
+    volume: int
+
+
+class TradeReplayFillOut(BaseModel):
+    at: datetime
+    side: Literal["buy", "sell"]
+    quantity: Decimal
+    price: Decimal
+    time_known: bool
+
+
+class TradeReplayHesitationOut(BaseModel):
+    """A6.10: from the plan's entry level being touched to the fill, and
+    whether a stop the price went through was honoured (closed on that bar)."""
+
+    entry_touched_at: datetime | None = None
+    fill_at: datetime
+    wait_bars: int | None = None
+    stop_breached_at: datetime | None = None
+    stop_honoured: bool | None = None
+    exit_at: datetime | None = None
+    exit_price: Decimal | None = None
+    note: str
+
+
+class TradeReplayOut(BaseModel):
+    """A6.10 (M9.5): a read-only playback of a paper or imported entry. No orders."""
+
+    entry_id: int
+    ticker: str | None
+    currency: str
+    side: Literal["long", "short"]
+    status: Literal["open", "closed"]
+    interval: Literal["1m", "1d"]
+    bars_note: str
+    bars: list[TradeReplayBarOut]
+    fills: list[TradeReplayFillOut]
+    planned_entry: Decimal | None = None
+    planned_stop: Decimal | None = None
+    planned_target: Decimal | None = None
+    excursions: JournalExcursionsOut
+    hesitation: TradeReplayHesitationOut | None = None
 
 
 class JournalEntryOut(JournalEntrySummaryOut):
@@ -4822,3 +5091,1161 @@ class EdgeStatsOut(BaseModel):
     drift: list[EdgeDriftOut]
     imported_fees_estimated: bool
     honesty: list[str]
+
+
+# ---------------------------------------------------------------------------
+# Chart templates and layouts (A6.8, M2.10)
+# ---------------------------------------------------------------------------
+
+ChartTypeKey = Literal["candles", "hollow", "bars", "line", "area", "heikin-ashi"]
+ChartScaleKey = Literal["linear", "log", "percent"]
+ChartIntervalKey = Literal["1d", "1wk", "1mo", "1m", "5m", "15m", "30m", "60m"]
+ChartGridKey = Literal["1", "2v", "2h", "4"]
+LinkColourKey = Literal["aqua", "blue", "violet", "pink", "amber", "lime", "slate"]
+
+
+class ChartTemplateIn(BaseModel):
+    name: str = Field(min_length=1, max_length=64)
+    chart_type: ChartTypeKey = "candles"
+    scale: ChartScaleKey = "linear"
+    indicators: list[str] = Field(default_factory=list, max_length=16)
+    """Indicator registry keys with their parameters (``sma_50``, ``bb_20_2``)."""
+    pane_heights: dict[str, int] = Field(default_factory=dict)
+    """Pixels by pane kind (``price``, ``volume``, ``rsi``...), 48 to 1200."""
+
+
+class ChartTemplatePatch(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=64)
+    chart_type: ChartTypeKey | None = None
+    scale: ChartScaleKey | None = None
+    indicators: list[str] | None = Field(default=None, max_length=16)
+    pane_heights: dict[str, int] | None = None
+
+
+class ChartTemplateOut(BaseModel):
+    id: int
+    name: str
+    chart_type: ChartTypeKey
+    scale: ChartScaleKey
+    indicators: list[str]
+    pane_heights: dict[str, int]
+    created_at: datetime
+    updated_at: datetime
+
+
+class ChartPaneIn(BaseModel):
+    symbol: str = Field(min_length=1, max_length=32)
+    interval: ChartIntervalKey = "1d"
+    template_id: int | None = None
+    link: LinkColourKey | None = None
+    """The link colour; null is unlinked."""
+
+
+class ChartPaneOut(BaseModel):
+    symbol: str
+    interval: ChartIntervalKey
+    template_id: int | None
+    """Null when the pane has the default look or its template was deleted."""
+    link: LinkColourKey | None
+
+
+class ChartLayoutIn(BaseModel):
+    name: str = Field(min_length=1, max_length=64)
+    grid: ChartGridKey = "1"
+    panes: list[ChartPaneIn] = Field(min_length=1, max_length=4)
+    """One per grid cell in reading order: 1, 2 (``2v``, ``2h``) or 4."""
+
+
+class ChartLayoutPatch(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=64)
+    grid: ChartGridKey | None = None
+    panes: list[ChartPaneIn] | None = Field(default=None, min_length=1, max_length=4)
+
+
+class ChartLayoutOut(BaseModel):
+    id: int
+    name: str
+    grid: ChartGridKey
+    panes: list[ChartPaneOut]
+    created_at: datetime
+    updated_at: datetime
+
+
+class BreadthPointOut(BaseModel):
+    """A7.1 (M3.3): one session's breadth over the market's stored members."""
+
+    date: date
+    advancers: int
+    decliners: int
+    unchanged: int
+    members: int
+    new_highs: int
+    new_lows: int
+    highs_minus_lows: int
+    ad_line: int
+    ad_ratio_20: float | None = None
+    ad_ratio_40: float | None = None
+    mcclellan: float | None = None
+    summation: float | None = None
+    thrust_ema10: float | None = None
+    thrust: bool = False
+    pct_above_20: float | None = None
+    pct_above_50: float | None = None
+    pct_above_100: float | None = None
+    pct_above_200: float | None = None
+    pct_rsi_50: float | None = None
+
+
+class BreadthOut(BaseModel):
+    market: Literal["US", "IN"]
+    start: date
+    end: date
+    members: int
+    universe_note: str
+    method: dict[str, str]
+    points: list[BreadthPointOut]
+
+
+class RotationPointOut(BaseModel):
+    """A7.2 (M3.2): one week of a sector's trail."""
+
+    week: date
+    rs_trend: float
+    rs_momentum: float
+    quadrant: Literal["leading", "weakening", "lagging", "improving"]
+
+
+class RotationSectorOut(BaseModel):
+    sector: str
+    members: int
+    points: list[RotationPointOut]
+
+
+class RotationOut(BaseModel):
+    market: Literal["US", "IN"]
+    benchmark: str
+    benchmark_name: str
+    as_of: date | None = None
+    note: str
+    method: dict[str, str]
+    sectors: list[RotationSectorOut]
+
+
+class ForensicTestOut(BaseModel):
+    key: str
+    label: str
+    result: Literal["pass", "fail", "unknown"]
+    detail: str
+
+
+class ForensicScoreOut(BaseModel):
+    value: float | None = None
+    zone: str | None = None
+    missing: list[str] = []
+    parts: dict[str, float] = {}
+
+
+class ForensicsOut(BaseModel):
+    """A7.3 (M5.1, M5.2): the forensic scorecard on annual facts as known on ``as_of``."""
+
+    ticker: str
+    as_of: date
+    sector: str | None = None
+    financial: bool
+    financial_note: str | None = None
+    fiscal_year_end: date | None = None
+    previous_year_end: date | None = None
+    currency: str | None = None
+    piotroski_score: int | None = None
+    piotroski_known: int | None = None
+    piotroski: list[ForensicTestOut] = []
+    altman_z: ForensicScoreOut | None = None
+    beneish_m: ForensicScoreOut | None = None
+    cfo_to_pat: ForensicScoreOut | None = None
+    reason: str | None = None
+    method: dict[str, str]
+
+
+class ReverseDcfRowOut(BaseModel):
+    wacc: float
+    terminal_growth: float
+    implied_growth: float | None = None
+
+
+class ReverseDcfStepOut(BaseModel):
+    step: str
+    value: float | None = None
+
+
+class ReverseDcfOut(BaseModel):
+    """A7.4 (M5.3): the free-cash-flow growth today's enterprise value implies."""
+
+    ticker: str
+    as_of: date
+    currency: str | None = None
+    implied_growth: float | None = None
+    reason: str | None = None
+    base_fcf: float | None = None
+    base_fcf_source: str
+    wacc: float
+    terminal_growth: float
+    years: int
+    enterprise_value: float | None = None
+    sensitivity: list[ReverseDcfRowOut]
+    reconciliation: list[ReverseDcfStepOut]
+    method: str
+
+
+class BehaviourCellOut(BaseModel):
+    key: str
+    entries: int
+    net_pnl: float
+    win_rate: float | None = None
+
+
+class BehaviourOut(BaseModel):
+    """A7.6 (M10.4): behaviour diagnostics over closed journal entries."""
+
+    entries: int
+    counts_only: bool
+    reason: str | None = None
+    discipline_scored: int
+    discipline_followed: int
+    discipline_rate: float | None = None
+    winners: int
+    losers: int
+    avg_hold_winners: float | None = None
+    avg_hold_losers: float | None = None
+    disposition_index: float | None = None
+    tilt_entries: list[int]
+    tilt_rate: float | None = None
+    by_weekday: list[BehaviourCellOut]
+    by_hour: list[BehaviourCellOut]
+    fees_total: float
+    fees_per_entry: float | None = None
+    fees_share_of_gross: float | None = None
+    fees_estimated: bool
+    currencies: list[str]
+    method: dict[str, str]
+
+
+class ExposureStrikeOut(BaseModel):
+    strike: float
+    gex: float
+    dex: float
+    call_oi: float
+    put_oi: float
+
+
+class OptionExposureOut(BaseModel):
+    """A7.9 (M6.2): GEX/DEX and key levels from the newest US chain snapshot."""
+
+    ticker: str
+    snapshot_date: date | None = None
+    spot: float | None = None
+    expiries: list[date] = []
+    strikes: list[ExposureStrikeOut] = []
+    total_gex: float | None = None
+    total_dex: float | None = None
+    gamma_flip: float | None = None
+    call_wall: float | None = None
+    put_wall: float | None = None
+    expected_move_1d: float | None = None
+    atm_iv: float | None = None
+    used: int = 0
+    skipped: int = 0
+    reason: str | None = None
+    note: str
+
+
+class SeasonCellOut(BaseModel):
+    key: str
+    n: int
+    mean: float | None = None
+    median: float | None = None
+    hit_rate: float | None = None
+    t_stat: float | None = None
+    thin: bool = False
+
+
+class SeasonalityOut(BaseModel):
+    """A9.1 (M3.6): returns by calendar month and weekday, percent."""
+
+    ticker: str
+    first: date | None = None
+    last: date | None = None
+    months: list[SeasonCellOut]
+    weekdays: list[SeasonCellOut]
+    note: str
+
+
+class DriftEventOut(BaseModel):
+    event_date: date
+    reaction_date: date
+    assumed: bool
+    surprise_pct: float | None = None
+    reaction: float
+    d1: float | None = None
+    d5: float | None = None
+    d20: float | None = None
+
+
+class DriftHorizonOut(BaseModel):
+    sessions: int
+    n: int
+    mean: float | None = None
+    median: float | None = None
+    hit_rate: float | None = None
+    t_stat: float | None = None
+
+
+class DriftGroupOut(BaseModel):
+    group: Literal["beat", "miss", "no_surprise"]
+    horizons: list[DriftHorizonOut]
+
+
+class EarningsDriftOut(BaseModel):
+    """A9.1 (M6.6): reactions on earnings sessions and the drift after them."""
+
+    ticker: str
+    avg_abs_reaction: float | None = None
+    avg_abs_day: float | None = None
+    events: list[DriftEventOut]
+    groups: list[DriftGroupOut]
+    note: str
+
+
+class VolForecastOut(BaseModel):
+    test_days: int
+    har_mse: float | None = None
+    rw_mse: float | None = None
+    har_qlike: float | None = None
+    rw_qlike: float | None = None
+    skill_mse: float | None = None
+    skill_qlike: float | None = None
+    next_day_vol: float | None = None
+    coefficients: list[float] | None = None
+    reason: str | None = None
+
+
+class ConeOut(BaseModel):
+    horizon: int
+    level: float
+    lower: float | None = None
+    upper: float | None = None
+    realised_coverage: float | None = None
+    test_days: int
+
+
+class ForecastOut(BaseModel):
+    """A9.2 (M8.2, M8.3): HAR-RV against a random walk; conformal cones with coverage."""
+
+    ticker: str
+    last_date: date | None = None
+    last_close: float | None = None
+    volatility: VolForecastOut
+    cones: list[ConeOut]
+    cones_reason: str | None = None
+    method: dict[str, str]
+
+
+class PairPointOut(BaseModel):
+    date: date
+    spread: float | None = None
+    beta: float | None = None
+
+
+class PairOut(BaseModel):
+    """A9.3 (M7.6): Engle-Granger cointegration of two stored symbols."""
+
+    a: str
+    b: str
+    sessions: int
+    first: date | None = None
+    last: date | None = None
+    alpha: float | None = None
+    beta: float | None = None
+    tau: float | None = None
+    critical: dict[str, float] = {}
+    cointegrated_at: str | None = None
+    half_life: float | None = None
+    zscore: float | None = None
+    rolling_beta: list[PairPointOut] = []
+    spread: list[PairPointOut] = []
+    reason: str | None = None
+    method: str
+
+
+class VolTermOut(BaseModel):
+    expiry: date
+    days: int
+    atm_iv: float | None = None
+    skew_25d: float | None = None
+
+
+class VolSummaryOut(BaseModel):
+    """A9.4 (M6.3): term structure, skew, VRP and IV rank from stored US chains."""
+
+    ticker: str
+    snapshot_date: date | None = None
+    spot: float | None = None
+    term: list[VolTermOut] = []
+    atm_30d: float | None = None
+    realised_21d: float | None = None
+    vrp: float | None = None
+    iv_rank: float | None = None
+    iv_percentile: float | None = None
+    snapshots: int = 0
+    reason: str | None = None
+    method: str
+
+
+class PivotOut(BaseModel):
+    day: date
+    kind: Literal["high", "low"]
+    price: float
+    label: Literal["HH", "LH", "HL", "LL"] | None = None
+    confirmed_at: date
+
+
+class ZoneOut(BaseModel):
+    low: float
+    high: float
+    touches: int
+    side: Literal["support", "resistance", "at price"]
+    first: date
+    last: date
+
+
+class StructureOut(BaseModel):
+    """A9.5 (M2.12): swing pivots, HH/LH/HL/LL labels and pivot zones, by stated rules."""
+
+    ticker: str
+    n: int
+    sessions: int
+    atr: float | None = None
+    pivots: list[PivotOut]
+    zones: list[ZoneOut]
+    rules: dict[str, str]
+
+
+class MacroPointOut(BaseModel):
+    day: date
+    value: float
+
+
+class MacroSeriesOut(BaseModel):
+    """A9.7 (M1.10): one catalogue series as stored, with its changes."""
+
+    series_id: str
+    group: str
+    label: str
+    title: str | None = None
+    units: str | None = None
+    frequency: str | None = None
+    third_party: bool
+    fetched: bool
+    fetched_at: datetime | None = None
+    latest: MacroPointOut | None = None
+    change_month: float | None = None
+    change_year: float | None = None
+    stale: bool
+    spark: list[MacroPointOut]
+    source_url: str
+
+
+class MacroSpreadOut(BaseModel):
+    """A9.7 (M3.5): ``a - b`` on a's dates, b as of each date (at most 7 days old)."""
+
+    key: str
+    label: str
+    a: str
+    b: str
+    units: str
+    note: str
+    latest: MacroPointOut | None = None
+    year_ago: MacroPointOut | None = None
+    points: list[MacroPointOut]
+    reason: str | None = None
+
+
+class MacroOverviewOut(BaseModel):
+    groups: list[str]
+    series: list[MacroSeriesOut]
+    spreads: list[MacroSpreadOut]
+    last_fetched_at: datetime | None = None
+    source: str
+    third_party_note: str
+    method: str
+
+
+class MacroObservationOut(BaseModel):
+    day: date
+    value: float | None = None
+
+
+class MacroSeriesDetailOut(BaseModel):
+    series: MacroSeriesOut
+    observations: list[MacroObservationOut]
+
+
+class DocumentOut(BaseModel):
+    """A7.10 (M5.5): one stored document; ``available_at`` is naive UTC."""
+
+    id: int
+    ticker: str
+    kind: str
+    source: str
+    form_type: str | None = None
+    title: str
+    event_date: date | None = None
+    available_at: datetime
+    available_assumed: bool
+    url: str | None = None
+    content_type: str
+    text_chars: int
+
+
+class DocumentListOut(BaseModel):
+    ticker: str
+    as_of: datetime
+    documents: list[DocumentOut]
+    note: str
+
+
+class DocumentDetailOut(BaseModel):
+    document: DocumentOut
+    text: str
+    truncated: bool
+    matches: int | None = None
+
+
+class DocumentHitOut(BaseModel):
+    document: DocumentOut
+    matches: int
+    snippets: list[str]
+
+
+class DocumentSearchOut(BaseModel):
+    query: str
+    as_of: datetime
+    hits: list[DocumentHitOut]
+    note: str
+
+
+class PassageOut(BaseModel):
+    document: DocumentOut
+    chunk_id: int
+    position: int
+    start_char: int
+    end_char: int
+    text: str
+    score: float
+    keyword_rank: int | None
+    vector_rank: int | None
+    similarity: float | None
+
+
+class PassageSearchOut(BaseModel):
+    query: str
+    as_of: datetime
+    mode: str
+    embed_model: str | None
+    passages: list[PassageOut]
+    notes: list[str]
+    method: str
+
+
+class AskIn(BaseModel):
+    question: str = Field(min_length=5, max_length=500)
+    ticker: str | None = Field(default=None, max_length=16)
+    kind: str | None = None
+    as_of: datetime | None = None
+    provider: Literal["server", "openai_compatible", "anthropic"] = "server"
+
+
+class AskSourceOut(BaseModel):
+    n: int
+    cited: bool
+    passage: PassageOut
+
+
+class AskOut(BaseModel):
+    question: str
+    as_of: datetime
+    retrieval_mode: str
+    answer: str
+    grounded: bool
+    cited: list[int]
+    invalid_citations: list[int]
+    uncited_sentences: int
+    sources: list[AskSourceOut]
+    provider: str | None
+    model: str | None
+    warnings: list[str]
+    notes: list[str]
+    disclaimer: str
+
+
+class AnswerCheckOut(BaseModel):
+    answer: str
+    grounded: bool
+    cited: list[int]
+    invalid_citations: list[int]
+    uncited_sentences: int
+    warnings: list[str]
+    sources: list[AskSourceOut]
+
+
+class GridIn(BaseModel):
+    tickers: list[str] = Field(min_length=1, max_length=5)
+    questions: list[str] = Field(min_length=1, max_length=3)
+    as_of: datetime | None = None
+    provider: Literal["server", "openai_compatible", "anthropic"] = "server"
+
+
+class GridCellOut(BaseModel):
+    ticker: str
+    question: str
+    result: AnswerCheckOut
+
+
+class GridOut(BaseModel):
+    as_of: datetime
+    tickers: list[str]
+    questions: list[str]
+    cells: list[GridCellOut]
+    model_calls: int
+    provider: str | None
+    model: str | None
+    disclaimer: str
+
+
+class DebateIn(BaseModel):
+    ticker: str = Field(min_length=1, max_length=16)
+    topic: str = Field(min_length=5, max_length=300)
+    as_of: datetime | None = None
+    provider: Literal["server", "openai_compatible", "anthropic"] = "server"
+
+
+class DebateOut(BaseModel):
+    ticker: str
+    topic: str
+    as_of: datetime
+    retrieval_mode: str
+    case_for: AnswerCheckOut
+    case_against: AnswerCheckOut
+    provider: str | None
+    model: str | None
+    disclaimer: str
+
+
+class WeekFiguresOut(BaseModel):
+    entries: int
+    wins: int
+    losses: int
+    net_by_currency: dict[str, float]
+    mean_r: float | None
+    n_r: int
+    plans_scored: int
+    plans_followed: int
+    no_plan: int
+
+
+class LookAtOut(BaseModel):
+    key: str
+    text: str
+    entry_ids: list[int]
+
+
+class WeeklyReviewOut(BaseModel):
+    week_start: date
+    week_end: date
+    week: WeekFiguresOut
+    baseline_weeks: int
+    baseline_entries_per_week: float | None
+    baseline_mean_r: float | None
+    baseline_adherence: float | None
+    look_at: list[LookAtOut]
+    notes: list[str]
+    method: str
+
+
+class BriefMoveOut(BaseModel):
+    ticker: str
+    close: Decimal
+    close_date: date
+    previous_close: Decimal
+    previous_date: date
+    change_pct: float
+    held: bool
+
+
+class BriefAlertOut(BaseModel):
+    title: str
+    body: str
+    link: str | None
+    created_at: datetime
+
+
+class BriefEarningsOut(BaseModel):
+    ticker: str
+    event_date: date
+
+
+class BriefDocumentOut(BaseModel):
+    id: int
+    ticker: str
+    title: str
+    kind: str
+    available_at: datetime
+
+
+class MorningBriefOut(BaseModel):
+    generated_at: datetime
+    symbols: list[str]
+    moves: list[BriefMoveOut]
+    alerts: list[BriefAlertOut]
+    earnings: list[BriefEarningsOut]
+    documents: list[BriefDocumentOut]
+    open_plans: int
+    pending_orders: int
+    note: str
+
+
+class DistributionPointOut(BaseModel):
+    price: float
+    implied: float
+    model: float
+
+
+class ImpliedDistributionOut(BaseModel):
+    ticker: str
+    expiry: date | None
+    days: int | None
+    spot: float | None
+    implied_atm_vol: float | None
+    model_vol: float | None
+    model_vol_source: str | None
+    quantile_levels: list[float]
+    implied_quantiles: list[float]
+    model_quantiles: list[float]
+    move: float
+    implied_p_down: float | None
+    implied_p_up: float | None
+    model_p_down: float | None
+    model_p_up: float | None
+    negative_mass: float | None
+    strikes_used: int
+    curve: list[DistributionPointOut]
+    reason: str | None
+    method: str
+
+
+class TextChangeOut(BaseModel):
+    kind: str
+    before: str | None
+    after: str | None
+    similarity: float | None
+
+
+class HedgingOut(BaseModel):
+    words: int
+    hedges: int
+    per_thousand: float | None
+    top: list[tuple[str, int]]
+
+
+class DocumentCompareOut(BaseModel):
+    document: DocumentOut
+    against: DocumentOut | None
+    scope: str | None
+    scope_note: str | None
+    paragraphs_before: int
+    paragraphs_after: int
+    unchanged: int
+    added: int
+    removed: int
+    changed: int
+    changes: list[TextChangeOut]
+    truncated: bool
+    hedging_before: HedgingOut | None
+    hedging_after: HedgingOut | None
+    note: str
+    method: str
+
+
+class ExtractIn(BaseModel):
+    document_id: int
+    provider: Literal["server", "openai_compatible", "anthropic"] = "server"
+
+
+class FigureOut(BaseModel):
+    metric: str
+    value: str
+    unit: str
+    period: str
+    quote: str
+    chunk_id: int
+    position: int
+
+
+class ExtractOut(BaseModel):
+    document: DocumentOut
+    figures: list[FigureOut]
+    passages_read: int
+    dropped: dict[str, int]
+    provider: str | None
+    model: str | None
+    method: str
+    disclaimer: str
+
+
+class OptimiseViewIn(BaseModel):
+    ticker: str = Field(min_length=1, max_length=16)
+    expected_return: float = Field(ge=-1, le=2)
+    confidence: float = Field(gt=0, le=1)
+
+
+class OptimiseIn(BaseModel):
+    """A7.11 (M10.6): optimise weights over stored closes."""
+
+    tickers: list[str] = Field(min_length=2, max_length=30)
+    method: Literal["hrp", "min_volatility", "max_sharpe", "min_cvar", "black_litterman"] = "hrp"
+    years: int = Field(default=3, ge=1, le=10)
+    risk_free_rate: float = Field(default=0.04, ge=0, le=0.2)
+    max_weight: float = Field(default=1.0, gt=0, le=1)
+    beta: float = Field(default=0.95, ge=0.8, le=0.99)
+    cash: float | None = Field(default=None, gt=0, le=1e12)
+    views: list[OptimiseViewIn] = Field(default_factory=list, max_length=30)
+    delta: float = Field(default=2.5, gt=0, le=10)
+
+
+class OptimiseWeightOut(BaseModel):
+    ticker: str
+    weight: float
+    shares: int | None = None
+    price: float | None = None
+    prior: float | None = None
+    posterior: float | None = None
+
+
+class OptimisePerformanceOut(BaseModel):
+    expected_return: float | None = None
+    volatility: float | None = None
+    sharpe: float | None = None
+    cvar: float | None = None
+
+
+class OptimiseOut(BaseModel):
+    method: str
+    currency: str
+    first: date
+    last: date
+    sessions: int
+    risk_free_rate: float
+    beta: float
+    weights: list[OptimiseWeightOut]
+    performance: OptimisePerformanceOut
+    equal_weight: OptimisePerformanceOut
+    cash: float | None = None
+    leftover: float | None = None
+    notes: list[str]
+    disclaimer: str
+
+
+class TaxSourceOut(BaseModel):
+    title: str
+    url: str
+    read_on: str
+    note: str
+
+
+class TaxRulesOut(BaseModel):
+    fy: str
+    start: date
+    end: date
+    act: str
+    stcg_section: str
+    ltcg_section: str
+    stcg_rate: Decimal
+    ltcg_rate: Decimal
+    ltcg_exemption: Decimal
+    cess_rate: Decimal
+    surcharge_cap: Decimal
+    long_term_after_months: int
+    sources: list[TaxSourceOut]
+
+
+class TaxRealisedOut(BaseModel):
+    ticker: str
+    bought: date
+    sold: date
+    quantity: Decimal
+    cost: Decimal
+    proceeds: Decimal
+    gain: Decimal
+    term: Literal["short", "long"]
+    grandfathered: bool
+
+
+class TaxIntradayOut(BaseModel):
+    ticker: str
+    day: date
+    quantity: Decimal
+    pnl: Decimal
+
+
+class TaxOpenLotOut(BaseModel):
+    ticker: str
+    bought: date
+    quantity: Decimal
+    cost: Decimal
+    close: Decimal | None = None
+    close_date: date | None = None
+    unrealised: Decimal | None = None
+    term: Literal["short", "long"]
+    long_term_on: date
+
+
+class TaxComputationOut(BaseModel):
+    stcg: Decimal
+    stcl: Decimal
+    ltcg: Decimal
+    ltcl: Decimal
+    net_short: Decimal
+    net_long_before_exemption: Decimal
+    exemption_used: Decimal
+    exemption_left: Decimal
+    taxable_short: Decimal
+    taxable_long: Decimal
+    tax_short: Decimal
+    tax_long: Decimal
+    surcharge: Decimal
+    cess: Decimal
+    total_tax: Decimal
+    loss_carried_short: Decimal
+    loss_carried_long: Decimal
+    intraday_pnl: Decimal
+
+
+class TaxUnmatchedOut(BaseModel):
+    ticker: str
+    day: date
+    quantity: Decimal
+
+
+class IndiaTaxOut(BaseModel):
+    """A7.12 (M10.7): an estimate of one INR book's FY capital gains tax."""
+
+    book_id: int
+    fy: str
+    as_of: date
+    surcharge_rate: Decimal
+    rules: TaxRulesOut
+    computation: TaxComputationOut
+    realised: list[TaxRealisedOut]
+    intraday: list[TaxIntradayOut]
+    open_lots: list[TaxOpenLotOut]
+    unmatched: list[TaxUnmatchedOut]
+    skipped_tickers: list[str]
+    method: list[str]
+    estimate_note: str
+
+
+class LenderPeerOut(BaseModel):
+    ticker: str
+    pb: float
+    roe: float
+
+
+class LenderOut(BaseModel):
+    """A7.13 (M5.2): P/B against ROE for a bank or NBFC, with its peers."""
+
+    ticker: str
+    market: str | None = None
+    pb: float | None = None
+    roe: float | None = None
+    as_of: str | None = None
+    peers: list[LenderPeerOut]
+    slope: float | None = None
+    intercept: float | None = None
+    line_pb: float | None = None
+    gap: float | None = None
+    coe: float
+    growth: float
+    justified_pb: float | None = None
+    reasons: list[str]
+    method: str
+    kpi_note: str
+
+
+class FoDayOut(BaseModel):
+    day: date
+    atm_iv: float | None = None
+    skew: float | None = None
+    pcr: float | None = None
+    spot: float
+
+
+class FoSmileOut(BaseModel):
+    offset: int
+    call_iv: float | None = None
+    put_iv: float | None = None
+
+
+class FoUnderlyingOut(BaseModel):
+    underlying: str
+    series: str
+    first: date
+    last: date
+    sessions: int
+    iv_now: float | None = None
+    iv_rank: float | None = None
+    iv_percentile: float | None = None
+    days: list[FoDayOut]
+    smile: list[FoSmileOut]
+
+
+class FoIndiaOut(BaseModel):
+    """A7.14 (M6.1, M6.3): India index options from the owner's local files."""
+
+    underlyings: list[FoUnderlyingOut]
+    skew_offset: int
+    min_days: int
+    method: str
+    source_note: str
+
+
+class AiRuleIn(BaseModel):
+    """A8.2 (M4.2): describe a screen in words; the model drafts DSL text."""
+
+    text: str = Field(min_length=3, max_length=500)
+    timeframe: str = "daily"
+    provider: Literal["server", "openai_compatible", "anthropic"] = "server"
+
+
+class AiRuleAttemptOut(BaseModel):
+    rule: str
+    check: RuleCheckOut
+
+
+class AiRuleOut(BaseModel):
+    request: str
+    provider: str
+    model: str
+    rule: str
+    check: RuleCheckOut
+    attempts: list[AiRuleAttemptOut]
+    note: str
+
+
+class AiStatusOut(BaseModel):
+    configured: bool
+    provider: str | None = None
+    model: str | None = None
+    reason: str | None = None
+    keys_available: bool = False
+
+
+class AiKeyIn(BaseModel):
+    """A8.7: a user's own key; write-only (never returned)."""
+
+    api_key: str = Field(min_length=8, max_length=400)
+    model: str = Field(min_length=1, max_length=100)
+    base_url: str | None = Field(default=None, max_length=300)
+
+
+class AiKeyOut(BaseModel):
+    provider: str
+    model: str
+    base_url: str | None
+    key_last4: str
+    updated_at: datetime
+
+
+class AiKeysOut(BaseModel):
+    available: bool
+    keys: list[AiKeyOut]
+    providers: list[str]
+    held: dict[str, str]
+    note: str
+
+
+class CohortIn(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+
+
+class CohortJoinIn(BaseModel):
+    code: str = Field(min_length=4, max_length=16)
+    consent: bool = False
+
+
+class CohortAssignmentIn(BaseModel):
+    """A10.2 (M12.2): a drill-deck recipe for every member, and its rubric."""
+
+    title: str = Field(min_length=1, max_length=120)
+    deck: DrillDeckIn
+    min_followed_pct: int = Field(default=70, ge=0, le=100)
+    due_on: date | None = None
+
+
+class CohortAssignmentOut(BaseModel):
+    id: int
+    title: str
+    min_followed_pct: int
+    due_on: date | None = None
+    rule: str
+    k: int
+    seed: int | None = None
+    created_at: datetime
+    my_deck_id: int | None = None
+
+
+class CohortOut(BaseModel):
+    """A10.2 (M12.1): a cohort as its owner or a member sees it."""
+
+    id: int
+    name: str
+    role: Literal["owner", "member"]
+    invite_code: str | None = None
+    members: int
+    assignments: list[CohortAssignmentOut]
+    created_at: datetime
+    consent_text: str
+
+
+class CohortStartOut(BaseModel):
+    assignment_id: int
+    deck_id: int
+    created: bool
+
+
+class GradebookCellOut(BaseModel):
+    """Process counts only: no money, R, fills, symbols or dates."""
+
+    assignment_id: int
+    started: bool
+    drills: int
+    revealed: int
+    traded: int
+    followed_plan: int
+    checks_passed: int
+    checks_applicable: int
+    followed_pct: float | None = None
+    grade: Literal["not_started", "in_progress", "meets_rubric", "below_rubric"]
+
+
+class GradebookRowOut(BaseModel):
+    user_id: int
+    name: str
+    joined_at: str
+    cells: list[GradebookCellOut]
+
+
+class GradebookOut(BaseModel):
+    cohort_id: int
+    assignments: list[CohortAssignmentOut]
+    rows: list[GradebookRowOut]
+    rubric: str
+    privacy: str

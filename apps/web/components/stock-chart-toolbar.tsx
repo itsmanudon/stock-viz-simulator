@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import { IndicatorMenu } from "@/components/indicator-menu";
+import { VolumeProfileToggle } from "@/components/volume-profile-toggle";
 import type { IndicatorCatalogItem } from "@/lib/api/types";
 import {
   EVENT_LABELS,
@@ -45,6 +46,7 @@ export function StockChartToolbar({
   catalog = null,
   signedIn = false,
   intradayIntervals = [],
+  volumeProfile,
 }: {
   ticker: string;
   timeframe: StockTimeframe;
@@ -60,6 +62,8 @@ export function StockChartToolbar({
   signedIn?: boolean;
   /** A6.2: the intraday intervals the symbol has (none: the buttons are hidden). */
   intradayIntervals?: readonly string[];
+  /** A6.7: the volume profile switch (absent: not shown); `offered` false for an index. */
+  volumeProfile?: { offered: boolean };
 }) {
   const intraday = isIntradayInterval(interval);
   // The lookbacks follow the interval: daily ranges, or the intraday ones.
@@ -236,6 +240,8 @@ export function StockChartToolbar({
           router.push(buildStockChartHref(ticker, timeframe, next, interval, view))
         }
       />
+
+      {volumeProfile ? <VolumeProfileToggle offered={volumeProfile.offered} /> : null}
 
       {/* A3.5: one toggle per event type; the choice is URL state (?events=). */}
       <EventToggles

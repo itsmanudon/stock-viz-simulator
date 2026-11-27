@@ -9,6 +9,8 @@ import { ReplayJournalForm } from "@/components/replay-journal";
 import { ReplayTradeTicket } from "@/components/replay-trade-ticket";
 import type { ReplayFill, ReplayForensics, ReplayJournal } from "@/lib/api/replay";
 
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn(), push: vi.fn() }) }));
+
 vi.mock("@/app/(product)/(authed)/replay/actions", () => ({
   submitReplayOrderAction: vi.fn(async () => ({})),
   advanceReplayAction: vi.fn(async () => ({})),
@@ -129,6 +131,7 @@ describe("Replay Lab presentation", () => {
         {
           index: 1,
           ticker: "AAPL",
+          side: "long",
           opened_at: "2020-01-04T00:00:00Z",
           closed_at: null,
           status: "open",

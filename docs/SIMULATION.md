@@ -578,6 +578,95 @@ Tests: `apps/api/tests/test_a64_intraday.py` (next-bar fills, entries
 dropped at a session's end, exits across a night, same-day fees by hand,
 flatten, annualisation, daily ADV).
 
+## `intrabar_ohlc` (v1) and brackets (A6.9, M9.4)
+
+A replay and backtest profile, registered beside `legacy_close` and
+`next_open` (`simulation/registry.py`: `REPLAY_PROFILES`, `BACKTEST_PROFILES`,
+`replay_profile`). Live paper trading stays on `legacy_close`
+(`LIVE_PAPER_EXECUTION_PROFILE`, unchanged).
+
+- **Market orders** fill at the observed bar's close.
+- **Limit, stop and target orders** are judged on the bar's range with the
+  open first: a buy limit fills at the open when the bar opens at or below
+  it, else at the limit when the low reaches it; a sell limit or take-profit
+  mirrors that on the high; a sell stop fills at the open on a gap through
+  it, else at the stop when the low reaches it (the same rule as
+  `evaluate_range_stop`).
+- **Brackets** (`evaluate_oco_exit`): a long entry's sell stop and sell
+  target, one cancels the other. An open through either level fills that
+  leg. When only one level is in the range it fills. When both are inside
+  one bar, the stored minutes inside it decide (the first minute that
+  reaches a level, by the same rule); a minute that reaches both, a
+  1-minute bar, or no stored minutes: **the stop fills first**, labelled
+  "Order inside the bar unknown" (worst case, design note question 11;
+  no owner decision recorded, so the recommendation stands).
+- **Replay sessions** choose the profile at creation (`profile`, default
+  `legacy_close`, so a session created as before behaves as before) and the
+  page names it. A bracket's entry is a `bracket` row (`replay_orders`:
+  `parent_id`, `oco_group`, status `pending` for a child before its entry
+  fills). A market entry fills at once; its children rest from the next bar.
+  A limit entry rests; when it fills its children open from the next bar
+  (the order of the rest of the entry's bar is not known). One filling
+  cancels the other ("One cancels the other: the stop filled").
+- **Minutes for a bar**: a daily bar's are its venue session's 1-minute bars
+  on the best stored minute feed; an intraday bar's are its own feed's
+  minutes from its open to its close.
+- **The three-way kernel test** runs every order under `intrabar_ohlc` on
+  replay and the backtest path (`fills.book`), live skipped with its reason,
+  plus a bracket exit with both levels inside the bar
+  (`tests/test_kernel_three_way.py`). The DSL backtester's routes still take
+  `fill_rule` `next_open`/`next_close` (read through the same registry);
+  `intrabar_ohlc` as a route `fill_rule` is not exposed yet.
+
+**Intraday replay sessions.** `interval` `1m`/`5m`/`15m`/`60m` builds the
+session's bars from its symbol's best stored minute feed (frozen as `feed`)
+with A6.2's buckets (`services/replay/intraday.py`); only minutes, never the
+stored hourly files. An intraday session needs an end. The Indian 30-day lag
+reads the end bar's venue date. Fees price on each bar's venue date, and the
+DP charge is due once per venue day. Daily sessions keep `interval` `1d`.
+
+**Autoplay.** The page plays, pauses and steps at 1, 2, 5 or 10 bars a
+second by calling `advance` one step at a time with the bar the previous
+answer named; the `expected_current_at` guard makes a repeated or late step
+change nothing, so autoplay never double-advances. Advances are limited per
+user in the API process (`services/replay/throttle.py`: 15 a second, 429
+with `Retry-After`; off when `RATELIMIT_ENABLED=0`), for replay and drill
+advances alike, because the web server's calls are exempt from slowapi.
+
+### Short brackets (27 Nov 2026)
+
+The owner allowed short trades in replay brackets. Rules:
+
+- **Who:** US-listed sessions only (USD and the New York venue), like the DSL
+  backtester's shorts. NSE/BSE delivery cannot be held short overnight, so
+  Indian sessions refuse with a reason.
+- **What:** `POST .../orders` with `order_type: bracket`, `direction: short`
+  and `side: sell`. The entry sells short (at the current close, or a resting
+  sell limit); the stop sits above the entry and the target below, and both
+  are buys that cover. One cancels the other, as for a long bracket.
+- **Kernel:** `evaluate_oco_exit` mirrors the long rules when its legs are
+  buys: a buy stop gaps at the open when the bar opens at or above it, else
+  fills at the stop when the high reaches it; a buy target fills at the open
+  when the bar opens at or below it, else at the target when the low reaches
+  it. Both inside one bar: the stored minutes decide, else the stop first,
+  labelled. `legacy_close` triggers on the close (stop `close >= stop`,
+  target `close <= target`). Outside a bracket, stop-loss and take-profit
+  orders stay sell-only (`evaluate_order(..., covers=False)`), so live paper
+  is unchanged.
+- **Ledger:** a short is a negative `replay_positions.quantity` through
+  `SimLedger.apply_short`: the sale credits cash, a cover debits it and
+  realises `(average short - cover) x quantity`, and a cover is never refused
+  for cash. Only a short bracket opens one; a buy while short covers it, and
+  a plain sell while short is refused. Equity is cash plus quantity x close
+  (negative for a short).
+- **Read back:** forensics episodes carry `side`; a short's return is on the
+  short sale's notional, MAE is the average short minus the highest high,
+  MFE the average short minus the lowest low, and its excess return adds the
+  price move back. Journal entries for replay group shorts as imported books
+  do (`side: short`).
+- **Not done:** short chart trade plans. Paper books cannot sell short, so a
+  short paper plan could never fill.
+
 ## Future execution profiles (not implemented)
 
 These names are reserved for later SIM work. They are **not** implemented
@@ -829,7 +918,8 @@ Authed API and Replay Lab UI:
 - `GET /v1/replay/sessions/{id}/forensics` — episodes, MAE/MFE, benchmark, concentration
 - `GET` / `PUT /v1/replay/sessions/{id}/journal` — thesis (locks after first fill)
 - `POST /v1/replay/sessions/{id}/orders` — intent only; a market order fills at
-  the current close, a limit / stop order rests (A4.6)
+  the current close, a limit / stop order rests (A4.6); `bracket` with
+  `entry_type`, `stop_price`, `target_price` (A6.9)
 - `GET /v1/replay/sessions/{id}/orders`, `POST .../orders/{order_id}/cancel` (A4.6)
 - `GET /v1/replay/sessions/{id}/indicators?names=`, `GET .../events` (A4.6)
 - `GET`/`POST /v1/replay/sessions/{id}/drawings`, `PATCH`/`DELETE .../drawings/{id}` (A4.6)

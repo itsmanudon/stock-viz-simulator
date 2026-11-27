@@ -51,6 +51,13 @@ CONCEPTS: dict[str, Concept] = {
         Concept("current_assets", "stock", "money", "Current assets"),
         Concept("current_liabilities", "stock", "money", "Current liabilities"),
         Concept("shares_outstanding", "stock", "shares", "Shares outstanding"),
+        # A7.3 (forensic scorecard): additive, so v1's meanings are unchanged.
+        Concept("sga", "flow", "money", "Selling, general and administrative"),
+        Concept("depreciation", "flow", "money", "Depreciation and amortisation"),
+        Concept("retained_earnings", "stock", "money", "Retained earnings"),
+        Concept("receivables", "stock", "money", "Accounts receivable"),
+        Concept("net_ppe", "stock", "money", "Net property, plant and equipment"),
+        Concept("long_term_debt", "stock", "money", "Long-term debt"),
     )
 }
 
@@ -76,6 +83,13 @@ YFINANCE: dict[str, str] = {
     "Current Assets": "current_assets",
     "Current Liabilities": "current_liabilities",
     "Ordinary Shares Number": "shares_outstanding",
+    # A7.3
+    "Selling General And Administration": "sga",
+    "Reconciled Depreciation": "depreciation",
+    "Retained Earnings": "retained_earnings",
+    "Accounts Receivable": "receivables",
+    "Net PPE": "net_ppe",
+    "Long Term Debt": "long_term_debt",
 }
 
 # EDGAR XBRL tags (us-gaap, dei), in order of preference per concept: the
@@ -103,6 +117,16 @@ EDGAR: dict[str, tuple[str, ...]] = {
     "current_assets": ("us-gaap:AssetsCurrent",),
     "current_liabilities": ("us-gaap:LiabilitiesCurrent",),
     "shares_outstanding": ("dei:EntityCommonStockSharesOutstanding",),
+    # A7.3
+    "sga": ("us-gaap:SellingGeneralAndAdministrativeExpense",),
+    "depreciation": (
+        "us-gaap:DepreciationDepletionAndAmortization",
+        "us-gaap:DepreciationAndAmortization",
+    ),
+    "retained_earnings": ("us-gaap:RetainedEarningsAccumulatedDeficit",),
+    "receivables": ("us-gaap:AccountsReceivableNetCurrent",),
+    "net_ppe": ("us-gaap:PropertyPlantAndEquipmentNet",),
+    "long_term_debt": ("us-gaap:LongTermDebtNoncurrent", "us-gaap:LongTermDebt"),
 }
 
 
