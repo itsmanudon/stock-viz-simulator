@@ -69,8 +69,13 @@ def test_refusals(session: Session) -> None:
     with pytest.raises(keys.KeysOff, match="not a valid"):
         keys.save_key(session, S("short"), uid, "openai_compatible", api_key=SECRET, model="m",
                       base_url="https://api.example.com/v1")  # fmt: skip
-    with pytest.raises(keys.KeyError_, match="anthropic SDK"):
-        keys.save_key(session, S(), uid, "anthropic", api_key=SECRET, model="m", base_url=None)
+    with pytest.raises(keys.KeyError_, match="base URL empty"):
+        keys.save_key(session, S(), uid, "anthropic", api_key=SECRET, model="claude-opus-5-5",
+                      base_url="https://api.example.com")  # fmt: skip
+    with pytest.raises(keys.KeyError_, match="Claude model"):
+        keys.save_key(session, S(), uid, "anthropic", api_key=SECRET, model="gpt-4", base_url=None)
+    with pytest.raises(keys.KeyError_, match="provider must be one of"):
+        keys.save_key(session, S(), uid, "gemini", api_key=SECRET, model="m", base_url=None)
     with pytest.raises(keys.KeyError_, match="incomplete"):
         keys.save_key(session, S(), uid, "openai_compatible", api_key="sk 1234 5678", model="m",
                       base_url="https://api.example.com/v1")  # fmt: skip
@@ -149,7 +154,8 @@ def test_routes(client: TestClient, session: Session, monkeypatch) -> None:
     h = _auth(uid)
     assert client.get("/v1/ai/keys").status_code == 401
     listed = client.get("/v1/ai/keys", headers=h).json()
-    assert listed["available"] and listed["keys"] == [] and "anthropic" in listed["held"]
+    assert listed["available"] and listed["keys"] == [] and listed["held"] == {}
+    assert listed["providers"] == ["openai_compatible", "anthropic"]
     body = {"api_key": SECRET, "model": "gpt-test", "base_url": "https://api.example.com/v1"}
     res = client.put("/v1/ai/keys/openai_compatible", json=body, headers=h)
     assert res.status_code == 200 and res.json()["key_last4"] == "WXYZ"

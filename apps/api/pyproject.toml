@@ -36,6 +36,7 @@ dependencies = [
     "mcp>=1.9",
     "pypdf>=6.0",
     "numpy>=2.0",
+    "anthropic>=1.0",
 ]
 
 [dependency-groups]

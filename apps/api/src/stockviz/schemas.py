@@ -5661,7 +5661,7 @@ class AskIn(BaseModel):
     ticker: str | None = Field(default=None, max_length=16)
     kind: str | None = None
     as_of: datetime | None = None
-    provider: Literal["server", "openai_compatible"] = "server"
+    provider: Literal["server", "openai_compatible", "anthropic"] = "server"
 
 
 class AskSourceOut(BaseModel):
@@ -5701,7 +5701,7 @@ class GridIn(BaseModel):
     tickers: list[str] = Field(min_length=1, max_length=5)
     questions: list[str] = Field(min_length=1, max_length=3)
     as_of: datetime | None = None
-    provider: Literal["server", "openai_compatible"] = "server"
+    provider: Literal["server", "openai_compatible", "anthropic"] = "server"
 
 
 class GridCellOut(BaseModel):
@@ -5725,7 +5725,7 @@ class DebateIn(BaseModel):
     ticker: str = Field(min_length=1, max_length=16)
     topic: str = Field(min_length=5, max_length=300)
     as_of: datetime | None = None
-    provider: Literal["server", "openai_compatible"] = "server"
+    provider: Literal["server", "openai_compatible", "anthropic"] = "server"
 
 
 class DebateOut(BaseModel):
@@ -5877,7 +5877,7 @@ class DocumentCompareOut(BaseModel):
 
 class ExtractIn(BaseModel):
     document_id: int
-    provider: Literal["server", "openai_compatible"] = "server"
+    provider: Literal["server", "openai_compatible", "anthropic"] = "server"
 
 
 class FigureOut(BaseModel):
@@ -6122,7 +6122,7 @@ class AiRuleIn(BaseModel):
 
     text: str = Field(min_length=3, max_length=500)
     timeframe: str = "daily"
-    provider: Literal["server", "openai_compatible"] = "server"
+    provider: Literal["server", "openai_compatible", "anthropic"] = "server"
 
 
 class AiRuleAttemptOut(BaseModel):

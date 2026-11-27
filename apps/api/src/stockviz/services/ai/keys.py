@@ -6,10 +6,10 @@ saved keys cannot be used. A key is returned to nobody: reads give the
 provider, model, base URL and the last four characters only. Changing the
 server key makes every saved key unreadable; the user is told to save it again.
 
-Providers usable today: ``openai_compatible`` (any endpoint speaking the
-OpenAI chat-completions shape: OpenAI, OpenRouter, Groq, a local LM Studio).
-``anthropic`` is held: the Claude adapter needs the official ``anthropic``
-SDK, a new dependency the owner decides on.
+Providers: ``openai_compatible`` (any endpoint speaking the OpenAI
+chat-completions shape: OpenAI, OpenRouter, Groq, a local LM Studio) and,
+since A8.7b, ``anthropic`` (Claude through the official ``anthropic`` SDK;
+owner, 27 Nov 2026; no base URL: the SDK's own endpoint).
 """
 
 from __future__ import annotations
@@ -22,11 +22,12 @@ from sqlmodel import Session, col, select
 
 from stockviz._time import utcnow
 from stockviz.models import UserAiKey
+from stockviz.services.ai.claude import DEFAULT_MODEL, ClaudeProvider
 from stockviz.services.ai.openai_compat import OpenAICompatibleProvider, check_base_url
 from stockviz.services.ai.provider import LLMProvider, provider_from_settings
 
-USABLE_PROVIDERS = ("openai_compatible",)
-HELD = {"anthropic": "Claude keys need the official anthropic SDK, which is not added yet."}
+USABLE_PROVIDERS = ("openai_compatible", "anthropic")
+HELD: dict[str, str] = {}
 
 
 class KeysOff(RuntimeError):
@@ -98,10 +99,17 @@ def save_key(
     key = api_key.strip()
     if len(key) < 8 or any(c.isspace() for c in key):
         raise KeyError_("the key looks incomplete")
-    name = model.strip()
+    name = model.strip() or (DEFAULT_MODEL if provider == "anthropic" else "")
     if not name:
         raise KeyError_("name the model to use")
-    url = check_base_url(base_url or "", local_allowed=not settings.is_production)
+    if provider == "anthropic":
+        if base_url:
+            raise KeyError_("Claude keys use Anthropic's own endpoint; leave the base URL empty")
+        if not name.startswith("claude-"):
+            raise KeyError_("name a Claude model, e.g. claude-opus-5-5")
+        url = None
+    else:
+        url = check_base_url(base_url or "", local_allowed=not settings.is_production)
     row = _row(session, user_id, provider) or UserAiKey(
         user_id=user_id, provider=provider, ciphertext="", key_last4="", model=name
     )
@@ -149,4 +157,6 @@ def provider_for(session: Session, settings: Any, user_id: int, choice: str) -> 
         raise KeysOff(
             "your saved key can no longer be read (the server key changed); save it again"
         ) from exc
+    if choice == "anthropic":
+        return ClaudeProvider(model=row.model, api_key=secret)
     return OpenAICompatibleProvider(model=row.model, base_url=row.base_url or "", api_key=secret)

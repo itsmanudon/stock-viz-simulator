@@ -15,6 +15,7 @@ import { CopilotPanel } from "@/components/copilot/copilot-panel";
 import { DebatePanel, GridPanel } from "@/components/copilot/research-panels";
 import { PageFrame } from "@/components/page-frame";
 import { PageEmptyState, PageHeader } from "@/components/page-header";
+import { aiChoices } from "@/lib/ai-choices";
 import { type AiKeys, type AiStatus, getAiStatus } from "@/lib/api/ai";
 import { listAiKeys } from "@/lib/api/ai-server";
 
@@ -42,17 +43,9 @@ export default async function CopilotPage({
   } catch {
     status = null;
   }
-  // A8.7: the user's own OpenAI-compatible key, if saved, is a second choice.
+  // A8.7: the user's saved keys (OpenAI-compatible, Claude) are further choices.
   const keys: AiKeys | null = session?.user ? await listAiKeys().catch(() => null) : null;
-  const ownKey = keys?.keys.find((k) => k.provider === "openai_compatible") ?? null;
-  const choices = [
-    ...(status?.configured
-      ? [{ value: "server" as const, label: `Server: ${status.provider} ${status.model}` }]
-      : []),
-    ...(ownKey
-      ? [{ value: "openai_compatible" as const, label: `Your key: ${ownKey.model}` }]
-      : []),
-  ];
+  const choices = aiChoices(status, keys);
   return (
     <PageFrame>
       <PageHeader

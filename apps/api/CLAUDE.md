@@ -2523,9 +2523,16 @@ the downgrade refuses while a key is stored): `user_ai_keys`
 characters or with spaces, no model, a bad URL: 422), `list_keys` (never the
 key), `delete_key`, `provider_for(choice)` (`server` = A8.3's provider; a
 key that no longer decrypts after the server key changed says "save it
-again"). **Usable today: `openai_compatible` only**; `anthropic` is listed in
-`HELD`: the Claude adapter needs the official `anthropic` SDK, a new
-dependency the owner decides on. `services/ai/openai_compat.py`:
+again"). Usable: `openai_compatible` and (A8.7b, owner 27 Nov 2026)
+`anthropic`: `services/ai/claude.py::ClaudeProvider` on the official
+`anthropic` SDK (2.14, a direct dependency): `messages.create` with the
+user's model (default `claude-opus-5-5`, must start `claude-`; no base URL),
+the system prompt apart, `max_tokens` 16,000, no sampling parameters; on
+`FALLBACK_MODELS` the server-side refusal fallback is on
+(`client.beta.messages.create(betas=["server-side-fallback-2026-07-01"],
+fallbacks="default")`); a final `stop_reason == "refusal"` raises "Claude
+declined"; text blocks joined; SDK errors mapped to fixed text by class.
+`HELD` is empty. `services/ai/openai_compat.py`:
 `OpenAICompatibleProvider` (`POST {base}/chat/completions`, Bearer, 120 s,
 no redirects); the user's base URL goes through the webhook SSRF rules
 (`delivery.channels.check_url_syntax` and `pinned_target`: https only, http
@@ -2535,10 +2542,12 @@ fixed text (never the key or the body); `repr` hides the key. Routes
 (`routers/ai.py`, signed in): `GET /v1/ai/keys` -> `AiKeysOut` (`available`,
 `keys`, `providers`, `held`, `note`), `PUT /v1/ai/keys/{provider}`
 (10/min), `DELETE /v1/ai/keys/{provider}` (204, 404 none). `/rule` and
-`/ask` take `provider: server | openai_compatible` (409 no saved key).
+`/ask`, `/extract`, `/grid` and `/debate` take `provider: server |
+openai_compatible | anthropic` (409 no saved key).
 `/v1/ai/status` adds `keys_available`. **No real paid call was made** while
 building it: every request is faked. Env: `APP_ENCRYPTION_KEY` (blank = off;
 changing it makes saved keys unreadable). Tests: `tests/test_a87_byok.py`,
+`tests/test_a87b_claude.py` (a fake client: request shape, the fallback, errors, refusal),
 `tests/test_a87_byok_migration.py` (PostgreSQL).
 
 **Filing analysis (A9.10, M11.3).** No migration; nothing stored.
