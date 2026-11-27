@@ -139,6 +139,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/documents/{document_id}/compare": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Compare Document */
+        get: operations["compare_document_v1_documents__document_id__compare_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/documents/{document_id}": {
         parameters: {
             query?: never;
@@ -288,6 +305,23 @@ export interface paths {
         post?: never;
         /** Delete Ai Key */
         delete: operations["delete_ai_key_v1_ai_keys__provider__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/ai/extract": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Ai Extract Figures */
+        post: operations["ai_extract_figures_v1_ai_extract_post"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -5365,6 +5399,37 @@ export interface components {
              */
             projection_method: string;
         };
+        /** DocumentCompareOut */
+        DocumentCompareOut: {
+            document: components["schemas"]["DocumentOut"];
+            against: components["schemas"]["DocumentOut"] | null;
+            /** Scope */
+            scope: string | null;
+            /** Scope Note */
+            scope_note: string | null;
+            /** Paragraphs Before */
+            paragraphs_before: number;
+            /** Paragraphs After */
+            paragraphs_after: number;
+            /** Unchanged */
+            unchanged: number;
+            /** Added */
+            added: number;
+            /** Removed */
+            removed: number;
+            /** Changed */
+            changed: number;
+            /** Changes */
+            changes: components["schemas"]["TextChangeOut"][];
+            /** Truncated */
+            truncated: boolean;
+            hedging_before: components["schemas"]["HedgingOut"] | null;
+            hedging_after: components["schemas"]["HedgingOut"] | null;
+            /** Note */
+            note: string;
+            /** Method */
+            method: string;
+        };
         /** DocumentDetailOut */
         DocumentDetailOut: {
             document: components["schemas"]["DocumentOut"];
@@ -6561,6 +6626,37 @@ export interface components {
             /** Put Oi */
             put_oi: number;
         };
+        /** ExtractIn */
+        ExtractIn: {
+            /** Document Id */
+            document_id: number;
+            /**
+             * Provider
+             * @default server
+             * @enum {string}
+             */
+            provider: "server" | "openai_compatible";
+        };
+        /** ExtractOut */
+        ExtractOut: {
+            document: components["schemas"]["DocumentOut"];
+            /** Figures */
+            figures: components["schemas"]["FigureOut"][];
+            /** Passages Read */
+            passages_read: number;
+            /** Dropped */
+            dropped: {
+                [key: string]: number;
+            };
+            /** Provider */
+            provider: string | null;
+            /** Model */
+            model: string | null;
+            /** Method */
+            method: string;
+            /** Disclaimer */
+            disclaimer: string;
+        };
         /**
          * FactorIn
          * @description A7.7 (M7.5): one factor of a multi-factor model.
@@ -6855,6 +6951,23 @@ export interface components {
              * Format: date-time
              */
             checked_at: string;
+        };
+        /** FigureOut */
+        FigureOut: {
+            /** Metric */
+            metric: string;
+            /** Value */
+            value: string;
+            /** Unit */
+            unit: string;
+            /** Period */
+            period: string;
+            /** Quote */
+            quote: string;
+            /** Chunk Id */
+            chunk_id: number;
+            /** Position */
+            position: number;
         };
         /** FillEventOut */
         FillEventOut: {
@@ -7188,6 +7301,20 @@ export interface components {
              * @default 0
              */
             dead_outbox_events: number;
+        };
+        /** HedgingOut */
+        HedgingOut: {
+            /** Words */
+            words: number;
+            /** Hedges */
+            hedges: number;
+            /** Per Thousand */
+            per_thousand: number | null;
+            /** Top */
+            top: [
+                string,
+                number
+            ][];
         };
         /**
          * HistogramOut
@@ -13875,6 +14002,17 @@ export interface components {
             /** Quantity */
             quantity: string;
         };
+        /** TextChangeOut */
+        TextChangeOut: {
+            /** Kind */
+            kind: string;
+            /** Before */
+            before: string | null;
+            /** After */
+            after: string | null;
+            /** Similarity */
+            similarity: number | null;
+        };
         /** ThesisCloseIn */
         ThesisCloseIn: {
             /**
@@ -15200,6 +15338,39 @@ export interface operations {
             };
         };
     };
+    compare_document_v1_documents__document_id__compare_get: {
+        parameters: {
+            query?: {
+                against?: number | null;
+            };
+            header?: never;
+            path: {
+                document_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentCompareOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_document_v1_documents__document_id__get: {
         parameters: {
             query?: {
@@ -15498,6 +15669,41 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    ai_extract_figures_v1_ai_extract_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExtractIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExtractOut"];
+                };
             };
             /** @description Validation Error */
             422: {

@@ -1034,6 +1034,17 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   `passageRanks`: "Words #2 · Meaning #1 (0.82)") with the API's mode, notes
   and method. Tests: `tests/unit/a710-documents.test.tsx`,
   `tests/unit/a84-passages.test.tsx`, `tests/e2e/filings.spec.ts`.
+  A9.10 (M11.3): `/filings/[id]` adds `DocumentChanges`
+  (`components/filing-analysis.tsx`, `document-changes`: counts in
+  `document-change-counts`, hedging per 1,000 words before and after in
+  `document-hedging` (`hedgingLine`), the changed paragraphs in a
+  disclosure, `document-change` with `data-kind`) from the public
+  `compareDocument`, and, signed in with a model (the server's or a saved
+  key), `FigureExtractor` (`figure-extractor`, "Extract Figures" through
+  `filings/[id]/actions.ts::extractFiguresAction`: each `figure` with its
+  quote, `figures-dropped` counting what failed the check, the method and
+  disclaimer). Tests: `tests/unit/a910-filing-analysis.test.tsx` (no e2e:
+  the e2e database stores no documents).
 - **Macro (A9.7, M1.10, M3.5).** `/macro` (Markets nav "Macro", icon
   `Globe`, public): `getMacroOverview()` (`lib/api/macro.ts`, cached an hour,
   tag `macro`) rendered by `components/macro-view.tsx` (server): the spreads,

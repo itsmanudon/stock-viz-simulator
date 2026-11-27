@@ -2541,6 +2541,31 @@ building it: every request is faked. Env: `APP_ENCRYPTION_KEY` (blank = off;
 changing it makes saved keys unreadable). Tests: `tests/test_a87_byok.py`,
 `tests/test_a87_byok_migration.py` (PostgreSQL).
 
+**Filing analysis (A9.10, M11.3).** No migration; nothing stored.
+- `GET /v1/documents/{id}/compare?against=` (public, 30/min;
+  `services/documents/compare.py`, deterministic): `against` defaults to the
+  newest earlier public document of the same company and kind (none: 200,
+  `against: null`, a note); another company's 400, itself 400. Annual
+  reports compare the "Item 1A. Risk Factors" section (the last such
+  heading, so a table of contents is skipped, to "Item 1B/1C/2") when both
+  have it, else the whole texts (`scope_note` says which lacked it).
+  Paragraphs (40+ characters) diffed with `difflib`: `added`, `removed`,
+  `changed` (a replaced paragraph at least 60% similar to its best partner),
+  `unchanged` counted; at most 60 listed (`truncated`). Hedging: a short
+  fixed list of uncertainty words and phrases per 1,000 words in each
+  (`HEDGES`; not the Loughran-McDonald list itself), "a rough signal of
+  wording, not of evasiveness or intent".
+- `POST /v1/ai/extract {document_id, provider}` (signed in, 5/min;
+  `services/ai/extract.py`): up to 8 passages containing a digit go to the
+  model, which returns a JSON list `{metric, value, unit, period, quote}`;
+  an item is kept only when its quote is in the passages word for word
+  (whitespace and case aside) and every digit run of its value is in the
+  quote; the rest are counted in `dropped` by reason ("quote not in the
+  text", "value not in its quote", "duplicate", "incomplete", "answer was
+  not a JSON list"). No passage with a digit: no model call. Real run on a
+  synthetic transcript (`gemma4:e4b`): 10 figures, all verified, 0 dropped.
+- Tests: `tests/test_a910_filing_analysis.py`.
+
 **Macro series from FRED (A9.7, M1.10, M3.5).** Migration `f1a9c7e3b5d2`
 (additive): `macro_series` (FRED id, title, units, frequency, observation
 range, FRED's `last_updated`, `fetched_at`) and `macro_observations` ((series,

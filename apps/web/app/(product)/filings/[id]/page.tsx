@@ -1,14 +1,25 @@
-/** /filings/[id] — A7.10 (M5.5): one stored document's text, `q` marked. */
+/**
+ * /filings/[id] — A7.10 (M5.5): one stored document's text, `q` marked.
+ * A9.10 (M11.3): what changed since the previous document of its kind, and
+ * (signed in, with a model) reported figures checked against the text.
+ */
 
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { auth } from "@/auth";
+import type { CopilotChoice } from "@/components/copilot/copilot-panel";
 import { DocumentMeta, Marked } from "@/components/documents-view";
+import { DocumentChanges, FigureExtractor } from "@/components/filing-analysis";
 import { PageHeader } from "@/components/page-header";
 import { VisitorLimitNotice } from "@/components/visitor-limit-notice";
-import { getDocument } from "@/lib/api/documents";
+import { getAiStatus } from "@/lib/api/ai";
+import { listAiKeys } from "@/lib/api/ai-server";
+import { compareDocument, getDocument } from "@/lib/api/documents";
 import { checkVisitorLimit } from "@/lib/visitor-limit";
+
+import { extractFiguresAction } from "./actions";
 
 export const metadata: Metadata = { title: "Filing" };
 
@@ -32,6 +43,21 @@ export default async function FilingPage({
     notFound();
   }
   const doc = detail.document;
+  const [changes, session, status] = await Promise.all([
+    compareDocument(num).catch(() => null),
+    auth(),
+    getAiStatus().catch(() => null),
+  ]);
+  const keys = session?.user ? await listAiKeys().catch(() => null) : null;
+  const ownKey = keys?.keys.find((k) => k.provider === "openai_compatible");
+  const choices: CopilotChoice[] = [
+    ...(status?.configured
+      ? [{ value: "server" as const, label: `Server: ${status.provider} ${status.model}` }]
+      : []),
+    ...(ownKey
+      ? [{ value: "openai_compatible" as const, label: `Your key: ${ownKey.model}` }]
+      : []),
+  ];
   return (
     <div className="w-full space-y-4 px-4 py-6 sm:px-6 lg:py-7 xl:px-8">
       <PageHeader eyebrow="Workbench" title={doc.title} description="" />
@@ -50,6 +76,10 @@ export default async function FilingPage({
         ) : null}
         {detail.matches != null ? ` · ${detail.matches} matches for "${q}"` : null}
       </p>
+      {changes ? <DocumentChanges data={changes} /> : null}
+      {session?.user && choices.length ? (
+        <FigureExtractor documentId={doc.id} choices={choices} extract={extractFiguresAction} />
+      ) : null}
       <article
         className="whitespace-pre-wrap rounded-lg border border-border bg-card p-4 text-sm leading-relaxed"
         data-testid="document-text"

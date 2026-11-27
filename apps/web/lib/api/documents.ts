@@ -9,6 +9,7 @@ export type DocumentDetail = components["schemas"]["DocumentDetailOut"];
 export type DocumentSearch = components["schemas"]["DocumentSearchOut"];
 export type PassageSearch = components["schemas"]["PassageSearchOut"];
 export type Passage = components["schemas"]["PassageOut"];
+export type DocumentCompare = components["schemas"]["DocumentCompareOut"];
 
 const CACHE = { revalidateSeconds: 300, tags: ["documents"] };
 
@@ -53,4 +54,12 @@ export function searchPassages(q: string, ticker?: string, kind?: string): Promi
 
 export function getDocument(id: number, q?: string): Promise<DocumentDetail> {
   return apiGet<DocumentDetail>(`/v1/documents/${id}${query({ q })}`, CACHE);
+}
+
+/** A9.10 (M11.3): what changed since the previous document of its kind (or `against`). */
+export function compareDocument(id: number, against?: number): Promise<DocumentCompare> {
+  return apiGet<DocumentCompare>(
+    `/v1/documents/${id}/compare${query({ against: against ? String(against) : undefined })}`,
+    CACHE,
+  );
 }

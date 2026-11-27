@@ -5687,6 +5687,65 @@ class AskOut(BaseModel):
     disclaimer: str
 
 
+class TextChangeOut(BaseModel):
+    kind: str
+    before: str | None
+    after: str | None
+    similarity: float | None
+
+
+class HedgingOut(BaseModel):
+    words: int
+    hedges: int
+    per_thousand: float | None
+    top: list[tuple[str, int]]
+
+
+class DocumentCompareOut(BaseModel):
+    document: DocumentOut
+    against: DocumentOut | None
+    scope: str | None
+    scope_note: str | None
+    paragraphs_before: int
+    paragraphs_after: int
+    unchanged: int
+    added: int
+    removed: int
+    changed: int
+    changes: list[TextChangeOut]
+    truncated: bool
+    hedging_before: HedgingOut | None
+    hedging_after: HedgingOut | None
+    note: str
+    method: str
+
+
+class ExtractIn(BaseModel):
+    document_id: int
+    provider: Literal["server", "openai_compatible"] = "server"
+
+
+class FigureOut(BaseModel):
+    metric: str
+    value: str
+    unit: str
+    period: str
+    quote: str
+    chunk_id: int
+    position: int
+
+
+class ExtractOut(BaseModel):
+    document: DocumentOut
+    figures: list[FigureOut]
+    passages_read: int
+    dropped: dict[str, int]
+    provider: str | None
+    model: str | None
+    method: str
+    disclaimer: str
+
+
 class OptimiseViewIn(BaseModel):
     ticker: str = Field(min_length=1, max_length=16)
     expected_return: float = Field(ge=-1, le=2)

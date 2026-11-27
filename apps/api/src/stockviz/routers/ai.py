@@ -11,6 +11,9 @@
   (never the key), `PUT /{provider}` saves one encrypted, `DELETE /{provider}`
   removes it. 409 while `APP_ENCRYPTION_KEY` is unset. `/rule` and `/ask`
   take `provider: server | openai_compatible`.
+- `POST /v1/ai/extract` (signed in, 5 a minute; A9.10, M11.3): reported
+  figures out of a stored document, each kept only when its quote is in the
+  text and its value in the quote.
 """
 
 from __future__ import annotations
@@ -23,7 +26,7 @@ from sqlmodel import Session
 from stockviz.auth import UserIdDep
 from stockviz.db import get_session
 from stockviz.limiter import limiter
-from stockviz.routers.documents import _instrument, _kind, _naive, _out, _tickers
+from stockviz.routers.documents import _instrument, _kind, _naive, _out, _public_doc, _tickers
 from stockviz.schemas import (
     AiKeyIn,
     AiKeyOut,
@@ -35,9 +38,13 @@ from stockviz.schemas import (
     AskIn,
     AskOut,
     AskSourceOut,
+    ExtractIn,
+    ExtractOut,
+    FigureOut,
     PassageOut,
 )
 from stockviz.services.ai import copilot
+from stockviz.services.ai import extract as ai_extract
 from stockviz.services.ai import keys as ai_keys
 from stockviz.services.ai import rules as ai_rules
 from stockviz.services.ai.embed import embedder_from_settings
@@ -219,3 +226,51 @@ def delete_ai_key(provider: str, user_id: UserIdDep, session: SessionDep) -> Res
     except ai_keys.KeyMissing as exc:
         raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+EXTRACT_METHOD = (
+    "The model read up to 8 passages of the document that contain a digit. A figure is kept "
+    "only when its quote appears in the passages word for word and every number in its value "
+    "appears in that quote; the rest are dropped and counted by reason."
+)
+EXTRACT_DISCLAIMER = (
+    "Figures copied out by a model and checked against the text, not against the company's "
+    "accounts. Read each in its quote. Not investment advice."
+)
+
+
+@router.post("/extract", response_model=ExtractOut)
+@limiter.limit("5/minute")
+def ai_extract_figures(
+    request: Request, body: ExtractIn, user_id: UserIdDep, session: SessionDep
+) -> ExtractOut:
+    del request
+    doc = _public_doc(session, body.document_id)
+    provider = _provider(session, user_id, body.provider)
+    try:
+        out = ai_extract.extract(session, provider, doc.id or 0)
+    except AiProviderError as exc:
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(exc)) from exc
+    positions = {c.id: c.position for c in out.passages}
+    ticker = _tickers(session, {doc.instrument_id}).get(doc.instrument_id, "?")
+    return ExtractOut(
+        document=_out(doc, ticker),
+        figures=[
+            FigureOut(
+                metric=f.metric,
+                value=f.value,
+                unit=f.unit,
+                period=f.period,
+                quote=f.quote,
+                chunk_id=f.chunk_id,
+                position=positions.get(f.chunk_id, 0),
+            )
+            for f in out.figures
+        ],
+        passages_read=len(out.passages),
+        dropped=out.dropped,
+        provider=out.provider,
+        model=out.model,
+        method=EXTRACT_METHOD,
+        disclaimer=EXTRACT_DISCLAIMER,
+    )

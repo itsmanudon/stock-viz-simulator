@@ -3,6 +3,7 @@
 - `GET /v1/symbols/{t}/documents?kind=&as_of=`
 - `GET /v1/documents/search?q=&ticker=&kind=&as_of=&limit=`
 - `GET /v1/documents/passages?q=&ticker=&kind=&as_of=&limit=` (A8.4 hybrid search)
+- `GET /v1/documents/{id}/compare?against=` (A9.10: what changed since an earlier one)
 - `GET /v1/documents/{id}?q=`
 
 Public and read-only like `/v1/news`. ``as_of`` (naive = UTC, default now)
@@ -25,15 +26,19 @@ from stockviz.models import Document, Symbol
 from stockviz.models.document import DOCUMENT_KINDS
 from stockviz.models.instrument import SCHEME_YAHOO, InstrumentIdentifier
 from stockviz.schemas import (
+    DocumentCompareOut,
     DocumentDetailOut,
     DocumentHitOut,
     DocumentListOut,
     DocumentOut,
     DocumentSearchOut,
+    HedgingOut,
     PassageOut,
     PassageSearchOut,
+    TextChangeOut,
 )
 from stockviz.services.ai.embed import embedder_from_settings
+from stockviz.services.documents import compare as doc_compare
 from stockviz.services.documents import retrieve, store
 from stockviz.services.instruments import instrument_ids
 from stockviz.settings import get_settings
@@ -208,6 +213,93 @@ def search_passages(
         ],
         notes=found.notes,
         method=PASSAGE_METHOD,
+    )
+
+
+COMPARE_METHOD = (
+    "Paragraphs (blank-line separated, 40+ characters) matched in order; a replaced paragraph "
+    "at least 60% similar to its partner counts as changed, otherwise as removed and added. "
+    "Annual reports compare their Item 1A risk factors when both have that heading. Hedging "
+    "counts a short fixed list of uncertainty words and phrases per 1,000 words: a rough "
+    "signal of wording, not of evasiveness or intent."
+)
+
+
+def _public_doc(session: Session, document_id: int) -> Document:
+    doc = session.get(Document, document_id)
+    if doc is None or doc.available_at > utcnow():
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Document not found")
+    return doc
+
+
+def _previous(session: Session, doc: Document) -> Document | None:
+    return session.exec(
+        select(Document)
+        .where(
+            Document.instrument_id == doc.instrument_id,
+            Document.kind == doc.kind,
+            col(Document.available_at) < doc.available_at,
+            col(Document.id) != doc.id,
+        )
+        .order_by(col(Document.available_at).desc(), col(Document.id).desc())
+    ).first()
+
+
+def _hedging(h: doc_compare.Hedging | None) -> HedgingOut | None:
+    if h is None:
+        return None
+    return HedgingOut(words=h.words, hedges=h.hedges, per_thousand=h.per_thousand, top=h.top)
+
+
+@router.get("/v1/documents/{document_id}/compare", response_model=DocumentCompareOut)
+@limiter.limit("30/minute")
+def compare_document(
+    request: Request, document_id: int, session: SessionDep, against: int | None = None
+) -> DocumentCompareOut:
+    del request
+    doc = _public_doc(session, document_id)
+    ticker = _tickers(session, {doc.instrument_id}).get(doc.instrument_id, "?")
+    if against is not None:
+        other = _public_doc(session, against)
+        if other.instrument_id != doc.instrument_id:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "both documents must be one company's")
+        if other.id == doc.id:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "compare with a different document")
+    else:
+        other = _previous(session, doc)
+    if other is None:
+        return DocumentCompareOut(
+            document=_out(doc, ticker), against=None, scope=None, scope_note=None,
+            paragraphs_before=0, paragraphs_after=0, unchanged=0, added=0, removed=0,
+            changed=0, changes=[], truncated=False, hedging_before=None,
+            hedging_after=_hedging(doc_compare.hedging(store.text_of(session, doc.id or 0))),
+            note="No earlier document of this kind is stored for this company.",
+            method=COMPARE_METHOD,
+        )  # fmt: skip
+    earlier, later = (other, doc) if other.available_at <= doc.available_at else (doc, other)
+    result = doc_compare.compare(
+        store.text_of(session, earlier.id or 0), store.text_of(session, later.id or 0)
+    )
+    return DocumentCompareOut(
+        document=_out(later, ticker),
+        against=_out(earlier, ticker),
+        scope=result.scope,
+        scope_note=result.scope_note,
+        paragraphs_before=result.paragraphs_before,
+        paragraphs_after=result.paragraphs_after,
+        unchanged=result.unchanged,
+        added=result.added,
+        removed=result.removed,
+        changed=result.changed,
+        changes=[
+            TextChangeOut(kind=c.kind, before=c.before, after=c.after, similarity=c.similarity)
+            for c in result.changes
+        ],
+        truncated=result.truncated,
+        hedging_before=_hedging(result.hedging_before),
+        hedging_after=_hedging(result.hedging_after),
+        note=f"{later.title} compared with the earlier {earlier.title}.",
+        method=COMPARE_METHOD,
     )
 
 
