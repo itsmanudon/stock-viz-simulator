@@ -2433,8 +2433,9 @@ it became public; **every read is point-in-time on it**),
 (unique: a file or filing loads once), content type, size, characters) and
 `document_texts` (cascade). `services/documents/`: `extract.py` (HTML through
 BeautifulSoup's `html.parser`, scripts, styles, hidden XBRL headers dropped,
-blocks on their own lines; text and Markdown UTF-8 then Latin-1; **PDFs are
-refused** with the reason: a PDF library is the owner's call; 20 MiB cap),
+blocks on their own lines; text and Markdown UTF-8 then Latin-1; PDFs through
+`pypdf` (owner, 27 Nov 2026; pure Python), page by page, refusing encrypted
+files, more than 600 pages and scans with no text layer (no OCR); 20 MiB cap),
 `store.py` (`add_document`, `list_documents(as_of=)`, `search`: exact phrase,
 case-insensitive, LIKE escaped, with snippets), `load.py` (hand-placed files;
 **local database only**, `intraday.guard.local_database_problem`, no
@@ -2452,7 +2453,8 @@ the user agent). Not in `RECORDED_JOBS`, the scheduler or the cron. Routes
 (60/min), `GET /v1/documents/search?q=&ticker=&kind=&as_of=&limit=` (30/min,
 `q` 2-100 characters), `GET /v1/documents/{id}?q=` (text up to 400,000
 characters, `matches`; 404 before it is public). `beautifulsoup4` is now a
-direct dependency (already locked through yfinance). Not yet: PDFs, NSE/BSE
+direct dependency (already locked through yfinance), and `pypdf` (no
+dependencies of its own). Not yet: OCR for scanned PDFs, NSE/BSE
 announcement downloads (held with the NSE question), concall analysis
 (M11.3, LLM), Reg 30 governance flags. Tests: `tests/test_a710_documents.py`,
 `tests/test_a710_documents_migration.py` (PostgreSQL).

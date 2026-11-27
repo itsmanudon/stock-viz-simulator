@@ -1730,6 +1730,15 @@ wheels = [
 ]
 
 [[package]]
+name = "pypdf"
+version = "7.2.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/89/7b/5dff016bef001c3556c5fdd7645ec80251b78bb496b049d2ab9ec497b087/pypdf-7.2.0.tar.gz", hash = "sha256:b2c637b6f0be3def1f762fd8be20118736bafdffc75badab80db003d7a9ed110", size = 7253070, upload-time = "2026-11-26T15:38:53.825Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/9d/b5/36b52010264f40f35fcd469f62586c0d88753c16682f2e156c42347f884b/pypdf-7.2.0-py3-none-any.whl", hash = "sha256:5edb9b033dd55cecead9303370e6854c1a3b979669bde1c46024cde0228405b1", size = 428449, upload-time = "2026-11-26T15:38:52.262Z" },
+]
+
+[[package]]
 name = "pyportfolioopt"
 version = "1.6.0"
 source = { registry = "https://pypi.org/simple" }
@@ -2496,6 +2505,7 @@ dependencies = [
     { name = "pyarrow" },
     { name = "pydantic-settings" },
     { name = "pyjwt", extra = ["crypto"] },
+    { name = "pypdf" },
     { name = "pyportfolioopt" },
     { name = "python-jose", extra = ["cryptography"] },
     { name = "redis" },
@@ -2536,6 +2546,7 @@ requires-dist = [
     { name = "pyarrow", specifier = ">=26.0.1" },
     { name = "pydantic-settings", specifier = ">=2.6.0" },
     { name = "pyjwt", extras = ["crypto"], specifier = ">=2.9" },
+    { name = "pypdf", specifier = ">=6.0" },
     { name = "pyportfolioopt", specifier = ">=1.5" },
     { name = "python-jose", extras = ["cryptography"], specifier = ">=3.3.0" },
     { name = "redis", specifier = ">=5.2,<7" },
