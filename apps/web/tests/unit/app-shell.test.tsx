@@ -184,6 +184,20 @@ describe("PublicHeader", () => {
     expect(within(nav).getAllByRole("link")).toHaveLength(4);
     expect(within(nav).getByRole("link", { name: "Docs" })).toHaveAttribute("href", "/docs");
     expect(screen.queryByRole("link", { name: "Orders" })).not.toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Create account" })).toHaveAttribute("href", "/signup");
+    // The signup switch: unset means closed, so signed-out visitors get "Sign in".
+    expect(screen.getByRole("link", { name: "Sign in" })).toHaveAttribute("href", "/login");
+  });
+
+  it("offers Create account when sign-up is open", async () => {
+    vi.stubEnv("SIGNUP_MODE", "open");
+    try {
+      render(await PublicHeader());
+      expect(screen.getByRole("link", { name: "Create account" })).toHaveAttribute(
+        "href",
+        "/signup",
+      );
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 });

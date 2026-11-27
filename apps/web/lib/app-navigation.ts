@@ -57,6 +57,13 @@ export const WORKSPACES: readonly Workspace[] = [
     items: [
       { label: "Home", href: "/dashboard", matches: ["/dashboard"], keywords: ["dashboard"] },
       {
+        label: "Morning Brief",
+        href: "/brief",
+        matches: ["/brief"],
+        signedInOnly: true,
+        keywords: ["digest", "overnight", "movers"],
+      },
+      {
         label: "Notifications",
         href: "/notifications",
         matches: ["/notifications"],

@@ -73,3 +73,12 @@ docker compose -f infra/compose.release.yml --env-file infra/release.env exec ap
 - Trading is paper only, and nothing places a real order.
 
 The release licence and the classroom and research-analyst modes are still open (see `docs/a10-design-note.md` in the workspace).
+
+## Who can create an account
+
+New accounts are **closed by default** (`SIGNUP_MODE=closed`): the first
+account on an empty database can still be created, so you can set the
+instance up, and nobody after it. Set `SIGNUP_MODE=allowlist` with
+`SIGNUP_ALLOWLIST=you@example.com,friend@example.com` to invite people, or
+`SIGNUP_MODE=open` to let anyone sign up. Existing accounts always sign in.
+

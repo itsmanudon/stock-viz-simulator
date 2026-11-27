@@ -361,6 +361,8 @@ jobs:
       ENABLE_SCHEDULER: "false"
       # NextAuth v5 requires explicit host trust in non-production environments
       AUTH_TRUST_HOST: "true"
+      # The e2e specs sign up their own accounts; the site defaults to closed.
+      SIGNUP_MODE: open
     steps:
       - uses: actions/checkout@v4
 

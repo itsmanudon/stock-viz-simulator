@@ -29,8 +29,10 @@ from stockviz.models.option import CONTRACT_MULTIPLIER, position_sign
 from stockviz.models.option_strategy import OptionStrategy, StrategyKind
 from stockviz.routers.book_query import BookQuery
 from stockviz.schemas import (
+    DistributionPointOut,
     ExpiryGroupOut,
     ExpiryItemOut,
+    ImpliedDistributionOut,
     OptionExposureOut,
     OptionGreeksOut,
     OptionImpliedVolOut,
@@ -657,4 +659,50 @@ def get_option_surface(
             for expiry, points in expiries
         ],
         source=source,
+    )
+
+
+IMPLIED_METHOD = (
+    "Implied: the risk-neutral density from the newest stored chain by Breeden-Litzenberger "
+    "(e^rT times the second derivative of Black-Scholes call prices in strike), on the "
+    "out-of-the-money IV smile interpolated linearly in strike and flat beyond it. Model: a "
+    "lognormal with the HAR-RV forecast volatility (else 21-session realised) and the same "
+    "forward. The implied density includes the market's risk premium; it is not a forecast."
+)
+
+
+@router.get("/{ticker}/implied-distribution", response_model=ImpliedDistributionOut)
+@limiter.limit("60/minute")
+def get_implied_distribution(
+    request: Request, ticker: str, session: SessionDep, expiry: date | None = None
+) -> ImpliedDistributionOut:
+    """A9.13 (M8.5): option-implied vs model distribution of the price at expiry."""
+    from stockviz.services.options import implied_distribution as idist
+
+    del request
+    t = ticker.upper()
+    if session.get(Symbol, t) is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, f"Symbol {t!r} not found")
+    d = idist.load(session, t, expiry)
+    return ImpliedDistributionOut(
+        ticker=t,
+        expiry=d.expiry,
+        days=d.days,
+        spot=d.spot,
+        implied_atm_vol=d.implied_atm_vol,
+        model_vol=d.model_vol,
+        model_vol_source=d.model_vol_source,
+        quantile_levels=list(idist.QUANTILES),
+        implied_quantiles=d.implied_quantiles,
+        model_quantiles=d.model_quantiles,
+        move=idist.MOVE,
+        implied_p_down=d.implied_p_down,
+        implied_p_up=d.implied_p_up,
+        model_p_down=d.model_p_down,
+        model_p_up=d.model_p_up,
+        negative_mass=d.negative_mass,
+        strikes_used=d.strikes_used,
+        curve=[DistributionPointOut(price=a, implied=b, model=c) for a, b, c in d.curve],
+        reason=d.reason,
+        method=IMPLIED_METHOD,
     )

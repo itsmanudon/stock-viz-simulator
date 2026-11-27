@@ -78,6 +78,17 @@ export function JournalEntriesPanel({
           >
             Is My Edge Real? Statistics over your closed trades
           </Link>
+          <Link
+            href={
+              book && book !== "all"
+                ? `/portfolio/journal/week?book=${book}`
+                : "/portfolio/journal/week"
+            }
+            className="mt-2 ml-4 inline-flex text-sm font-medium text-foreground underline underline-offset-2 hover:text-brand"
+            data-testid="weekly-link"
+          >
+            Weekly Review
+          </Link>
         </div>
         {entries?.length ? (
           <div className="flex flex-wrap gap-3">

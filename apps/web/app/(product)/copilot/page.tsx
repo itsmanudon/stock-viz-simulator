@@ -12,16 +12,30 @@ import Link from "next/link";
 
 import { auth } from "@/auth";
 import { CopilotPanel } from "@/components/copilot/copilot-panel";
+import { DebatePanel, GridPanel } from "@/components/copilot/research-panels";
 import { PageFrame } from "@/components/page-frame";
 import { PageEmptyState, PageHeader } from "@/components/page-header";
+import { aiChoices } from "@/lib/ai-choices";
 import { type AiKeys, type AiStatus, getAiStatus } from "@/lib/api/ai";
 import { listAiKeys } from "@/lib/api/ai-server";
 
-import { askCopilotAction } from "./actions";
+import { askCopilotAction, debateAction, gridAction } from "./actions";
 
 export const metadata: Metadata = { title: "AI Copilot" };
 
-export default async function CopilotPage() {
+const MODES = [
+  { value: "ask", label: "Ask" },
+  { value: "grid", label: "Grid" },
+  { value: "debate", label: "For and Against" },
+] as const;
+
+export default async function CopilotPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ mode?: string }>;
+}) {
+  const raw = (await searchParams).mode;
+  const mode = MODES.find((m) => m.value === raw)?.value ?? "ask";
   const session = await auth();
   let status: AiStatus | null = null;
   try {
@@ -29,17 +43,9 @@ export default async function CopilotPage() {
   } catch {
     status = null;
   }
-  // A8.7: the user's own OpenAI-compatible key, if saved, is a second choice.
+  // A8.7: the user's saved keys (OpenAI-compatible, Claude) are further choices.
   const keys: AiKeys | null = session?.user ? await listAiKeys().catch(() => null) : null;
-  const ownKey = keys?.keys.find((k) => k.provider === "openai_compatible") ?? null;
-  const choices = [
-    ...(status?.configured
-      ? [{ value: "server" as const, label: `Server: ${status.provider} ${status.model}` }]
-      : []),
-    ...(ownKey
-      ? [{ value: "openai_compatible" as const, label: `Your key: ${ownKey.model}` }]
-      : []),
-  ];
+  const choices = aiChoices(status, keys);
   return (
     <PageFrame>
       <PageHeader
@@ -76,7 +82,31 @@ export default async function CopilotPage() {
             </PageEmptyState>
           </div>
         ) : (
-          <CopilotPanel choices={choices} ask={askCopilotAction} />
+          <div className="space-y-4">
+            <nav aria-label="Copilot modes" className="flex gap-2" data-testid="copilot-modes">
+              {MODES.map((m) => (
+                <Link
+                  key={m.value}
+                  href={m.value === "ask" ? "/copilot" : `/copilot?mode=${m.value}`}
+                  aria-current={mode === m.value ? "page" : undefined}
+                  className={`rounded-full border px-3 py-1 text-xs ${
+                    mode === m.value
+                      ? "border-brand text-foreground"
+                      : "border-border text-text-secondary"
+                  }`}
+                >
+                  {m.label}
+                </Link>
+              ))}
+            </nav>
+            {mode === "grid" ? (
+              <GridPanel choices={choices} run={gridAction} />
+            ) : mode === "debate" ? (
+              <DebatePanel choices={choices} run={debateAction} />
+            ) : (
+              <CopilotPanel choices={choices} ask={askCopilotAction} />
+            )}
+          </div>
         )}
       </div>
     </PageFrame>

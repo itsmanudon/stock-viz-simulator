@@ -19,7 +19,8 @@ export async function replayFullOrders(page: Page): Promise<void> {
   await page.waitForURL(/\/replay\/\d+/);
 
   await expect(page.getByTestId("replay-profile")).toHaveText("Fill model · intrabar_ohlc v1");
-  await expect(page.getByTestId("replay-bar-count")).toHaveText("Bar 1");
+  // Scoped to #main: `next start` can briefly hold two page trees (apps/web/CLAUDE.md, E2E).
+  await expect(page.locator("#main").getByTestId("replay-bar-count")).toHaveText("Bar 1");
 
   const ticket = page.getByRole("complementary", { name: /Replay ticket/ });
   await ticket.getByTestId("replay-order-type").selectOption("bracket");
@@ -43,7 +44,7 @@ export async function replayFullOrders(page: Page): Promise<void> {
   await expect(player).toHaveAttribute("data-playing", "false");
   // Once the last step and refresh land, the bars shown are the start bar
   // plus one per step: no step moved two bars.
-  const barCount = page.getByTestId("replay-bar-count");
+  const barCount = page.locator("#main").getByTestId("replay-bar-count");
   await expect
     .poll(
       async () => {

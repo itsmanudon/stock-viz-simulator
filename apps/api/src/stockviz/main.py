@@ -21,6 +21,7 @@ from stockviz.routers import (
     bars,
     books,
     breadth,
+    brief,
     brokers,
     chart_layouts,
     chart_templates,
@@ -160,6 +161,7 @@ def create_app() -> FastAPI:
     app.include_router(health.router)
     app.include_router(macro.router)
     app.include_router(documents.router)
+    app.include_router(brief.router)
     app.include_router(optimise.router)
     app.include_router(tax.router)
     app.include_router(fo.router)

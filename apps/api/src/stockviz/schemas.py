@@ -5661,7 +5661,7 @@ class AskIn(BaseModel):
     ticker: str | None = Field(default=None, max_length=16)
     kind: str | None = None
     as_of: datetime | None = None
-    provider: Literal["server", "openai_compatible"] = "server"
+    provider: Literal["server", "openai_compatible", "anthropic"] = "server"
 
 
 class AskSourceOut(BaseModel):
@@ -5684,6 +5684,220 @@ class AskOut(BaseModel):
     model: str | None
     warnings: list[str]
     notes: list[str]
+    disclaimer: str
+
+
+class AnswerCheckOut(BaseModel):
+    answer: str
+    grounded: bool
+    cited: list[int]
+    invalid_citations: list[int]
+    uncited_sentences: int
+    warnings: list[str]
+    sources: list[AskSourceOut]
+
+
+class GridIn(BaseModel):
+    tickers: list[str] = Field(min_length=1, max_length=5)
+    questions: list[str] = Field(min_length=1, max_length=3)
+    as_of: datetime | None = None
+    provider: Literal["server", "openai_compatible", "anthropic"] = "server"
+
+
+class GridCellOut(BaseModel):
+    ticker: str
+    question: str
+    result: AnswerCheckOut
+
+
+class GridOut(BaseModel):
+    as_of: datetime
+    tickers: list[str]
+    questions: list[str]
+    cells: list[GridCellOut]
+    model_calls: int
+    provider: str | None
+    model: str | None
+    disclaimer: str
+
+
+class DebateIn(BaseModel):
+    ticker: str = Field(min_length=1, max_length=16)
+    topic: str = Field(min_length=5, max_length=300)
+    as_of: datetime | None = None
+    provider: Literal["server", "openai_compatible", "anthropic"] = "server"
+
+
+class DebateOut(BaseModel):
+    ticker: str
+    topic: str
+    as_of: datetime
+    retrieval_mode: str
+    case_for: AnswerCheckOut
+    case_against: AnswerCheckOut
+    provider: str | None
+    model: str | None
+    disclaimer: str
+
+
+class WeekFiguresOut(BaseModel):
+    entries: int
+    wins: int
+    losses: int
+    net_by_currency: dict[str, float]
+    mean_r: float | None
+    n_r: int
+    plans_scored: int
+    plans_followed: int
+    no_plan: int
+
+
+class LookAtOut(BaseModel):
+    key: str
+    text: str
+    entry_ids: list[int]
+
+
+class WeeklyReviewOut(BaseModel):
+    week_start: date
+    week_end: date
+    week: WeekFiguresOut
+    baseline_weeks: int
+    baseline_entries_per_week: float | None
+    baseline_mean_r: float | None
+    baseline_adherence: float | None
+    look_at: list[LookAtOut]
+    notes: list[str]
+    method: str
+
+
+class BriefMoveOut(BaseModel):
+    ticker: str
+    close: Decimal
+    close_date: date
+    previous_close: Decimal
+    previous_date: date
+    change_pct: float
+    held: bool
+
+
+class BriefAlertOut(BaseModel):
+    title: str
+    body: str
+    link: str | None
+    created_at: datetime
+
+
+class BriefEarningsOut(BaseModel):
+    ticker: str
+    event_date: date
+
+
+class BriefDocumentOut(BaseModel):
+    id: int
+    ticker: str
+    title: str
+    kind: str
+    available_at: datetime
+
+
+class MorningBriefOut(BaseModel):
+    generated_at: datetime
+    symbols: list[str]
+    moves: list[BriefMoveOut]
+    alerts: list[BriefAlertOut]
+    earnings: list[BriefEarningsOut]
+    documents: list[BriefDocumentOut]
+    open_plans: int
+    pending_orders: int
+    note: str
+
+
+class DistributionPointOut(BaseModel):
+    price: float
+    implied: float
+    model: float
+
+
+class ImpliedDistributionOut(BaseModel):
+    ticker: str
+    expiry: date | None
+    days: int | None
+    spot: float | None
+    implied_atm_vol: float | None
+    model_vol: float | None
+    model_vol_source: str | None
+    quantile_levels: list[float]
+    implied_quantiles: list[float]
+    model_quantiles: list[float]
+    move: float
+    implied_p_down: float | None
+    implied_p_up: float | None
+    model_p_down: float | None
+    model_p_up: float | None
+    negative_mass: float | None
+    strikes_used: int
+    curve: list[DistributionPointOut]
+    reason: str | None
+    method: str
+
+
+class TextChangeOut(BaseModel):
+    kind: str
+    before: str | None
+    after: str | None
+    similarity: float | None
+
+
+class HedgingOut(BaseModel):
+    words: int
+    hedges: int
+    per_thousand: float | None
+    top: list[tuple[str, int]]
+
+
+class DocumentCompareOut(BaseModel):
+    document: DocumentOut
+    against: DocumentOut | None
+    scope: str | None
+    scope_note: str | None
+    paragraphs_before: int
+    paragraphs_after: int
+    unchanged: int
+    added: int
+    removed: int
+    changed: int
+    changes: list[TextChangeOut]
+    truncated: bool
+    hedging_before: HedgingOut | None
+    hedging_after: HedgingOut | None
+    note: str
+    method: str
+
+
+class ExtractIn(BaseModel):
+    document_id: int
+    provider: Literal["server", "openai_compatible", "anthropic"] = "server"
+
+
+class FigureOut(BaseModel):
+    metric: str
+    value: str
+    unit: str
+    period: str
+    quote: str
+    chunk_id: int
+    position: int
+
+
+class ExtractOut(BaseModel):
+    document: DocumentOut
+    figures: list[FigureOut]
+    passages_read: int
+    dropped: dict[str, int]
+    provider: str | None
+    model: str | None
+    method: str
     disclaimer: str
 
 
@@ -5908,7 +6122,7 @@ class AiRuleIn(BaseModel):
 
     text: str = Field(min_length=3, max_length=500)
     timeframe: str = "daily"
-    provider: Literal["server", "openai_compatible"] = "server"
+    provider: Literal["server", "openai_compatible", "anthropic"] = "server"
 
 
 class AiRuleAttemptOut(BaseModel):

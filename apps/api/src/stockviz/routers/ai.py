@@ -11,6 +11,13 @@
   (never the key), `PUT /{provider}` saves one encrypted, `DELETE /{provider}`
   removes it. 409 while `APP_ENCRYPTION_KEY` is unset. `/rule` and `/ask`
   take `provider: server | openai_compatible`.
+- `POST /v1/ai/extract` (signed in, 5 a minute; A9.10, M11.3): reported
+  figures out of a stored document, each kept only when its quote is in the
+  text and its value in the quote.
+- `POST /v1/ai/grid` (signed in, 2 a minute; A9.11, M11.4): up to 5 companies
+  by 3 questions, each cell a copilot answer from that company's documents.
+- `POST /v1/ai/debate` (signed in, 5 a minute; A9.11, M11.5): the case for and
+  the case against one company on a topic, from the same passages.
 """
 
 from __future__ import annotations
@@ -23,7 +30,7 @@ from sqlmodel import Session
 from stockviz.auth import UserIdDep
 from stockviz.db import get_session
 from stockviz.limiter import limiter
-from stockviz.routers.documents import _instrument, _kind, _naive, _out, _tickers
+from stockviz.routers.documents import _instrument, _kind, _naive, _out, _public_doc, _tickers
 from stockviz.schemas import (
     AiKeyIn,
     AiKeyOut,
@@ -32,13 +39,24 @@ from stockviz.schemas import (
     AiRuleIn,
     AiRuleOut,
     AiStatusOut,
+    AnswerCheckOut,
     AskIn,
     AskOut,
     AskSourceOut,
+    DebateIn,
+    DebateOut,
+    ExtractIn,
+    ExtractOut,
+    FigureOut,
+    GridCellOut,
+    GridIn,
+    GridOut,
     PassageOut,
 )
 from stockviz.services.ai import copilot
+from stockviz.services.ai import extract as ai_extract
 from stockviz.services.ai import keys as ai_keys
+from stockviz.services.ai import research as ai_research
 from stockviz.services.ai import rules as ai_rules
 from stockviz.services.ai.embed import embedder_from_settings
 from stockviz.services.ai.provider import AiNotConfigured, AiProviderError, provider_from_settings
@@ -219,3 +237,170 @@ def delete_ai_key(provider: str, user_id: UserIdDep, session: SessionDep) -> Res
     except ai_keys.KeyMissing as exc:
         raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+EXTRACT_METHOD = (
+    "The model read up to 8 passages of the document that contain a digit. A figure is kept "
+    "only when its quote appears in the passages word for word and every number in its value "
+    "appears in that quote; the rest are dropped and counted by reason."
+)
+EXTRACT_DISCLAIMER = (
+    "Figures copied out by a model and checked against the text, not against the company's "
+    "accounts. Read each in its quote. Not investment advice."
+)
+
+
+@router.post("/extract", response_model=ExtractOut)
+@limiter.limit("5/minute")
+def ai_extract_figures(
+    request: Request, body: ExtractIn, user_id: UserIdDep, session: SessionDep
+) -> ExtractOut:
+    del request
+    doc = _public_doc(session, body.document_id)
+    provider = _provider(session, user_id, body.provider)
+    try:
+        out = ai_extract.extract(session, provider, doc.id or 0)
+    except AiProviderError as exc:
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(exc)) from exc
+    positions = {c.id: c.position for c in out.passages}
+    ticker = _tickers(session, {doc.instrument_id}).get(doc.instrument_id, "?")
+    return ExtractOut(
+        document=_out(doc, ticker),
+        figures=[
+            FigureOut(
+                metric=f.metric,
+                value=f.value,
+                unit=f.unit,
+                period=f.period,
+                quote=f.quote,
+                chunk_id=f.chunk_id,
+                position=positions.get(f.chunk_id, 0),
+            )
+            for f in out.figures
+        ],
+        passages_read=len(out.passages),
+        dropped=out.dropped,
+        provider=out.provider,
+        model=out.model,
+        method=EXTRACT_METHOD,
+        disclaimer=EXTRACT_DISCLAIMER,
+    )
+
+
+RESEARCH_DISCLAIMER = (
+    "Written by a model only from the passages listed under each answer. Check every point "
+    "against its source. Neither side of a debate is a recommendation; not investment advice."
+)
+
+
+def _passage_out(session: Session, p, *, max_chars: int | None = None) -> PassageOut:
+    names = _tickers(session, {p.document.instrument_id})
+    text = p.text if max_chars is None or len(p.text) <= max_chars else p.text[:max_chars] + "…"
+    return PassageOut(
+        document=_out(p.document, names.get(p.document.instrument_id, "?")),
+        chunk_id=p.chunk_id,
+        position=p.position,
+        start_char=p.start_char,
+        end_char=p.end_char,
+        text=text,
+        score=p.score,
+        keyword_rank=p.keyword_rank,
+        vector_rank=p.vector_rank,
+        similarity=p.similarity,
+    )
+
+
+def _checked(
+    session: Session, out: copilot.CopilotAnswer, *, max_chars: int | None = None
+) -> AnswerCheckOut:
+    check = out.check
+    cited = set(check.cited) if check else set()
+    return AnswerCheckOut(
+        answer=out.answer or "",
+        grounded=bool(check and check.grounded),
+        cited=sorted(cited),
+        invalid_citations=check.invalid if check else [],
+        uncited_sentences=check.uncited_sentences if check else 0,
+        warnings=out.warnings,
+        sources=[
+            AskSourceOut(
+                n=i, cited=i in cited, passage=_passage_out(session, p, max_chars=max_chars)
+            )
+            for i, p in enumerate(out.sources, start=1)
+        ],
+    )
+
+
+@router.post("/grid", response_model=GridOut)
+@limiter.limit("2/minute")
+def ai_grid(request: Request, body: GridIn, user_id: UserIdDep, session: SessionDep) -> GridOut:
+    del request
+    tickers = list(dict.fromkeys(t.strip().upper() for t in body.tickers if t.strip()))
+    questions = [" ".join(q.split()) for q in body.questions]
+    if not tickers:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "name at least one symbol")
+    if any(not 5 <= len(q) <= 300 for q in questions):
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT, "each question needs 5 to 300 characters"
+        )
+    companies = [(t, _instrument(session, t)[1]) for t in tickers]
+    when = _naive(body.as_of)
+    settings = get_settings()
+    provider = _provider(session, user_id, body.provider)
+    try:
+        cells = ai_research.grid(
+            session, provider, companies, questions, as_of=when,
+            ticker_names=lambda ids: _tickers(session, ids),
+            embedder=embedder_from_settings(settings),
+        )  # fmt: skip
+    except AiProviderError as exc:
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(exc)) from exc
+    calls = sum(1 for c in cells if c.answer.model)
+    return GridOut(
+        as_of=when,
+        tickers=tickers,
+        questions=questions,
+        cells=[
+            GridCellOut(
+                ticker=c.ticker,
+                question=c.question,
+                result=_checked(session, c.answer, max_chars=600),
+            )
+            for c in cells
+        ],
+        model_calls=calls,
+        provider=provider.name,
+        model=provider.model,
+        disclaimer=RESEARCH_DISCLAIMER,
+    )
+
+
+@router.post("/debate", response_model=DebateOut)
+@limiter.limit("5/minute")
+def ai_debate(
+    request: Request, body: DebateIn, user_id: UserIdDep, session: SessionDep
+) -> DebateOut:
+    del request
+    ticker, iid = _instrument(session, body.ticker)
+    when = _naive(body.as_of)
+    settings = get_settings()
+    provider = _provider(session, user_id, body.provider)
+    try:
+        out = ai_research.debate(
+            session, provider, ticker, iid, body.topic, as_of=when,
+            ticker_names=lambda ids: _tickers(session, ids),
+            embedder=embedder_from_settings(settings),
+        )  # fmt: skip
+    except AiProviderError as exc:
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(exc)) from exc
+    return DebateOut(
+        ticker=ticker,
+        topic=out.topic,
+        as_of=when,
+        retrieval_mode=out.retrieval.mode,
+        case_for=_checked(session, out.case_for),
+        case_against=_checked(session, out.case_against),
+        provider=provider.name,
+        model=provider.model,
+        disclaimer=RESEARCH_DISCLAIMER,
+    )

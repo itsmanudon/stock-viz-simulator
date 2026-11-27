@@ -8,6 +8,7 @@ import { FloatingHeader } from "@/components/marketing/floating-header";
 import { MobileNav } from "@/components/mobile-nav";
 import { SoundToggle } from "@/components/sound/sound-toggle";
 import { Button } from "@/components/ui/button";
+import { signupMode } from "@/lib/signup-gate";
 
 // The three product pages, as SolCard's header lists its products, then the docs, centred
 // in the bar from `lg` (owner, 27 Nov 2026); on smaller screens they follow the logo. Markets
@@ -22,6 +23,8 @@ const PUBLIC_LINKS = [
 export async function PublicHeader() {
   const session = await auth();
   const signedIn = Boolean(session?.user?.id);
+  // The signup switch (SIGNUP_MODE): while closed, signed-out visitors get "Sign in".
+  const closed = signupMode() === "closed";
 
   return (
     <FloatingHeader>
@@ -53,8 +56,8 @@ export async function PublicHeader() {
       <div className="ml-auto flex items-center gap-1 sm:gap-2">
         <SoundToggle />
         <Button asChild size="sm" className="hidden rounded-full sm:inline-flex">
-          <Link href={signedIn ? "/dashboard" : "/signup"}>
-            {signedIn ? "Open workspace" : "Create account"}
+          <Link href={signedIn ? "/dashboard" : closed ? "/login" : "/signup"}>
+            {signedIn ? "Open workspace" : closed ? "Sign in" : "Create account"}
           </Link>
         </Button>
         <AccountMenu />

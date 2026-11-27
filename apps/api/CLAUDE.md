@@ -2523,9 +2523,16 @@ the downgrade refuses while a key is stored): `user_ai_keys`
 characters or with spaces, no model, a bad URL: 422), `list_keys` (never the
 key), `delete_key`, `provider_for(choice)` (`server` = A8.3's provider; a
 key that no longer decrypts after the server key changed says "save it
-again"). **Usable today: `openai_compatible` only**; `anthropic` is listed in
-`HELD`: the Claude adapter needs the official `anthropic` SDK, a new
-dependency the owner decides on. `services/ai/openai_compat.py`:
+again"). Usable: `openai_compatible` and (A8.7b, owner 27 Nov 2026)
+`anthropic`: `services/ai/claude.py::ClaudeProvider` on the official
+`anthropic` SDK (2.14, a direct dependency): `messages.create` with the
+user's model (default `claude-opus-5-5`, must start `claude-`; no base URL),
+the system prompt apart, `max_tokens` 16,000, no sampling parameters; on
+`FALLBACK_MODELS` the server-side refusal fallback is on
+(`client.beta.messages.create(betas=["server-side-fallback-2026-07-01"],
+fallbacks="default")`); a final `stop_reason == "refusal"` raises "Claude
+declined"; text blocks joined; SDK errors mapped to fixed text by class.
+`HELD` is empty. `services/ai/openai_compat.py`:
 `OpenAICompatibleProvider` (`POST {base}/chat/completions`, Bearer, 120 s,
 no redirects); the user's base URL goes through the webhook SSRF rules
 (`delivery.channels.check_url_syntax` and `pinned_target`: https only, http
@@ -2535,11 +2542,101 @@ fixed text (never the key or the body); `repr` hides the key. Routes
 (`routers/ai.py`, signed in): `GET /v1/ai/keys` -> `AiKeysOut` (`available`,
 `keys`, `providers`, `held`, `note`), `PUT /v1/ai/keys/{provider}`
 (10/min), `DELETE /v1/ai/keys/{provider}` (204, 404 none). `/rule` and
-`/ask` take `provider: server | openai_compatible` (409 no saved key).
+`/ask`, `/extract`, `/grid` and `/debate` take `provider: server |
+openai_compatible | anthropic` (409 no saved key).
 `/v1/ai/status` adds `keys_available`. **No real paid call was made** while
 building it: every request is faked. Env: `APP_ENCRYPTION_KEY` (blank = off;
 changing it makes saved keys unreadable). Tests: `tests/test_a87_byok.py`,
+`tests/test_a87b_claude.py` (a fake client: request shape, the fallback, errors, refusal),
 `tests/test_a87_byok_migration.py` (PostgreSQL).
+
+**Filing analysis (A9.10, M11.3).** No migration; nothing stored.
+- `GET /v1/documents/{id}/compare?against=` (public, 30/min;
+  `services/documents/compare.py`, deterministic): `against` defaults to the
+  newest earlier public document of the same company and kind (none: 200,
+  `against: null`, a note); another company's 400, itself 400. Annual
+  reports compare the "Item 1A. Risk Factors" section (the last such
+  heading, so a table of contents is skipped, to "Item 1B/1C/2") when both
+  have it, else the whole texts (`scope_note` says which lacked it).
+  Paragraphs (40+ characters) diffed with `difflib`: `added`, `removed`,
+  `changed` (a replaced paragraph at least 60% similar to its best partner),
+  `unchanged` counted; at most 60 listed (`truncated`). Hedging: a short
+  fixed list of uncertainty words and phrases per 1,000 words in each
+  (`HEDGES`; not the Loughran-McDonald list itself), "a rough signal of
+  wording, not of evasiveness or intent".
+- `POST /v1/ai/extract {document_id, provider}` (signed in, 5/min;
+  `services/ai/extract.py`): up to 8 passages containing a digit go to the
+  model, which returns a JSON list `{metric, value, unit, period, quote}`;
+  an item is kept only when its quote is in the passages word for word
+  (whitespace and case aside) and every digit run of its value is in the
+  quote; the rest are counted in `dropped` by reason ("quote not in the
+  text", "value not in its quote", "duplicate", "incomplete", "answer was
+  not a JSON list"). No passage with a digit: no model call. Real run on a
+  synthetic transcript (`gemma4:e4b`): 10 figures, all verified, 0 dropped.
+- Tests: `tests/test_a910_filing_analysis.py`.
+
+**Research grid and case for / against (A9.11, M11.4, M11.5).**
+`services/ai/research.py` on A8.5's copilot (`copilot.answer_from` is the
+shared prompt-and-check step; `build_messages` takes a `system`). Nothing
+stored. `POST /v1/ai/grid {tickers 1-5, questions 1-3 (5-300), as_of?,
+provider}` (signed in, 2/min): each cell is one copilot answer from that
+company's documents only (a cell can cite only its own company; no passage =
+no model call; `model_calls` counts the calls), passages trimmed to 600
+characters; tickers upper-cased and de-duplicated; unknown 404. `POST
+/v1/ai/debate {ticker, topic 5-300, as_of?, provider}` (signed in, 5/min):
+8 passages retrieved once; the model argues the case FOR and then the case
+AGAINST from the same numbered sources (at most four cited points each and
+a closing line on what would weaken it; `NO_CASE` when they give no basis;
+both prompts forbid buy/sell/hold and targets); each side's citations are
+checked as in A8.5. Response models `AnswerCheckOut`, `GridOut`,
+`DebateOut`. Real run (`gemma4:e4b`, synthetic transcript): both sides cited
+and grounded; the against side's closing line was uncited and flagged.
+Tests: `tests/test_a911_grid_debate.py`.
+
+**Weekly review and morning brief (A9.12, M11.6).** Deterministic; no
+model; nothing stored.
+- `GET /v1/journal/weekly?book=&source=&week_end=` (`routers/journal_stats.py`,
+  signed in; `services/journal/weekly.py`, pure over A5.6's outcomes): the
+  seven days ending `week_end` (default today, UTC) by close date against the
+  four weeks before (`baseline_entries_per_week`, `baseline_mean_r`,
+  `baseline_adherence`); net P&L per currency (never added across); `look_at`
+  from fixed rules in order, each naming its entries: `tilt` (A7.6's rule),
+  `plan_not_followed`, `no_plan` (not replay), `mistake_tag` (used twice),
+  `r_below_baseline` (0.5R, 3+ entries with R each side), `more_entries` (more
+  than twice the baseline's weekly average); notes for an empty or small
+  week. Neutral wording (a test bans judgement words).
+- `GET /v1/brief` (`routers/brief.py`, signed in; `services/brief.py`):
+  symbols = positions in the user's books, then watchlist symbols (50 at
+  most); moves = the last two stored daily closes with both dates, largest
+  first (8); the user's alert notifications of the last 24 hours; stored
+  earnings in the next 7 days; documents made public in the last 7 days;
+  counts of open or active plans and pending orders. End of day: the note
+  says a move is not today's unless its date is.
+- Tests: `tests/test_a912_weekly_brief.py`.
+
+**Implied vs model distribution (A9.13, M8.5).** `GET
+/v1/options/{t}/implied-distribution?expiry=` (`routers/options.py`, public,
+60/min; `services/options/implied_distribution.py`; no table). The newest
+stored `option_quotes` snapshot; `expiry` defaults to the one nearest 30
+days (`vol_summary.nearest_expiry`); spot = the last stored close on or
+before the snapshot. Smile: the out-of-the-money IVs (mean where both sides
+quote), **fitted** by least squares as a quadratic in `ln(K/S)/sqrt(T)` over
+strikes within 2.5 ATM-vol units of spot with IV in 3%-300%, flat beyond
+the fitted range (linear interpolation through raw yfinance IVs gave 24-46%
+negative density on real chains; the fit gives about 3%). Implied density =
+`e^{rT} d²C/dK²` of Black-Scholes calls on a 401-point log grid of +-4
+standard deviations (non-uniform three-point second difference); negative
+values cut and their share reported (`negative_mass`). Model: a lognormal
+with the HAR-RV next-session volatility (A9.2), else 21-session realised,
+drift `r - σ²/2` (the same forward). Out: quantiles 5/25/50/75/95%, the
+chance of ending more than 10% below or above spot for each, both ATM
+volatilities, 81 curve points, a reason when it cannot run (fewer than 5
+usable strikes either side, no chain, no close). Risk-neutral: it carries
+the risk premium, not a forecast. Real run (27 Nov 2026, AAPL and MSFT
+chains from yfinance into the throwaway e2e database): implied P(fall >10%
+in 7 days) 3.8% vs model 0.5% (AAPL), 7.7% vs 1.3% (MSFT). Tests:
+`tests/test_a913_implied_distribution.py` (a flat smile gives back the
+lognormal; put skew fattens the left tail; outliers barely move the fit).
 
 **Macro series from FRED (A9.7, M1.10, M3.5).** Migration `f1a9c7e3b5d2`
 (additive): `macro_series` (FRED id, title, units, frequency, observation

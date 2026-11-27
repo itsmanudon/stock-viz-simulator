@@ -14,6 +14,7 @@ import {
 import { NewsReactions } from "@/components/event-study-view";
 import { ForensicsCard } from "@/components/forensics-card";
 import { FundamentalsPanel } from "@/components/fundamentals-panel";
+import { ImpliedDistributionCard } from "@/components/implied-distribution-card";
 import { LenderCard } from "@/components/lender-card";
 import { MobileTradeSheet } from "@/components/mobile-trade-sheet";
 import { NewsList } from "@/components/news-list";
@@ -61,7 +62,11 @@ import {
   getValuation,
   getValuationHistory,
 } from "@/lib/api/fundamentals";
-import { getOptionExposure, getVolSummary } from "@/lib/api/option-exposure";
+import {
+  getImpliedDistribution,
+  getOptionExposure,
+  getVolSummary,
+} from "@/lib/api/option-exposure";
 import { planPickerOptions } from "@/lib/api/plans";
 import { getEventStudy } from "@/lib/api/research";
 import {
@@ -282,6 +287,7 @@ export default async function StockPage({
     forecast,
     volSummary,
     structure,
+    impliedDist,
   ] = await Promise.all([
     barsPromise,
     chartBarsPromise,
@@ -319,6 +325,8 @@ export default async function StockPage({
     getVolSummary(ticker).catch(() => null),
     // A9.5: swing pivots and zones by stated rules.
     getStructure(ticker).catch(() => null),
+    // A9.13: implied vs model distribution from the newest stored chain.
+    getImpliedDistribution(ticker).catch(() => null),
   ]);
 
   // A6.2: an intraday lookback is whole sessions ("1D" is the last session,
@@ -697,6 +705,9 @@ export default async function StockPage({
             (volSummary && !volSummary.reason) ? (
               <div className="space-y-8">
                 {volSummary && !volSummary.reason ? <VolSummaryCard summary={volSummary} /> : null}
+                {impliedDist && !impliedDist.reason ? (
+                  <ImpliedDistributionCard data={impliedDist} />
+                ) : null}
                 {exposure && !exposure.reason && exposure.strikes.length ? (
                   <OptionExposureCard exposure={exposure} />
                 ) : null}

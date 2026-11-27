@@ -204,6 +204,19 @@ a server action or a route handler — never through the browser.
   audit OP-4). Sign-up does not verify email, so an account with a password
   never gets Google attached: its holder signs in with the password, and
   `/login?error=` explains the refusal.
+- **The signup switch** (owner, 27 Nov 2026): `SIGNUP_MODE` closed (default
+  when unset) | allowlist | open, `SIGNUP_ALLOWLIST` (comma-separated). Pure
+  rules in `lib/signup-policy.ts` (`parseSignupMode`, `signupAllowed`: open
+  anyone; the first account on an empty database always; allowlist by
+  address, case ignored; else no); `lib/signup-gate.ts::canCreateAccount`
+  reads the env per request and `lib/users.ts::countUsers`. Enforced in
+  `signupAction` (after the duplicate check, so an existing user is still
+  told to sign in) and in the Google `signIn` callback for an address with no
+  account (`/login?error=SignupClosed`). `/signup` is `force-dynamic`: closed
+  shows `signup-closed` ("Invite Only", a sign-in link), allowlist adds
+  `signup-invite-note`. The public header's button reads "Sign in" while
+  closed; other marketing buttons still go to `/signup`, which explains.
+  Tests: `tests/unit/signup-policy.test.ts`. e2e and CI set `open`.
 - Credential sign-in and sign-up are throttled by fixed windows in Postgres
   (`lib/rate-limit.ts`, table `auth_rate_limits` owned by the API's Alembic
   chain; audit OP-8), so counters survive the web service sleeping. A
@@ -968,17 +981,49 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   disclaimer. `lib/copilot.ts` (`answerParts`, `questionProblem`). Tests:
   `tests/unit/a85-copilot.test.tsx`, the signed-out check in
   `tests/e2e/app-shell.spec.ts`.
+- **Morning brief and weekly review (A9.12, M11.6).** `/brief` (Today nav
+  "Morning Brief", signed in, icon `Sunrise`, protected in `proxy.ts`):
+  `getBrief()` (`lib/api/brief.ts`, authed) shown as four cards: largest
+  moves with both close dates (`brief-moves`, gain/loss colours), alerts of
+  the last 24 hours, earnings in the next 7 days, new documents, and counts
+  of open plans and pending orders; `brief-empty` with no symbols.
+  `/portfolio/journal/week?week_end=&book=` (linked as "Weekly Review",
+  `weekly-link`, beside the edge link): a `FigureStrip`, net P&L per
+  currency, `weekly-look-at` items each linking their entries, previous and
+  next week (`lib/brief.ts`: `moveText`, `shiftWeek`, `weekHref`). Tests:
+  `tests/unit/a912-brief.test.ts`, the signed-in steps in
+  `tests/e2e/portfolio.spec.ts`.
+- **Implied vs model distribution (A9.13, M8.5).** The stock page's Options
+  tab adds `ImpliedDistributionCard` (`components/implied-distribution-card.tsx`,
+  `implied-distribution`) from `getImpliedDistribution`
+  (`lib/api/option-exposure.ts`, cached an hour, tag `options`; dropped when it
+  fails or has a `reason`): an inline SVG of the implied density (solid) and
+  the model's (dashed) on one scale (`densityPath`), the quantile table
+  (`idist-quantiles`), the tail chances in words (`idist-tails`), the cut
+  negative share when over 1%, and the method. Neutral colours only. Tests:
+  `tests/unit/a913-implied-distribution.test.tsx`.
+- **Grid and For and Against (A9.11, M11.4, M11.5).** `/copilot?mode=grid|debate`
+  (`copilot-modes`: Ask, Grid, For and Against links with `aria-current`):
+  `GridPanel` (`components/copilot/research-panels.tsx`: up to 5 symbols and
+  3 questions, a table of `grid-cell`s with `data-grounded`, the model-call
+  count) and `DebatePanel` (symbol and topic; `case-for` and `case-against`
+  side by side, "from the same passages"), both through
+  `copilot/actions.ts::gridAction` / `debateAction` (`lib/api/ai-server.ts::
+  runGrid` / `runDebate`). `CheckedAnswerView` renders an answer with its
+  citation chips, warnings and sources. Tests:
+  `tests/unit/a911-grid-debate.test.tsx`.
 - **AI keys (A8.7, M11.2 BYOK).** Settings → AI Keys
   (`components/ai-keys-panel.tsx`, actions in
   `(authed)/settings/ai-key-actions.ts`, `listAiKeys`/`saveAiKey`/
-  `deleteAiKey` in `lib/api/ai-server.ts`): an OpenAI-compatible endpoint's
-  base URL, model and key (a password field, empty on every render); a saved
-  key shows model, endpoint and "Key Ending WXYZ" only (`ai-key-saved`),
-  Remove Key; `ai-keys-off` when the server has no encryption key; Claude is
-  listed as held (`ai-key-held`). `/copilot` offers "Your key: <model>"
-  beside the server's model (a Model select when both exist; the copilot
-  works with only a saved key) and says such requests are billed to the
-  user's account. Tests: `tests/unit/a87-ai-keys.test.tsx`, the copilot test,
+  `deleteAiKey` in `lib/api/ai-server.ts`): one form per provider
+  (`ai-key-openai_compatible`: base URL, model, key; `ai-key-anthropic`
+  (A8.7b): model, default `claude-opus-5-5`, and key, no endpoint); the key
+  is a password field, empty on every render; a saved key shows model,
+  endpoint and "Key Ending WXYZ" only (`ai-key-saved`), Remove Key;
+  `ai-keys-off` when the server has no encryption key. `lib/ai-choices.ts::
+  aiChoices` builds the model choices ("Server: …", "Your key: …", "Your
+  Claude key: …") for `/copilot` and `/filings/[id]`; a non-server choice
+  says it is billed to the user's account. Tests: `tests/unit/a87-ai-keys.test.tsx`, the copilot test,
   the off state in `tests/e2e/portfolio.spec.ts`.
 - **Describe in words (A8.2, M4.2).** The screener's rule panel adds a
   "Describe in words" disclosure (`describe-in-words`) only when signed in
@@ -1049,6 +1094,17 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   `passageRanks`: "Words #2 · Meaning #1 (0.82)") with the API's mode, notes
   and method. Tests: `tests/unit/a710-documents.test.tsx`,
   `tests/unit/a84-passages.test.tsx`, `tests/e2e/filings.spec.ts`.
+  A9.10 (M11.3): `/filings/[id]` adds `DocumentChanges`
+  (`components/filing-analysis.tsx`, `document-changes`: counts in
+  `document-change-counts`, hedging per 1,000 words before and after in
+  `document-hedging` (`hedgingLine`), the changed paragraphs in a
+  disclosure, `document-change` with `data-kind`) from the public
+  `compareDocument`, and, signed in with a model (the server's or a saved
+  key), `FigureExtractor` (`figure-extractor`, "Extract Figures" through
+  `filings/[id]/actions.ts::extractFiguresAction`: each `figure` with its
+  quote, `figures-dropped` counting what failed the check, the method and
+  disclaimer). Tests: `tests/unit/a910-filing-analysis.test.tsx` (no e2e:
+  the e2e database stores no documents).
 - **Macro (A9.7, M1.10, M3.5).** `/macro` (Markets nav "Macro", icon
   `Globe`, public): `getMacroOverview()` (`lib/api/macro.ts`, cached an hour,
   tag `macro`) rendered by `components/macro-view.tsx` (server): the spreads,
@@ -1574,7 +1630,7 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
 
   | Workspace | Routes (sidebar items in order) |
   | --- | --- |
-  | Today | `/dashboard` (Home; `/` for guests), `/notifications` |
+  | Today | `/dashboard` (Home; `/` for guests), `/brief` (Morning Brief, signed in; A9.12), `/notifications` |
   | Markets | `/markets` (Overview), `/screener`, `/earnings`, `/news` |
   | Workbench | `/setups`, `/checklist` (+ `/recommendations`, a redirect), `/compare`, `/event-study`; `/stocks/*` belongs here without an item (`extraMatches`) |
   | Quant Lab | `/backtest`, `/backtest/runs` (Saved runs, + `/runs/[id]`), `/replay` (+ `/[id]`), `/drills` (+ `/new`, `/[id]`), `/news-reactions` |

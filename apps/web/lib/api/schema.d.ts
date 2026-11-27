@@ -139,6 +139,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/documents/{document_id}/compare": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Compare Document */
+        get: operations["compare_document_v1_documents__document_id__compare_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/documents/{document_id}": {
         parameters: {
             query?: never;
@@ -148,6 +165,23 @@ export interface paths {
         };
         /** Get Document */
         get: operations["get_document_v1_documents__document_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/brief": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Brief */
+        get: operations["get_brief_v1_brief_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -288,6 +322,57 @@ export interface paths {
         post?: never;
         /** Delete Ai Key */
         delete: operations["delete_ai_key_v1_ai_keys__provider__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/ai/extract": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Ai Extract Figures */
+        post: operations["ai_extract_figures_v1_ai_extract_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/ai/grid": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Ai Grid */
+        post: operations["ai_grid_v1_ai_grid_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/ai/debate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Ai Debate */
+        post: operations["ai_debate_v1_ai_debate_post"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -2510,6 +2595,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/options/{ticker}/implied-distribution": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Implied Distribution
+         * @description A9.13 (M8.5): option-implied vs model distribution of the price at expiry.
+         */
+        get: operations["get_implied_distribution_v1_options__ticker__implied_distribution_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/backtest": {
         parameters: {
             query?: never;
@@ -3458,6 +3563,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/journal/weekly": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Journal Weekly
+         * @description A9.12 (M11.6): one week of closed entries, the baseline and what to look at.
+         */
+        get: operations["journal_weekly_v1_journal_weekly_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/notifications/channels": {
         parameters: {
             query?: never;
@@ -3819,7 +3944,7 @@ export interface components {
              * @default server
              * @enum {string}
              */
-            provider: "server" | "openai_compatible";
+            provider: "server" | "openai_compatible" | "anthropic";
         };
         /** AiRuleOut */
         AiRuleOut: {
@@ -4008,6 +4133,23 @@ export interface components {
             /** Setup Version Id */
             setup_version_id?: number | null;
         };
+        /** AnswerCheckOut */
+        AnswerCheckOut: {
+            /** Answer */
+            answer: string;
+            /** Grounded */
+            grounded: boolean;
+            /** Cited */
+            cited: number[];
+            /** Invalid Citations */
+            invalid_citations: number[];
+            /** Uncited Sentences */
+            uncited_sentences: number;
+            /** Warnings */
+            warnings: string[];
+            /** Sources */
+            sources: components["schemas"]["AskSourceOut"][];
+        };
         /** AskIn */
         AskIn: {
             /** Question */
@@ -4023,7 +4165,7 @@ export interface components {
              * @default server
              * @enum {string}
              */
-            provider: "server" | "openai_compatible";
+            provider: "server" | "openai_compatible" | "anthropic";
         };
         /** AskOut */
         AskOut: {
@@ -4649,6 +4791,69 @@ export interface components {
             /** Pct Rsi 50 */
             pct_rsi_50?: number | null;
         };
+        /** BriefAlertOut */
+        BriefAlertOut: {
+            /** Title */
+            title: string;
+            /** Body */
+            body: string;
+            /** Link */
+            link: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
+        /** BriefDocumentOut */
+        BriefDocumentOut: {
+            /** Id */
+            id: number;
+            /** Ticker */
+            ticker: string;
+            /** Title */
+            title: string;
+            /** Kind */
+            kind: string;
+            /**
+             * Available At
+             * Format: date-time
+             */
+            available_at: string;
+        };
+        /** BriefEarningsOut */
+        BriefEarningsOut: {
+            /** Ticker */
+            ticker: string;
+            /**
+             * Event Date
+             * Format: date
+             */
+            event_date: string;
+        };
+        /** BriefMoveOut */
+        BriefMoveOut: {
+            /** Ticker */
+            ticker: string;
+            /** Close */
+            close: string;
+            /**
+             * Close Date
+             * Format: date
+             */
+            close_date: string;
+            /** Previous Close */
+            previous_close: string;
+            /**
+             * Previous Date
+             * Format: date
+             */
+            previous_date: string;
+            /** Change Pct */
+            change_pct: number;
+            /** Held */
+            held: boolean;
+        };
         /** BrokerStatusItemOut */
         BrokerStatusItemOut: {
             /**
@@ -5269,6 +5474,43 @@ export interface components {
             /** Value */
             value: string;
         };
+        /** DebateIn */
+        DebateIn: {
+            /** Ticker */
+            ticker: string;
+            /** Topic */
+            topic: string;
+            /** As Of */
+            as_of?: string | null;
+            /**
+             * Provider
+             * @default server
+             * @enum {string}
+             */
+            provider: "server" | "openai_compatible" | "anthropic";
+        };
+        /** DebateOut */
+        DebateOut: {
+            /** Ticker */
+            ticker: string;
+            /** Topic */
+            topic: string;
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            /** Retrieval Mode */
+            retrieval_mode: string;
+            case_for: components["schemas"]["AnswerCheckOut"];
+            case_against: components["schemas"]["AnswerCheckOut"];
+            /** Provider */
+            provider: string | null;
+            /** Model */
+            model: string | null;
+            /** Disclaimer */
+            disclaimer: string;
+        };
         /** DeliveryOut */
         DeliveryOut: {
             /** Ticker */
@@ -5300,6 +5542,15 @@ export interface components {
             delivery_pct: number;
             /** Avg 20 */
             avg_20?: number | null;
+        };
+        /** DistributionPointOut */
+        DistributionPointOut: {
+            /** Price */
+            price: number;
+            /** Implied */
+            implied: number;
+            /** Model */
+            model: number;
         };
         /** DividendCreditOut */
         DividendCreditOut: {
@@ -5364,6 +5615,37 @@ export interface components {
              * @default
              */
             projection_method: string;
+        };
+        /** DocumentCompareOut */
+        DocumentCompareOut: {
+            document: components["schemas"]["DocumentOut"];
+            against: components["schemas"]["DocumentOut"] | null;
+            /** Scope */
+            scope: string | null;
+            /** Scope Note */
+            scope_note: string | null;
+            /** Paragraphs Before */
+            paragraphs_before: number;
+            /** Paragraphs After */
+            paragraphs_after: number;
+            /** Unchanged */
+            unchanged: number;
+            /** Added */
+            added: number;
+            /** Removed */
+            removed: number;
+            /** Changed */
+            changed: number;
+            /** Changes */
+            changes: components["schemas"]["TextChangeOut"][];
+            /** Truncated */
+            truncated: boolean;
+            hedging_before: components["schemas"]["HedgingOut"] | null;
+            hedging_after: components["schemas"]["HedgingOut"] | null;
+            /** Note */
+            note: string;
+            /** Method */
+            method: string;
         };
         /** DocumentDetailOut */
         DocumentDetailOut: {
@@ -6561,6 +6843,37 @@ export interface components {
             /** Put Oi */
             put_oi: number;
         };
+        /** ExtractIn */
+        ExtractIn: {
+            /** Document Id */
+            document_id: number;
+            /**
+             * Provider
+             * @default server
+             * @enum {string}
+             */
+            provider: "server" | "openai_compatible" | "anthropic";
+        };
+        /** ExtractOut */
+        ExtractOut: {
+            document: components["schemas"]["DocumentOut"];
+            /** Figures */
+            figures: components["schemas"]["FigureOut"][];
+            /** Passages Read */
+            passages_read: number;
+            /** Dropped */
+            dropped: {
+                [key: string]: number;
+            };
+            /** Provider */
+            provider: string | null;
+            /** Model */
+            model: string | null;
+            /** Method */
+            method: string;
+            /** Disclaimer */
+            disclaimer: string;
+        };
         /**
          * FactorIn
          * @description A7.7 (M7.5): one factor of a multi-factor model.
@@ -6855,6 +7168,23 @@ export interface components {
              * Format: date-time
              */
             checked_at: string;
+        };
+        /** FigureOut */
+        FigureOut: {
+            /** Metric */
+            metric: string;
+            /** Value */
+            value: string;
+            /** Unit */
+            unit: string;
+            /** Period */
+            period: string;
+            /** Quote */
+            quote: string;
+            /** Chunk Id */
+            chunk_id: number;
+            /** Position */
+            position: number;
         };
         /** FillEventOut */
         FillEventOut: {
@@ -7155,6 +7485,51 @@ export interface components {
             /** Cells */
             cells: components["schemas"]["GradebookCellOut"][];
         };
+        /** GridCellOut */
+        GridCellOut: {
+            /** Ticker */
+            ticker: string;
+            /** Question */
+            question: string;
+            result: components["schemas"]["AnswerCheckOut"];
+        };
+        /** GridIn */
+        GridIn: {
+            /** Tickers */
+            tickers: string[];
+            /** Questions */
+            questions: string[];
+            /** As Of */
+            as_of?: string | null;
+            /**
+             * Provider
+             * @default server
+             * @enum {string}
+             */
+            provider: "server" | "openai_compatible" | "anthropic";
+        };
+        /** GridOut */
+        GridOut: {
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            /** Tickers */
+            tickers: string[];
+            /** Questions */
+            questions: string[];
+            /** Cells */
+            cells: components["schemas"]["GridCellOut"][];
+            /** Model Calls */
+            model_calls: number;
+            /** Provider */
+            provider: string | null;
+            /** Model */
+            model: string | null;
+            /** Disclaimer */
+            disclaimer: string;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -7188,6 +7563,20 @@ export interface components {
              * @default 0
              */
             dead_outbox_events: number;
+        };
+        /** HedgingOut */
+        HedgingOut: {
+            /** Words */
+            words: number;
+            /** Hedges */
+            hedges: number;
+            /** Per Thousand */
+            per_thousand: number | null;
+            /** Top */
+            top: [
+                string,
+                number
+            ][];
         };
         /**
          * HistogramOut
@@ -7324,6 +7713,49 @@ export interface components {
             backtest?: components["schemas"]["BacktestIn"] | null;
             strategy?: components["schemas"]["StrategyBacktestIn"] | null;
             rotation?: components["schemas"]["RotationBacktestIn"] | null;
+        };
+        /** ImpliedDistributionOut */
+        ImpliedDistributionOut: {
+            /** Ticker */
+            ticker: string;
+            /** Expiry */
+            expiry: string | null;
+            /** Days */
+            days: number | null;
+            /** Spot */
+            spot: number | null;
+            /** Implied Atm Vol */
+            implied_atm_vol: number | null;
+            /** Model Vol */
+            model_vol: number | null;
+            /** Model Vol Source */
+            model_vol_source: string | null;
+            /** Quantile Levels */
+            quantile_levels: number[];
+            /** Implied Quantiles */
+            implied_quantiles: number[];
+            /** Model Quantiles */
+            model_quantiles: number[];
+            /** Move */
+            move: number;
+            /** Implied P Down */
+            implied_p_down: number | null;
+            /** Implied P Up */
+            implied_p_up: number | null;
+            /** Model P Down */
+            model_p_down: number | null;
+            /** Model P Up */
+            model_p_up: number | null;
+            /** Negative Mass */
+            negative_mass: number | null;
+            /** Strikes Used */
+            strikes_used: number;
+            /** Curve */
+            curve: components["schemas"]["DistributionPointOut"][];
+            /** Reason */
+            reason: string | null;
+            /** Method */
+            method: string;
         };
         /** ImportBatchOut */
         ImportBatchOut: {
@@ -8711,6 +9143,15 @@ export interface components {
              */
             status: "ok";
         };
+        /** LookAtOut */
+        LookAtOut: {
+            /** Key */
+            key: string;
+            /** Text */
+            text: string;
+            /** Entry Ids */
+            entry_ids: number[];
+        };
         /** MACDPointOut */
         MACDPointOut: {
             /**
@@ -8963,6 +9404,30 @@ export interface components {
             goal?: number | null;
             /** Prob Goal */
             prob_goal?: number | null;
+        };
+        /** MorningBriefOut */
+        MorningBriefOut: {
+            /**
+             * Generated At
+             * Format: date-time
+             */
+            generated_at: string;
+            /** Symbols */
+            symbols: string[];
+            /** Moves */
+            moves: components["schemas"]["BriefMoveOut"][];
+            /** Alerts */
+            alerts: components["schemas"]["BriefAlertOut"][];
+            /** Earnings */
+            earnings: components["schemas"]["BriefEarningsOut"][];
+            /** Documents */
+            documents: components["schemas"]["BriefDocumentOut"][];
+            /** Open Plans */
+            open_plans: number;
+            /** Pending Orders */
+            pending_orders: number;
+            /** Note */
+            note: string;
         };
         /**
          * NeedsOpeningLotOut
@@ -13875,6 +14340,17 @@ export interface components {
             /** Quantity */
             quantity: string;
         };
+        /** TextChangeOut */
+        TextChangeOut: {
+            /** Kind */
+            kind: string;
+            /** Before */
+            before: string | null;
+            /** After */
+            after: string | null;
+            /** Similarity */
+            similarity: number | null;
+        };
         /** ThesisCloseIn */
         ThesisCloseIn: {
             /**
@@ -14956,6 +15432,57 @@ export interface components {
                 [key: string]: number | string | null;
             };
         };
+        /** WeekFiguresOut */
+        WeekFiguresOut: {
+            /** Entries */
+            entries: number;
+            /** Wins */
+            wins: number;
+            /** Losses */
+            losses: number;
+            /** Net By Currency */
+            net_by_currency: {
+                [key: string]: number;
+            };
+            /** Mean R */
+            mean_r: number | null;
+            /** N R */
+            n_r: number;
+            /** Plans Scored */
+            plans_scored: number;
+            /** Plans Followed */
+            plans_followed: number;
+            /** No Plan */
+            no_plan: number;
+        };
+        /** WeeklyReviewOut */
+        WeeklyReviewOut: {
+            /**
+             * Week Start
+             * Format: date
+             */
+            week_start: string;
+            /**
+             * Week End
+             * Format: date
+             */
+            week_end: string;
+            week: components["schemas"]["WeekFiguresOut"];
+            /** Baseline Weeks */
+            baseline_weeks: number;
+            /** Baseline Entries Per Week */
+            baseline_entries_per_week: number | null;
+            /** Baseline Mean R */
+            baseline_mean_r: number | null;
+            /** Baseline Adherence */
+            baseline_adherence: number | null;
+            /** Look At */
+            look_at: components["schemas"]["LookAtOut"][];
+            /** Notes */
+            notes: string[];
+            /** Method */
+            method: string;
+        };
         /**
          * XirrOut
          * @description A money-weighted (XIRR) annual return; null with a reason when it means nothing.
@@ -15200,6 +15727,39 @@ export interface operations {
             };
         };
     };
+    compare_document_v1_documents__document_id__compare_get: {
+        parameters: {
+            query?: {
+                against?: number | null;
+            };
+            header?: never;
+            path: {
+                document_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentCompareOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_document_v1_documents__document_id__get: {
         parameters: {
             query?: {
@@ -15220,6 +15780,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DocumentDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_brief_v1_brief_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MorningBriefOut"];
                 };
             };
             /** @description Validation Error */
@@ -15498,6 +16089,111 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    ai_extract_figures_v1_ai_extract_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExtractIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExtractOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    ai_grid_v1_ai_grid_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GridIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GridOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    ai_debate_v1_ai_debate_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DebateIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DebateOut"];
+                };
             };
             /** @description Validation Error */
             422: {
@@ -20435,6 +21131,39 @@ export interface operations {
             };
         };
     };
+    get_implied_distribution_v1_options__ticker__implied_distribution_get: {
+        parameters: {
+            query?: {
+                expiry?: string | null;
+            };
+            header?: never;
+            path: {
+                ticker: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImpliedDistributionOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     post_backtest_v1_backtest_post: {
         parameters: {
             query?: never;
@@ -22536,6 +23265,42 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BehaviourOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    journal_weekly_v1_journal_weekly_get: {
+        parameters: {
+            query?: {
+                /** @description Book id, or `all` for every book summed in the display currency (A5.2). Omit for the default book; another user's book is 404. */
+                book?: string | null;
+                source?: ("paper" | "imported" | "replay" | "all") | null;
+                week_end?: string | null;
+            };
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WeeklyReviewOut"];
                 };
             };
             /** @description Validation Error */
