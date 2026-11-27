@@ -37,6 +37,7 @@ from stockviz.models.events import ConsumerInbox, OutboxEvent, PortfolioTradeAct
 from stockviz.models.execution import SimulatedExecution
 from stockviz.models.experiment import Experiment, ExperimentRun
 from stockviz.models.feed_stream import FeedStream
+from stockviz.models.fo import FoDaily, FoFile
 from stockviz.models.fundamentals import FundamentalFact
 from stockviz.models.import_column_map import ImportColumnMap
 from stockviz.models.indicator_evidence import IndicatorEvidence
@@ -135,6 +136,8 @@ __all__ = [
     "Experiment",
     "ExperimentRun",
     "FeedStream",
+    "FoDaily",
+    "FoFile",
     "FundamentalFact",
     "FxConversion",
     "FxRate",

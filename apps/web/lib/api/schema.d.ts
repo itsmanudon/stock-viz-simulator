@@ -173,6 +173,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/fo/india": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Fo India */
+        get: operations["fo_india_v1_fo_india_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/symbols/screen": {
         parameters: {
             query?: never;
@@ -6399,6 +6416,76 @@ export interface components {
              * @default false
              */
             closes_entry: boolean;
+        };
+        /** FoDayOut */
+        FoDayOut: {
+            /**
+             * Day
+             * Format: date
+             */
+            day: string;
+            /** Atm Iv */
+            atm_iv?: number | null;
+            /** Skew */
+            skew?: number | null;
+            /** Pcr */
+            pcr?: number | null;
+            /** Spot */
+            spot: number;
+        };
+        /**
+         * FoIndiaOut
+         * @description A7.14 (M6.1, M6.3): India index options from the owner's local files.
+         */
+        FoIndiaOut: {
+            /** Underlyings */
+            underlyings: components["schemas"]["FoUnderlyingOut"][];
+            /** Skew Offset */
+            skew_offset: number;
+            /** Min Days */
+            min_days: number;
+            /** Method */
+            method: string;
+            /** Source Note */
+            source_note: string;
+        };
+        /** FoSmileOut */
+        FoSmileOut: {
+            /** Offset */
+            offset: number;
+            /** Call Iv */
+            call_iv?: number | null;
+            /** Put Iv */
+            put_iv?: number | null;
+        };
+        /** FoUnderlyingOut */
+        FoUnderlyingOut: {
+            /** Underlying */
+            underlying: string;
+            /** Series */
+            series: string;
+            /**
+             * First
+             * Format: date
+             */
+            first: string;
+            /**
+             * Last
+             * Format: date
+             */
+            last: string;
+            /** Sessions */
+            sessions: number;
+            /** Iv Now */
+            iv_now?: number | null;
+            /** Iv Rank */
+            iv_rank?: number | null;
+            /** Iv Percentile */
+            iv_percentile?: number | null;
+            /** Days */
+            days: components["schemas"]["FoDayOut"][];
+            /** Smile */
+            smile: components["schemas"]["FoSmileOut"][];
         };
         /**
          * ForecastOut
@@ -14606,6 +14693,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    fo_india_v1_fo_india_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FoIndiaOut"];
                 };
             };
         };

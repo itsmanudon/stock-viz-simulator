@@ -90,6 +90,13 @@ export const WORKSPACES: readonly Workspace[] = [
       },
       { label: "News", href: "/news", matches: ["/news"], keywords: ["headlines", "aegis"] },
       {
+        // A7.14 (M6.1, M6.3): NIFTY and BANKNIFTY option summaries from local files.
+        label: "India options",
+        href: "/india-options",
+        matches: ["/india-options"],
+        keywords: ["nifty", "banknifty", "iv rank", "pcr", "skew", "f&o", "options india"],
+      },
+      {
         // A9.7 (M1.10, M3.5): FRED rates, inflation, credit, commodities and spreads.
         label: "Macro",
         href: "/macro",

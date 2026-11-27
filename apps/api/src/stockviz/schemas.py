@@ -5810,3 +5810,40 @@ class LenderOut(BaseModel):
     reasons: list[str]
     method: str
     kpi_note: str
+
+
+class FoDayOut(BaseModel):
+    day: date
+    atm_iv: float | None = None
+    skew: float | None = None
+    pcr: float | None = None
+    spot: float
+
+
+class FoSmileOut(BaseModel):
+    offset: int
+    call_iv: float | None = None
+    put_iv: float | None = None
+
+
+class FoUnderlyingOut(BaseModel):
+    underlying: str
+    series: str
+    first: date
+    last: date
+    sessions: int
+    iv_now: float | None = None
+    iv_rank: float | None = None
+    iv_percentile: float | None = None
+    days: list[FoDayOut]
+    smile: list[FoSmileOut]
+
+
+class FoIndiaOut(BaseModel):
+    """A7.14 (M6.1, M6.3): India index options from the owner's local files."""
+
+    underlyings: list[FoUnderlyingOut]
+    skew_offset: int
+    min_days: int
+    method: str
+    source_note: str

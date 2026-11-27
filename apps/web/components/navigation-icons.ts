@@ -49,6 +49,7 @@ export const NAV_ICONS: Record<string, LucideIcon> = {
   "/earnings": CalendarDays,
   "/news": Newspaper,
   "/macro": Globe,
+  "/india-options": Activity,
   "/filings": FileText,
   "/desks": LayoutGrid,
   "/optimise": PieChart,
