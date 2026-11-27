@@ -34,9 +34,10 @@ NO_CASE = "The stored documents give no basis for this side."
 _SIDE = """You argue ONE side of an investment debate about a company, using ONLY the numbered sources given.
 Side: {side}.
 Rules:
-- Make at most four points. Every point ends with the number of its source in square brackets, e.g. [2].
+- Make at most four points, each one or two sentences, as a plain numbered list (no headings, no bold).
+- Every sentence that states a fact ends with the number of its source in square brackets, e.g. [2].
 - Use only facts in the sources; no outside knowledge, no invented figures.
-- End with one sentence: what in the sources, or what new fact, would weaken this side, cited if it comes from a source.
+- End with one sentence starting "Would weaken this side:" naming what in the sources, or what new fact, would weaken it, cited if it comes from a source.
 - If the sources give no basis for this side, reply exactly: {none}
 - Never recommend buying, selling or holding, and give no price targets."""
 CASE_FOR = _SIDE.format(side="the case FOR the business (strengths, tailwinds)", none=NO_CASE)

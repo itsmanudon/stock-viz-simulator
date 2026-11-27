@@ -2624,6 +2624,10 @@ both prompts forbid buy/sell/hold and targets); each side's citations are
 checked as in A8.5. Response models `AnswerCheckOut`, `GridOut`,
 `DebateOut`. Real run (`gemma4:e4b`, synthetic transcript): both sides cited
 and grounded; the against side's closing line was uncited and flagged.
+Prompt tightened 27 Nov 2026: points of one or two sentences in a plain
+list, every factual sentence cited, closing line "Would weaken this side:".
+On 20 Opus 5.5 debates over EDGAR filings (top 10 US tickers) uncited
+sentences fell from 300 to 58, with no invalid citations either way.
 Tests: `tests/test_a911_grid_debate.py`.
 
 **Weekly review and morning brief (A9.12, M11.6).** Deterministic; no
