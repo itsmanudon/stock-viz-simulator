@@ -90,3 +90,43 @@ uv run --directory lab ruff check . && uv run --directory lab ruff format --chec
 
 The tests build a tiny export by hand (invented rows, the same layout and
 manifest), so they need neither the API nor the network.
+
+## The factor ranker (A9.8, M8.4)
+
+`uv run --directory lab lab rank DIR [--out lab/data/ranker-report.json]`
+(`src/stockviz_lab/ranker.py`; LightGBM 4.7.0 and SHAP 0.54.1, lab only,
+never in the API image: owner, 27 Nov 2026). It reads the export's daily
+`price_bars`.
+
+- **Features** at each month-end, from bars up to that day only:
+  - returns over 21, 63, 126 and 252 sessions, and 12-1 momentum;
+  - 20- and 60-session volatility;
+  - distance from the 252-session high;
+  - 20 over 60-session volume.
+- **Target:** the cross-sectional percentile of the next 21 sessions' return.
+- **Walk-forward:** for each test month, train on the months at least two
+  month-ends back (so no label overlaps the test month), 24 at least.
+  Parameters are fixed in code, not tuned on the tests.
+- **Score:** each test month's Spearman rank IC, then mean, t and hit rate,
+  beside 12-1 momentum alone (the baseline the model has to beat).
+- **SHAP:** mean |SHAP| per feature from `TreeExplainer` on the last model.
+- **Report:** JSON with the monthly ICs, SHAP and the latest month's scores.
+  Keep it under `lab/data/` (git-ignored).
+
+First run, 27 Nov 2026, on an export of the 25 seed symbols' daily bars
+(2009-2026). There are 173 test months, Oct 2010 to Feb 2025.
+
+| | Mean rank IC | t | Hit rate |
+|---|---|---|---|
+| LightGBM | +0.016 | 0.94 | 54% |
+| 12-1 momentum | +0.024 | 1.00 | 52% |
+
+**No significant edge, and no better than the baseline.** On 25 hand-picked
+large caps (survivorship-biased) that is the expected answer. SHAP leaned on
+distance from the high, 12-month and 3-month returns.
+
+Tests (`tests/test_ranker.py`, synthetic):
+- no feature reads a later bar;
+- a planted effect (higher-volatility names drift up faster) is found out of
+  sample, with t > 2 and a volatility feature in SHAP's top three;
+- pure noise gives no edge.
