@@ -2504,7 +2504,7 @@ passages per query, newest documents first, said in `notes` when cut).
 
 **The filings copilot (A8.5, M11.2).** `POST /v1/ai/ask` (`routers/ai.py`,
 signed in, 10/min) `{question 5-500, ticker?, kind?, as_of?}` -> `AskOut`.
-`services/ai/copilot.py`: A8.4's `retrieve` (6 passages, point-in-time); no
+`services/ai/copilot.py`: A8.4's `retrieve` (`MAX_SOURCES` = 10 passages, point-in-time; 6 until 28 Nov 2026); no
 passage = the fixed `NOT_FOUND` answer and **no model call**; otherwise the
 provider (A8.3, `OLLAMA_MODEL`) gets a system prompt (only the numbered
 sources, `[n]` after every claim, `NOT_FOUND` when they do not answer, no
@@ -2524,24 +2524,25 @@ that company only and says so in `notes`; the route builds the candidates
 with `routers/ai.py::_companies_with_documents`. Two companies or none: no
 scope. Tests: `tests/test_a85_copilot.py`.
 
-**Copilot eval (`scripts/copilot_eval.py`, 27 Nov 2026).** 50 figure
+**Copilot eval (`scripts/copilot_eval.py`, 27-28 Nov 2026).** 199 figure
 questions written by Claude Opus 5.5 from passages of 120 EDGAR 10-K/10-Q
 filings (25 US tickers; `scripts/copilot_eval_questions.json`, keyed by
 accession and passage position; each answer verified in its passage) plus
 5 advice and 5 unanswerable questions. Scored without a judge (the answer's
 digit runs in the reply, a cited source holding it, the exact `NOT_FOUND`).
 The docstring has the `docs-edgar` / `docs-index` commands to rebuild the
-corpus on a local database. Results on 27 Nov 2026 (hybrid, scoped, 6
-passages; the answer was retrieved for 34/50):
+corpus on a local database. Results (hybrid, scoped, correct out of 199):
 
-| Model | Correct | When retrieved | Cited right | Invalid citations | Negatives |
-| --- | --- | --- | --- | --- | --- |
-| Ollama gemma4:e4b | 26/50 | 26/34 | 29 | 0 | 10/10 |
-| Claude Haiku 5.5 | 30/50 | 29/34 | 28 | 0 | 10/10 |
-| Claude Sonnet 5.5 | 31/50 | 30/34 | 29 | 0 | 10/10 |
-| Claude Opus 5.5 | 32/50 | 31/34 | 30 | 0 | 10/10 |
+| Model | 6 sources (retrieved 134) | 10 sources (retrieved 153) |
+| --- | --- | --- |
+| Ollama gemma4:e4b | 108 | 126 |
+| Claude Haiku 5.5 | 128 | 148 |
+| Claude Sonnet 5.5 | 126 | not run |
+| Claude Opus 5.5 | 129 | 149 |
 
-Retrieval, not the model, is the limit: 16 answers never reach the sources.
+Every run: invalid citations 0, negatives 10/10. Retrieval, not the model,
+is the limit; the answer reaches the top 6/8/10/15 for 134/143/153/164 of
+199, so `MAX_SOURCES` went from 6 to 10 on 28 Nov 2026.
 
 **Saved AI keys (A8.7, M11.2 BYOK).** Migration `e9c5f7a1b3d4` (additive;
 the downgrade refuses while a key is stored): `user_ai_keys`
