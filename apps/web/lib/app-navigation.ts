@@ -124,6 +124,13 @@ export const WORKSPACES: readonly Workspace[] = [
         matches: ["/event-study"],
         keywords: ["events", "earnings reaction"],
       },
+      {
+        // A7.10 (M5.5): stored filings and concall transcripts, searched as of a date.
+        label: "Filings",
+        href: "/filings",
+        matches: ["/filings"],
+        keywords: ["concall", "transcript", "10-K", "annual report", "documents", "edgar"],
+      },
     ],
     // The stock page (chart, drawings, financials) has no item: the palette
     // and the search open it for a symbol.

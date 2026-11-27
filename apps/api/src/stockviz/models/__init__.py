@@ -28,6 +28,7 @@ from stockviz.models.delivery import (
     NotificationChannel,
 )
 from stockviz.models.dividend import Dividend, PortfolioDividend
+from stockviz.models.document import Document, DocumentText
 from stockviz.models.drawing import Drawing
 from stockviz.models.drill import Drill, DrillDeck
 from stockviz.models.earnings import EarningsEvent
@@ -123,6 +124,8 @@ __all__ = [
     "DeliveryAttempt",
     "DeliveryStatus",
     "Dividend",
+    "Document",
+    "DocumentText",
     "Drawing",
     "Drill",
     "DrillDeck",

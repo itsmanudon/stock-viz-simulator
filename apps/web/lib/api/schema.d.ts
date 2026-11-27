@@ -88,6 +88,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/symbols/{ticker}/documents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Symbol Documents */
+        get: operations["symbol_documents_v1_symbols__ticker__documents_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/documents/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Search Documents */
+        get: operations["search_documents_v1_documents_search_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/documents/{document_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Document */
+        get: operations["get_document_v1_documents__document_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/symbols/screen": {
         parameters: {
             query?: never;
@@ -4768,6 +4819,85 @@ export interface components {
              * @default
              */
             projection_method: string;
+        };
+        /** DocumentDetailOut */
+        DocumentDetailOut: {
+            document: components["schemas"]["DocumentOut"];
+            /** Text */
+            text: string;
+            /** Truncated */
+            truncated: boolean;
+            /** Matches */
+            matches?: number | null;
+        };
+        /** DocumentHitOut */
+        DocumentHitOut: {
+            document: components["schemas"]["DocumentOut"];
+            /** Matches */
+            matches: number;
+            /** Snippets */
+            snippets: string[];
+        };
+        /** DocumentListOut */
+        DocumentListOut: {
+            /** Ticker */
+            ticker: string;
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            /** Documents */
+            documents: components["schemas"]["DocumentOut"][];
+            /** Note */
+            note: string;
+        };
+        /**
+         * DocumentOut
+         * @description A7.10 (M5.5): one stored document; ``available_at`` is naive UTC.
+         */
+        DocumentOut: {
+            /** Id */
+            id: number;
+            /** Ticker */
+            ticker: string;
+            /** Kind */
+            kind: string;
+            /** Source */
+            source: string;
+            /** Form Type */
+            form_type?: string | null;
+            /** Title */
+            title: string;
+            /** Event Date */
+            event_date?: string | null;
+            /**
+             * Available At
+             * Format: date-time
+             */
+            available_at: string;
+            /** Available Assumed */
+            available_assumed: boolean;
+            /** Url */
+            url?: string | null;
+            /** Content Type */
+            content_type: string;
+            /** Text Chars */
+            text_chars: number;
+        };
+        /** DocumentSearchOut */
+        DocumentSearchOut: {
+            /** Query */
+            query: string;
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            /** Hits */
+            hits: components["schemas"]["DocumentHitOut"][];
+            /** Note */
+            note: string;
         };
         /** DrawingIn */
         DrawingIn: {
@@ -13879,6 +14009,108 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MacroSeriesDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    symbol_documents_v1_symbols__ticker__documents_get: {
+        parameters: {
+            query?: {
+                kind?: string | null;
+                as_of?: string | null;
+            };
+            header?: never;
+            path: {
+                ticker: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentListOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    search_documents_v1_documents_search_get: {
+        parameters: {
+            query: {
+                q: string;
+                ticker?: string | null;
+                kind?: string | null;
+                as_of?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentSearchOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_document_v1_documents__document_id__get: {
+        parameters: {
+            query?: {
+                q?: string | null;
+            };
+            header?: never;
+            path: {
+                document_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentDetailOut"];
                 };
             };
             /** @description Validation Error */

@@ -5587,3 +5587,47 @@ class MacroObservationOut(BaseModel):
 class MacroSeriesDetailOut(BaseModel):
     series: MacroSeriesOut
     observations: list[MacroObservationOut]
+
+
+class DocumentOut(BaseModel):
+    """A7.10 (M5.5): one stored document; ``available_at`` is naive UTC."""
+
+    id: int
+    ticker: str
+    kind: str
+    source: str
+    form_type: str | None = None
+    title: str
+    event_date: date | None = None
+    available_at: datetime
+    available_assumed: bool
+    url: str | None = None
+    content_type: str
+    text_chars: int
+
+
+class DocumentListOut(BaseModel):
+    ticker: str
+    as_of: datetime
+    documents: list[DocumentOut]
+    note: str
+
+
+class DocumentDetailOut(BaseModel):
+    document: DocumentOut
+    text: str
+    truncated: bool
+    matches: int | None = None
+
+
+class DocumentHitOut(BaseModel):
+    document: DocumentOut
+    matches: int
+    snippets: list[str]
+
+
+class DocumentSearchOut(BaseModel):
+    query: str
+    as_of: datetime
+    hits: list[DocumentHitOut]
+    note: str

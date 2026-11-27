@@ -263,6 +263,7 @@ CLI subcommands (`python -m stockviz.cli <cmd>`): `seed`, `backfill`,
 `screen-runs`, `deliver-notifications [--channel webhook|email|telegram] [--limit N]`.
 `doctor` (A10.1: read-only health of a self-hosted instance, exit 1 on a failed check).
 `macro-sync [--series ID ...]` (A9.7: the FRED macro catalogue; needs `FRED_API_KEY`).
+`docs-load PATH ... --ticker T --kind K [--date D] [--apply]`, `docs-edgar TICKER ... --since D` (A7.10).
 `seed` also writes the rule presets (A2.2) and the checklist dimension setups
 (A2.4).
 
@@ -2269,6 +2270,41 @@ moved a year), `projection_totals` (per currency, never summed across) and
 overlap is held. Tests: `tests/test_a96_dividend_projection.py`. Web: the
 projection on the Portfolio Income tab and the printable tearsheet
 (`/stocks/[t]/tearsheet`, built from existing routes).
+
+**Company documents (A7.10, M5.5, M1.9 India foundation).** The owner's 27
+Nov 2026 decision: filings and concalls live here, not in Aegis. Migration
+`a7d1c3e5f9b2` (additive; the downgrade refuses while a document is stored):
+`documents` (`models/document.py`: instrument (no ticker column), `kind`
+filing|concall_transcript|announcement|annual_report|other, `source`
+file|edgar, `form_type`, title, `event_date`, `available_at` (naive UTC, when
+it became public; **every read is point-in-time on it**),
+`available_assumed`, url, `accession` (indexed), `sha256` of the source bytes
+(unique: a file or filing loads once), content type, size, characters) and
+`document_texts` (cascade). `services/documents/`: `extract.py` (HTML through
+BeautifulSoup's `html.parser`, scripts, styles, hidden XBRL headers dropped,
+blocks on their own lines; text and Markdown UTF-8 then Latin-1; **PDFs are
+refused** with the reason: a PDF library is the owner's call; 20 MiB cap),
+`store.py` (`add_document`, `list_documents(as_of=)`, `search`: exact phrase,
+case-insensitive, LIKE escaped, with snippets), `load.py` (hand-placed files;
+**local database only**, `intraday.guard.local_database_problem`, no
+override; `--available-at` when known, else `--date` = 23:59 that day in the
+venue's zone, marked assumed), `edgar.py` (SEC submissions `filings.recent`,
+default forms 10-K 10-Q 8-K 20-F 6-K, the primary document from the archive;
+`acceptanceDateTime`'s clock read as New York time, never earlier than its
+`Z` reading; 10-K/20-F are `annual_report`; skips an accession already
+stored; **off until `SEC_USER_AGENT`**). CLI: `docs-load PATH ... --ticker T
+--kind K [--date D | --available-at ISO] [--title] [--form] [--apply]`
+(dry run by default; exit 2 refused, 1 when a file was refused),
+`docs-edgar TICKER ... --since D [--forms ...] [--limit 20]` (exit 2 without
+the user agent). Not in `RECORDED_JOBS`, the scheduler or the cron. Routes
+(`routers/documents.py`, public): `GET /v1/symbols/{t}/documents?kind=&as_of=`
+(60/min), `GET /v1/documents/search?q=&ticker=&kind=&as_of=&limit=` (30/min,
+`q` 2-100 characters), `GET /v1/documents/{id}?q=` (text up to 400,000
+characters, `matches`; 404 before it is public). `beautifulsoup4` is now a
+direct dependency (already locked through yfinance). Not yet: PDFs, NSE/BSE
+announcement downloads (held with the NSE question), concall analysis
+(M11.3, LLM), Reg 30 governance flags. Tests: `tests/test_a710_documents.py`,
+`tests/test_a710_documents_migration.py` (PostgreSQL).
 
 **Macro series from FRED (A9.7, M1.10, M3.5).** Migration `f1a9c7e3b5d2`
 (additive): `macro_series` (FRED id, title, units, frequency, observation

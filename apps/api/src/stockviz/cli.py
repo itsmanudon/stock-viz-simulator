@@ -1522,6 +1522,73 @@ def _cmd_macro_sync(args: argparse.Namespace) -> int:
     return 1 if report.failed else 0
 
 
+def _cmd_docs_load(args: argparse.Namespace) -> int:
+    """A7.10: load hand-placed document files (dry run unless --apply)."""
+    from pathlib import Path
+
+    from stockviz.services.documents.load import LoadRefused, load_files
+
+    on = date.fromisoformat(args.date) if args.date else None
+    at = datetime.fromisoformat(args.available_at) if args.available_at else None
+    try:
+        with Session(engine) as session:
+            report = load_files(
+                session,
+                [Path(p) for p in args.paths],
+                ticker=args.ticker,
+                kind=args.kind,
+                on=on,
+                available_at=at,
+                title=args.title,
+                form_type=args.form,
+                apply=args.apply,
+            )
+    except LoadRefused as exc:
+        print(f"docs-load: {exc}", file=sys.stderr)
+        return 2
+    assumed = " (assumed: end of the date, venue time)" if report.available_assumed else ""
+    print(
+        f"{report.ticker} {report.kind}, public at {report.available_at:%Y-%m-%d %H:%M} UTC{assumed}"
+    )
+    for f in report.files:
+        detail = f.reason or f"{f.content_type}, {f.size_bytes} bytes, {f.text_chars} chars"
+        print(f"  {f.status:9} {f.path}: {detail}")
+    if not report.applied:
+        print("dry run: nothing written (add --apply)")
+    return 1 if report.refused else 0
+
+
+def _cmd_docs_edgar(args: argparse.Namespace) -> int:
+    """A7.10: store recent SEC filings for US tickers. Off until SEC_USER_AGENT is set."""
+    from stockviz.services.documents.edgar import DEFAULT_FORMS, http_getters, sync_edgar
+    from stockviz.services.fundamentals.edgar_source import cik_map
+
+    agent = get_settings().sec_user_agent.strip()
+    if not agent:
+        print("docs-edgar: SEC_USER_AGENT is not set (an owner pre-release item)", file=sys.stderr)
+        return 2
+    get_json, get_bytes = http_getters(agent)
+    since = date.fromisoformat(args.since)
+    forms = tuple(args.forms) if args.forms else DEFAULT_FORMS
+    with Session(engine) as session:
+        results = sync_edgar(
+            session,
+            [t.upper() for t in args.tickers],
+            get_json=get_json,
+            get_bytes=get_bytes,
+            ciks=cik_map(get_json),
+            since=since,
+            forms=forms,
+            limit=args.limit,
+        )
+    for r in results:
+        print(
+            f"  {r.ticker}: stored {r.stored}, skipped {r.skipped}"
+            + (f" ({r.error})" if r.error else "")
+        )
+    return 1 if any(r.error and not r.stored for r in results) else 0
+
+
 def _default_fx_currencies() -> list[str]:
     """Distinct non-USD currencies on active symbols."""
     from sqlmodel import select
@@ -2207,6 +2274,32 @@ def main(argv: list[str] | None = None) -> int:
     )
     p_macro.add_argument("--series", nargs="*", help="Only these FRED ids (default: all)")
     p_macro.set_defaults(fn=_cmd_macro_sync)
+
+    p_docs = sub.add_parser(
+        "docs-load", help="Load hand-placed document files (A7.10; local database only)"
+    )
+    p_docs.add_argument("paths", nargs="+", help=".html, .htm, .txt or .md files")
+    p_docs.add_argument("--ticker", required=True)
+    p_docs.add_argument(
+        "--kind",
+        required=True,
+        choices=["filing", "concall_transcript", "announcement", "annual_report", "other"],
+    )
+    p_docs.add_argument("--date", help="The document's date (YYYY-MM-DD)")
+    p_docs.add_argument("--available-at", help="When it was public (ISO; naive = UTC)")
+    p_docs.add_argument("--title")
+    p_docs.add_argument("--form", help="Form or filing type, e.g. Reg 30, 10-K")
+    p_docs.add_argument("--apply", action="store_true")
+    p_docs.set_defaults(fn=_cmd_docs_load)
+
+    p_edgar = sub.add_parser(
+        "docs-edgar", help="Store recent SEC filings (A7.10; needs SEC_USER_AGENT)"
+    )
+    p_edgar.add_argument("tickers", nargs="+")
+    p_edgar.add_argument("--since", required=True, help="Filed on or after (YYYY-MM-DD)")
+    p_edgar.add_argument("--forms", nargs="*", help="Default: 10-K 10-Q 8-K 20-F 6-K")
+    p_edgar.add_argument("--limit", type=int, default=20, help="Newest N per ticker")
+    p_edgar.set_defaults(fn=_cmd_docs_edgar)
 
     sub.add_parser(
         "metrics", help="Recompute the screener's precomputed per-symbol metrics"

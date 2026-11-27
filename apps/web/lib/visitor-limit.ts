@@ -35,6 +35,8 @@ export const VISITOR_LIMITS = {
   eventStudy: 10,
   // News redesign: the archive page runs two queries a view.
   news: 60,
+  // A7.10: filings search (the API allows 30 searches a minute).
+  filings: 30,
 } as const;
 
 export type VisitorScope = keyof typeof VISITOR_LIMITS;
