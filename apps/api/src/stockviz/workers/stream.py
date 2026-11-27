@@ -11,7 +11,8 @@ default, as fast as it can). ``--no-deliver`` keeps firings in the bell only.
 
 A6.6: ``--feed alpaca`` streams Alpaca's live IEX minute bars (US symbols,
 at most 30) during the New York session (from 10 minutes before the open)
-and stops 2 minutes after the close. With the key blank, or the market
+and stops 2 minutes after the close; ``kill <pid>`` (SIGTERM) or Ctrl-C stops
+it early the same clean way (open bars flushed, the stream row ``closed``). With the key blank, or the market
 closed, the worker does not start (exit 2) and live widgets show Offline. During A6 the worker runs on the laptop;
 nothing on Railway starts it.
 
@@ -24,13 +25,21 @@ from __future__ import annotations
 import argparse
 import asyncio
 import logging
+import signal
 import sys
 from datetime import UTC, date, datetime, timedelta
+from typing import TYPE_CHECKING
 from zoneinfo import ZoneInfo
 
 from sqlmodel import Session
 
 from stockviz.logging_setup import configure_logging
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncIterator
+
+    from stockviz.services.feeds.base import FeedBar, Tick
+    from stockviz.services.stream.worker import StreamReport, StreamWorker
 
 logger = logging.getLogger(__name__)
 
@@ -163,7 +172,7 @@ def run_live(args: argparse.Namespace) -> int:
     print(f"{args.feed}: streaming IEX minute bars for {', '.join(tickers)} until "
           f"{hours.close.isoformat()}")  # fmt: skip
     try:
-        report = asyncio.run(worker.run(feed.stream(tickers)))
+        report = asyncio.run(_until_signalled(worker, feed.stream(tickers)))
     except Exception:
         logger.exception("the live stream stopped")
         return 1
@@ -173,6 +182,20 @@ def run_live(args: argparse.Namespace) -> int:
         f"{report.fired} fired, {report.delivered} delivered"
     )
     return 0
+
+
+async def _until_signalled(
+    worker: StreamWorker, events: AsyncIterator[Tick | FeedBar]
+) -> StreamReport:
+    """Run the live worker; SIGTERM or SIGINT (``kill <pid>``, Ctrl-C) stops it cleanly."""
+    loop = asyncio.get_running_loop()
+    for sig in (signal.SIGTERM, signal.SIGINT):
+        loop.add_signal_handler(sig, worker.request_stop)
+    try:
+        return await worker.run(events)
+    finally:
+        for sig in (signal.SIGTERM, signal.SIGINT):
+            loop.remove_signal_handler(sig)
 
 
 def main(argv: list[str] | None = None) -> int:
