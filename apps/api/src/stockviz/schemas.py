@@ -5631,3 +5631,56 @@ class DocumentSearchOut(BaseModel):
     as_of: datetime
     hits: list[DocumentHitOut]
     note: str
+
+
+class OptimiseViewIn(BaseModel):
+    ticker: str = Field(min_length=1, max_length=16)
+    expected_return: float = Field(ge=-1, le=2)
+    confidence: float = Field(gt=0, le=1)
+
+
+class OptimiseIn(BaseModel):
+    """A7.11 (M10.6): optimise weights over stored closes."""
+
+    tickers: list[str] = Field(min_length=2, max_length=30)
+    method: Literal["hrp", "min_volatility", "max_sharpe", "min_cvar", "black_litterman"] = "hrp"
+    years: int = Field(default=3, ge=1, le=10)
+    risk_free_rate: float = Field(default=0.04, ge=0, le=0.2)
+    max_weight: float = Field(default=1.0, gt=0, le=1)
+    beta: float = Field(default=0.95, ge=0.8, le=0.99)
+    cash: float | None = Field(default=None, gt=0, le=1e12)
+    views: list[OptimiseViewIn] = Field(default_factory=list, max_length=30)
+    delta: float = Field(default=2.5, gt=0, le=10)
+
+
+class OptimiseWeightOut(BaseModel):
+    ticker: str
+    weight: float
+    shares: int | None = None
+    price: float | None = None
+    prior: float | None = None
+    posterior: float | None = None
+
+
+class OptimisePerformanceOut(BaseModel):
+    expected_return: float | None = None
+    volatility: float | None = None
+    sharpe: float | None = None
+    cvar: float | None = None
+
+
+class OptimiseOut(BaseModel):
+    method: str
+    currency: str
+    first: date
+    last: date
+    sessions: int
+    risk_free_rate: float
+    beta: float
+    weights: list[OptimiseWeightOut]
+    performance: OptimisePerformanceOut
+    equal_weight: OptimisePerformanceOut
+    cash: float | None = None
+    leftover: float | None = None
+    notes: list[str]
+    disclaimer: str

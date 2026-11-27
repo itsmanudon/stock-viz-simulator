@@ -2271,6 +2271,30 @@ overlap is held. Tests: `tests/test_a96_dividend_projection.py`. Web: the
 projection on the Portfolio Income tab and the printable tearsheet
 (`/stocks/[t]/tearsheet`, built from existing routes).
 
+**Portfolio optimisation (A7.11, M10.6).** `POST /v1/research/optimise`
+(`routers/optimise.py`, public, 10/min; nothing stored or placed) ->
+`OptimiseOut`. `services/optimise.py` on **PyPortfolioOpt** (MIT; the owner's
+27 Nov 2026 choice; it brings cvxpy and its solvers, SciPy and scikit-learn:
+86 -> 103 locked packages, about 130 MB in the image). **SciPy is pinned
+`<1.18`**: PyPortfolioOpt 1.6.0's HRP reads
+`scipy.cluster.hierarchy._LINKAGE_METHODS`, removed in 1.18; lift the pin
+when PyPortfolioOpt fixes it. Inputs: 2-30 symbols in one currency (400
+otherwise), their closes on common sessions over `years` (1-10), at least 252
+(400). Ledoit-Wolf covariance for every method; mean historical returns x252.
+Methods: `hrp` (single linkage on the shrunk covariance's correlation),
+`min_volatility`, `max_sharpe` (`risk_free_rate`), `min_cvar` (`beta`, the
+window's daily returns as scenarios), `black_litterman` (prior implied by
+`symbol_metrics.market_cap_usd` at `delta` 2.5, absolute `views` with
+Idzorek confidences, then max Sharpe; a missing cap is 400). Long only,
+`max_weight` cap (`max_weight x n < 1` is 400). `cash` sizes whole shares
+(greedy `DiscreteAllocation` at the latest common close) with the leftover.
+Every response carries equal-weight figures for comparison, the method notes
+and a disclaimer (in-sample, not advice, survivorship). Tests:
+`tests/test_a711_optimise.py` (seeded walks with known volatilities: min
+volatility and HRP favour the calm symbol, max Sharpe and min CVaR beat equal
+weight on their own measure, the cap, a view moves weight, whole shares, the
+route and refusals).
+
 **Company documents (A7.10, M5.5, M1.9 India foundation).** The owner's 27
 Nov 2026 decision: filings and concalls live here, not in Aegis. Migration
 `a7d1c3e5f9b2` (additive; the downgrade refuses while a document is stored):

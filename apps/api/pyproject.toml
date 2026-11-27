@@ -29,6 +29,10 @@ dependencies = [
     "lark>=1.2.2",
     # A7.10: filing HTML to text (already installed through yfinance).
     "beautifulsoup4>=4.12",
+    # A7.11 (M10.6): portfolio optimisation (owner chose it, 27 Nov 2026).
+    "pyportfolioopt>=1.5",
+    # PyPortfolioOpt 1.6.0 HRP reads scipy.cluster.hierarchy._LINKAGE_METHODS, gone in 1.18.
+    "scipy>=1.13,<1.18",
 ]
 
 [dependency-groups]

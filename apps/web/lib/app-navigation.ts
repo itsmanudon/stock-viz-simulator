@@ -171,6 +171,20 @@ export const WORKSPACES: readonly Workspace[] = [
         keywords: ["cointegration", "spread", "hedge ratio", "mean reversion"],
       },
       {
+        // A7.11 (M10.6): HRP, min volatility, max Sharpe, min CVaR, Black-Litterman.
+        label: "Optimiser",
+        href: "/optimise",
+        matches: ["/optimise"],
+        keywords: [
+          "portfolio optimisation",
+          "hrp",
+          "black-litterman",
+          "cvar",
+          "weights",
+          "allocation",
+        ],
+      },
+      {
         label: "News reactions",
         href: "/news-reactions",
         matches: ["/news-reactions"],
