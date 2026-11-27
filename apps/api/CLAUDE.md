@@ -2595,7 +2595,11 @@ changing it makes saved keys unreadable). Tests: `tests/test_a87_byok.py`,
   wording, not of evasiveness or intent".
 - `POST /v1/ai/extract {document_id, provider}` (signed in, 5/min;
   `services/ai/extract.py`): up to 8 passages containing a digit go to the
-  model, which returns a JSON list `{metric, value, unit, period, quote}`;
+  model, headline passages first (`HEADLINE`: revenue, income, profit,
+  margins, EPS, operating cash flow; then document order). Measured 27 Nov
+  2026 on 120 EDGAR 10-K/10-Q with Sonnet 5.5 (Batch API): document order
+  alone gave a headline figure in 72 filings, headline first in 116; 98-99%
+  of returned figures verified either way. The model returns a JSON list `{metric, value, unit, period, quote}`;
   an item is kept only when its quote is in the passages word for word
   (whitespace and case aside) and every digit run of its value is in the
   quote; the rest are counted in `dropped` by reason ("quote not in the
