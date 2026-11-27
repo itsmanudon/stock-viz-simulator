@@ -155,3 +155,16 @@ def test_extract_route(client: TestClient, session: Session, monkeypatch) -> Non
     assert "word for word" in got["method"] and "Not investment advice" in got["disclaimer"]
     missing = client.post("/v1/ai/extract", json={"document_id": 999}, headers=_auth(uid))
     assert missing.status_code == 404
+
+
+def test_headline_passages_go_to_the_model_first(session: Session) -> None:
+    seed_symbols(session, "AAPL")
+    cover = "\n\n".join(
+        f"Commission file number 001-{n:05d}. Address line {n}." for n in range(250)
+    )
+    body = cover + "\n\nTotal net sales were $94,930 million, up 6 percent. Diluted EPS was $1.64."
+    did = _doc(session, "AAPL", "10-Q", body, datetime(2026, 10, 9))
+    passages = ex.passages_with_numbers(session, did)
+    assert len(passages) == ex.MAX_PASSAGES  # the cover alone has more numbered passages
+    assert "94,930" in passages[0].text  # the headline passage, last in the text, goes first
+    assert "001-00000" not in passages[0].text and "001-00000" in passages[1].text
