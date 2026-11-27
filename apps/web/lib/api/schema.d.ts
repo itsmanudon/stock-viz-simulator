@@ -241,6 +241,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/ai/ask": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Ai Ask */
+        post: operations["ai_ask_v1_ai_ask_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/cohorts": {
         parameters: {
             query?: never;
@@ -3901,6 +3918,59 @@ export interface components {
             paused?: boolean | null;
             /** Setup Version Id */
             setup_version_id?: number | null;
+        };
+        /** AskIn */
+        AskIn: {
+            /** Question */
+            question: string;
+            /** Ticker */
+            ticker?: string | null;
+            /** Kind */
+            kind?: string | null;
+            /** As Of */
+            as_of?: string | null;
+        };
+        /** AskOut */
+        AskOut: {
+            /** Question */
+            question: string;
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            /** Retrieval Mode */
+            retrieval_mode: string;
+            /** Answer */
+            answer: string;
+            /** Grounded */
+            grounded: boolean;
+            /** Cited */
+            cited: number[];
+            /** Invalid Citations */
+            invalid_citations: number[];
+            /** Uncited Sentences */
+            uncited_sentences: number;
+            /** Sources */
+            sources: components["schemas"]["AskSourceOut"][];
+            /** Provider */
+            provider: string | null;
+            /** Model */
+            model: string | null;
+            /** Warnings */
+            warnings: string[];
+            /** Notes */
+            notes: string[];
+            /** Disclaimer */
+            disclaimer: string;
+        };
+        /** AskSourceOut */
+        AskSourceOut: {
+            /** N */
+            n: number;
+            /** Cited */
+            cited: boolean;
+            passage: components["schemas"]["PassageOut"];
         };
         /**
          * AtrStopIn
@@ -15198,6 +15268,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AiRuleOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    ai_ask_v1_ai_ask_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AskIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AskOut"];
                 };
             };
             /** @description Validation Error */

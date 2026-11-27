@@ -2498,6 +2498,22 @@ passages per query, newest documents first, said in `notes` when cut).
   `tests/test_a84_hybrid_search_migration.py` (PostgreSQL: up, `alembic
   check`, real full text with stemming and `real[]` vectors, down, up).
 
+**The filings copilot (A8.5, M11.2).** `POST /v1/ai/ask` (`routers/ai.py`,
+signed in, 10/min) `{question 5-500, ticker?, kind?, as_of?}` -> `AskOut`.
+`services/ai/copilot.py`: A8.4's `retrieve` (6 passages, point-in-time); no
+passage = the fixed `NOT_FOUND` answer and **no model call**; otherwise the
+provider (A8.3, `OLLAMA_MODEL`) gets a system prompt (only the numbered
+sources, `[n]` after every claim, `NOT_FOUND` when they do not answer, no
+outside knowledge, never buy/sell/hold or targets, six sentences) and the
+sources (`[n] TICKER · title · public YYYY-MM-DD`, 1,400 characters each).
+`check_citations` marks the answer, never rewrites it: valid `cited`
+numbers, `invalid_citations` (no such source), `uncited_sentences` (four or
+more words without a citation; `sentences()` keeps "24.6" whole and joins a
+citation written after the full stop), `grounded` = at least one valid
+citation; each becomes a warning. Stateless: nothing stored. 409 no
+provider, 502 provider failed, 404 unknown ticker. BYOK providers are A8.7.
+Tests: `tests/test_a85_copilot.py`.
+
 **Macro series from FRED (A9.7, M1.10, M3.5).** Migration `f1a9c7e3b5d2`
 (additive): `macro_series` (FRED id, title, units, frequency, observation
 range, FRED's `last_updated`, `fetched_at`) and `macro_observations` ((series,

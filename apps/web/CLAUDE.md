@@ -940,6 +940,19 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   `(authed)/classroom/actions.ts` redirect back with `?ok=` / `?error=`;
   fetchers in `lib/api/classroom.ts`. Tests: `tests/unit/a102-classroom.test.tsx`,
   `tests/e2e/classroom.spec.ts`.
+- **Copilot (A8.5, M11.2).** `/copilot` (AI Copilot nav, public page):
+  signed out `copilot-signed-out` (a sign-in link); no model on the server
+  `copilot-off` (the API's reason, a link to `/filings?match=meaning`);
+  otherwise `CopilotPanel` (`components/copilot/copilot-panel.tsx`: question,
+  optional symbol, Ctrl/Cmd+Enter asks) through `copilot/actions.ts::
+  askCopilotAction` (`lib/api/ai-server.ts::askCopilot`, authed `POST
+  /v1/ai/ask`). `CopilotAnswerView` renders the answer with each `[n]` as a
+  link to `#source-n` (`copilot-cite`; a number with no source is
+  `copilot-cite-invalid`, "[3?]"), the API's warnings, the sources the model
+  saw (`copilot-source`, `data-cited`, "Not Cited"), the notes and the
+  disclaimer. `lib/copilot.ts` (`answerParts`, `questionProblem`). Tests:
+  `tests/unit/a85-copilot.test.tsx`, the signed-out check in
+  `tests/e2e/app-shell.spec.ts`.
 - **Describe in words (A8.2, M4.2).** The screener's rule panel adds a
   "Describe in words" disclosure (`describe-in-words`) only when signed in
   and `getAiStatus()` (`lib/api/ai.ts`, public, cached a minute) says a
@@ -1539,7 +1552,7 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   | Workbench | `/setups`, `/checklist` (+ `/recommendations`, a redirect), `/compare`, `/event-study`; `/stocks/*` belongs here without an item (`extraMatches`) |
   | Quant Lab | `/backtest`, `/backtest/runs` (Saved runs, + `/runs/[id]`), `/replay` (+ `/[id]`), `/drills` (+ `/new`, `/[id]`), `/news-reactions` |
   | Portfolio & Tax | `/portfolio` (journal and A5.4 plans are its Journal tab), `/trade`, `/orders`, `/trades`, `/watchlist`, `/alerts`, Books (a signed-in shortcut to `/settings#books`, never "current") |
-  | AI Copilot | `/copilot`: a placeholder page until A8 (no input, no sample answers; it lists what is planned) |
+  | AI Copilot | `/copilot`: the filings copilot (A8.5) |
   | Bottom rail (`UTILITY_NAVIGATION`) | `/status` (everyone), `/settings` (signed in) |
 
   The sidebar (`components/app-navigation.tsx`) draws each workspace as a
