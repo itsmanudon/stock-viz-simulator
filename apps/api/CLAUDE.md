@@ -2484,7 +2484,11 @@ passages per query, newest documents first, said in `notes` when cut).
   model. Not in the scheduler or the cron.
 - `services/documents/retrieve.py`: keyword rank = `ts_rank_cd` against
   `websearch_to_tsquery('english', q)` (PostgreSQL; on SQLite, tests only, a
-  term count without stemming); vector rank = cosine to the query's
+  term count without stemming). All words must match, so when fewer than
+  `ANY_WORD_BELOW` (10) passages do, passages matching any of the same stemmed
+  terms (`to_tsquery('simple', 'a | b')`) are added after them; a `-word`
+  query never widens (27 Nov 2026: a question's answer reached the top 6 for
+  4/50 before, 20/50 after, on the eval corpus below); vector rank = cosine to the query's
   embedding; fused by reciprocal rank fusion (k 60). Point-in-time on the
   document's `available_at`. No model, or an Ollama failure: keyword only,
   with the reason in `notes`.
@@ -2512,7 +2516,32 @@ more words without a citation; `sentences()` keeps "24.6" whole and joins a
 citation written after the full stop), `grounded` = at least one valid
 citation; each becomes a warning. Stateless: nothing stored. 409 no
 provider, 502 provider failed, 404 unknown ticker. BYOK providers are A8.7.
-Tests: `tests/test_a85_copilot.py`.
+**Company scoping (27 Nov 2026):** with no `ticker`, a question naming
+exactly one company with stored documents (`copilot.named_instrument`: an
+upper-case ticker of 2+ letters, the name without "The"/Inc./Corporation...,
+or its first word unless a common word such as "Home" or "Bank") searches
+that company only and says so in `notes`; the route builds the candidates
+with `routers/ai.py::_companies_with_documents`. Two companies or none: no
+scope. Tests: `tests/test_a85_copilot.py`.
+
+**Copilot eval (`scripts/copilot_eval.py`, 27 Nov 2026).** 50 figure
+questions written by Claude Opus 5.5 from passages of 120 EDGAR 10-K/10-Q
+filings (25 US tickers; `scripts/copilot_eval_questions.json`, keyed by
+accession and passage position; each answer verified in its passage) plus
+5 advice and 5 unanswerable questions. Scored without a judge (the answer's
+digit runs in the reply, a cited source holding it, the exact `NOT_FOUND`).
+The docstring has the `docs-edgar` / `docs-index` commands to rebuild the
+corpus on a local database. Results on 27 Nov 2026 (hybrid, scoped, 6
+passages; the answer was retrieved for 34/50):
+
+| Model | Correct | When retrieved | Cited right | Invalid citations | Negatives |
+| --- | --- | --- | --- | --- | --- |
+| Ollama gemma4:e4b | 26/50 | 26/34 | 29 | 0 | 10/10 |
+| Claude Haiku 5.5 | 30/50 | 29/34 | 28 | 0 | 10/10 |
+| Claude Sonnet 5.5 | 31/50 | 30/34 | 29 | 0 | 10/10 |
+| Claude Opus 5.5 | 32/50 | 31/34 | 30 | 0 | 10/10 |
+
+Retrieval, not the model, is the limit: 16 answers never reach the sources.
 
 **Saved AI keys (A8.7, M11.2 BYOK).** Migration `e9c5f7a1b3d4` (additive;
 the downgrade refuses while a key is stored): `user_ai_keys`

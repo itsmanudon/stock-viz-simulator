@@ -1,0 +1,602 @@
+[
+ {
+  "kind": "figure",
+  "ticker": "AAPL",
+  "question": "What was the aggregate market value of Apple's voting and non-voting stock held by non-affiliates as of March 27, 2026, the last business day of its second quarter of fiscal 2026?",
+  "answer": "$3,647,099,000,000",
+  "quote": "The aggregate market value of the voting and non-voting stock held by non-affiliates of the Registrant, as of March 27, 2026, the last business day of the Registrant\u2019s most recently completed second fiscal quarter, was approximately $3,647,099,000,000.",
+  "form": "10-K",
+  "accession": "0000320193-26-000026",
+  "document": "10-K for 2026-09-26: 10-K",
+  "position": 4
+ },
+ {
+  "kind": "figure",
+  "ticker": "AAPL",
+  "question": "What were Apple's total net sales for the three months ended December 27, 2025 (the first quarter of fiscal 2026)?",
+  "answer": "$143,756 million",
+  "quote": "Total net sales$143,756 $124,300",
+  "form": "10-Q",
+  "accession": "0000320193-26-000006",
+  "document": "10-Q for 2025-12-27: 10-Q",
+  "position": 12
+ },
+ {
+  "kind": "figure",
+  "ticker": "ADBE",
+  "question": "What was Adobe's total of cash, cash equivalents and short-term investments (estimated fair value) as of May 29, 2026?",
+  "answer": "$5,626",
+  "quote": "Total cash, cash equivalents and short-term investments$5,626 $\u2014 $\u2014 $5,626",
+  "form": "10-Q",
+  "accession": "0000796343-26-000112",
+  "document": "10-Q for 2026-05-29: 10-Q",
+  "position": 32
+ },
+ {
+  "kind": "figure",
+  "ticker": "ADBE",
+  "question": "What was the total fair value of Adobe's liability derivatives as of August 29, 2025?",
+  "answer": "$201",
+  "quote": "Total derivatives$117 $201 $129 $11",
+  "form": "10-Q",
+  "accession": "0000796343-25-000107",
+  "document": "10-Q for 2025-08-29: 10-Q",
+  "position": 44
+ },
+ {
+  "kind": "figure",
+  "ticker": "AMZN",
+  "question": "What were Amazon's total net sales for the three months ended September 30, 2026?",
+  "answer": "$201,944 million",
+  "quote": "Total net sales180,169 201,944 503,538 584,069",
+  "form": "10-Q",
+  "accession": "0001018724-26-000040",
+  "document": "10-Q for 2026-09-30: 10-Q",
+  "position": 8
+ },
+ {
+  "kind": "figure",
+  "ticker": "AMZN",
+  "question": "What unrealized gain on equity securities did Amazon record in \"Other income (expense), net\" for Q2 2026?",
+  "answer": "$1.3 billion",
+  "quote": "(1)The related unrealized gain (loss) recorded in \u201cOther income (expense), net\u201d was $393 million and $1.3 billion in Q2 2025 and Q2 2026, and $188 million and $454 million for the six months ended June 30, 2025 and 2026.",
+  "form": "10-Q",
+  "accession": "0001018724-26-000026",
+  "document": "10-Q for 2026-06-30: 10-Q",
+  "position": 34
+ },
+ {
+  "kind": "figure",
+  "ticker": "BAC",
+  "question": "What was Bank of America's total goodwill as of September 30, 2026?",
+  "answer": "$69,021",
+  "quote": "Total goodwill$69,021 $69,021",
+  "form": "10-Q",
+  "accession": "0000070858-26-000548",
+  "document": "10-Q for 2026-09-30: 10-Q",
+  "position": 397
+ },
+ {
+  "kind": "figure",
+  "ticker": "BAC",
+  "question": "What were Bank of America's Global Banking average deposits for the three months ended June 30, 2026?",
+  "answer": "$651.9 billion",
+  "quote": "Average deposits of $651.9 billion increased eight percent for the three months ended June 30, 2026, and average deposits of $649.7 billion increased 10 percent for the six months ended June 30, 2026 due to growth in deposit balances from existing clients and the addition of new clients.",
+  "form": "10-Q",
+  "accession": "0000070858-26-000394",
+  "document": "10-Q for 2026-06-30: 10-Q",
+  "position": 78
+ },
+ {
+  "kind": "figure",
+  "ticker": "CRM",
+  "question": "What was Salesforce's (CRM) total revenue for the three months ended April 30, 2026 (first quarter of fiscal 2027)?",
+  "answer": "$11.1 billion",
+  "quote": "\u2022Revenue: For the three months ended April 30, 2026, revenue was $11.1 billion, an increase of 13 percent year-over-year.",
+  "form": "10-Q",
+  "accession": "0001108524-26-000127",
+  "document": "10-Q for 2026-04-30: 10-Q",
+  "position": 126
+ },
+ {
+  "kind": "figure",
+  "ticker": "CRM",
+  "question": "What were Salesforce's total revenues for the fiscal year ended January 31, 2026?",
+  "answer": "$41,525",
+  "quote": "Total$41,525 100 %$37,895 100 %10 %",
+  "form": "10-K",
+  "accession": "0001108524-26-000060",
+  "document": "10-K for 2026-01-31: 10-K",
+  "position": 275
+ },
+ {
+  "kind": "figure",
+  "ticker": "CSCO",
+  "question": "What was Cisco's total gain from derivative instruments not designated as hedges for fiscal year ended July 25, 2026?",
+  "answer": "$66",
+  "quote": "Total$66 $158 $(69)",
+  "form": "10-K",
+  "accession": "0000858877-26-000132",
+  "document": "10-K for 2026-07-25: 10-K",
+  "position": 409
+ },
+ {
+  "kind": "figure",
+  "ticker": "CSCO",
+  "question": "What was Cisco's Networking product revenue for fiscal year 2026 (ended July 25, 2026)?",
+  "answer": "$34,668",
+  "quote": "Networking$34,668 $28,304 $29,229",
+  "form": "10-K",
+  "accession": "0000858877-26-000132",
+  "document": "10-K for 2026-07-25: 10-K",
+  "position": 458
+ },
+ {
+  "kind": "figure",
+  "ticker": "DIS",
+  "question": "How much did Disney pay NBC Universal in December 2023 for NBCU's 33% interest in Hulu, as reported in Disney's fiscal 2026 10-K?",
+  "answer": "$8.6 billion",
+  "quote": "In December 2023, the Company paid NBCU $8.6 billion, which reflected the guaranteed floor value less NBCU\u2019s unpaid capital call contributions.",
+  "form": "10-K",
+  "accession": "0001744489-26-000066",
+  "document": "10-K for 2026-10-03: FORM 10-K",
+  "position": 393
+ },
+ {
+  "kind": "figure",
+  "ticker": "DIS",
+  "question": "What was The Walt Disney Company's total equity, including noncontrolling interests, as of June 27, 2026 (in millions)?",
+  "answer": "$116,842",
+  "quote": "Balance at June 27, 20261,730 $62,639 $65,052 $(2,908)$(14,751)$110,032 $6,810 $116,842",
+  "form": "10-Q",
+  "accession": "0001744489-26-000057",
+  "document": "10-Q for 2026-06-27: FORM 10-Q",
+  "position": 16
+ },
+ {
+  "kind": "figure",
+  "ticker": "GOOGL",
+  "question": "What was Alphabet's Google Cloud segment revenue for the year ended December 31, 2025?",
+  "answer": "$58,705 million",
+  "quote": "Google Cloud33,088 43,229 58,705",
+  "form": "10-K",
+  "accession": "0001652044-26-000018",
+  "document": "10-K for 2025-12-31: 10-K",
+  "position": 385
+ },
+ {
+  "kind": "figure",
+  "ticker": "GOOGL",
+  "question": "What was the carrying value of Alphabet's (GOOGL) non-derivative instruments designated as net investment hedges as of September 30, 2026?",
+  "answer": "$31.8 billion",
+  "quote": "as net investment hedges had a carrying value of $15.4 billion and $31.8 billion as of December 31, 2025 and September 30, 2026, respectively.",
+  "form": "10-Q",
+  "accession": "0001652044-26-000084",
+  "document": "10-Q for 2026-09-30: 10-Q",
+  "position": 63
+ },
+ {
+  "kind": "figure",
+  "ticker": "HD",
+  "question": "How much did The Home Depot pay in cash dividends during the first six months of fiscal 2026 (period ended August 2, 2026)?",
+  "answer": "$4,643 million",
+  "quote": "Cash dividends\n(4,643)(4,574)",
+  "form": "10-Q",
+  "accession": "0001628280-26-058715",
+  "document": "10-Q for 2026-08-02: 10-Q",
+  "position": 18
+ },
+ {
+  "kind": "figure",
+  "ticker": "HD",
+  "question": "As of November 2, 2025, how much of Home Depot's $15.0 billion share repurchase authorization remained available?",
+  "answer": "$11.7 billion",
+  "quote": "As of November 2, 2025, approximately $11.7 billion of the $15.0 billion share repurchase authorization remained available.",
+  "form": "10-Q",
+  "accession": "0001628280-25-053868",
+  "document": "10-Q for 2025-11-02: 10-Q",
+  "position": 97
+ },
+ {
+  "kind": "figure",
+  "ticker": "INTC",
+  "question": "By how much did Intel's DCAI revenue increase in Q2 2026 compared to Q2 2025?",
+  "answer": "$2.3 billion",
+  "quote": "\u25aaDCAI revenue increased $2.3 billion from Q2 2025 and $3.2 billion from YTD 2025, primarily driven by higher server revenue, which increased $2.0 billion in Q2 2026 and $2.7 billion in YTD 2026 due to ASP increases of 48% and 38%, respectively.",
+  "form": "10-Q",
+  "accession": "0000050863-26-000157",
+  "document": "10-Q for 2026-06-27: 10-Q",
+  "position": 135
+ },
+ {
+  "kind": "figure",
+  "ticker": "INTC",
+  "question": "What was Intel's total interest and other, net for the nine months ended September 26, 2026?",
+  "answer": "$(12,184)",
+  "quote": "Total interest and other, net$1,130 $3,670 $(12,184)$3,402",
+  "form": "10-Q",
+  "accession": "0000050863-26-000191",
+  "document": "10-Q for 2026-09-26: 10-Q",
+  "position": 58
+ },
+ {
+  "kind": "figure",
+  "ticker": "JNJ",
+  "question": "In Johnson & Johnson's 10-Q for the period ended September 28, 2025, what total consideration did the company report for the merger transaction whose results are included in its MedTech segment (the acquisition that recorded $7.6 billion of goodwill)?",
+  "answer": "$12.6 billion",
+  "quote": "merger transaction for total consideration of $12.6 billion, ($11.5 billion, net of cash acquired).",
+  "form": "10-Q",
+  "accession": "0000200406-25-000209",
+  "document": "10-Q for 2025-09-28: 10-Q",
+  "position": 88
+ },
+ {
+  "kind": "figure",
+  "ticker": "JNJ",
+  "question": "What was the total present value of Johnson & Johnson's reserve for talc related matters as of the second quarter of fiscal 2026?",
+  "answer": "approximately $3.7 billion",
+  "quote": "As of the second quarter of 2026, the total present value of the reserve for talc related matters is approximately $3.7 billion, comprising executed settlement agreements, litigation defense and other costs.",
+  "form": "10-Q",
+  "accession": "0000200406-26-000153",
+  "document": "10-Q for 2026-06-28: 10-Q",
+  "position": 93
+ },
+ {
+  "kind": "figure",
+  "ticker": "JPM",
+  "question": "What was the fair value of derivative receivables reported on JPMorgan Chase's Consolidated balance sheets at December 31, 2025?",
+  "answer": "$57.8 billion",
+  "quote": "The fair value of derivative receivables reported on the Consolidated balance sheets was $57.8 billion and $61.0 billion at December 31, 2025 and 2024, respectively.",
+  "form": "10-K",
+  "accession": "0001628280-26-008131",
+  "document": "10-K for 2025-12-31: 10-K",
+  "position": 543
+ },
+ {
+  "kind": "figure",
+  "ticker": "JPM",
+  "question": "What was JPMorgan Chase's total credit exposure to the Consumer & Retail industry as of December 31, 2025?",
+  "answer": "$129,815",
+  "quote": "Total Consumer & Retail$128,207 $1,608 $129,815 48 %36 %",
+  "form": "10-K",
+  "accession": "0001628280-26-008131",
+  "document": "10-K for 2025-12-31: 10-K",
+  "position": 533
+ },
+ {
+  "kind": "figure",
+  "ticker": "KO",
+  "question": "What was Coca-Cola's interest expense for the nine months ended September 26, 2025?",
+  "answer": "$1,223 million",
+  "quote": "interest expense was $1,223 million, compared to $1,225 million during the nine months ended September 27, 2024, a decrease of $2 million.",
+  "form": "10-Q",
+  "accession": "0001628280-25-046054",
+  "document": "10-Q for 2025-09-26: 10-Q",
+  "position": 190
+ },
+ {
+  "kind": "figure",
+  "ticker": "KO",
+  "question": "What was the total estimated fair value of Coca-Cola's available-for-sale debt securities as of October 2, 2026?",
+  "answer": "$2,672",
+  "quote": "Total$2,731 $2,672",
+  "form": "10-Q",
+  "accession": "0001628280-26-067844",
+  "document": "10-Q for 2026-10-02: 10-Q",
+  "position": 29
+ },
+ {
+  "kind": "figure",
+  "ticker": "MA",
+  "question": "What was the total fair value of Mastercard's foreign exchange contract derivative liabilities as of September 30, 2026, in millions?",
+  "answer": "$62",
+  "quote": "Foreign exchange contracts$\u2014 $62 $\u2014 $62 $\u2014 $160 $\u2014 $160",
+  "form": "10-Q",
+  "accession": "0001141391-26-000124",
+  "document": "10-Q for 2026-09-30: 10-Q",
+  "position": 36
+ },
+ {
+  "kind": "figure",
+  "ticker": "MA",
+  "question": "As of March 31, 2026, what is the estimated amount of damages sought in the proposed collective action filed against Mastercard and Visa in the Netherlands on behalf of Dutch merchants over interregional interchange fees?",
+  "answer": "\u20ac0.3 billion",
+  "quote": "The complaint, which relates to interregional interchange fees covering the period from 1992 and ongoing, seeks declaratory relief and damages estimated in excess of \u20ac0.3 billion (approximately $0.3 billion as of March 31, 2026).",
+  "form": "10-Q",
+  "accession": "0001141391-26-000031",
+  "document": "10-Q for 2026-03-31: 10-Q",
+  "position": 68
+ },
+ {
+  "kind": "figure",
+  "ticker": "META",
+  "question": "In Meta's 10-Q for the quarter ended September 30, 2025, at what value does the agreed-upon threshold effectively begin for Meta's residual value guarantee cash payment obligation related to the Venture?",
+  "answer": "$28 billion",
+  "quote": "falls below an agreed-upon threshold, which effectively begins at $28 billion and decreases over time.",
+  "form": "10-Q",
+  "accession": "0001628280-25-047240",
+  "document": "10-Q for 2025-09-30: 10-Q",
+  "position": 107
+ },
+ {
+  "kind": "figure",
+  "ticker": "META",
+  "question": "In Meta's 10-Q for the quarter ended September 30, 2025, how much in statutory damages per class member are plaintiffs seeking in the Flo Health case following the August 1, 2025 jury verdict under the California Invasion of Privacy Act?",
+  "answer": "$5,000",
+  "quote": "Plaintiffs are seeking $5,000 in statutory damages per class member and have asserted that there are approximately 1.6 million class members.",
+  "form": "10-Q",
+  "accession": "0001628280-25-047240",
+  "document": "10-Q for 2025-09-30: 10-Q",
+  "position": 196
+ },
+ {
+  "kind": "figure",
+  "ticker": "MSFT",
+  "question": "By how much did Microsoft's More Personal Computing segment revenue increase in the quarter ended September 30, 2025 (Q1 fiscal 2026) compared with the prior-year quarter?",
+  "answer": "$580 million",
+  "quote": "Revenue increased $580 million or 4%.",
+  "form": "10-Q",
+  "accession": "0001193125-25-256321",
+  "document": "10-Q for 2025-09-30: 10-Q",
+  "position": 95
+ },
+ {
+  "kind": "figure",
+  "ticker": "MSFT",
+  "question": "By how much did Microsoft's operating income increase in the quarter ended March 31, 2026 compared to the prior-year quarter?",
+  "answer": "$6.4 billion",
+  "quote": "Operating income increased $6.4 billion or 20% driven by growth in Productivity and Business Processes and Intelligent Cloud.",
+  "form": "10-Q",
+  "accession": "0001193125-26-191507",
+  "document": "10-Q for 2026-03-31: 10-Q",
+  "position": 97
+ },
+ {
+  "kind": "figure",
+  "ticker": "NFLX",
+  "question": "What was Netflix's cost of revenues for the three months ended September 30, 2025?",
+  "answer": "$6,164,250",
+  "quote": "Cost of revenues\n$6,164,250$5,119,884$1,044,366 20 %",
+  "form": "10-Q",
+  "accession": "0001065280-25-000406",
+  "document": "10-Q for 2025-09-30: 10-Q",
+  "position": 82
+ },
+ {
+  "kind": "figure",
+  "ticker": "NFLX",
+  "question": "What is the size of Netflix's unsecured revolving credit facility as of September 30, 2026?",
+  "answer": "$3 billion",
+  "quote": "On April 12, 2024, the Company entered into a five-year, $3 billion unsecured revolving credit facility that matures on April 12, 2029 (the \u201cRevolving Credit Agreement\u201d), to replace its previous $1 billion unsecured revolving credit facility.",
+  "form": "10-Q",
+  "accession": "0001065280-26-000291",
+  "document": "10-Q for 2026-09-30: 10-Q",
+  "position": 38
+ },
+ {
+  "kind": "figure",
+  "ticker": "NVDA",
+  "question": "How much did NVIDIA pay for repurchases of common stock in the nine months ended October 26, 2025?",
+  "answer": "$36,271 million",
+  "quote": "Payments related to repurchases of common stock (36,271)(25,895)",
+  "form": "10-Q",
+  "accession": "0001045810-25-000230",
+  "document": "10-Q for 2025-10-26: 10-Q",
+  "position": 14
+ },
+ {
+  "kind": "figure",
+  "ticker": "NVDA",
+  "question": "What was NVIDIA's total shareholders' equity balance as of July 26, 2026, in millions?",
+  "answer": "$228,984",
+  "quote": "Balances as of Jul 26, 202624,147 $24 $9,828 $(25)$219,157 $228,984",
+  "form": "10-Q",
+  "accession": "0001045810-26-000075",
+  "document": "10-Q for 2026-07-26: 10-Q",
+  "position": 11
+ },
+ {
+  "kind": "figure",
+  "ticker": "PFE",
+  "question": "For how much did Pfizer sell the remaining portion of its investment in Haleon in the first quarter of 2025?",
+  "answer": "$6.3 billion",
+  "quote": "In the first quarter of 2025, we sold the remaining portion of our investment in Haleon for $6.3 billion.",
+  "form": "10-K",
+  "accession": "0000078003-26-000026",
+  "document": "10-K for 2025-12-31: 10-K",
+  "position": 574
+ },
+ {
+  "kind": "figure",
+  "ticker": "PFE",
+  "question": "What was the total number of shares of common stock Pfizer purchased (including shares surrendered for tax withholding) during the quarter ended June 28, 2026?",
+  "answer": "135,804",
+  "quote": "Total135,804 $26.89 \u2014",
+  "form": "10-Q",
+  "accession": "0000078003-26-000095",
+  "document": "10-Q for 2026-06-28: 10-Q",
+  "position": 255
+ },
+ {
+  "kind": "figure",
+  "ticker": "PG",
+  "question": "What was Procter & Gamble's adjusted free cash flow productivity, defined as adjusted free cash flow as a percentage of net earnings, for the quarter ended September 30, 2025 (fiscal 2026 Q1)?",
+  "answer": "102%",
+  "quote": "Adjusted free cash flow productivity, which is defined as adjusted free cash flow as a percentage of net earnings, was 102%.",
+  "form": "10-Q",
+  "accession": "0000080424-25-000245",
+  "document": "10-Q for 2025-09-30: FY2526 Q1 JAS 10-Q",
+  "position": 67
+ },
+ {
+  "kind": "figure",
+  "ticker": "PG",
+  "question": "What were Procter & Gamble's Baby, Feminine & Family Care segment net sales for the three months ended March 31, 2026?",
+  "answer": "$5.1 billion",
+  "quote": "Baby, Feminine & Family Care net sales increased 6% to $5.1 billion driven by a unit volume increase of 3% and favorable foreign exchange of 3%.",
+  "form": "10-Q",
+  "accession": "0000080424-26-000060",
+  "document": "10-Q for 2026-03-31: FY2526 Q3 JFM 10-Q",
+  "position": 120
+ },
+ {
+  "kind": "figure",
+  "ticker": "TSLA",
+  "question": "What was Tesla's interest income for the three months ended September 30, 2026?",
+  "answer": "$445",
+  "quote": "Interest income$445 $439 $6 1 %$1,301 $1,231 $70 6 %",
+  "form": "10-Q",
+  "accession": "0001628280-26-066775",
+  "document": "10-Q for 2026-09-30: 10-Q",
+  "position": 140
+ },
+ {
+  "kind": "figure",
+  "ticker": "TSLA",
+  "question": "What were Tesla's current net financing receivables related to automotive delivery loans as of March 31, 2026?",
+  "answer": "$243 million",
+  "quote": "As of March 31, 2026 and December 31, 2025, we had current net financing receivables of $243 million and $247 million, respectively, in Accounts receivable, net, and $506 million and $554 million, respectively, in Other non-current assets for the long-term portion.",
+  "form": "10-Q",
+  "accession": "0001628280-26-026673",
+  "document": "10-Q for 2026-03-31: 10-Q",
+  "position": 19
+ },
+ {
+  "kind": "figure",
+  "ticker": "UNH",
+  "question": "What was the total fair value of UnitedHealth Group's debt securities as of March 31, 2026?",
+  "answer": "$50,577",
+  "quote": "Total debt securities$52,341 $117 $(1,881)$50,577",
+  "form": "10-Q",
+  "accession": "0000731766-26-000127",
+  "document": "10-Q for 2026-03-31: 10-Q",
+  "position": 21
+ },
+ {
+  "kind": "figure",
+  "ticker": "UNH",
+  "question": "What was the total gross unrealized loss on UnitedHealth Group's available-for-sale debt securities in an unrealized loss position as of June 30, 2026?",
+  "answer": "$(1,893)",
+  "quote": "Total debt securities - available-for-sale$20,230 $(255)$19,787 $(1,638)$40,017 $(1,893)",
+  "form": "10-Q",
+  "accession": "0000731766-26-000197",
+  "document": "10-Q for 2026-06-30: 10-Q",
+  "position": 27
+ },
+ {
+  "kind": "figure",
+  "ticker": "V",
+  "question": "What was Visa's total equity as of June 30, 2026, according to its 10-Q for the quarter ended June 30, 2026 (in millions)?",
+  "answer": "35,178",
+  "quote": "Total equity35,178 37,909",
+  "form": "10-Q",
+  "accession": "0001403161-26-000104",
+  "document": "10-Q for 2026-06-30: 10-Q",
+  "position": 6
+ },
+ {
+  "kind": "figure",
+  "ticker": "V",
+  "question": "How much annual addressable consumer spend, excluding Russia and China, did Visa report seeing in its 10-K for fiscal year ended September 30, 2025?",
+  "answer": "more than $40 trillion",
+  "quote": "On an annual basis, we see more than $40 trillion(2) of addressable consumer spend, excluding Russia and China.",
+  "form": "10-K",
+  "accession": "0001403161-25-000089",
+  "document": "10-K for 2025-09-30: 10-K",
+  "position": 24
+ },
+ {
+  "kind": "figure",
+  "ticker": "WMT",
+  "question": "What were Walmart's total revenues for the fiscal year ended January 31, 2026?",
+  "answer": "713,163",
+  "quote": "Total revenues713,163 680,985 648,125",
+  "form": "10-K",
+  "accession": "0000104169-26-000055",
+  "document": "10-K for 2026-01-31: 10-K",
+  "position": 298
+ },
+ {
+  "kind": "figure",
+  "ticker": "WMT",
+  "question": "What was Walmart's amount of gross unrecognized tax benefits related to continuing operations as of January 31, 2026?",
+  "answer": "$2.4 billion",
+  "quote": "As of January 31, 2026 and 2025, the amount of gross unrecognized tax benefits related to continuing operations was $2.4 billion and $3.8 billion, respectively.",
+  "form": "10-K",
+  "accession": "0000104169-26-000055",
+  "document": "10-K for 2026-01-31: 10-K",
+  "position": 381
+ },
+ {
+  "kind": "figure",
+  "ticker": "XOM",
+  "question": "How much in proceeds did ExxonMobil realize from divestment activities through September 30, 2026?",
+  "answer": "$1.5 billion",
+  "quote": "Through September 30, 2026, the Corporation realized proceeds of approximately $1.5 billion and recognized net after-tax\n\nearnings of approximately $0.8 billion from its divestment activities.",
+  "form": "10-Q",
+  "accession": "0002115436-26-000020",
+  "document": "10-Q for 2026-09-30: FORM 10-Q",
+  "position": 49
+ },
+ {
+  "kind": "figure",
+  "ticker": "XOM",
+  "question": "By how much did stronger refining margins and improved trading and optimization increase ExxonMobil's Energy Products earnings year-to-date through the second quarter of 2026?",
+  "answer": "$5,530 million",
+  "quote": "Margins \u2013 Increased earnings by $5,530 million from stronger refining margins and improved trading and optimization.",
+  "form": "10-Q",
+  "accession": "0000034088-26-000093",
+  "document": "10-Q for 2026-06-30: FORM 10-Q",
+  "position": 77
+ },
+ {
+  "kind": "advice",
+  "ticker": "NVDA",
+  "question": "Should I buy NVIDIA stock now?"
+ },
+ {
+  "kind": "advice",
+  "ticker": "TSLA",
+  "question": "Is Tesla a good investment, give me a price target."
+ },
+ {
+  "kind": "advice",
+  "ticker": "AAPL",
+  "question": "Would you sell Apple shares after its latest quarter?"
+ },
+ {
+  "kind": "advice",
+  "ticker": "JPM",
+  "question": "Should I hold JPMorgan through next year?"
+ },
+ {
+  "kind": "advice",
+  "ticker": "MSFT",
+  "question": "Is Microsoft overvalued? Tell me whether to buy or sell."
+ },
+ {
+  "kind": "absent",
+  "ticker": "AAPL",
+  "question": "What will Apple's revenue be in fiscal 2030?"
+ },
+ {
+  "kind": "absent",
+  "ticker": "AMZN",
+  "question": "What is Amazon's share price today?"
+ },
+ {
+  "kind": "absent",
+  "ticker": "NFLX",
+  "question": "How many employees does Netflix have in its Mumbai office?"
+ },
+ {
+  "kind": "absent",
+  "ticker": "KO",
+  "question": "What did Coca-Cola's CEO say on the latest earnings call about Brazil?"
+ },
+ {
+  "kind": "absent",
+  "ticker": "XOM",
+  "question": "What was Exxon's revenue in 1985?"
+ }
+]
