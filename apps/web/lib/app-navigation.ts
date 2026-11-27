@@ -150,6 +150,13 @@ export const WORKSPACES: readonly Workspace[] = [
       { label: "Replay", href: "/replay", matches: ["/replay"], keywords: ["blind", "session"] },
       { label: "Drills", href: "/drills", matches: ["/drills"], keywords: ["deck", "practice"] },
       {
+        // A9.3 (M7.6): cointegration of two stored symbols.
+        label: "Pairs lab",
+        href: "/pairs",
+        matches: ["/pairs"],
+        keywords: ["cointegration", "spread", "hedge ratio", "mean reversion"],
+      },
+      {
         label: "News reactions",
         href: "/news-reactions",
         matches: ["/news-reactions"],

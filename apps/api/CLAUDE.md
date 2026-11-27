@@ -2227,6 +2227,16 @@ realised coverage over the last 250 sessions. The phase's done-when. Web: the
 forecast card on the Research tab (coverage under its level shown in warning).
 Tests: `tests/test_a92_forecasts.py`.
 
+**Pairs lab (A9.3, M7.6).** `GET /v1/symbols/{a}/pair/{b}?years=1-15`
+(`routers/research_views.py`, public, 30/min; `services/pairs.py`, numpy):
+Engle-Granger on log closes over the common sessions: OLS hedge ratio, ADF
+(one lag, no constant) on the residual against MacKinnon (2010) N=2 constant
+critical values with his finite-sample response surface, the half-life from
+an AR(1) on the spread, the latest z-score and a 60-session rolling hedge
+ratio; 120 common sessions minimum. Web: `/pairs` (Quant Lab). Tests:
+`tests/test_a93_pairs.py` (planted pair rejects at 1% with its beta and
+half-life; independent walks reject at about the nominal rate).
+
 **Survivorship stamp (A1.4a, part of M1.5).** Every backtest result carries
 `universe: {name, point_in_time, survivorship_biased, note}`: the public
 `POST /v1/backtest` (`BacktestOut.universe`), stored single runs, and

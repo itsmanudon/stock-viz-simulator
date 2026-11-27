@@ -945,6 +945,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/symbols/{ticker}/pair/{other}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Pair
+         * @description A9.3: cointegration, hedge ratio, half-life and the spread's z-score.
+         */
+        get: operations["get_pair_v1_symbols__ticker__pair__other__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/portfolio": {
         parameters: {
             query?: never;
@@ -8762,6 +8782,67 @@ export interface components {
             dsr: components["schemas"]["DsrOut"];
             holdout: components["schemas"]["HoldoutStatusOut"];
         };
+        /**
+         * PairOut
+         * @description A9.3 (M7.6): Engle-Granger cointegration of two stored symbols.
+         */
+        PairOut: {
+            /** A */
+            a: string;
+            /** B */
+            b: string;
+            /** Sessions */
+            sessions: number;
+            /** First */
+            first?: string | null;
+            /** Last */
+            last?: string | null;
+            /** Alpha */
+            alpha?: number | null;
+            /** Beta */
+            beta?: number | null;
+            /** Tau */
+            tau?: number | null;
+            /**
+             * Critical
+             * @default {}
+             */
+            critical: {
+                [key: string]: number;
+            };
+            /** Cointegrated At */
+            cointegrated_at?: string | null;
+            /** Half Life */
+            half_life?: number | null;
+            /** Zscore */
+            zscore?: number | null;
+            /**
+             * Rolling Beta
+             * @default []
+             */
+            rolling_beta: components["schemas"]["PairPointOut"][];
+            /**
+             * Spread
+             * @default []
+             */
+            spread: components["schemas"]["PairPointOut"][];
+            /** Reason */
+            reason?: string | null;
+            /** Method */
+            method: string;
+        };
+        /** PairPointOut */
+        PairPointOut: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Spread */
+            spread?: number | null;
+            /** Beta */
+            beta?: number | null;
+        };
         /** PayoffPointOut */
         PayoffPointOut: {
             /** Spot */
@@ -15276,6 +15357,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ForecastOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_pair_v1_symbols__ticker__pair__other__get: {
+        parameters: {
+            query?: {
+                years?: number;
+            };
+            header?: never;
+            path: {
+                ticker: string;
+                other: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PairOut"];
                 };
             };
             /** @description Validation Error */
