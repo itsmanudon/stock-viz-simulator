@@ -10,7 +10,7 @@
  * there is no News page yet.
  */
 
-import { ArrowRight, Layers, Play, Rewind, StepForward } from "lucide-react";
+import { ArrowRight, Play, Rewind, StepForward } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
 
@@ -221,10 +221,6 @@ export function ProductPage({ spec }: { spec: ProductPageSpec }) {
             className="brand-glow -top-10 right-0 -z-10 h-[30rem] w-[min(40rem,100%)] opacity-70"
           />
           <div className="grid gap-5">
-            <span className="inline-flex w-max items-center gap-1.5 rounded-full border border-border-muted bg-surface-secondary px-3 py-1 text-xs text-text-secondary">
-              <Layers className="size-3.5 text-brand" aria-hidden />
-              {spec.name}
-            </span>
             <h1
               data-motion="words"
               className="text-4xl font-medium tracking-[-0.035em] text-balance sm:text-6xl"
@@ -283,11 +279,8 @@ export function OtherProductPages({ current }: { current: string }) {
               href={`/product/${page.slug}`}
               className="group flex items-center justify-between gap-4 rounded-2xl border border-border-muted bg-card px-5 py-4 transition-colors hover:border-border"
             >
-              <span>
-                <span className="block text-xs text-text-tertiary">{page.name}</span>
-                <span className="block text-base font-medium">
-                  {page.title} {page.soft}
-                </span>
+              <span className="text-base font-medium">
+                {page.title} {page.soft}
               </span>
               <ArrowRight
                 className="size-4 shrink-0 text-text-tertiary transition-transform group-hover:translate-x-0.5"

@@ -119,11 +119,6 @@ export async function ByTheNumbers() {
             </Reveal>
           ))}
         </dl>
-
-        <p className="mt-8 font-mono text-2xs text-text-tertiary">
-          Counted from the public API when this page was rendered. End-of-day bars only — nothing
-          here is exchange real-time data.
-        </p>
       </div>
     </section>
   );

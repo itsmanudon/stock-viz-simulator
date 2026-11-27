@@ -120,10 +120,6 @@ export async function ProductTour() {
       <Reveal className="mt-9" delay={80}>
         <TourTabs tabs={tabs} />
       </Reveal>
-
-      <p className="mt-4 font-mono text-2xs text-text-tertiary">
-        Live from the public API — the same endpoints the workspace runs on.
-      </p>
     </section>
   );
 }

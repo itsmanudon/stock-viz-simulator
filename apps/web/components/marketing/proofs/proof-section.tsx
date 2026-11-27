@@ -320,10 +320,57 @@ function fmtReturn(fraction: number) {
   return `${pct >= 0 ? "+" : ""}${pct.toFixed(1)}%`;
 }
 
+/**
+ * The screener's narrowing as one large figure, "48 → 3 symbols", with its
+ * filters and close date as chips (owner's pick, 27 Nov 2026). The middle
+ * counts stay in the sieve, which draws every layer's pass count.
+ */
+function FunnelFigure({
+  first,
+  last,
+  layers,
+  asOf,
+}: {
+  first: number;
+  last: number;
+  layers: string[];
+  asOf: string | null;
+}) {
+  return (
+    <div className="grid gap-4">
+      <p className="flex flex-wrap items-baseline gap-x-3 font-medium tracking-[-0.04em] tabular-nums">
+        <span className="text-5xl sm:text-6xl">{first}</span>
+        <span aria-hidden className="text-4xl text-text-tertiary sm:text-5xl">
+          →
+        </span>
+        <span className="sr-only">tracked symbols narrowed to</span>
+        <span className="text-prism text-5xl sm:text-6xl">{last}</span>
+        <span className="text-xl tracking-[-0.02em] text-text-secondary">
+          {last === 1 ? "symbol" : "symbols"}
+        </span>
+      </p>
+      <ul className="flex flex-wrap gap-2" aria-label="Filters applied">
+        {layers.map((layer) => (
+          <li
+            key={layer}
+            className="rounded-full border border-border-muted bg-surface-secondary px-3 py-1 text-sm text-text-secondary"
+          >
+            {layer}
+          </li>
+        ))}
+        {asOf ? (
+          <li className="rounded-full px-1 py-1 text-sm text-text-tertiary">Close of {asOf}</li>
+        ) : null}
+      </ul>
+    </div>
+  );
+}
+
 function Row({
   title,
   children,
   facts,
+  figure,
   href,
   cta,
   stage,
@@ -331,7 +378,9 @@ function Row({
 }: {
   title: string;
   children: ReactNode;
-  facts: ReactNode;
+  facts?: ReactNode;
+  /** A large figure that replaces the small facts line. */
+  figure?: ReactNode;
   href: string;
   cta: string;
   stage: ReactNode;
@@ -344,7 +393,15 @@ function Row({
           {title}
         </h3>
         <p className="max-w-md text-base leading-7 text-text-secondary text-pretty">{children}</p>
-        <p className="font-mono text-xs leading-6 text-text-tertiary">{facts}</p>
+        {figure ? (
+          <div data-proof-facts className="mt-2">
+            {figure}
+          </div>
+        ) : (
+          <p data-proof-facts className="font-mono text-xs leading-6 text-text-tertiary">
+            {facts}
+          </p>
+        )}
         <Link
           href={href}
           className="mt-1 inline-flex w-fit items-center gap-1.5 text-sm font-medium hover:underline"
@@ -406,11 +463,13 @@ export async function ProofSection({
           key={key}
           flip={flip}
           title="From the whole list to a handful."
-          facts={
-            <>
-              {screener.counts.join(" → ")} symbols after {screener.layers.join(" · ")}
-              {screener.asOf ? `, as of ${formatCloseDate(screener.asOf)}` : ""}.
-            </>
+          figure={
+            <FunnelFigure
+              first={screener.counts[0]}
+              last={screener.counts[screener.counts.length - 1]}
+              layers={screener.layers}
+              asOf={screener.asOf ? formatCloseDate(screener.asOf) : null}
+            />
           }
           href="/screener"
           cta="Open the screener"

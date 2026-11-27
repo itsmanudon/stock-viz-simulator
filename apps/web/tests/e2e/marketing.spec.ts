@@ -13,16 +13,16 @@ test.describe("marketing home", () => {
     await page.goto("/");
   });
 
-  test("hero leads with the product and its constraints", async ({ page }) => {
+  test("hero leads with the product", async ({ page }) => {
     await expect(page.getByRole("heading", { level: 1 })).toContainText(
       "Learn the market without risking the money",
     );
     await expect(page.getByRole("link", { name: "Create free account" }).first()).toBeVisible();
     await expect(page.getByRole("link", { name: "Explore markets" })).toBeVisible();
 
-    // The constraints are part of the hero, not buried in the footer.
-    await expect(page.getByText("Simulated fills · EOD data")).toBeVisible();
-    await expect(page.getByText("No card required")).toBeVisible();
+    // No small chips or badge around the headline (owner, 27 Nov 2026); the
+    // constraints are stated in the paper-trading intro below it.
+    await expect(page.getByText("Nothing reaches an exchange.").first()).toBeAttached();
   });
 
   test("watch it work states every animated figure in text", async ({ page }) => {
@@ -34,7 +34,7 @@ test.describe("marketing home", () => {
     expect(await rows.count()).toBeGreaterThan(0);
     for (const row of await rows.all()) {
       await expect(row.locator("h3")).toBeVisible();
-      await expect(row.locator("p.font-mono")).not.toBeEmpty();
+      await expect(row.locator("[data-proof-facts]")).not.toBeEmpty();
       await expect(row.getByRole("link")).toBeVisible();
       for (const art of await row.locator("canvas").all()) {
         expect(await art.evaluate((el) => el.closest("[aria-hidden]") !== null)).toBe(true);
