@@ -30,6 +30,7 @@ import { TickerOrders } from "@/components/ticker-orders";
 import type { TicketBook } from "@/components/ticket-book-line";
 import type { TicketPlanOptions } from "@/components/ticket-plan";
 import { VisitorLimitNotice } from "@/components/visitor-limit-notice";
+import { VolSummaryCard } from "@/components/vol-summary-card";
 import {
   ApiError,
   type SymbolChecklist,
@@ -58,7 +59,7 @@ import {
   getValuation,
   getValuationHistory,
 } from "@/lib/api/fundamentals";
-import { getOptionExposure } from "@/lib/api/option-exposure";
+import { getOptionExposure, getVolSummary } from "@/lib/api/option-exposure";
 import { planPickerOptions } from "@/lib/api/plans";
 import { getEventStudy } from "@/lib/api/research";
 import { getEarningsDrift, getForecast, getSeasonality } from "@/lib/api/research-views";
@@ -270,6 +271,7 @@ export default async function StockPage({
     seasonality,
     earningsDrift,
     forecast,
+    volSummary,
   ] = await Promise.all([
     barsPromise,
     chartBarsPromise,
@@ -301,6 +303,8 @@ export default async function StockPage({
     getEarningsDrift(ticker).catch(() => null),
     // A9.2: forecasts scored against a random walk.
     getForecast(ticker).catch(() => null),
+    // A9.4: term structure, skew, VRP and IV rank from stored chains.
+    getVolSummary(ticker).catch(() => null),
   ]);
 
   // A6.2: an intraday lookback is whole sessions ("1D" is the last session,
@@ -663,8 +667,14 @@ export default async function StockPage({
             </div>
           }
           options={
-            exposure && !exposure.reason && exposure.strikes.length ? (
-              <OptionExposureCard exposure={exposure} />
+            (exposure && !exposure.reason && exposure.strikes.length) ||
+            (volSummary && !volSummary.reason) ? (
+              <div className="space-y-8">
+                {volSummary && !volSummary.reason ? <VolSummaryCard summary={volSummary} /> : null}
+                {exposure && !exposure.reason && exposure.strikes.length ? (
+                  <OptionExposureCard exposure={exposure} />
+                ) : null}
+              </div>
             ) : undefined
           }
           research={

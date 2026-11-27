@@ -2051,6 +2051,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/options/{ticker}/vol-summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Vol Summary
+         * @description A9.4 (M6.3): term structure, skew, VRP and IV rank. Public.
+         */
+        get: operations["get_vol_summary_v1_options__ticker__vol_summary_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/options/book": {
         parameters: {
             query?: never;
@@ -13158,6 +13178,56 @@ export interface components {
             /** Reason */
             reason?: string | null;
         };
+        /**
+         * VolSummaryOut
+         * @description A9.4 (M6.3): term structure, skew, VRP and IV rank from stored US chains.
+         */
+        VolSummaryOut: {
+            /** Ticker */
+            ticker: string;
+            /** Snapshot Date */
+            snapshot_date?: string | null;
+            /** Spot */
+            spot?: number | null;
+            /**
+             * Term
+             * @default []
+             */
+            term: components["schemas"]["VolTermOut"][];
+            /** Atm 30D */
+            atm_30d?: number | null;
+            /** Realised 21D */
+            realised_21d?: number | null;
+            /** Vrp */
+            vrp?: number | null;
+            /** Iv Rank */
+            iv_rank?: number | null;
+            /** Iv Percentile */
+            iv_percentile?: number | null;
+            /**
+             * Snapshots
+             * @default 0
+             */
+            snapshots: number;
+            /** Reason */
+            reason?: string | null;
+            /** Method */
+            method: string;
+        };
+        /** VolTermOut */
+        VolTermOut: {
+            /**
+             * Expiry
+             * Format: date
+             */
+            expiry: string;
+            /** Days */
+            days: number;
+            /** Atm Iv */
+            atm_iv?: number | null;
+            /** Skew 25D */
+            skew_25d?: number | null;
+        };
         /** VolumeProfileBinOut */
         VolumeProfileBinOut: {
             /** Low */
@@ -17963,6 +18033,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["OptionExposureOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_vol_summary_v1_options__ticker__vol_summary_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ticker: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VolSummaryOut"];
                 };
             };
             /** @description Validation Error */

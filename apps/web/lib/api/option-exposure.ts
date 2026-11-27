@@ -11,3 +11,13 @@ export function getOptionExposure(ticker: string): Promise<OptionExposure> {
     tags: ["options"],
   });
 }
+
+export type VolSummary = components["schemas"]["VolSummaryOut"];
+
+/** A9.4 (M6.3): term structure, 25-delta skew, VRP and IV rank from stored chains. */
+export function getVolSummary(ticker: string): Promise<VolSummary> {
+  return apiGet<VolSummary>(`/v1/options/${encodeURIComponent(ticker)}/vol-summary`, {
+    revalidateSeconds: 3600,
+    tags: ["options"],
+  });
+}

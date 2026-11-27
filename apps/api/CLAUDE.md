@@ -2237,6 +2237,15 @@ ratio; 120 common sessions minimum. Web: `/pairs` (Quant Lab). Tests:
 `tests/test_a93_pairs.py` (planted pair rejects at 1% with its beta and
 half-life; independent walks reject at about the nominal rate).
 
+**Volatility summary (A9.4, M6.3).** `GET /v1/options/{t}/vol-summary`
+(`routers/options.py`, public, 60/min; `services/options/vol_summary.py`):
+from the stored nightly chains, ATM IV and 25-delta skew (put minus call IV,
+Black-Scholes deltas) per expiry of the newest snapshot, VRP = the ~30-day ATM
+IV minus 21-session close-to-close realised vol, and IV rank and percentile
+over the last year's snapshots (20 minimum, else null with the count). Web:
+the volatility card on the stock page's Options tab. Tests:
+`tests/test_a94_vol_summary.py`.
+
 **Survivorship stamp (A1.4a, part of M1.5).** Every backtest result carries
 `universe: {name, point_in_time, survivorship_biased, note}`: the public
 `POST /v1/backtest` (`BacktestOut.universe`), stored single runs, and
