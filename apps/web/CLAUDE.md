@@ -928,6 +928,17 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   rows with the reason when none, a payout calendar), labelled a projection.
   Tests: `tests/unit/a96-dividend-projection.test.tsx`,
   `tests/e2e/tearsheet.spec.ts`.
+- **Filings (A7.10, M5.5).** `/filings` (Workbench nav "Filings", icon
+  `FileText`, public, `checkVisitorLimit("filings")`, 30 a minute): a GET form
+  (`ticker`, `q`, `kind`); `q` of 2+ characters searches the stored text
+  (`searchDocuments`, exact phrase), else `ticker` lists (`listDocuments`);
+  `filings-intro`, `filings-empty`, `filings-results`. `/filings/[id]?q=`
+  shows the text with the phrase marked (`Marked`, `markParts`) and a link to
+  the original. `components/documents-view.tsx`: `DocumentRow`,
+  `DocumentMeta` (kind, form, "Public <UTC time>", "(Assumed: End of Its
+  Date)", "SEC EDGAR" or "Placed by Hand"). `lib/api/documents.ts` (cached 5
+  minutes, tag `documents`). Tests: `tests/unit/a710-documents.test.tsx`,
+  `tests/e2e/filings.spec.ts`.
 - **Macro (A9.7, M1.10, M3.5).** `/macro` (Markets nav "Macro", icon
   `Globe`, public): `getMacroOverview()` (`lib/api/macro.ts`, cached an hour,
   tag `macro`) rendered by `components/macro-view.tsx` (server): the spreads,

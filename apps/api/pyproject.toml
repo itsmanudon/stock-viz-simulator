@@ -27,6 +27,8 @@ dependencies = [
     "exchange-calendars>=4.13.2",
     "pyarrow>=26.0.1",
     "lark>=1.2.2",
+    # A7.10: filing HTML to text (already installed through yfinance).
+    "beautifulsoup4>=4.12",
 ]
 
 [dependency-groups]

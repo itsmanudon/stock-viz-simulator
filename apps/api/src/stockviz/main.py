@@ -25,6 +25,7 @@ from stockviz.routers import (
     chart_templates,
     checklist,
     column_sets,
+    documents,
     drawings,
     drills,
     earnings,
@@ -153,6 +154,7 @@ def create_app() -> FastAPI:
 
     app.include_router(health.router)
     app.include_router(macro.router)
+    app.include_router(documents.router)
     # Register screener before symbols so /v1/symbols/screen wins over the
     # /v1/symbols/{ticker} catch-all in symbols.router.
     app.include_router(screener.router)
