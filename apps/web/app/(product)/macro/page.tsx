@@ -21,7 +21,6 @@ export default async function MacroPage() {
   return (
     <div className="w-full space-y-6 px-4 py-6 sm:px-6 lg:py-7 xl:px-8">
       <PageHeader
-        eyebrow="Markets"
         title="Macro"
         description="Rates, inflation, growth, credit, the dollar and commodities, as FRED publishes them, with the spreads traders watch."
       />

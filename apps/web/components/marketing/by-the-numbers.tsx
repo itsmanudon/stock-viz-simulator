@@ -99,12 +99,9 @@ export async function ByTheNumbers() {
 
       <div className="relative mx-auto w-full max-w-6xl px-4 py-16 sm:px-6 sm:py-20">
         <Reveal>
-          <p className="font-mono text-2xs tracking-[0.02em] text-brand">
-            What&rsquo;s Actually in Here
-          </p>
           <h2
             id="numbers-heading"
-            className="mt-3 max-w-2xl text-3xl font-semibold tracking-tight text-balance sm:text-4xl"
+            className="max-w-2xl text-3xl font-semibold tracking-tight text-balance sm:text-4xl"
           >
             No claims we can&rsquo;t count
           </h2>
@@ -122,11 +119,6 @@ export async function ByTheNumbers() {
             </Reveal>
           ))}
         </dl>
-
-        <p className="mt-8 font-mono text-2xs text-text-tertiary">
-          Counted from the public API when this page was rendered. End-of-day bars only — nothing
-          here is exchange real-time data.
-        </p>
       </div>
     </section>
   );

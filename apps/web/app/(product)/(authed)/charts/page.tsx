@@ -79,7 +79,6 @@ export default async function ChartsPage({
   return (
     <PageFrame width="workstation" className="py-6 sm:py-8">
       <ResearchPageHeader
-        path="/charts"
         title="Charts"
         description="Up to four charts at once, each with its own symbol, interval and template. Panes in one colour follow the same symbol; panes on the same symbol share the crosshair."
       />

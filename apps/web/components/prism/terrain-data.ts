@@ -8,7 +8,7 @@
  * complete symbols the section does not render at all.
  */
 
-import { ApiError, getMarketsSummary } from "@/lib/api";
+import { ApiError, getBars, getMarketsSummary } from "@/lib/api";
 import { formatCloseDate } from "@/lib/stock-workspace";
 
 export type TerrainData = {
@@ -18,7 +18,31 @@ export type TerrainData = {
   sessions: number;
   /** The newest stored close date in the window, formatted. */
   lastDate: string | null;
+  /**
+   * Each session's close date, formatted ("Apr 7, 2025"), oldest first; one
+   * per column. Null when the dates could not be read and matched.
+   */
+  dates: string[] | null;
 };
+
+/**
+ * The window's session dates, read from one aligned symbol's stored bars.
+ * Every aligned row ends on the same session and has a full window, so its
+ * last `TERRAIN_SESSIONS` bars are the columns. Kept only when the count and
+ * the last date match; otherwise the section names sessions by count.
+ */
+async function sessionDates(ticker: string, newest: string): Promise<string[] | null> {
+  try {
+    const bars = await getBars(ticker, { limit: TERRAIN_SESSIONS });
+    if (bars.length !== TERRAIN_SESSIONS) return null;
+    if (bars.at(-1)?.ts.slice(0, 10) !== newest.slice(0, 10)) return null;
+    const dates = bars.map((bar) => formatCloseDate(bar.ts));
+    return dates.every((d): d is string => Boolean(d)) ? dates : null;
+  } catch (err) {
+    if (err instanceof ApiError) return null;
+    throw err;
+  }
+}
 
 export const TERRAIN_SESSIONS = 120;
 const MAX_SYMBOLS = 28;
@@ -40,7 +64,7 @@ export async function loadTerrain(): Promise<TerrainData | null> {
       .at(-1);
     // Same last session for every row, so each column is one shared date.
     const aligned = full.filter((row) => row.at === newest);
-    if (aligned.length < 4) return null;
+    if (aligned.length < 4 || !newest) return null;
 
     const rebased = aligned.slice(0, MAX_SYMBOLS).map((row) => {
       const base = row.closes[0];
@@ -58,6 +82,7 @@ export async function loadTerrain(): Promise<TerrainData | null> {
       series: rebased.map((r) => r.series),
       sessions: TERRAIN_SESSIONS,
       lastDate: formatCloseDate(newest),
+      dates: await sessionDates(aligned[0].ticker, newest),
     };
   } catch (err) {
     if (err instanceof ApiError) return null;

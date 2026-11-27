@@ -44,7 +44,6 @@ export default async function ClassroomPage({
   return (
     <div className="w-full space-y-8 px-4 py-6 sm:px-6 lg:py-7 xl:px-8">
       <PageHeader
-        eyebrow="Quant Lab"
         title="Classroom"
         description="Cohorts that drill the same anonymised setups. Instructors see how each student followed their plans, never their results."
       />

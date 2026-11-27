@@ -97,7 +97,6 @@ export default async function EventStudyPage({
   return (
     <PageFrame width="workstation" className="py-5 sm:py-7">
       <ResearchPageHeader
-        path="/event-study"
         title="Event study"
         description="What followed a rule turning true: forward returns net of costs, against the base rate of the same symbols and dates. Association, not cause."
       />

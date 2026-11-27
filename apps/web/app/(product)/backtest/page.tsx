@@ -121,7 +121,6 @@ export default async function BacktestPage({
   return (
     <PageFrame width="workstation" className="py-5 sm:py-7">
       <ResearchPageHeader
-        path="/backtest"
         title="Backtest"
         description="Test deterministic trading rules on stored daily bars. Results are a historical what-if, not live trading and not a market-microstructure simulation."
       />

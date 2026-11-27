@@ -32,7 +32,6 @@ export default async function WeeklyReviewPage({
   return (
     <div className="w-full space-y-6 px-4 py-6 sm:px-6 lg:py-7 xl:px-8">
       <PageHeader
-        eyebrow="Portfolio & Tax"
         title="Weekly Review"
         description="This week's closed entries against the four weeks before, and what to look at."
       />

@@ -547,6 +547,21 @@ html[data-density="compact"] .workspace-main .density-workspace {
   }
 }
 
+/* RollingText (components/prism/rolling-text.tsx): a changed digit rolls up
+   into place, odometer style. Motion allowed only. */
+@media (prefers-reduced-motion: no-preference) {
+  .digit-roll {
+    animation: digit-roll 0.32s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  }
+}
+
+@keyframes digit-roll {
+  from {
+    transform: translateY(70%);
+    opacity: 0;
+  }
+}
+
 @media (prefers-reduced-motion: no-preference) {
   .landing-filter-out {
     animation: landing-filter-out 4.5s ease-in-out infinite;

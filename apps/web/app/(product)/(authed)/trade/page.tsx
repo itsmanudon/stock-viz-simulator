@@ -179,7 +179,6 @@ export default async function TradePage({
   return (
     <PageFrame width="workstation" className="py-5 sm:py-7">
       <OperationalPageHeader
-        eyebrow="Trade"
         title="Trade"
         description="Paper execution workstation. Market orders fill at the latest stored daily close. Limit, stop-loss, and take-profit orders wait for that close — they are not live exchange triggers."
         actions={

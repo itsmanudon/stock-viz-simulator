@@ -98,11 +98,8 @@ export function ReplayTradeTicket({
   return (
     <section aria-labelledby={`${fieldId}-title`} className="space-y-5">
       <div>
-        <p className="text-[11px] font-semibold tracking-[0.02em] text-brand">
-          {target === "drill" ? "Drill Order" : "Replay Order"}
-        </p>
-        <h2 id={`${fieldId}-title`} className="mt-1 text-sm font-semibold">
-          {ticker} replay ticket
+        <h2 id={`${fieldId}-title`} className="text-sm font-semibold">
+          {ticker} {target === "drill" ? "drill" : "replay"} ticket
         </h2>
         <p className="mt-1 text-xs leading-5 text-text-tertiary">
           A market order fills at this session&apos;s stored close. A limit or stop order rests and

@@ -67,7 +67,6 @@ export default async function TradesPage({
   return (
     <div className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:py-7">
       <PageHeader
-        eyebrow="Portfolio"
         title="Trade history"
         description="Every executed paper trade, newest first. Prices are in each symbol's own currency."
         meta={

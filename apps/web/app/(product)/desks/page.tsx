@@ -27,7 +27,6 @@ export default async function DesksPage({
   return (
     <div className="w-full space-y-6 px-4 py-6 sm:px-6 lg:py-7 xl:px-8">
       <PageHeader
-        eyebrow="Workbench"
         title="Desks"
         description="Four ways in: the tools each trading style opens with, a screen to start from and a chart look."
       />

@@ -841,10 +841,7 @@ function Overview({
     <div className="space-y-8">
       <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,0.55fr)]">
         <div>
-          <p className="text-2xs font-semibold tracking-[0.02em] text-text-tertiary">
-            Security Overview
-          </p>
-          <h2 className="mt-2 text-xl font-semibold tracking-tight">{symbol.name}</h2>
+          <h2 className="text-xl font-semibold tracking-tight">{symbol.name}</h2>
           <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">
             Price history, technical analysis, company news, and paper-trading context are organized
             around this security. Market orders use the latest cached close as their simulation

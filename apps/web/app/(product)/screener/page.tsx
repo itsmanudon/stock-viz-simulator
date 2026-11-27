@@ -226,7 +226,6 @@ export default async function ScreenerPage({
   return (
     <div className="w-full px-4 py-6 sm:px-6 lg:py-7 xl:px-8">
       <ResearchPageHeader
-        path="/screener"
         title="Screener"
         description="Screen US and Indian stocks by market, sector, trend, RSI, momentum, volatility and 52-week range. Filters combine with AND logic."
       />

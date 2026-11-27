@@ -75,7 +75,9 @@ components/
                    `floating-header.tsx` (the public header's sticky pill; the
                    only client part — it flips `data-scrolled` past 24px and
                    everything inside stays server-rendered), `market-status.tsx`
-                   (latest stored EOD bar date; never claims a live market),
+                   (latest stored EOD bar date for the workspace chip; the
+                   public header has none since 27 Nov 2026, as landing
+                   prices carry their own close dates; never claims live),
                    `product-tour.tsx` + `tour-tabs.tsx` + `tour-panels.tsx`
                    (the tabbed Screen/Research/Simulate/Track tour — panels are
                    live recreations off the public API, never screenshots; a
@@ -369,8 +371,12 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
     "time is the fourth axis" 3D surface from real stored closes (symbols
     with a full 120-session window ending on the same newest date). Landing
     variant `scroll` pins and scrubs time with scroll; dashboard variant
-    `compact` autoplays while on screen. Both have a real range slider, text
-    stats beside the canvas, a reduced-motion still frame and a 2D fallback.
+    `compact` autoplays while on screen. Both have a real range slider, the
+    figures in text, a reduced-motion still frame and a 2D fallback. The
+    landing states them as one sentence with odometer digits
+    (`rolling-text.tsx`) over a full-width time rail (date on the thumb,
+    months under it; session dates from `terrain-data.ts`'s `dates`); the
+    tile keeps its stat panel.
     Never put DOM gradient overlays on top of its canvas; fade with
     `mask-image` on the host (an overlay made some compositors drop the
     WebGL layer).
@@ -390,13 +396,22 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
 - **Sound** (`lib/sound/engine.ts`, `components/sound/`): every sound is
   synthesised with Web Audio, no files. Off by default and remembered per
   browser (`localStorage["stockviz:sound"]`); the switch (`SoundToggle`, a
-  real `role="switch"`) is in the workspace top bar and the public header.
+  real `role="switch"`, bars only, no visible words) is in the workspace top
+  bar and the public header.
   `SoundProvider` (in `providers.tsx`) gives buttons/links/tabs a tap, nav
   hover a tick and route changes a sweep. Forms call
   `useOutcomeSound(success, error, "fill" | "success")`; anything else can
   `emitSound(name)`. Mark a control `data-sound="none"` to silence it or
   `data-sound="<name>"` to pick its sound. A sound must never be the only
   signal: each one accompanies a visible change.
+  - **Background music** (`lib/sound/ambient.ts`, `AmbientMusic` in the
+    public layout): a synthesised ambient pad in the interface sounds' key,
+    public pages only (not log-in/sign-up), only while sound is on, starting
+    after a first press or key and fading out when the tab is hidden. The
+    hero's `AmbientMood` sets its mood from the latest breadth (minor and
+    darker when most symbols fell); the terrain overrides it with the
+    session in view. While it plays, taps take a tone of the current chord
+    (`setHarmony`).
 - **Dark only for now** (owner, 12 Nov 2026): `components/providers.tsx`
   sets `forcedTheme="dark"`, and the theme toggles are gone from the top bar,
   the public header, the footer and Settings. The light tokens stay in

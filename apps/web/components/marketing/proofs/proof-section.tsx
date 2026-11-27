@@ -12,8 +12,9 @@
  * - Checklist: a sonar sweep over real checklist rows (dimensions met of six).
  * - Portfolio: an example account's split, drifting with real closes.
  *
- * Every row states its figures in text beside the animation, so the canvas is
- * decoration (aria-hidden) and the page reads the same without it. A row whose
+ * Every row states its figures in text beside the animation, as one large
+ * figure of its own (`proof-figures.tsx`), so the canvas is decoration
+ * (aria-hidden) and the page reads the same without it. A row whose
  * data is missing is left out; with no rows the section renders nothing.
  */
 
@@ -27,6 +28,16 @@ import { GhostRuns } from "@/components/marketing/proofs/ghost-runs";
 import { type Drop, LiquidAllocation } from "@/components/marketing/proofs/liquid-allocation";
 import { LoupeChart } from "@/components/marketing/proofs/loupe-chart";
 import { PrintStamp } from "@/components/marketing/proofs/print-stamp";
+import {
+  AccountFigure,
+  EquationFigure,
+  FunnelFigure,
+  HiddenEndFigure,
+  PipsFigure,
+  RaceFigure,
+  RangeFigure,
+  ScoreboardFigure,
+} from "@/components/marketing/proofs/proof-figures";
 import { type RebaseSeries, RebaseSnap } from "@/components/marketing/proofs/rebase-snap";
 import { Sieve, type SieveChip } from "@/components/marketing/proofs/sieve";
 import { type SonarBlip, SonarSweep } from "@/components/marketing/proofs/sonar-sweep";
@@ -41,7 +52,6 @@ import {
 import type { Bar } from "@/lib/api/types";
 import { formatCurrency } from "@/lib/portfolio-view-model";
 import { formatCloseDate } from "@/lib/stock-workspace";
-import { titleCase } from "@/lib/title-case";
 import { cn } from "@/lib/utils";
 
 export type ProofKey =
@@ -316,25 +326,19 @@ async function loadPortfolio(): Promise<PortfolioProof | null> {
   };
 }
 
-function fmtReturn(fraction: number) {
-  const pct = fraction * 100;
-  return `${pct >= 0 ? "+" : ""}${pct.toFixed(1)}%`;
-}
-
 function Row({
-  eyebrow,
   title,
   children,
-  facts,
+  figure,
   href,
   cta,
   stage,
   flip,
 }: {
-  eyebrow: string;
   title: string;
   children: ReactNode;
-  facts: ReactNode;
+  /** The row's numbers as one large figure (`proof-figures.tsx`). */
+  figure: ReactNode;
   href: string;
   cta: string;
   stage: ReactNode;
@@ -343,14 +347,13 @@ function Row({
   return (
     <li data-motion-item className="grid items-center gap-8 md:grid-cols-2 md:gap-12">
       <div className={cn("grid gap-3", flip && "md:order-2")}>
-        <span className="font-mono text-2xs tracking-[0.02em] text-brand">
-          {titleCase(eyebrow)}
-        </span>
         <h3 className="text-2xl font-medium tracking-[-0.02em] text-balance sm:text-3xl">
           {title}
         </h3>
         <p className="max-w-md text-base leading-7 text-text-secondary text-pretty">{children}</p>
-        <p className="font-mono text-xs leading-6 text-text-tertiary">{facts}</p>
+        <div data-proof-facts className="mt-2">
+          {figure}
+        </div>
         <Link
           href={href}
           className="mt-1 inline-flex w-fit items-center gap-1.5 text-sm font-medium hover:underline"
@@ -389,14 +392,15 @@ export async function ProofSection({
         <Row
           key={key}
           flip={flip}
-          eyebrow="Backtest"
           title="Was it skill, or the order of the days?"
-          facts={
-            <>
-              {backtest.ticker}, 20/50-day average crossover, {formatCloseDate(backtest.from)} to{" "}
-              {formatCloseDate(backtest.to)}: strategy {fmtReturn(backtest.totalReturn)}, buy and
-              hold {fmtReturn(backtest.benchmarkReturn)}.
-            </>
+          figure={
+            <ScoreboardFigure
+              ticker={backtest.ticker}
+              strategy={backtest.totalReturn}
+              hold={backtest.benchmarkReturn}
+              from={formatCloseDate(backtest.from) ?? backtest.from}
+              to={formatCloseDate(backtest.to) ?? backtest.to}
+            />
           }
           href="/backtest"
           cta="Run a backtest"
@@ -412,13 +416,14 @@ export async function ProofSection({
         <Row
           key={key}
           flip={flip}
-          eyebrow="Screener"
           title="From the whole list to a handful."
-          facts={
-            <>
-              {screener.counts.join(" → ")} symbols after {screener.layers.join(" · ")}
-              {screener.asOf ? `, as of ${formatCloseDate(screener.asOf)}` : ""}.
-            </>
+          figure={
+            <FunnelFigure
+              first={screener.counts[0]}
+              last={screener.counts[screener.counts.length - 1]}
+              layers={screener.layers}
+              asOf={screener.asOf ? formatCloseDate(screener.asOf) : null}
+            />
           }
           href="/screener"
           cta="Open the screener"
@@ -443,14 +448,18 @@ export async function ProofSection({
         <Row
           key={key}
           flip={flip}
-          eyebrow="Stock page"
           title="Put any day under the glass."
-          facts={
-            <>
-              {bars.ticker}, {candles.length} stored daily bars, {candles[0].date} to {last.date}.
-              Latest: open {f(last.open)}, high {f(last.high)}, low {f(last.low)}, close{" "}
-              {f(last.close)}.
-            </>
+          figure={
+            <RangeFigure
+              ticker={bars.ticker}
+              open={last.open}
+              high={last.high}
+              low={last.low}
+              close={last.close}
+              date={last.date}
+              sessions={candles.length}
+              format={f}
+            />
           }
           href={`/stocks/${encodeURIComponent(bars.ticker)}`}
           cta={`Open ${bars.ticker}`}
@@ -467,13 +476,14 @@ export async function ProofSection({
         <Row
           key={key}
           flip={flip}
-          eyebrow="Replay"
           title="Trade the past without seeing the future."
-          facts={
-            <>
-              {bars.ticker}, {bars.bars.length} stored daily closes, {dates[0]} to{" "}
-              {dates[dates.length - 1]}.
-            </>
+          figure={
+            <HiddenEndFigure
+              ticker={bars.ticker}
+              sessions={bars.bars.length}
+              from={dates[0]}
+              to={dates[dates.length - 1]}
+            />
           }
           href="/replay"
           cta="Start a replay"
@@ -494,13 +504,15 @@ export async function ProofSection({
         <Row
           key={key}
           flip={flip}
-          eyebrow="Order fill"
           title="Every fill names its close."
-          facts={
-            <>
-              Example: buy 10 {bars.ticker} at the {date} close of {formatCurrency(price, currency)}
-              , no fees.
-            </>
+          figure={
+            <EquationFigure
+              ticker={bars.ticker}
+              quantity={10}
+              price={price}
+              date={date}
+              format={(v) => formatCurrency(v, currency)}
+            />
           }
           href="/product/paper-trading"
           cta="How paper trading works"
@@ -525,21 +537,21 @@ export async function ProofSection({
       );
     }
     if (key === "compare" && compare) {
-      const ret = (s: number[]) => fmtReturn(s[s.length - 1] / s[0] - 1);
+      const change = (s: number[]) => s[s.length - 1] / s[0] - 1;
       rows.push(
         <Row
           key={key}
           flip={flip}
-          eyebrow="Compare"
           title={
             compare.mixed ? "Two currencies, one starting line." : "Two prices, one starting line."
           }
-          facts={
-            <>
-              {compare.a.ticker} {ret(compare.a.closes)} and {compare.b.ticker}{" "}
-              {ret(compare.b.closes)}, {formatCloseDate(compare.from)} to{" "}
-              {formatCloseDate(compare.to)}, both rebased to 100.
-            </>
+          figure={
+            <RaceFigure
+              a={{ ticker: compare.a.ticker, change: change(compare.a.closes) }}
+              b={{ ticker: compare.b.ticker, change: change(compare.b.closes) }}
+              from={formatCloseDate(compare.from) ?? compare.from}
+              to={formatCloseDate(compare.to) ?? compare.to}
+            />
           }
           href="/compare"
           cta="Compare symbols"
@@ -557,14 +569,12 @@ export async function ProofSection({
         <Row
           key={key}
           flip={flip}
-          eyebrow="Checklist"
           title="Six published conditions, read on every pass."
-          facts={
-            <>
-              {checklist.blips.map((b) => `${b.ticker} ${b.score} of ${b.max} met`).join(" · ")}
-              {checklist.session ? `, session ${formatCloseDate(checklist.session)}` : ""}. Not
-              investment advice.
-            </>
+          figure={
+            <PipsFigure
+              rows={checklist.blips.slice(0, 4)}
+              session={checklist.session ? formatCloseDate(checklist.session) : null}
+            />
           }
           href="/checklist"
           cta="Read the checklist"
@@ -581,16 +591,18 @@ export async function ProofSection({
         <Row
           key={key}
           flip={flip}
-          eyebrow="Portfolio"
           title="Watch the split drift."
-          facts={
-            <>
-              Example account: $16,000 each in {portfolio.drops.map((d) => d.ticker).join(", ")} and
-              $20,000 cash at the {formatCloseDate(portfolio.from)} close. By{" "}
-              {formatCloseDate(portfolio.to)}:{" "}
-              {portfolio.drops.map((d) => `${d.ticker} ${pct(d.now)}`).join(", ")}, cash{" "}
-              {pct(portfolio.cash.now)}.
-            </>
+          figure={
+            <AccountFigure
+              value={portfolio.value}
+              start={EXAMPLE_CASH + EXAMPLE_EACH * portfolio.drops.length}
+              from={formatCloseDate(portfolio.from) ?? portfolio.from}
+              to={formatCloseDate(portfolio.to) ?? portfolio.to}
+              shares={[
+                ...portfolio.drops.map((d) => ({ label: d.ticker, share: d.now })),
+                { label: "Cash", share: portfolio.cash.now },
+              ]}
+            />
           }
           href="/product/paper-trading"
           cta="Open a paper account"

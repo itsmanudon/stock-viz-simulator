@@ -7,12 +7,10 @@ import { useSound } from "./sound-provider";
 /**
  * The sound switch. A real `role="switch"` with a visible state: four bars
  * that dance while sound is on (still under reduced motion) and lie flat
- * when it is off. The label says what pressing it does.
+ * when it is off. No visible words (owner, 27 Nov 2026): the bars are the
+ * state, and the accessible name and tooltip say what pressing it does.
  */
-export function SoundToggle({
-  className,
-  showLabel = false,
-}: { className?: string; showLabel?: boolean }) {
+export function SoundToggle({ className }: { className?: string }) {
   const { enabled, setEnabled } = useSound();
   return (
     <button
@@ -35,11 +33,6 @@ export function SoundToggle({
         <i />
         <i />
       </span>
-      {showLabel ? (
-        <span className="font-mono text-3xs tracking-[0.02em]">
-          {enabled ? "Sound On" : "Sound Off"}
-        </span>
-      ) : null}
     </button>
   );
 }

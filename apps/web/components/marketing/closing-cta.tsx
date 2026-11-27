@@ -9,13 +9,13 @@
  * It is decorative and `aria-hidden`; the figure is already in the heading.
  *
  * Behind both, the PRISM light leans green or red with the last session's
- * breadth; the line under the buttons states that figure.
+ * breadth, as ambient colour only.
  */
 
 import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 
-import { describeBreadth, loadBreadth } from "@/components/marketing/proofs/breadth";
+import { loadBreadth } from "@/components/marketing/proofs/breadth";
 import { Reveal } from "@/components/marketing/reveal";
 import { LiquidChrome } from "@/components/prism/liquid-chrome";
 import { Magnetic } from "@/components/prism/magnetic";
@@ -60,11 +60,6 @@ export async function ClosingCta() {
               <Link href="/markets">See the markets</Link>
             </Button>
           </div>
-          {breadth ? (
-            <p className="mt-6 font-mono text-2xs text-text-secondary">
-              Today&rsquo;s sky: {describeBreadth(breadth)}.
-            </p>
-          ) : null}
         </Reveal>
       </div>
     </section>

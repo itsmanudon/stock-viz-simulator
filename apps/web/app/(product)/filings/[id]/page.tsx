@@ -53,7 +53,7 @@ export default async function FilingPage({
   const choices: CopilotChoice[] = aiChoices(status, keys);
   return (
     <div className="w-full space-y-4 px-4 py-6 sm:px-6 lg:py-7 xl:px-8">
-      <PageHeader eyebrow="Workbench" title={doc.title} description="" />
+      <PageHeader title={doc.title} description="" />
       <DocumentMeta doc={doc} />
       <p className="text-xs">
         <Link href={`/filings?ticker=${encodeURIComponent(doc.ticker)}`} className="underline">

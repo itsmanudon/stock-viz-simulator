@@ -399,7 +399,7 @@ async function FaqCandle() {
         <div className="relative aspect-[16/9] w-full max-w-md overflow-hidden rounded-2xl border border-border-muted bg-card">
           <ExplodedCandle bar={values} />
         </div>
-        <figcaption className="font-mono text-2xs leading-5 text-text-tertiary">
+        <figcaption className="sr-only">
           How to read a candle: {ticker}, {formatCloseDate(bar.ts)}. Open {f(values.open)}, high{" "}
           {f(values.high)}, low {f(values.low)}, close {f(values.close)}.
         </figcaption>

@@ -79,7 +79,6 @@ export default async function SavedRunPage({ params }: { params: Promise<{ runId
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow="Quant Lab"
         title={`${KIND_LABEL[kind] ?? kind} · ${run.ticker}`}
         description={`${run.execution_profile} · fees ${run.fee_schedule} · ${run.bar_count} bars read`}
         meta={<MetaChip>Saved {formatUtcDateTime(run.created_at)}</MetaChip>}

@@ -1,50 +1,29 @@
 /**
  * Marketing hero, in the Aurora direction (SolCard's composition, board v5).
  *
- * Centred: a glass badge, the headline, two pill buttons and the honest
- * constraints as chips. Below them, `HeroStage` shows the real-data product
+ * Centred: the headline, its line and two pill buttons, with no small labels
+ * or chips around them (owner, 27 Nov 2026). Below them, `HeroStage` shows the real-data product
  * panel with a phone in front that rotates through app screens, and on wide
  * screens pins while the paper card lifts out of the phone (option B).
  *
  * This file stays a server component: it fetches the data and builds the
  * markup, and hands it to the client stage. The constraints (end-of-day
- * data, simulated fills) stay in the chips as text; the phone and pills are
- * pictures, so nothing on them may be the only place a fact appears.
+ * data, simulated fills) are stated in the intro's paragraph; the phone and
+ * pills are pictures, so nothing on them may be the only place a fact appears.
  */
 
-import {
-  ArrowRight,
-  CalendarCheck,
-  Check,
-  CloudSun,
-  Database,
-  ShieldCheck,
-  Sparkles,
-  Wallet,
-} from "lucide-react";
+import { ArrowRight, CalendarCheck, ShieldCheck, Wallet } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import Link from "next/link";
 
 import { HeroPanel } from "@/components/marketing/hero-panel";
 import { loadPhoneScreens } from "@/components/marketing/hero-phone-screens";
 import { HeroStage } from "@/components/marketing/hero-stage";
-import { describeBreadth, loadBreadth } from "@/components/marketing/proofs/breadth";
+import { loadBreadth } from "@/components/marketing/proofs/breadth";
 import { LiquidChrome } from "@/components/prism/liquid-chrome";
 import { Magnetic } from "@/components/prism/magnetic";
+import { AmbientMood } from "@/components/sound/ambient-music";
 import { Button } from "@/components/ui/button";
-import { listSymbols } from "@/lib/api";
-
-/**
- * Real count or nothing. A hardcoded "500+" would be the exact kind of
- * invented proof the repo's guides rule out.
- */
-async function symbolCount(): Promise<number | null> {
-  try {
-    return (await listSymbols()).length;
-  } catch {
-    return null;
-  }
-}
 
 /**
  * Floating facts over the panel's chart area, from `lg` up: the chart has no
@@ -69,39 +48,19 @@ const STAGE_PILLS: { icon: LucideIcon; label: string; className: string }[] = [
 ];
 
 export async function Hero() {
-  const [count, screens, breadth] = await Promise.all([
-    symbolCount(),
-    loadPhoneScreens(),
-    loadBreadth(),
-  ]);
-
-  const chips: { icon: LucideIcon; label: string }[] = [
-    { icon: Check, label: "No card required" },
-    ...(count ? [{ icon: Database, label: `${count} symbols tracked` }] : []),
-    { icon: ShieldCheck, label: "Simulated fills · EOD data" },
-    // The fact behind the weather in the background, so the colour is never
-    // the only place it appears.
-    ...(breadth ? [{ icon: CloudSun, label: describeBreadth(breadth) }] : []),
-  ];
+  const [screens, breadth] = await Promise.all([loadPhoneScreens(), loadBreadth()]);
 
   const lead = (
     <div className="mx-auto flex w-full max-w-4xl flex-col items-center px-4 pt-14 text-center sm:px-6 sm:pt-20 lg:pt-24">
       {/* Liquid Chrome (WebGL), its mid-tones tinted green or red by the session's
           breadth. Full-bleed: the hero copy is transformed by its entrance
           motion, which makes it this canvas's positioning box. */}
+      <AmbientMood share={breadth?.share ?? null} />
       <LiquidChrome
         share={breadth?.share ?? null}
         className="-top-[68px] left-1/2 h-[calc(46rem+68px)] w-screen -translate-x-1/2"
       />
-      <Link
-        href="/trade"
-        className="glass inline-flex items-center gap-2 rounded-full py-1 pr-2.5 pl-3 font-mono text-2xs tracking-[0.02em] text-text-secondary transition-colors hover:text-foreground"
-      >
-        Options Settlement
-        <ArrowRight className="size-3" aria-hidden />
-      </Link>
-
-      <h1 className="mt-6 text-5xl leading-[0.98] font-medium tracking-[-0.05em] text-balance sm:text-7xl lg:text-[6.5rem]">
+      <h1 className="text-5xl leading-[0.98] font-medium tracking-[-0.05em] text-balance sm:text-7xl lg:text-[6.5rem]">
         Learn the market <span className="font-editorial text-prism pr-1">without</span> risking the
         money
       </h1>
@@ -131,21 +90,6 @@ export async function Hero() {
           </Button>
         </Magnetic>
       </div>
-
-      <ul className="mt-8 flex flex-wrap items-center justify-center gap-x-5 gap-y-2.5">
-        {chips.map((chip) => {
-          const Icon = chip.icon;
-          return (
-            <li
-              key={chip.label}
-              className="flex items-center gap-1.5 font-mono text-2xs text-text-tertiary"
-            >
-              <Icon className="size-3.5 text-brand" aria-hidden />
-              {chip.label}
-            </li>
-          );
-        })}
-      </ul>
     </div>
   );
 
@@ -164,10 +108,6 @@ export async function Hero() {
 
   const intro = (
     <div className="grid gap-4">
-      <span className="inline-flex w-max items-center gap-1.5 rounded-full border border-border-muted bg-surface-secondary px-3 py-1 text-xs text-text-secondary">
-        <Sparkles className="size-3.5 text-brand" aria-hidden />
-        What is paper trading?
-      </span>
       <h2 className="text-3xl font-medium tracking-[-0.03em] text-balance sm:text-4xl">
         A broker is real money.{" "}
         <span className="text-text-tertiary">StockViz is the rehearsal.</span>
