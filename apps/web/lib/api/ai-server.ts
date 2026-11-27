@@ -2,7 +2,14 @@ import "server-only";
 
 /** A8.2: plain English to a checked Rule DSL draft, as the signed-in user. */
 
-import type { AiKey, AiKeys, AiProviderChoice, AiRule, CopilotAnswer } from "./ai";
+import type {
+  AiKey,
+  AiKeys,
+  AiProviderChoice,
+  AiRule,
+  CopilotAnswer,
+  FigureExtraction,
+} from "./ai";
 import { authedDelete, authedGet, authedPost, authedPut } from "./server";
 
 export function draftRule(text: string): Promise<AiRule> {
@@ -32,4 +39,12 @@ export function saveAiKey(
 
 export function deleteAiKey(provider: string): Promise<void> {
   return authedDelete(`/v1/ai/keys/${encodeURIComponent(provider)}`);
+}
+
+/** A9.10: reported figures out of a stored document, each checked against its text. */
+export function extractFigures(
+  documentId: number,
+  provider: AiProviderChoice = "server",
+): Promise<FigureExtraction> {
+  return authedPost<FigureExtraction>("/v1/ai/extract", { document_id: documentId, provider });
 }
