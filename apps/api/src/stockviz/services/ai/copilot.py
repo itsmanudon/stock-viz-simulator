@@ -101,7 +101,10 @@ def check_citations(answer: str, n_sources: int) -> CitationCheck:
 
 
 def build_messages(
-    question: str, sources: list[retrieve.Passage], tickers: dict[int, str]
+    question: str,
+    sources: list[retrieve.Passage],
+    tickers: dict[int, str],
+    system: str = SYSTEM,
 ) -> list[Message]:
     lines = []
     for i, p in enumerate(sources, start=1):
@@ -110,7 +113,7 @@ def build_messages(
         head = f"[{i}] {tickers.get(doc.instrument_id, '?')} · {doc.title} · public {when}"
         lines.append(f"{head}\n{p.text[:MAX_SOURCE_CHARS]}")
     user = "Sources:\n\n" + "\n\n".join(lines) + f"\n\nQuestion: {question}"
-    return [Message("system", SYSTEM), Message("user", user)]
+    return [Message("system", system), Message("user", user)]
 
 
 def ask(
@@ -137,17 +140,29 @@ def ask(
         out.warnings.append("No stored passage matched, so no model was asked.")
         return out
     tickers = ticker_names({p.document.instrument_id for p in found.passages})
-    text = provider.complete(build_messages(q, found.passages, tickers)).strip()
+    return answer_from(provider, out, tickers)
+
+
+def answer_from(
+    provider: LLMProvider,
+    out: CopilotAnswer,
+    tickers: dict[int, str],
+    *,
+    system: str = SYSTEM,
+    not_found: str = NOT_FOUND,
+) -> CopilotAnswer:
+    """Ask ``provider`` about ``out.sources`` and check the citations into ``out``."""
+    text = provider.complete(build_messages(out.question, out.sources, tickers, system)).strip()
     out.provider, out.model = provider.name, provider.model
     out.answer = text
-    out.check = check_citations(text, len(found.passages))
+    out.check = check_citations(text, len(out.sources))
     if out.check.invalid:
         out.warnings.append(
             "The model cited sources that do not exist: "
             + ", ".join(f"[{n}]" for n in out.check.invalid)
             + "."
         )
-    if text != NOT_FOUND and not out.check.grounded:
+    if text != not_found and not out.check.grounded:
         out.warnings.append("The answer cites no source: treat it as unsupported.")
     elif out.check.uncited_sentences:
         out.warnings.append(

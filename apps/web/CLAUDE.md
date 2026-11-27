@@ -953,6 +953,16 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   disclaimer. `lib/copilot.ts` (`answerParts`, `questionProblem`). Tests:
   `tests/unit/a85-copilot.test.tsx`, the signed-out check in
   `tests/e2e/app-shell.spec.ts`.
+- **Grid and For and Against (A9.11, M11.4, M11.5).** `/copilot?mode=grid|debate`
+  (`copilot-modes`: Ask, Grid, For and Against links with `aria-current`):
+  `GridPanel` (`components/copilot/research-panels.tsx`: up to 5 symbols and
+  3 questions, a table of `grid-cell`s with `data-grounded`, the model-call
+  count) and `DebatePanel` (symbol and topic; `case-for` and `case-against`
+  side by side, "from the same passages"), both through
+  `copilot/actions.ts::gridAction` / `debateAction` (`lib/api/ai-server.ts::
+  runGrid` / `runDebate`). `CheckedAnswerView` renders an answer with its
+  citation chips, warnings and sources. Tests:
+  `tests/unit/a911-grid-debate.test.tsx`.
 - **AI keys (A8.7, M11.2 BYOK).** Settings → AI Keys
   (`components/ai-keys-panel.tsx`, actions in
   `(authed)/settings/ai-key-actions.ts`, `listAiKeys`/`saveAiKey`/

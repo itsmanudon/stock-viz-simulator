@@ -2566,6 +2566,24 @@ changing it makes saved keys unreadable). Tests: `tests/test_a87_byok.py`,
   synthetic transcript (`gemma4:e4b`): 10 figures, all verified, 0 dropped.
 - Tests: `tests/test_a910_filing_analysis.py`.
 
+**Research grid and case for / against (A9.11, M11.4, M11.5).**
+`services/ai/research.py` on A8.5's copilot (`copilot.answer_from` is the
+shared prompt-and-check step; `build_messages` takes a `system`). Nothing
+stored. `POST /v1/ai/grid {tickers 1-5, questions 1-3 (5-300), as_of?,
+provider}` (signed in, 2/min): each cell is one copilot answer from that
+company's documents only (a cell can cite only its own company; no passage =
+no model call; `model_calls` counts the calls), passages trimmed to 600
+characters; tickers upper-cased and de-duplicated; unknown 404. `POST
+/v1/ai/debate {ticker, topic 5-300, as_of?, provider}` (signed in, 5/min):
+8 passages retrieved once; the model argues the case FOR and then the case
+AGAINST from the same numbered sources (at most four cited points each and
+a closing line on what would weaken it; `NO_CASE` when they give no basis;
+both prompts forbid buy/sell/hold and targets); each side's citations are
+checked as in A8.5. Response models `AnswerCheckOut`, `GridOut`,
+`DebateOut`. Real run (`gemma4:e4b`, synthetic transcript): both sides cited
+and grounded; the against side's closing line was uncited and flagged.
+Tests: `tests/test_a911_grid_debate.py`.
+
 **Macro series from FRED (A9.7, M1.10, M3.5).** Migration `f1a9c7e3b5d2`
 (additive): `macro_series` (FRED id, title, units, frequency, observation
 range, FRED's `last_updated`, `fetched_at`) and `macro_observations` ((series,

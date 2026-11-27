@@ -327,6 +327,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/ai/grid": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Ai Grid */
+        post: operations["ai_grid_v1_ai_grid_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/ai/debate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Ai Debate */
+        post: operations["ai_debate_v1_ai_debate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/cohorts": {
         parameters: {
             query?: never;
@@ -4042,6 +4076,23 @@ export interface components {
             /** Setup Version Id */
             setup_version_id?: number | null;
         };
+        /** AnswerCheckOut */
+        AnswerCheckOut: {
+            /** Answer */
+            answer: string;
+            /** Grounded */
+            grounded: boolean;
+            /** Cited */
+            cited: number[];
+            /** Invalid Citations */
+            invalid_citations: number[];
+            /** Uncited Sentences */
+            uncited_sentences: number;
+            /** Warnings */
+            warnings: string[];
+            /** Sources */
+            sources: components["schemas"]["AskSourceOut"][];
+        };
         /** AskIn */
         AskIn: {
             /** Question */
@@ -5302,6 +5353,43 @@ export interface components {
             amount: string;
             /** Value */
             value: string;
+        };
+        /** DebateIn */
+        DebateIn: {
+            /** Ticker */
+            ticker: string;
+            /** Topic */
+            topic: string;
+            /** As Of */
+            as_of?: string | null;
+            /**
+             * Provider
+             * @default server
+             * @enum {string}
+             */
+            provider: "server" | "openai_compatible";
+        };
+        /** DebateOut */
+        DebateOut: {
+            /** Ticker */
+            ticker: string;
+            /** Topic */
+            topic: string;
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            /** Retrieval Mode */
+            retrieval_mode: string;
+            case_for: components["schemas"]["AnswerCheckOut"];
+            case_against: components["schemas"]["AnswerCheckOut"];
+            /** Provider */
+            provider: string | null;
+            /** Model */
+            model: string | null;
+            /** Disclaimer */
+            disclaimer: string;
         };
         /** DeliveryOut */
         DeliveryOut: {
@@ -7267,6 +7355,51 @@ export interface components {
             joined_at: string;
             /** Cells */
             cells: components["schemas"]["GradebookCellOut"][];
+        };
+        /** GridCellOut */
+        GridCellOut: {
+            /** Ticker */
+            ticker: string;
+            /** Question */
+            question: string;
+            result: components["schemas"]["AnswerCheckOut"];
+        };
+        /** GridIn */
+        GridIn: {
+            /** Tickers */
+            tickers: string[];
+            /** Questions */
+            questions: string[];
+            /** As Of */
+            as_of?: string | null;
+            /**
+             * Provider
+             * @default server
+             * @enum {string}
+             */
+            provider: "server" | "openai_compatible";
+        };
+        /** GridOut */
+        GridOut: {
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            /** Tickers */
+            tickers: string[];
+            /** Questions */
+            questions: string[];
+            /** Cells */
+            cells: components["schemas"]["GridCellOut"][];
+            /** Model Calls */
+            model_calls: number;
+            /** Provider */
+            provider: string | null;
+            /** Model */
+            model: string | null;
+            /** Disclaimer */
+            disclaimer: string;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -15703,6 +15836,76 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ExtractOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    ai_grid_v1_ai_grid_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GridIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GridOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    ai_debate_v1_ai_debate_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DebateIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DebateOut"];
                 };
             };
             /** @description Validation Error */
