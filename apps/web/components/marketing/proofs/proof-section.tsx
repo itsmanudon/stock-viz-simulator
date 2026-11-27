@@ -41,7 +41,6 @@ import {
 import type { Bar } from "@/lib/api/types";
 import { formatCurrency } from "@/lib/portfolio-view-model";
 import { formatCloseDate } from "@/lib/stock-workspace";
-import { titleCase } from "@/lib/title-case";
 import { cn } from "@/lib/utils";
 
 export type ProofKey =
@@ -322,7 +321,6 @@ function fmtReturn(fraction: number) {
 }
 
 function Row({
-  eyebrow,
   title,
   children,
   facts,
@@ -331,7 +329,6 @@ function Row({
   stage,
   flip,
 }: {
-  eyebrow: string;
   title: string;
   children: ReactNode;
   facts: ReactNode;
@@ -343,9 +340,6 @@ function Row({
   return (
     <li data-motion-item className="grid items-center gap-8 md:grid-cols-2 md:gap-12">
       <div className={cn("grid gap-3", flip && "md:order-2")}>
-        <span className="font-mono text-2xs tracking-[0.02em] text-brand">
-          {titleCase(eyebrow)}
-        </span>
         <h3 className="text-2xl font-medium tracking-[-0.02em] text-balance sm:text-3xl">
           {title}
         </h3>
@@ -389,7 +383,6 @@ export async function ProofSection({
         <Row
           key={key}
           flip={flip}
-          eyebrow="Backtest"
           title="Was it skill, or the order of the days?"
           facts={
             <>
@@ -412,7 +405,6 @@ export async function ProofSection({
         <Row
           key={key}
           flip={flip}
-          eyebrow="Screener"
           title="From the whole list to a handful."
           facts={
             <>
@@ -443,7 +435,6 @@ export async function ProofSection({
         <Row
           key={key}
           flip={flip}
-          eyebrow="Stock page"
           title="Put any day under the glass."
           facts={
             <>
@@ -467,7 +458,6 @@ export async function ProofSection({
         <Row
           key={key}
           flip={flip}
-          eyebrow="Replay"
           title="Trade the past without seeing the future."
           facts={
             <>
@@ -494,7 +484,6 @@ export async function ProofSection({
         <Row
           key={key}
           flip={flip}
-          eyebrow="Order fill"
           title="Every fill names its close."
           facts={
             <>
@@ -530,7 +519,6 @@ export async function ProofSection({
         <Row
           key={key}
           flip={flip}
-          eyebrow="Compare"
           title={
             compare.mixed ? "Two currencies, one starting line." : "Two prices, one starting line."
           }
@@ -557,7 +545,6 @@ export async function ProofSection({
         <Row
           key={key}
           flip={flip}
-          eyebrow="Checklist"
           title="Six published conditions, read on every pass."
           facts={
             <>
@@ -581,7 +568,6 @@ export async function ProofSection({
         <Row
           key={key}
           flip={flip}
-          eyebrow="Portfolio"
           title="Watch the split drift."
           facts={
             <>
