@@ -32,3 +32,10 @@ export function getPair(a: string, b: string, years = 3): Promise<Pair> {
     CACHE,
   );
 }
+
+export type Structure = components["schemas"]["StructureOut"];
+
+/** A9.5: swing pivots, HH/LH/HL/LL labels and pivot zones by stated rules. */
+export function getStructure(ticker: string): Promise<Structure> {
+  return apiGet<Structure>(`/v1/symbols/${encodeURIComponent(ticker)}/structure`, CACHE);
+}

@@ -62,7 +62,12 @@ import {
 import { getOptionExposure, getVolSummary } from "@/lib/api/option-exposure";
 import { planPickerOptions } from "@/lib/api/plans";
 import { getEventStudy } from "@/lib/api/research";
-import { getEarningsDrift, getForecast, getSeasonality } from "@/lib/api/research-views";
+import {
+  getEarningsDrift,
+  getForecast,
+  getSeasonality,
+  getStructure,
+} from "@/lib/api/research-views";
 import {
   type PendingOrder,
   type Portfolio,
@@ -272,6 +277,7 @@ export default async function StockPage({
     earningsDrift,
     forecast,
     volSummary,
+    structure,
   ] = await Promise.all([
     barsPromise,
     chartBarsPromise,
@@ -305,6 +311,8 @@ export default async function StockPage({
     getForecast(ticker).catch(() => null),
     // A9.4: term structure, skew, VRP and IV rank from stored chains.
     getVolSummary(ticker).catch(() => null),
+    // A9.5: swing pivots and zones by stated rules.
+    getStructure(ticker).catch(() => null),
   ]);
 
   // A6.2: an intraday lookback is whole sessions ("1D" is the last session,
@@ -683,6 +691,7 @@ export default async function StockPage({
                 seasonality={seasonality}
                 drift={earningsDrift}
                 forecast={forecast}
+                structure={structure}
               />
             ) : undefined
           }

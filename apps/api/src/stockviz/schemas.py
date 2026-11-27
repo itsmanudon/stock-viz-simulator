@@ -5471,3 +5471,32 @@ class VolSummaryOut(BaseModel):
     snapshots: int = 0
     reason: str | None = None
     method: str
+
+
+class PivotOut(BaseModel):
+    day: date
+    kind: Literal["high", "low"]
+    price: float
+    label: Literal["HH", "LH", "HL", "LL"] | None = None
+    confirmed_at: date
+
+
+class ZoneOut(BaseModel):
+    low: float
+    high: float
+    touches: int
+    side: Literal["support", "resistance", "at price"]
+    first: date
+    last: date
+
+
+class StructureOut(BaseModel):
+    """A9.5 (M2.12): swing pivots, HH/LH/HL/LL labels and pivot zones, by stated rules."""
+
+    ticker: str
+    n: int
+    sessions: int
+    atr: float | None = None
+    pivots: list[PivotOut]
+    zones: list[ZoneOut]
+    rules: dict[str, str]

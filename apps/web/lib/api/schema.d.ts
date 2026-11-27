@@ -965,6 +965,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/symbols/{ticker}/structure": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Structure
+         * @description A9.5: pivots, labels and zones over the last ``sessions`` daily bars.
+         */
+        get: operations["get_structure_v1_symbols__ticker__structure_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/portfolio": {
         parameters: {
             query?: never;
@@ -8954,6 +8974,28 @@ export interface components {
             /** Reason */
             reason?: string | null;
         };
+        /** PivotOut */
+        PivotOut: {
+            /**
+             * Day
+             * Format: date
+             */
+            day: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "high" | "low";
+            /** Price */
+            price: number;
+            /** Label */
+            label?: ("HH" | "LH" | "HL" | "LL") | null;
+            /**
+             * Confirmed At
+             * Format: date
+             */
+            confirmed_at: string;
+        };
         /**
          * PortfolioAnalyticsOut
          * @description Aggregated analytics for /v1/portfolio/analytics.
@@ -12280,6 +12322,28 @@ export interface components {
             /** Missing */
             missing: string[];
         };
+        /**
+         * StructureOut
+         * @description A9.5 (M2.12): swing pivots, HH/LH/HL/LL labels and pivot zones, by stated rules.
+         */
+        StructureOut: {
+            /** Ticker */
+            ticker: string;
+            /** N */
+            n: number;
+            /** Sessions */
+            sessions: number;
+            /** Atr */
+            atr?: number | null;
+            /** Pivots */
+            pivots: components["schemas"]["PivotOut"][];
+            /** Zones */
+            zones: components["schemas"]["ZoneOut"][];
+            /** Rules */
+            rules: {
+                [key: string]: string;
+            };
+        };
         /** SurfaceExpiryOut */
         SurfaceExpiryOut: {
             /**
@@ -13503,6 +13567,30 @@ export interface components {
             flows: number;
             /** Reason */
             reason?: string | null;
+        };
+        /** ZoneOut */
+        ZoneOut: {
+            /** Low */
+            low: number;
+            /** High */
+            high: number;
+            /** Touches */
+            touches: number;
+            /**
+             * Side
+             * @enum {string}
+             */
+            side: "support" | "resistance" | "at price";
+            /**
+             * First
+             * Format: date
+             */
+            first: string;
+            /**
+             * Last
+             * Format: date
+             */
+            last: string;
         };
     };
     responses: never;
@@ -15461,6 +15549,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PairOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_structure_v1_symbols__ticker__structure_get: {
+        parameters: {
+            query?: {
+                n?: number;
+                sessions?: number;
+            };
+            header?: never;
+            path: {
+                ticker: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StructureOut"];
                 };
             };
             /** @description Validation Error */

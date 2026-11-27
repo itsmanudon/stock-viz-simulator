@@ -2,6 +2,7 @@
 
 - `GET /v1/symbols/{t}/forecast` (A9.2, M8.2, M8.3)
 - `GET /v1/symbols/{a}/pair/{b}` (A9.3, M7.6)
+- `GET /v1/symbols/{t}/structure` (A9.5, M2.12)
 
 - `GET /v1/symbols/{t}/seasonality` (A9.1, M3.6)
 - `GET /v1/symbols/{t}/earnings-drift` (A9.1, M6.6)
@@ -17,7 +18,13 @@ from sqlmodel import Session
 from stockviz.db import get_session
 from stockviz.limiter import limiter
 from stockviz.models import Symbol
-from stockviz.schemas import EarningsDriftOut, ForecastOut, PairOut, SeasonalityOut
+from stockviz.schemas import (
+    EarningsDriftOut,
+    ForecastOut,
+    PairOut,
+    SeasonalityOut,
+    StructureOut,
+)
 from stockviz.services import seasonality as svc
 
 router = APIRouter(prefix="/v1/symbols", tags=["research"])
@@ -129,3 +136,23 @@ def get_pair(
         common = [d for d in common if d >= cutoff]
     result = pair_stats(a, b, [(d, ca[d], cb[d]) for d in common])
     return PairOut.model_validate({**result.__dict__, "method": PAIR_METHOD})
+
+
+@router.get("/{ticker}/structure", response_model=StructureOut)
+@limiter.limit("60/minute")
+def get_structure(
+    request: Request, ticker: str, session: SessionDep, n: int = 5, sessions: int = 250
+) -> StructureOut:
+    """A9.5: pivots, labels and zones over the last ``sessions`` daily bars."""
+    from stockviz.services.structure import Bar, structure
+
+    del request
+    ticker = _symbol(session, ticker)
+    if not 2 <= n <= 20 or not 30 <= sessions <= 2000:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "n is 2-20 and sessions 30-2000")
+    dates, high, low, close = svc.bars_hlc(session, ticker)
+    bars = [Bar(d, h, lo, c) for d, h, lo, c in zip(dates, high, low, close, strict=True)][
+        -sessions:
+    ]
+    result = structure(bars, n)
+    return StructureOut.model_validate({"ticker": ticker, "sessions": len(bars), **result.__dict__})
