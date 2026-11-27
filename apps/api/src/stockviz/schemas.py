@@ -5527,3 +5527,63 @@ class StructureOut(BaseModel):
     pivots: list[PivotOut]
     zones: list[ZoneOut]
     rules: dict[str, str]
+
+
+class MacroPointOut(BaseModel):
+    day: date
+    value: float
+
+
+class MacroSeriesOut(BaseModel):
+    """A9.7 (M1.10): one catalogue series as stored, with its changes."""
+
+    series_id: str
+    group: str
+    label: str
+    title: str | None = None
+    units: str | None = None
+    frequency: str | None = None
+    third_party: bool
+    fetched: bool
+    fetched_at: datetime | None = None
+    latest: MacroPointOut | None = None
+    change_month: float | None = None
+    change_year: float | None = None
+    stale: bool
+    spark: list[MacroPointOut]
+    source_url: str
+
+
+class MacroSpreadOut(BaseModel):
+    """A9.7 (M3.5): ``a - b`` on a's dates, b as of each date (at most 7 days old)."""
+
+    key: str
+    label: str
+    a: str
+    b: str
+    units: str
+    note: str
+    latest: MacroPointOut | None = None
+    year_ago: MacroPointOut | None = None
+    points: list[MacroPointOut]
+    reason: str | None = None
+
+
+class MacroOverviewOut(BaseModel):
+    groups: list[str]
+    series: list[MacroSeriesOut]
+    spreads: list[MacroSpreadOut]
+    last_fetched_at: datetime | None = None
+    source: str
+    third_party_note: str
+    method: str
+
+
+class MacroObservationOut(BaseModel):
+    day: date
+    value: float | None = None
+
+
+class MacroSeriesDetailOut(BaseModel):
+    series: MacroSeriesOut
+    observations: list[MacroObservationOut]

@@ -237,6 +237,22 @@ def checklist_evidence_refresh() -> None:
     logger.info("checklist_evidence_refresh: graded %d setups", len(run.rows))
 
 
+@single_instance("macro_refresh")
+def macro_refresh() -> None:
+    """Fetch the macro catalogue from FRED (A9.7, Saturdays). Off without a key."""
+    from stockviz.services.macro.fred import FredClient
+    from stockviz.services.macro.sync import sync_catalogue
+    from stockviz.settings import get_settings
+
+    key = get_settings().fred_api_key.get_secret_value()
+    if not key:
+        logger.info("macro_refresh: FRED_API_KEY not set; skipped")
+        return
+    with _session_scope() as session:
+        report = sync_catalogue(session, FredClient(key))
+    logger.info("macro_refresh: %d observations, %d failed", report.written, len(report.failed))
+
+
 @single_instance("portfolio_snapshots_refresh")
 def portfolio_snapshots_refresh() -> None:
     """Upsert each user's NAV, dated by the session its prices come from (LG-2)."""
@@ -386,6 +402,15 @@ def build_scheduler() -> BackgroundScheduler:
         checklist_refresh,
         trigger=CronTrigger(day_of_week="mon-fri", hour=17, minute=0),
         id="checklist_refresh",
+        replace_existing=True,
+    )
+
+    # 10am ET on Saturdays — the weekly FRED macro fetch (A9.7). Most series
+    # are monthly; the daily ones only need to be fresh for the weekly view.
+    scheduler.add_job(
+        macro_refresh,
+        trigger=CronTrigger(day_of_week="sat", hour=10, minute=0),
+        id="macro_refresh",
         replace_existing=True,
     )
 

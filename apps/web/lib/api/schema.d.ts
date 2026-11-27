@@ -54,6 +54,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/macro": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Macro Overview */
+        get: operations["macro_overview_v1_macro_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/macro/{series_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Macro Series */
+        get: operations["macro_series_v1_macro__series_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/symbols/screen": {
         parameters: {
             query?: never;
@@ -7813,6 +7847,108 @@ export interface components {
             /** Histogram */
             histogram: number;
         };
+        /** MacroObservationOut */
+        MacroObservationOut: {
+            /**
+             * Day
+             * Format: date
+             */
+            day: string;
+            /** Value */
+            value?: number | null;
+        };
+        /** MacroOverviewOut */
+        MacroOverviewOut: {
+            /** Groups */
+            groups: string[];
+            /** Series */
+            series: components["schemas"]["MacroSeriesOut"][];
+            /** Spreads */
+            spreads: components["schemas"]["MacroSpreadOut"][];
+            /** Last Fetched At */
+            last_fetched_at?: string | null;
+            /** Source */
+            source: string;
+            /** Third Party Note */
+            third_party_note: string;
+            /** Method */
+            method: string;
+        };
+        /** MacroPointOut */
+        MacroPointOut: {
+            /**
+             * Day
+             * Format: date
+             */
+            day: string;
+            /** Value */
+            value: number;
+        };
+        /** MacroSeriesDetailOut */
+        MacroSeriesDetailOut: {
+            series: components["schemas"]["MacroSeriesOut"];
+            /** Observations */
+            observations: components["schemas"]["MacroObservationOut"][];
+        };
+        /**
+         * MacroSeriesOut
+         * @description A9.7 (M1.10): one catalogue series as stored, with its changes.
+         */
+        MacroSeriesOut: {
+            /** Series Id */
+            series_id: string;
+            /** Group */
+            group: string;
+            /** Label */
+            label: string;
+            /** Title */
+            title?: string | null;
+            /** Units */
+            units?: string | null;
+            /** Frequency */
+            frequency?: string | null;
+            /** Third Party */
+            third_party: boolean;
+            /** Fetched */
+            fetched: boolean;
+            /** Fetched At */
+            fetched_at?: string | null;
+            latest?: components["schemas"]["MacroPointOut"] | null;
+            /** Change Month */
+            change_month?: number | null;
+            /** Change Year */
+            change_year?: number | null;
+            /** Stale */
+            stale: boolean;
+            /** Spark */
+            spark: components["schemas"]["MacroPointOut"][];
+            /** Source Url */
+            source_url: string;
+        };
+        /**
+         * MacroSpreadOut
+         * @description A9.7 (M3.5): ``a - b`` on a's dates, b as of each date (at most 7 days old).
+         */
+        MacroSpreadOut: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /** A */
+            a: string;
+            /** B */
+            b: string;
+            /** Units */
+            units: string;
+            /** Note */
+            note: string;
+            latest?: components["schemas"]["MacroPointOut"] | null;
+            year_ago?: components["schemas"]["MacroPointOut"] | null;
+            /** Points */
+            points: components["schemas"]["MacroPointOut"][];
+            /** Reason */
+            reason?: string | null;
+        };
         /** MarketRegimeOut */
         MarketRegimeOut: {
             /**
@@ -13699,6 +13835,59 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HealthResponse"];
+                };
+            };
+        };
+    };
+    macro_overview_v1_macro_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MacroOverviewOut"];
+                };
+            };
+        };
+    };
+    macro_series_v1_macro__series_id__get: {
+        parameters: {
+            query?: {
+                from?: string | null;
+            };
+            header?: never;
+            path: {
+                series_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MacroSeriesDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

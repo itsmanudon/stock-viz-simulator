@@ -89,6 +89,13 @@ export const WORKSPACES: readonly Workspace[] = [
         keywords: ["calendar", "results"],
       },
       { label: "News", href: "/news", matches: ["/news"], keywords: ["headlines", "aegis"] },
+      {
+        // A9.7 (M1.10, M3.5): FRED rates, inflation, credit, commodities and spreads.
+        label: "Macro",
+        href: "/macro",
+        matches: ["/macro"],
+        keywords: ["fred", "rates", "yield curve", "inflation", "spreads", "oil", "dollar"],
+      },
     ],
   },
   {

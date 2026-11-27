@@ -43,6 +43,7 @@ from stockviz.models.instrument import Instrument, InstrumentIdentifier
 from stockviz.models.intraday import IntradayBar, IntradayFile
 from stockviz.models.job_run import JobRun
 from stockviz.models.journal_entry import JournalEntry, JournalEntryFill
+from stockviz.models.macro import MacroObservation, MacroSeries
 from stockviz.models.market import (
     FxRate,
     PriceBar,
@@ -146,6 +147,8 @@ __all__ = [
     "JobRun",
     "JournalEntry",
     "JournalEntryFill",
+    "MacroObservation",
+    "MacroSeries",
     "Notification",
     "NotificationCategory",
     "NotificationChannel",
