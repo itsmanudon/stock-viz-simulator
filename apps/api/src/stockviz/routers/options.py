@@ -52,6 +52,7 @@ from stockviz.schemas import (
     SurfaceExpiryOut,
     SurfacePointOut,
     UnderlyingGreeksOut,
+    VolSummaryOut,
 )
 from stockviz.services.options import (
     RISK_FREE_RATE,
@@ -544,6 +545,27 @@ def get_option_exposure(request: Request, ticker: str, session: SessionDep) -> O
         raise HTTPException(status.HTTP_404_NOT_FOUND, f"Symbol {ticker.upper()!r} not found")
     e = exposure(session, ticker)
     return OptionExposureOut(**{**e.__dict__, "note": NOTE})  # type: ignore[arg-type]
+
+
+VOL_SUMMARY_METHOD = (
+    "From the stored nightly chains: ATM IV per expiry, 25-delta skew (put minus call IV), "
+    "VRP = the ~30-day ATM IV minus 21-session realised volatility, and IV rank and "
+    "percentile over the stored snapshots of the last year (20 at least). Context, not a "
+    "signal on its own."
+)
+
+
+@router.get("/{ticker}/vol-summary", response_model=VolSummaryOut)
+@limiter.limit("60/minute")
+def get_vol_summary(request: Request, ticker: str, session: SessionDep) -> VolSummaryOut:
+    """A9.4 (M6.3): term structure, skew, VRP and IV rank. Public."""
+    from stockviz.services.options.vol_summary import vol_summary
+
+    del request
+    if session.get(Symbol, ticker.upper()) is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, f"Symbol {ticker.upper()!r} not found")
+    v = vol_summary(session, ticker)
+    return VolSummaryOut.model_validate({**v.__dict__, "method": VOL_SUMMARY_METHOD})
 
 
 @router.get("/book", response_model=OptionsBookOut)

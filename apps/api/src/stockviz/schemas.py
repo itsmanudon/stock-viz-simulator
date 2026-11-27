@@ -5447,3 +5447,27 @@ class PairOut(BaseModel):
     spread: list[PairPointOut] = []
     reason: str | None = None
     method: str
+
+
+class VolTermOut(BaseModel):
+    expiry: date
+    days: int
+    atm_iv: float | None = None
+    skew_25d: float | None = None
+
+
+class VolSummaryOut(BaseModel):
+    """A9.4 (M6.3): term structure, skew, VRP and IV rank from stored US chains."""
+
+    ticker: str
+    snapshot_date: date | None = None
+    spot: float | None = None
+    term: list[VolTermOut] = []
+    atm_30d: float | None = None
+    realised_21d: float | None = None
+    vrp: float | None = None
+    iv_rank: float | None = None
+    iv_percentile: float | None = None
+    snapshots: int = 0
+    reason: str | None = None
+    method: str
