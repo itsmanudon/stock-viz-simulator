@@ -2246,6 +2246,17 @@ over the last year's snapshots (20 minimum, else null with the count). Web:
 the volatility card on the stock page's Options tab. Tests:
 `tests/test_a94_vol_summary.py`.
 
+**Structure annotations (A9.5, M2.12).** `GET /v1/symbols/{t}/structure?n=2-20&sessions=30-2000`
+(`routers/research_views.py`, public, 60/min; `services/structure.py`, pure):
+fractal swing pivots (a high above the `n` bars before and at least the `n`
+after; lows mirrored), each confirmed `n` bars later (`confirmed_at`), so the
+newest `n` bars carry none and adding bars never moves one; HH/LH/HL/LL
+against the previous pivot of its kind; zones = pivot prices clustered within
+ATR(14)/2 of the last bar (2+ touches), support / resistance / at price by the
+last close. Every response carries the rules in words. Web: the Structure
+section of the stock page's Research tab. Tests: `tests/test_a95_structure.py`
+(by hand, no repainting, clustering, the route).
+
 **Survivorship stamp (A1.4a, part of M1.5).** Every backtest result carries
 `universe: {name, point_in_time, survivorship_biased, note}`: the public
 `POST /v1/backtest` (`BacktestOut.universe`), stored single runs, and

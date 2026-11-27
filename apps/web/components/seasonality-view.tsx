@@ -5,7 +5,8 @@
  */
 
 import { ForecastCard } from "@/components/forecast-card";
-import type { EarningsDrift, Forecast, Seasonality } from "@/lib/api/research-views";
+import { StructureView } from "@/components/structure-view";
+import type { EarningsDrift, Forecast, Seasonality, Structure } from "@/lib/api/research-views";
 import { cn } from "@/lib/utils";
 
 const pct = (v: number | null | undefined, d = 2) =>
@@ -37,15 +38,19 @@ export function SeasonalityView({
   seasonality,
   drift,
   forecast = null,
+  structure = null,
 }: {
   seasonality: Seasonality | null;
   drift: EarningsDrift | null;
   /** A9.2: forecasts with their skill and coverage. */
   forecast?: Forecast | null;
+  /** A9.5: pivots and zones by stated rules. */
+  structure?: Structure | null;
 }) {
   return (
     <div className="space-y-8">
       {forecast ? <ForecastCard forecast={forecast} /> : null}
+      {structure ? <StructureView structure={structure} /> : null}
       {seasonality ? (
         <section aria-labelledby="season-title" className="space-y-2" data-testid="seasonality">
           <h3 id="season-title" className="text-base font-semibold">
