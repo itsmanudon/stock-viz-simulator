@@ -26,7 +26,7 @@ from stockviz.services.ai.embed import Embedder
 from stockviz.services.ai.provider import LLMProvider, Message
 from stockviz.services.documents import retrieve
 
-MAX_SOURCES = 6
+MAX_SOURCES = 10  # 6 until 28 Nov 2026; see CLAUDE.md "Copilot eval"
 MAX_SOURCE_CHARS = 1_400
 NOT_FOUND = "The stored documents do not cover this."
 SYSTEM = f"""You answer questions about companies using ONLY the numbered sources given.
