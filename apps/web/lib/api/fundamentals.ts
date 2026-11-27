@@ -42,3 +42,10 @@ export type ReverseDcf = components["schemas"]["ReverseDcfOut"];
 export function getReverseDcf(ticker: string): Promise<ReverseDcf> {
   return apiGet<ReverseDcf>(`/v1/symbols/${encodeURIComponent(ticker)}/reverse-dcf`, CACHE);
 }
+
+export type Lender = components["schemas"]["LenderOut"];
+
+/** A7.13 (M5.2): lender mode; the API answers 409 for a non-financial symbol. */
+export function getLender(ticker: string): Promise<Lender> {
+  return apiGet<Lender>(`/v1/symbols/${encodeURIComponent(ticker)}/lender`, CACHE);
+}

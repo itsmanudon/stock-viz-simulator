@@ -14,6 +14,7 @@ import {
 import { NewsReactions } from "@/components/event-study-view";
 import { ForensicsCard } from "@/components/forensics-card";
 import { FundamentalsPanel } from "@/components/fundamentals-panel";
+import { LenderCard } from "@/components/lender-card";
 import { MobileTradeSheet } from "@/components/mobile-trade-sheet";
 import { NewsList } from "@/components/news-list";
 import { OptionExposureCard } from "@/components/option-exposure-card";
@@ -55,6 +56,7 @@ import { getMyFills } from "@/lib/api/events-server";
 import {
   getForensics,
   getFundamentals,
+  getLender,
   getReverseDcf,
   getValuation,
   getValuationHistory,
@@ -167,6 +169,7 @@ export default async function StockPage({
     adjustment?: string;
     events?: string;
     to?: string;
+    tab?: string;
   }>;
 }) {
   const [{ ticker: rawTicker }, query] = await Promise.all([params, searchParams]);
@@ -271,6 +274,7 @@ export default async function StockPage({
     checklist,
     relativeStrength,
     forensics,
+    lender,
     reverseDcf,
     exposure,
     seasonality,
@@ -300,6 +304,8 @@ export default async function StockPage({
     getRelativeStrength(ticker).catch(() => null as RelativeStrength | null),
     // A7.3: the forensic scorecard; a failed call drops the card only.
     getForensics(ticker).catch(() => null),
+    // A7.13: lender mode; 409 (not financial) and failures drop the card.
+    getLender(ticker).catch(() => null),
     // A7.4: the reverse DCF at the default inputs; a failed call drops the card.
     getReverseDcf(ticker).catch(() => null),
     // A7.9: GEX/DEX from the stored US chain; no chain, no Options tab.
@@ -662,6 +668,7 @@ export default async function StockPage({
 
       <section aria-label={`${ticker} research`} className="mt-7 xl:mt-8">
         <StockResearchTabs
+          initialTab={query.tab}
           newsCount={news.length}
           orderCount={tickerOrders?.length ?? 0}
           overview={
@@ -682,6 +689,7 @@ export default async function StockPage({
               />
               <ReverseDcfCard ticker={ticker} initial={reverseDcf} />
               <ForensicsCard forensics={forensics} />
+              <LenderCard lender={lender} />
             </div>
           }
           options={

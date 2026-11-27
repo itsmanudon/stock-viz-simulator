@@ -12,6 +12,7 @@ export function StockResearchTabs({
   positionOrders,
   newsCount = 0,
   orderCount = 0,
+  initialTab,
 }: {
   overview: ReactNode;
   /** Phase 6.4: statements and key metrics. */
@@ -24,9 +25,20 @@ export function StockResearchTabs({
   positionOrders: ReactNode;
   newsCount?: number;
   orderCount?: number;
+  /** A7.13: `?tab=` from a desk link; ignored when that tab is not shown. */
+  initialTab?: string;
 }) {
+  const shown: Record<string, boolean> = {
+    overview: true,
+    financials: Boolean(financials),
+    options: Boolean(options),
+    research: Boolean(research),
+    news: true,
+    "position-orders": true,
+  };
+  const start = initialTab && shown[initialTab] ? initialTab : "overview";
   return (
-    <Tabs.Root defaultValue="overview" className="min-w-0">
+    <Tabs.Root defaultValue={start} className="min-w-0">
       <Tabs.List
         aria-label="Stock research sections"
         className="flex gap-5 overflow-x-auto border-b border-border-muted sm:gap-7"

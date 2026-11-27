@@ -125,6 +125,13 @@ export const WORKSPACES: readonly Workspace[] = [
         keywords: ["events", "earnings reaction"],
       },
       {
+        // A7.13: Swing, Compounder, Derivatives and Quant desk presets.
+        label: "Desks",
+        href: "/desks",
+        matches: ["/desks"],
+        keywords: ["swing", "compounder", "derivatives", "presets", "trading style"],
+      },
+      {
         // A7.10 (M5.5): stored filings and concall transcripts, searched as of a date.
         label: "Filings",
         href: "/filings",
