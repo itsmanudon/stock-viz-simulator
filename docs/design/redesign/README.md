@@ -19,7 +19,7 @@ C14 to C20 come from the second audit of the signed-in pages (C20, Trade twice i
 
 | # | Change | Severity | Effort | Note |
 |---|---|---|---|---|
-| 1 | [M1](#m1) Navigation and top bar | P1 | M | Every page benefits; closes C1 and C5 |
+| 1 | [M1](#m1) Navigation and top bar | P1 | M | Every page benefits; closes C1 and C5 (states in M11) |
 | 2 | [C15](#c15) Markets: fold rows without closes | P1 | S | The longest table |
 | 3 | [C14](#c14) Checklist as a matrix | P1 | M | The longest page |
 | 4 | [M3](#m3) “Not set up” state and method notes | P1 | S | Removes developer text; closes C2 |
@@ -29,15 +29,22 @@ C14 to C20 come from the second audit of the signed-in pages (C20, Trade twice i
 | 8 | [M2](#m2) First-use pattern (20 empty pages) | P1 | M | Start with Pairs Lab; closes C3 and C4 |
 | 9 | [C16](#c16) Morning Brief counts and moves | P2 | S |  |
 | 10 | [C17](#c17) Dashboard hero composition | P2 | S |  |
-| 11 | [C7](#c7) Dashboard line scale | P2 | S | Same card as C17 |
-| 12 | [M4](#m4) Screener rule in the open | P2 | M | Closes C8 |
-| 13 | [M5](#m5) Phone tabs and More sheet | P2 | M | Closes C13 |
-| 14 | [C19](#c19) Notifications: one home | P2 | S |  |
-| 15 | [C6](#c6) One row of tabs on Quant Lab | P2 | S |  |
-| 16 | [C9](#c9) Terrain sentence readable | P2 | S | Landing |
-| 17 | [C10](#c10) Compare in chrome colours | P3 | S |  |
-| 18 | [C11](#c11) Range chips for dates | P3 | S |  |
-| 19 | [C12](#c12) Missing space on the dashboard | P3 | S |  |
+| 11 | [C24](#c24) Portfolio: days, not snapshots | P2 | S | Wording |
+| 12 | [C7](#c7) Dashboard line scale | P2 | S | Same card as C17 |
+| 13 | [M4](#m4) Screener rule in the open | P2 | M | Closes C8 |
+| 14 | [M5](#m5) Phone tabs and More sheet | P2 | M | Closes C13 |
+| 15 | [M7](#m7) Trade with one ticket | P2 | M | Closes C21, C22, C23; needs one new column |
+| 16 | [M8](#m8) Orders say how far the trigger is | P2 | S | Closes C25 |
+| 17 | [M9](#m9) Alerts with a live preview | P2 | S | The C4 two-column pattern |
+| 18 | [M11](#m11) Top bar regime states | P2 | S | Build with M1 |
+| 19 | [M10](#m10) Notifications in one home | P2 | S | Closes C19 |
+| 20 | [C6](#c6) One row of tabs on Quant Lab | P2 | S |  |
+| 21 | [C9](#c9) Terrain sentence readable | P2 | S | Landing |
+| 22 | [C10](#c10) Compare in chrome colours | P3 | S |  |
+| 23 | [C11](#c11) Range chips for dates | P3 | S |  |
+| 24 | [C12](#c12) Missing space on the dashboard | P3 | S |  |
+| 25 | [C26](#c26) Stock chart: two rows of controls | P3 | S |  |
+| 26 | [C27](#c27) Sector box falls back to holdings | P3 | S |  |
 
 ---
 
@@ -74,6 +81,8 @@ Scope: only this one section changes. The hero, terrain, movers, session tiles, 
 **What stays:** the same six surfaces, links, icons, and lead and detail text word for word; one stretched link per tile; "Not investment advice." on Checklist; the position after the marquee and before the FAQ.
 
 **Why this design:** it uses only patterns already on the landing page (two-tone heading, session-tile card and glow, the fill-steps chrome orb, the outlined pill), so it cannot look foreign. Illustrations carry no numbers, following the rule written above `SessionTiles`. A mixed-width grid is the usual way product sites show "what's inside" in one view (general knowledge; Awwwards could not be opened from the design environment).
+
+**Approved copy** (owner, 27 Nov 2026; use these words exactly): heading "Everything in the workspace." with the soft half "Six surfaces, one paper account."; intro "Look, test, then trade. Every surface reads the same stored daily closes, so what you screen is what you fill."; pill "Open a paper account" (the hero's label).
 
 **Build note**
 
@@ -151,7 +160,7 @@ DONE WHEN  At 1440 x 900 every workspace heading, Status and Settings
 **Audit findings this closes**
 
 - **C3 · Half the new pages open empty.** 20 of 41 signed-in pages open on a dashed box with one sentence (filter "Empty first" in the gallery). None shows what the result will look like, and only some offer a starting example.
-- **C4 · Form pages use half the screen.** On Copilot, Classroom, Pairs lab, Theses, Filings, Notifications, Desks, Compare and Backtest the content stops near the middle; a third or more of a 1440 px screen is empty.
+- **C4 · Form pages use half the screen.** On Copilot, Classroom, Pairs lab, Theses, Filings, Notifications, Alerts, Desks, Compare and Backtest the content stops near the middle; a third or more of a 1440 px screen is empty.
 
 **Today.** Two empty fields and a Test button. Nothing says what a result looks like.
 
@@ -186,7 +195,7 @@ DONE WHEN  /pairs shows KO · PG preselected and "Test KO against PG";
 **Audit findings this closes**
 
 - **C2 · Developer instructions are shown to users.** India options prints the API module docstring as text, with raw Markdown (`**ATM IV:**`, ```SKEW_OFFSET```) and a CLI command. Copilot says "set OLLAMA_MODEL". Macro and the Checklist name `stockviz.cli` commands.
-- **C4 · Form pages use half the screen.** On Copilot, Classroom, Pairs lab, Theses, Filings, Notifications, Desks, Compare and Backtest the content stops near the middle; a third or more of a 1440 px screen is empty.
+- **C4 · Form pages use half the screen.** On Copilot, Classroom, Pairs lab, Theses, Filings, Notifications, Alerts, Desks, Compare and Backtest the content stops near the middle; a third or more of a 1440 px screen is empty.
 
 **Today.** A Python docstring rendered as text with raw Markdown and a CLI command.
 
@@ -286,7 +295,7 @@ DONE WHEN  At 390 px every page is two taps from any other;
 **Audit findings this closes**
 
 - **C2 · Developer instructions are shown to users.** India options prints the API module docstring as text, with raw Markdown (`**ATM IV:**`, ```SKEW_OFFSET```) and a CLI command. Copilot says "set OLLAMA_MODEL". Macro and the Checklist name `stockviz.cli` commands.
-- **C4 · Form pages use half the screen.** On Copilot, Classroom, Pairs lab, Theses, Filings, Notifications, Desks, Compare and Backtest the content stops near the middle; a third or more of a 1440 px screen is empty.
+- **C4 · Form pages use half the screen.** On Copilot, Classroom, Pairs lab, Theses, Filings, Notifications, Alerts, Desks, Compare and Backtest the content stops near the middle; a third or more of a 1440 px screen is empty.
 
 **Today.** "No Model on This Server" and an environment variable.
 
@@ -306,6 +315,174 @@ DO      Primary .prism-cta "Add Your AI Key" -> /settings#ai-keys-heading;
         the preview card is labelled as an example.
 DONE WHEN  With no model, the main text names no environment
         variable and the button lands on the AI Keys panel.
+```
+
+---
+
+## M7
+
+**Trade with one ticket** · P2 · effort M
+
+| Today | Proposed |
+|---|---|
+| ![Today: /trade on dev at 1440 px and 390 px, scaled to the same height: the stock ticket, then the whole Options section](img/ev-trade-length.jpg) | ![Proposed: Trade with the AAPL chart and recent fills on the left and one ticket with a Stock, Option, Strategy switch on the right](img/mock-t1-trade.jpg) |
+
+**Audit findings this closes**
+
+- **C21 · Trade stacks two order forms on one page.** The equity ticket, then the whole Options section (chain, ticket, positions) below it. The page is 2,698 px tall on desktop and 4,979 px on a phone, and most of a stock order is above a long options block nobody asked for.
+- **C22 · Fills don't say which close they used.** Recent execution, Trade history and Orders show only "Nov 25, 03:39 PM UTC", the time the order was placed. The price came from the Apr 7, 2025 close, and nothing on the page says so.
+- **C23 · The Trade symbol picker is a plain list of every symbol.** A native `select` holds all 161 symbols in one long list with no search; Watchlist and Alerts already use a search box.
+
+**Today.** The equity ticket, then the whole Options section below it: 2,698 px on desktop, 4,979 px on a phone. A native list of every symbol. Fills show only the time the order was placed.
+
+**What changes.** Left: the last 40 stored AAPL closes and Recent Fills with a Price From column ("Close of Apr 7, 2025"). Right: one ticket with a Stock / Option / Strategy switch, a symbol search with the last stored close and shares held, the estimate and buying power after the order, then the account card (buying power, reserved by orders, cash, total).
+
+**What stays.** Every order type, options chain and option ticket (behind Option), multi-leg strategies (behind Strategy), the review step, the account figures, the link to Orders.
+
+**Why.** Every broker ticket keeps one form and switches the instrument; the chart beside it shows what the fill is priced from. Naming the close answers the most common question on a daily-close simulator: what price did I get, and why.
+
+**Build note**
+
+```
+FILES   app/(product)/(authed)/trade/page.tsx, components/order-ticket.tsx,
+        components/option-trade-form.tsx, models/execution.py
+DO      Ticket = tabs Stock | Option | Strategy (role=tablist), the
+        option chain moves inside Option. Symbol = the Watchlist
+        combobox. Store the bar's session date on SimulatedExecution
+        (new nullable column, Alembic) and show it as Price From.
+DONE WHEN  /trade at 1440 px is under 1,200 px tall with Stock open;
+        AAPL fill rows read "Close of Apr 7, 2025"; buying power
+        after a 1-share AAPL buy reads $30,093.30 on the seed.
+```
+
+---
+
+## M8
+
+**Orders that say how far the trigger is** · P2 · effort S
+
+| Today | Proposed |
+|---|---|
+| ![Today: /orders on dev: triggers with no last close or distance](img/ev-orders.jpg) | ![Proposed: Orders with Last Close and Trigger Is columns and shape-and-word status](img/mock-o1-orders.jpg) |
+
+**Audit findings this closes**
+
+- **C25 · Orders don't say how far the trigger is.** A pending stop at $300 shows no last close and no distance, so you can't tell it is 16.2% away. Alerts already show "8.47% above".
+- **C22 · Fills don't say which close they used.** Recent execution, Trade history and Orders show only "Nov 25, 03:39 PM UTC", the time the order was placed. The price came from the Apr 7, 2025 close, and nothing on the page says so.
+
+**Today.** Ticker, side, type, quantity and trigger only. Nothing says whether a stop at $300 is near.
+
+**What changes.** Last Close with its date, and "Trigger Is 16.2% below last close" for the MSFT stop, 43.4% above for the NVDA take profit, 22.8% below for the TSLA limit. Status as a shape and a word.
+
+**What stays.** Filters, Cancel Order on each row, the reserve sentence, placed time (now on hover).
+
+**Why.** Alerts already show distance; orders are the same question with money attached.
+
+**Build note**
+
+```
+FILES   app/(product)/(authed)/orders/page.tsx
+DO      distance = (trigger - lastClose) / lastClose, from the stored
+        close the page already loads; word "above" or "below".
+DONE WHEN  On the seed the MSFT stop reads "$357.86 Apr 7, 2025" and
+        "16.2% below last close".
+```
+
+---
+
+## M9
+
+**Alerts with a live preview (the two-column form)** · P2 · effort S
+
+| Today | Proposed |
+|---|---|
+| ![Today: /alerts on dev: the form and list in the left half](img/ev-alerts.jpg) | ![Proposed: Alerts with the create form on the left and a live preview on the right](img/mock-a1-alerts.jpg) |
+
+**Audit findings this closes**
+
+- **C4 · Form pages use half the screen.** On Copilot, Classroom, Pairs lab, Theses, Filings, Notifications, Alerts, Desks, Compare and Backtest the content stops near the middle; a third or more of a 1440 px screen is empty.
+
+**Today.** The form and list in the left half of the screen; the right half empty.
+
+**What changes.** Create Alert on the left; Live Preview on the right restates the alert as a sentence, the last stored close and the distance to the target, and an example close line. The active list below shows the distance for each alert. This is the pattern for every C4 form page.
+
+**What stays.** Every alert type, repeat options, Pause and History on each alert, the "judged on stored daily closes" note.
+
+**Why.** A preview that answers "would this fire today?" stops alerts that are already met or far out of range.
+
+**Build note**
+
+```
+FILES   app/(product)/(authed)/alerts/page.tsx, components/alert-form.tsx
+DO      Grid lg:grid-cols-2; preview reads the form state, no request
+        per keystroke beyond the close already loaded.
+DONE WHEN  V at or above 330.00 previews "$312.32, Apr 7, 2025" and
+        "5.66% above, not met today"; the line is labelled as an example.
+```
+
+---
+
+## M10
+
+**Notifications in one home** · P2 · effort S
+
+| Today | Proposed |
+|---|---|
+| ![Today: /notifications on dev: a Watchlist / Alerts tab strip from another workspace](img/in/open-notifications.jpg) | ![Proposed: Notifications with filter pills, an honest empty state and a Waiting to Report column](img/mock-n1-notifications.jpg) |
+
+**Audit findings this closes**
+
+- **C19 · Notifications has two homes.** It sits under Today in the sidebar, but its page shows a tab strip with Watchlist and Alerts from Portfolio & Tax.
+
+**Today.** A Watchlist / Alerts tab strip borrowed from Portfolio and Tax, under a page that lives in Today.
+
+**What changes.** No tab strip. Filter pills by kind, an empty state that says what will land here, and a right column with the 3 active alerts, 3 pending orders and where else notices can be sent.
+
+**What stays.** The sidebar place under Today, the unread count, every notification kind, delivery settings.
+
+**Why.** One page, one home (C19); the right column turns an empty inbox into a view of what is waiting.
+
+**Build note**
+
+```
+FILES   components/operational-page-header.tsx:28,
+        app/(product)/(authed)/notifications/page.tsx
+DO      Drop the operational tabs on /notifications only. Counts come
+        from the alerts and orders the page can already query.
+DONE WHEN  /notifications shows no Watchlist / Alerts tabs and the
+        right column reads 3 and 3 on the seed.
+```
+
+---
+
+## M11
+
+**Top bar regime states** · P2 · effort S
+
+| Today | Proposed |
+|---|---|
+| ![Today: Top bar on dev: two chips reading Unknown](img/ev-topbar.jpg) | ![Proposed: Three top bars: no regime chips, one chip, two chips](img/mock-r1-topbar.jpg) |
+
+**Audit findings this closes**
+
+- **C5 · The top bar has eight controls and two say "Unknown".** Search, data date, sound (four dots, no word), US regime "Unknown", India regime "Unknown", book, bell, avatar. "Unknown" reads like an error.
+
+**Today.** Two chips that say "Unknown" on every page.
+
+**What changes.** No chip while a market's regime is unknown (today on the seed); one chip when one market is known; two when both are. Each chip opens its rules. States in the second and third rows are examples.
+
+**What stays.** The regime popover and its rules, the data-date chip, book, sound, bell, avatar.
+
+**Why.** A chip that says "Unknown" reads like an error; hiding it costs nothing and frees room.
+
+**Build note**
+
+```
+FILES   components/regime-popover.tsx:43, components/regime-badge.tsx,
+        components/app-shell.tsx
+DO      Return null when the label is Unknown; keep the popover.
+DONE WHEN  No "Unknown" chip on the seed; a known regime shows
+        "US · Calm Trend" style text with a dot, never colour alone.
 ```
 
 ---
@@ -432,21 +609,21 @@ DONE WHEN  With no model, the main text names no environment
 
 ---
 
-## C19
+## C24
 
-**Notifications has two homes** · P2 · effort S
+**Portfolio says "2 daily snapshots" when it means days** · P2 · effort S
 
-![Today: /notifications at 1440 px](img/in/open-notifications.jpg)
+![Today: Risk card on /portfolio](img/ev-pf-risk.jpg)
 
-*Today: /notifications at 1440 px.*
+*Today: Risk card on /portfolio.*
 
-**Today.** It sits under Today in the sidebar, but its page shows a tab strip with Watchlist and Alerts from Portfolio & Tax.
+**Today.** "Based on 2 daily snapshots" is the number of days since the account opened, not the number of snapshots stored.
 
-**Change.** Drop the tab strip on /notifications and keep it in Today (the smaller change; the owner can choose to move it beside Alerts instead).
+**Change.** Label it "Account open 2 days", or count the stored snapshots. Same words wherever the figure appears.
 
-**Files.** `components/operational-page-header.tsx:28, lib/app-navigation.ts`
+**Files.** `services/trading/views.py:191, components/portfolio-metrics.tsx:160`
 
-**Done when.** /notifications shows no Watchlist / Alerts tab strip and stays under Today in the sidebar.
+**Done when.** On the seed the risk card reads “Account open 2 days” (or the real stored snapshot count, labelled as snapshots); the API field and its label use the same word.
 
 ---
 
@@ -532,6 +709,34 @@ DONE WHEN  With no model, the main text names no environment
 
 ---
 
+## C26
+
+**The stock chart has four rows of controls** · P3 · effort S
+
+**Today.** Range, interval, overlays, then Profile and Events each on their own row above the chart.
+
+**Change.** Keep range and interval in one row; fold Profile and Events into one "Show" menu with checkboxes.
+
+**Files.** `components/stock-chart-toolbar.tsx, components/chart-tools.tsx`
+
+**Done when.** At 1440 px /stocks/AAPL shows at most two rows of controls above the chart; Profile and Events stay one click away under “Show”.
+
+---
+
+## C27
+
+**The sector box can sit empty** · P3 · effort S
+
+**Today.** When sectors are not loaded (here, because `stockviz.cli metadata` had not run) the allocation card shows one note and nothing else.
+
+**Change.** Fall back to weights by holding, labelled "By holding: sectors not loaded".
+
+**Files.** `components/portfolio-analytics.tsx:58`
+
+**Done when.** With sectors not loaded, the allocation card shows a bar by holding labelled “By holding: sectors not loaded”; once `stockviz.cli metadata` runs it switches back to sectors.
+
+---
+
 ## How the screenshots were made
 
-"Today" images are Playwright captures of `dev` 0909e55 run locally with the demo seed. L1's proposed images were rendered by swapping the section inside the running landing page, so fonts, colours and neighbours are real. M mockups use the app's own tokens and fonts with real stored data (25 priced symbols, latest close Apr 7, 2025); preview cards without figures are labelled as examples. New copy needs the owner's OK.
+"Today" images are Playwright captures of `dev` 0909e55 run locally with the demo seed. L1's proposed images were rendered by swapping the section inside the running landing page, so fonts, colours and neighbours are real. M mockups use the app's own tokens and fonts with real stored data (25 priced symbols, latest close Apr 7, 2025); preview cards without figures are labelled as examples. All new copy, including the L1 heading, intro line and pill label, was approved by the owner on 27 Nov 2026.

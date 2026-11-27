@@ -5,7 +5,7 @@ nothing in this folder is app code, and nothing here has been built yet.
 
 | Folder | What it is | Read it when |
 | --- | --- | --- |
-| [`audit/`](./audit/README.md) | Round 2 UI audit (27 Nov 2026): scores, 20 findings with evidence, research | You want to know why a change is needed |
+| [`audit/`](./audit/README.md) | Round 2 UI audit (27 Nov 2026): scores, 27 findings with evidence (C21 to C27 from the deeper pass on Trade, Orders, Portfolio and Alerts), research | You want to know why a change is needed |
 | [`redesign/`](./redesign/README.md) | **The build list**: every change in build order, with today's screen, the proposed design, what stays, files and "done when" checks | You are building |
 
 ## Decisions that hold
@@ -14,7 +14,8 @@ nothing in this folder is app code, and nothing here has been built yet.
   is for identity, focus and selection only; gain and loss colours only
   through `--positive` and `--negative`. No other palette is proposed.
 - **Landing page:** keep it as it is, except the "Everything in the
-  workspace" section (L1).
+  workspace" section (L1). Its new copy (heading, intro line, pill label)
+  was approved by the owner on 27 Nov 2026; use it word for word.
 - **Inside the app:** Title Case via `titleCase()`, never capitals; status as
   a shape and a word; one-shot motion that settles; `localStorage` only as a
   convenience.

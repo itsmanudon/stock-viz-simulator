@@ -4,7 +4,7 @@
 
 This is the audit: where the app stands and why. **What to build is in [`../redesign/README.md`](../redesign/README.md)**, one card per change, in build order. The full illustrated report, with every screen, before/after sliders and the research, is the artifact "StockViz PRISM Audit" (https://claude.ai/artifact/SC4gfUQ1sfxE7vi9WLL4YR, private to the owner until shared).
 
-It merges two audits done the same day (the whole app, and a deeper pass on the signed-in pages), so the numbers here, the build list and the artifacts agree. No code was changed.
+It merges two audits done the same day (the whole app, and a deeper pass on the signed-in pages), plus a third pass on Trade, Orders, Portfolio, Alerts and the stock page (C21 to C27), so the numbers here, the build list and the artifacts agree. No code was changed.
 
 ## Decisions that hold
 
@@ -19,7 +19,7 @@ Nielsen's ten heuristics, 0 to 4 each, out of 40, per group of pages that share 
 
 | Whole app | Round 1 start | Dev today | With this redesign |
 |---|---:|---:|---:|
-| Average of page groups | 30 | 29 | 36 |
+| Average of page groups | 30 | 28 | 36 |
 
 | Group | Pages | Now | Target | What holds it back |
 |---|---|---:|---:|---|
@@ -30,10 +30,10 @@ Nielsen's ten heuristics, 0 to 4 each, out of 40, per group of pages that share 
 | Markets | `/markets` | 26 | 35 | 136 of 161 rows are dashes, 8,525 px tall (C15) |
 | Checklist | `/checklist` | 21 | 35 | 966 repeated labels, 17,167 px tall (C14) |
 | Screener | `/screener` | 28 | 37 | Rule builder hidden (C8); 5 px past a phone (C18) |
-| Stock and tearsheet | `/stocks/AAPL` | 33 | 36 | Sidebar (C1) |
-| Trade, Orders, History | `/trade …` | 33 | 36 | Sidebar (C1) |
-| Portfolio | `/portfolio …` | 32 | 36 | Import, tax and journal open empty (C3) |
-| Watchlist, Alerts, Notifications | `/watchlist …` | 32 | 36 | Notifications has two homes (C19); half-width forms (C4) |
+| Stock and tearsheet | `/stocks/AAPL` | 32 | 36 | Sidebar (C1); four rows of chart controls (C26) |
+| Trade, Orders, History | `/trade …` | 30 | 37 | Two order forms stacked (C21); fills don't name their close (C22); symbol list (C23); no distance to trigger (C25) |
+| Portfolio | `/portfolio …` | 31 | 36 | Import, tax and journal open empty (C3); days called snapshots (C24); empty sector box (C27) |
+| Watchlist, Alerts, Notifications | `/watchlist …` | 32 | 37 | Notifications has two homes (C19); half-width Alerts form (C4) |
 | Charts and Compare | `/charts, /compare` | 31 | 35 | Compare in blue and violet (C10); half-width (C4) |
 | Backtest family | `/backtest …` | 29 | 36 | Two rows of tabs (C6); native dates (C11); runs open empty (C3) |
 | First-use research tools | `/pairs, /optimise …` | 24 | 36 | Open on a blank box with no example (C3, C4) |
@@ -53,8 +53,8 @@ P1 major, P2 minor, P3 polish. Effort S is under a day, M a few days. The redesi
 | C1 | P1 | M | The sidebar no longer fits the screen | M1 |
 | C2 | P1 | S | Developer instructions are shown to users | M3, M6 |
 | C3 | P1 | M | Half the new pages open empty | M2 |
-| C4 | P2 | M | Form pages use half the screen | M2, M3, M6 |
-| C5 | P2 | S | The top bar has eight controls and two say "Unknown" | M1 |
+| C4 | P2 | M | Form pages use half the screen | M2, M3, M6, M9 |
+| C5 | P2 | S | The top bar has eight controls and two say "Unknown" | M1, M11 |
 | C6 | P2 | S | Two rows of tabs on Quant Lab pages | C6 |
 | C7 | P2 | S | A quiet month looks like a crash | C7 |
 | C8 | P2 | M | The screener hides its best tool | M4 |
@@ -68,8 +68,15 @@ P1 major, P2 minor, P3 polish. Effort S is under a day, M a few days. The redesi
 | C16 | P2 | S | Morning Brief wastes half the screen | C16 |
 | C17 | P2 | S | Dashboard hero shows only two figures | C17 |
 | C18 | P2 | S | Screener runs 5 px off a phone | C18 |
-| C19 | P2 | S | Notifications has two homes | C19 |
+| C19 | P2 | S | Notifications has two homes | M10 |
 | C20 | P3 | S | Trade appears twice in the dashboard shortcuts | left as is |
+| C21 | P2 | M | Trade stacks two order forms on one page | M7 |
+| C22 | P2 | S | Fills don't say which close they used | M7, M8 |
+| C23 | P2 | S | The Trade symbol picker is a plain list of every symbol | M7 |
+| C24 | P2 | S | Portfolio says "2 daily snapshots" when it means days | C24 |
+| C25 | P2 | S | Orders don't say how far the trigger is | M8 |
+| C26 | P3 | S | The stock chart has four rows of controls | C26 |
+| C27 | P3 | S | The sector box can sit empty | C27 |
 
 ### C1 · The sidebar no longer fits the screen
 
@@ -111,13 +118,13 @@ P1 · effort M · `one shared FirstRun component, then each page`
 
 P2 · effort M · `the same pages`
 
-**Evidence.** On Copilot, Classroom, Pairs lab, Theses, Filings, Notifications, Desks, Compare and Backtest the content stops near the middle; a third or more of a 1440 px screen is empty.
+**Evidence.** On Copilot, Classroom, Pairs lab, Theses, Filings, Notifications, Alerts, Desks, Compare and Backtest the content stops near the middle; a third or more of a 1440 px screen is empty.
 
 ![/copilot: one box, the rest of the page empty](../redesign/img/ev-copilot.jpg)
 
 */copilot: one box, the rest of the page empty.*
 
-**Fix.** Two columns: the form on the left, and on the right something useful from data the page already has: recent items, the method or help text now under the form, or a live preview (M2, M3, M6). Desks, Compare and Backtest each need a short design pass first.
+**Fix.** Two columns: the form on the left, and on the right something useful from data the page already has: recent items, the method or help text now under the form, or a live preview (M2, M3, M6, and Alerts in M9). Desks, Compare and Backtest each need a short design pass first.
 
 ### C5 · The top bar has eight controls and two say "Unknown"
 
@@ -290,6 +297,82 @@ P3 · effort S · `components/dashboard`
 **Evidence.** Markets, Research, Trade, Portfolio, then Trade, Orders, Backtest, Alerts.
 
 **Fix.** Left as is: the owner kept the tiles on 27 Nov 2026.
+
+### C21 · Trade stacks two order forms on one page
+
+P2 · effort M · `app/(product)/(authed)/trade/page.tsx, components/order-ticket.tsx, components/option-trade-form.tsx`
+
+**Evidence.** The equity ticket, then the whole Options section (chain, ticket, positions) below it. The page is 2,698 px tall on desktop and 4,979 px on a phone, and most of a stock order is above a long options block nobody asked for.
+
+![/trade at 1440 px and 390 px, scaled to the same height](../redesign/img/ev-trade-length.jpg)
+
+*/trade at 1440 px and 390 px, scaled to the same height.*
+
+**Fix.** One ticket with a Stock / Option / Strategy switch; the chart and recent fills fill the left column (mockup M7).
+
+### C22 · Fills don't say which close they used
+
+P2 · effort S · `models/execution.py (SimulatedExecution), services/trading, components/trade-history-table and the Recent execution list`
+
+**Evidence.** Recent execution, Trade history and Orders show only "Nov 25, 03:39 PM UTC", the time the order was placed. The price came from the Apr 7, 2025 close, and nothing on the page says so.
+
+![Recent execution on /trade](../redesign/img/ev-trade-fills.jpg)
+
+*Recent execution on /trade.*
+
+**Fix.** A "Price From" column reading "Close of Apr 7, 2025". The provenance row has `reference_price` and `evaluated_at` but no bar date, so store the bar's session date with each fill first (mockup M7).
+
+### C23 · The Trade symbol picker is a plain list of every symbol
+
+P2 · effort S · `components/order-ticket.tsx:252`
+
+**Evidence.** A native `select` holds all 161 symbols in one long list with no search; Watchlist and Alerts already use a search box.
+
+![Symbol field on /trade](../redesign/img/ev-trade-symbol.jpg)
+
+*Symbol field on /trade.*
+
+**Fix.** The search combobox from Watchlist and Alerts, with the last stored close and shares held under it (mockup M7).
+
+### C24 · Portfolio says "2 daily snapshots" when it means days
+
+P2 · effort S · `services/trading/views.py:191, components/portfolio-metrics.tsx:160`
+
+**Evidence.** "Based on 2 daily snapshots" is the number of days since the account opened, not the number of snapshots stored.
+
+![Risk card on /portfolio](../redesign/img/ev-pf-risk.jpg)
+
+*Risk card on /portfolio.*
+
+**Fix.** Label it "Account open 2 days", or count the stored snapshots. Same words wherever the figure appears.
+
+### C25 · Orders don't say how far the trigger is
+
+P2 · effort S · `app/(product)/(authed)/orders/page.tsx`
+
+**Evidence.** A pending stop at $300 shows no last close and no distance, so you can't tell it is 16.2% away. Alerts already show "8.47% above".
+
+![/orders at 1440 px](../redesign/img/ev-orders.jpg)
+
+*/orders at 1440 px.*
+
+**Fix.** Add Last Close (with its date) and "Trigger Is 16.2% below last close"; status as a shape and a word (mockup M8).
+
+### C26 · The stock chart has four rows of controls
+
+P3 · effort S · `components/stock-chart-toolbar.tsx, components/chart-tools.tsx`
+
+**Evidence.** Range, interval, overlays, then Profile and Events each on their own row above the chart.
+
+**Fix.** Keep range and interval in one row; fold Profile and Events into one "Show" menu with checkboxes.
+
+### C27 · The sector box can sit empty
+
+P3 · effort S · `components/portfolio-analytics.tsx:58`
+
+**Evidence.** When sectors are not loaded (here, because `stockviz.cli metadata` had not run) the allocation card shows one note and nothing else.
+
+**Fix.** Fall back to weights by holding, labelled "By holding: sectors not loaded".
 
 ## Research
 
