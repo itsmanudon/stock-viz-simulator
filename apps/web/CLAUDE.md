@@ -965,6 +965,15 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   next week (`lib/brief.ts`: `moveText`, `shiftWeek`, `weekHref`). Tests:
   `tests/unit/a912-brief.test.ts`, the signed-in steps in
   `tests/e2e/portfolio.spec.ts`.
+- **Implied vs model distribution (A9.13, M8.5).** The stock page's Options
+  tab adds `ImpliedDistributionCard` (`components/implied-distribution-card.tsx`,
+  `implied-distribution`) from `getImpliedDistribution`
+  (`lib/api/option-exposure.ts`, cached an hour, tag `options`; dropped when it
+  fails or has a `reason`): an inline SVG of the implied density (solid) and
+  the model's (dashed) on one scale (`densityPath`), the quantile table
+  (`idist-quantiles`), the tail chances in words (`idist-tails`), the cut
+  negative share when over 1%, and the method. Neutral colours only. Tests:
+  `tests/unit/a913-implied-distribution.test.tsx`.
 - **Grid and For and Against (A9.11, M11.4, M11.5).** `/copilot?mode=grid|debate`
   (`copilot-modes`: Ask, Grid, For and Against links with `aria-current`):
   `GridPanel` (`components/copilot/research-panels.tsx`: up to 5 symbols and

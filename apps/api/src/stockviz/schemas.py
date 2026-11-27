@@ -5813,6 +5813,35 @@ class MorningBriefOut(BaseModel):
     note: str
 
 
+class DistributionPointOut(BaseModel):
+    price: float
+    implied: float
+    model: float
+
+
+class ImpliedDistributionOut(BaseModel):
+    ticker: str
+    expiry: date | None
+    days: int | None
+    spot: float | None
+    implied_atm_vol: float | None
+    model_vol: float | None
+    model_vol_source: str | None
+    quantile_levels: list[float]
+    implied_quantiles: list[float]
+    model_quantiles: list[float]
+    move: float
+    implied_p_down: float | None
+    implied_p_up: float | None
+    model_p_down: float | None
+    model_p_up: float | None
+    negative_mass: float | None
+    strikes_used: int
+    curve: list[DistributionPointOut]
+    reason: str | None
+    method: str
+
+
 class TextChangeOut(BaseModel):
     kind: str
     before: str | None
