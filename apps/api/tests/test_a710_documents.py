@@ -17,7 +17,13 @@ from sqlmodel import Session, col, select
 from stockviz import cli
 from stockviz.models import Document, DocumentText
 from stockviz.services.documents import edgar, load
-from stockviz.services.documents.extract import PDF_REASON, ExtractError, extract, html_text
+from stockviz.services.documents.extract import (
+    MAX_PDF_PAGES,
+    PDF_SCANNED_REASON,
+    ExtractError,
+    extract,
+    html_text,
+)
 from stockviz.services.documents.store import NewDocument, add_document, search, snippets
 from stockviz.services.instruments import instrument_ids
 from tests.symbols import seed_symbols
@@ -40,10 +46,49 @@ def test_html_text_drops_scripts_styles_and_hidden_xbrl() -> None:
     assert "Margin" in text and "21%" in text
 
 
-def test_pdf_and_empty_files_are_refused_with_the_reason() -> None:
-    with pytest.raises(ExtractError, match="PDF library"):
-        extract(b"%PDF-1.7", "pdf")
-    assert "owner" in PDF_REASON
+def make_pdf(pages: list[str]) -> bytes:
+    """A minimal valid PDF, one Helvetica text line per page (no text when blank)."""
+    n = len(pages)
+    kids = " ".join(f"{4 + 2 * i} 0 R" for i in range(n))
+    objs: list[bytes] = [
+        b"<< /Type /Catalog /Pages 2 0 R >>",
+        f"<< /Type /Pages /Kids [{kids}] /Count {n} >>".encode(),
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+    ]
+    for i, line in enumerate(pages):
+        body = f"BT /F1 12 Tf 72 720 Td ({line}) Tj ET".encode() if line else b""
+        objs.append(
+            f"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources "
+            f"<< /Font << /F1 3 0 R >> >> /Contents {5 + 2 * i} 0 R >>".encode()
+        )
+        objs.append(b"<< /Length %d >>\nstream\n" % len(body) + body + b"\nendstream")
+    out = bytearray(b"%PDF-1.4\n")
+    offsets = []
+    for k, obj in enumerate(objs, start=1):
+        offsets.append(len(out))
+        out += b"%d 0 obj\n" % k + obj + b"\nendobj\n"
+    xref = len(out)
+    out += b"xref\n0 %d\n0000000000 65535 f \n" % (len(objs) + 1)
+    out += b"".join(b"%010d 00000 n \n" % o for o in offsets)
+    out += b"trailer\n<< /Size %d /Root 1 0 R >>\nstartxref\n%d\n%%%%EOF\n" % (len(objs) + 1, xref)
+    return bytes(out)
+
+
+def test_pdf_text_is_read_page_by_page() -> None:
+    got = extract(make_pdf(["Order book grew 18 percent", "Margin guidance 21 percent"]), "pdf")
+    assert got.content_type == "pdf"
+    assert "Order book grew 18 percent" in got.text and "Margin guidance 21 percent" in got.text
+    assert got.text.index("Order book") < got.text.index("Margin")
+
+
+def test_bad_scanned_and_empty_files_are_refused_with_the_reason() -> None:
+    with pytest.raises(ExtractError, match="not a readable PDF"):
+        extract(b"%PDF-1.7 truncated", "pdf")
+    with pytest.raises(ExtractError, match="OCR"):
+        extract(make_pdf(["", ""]), "pdf")
+    assert "scanned" in PDF_SCANNED_REASON
+    with pytest.raises(ExtractError, match=f"more than {MAX_PDF_PAGES} pages"):
+        extract(make_pdf(["x"] * (MAX_PDF_PAGES + 1)), "pdf")
     with pytest.raises(ExtractError, match="no text"):
         extract(b"   \n  ", "text")
 
@@ -63,7 +108,7 @@ def _files(tmp_path: Path) -> list[Path]:
     b = tmp_path / "notes.md"
     b.write_text("Management guided to double-digit growth in FY27.\n", encoding="utf-8")
     c = tmp_path / "deck.pdf"
-    c.write_bytes(b"%PDF-1.7")
+    c.write_bytes(make_pdf(["Q2 deck: revenue up 9 percent"]))
     d = tmp_path / "sheet.xlsx"
     d.write_bytes(b"PK")
     return [a, b, c, d]
@@ -77,8 +122,7 @@ def test_dry_run_writes_nothing_then_apply_stores_and_reruns_dedupe(
     dry = load.load_files(
         session, paths, ticker="tcs.ns", kind="concall_transcript", on=date(2026, 10, 9)
     )
-    assert [f.status for f in dry.files] == ["new", "new", "refused", "refused"]
-    assert "PDF library" in (dry.files[2].reason or "")
+    assert [f.status for f in dry.files] == ["new", "new", "new", "refused"]
     assert session.exec(select(Document)).all() == []
     # 9 Oct 23:59 IST is 18:29 UTC; marked assumed.
     assert dry.available_at == datetime(2026, 10, 9, 18, 29) and dry.available_assumed
@@ -86,18 +130,21 @@ def test_dry_run_writes_nothing_then_apply_stores_and_reruns_dedupe(
     done = load.load_files(
         session, paths, ticker="TCS.NS", kind="concall_transcript", on=date(2026, 10, 9), apply=True
     )
-    assert [f.status for f in done.files][:2] == ["stored", "stored"]
+    assert [f.status for f in done.files][:3] == ["stored", "stored", "stored"]
     docs = session.exec(select(Document)).all()
-    assert len(docs) == 2 and all(d.source == "file" and d.available_assumed for d in docs)
-    assert {d.title for d in docs} == {"TCS Q2 concall", "notes"}
+    assert len(docs) == 3 and all(d.source == "file" and d.available_assumed for d in docs)
+    assert {d.title for d in docs} == {"TCS Q2 concall", "notes", "deck"}
+    pdf = next(d for d in docs if d.title == "deck")
+    pdf_text = session.get(DocumentText, pdf.id)
+    assert pdf.content_type == "pdf" and pdf_text is not None and "revenue up 9" in pdf_text.text
     text = session.get(DocumentText, docs[0].id)
     assert text is not None and text.text
 
     again = load.load_files(
         session, paths, ticker="TCS.NS", kind="concall_transcript", on=date(2026, 10, 9), apply=True
     )
-    assert [f.status for f in again.files][:2] == ["duplicate", "duplicate"]
-    assert len(session.exec(select(Document)).all()) == 2
+    assert [f.status for f in again.files][:3] == ["duplicate"] * 3
+    assert len(session.exec(select(Document)).all()) == 3
 
 
 def test_an_explicit_release_time_is_not_assumed(session: Session, tmp_path: Path) -> None:
