@@ -56,7 +56,9 @@ test("a Dhan file imports by its detected map, and an unknown file by the user's
   await expect(page.getByRole("heading", { level: 1, name: "Import tradebook" })).toBeVisible();
   await expect(page.locator("#main").getByText("Dhan · INR")).toBeVisible();
 
-  const file = page.getByLabel("Tradebook File");
+  // `next start` can briefly hold two copies of the page during the client
+  // navigation (see apps/web/CLAUDE.md, E2E); take the one in #main.
+  const file = page.locator("#main").getByLabel("Tradebook File").first();
   await file.setInputFiles({
     name: "dhan.csv",
     mimeType: "text/csv",

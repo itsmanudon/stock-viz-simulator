@@ -108,7 +108,15 @@ describe("copilot", () => {
       .fn()
       .mockResolvedValueOnce({ error: "NOPE is not stored." })
       .mockResolvedValueOnce({ answer });
-    render(<CopilotPanel model="ollama gemma4:e4b" ask={ask} />);
+    render(
+      <CopilotPanel
+        choices={[
+          { value: "server", label: "Server: ollama gemma4:e4b" },
+          { value: "openai_compatible", label: "Your key: gpt-test" },
+        ]}
+        ask={ask}
+      />,
+    );
     const button = screen.getByRole("button", { name: "Ask" });
     expect(button).toBeDisabled();
     fireEvent.change(screen.getByLabelText("Question"), {
@@ -117,8 +125,11 @@ describe("copilot", () => {
     fireEvent.change(screen.getByLabelText("Symbol (Optional)"), { target: { value: "nope" } });
     fireEvent.click(button);
     await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("NOPE is not stored."));
-    expect(ask).toHaveBeenCalledWith("How did borrowings change?", "NOPE");
+    expect(ask).toHaveBeenCalledWith("How did borrowings change?", "NOPE", "server");
+    fireEvent.change(screen.getByLabelText("Model"), { target: { value: "openai_compatible" } });
+    expect(screen.getByText(/Billed to your account/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Ask" }));
     await waitFor(() => expect(screen.getByTestId("copilot-answer")).toBeVisible());
+    expect(ask).toHaveBeenLastCalledWith("How did borrowings change?", "NOPE", "openai_compatible");
   });
 });

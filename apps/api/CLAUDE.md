@@ -2514,6 +2514,33 @@ citation; each becomes a warning. Stateless: nothing stored. 409 no
 provider, 502 provider failed, 404 unknown ticker. BYOK providers are A8.7.
 Tests: `tests/test_a85_copilot.py`.
 
+**Saved AI keys (A8.7, M11.2 BYOK).** Migration `e9c5f7a1b3d4` (additive;
+the downgrade refuses while a key is stored): `user_ai_keys`
+(`models/ai_key.py`: user (cascade), `provider` (check: `openai_compatible`,
+`anthropic`), `ciphertext` (Fernet under `APP_ENCRYPTION_KEY`), `key_last4`,
+`model`, `base_url`; unique per user and provider). `services/ai/keys.py`:
+`save_key` (refuses without a valid Fernet key: 409; a key under 8
+characters or with spaces, no model, a bad URL: 422), `list_keys` (never the
+key), `delete_key`, `provider_for(choice)` (`server` = A8.3's provider; a
+key that no longer decrypts after the server key changed says "save it
+again"). **Usable today: `openai_compatible` only**; `anthropic` is listed in
+`HELD`: the Claude adapter needs the official `anthropic` SDK, a new
+dependency the owner decides on. `services/ai/openai_compat.py`:
+`OpenAICompatibleProvider` (`POST {base}/chat/completions`, Bearer, 120 s,
+no redirects); the user's base URL goes through the webhook SSRF rules
+(`delivery.channels.check_url_syntax` and `pinned_target`: https only, http
+for localhost outside production, no credentials or query, every resolved
+address public, sent to the checked IP with `Host` and SNI); errors are
+fixed text (never the key or the body); `repr` hides the key. Routes
+(`routers/ai.py`, signed in): `GET /v1/ai/keys` -> `AiKeysOut` (`available`,
+`keys`, `providers`, `held`, `note`), `PUT /v1/ai/keys/{provider}`
+(10/min), `DELETE /v1/ai/keys/{provider}` (204, 404 none). `/rule` and
+`/ask` take `provider: server | openai_compatible` (409 no saved key).
+`/v1/ai/status` adds `keys_available`. **No real paid call was made** while
+building it: every request is faked. Env: `APP_ENCRYPTION_KEY` (blank = off;
+changing it makes saved keys unreadable). Tests: `tests/test_a87_byok.py`,
+`tests/test_a87_byok_migration.py` (PostgreSQL).
+
 **Macro series from FRED (A9.7, M1.10, M3.5).** Migration `f1a9c7e3b5d2`
 (additive): `macro_series` (FRED id, title, units, frequency, observation
 range, FRED's `last_updated`, `fetched_at`) and `macro_observations` ((series,

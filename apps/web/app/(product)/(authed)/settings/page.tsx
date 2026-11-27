@@ -11,6 +11,7 @@ import type { Metadata } from "next";
 import { revalidatePath } from "next/cache";
 
 import { auth } from "@/auth";
+import { AiKeysPanel } from "@/components/ai-keys-panel";
 import { BooksPanel } from "@/components/books-panel";
 import { BrokerStatusList } from "@/components/brokers/broker-status";
 import { NotificationChannelsPanel } from "@/components/notification-channels-panel";
@@ -19,6 +20,8 @@ import { PaperCard } from "@/components/paper-card";
 import { TiltCard } from "@/components/prism/tilt-card";
 import { RiskLimitsForm } from "@/components/risk-limits-form";
 import { AccountDetails, InterfacePanel, KeyboardShortcuts } from "@/components/settings-workspace";
+import type { AiKeys } from "@/lib/api/ai";
+import { listAiKeys } from "@/lib/api/ai-server";
 import { getBrokerStatusOrNull } from "@/lib/api/brokers";
 import { type NotificationChannels, listNotificationChannels } from "@/lib/api/notifications";
 import { getProfile, patchProfile } from "@/lib/api/profile";
@@ -69,7 +72,7 @@ export default async function SettingsPage({
   // else the default. Books are managed in the Books panel.
   const books = await loadBookContext(params.book, "/settings", params);
   const bookId = books.selected?.id ?? null;
-  const [profile, session, portfolio, limits, channels, brokers] = await Promise.all([
+  const [profile, session, portfolio, limits, channels, brokers, aiKeys] = await Promise.all([
     getProfile(),
     auth(),
     getPortfolio(bookId).catch(() => null),
@@ -77,6 +80,8 @@ export default async function SettingsPage({
     listNotificationChannels().catch(() => null as NotificationChannels | null),
     // A5.7: a failed read says so in the panel; it never fails the page.
     getBrokerStatusOrNull(),
+    // A8.7: a failed read hides the panel.
+    listAiKeys().catch(() => null as AiKeys | null),
   ]);
   const bookName = books.selected?.name ?? "this book";
   const writable = books.selected?.writable ?? true;
@@ -193,6 +198,12 @@ export default async function SettingsPage({
                 categories={channels.categories}
                 accountEmail={session?.user?.email}
               />
+            </SettingsPanel>
+          ) : null}
+
+          {aiKeys ? (
+            <SettingsPanel title="AI Keys" id="ai-keys-heading">
+              <AiKeysPanel data={aiKeys} />
             </SettingsPanel>
           ) : null}
 

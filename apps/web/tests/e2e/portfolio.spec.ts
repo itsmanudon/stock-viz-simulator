@@ -83,6 +83,8 @@ test("authenticated user can move from a paper trade into the Portfolio workspac
   // Phase 8.5: a single-order limit set in Settings shows in the review and
   // refuses a buy over it.
   await page.goto("/settings");
+  // A8.7: the e2e API has no APP_ENCRYPTION_KEY, so saved AI keys say they are off.
+  await expect(page.getByTestId("ai-keys-off")).toBeVisible();
   await page.getByLabel("Single order (%)").fill("0.01");
   await page.getByRole("button", { name: "Save limits" }).click();
   await expect(page.getByLabel("Single order (%)")).toHaveValue("0.01");

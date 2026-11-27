@@ -953,6 +953,18 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   disclaimer. `lib/copilot.ts` (`answerParts`, `questionProblem`). Tests:
   `tests/unit/a85-copilot.test.tsx`, the signed-out check in
   `tests/e2e/app-shell.spec.ts`.
+- **AI keys (A8.7, M11.2 BYOK).** Settings → AI Keys
+  (`components/ai-keys-panel.tsx`, actions in
+  `(authed)/settings/ai-key-actions.ts`, `listAiKeys`/`saveAiKey`/
+  `deleteAiKey` in `lib/api/ai-server.ts`): an OpenAI-compatible endpoint's
+  base URL, model and key (a password field, empty on every render); a saved
+  key shows model, endpoint and "Key Ending WXYZ" only (`ai-key-saved`),
+  Remove Key; `ai-keys-off` when the server has no encryption key; Claude is
+  listed as held (`ai-key-held`). `/copilot` offers "Your key: <model>"
+  beside the server's model (a Model select when both exist; the copilot
+  works with only a saved key) and says such requests are billed to the
+  user's account. Tests: `tests/unit/a87-ai-keys.test.tsx`, the copilot test,
+  the off state in `tests/e2e/portfolio.spec.ts`.
 - **Describe in words (A8.2, M4.2).** The screener's rule panel adds a
   "Describe in words" disclosure (`describe-in-words`) only when signed in
   and `getAiStatus()` (`lib/api/ai.ts`, public, cached a minute) says a
