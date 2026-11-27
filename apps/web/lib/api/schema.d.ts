@@ -4717,6 +4717,23 @@ export interface components {
             history: components["schemas"]["DividendCreditOut"][];
             /** Projected */
             projected: components["schemas"]["ProjectedDividendOut"][];
+            /**
+             * Projection
+             * @default []
+             */
+            projection: components["schemas"]["HoldingProjectionOut"][];
+            /**
+             * Projection Totals
+             * @default {}
+             */
+            projection_totals: {
+                [key: string]: string;
+            };
+            /**
+             * Projection Method
+             * @default
+             */
+            projection_method: string;
         };
         /** DrawingIn */
         DrawingIn: {
@@ -6373,6 +6390,39 @@ export interface components {
             cross_effect: string | null;
             /** Income */
             income: string;
+            /** Reason */
+            reason?: string | null;
+        };
+        /**
+         * HoldingProjectionOut
+         * @description A9.6 (M10.8): the next 12 months' dividends of one holding (a projection).
+         */
+        HoldingProjectionOut: {
+            /** Ticker */
+            ticker: string;
+            /** Currency */
+            currency: string;
+            /** Quantity */
+            quantity: string;
+            /** Ttm Per Share */
+            ttm_per_share: string;
+            /** Growth 3Y */
+            growth_3y?: number | null;
+            /** Growth Used */
+            growth_used: number;
+            /** Next 12M Per Share */
+            next_12m_per_share: string;
+            /** Next 12M Total */
+            next_12m_total: string;
+            /** Forward Yield */
+            forward_yield?: number | null;
+            /** Streak Years */
+            streak_years: number;
+            /**
+             * Payouts
+             * @default []
+             */
+            payouts: components["schemas"]["ProjectedPayoutOut"][];
             /** Reason */
             reason?: string | null;
         };
@@ -9393,6 +9443,18 @@ export interface components {
             projected_ex_date: string | null;
             /** Projected Amount */
             projected_amount: string;
+        };
+        /** ProjectedPayoutOut */
+        ProjectedPayoutOut: {
+            /**
+             * Ex Date
+             * Format: date
+             */
+            ex_date: string;
+            /** Per Share */
+            per_share: string;
+            /** Amount */
+            amount: string;
         };
         /** QuoteOut */
         QuoteOut: {

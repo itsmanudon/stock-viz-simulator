@@ -356,10 +356,37 @@ class ProjectedDividendOut(BaseModel):
     projected_amount: Decimal
 
 
+class ProjectedPayoutOut(BaseModel):
+    ex_date: date
+    per_share: Decimal
+    amount: Decimal
+
+
+class HoldingProjectionOut(BaseModel):
+    """A9.6 (M10.8): the next 12 months' dividends of one holding (a projection)."""
+
+    ticker: str
+    currency: str
+    quantity: Decimal
+    ttm_per_share: Decimal
+    growth_3y: float | None = None
+    growth_used: float
+    next_12m_per_share: Decimal
+    next_12m_total: Decimal
+    forward_yield: float | None = None
+    streak_years: int
+    payouts: list[ProjectedPayoutOut] = []
+    reason: str | None = None
+
+
 class DividendSummaryOut(BaseModel):
     ytd_income: Decimal
     history: list[DividendCreditOut]
     projected: list[ProjectedDividendOut]
+    # A9.6: per holding, and the 12-month total per currency (never summed across).
+    projection: list[HoldingProjectionOut] = []
+    projection_totals: dict[str, Decimal] = {}
+    projection_method: str = ""
 
 
 # ---------------------------------------------------------------------------

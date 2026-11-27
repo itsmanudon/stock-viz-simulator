@@ -914,6 +914,20 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   `tests/stubs/lightweight-charts.ts` (records series, panes, price lines,
   crosshair calls): `vi.mock("lightweight-charts", async () => (await
   import("../stubs/lightweight-charts")).lwc)`.
+- **Tearsheet and printing (A9.6, M5.7, M10.8).** `/stocks/[ticker]/tearsheet`
+  (linked as "Printable tearsheet", `tearsheet-link`, under the stock page's
+  header; visitor-limited like the stock page): a one-page X-ray from
+  existing public routes (returns and RS, valuation and the P/E band,
+  forensic scores, reverse DCF, the checklist, five headlines), each block
+  dropping out when its call fails. `PrintButton` prints. Print CSS at the end
+  of `globals.css`: `[data-app-chrome]` (the sidebar and top bar, wrapped in
+  `display: contents` divs in `app-shell.tsx`), `.prism-ambient` and
+  `[data-print-hide]` are hidden, and `[data-tearsheet]` prints dark on white.
+  The Portfolio Income tab adds `DividendProjection`
+  (`components/dividend-projection.tsx`: per-currency totals, per-holding
+  rows with the reason when none, a payout calendar), labelled a projection.
+  Tests: `tests/unit/a96-dividend-projection.test.tsx`,
+  `tests/e2e/tearsheet.spec.ts`.
 - Server components by default — only mark `"use client"` when you need state,
   effects, or interactivity.
 - Research (`/compare`, `/backtest`, `/checklist`, `/replay`) is one

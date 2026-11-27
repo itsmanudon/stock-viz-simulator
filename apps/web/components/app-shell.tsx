@@ -14,9 +14,14 @@ export function AppShell({
       {/* PRISM: a faint light pinned behind the sidebar and header only. */}
       <div aria-hidden className="prism-ambient" />
       <SpotlightTracker />
-      <AppSidebar signedIn={signedIn} />
+      {/* A9.6: the chrome stays off printed pages (the tearsheet). */}
+      <div className="contents" data-app-chrome>
+        <AppSidebar signedIn={signedIn} />
+      </div>
       <div className="relative min-w-0">
-        <TopUtilityBar signedIn={signedIn} />
+        <div className="contents" data-app-chrome>
+          <TopUtilityBar signedIn={signedIn} />
+        </div>
         <main id="main" tabIndex={-1} className="workspace-main min-w-0">
           {children}
         </main>
