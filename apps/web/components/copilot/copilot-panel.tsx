@@ -194,7 +194,7 @@ export function CopilotPanel({
         </div>
         <p className="text-2xs text-text-tertiary">
           {model} answers only from passages of the documents stored here, and cites each one.
-          {provider === "openai_compatible" ? " Billed to your account with that provider." : ""}
+          {provider !== "server" ? " Billed to your account with that provider." : ""}
         </p>
       </form>
       {state.error ? (

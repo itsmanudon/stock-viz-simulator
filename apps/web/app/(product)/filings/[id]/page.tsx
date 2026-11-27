@@ -14,6 +14,7 @@ import { DocumentMeta, Marked } from "@/components/documents-view";
 import { DocumentChanges, FigureExtractor } from "@/components/filing-analysis";
 import { PageHeader } from "@/components/page-header";
 import { VisitorLimitNotice } from "@/components/visitor-limit-notice";
+import { aiChoices } from "@/lib/ai-choices";
 import { getAiStatus } from "@/lib/api/ai";
 import { listAiKeys } from "@/lib/api/ai-server";
 import { compareDocument, getDocument } from "@/lib/api/documents";
@@ -49,15 +50,7 @@ export default async function FilingPage({
     getAiStatus().catch(() => null),
   ]);
   const keys = session?.user ? await listAiKeys().catch(() => null) : null;
-  const ownKey = keys?.keys.find((k) => k.provider === "openai_compatible");
-  const choices: CopilotChoice[] = [
-    ...(status?.configured
-      ? [{ value: "server" as const, label: `Server: ${status.provider} ${status.model}` }]
-      : []),
-    ...(ownKey
-      ? [{ value: "openai_compatible" as const, label: `Your key: ${ownKey.model}` }]
-      : []),
-  ];
+  const choices: CopilotChoice[] = aiChoices(status, keys);
   return (
     <div className="w-full space-y-4 px-4 py-6 sm:px-6 lg:py-7 xl:px-8">
       <PageHeader eyebrow="Workbench" title={doc.title} description="" />

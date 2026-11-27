@@ -3944,7 +3944,7 @@ export interface components {
              * @default server
              * @enum {string}
              */
-            provider: "server" | "openai_compatible";
+            provider: "server" | "openai_compatible" | "anthropic";
         };
         /** AiRuleOut */
         AiRuleOut: {
@@ -4165,7 +4165,7 @@ export interface components {
              * @default server
              * @enum {string}
              */
-            provider: "server" | "openai_compatible";
+            provider: "server" | "openai_compatible" | "anthropic";
         };
         /** AskOut */
         AskOut: {
@@ -5487,7 +5487,7 @@ export interface components {
              * @default server
              * @enum {string}
              */
-            provider: "server" | "openai_compatible";
+            provider: "server" | "openai_compatible" | "anthropic";
         };
         /** DebateOut */
         DebateOut: {
@@ -6852,7 +6852,7 @@ export interface components {
              * @default server
              * @enum {string}
              */
-            provider: "server" | "openai_compatible";
+            provider: "server" | "openai_compatible" | "anthropic";
         };
         /** ExtractOut */
         ExtractOut: {
@@ -7506,7 +7506,7 @@ export interface components {
              * @default server
              * @enum {string}
              */
-            provider: "server" | "openai_compatible";
+            provider: "server" | "openai_compatible" | "anthropic";
         };
         /** GridOut */
         GridOut: {

@@ -1,12 +1,14 @@
 "use client";
 
 /**
- * A8.7 (M11.2 BYOK): Settings → AI Keys. A saved key shows only its model,
+ * A8.7 (M11.2 BYOK): Settings → AI Keys. One form per provider: an
+ * OpenAI-compatible endpoint (base URL, model, key) and, since A8.7b, Claude
+ * (model, key; Anthropic's own endpoint). A saved key shows only its model,
  * endpoint and last four characters; the key field is write-only and empty
- * on every render. Claude keys are listed as held (the API says why).
+ * on every render.
  */
 
-import { useActionState, useState, useTransition } from "react";
+import { useActionState, useId, useState, useTransition } from "react";
 
 import {
   type AiKeyState,
@@ -17,39 +19,45 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { formatUtcDateTime } from "@/lib/api-time";
-import type { AiKeys } from "@/lib/api/ai";
+import type { AiKey, AiKeys } from "@/lib/api/ai";
 
-export function AiKeysPanel({ data }: { data: AiKeys }) {
+const PROVIDERS = [
+  { id: "openai_compatible", title: "OpenAI-Compatible Endpoint", endpoint: true, model: "" },
+  { id: "anthropic", title: "Claude (Anthropic)", endpoint: false, model: "claude-opus-5-5" },
+] as const;
+
+function KeyForm({
+  provider,
+  saved,
+}: {
+  provider: (typeof PROVIDERS)[number];
+  saved: AiKey | undefined;
+}) {
+  const id = useId();
   const [state, save, saving] = useActionState<AiKeyState, FormData>(saveAiKeyAction, {});
   const [removed, setRemoved] = useState<AiKeyState>({});
   const [removing, start] = useTransition();
-  const saved = data.keys.find((k) => k.provider === "openai_compatible");
-  if (!data.available) {
-    return (
-      <p className="text-sm text-text-secondary" data-testid="ai-keys-off">
-        Saved keys are off on this server: it has no encryption key set.
-      </p>
-    );
-  }
   return (
-    <div className="space-y-4" data-testid="ai-keys">
-      <p className="text-xs text-text-tertiary">{data.note}</p>
+    <section
+      aria-labelledby={`${id}-title`}
+      className="space-y-3 rounded-lg border border-border p-3"
+      data-testid={`ai-key-${provider.id}`}
+    >
+      <h3 id={`${id}-title`} className="text-sm font-medium">
+        {provider.title}
+      </h3>
       {saved ? (
-        <div className="rounded-lg border border-border p-3 text-sm" data-testid="ai-key-saved">
-          <p className="font-medium">OpenAI-Compatible Endpoint</p>
-          <p className="text-xs text-text-secondary">
-            {saved.model} · {saved.base_url} · Key Ending {saved.key_last4} · Saved{" "}
-            {formatUtcDateTime(saved.updated_at)}
-          </p>
+        <div className="text-xs text-text-secondary" data-testid="ai-key-saved">
+          {saved.model}
+          {saved.base_url ? ` · ${saved.base_url}` : ""} · Key Ending {saved.key_last4} · Saved{" "}
+          {formatUtcDateTime(saved.updated_at)}
           <Button
             type="button"
             variant="outline"
             size="sm"
-            className="mt-2"
+            className="ml-2"
             disabled={removing}
-            onClick={() =>
-              start(async () => setRemoved(await deleteAiKeyAction("openai_compatible")))
-            }
+            onClick={() => start(async () => setRemoved(await deleteAiKeyAction(provider.id)))}
           >
             Remove Key
           </Button>
@@ -61,30 +69,32 @@ export function AiKeysPanel({ data }: { data: AiKeys }) {
         </p>
       ) : null}
       <form action={save} className="grid gap-3 sm:grid-cols-2" data-testid="ai-key-form">
-        <input type="hidden" name="provider" value="openai_compatible" />
-        <div className="space-y-1 sm:col-span-2">
-          <Label htmlFor="ai-key-base-url" className="text-xs">
-            Endpoint Base URL
-          </Label>
-          <Input
-            id="ai-key-base-url"
-            name="base_url"
-            defaultValue={saved?.base_url ?? ""}
-            placeholder="https://api.openai.com/v1"
-          />
-        </div>
+        <input type="hidden" name="provider" value={provider.id} />
+        {provider.endpoint ? (
+          <div className="space-y-1 sm:col-span-2">
+            <Label htmlFor={`${id}-url`} className="text-xs">
+              Endpoint Base URL
+            </Label>
+            <Input
+              id={`${id}-url`}
+              name="base_url"
+              defaultValue={saved?.base_url ?? ""}
+              placeholder="https://api.openai.com/v1"
+            />
+          </div>
+        ) : null}
         <div className="space-y-1">
-          <Label htmlFor="ai-key-model" className="text-xs">
+          <Label htmlFor={`${id}-model`} className="text-xs">
             Model
           </Label>
-          <Input id="ai-key-model" name="model" defaultValue={saved?.model ?? ""} />
+          <Input id={`${id}-model`} name="model" defaultValue={saved?.model ?? provider.model} />
         </div>
         <div className="space-y-1">
-          <Label htmlFor="ai-key-secret" className="text-xs">
+          <Label htmlFor={`${id}-key`} className="text-xs">
             {saved ? "Replace Key" : "Key"}
           </Label>
           <Input
-            id="ai-key-secret"
+            id={`${id}-key`}
             name="api_key"
             type="password"
             autoComplete="off"
@@ -104,9 +114,27 @@ export function AiKeysPanel({ data }: { data: AiKeys }) {
       ) : state.ok ? (
         <output className="block text-xs text-text-secondary">{state.ok}</output>
       ) : null}
+    </section>
+  );
+}
+
+export function AiKeysPanel({ data }: { data: AiKeys }) {
+  if (!data.available) {
+    return (
+      <p className="text-sm text-text-secondary" data-testid="ai-keys-off">
+        Saved keys are off on this server: it has no encryption key set.
+      </p>
+    );
+  }
+  return (
+    <div className="space-y-4" data-testid="ai-keys">
+      <p className="text-xs text-text-tertiary">{data.note}</p>
+      {PROVIDERS.filter((p) => data.providers.includes(p.id)).map((p) => (
+        <KeyForm key={p.id} provider={p} saved={data.keys.find((k) => k.provider === p.id)} />
+      ))}
       {Object.entries(data.held).map(([provider, why]) => (
         <p key={provider} className="text-xs text-text-tertiary" data-testid="ai-key-held">
-          {provider === "anthropic" ? "Claude" : provider}: {why}
+          {provider}: {why}
         </p>
       ))}
     </div>
