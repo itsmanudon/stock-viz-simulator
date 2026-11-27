@@ -278,14 +278,13 @@ export const WORKSPACES: readonly Workspace[] = [
   {
     id: "copilot",
     label: "AI Copilot",
-    description: "A placeholder: the copilot is planned for A8",
+    description: "Ask the stored filings and transcripts; answers cite their passages",
     items: [
       {
         label: "Copilot",
         href: "/copilot",
         matches: ["/copilot"],
-        note: "A8",
-        keywords: ["ai", "assistant"],
+        keywords: ["ai", "assistant", "ask", "filings", "transcripts"],
       },
     ],
   },

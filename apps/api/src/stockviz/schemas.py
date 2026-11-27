@@ -5656,6 +5656,36 @@ class PassageSearchOut(BaseModel):
     method: str
 
 
+class AskIn(BaseModel):
+    question: str = Field(min_length=5, max_length=500)
+    ticker: str | None = Field(default=None, max_length=16)
+    kind: str | None = None
+    as_of: datetime | None = None
+
+
+class AskSourceOut(BaseModel):
+    n: int
+    cited: bool
+    passage: PassageOut
+
+
+class AskOut(BaseModel):
+    question: str
+    as_of: datetime
+    retrieval_mode: str
+    answer: str
+    grounded: bool
+    cited: list[int]
+    invalid_citations: list[int]
+    uncited_sentences: int
+    sources: list[AskSourceOut]
+    provider: str | None
+    model: str | None
+    warnings: list[str]
+    notes: list[str]
+    disclaimer: str
+
+
 class OptimiseViewIn(BaseModel):
     ticker: str = Field(min_length=1, max_length=16)
     expected_return: float = Field(ge=-1, le=2)

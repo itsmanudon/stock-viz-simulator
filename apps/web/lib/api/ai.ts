@@ -5,6 +5,8 @@ import type { components } from "./schema";
 
 export type AiStatus = components["schemas"]["AiStatusOut"];
 export type AiRule = components["schemas"]["AiRuleOut"];
+export type CopilotAnswer = components["schemas"]["AskOut"];
+export type CopilotSource = components["schemas"]["AskSourceOut"];
 
 export function getAiStatus(): Promise<AiStatus> {
   return apiGet<AiStatus>("/v1/ai/status", { revalidateSeconds: 60, tags: ["ai"] });
