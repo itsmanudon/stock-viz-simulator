@@ -173,6 +173,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/brief": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Brief */
+        get: operations["get_brief_v1_brief_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/research/optimise": {
         parameters: {
             query?: never;
@@ -3526,6 +3543,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/journal/weekly": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Journal Weekly
+         * @description A9.12 (M11.6): one week of closed entries, the baseline and what to look at.
+         */
+        get: operations["journal_weekly_v1_journal_weekly_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/notifications/channels": {
         parameters: {
             query?: never;
@@ -4733,6 +4770,69 @@ export interface components {
             pct_above_200?: number | null;
             /** Pct Rsi 50 */
             pct_rsi_50?: number | null;
+        };
+        /** BriefAlertOut */
+        BriefAlertOut: {
+            /** Title */
+            title: string;
+            /** Body */
+            body: string;
+            /** Link */
+            link: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
+        /** BriefDocumentOut */
+        BriefDocumentOut: {
+            /** Id */
+            id: number;
+            /** Ticker */
+            ticker: string;
+            /** Title */
+            title: string;
+            /** Kind */
+            kind: string;
+            /**
+             * Available At
+             * Format: date-time
+             */
+            available_at: string;
+        };
+        /** BriefEarningsOut */
+        BriefEarningsOut: {
+            /** Ticker */
+            ticker: string;
+            /**
+             * Event Date
+             * Format: date
+             */
+            event_date: string;
+        };
+        /** BriefMoveOut */
+        BriefMoveOut: {
+            /** Ticker */
+            ticker: string;
+            /** Close */
+            close: string;
+            /**
+             * Close Date
+             * Format: date
+             */
+            close_date: string;
+            /** Previous Close */
+            previous_close: string;
+            /**
+             * Previous Date
+             * Format: date
+             */
+            previous_date: string;
+            /** Change Pct */
+            change_pct: number;
+            /** Held */
+            held: boolean;
         };
         /** BrokerStatusItemOut */
         BrokerStatusItemOut: {
@@ -8971,6 +9071,15 @@ export interface components {
              */
             status: "ok";
         };
+        /** LookAtOut */
+        LookAtOut: {
+            /** Key */
+            key: string;
+            /** Text */
+            text: string;
+            /** Entry Ids */
+            entry_ids: number[];
+        };
         /** MACDPointOut */
         MACDPointOut: {
             /**
@@ -9223,6 +9332,30 @@ export interface components {
             goal?: number | null;
             /** Prob Goal */
             prob_goal?: number | null;
+        };
+        /** MorningBriefOut */
+        MorningBriefOut: {
+            /**
+             * Generated At
+             * Format: date-time
+             */
+            generated_at: string;
+            /** Symbols */
+            symbols: string[];
+            /** Moves */
+            moves: components["schemas"]["BriefMoveOut"][];
+            /** Alerts */
+            alerts: components["schemas"]["BriefAlertOut"][];
+            /** Earnings */
+            earnings: components["schemas"]["BriefEarningsOut"][];
+            /** Documents */
+            documents: components["schemas"]["BriefDocumentOut"][];
+            /** Open Plans */
+            open_plans: number;
+            /** Pending Orders */
+            pending_orders: number;
+            /** Note */
+            note: string;
         };
         /**
          * NeedsOpeningLotOut
@@ -15227,6 +15360,57 @@ export interface components {
                 [key: string]: number | string | null;
             };
         };
+        /** WeekFiguresOut */
+        WeekFiguresOut: {
+            /** Entries */
+            entries: number;
+            /** Wins */
+            wins: number;
+            /** Losses */
+            losses: number;
+            /** Net By Currency */
+            net_by_currency: {
+                [key: string]: number;
+            };
+            /** Mean R */
+            mean_r: number | null;
+            /** N R */
+            n_r: number;
+            /** Plans Scored */
+            plans_scored: number;
+            /** Plans Followed */
+            plans_followed: number;
+            /** No Plan */
+            no_plan: number;
+        };
+        /** WeeklyReviewOut */
+        WeeklyReviewOut: {
+            /**
+             * Week Start
+             * Format: date
+             */
+            week_start: string;
+            /**
+             * Week End
+             * Format: date
+             */
+            week_end: string;
+            week: components["schemas"]["WeekFiguresOut"];
+            /** Baseline Weeks */
+            baseline_weeks: number;
+            /** Baseline Entries Per Week */
+            baseline_entries_per_week: number | null;
+            /** Baseline Mean R */
+            baseline_mean_r: number | null;
+            /** Baseline Adherence */
+            baseline_adherence: number | null;
+            /** Look At */
+            look_at: components["schemas"]["LookAtOut"][];
+            /** Notes */
+            notes: string[];
+            /** Method */
+            method: string;
+        };
         /**
          * XirrOut
          * @description A money-weighted (XIRR) annual return; null with a reason when it means nothing.
@@ -15524,6 +15708,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DocumentDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_brief_v1_brief_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MorningBriefOut"];
                 };
             };
             /** @description Validation Error */
@@ -22945,6 +23160,42 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BehaviourOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    journal_weekly_v1_journal_weekly_get: {
+        parameters: {
+            query?: {
+                /** @description Book id, or `all` for every book summed in the display currency (A5.2). Omit for the default book; another user's book is 404. */
+                book?: string | null;
+                source?: ("paper" | "imported" | "replay" | "all") | null;
+                week_end?: string | null;
+            };
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WeeklyReviewOut"];
                 };
             };
             /** @description Validation Error */

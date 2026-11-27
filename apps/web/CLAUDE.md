@@ -953,6 +953,18 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   disclaimer. `lib/copilot.ts` (`answerParts`, `questionProblem`). Tests:
   `tests/unit/a85-copilot.test.tsx`, the signed-out check in
   `tests/e2e/app-shell.spec.ts`.
+- **Morning brief and weekly review (A9.12, M11.6).** `/brief` (Today nav
+  "Morning Brief", signed in, icon `Sunrise`, protected in `proxy.ts`):
+  `getBrief()` (`lib/api/brief.ts`, authed) shown as four cards: largest
+  moves with both close dates (`brief-moves`, gain/loss colours), alerts of
+  the last 24 hours, earnings in the next 7 days, new documents, and counts
+  of open plans and pending orders; `brief-empty` with no symbols.
+  `/portfolio/journal/week?week_end=&book=` (linked as "Weekly Review",
+  `weekly-link`, beside the edge link): a `FigureStrip`, net P&L per
+  currency, `weekly-look-at` items each linking their entries, previous and
+  next week (`lib/brief.ts`: `moveText`, `shiftWeek`, `weekHref`). Tests:
+  `tests/unit/a912-brief.test.ts`, the signed-in steps in
+  `tests/e2e/portfolio.spec.ts`.
 - **Grid and For and Against (A9.11, M11.4, M11.5).** `/copilot?mode=grid|debate`
   (`copilot-modes`: Ask, Grid, For and Against links with `aria-current`):
   `GridPanel` (`components/copilot/research-panels.tsx`: up to 5 symbols and
@@ -1580,7 +1592,7 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
 
   | Workspace | Routes (sidebar items in order) |
   | --- | --- |
-  | Today | `/dashboard` (Home; `/` for guests), `/notifications` |
+  | Today | `/dashboard` (Home; `/` for guests), `/brief` (Morning Brief, signed in; A9.12), `/notifications` |
   | Markets | `/markets` (Overview), `/screener`, `/earnings`, `/news` |
   | Workbench | `/setups`, `/checklist` (+ `/recommendations`, a redirect), `/compare`, `/event-study`; `/stocks/*` belongs here without an item (`extraMatches`) |
   | Quant Lab | `/backtest`, `/backtest/runs` (Saved runs, + `/runs/[id]`), `/replay` (+ `/[id]`), `/drills` (+ `/new`, `/[id]`), `/news-reactions` |
