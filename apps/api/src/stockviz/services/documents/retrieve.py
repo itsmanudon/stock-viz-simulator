@@ -5,7 +5,11 @@ Two rankings of the passages (``document_chunks``) of documents public by
 
 - **keyword**: PostgreSQL full text, ``ts_rank_cd`` of
   ``to_tsvector('english', text)`` against ``websearch_to_tsquery`` (quotes,
-  ``or`` and ``-word`` work as on a web search box); on SQLite (tests only) a
+  ``or`` and ``-word`` work as on a web search box). Every word must match, so
+  a question in plain words often finds almost nothing: when fewer than
+  ``ANY_WORD_BELOW`` passages match all words, passages matching any of the
+  words (the same stemmed terms, joined by ``|``) are added after them, best
+  ``ts_rank_cd`` first. Queries with a ``-word`` never widen. On SQLite (tests only) a
   plain term count stands in, with no stemming;
 - **vector**: cosine similarity of the query's embedding to each passage
   embedded with the same model, computed in Python with NumPy (no pgvector).
@@ -22,7 +26,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 
 import numpy as np
-from sqlalchemy import func, literal_column
+from sqlalchemy import Text, func, literal_column
 from sqlmodel import Session, col, select
 
 from stockviz.models import Document, DocumentChunk
@@ -33,6 +37,8 @@ RRF_K = 60
 CANDIDATES = 50
 MAX_VECTOR_PASSAGES = 20_000
 MAX_QUERY_CHARS = 300
+# Below this many all-words matches, any-word matches are added (A8 eval, 27 Nov 2026).
+ANY_WORD_BELOW = 10
 
 
 @dataclass(frozen=True)
@@ -131,6 +137,31 @@ def keyword_ranking(
             session, query, as_of=as_of, instrument_id=instrument_id, kind=kind
         )
     tsq = func.websearch_to_tsquery("english", query)
+    found = _ranked(session, tsq, as_of=as_of, instrument_id=instrument_id, kind=kind)
+    if len(found) >= ANY_WORD_BELOW:
+        return found
+    any_word = _any_word_query(session, query)
+    if any_word is None:
+        return found
+    seen = set(found)
+    wider = _ranked(
+        session, func.to_tsquery("simple", any_word),
+        as_of=as_of, instrument_id=instrument_id, kind=kind,
+    )  # fmt: skip
+    return (found + [i for i in wider if i not in seen])[:CANDIDATES]
+
+
+def _any_word_query(session: Session, query: str) -> str | None:
+    """The web-search query's stemmed terms joined by ``|``; None with a ``-word``."""
+    parsed = session.exec(select(func.websearch_to_tsquery("english", query).cast(Text))).one()
+    if not parsed or "!" in parsed or "&" not in parsed:
+        return None  # nothing to widen, or a negation that "or" would turn inside out
+    return parsed.replace(" & ", " | ")
+
+
+def _ranked(
+    session: Session, tsq, *, as_of: datetime, instrument_id: int | None, kind: str | None
+) -> list[int]:
     tsv = func.to_tsvector(literal_column("'english'"), col(DocumentChunk.text))
     rank = func.ts_rank_cd(tsv, tsq)
     stmt = (
