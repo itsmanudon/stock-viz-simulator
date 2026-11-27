@@ -2271,6 +2271,27 @@ overlap is held. Tests: `tests/test_a96_dividend_projection.py`. Web: the
 projection on the Portfolio Income tab and the printable tearsheet
 (`/stocks/[t]/tearsheet`, built from existing routes).
 
+**India capital gains estimate (A7.12, M10.7).** `GET /v1/tax/india?book=&fy=&surcharge=`
+(`routers/tax.py`, authed; another user's book 404; a non-INR book 409; an
+FY outside `FY_RULES` 400) -> `IndiaTaxOut`. No migration; computed on read
+from `trades`. `services/tax/`: `rules.py` (**dated and cited**: FY 2025-26
+under the 1961 Act s.111A/112A, FY 2026-27 under the Income-tax Act 2025
+s.196/198; STCG 20%, LTCG 12.5% above Rs 1,25,000, cess 4%, surcharge on
+these gains capped at 15%, long term after more than 12 months; every
+`Source` says how it was read: the Income Tax Department pages refuse
+automated reads, so all were read through search extracts, and the FIFO
+circular was not read at all; **the legal review must confirm each rate and
+section number**; `ESTIMATE_NOTE` on every response), `lots.py` (pure: the
+day's offsetting buy and sell quantity is intraday business income, apart;
+the rest FIFO lots; grandfathering for long-term lots bought before 1 Feb
+2018 at the higher of cost and the lower of the 31 Jan 2018 FMV and the sale;
+short losses against short then long gains, long losses against long gains
+only, then the exemption; carried losses reported, not modelled across
+years; prices only, no transfer expenses), `report.py` (the book's trades in
+Indian listings dated by the IST venue day, FMV = the stored 31 Jan 2018
+high, open lots at the latest close with their term and the first long-term
+day). Tests: `tests/test_a712_india_tax.py` (each rule worked by hand).
+
 **Portfolio optimisation (A7.11, M10.6).** `POST /v1/research/optimise`
 (`routers/optimise.py`, public, 10/min; nothing stored or placed) ->
 `OptimiseOut`. `services/optimise.py` on **PyPortfolioOpt** (MIT; the owner's
