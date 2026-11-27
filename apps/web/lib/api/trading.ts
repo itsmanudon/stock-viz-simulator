@@ -293,10 +293,29 @@ export type ProjectedDividend = {
   projected_amount: string;
 };
 
+/** A9.6 (M10.8): one holding's 12-month dividend projection. */
+export type HoldingProjection = {
+  ticker: string;
+  currency: string;
+  quantity: string;
+  ttm_per_share: string;
+  growth_3y?: number | null;
+  growth_used: number;
+  next_12m_per_share: string;
+  next_12m_total: string;
+  forward_yield?: number | null;
+  streak_years: number;
+  payouts?: { ex_date: string; per_share: string; amount: string }[];
+  reason?: string | null;
+};
+
 export type DividendSummary = {
   ytd_income: string;
   history: DividendCredit[];
   projected: ProjectedDividend[];
+  projection?: HoldingProjection[];
+  projection_totals?: Record<string, string>;
+  projection_method?: string;
 };
 
 export function getDividends(book?: number | null): Promise<DividendSummary> {

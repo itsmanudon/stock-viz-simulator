@@ -2257,6 +2257,17 @@ last close. Every response carries the rules in words. Web: the Structure
 section of the stock page's Research tab. Tests: `tests/test_a95_structure.py`
 (by hand, no repainting, clustering, the route).
 
+**Dividend projection (A9.6, M10.8).** `GET /v1/portfolio/dividends` adds
+`projection` (per holding: TTM per share, 3-year growth and the rate used,
+capped to -50%..+25% and 0% without 3 years, next 12 months per share and in
+total at today's quantity, forward yield on the latest close, the growth
+streak in completed years, and a payout calendar of last year's ex-dates
+moved a year), `projection_totals` (per currency, never summed across) and
+`projection_method`. `services/dividend_projection.py` (pure); the ETF/MF
+overlap is held. Tests: `tests/test_a96_dividend_projection.py`. Web: the
+projection on the Portfolio Income tab and the printable tearsheet
+(`/stocks/[t]/tearsheet`, built from existing routes).
+
 **Survivorship stamp (A1.4a, part of M1.5).** Every backtest result carries
 `universe: {name, point_in_time, survivorship_biased, note}`: the public
 `POST /v1/backtest` (`BacktestOut.universe`), stored single runs, and

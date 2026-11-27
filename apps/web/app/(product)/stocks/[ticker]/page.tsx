@@ -481,6 +481,16 @@ export default async function StockPage({
         hasPosition={position !== null}
         callbackUrl={activeStockUrl}
       />
+      {/* A9.6: the printable one-page summary. */}
+      <p className="-mt-2 text-xs">
+        <Link
+          href={`/stocks/${encodeURIComponent(ticker)}/tearsheet`}
+          className="text-text-secondary hover:text-brand"
+          data-testid="tearsheet-link"
+        >
+          Printable tearsheet
+        </Link>
+      </p>
 
       <MobileTradeSheet {...ticketProps} />
 

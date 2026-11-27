@@ -1392,3 +1392,29 @@ body::after {
     stroke-dashoffset: 0;
   }
 }
+
+/* A9.6 (M5.7): printing. The app chrome is left off, the page runs full
+   width, and a tearsheet prints dark text on white paper. */
+@media print {
+  [data-app-chrome],
+  .prism-ambient,
+  [data-print-hide] {
+    display: none !important;
+  }
+  body,
+  .workspace-main {
+    background: #fff !important;
+  }
+  [data-tearsheet] {
+    color: #111 !important;
+    background: #fff !important;
+  }
+  [data-tearsheet] * {
+    color: inherit !important;
+    border-color: #bbb !important;
+    box-shadow: none !important;
+  }
+  [data-tearsheet] section {
+    break-inside: avoid;
+  }
+}
