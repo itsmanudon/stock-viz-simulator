@@ -5687,6 +5687,59 @@ class AskOut(BaseModel):
     disclaimer: str
 
 
+class AnswerCheckOut(BaseModel):
+    answer: str
+    grounded: bool
+    cited: list[int]
+    invalid_citations: list[int]
+    uncited_sentences: int
+    warnings: list[str]
+    sources: list[AskSourceOut]
+
+
+class GridIn(BaseModel):
+    tickers: list[str] = Field(min_length=1, max_length=5)
+    questions: list[str] = Field(min_length=1, max_length=3)
+    as_of: datetime | None = None
+    provider: Literal["server", "openai_compatible"] = "server"
+
+
+class GridCellOut(BaseModel):
+    ticker: str
+    question: str
+    result: AnswerCheckOut
+
+
+class GridOut(BaseModel):
+    as_of: datetime
+    tickers: list[str]
+    questions: list[str]
+    cells: list[GridCellOut]
+    model_calls: int
+    provider: str | None
+    model: str | None
+    disclaimer: str
+
+
+class DebateIn(BaseModel):
+    ticker: str = Field(min_length=1, max_length=16)
+    topic: str = Field(min_length=5, max_length=300)
+    as_of: datetime | None = None
+    provider: Literal["server", "openai_compatible"] = "server"
+
+
+class DebateOut(BaseModel):
+    ticker: str
+    topic: str
+    as_of: datetime
+    retrieval_mode: str
+    case_for: AnswerCheckOut
+    case_against: AnswerCheckOut
+    provider: str | None
+    model: str | None
+    disclaimer: str
+
+
 class TextChangeOut(BaseModel):
     kind: str
     before: str | None

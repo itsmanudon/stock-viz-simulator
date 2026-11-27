@@ -11,6 +11,9 @@ export type AiKeys = components["schemas"]["AiKeysOut"];
 export type AiKey = components["schemas"]["AiKeyOut"];
 export type AiProviderChoice = "server" | "openai_compatible";
 export type FigureExtraction = components["schemas"]["ExtractOut"];
+export type ResearchGrid = components["schemas"]["GridOut"];
+export type Debate = components["schemas"]["DebateOut"];
+export type CheckedAnswer = components["schemas"]["AnswerCheckOut"];
 
 export function getAiStatus(): Promise<AiStatus> {
   return apiGet<AiStatus>("/v1/ai/status", { revalidateSeconds: 60, tags: ["ai"] });

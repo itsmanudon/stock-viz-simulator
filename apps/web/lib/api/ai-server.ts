@@ -8,7 +8,9 @@ import type {
   AiProviderChoice,
   AiRule,
   CopilotAnswer,
+  Debate,
   FigureExtraction,
+  ResearchGrid,
 } from "./ai";
 import { authedDelete, authedGet, authedPost, authedPut } from "./server";
 
@@ -47,4 +49,22 @@ export function extractFigures(
   provider: AiProviderChoice = "server",
 ): Promise<FigureExtraction> {
   return authedPost<FigureExtraction>("/v1/ai/extract", { document_id: documentId, provider });
+}
+
+/** A9.11 (M11.4): companies by questions, each cell a cited answer. */
+export function runGrid(
+  tickers: string[],
+  questions: string[],
+  provider: AiProviderChoice = "server",
+): Promise<ResearchGrid> {
+  return authedPost<ResearchGrid>("/v1/ai/grid", { tickers, questions, provider });
+}
+
+/** A9.11 (M11.5): the case for and against one company, from the same passages. */
+export function runDebate(
+  ticker: string,
+  topic: string,
+  provider: AiProviderChoice = "server",
+): Promise<Debate> {
+  return authedPost<Debate>("/v1/ai/debate", { ticker, topic, provider });
 }
