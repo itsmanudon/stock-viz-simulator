@@ -258,6 +258,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/ai/keys": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Ai Keys */
+        get: operations["list_ai_keys_v1_ai_keys_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/ai/keys/{provider}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Save Ai Key */
+        put: operations["save_ai_key_v1_ai_keys__provider__put"];
+        post?: never;
+        /** Delete Ai Key */
+        delete: operations["delete_ai_key_v1_ai_keys__provider__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/cohorts": {
         parameters: {
             query?: never;
@@ -3718,6 +3753,49 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * AiKeyIn
+         * @description A8.7: a user's own key; write-only (never returned).
+         */
+        AiKeyIn: {
+            /** Api Key */
+            api_key: string;
+            /** Model */
+            model: string;
+            /** Base Url */
+            base_url?: string | null;
+        };
+        /** AiKeyOut */
+        AiKeyOut: {
+            /** Provider */
+            provider: string;
+            /** Model */
+            model: string;
+            /** Base Url */
+            base_url: string | null;
+            /** Key Last4 */
+            key_last4: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** AiKeysOut */
+        AiKeysOut: {
+            /** Available */
+            available: boolean;
+            /** Keys */
+            keys: components["schemas"]["AiKeyOut"][];
+            /** Providers */
+            providers: string[];
+            /** Held */
+            held: {
+                [key: string]: string;
+            };
+            /** Note */
+            note: string;
+        };
         /** AiRuleAttemptOut */
         AiRuleAttemptOut: {
             /** Rule */
@@ -3736,6 +3814,12 @@ export interface components {
              * @default daily
              */
             timeframe: string;
+            /**
+             * Provider
+             * @default server
+             * @enum {string}
+             */
+            provider: "server" | "openai_compatible";
         };
         /** AiRuleOut */
         AiRuleOut: {
@@ -3763,6 +3847,11 @@ export interface components {
             model?: string | null;
             /** Reason */
             reason?: string | null;
+            /**
+             * Keys Available
+             * @default false
+             */
+            keys_available: boolean;
         };
         /**
          * AlertEventOut
@@ -3929,6 +4018,12 @@ export interface components {
             kind?: string | null;
             /** As Of */
             as_of?: string | null;
+            /**
+             * Provider
+             * @default server
+             * @enum {string}
+             */
+            provider: "server" | "openai_compatible";
         };
         /** AskOut */
         AskOut: {
@@ -15304,6 +15399,105 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["AskOut"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_ai_keys_v1_ai_keys_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AiKeysOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    save_ai_key_v1_ai_keys__provider__put: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                provider: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AiKeyIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AiKeyOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_ai_key_v1_ai_keys__provider__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                provider: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

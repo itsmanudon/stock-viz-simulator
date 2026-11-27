@@ -14,7 +14,8 @@ import { auth } from "@/auth";
 import { CopilotPanel } from "@/components/copilot/copilot-panel";
 import { PageFrame } from "@/components/page-frame";
 import { PageEmptyState, PageHeader } from "@/components/page-header";
-import { type AiStatus, getAiStatus } from "@/lib/api/ai";
+import { type AiKeys, type AiStatus, getAiStatus } from "@/lib/api/ai";
+import { listAiKeys } from "@/lib/api/ai-server";
 
 import { askCopilotAction } from "./actions";
 
@@ -28,6 +29,17 @@ export default async function CopilotPage() {
   } catch {
     status = null;
   }
+  // A8.7: the user's own OpenAI-compatible key, if saved, is a second choice.
+  const keys: AiKeys | null = session?.user ? await listAiKeys().catch(() => null) : null;
+  const ownKey = keys?.keys.find((k) => k.provider === "openai_compatible") ?? null;
+  const choices = [
+    ...(status?.configured
+      ? [{ value: "server" as const, label: `Server: ${status.provider} ${status.model}` }]
+      : []),
+    ...(ownKey
+      ? [{ value: "openai_compatible" as const, label: `Your key: ${ownKey.model}` }]
+      : []),
+  ];
   return (
     <PageFrame>
       <PageHeader
@@ -52,7 +64,7 @@ export default async function CopilotPage() {
               </p>
             </PageEmptyState>
           </div>
-        ) : !status?.configured ? (
+        ) : choices.length === 0 ? (
           <div data-testid="copilot-off">
             <PageEmptyState title="No Model on This Server">
               <p>
@@ -65,7 +77,7 @@ export default async function CopilotPage() {
             </PageEmptyState>
           </div>
         ) : (
-          <CopilotPanel model={`${status.provider} ${status.model}`} ask={askCopilotAction} />
+          <CopilotPanel choices={choices} ask={askCopilotAction} />
         )}
       </div>
     </PageFrame>

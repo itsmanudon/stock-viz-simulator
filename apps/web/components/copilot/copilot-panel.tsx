@@ -15,7 +15,7 @@ import { DocumentMeta, filingHref } from "@/components/documents-view";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import type { CopilotAnswer } from "@/lib/api/ai";
+import type { AiProviderChoice, CopilotAnswer } from "@/lib/api/ai";
 import { answerParts, questionProblem } from "@/lib/copilot";
 
 export function CopilotAnswerView({ answer }: { answer: CopilotAnswer }) {
@@ -107,15 +107,20 @@ export function CopilotAnswerView({ answer }: { answer: CopilotAnswer }) {
   );
 }
 
+export type CopilotChoice = { value: AiProviderChoice; label: string };
+
 export function CopilotPanel({
-  model,
+  choices,
   ask,
 }: {
-  model: string;
-  ask: (question: string, ticker: string) => Promise<CopilotState>;
+  choices: CopilotChoice[];
+  ask: (question: string, ticker: string, provider: AiProviderChoice) => Promise<CopilotState>;
 }) {
   const qId = useId();
   const tId = useId();
+  const pId = useId();
+  const [provider, setProvider] = useState<AiProviderChoice>(choices[0]?.value ?? "server");
+  const model = choices.find((c) => c.value === provider)?.label ?? "The model";
   const [question, setQuestion] = useState("");
   const [ticker, setTicker] = useState("");
   const [state, setState] = useState<CopilotState>({});
@@ -123,7 +128,7 @@ export function CopilotPanel({
   const problem = questionProblem(question);
   const submit = () => {
     if (problem || pending) return;
-    start(async () => setState(await ask(question, ticker)));
+    start(async () => setState(await ask(question, ticker, provider)));
   };
   return (
     <div className="space-y-4" data-testid="copilot-panel">
@@ -164,12 +169,32 @@ export function CopilotPanel({
               className="w-32"
             />
           </div>
+          {choices.length > 1 ? (
+            <div className="space-y-1">
+              <Label htmlFor={pId} className="text-xs">
+                Model
+              </Label>
+              <select
+                id={pId}
+                value={provider}
+                onChange={(e) => setProvider(e.target.value as AiProviderChoice)}
+                className="h-9 rounded-md border border-input bg-transparent px-2 text-sm"
+              >
+                {choices.map((c) => (
+                  <option key={c.value} value={c.value}>
+                    {c.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : null}
           <Button type="submit" disabled={pending || problem !== null}>
             {pending ? "Reading the Sources…" : "Ask"}
           </Button>
         </div>
         <p className="text-2xs text-text-tertiary">
           {model} answers only from passages of the documents stored here, and cites each one.
+          {provider === "openai_compatible" ? " Billed to your account with that provider." : ""}
         </p>
       </form>
       {state.error ? (

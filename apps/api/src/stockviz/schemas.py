@@ -5661,6 +5661,7 @@ class AskIn(BaseModel):
     ticker: str | None = Field(default=None, max_length=16)
     kind: str | None = None
     as_of: datetime | None = None
+    provider: Literal["server", "openai_compatible"] = "server"
 
 
 class AskSourceOut(BaseModel):
@@ -5907,6 +5908,7 @@ class AiRuleIn(BaseModel):
 
     text: str = Field(min_length=3, max_length=500)
     timeframe: str = "daily"
+    provider: Literal["server", "openai_compatible"] = "server"
 
 
 class AiRuleAttemptOut(BaseModel):
@@ -5929,6 +5931,31 @@ class AiStatusOut(BaseModel):
     provider: str | None = None
     model: str | None = None
     reason: str | None = None
+    keys_available: bool = False
+
+
+class AiKeyIn(BaseModel):
+    """A8.7: a user's own key; write-only (never returned)."""
+
+    api_key: str = Field(min_length=8, max_length=400)
+    model: str = Field(min_length=1, max_length=100)
+    base_url: str | None = Field(default=None, max_length=300)
+
+
+class AiKeyOut(BaseModel):
+    provider: str
+    model: str
+    base_url: str | None
+    key_last4: str
+    updated_at: datetime
+
+
+class AiKeysOut(BaseModel):
+    available: bool
+    keys: list[AiKeyOut]
+    providers: list[str]
+    held: dict[str, str]
+    note: str
 
 
 class CohortIn(BaseModel):

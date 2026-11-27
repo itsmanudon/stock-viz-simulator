@@ -1,19 +1,23 @@
 "use server";
 
 import { apiDetail } from "@/lib/api-error-detail";
-import type { CopilotAnswer } from "@/lib/api/ai";
+import type { AiProviderChoice, CopilotAnswer } from "@/lib/api/ai";
 import { askCopilot } from "@/lib/api/ai-server";
 import { AuthedApiError, UnauthenticatedError } from "@/lib/api/server";
 import { questionProblem } from "@/lib/copilot";
 
 export type CopilotState = { answer?: CopilotAnswer; error?: string };
 
-export async function askCopilotAction(question: string, ticker: string): Promise<CopilotState> {
+export async function askCopilotAction(
+  question: string,
+  ticker: string,
+  provider: AiProviderChoice = "server",
+): Promise<CopilotState> {
   const problem = questionProblem(question);
   if (problem) return { error: problem };
   const symbol = ticker.trim().toUpperCase().slice(0, 16);
   try {
-    return { answer: await askCopilot(question.trim(), symbol || undefined) };
+    return { answer: await askCopilot(question.trim(), symbol || undefined, provider) };
   } catch (err) {
     if (err instanceof UnauthenticatedError) return { error: "Sign in to ask the copilot." };
     if (err instanceof AuthedApiError) {

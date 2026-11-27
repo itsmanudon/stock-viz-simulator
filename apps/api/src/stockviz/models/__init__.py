@@ -14,6 +14,7 @@ from stockviz.models.aegis import (
     AegisSyncRun,
     AegisSyncState,
 )
+from stockviz.models.ai_key import UserAiKey
 from stockviz.models.alert import Alert, AlertDirection, AlertEvent, AlertKind, AlertRepeat
 from stockviz.models.auth_rate_limit import AuthRateLimit
 from stockviz.models.broker_import import BrokerFill, ImportBatch
@@ -204,6 +205,7 @@ __all__ = [
     "TradePlan",
     "TradeSide",
     "User",
+    "UserAiKey",
     "Watchlist",
     "WatchlistItem",
 ]
