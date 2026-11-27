@@ -8,7 +8,7 @@
  * page opens without a hard rule across the top.
  *
  * This is the only client piece of the header: everything inside it (the nav,
- * the session-aware CTA, the market-status chip) stays server-rendered and is
+ * the session-aware CTA, the sound switch) stays server-rendered and is
  * passed through as `children`.
  */
 

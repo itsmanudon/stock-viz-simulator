@@ -56,7 +56,6 @@ export default async function StatusPage() {
   return (
     <PageFrame width="workstation" className="py-5 sm:py-7">
       <PageHeader
-        eyebrow="System"
         title="Status"
         description="What the nightly run left behind: each job's last result, the news sync and the newest stored close per market. Prices are end of day; nothing here is live."
       />

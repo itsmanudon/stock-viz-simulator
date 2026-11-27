@@ -10,7 +10,6 @@ import {
   getActiveNavigation,
   pathMatches,
   workspaceForPath,
-  workspaceLabelFor,
   workspaceSubnav,
 } from "@/lib/app-navigation";
 
@@ -110,7 +109,7 @@ describe("route → workspace map", () => {
     expect(new Set(hrefs).size).toBe(hrefs.length);
   });
 
-  it("gives each workspace page its own subnav and eyebrow", () => {
+  it("gives each workspace page its own subnav", () => {
     expect(workspaceSubnav("/replay").map((item) => item.label)).toEqual([
       "Backtest",
       "Saved runs",
@@ -124,7 +123,5 @@ describe("route → workspace map", () => {
     ]);
     // Books opens Settings, so it is not a workspace tab.
     expect(workspaceSubnav("/portfolio").map((item) => item.label)).not.toContain("Books");
-    expect(workspaceLabelFor("/compare")).toBe("Workbench");
-    expect(workspaceLabelFor("/login")).toBe("Research");
   });
 });

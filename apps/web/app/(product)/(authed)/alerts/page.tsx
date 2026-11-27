@@ -168,7 +168,6 @@ export default async function AlertsPage({
   return (
     <PageFrame width="workstation" className="py-5 sm:py-7">
       <OperationalPageHeader
-        eyebrow="Portfolio"
         title="Alerts"
         description="Rules on prices, indicators, saved setups, Aegis news and your portfolio, judged on stored daily closes after each nightly run. Notified in the app and on any channel set in Settings; not real-time monitoring."
         meta={

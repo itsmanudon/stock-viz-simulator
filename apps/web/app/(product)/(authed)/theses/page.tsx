@@ -91,7 +91,6 @@ export default async function ThesesPage() {
   return (
     <div className="w-full space-y-6 px-4 py-6 sm:px-6 lg:py-7 xl:px-8">
       <PageHeader
-        eyebrow="Portfolio & Tax"
         title="Theses"
         description="A written view per stock, with a kill rule that tells you when the reason you bought may be gone."
         meta={<MetaChip>{open.length} open</MetaChip>}

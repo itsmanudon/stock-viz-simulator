@@ -1,34 +1,22 @@
 import { PageEmptyState, PageHeader, PageSubnav } from "@/components/page-header";
-import { workspaceForPath, workspaceLabelFor, workspaceSubnav } from "@/lib/app-navigation";
+import { workspaceForPath, workspaceSubnav } from "@/lib/app-navigation";
 
 /**
  * Research flavour of the shared page chrome — see `page-header.tsx`.
- * The eyebrow names the page's workspace (`lib/app-navigation.ts`) when
- * `path` is given, and the subnav lists that workspace's routes.
+ * The subnav lists the page's workspace's routes (`lib/app-navigation.ts`).
  */
 export function ResearchPageHeader({
   title,
   description,
   meta,
   actions,
-  path,
 }: {
   title: string;
   description: string;
   meta?: React.ReactNode;
   actions?: React.ReactNode;
-  /** The page's route, for the workspace eyebrow. */
-  path?: string;
 }) {
-  return (
-    <PageHeader
-      eyebrow={path ? workspaceLabelFor(path) : "Research"}
-      title={title}
-      description={description}
-      meta={meta}
-      actions={actions}
-    />
-  );
+  return <PageHeader title={title} description={description} meta={meta} actions={actions} />;
 }
 
 /** The current workspace's routes as tabs (A3.6: was one fixed Research list). */

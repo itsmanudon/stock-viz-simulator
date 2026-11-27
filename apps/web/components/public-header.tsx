@@ -5,7 +5,6 @@ import { StockVizWordmark } from "@/components/brand/stockviz-mark";
 import { auth } from "@/auth";
 import { AccountMenu } from "@/components/account-menu";
 import { FloatingHeader } from "@/components/marketing/floating-header";
-import { MarketStatus } from "@/components/marketing/market-status";
 import { MobileNav } from "@/components/mobile-nav";
 import { SoundToggle } from "@/components/sound/sound-toggle";
 import { Button } from "@/components/ui/button";
@@ -48,9 +47,7 @@ export async function PublicHeader() {
       </nav>
 
       <div className="ml-auto flex items-center gap-1 sm:gap-2">
-        <MarketStatus />
-        <SoundToggle showLabel className="hidden md:inline-flex" />
-        <SoundToggle className="md:hidden" />
+        <SoundToggle />
         <Button asChild size="sm" className="hidden rounded-full sm:inline-flex">
           <Link href={signedIn ? "/dashboard" : "/signup"}>
             {signedIn ? "Open workspace" : "Create account"}

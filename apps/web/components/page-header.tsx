@@ -1,29 +1,26 @@
 import { BookLink } from "@/components/book-link";
 
-import { titleCase } from "@/lib/title-case";
 import { cn } from "@/lib/utils";
 
 /**
  * The page-header / subnav / empty-state trio shared by every workspace page.
  *
  * `operational-page-header.tsx` and `research-page-header.tsx` had grown
- * independent, byte-identical copies of all three; the Research variant only
- * differed by hard-coding its eyebrow. These are the single implementation —
- * the domain-specific modules re-export thin wrappers that supply their own
- * eyebrow and subnav items.
+ * independent, byte-identical copies of all three. These are the single
+ * implementation; the domain-specific modules re-export thin wrappers that
+ * supply their own subnav items.
  *
  * Titles are Geist 600 with -0.025em tracking, matching the stock page's
- * company name (owner's pick, 12 Nov 2026). Anatomy is the "Dashboard Flaws" page head: small Title Case eyebrow, large
- * title, one-line description, optional meta and actions.
+ * company name (owner's pick, 12 Nov 2026). Anatomy: large title, one-line
+ * description, optional meta and actions. No small label above the title
+ * (owner, 27 Nov 2026): the sidebar and the subnav already name the workspace.
  */
 export function PageHeader({
-  eyebrow,
   title,
   description,
   meta,
   actions,
 }: {
-  eyebrow: string;
   title: string;
   description: string;
   meta?: React.ReactNode;
@@ -32,11 +29,7 @@ export function PageHeader({
   return (
     <header className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
       <div className="min-w-0 max-w-3xl">
-        <p className="flex items-center gap-2 font-mono text-2xs font-medium tracking-[0.02em] text-text-secondary">
-          <span aria-hidden className="nav-active-bar size-1.5 rounded-full" />
-          {titleCase(eyebrow)}
-        </p>
-        <h1 className="mt-2 text-3xl font-semibold tracking-[-0.04em] sm:text-4xl">{title}</h1>
+        <h1 className="text-3xl font-semibold tracking-[-0.04em] sm:text-4xl">{title}</h1>
         <p className="mt-1.5 max-w-2xl text-sm leading-6 text-text-secondary">{description}</p>
         {meta ? <div className="mt-1.5 text-xs text-text-tertiary">{meta}</div> : null}
       </div>

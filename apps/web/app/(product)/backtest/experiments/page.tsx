@@ -27,7 +27,6 @@ export default async function ExperimentsPage() {
   return (
     <div className="w-full space-y-6 px-4 py-6 sm:px-6 lg:py-7 xl:px-8">
       <PageHeader
-        eyebrow="Quant Lab"
         title="Experiments"
         description="Write the hypothesis first, then file every run that tests it. Reruns check the result against the data it read."
       />

@@ -91,7 +91,6 @@ export default async function SettingsPage({
   return (
     <div className="density-workspace mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 lg:py-7">
       <PageHeader
-        eyebrow="Account"
         title="Settings"
         description="Account preferences are saved to your profile; interface preferences stay in this browser."
       />

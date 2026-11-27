@@ -45,7 +45,6 @@ export default async function TaxPage({ searchParams }: { searchParams: Promise<
   return (
     <div className="w-full space-y-6 px-4 py-6 sm:px-6 lg:py-7 xl:px-8">
       <PageHeader
-        eyebrow="Portfolio & Tax"
         title="Capital gains"
         description="An estimate of India capital gains tax on listed equity for one book and financial year, by FIFO lots."
       />

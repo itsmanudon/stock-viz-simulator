@@ -6,8 +6,7 @@
  *   their items from `WORKSPACES`.
  * - The command palette (`lib/command-palette.ts`) turns the same items into
  *   its "Pages" results.
- * - Workspace subnavs (`workspaceSubnav`) and page eyebrows
- *   (`workspaceLabelFor`) read it too.
+ * - Workspace subnavs (`workspaceSubnav`) read it too.
  * - `tests/unit/app-navigation.test.ts` walks `app/(product)/**\/page.tsx` and
  *   fails if a page route is not mapped here.
  *
@@ -360,11 +359,6 @@ export function workspaceForPath(pathname: string): Workspace | null {
     }
   }
   return best;
-}
-
-/** The workspace's label for a page eyebrow, or `fallback`. */
-export function workspaceLabelFor(pathname: string, fallback = "Research"): string {
-  return workspaceForPath(pathname)?.label ?? fallback;
 }
 
 /** The item a path opens: the one with the longest matching prefix. */

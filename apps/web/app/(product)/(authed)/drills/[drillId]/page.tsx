@@ -97,13 +97,7 @@ export default async function DrillPage({
     <PageFrame width="workstation" className="py-6 sm:py-8">
       <header className="flex flex-col gap-3 border-b border-border-muted pb-5 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <p className="text-2xs font-medium tracking-[0.02em] text-text-secondary">
-            Drill {drill.position + 1} · {drill.deck_name}
-          </p>
-          <h1
-            className="mt-1.5 text-3xl font-semibold tracking-[-0.025em]"
-            data-testid="drill-label"
-          >
+          <h1 className="text-3xl font-semibold tracking-[-0.025em]" data-testid="drill-label">
             {label}
           </h1>
           <div className="mt-2.5 flex flex-wrap items-center gap-2 text-xs text-text-tertiary">
@@ -112,7 +106,8 @@ export default async function DrillPage({
               {formatReplayDate(session.current_at)}
             </MetaChip>
             <span>
-              {DRILL_STATUS_LABEL[drill.status]} · trigger {formatReplayShortDate(triggerShown)}
+              Drill {drill.position + 1} of {drill.deck_name} · {DRILL_STATUS_LABEL[drill.status]} ·
+              trigger {formatReplayShortDate(triggerShown)}
               {atTrigger ? " (today in the drill)" : ""}
             </span>
           </div>

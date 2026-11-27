@@ -59,7 +59,6 @@ export default async function TradeReplayPage({ params }: { params: Promise<{ id
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow="Portfolio · Journal"
         title={`Replay My Trade: ${replay.ticker ?? "Unknown symbol"}`}
         description="Your real fills, played back bar by bar. Read only: nothing here places an order."
         meta={

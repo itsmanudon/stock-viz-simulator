@@ -10,7 +10,6 @@ import { titleCase } from "@/lib/title-case";
  * domain's subnav items and the badge tone maps for order/alert state.
  */
 export function OperationalPageHeader(props: {
-  eyebrow: string;
   title: string;
   description: string;
   meta?: React.ReactNode;

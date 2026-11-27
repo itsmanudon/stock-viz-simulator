@@ -11,10 +11,12 @@
  * height; everything ahead of it lies flat under a haze, because the future
  * is not known yet (the same rule as Replay Lab).
  *
- * - The panel beside the surface states, as text, the session in view, how
- *   many symbols were above their starting close and the leader and laggard,
- *   so the canvas (aria-hidden) is never the only place a figure appears.
- * - The session slider is a real range input, so the same scrub works from a
+ * - Under the surface, one sentence states the session in view, how many
+ *   symbols were above their starting close and the leader and laggard, its
+ *   digits rolling as time moves (landing; the dashboard tile keeps its stat
+ *   panel). The canvas (aria-hidden) is never the only place a figure appears.
+ * - Time is a full-width rail: a real range input with the session's date on
+ *   its thumb and the months marked under it, so the same scrub works from a
  *   keyboard and a screen reader; dragging it scrolls the page to match.
  * - Reduced motion: no tall scroll track, no camera drift; the slider alone
  *   moves time and the surface opens on the latest session.
@@ -25,6 +27,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 
+import { RollingText } from "@/components/prism/rolling-text";
 import { emitSound } from "@/components/sound/sound-provider";
 import { cn } from "@/lib/utils";
 
@@ -116,6 +119,16 @@ function pct(v: number) {
   return `${v > 0 ? "+" : ""}${v.toFixed(2)}%`;
 }
 
+/** "+21.66%" / "−22.52%" with a real minus sign, for the sentence. */
+function signedPct(v: number) {
+  return `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(v).toFixed(2)}%`;
+}
+
+/** Thumb centre on an 18px-thumb range input, as a CSS `left`. */
+function onTrack(fraction: number) {
+  return `calc(${fraction * 100}% + ${(0.5 - fraction) * 18}px)`;
+}
+
 function cssColor(name: string, fallback: string): string {
   const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
   return v || fallback;
@@ -149,6 +162,15 @@ export function MarketTerrain({
 
   const stats = useMemo(() => statsAt(data, index), [data, index]);
   const sessionsBack = data.sessions - 1 - index;
+  // The first session of each month after the first, for the rail's marks.
+  const months = useMemo(() => {
+    const out: [string, number][] = [];
+    data.dates?.forEach((date, i) => {
+      const month = date.slice(0, 3);
+      if (i > 0 && month !== data.dates?.[i - 1].slice(0, 3)) out.push([month, i]);
+    });
+    return out;
+  }, [data.dates]);
 
   const applyProgress = useCallback(
     (p: number) => {
@@ -433,6 +455,80 @@ export function MarketTerrain({
       ? `Latest stored session${data.lastDate ? `, ${data.lastDate}` : ""}`
       : `${sessionsBack} ${sessionsBack === 1 ? "session" : "sessions"} before ${data.lastDate ?? "the latest close"}`;
 
+  const when = data.dates?.[index] ?? (sessionsBack === 0 ? data.lastDate : null);
+  const fraction = index / (data.sessions - 1);
+
+  // The window's first session: every row is rebased to it, so all sit at
+  // zero and a leader and laggard would be arbitrary.
+  const sentence =
+    index === 0 ? (
+      <p className="max-w-4xl text-2xl leading-snug font-medium tracking-[-0.025em] text-balance [text-shadow:0_0_24px_var(--background),0_0_8px_var(--background)] sm:text-4xl sm:leading-tight">
+        {when ? <>On {when}, all</> : "All"} {data.tickers.length} start level at 0.00%: the
+        window&rsquo;s first close.
+      </p>
+    ) : (
+      <p className="max-w-4xl text-2xl leading-snug font-medium tracking-[-0.025em] text-balance [text-shadow:0_0_24px_var(--background),0_0_8px_var(--background)] sm:text-4xl sm:leading-tight">
+        {when ? (
+          <>
+            On <RollingText value={when} />,{" "}
+          </>
+        ) : (
+          <>{label}, </>
+        )}
+        <RollingText value={String(stats.above)} /> of {data.tickers.length}{" "}
+        {stats.above === 1 ? "was" : "were"} above where they started.{" "}
+        <span className="ticker">{stats.leader.ticker}</span> led at{" "}
+        <RollingText
+          value={signedPct(stats.leader.value)}
+          className={stats.leader.value >= 0 ? "text-positive" : "text-negative"}
+        />
+        ; <span className="ticker">{stats.laggard.ticker}</span> trailed at{" "}
+        <RollingText
+          value={signedPct(stats.laggard.value)}
+          className={stats.laggard.value >= 0 ? "text-positive" : "text-negative"}
+        />
+        .
+      </p>
+    );
+
+  const rail = (
+    <div className="relative pt-12">
+      <span
+        aria-hidden
+        className="glass absolute top-0 rounded-full px-3 py-1.5 font-mono text-sm whitespace-nowrap tabular-nums"
+        style={{ left: onTrack(fraction), transform: `translateX(-${fraction * 100}%)` }}
+      >
+        {when ?? `${index + 1} of ${data.sessions}`}
+      </span>
+      <input
+        type="range"
+        min={0}
+        max={data.sessions - 1}
+        step={1}
+        value={index}
+        onChange={(event) => onSlide(Number(event.target.value))}
+        aria-label="Move through time"
+        aria-valuetext={when ?? label}
+        data-sound="none"
+        className="prism-range w-full"
+      />
+      {months.length ? (
+        <div aria-hidden className="relative mt-1 h-7">
+          {months.map(([month, at]) => (
+            <span
+              key={at}
+              className="absolute top-0 flex -translate-x-1/2 flex-col items-center gap-1 text-sm text-text-tertiary"
+              style={{ left: onTrack(at / (data.sessions - 1)) }}
+            >
+              <span className="h-1.5 w-px bg-border" />
+              {month}
+            </span>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+
   const statsPanel = (
     <dl
       className={cn(
@@ -595,9 +691,9 @@ export function MarketTerrain({
             </p>
           </div>
 
-          <div className="pointer-events-auto grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
-            {statsPanel}
-            {slider}
+          <div className="pointer-events-auto grid gap-6 sm:gap-8">
+            {sentence}
+            {rail}
           </div>
         </div>
       </div>

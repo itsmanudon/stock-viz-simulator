@@ -97,7 +97,6 @@ export default async function OrdersPage({
   return (
     <PageFrame width="workstation" className="py-5 sm:py-7">
       <OperationalPageHeader
-        eyebrow="Trade"
         title="Orders"
         description="Manage conditional paper orders. Pending buys reserve cash; pending sells reserve shares. Settlement uses the stored daily close, not an intraday trigger."
         meta={
