@@ -928,6 +928,18 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   rows with the reason when none, a payout calendar), labelled a projection.
   Tests: `tests/unit/a96-dividend-projection.test.tsx`,
   `tests/e2e/tearsheet.spec.ts`.
+- **Classroom (A10.2, M12.1, M12.2).** `/classroom` (protected in
+  `proxy.ts`; Quant Lab nav "Classroom", signed in, icon `GraduationCap`):
+  join with a code and a consent box that states what the instructor sees;
+  joined cohorts list assignments with Start (makes the student's anonymised
+  deck and opens `/drills?deck=`) or Open My Deck, and Leave; instructors
+  create a cohort (its invite code shown), add an assignment (title, rule,
+  symbols, range, K, rubric %, due date) and read `GradebookTable`
+  (`components/classroom/gradebook-table.tsx`: grade and process counts per
+  student; the API sends nothing else). Server actions in
+  `(authed)/classroom/actions.ts` redirect back with `?ok=` / `?error=`;
+  fetchers in `lib/api/classroom.ts`. Tests: `tests/unit/a102-classroom.test.tsx`,
+  `tests/e2e/classroom.spec.ts`.
 - **Describe in words (A8.2, M4.2).** The screener's rule panel adds a
   "Describe in words" disclosure (`describe-in-words`) only when signed in
   and `getAiStatus()` (`lib/api/ai.ts`, public, cached a minute) says a

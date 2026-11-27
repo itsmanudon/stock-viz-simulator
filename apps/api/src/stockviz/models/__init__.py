@@ -19,6 +19,7 @@ from stockviz.models.auth_rate_limit import AuthRateLimit
 from stockviz.models.broker_import import BrokerFill, ImportBatch
 from stockviz.models.chart_layout import ChartLayout, ChartTemplate
 from stockviz.models.checklist import ChecklistEvidence, ChecklistScore
+from stockviz.models.classroom import AssignmentDeck, Cohort, CohortAssignment, CohortMember
 from stockviz.models.corporate_action import CorporateAction, CorporateActionApplication
 from stockviz.models.data_file import DataFile
 from stockviz.models.delivery import (
@@ -107,6 +108,7 @@ __all__ = [
     "AlertEvent",
     "AlertKind",
     "AlertRepeat",
+    "AssignmentDeck",
     "AuthRateLimit",
     "BacktestTrial",
     "BookKind",
@@ -117,6 +119,9 @@ __all__ = [
     "ChartTemplate",
     "ChecklistEvidence",
     "ChecklistScore",
+    "Cohort",
+    "CohortAssignment",
+    "CohortMember",
     "ColumnSet",
     "ConsumerInbox",
     "CorporateAction",

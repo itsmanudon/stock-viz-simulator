@@ -178,6 +178,14 @@ export const WORKSPACES: readonly Workspace[] = [
       { label: "Replay", href: "/replay", matches: ["/replay"], keywords: ["blind", "session"] },
       { label: "Drills", href: "/drills", matches: ["/drills"], keywords: ["deck", "practice"] },
       {
+        // A10.2 (M12.1, M12.2): cohorts, drill assignments and a process-only gradebook.
+        label: "Classroom",
+        href: "/classroom",
+        matches: ["/classroom"],
+        signedInOnly: true,
+        keywords: ["cohort", "class", "students", "instructor", "assignments", "gradebook"],
+      },
+      {
         // A9.3 (M7.6): cointegration of two stored symbols.
         label: "Pairs lab",
         href: "/pairs",

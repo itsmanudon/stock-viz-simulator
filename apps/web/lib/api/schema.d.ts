@@ -224,6 +224,126 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/cohorts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Cohorts */
+        get: operations["list_cohorts_v1_cohorts_get"];
+        put?: never;
+        /** Create Cohort */
+        post: operations["create_cohort_v1_cohorts_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/cohorts/{cohort_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Cohort */
+        get: operations["get_cohort_v1_cohorts__cohort_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/cohorts/join": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Join Cohort */
+        post: operations["join_cohort_v1_cohorts_join_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/cohorts/{cohort_id}/membership": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Leave Cohort */
+        delete: operations["leave_cohort_v1_cohorts__cohort_id__membership_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/cohorts/{cohort_id}/assignments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Add Assignment */
+        post: operations["add_assignment_v1_cohorts__cohort_id__assignments_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/assignments/{assignment_id}/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Start Assignment */
+        post: operations["start_assignment_v1_assignments__assignment_id__start_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/cohorts/{cohort_id}/gradebook": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Gradebook */
+        get: operations["gradebook_v1_cohorts__cohort_id__gradebook_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/symbols/screen": {
         parameters: {
             query?: never;
@@ -4731,6 +4851,98 @@ export interface components {
             conditions: components["schemas"]["ChecklistConditionDefOut"][];
             evidence?: components["schemas"]["ChecklistEvidenceOut"] | null;
         };
+        /**
+         * CohortAssignmentIn
+         * @description A10.2 (M12.2): a drill-deck recipe for every member, and its rubric.
+         */
+        CohortAssignmentIn: {
+            /** Title */
+            title: string;
+            deck: components["schemas"]["DrillDeckIn"];
+            /**
+             * Min Followed Pct
+             * @default 70
+             */
+            min_followed_pct: number;
+            /** Due On */
+            due_on?: string | null;
+        };
+        /** CohortAssignmentOut */
+        CohortAssignmentOut: {
+            /** Id */
+            id: number;
+            /** Title */
+            title: string;
+            /** Min Followed Pct */
+            min_followed_pct: number;
+            /** Due On */
+            due_on?: string | null;
+            /** Rule */
+            rule: string;
+            /** K */
+            k: number;
+            /** Seed */
+            seed?: number | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** My Deck Id */
+            my_deck_id?: number | null;
+        };
+        /** CohortIn */
+        CohortIn: {
+            /** Name */
+            name: string;
+        };
+        /** CohortJoinIn */
+        CohortJoinIn: {
+            /** Code */
+            code: string;
+            /**
+             * Consent
+             * @default false
+             */
+            consent: boolean;
+        };
+        /**
+         * CohortOut
+         * @description A10.2 (M12.1): a cohort as its owner or a member sees it.
+         */
+        CohortOut: {
+            /** Id */
+            id: number;
+            /** Name */
+            name: string;
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "owner" | "member";
+            /** Invite Code */
+            invite_code?: string | null;
+            /** Members */
+            members: number;
+            /** Assignments */
+            assignments: components["schemas"]["CohortAssignmentOut"][];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Consent Text */
+            consent_text: string;
+        };
+        /** CohortStartOut */
+        CohortStartOut: {
+            /** Assignment Id */
+            assignment_id: number;
+            /** Deck Id */
+            deck_id: number;
+            /** Created */
+            created: boolean;
+        };
         /** ColumnSetIn */
         ColumnSetIn: {
             /** Name */
@@ -6707,6 +6919,59 @@ export interface components {
             point_in_time: boolean;
             /** Latest Available At */
             latest_available_at?: string | null;
+        };
+        /**
+         * GradebookCellOut
+         * @description Process counts only: no money, R, fills, symbols or dates.
+         */
+        GradebookCellOut: {
+            /** Assignment Id */
+            assignment_id: number;
+            /** Started */
+            started: boolean;
+            /** Drills */
+            drills: number;
+            /** Revealed */
+            revealed: number;
+            /** Traded */
+            traded: number;
+            /** Followed Plan */
+            followed_plan: number;
+            /** Checks Passed */
+            checks_passed: number;
+            /** Checks Applicable */
+            checks_applicable: number;
+            /** Followed Pct */
+            followed_pct?: number | null;
+            /**
+             * Grade
+             * @enum {string}
+             */
+            grade: "not_started" | "in_progress" | "meets_rubric" | "below_rubric";
+        };
+        /** GradebookOut */
+        GradebookOut: {
+            /** Cohort Id */
+            cohort_id: number;
+            /** Assignments */
+            assignments: components["schemas"]["CohortAssignmentOut"][];
+            /** Rows */
+            rows: components["schemas"]["GradebookRowOut"][];
+            /** Rubric */
+            rubric: string;
+            /** Privacy */
+            privacy: string;
+        };
+        /** GradebookRowOut */
+        GradebookRowOut: {
+            /** User Id */
+            user_id: number;
+            /** Name */
+            name: string;
+            /** Joined At */
+            joined_at: string;
+            /** Cells */
+            cells: components["schemas"]["GradebookCellOut"][];
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -14839,6 +15104,274 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AiRuleOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_cohorts_v1_cohorts_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CohortOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_cohort_v1_cohorts_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CohortIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CohortOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_cohort_v1_cohorts__cohort_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                cohort_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CohortOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    join_cohort_v1_cohorts_join_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CohortJoinIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CohortOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    leave_cohort_v1_cohorts__cohort_id__membership_delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                cohort_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    add_assignment_v1_cohorts__cohort_id__assignments_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                cohort_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CohortAssignmentIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CohortAssignmentOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    start_assignment_v1_assignments__assignment_id__start_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                assignment_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CohortStartOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    gradebook_v1_cohorts__cohort_id__gradebook_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                cohort_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GradebookOut"];
                 };
             };
             /** @description Validation Error */
