@@ -139,6 +139,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/research/optimise": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Optimise */
+        post: operations["optimise_v1_research_optimise_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/symbols/screen": {
         parameters: {
             query?: never;
@@ -8613,6 +8630,119 @@ export interface components {
             created_at: string;
         };
         /**
+         * OptimiseIn
+         * @description A7.11 (M10.6): optimise weights over stored closes.
+         */
+        OptimiseIn: {
+            /** Tickers */
+            tickers: string[];
+            /**
+             * Method
+             * @default hrp
+             * @enum {string}
+             */
+            method: "hrp" | "min_volatility" | "max_sharpe" | "min_cvar" | "black_litterman";
+            /**
+             * Years
+             * @default 3
+             */
+            years: number;
+            /**
+             * Risk Free Rate
+             * @default 0.04
+             */
+            risk_free_rate: number;
+            /**
+             * Max Weight
+             * @default 1
+             */
+            max_weight: number;
+            /**
+             * Beta
+             * @default 0.95
+             */
+            beta: number;
+            /** Cash */
+            cash?: number | null;
+            /** Views */
+            views?: components["schemas"]["OptimiseViewIn"][];
+            /**
+             * Delta
+             * @default 2.5
+             */
+            delta: number;
+        };
+        /** OptimiseOut */
+        OptimiseOut: {
+            /** Method */
+            method: string;
+            /** Currency */
+            currency: string;
+            /**
+             * First
+             * Format: date
+             */
+            first: string;
+            /**
+             * Last
+             * Format: date
+             */
+            last: string;
+            /** Sessions */
+            sessions: number;
+            /** Risk Free Rate */
+            risk_free_rate: number;
+            /** Beta */
+            beta: number;
+            /** Weights */
+            weights: components["schemas"]["OptimiseWeightOut"][];
+            performance: components["schemas"]["OptimisePerformanceOut"];
+            equal_weight: components["schemas"]["OptimisePerformanceOut"];
+            /** Cash */
+            cash?: number | null;
+            /** Leftover */
+            leftover?: number | null;
+            /** Notes */
+            notes: string[];
+            /** Disclaimer */
+            disclaimer: string;
+        };
+        /** OptimisePerformanceOut */
+        OptimisePerformanceOut: {
+            /** Expected Return */
+            expected_return?: number | null;
+            /** Volatility */
+            volatility?: number | null;
+            /** Sharpe */
+            sharpe?: number | null;
+            /** Cvar */
+            cvar?: number | null;
+        };
+        /** OptimiseViewIn */
+        OptimiseViewIn: {
+            /** Ticker */
+            ticker: string;
+            /** Expected Return */
+            expected_return: number;
+            /** Confidence */
+            confidence: number;
+        };
+        /** OptimiseWeightOut */
+        OptimiseWeightOut: {
+            /** Ticker */
+            ticker: string;
+            /** Weight */
+            weight: number;
+            /** Shares */
+            shares?: number | null;
+            /** Price */
+            price?: number | null;
+            /** Prior */
+            prior?: number | null;
+            /** Posterior */
+            posterior?: number | null;
+        };
+        /**
          * OptionExposureOut
          * @description A7.9 (M6.2): GEX/DEX and key levels from the newest US chain snapshot.
          */
@@ -14111,6 +14241,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DocumentDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    optimise_v1_research_optimise_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OptimiseIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OptimiseOut"];
                 };
             };
             /** @description Validation Error */

@@ -928,6 +928,18 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   rows with the reason when none, a payout calendar), labelled a projection.
   Tests: `tests/unit/a96-dividend-projection.test.tsx`,
   `tests/e2e/tearsheet.spec.ts`.
+- **Optimiser (A7.11, M10.6).** `/optimise` (Quant Lab nav "Optimiser", icon
+  `PieChart`, public; `checkVisitorLimit("optimise")`, 10 a minute, only when
+  a run is asked): a GET form (`tickers`, `method`, `years`, `rf` %, `maxw` %,
+  `cash`, `views` "MSFT 12% 0.6, KO 5 0.4" for Black-Litterman), parsed by
+  `lib/optimise.ts::optimiseRequest` (bounded; views only for
+  Black-Litterman), run on the server (`lib/api/optimise.ts::runOptimise`,
+  `apiPost`); a 400's `detail` is shown (`errorDetail`).
+  `components/optimise-result.tsx`: a `FigureStrip` against equal weight,
+  the weights table (neutral bars; prior and posterior for Black-Litterman;
+  shares and price with cash), the leftover, notes and the disclaimer. No
+  green or red. Tests: `tests/unit/a711-optimise.test.tsx`,
+  `tests/e2e/optimise.spec.ts`.
 - **Filings (A7.10, M5.5).** `/filings` (Workbench nav "Filings", icon
   `FileText`, public, `checkVisitorLimit("filings")`, 30 a minute): a GET form
   (`ticker`, `q`, `kind`); `q` of 2+ characters searches the stored text

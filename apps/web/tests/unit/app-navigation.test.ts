@@ -118,6 +118,7 @@ describe("route → workspace map", () => {
       "Replay",
       "Drills",
       "Pairs lab",
+      "Optimiser",
       "News reactions",
     ]);
     // Books opens Settings, so it is not a workspace tab.

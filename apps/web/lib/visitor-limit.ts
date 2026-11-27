@@ -37,6 +37,8 @@ export const VISITOR_LIMITS = {
   news: 60,
   // A7.10: filings search (the API allows 30 searches a minute).
   filings: 30,
+  // A7.11: optimiser runs, signed out (the API allows 10 a minute).
+  optimise: 10,
 } as const;
 
 export type VisitorScope = keyof typeof VISITOR_LIMITS;
