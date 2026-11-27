@@ -89,13 +89,13 @@ export function SymbolCard({ row }: { row: SymbolCardData }) {
             )}
           >
             {row.metrics.map((metric) => (
-              <div key={metric.label} className="min-w-0">
-                <dt className="inline truncate text-3xs font-semibold tracking-[0.02em] text-text-tertiary">
+              <div key={metric.label} className="flex min-w-0 items-baseline gap-1">
+                <dt className="shrink-0 truncate text-3xs font-semibold tracking-[0.02em] text-text-tertiary">
                   {titleCase(metric.label)}
                 </dt>
                 <dd
                   className={cn(
-                    "ml-1 inline truncate font-mono text-xs",
+                    "min-w-0 truncate font-mono text-xs",
                     metric.signedBy === undefined ? "text-foreground" : toneClass(metric.signedBy),
                   )}
                   data-financial
