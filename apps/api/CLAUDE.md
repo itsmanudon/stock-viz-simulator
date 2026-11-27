@@ -264,6 +264,7 @@ CLI subcommands (`python -m stockviz.cli <cmd>`): `seed`, `backfill`,
 `doctor` (A10.1: read-only health of a self-hosted instance, exit 1 on a failed check).
 `macro-sync [--series ID ...]` (A9.7: the FRED macro catalogue; needs `FRED_API_KEY`).
 `docs-load PATH ... --ticker T --kind K [--date D] [--apply]`, `docs-edgar TICKER ... --since D` (A7.10).
+`fo-load --dir DIR [--apply]` (A7.14: the owner's option files as daily summaries; local only).
 `seed` also writes the rule presets (A2.2) and the checklist dimension setups
 (A2.4).
 
@@ -2270,6 +2271,31 @@ moved a year), `projection_totals` (per currency, never summed across) and
 overlap is held. Tests: `tests/test_a96_dividend_projection.py`. Web: the
 projection on the Portfolio Income tab and the printable tearsheet
 (`/stocks/[t]/tearsheet`, built from existing routes).
+
+**NSE index options from the owner's files (A7.14, M6.1, M6.3).** Owner, 27
+Nov 2026: load the owner's NSE F&O files into a local database only, like
+the minute files. Migration `b7e2f4a6c8d1` (additive): `fo_daily`
+((underlying, series, day, CE/PE, strike offset) -> the day's last minute
+premium, IV, OI, spot and the summed volume, minutes) and `fo_files`
+(SHA-256 unique, counts). `services/fo/load.py`: `stockviz.cli fo-load --dir
+DIR [--apply]` (dry run by default; **local database only**,
+`intraday.guard.local_database_problem`, no override; `.railway/railway.ts`
+must never run it, a test reads it) reads every `.csv` under `DIR` together
+(a day can span two part files), by the header `date,time,symbol,
+option_type,type,strike_offset,...,oi,iv,spot` (`date` as `="dd-mm-yy"`,
+IST; offsets `ATM`, `ATM+3`, `ATM-2`), skips files without those columns
+(listed), rejects unreadable rows (line numbers only), leaves out minutes
+outside 09:15-15:30, and upserts. Series = the folder (`weekly`, else
+`nearest`: the files carry no expiry). `services/fo/summary.py`: ATM IV
+(mean of the ATM call and put), skew (ATM-2 put IV minus ATM+2 call IV, by
+offset not delta), PCR by OI, IV rank and percentile over the stored window
+(60 days at least), the latest smile. Route `GET /v1/fo/india` (public,
+60/min; empty wherever the files were not loaded, so always in production).
+First run 27 Nov 2026 into the local `stockviz_intraday`: 9.67 million
+minutes in 31 s, 24,008 summaries (BANKNIFTY 10 Jun 2024 - 28 Jan 2026, NIFTY
+weekly 23 Jul 2024 - 14 Jan 2026). The futures file has no OI, so M6.4 is
+not fed by it. Tests: `tests/test_a714_fo.py` (synthetic files),
+`tests/test_a714_fo_migration.py` (PostgreSQL).
 
 **Lender mode (A7.13, M5.2).** `GET /v1/symbols/{t}/lender?coe=&growth=`
 (`routers/research_views.py`, public, 60/min; 409 for a symbol whose sector

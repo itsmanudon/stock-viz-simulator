@@ -928,6 +928,14 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   rows with the reason when none, a payout calendar), labelled a projection.
   Tests: `tests/unit/a96-dividend-projection.test.tsx`,
   `tests/e2e/tearsheet.spec.ts`.
+- **India options (A7.14, M6.1, M6.3).** `/india-options` (Markets nav
+  "India options", icon `Activity`, public; linked from the Derivatives
+  desk): `getFoIndia()` (`lib/api/fo.ts`, cached an hour, tag `fo`) rendered
+  by `components/fo-india-view.tsx` (server): per underlying ATM IV, IV rank
+  and percentile, skew and PCR, three neutral sparklines and the latest IV
+  by strike offset. `fo-empty` wherever the owner's files were not loaded
+  (production, e2e). Tests: `tests/unit/a714-fo-india.test.tsx`,
+  `tests/e2e/india-options.spec.ts`.
 - **Lender mode and desks (A7.13, M5.2).** The stock page loads `getLender`
   (`lib/api/fundamentals.ts`; a 409 for a non-financial symbol drops it) and
   the Financials tab shows `LenderCard` (`components/lender-card.tsx`: P/B,

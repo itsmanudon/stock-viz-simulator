@@ -56,6 +56,7 @@ export const DESKS: Desk[] = [
       "Volatility and options: implied against realised, skew, exposure and defined-risk payoffs.",
     tools: [
       { label: "Trade (strategy builder)", href: "/trade" },
+      { label: "India options", href: "/india-options" },
       { label: "Macro", href: "/macro" },
       { label: "Event study", href: "/event-study" },
       { label: "Alerts", href: "/alerts" },

@@ -1589,6 +1589,36 @@ def _cmd_docs_edgar(args: argparse.Namespace) -> int:
     return 1 if any(r.error and not r.stored for r in results) else 0
 
 
+def _cmd_fo_load(args: argparse.Namespace) -> int:
+    """A7.14: the owner's NSE index option minute files as daily summaries (local only)."""
+    from pathlib import Path
+
+    from stockviz.services.fo.load import FoLoadRefused, load_dir
+
+    try:
+        with Session(engine) as session:
+            report = load_dir(session, Path(args.dir), apply=args.apply)
+    except FoLoadRefused as exc:
+        print(f"fo-load: {exc}", file=sys.stderr)
+        return 2
+    for f in report.files:
+        if f.skipped:
+            print(f"  {f.path}: skipped, {f.skipped}")
+            continue
+        bad = f" (first bad lines {f.first_bad_lines})" if f.first_bad_lines else ""
+        seen = " [already loaded]" if f.known else ""
+        print(
+            f"  {f.path}: {f.series}, {f.rows} rows, {f.rejected} rejected, {f.off_session} off-session{bad}{seen}"
+        )
+    for (und, series), (lo, hi) in sorted(report.days.items()):
+        print(f"  {und} {series}: {lo} to {hi}")
+    verb = "upserted" if report.applied else "would write"
+    print(f"fo-load: {verb} {report.summaries} daily summaries")
+    if not report.applied:
+        print("dry run: nothing written (add --apply)")
+    return 0
+
+
 def _default_fx_currencies() -> list[str]:
     """Distinct non-USD currencies on active symbols."""
     from sqlmodel import select
@@ -2300,6 +2330,13 @@ def main(argv: list[str] | None = None) -> int:
     p_edgar.add_argument("--forms", nargs="*", help="Default: 10-K 10-Q 8-K 20-F 6-K")
     p_edgar.add_argument("--limit", type=int, default=20, help="Newest N per ticker")
     p_edgar.set_defaults(fn=_cmd_docs_edgar)
+
+    p_fo = sub.add_parser(
+        "fo-load", help="Owner's NSE option minute files as daily summaries (A7.14; local only)"
+    )
+    p_fo.add_argument("--dir", required=True, help="Folder of the files (read recursively)")
+    p_fo.add_argument("--apply", action="store_true")
+    p_fo.set_defaults(fn=_cmd_fo_load)
 
     sub.add_parser(
         "metrics", help="Recompute the screener's precomputed per-symbol metrics"

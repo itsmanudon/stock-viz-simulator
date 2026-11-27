@@ -32,6 +32,7 @@ from stockviz.routers import (
     events,
     experiments,
     fees,
+    fo,
     fundamentals,
     health,
     import_maps,
@@ -159,6 +160,7 @@ def create_app() -> FastAPI:
     app.include_router(documents.router)
     app.include_router(optimise.router)
     app.include_router(tax.router)
+    app.include_router(fo.router)
     # Register screener before symbols so /v1/symbols/screen wins over the
     # /v1/symbols/{ticker} catch-all in symbols.router.
     app.include_router(screener.router)
