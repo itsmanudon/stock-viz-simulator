@@ -1,6 +1,9 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import type React from "react";
 import { describe, expect, it, vi } from "vitest";
+
+const { push } = vi.hoisted(() => ({ push: vi.fn() }));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
 
 import HomePage from "@/app/(public)/page";
 import { SiteFooter } from "@/components/site-footer";
@@ -76,7 +79,25 @@ describe("HomePage", () => {
       ["Paper trading", "/trade"],
       ["Portfolio", "/portfolio"],
     ] as const) {
-      expect(screen.getByRole("link", { name })).toHaveAttribute("href", href);
+      expect(screen.getByRole("link", { name: new RegExp(`^${name}`) })).toHaveAttribute(
+        "href",
+        href,
+      );
     }
+  });
+
+  it("filters the workspace palette as you type and opens the pick with Enter", () => {
+    render(<HomePage />);
+    const box = screen.getByRole("searchbox", { name: "Filter the workspace" });
+    const list = screen.getByRole("list", { name: "Workspace surfaces" });
+    fireEvent.change(box, { target: { value: "history" } });
+    const links = within(list).getAllByRole("link");
+    expect(links.map((l) => l.getAttribute("href"))).toEqual(["/backtest", "/portfolio"]);
+    fireEvent.keyDown(box, { key: "ArrowDown" });
+    fireEvent.keyDown(box, { key: "Enter" });
+    expect(push).toHaveBeenCalledWith("/portfolio");
+
+    fireEvent.change(box, { target: { value: "crypto" } });
+    expect(screen.getByText(/Nothing in the workspace matches/)).toBeVisible();
   });
 });

@@ -32,7 +32,7 @@ export function FloatingHeader({ children }: { children: React.ReactNode }) {
     <header className="sticky top-0 z-40 px-3 pt-3 sm:px-4">
       <div
         data-scrolled={scrolled}
-        className="mx-auto flex h-14 w-full max-w-7xl items-center gap-3 rounded-full border border-transparent px-3 transition-[background-color,border-color,box-shadow,backdrop-filter] duration-300 sm:px-4 data-[scrolled=true]:border-border-muted data-[scrolled=true]:bg-background/70 data-[scrolled=true]:shadow-lg data-[scrolled=true]:shadow-black/5 data-[scrolled=true]:backdrop-blur-xl"
+        className="relative mx-auto flex h-14 w-full max-w-7xl items-center gap-3 rounded-full border border-transparent px-3 transition-[background-color,border-color,box-shadow,backdrop-filter] duration-300 sm:px-4 data-[scrolled=true]:border-border-muted data-[scrolled=true]:bg-background/70 data-[scrolled=true]:shadow-lg data-[scrolled=true]:shadow-black/5 data-[scrolled=true]:backdrop-blur-xl"
       >
         {children}
       </div>

@@ -9,6 +9,10 @@
  * a filtered-noise "air" for page changes, and a three-note rise for a fill.
  * Master gain is low; a sound that would play more than once in 40 ms is
  * dropped, so a fast run of hovers never turns into a buzz.
+ *
+ * While the marketing pages' background music plays (`lib/sound/ambient.ts`)
+ * it hands its current chord to `setHarmony`, and a tap then plays the next
+ * tone of that chord instead of a fixed A, so clicks join the music.
  */
 
 export type SoundName =
@@ -31,8 +35,11 @@ let ctx: AudioContext | null = null;
 let master: GainNode | null = null;
 let noiseBuffer: AudioBuffer | null = null;
 const lastPlayed = new Map<SoundName, number>();
+let harmony: number[] | null = null;
+let harmonyStep = 0;
 
-function context(): AudioContext | null {
+/** The shared AudioContext, created (and resumed) on first use. */
+export function soundContext(): AudioContext | null {
   if (typeof window === "undefined") return null;
   if (!ctx) {
     const Ctor =
@@ -112,8 +119,9 @@ const PATCHES: Record<SoundName, (ac: AudioContext) => void> = {
   hover: (ac) => blip(ac, { freq: SCALE[8], dur: 0.035, gain: 0.07 }),
   tick: (ac) => blip(ac, { freq: SCALE[10], dur: 0.025, gain: 0.05, type: "triangle" }),
   tap: (ac) => {
-    blip(ac, { freq: SCALE[6], dur: 0.06, gain: 0.32, type: "triangle" });
-    blip(ac, { freq: SCALE[9], dur: 0.04, gain: 0.08, at: 0.01 });
+    const freq = tapNote();
+    blip(ac, { freq, dur: 0.06, gain: 0.32, type: "triangle" });
+    blip(ac, { freq: freq * 1.5, dur: 0.04, gain: 0.08, at: 0.01 });
   },
   toggleOn: (ac) => {
     blip(ac, { freq: SCALE[4], dur: 0.07, gain: 0.3 });
@@ -150,9 +158,35 @@ const PATCHES: Record<SoundName, (ac: AudioContext) => void> = {
   },
 };
 
+/**
+ * The chord the music is on, as frequencies, or null when no music plays.
+ * Taps then walk up its tones in the 350-900 Hz band.
+ */
+export function setHarmony(freqs: number[] | null) {
+  if (!freqs) {
+    harmony = null;
+    return;
+  }
+  const band: number[] = [];
+  for (const f of freqs) {
+    for (const octave of [1, 2, 4]) {
+      const v = f * octave;
+      if (v >= 350 && v <= 900 && !band.some((b) => Math.abs(b - v) < 1)) band.push(v);
+    }
+  }
+  harmony = band.length ? band.sort((a, b) => a - b) : null;
+}
+
+/** The note a tap plays: C5, or the next chord tone while music plays. */
+export function tapNote(): number {
+  if (!harmony) return SCALE[6];
+  harmonyStep = (harmonyStep + 1) % harmony.length;
+  return harmony[harmonyStep];
+}
+
 /** Plays a sound. Safe to call anywhere; it does nothing on the server. */
 export function playSound(name: SoundName) {
-  const ac = context();
+  const ac = soundContext();
   if (!ac) return;
   const now = performance.now();
   if (now - (lastPlayed.get(name) ?? 0) < 40) return;
@@ -162,5 +196,5 @@ export function playSound(name: SoundName) {
 
 /** Unlocks audio from inside a gesture, so the first real sound is not lost. */
 export function primeSound() {
-  context();
+  soundContext();
 }

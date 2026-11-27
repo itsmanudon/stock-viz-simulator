@@ -21,7 +21,9 @@
  * - Reduced motion: no tall scroll track, no camera drift; the slider alone
  *   moves time and the surface opens on the latest session.
  * - Without WebGL the surface falls back to a 2D heat map of the same grid.
- * - With sound on, the front ticks every ten sessions.
+ * - With sound on, the front ticks every ten sessions, and while the section
+ *   is on screen the background music takes its mood from the session in
+ *   view (landing only).
  */
 
 import Link from "next/link";
@@ -29,6 +31,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
 
 import { RollingText } from "@/components/prism/rolling-text";
 import { emitSound } from "@/components/sound/sound-provider";
+import { setAmbientMoodOverride } from "@/lib/sound/ambient";
 import { cn } from "@/lib/utils";
 
 import { mediaMatches } from "@/lib/media";
@@ -159,6 +162,7 @@ export function MarketTerrain({
   const [index, setIndex] = useState(data.sessions - 1);
   const lastTick = useRef(data.sessions - 1);
   const redrawRef = useRef<(() => void) | null>(null);
+  const inViewRef = useRef(false);
 
   const stats = useMemo(() => statsAt(data, index), [data, index]);
   const sessionsBack = data.sessions - 1 - index;
@@ -197,6 +201,9 @@ export function MarketTerrain({
       if (!section) return;
       const rect = section.getBoundingClientRect();
       const track = rect.height - window.innerHeight;
+      inViewRef.current =
+        rect.top < window.innerHeight * 0.5 && rect.bottom > window.innerHeight * 0.5;
+      if (!inViewRef.current) setAmbientMoodOverride(null);
       if (track <= 0) return;
       // The front starts moving once the stage is pinned and reaches the
       // latest session a little before the pin releases.
@@ -204,8 +211,17 @@ export function MarketTerrain({
     };
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      setAmbientMoodOverride(null);
+    };
   }, [applyProgress, data.sessions, compact]);
+
+  // The music follows the session in view while the section is on screen.
+  useEffect(() => {
+    if (compact || !inViewRef.current) return;
+    setAmbientMoodOverride(stats.above / data.tickers.length);
+  }, [compact, stats.above, data.tickers.length]);
 
   // Compact tile: time plays by itself while on screen, then holds on the
   // latest session for a beat and starts again. Stops for good once the

@@ -391,6 +391,14 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   `emitSound(name)`. Mark a control `data-sound="none"` to silence it or
   `data-sound="<name>"` to pick its sound. A sound must never be the only
   signal: each one accompanies a visible change.
+  - **Background music** (`lib/sound/ambient.ts`, `AmbientMusic` in the
+    public layout): a synthesised ambient pad in the interface sounds' key,
+    public pages only (not log-in/sign-up), only while sound is on, starting
+    after a first press or key and fading out when the tab is hidden. The
+    hero's `AmbientMood` sets its mood from the latest breadth (minor and
+    darker when most symbols fell); the terrain overrides it with the
+    session in view. While it plays, taps take a tone of the current chord
+    (`setHarmony`).
 - **Dark only for now** (owner, 12 Nov 2026): `components/providers.tsx`
   sets `forcedTheme="dark"`, and the theme toggles are gone from the top bar,
   the public header, the footer and Settings. The light tokens stay in

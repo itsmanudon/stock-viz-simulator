@@ -22,6 +22,7 @@ import { HeroStage } from "@/components/marketing/hero-stage";
 import { loadBreadth } from "@/components/marketing/proofs/breadth";
 import { LiquidChrome } from "@/components/prism/liquid-chrome";
 import { Magnetic } from "@/components/prism/magnetic";
+import { AmbientMood } from "@/components/sound/ambient-music";
 import { Button } from "@/components/ui/button";
 
 /**
@@ -54,6 +55,7 @@ export async function Hero() {
       {/* Liquid Chrome (WebGL), its mid-tones tinted green or red by the session's
           breadth. Full-bleed: the hero copy is transformed by its entrance
           motion, which makes it this canvas's positioning box. */}
+      <AmbientMood share={breadth?.share ?? null} />
       <LiquidChrome
         share={breadth?.share ?? null}
         className="-top-[68px] left-1/2 h-[calc(46rem+68px)] w-screen -translate-x-1/2"
