@@ -92,6 +92,17 @@ def _cmd_seed(_args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_doctor(_args: argparse.Namespace) -> int:
+    """A10.1: read-only health of a self-hosted instance; exit 1 on a failed check."""
+    from stockviz.services import doctor
+    from stockviz.settings import get_settings
+
+    with Session(engine) as session:
+        checks = doctor.run(session, get_settings())
+    print(doctor.render(checks))
+    return 1 if any(c.status == "fail" for c in checks) else 0
+
+
 def _cmd_backfill(args: argparse.Namespace) -> int:
     with Session(engine) as session:
         ensure_symbols_for_backfill(session)
@@ -2089,6 +2100,9 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser(
         "seed", help="Seed symbols from companies.json and the rule presets"
     ).set_defaults(fn=_cmd_seed)
+    sub.add_parser(
+        "doctor", help="Check a self-hosted instance (database, migrations, secrets, keys)"
+    ).set_defaults(fn=_cmd_doctor)
     p_backfill = sub.add_parser(
         "backfill", help="Load the seed CSVs into price_bars (run once after seed)"
     )

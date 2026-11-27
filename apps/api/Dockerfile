@@ -42,7 +42,10 @@ COPY tests ./tests
 CMD ["pytest"]
 
 
-FROM python:3.12-slim AS runtime
+# A10.1: the self-hosting image. Same code, but no bundled price history:
+# only the company list `seed` reads. `infra/compose.release.yml` builds this
+# target; the default target (`runtime`, last) adds the seed CSVs on top.
+FROM python:3.12-slim AS release
 
 ENV PATH=/opt/venv/bin:$PATH \
     PYTHONUNBUFFERED=1 \
@@ -55,11 +58,8 @@ COPY --from=builder /app/src ./src
 COPY --from=builder /app/migrations ./migrations
 COPY --from=builder /app/alembic.ini ./alembic.ini
 
-# Seed inputs for `stockviz.cli seed` / `backfill` on a fresh deploy — the
-# company list and the split-unadjusted daily OHLCV history. News CSVs are
-# left out (news comes from the live provider). ~5 MB.
+# The company list for `stockviz.cli seed` (names and tickers, no prices).
 COPY seed-data/companies.json ./seed-data/companies.json
-COPY seed-data/stock-data-csv-files ./seed-data/stock-data-csv-files
 
 # Run as a non-root user. Nothing here needs to write to the image at runtime,
 # so the app owns only what it must.
@@ -88,3 +88,10 @@ EXPOSE 8000
 # request.client.host is the proxy for every request, so without these the
 # rate limiter buckets every user together (see limiter.py).
 CMD ["sh", "-c", "alembic upgrade head && exec uvicorn stockviz.main:app --host 0.0.0.0 --port ${PORT} --proxy-headers --forwarded-allow-ips='*'"]
+
+# The default image (Render, Railway, the dev Compose and the verify
+# Compose's `target: runtime`): the release image plus the split-unadjusted
+# daily OHLCV seed history `stockviz.cli backfill` loads on a fresh deploy.
+# News CSVs are left out (news comes from Aegis). ~5 MB.
+FROM release AS runtime
+COPY --chown=stockviz:stockviz seed-data/stock-data-csv-files ./seed-data/stock-data-csv-files

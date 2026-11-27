@@ -261,6 +261,7 @@ CLI subcommands (`python -m stockviz.cli <cmd>`): `seed`, `backfill`,
 `intraday-catch-up [--symbols T ...] [--date D] [--apply]` (A6.6),
 `rule-check "<rule>" [TICKER ...] [--date YYYY-MM-DD] [--explain] [--user-id N]`,
 `screen-runs`, `deliver-notifications [--channel webhook|email|telegram] [--limit N]`.
+`doctor` (A10.1: read-only health of a self-hosted instance, exit 1 on a failed check).
 `seed` also writes the rule presets (A2.2) and the checklist dimension setups
 (A2.4).
 
@@ -2267,6 +2268,18 @@ moved a year), `projection_totals` (per currency, never summed across) and
 overlap is held. Tests: `tests/test_a96_dividend_projection.py`. Web: the
 projection on the Portfolio Income tab and the printable tearsheet
 (`/stocks/[t]/tearsheet`, built from existing routes).
+
+**Self-hosting release (A10.1).** `infra/compose.release.yml` (Postgres, API,
+web, a `setup` profile running `seed`; every secret `${VAR:?}`; ports on
+127.0.0.1) builds the Dockerfile's `release` stage: the company list, **no seed
+price CSVs** (the default last stage `runtime` adds them, so every other
+deploy is unchanged). `infra/release.env.example` is the template;
+`infra/release.env` is gitignored. `stockviz.cli doctor` (`services/doctor.py`):
+database, migrations at head, `INTERNAL_API_TOKEN` (set, not the dev default,
+32+ characters), symbols and daily bars (none is a warning: no data ships),
+the scheduler, and each optional key by name, never its value. Guide:
+`docs/SELF_HOSTING.md`. Tests: `tests/test_a101_release.py` (reads the
+Compose file and Dockerfile; PyYAML is a dev dependency for it).
 
 **Survivorship stamp (A1.4a, part of M1.5).** Every backtest result carries
 `universe: {name, point_in_time, survivorship_biased, note}`: the public
