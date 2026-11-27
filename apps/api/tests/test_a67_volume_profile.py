@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from datetime import date, datetime, time, timedelta
 from decimal import Decimal
+from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
@@ -142,7 +143,7 @@ def _minutes(session: Session, iid: int, day: date, *, feed: str, count: int = 3
     session.commit()
 
 
-def _get(client: TestClient, ticker: str = "AAPL", **params: object):
+def _get(client: TestClient, ticker: str = "AAPL", **params: Any):
     return client.get(f"/v1/symbols/{ticker}/volume-profile", params=params)
 
 

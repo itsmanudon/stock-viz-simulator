@@ -2272,6 +2272,28 @@ overlap is held. Tests: `tests/test_a96_dividend_projection.py`. Web: the
 projection on the Portfolio Income tab and the printable tearsheet
 (`/stocks/[t]/tearsheet`, built from existing routes).
 
+**The local MCP server (A8.6, M11.7).** Owner, 27 Nov 2026: the official
+`mcp` SDK (2.x: `mcp.server.mcpserver.MCPServer`; `FastMCP` is gone), a
+local stdio server only; remote access waits for the legal review. Run
+`uv --directory apps/api run python -m stockviz.mcp` as the owner's own
+process (logs go to stderr; stdout is the protocol). `stockviz/mcp/server.py`
+`build_server(factory)`: every tool calls the API's routes in process
+(`httpx.ASGITransport` on `create_app()`), so results equal the pages', with
+the same checks and refusals; each result is `{ok, source (the route), data}`
+or `{ok: false, status, detail, source}`. Tools (`TOOL_NAMES`, all
+`read_only_hint`): `rule_check`, `screen` (rows trimmed), `backtest_strategy`
+(one symbol, simulated, summary, first 20 trades, hash and fingerprint),
+`symbol_summary`, `search_documents`, `macro_overview`, `journal_stats`
+(signs as `STOCKVIZ_MCP_USER_ID` with `INTERNAL_API_TOKEN`; off without it).
+**No order tool**: a test bans order-like names, and
+`test_no_outbound_orders.py` scans the module. A client config entry:
+`{"command": "uv", "args": ["--directory", "<repo>/apps/api", "run", "python",
+"-m", "stockviz.mcp"]}`. Checked 27 Nov over real stdio with the SDK's client
+(7 tools listed; `rule_check` and `macro_overview` answered from the local
+database). The `mcp` SDK adds 15 locked packages (103 -> 118). Tests:
+`tests/test_a86_mcp.py` (the A8 done-when: a screen and a backtest through
+`call_tool`).
+
 **AI providers and the rule translator (A8.2, A8.3, M4.2, M11.2).** Owner,
 27 Nov 2026: Ollama first (local), then BYOK (keys wait for
 `APP_ENCRYPTION_KEY`; each paid test call needs approval). `services/ai/
