@@ -5740,6 +5740,79 @@ class DebateOut(BaseModel):
     disclaimer: str
 
 
+class WeekFiguresOut(BaseModel):
+    entries: int
+    wins: int
+    losses: int
+    net_by_currency: dict[str, float]
+    mean_r: float | None
+    n_r: int
+    plans_scored: int
+    plans_followed: int
+    no_plan: int
+
+
+class LookAtOut(BaseModel):
+    key: str
+    text: str
+    entry_ids: list[int]
+
+
+class WeeklyReviewOut(BaseModel):
+    week_start: date
+    week_end: date
+    week: WeekFiguresOut
+    baseline_weeks: int
+    baseline_entries_per_week: float | None
+    baseline_mean_r: float | None
+    baseline_adherence: float | None
+    look_at: list[LookAtOut]
+    notes: list[str]
+    method: str
+
+
+class BriefMoveOut(BaseModel):
+    ticker: str
+    close: Decimal
+    close_date: date
+    previous_close: Decimal
+    previous_date: date
+    change_pct: float
+    held: bool
+
+
+class BriefAlertOut(BaseModel):
+    title: str
+    body: str
+    link: str | None
+    created_at: datetime
+
+
+class BriefEarningsOut(BaseModel):
+    ticker: str
+    event_date: date
+
+
+class BriefDocumentOut(BaseModel):
+    id: int
+    ticker: str
+    title: str
+    kind: str
+    available_at: datetime
+
+
+class MorningBriefOut(BaseModel):
+    generated_at: datetime
+    symbols: list[str]
+    moves: list[BriefMoveOut]
+    alerts: list[BriefAlertOut]
+    earnings: list[BriefEarningsOut]
+    documents: list[BriefDocumentOut]
+    open_plans: int
+    pending_orders: int
+    note: str
+
+
 class TextChangeOut(BaseModel):
     kind: str
     before: str | None

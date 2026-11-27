@@ -32,6 +32,7 @@ import {
   Sparkles,
   Star,
   Sun,
+  Sunrise,
   Target,
   Wallet,
 } from "lucide-react";
@@ -45,6 +46,7 @@ import type { WorkspaceId } from "@/lib/app-navigation";
 export const NAV_ICONS: Record<string, LucideIcon> = {
   "/dashboard": House,
   "/notifications": Inbox,
+  "/brief": Sunrise,
   "/markets": Globe,
   "/screener": Filter,
   "/earnings": CalendarDays,

@@ -24,6 +24,7 @@ const PROTECTED_PREFIXES = [
   "/alerts",
   "/theses",
   "/notifications",
+  "/brief",
   "/settings",
   "/orders",
   "/replay",

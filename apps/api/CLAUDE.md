@@ -2584,6 +2584,27 @@ checked as in A8.5. Response models `AnswerCheckOut`, `GridOut`,
 and grounded; the against side's closing line was uncited and flagged.
 Tests: `tests/test_a911_grid_debate.py`.
 
+**Weekly review and morning brief (A9.12, M11.6).** Deterministic; no
+model; nothing stored.
+- `GET /v1/journal/weekly?book=&source=&week_end=` (`routers/journal_stats.py`,
+  signed in; `services/journal/weekly.py`, pure over A5.6's outcomes): the
+  seven days ending `week_end` (default today, UTC) by close date against the
+  four weeks before (`baseline_entries_per_week`, `baseline_mean_r`,
+  `baseline_adherence`); net P&L per currency (never added across); `look_at`
+  from fixed rules in order, each naming its entries: `tilt` (A7.6's rule),
+  `plan_not_followed`, `no_plan` (not replay), `mistake_tag` (used twice),
+  `r_below_baseline` (0.5R, 3+ entries with R each side), `more_entries` (more
+  than twice the baseline's weekly average); notes for an empty or small
+  week. Neutral wording (a test bans judgement words).
+- `GET /v1/brief` (`routers/brief.py`, signed in; `services/brief.py`):
+  symbols = positions in the user's books, then watchlist symbols (50 at
+  most); moves = the last two stored daily closes with both dates, largest
+  first (8); the user's alert notifications of the last 24 hours; stored
+  earnings in the next 7 days; documents made public in the last 7 days;
+  counts of open or active plans and pending orders. End of day: the note
+  says a move is not today's unless its date is.
+- Tests: `tests/test_a912_weekly_brief.py`.
+
 **Macro series from FRED (A9.7, M1.10, M3.5).** Migration `f1a9c7e3b5d2`
 (additive): `macro_series` (FRED id, title, units, frequency, observation
 range, FRED's `last_updated`, `fetched_at`) and `macro_observations` ((series,
