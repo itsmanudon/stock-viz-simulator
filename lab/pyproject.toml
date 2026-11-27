@@ -5,6 +5,7 @@ description = "StockViz research node: a DuckDB catalogue over the hot database'
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "chronos-forecasting==2.3.2",
     "duckdb==2.0.1",
     "lightgbm==4.7.0",
     "polars==2.2.0",

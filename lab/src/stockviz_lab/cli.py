@@ -4,6 +4,7 @@ uv run --directory lab lab verify DIR
 uv run --directory lab lab catalog DIR [--db FILE]
 uv run --directory lab lab query DIR "SELECT ..." [--db FILE] [--limit N]
 uv run --directory lab lab rank DIR [--out FILE]   (A9.8: LightGBM + SHAP, walk-forward)
+uv run --directory lab lab forecast DIR TICKER ... [--horizon 21] [--out FILE]   (A9.9: Chronos-2)
 """
 
 from __future__ import annotations
@@ -72,6 +73,45 @@ def _cmd_rank(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_forecast(args: argparse.Namespace) -> int:
+    import json
+    from dataclasses import asdict
+
+    from stockviz_lab.forecast import chronos_predictor, forecast_ticker
+    from stockviz_lab.ranker import load_panel
+
+    closes, _volumes = load_panel(Path(args.dir))
+    predict = chronos_predictor(args.model)
+    out = []
+    for ticker in args.tickers:
+        if ticker not in closes.columns:
+            print(f"  {ticker}: not in the export")
+            continue
+        series = closes[ticker].dropna()
+        f = forecast_ticker(
+            ticker,
+            [str(d.date()) for d in series.index],
+            series.to_numpy(dtype=float),
+            predict,
+            horizon=args.horizon,
+            origins=args.origins,
+        )
+        s = f.score
+        cov = f"{s.coverage:.0%}" if s.coverage is not None else "-"
+        rw = f"{s.rw_coverage:.0%}" if s.rw_coverage is not None else "-"
+        skill = f"{s.skill:+.3f}" if s.skill is not None else "-"
+        print(
+            f"  {ticker}: last {f.last_close:.2f} on {f.last_date}; {f.horizon}-session fan "
+            f"{f.q10[-1]:.2f} / {f.q50[-1]:.2f} / {f.q90[-1]:.2f}; coverage {cov} "
+            f"(random walk {rw}); skill {skill} over {s.origins} origins"
+        )
+        out.append(asdict(f))
+    if args.out:
+        Path(args.out).write_text(json.dumps(out, indent=2), encoding="utf-8")
+        print(f"report written to {args.out}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="lab", description=__doc__.splitlines()[0])
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -98,6 +138,17 @@ def main(argv: list[str] | None = None) -> int:
         "--out", default=None, help="Write the JSON report here (keep it in lab/data/)"
     )
     p_rank.set_defaults(fn=_cmd_rank)
+
+    p_fc = sub.add_parser("forecast", help="A9.9: Chronos-2 fan, scored against a random walk")
+    p_fc.add_argument("dir")
+    p_fc.add_argument("tickers", nargs="+")
+    p_fc.add_argument("--horizon", type=int, default=21)
+    p_fc.add_argument("--origins", type=int, default=36)
+    p_fc.add_argument("--model", default="amazon/chronos-2")
+    p_fc.add_argument(
+        "--out", default=None, help="Write the JSON report here (keep it in lab/data/)"
+    )
+    p_fc.set_defaults(fn=_cmd_forecast)
 
     args = parser.parse_args(argv)
     try:

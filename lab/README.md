@@ -130,3 +130,41 @@ Tests (`tests/test_ranker.py`, synthetic):
 - a planted effect (higher-volatility names drift up faster) is found out of
   sample, with t > 2 and a volatility feature in SHAP's top three;
 - pure noise gives no edge.
+
+## Chronos-2 forecast fans (A9.9, M8.1)
+
+`uv run --directory lab lab forecast DIR TICKER ... [--horizon 21]
+[--origins 36] [--out lab/data/forecast-report.json]`
+(`src/stockviz_lab/forecast.py`; `chronos-forecasting==2.3.2` with `torch`,
+lab only, never in the API image).
+
+- **Weights:** `amazon/chronos-2` (Apache-2.0, about 480 MB) download once
+  into the Hugging Face cache, outside the repo.
+- **Fan:** the 10th, 50th and 90th percentile of the next `horizon` closes,
+  from the last 512 closes.
+- **Score:** at rolling origins 21 sessions apart, each seeing closes up to
+  its origin only.
+  - **Coverage:** the share of the 80% band that held (nominal 80%), beside
+    a random walk's band from past log returns.
+  - **Skill:** 1 - MAE(median) / MAE(last close); above 0 beats a random
+    walk.
+
+First run, 27 Nov 2026: 21 sessions ahead, 36 origins per symbol, data to 7
+Apr 2025.
+
+| | Coverage | Random-walk coverage | Skill |
+|---|---|---|---|
+| AAPL | 69% | 81% | -0.032 |
+| KO | 75% | 78% | -0.039 |
+| NVDA | 69% | 61% | -0.001 |
+| JPM | 61% | 75% | -0.019 |
+
+**Chronos-2 does not beat a random walk at one month, and its 80% band is
+too narrow on three of the four.** A fan describes a distribution; it is not
+a forecast to trade on.
+
+Tests (`tests/test_forecast.py`, fake predictors, no download):
+- a calibrated fan covers about 80% with zero skill;
+- a narrow fan under-covers;
+- the predictor never sees a close after its origin;
+- a short history is refused.
