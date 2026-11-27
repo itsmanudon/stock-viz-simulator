@@ -2605,6 +2605,30 @@ model; nothing stored.
   says a move is not today's unless its date is.
 - Tests: `tests/test_a912_weekly_brief.py`.
 
+**Implied vs model distribution (A9.13, M8.5).** `GET
+/v1/options/{t}/implied-distribution?expiry=` (`routers/options.py`, public,
+60/min; `services/options/implied_distribution.py`; no table). The newest
+stored `option_quotes` snapshot; `expiry` defaults to the one nearest 30
+days (`vol_summary.nearest_expiry`); spot = the last stored close on or
+before the snapshot. Smile: the out-of-the-money IVs (mean where both sides
+quote), **fitted** by least squares as a quadratic in `ln(K/S)/sqrt(T)` over
+strikes within 2.5 ATM-vol units of spot with IV in 3%-300%, flat beyond
+the fitted range (linear interpolation through raw yfinance IVs gave 24-46%
+negative density on real chains; the fit gives about 3%). Implied density =
+`e^{rT} d²C/dK²` of Black-Scholes calls on a 401-point log grid of +-4
+standard deviations (non-uniform three-point second difference); negative
+values cut and their share reported (`negative_mass`). Model: a lognormal
+with the HAR-RV next-session volatility (A9.2), else 21-session realised,
+drift `r - σ²/2` (the same forward). Out: quantiles 5/25/50/75/95%, the
+chance of ending more than 10% below or above spot for each, both ATM
+volatilities, 81 curve points, a reason when it cannot run (fewer than 5
+usable strikes either side, no chain, no close). Risk-neutral: it carries
+the risk premium, not a forecast. Real run (27 Nov 2026, AAPL and MSFT
+chains from yfinance into the throwaway e2e database): implied P(fall >10%
+in 7 days) 3.8% vs model 0.5% (AAPL), 7.7% vs 1.3% (MSFT). Tests:
+`tests/test_a913_implied_distribution.py` (a flat smile gives back the
+lognormal; put skew fattens the left tail; outliers barely move the fit).
+
 **Macro series from FRED (A9.7, M1.10, M3.5).** Migration `f1a9c7e3b5d2`
 (additive): `macro_series` (FRED id, title, units, frequency, observation
 range, FRED's `last_updated`, `fetched_at`) and `macro_observations` ((series,

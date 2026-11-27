@@ -21,3 +21,13 @@ export function getVolSummary(ticker: string): Promise<VolSummary> {
     tags: ["options"],
   });
 }
+
+export type ImpliedDistribution = components["schemas"]["ImpliedDistributionOut"];
+
+/** A9.13 (M8.5): option-implied vs model distribution of the price at expiry. */
+export function getImpliedDistribution(ticker: string): Promise<ImpliedDistribution> {
+  return apiGet<ImpliedDistribution>(
+    `/v1/options/${encodeURIComponent(ticker)}/implied-distribution`,
+    { revalidateSeconds: 3600, tags: ["options"] },
+  );
+}

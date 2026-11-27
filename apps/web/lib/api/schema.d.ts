@@ -2595,6 +2595,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/options/{ticker}/implied-distribution": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Implied Distribution
+         * @description A9.13 (M8.5): option-implied vs model distribution of the price at expiry.
+         */
+        get: operations["get_implied_distribution_v1_options__ticker__implied_distribution_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/backtest": {
         parameters: {
             query?: never;
@@ -5523,6 +5543,15 @@ export interface components {
             /** Avg 20 */
             avg_20?: number | null;
         };
+        /** DistributionPointOut */
+        DistributionPointOut: {
+            /** Price */
+            price: number;
+            /** Implied */
+            implied: number;
+            /** Model */
+            model: number;
+        };
         /** DividendCreditOut */
         DividendCreditOut: {
             /** Ticker */
@@ -7684,6 +7713,49 @@ export interface components {
             backtest?: components["schemas"]["BacktestIn"] | null;
             strategy?: components["schemas"]["StrategyBacktestIn"] | null;
             rotation?: components["schemas"]["RotationBacktestIn"] | null;
+        };
+        /** ImpliedDistributionOut */
+        ImpliedDistributionOut: {
+            /** Ticker */
+            ticker: string;
+            /** Expiry */
+            expiry: string | null;
+            /** Days */
+            days: number | null;
+            /** Spot */
+            spot: number | null;
+            /** Implied Atm Vol */
+            implied_atm_vol: number | null;
+            /** Model Vol */
+            model_vol: number | null;
+            /** Model Vol Source */
+            model_vol_source: string | null;
+            /** Quantile Levels */
+            quantile_levels: number[];
+            /** Implied Quantiles */
+            implied_quantiles: number[];
+            /** Model Quantiles */
+            model_quantiles: number[];
+            /** Move */
+            move: number;
+            /** Implied P Down */
+            implied_p_down: number | null;
+            /** Implied P Up */
+            implied_p_up: number | null;
+            /** Model P Down */
+            model_p_down: number | null;
+            /** Model P Up */
+            model_p_up: number | null;
+            /** Negative Mass */
+            negative_mass: number | null;
+            /** Strikes Used */
+            strikes_used: number;
+            /** Curve */
+            curve: components["schemas"]["DistributionPointOut"][];
+            /** Reason */
+            reason: string | null;
+            /** Method */
+            method: string;
         };
         /** ImportBatchOut */
         ImportBatchOut: {
@@ -21046,6 +21118,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["OptionSurfaceOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_implied_distribution_v1_options__ticker__implied_distribution_get: {
+        parameters: {
+            query?: {
+                expiry?: string | null;
+            };
+            header?: never;
+            path: {
+                ticker: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImpliedDistributionOut"];
                 };
             };
             /** @description Validation Error */
