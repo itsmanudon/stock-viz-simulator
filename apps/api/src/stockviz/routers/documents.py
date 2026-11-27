@@ -2,6 +2,7 @@
 
 - `GET /v1/symbols/{t}/documents?kind=&as_of=`
 - `GET /v1/documents/search?q=&ticker=&kind=&as_of=&limit=`
+- `GET /v1/documents/passages?q=&ticker=&kind=&as_of=&limit=` (A8.4 hybrid search)
 - `GET /v1/documents/{id}?q=`
 
 Public and read-only like `/v1/news`. ``as_of`` (naive = UTC, default now)
@@ -29,9 +30,13 @@ from stockviz.schemas import (
     DocumentListOut,
     DocumentOut,
     DocumentSearchOut,
+    PassageOut,
+    PassageSearchOut,
 )
-from stockviz.services.documents import store
+from stockviz.services.ai.embed import embedder_from_settings
+from stockviz.services.documents import retrieve, store
 from stockviz.services.instruments import instrument_ids
+from stockviz.settings import get_settings
 
 router = APIRouter(tags=["documents"])
 
@@ -150,6 +155,59 @@ def search_documents(
             for h in hits
         ],
         note=SEARCH_NOTE,
+    )
+
+
+PASSAGE_METHOD = (
+    "Passages of about 1,200 characters from documents public by as_of, ranked two ways: "
+    "PostgreSQL full-text search and, when an embedding model is set, cosine similarity "
+    "of embeddings; the two ranks are fused (reciprocal rank fusion, k = 60). Retrieval "
+    "only: nothing here writes an answer."
+)
+
+
+@router.get("/v1/documents/passages", response_model=PassageSearchOut)
+@limiter.limit("30/minute")
+def search_passages(
+    request: Request,
+    session: SessionDep,
+    q: Annotated[str, Query(min_length=2, max_length=retrieve.MAX_QUERY_CHARS)],
+    ticker: str | None = None,
+    kind: str | None = None,
+    as_of: datetime | None = None,
+    limit: Annotated[int, Query(ge=1, le=20)] = 8,
+) -> PassageSearchOut:
+    del request
+    iid = _instrument(session, ticker)[1] if ticker else None
+    when = _naive(as_of)
+    embedder = embedder_from_settings(get_settings())
+    found = retrieve.retrieve(
+        session, q, as_of=when, instrument_id=iid, kind=_kind(kind), limit=limit,
+        embedder=embedder,
+    )  # fmt: skip
+    names = _tickers(session, {p.document.instrument_id for p in found.passages})
+    return PassageSearchOut(
+        query=found.query,
+        as_of=when,
+        mode=found.mode,
+        embed_model=embedder.model if embedder else None,
+        passages=[
+            PassageOut(
+                document=_out(p.document, names.get(p.document.instrument_id, "?")),
+                chunk_id=p.chunk_id,
+                position=p.position,
+                start_char=p.start_char,
+                end_char=p.end_char,
+                text=p.text,
+                score=p.score,
+                keyword_rank=p.keyword_rank,
+                vector_rank=p.vector_rank,
+                similarity=p.similarity,
+            )
+            for p in found.passages
+        ],
+        notes=found.notes,
+        method=PASSAGE_METHOD,
     )
 
 

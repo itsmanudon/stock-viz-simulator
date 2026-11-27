@@ -119,6 +119,8 @@ class Settings(BaseSettings):
     # A8.3: a local Ollama model turns the AI controls on; blank = off.
     ollama_model: str = ""
     ollama_url: str = "http://127.0.0.1:11434"
+    # A8.4: embeddings for hybrid document search (owner: nomic-embed-text); off when empty.
+    ollama_embed_model: str = ""
 
     # A4.6: an Indian (XNSE/XBOM) replay session must end at least this many
     # calendar days before today on its venue (SEBI's rule for simulated

@@ -5633,6 +5633,29 @@ class DocumentSearchOut(BaseModel):
     note: str
 
 
+class PassageOut(BaseModel):
+    document: DocumentOut
+    chunk_id: int
+    position: int
+    start_char: int
+    end_char: int
+    text: str
+    score: float
+    keyword_rank: int | None
+    vector_rank: int | None
+    similarity: float | None
+
+
+class PassageSearchOut(BaseModel):
+    query: str
+    as_of: datetime
+    mode: str
+    embed_model: str | None
+    passages: list[PassageOut]
+    notes: list[str]
+    method: str
+
+
 class OptimiseViewIn(BaseModel):
     ticker: str = Field(min_length=1, max_length=16)
     expected_return: float = Field(ge=-1, le=2)

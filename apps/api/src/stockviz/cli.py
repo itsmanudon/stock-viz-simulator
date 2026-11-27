@@ -1589,6 +1589,36 @@ def _cmd_docs_edgar(args: argparse.Namespace) -> int:
     return 1 if any(r.error and not r.stored for r in results) else 0
 
 
+def _cmd_docs_index(args: argparse.Namespace) -> int:
+    """A8.4: chunk documents without passages; with --embed, embed every passage."""
+    from stockviz.services.ai.embed import embedder_from_settings
+    from stockviz.services.ai.provider import AiProviderError
+    from stockviz.services.documents.index import index_documents
+    from stockviz.services.intraday.guard import local_database_problem
+
+    embedder = embedder_from_settings(get_settings()) if args.embed else None
+    if args.embed and embedder is None:
+        print("docs-index: OLLAMA_EMBED_MODEL is not set", file=sys.stderr)
+        return 2
+    with Session(engine) as session:
+        problem = local_database_problem(session.get_bind().engine.url)
+        if problem:
+            print(f"docs-index: local database only ({problem})", file=sys.stderr)
+            return 2
+        try:
+            report = index_documents(session, embedder=embedder, max_embed=args.limit)
+        except AiProviderError as exc:
+            print(f"docs-index: {exc}", file=sys.stderr)
+            return 1
+    print(
+        f"chunked {report.documents_chunked} document(s) into {report.chunks_added} passage(s); "
+        f"embedded {report.chunks_embedded}"
+        + (f" with {report.model}" if report.model else "")
+        + f"; {report.chunks_waiting} passage(s) still without a vector"
+    )
+    return 0
+
+
 def _cmd_fo_load(args: argparse.Namespace) -> int:
     """A7.14: the owner's NSE index option minute files as daily summaries (local only)."""
     from pathlib import Path
@@ -2308,7 +2338,7 @@ def main(argv: list[str] | None = None) -> int:
     p_docs = sub.add_parser(
         "docs-load", help="Load hand-placed document files (A7.10; local database only)"
     )
-    p_docs.add_argument("paths", nargs="+", help=".html, .htm, .txt or .md files")
+    p_docs.add_argument("paths", nargs="+", help=".html, .htm, .pdf, .txt or .md files")
     p_docs.add_argument("--ticker", required=True)
     p_docs.add_argument(
         "--kind",
@@ -2330,6 +2360,13 @@ def main(argv: list[str] | None = None) -> int:
     p_edgar.add_argument("--forms", nargs="*", help="Default: 10-K 10-Q 8-K 20-F 6-K")
     p_edgar.add_argument("--limit", type=int, default=20, help="Newest N per ticker")
     p_edgar.set_defaults(fn=_cmd_docs_edgar)
+
+    p_index = sub.add_parser(
+        "docs-index", help="Chunk and embed documents for hybrid search (A8.4; local only)"
+    )
+    p_index.add_argument("--embed", action="store_true", help="Embed with OLLAMA_EMBED_MODEL")
+    p_index.add_argument("--limit", type=int, help="Embed at most N passages this run")
+    p_index.set_defaults(fn=_cmd_docs_index)
 
     p_fo = sub.add_parser(
         "fo-load", help="Owner's NSE option minute files as daily summaries (A7.14; local only)"

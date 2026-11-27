@@ -1,7 +1,8 @@
 """Write and read documents (A7.10).
 
 ``add_document`` dedupes on the source bytes' SHA-256: the same file or filing
-returns the stored row (``created=False``). Reads are point-in-time: a
+returns the stored row (``created=False``). A new document is chunked for
+hybrid search (A8.4) in the same transaction; embeddings come later. Reads are point-in-time: a
 document counts only once ``available_at <= as_of``.
 """
 
@@ -16,6 +17,7 @@ from sqlalchemy import func
 from sqlmodel import Session, col, select
 
 from stockviz.models import Document, DocumentText
+from stockviz.services.documents.chunks import build_chunks
 from stockviz.services.documents.extract import Extracted
 
 SNIPPET_CHARS = 90
@@ -71,6 +73,7 @@ def add_document(
     session.flush()
     assert doc.id is not None
     session.add(DocumentText(document_id=doc.id, text=extracted.text))
+    build_chunks(session, doc.id, extracted.text)
     return doc, True
 
 

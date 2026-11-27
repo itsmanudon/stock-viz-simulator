@@ -7,6 +7,8 @@ export type DocumentItem = components["schemas"]["DocumentOut"];
 export type DocumentList = components["schemas"]["DocumentListOut"];
 export type DocumentDetail = components["schemas"]["DocumentDetailOut"];
 export type DocumentSearch = components["schemas"]["DocumentSearchOut"];
+export type PassageSearch = components["schemas"]["PassageSearchOut"];
+export type Passage = components["schemas"]["PassageOut"];
 
 const CACHE = { revalidateSeconds: 300, tags: ["documents"] };
 
@@ -42,6 +44,11 @@ export function searchDocuments(
   kind?: string,
 ): Promise<DocumentSearch> {
   return apiGet<DocumentSearch>(`/v1/documents/search${query({ q, ticker, kind })}`, CACHE);
+}
+
+/** A8.4 (M11.1): passages ranked by full text and, when a model is set, meaning. */
+export function searchPassages(q: string, ticker?: string, kind?: string): Promise<PassageSearch> {
+  return apiGet<PassageSearch>(`/v1/documents/passages${query({ q, ticker, kind })}`, CACHE);
 }
 
 export function getDocument(id: number, q?: string): Promise<DocumentDetail> {

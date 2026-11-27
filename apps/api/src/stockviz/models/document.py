@@ -6,6 +6,13 @@ The owner's 27 Nov 2026 decision: filings and concalls live in a StockViz
 ``document_texts``. ``available_at`` is when the document became public
 (naive UTC): every read is point-in-time on it. ``sha256`` of the source bytes
 is unique, so the same file or filing loads once.
+
+``document_chunks`` (A8.4, M11.1): overlapping passages of the text, the unit
+of hybrid search. Keyword ranking is PostgreSQL full text over ``text`` (a GIN
+expression index in the migration); ``embedding`` is the passage's vector from
+``embed_model`` (null until ``docs-index --embed`` runs), stored as ``real[]``
+and compared in Python, because pgvector is not on every host yet (JSON on
+SQLite, the test database).
 """
 
 from __future__ import annotations
@@ -13,7 +20,8 @@ from __future__ import annotations
 from datetime import date as date_type
 from datetime import datetime
 
-from sqlalchemy import CheckConstraint, Index, Text
+from sqlalchemy import JSON, CheckConstraint, ForeignKey, Index, Integer, Text
+from sqlalchemy.dialects.postgresql import ARRAY, REAL
 from sqlmodel import Column, Field, SQLModel
 
 from stockviz._time import utcnow
@@ -55,3 +63,22 @@ class DocumentText(SQLModel, table=True):
 
     document_id: int = Field(foreign_key="documents.id", primary_key=True, ondelete="CASCADE")
     text: str = Field(sa_column=Column(Text, nullable=False))
+
+
+class DocumentChunk(SQLModel, table=True):
+    __tablename__ = "document_chunks"  # pyright: ignore[reportAssignmentType]
+    __table_args__ = (Index("ix_document_chunks_document_position", "document_id", "position"),)
+
+    id: int | None = Field(default=None, primary_key=True)
+    document_id: int = Field(
+        sa_column=Column(Integer, ForeignKey("documents.id", ondelete="CASCADE"), nullable=False)
+    )
+    position: int
+    start_char: int
+    end_char: int
+    text: str = Field(sa_column=Column(Text, nullable=False))
+    embedding: list[float] | None = Field(
+        default=None,
+        sa_column=Column(ARRAY(REAL()).with_variant(JSON(), "sqlite"), nullable=True),
+    )
+    embed_model: str | None = Field(default=None, max_length=64)

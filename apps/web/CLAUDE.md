@@ -1003,8 +1003,12 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   the original. `components/documents-view.tsx`: `DocumentRow`,
   `DocumentMeta` (kind, form, "Public <UTC time>", "(Assumed: End of Its
   Date)", "SEC EDGAR" or "Placed by Hand"). `lib/api/documents.ts` (cached 5
-  minutes, tag `documents`). Tests: `tests/unit/a710-documents.test.tsx`,
-  `tests/e2e/filings.spec.ts`.
+  minutes, tag `documents`). A8.4: a **Match** select (`match=meaning`,
+  "Passages") calls `searchPassages` (`/v1/documents/passages`) and lists
+  `PassageRow`s (`filings-passages`, `passage-row`, `passage-ranks` from
+  `passageRanks`: "Words #2 · Meaning #1 (0.82)") with the API's mode, notes
+  and method. Tests: `tests/unit/a710-documents.test.tsx`,
+  `tests/unit/a84-passages.test.tsx`, `tests/e2e/filings.spec.ts`.
 - **Macro (A9.7, M1.10, M3.5).** `/macro` (Markets nav "Macro", icon
   `Globe`, public): `getMacroOverview()` (`lib/api/macro.ts`, cached an hour,
   tag `macro`) rendered by `components/macro-view.tsx` (server): the spreads,
