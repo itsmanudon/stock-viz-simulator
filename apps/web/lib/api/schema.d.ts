@@ -156,6 +156,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/tax/india": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** India Tax */
+        get: operations["india_tax_v1_tax_india_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/symbols/screen": {
         parameters: {
             query?: never;
@@ -7060,6 +7077,39 @@ export interface components {
             /** Posted */
             posted: number;
         };
+        /**
+         * IndiaTaxOut
+         * @description A7.12 (M10.7): an estimate of one INR book's FY capital gains tax.
+         */
+        IndiaTaxOut: {
+            /** Book Id */
+            book_id: number;
+            /** Fy */
+            fy: string;
+            /**
+             * As Of
+             * Format: date
+             */
+            as_of: string;
+            /** Surcharge Rate */
+            surcharge_rate: string;
+            rules: components["schemas"]["TaxRulesOut"];
+            computation: components["schemas"]["TaxComputationOut"];
+            /** Realised */
+            realised: components["schemas"]["TaxRealisedOut"][];
+            /** Intraday */
+            intraday: components["schemas"]["TaxIntradayOut"][];
+            /** Open Lots */
+            open_lots: components["schemas"]["TaxOpenLotOut"][];
+            /** Unmatched */
+            unmatched: components["schemas"]["TaxUnmatchedOut"][];
+            /** Skipped Tickers */
+            skipped_tickers: string[];
+            /** Method */
+            method: string[];
+            /** Estimate Note */
+            estimate_note: string;
+        };
         /** IndicatorCatalogItemOut */
         IndicatorCatalogItemOut: {
             /** Key */
@@ -12931,6 +12981,177 @@ export interface components {
             /** Is Active */
             is_active: boolean;
         };
+        /** TaxComputationOut */
+        TaxComputationOut: {
+            /** Stcg */
+            stcg: string;
+            /** Stcl */
+            stcl: string;
+            /** Ltcg */
+            ltcg: string;
+            /** Ltcl */
+            ltcl: string;
+            /** Net Short */
+            net_short: string;
+            /** Net Long Before Exemption */
+            net_long_before_exemption: string;
+            /** Exemption Used */
+            exemption_used: string;
+            /** Exemption Left */
+            exemption_left: string;
+            /** Taxable Short */
+            taxable_short: string;
+            /** Taxable Long */
+            taxable_long: string;
+            /** Tax Short */
+            tax_short: string;
+            /** Tax Long */
+            tax_long: string;
+            /** Surcharge */
+            surcharge: string;
+            /** Cess */
+            cess: string;
+            /** Total Tax */
+            total_tax: string;
+            /** Loss Carried Short */
+            loss_carried_short: string;
+            /** Loss Carried Long */
+            loss_carried_long: string;
+            /** Intraday Pnl */
+            intraday_pnl: string;
+        };
+        /** TaxIntradayOut */
+        TaxIntradayOut: {
+            /** Ticker */
+            ticker: string;
+            /**
+             * Day
+             * Format: date
+             */
+            day: string;
+            /** Quantity */
+            quantity: string;
+            /** Pnl */
+            pnl: string;
+        };
+        /** TaxOpenLotOut */
+        TaxOpenLotOut: {
+            /** Ticker */
+            ticker: string;
+            /**
+             * Bought
+             * Format: date
+             */
+            bought: string;
+            /** Quantity */
+            quantity: string;
+            /** Cost */
+            cost: string;
+            /** Close */
+            close?: string | null;
+            /** Close Date */
+            close_date?: string | null;
+            /** Unrealised */
+            unrealised?: string | null;
+            /**
+             * Term
+             * @enum {string}
+             */
+            term: "short" | "long";
+            /**
+             * Long Term On
+             * Format: date
+             */
+            long_term_on: string;
+        };
+        /** TaxRealisedOut */
+        TaxRealisedOut: {
+            /** Ticker */
+            ticker: string;
+            /**
+             * Bought
+             * Format: date
+             */
+            bought: string;
+            /**
+             * Sold
+             * Format: date
+             */
+            sold: string;
+            /** Quantity */
+            quantity: string;
+            /** Cost */
+            cost: string;
+            /** Proceeds */
+            proceeds: string;
+            /** Gain */
+            gain: string;
+            /**
+             * Term
+             * @enum {string}
+             */
+            term: "short" | "long";
+            /** Grandfathered */
+            grandfathered: boolean;
+        };
+        /** TaxRulesOut */
+        TaxRulesOut: {
+            /** Fy */
+            fy: string;
+            /**
+             * Start
+             * Format: date
+             */
+            start: string;
+            /**
+             * End
+             * Format: date
+             */
+            end: string;
+            /** Act */
+            act: string;
+            /** Stcg Section */
+            stcg_section: string;
+            /** Ltcg Section */
+            ltcg_section: string;
+            /** Stcg Rate */
+            stcg_rate: string;
+            /** Ltcg Rate */
+            ltcg_rate: string;
+            /** Ltcg Exemption */
+            ltcg_exemption: string;
+            /** Cess Rate */
+            cess_rate: string;
+            /** Surcharge Cap */
+            surcharge_cap: string;
+            /** Long Term After Months */
+            long_term_after_months: number;
+            /** Sources */
+            sources: components["schemas"]["TaxSourceOut"][];
+        };
+        /** TaxSourceOut */
+        TaxSourceOut: {
+            /** Title */
+            title: string;
+            /** Url */
+            url: string;
+            /** Read On */
+            read_on: string;
+            /** Note */
+            note: string;
+        };
+        /** TaxUnmatchedOut */
+        TaxUnmatchedOut: {
+            /** Ticker */
+            ticker: string;
+            /**
+             * Day
+             * Format: date
+             */
+            day: string;
+            /** Quantity */
+            quantity: string;
+        };
         /** ThesisCloseIn */
         ThesisCloseIn: {
             /**
@@ -14274,6 +14495,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["OptimiseOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    india_tax_v1_tax_india_get: {
+        parameters: {
+            query?: {
+                book?: number | null;
+                fy?: string | null;
+                surcharge?: number | string;
+            };
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IndiaTaxOut"];
                 };
             };
             /** @description Validation Error */

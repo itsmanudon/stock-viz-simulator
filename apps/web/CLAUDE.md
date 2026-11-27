@@ -928,6 +928,18 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   rows with the reason when none, a payout calendar), labelled a projection.
   Tests: `tests/unit/a96-dividend-projection.test.tsx`,
   `tests/e2e/tearsheet.spec.ts`.
+- **Capital gains (A7.12, M10.7).** `/portfolio/tax` (Portfolio & Tax nav
+  "Capital gains", signed in, icon `Landmark`; protected by `/portfolio`):
+  `?book=` (default book), `fy` (`TAX_YEARS`), `surcharge` (none, 10%, 15%
+  capped); `getIndiaTax` (`lib/api/tax.ts`, authed). 409 (not an INR book)
+  and 404 read as sentences. `components/india-tax-view.tsx`: the estimate
+  note first (`tax-estimate-note`), a `FigureStrip` (net short, net long,
+  exemption left, estimated tax with the section numbers), the breakdown,
+  realised lots (term, grandfathered), open lots with the first long-term
+  day and a harvesting summary in figures only ("not a recommendation"), the
+  rules, method and every source with how it was read. `lib/india-tax.ts`
+  (`inr` with Indian grouping). Tests: `tests/unit/a712-india-tax.test.tsx`,
+  `tests/e2e/tax.spec.ts`.
 - **Optimiser (A7.11, M10.6).** `/optimise` (Quant Lab nav "Optimiser", icon
   `PieChart`, public; `checkVisitorLimit("optimise")`, 10 a minute, only when
   a run is asked): a GET form (`tickers`, `method`, `years`, `rf` %, `maxw` %,

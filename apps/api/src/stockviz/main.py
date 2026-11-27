@@ -65,6 +65,7 @@ from stockviz.routers import (
     stream,
     strength,
     symbols,
+    tax,
     theses,
     trading,
     volume_profile,
@@ -157,6 +158,7 @@ def create_app() -> FastAPI:
     app.include_router(macro.router)
     app.include_router(documents.router)
     app.include_router(optimise.router)
+    app.include_router(tax.router)
     # Register screener before symbols so /v1/symbols/screen wins over the
     # /v1/symbols/{ticker} catch-all in symbols.router.
     app.include_router(screener.router)

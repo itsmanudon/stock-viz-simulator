@@ -225,6 +225,14 @@ export const WORKSPACES: readonly Workspace[] = [
         signedInOnly: true,
         keywords: ["zerodha", "csv", "import", "broker", "console"],
       },
+      {
+        // A7.12 (M10.7): the India capital gains estimate for an INR book.
+        label: "Capital gains",
+        href: "/portfolio/tax",
+        matches: ["/portfolio/tax"],
+        signedInOnly: true,
+        keywords: ["tax", "stcg", "ltcg", "harvesting", "112a", "india", "fifo"],
+      },
       { label: "Watchlist", href: "/watchlist", matches: ["/watchlist"], keywords: ["lists"] },
       { label: "Alerts", href: "/alerts", matches: ["/alerts"], keywords: ["price alert"] },
       {

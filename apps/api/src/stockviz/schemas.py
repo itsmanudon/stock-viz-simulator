@@ -5684,3 +5684,102 @@ class OptimiseOut(BaseModel):
     leftover: float | None = None
     notes: list[str]
     disclaimer: str
+
+
+class TaxSourceOut(BaseModel):
+    title: str
+    url: str
+    read_on: str
+    note: str
+
+
+class TaxRulesOut(BaseModel):
+    fy: str
+    start: date
+    end: date
+    act: str
+    stcg_section: str
+    ltcg_section: str
+    stcg_rate: Decimal
+    ltcg_rate: Decimal
+    ltcg_exemption: Decimal
+    cess_rate: Decimal
+    surcharge_cap: Decimal
+    long_term_after_months: int
+    sources: list[TaxSourceOut]
+
+
+class TaxRealisedOut(BaseModel):
+    ticker: str
+    bought: date
+    sold: date
+    quantity: Decimal
+    cost: Decimal
+    proceeds: Decimal
+    gain: Decimal
+    term: Literal["short", "long"]
+    grandfathered: bool
+
+
+class TaxIntradayOut(BaseModel):
+    ticker: str
+    day: date
+    quantity: Decimal
+    pnl: Decimal
+
+
+class TaxOpenLotOut(BaseModel):
+    ticker: str
+    bought: date
+    quantity: Decimal
+    cost: Decimal
+    close: Decimal | None = None
+    close_date: date | None = None
+    unrealised: Decimal | None = None
+    term: Literal["short", "long"]
+    long_term_on: date
+
+
+class TaxComputationOut(BaseModel):
+    stcg: Decimal
+    stcl: Decimal
+    ltcg: Decimal
+    ltcl: Decimal
+    net_short: Decimal
+    net_long_before_exemption: Decimal
+    exemption_used: Decimal
+    exemption_left: Decimal
+    taxable_short: Decimal
+    taxable_long: Decimal
+    tax_short: Decimal
+    tax_long: Decimal
+    surcharge: Decimal
+    cess: Decimal
+    total_tax: Decimal
+    loss_carried_short: Decimal
+    loss_carried_long: Decimal
+    intraday_pnl: Decimal
+
+
+class TaxUnmatchedOut(BaseModel):
+    ticker: str
+    day: date
+    quantity: Decimal
+
+
+class IndiaTaxOut(BaseModel):
+    """A7.12 (M10.7): an estimate of one INR book's FY capital gains tax."""
+
+    book_id: int
+    fy: str
+    as_of: date
+    surcharge_rate: Decimal
+    rules: TaxRulesOut
+    computation: TaxComputationOut
+    realised: list[TaxRealisedOut]
+    intraday: list[TaxIntradayOut]
+    open_lots: list[TaxOpenLotOut]
+    unmatched: list[TaxUnmatchedOut]
+    skipped_tickers: list[str]
+    method: list[str]
+    estimate_note: str
