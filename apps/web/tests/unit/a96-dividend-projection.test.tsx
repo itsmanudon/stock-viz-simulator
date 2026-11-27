@@ -48,3 +48,36 @@ describe("DividendProjection", () => {
     expect(screen.getByText("A projection, not a declaration.")).toBeInTheDocument();
   });
 });
+
+describe("PortfolioIncome with the projection", () => {
+  it("keeps the empty state when no holding projects a dividend", async () => {
+    const { PortfolioIncome } = await import("@/components/portfolio-income");
+    render(
+      <PortfolioIncome
+        positions={[]}
+        dividends={{
+          ytd_income: "0",
+          history: [],
+          projected: [],
+          projection_totals: {},
+          projection_method: "m",
+          projection: [
+            {
+              ticker: "NOPE",
+              currency: "USD",
+              quantity: "1",
+              ttm_per_share: "0",
+              growth_used: 0,
+              next_12m_per_share: "0",
+              next_12m_total: "0",
+              streak_years: 0,
+              reason: "No dividend with an ex-date in the last 12 months.",
+            },
+          ],
+        }}
+      />,
+    );
+    expect(screen.getByText("No dividend income has been credited yet.")).toBeInTheDocument();
+    expect(screen.queryByTestId("dividend-projection")).toBeNull();
+  });
+});
