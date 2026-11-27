@@ -5876,3 +5876,82 @@ class AiStatusOut(BaseModel):
     provider: str | None = None
     model: str | None = None
     reason: str | None = None
+
+
+class CohortIn(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+
+
+class CohortJoinIn(BaseModel):
+    code: str = Field(min_length=4, max_length=16)
+    consent: bool = False
+
+
+class CohortAssignmentIn(BaseModel):
+    """A10.2 (M12.2): a drill-deck recipe for every member, and its rubric."""
+
+    title: str = Field(min_length=1, max_length=120)
+    deck: DrillDeckIn
+    min_followed_pct: int = Field(default=70, ge=0, le=100)
+    due_on: date | None = None
+
+
+class CohortAssignmentOut(BaseModel):
+    id: int
+    title: str
+    min_followed_pct: int
+    due_on: date | None = None
+    rule: str
+    k: int
+    seed: int | None = None
+    created_at: datetime
+    my_deck_id: int | None = None
+
+
+class CohortOut(BaseModel):
+    """A10.2 (M12.1): a cohort as its owner or a member sees it."""
+
+    id: int
+    name: str
+    role: Literal["owner", "member"]
+    invite_code: str | None = None
+    members: int
+    assignments: list[CohortAssignmentOut]
+    created_at: datetime
+    consent_text: str
+
+
+class CohortStartOut(BaseModel):
+    assignment_id: int
+    deck_id: int
+    created: bool
+
+
+class GradebookCellOut(BaseModel):
+    """Process counts only: no money, R, fills, symbols or dates."""
+
+    assignment_id: int
+    started: bool
+    drills: int
+    revealed: int
+    traded: int
+    followed_plan: int
+    checks_passed: int
+    checks_applicable: int
+    followed_pct: float | None = None
+    grade: Literal["not_started", "in_progress", "meets_rubric", "below_rubric"]
+
+
+class GradebookRowOut(BaseModel):
+    user_id: int
+    name: str
+    joined_at: str
+    cells: list[GradebookCellOut]
+
+
+class GradebookOut(BaseModel):
+    cohort_id: int
+    assignments: list[CohortAssignmentOut]
+    rows: list[GradebookRowOut]
+    rubric: str
+    privacy: str

@@ -2272,6 +2272,31 @@ overlap is held. Tests: `tests/test_a96_dividend_projection.py`. Web: the
 projection on the Portfolio Income tab and the printable tearsheet
 (`/stocks/[t]/tearsheet`, built from existing routes).
 
+**Classroom cohorts (A10.2, M12.1, M12.2).** Owner, 27 Nov 2026: invite
+codes, members opt in, **the instructor sees process scores only**, never
+P&L, R, fills or books. Migration `c8a3d5f7e9b1` (additive; cascades; the
+downgrade refuses while a cohort exists): `cohorts` (owner, name, unique
+8-character `invite_code` without 0/O/1/I), `cohort_members` (`consented_at`),
+`cohort_assignments` (a `DrillDeckIn` recipe, **seed fixed and always
+anonymised**, so every student drills the same triggers; `min_followed_pct`
+rubric, `due_on`), `assignment_decks` (a student's deck per assignment).
+`services/classroom.py`: `join` (422 without consent; `CONSENT_TEXT` says
+exactly what the instructor sees), `leave` (unlinks the decks, which stay the
+student's), `start` (A4.7's `create_deck` with the recipe; a second call
+returns the same deck), `gradebook` (reads only `deck_out(...).summary`
+counts into `GradebookCell`, which has no money, R, fill, ticker or date
+field; `grade`: `in_progress` until every drill is revealed, then
+`meets_rubric` when followed/traded >= the rubric, else `below_rubric`).
+Limits: 20 cohorts per instructor, 200 members, 50 assignments. Routes
+(`routers/classroom.py`, authed; another user's cohort and a member asking
+for the gradebook are 404): `POST/GET /v1/cohorts`, `GET /v1/cohorts/{id}`,
+`POST /v1/cohorts/join`, `DELETE /v1/cohorts/{id}/membership`, `POST
+/v1/cohorts/{id}/assignments`, `POST /v1/assignments/{id}/start`, `GET
+/v1/cohorts/{id}/gradebook`. Tests: `tests/test_a102_classroom.py` (consent,
+isolation, identical triggers, forced anonymity, a gradebook whose JSON holds
+no P&L, price, fill, ticker or date, the rubric, leaving),
+`tests/test_a102_classroom_migration.py` (PostgreSQL).
+
 **The local MCP server (A8.6, M11.7).** Owner, 27 Nov 2026: the official
 `mcp` SDK (2.x: `mcp.server.mcpserver.MCPServer`; `FastMCP` is gone), a
 local stdio server only; remote access waits for the legal review. Run

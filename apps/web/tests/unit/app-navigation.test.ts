@@ -117,6 +117,7 @@ describe("route → workspace map", () => {
       "Experiments",
       "Replay",
       "Drills",
+      "Classroom",
       "Pairs lab",
       "Optimiser",
       "News reactions",

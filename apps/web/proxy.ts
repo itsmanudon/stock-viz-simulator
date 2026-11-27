@@ -33,6 +33,7 @@ const PROTECTED_PREFIXES = [
   "/backtest/experiments",
   "/setups",
   "/charts",
+  "/classroom",
 ];
 
 export default proxyAuth((req) => {
