@@ -25,11 +25,12 @@ from __future__ import annotations
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
-from sqlmodel import Session
+from sqlmodel import Session, col, select
 
 from stockviz.auth import UserIdDep
 from stockviz.db import get_session
 from stockviz.limiter import limiter
+from stockviz.models import Document, Symbol
 from stockviz.routers.documents import _instrument, _kind, _naive, _out, _public_doc, _tickers
 from stockviz.schemas import (
     AiKeyIn,
@@ -125,6 +126,20 @@ ASK_DISCLAIMER = (
 )
 
 
+def _companies_with_documents(session: Session) -> dict[int, tuple[str, str | None]]:
+    """Instrument id -> (ticker, name) for companies with stored documents (copilot scoping)."""
+    ids = {int(i) for i in session.exec(select(Document.instrument_id).distinct()).all()}
+    tickers = _tickers(session, ids)
+    names = dict(
+        session.exec(
+            select(Symbol.ticker, Symbol.name).where(
+                col(Symbol.ticker).in_(sorted(tickers.values()))
+            )
+        ).all()
+    )
+    return {iid: (t, names.get(t)) for iid, t in tickers.items()}
+
+
 @router.post("/ask", response_model=AskOut)
 @limiter.limit("10/minute")
 def ai_ask(
@@ -142,6 +157,7 @@ def ai_ask(
         out = copilot.ask(
             session, provider, body.question, as_of=when, ticker_names=lambda ids: _tickers(session, ids),
             instrument_id=iid, kind=_kind(body.kind), embedder=embedder_from_settings(settings),
+            companies=None if iid else _companies_with_documents(session),
         )  # fmt: skip
     except AiProviderError as exc:
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(exc)) from exc

@@ -114,3 +114,52 @@ def test_route(client: TestClient, session: Session, corpus, monkeypatch) -> Non
         "stockviz.routers.ai.provider_from_settings", lambda _s: FakeModel(fail=True)
     )
     assert client.post("/v1/ai/ask", json=body, headers=_auth(uid)).status_code == 502
+
+
+def test_a_question_naming_one_company_is_scoped() -> None:
+    companies = {
+        1: ("AAPL", "Apple Inc."),
+        2: ("KO", "The Coca-Cola Company"),
+        3: ("HD", "The Home Depot Inc."),
+        4: ("V", "Visa Inc."),
+        5: ("TCS.NS", "Tata Consultancy Services Limited"),
+    }
+    assert copilot.name_aliases("HD", "The Home Depot Inc.") == {"HD", "home depot"}
+    assert copilot.name_aliases("KO", "The Coca-Cola Company") >= {"KO", "coca-cola"}
+    assert copilot.named_instrument("What was Apple's net sales in Q3?", companies) == 1
+    assert copilot.named_instrument("AAPL gross margin?", companies) == 1
+    assert copilot.named_instrument("How much did Coca-Cola pay in dividends?", companies) == 2
+    assert copilot.named_instrument("Home Depot comparable sales", companies) == 3
+    assert copilot.named_instrument("Visa cross-border volume growth", companies) == 4
+    assert copilot.named_instrument("TCS attrition this quarter", companies) == 5
+    # Nothing named, two named, or a word that only looks like a name: no scope.
+    assert copilot.named_instrument("Which company grew fastest?", companies) is None
+    assert copilot.named_instrument("Apple versus Visa margins", companies) is None
+    assert copilot.named_instrument("I am home; what is v?", companies) is None
+    assert copilot.named_instrument("pineapple revenue", companies) is None
+
+
+def test_route_scopes_a_question_that_names_a_company(
+    client: TestClient,
+    session: Session,
+    corpus,  # noqa: F811
+    monkeypatch,
+) -> None:
+    uid = _user(session, "scope@stockviz.dev")
+    monkeypatch.setattr("stockviz.routers.ai.embedder_from_settings", lambda _s: None)
+    model = FakeModel("Operating margin widened to 21 percent [1].")
+    monkeypatch.setattr("stockviz.routers.ai.provider_from_settings", lambda _s: model)
+    # "percent" is in TCS's and INFY's passages; naming INFY keeps TCS out.
+    body = {"question": "INFY: what happened, in percent?"}
+    got = client.post("/v1/ai/ask", json=body, headers=_auth(uid)).json()
+    tickers = {s["passage"]["document"]["ticker"] for s in got["sources"]}
+    assert tickers == {"INFY.NS"}
+    assert any("names INFY.NS" in n for n in got["notes"])
+    unscoped = client.post(
+        "/v1/ai/ask", json={"question": "what happened, in percent?"}, headers=_auth(uid)
+    ).json()
+    assert {s["passage"]["document"]["ticker"] for s in unscoped["sources"]} == {
+        "TCS.NS",
+        "INFY.NS",
+    }
+    assert not any("names" in n for n in unscoped["notes"])
