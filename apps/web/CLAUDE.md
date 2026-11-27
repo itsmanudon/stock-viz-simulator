@@ -928,6 +928,15 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   rows with the reason when none, a payout calendar), labelled a projection.
   Tests: `tests/unit/a96-dividend-projection.test.tsx`,
   `tests/e2e/tearsheet.spec.ts`.
+- **Describe in words (A8.2, M4.2).** The screener's rule panel adds a
+  "Describe in words" disclosure (`describe-in-words`) only when signed in
+  and `getAiStatus()` (`lib/api/ai.ts`, public, cached a minute) says a
+  model is set up; `components/rule-draft.tsx` sends the words through
+  `screener/actions.ts::draftRuleAction` (`lib/api/ai-server.ts`, authed
+  `POST /v1/ai/rule`) and shows the draft as code with its check
+  (`rule-draft-check`); only a passing draft offers "Use This Rule", which
+  puts it in the editor (the usual check runs again). Nothing runs on a
+  draft. Tests: `tests/unit/a82-rule-draft.test.tsx`.
 - **India options (A7.14, M6.1, M6.3).** `/india-options` (Markets nav
   "India options", icon `Activity`, public; linked from the Derivatives
   desk): `getFoIndia()` (`lib/api/fo.ts`, cached an hour, tag `fo`) rendered

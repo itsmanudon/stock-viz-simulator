@@ -116,6 +116,9 @@ class Settings(BaseSettings):
     finnhub_api_key: SecretStr = SecretStr("")
     # A9.7 (M1.10): free FRED key for the weekly macro fetch; blank = off.
     fred_api_key: SecretStr = SecretStr("")
+    # A8.3: a local Ollama model turns the AI controls on; blank = off.
+    ollama_model: str = ""
+    ollama_url: str = "http://127.0.0.1:11434"
 
     # A4.6: an Indian (XNSE/XBOM) replay session must end at least this many
     # calendar days before today on its venue (SEBI's rule for simulated

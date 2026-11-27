@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { apiDetail } from "@/lib/api-error-detail";
+import { draftRule } from "@/lib/api/ai-server";
 import { checkRule } from "@/lib/api/rules";
 import {
   type SavedScreen,
@@ -153,5 +154,35 @@ export async function toggleScreenNotifyAction(
       return { error: apiDetail(err.detail, "The setting could not be saved.") };
     }
     return { error: "The setting could not be saved." };
+  }
+}
+
+export type RuleDraftState = {
+  rule?: string;
+  valid?: boolean;
+  error?: string;
+  note?: string;
+  model?: string;
+};
+
+/** A8.2: the server's model drafts a rule from words; the rule checker judges it. */
+export async function draftRuleAction(text: string): Promise<RuleDraftState> {
+  const words = text.trim();
+  if (words.length < 3) return { error: "Describe the screen in a few words." };
+  try {
+    const out = await draftRule(words.slice(0, 500));
+    return {
+      rule: out.rule,
+      valid: out.check.valid,
+      error: out.check.valid ? undefined : (out.check.error?.message ?? "Not a valid rule."),
+      note: out.note,
+      model: `${out.provider} ${out.model}`,
+    };
+  } catch (err) {
+    if (err instanceof UnauthenticatedError) return { error: "Sign in to draft rules." };
+    if (err instanceof AuthedApiError) {
+      return { error: apiDetail(err.detail, "The draft could not be made just now.") };
+    }
+    return { error: "The draft could not be made just now." };
   }
 }

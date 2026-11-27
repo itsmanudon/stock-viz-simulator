@@ -8,7 +8,9 @@ import {
   forkPresetAction,
   saveSetupAction,
 } from "@/app/(product)/screener/actions";
+import type { RuleDraftState } from "@/app/(product)/screener/actions";
 import { RuleBuilder } from "@/components/rule-builder";
+import { RuleDraft } from "@/components/rule-draft";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -53,6 +55,8 @@ export function RulePanel({
   signedIn,
   clearHref,
   check = checkRule,
+  aiModel = null,
+  draft,
 }: {
   rule: string;
   mode: RuleMode;
@@ -61,6 +65,9 @@ export function RulePanel({
   signedIn: boolean;
   clearHref: string | null;
   check?: (rule: string, signal?: AbortSignal) => Promise<RuleCheck>;
+  /** A8.2: the server's model ("ollama gemma4:e4b"), null when AI is off. */
+  aiModel?: string | null;
+  draft?: (text: string) => Promise<RuleDraftState>;
 }) {
   const id = useId();
   const [text, setText] = useState(rule);
@@ -197,6 +204,14 @@ export function RulePanel({
           <RuleBuilder onRule={setText} />
         </div>
       </details>
+      {signedIn && aiModel && draft ? (
+        <details className="text-xs text-text-secondary" data-testid="describe-in-words">
+          <summary className="cursor-pointer text-text-tertiary hover:text-foreground">
+            Describe in words
+          </summary>
+          <RuleDraft model={aiModel} draft={draft} onRule={setText} />
+        </details>
+      ) : null}
 
       <details className="text-xs text-text-secondary">
         <summary className="cursor-pointer text-text-tertiary hover:text-foreground">

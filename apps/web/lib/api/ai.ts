@@ -1,0 +1,11 @@
+/** A8.2 / A8.3: whether the server has a model (public, cached a minute). */
+
+import { apiGet } from "./client";
+import type { components } from "./schema";
+
+export type AiStatus = components["schemas"]["AiStatusOut"];
+export type AiRule = components["schemas"]["AiRuleOut"];
+
+export function getAiStatus(): Promise<AiStatus> {
+  return apiGet<AiStatus>("/v1/ai/status", { revalidateSeconds: 60, tags: ["ai"] });
+}
