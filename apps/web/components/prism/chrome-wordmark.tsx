@@ -14,6 +14,8 @@
  * - Decorative and aria-hidden; pointer events pass through.
  * - Draws only while on screen, at most 1.5x device pixels.
  * - With reduced motion it renders one still frame and never animates.
+ * - Redraws the mask (with a new texture when its size changes) on resize
+ *   and when fonts finish loading, so the metal stays under the outline.
  */
 
 import { useEffect, useRef } from "react";
@@ -94,9 +96,17 @@ export function ChromeWordmark({ className }: { className?: string }) {
       host.prepend(canvas);
 
       const mask = document.createElement("canvas");
-      const texture = new THREE.CanvasTexture(mask);
-      texture.minFilter = THREE.LinearFilter;
-      texture.magFilter = THREE.LinearFilter;
+      // A texture's storage is allocated once at its first size (WebGL2), so
+      // a mask that changes size needs a new texture, or the metal keeps the
+      // old, stretched word after the window is resized.
+      const makeTexture = () => {
+        const t = new THREE.CanvasTexture(mask);
+        t.minFilter = THREE.LinearFilter;
+        t.magFilter = THREE.LinearFilter;
+        return t;
+      };
+      let texture = makeTexture();
+      let maskSize = "";
       const srgb = (css: string) => new THREE.Color(css).convertLinearToSRGB();
       const uniforms = {
         uTime: { value: 20 },
@@ -126,12 +136,23 @@ export function ChromeWordmark({ className }: { className?: string }) {
         renderer.setSize(w, h, false);
         uniforms.uRes.value.set(w * ratio, h * ratio);
         drawMask(mask, text, ratio);
+        const size = `${mask.width}x${mask.height}`;
+        if (maskSize && size !== maskSize) {
+          texture.dispose();
+          texture = makeTexture();
+          uniforms.uMask.value = texture;
+        }
+        maskSize = size;
         texture.needsUpdate = true;
         renderer.render(scene, camera);
       };
       resize();
       const ro = new ResizeObserver(resize);
       ro.observe(host);
+      // The font size follows the viewport (clamp), and a late font swap
+      // changes the glyphs without resizing the box: redraw on both.
+      window.addEventListener("resize", resize);
+      document.fonts?.addEventListener("loadingdone", resize);
 
       const reduced = mediaMatches("(prefers-reduced-motion: reduce)");
       let frame = 0;
@@ -173,6 +194,8 @@ export function ChromeWordmark({ className }: { className?: string }) {
         cancelAnimationFrame(frame);
         io?.disconnect();
         ro.disconnect();
+        window.removeEventListener("resize", resize);
+        document.fonts?.removeEventListener("loadingdone", resize);
         window.removeEventListener("pointermove", onPointer);
         quad.geometry.dispose();
         material.dispose();

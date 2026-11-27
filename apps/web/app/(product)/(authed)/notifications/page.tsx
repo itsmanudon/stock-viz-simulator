@@ -54,7 +54,6 @@ export default async function NotificationsPage({
   return (
     <PageFrame width="workstation" className="py-5 sm:py-7">
       <OperationalPageHeader
-        eyebrow="Portfolio"
         title="Notifications"
         description="What happened to your account after each nightly run: alerts, fills, cancellations, dividends, splits, option settlements and screen changes. Also sent to any channel you set in Settings."
         meta={<span>{unread} unread</span>}

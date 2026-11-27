@@ -82,7 +82,6 @@ export default async function NewsPage({
   return (
     <div className="container mx-auto px-4 py-6 sm:px-6 lg:py-7">
       <ResearchPageHeader
-        path="/news"
         title="News"
         description="Every headline Aegis News has linked, searchable back to the first one, with what each stock did on the session after. Headlines, sources and dates only; open the original to read the article."
       />

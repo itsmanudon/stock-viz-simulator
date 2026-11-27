@@ -49,7 +49,6 @@ export default async function CopilotPage({
   return (
     <PageFrame>
       <PageHeader
-        eyebrow="AI Copilot"
         title="Copilot"
         description="Ask the filings and transcripts stored here. Every answer cites the passages it came from."
       />

@@ -86,11 +86,7 @@ export default async function WatchlistPage({
   if (!lists || lists.length === 0) {
     return (
       <PageFrame width="workstation" className="py-5 sm:py-7">
-        <OperationalPageHeader
-          eyebrow="Portfolio"
-          title="Watchlist"
-          description="Securities you are monitoring."
-        />
+        <OperationalPageHeader title="Watchlist" description="Securities you are monitoring." />
         <MonitoringSubnav current="/watchlist" />
         <div className="mt-6" role="alert">
           <OperationalEmptyState title="Watchlists are unavailable right now">
@@ -140,7 +136,6 @@ export default async function WatchlistPage({
   return (
     <PageFrame width="workstation" className="py-5 sm:py-7">
       <OperationalPageHeader
-        eyebrow="Portfolio"
         title="Watchlist"
         description="Securities you are monitoring, in as many lists as you like. Last close is the latest stored daily bar, not a live quote."
         meta={

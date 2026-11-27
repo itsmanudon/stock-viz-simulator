@@ -89,7 +89,6 @@ export default async function EdgePage({ searchParams }: { searchParams: Promise
         </Link>
       </div>
       <PageHeader
-        eyebrow="Portfolio · Journal"
         title="Is My Edge Real?"
         description="What your closed trades say so far, with how sure the sample lets you be. Figures are net of fees and computed from your journal each time you open this page."
         meta={

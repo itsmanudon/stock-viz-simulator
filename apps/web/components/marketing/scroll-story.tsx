@@ -19,27 +19,23 @@ import type { PhoneScreen, PhoneScreenKey } from "@/components/marketing/hero-ph
 import { PhoneFrame } from "@/components/marketing/phone-frame";
 import { cn } from "@/lib/utils";
 
-const STEPS: Record<PhoneScreenKey, { chip: string; title: string; soft: string; body: string }> = {
+const STEPS: Record<PhoneScreenKey, { title: string; soft: string; body: string }> = {
   portfolio: {
-    chip: "Your account",
     title: "Start with $100,000.",
     soft: "Watch what it becomes.",
     body: "Your paper balance, what you hold and how it moved, valued at the latest stored closes.",
   },
   stock: {
-    chip: "Research",
     title: "Every price says",
     soft: "which close it is.",
     body: "Charts, indicators and headlines on one page, with the close of record dated down to the year.",
   },
   review: {
-    chip: "Review",
     title: "See the whole order",
     soft: "before you place it.",
     body: "Amount, reference close, fees and the fill rule on one screen. Edit it or place it; nothing goes through without the review.",
   },
   news: {
-    chip: "News",
     title: "Headlines for",
     soft: "what you hold.",
     body: "Stored news for each symbol, with its source and publish date.",
@@ -93,9 +89,6 @@ export function ScrollStory({ screens }: { screens: PhoneScreen[] }) {
                 enhanced && index !== active && "lg:opacity-35",
               )}
             >
-              <span className="w-max rounded-full border border-border-muted bg-surface-secondary px-3 py-1 text-xs text-text-secondary">
-                {String(index + 1).padStart(2, "0")} · {step.chip}
-              </span>
               <h3 className="text-3xl font-medium tracking-[-0.03em] text-balance sm:text-4xl">
                 {step.title} <span className="text-text-tertiary">{step.soft}</span>
               </h3>

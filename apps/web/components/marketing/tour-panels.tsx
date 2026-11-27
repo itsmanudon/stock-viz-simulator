@@ -48,13 +48,8 @@ function PanelBody({ children }: { children: React.ReactNode }) {
   return <div className="min-h-[19rem] p-4 sm:min-h-[21rem] sm:p-5">{children}</div>;
 }
 
-function PanelHeading({ eyebrow, title }: { eyebrow: string; title: string }) {
-  return (
-    <div className="mb-4">
-      <p className="font-mono text-3xs tracking-[0.02em] text-brand">{titleCase(eyebrow)}</p>
-      <p className="mt-1 text-sm text-text-secondary">{title}</p>
-    </div>
-  );
+function PanelHeading({ title }: { title: string }) {
+  return <p className="mb-4 text-sm text-text-secondary">{title}</p>;
 }
 
 // --- 01 Screen -------------------------------------------------------------
@@ -62,10 +57,7 @@ function PanelHeading({ eyebrow, title }: { eyebrow: string; title: string }) {
 export function ScreenPanel({ rows }: { rows: ScreenerResult[] }) {
   return (
     <PanelBody>
-      <PanelHeading
-        eyebrow="Screener · RSI + momentum"
-        title="Filter the universe down to the handful worth opening."
-      />
+      <PanelHeading title="Filter the universe down to the handful worth opening." />
       <div className="overflow-x-auto">
         <table className="w-full min-w-[30rem] text-left">
           <thead>
@@ -141,10 +133,7 @@ export function ResearchPanel({
 
   return (
     <PanelBody>
-      <PanelHeading
-        eyebrow="Checklist · six published conditions"
-        title="Every dimension is shown with its formula, including the ones not met."
-      />
+      <PanelHeading title="Every dimension is shown with its formula, including the ones not met." />
 
       <div className="mb-3 flex items-baseline gap-3">
         <span className="ticker text-sm font-semibold">{row.ticker}</span>
@@ -218,10 +207,7 @@ export function SimulatePanel({ result }: { result: BacktestResult }) {
 
   return (
     <PanelBody>
-      <PanelHeading
-        eyebrow="Backtest · SMA crossover"
-        title="Read the equity curve before you commit a simulated dollar."
-      />
+      <PanelHeading title="Read the equity curve before you commit a simulated dollar." />
 
       <div className="flex items-baseline justify-between">
         <span className="ticker text-sm font-semibold">{result.ticker}</span>

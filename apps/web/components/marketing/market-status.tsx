@@ -1,5 +1,7 @@
 /**
- * Data-freshness chip in the public header.
+ * Data-freshness chip in the workspace top bar. The public header's chip went
+ * on 27 Nov 2026: on the landing page every price already carries its close
+ * date ("Moving at the latest close" cards, the footer's close line).
  *
  * Says exactly what the product actually has: the date of the most recent
  * stored end-of-day bar. It deliberately does NOT claim a live or open market —
@@ -45,37 +47,6 @@ export async function latestStoredCloseDate(): Promise<string | null> {
   return null;
 }
 
-export async function MarketStatus() {
-  const day = await latestStoredCloseDate();
-  if (!day) return null;
-
-  // Built from the calendar date at UTC midnight, so the label is the stored
-  // day in every region.
-  const [year, month, dayOfMonth] = day.split("-").map(Number);
-  const date = new Date(Date.UTC(year, month - 1, dayOfMonth));
-  const label = new Intl.DateTimeFormat("en-US", {
-    day: "2-digit",
-    month: "short",
-    timeZone: "UTC",
-  }).format(date);
-
-  const ageDays = (Date.now() - date.getTime()) / MS_PER_DAY;
-  const fresh = ageDays <= FRESH_DAYS;
-
-  return (
-    <span
-      className="hidden items-center gap-2 rounded-full border border-border-muted px-2.5 py-1 font-mono text-2xs text-text-tertiary lg:inline-flex"
-      title={`Most recent stored end-of-day bar: ${day}`}
-    >
-      <span
-        aria-hidden
-        className={`size-1.5 rounded-full ${fresh ? "bg-positive" : "bg-warning"}`}
-      />
-      EOD · {label}
-    </span>
-  );
-}
-
 /**
  * The product top bar's data-date label: "EOD data · latest close Nov 7, 2026".
  *
@@ -85,14 +56,18 @@ export async function MarketStatus() {
  * Hidden below `sm`, where the search box needs the width. Renders nothing
  * when no bar can be read.
  */
+/** True while the stored day is recent enough to count as current. */
+export function isFreshClose(day: string): boolean {
+  const [year, month, dayOfMonth] = day.split("-").map(Number);
+  return (Date.now() - Date.UTC(year, month - 1, dayOfMonth)) / MS_PER_DAY <= FRESH_DAYS;
+}
+
 export async function DataDateChip() {
   const day = await latestStoredCloseDate();
   const label = formatCloseDate(day);
   if (!day || !label) return null;
 
-  const [year, month, dayOfMonth] = day.split("-").map(Number);
-  const ageDays = (Date.now() - Date.UTC(year, month - 1, dayOfMonth)) / MS_PER_DAY;
-  const fresh = ageDays <= FRESH_DAYS;
+  const fresh = isFreshClose(day);
 
   return (
     <span

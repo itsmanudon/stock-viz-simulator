@@ -101,14 +101,10 @@ describe("compare presentation", () => {
 });
 
 describe("research chrome", () => {
-  it("exposes the Workbench routes in the workspace subnav and eyebrow (A3.6)", () => {
+  it("exposes the Workbench routes in the workspace subnav (A3.6)", () => {
     render(
       <>
-        <ResearchPageHeader
-          path="/compare"
-          title="Compare"
-          description="How do these assets compare?"
-        />
+        <ResearchPageHeader title="Compare" description="How do these assets compare?" />
         <ResearchSubnav current="/compare" />
         <ResearchEmptyState title="Select symbols to compare">
           <p>Add a ticker to begin.</p>
@@ -116,7 +112,7 @@ describe("research chrome", () => {
       </>,
     );
 
-    expect(screen.getByText("Workbench")).toBeVisible();
+    expect(screen.getByRole("heading", { level: 1, name: "Compare" })).toBeVisible();
     const nav = screen.getByRole("navigation", { name: "Workbench tools" });
     expect(within(nav).getByRole("link", { name: "Compare" })).toHaveAttribute(
       "aria-current",

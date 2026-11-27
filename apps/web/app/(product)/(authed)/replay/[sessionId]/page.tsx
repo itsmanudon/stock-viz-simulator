@@ -51,7 +51,6 @@ import {
   formatReplayDate,
   isIntradayInterval,
   replayBarsToChart,
-  replayIntervalLabel,
   replayProfileLabel,
   replayStatusLabel,
 } from "@/lib/replay";
@@ -151,11 +150,7 @@ export default async function ReplaySessionPage({
       <PageFrame width="workstation" className="py-6 sm:py-8">
         <header className="flex flex-col gap-3 border-b border-border-muted pb-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="text-2xs font-medium tracking-[0.02em] text-text-secondary">
-              {session.status === "completed" ? "Replay Review" : "Replay"} · Historical Session ·{" "}
-              {intraday ? `${replayIntervalLabel(interval)} Bars` : "Daily Data"}
-            </p>
-            <h1 className="mt-1.5 text-3xl font-semibold tracking-[-0.025em]">{session.ticker}</h1>
+            <h1 className="text-3xl font-semibold tracking-[-0.025em]">{session.ticker}</h1>
             <div className="mt-2.5 flex flex-wrap items-center gap-2 text-xs text-text-tertiary">
               <MetaChip tone={session.status === "active" ? "warning" : "neutral"}>
                 Replay {intraday ? "time" : "date"} ·{" "}

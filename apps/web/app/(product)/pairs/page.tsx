@@ -39,7 +39,6 @@ export default async function PairsPage({ searchParams }: { searchParams: Promis
   return (
     <div className="w-full space-y-6 px-4 py-6 sm:px-6 lg:py-7 xl:px-8">
       <PageHeader
-        eyebrow="Quant Lab"
         title="Pairs lab"
         description="Do two stocks share a long-run relationship? An Engle-Granger cointegration test on their stored closes."
       />

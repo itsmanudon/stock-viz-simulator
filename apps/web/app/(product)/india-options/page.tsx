@@ -13,7 +13,6 @@ export default async function IndiaOptionsPage() {
   return (
     <div className="w-full space-y-6 px-4 py-6 sm:px-6 lg:py-7 xl:px-8">
       <PageHeader
-        eyebrow="Markets"
         title="India options"
         description="Index option volatility, skew and open interest by strike offset, from stored daily summaries."
       />

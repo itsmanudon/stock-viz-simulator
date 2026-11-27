@@ -11,21 +11,27 @@
  * height; everything ahead of it lies flat under a haze, because the future
  * is not known yet (the same rule as Replay Lab).
  *
- * - The panel beside the surface states, as text, the session in view, how
- *   many symbols were above their starting close and the leader and laggard,
- *   so the canvas (aria-hidden) is never the only place a figure appears.
- * - The session slider is a real range input, so the same scrub works from a
+ * - Under the surface, one sentence states the session in view, how many
+ *   symbols were above their starting close and the leader and laggard, its
+ *   digits rolling as time moves (landing; the dashboard tile keeps its stat
+ *   panel). The canvas (aria-hidden) is never the only place a figure appears.
+ * - Time is a full-width rail: a real range input with the session's date on
+ *   its thumb and the months marked under it, so the same scrub works from a
  *   keyboard and a screen reader; dragging it scrolls the page to match.
  * - Reduced motion: no tall scroll track, no camera drift; the slider alone
  *   moves time and the surface opens on the latest session.
  * - Without WebGL the surface falls back to a 2D heat map of the same grid.
- * - With sound on, the front ticks every ten sessions.
+ * - With sound on, the front ticks every ten sessions, and while the section
+ *   is on screen the background music takes its mood from the session in
+ *   view (landing only).
  */
 
 import Link from "next/link";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 
+import { RollingText } from "@/components/prism/rolling-text";
 import { emitSound } from "@/components/sound/sound-provider";
+import { setAmbientMoodOverride } from "@/lib/sound/ambient";
 import { cn } from "@/lib/utils";
 
 import { mediaMatches } from "@/lib/media";
@@ -116,6 +122,16 @@ function pct(v: number) {
   return `${v > 0 ? "+" : ""}${v.toFixed(2)}%`;
 }
 
+/** "+21.66%" / "−22.52%" with a real minus sign, for the sentence. */
+function signedPct(v: number) {
+  return `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(v).toFixed(2)}%`;
+}
+
+/** Thumb centre on an 18px-thumb range input, as a CSS `left`. */
+function onTrack(fraction: number) {
+  return `calc(${fraction * 100}% + ${(0.5 - fraction) * 18}px)`;
+}
+
 function cssColor(name: string, fallback: string): string {
   const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
   return v || fallback;
@@ -146,9 +162,19 @@ export function MarketTerrain({
   const [index, setIndex] = useState(data.sessions - 1);
   const lastTick = useRef(data.sessions - 1);
   const redrawRef = useRef<(() => void) | null>(null);
+  const inViewRef = useRef(false);
 
   const stats = useMemo(() => statsAt(data, index), [data, index]);
   const sessionsBack = data.sessions - 1 - index;
+  // The first session of each month after the first, for the rail's marks.
+  const months = useMemo(() => {
+    const out: [string, number][] = [];
+    data.dates?.forEach((date, i) => {
+      const month = date.slice(0, 3);
+      if (i > 0 && month !== data.dates?.[i - 1].slice(0, 3)) out.push([month, i]);
+    });
+    return out;
+  }, [data.dates]);
 
   const applyProgress = useCallback(
     (p: number) => {
@@ -175,6 +201,9 @@ export function MarketTerrain({
       if (!section) return;
       const rect = section.getBoundingClientRect();
       const track = rect.height - window.innerHeight;
+      inViewRef.current =
+        rect.top < window.innerHeight * 0.5 && rect.bottom > window.innerHeight * 0.5;
+      if (!inViewRef.current) setAmbientMoodOverride(null);
       if (track <= 0) return;
       // The front starts moving once the stage is pinned and reaches the
       // latest session a little before the pin releases.
@@ -182,8 +211,17 @@ export function MarketTerrain({
     };
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      setAmbientMoodOverride(null);
+    };
   }, [applyProgress, data.sessions, compact]);
+
+  // The music follows the session in view while the section is on screen.
+  useEffect(() => {
+    if (compact || !inViewRef.current) return;
+    setAmbientMoodOverride(stats.above / data.tickers.length);
+  }, [compact, stats.above, data.tickers.length]);
 
   // Compact tile: time plays by itself while on screen, then holds on the
   // latest session for a beat and starts again. Stops for good once the
@@ -433,6 +471,80 @@ export function MarketTerrain({
       ? `Latest stored session${data.lastDate ? `, ${data.lastDate}` : ""}`
       : `${sessionsBack} ${sessionsBack === 1 ? "session" : "sessions"} before ${data.lastDate ?? "the latest close"}`;
 
+  const when = data.dates?.[index] ?? (sessionsBack === 0 ? data.lastDate : null);
+  const fraction = index / (data.sessions - 1);
+
+  // The window's first session: every row is rebased to it, so all sit at
+  // zero and a leader and laggard would be arbitrary.
+  const sentence =
+    index === 0 ? (
+      <p className="max-w-4xl text-2xl leading-snug font-medium tracking-[-0.025em] text-balance [text-shadow:0_0_24px_var(--background),0_0_8px_var(--background)] sm:text-4xl sm:leading-tight">
+        {when ? <>On {when}, all</> : "All"} {data.tickers.length} start level at 0.00%: the
+        window&rsquo;s first close.
+      </p>
+    ) : (
+      <p className="max-w-4xl text-2xl leading-snug font-medium tracking-[-0.025em] text-balance [text-shadow:0_0_24px_var(--background),0_0_8px_var(--background)] sm:text-4xl sm:leading-tight">
+        {when ? (
+          <>
+            On <RollingText value={when} />,{" "}
+          </>
+        ) : (
+          <>{label}, </>
+        )}
+        <RollingText value={String(stats.above)} /> of {data.tickers.length}{" "}
+        {stats.above === 1 ? "was" : "were"} above where they started.{" "}
+        <span className="ticker">{stats.leader.ticker}</span> led at{" "}
+        <RollingText
+          value={signedPct(stats.leader.value)}
+          className={stats.leader.value >= 0 ? "text-positive" : "text-negative"}
+        />
+        ; <span className="ticker">{stats.laggard.ticker}</span> trailed at{" "}
+        <RollingText
+          value={signedPct(stats.laggard.value)}
+          className={stats.laggard.value >= 0 ? "text-positive" : "text-negative"}
+        />
+        .
+      </p>
+    );
+
+  const rail = (
+    <div className="relative pt-12">
+      <span
+        aria-hidden
+        className="glass absolute top-0 rounded-full px-3 py-1.5 font-mono text-sm whitespace-nowrap tabular-nums"
+        style={{ left: onTrack(fraction), transform: `translateX(-${fraction * 100}%)` }}
+      >
+        {when ?? `${index + 1} of ${data.sessions}`}
+      </span>
+      <input
+        type="range"
+        min={0}
+        max={data.sessions - 1}
+        step={1}
+        value={index}
+        onChange={(event) => onSlide(Number(event.target.value))}
+        aria-label="Move through time"
+        aria-valuetext={when ?? label}
+        data-sound="none"
+        className="prism-range w-full"
+      />
+      {months.length ? (
+        <div aria-hidden className="relative mt-1 h-7">
+          {months.map(([month, at]) => (
+            <span
+              key={at}
+              className="absolute top-0 flex -translate-x-1/2 flex-col items-center gap-1 text-sm text-text-tertiary"
+              style={{ left: onTrack(at / (data.sessions - 1)) }}
+            >
+              <span className="h-1.5 w-px bg-border" />
+              {month}
+            </span>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+
   const statsPanel = (
     <dl
       className={cn(
@@ -582,10 +694,9 @@ export function MarketTerrain({
 
         <div className="pointer-events-none relative z-10 mx-auto flex h-full w-full max-w-7xl flex-col justify-between px-4 pt-24 pb-6 sm:px-6 sm:pt-28 sm:pb-10">
           <div className="max-w-xl [text-shadow:0_0_24px_var(--background),0_0_8px_var(--background)]">
-            <p className="font-mono text-2xs tracking-[0.02em] text-brand">The Fourth Axis</p>
             <h2
               id={headingId}
-              className="mt-4 text-4xl font-medium tracking-[-0.035em] text-balance sm:text-6xl"
+              className="text-4xl font-medium tracking-[-0.035em] text-balance sm:text-6xl"
             >
               Time is the <span className="font-editorial text-prism">fourth</span> axis.
             </h2>
@@ -596,9 +707,9 @@ export function MarketTerrain({
             </p>
           </div>
 
-          <div className="pointer-events-auto grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
-            {statsPanel}
-            {slider}
+          <div className="pointer-events-auto grid gap-6 sm:gap-8">
+            {sentence}
+            {rail}
           </div>
         </div>
       </div>

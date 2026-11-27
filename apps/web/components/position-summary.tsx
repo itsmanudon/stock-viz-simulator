@@ -40,10 +40,7 @@ export function PositionSummary({
     <section aria-labelledby="position-summary-title" className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="text-2xs font-semibold tracking-[0.02em] text-text-tertiary">
-            Portfolio Relationship
-          </p>
-          <h3 id="position-summary-title" className="mt-1 text-base font-semibold">
+          <h3 id="position-summary-title" className="text-base font-semibold">
             Your {ticker} position
           </h3>
         </div>

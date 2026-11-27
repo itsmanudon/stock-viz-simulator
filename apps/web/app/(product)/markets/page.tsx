@@ -166,7 +166,6 @@ export default async function MarketsPage({
   return (
     <div className="w-full px-4 py-6 sm:px-6 lg:py-7 xl:px-8">
       <PageHeader
-        eyebrow="Markets"
         title="Markets"
         description="Stored end-of-day closes across the tracked universe, not live quotes. Sort any column or filter by sector; the view is captured in the URL."
         meta={

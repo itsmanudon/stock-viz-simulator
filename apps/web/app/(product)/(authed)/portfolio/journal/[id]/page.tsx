@@ -153,7 +153,6 @@ export default async function JournalEntryPage({
         </Link>
       </div>
       <PageHeader
-        eyebrow="Portfolio · Journal"
         title={`${entry.ticker ?? "Unknown symbol"} Round Trip`}
         description={
           entry.exit_date

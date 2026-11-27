@@ -34,7 +34,6 @@ export default async function ImportPage({
   return (
     <div className="mx-auto w-full max-w-5xl px-4 py-6 sm:px-6 lg:py-7">
       <PageHeader
-        eyebrow="Portfolio"
         title="Import tradebook"
         description="Bring a broker's tradebook (CSV) into an imported book: holdings and realized P&L, with estimated charges for Indian trades."
         meta={

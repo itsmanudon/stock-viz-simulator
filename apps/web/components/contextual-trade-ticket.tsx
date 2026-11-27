@@ -531,8 +531,7 @@ function TicketHeading({ id, ticker }: { id: string; ticker: string }) {
   return (
     <div className="flex items-start justify-between gap-4">
       <div>
-        <p className="text-2xs font-semibold tracking-[0.02em] text-brand">Simulation</p>
-        <h2 id={id} className="mt-1 text-base font-semibold tracking-tight">
+        <h2 id={id} className="text-base font-semibold tracking-tight">
           Paper trade
         </h2>
       </div>
