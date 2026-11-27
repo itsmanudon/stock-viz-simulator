@@ -2,12 +2,13 @@
  * A7.10 (M5.5): stored filings and transcripts. Server-renderable pieces for
  * /filings (list or search results) and /filings/[id] (the text, with the
  * searched phrase marked). Every date says when the document became public.
+ * A8.4: `PassageRow` shows one ranked passage with how it was found.
  */
 
 import Link from "next/link";
 
 import { formatUtcDateTime } from "@/lib/api-time";
-import type { DocumentItem } from "@/lib/api/documents";
+import type { DocumentItem, Passage } from "@/lib/api/documents";
 import { kindLabel } from "@/lib/api/documents";
 
 export function filingHref(id: number, q?: string): string {
@@ -92,5 +93,34 @@ export function Marked({ text, q }: { text: string; q: string }) {
         ),
       )}
     </>
+  );
+}
+
+/** How a passage was ranked, in words: "Words #2 · Meaning #1 (0.82)". */
+export function passageRanks(
+  p: Pick<Passage, "keyword_rank" | "vector_rank" | "similarity">,
+): string {
+  const parts: string[] = [];
+  if (p.keyword_rank != null) parts.push(`Words #${p.keyword_rank}`);
+  if (p.vector_rank != null)
+    parts.push(
+      `Meaning #${p.vector_rank}${p.similarity != null ? ` (${p.similarity.toFixed(2)})` : ""}`,
+    );
+  return parts.join(" · ");
+}
+
+export function PassageRow({ passage }: { passage: Passage }) {
+  const text = passage.text.length > 600 ? `${passage.text.slice(0, 600)}…` : passage.text;
+  return (
+    <li className="rounded-lg border border-border bg-card p-3" data-testid="passage-row">
+      <Link href={filingHref(passage.document.id)} className="text-sm font-medium hover:underline">
+        {passage.document.title}
+      </Link>
+      <DocumentMeta doc={passage.document} />
+      <p className="mt-2 whitespace-pre-line text-xs text-text-secondary">{text}</p>
+      <p className="mt-1 text-2xs text-text-tertiary" data-testid="passage-ranks">
+        Passage {passage.position + 1} · {passageRanks(passage)}
+      </p>
+    </li>
   );
 }

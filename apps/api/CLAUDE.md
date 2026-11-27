@@ -264,6 +264,7 @@ CLI subcommands (`python -m stockviz.cli <cmd>`): `seed`, `backfill`,
 `doctor` (A10.1: read-only health of a self-hosted instance, exit 1 on a failed check).
 `macro-sync [--series ID ...]` (A9.7: the FRED macro catalogue; needs `FRED_API_KEY`).
 `docs-load PATH ... --ticker T --kind K [--date D] [--apply]`, `docs-edgar TICKER ... --since D` (A7.10).
+`docs-index [--embed] [--limit N]` (A8.4: passages and embeddings for hybrid search; local only).
 `fo-load --dir DIR [--apply]` (A7.14: the owner's option files as daily summaries; local only).
 `seed` also writes the rule presets (A2.2) and the checklist dimension setups
 (A2.4).
@@ -2458,6 +2459,44 @@ dependencies of its own). Not yet: OCR for scanned PDFs, NSE/BSE
 announcement downloads (held with the NSE question), concall analysis
 (M11.3, LLM), Reg 30 governance flags. Tests: `tests/test_a710_documents.py`,
 `tests/test_a710_documents_migration.py` (PostgreSQL).
+
+**Hybrid passage search (A8.4, M11.1).** Migration `d8b4e6f0a2c3`
+(additive): `document_chunks` (`models/document.py::DocumentChunk`: document
+(cascade), `position`, `start_char`/`end_char` into the stored text, `text`,
+`embedding` `real[]` (JSON on SQLite) and `embed_model`, both null until
+embedded) and a GIN index on `to_tsvector('english', text)` that the model
+cannot declare (`migrations/env.py::MIGRATION_ONLY_INDEXES` keeps it out of
+`alembic check`). **No pgvector**: the local Postgres lacks it and Railway is
+unchecked, so vectors are compared in Python with NumPy (at most 20,000
+passages per query, newest documents first, said in `notes` when cut).
+- `services/documents/chunks.py`: ~1,200-character passages cut at a
+  paragraph, line, sentence or space, overlapping ~200; `build_chunks`
+  replaces a document's chunks. `store.add_document` chunks every new
+  document in its transaction.
+- `services/ai/embed.py`: `OllamaEmbedder` (`POST {OLLAMA_URL}/api/embed`,
+  batches of 32, nomic's `search_document: ` / `search_query: ` prefixes,
+  fixed error messages); off until `OLLAMA_EMBED_MODEL` (owner, 27 Nov 2026:
+  `nomic-embed-text`, 768 dimensions; nothing added to the API image).
+- `services/documents/index.py` + `stockviz.cli docs-index [--embed]
+  [--limit N]` (local database only, the intraday guard): chunks documents
+  without passages, then embeds passages without a vector from the current
+  model (a new model re-embeds; old vectors never mix). Exit 2 without the
+  model. Not in the scheduler or the cron.
+- `services/documents/retrieve.py`: keyword rank = `ts_rank_cd` against
+  `websearch_to_tsquery('english', q)` (PostgreSQL; on SQLite, tests only, a
+  term count without stemming); vector rank = cosine to the query's
+  embedding; fused by reciprocal rank fusion (k 60). Point-in-time on the
+  document's `available_at`. No model, or an Ollama failure: keyword only,
+  with the reason in `notes`.
+- Route `GET /v1/documents/passages?q=&ticker=&kind=&as_of=&limit=` (public,
+  30/min, `q` 2-300, `limit` 1-20) -> `PassageSearchOut` (`mode`
+  hybrid|keyword, `embed_model`, passages with the document, offsets, score,
+  `keyword_rank`, `vector_rank`, `similarity`, `notes`, `method`). Retrieval
+  only: nothing writes an answer (the copilot is M11.2).
+- Tests: `tests/test_a84_hybrid_search.py` (a fake embedder whose synonyms
+  share a dimension: hybrid finds "topline" where words find nothing),
+  `tests/test_a84_hybrid_search_migration.py` (PostgreSQL: up, `alembic
+  check`, real full text with stemming and `real[]` vectors, down, up).
 
 **Macro series from FRED (A9.7, M1.10, M3.5).** Migration `f1a9c7e3b5d2`
 (additive): `macro_series` (FRED id, title, units, frequency, observation

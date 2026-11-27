@@ -1,12 +1,14 @@
 /**
  * /filings — A7.10 (M5.5): stored filings, annual reports and concall
  * transcripts. `ticker` lists a symbol's documents; `q` searches the text
- * (exact phrase); `kind` filters. Public, visitor-limited like /news.
+ * (exact phrase), or with `match=meaning` returns ranked passages (A8.4:
+ * full text plus embeddings when the server has a model); `kind` filters.
+ * Public, visitor-limited like /news.
  */
 
 import type { Metadata } from "next";
 
-import { DocumentRow } from "@/components/documents-view";
+import { DocumentRow, PassageRow } from "@/components/documents-view";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,14 +18,16 @@ import {
   DOCUMENT_KINDS,
   type DocumentList,
   type DocumentSearch,
+  type PassageSearch,
   listDocuments,
   searchDocuments,
+  searchPassages,
 } from "@/lib/api/documents";
 import { checkVisitorLimit } from "@/lib/visitor-limit";
 
 export const metadata: Metadata = { title: "Filings" };
 
-type Search = { ticker?: string; q?: string; kind?: string };
+type Search = { ticker?: string; q?: string; kind?: string; match?: string };
 
 export default async function FilingsPage({ searchParams }: { searchParams: Promise<Search> }) {
   const limit = await checkVisitorLimit("filings");
@@ -33,10 +37,13 @@ export default async function FilingsPage({ searchParams }: { searchParams: Prom
   const q = (raw.q ?? "").trim().slice(0, 100);
   const kind = DOCUMENT_KINDS.some((k) => k.value === raw.kind) ? raw.kind : undefined;
   let list: DocumentList | null = null;
+  const meaning = raw.match === "meaning";
   let found: DocumentSearch | null = null;
+  let passages: PassageSearch | null = null;
   let error: string | null = null;
   try {
-    if (q.length >= 2) found = await searchDocuments(q, ticker || undefined, kind);
+    if (q.length >= 2 && meaning) passages = await searchPassages(q, ticker || undefined, kind);
+    else if (q.length >= 2) found = await searchDocuments(q, ticker || undefined, kind);
     else if (ticker) list = await listDocuments(ticker, kind);
   } catch (err) {
     error =
@@ -94,10 +101,47 @@ export default async function FilingsPage({ searchParams }: { searchParams: Prom
             ))}
           </select>
         </div>
+        <div className="space-y-1">
+          <Label htmlFor="filings-match" className="text-xs">
+            Match
+          </Label>
+          <select
+            id="filings-match"
+            name="match"
+            defaultValue={meaning ? "meaning" : ""}
+            className="h-9 rounded-md border border-input bg-transparent px-2 text-sm"
+          >
+            <option value="">Exact Phrase</option>
+            <option value="meaning">Passages</option>
+          </select>
+        </div>
         <Button type="submit">Show</Button>
       </form>
       {error ? <p className="text-sm text-negative">{error}</p> : null}
-      {found ? (
+      {passages ? (
+        <section className="space-y-3" data-testid="filings-passages">
+          <p className="text-sm text-text-secondary">
+            {passages.passages.length === 0
+              ? `No stored passage matches "${passages.query}".`
+              : `${passages.passages.length} passage${passages.passages.length === 1 ? "" : "s"} for "${passages.query}", ${
+                  passages.mode === "hybrid"
+                    ? `ranked by words and meaning (${passages.embed_model})`
+                    : "ranked by words only"
+                }.`}
+          </p>
+          {passages.notes.map((n) => (
+            <p key={n} className="text-xs text-text-tertiary">
+              {n}
+            </p>
+          ))}
+          <ul className="space-y-2">
+            {passages.passages.map((p) => (
+              <PassageRow key={p.chunk_id} passage={p} />
+            ))}
+          </ul>
+          <p className="text-2xs text-text-tertiary">{passages.method}</p>
+        </section>
+      ) : found ? (
         <section className="space-y-3" data-testid="filings-results">
           <p className="text-sm text-text-secondary">
             {found.hits.length === 0

@@ -11,4 +11,10 @@ test("the filings page lists and searches stored documents", async ({ page }) =>
   await expect(main.getByTestId("filings-empty")).toBeVisible();
   await page.goto("/filings?q=revenue");
   await expect(main.getByText('No stored document contains "revenue".')).toBeVisible();
+  // A8.4: passage search (the e2e database stores no documents either).
+  await page.goto("/filings?q=revenue&match=meaning");
+  const passages = main.getByTestId("filings-passages");
+  await expect(passages).toBeVisible();
+  await expect(passages.getByText('No stored passage matches "revenue".')).toBeVisible();
+  await expect(main.getByLabel("Match")).toHaveValue("meaning");
 });

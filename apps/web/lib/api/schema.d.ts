@@ -122,6 +122,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/documents/passages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Search Passages */
+        get: operations["search_passages_v1_documents_passages_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/documents/{document_id}": {
         parameters: {
             query?: never;
@@ -9878,6 +9895,48 @@ export interface components {
             /** Beta */
             beta?: number | null;
         };
+        /** PassageOut */
+        PassageOut: {
+            document: components["schemas"]["DocumentOut"];
+            /** Chunk Id */
+            chunk_id: number;
+            /** Position */
+            position: number;
+            /** Start Char */
+            start_char: number;
+            /** End Char */
+            end_char: number;
+            /** Text */
+            text: string;
+            /** Score */
+            score: number;
+            /** Keyword Rank */
+            keyword_rank: number | null;
+            /** Vector Rank */
+            vector_rank: number | null;
+            /** Similarity */
+            similarity: number | null;
+        };
+        /** PassageSearchOut */
+        PassageSearchOut: {
+            /** Query */
+            query: string;
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            /** Mode */
+            mode: string;
+            /** Embed Model */
+            embed_model: string | null;
+            /** Passages */
+            passages: components["schemas"]["PassageOut"][];
+            /** Notes */
+            notes: string[];
+            /** Method */
+            method: string;
+        };
         /** PayoffPointOut */
         PayoffPointOut: {
             /** Spot */
@@ -14928,6 +14987,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DocumentSearchOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    search_passages_v1_documents_passages_get: {
+        parameters: {
+            query: {
+                q: string;
+                ticker?: string | null;
+                kind?: string | null;
+                as_of?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PassageSearchOut"];
                 };
             };
             /** @description Validation Error */
