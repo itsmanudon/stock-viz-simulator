@@ -2272,6 +2272,27 @@ overlap is held. Tests: `tests/test_a96_dividend_projection.py`. Web: the
 projection on the Portfolio Income tab and the printable tearsheet
 (`/stocks/[t]/tearsheet`, built from existing routes).
 
+**AI providers and the rule translator (A8.2, A8.3, M4.2, M11.2).** Owner,
+27 Nov 2026: Ollama first (local), then BYOK (keys wait for
+`APP_ENCRYPTION_KEY`; each paid test call needs approval). `services/ai/
+provider.py`: `LLMProvider.complete(messages)`, `OllamaProvider` (`POST
+{OLLAMA_URL}/api/chat`, `stream: false`, temperature 0; fixed error texts),
+`provider_from_settings` (**off until `OLLAMA_MODEL`**; production has none,
+so every AI control is off there and says why). `services/ai/rules.py`:
+`translate(provider, text)` drafts **DSL text only** from a prompt built from
+the live registry (`dsl.functions.FUNCTIONS`, `bindings.FUNDAMENTAL_METRICS`,
+a short grammar with units: percentages in percent, the `fundamental.`
+prefix), extracts the first line, judges it with `setups.rules.check_rule`,
+and on a failed check retries once with the error; a draft that still fails
+is returned with its error, never changed. Routes (`routers/ai.py`): `GET
+/v1/ai/status` (public), `POST /v1/ai/rule` (signed in, 10/min; 409 off, 502
+provider failure). Nothing runs on a draft. Local smoke with `gemma4:e4b` on
+27 Nov: first prompt 5 of 6 drafts valid, two with wrong units (fixed in the
+prompt); second run on new phrasings 6 of 6 valid, one valid but not what was
+asked (weekly close against a daily average): the note says the checker
+proves validity, not intent. Tests: `tests/test_a82_ai_rule.py` (a fake
+provider and a fake post; no model is called).
+
 **NSE index options from the owner's files (A7.14, M6.1, M6.3).** Owner, 27
 Nov 2026: load the owner's NSE F&O files into a local database only, like
 the minute files. Migration `b7e2f4a6c8d1` (additive): `fo_daily`

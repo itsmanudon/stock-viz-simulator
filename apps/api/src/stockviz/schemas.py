@@ -5847,3 +5847,32 @@ class FoIndiaOut(BaseModel):
     min_days: int
     method: str
     source_note: str
+
+
+class AiRuleIn(BaseModel):
+    """A8.2 (M4.2): describe a screen in words; the model drafts DSL text."""
+
+    text: str = Field(min_length=3, max_length=500)
+    timeframe: str = "daily"
+
+
+class AiRuleAttemptOut(BaseModel):
+    rule: str
+    check: RuleCheckOut
+
+
+class AiRuleOut(BaseModel):
+    request: str
+    provider: str
+    model: str
+    rule: str
+    check: RuleCheckOut
+    attempts: list[AiRuleAttemptOut]
+    note: str
+
+
+class AiStatusOut(BaseModel):
+    configured: bool
+    provider: str | None = None
+    model: str | None = None
+    reason: str | None = None

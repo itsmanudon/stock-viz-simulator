@@ -190,6 +190,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/ai/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Ai Status */
+        get: operations["ai_status_v1_ai_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/ai/rule": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Ai Rule */
+        post: operations["ai_rule_v1_ai_rule_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/symbols/screen": {
         parameters: {
             query?: never;
@@ -3530,6 +3564,52 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AiRuleAttemptOut */
+        AiRuleAttemptOut: {
+            /** Rule */
+            rule: string;
+            check: components["schemas"]["RuleCheckOut"];
+        };
+        /**
+         * AiRuleIn
+         * @description A8.2 (M4.2): describe a screen in words; the model drafts DSL text.
+         */
+        AiRuleIn: {
+            /** Text */
+            text: string;
+            /**
+             * Timeframe
+             * @default daily
+             */
+            timeframe: string;
+        };
+        /** AiRuleOut */
+        AiRuleOut: {
+            /** Request */
+            request: string;
+            /** Provider */
+            provider: string;
+            /** Model */
+            model: string;
+            /** Rule */
+            rule: string;
+            check: components["schemas"]["RuleCheckOut"];
+            /** Attempts */
+            attempts: components["schemas"]["AiRuleAttemptOut"][];
+            /** Note */
+            note: string;
+        };
+        /** AiStatusOut */
+        AiStatusOut: {
+            /** Configured */
+            configured: boolean;
+            /** Provider */
+            provider?: string | null;
+            /** Model */
+            model?: string | null;
+            /** Reason */
+            reason?: string | null;
+        };
         /**
          * AlertEventOut
          * @description One firing of a rule: what was seen, against what, on which bar.
@@ -14713,6 +14793,61 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["FoIndiaOut"];
+                };
+            };
+        };
+    };
+    ai_status_v1_ai_status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AiStatusOut"];
+                };
+            };
+        };
+    };
+    ai_rule_v1_ai_rule_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AiRuleIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AiRuleOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

@@ -50,6 +50,7 @@ import {
   getScreenerPage,
   listSymbols,
 } from "@/lib/api";
+import { getAiStatus } from "@/lib/api/ai";
 import { getKiteHandoff } from "@/lib/api/brokers";
 import { getScreenerPageAsUser } from "@/lib/api/screener-server";
 import { type SavedScreen, listSavedScreens } from "@/lib/api/screens";
@@ -82,6 +83,7 @@ import {
 } from "@/lib/screener-view";
 import { formatCloseDate } from "@/lib/stock-workspace";
 import { checkVisitorLimit } from "@/lib/visitor-limit";
+import { draftRuleAction } from "./actions";
 
 export const metadata: Metadata = { title: "Screener" };
 
@@ -177,6 +179,9 @@ export default async function ScreenerPage({
   } catch {
     presets = [];
   }
+  // A8.2: "Describe in words" shows only when the server has a model.
+  const ai = signedIn ? await getAiStatus().catch(() => null) : null;
+  const aiModel = ai?.configured ? `${ai.provider} ${ai.model}` : null;
   const pageNumber = parseScreenerPage(params);
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
@@ -494,6 +499,8 @@ export default async function ScreenerPage({
             presets={presets}
             signedIn={signedIn}
             clearHref={rule ? clearRuleHref(params) : null}
+            aiModel={aiModel}
+            draft={draftRuleAction}
           />
           <div className="mb-3 grid gap-3">
             <div className="flex flex-wrap items-baseline justify-between gap-2 text-sm">
