@@ -50,6 +50,8 @@ Thumbs.db
 .env.development.local
 .env.test.local
 .env.production.local
+# A10.1: the self-hosting secrets (the template is release.env.example)
+infra/release.env
 
 # Coverage
 coverage/

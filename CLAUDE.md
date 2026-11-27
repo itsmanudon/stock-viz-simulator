@@ -364,6 +364,8 @@ work fine without one. Env vars live in `apps/web/.env.example` and
   `NEXT_PUBLIC_API_URL` bakes at web build time, so after the first apply:
   `railway domain --service api && railway domain --service web`, then
   `railway redeploy --service web`. See `docs/DEPLOYMENT.md`.
+- **Self-hosting** → `infra/compose.release.yml` (A10.1): one Compose command,
+  the user's own keys, no bundled market data. See `docs/SELF_HOSTING.md`.
 - kind / CI lab → [`docs/KUBERNETES.md`](./docs/KUBERNETES.md) (Kustomize +
   Strimzi). Not a production control plane.
 

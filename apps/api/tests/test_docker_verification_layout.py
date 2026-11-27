@@ -22,7 +22,11 @@ def test_api_test_target_uses_the_same_source_and_lockfile() -> None:
     assert "COPY tests ./tests" in dockerfile
     assert 'CMD ["pytest"]' in dockerfile
     assert "\ntests\n" not in f"\n{dockerignore}"
-    assert "FROM python:3.12-slim AS runtime" in dockerfile
+    # A10.1: the runtime image is the slim release image plus the seed bars,
+    # so it still starts from python:3.12-slim, never from the builder.
+    assert "FROM python:3.12-slim AS release" in dockerfile
+    assert "FROM release AS runtime" in dockerfile
+    assert dockerfile.rstrip().split("\nFROM ")[-1].startswith("release AS runtime")
 
 
 def test_clean_verification_builds_api_and_web_from_source() -> None:
