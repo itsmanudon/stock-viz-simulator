@@ -50,6 +50,7 @@ export const NAV_ICONS: Record<string, LucideIcon> = {
   "/news": Newspaper,
   "/macro": Globe,
   "/filings": FileText,
+  "/desks": LayoutGrid,
   "/optimise": PieChart,
   "/portfolio/tax": Landmark,
   "/charts": LayoutGrid,

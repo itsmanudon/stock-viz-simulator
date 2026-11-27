@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlmodel import Session
 
 from stockviz.db import get_session
@@ -21,10 +21,13 @@ from stockviz.models import Symbol
 from stockviz.schemas import (
     EarningsDriftOut,
     ForecastOut,
+    LenderOut,
+    LenderPeerOut,
     PairOut,
     SeasonalityOut,
     StructureOut,
 )
+from stockviz.services import lender as lender_svc
 from stockviz.services import seasonality as svc
 
 router = APIRouter(prefix="/v1/symbols", tags=["research"])
@@ -156,3 +159,39 @@ def get_structure(
     ]
     result = structure(bars, n)
     return StructureOut.model_validate({"ticker": ticker, "sessions": len(bars), **result.__dict__})
+
+
+@router.get("/{ticker}/lender", response_model=LenderOut)
+@limiter.limit("60/minute")
+def get_lender(
+    request: Request,
+    ticker: str,
+    session: SessionDep,
+    coe: Annotated[float | None, Query(gt=0, le=0.4)] = None,
+    growth: Annotated[float | None, Query(ge=-0.1, le=0.3)] = None,
+) -> LenderOut:
+    """A7.13 (M5.2): lender mode, P/B against ROE (409 for a non-financial symbol)."""
+    del request
+    ticker = _symbol(session, ticker)
+    try:
+        view = lender_svc.lender_view(session, ticker, coe=coe, growth=growth)
+    except lender_svc.NotALender as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
+    return LenderOut(
+        ticker=view.ticker,
+        market=view.market,
+        pb=view.pb,
+        roe=view.roe,
+        as_of=view.as_of,
+        peers=[LenderPeerOut(ticker=p.ticker, pb=p.pb, roe=p.roe) for p in view.peers],
+        slope=view.slope,
+        intercept=view.intercept,
+        line_pb=view.line_pb,
+        gap=view.gap,
+        coe=view.coe,
+        growth=view.growth,
+        justified_pb=view.justified_pb,
+        reasons=view.reasons,
+        method=" ".join((lender_svc.__doc__ or "").split("\n\n", 1)[-1].split()),
+        kpi_note=lender_svc.KPI_NOTE,
+    )

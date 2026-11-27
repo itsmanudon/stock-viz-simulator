@@ -928,6 +928,19 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   rows with the reason when none, a payout calendar), labelled a projection.
   Tests: `tests/unit/a96-dividend-projection.test.tsx`,
   `tests/e2e/tearsheet.spec.ts`.
+- **Lender mode and desks (A7.13, M5.2).** The stock page loads `getLender`
+  (`lib/api/fundamentals.ts`; a 409 for a non-financial symbol drops it) and
+  the Financials tab shows `LenderCard` (`components/lender-card.tsx`: P/B,
+  ROE, the peer line's P/B, the gap, the justified P/B at the stated COE and
+  growth, an SVG scatter of the market's financial peers with the dashed
+  least-squares line, the missing KPIs named). `StockResearchTabs` takes
+  `initialTab` from `?tab=` (ignored when that tab is not shown). `/desks`
+  (Workbench nav "Desks", public): the four presets in `lib/desks.ts`
+  (Swing, Compounder, Derivatives, Quant: tools, a starting screen
+  `deskScreenHref`, a chart look `deskChartHref` with indicators, type and
+  tab); `?desk=&ticker=` redirects to the stock page with that look. Not a
+  new shell (owner, 27 Nov 2026). Tests: `tests/unit/a713-lender-desks.test.tsx`,
+  `tests/e2e/desks.spec.ts`.
 - **Capital gains (A7.12, M10.7).** `/portfolio/tax` (Portfolio & Tax nav
   "Capital gains", signed in, icon `Landmark`; protected by `/portfolio`):
   `?book=` (default book), `fy` (`TAX_YEARS`), `surcharge` (none, 10%, 15%

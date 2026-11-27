@@ -2271,6 +2271,18 @@ overlap is held. Tests: `tests/test_a96_dividend_projection.py`. Web: the
 projection on the Portfolio Income tab and the printable tearsheet
 (`/stocks/[t]/tearsheet`, built from existing routes).
 
+**Lender mode (A7.13, M5.2).** `GET /v1/symbols/{t}/lender?coe=&growth=`
+(`routers/research_views.py`, public, 60/min; 409 for a symbol whose sector
+is not financial, `forensics.is_financial`) -> `LenderOut`.
+`services/lender.py`: the owner's 27 Nov answer, P/B against ROE without the
+lender KPIs (`KPI_NOTE` names them). Peers: active symbols in the same market
+(`relative_strength.market_for`) with a financial sector and a positive P/B
+and an ROE (percent) in `symbol_metrics`; the peer line is OLS of P/B on ROE
+(5 peers at least, `MIN_PEERS`); `gap` = P/B minus the line at the symbol's
+ROE (a description, not a verdict); justified P/B = (ROE - g) / (COE - g),
+defaults 12%/6% in India and 9%/3% elsewhere, refused when COE <= g. Tests:
+`tests/test_a713_lender.py`.
+
 **India capital gains estimate (A7.12, M10.7).** `GET /v1/tax/india?book=&fy=&surcharge=`
 (`routers/tax.py`, authed; another user's book 404; a non-INR book 409; an
 FY outside `FY_RULES` 400) -> `IndiaTaxOut`. No migration; computed on read

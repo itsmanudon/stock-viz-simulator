@@ -1104,6 +1104,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/symbols/{ticker}/lender": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Lender
+         * @description A7.13 (M5.2): lender mode, P/B against ROE (409 for a non-financial symbol).
+         */
+        get: operations["get_lender_v1_symbols__ticker__lender_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/portfolio": {
         parameters: {
             query?: never;
@@ -7962,6 +7982,53 @@ export interface components {
             /** End */
             end: string;
             stats: components["schemas"]["JournalStatsOut"];
+        };
+        /**
+         * LenderOut
+         * @description A7.13 (M5.2): P/B against ROE for a bank or NBFC, with its peers.
+         */
+        LenderOut: {
+            /** Ticker */
+            ticker: string;
+            /** Market */
+            market?: string | null;
+            /** Pb */
+            pb?: number | null;
+            /** Roe */
+            roe?: number | null;
+            /** As Of */
+            as_of?: string | null;
+            /** Peers */
+            peers: components["schemas"]["LenderPeerOut"][];
+            /** Slope */
+            slope?: number | null;
+            /** Intercept */
+            intercept?: number | null;
+            /** Line Pb */
+            line_pb?: number | null;
+            /** Gap */
+            gap?: number | null;
+            /** Coe */
+            coe: number;
+            /** Growth */
+            growth: number;
+            /** Justified Pb */
+            justified_pb?: number | null;
+            /** Reasons */
+            reasons: string[];
+            /** Method */
+            method: string;
+            /** Kpi Note */
+            kpi_note: string;
+        };
+        /** LenderPeerOut */
+        LenderPeerOut: {
+            /** Ticker */
+            ticker: string;
+            /** Pb */
+            pb: number;
+            /** Roe */
+            roe: number;
         };
         /** LimitCheckOut */
         LimitCheckOut: {
@@ -16485,6 +16552,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["StructureOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_lender_v1_symbols__ticker__lender_get: {
+        parameters: {
+            query?: {
+                coe?: number | null;
+                growth?: number | null;
+            };
+            header?: never;
+            path: {
+                ticker: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LenderOut"];
                 };
             };
             /** @description Validation Error */

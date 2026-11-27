@@ -5783,3 +5783,30 @@ class IndiaTaxOut(BaseModel):
     skipped_tickers: list[str]
     method: list[str]
     estimate_note: str
+
+
+class LenderPeerOut(BaseModel):
+    ticker: str
+    pb: float
+    roe: float
+
+
+class LenderOut(BaseModel):
+    """A7.13 (M5.2): P/B against ROE for a bank or NBFC, with its peers."""
+
+    ticker: str
+    market: str | None = None
+    pb: float | None = None
+    roe: float | None = None
+    as_of: str | None = None
+    peers: list[LenderPeerOut]
+    slope: float | None = None
+    intercept: float | None = None
+    line_pb: float | None = None
+    gap: float | None = None
+    coe: float
+    growth: float
+    justified_pb: float | None = None
+    reasons: list[str]
+    method: str
+    kpi_note: str
