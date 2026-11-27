@@ -47,6 +47,11 @@ vi.mock("@/components/marketing/market-status", () => ({
   DataDateChip: () => <span>EOD data · latest close Nov 7, 2026</span>,
 }));
 
+// The market pulse is an async server component; browser coverage only.
+vi.mock("@/components/sidebar-pulse", () => ({
+  SidebarPulse: () => null,
+}));
+
 describe("AppSidebar", () => {
   beforeEach(() => {
     pathname = "/compare";
@@ -78,6 +83,37 @@ describe("AppSidebar", () => {
     expect(screen.getByText("EOD · Simulated")).toBeVisible();
   });
 
+  it("opens Today and the current workspace, folds the rest and remembers a choice", () => {
+    window.localStorage.removeItem("stockviz:nav-open");
+    render(<AppSidebar signedIn />);
+    const nav = screen.getByRole("navigation", { name: "Product" });
+
+    const workbench = within(nav).getByRole("button", { name: "Workbench" });
+    expect(workbench).toHaveAttribute("aria-expanded", "true");
+    expect(within(nav).getByRole("button", { name: "Today" })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
+    const quant = within(nav).getByRole("button", { name: "Quant Lab" });
+    expect(quant).toHaveAttribute("aria-expanded", "false");
+    expect(within(nav).queryByRole("link", { name: "Backtest" })).toBeNull();
+
+    fireEvent.click(quant);
+    expect(quant).toHaveAttribute("aria-expanded", "true");
+    expect(within(nav).getByRole("link", { name: "Backtest" })).toHaveAttribute(
+      "href",
+      "/backtest",
+    );
+    expect(JSON.parse(window.localStorage.getItem("stockviz:nav-open") ?? "[]")).toContain(
+      "quant-lab",
+    );
+
+    // The current workspace can't be folded while its page is open.
+    fireEvent.click(workbench);
+    expect(workbench).toHaveAttribute("aria-expanded", "true");
+    window.localStorage.removeItem("stockviz:nav-open");
+  });
+
   it("lights Workbench on a stock page without marking an item", () => {
     pathname = "/stocks/AAPL";
     render(<AppSidebar signedIn />);
@@ -105,6 +141,8 @@ describe("AppSidebar", () => {
     pathname = "/settings";
     const { unmount } = render(<AppSidebar signedIn />);
     expect(screen.getByRole("link", { name: "Settings" })).toHaveAttribute("aria-current", "page");
+    // Books sits in the folded Portfolio & Tax group.
+    fireEvent.click(screen.getByRole("button", { name: "Portfolio & Tax" }));
     expect(screen.getByRole("link", { name: "Books" })).toHaveAttribute("href", "/settings#books");
     expect(screen.getByRole("link", { name: "Status" })).toBeVisible();
     unmount();

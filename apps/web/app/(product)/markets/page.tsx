@@ -50,7 +50,7 @@ export const metadata: Metadata = { title: "Markets" };
 export default async function MarketsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ sort?: string; dir?: string; sector?: string }>;
+  searchParams: Promise<{ sort?: string; dir?: string; sector?: string; history?: string }>;
 }) {
   const params = await searchParams;
   const sort = (params.sort as SortKey) ?? "ticker";
@@ -72,7 +72,7 @@ export default async function MarketsPage({
   );
   const sectors = summary.sectors;
 
-  const rows: MarketRow[] = summary.rows.map((r) => ({
+  const allRows: MarketRow[] = summary.rows.map((r) => ({
     ticker: r.ticker,
     name: r.name,
     sector: r.sector,
@@ -83,6 +83,17 @@ export default async function MarketsPage({
     lastAt: r.last_close_at,
     changePct: r.change_pct,
   }));
+  // Inside redesign (27 Nov 2026): symbols with no stored close are listed
+  // but say nothing (a dash per column). They are left out by default once
+  // some symbols have closes, with a link that brings them back
+  // (`?history=all`); breadth never counted them anyway.
+  const pricedCount = allRows.filter((row) => row.last !== null).length;
+  const unpricedCount = allRows.length - pricedCount;
+  const canHide = pricedCount > 0 && unpricedCount > 0;
+  const showAll = params.history === "all" || !canHide;
+  const rows = showAll ? allRows : allRows.filter((row) => row.last !== null);
+  const withHistory = (href: string) =>
+    params.history === "all" ? `${href}${href.includes("?") ? "&" : "?"}history=all` : href;
   // Every price is a stored close; say which (UI audit T1). Symbols can end on
   // different days, so each row carries its own date and the header names the
   // most recent one.
@@ -199,13 +210,36 @@ export default async function MarketsPage({
       )}
 
       <div className="mt-5">
-        <TableToolbar>
+        <TableToolbar
+          actions={
+            canHide ? (
+              <Link
+                href={
+                  showAll
+                    ? params.sector
+                      ? `/markets?sector=${encodeURIComponent(params.sector)}`
+                      : "/markets"
+                    : `/markets?${new URLSearchParams({
+                        ...(params.sector ? { sector: params.sector } : {}),
+                        history: "all",
+                      }).toString()}`
+                }
+                className="rounded-full border border-border-muted px-3 py-1 text-2xs text-text-secondary transition-colors hover:bg-surface-hover hover:text-foreground"
+                data-testid="markets-history-toggle"
+              >
+                {showAll
+                  ? `Hide ${unpricedCount} without stored closes`
+                  : `Show ${unpricedCount} more without stored closes`}
+              </Link>
+            ) : null
+          }
+        >
           <nav aria-label="Filter by sector" className="flex max-w-full flex-wrap gap-1.5">
-            <SectorChip href="/markets" label="All" active={!params.sector} />
+            <SectorChip href={withHistory("/markets")} label="All" active={!params.sector} />
             {sectors.map((sector) => (
               <SectorChip
                 key={sector}
-                href={`/markets?sector=${encodeURIComponent(sector)}`}
+                href={withHistory(`/markets?sector=${encodeURIComponent(sector)}`)}
                 label={sector}
                 active={params.sector === sector}
               />

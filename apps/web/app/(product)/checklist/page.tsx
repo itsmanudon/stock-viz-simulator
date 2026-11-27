@@ -12,7 +12,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import { ChecklistSymbol, DimensionGuide } from "@/components/checklist/checklist-view";
+import {
+  ChecklistMatrixHeader,
+  ChecklistSymbol,
+  DimensionGuide,
+} from "@/components/checklist/checklist-view";
 import { PageFrame } from "@/components/page-frame";
 import {
   ResearchEmptyState,
@@ -172,15 +176,18 @@ export default async function ChecklistPage({
             </p>
           </ResearchEmptyState>
         ) : (
-          rows.map((row) => (
-            <ChecklistSymbol
-              key={row.ticker}
-              row={row}
-              dimensions={checklist.dimensions}
-              open={row.ticker === exact?.ticker}
-            />
-          ))
+          <ChecklistMatrixHeader dimensions={checklist.dimensions} />
         )}
+        {rows.length === 0
+          ? null
+          : rows.map((row) => (
+              <ChecklistSymbol
+                key={row.ticker}
+                row={row}
+                dimensions={checklist.dimensions}
+                open={row.ticker === exact?.ticker}
+              />
+            ))}
       </section>
 
       <div className="mt-6 space-y-2">

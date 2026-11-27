@@ -15,6 +15,8 @@ test("the Workbench workspace keeps compare and the checklist together (A3.6)", 
     "aria-current",
     "page",
   );
+  // Other workspaces start folded; open Quant Lab to reach Backtest.
+  await product.getByRole("button", { name: "Quant Lab" }).click();
   await expect(product.getByRole("link", { name: "Backtest" })).toHaveAttribute(
     "href",
     "/backtest",

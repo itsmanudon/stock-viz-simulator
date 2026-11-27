@@ -18,6 +18,13 @@ import {
   splitMinorUnits,
 } from "@/lib/portfolio-view-model";
 
+const COMPOSITION_SHADES = [
+  "var(--brand-gradient-via)",
+  "var(--brand-gradient-from)",
+  "var(--brand-gradient-to)",
+  "var(--text-tertiary)",
+] as const;
+
 const ACTIONS = [
   { label: "Trade", href: "/trade", icon: ArrowLeftRight },
   { label: "Orders", href: "/orders", icon: ListOrdered },
@@ -61,7 +68,26 @@ export function PortfolioHero({
     { label: "Equities", value: portfolio.market_value },
     { label: "Options", value: portfolio.options_market_value },
     { label: "Available cash", value: portfolio.available_cash },
+    { label: "Reserved by orders", value: portfolio.reserved_cash },
   ].filter((entry) => Number(entry.value) !== 0);
+
+  // Inside redesign (27 Nov 2026): what the value is made of, as one bar, in
+  // the metal's neutral shades (a share of the account is not a gain or a
+  // loss). Only parts that are positive and finite are drawn; the figures
+  // beside it are the same ones the strip below prints.
+  const total = Number(portfolio.total_value);
+  const composition =
+    Number.isFinite(total) && total > 0
+      ? breakdown
+          .map((entry, index) => ({
+            ...entry,
+            share: Number(entry.value) / total,
+            shade: COMPOSITION_SHADES[index % COMPOSITION_SHADES.length],
+          }))
+          .filter((entry) => Number.isFinite(entry.share) && entry.share > 0)
+      : [];
+  const unrealized = Number(portfolio.unrealized_pl);
+  const positionsCount = portfolio.positions.length + portfolio.option_positions.length;
 
   return (
     <section
@@ -184,19 +210,78 @@ export function PortfolioHero({
         </div>
       ) : null}
 
+      {composition.length > 0 ? (
+        <div
+          className="border-t border-border-muted px-4 pt-3 sm:px-5"
+          data-testid="hero-composition"
+        >
+          <p className="sr-only">
+            The value is made of{" "}
+            {composition
+              .map((entry) => `${entry.label.toLowerCase()} ${(entry.share * 100).toFixed(0)}%`)
+              .join(", ")}
+            .
+          </p>
+          <div aria-hidden className="flex h-1.5 w-full gap-0.5 overflow-hidden rounded-full">
+            {composition.map((entry) => (
+              <span
+                key={entry.label}
+                className="hero-composition-part h-full rounded-full"
+                style={{ width: `${entry.share * 100}%`, background: entry.shade }}
+              />
+            ))}
+          </div>
+        </div>
+      ) : null}
+
       {breakdown.length > 0 ? (
-        <dl className="mt-auto grid grid-cols-1 border-t border-border-muted bg-card min-[400px]:auto-cols-fr min-[400px]:grid-flow-col min-[400px]:grid-cols-none">
-          {breakdown.map((entry) => (
-            <div
-              key={entry.label}
-              className="min-w-0 border-b border-border-muted px-4 py-3 last:border-b-0 min-[400px]:border-b-0 min-[400px]:border-l min-[400px]:first:border-l-0 sm:px-5"
-            >
-              <dt className="text-2xs font-medium text-text-tertiary">{entry.label}</dt>
-              <dd className="mt-0.5 break-all font-mono text-sm font-semibold" data-financial>
-                {formatCurrency(entry.value, currency)}
+        <dl className="mt-auto grid grid-cols-2 bg-card sm:auto-cols-fr sm:grid-flow-col sm:grid-cols-none">
+          {breakdown.map((entry) => {
+            const part = composition.find((c) => c.label === entry.label);
+            return (
+              <div
+                key={entry.label}
+                className="min-w-0 border-border-muted px-4 py-3 sm:border-l sm:first:border-l-0 sm:px-5"
+              >
+                <dt className="flex items-center gap-1.5 text-2xs font-medium text-text-tertiary">
+                  {part ? (
+                    <span
+                      aria-hidden
+                      className="size-1.5 shrink-0 rounded-full"
+                      style={{ background: part.shade }}
+                    />
+                  ) : null}
+                  {entry.label}
+                  {part ? (
+                    <span className="font-mono text-text-tertiary/80">
+                      {(part.share * 100).toFixed(0)}%
+                    </span>
+                  ) : null}
+                </dt>
+                <dd className="mt-0.5 break-all font-mono text-sm font-semibold" data-financial>
+                  {formatCurrency(entry.value, currency)}
+                </dd>
+              </div>
+            );
+          })}
+          {Number.isFinite(unrealized) ? (
+            <div className="min-w-0 border-border-muted px-4 py-3 sm:border-l sm:px-5">
+              <dt className="text-2xs font-medium text-text-tertiary">Unrealized P&amp;L</dt>
+              <dd
+                className={`mt-0.5 break-all font-mono text-sm font-semibold ${
+                  unrealized > 0 ? "text-positive" : unrealized < 0 ? "text-negative" : ""
+                }`}
+                data-financial
+              >
+                {unrealized > 0 ? "▲ " : unrealized < 0 ? "▼ " : ""}
+                {formatSignedCurrency(unrealized, currency)}
               </dd>
             </div>
-          ))}
+          ) : null}
+          <div className="min-w-0 border-border-muted px-4 py-3 sm:border-l sm:px-5">
+            <dt className="text-2xs font-medium text-text-tertiary">Open positions</dt>
+            <dd className="mt-0.5 font-mono text-sm font-semibold">{positionsCount}</dd>
+          </div>
         </dl>
       ) : null}
     </section>

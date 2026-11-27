@@ -93,7 +93,7 @@ export function flipDir(current: SortKey | undefined, target: SortKey, dir: Sort
 /** Build the href for a sortable column header, preserving the sector filter. */
 export function sortHref(
   target: SortKey,
-  params: { sort?: string; dir?: string; sector?: string },
+  params: { sort?: string; dir?: string; sector?: string; history?: string },
 ): string {
   const next = new URLSearchParams();
   next.set("sort", target);
@@ -102,6 +102,7 @@ export function sortHref(
     flipDir(params.sort as SortKey | undefined, target, (params.dir as SortDir) ?? "desc"),
   );
   if (params.sector) next.set("sector", params.sector);
+  if (params.history === "all") next.set("history", "all");
   return `/markets?${next.toString()}`;
 }
 

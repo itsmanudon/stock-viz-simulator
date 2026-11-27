@@ -31,6 +31,9 @@ test("mobile product navigation exposes the same hierarchy", async ({ page }) =>
   await page.getByRole("button", { name: "Open navigation" }).click();
   const drawer = page.getByRole("dialog", { name: "Product navigation" });
   await expect(drawer).toBeVisible();
+  await expect(drawer.getByRole("link", { name: "Screener" })).toBeVisible();
+  // Workspaces other than Today and the current one start folded.
+  await drawer.getByRole("button", { name: "Workbench" }).click();
   await expect(drawer.getByRole("link", { name: "Compare" })).toBeVisible();
 });
 

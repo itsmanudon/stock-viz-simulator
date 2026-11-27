@@ -1,5 +1,8 @@
+import { Suspense } from "react";
+
 import { AppSidebar } from "@/components/app-sidebar";
 import { SpotlightTracker } from "@/components/prism/spotlight-tracker";
+import { SidebarPulse } from "@/components/sidebar-pulse";
 import { TopUtilityBar } from "@/components/top-utility-bar";
 
 export function AppShell({
@@ -16,7 +19,14 @@ export function AppShell({
       <SpotlightTracker />
       {/* A9.6: the chrome stays off printed pages (the tearsheet). */}
       <div className="contents" data-app-chrome>
-        <AppSidebar signedIn={signedIn} />
+        <AppSidebar
+          signedIn={signedIn}
+          footer={
+            <Suspense fallback={null}>
+              <SidebarPulse />
+            </Suspense>
+          }
+        />
       </div>
       <div className="relative min-w-0">
         <div className="contents" data-app-chrome>

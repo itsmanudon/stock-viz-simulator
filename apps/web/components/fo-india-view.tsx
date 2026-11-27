@@ -5,6 +5,7 @@
  * sparklines. Empty when the files were not loaded (production never has them).
  */
 
+import { MethodText } from "@/components/method-text";
 import { Sparkline } from "@/components/sparkline";
 import type { FoIndia, FoUnderlying } from "@/lib/api/fo";
 
@@ -120,7 +121,7 @@ export function FoIndiaView({ data }: { data: FoIndia }) {
         ))
       )}
       <p className="text-2xs text-text-tertiary">{data.source_note}</p>
-      <p className="text-2xs text-text-tertiary">{data.method}</p>
+      <MethodText note={data.method} />
     </div>
   );
 }

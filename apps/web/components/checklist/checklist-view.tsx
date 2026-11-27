@@ -8,6 +8,8 @@
  * shown by colour alone.
  */
 
+import { ChevronRight } from "lucide-react";
+
 import { StatusBadge } from "@/components/status-badge";
 import { StrengthDots } from "@/components/strength-dots";
 import { universeSummary } from "@/components/universe-note";
@@ -194,7 +196,67 @@ function ResultDetail({
   );
 }
 
-/** One symbol as an expandable card: the count, six statuses, then the detail. */
+/**
+ * The matrix's column template (inside redesign, 27 Nov 2026): the symbol,
+ * one column per dimension, then the count. Shared by the header row and
+ * every symbol row so the columns line up; phones stack instead.
+ */
+const MATRIX_COLUMNS =
+  "xl:grid xl:grid-cols-[minmax(11rem,1.3fr)_repeat(6,minmax(0,1fr))_minmax(10.5rem,1fr)] xl:items-center xl:gap-x-3";
+
+/**
+ * The dimension names once, above the rows (from `md`), instead of written
+ * into every row. Sticky under the top bar so a long list keeps its columns
+ * named. Rows still carry each name for assistive tech.
+ */
+export function ChecklistMatrixHeader({ dimensions }: { dimensions: ChecklistDimension[] }) {
+  return (
+    <div
+      aria-hidden
+      className={cn(
+        "sticky top-14 z-10 hidden rounded-md border border-border-muted bg-background/85 px-3 py-2 text-2xs font-medium tracking-[0.02em] text-text-tertiary backdrop-blur-xl",
+        MATRIX_COLUMNS,
+      )}
+      data-testid="checklist-matrix-header"
+    >
+      <span>Symbol</span>
+      {dimensions.map((dimension) => (
+        <span key={dimension.key} className="leading-tight" title={dimension.name}>
+          {titleCase(dimension.name)}
+        </span>
+      ))}
+      <span className="text-right">Met of 6</span>
+    </div>
+  );
+}
+
+function StatusGlyph({ status }: { status: ChecklistStatus }) {
+  return (
+    <span
+      aria-hidden
+      className={cn(
+        "size-2.5 shrink-0 rounded-full",
+        status === "met" && "bg-foreground",
+        status === "not_met" && "border border-text-tertiary",
+        status === "unknown" && "border border-dashed border-text-tertiary/70",
+      )}
+    />
+  );
+}
+
+/** One status as a glyph and its word: a filled disc, a ring, or a dashed ring. */
+function StatusCell({ status }: { status: ChecklistStatus }) {
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <StatusGlyph status={status} />
+      <span className={status === "met" ? "font-medium text-foreground" : "text-text-tertiary"}>
+        {STATUS_LABEL[status]}
+      </span>
+    </span>
+  );
+}
+
+/** One symbol as an expandable matrix row: six statuses, the count, then the detail. */
 export function ChecklistSymbol({
   row,
   dimensions,
@@ -207,40 +269,61 @@ export function ChecklistSymbol({
   return (
     <details
       open={open}
-      className="rounded-md border border-border-muted bg-card"
+      className="group/row rounded-md border border-border-muted bg-card transition-colors open:border-border hover:border-border"
       data-testid={`checklist-row-${row.ticker}`}
     >
-      <summary className="flex cursor-pointer list-none flex-col gap-3 p-3 md:flex-row md:items-center md:justify-between">
-        <span className="min-w-0">
-          <span className="ticker font-semibold">{row.ticker}</span>{" "}
-          <span className="text-sm text-text-secondary">{row.name}</span>
-          <span className="mt-0.5 block text-2xs text-text-tertiary">
-            Session {row.session_date}
-            {row.stale ? " · older than this venue's latest checklist" : ""}
+      <summary
+        className={cn(
+          "grid cursor-pointer list-none grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3 px-3 py-2.5",
+          MATRIX_COLUMNS,
+        )}
+      >
+        <span className="flex min-w-0 items-center gap-2">
+          <ChevronRight
+            aria-hidden
+            className="size-3.5 shrink-0 text-text-tertiary transition-transform group-open/row:rotate-90 motion-reduce:transition-none"
+          />
+          <span className="min-w-0">
+            <span className="flex min-w-0 items-baseline gap-1.5">
+              <span className="ticker shrink-0 font-semibold">{row.ticker}</span>
+              <span className="truncate text-xs text-text-secondary">{row.name}</span>
+            </span>
+            <span className="block truncate text-3xs text-text-tertiary">
+              Session {row.session_date}
+              {row.stale ? " · older than this venue's latest checklist" : ""}
+            </span>
           </span>
         </span>
-        <span className="flex flex-wrap items-center gap-x-4 gap-y-2">
-          <ul className="flex flex-wrap gap-1.5" aria-label={`${row.ticker} dimensions`}>
-            {dimensions.map((dimension) => {
-              const status = resultFor(row, dimension.key)?.status ?? "unknown";
-              return (
-                <li
-                  key={dimension.key}
-                  className="inline-flex items-center gap-1 rounded-sm border border-border-muted px-1.5 py-0.5 text-2xs"
-                >
-                  <span className="text-text-tertiary">{dimension.name}:</span>
-                  <span className={status === "met" ? "font-semibold" : "text-text-secondary"}>
-                    {STATUS_LABEL[status]}
-                  </span>
-                </li>
-              );
-            })}
-          </ul>
-          <span className="flex flex-col items-start md:items-end">
-            <StrengthDots score={row.met} max={row.total} />
-            <span className="text-2xs text-text-tertiary">
-              {metSummary(row)} ({evaluatedNote(row)})
-            </span>
+        {/* Phones: the six as a strip of shapes beside the count (the words
+            are in the expanded detail and in the list from md). */}
+        <span aria-hidden className="flex items-center gap-1 xl:hidden">
+          {dimensions.map((dimension) => {
+            const status = resultFor(row, dimension.key)?.status ?? "unknown";
+            return <StatusGlyph key={dimension.key} status={status} />;
+          })}
+        </span>
+        <ul
+          className="hidden text-2xs xl:col-span-6 xl:grid xl:grid-cols-subgrid"
+          aria-label={`${row.ticker} dimensions`}
+        >
+          {dimensions.map((dimension) => {
+            const status = resultFor(row, dimension.key)?.status ?? "unknown";
+            return (
+              <li
+                key={dimension.key}
+                className="flex min-w-0 flex-col gap-0.5"
+                data-status={status}
+              >
+                <span className="sr-only">{dimension.name}:</span>
+                <StatusCell status={status} />
+              </li>
+            );
+          })}
+        </ul>
+        <span className="flex flex-col items-end">
+          <StrengthDots score={row.met} max={row.total} dotsFrom="md" />
+          <span className="hidden text-3xs leading-4 whitespace-nowrap text-text-tertiary xl:block xl:text-right">
+            {metSummary(row)} ({evaluatedNote(row)})
           </span>
         </span>
       </summary>

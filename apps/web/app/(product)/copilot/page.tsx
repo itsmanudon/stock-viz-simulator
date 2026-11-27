@@ -71,13 +71,32 @@ export default async function CopilotPage({
           </div>
         ) : choices.length === 0 ? (
           <div data-testid="copilot-off">
-            <PageEmptyState title="No Model on This Server">
+            {/* Inside redesign (27 Nov 2026): an account holder can't set the
+                server's model, but can save a key of their own, so that is the
+                way forward; the server's reason stays as a small note. */}
+            <PageEmptyState
+              title="Connect a Model to Ask"
+              action={
+                <div className="flex flex-wrap items-center gap-3">
+                  <Link
+                    href="/settings#ai-keys-heading"
+                    className="prism-cta inline-flex h-9 items-center rounded-full px-4 text-sm font-medium"
+                  >
+                    Add Your AI Key
+                  </Link>
+                  <Link href="/filings?match=meaning" className="text-sm font-medium underline">
+                    Search the passages yourself
+                  </Link>
+                </div>
+              }
+            >
               <p>
-                {status?.reason ?? "The AI status could not be read just now."} Until then,{" "}
-                <Link href="/filings?match=meaning" className="font-medium underline">
-                  search the passages
-                </Link>{" "}
-                yourself.
+                No model is set up on this server and you have not saved a key. Save an
+                OpenAI-compatible or Claude key in Settings and the copilot answers with it, billed
+                to your own account. Every answer cites the passages it used.
+              </p>
+              <p className="mt-2 text-xs text-text-tertiary">
+                Server note: {status?.reason ?? "The AI status could not be read just now."}
               </p>
             </PageEmptyState>
           </div>

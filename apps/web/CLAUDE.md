@@ -970,7 +970,10 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   `tests/e2e/classroom.spec.ts`.
 - **Copilot (A8.5, M11.2).** `/copilot` (AI Copilot nav, public page):
   signed out `copilot-signed-out` (a sign-in link); no model on the server
-  `copilot-off` (the API's reason, a link to `/filings?match=meaning`);
+  and no saved key `copilot-off` ("Connect a Model to Ask": an "Add Your AI
+  Key" button to `/settings#ai-keys-heading`, a link to
+  `/filings?match=meaning`, and the API's reason as a small server note,
+  since an account holder can't set the server's model);
   otherwise `CopilotPanel` (`components/copilot/copilot-panel.tsx`: question,
   optional symbol, Ctrl/Cmd+Enter asks) through `copilot/actions.ts::
   askCopilotAction` (`lib/api/ai-server.ts::askCopilot`, authed `POST
@@ -983,10 +986,15 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   `tests/e2e/app-shell.spec.ts`.
 - **Morning brief and weekly review (A9.12, M11.6).** `/brief` (Today nav
   "Morning Brief", signed in, icon `Sunrise`, protected in `proxy.ts`):
-  `getBrief()` (`lib/api/brief.ts`, authed) shown as four cards: largest
-  moves with both close dates (`brief-moves`, gain/loss colours), alerts of
-  the last 24 hours, earnings in the next 7 days, new documents, and counts
-  of open plans and pending orders; `brief-empty` with no symbols.
+  `getBrief()` (`lib/api/brief.ts`, authed). Since the inside redesign
+  (27 Nov 2026): a strip of six counts as links (symbols, alerts in 24
+  hours, earnings in 7 days, new documents, open plans, pending orders;
+  `brief-counts` keeps the plans and orders sentence for assistive tech),
+  then the largest moves (`brief-moves`) as a diverging bar per row (length
+  is the move's share of the largest; gain/loss colours plus the signed
+  figure) with both close dates written once in the heading when every row
+  shares them, else on each row; alerts, earnings and new documents stack
+  beside it. `brief-empty` with no symbols.
   `/portfolio/journal/week?week_end=&book=` (linked as "Weekly Review",
   `weekly-link`, beside the edge link): a `FigureStrip`, net P&L per
   currency, `weekly-look-at` items each linking their entries, previous and
@@ -1035,11 +1043,14 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   puts it in the editor (the usual check runs again). Nothing runs on a
   draft. Tests: `tests/unit/a82-rule-draft.test.tsx`.
 - **India options (A7.14, M6.1, M6.3).** `/india-options` (Markets nav
-  "India options", icon `Activity`, public; linked from the Derivatives
+  "India options", icon `Waves`, public; linked from the Derivatives
   desk): `getFoIndia()` (`lib/api/fo.ts`, cached an hour, tag `fo`) rendered
   by `components/fo-india-view.tsx` (server): per underlying ATM IV, IV rank
   and percentile, skew and PCR, three neutral sparklines and the latest IV
-  by strike offset. `fo-empty` wherever the owner's files were not loaded
+  by strike offset. The API's method note is a Markdown list in a
+  docstring, so it renders through `components/method-text.tsx`
+  (`lib/method-text.ts::methodParts`: lead plus labelled items, emphasis and
+  code ticks stripped), never as raw asterisks. `fo-empty` wherever the owner's files were not loaded
   (production, e2e). Tests: `tests/unit/a714-fo-india.test.tsx`,
   `tests/e2e/india-options.spec.ts`.
 - **Lender mode and desks (A7.13, M5.2).** The stock page loads `getLender`
@@ -1106,7 +1117,7 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   disclaimer). Tests: `tests/unit/a910-filing-analysis.test.tsx` (no e2e:
   the e2e database stores no documents).
 - **Macro (A9.7, M1.10, M3.5).** `/macro` (Markets nav "Macro", icon
-  `Globe`, public): `getMacroOverview()` (`lib/api/macro.ts`, cached an hour,
+  `LandPlot`, public): `getMacroOverview()` (`lib/api/macro.ts`, cached an hour,
   tag `macro`) rendered by `components/macro-view.tsx` (server): the spreads,
   then one card per series by group (`macro-series`, `data-series`,
   `data-stale`: value, units, date, 1 month and 1 year change in points for
@@ -1639,8 +1650,16 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   | Bottom rail (`UTILITY_NAVIGATION`) | `/status` (everyone), `/settings` (signed in) |
 
   The sidebar (`components/app-navigation.tsx`) draws each workspace as a
-  labelled group (`role="group"`, `data-workspace`, `data-active`): the
-  heading is not a link and lights up for any of its routes; the item with the
+  labelled group (`role="group"`, `data-workspace`, `data-active`,
+  `data-open`). **Since the inside redesign (27 Nov 2026) each heading is a
+  disclosure button** (`aria-expanded`, the group's name is the label span
+  only): Today and the open page's workspace start open, the others fold to
+  their item count, and the reader's choice is kept in
+  `localStorage["stockviz:nav-open"]` (a convenience, every access guarded).
+  The current workspace can't be folded (`aria-disabled`), so the current
+  item is always on screen; tests that reach an item in another workspace
+  click its heading first. The heading is not a link and lights up for any
+  of its routes; the item with the
   longest matching prefix gets `aria-current="page"` (so `/backtest/runs`
   marks Saved runs, not Backtest). `item.note` renders a small chip (the
   Copilot's "A8"). Icons are in `components/navigation-icons.ts`
@@ -1651,6 +1670,14 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   in `extraMatches`), and an icon in `NAV_ICONS`.
   `tests/unit/app-navigation.test.ts` walks `app/(product)/**/page.tsx` and
   fails while a page is unmapped; the palette picks the item up by itself.
+  Under the navigation, `components/sidebar-pulse.tsx` (`SidebarPulse`, an
+  async server component in Suspense, passed to `AppSidebar` as `footer` by
+  the shell; unit tests mock it) draws the footer's close line small: the
+  equal-weight average of the terrain's symbols over 120 sessions, the move
+  in text with sign and arrow, the symbol count and the newest close date,
+  linking to /markets. It draws once on load and renders nothing without
+  enough aligned symbols. Every sidebar item has its own icon (no two items
+  share one).
   The wordmark carries the `EOD · Simulated` tag, and the top bar shows
   `DataDateChip` (`components/marketing/market-status.tsx`), the newest stored
   bar's date. It is an async server component, so unit tests that render the
@@ -1680,12 +1707,22 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   top-[12vh]`) so results grow downward and the phone keyboard never covers
   the input.
 - `/dashboard` (Aurora board v3): the hero takes the full width, then
-  orders, watchlist and alerts, then movers and allocation. The hero adds the
+  orders, watchlist and alerts, then movers and allocation. The hero's foot
+  (inside redesign, 27 Nov 2026) is a composition bar (equities, options,
+  available cash, reserved by orders as shares of the value, in the metal's
+  neutral shades with the share in text, `hero-composition`) over a strip
+  that adds "Reserved by orders", "Unrealized P&L" (sign, arrow and colour)
+  and "Open positions" to the old figures. The hero adds the
   last session's move beside the period change once there are three
   snapshots (with two it would repeat the period). The orders widget prices
   triggers in the symbol's currency, from the positions and watchlist the page
   already loads, falling back to USD as `/orders` does.
-- The one animation inside the product app is `SettleSweep`
+- Motion inside the product app (owner, 27 Nov 2026: "make it look crazy
+  advanced") stays one-shot and reduced-motion safe: the page rise, the
+  sidebar groups' short drop, the market pulse's line draw, the dashboard
+  hero's composition bar filling once, the terrain, and `SettleSweep`. No
+  looping motion behind figures or tables.
+- `SettleSweep`
   (`components/settle-sweep.tsx`, motion batch 3): on /orders, an order this
   browser last saw pending that is now filled gets one band of light across
   its status chip (CSS in globals.css, motion allowed only). Last-seen
@@ -1721,6 +1758,10 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   can't disagree. Calendar cells are UTC dates: read them with UTC getters.
   `/markets` breadth (`marketBreadth()` in `lib/markets-table.ts`) counts only
   rows with a `change_pct`, so a stalled symbol never enters it.
+  Since the inside redesign (27 Nov 2026) `/markets` leaves out symbols with
+  no stored close once some have one (each was a row of dashes), with a
+  `markets-history-toggle` link ("Show N more without stored closes",
+  `?history=all`, carried by sorting and the sector chips).
 - News comes from Aegis since Phase 2: `NewsArticle` has a string `id`,
   `tickers`, `available_at`, an optional `url` and `published_at`, and no
   summary or image. Date a headline with `newsDateLabel()`
@@ -1804,9 +1845,15 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   `lib/checklist-view.ts`. The page (server component) shows "The six
   dimensions" (`DimensionGuide`: summary, each setup's canonical formula per
   scope (Volume / delivery has an NSE/BSE setup and an outside-India one),
-  the grade badge, its sample and survivorship note, the source), then one
-  native `<details>` card per symbol (`ChecklistSymbol` in
-  `components/checklist/checklist-view.tsx`): six statuses in words, "N of 6
+  the grade badge, its sample and survivorship note, the source), then a
+  matrix (inside redesign, 27 Nov 2026): `ChecklistMatrixHeader` names the
+  six columns once (from `xl`, sticky under the top bar), and each symbol is
+  one native `<details>` row (`ChecklistSymbol` in
+  `components/checklist/checklist-view.tsx`) on the same grid: a status
+  per column as a shape (filled disc met, ring not met, dashed ring unknown)
+  and its word, the names kept for screen readers (`sr-only`); below `xl`
+  the row is the symbol, a strip of the six shapes and "n/6", with the
+  words in the expanded detail: six statuses in words, "N of 6
   met" with how many were judged, and on expand each condition's label,
   formula, status and unknown reason with the grade of the setup that judged
   it (`variantFor`: by `setup_version_id`, else scope). URL state: `min`
