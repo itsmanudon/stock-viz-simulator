@@ -54,7 +54,7 @@ test("a Dhan file imports by its detected map, and an unknown file by the user's
   await page.goto("/portfolio/import");
   await page.getByRole("link", { name: "Import into Dhan Book" }).click();
   await expect(page.getByRole("heading", { level: 1, name: "Import tradebook" })).toBeVisible();
-  await expect(page.getByText("Dhan · INR")).toBeVisible();
+  await expect(page.locator("#main").getByText("Dhan · INR")).toBeVisible();
 
   const file = page.getByLabel("Tradebook File");
   await file.setInputFiles({

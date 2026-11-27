@@ -928,6 +928,17 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   rows with the reason when none, a payout calendar), labelled a projection.
   Tests: `tests/unit/a96-dividend-projection.test.tsx`,
   `tests/e2e/tearsheet.spec.ts`.
+- **Macro (A9.7, M1.10, M3.5).** `/macro` (Markets nav "Macro", icon
+  `Globe`, public): `getMacroOverview()` (`lib/api/macro.ts`, cached an hour,
+  tag `macro`) rendered by `components/macro-view.tsx` (server): the spreads,
+  then one card per series by group (`macro-series`, `data-series`,
+  `data-stale`: value, units, date, 1 month and 1 year change in points for
+  percent series and as a percent of the level otherwise, a 3-year sparkline,
+  the FRED link, "Third Party" where marked), "Not fetched yet." before the
+  first fetch, `macro-empty` when nothing is stored. **Neutral colours only**:
+  a rising yield or CPI is not a gain, so `Sparkline` takes `tone="neutral"`
+  (and `subject` for its label; defaults unchanged). Tests:
+  `tests/unit/a97-macro.test.tsx`, `tests/e2e/macro.spec.ts`.
 - Server components by default — only mark `"use client"` when you need state,
   effects, or interactivity.
 - Research (`/compare`, `/backtest`, `/checklist`, `/replay`) is one

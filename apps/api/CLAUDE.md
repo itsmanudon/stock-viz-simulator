@@ -262,6 +262,7 @@ CLI subcommands (`python -m stockviz.cli <cmd>`): `seed`, `backfill`,
 `rule-check "<rule>" [TICKER ...] [--date YYYY-MM-DD] [--explain] [--user-id N]`,
 `screen-runs`, `deliver-notifications [--channel webhook|email|telegram] [--limit N]`.
 `doctor` (A10.1: read-only health of a self-hosted instance, exit 1 on a failed check).
+`macro-sync [--series ID ...]` (A9.7: the FRED macro catalogue; needs `FRED_API_KEY`).
 `seed` also writes the rule presets (A2.2) and the checklist dimension setups
 (A2.4).
 
@@ -2268,6 +2269,35 @@ moved a year), `projection_totals` (per currency, never summed across) and
 overlap is held. Tests: `tests/test_a96_dividend_projection.py`. Web: the
 projection on the Portfolio Income tab and the printable tearsheet
 (`/stocks/[t]/tearsheet`, built from existing routes).
+
+**Macro series from FRED (A9.7, M1.10, M3.5).** Migration `f1a9c7e3b5d2`
+(additive): `macro_series` (FRED id, title, units, frequency, observation
+range, FRED's `last_updated`, `fetched_at`) and `macro_observations` ((series,
+date) -> `Numeric(20, 6)`, null where FRED writes `"."`). `services/macro/`:
+`catalogue.py` (29 series in 8 groups: rates, inflation, growth and labour,
+credit and stress, dollar and FX, commodities, money, India; `third_party` on
+ICE, CBOE and Moody's series, personal research only until the legal review;
+5 `SPREADS`), `fred.py` (`FredClient`: `/fred/series` and
+`/fred/series/observations`, key as a query parameter through
+`feeds.http.get_json`, so never in an error; 100 calls a minute against FRED's
+120), `sync.py` (`sync_catalogue`: first fetch from 2000-01-01, later from 400
+days before the newest stored date so revisions land; upsert on (series,
+date); one commit per series; auth/rate errors stop, others skip one),
+`view.py` (latest, value on or before a month and a year earlier, `stale` by
+frequency (`STALE_AFTER`: daily 10 days, monthly 75, annual 800), thinned
+3-year sparks, spreads = a - b on a's dates with b at most 7 days old).
+`stockviz.cli macro-sync [--series ID ...]` (recorded; exit 2 without
+`FRED_API_KEY`, 1 on an unknown id or a failed series); scheduler
+`macro_refresh` Saturdays 10:00 ET (skips without a key); not in the Railway
+cron. Routes (`routers/macro.py`, public, 60/min): `GET /v1/macro`
+(`MacroOverviewOut`: groups, every catalogue series with `fetched`, latest,
+`change_month`, `change_year`, `stale`, `spark`, `source_url`; the spreads with
+`latest`, `year_ago`, points or a `reason`; method and the third-party note)
+and `GET /v1/macro/{id}?from=` (404 outside the catalogue). First real run 27
+Nov 2026 into the local `stockviz_intraday` database: 30 series, 104,974
+observations. Tests: `tests/test_a97_macro.py` (fake FRED in the documented
+shape, no key in errors, revisions, auth stop, view rules, routes, CLI),
+`tests/test_a97_macro_migration.py` (PostgreSQL up/down/up, `alembic check`).
 
 **Self-hosting release (A10.1).** `infra/compose.release.yml` (Postgres, API,
 web, a `setup` profile running `seed`; every secret `${VAR:?}`; ports on

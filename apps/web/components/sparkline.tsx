@@ -32,6 +32,13 @@ type Props = {
   showBaseline?: boolean;
   /** Days the series covers; only used for the accessible label. */
   periodLabel?: string;
+  /**
+   * A9.7: `neutral` draws in the secondary text colour, for series where up
+   * is not a gain (yields, inflation, spreads). Default: green up, red down.
+   */
+  tone?: "direction" | "neutral";
+  /** What the series is, for the accessible label (default "price"). */
+  subject?: string;
 };
 
 export function Sparkline({
@@ -42,6 +49,8 @@ export function Sparkline({
   baseline,
   showBaseline = true,
   periodLabel = "30-day",
+  tone = "direction",
+  subject = "price",
 }: Props) {
   const gradientId = useId();
   const clipId = useId();
@@ -90,11 +99,14 @@ export function Sparkline({
       width={width}
       height={height}
       preserveAspectRatio="none"
-      className={cn(up ? "text-positive" : "text-negative", className)}
+      className={cn(
+        tone === "neutral" ? "text-text-secondary" : up ? "text-positive" : "text-negative",
+        className,
+      )}
       role="img"
-      aria-label={`${periodLabel} price sparkline, ${up ? "up" : "down"} against its opening level`}
+      aria-label={`${periodLabel} ${subject} sparkline, ${up ? "up" : "down"} against its opening level`}
     >
-      <title>{`${periodLabel} price trend`}</title>
+      <title>{`${periodLabel} ${subject} trend`}</title>
       <defs>
         <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor="currentColor" stopOpacity="0.28" />

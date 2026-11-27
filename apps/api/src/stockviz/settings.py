@@ -114,6 +114,8 @@ class Settings(BaseSettings):
     alpaca_secret_key: SecretStr = SecretStr("")
     tiingo_api_key: SecretStr = SecretStr("")
     finnhub_api_key: SecretStr = SecretStr("")
+    # A9.7 (M1.10): free FRED key for the weekly macro fetch; blank = off.
+    fred_api_key: SecretStr = SecretStr("")
 
     # A4.6: an Indian (XNSE/XBOM) replay session must end at least this many
     # calendar days before today on its venue (SEBI's rule for simulated

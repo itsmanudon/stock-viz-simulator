@@ -1491,6 +1491,37 @@ def _cmd_fx(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_macro_sync(args: argparse.Namespace) -> int:
+    """A9.7 (M1.10): fetch the catalogue's FRED series into ``macro_*``."""
+    from stockviz.services.feeds.base import FeedNotConfigured
+    from stockviz.services.macro.catalogue import BY_ID, CATALOGUE
+    from stockviz.services.macro.fred import FredClient
+    from stockviz.services.macro.sync import sync_catalogue
+
+    key = get_settings().fred_api_key.get_secret_value()
+    if not key:
+        print("macro-sync: FRED_API_KEY is not set", file=sys.stderr)
+        return 2
+    wanted = [s.upper() for s in (args.series or [])]
+    unknown = [s for s in wanted if s not in BY_ID]
+    if unknown:
+        print(f"macro-sync: not in the catalogue: {', '.join(unknown)}", file=sys.stderr)
+        return 1
+    entries = [BY_ID[s] for s in wanted] if wanted else list(CATALOGUE)
+    try:
+        with Session(engine) as session:
+            report = sync_catalogue(session, FredClient(key), entries)
+    except FeedNotConfigured:
+        print("macro-sync: FRED_API_KEY is not set", file=sys.stderr)
+        return 2
+    for r in report.results:
+        print(f"  {r.series_id}: {r.error or r.written}")
+    print(f"macro-sync: {report.written} observations over {len(report.results)} series")
+    if report.stopped:
+        print(f"macro-sync: stopped ({report.stopped})", file=sys.stderr)
+    return 1 if report.failed else 0
+
+
 def _default_fx_currencies() -> list[str]:
     """Distinct non-USD currencies on active symbols."""
     from sqlmodel import select
@@ -2003,6 +2034,7 @@ RECORDED_JOBS = frozenset(
         "revalidate-web",
         "corporate-actions",
         "fx",
+        "macro-sync",
         "settle-orders",
         "evaluate-alerts",
         "screen-runs",
@@ -2169,6 +2201,12 @@ def main(argv: list[str] | None = None) -> int:
     )
     p_fx.add_argument("currencies", nargs="*", help="Optional currency filter, e.g. EUR GBP JPY")
     p_fx.set_defaults(fn=_cmd_fx)
+
+    p_macro = sub.add_parser(
+        "macro-sync", help="Fetch the macro catalogue's FRED series (A9.7; needs FRED_API_KEY)"
+    )
+    p_macro.add_argument("--series", nargs="*", help="Only these FRED ids (default: all)")
+    p_macro.set_defaults(fn=_cmd_macro_sync)
 
     sub.add_parser(
         "metrics", help="Recompute the screener's precomputed per-symbol metrics"

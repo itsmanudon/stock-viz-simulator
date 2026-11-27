@@ -45,6 +45,7 @@ export const NAV_ICONS: Record<string, LucideIcon> = {
   "/screener": Filter,
   "/earnings": CalendarDays,
   "/news": Newspaper,
+  "/macro": Globe,
   "/charts": LayoutGrid,
   "/setups": ScanSearch,
   "/checklist": ListChecks,
