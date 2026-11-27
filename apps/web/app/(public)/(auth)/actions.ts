@@ -10,6 +10,8 @@ import { signIn } from "@/auth";
 import { clientAddress } from "@/lib/client-address";
 import { hit, reset } from "@/lib/rate-limit";
 import { safeRedirect } from "@/lib/redirect";
+import { canCreateAccount } from "@/lib/signup-gate";
+import { SIGNUP_CLOSED_MESSAGE } from "@/lib/signup-policy";
 import { createUser, findUserByEmail } from "@/lib/users";
 
 const SignupSchema = z.object({
@@ -63,6 +65,11 @@ export async function signupAction(
   const existing = await findUserByEmail(parsed.data.email);
   if (existing) {
     return { error: "An account with that email already exists" };
+  }
+  // The signup switch (SIGNUP_MODE): checked after the duplicate check so a
+  // closed site still tells an existing user to sign in instead.
+  if (!(await canCreateAccount(parsed.data.email))) {
+    return { error: SIGNUP_CLOSED_MESSAGE };
   }
 
   const passwordHash = await bcrypt.hash(parsed.data.password, 12);

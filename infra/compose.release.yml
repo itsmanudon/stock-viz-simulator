@@ -96,6 +96,10 @@ services:
       INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:?set INTERNAL_API_TOKEN in infra/release.env}
       AUTH_SECRET: ${AUTH_SECRET:?set AUTH_SECRET in infra/release.env}
       AUTH_TRUST_HOST: "true"
+      # Who may open an account: closed (default; the first account on an
+      # empty database is still allowed), allowlist (SIGNUP_ALLOWLIST), open.
+      SIGNUP_MODE: ${SIGNUP_MODE:-closed}
+      SIGNUP_ALLOWLIST: ${SIGNUP_ALLOWLIST:-}
     ports:
       - "127.0.0.1:3100:3000"
 

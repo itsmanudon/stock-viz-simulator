@@ -202,6 +202,19 @@ a server action or a route handler — never through the browser.
   audit OP-4). Sign-up does not verify email, so an account with a password
   never gets Google attached: its holder signs in with the password, and
   `/login?error=` explains the refusal.
+- **The signup switch** (owner, 27 Nov 2026): `SIGNUP_MODE` closed (default
+  when unset) | allowlist | open, `SIGNUP_ALLOWLIST` (comma-separated). Pure
+  rules in `lib/signup-policy.ts` (`parseSignupMode`, `signupAllowed`: open
+  anyone; the first account on an empty database always; allowlist by
+  address, case ignored; else no); `lib/signup-gate.ts::canCreateAccount`
+  reads the env per request and `lib/users.ts::countUsers`. Enforced in
+  `signupAction` (after the duplicate check, so an existing user is still
+  told to sign in) and in the Google `signIn` callback for an address with no
+  account (`/login?error=SignupClosed`). `/signup` is `force-dynamic`: closed
+  shows `signup-closed` ("Invite Only", a sign-in link), allowlist adds
+  `signup-invite-note`. The public header's button reads "Sign in" while
+  closed; other marketing buttons still go to `/signup`, which explains.
+  Tests: `tests/unit/signup-policy.test.ts`. e2e and CI set `open`.
 - Credential sign-in and sign-up are throttled by fixed windows in Postgres
   (`lib/rate-limit.ts`, table `auth_rate_limits` owned by the API's Alembic
   chain; audit OP-8), so counters survive the web service sleeping. A
