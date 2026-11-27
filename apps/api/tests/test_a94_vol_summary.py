@@ -42,7 +42,8 @@ def test_term_structure_and_skew() -> None:
     assert [t["days"] for t in out.term] == [28, 90]
     assert out.term[0]["atm_iv"] == pytest.approx(0.30)
     assert out.term[1]["atm_iv"] == pytest.approx(0.32)
-    assert out.term[0]["skew_25d"] is not None and out.term[0]["skew_25d"] > 0  # puts dearer
+    skew = out.term[0]["skew_25d"]
+    assert isinstance(skew, float) and skew > 0  # puts dearer
     assert out.atm_30d == pytest.approx(0.30)  # the 28-day expiry is nearest 30
 
 
