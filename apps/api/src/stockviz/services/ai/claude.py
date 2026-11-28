@@ -25,7 +25,7 @@ import anthropic
 
 from stockviz.services.ai.provider import AiProviderError, Message
 
-DEFAULT_MODEL = "claude-opus-5-5"
+DEFAULT_MODEL = "claude-haiku-5-5"  # owner, 28 Nov 2026: Haiku is the paid default
 MAX_TOKENS = 16_000
 TIMEOUT_SECONDS = 120.0
 FALLBACK_BETA = "server-side-fallback-2026-07-01"

@@ -2556,7 +2556,7 @@ key that no longer decrypts after the server key changed says "save it
 again"). Usable: `openai_compatible` and (A8.7b, owner 27 Nov 2026)
 `anthropic`: `services/ai/claude.py::ClaudeProvider` on the official
 `anthropic` SDK (2.14, a direct dependency): `messages.create` with the
-user's model (default `claude-opus-5-5`, must start `claude-`; no base URL),
+user's model (default `claude-haiku-5-5` since 28 Nov 2026, the owner's paid default; must start `claude-`; no base URL),
 the system prompt apart, `max_tokens` 16,000, no sampling parameters; on
 `FALLBACK_MODELS` the server-side refusal fallback is on
 (`client.beta.messages.create(betas=["server-side-fallback-2026-07-01"],

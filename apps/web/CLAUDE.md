@@ -1017,7 +1017,7 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   `(authed)/settings/ai-key-actions.ts`, `listAiKeys`/`saveAiKey`/
   `deleteAiKey` in `lib/api/ai-server.ts`): one form per provider
   (`ai-key-openai_compatible`: base URL, model, key; `ai-key-anthropic`
-  (A8.7b): model, default `claude-opus-5-5`, and key, no endpoint); the key
+  (A8.7b): model, default `claude-haiku-5-5` (owner, 28 Nov 2026), and key, no endpoint); the key
   is a password field, empty on every render; a saved key shows model,
   endpoint and "Key Ending WXYZ" only (`ai-key-saved`), Remove Key;
   `ai-keys-off` when the server has no encryption key. `lib/ai-choices.ts::
