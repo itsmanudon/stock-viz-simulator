@@ -72,31 +72,3 @@ export function ctaPair(
   }
   return [first, second];
 }
-
-/**
- * Invite requests while sign-up is closed (owner, 28 Nov 2026): the `/signup`
- * page shows a short form that opens the visitor's mail app with a request
- * addressed to the owner. No mail service or stored data is involved.
- */
-export const INVITE_EMAIL = "mananjariwala01@outlook.com";
-
-export type InviteRequest = { name: string; email: string; note: string };
-
-const MAX_NOTE = 1_000;
-
-export function inviteMailto(request: InviteRequest): string {
-  const name = request.name.trim();
-  const email = request.email.trim();
-  const note = request.note.trim().slice(0, MAX_NOTE);
-  const lines = [
-    "Hi Manan,",
-    "",
-    "I would like an invite to StockViz.",
-    "",
-    `Name: ${name || "-"}`,
-    `Email: ${email || "-"}`,
-  ];
-  if (note) lines.push("", "What I would try first:", note);
-  const subject = name ? `StockViz invite request from ${name}` : "StockViz invite request";
-  return `mailto:${INVITE_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(lines.join("\n"))}`;
-}

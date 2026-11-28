@@ -2,14 +2,7 @@
 import { describe, expect, it } from "vitest";
 
 import { SIGN_IN_ERRORS, googleSignInRefusal } from "@/lib/oauth-linking";
-import {
-  INVITE_EMAIL,
-  ctaPair,
-  inviteMailto,
-  parseAllowlist,
-  parseSignupMode,
-  signupAllowed,
-} from "@/lib/signup-policy";
+import { ctaPair, parseAllowlist, parseSignupMode, signupAllowed } from "@/lib/signup-policy";
 
 const allow = parseAllowlist(" Me@Example.com, friend@example.com ,, ");
 
@@ -82,33 +75,5 @@ describe("marketing buttons while signup is not open (28 Nov 2026)", () => {
       markets,
     ]);
     expect(ctaPair("closed", replay, markets)).toEqual([replay, markets]);
-  });
-});
-
-describe("inviteMailto", () => {
-  it("addresses the owner with the visitor's details", () => {
-    const url = inviteMailto({
-      name: " Ada ",
-      email: "ada@example.com",
-      note: "Replay 2020 & trade it",
-    });
-    expect(url.startsWith(`mailto:${INVITE_EMAIL}?subject=`)).toBe(true);
-    const params = new URLSearchParams(url.split("?")[1]);
-    expect(params.get("subject")).toBe("StockViz invite request from Ada");
-    const body = params.get("body") ?? "";
-    expect(body).toContain("Name: Ada\nEmail: ada@example.com");
-    expect(body).toContain("What I would try first:\nReplay 2020 & trade it");
-  });
-
-  it("leaves out an empty note and caps a long one", () => {
-    const bare = new URLSearchParams(
-      inviteMailto({ name: "", email: "", note: "  " }).split("?")[1],
-    );
-    expect(bare.get("subject")).toBe("StockViz invite request");
-    expect(bare.get("body")).not.toContain("try first");
-    const long = new URLSearchParams(
-      inviteMailto({ name: "x", email: "y", note: "z".repeat(5000) }).split("?")[1],
-    );
-    expect((long.get("body") ?? "").match(/z+$/)?.[0]).toHaveLength(1000);
   });
 });

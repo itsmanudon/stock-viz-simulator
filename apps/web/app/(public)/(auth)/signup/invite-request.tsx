@@ -1,13 +1,14 @@
 "use client";
 
-import { ArrowUpRight, Check, Copy, Send } from "lucide-react";
+import { ArrowUpRight, Check, Send } from "lucide-react";
 import Link from "next/link";
-import { type FormEvent, useState } from "react";
+import { useActionState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { INVITE_EMAIL, inviteMailto } from "@/lib/signup-policy";
+
+import { type InviteFormState, requestInviteAction } from "./invite-actions";
 
 /**
  * The invite-only page, shaped as a paper ticket: the top half says why the
@@ -15,28 +16,10 @@ import { INVITE_EMAIL, inviteMailto } from "@/lib/signup-policy";
  * the visitor's mail app, addressed to the owner.
  */
 export function InviteRequest() {
-  const [sent, setSent] = useState(false);
-  const [copied, setCopied] = useState(false);
-
-  function onSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const data = new FormData(event.currentTarget);
-    window.location.href = inviteMailto({
-      name: String(data.get("name") ?? ""),
-      email: String(data.get("email") ?? ""),
-      note: String(data.get("note") ?? ""),
-    });
-    setSent(true);
-  }
-
-  async function copyEmail() {
-    try {
-      await navigator.clipboard.writeText(INVITE_EMAIL);
-      setCopied(true);
-    } catch {
-      setCopied(false);
-    }
-  }
+  const [state, formAction, pending] = useActionState<InviteFormState, FormData>(
+    requestInviteAction,
+    { status: "idle" },
+  );
 
   return (
     <div className="relative isolate" data-testid="signup-closed">
@@ -65,40 +48,24 @@ export function InviteRequest() {
         </div>
 
         <div className="bg-surface-secondary/40 px-6 pt-7 pb-6">
-          {sent ? (
+          {state.status === "sent" ? (
             <output className="block space-y-4">
               <span className="flex size-10 items-center justify-center rounded-full border border-border-muted text-brand">
                 <Check className="size-4" aria-hidden />
               </span>
-              <p className="text-lg font-medium tracking-tight">Your request is ready to send.</p>
+              <p className="text-lg font-medium tracking-tight">Request received.</p>
               <p className="text-sm leading-relaxed text-text-secondary">
-                Your mail app should have opened with it filled in. If nothing opened, write to{" "}
-                <span className="font-medium text-foreground">{INVITE_EMAIL}</span>.
+                Thanks. I read every one and will reply to the email you gave, usually within a day
+                or two. Meanwhile the markets and docs are open.
               </p>
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="rounded-full"
-                  onClick={copyEmail}
-                >
-                  {copied ? <Check aria-hidden /> : <Copy aria-hidden />}
-                  {copied ? "Copied" : "Copy address"}
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="rounded-full"
-                  onClick={() => setSent(false)}
-                >
-                  Edit request
-                </Button>
-              </div>
             </output>
           ) : (
-            <form onSubmit={onSubmit} className="space-y-4">
+            <form action={formAction} className="space-y-4">
+              {/* Honeypot: hidden from people, tempting to bots. */}
+              <div aria-hidden className="absolute -left-[9999px] h-0 w-0 overflow-hidden">
+                <label htmlFor="invite-company">Company</label>
+                <input id="invite-company" name="company" tabIndex={-1} autoComplete="off" />
+              </div>
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="invite-name">Name</Label>
@@ -133,12 +100,17 @@ export function InviteRequest() {
                   className="w-full min-w-0 resize-none rounded-md border border-input bg-transparent px-3 py-2 text-base outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 md:text-sm dark:bg-input/30"
                 />
               </div>
-              <Button type="submit" className="h-11 w-full gap-2 rounded-full">
+              {state.status === "error" && state.error ? (
+                <p className="text-sm text-negative" role="alert">
+                  {state.error}
+                </p>
+              ) : null}
+              <Button type="submit" disabled={pending} className="h-11 w-full gap-2 rounded-full">
                 <Send className="size-4" aria-hidden />
-                Request an invite
+                {pending ? "Sending..." : "Request an invite"}
               </Button>
               <p className="text-center text-xs text-text-tertiary">
-                Opens your mail app, addressed to the maker of StockViz.
+                Goes straight to the maker of StockViz. Used only to reply to you.
               </p>
             </form>
           )}
