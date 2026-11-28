@@ -1619,6 +1619,88 @@ def _cmd_docs_index(args: argparse.Namespace) -> int:
     return 0
 
 
+def _local_anthropic_key() -> str:
+    """A8.8: the owner's Claude key for ``docs-context --claude`` only.
+
+    Not a setting: A0 retired ``ANTHROPIC_API_KEY`` from ``Settings`` (hosts may
+    still carry it from the old news pipeline), so the app never reads it. The
+    environment first, then the last non-empty value in the local ``.env``.
+    """
+    import os
+    from pathlib import Path
+
+    found = os.environ.get("ANTHROPIC_API_KEY", "").strip()
+    if found:
+        return found
+    env = Path(".env")
+    lines = env.read_text().splitlines() if env.is_file() else []
+    values = [
+        v.strip().strip("\"'")
+        for k, _, v in (line.partition("=") for line in lines)
+        if k.strip() == "ANTHROPIC_API_KEY" and v.strip().strip("\"'")
+    ]
+    return values[-1] if values else ""
+
+
+def _cmd_docs_context(args: argparse.Namespace) -> int:
+    """A8.8: a model-written context line per passage; or move lines in/out as JSON lines."""
+    import json
+    from pathlib import Path
+
+    from stockviz.routers.ai import _companies_with_documents
+    from stockviz.services.ai.claude import ClaudeProvider
+    from stockviz.services.ai.provider import AiNotConfigured, LLMProvider, provider_from_settings
+    from stockviz.services.documents import context
+    from stockviz.services.intraday.guard import local_database_problem
+
+    settings = get_settings()
+    with Session(engine) as session:
+        problem = local_database_problem(session.get_bind().engine.url)
+        if problem:
+            print(f"docs-context: local database only ({problem})", file=sys.stderr)
+            return 2
+        if args.export:
+            rows = list(context.export(session))
+            with Path(args.export).open("w") as out:
+                out.writelines(json.dumps(r) + "\n" for r in rows)
+            print(f"exported {len(rows)} context(s) to {args.export}")
+            return 0
+        if args.import_file:
+            with Path(args.import_file).open() as src:
+                applied, unmatched = context.import_rows(
+                    session, (json.loads(line) for line in src if line.strip())
+                )
+            print(
+                f"imported {applied} context(s); {unmatched} row(s) matched no passage; "
+                "run docs-index --embed to re-embed them"
+            )
+            return 0
+        provider: LLMProvider
+        if args.claude:
+            key = _local_anthropic_key()
+            if not key:
+                print("docs-context: ANTHROPIC_API_KEY is not set", file=sys.stderr)
+                return 2
+            provider = ClaudeProvider(model=args.claude, api_key=key)
+        else:
+            try:
+                provider = provider_from_settings(settings)
+            except AiNotConfigured as exc:
+                print(f"docs-context: {exc}", file=sys.stderr)
+                return 2
+        names = {
+            iid: f"{name or ticker} ({ticker})"
+            for iid, (ticker, name) in _companies_with_documents(session).items()
+        }
+        report = context.generate(session, provider, names, limit=args.limit)
+    print(
+        f"wrote {report.written} context(s) with {provider.model}; {report.failed} failed; "
+        f"{report.waiting} passage(s) still without one; run docs-index --embed to re-embed"
+        + (f" ({report.notes[0]})" if report.notes else "")
+    )
+    return 1 if report.failed and not report.written else 0
+
+
 def _cmd_fo_load(args: argparse.Namespace) -> int:
     """A7.14: the owner's NSE index option minute files as daily summaries (local only)."""
     from pathlib import Path
@@ -2367,6 +2449,20 @@ def main(argv: list[str] | None = None) -> int:
     p_index.add_argument("--embed", action="store_true", help="Embed with OLLAMA_EMBED_MODEL")
     p_index.add_argument("--limit", type=int, help="Embed at most N passages this run")
     p_index.set_defaults(fn=_cmd_docs_index)
+
+    p_ctx = sub.add_parser(
+        "docs-context",
+        help="A context line per passage for search (A8.8; local only; OLLAMA_MODEL or --claude)",
+    )
+    p_ctx.add_argument("--limit", type=int, help="Write at most N contexts this run")
+    p_ctx.add_argument(
+        "--claude", metavar="MODEL", help="Use Claude (ANTHROPIC_API_KEY), e.g. claude-haiku-5-5"
+    )
+    p_ctx.add_argument(
+        "--import", dest="import_file", metavar="FILE", help="Load contexts from JSON lines"
+    )
+    p_ctx.add_argument("--export", metavar="FILE", help="Write stored contexts as JSON lines")
+    p_ctx.set_defaults(fn=_cmd_docs_context)
 
     p_fo = sub.add_parser(
         "fo-load", help="Owner's NSE option minute files as daily summaries (A7.14; local only)"
