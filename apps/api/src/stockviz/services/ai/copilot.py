@@ -111,7 +111,8 @@ def build_messages(
         doc = p.document
         when = doc.available_at.strftime("%Y-%m-%d")
         head = f"[{i}] {tickers.get(doc.instrument_id, '?')} · {doc.title} · public {when}"
-        lines.append(f"{head}\n{p.text[:MAX_SOURCE_CHARS]}")
+        about = f"\n(About this passage: {p.context})" if p.context else ""
+        lines.append(f"{head}{about}\n{p.text[:MAX_SOURCE_CHARS]}")
     user = "Sources:\n\n" + "\n\n".join(lines) + f"\n\nQuestion: {question}"
     return [Message("system", system), Message("user", user)]
 

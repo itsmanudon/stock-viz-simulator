@@ -14,6 +14,11 @@ Two rankings of the passages (``document_chunks``) of documents public by
 - **vector**: cosine similarity of the query's embedding to each passage
   embedded with the same model, computed in Python with NumPy (no pgvector).
 
+Both read a passage's ``context`` (A8.8, a model-written line naming the
+company, filing, period and section) together with its text: keyword over
+``SEARCH_TEXT_SQL`` (the expression of the GIN index), vectors embedded from
+``index.embed_input``.
+
 With no embedder, or when Ollama fails, the result is keyword only and says
 why. Passages without an embedding from the current model take no part in the
 vector ranking.
@@ -39,6 +44,8 @@ MAX_VECTOR_PASSAGES = 20_000
 MAX_QUERY_CHARS = 300
 # Below this many all-words matches, any-word matches are added (A8 eval, 27 Nov 2026).
 ANY_WORD_BELOW = 10
+# The expression of migration f2b4d6e8a0c1's GIN index; keep the two identical.
+SEARCH_TEXT_SQL = "coalesce(document_chunks.context, '') || ' ' || document_chunks.text"
 
 
 @dataclass(frozen=True)
@@ -53,6 +60,7 @@ class Passage:
     keyword_rank: int | None
     vector_rank: int | None
     similarity: float | None
+    context: str | None = None
 
 
 @dataclass
@@ -117,12 +125,12 @@ def _sqlite_keyword_ranking(
     terms = [t for t in terms if t not in STOPWORDS]
     if not terms:
         return []
-    stmt = select(col(DocumentChunk.id), col(DocumentChunk.text)).join(
+    stmt = select(col(DocumentChunk.id), col(DocumentChunk.text), col(DocumentChunk.context)).join(
         Document, col(Document.id) == col(DocumentChunk.document_id)
     )
     scored = []
-    for cid, text in session.exec(_filters(stmt, as_of, instrument_id, kind)).all():
-        low = text.lower()
+    for cid, text, context in session.exec(_filters(stmt, as_of, instrument_id, kind)).all():
+        low = f"{context or ''} {text}".lower()
         hits = [len(re.findall(rf"\b{re.escape(t)}", low)) for t in terms]
         if any(hits):
             scored.append((-(sum(1 for h in hits if h) * 100 + sum(hits)), cid))
@@ -162,7 +170,7 @@ def _any_word_query(session: Session, query: str) -> str | None:
 def _ranked(
     session: Session, tsq, *, as_of: datetime, instrument_id: int | None, kind: str | None
 ) -> list[int]:
-    tsv = func.to_tsvector(literal_column("'english'"), col(DocumentChunk.text))
+    tsv = func.to_tsvector(literal_column("'english'"), literal_column(SEARCH_TEXT_SQL))
     rank = func.ts_rank_cd(tsv, tsq)
     stmt = (
         select(col(DocumentChunk.id))
@@ -273,6 +281,7 @@ def retrieve(
                 keyword_rank=k_rank.get(cid),
                 vector_rank=v_rank.get(cid),
                 similarity=round(sims[cid], 4) if cid in sims else None,
+                context=chunk.context,
             )
         )
     return out

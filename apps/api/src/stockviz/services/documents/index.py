@@ -2,7 +2,8 @@
 
 ``index_documents`` chunks every document that has none (new documents are
 chunked when stored), then, with an embedder, embeds every passage that has no
-vector from that model. Writes only to the local database (``docs-index``).
+vector from that model (from ``embed_input``: the A8.8 context line, then the
+text). Writes only to the local database (``docs-index``).
 """
 
 from __future__ import annotations
@@ -16,6 +17,11 @@ from stockviz.services.ai.embed import Embedder
 from stockviz.services.documents.chunks import build_chunks
 
 EMBED_BATCH = 64
+
+
+def embed_input(chunk: DocumentChunk) -> str:
+    """What a passage is embedded from: its A8.8 context line, then its text."""
+    return f"{chunk.context}\n{chunk.text}" if chunk.context else chunk.text
 
 
 @dataclass
@@ -59,7 +65,7 @@ def index_documents(
         batch = list(session.exec(pending.order_by(col(DocumentChunk.id)).limit(size)).all())
         if not batch:
             break
-        vectors = embedder.embed([c.text for c in batch], "document")
+        vectors = embedder.embed([embed_input(c) for c in batch], "document")
         for chunk, vector in zip(batch, vectors, strict=True):
             chunk.embedding = vector
             chunk.embed_model = embedder.model

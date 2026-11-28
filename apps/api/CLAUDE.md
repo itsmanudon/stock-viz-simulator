@@ -265,6 +265,7 @@ CLI subcommands (`python -m stockviz.cli <cmd>`): `seed`, `backfill`,
 `macro-sync [--series ID ...]` (A9.7: the FRED macro catalogue; needs `FRED_API_KEY`).
 `docs-load PATH ... --ticker T --kind K [--date D] [--apply]`, `docs-edgar TICKER ... --since D` (A7.10).
 `docs-index [--embed] [--limit N]` (A8.4: passages and embeddings for hybrid search; local only).
+`docs-context [--limit N] [--claude MODEL] [--import FILE] [--export FILE]` (A8.8: a context line per passage; local only).
 `fo-load --dir DIR [--apply]` (A7.14: the owner's option files as daily summaries; local only).
 `seed` also writes the rule presets (A2.2) and the checklist dimension setups
 (A2.4).
@@ -2501,6 +2502,31 @@ passages per query, newest documents first, said in `notes` when cut).
   share a dimension: hybrid finds "topline" where words find nothing),
   `tests/test_a84_hybrid_search_migration.py` (PostgreSQL: up, `alembic
   check`, real full text with stemming and `real[]` vectors, down, up).
+
+**Contextual passages (A8.8, M11.1, 28 Nov 2026).** Migration `f2b4d6e8a0c1`
+(additive; the downgrade refuses while any passage has a context):
+`document_chunks.context` (Text) and `context_model`; the GIN index moves to
+`to_tsvector('english', coalesce(context, '') || ' ' || text)`, which must stay
+identical to `retrieve.SEARCH_TEXT_SQL`. A context is one model-written line
+(at most 50 words) naming the company, filing, period, section and what the
+passage covers; `services/documents/context.py` builds the prompt from the
+filing's cover page, the nearest "Item N"/"Part N" heading and 6,000
+characters before the passage. Keyword ranking reads context + text,
+`index.embed_input` embeds context + text, and the copilot shows it to the
+model as "(About this passage: ...)" above the text; citations are still
+checked against the text only. `set_context` clears the vector, so run
+`docs-index --embed` after. `stockviz.cli docs-context` (local database
+only): with no flag, `OLLAMA_MODEL` writes contexts for passages without one;
+`--claude MODEL` uses `ANTHROPIC_API_KEY` (the owner's own key, read only by
+this command); `--export`/`--import` move lines as JSON lines keyed by filing
+accession and passage position, so a paid run is never repeated. Measured on
+the eval corpus (Claude Haiku 5.5 wrote 35,336 lines through the Batch API for
+$7.56): with Haiku answering, 148 -> 179 of 199 figure questions and 176 ->
+231 of 320 harder ones (paraphrased 61 -> 91, company described 39 -> 47,
+exact period 76 -> 93); no invalid citations, negatives 10/10. Tests:
+`tests/test_a88_contextual_passages.py`,
+`tests/test_a88_contextual_passages_migration.py` (PostgreSQL: the index
+expression, a stemmed match on a context word, the refused downgrade).
 
 **The filings copilot (A8.5, M11.2).** `POST /v1/ai/ask` (`routers/ai.py`,
 signed in, 10/min) `{question 5-500, ticker?, kind?, as_of?}` -> `AskOut`.
